@@ -15,6 +15,8 @@ import { VerifyImpactedEntityReference } from '../models/VerifyImpactedEntityRef
 import { HttpFile } from '../http/http';
 
 export class RunCreatePayloadVerifyFeature {
+  'promptType': RunCreatePayloadVerifyFeaturePromptTypeEnum;
+  'entity': RunEntityReference;
   /**
    * The flagged discrepancy this session investigates, and nothing else.
    */
@@ -31,8 +33,6 @@ export class RunCreatePayloadVerifyFeature {
    * The opening message (or the user\'s follow-up) for this turn.
    */
   'userMessage': string;
-  'promptType': RunCreatePayloadVerifyFeaturePromptTypeEnum;
-  'entity': RunEntityReference;
 
   static readonly discriminator: string | undefined = undefined;
 
@@ -44,6 +44,18 @@ export class RunCreatePayloadVerifyFeature {
     type: string;
     format: string;
   }> = [
+    {
+      name: 'promptType',
+      baseName: 'promptType',
+      type: 'RunCreatePayloadVerifyFeaturePromptTypeEnum',
+      format: '',
+    },
+    {
+      name: 'entity',
+      baseName: 'entity',
+      type: 'RunEntityReference',
+      format: '',
+    },
     {
       name: 'concern',
       baseName: 'concern',
@@ -66,18 +78,6 @@ export class RunCreatePayloadVerifyFeature {
       name: 'userMessage',
       baseName: 'userMessage',
       type: 'string',
-      format: '',
-    },
-    {
-      name: 'promptType',
-      baseName: 'promptType',
-      type: 'RunCreatePayloadVerifyFeaturePromptTypeEnum',
-      format: '',
-    },
-    {
-      name: 'entity',
-      baseName: 'entity',
-      type: 'RunEntityReference',
       format: '',
     },
   ];

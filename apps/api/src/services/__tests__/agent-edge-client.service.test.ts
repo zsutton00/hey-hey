@@ -6,7 +6,7 @@ import { AgentEdgeEndpointEntityType } from 'src/generated/graphs/model/agentEdg
 import type { CreateAgentEdgeDto } from 'src/generated/graphs/model/createAgentEdgeDto';
 import type { AgentEdgesService } from 'src/generated/graphs/api/agentEdges.service';
 import type { PrismaService } from 'src/prisma/prisma.service';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { OrganizationId, ProjectId } from 'src/types';
 import {
   AGENT_EDGE_BATCH_SIZE,
@@ -14,6 +14,95 @@ import {
 } from '../agent-edge-client.service';
 
 describe('AgentEdgeClientService', () => {
+  it.each(['update', 'delete'] as const)(
+    'preserves Graph %s conflicts and the reviewed version',
+    async (operation) => {
+      const body = {
+        message: 'Relationship changed after review',
+        correlationId: 'graph-conflict',
+      };
+      const conflict = {
+        isAxiosError: true,
+        response: { status: 409, data: body },
+      };
+      const generatedService = {
+        updateAgentEdge: jest.fn().mockReturnValue(throwError(() => conflict)),
+        deleteAgentEdge: jest.fn().mockReturnValue(throwError(() => conflict)),
+      };
+      const service = new AgentEdgeClientService(
+        generatedService as unknown as AgentEdgesService,
+        createPrisma() as unknown as PrismaService,
+      );
+      const reviewedVersion = '2026-10-25T00:00:00.000Z';
+      const result =
+        operation === 'update'
+          ? service.update(
+              'org-1' as OrganizationId,
+              'project-1' as ProjectId,
+              'edge-1',
+              {
+                reasoning: 'Reviewed edit',
+                lastModifiedBySessionId: 'session-1',
+              },
+              'token-1',
+              undefined,
+              reviewedVersion,
+            )
+          : service.delete(
+              'org-1' as OrganizationId,
+              'project-1' as ProjectId,
+              'edge-1',
+              'token-1',
+              'Reviewed deletion',
+              undefined,
+              reviewedVersion,
+            );
+      const error = await result.catch((error: unknown) => error);
+      expect(error).toBeInstanceOf(ConflictException);
+      expect((error as ConflictException).getStatus()).toBe(409);
+      expect((error as ConflictException).getResponse()).toEqual(body);
+      const call =
+        operation === 'update'
+          ? generatedService.updateAgentEdge.mock.calls[0]
+          : generatedService.deleteAgentEdge.mock.calls[0];
+      expect(call[2]).toBe('edge-1');
+      expect(call[operation === 'update' ? 4 : 3]).toBe(reviewedVersion);
+    },
+  );
+
+  it.each(['update', 'delete'] as const)(
+    'keeps operational %s failures distinct from review conflicts',
+    async (operation) => {
+      const failure = { isAxiosError: true, response: { status: 503 } };
+      const service = new AgentEdgeClientService(
+        {
+          updateAgentEdge: jest.fn().mockReturnValue(throwError(() => failure)),
+          deleteAgentEdge: jest.fn().mockReturnValue(throwError(() => failure)),
+        } as unknown as AgentEdgesService,
+        createPrisma() as unknown as PrismaService,
+      );
+      const result =
+        operation === 'update'
+          ? service.update(
+              'org-1' as OrganizationId,
+              'project-1' as ProjectId,
+              'edge-1',
+              {
+                reasoning: 'Reviewed edit',
+                lastModifiedBySessionId: 'session-1',
+              },
+              'token-1',
+            )
+          : service.delete(
+              'org-1' as OrganizationId,
+              'project-1' as ProjectId,
+              'edge-1',
+              'token-1',
+            );
+      await expect(result).rejects.toBe(failure);
+    },
+  );
+
   it('creates bounded batches and preserves global input correlation', async () => {
     const generatedService = {
       createAgentEdgesBatch: jest.fn(
@@ -155,6 +244,7 @@ describe('AgentEdgeClientService', () => {
         type: AgentEdgeType.Standard,
         category: AgentEdgeCategory.Flow,
         direction: AgentEdgeDirection.Forward,
+        actionLabel: 'tap Continue',
       },
     },
     {
@@ -164,6 +254,7 @@ describe('AgentEdgeClientService', () => {
         category: AgentEdgeCategory.Flow,
         direction: AgentEdgeDirection.Backward,
         predicate: 'approved',
+        actionLabel: 'tap Approve',
       },
     },
     {
@@ -171,6 +262,7 @@ describe('AgentEdgeClientService', () => {
       relationship: {
         type: AgentEdgeType.Loop,
         category: AgentEdgeCategory.Flow,
+        actionLabel: 'tap Retry',
       },
     },
     {
@@ -179,6 +271,7 @@ describe('AgentEdgeClientService', () => {
         type: AgentEdgeType.Loop,
         category: AgentEdgeCategory.Flow,
         predicate: 'retryCount < 3',
+        actionLabel: 'tap Retry',
       },
     },
   ])(
@@ -211,6 +304,9 @@ describe('AgentEdgeClientService', () => {
       ).resolves.toEqual({ id: 'edge-1' });
 
       expect(generatedService.createAgentEdge).toHaveBeenCalledTimes(1);
+      expect(generatedService.createAgentEdge.mock.calls[0]?.[2]).toEqual(
+        expect.objectContaining(relationship),
+      );
     },
   );
 

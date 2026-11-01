@@ -17,7 +17,7 @@
     "validate:repository-grounding-contract": "node scripts/validate-repository-grounding-contract.js",
     "validate:fast-mode-contract": "node scripts/validate-fast-mode-contract.js",
     "validate:session-monitor-report-guidance-contract": "node scripts/validate-session-monitor-report-guidance-contract.js",
-    "validate:controller-authorization-contract": "node scripts/validate-controller-authorization-contract.js",
+    "validate:controller-authorization-contract": "node scripts/validate-controller-authorization-contract.js && node scripts/check-controller-schema-composition.js",
     "generate:repository-feature-enrichment-runtime-schema": "node scripts/generate-repository-feature-enrichment-runtime-schema.js generated/repository-feature-enrichment-runtime-schema.ts",
     "validate:project-mode-contract": "node scripts/project-mode-contract.js",
     "check-operation-metadata": "node scripts/validate-operation-metadata.js",

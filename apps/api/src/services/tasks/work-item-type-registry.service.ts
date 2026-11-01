@@ -1,4 +1,5 @@
-import type { WorkItemTypeGuidanceDto } from '../../generated/model/workItemTypeGuidanceDto';
+import type { SessionRole } from '../../generated/model/sessionRole';
+import type { WorkItemTypeRoleGuidanceDto } from '../../generated/model/workItemTypeRoleGuidanceDto';
 import type { WorkItemTypeGuidanceBatchDto } from '../../generated/model/workItemTypeGuidanceBatchDto';
 import type { WorkItemTypeGuidanceBatchRequestDto } from '../../generated/model/workItemTypeGuidanceBatchRequestDto';
 import type { WorkItemTypeMaintenanceGuidanceDto } from '../../generated/model/workItemTypeMaintenanceGuidanceDto';
@@ -7,7 +8,7 @@ import {
   diagramElementPolicySchema,
   DIAGRAM_ELEMENT_METADATA_SCHEMA_REF,
 } from './diagram-metadata';
-import { workItemTypeAgentGuidanceSchema } from './work-item-type-agent-guidance.schema';
+import { workItemTypeSessionRoleGuidanceSchema } from './work-item-type-agent-guidance.schema';
 import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
@@ -220,6 +221,21 @@ export function deriveRules(
     anchorableReportTypes: (definition.anchorableReportTypes ??
       []) as unknown as readonly ReportType[],
   };
+}
+
+/**
+ * Agent-settable statuses persisted when a definition is written. An omitted
+ * list means no restriction: agents may set every allowed status. An explicit
+ * list, including an empty one, is the author's deliberate narrowing. Read
+ * paths keep `?? []` so stored rows read exactly as they were written.
+ */
+export function writtenAgentSettableStatuses(
+  definition: Pick<
+    WorkItemTypeDefinitionDto,
+    'agentSettableStatuses' | 'allowedStatuses'
+  >,
+): WorkItemTypeDefinitionDto['allowedStatuses'] {
+  return definition.agentSettableStatuses ?? definition.allowedStatuses;
 }
 
 export function assertValidMockupSizeProfiles(
@@ -849,16 +865,17 @@ export class WorkItemTypeRegistryService
         } as unknown as Prisma.InputJsonValue,
         tracking: (definition.tracking ??
           NEUTRAL_TRACKING) as unknown as Prisma.InputJsonValue,
-        agentSettableStatuses: (definition.agentSettableStatuses ??
-          []) as unknown as Prisma.InputJsonValue,
+        agentSettableStatuses: writtenAgentSettableStatuses(
+          definition,
+        ) as unknown as Prisma.InputJsonValue,
         anchorableReportTypes: (definition.anchorableReportTypes ??
           []) as unknown as Prisma.InputJsonValue,
-        agentGuidance:
-          definition.agentGuidance === undefined
+        sessionRoleGuidance:
+          definition.sessionRoleGuidance === undefined
             ? Prisma.DbNull
-            : (workItemTypeAgentGuidanceSchema.parse(
-                definition.agentGuidance,
-              ) as Prisma.InputJsonValue),
+            : workItemTypeSessionRoleGuidanceSchema.parse(
+                definition.sessionRoleGuidance,
+              ),
         maintenanceGuidance: definition.maintenanceGuidance ?? null,
         writingStandards: (definition.writingStandards ??
           EMPTY_WRITING_STANDARDS) as unknown as Prisma.InputJsonValue,
@@ -1138,16 +1155,17 @@ export class WorkItemTypeRegistryService
       } as unknown as Prisma.InputJsonValue,
       tracking: (definition.tracking ??
         NEUTRAL_TRACKING) as unknown as Prisma.InputJsonValue,
-      agentSettableStatuses: (definition.agentSettableStatuses ??
-        []) as unknown as Prisma.InputJsonValue,
+      agentSettableStatuses: writtenAgentSettableStatuses(
+        definition,
+      ) as unknown as Prisma.InputJsonValue,
       anchorableReportTypes: (definition.anchorableReportTypes ??
         []) as unknown as Prisma.InputJsonValue,
-      agentGuidance:
-        definition.agentGuidance === undefined
+      sessionRoleGuidance:
+        definition.sessionRoleGuidance === undefined
           ? Prisma.DbNull
-          : (workItemTypeAgentGuidanceSchema.parse(
-              definition.agentGuidance,
-            ) as Prisma.InputJsonValue),
+          : workItemTypeSessionRoleGuidanceSchema.parse(
+              definition.sessionRoleGuidance,
+            ),
       maintenanceGuidance: definition.maintenanceGuidance ?? null,
       writingStandards: (definition.writingStandards ??
         EMPTY_WRITING_STANDARDS) as unknown as Prisma.InputJsonValue,
@@ -1186,11 +1204,11 @@ export class WorkItemTypeRegistryService
         template.agentSettableStatuses as unknown as WorkStatus[],
       anchorableReportTypes:
         template.anchorableReportTypes as unknown as ReportType[],
-      ...(template.agentGuidance == null
+      ...(template.sessionRoleGuidance == null
         ? {}
         : {
-            agentGuidance: workItemTypeAgentGuidanceSchema.parse(
-              template.agentGuidance,
+            sessionRoleGuidance: workItemTypeSessionRoleGuidanceSchema.parse(
+              template.sessionRoleGuidance,
             ),
           }),
       ...(template.maintenanceGuidance == null
@@ -1254,11 +1272,11 @@ export class WorkItemTypeRegistryService
         row.agentSettableStatuses as unknown as WorkStatus[],
       anchorableReportTypes:
         row.anchorableReportTypes as unknown as ReportType[],
-      ...(row.agentGuidance == null
+      ...(row.sessionRoleGuidance == null
         ? {}
         : {
-            agentGuidance: workItemTypeAgentGuidanceSchema.parse(
-              row.agentGuidance,
+            sessionRoleGuidance: workItemTypeSessionRoleGuidanceSchema.parse(
+              row.sessionRoleGuidance,
             ),
           }),
       ...(row.maintenanceGuidance == null
@@ -1773,33 +1791,32 @@ export class WorkItemTypeRegistryService
     );
   }
 
-  /** Both keys resolve against this captured effective snapshot; never merge axes. */
+  /** Resolves against this captured effective snapshot; never merge axes. */
   getGuidance(
     projectId: string,
     typeKey: string,
-    focalTypeKey?: string,
-    purpose?: typeof WorkItemTypeGuidancePurpose.Semantic,
-  ): WorkItemTypeGuidanceDto;
-  getGuidance(
-    projectId: string,
-    typeKey: string,
-    focalTypeKey: string | undefined,
     purpose: typeof WorkItemTypeGuidancePurpose.Maintenance,
   ): WorkItemTypeMaintenanceGuidanceDto;
   getGuidance(
     projectId: string,
     typeKey: string,
-    focalTypeKey: string | undefined,
-    purpose: WorkItemTypeGuidancePurpose | undefined,
-  ): WorkItemTypeGuidanceDto | WorkItemTypeMaintenanceGuidanceDto;
+    purpose: typeof WorkItemTypeGuidancePurpose.Role,
+    sessionRole: SessionRole,
+  ): WorkItemTypeRoleGuidanceDto;
   getGuidance(
     projectId: string,
     typeKey: string,
-    focalTypeKey?: string,
-    purpose: WorkItemTypeGuidancePurpose = WorkItemTypeGuidancePurpose.Semantic,
-  ): WorkItemTypeGuidanceDto | WorkItemTypeMaintenanceGuidanceDto {
+    purpose: WorkItemTypeGuidancePurpose,
+    sessionRole?: SessionRole,
+  ): WorkItemTypeMaintenanceGuidanceDto | WorkItemTypeRoleGuidanceDto;
+  getGuidance(
+    projectId: string,
+    typeKey: string,
+    purpose: WorkItemTypeGuidancePurpose,
+    sessionRole?: SessionRole,
+  ): WorkItemTypeMaintenanceGuidanceDto | WorkItemTypeRoleGuidanceDto {
     const summaries = this.snapshot.projectSummaries.get(projectId) ?? [];
-    return this.projectGuidance(summaries, typeKey, focalTypeKey, purpose);
+    return this.projectGuidance(summaries, typeKey, purpose, sessionRole);
   }
 
   /** Resolve the complete bounded request against one captured snapshot. */
@@ -1814,8 +1831,8 @@ export class WorkItemTypeRegistryService
         this.projectGuidance(
           summaries,
           typeKey,
-          request.focalTypeKey,
           request.purpose,
+          request.sessionRole,
         ),
       ),
     };
@@ -1824,52 +1841,36 @@ export class WorkItemTypeRegistryService
   private projectGuidance(
     summaries: WorkItemTypeSummaryDto[],
     typeKey: string,
-    focalTypeKey?: string,
-    purpose: WorkItemTypeGuidancePurpose = WorkItemTypeGuidancePurpose.Semantic,
-  ): WorkItemTypeGuidanceDto | WorkItemTypeMaintenanceGuidanceDto {
-    const requireActive = (key: string) => {
-      const summary = summaries.find((entry) => entry.definition.key === key);
-      if (!summary || summary.status !== WorkItemTypeLifecycleStatus.Active) {
-        throw new NotFoundException(
-          `Work-item type '${key}' was not found or is unavailable in this project.`,
+    purpose: WorkItemTypeGuidancePurpose,
+    sessionRole?: SessionRole,
+  ): WorkItemTypeMaintenanceGuidanceDto | WorkItemTypeRoleGuidanceDto {
+    const summary = summaries.find((entry) => entry.definition.key === typeKey);
+    if (!summary || summary.status !== WorkItemTypeLifecycleStatus.Active) {
+      throw new NotFoundException(
+        `Work-item type '${typeKey}' was not found or is unavailable in this project.`,
+      );
+    }
+    const definition = summary.definition;
+    if (purpose === WorkItemTypeGuidancePurpose.Role) {
+      if (sessionRole === undefined) {
+        throw new BadRequestException(
+          'sessionRole is required when purpose is role.',
         );
       }
-      return summary.definition;
-    };
-    const definition = requireActive(typeKey);
-    if (purpose === WorkItemTypeGuidancePurpose.Maintenance) {
+      const guidance = definition.sessionRoleGuidance?.[sessionRole];
       return {
         typeKey: definition.key,
         name: definition.name,
-        ...(definition.maintenanceGuidance === undefined
-          ? {}
-          : { maintenanceGuidance: definition.maintenanceGuidance }),
+        sessionRole,
+        ...(guidance === undefined ? {} : { guidance }),
       };
     }
-    if (focalTypeKey !== undefined) requireActive(focalTypeKey);
-    const guide = definition.agentGuidance;
-    if (!guide) {
-      throw new NotFoundException(
-        `Semantic guidance for work-item type '${typeKey}' is unavailable in this project.`,
-      );
-    }
-    const examples = (items: typeof guide.examples) =>
-      (items ?? []).map(({ title, guidance }) => ({ title, guidance }));
-    const contextualGuidance =
-      focalTypeKey === undefined
-        ? []
-        : (guide.contexts ?? [])
-            .filter((context) => context.focalTypeKeys.includes(focalTypeKey))
-            .map((context) => ({
-              guidance: context.guidance,
-              examples: examples(context.examples),
-            }));
     return {
       typeKey: definition.key,
       name: definition.name,
-      overview: guide.overview,
-      examples: examples(guide.examples),
-      ...(contextualGuidance.length ? { contextualGuidance } : {}),
+      ...(definition.maintenanceGuidance === undefined
+        ? {}
+        : { maintenanceGuidance: definition.maintenanceGuidance }),
     };
   }
 

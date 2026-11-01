@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { EvalRecordedAttempt } from '../../shared/api/generated/api';
 import {
+  EvalTargetFailure,
   runEvalAttempts,
   type EvalAttemptPatch,
   type EvalRunnerPorts,
@@ -9,6 +10,11 @@ import {
 
 const makeAttempt = (id: string): EvalRecordedAttempt => ({
   attemptId: id,
+  execution: {
+    handler: 'entity_conversation',
+    projectAssistantPrepares: false,
+    assessedOutput: 'HANDLER_REPLY',
+  },
   targetSessionId: `session-${id}`,
   targetConversationId: `conversation-${id}`,
   configuration: { id: 'cfg', target: { provider: 'claude', model: 'sonnet' } },
@@ -45,7 +51,7 @@ const makePorts = (
     ports: {
       now: () => new Date(),
       launchTarget,
-      judge: async () => ({ assessment, usage: {}, elapsedMs: 1 }),
+      judge: async () => ({ assessment }),
       recorder: {
         setRunStatus: async (status) => {
           runStatuses.push(status);
@@ -94,6 +100,32 @@ describe('runEvalAttempts', () => {
     expect(tally).toEqual({ completed: 5, errored: 0, stopped: 0 });
     expect(runStatuses).toEqual(['RUNNING', 'FINISHED']);
     expect(finalPatch(attempts, 'a')).toMatchObject({ status: 'COMPLETED' });
+  });
+
+  it('records the exact text the judge was given, kept even if the judge then fails', async () => {
+    const { ports, attempts } = makePorts(async () => ({
+      ...completed,
+      outputText: 'THE-SAVED-RESEARCH',
+    }));
+    const judge = vi.fn<EvalRunnerPorts['judge']>(async () => {
+      throw new Error('judge down');
+    });
+
+    await runEvalAttempts(
+      {
+        attempts: [makeAttempt('a')],
+        settings: { maxConcurrentAttempts: 1 },
+        signal: new AbortController().signal,
+      },
+      { ...ports, judge },
+    );
+
+    expect(judge).toHaveBeenCalledWith(expect.anything(), 'THE-SAVED-RESEARCH', expect.anything());
+    const patches = attempts.get('a')!;
+    expect(patches.find((patch) => patch.status === 'JUDGING')).toMatchObject({
+      judgedOutput: 'THE-SAVED-RESEARCH',
+    });
+    expect(finalPatch(attempts, 'a')).toMatchObject({ status: 'ERROR' });
   });
 
   it('passes no token budget and sets no timer when the run recorded no limits', async () => {
@@ -244,6 +276,50 @@ describe('runEvalAttempts', () => {
       status: 'ERROR',
       error: { code: 'JUDGE_FAILED', message: 'bad json' },
       measurements: [{ scope: 'TARGET_HANDLER' }],
+    });
+  });
+
+  it("records each attempt's own cost: a failed or unsupported read touches only that attempt, an errored attempt keeps its cost, and the judge adds none", async () => {
+    const cost = { state: 'available', amount: 1.5, currency: 'USD' } as const;
+    const { ports, attempts } = makePorts(async (attempt) => {
+      if (attempt.attemptId === 'opencode') {
+        return { ...completed, cost: { state: 'unavailable' } };
+      }
+      if (attempt.attemptId === 'errored') {
+        throw new EvalTargetFailure('failed before an answer', {
+          cost,
+          researchMeasurements: [
+            {
+              scope: 'TARGET_PREPARATION',
+              cost: { state: 'available', amount: 0.5, currency: 'USD' },
+            },
+          ],
+        });
+      }
+      return { ...completed, cost };
+    });
+
+    await runEvalAttempts(
+      {
+        attempts: [makeAttempt('claude'), makeAttempt('opencode'), makeAttempt('errored')],
+        settings: { maxConcurrentAttempts: 3 },
+        signal: new AbortController().signal,
+      },
+      ports,
+    );
+
+    expect(finalPatch(attempts, 'claude').measurements).toEqual([
+      expect.objectContaining({ scope: 'TARGET_HANDLER', cost }),
+    ]);
+    expect(finalPatch(attempts, 'opencode').measurements).toEqual([
+      expect.objectContaining({ scope: 'TARGET_HANDLER', cost: { state: 'unavailable' } }),
+    ]);
+    expect(finalPatch(attempts, 'errored')).toMatchObject({
+      status: 'ERROR',
+      measurements: [
+        { scope: 'TARGET_PREPARATION', cost: { state: 'available', amount: 0.5, currency: 'USD' } },
+        { scope: 'TARGET_HANDLER', cost },
+      ],
     });
   });
 });

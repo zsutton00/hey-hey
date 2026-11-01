@@ -795,6 +795,98 @@ export const repositoryFeatureEnrichmentRuntimeSchema = {
       description:
         'Typed failure outcome that requires user correction or cannot be retried under the accepted choices.',
     },
+    RepositoryFeatureEnrichmentRequest: {
+      type: 'object',
+      additionalProperties: false,
+      required: [
+        'projectId',
+        'conversationId',
+        'workflowId',
+        'workflowNodeId',
+        'serviceId',
+        'machineId',
+        'provider',
+        'resolvedFrontierModel',
+        'reasoningEffort',
+        'analysis',
+        'materializedFeatureIds',
+      ],
+      properties: {
+        promptType: {
+          type: 'string',
+          enum: ['repository_feature_enrichment'],
+        },
+        projectId: {
+          $ref: '#/definitions/WorkTrackerImportRequest/properties/projectId',
+        },
+        conversationId: {
+          $ref: '#/definitions/ConversationControlStopRun/properties/conversationId',
+        },
+        workflowId: {
+          $ref: '#/definitions/WorkTrackerImportRequest/properties/workflowId',
+        },
+        workflowNodeId: {
+          type: 'string',
+          minLength: 1,
+        },
+        serviceId: {
+          $ref: '#/definitions/RepositoryFirstWorkRequest/properties/serviceId',
+        },
+        machineId: {
+          $ref: '#/definitions/SignedEnvelopeFields/properties/machineId',
+        },
+        provider: {
+          type: 'string',
+          enum: ['claude', 'codex', 'opencode'],
+        },
+        resolvedFrontierModel: {
+          type: 'string',
+          minLength: 1,
+        },
+        reasoningEffort: {
+          type: 'string',
+          enum: [
+            'none',
+            'minimal',
+            'low',
+            'medium',
+            'high',
+            'xhigh',
+            'max',
+            'ultra',
+            'default',
+          ],
+        },
+        fastMode: {
+          type: 'boolean',
+        },
+        analysis: {
+          $ref: '#/definitions/RepositoryGroundingSuccess',
+          description:
+            'Repository discovery evidence supplied once at the handoff to a continuing CLI conversation.',
+        },
+        reviewedCandidates: {
+          $ref: '#/definitions/WorkTrackerImportSuccess/properties/hierarchy',
+          deprecated: true,
+          description:
+            'Legacy stored-input reader projection only. New handoffs use materializedFeatureIds.',
+        },
+        materializedFeatureIds: {
+          type: 'array',
+          minItems: 1,
+          items: {
+            $ref: '#/definitions/RepositoryFirstWorkRequest/properties/materializedFeatureIds/items',
+          },
+          description:
+            'Approved Features created by this import. Enrichment proposes edits only to these Features.',
+        },
+        userMessage: {
+          type: 'string',
+          description:
+            'Optional user reply within the continuing enrichment conversation.',
+        },
+      },
+    },
     RepositoryFeatureEnrichmentCompletion: {
       oneOf: [
         {

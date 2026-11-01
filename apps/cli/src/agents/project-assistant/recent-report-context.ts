@@ -1,3 +1,5 @@
+import type { ReadRestriction } from '../../shared/api/generated/api';
+import { readRestrictionHeaders } from '../../shared/api/read-restriction';
 import { z } from 'zod';
 
 import type { AgenticSession } from '../../session/types';
@@ -22,6 +24,8 @@ export interface RecentProjectAssistantReportDeps {
   apiBaseUrl: string;
   fetchImpl: typeof fetch;
   logger: PromptTypeHandlerDeps['logger'];
+  /** The Run's read restriction; every read below carries it. */
+  readRestriction?: ReadRestriction | undefined;
   now?: () => Date;
   recentWindowMs?: number;
 }
@@ -172,7 +176,10 @@ const fetchReportsForRef = async (
 
   const response = await deps.fetchImpl(url, {
     method: 'GET',
-    headers: { Authorization: `Bearer ${deps.accessToken}` },
+    headers: {
+      Authorization: `Bearer ${deps.accessToken}`,
+      ...readRestrictionHeaders(deps.readRestriction),
+    },
   });
   if (!response.ok) {
     const body = await response.text();
@@ -228,7 +235,10 @@ const fetchEntityContextEvidence = async (
 
   const response = await deps.fetchImpl(url, {
     method: 'GET',
-    headers: { Authorization: `Bearer ${deps.accessToken}` },
+    headers: {
+      Authorization: `Bearer ${deps.accessToken}`,
+      ...readRestrictionHeaders(deps.readRestriction),
+    },
   });
   if (!response.ok) {
     deps.logger.warn('project-assistant.recent-report.context-failed', {
@@ -282,7 +292,10 @@ const fetchEdgeEvidence = async (
     `/projects/${encode(deps.projectId)}/agent-edges?${params.toString()}`;
   const response = await deps.fetchImpl(url, {
     method: 'GET',
-    headers: { Authorization: `Bearer ${deps.accessToken}` },
+    headers: {
+      Authorization: `Bearer ${deps.accessToken}`,
+      ...readRestrictionHeaders(deps.readRestriction),
+    },
   });
   if (!response.ok) {
     deps.logger.warn('project-assistant.recent-report.edges-failed', {
@@ -505,6 +518,7 @@ export const prepareRecentProjectAssistantReportContext = async (
         apiBaseUrl: deps.apiBaseUrl,
         fetchImpl: deps.fetchImpl,
         logger: deps.logger,
+        readRestriction: deps.readRestriction,
         ...(now ? { now: () => now } : {}),
       },
       refs,

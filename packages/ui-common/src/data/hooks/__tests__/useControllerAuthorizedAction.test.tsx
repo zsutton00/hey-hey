@@ -24,11 +24,12 @@ vi.mock("../../../clients/serviceClients", () => ({
 vi.mock(
   "../../controllerAuthorization/webauthnAssertion",
   async (importOriginal) => {
-    const actual = await importOriginal<
-      typeof import("../../controllerAuthorization/webauthnAssertion")
-    >();
+    const actual =
+      await importOriginal<
+        typeof import("../../controllerAuthorization/webauthnAssertion")
+      >();
     return { ...actual, collectControllerAssertion: vi.fn() };
-  }
+  },
 );
 
 vi.mock("../../controllerAuthorization/controllerAuthorizationPrompt", () => ({
@@ -146,18 +147,18 @@ describe("useControllerAuthorizedAction", () => {
     vi.clearAllMocks();
     localStorage.clear();
     vi.mocked(requestControllerAuthorizationCadence).mockResolvedValue(
-      ControllerAuthorizationCadence.OneDay
+      ControllerAuthorizationCadence.OneDay,
     );
     vi.mocked(
-      controllerAuthorizationClient.resolveControllerAuthorization
+      controllerAuthorizationClient.resolveControllerAuthorization,
     ).mockResolvedValue({
       data: { data: { outcome: "AUTHORIZATION_REQUIRED" } },
     });
     vi.mocked(
-      controllerAuthorizationClient.prepareControllerAuthorization
+      controllerAuthorizationClient.prepareControllerAuthorization,
     ).mockResolvedValue({ data: { data: prepared } });
     vi.mocked(
-      controllerAuthorizationClient.submitControllerAuthorizedAction
+      controllerAuthorizationClient.submitControllerAuthorizedAction,
     ).mockResolvedValue({
       data: {
         data: {
@@ -173,7 +174,7 @@ describe("useControllerAuthorizedAction", () => {
 
   it("bypasses the dialog and WebAuthn for a matching active grant", async () => {
     vi.mocked(
-      controllerAuthorizationClient.resolveControllerAuthorization
+      controllerAuthorizationClient.resolveControllerAuthorization,
     ).mockResolvedValue({
       data: {
         data: {
@@ -194,12 +195,13 @@ describe("useControllerAuthorizedAction", () => {
       authorization: { kind: "bounded_grant", grantId: "grant-1" },
     });
     expect(
-      controllerAuthorizationClient.resolveControllerAuthorization
+      controllerAuthorizationClient.resolveControllerAuthorization,
     ).toHaveBeenCalledWith({
       organizationId: "organization-1",
       projectId: "project-1",
       resolveControllerAuthorizationRequestDto: {
         machineId: machine.machineId,
+        controllerCredentialId: machine.currentControllerCredentialId,
         action,
       },
     });
@@ -213,10 +215,10 @@ describe("useControllerAuthorizedAction", () => {
       async () => {
         sequence.push("dialog");
         return ControllerAuthorizationCadence.OneDay;
-      }
+      },
     );
     vi.mocked(
-      controllerAuthorizationClient.prepareControllerAuthorization
+      controllerAuthorizationClient.prepareControllerAuthorization,
     ).mockImplementation(async () => {
       sequence.push("prepare");
       return { data: { data: prepared } };
@@ -226,7 +228,7 @@ describe("useControllerAuthorizedAction", () => {
       return assertion;
     });
     vi.mocked(
-      controllerAuthorizationClient.submitControllerAuthorizedAction
+      controllerAuthorizationClient.submitControllerAuthorizedAction,
     ).mockImplementation(async () => {
       sequence.push("admit");
       return {
@@ -262,10 +264,10 @@ describe("useControllerAuthorizedAction", () => {
       "submit",
     ]);
     expect(requestControllerAuthorizationCadence).toHaveBeenCalledWith(
-      expect.objectContaining({ cause })
+      expect.objectContaining({ cause }),
     );
     expect(
-      controllerAuthorizationClient.submitControllerAuthorizedAction
+      controllerAuthorizationClient.submitControllerAuthorizedAction,
     ).toHaveBeenCalledWith({
       organizationId: "organization-1",
       projectId: "project-1",
@@ -276,7 +278,7 @@ describe("useControllerAuthorizedAction", () => {
     });
     expect(submit).toHaveBeenCalledWith({ authorization: assertion });
     expect(
-      controllerAuthorizationClient.prepareControllerAuthorization
+      controllerAuthorizationClient.prepareControllerAuthorization,
     ).toHaveBeenCalledWith({
       organizationId: "organization-1",
       projectId: "project-1",
@@ -319,20 +321,20 @@ describe("useControllerAuthorizedAction", () => {
     });
 
     expect(
-      controllerAuthorizationClient.submitControllerAuthorizedAction
+      controllerAuthorizationClient.submitControllerAuthorizedAction,
     ).toHaveBeenCalledTimes(2);
     expect(submit).toHaveBeenCalledTimes(1);
     expect(requestControllerAuthorizationCadence).toHaveBeenLastCalledWith(
       expect.objectContaining({
         errorMessage:
           "That authorization was not admitted. Choose a cadence and authorize again.",
-      })
+      }),
     );
   });
 
   it("returns a permanent denial instead of retrying forever", async () => {
     vi.mocked(
-      controllerAuthorizationClient.submitControllerAuthorizedAction
+      controllerAuthorizationClient.submitControllerAuthorizedAction,
     ).mockResolvedValue({
       data: {
         data: {
@@ -354,7 +356,7 @@ describe("useControllerAuthorizedAction", () => {
     });
 
     expect(
-      controllerAuthorizationClient.submitControllerAuthorizedAction
+      controllerAuthorizationClient.submitControllerAuthorizedAction,
     ).toHaveBeenCalledTimes(1);
     expect(requestControllerAuthorizationCadence).toHaveBeenCalledTimes(1);
     expect(submit).not.toHaveBeenCalled();
@@ -372,7 +374,7 @@ describe("useControllerAuthorizedAction", () => {
   ])("returns to the dialog after %s", async (code, message) => {
     vi.mocked(collectControllerAssertion)
       .mockRejectedValueOnce(
-        new ControllerAuthorizationClientError(code, message)
+        new ControllerAuthorizationClientError(code, message),
       )
       .mockResolvedValueOnce(assertion);
     const { result } = renderHook(() => useControllerAuthorizedAction());
@@ -385,13 +387,13 @@ describe("useControllerAuthorizedAction", () => {
     expect(requestControllerAuthorizationCadence).toHaveBeenLastCalledWith(
       expect.objectContaining({
         errorMessage: message,
-      })
+      }),
     );
   });
 
   it("returns to the dialog when an active grant is rejected", async () => {
     vi.mocked(
-      controllerAuthorizationClient.resolveControllerAuthorization
+      controllerAuthorizationClient.resolveControllerAuthorization,
     ).mockResolvedValue({
       data: {
         data: {
@@ -421,7 +423,7 @@ describe("useControllerAuthorizedAction", () => {
       expect.objectContaining({
         errorMessage:
           "That authorization is no longer valid. Choose a cadence and authorize again.",
-      })
+      }),
     );
     expect(submit).toHaveBeenLastCalledWith({ authorization: assertion });
   });
@@ -430,8 +432,8 @@ describe("useControllerAuthorizedAction", () => {
     vi.mocked(requestControllerAuthorizationCadence).mockRejectedValue(
       new ControllerAuthorizationClientError(
         ControllerAuthorizationClientFailureCode.ConfirmationDeclined,
-        "Controller authorization was cancelled."
-      )
+        "Controller authorization was cancelled.",
+      ),
     );
     const { result } = renderHook(() => useControllerAuthorizedAction());
 
@@ -442,7 +444,7 @@ describe("useControllerAuthorizedAction", () => {
     });
 
     expect(
-      controllerAuthorizationClient.prepareControllerAuthorization
+      controllerAuthorizationClient.prepareControllerAuthorization,
     ).not.toHaveBeenCalled();
   });
 });

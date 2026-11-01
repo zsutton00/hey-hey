@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { RunStore } from '../../../run-store';
 import type { CreateAgenticSessionInput } from '../../../session/types';
 import type { PromptTypeHandler } from '../../prompt-type-handler';
-import { ImplementRuntimeOwner } from '../implement-runtime-owner';
+import type { LocalImplementPromptPayload } from '../../../shared/agent-bridge-contract/runtime-types';
+import { implementHandler } from '../implement.handler';
 import { resolveTurnEffective } from '../../../turn/turn-effective';
 import {
   toRunPromptRequest,
@@ -75,8 +76,10 @@ describe('approved implementation runtime', () => {
           promptTypeRegistry,
         ),
       );
-      const owner = new ImplementRuntimeOwner(store);
-      const updated = await owner.apply(initial, input);
+      const updated = await store.updateRunRuntime(
+        initial.agentic_session_id,
+        implementHandler.resolveRuntime!(input.payload as LocalImplementPromptPayload)!,
+      );
       const effective = resolveTurnEffective(
         { promptType: 'implement' } as PromptTypeHandler<unknown>,
         updated,
@@ -88,59 +91,24 @@ describe('approved implementation runtime', () => {
       const persisted = (await reopened.getRun('planning'))!;
       expect(persisted.model).toBe('gpt-6.1-sol');
       expect(persisted.fastMode).toBe(fastMode);
-      const followUp = await owner.apply(persisted, {
-        promptType: 'implement',
-        payload: { userMessage: 'Continue' },
-        references: { resolved: [], unresolved: [] },
-      });
-      expect(followUp).toBe(persisted);
-      expect(followUp.reasoningEffort).toBe('low');
-      expect(followUp.provider_session_id).toBe(initial.provider_session_id);
+      expect(implementHandler.resolveRuntime!({ userMessage: 'Continue' })).toBeUndefined();
+      expect(persisted.reasoningEffort).toBe('low');
+      expect(persisted.provider_session_id).toBe(initial.provider_session_id);
     },
   );
 
-  it('keeps current settings without an approval selection', async () => {
-    const initial = await store.createRun(sessionInput());
-    expect(
-      await new ImplementRuntimeOwner(store).apply(
-        initial,
-        toRunPromptRequest(
-          validateConversationTrigger(
-            {
-              promptType: 'implement',
-              nodeId: 'implement',
-              triggerMessageId: 'message',
-            },
-            promptTypeRegistry,
-          ),
-        ),
-      ),
-    ).toBe(initial);
+  it('keeps current settings without an approval selection', () => {
+    expect(implementHandler.resolveRuntime!({})).toBeUndefined();
   });
 
   it('switches the provider inside the existing Run', async () => {
     const initial = await store.createRun(sessionInput('session', 'claude'));
-    const updated = await new ImplementRuntimeOwner(store).apply(
-      initial,
-      toRunPromptRequest(
-        validateConversationTrigger(
-          {
-            promptType: 'implement',
-            nodeId: 'implement',
-            triggerMessageId: 'message',
-            payload: {
-              runtime: {
-                provider: 'codex',
-                model: 'gpt-6.1-sol',
-                reasoningEffort: 'low',
-                fastMode: false,
-              },
-            },
-          },
-          promptTypeRegistry,
-        ),
-      ),
-    );
+    const updated = await store.updateRunRuntime('session', {
+      provider: 'codex',
+      model: 'gpt-6.1-sol',
+      reasoningEffort: 'low',
+      fastMode: false,
+    });
     expect(updated.agentic_session_id).toBe('session');
     expect(updated.provider).toBe('codex');
     expect(updated.model).toBe('gpt-6.1-sol');

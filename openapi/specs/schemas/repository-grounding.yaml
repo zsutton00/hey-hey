@@ -685,7 +685,13 @@ RepositoryPlacementRetryableFailure:
       enum: [retryable_failure]
     code:
       type: string
-      enum: [provider_unavailable, provider_timeout, rate_limited, graph_unavailable]
+      enum:
+        [
+          provider_unavailable,
+          provider_timeout,
+          rate_limited,
+          graph_unavailable,
+        ]
     message:
       type: string
       minLength: 1
@@ -703,7 +709,14 @@ RepositoryPlacementTerminalFailure:
       enum: [terminal_failure]
     code:
       type: string
-      enum: [invalid_request, unsupported_provider, unsupported_model, access_denied, invalid_completion]
+      enum:
+        [
+          invalid_request,
+          unsupported_provider,
+          unsupported_model,
+          access_denied,
+          invalid_completion,
+        ]
     message:
       type: string
       minLength: 1
@@ -999,7 +1012,6 @@ RepositoryFeatureEnrichmentAnswerBatch:
     round:
       type: integer
       minimum: 1
-      maximum: 2
     answers:
       type: array
       minItems: 1
@@ -1021,9 +1033,7 @@ RepositoryFeatureEnrichmentRequest:
     - resolvedFrontierModel
     - reasoningEffort
     - analysis
-    - reviewedCandidates
-    - completedRounds
-    - answerBatches
+    - materializedFeatureIds
   properties:
     promptType:
       type: string
@@ -1054,29 +1064,25 @@ RepositoryFeatureEnrichmentRequest:
       type: boolean
     analysis:
       $ref: "./repository-grounding.yaml#/RepositoryGroundingSuccess"
-      description: Latest accepted repository analysis snapshot. Continuing candidate IDs are preserved when a candidate remains in the analysis; candidates may be added, removed, reparented, or retagged within the two-level hierarchy.
+      description: Repository discovery evidence supplied once at the handoff to a continuing CLI conversation.
     reviewedCandidates:
       $ref: "./repository-grounding.yaml#/RepositoryGroundingHierarchy"
-      description: User-reviewed candidates with stable analysis identities that guide deeper research, including accepted outline corrections.
-    completedRounds:
-      type: integer
-      minimum: 0
-      maximum: 2
-    answerBatches:
+      deprecated: true
+      description: Legacy stored-input reader projection only. New handoffs use materializedFeatureIds.
+    materializedFeatureIds:
       type: array
-      maxItems: 2
+      minItems: 1
       items:
-        $ref: "./repository-grounding.yaml#/RepositoryFeatureEnrichmentAnswerBatch"
-  description: >-
-    Stateless enrichment request. Each turn consumes the latest accepted
-    repository analysis snapshot, while the API owns runtime identity, the
-    ordered round count, and answer history. Enrichment is user-selected and may
-    succeed without questions when repository evidence is sufficient.
+        $ref: "./common.yaml#/TaskId"
+      description: Approved Features created by this import. Enrichment proposes edits only to these Features.
+    userMessage:
+      type: string
+      description: Optional user reply within the continuing enrichment conversation.
 
 RepositoryFeatureEnrichmentChoice:
   type: string
   enum: [ENRICH, SKIP]
-  description: Explicit choice after outline review. SKIP proceeds to placement and final approval without enrichment.
+  description: Choice after Feature creation. ENRICH starts a continuing CLI conversation; SKIP completes the import.
 
 RepositoryFeatureEnrichmentQuestions:
   type: object
@@ -1365,7 +1371,13 @@ RepositoryFirstWorkRetryableFailure:
     outcome: { type: string, enum: [retryable_failure] }
     code:
       type: string
-      enum: [provider_unavailable, provider_timeout, rate_limited, transient_read_failure]
+      enum:
+        [
+          provider_unavailable,
+          provider_timeout,
+          rate_limited,
+          transient_read_failure,
+        ]
     message: { type: string, minLength: 1 }
     retryAfterSeconds: { type: integer, minimum: 0 }
 
@@ -1377,7 +1389,14 @@ RepositoryFirstWorkTerminalFailure:
     outcome: { type: string, enum: [terminal_failure] }
     code:
       type: string
-      enum: [invalid_request, unsupported_provider, unsupported_model, access_denied, invalid_completion]
+      enum:
+        [
+          invalid_request,
+          unsupported_provider,
+          unsupported_model,
+          access_denied,
+          invalid_completion,
+        ]
     message: { type: string, minLength: 1 }
 
 RepositoryFirstWorkCompletion:

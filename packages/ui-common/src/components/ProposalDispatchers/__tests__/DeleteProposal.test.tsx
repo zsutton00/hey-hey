@@ -239,9 +239,12 @@ describe("DeleteProposal", () => {
     );
 
     expect(
-      await screen.findByTestId("proposal-reconciliation-merge"),
+      await screen.findByTestId("proposal-reconciliation-agent-fix"),
     ).toBeVisible();
-    expect(screen.getByTestId("proposal-approve")).toBeDisabled();
+    expect(
+      screen.queryByTestId("proposal-reconciliation-merge"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("proposal-approve")).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("proposal-out-of-date-acknowledgement"),
     ).not.toBeInTheDocument();

@@ -76,6 +76,14 @@ try {
   run(process.execPath, [
     'scripts/generate-entity-prompt-template-language.js',
   ]);
+  run(process.execPath, [
+    path.join(
+      resolveOpenapiRoot(),
+      'scripts/generate-controller-action-contract.js',
+    ),
+    path.join(stagedGeneratedRoot, 'controller-action-contract.ts'),
+    './model/models',
+  ]);
   run(executable('prettier'), [
     '--write',
     '--ignore-path',
@@ -83,12 +91,16 @@ try {
     path.join(stagedGeneratedRoot, 'workflow-review.schemas.ts'),
     path.join(stagedGeneratedRoot, 'diagram.schemas.ts'),
     path.join(stagedGeneratedRoot, 'entity-prompt-template-language.ts'),
+    path.join(stagedGeneratedRoot, 'controller-action-contract.ts'),
   ]);
   run(process.execPath, ['scripts/post-process-message-events.js']);
   run(process.execPath, ['scripts/generate-models-barrel.js']);
   run(executable('ts-node'), ['scripts/post-process-generated-types.ts']);
   run(process.execPath, [
-    path.join(resolveOpenapiRoot(), 'scripts/postprocess-project-report-models.js'),
+    path.join(
+      resolveOpenapiRoot(),
+      'scripts/postprocess-project-report-models.js',
+    ),
     path.join(stagedGeneratedRoot, 'model'),
   ]);
   run(process.execPath, ['scripts/generate-path-constants.js']);

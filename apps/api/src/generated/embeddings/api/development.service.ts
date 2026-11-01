@@ -49,7 +49,7 @@ export class DevelopmentService {
 
   /**
    * Fetch entity by type and ID
-   * Return embeddings stored for a given entity type and source ID.
+   * Return embeddings stored for a given entity type and source ID. Requires the API-issued debug credential; ordinary read, write or admin credentials are rejected.
    * @param type Entity content type (e.g. task, initiative, message)
    * @param id Entity source ID
    * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
@@ -90,6 +90,16 @@ export class DevelopmentService {
 
     let accessTokenObservable: Observable<any> = of(null);
 
+    // authentication (BearerAuth) required
+    if (typeof this.configuration.accessToken === 'function') {
+      accessTokenObservable = from(
+        Promise.resolve(this.configuration.accessToken()),
+      );
+    } else if (this.configuration.accessToken) {
+      accessTokenObservable = from(
+        Promise.resolve(this.configuration.accessToken),
+      );
+    }
     // to determine the Accept header
     let httpHeaderAccepts: string[] = ['application/json'];
     const httpHeaderAcceptSelected: string | undefined =
@@ -120,7 +130,7 @@ export class DevelopmentService {
   }
   /**
    * Debug Information
-   * Get detailed debug information including all stored embeddings, configuration, and internal state. Use with caution in production.
+   * Get detailed debug information including all stored embeddings, configuration, and internal state. Requires the API-issued debug credential; ordinary read, write or admin credentials are rejected.
    * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
    * @param reportProgress flag to report request and response progress.
    * @param {*} [getDebugInfoOpts.config] Override http request option.
@@ -135,6 +145,16 @@ export class DevelopmentService {
 
     let accessTokenObservable: Observable<any> = of(null);
 
+    // authentication (BearerAuth) required
+    if (typeof this.configuration.accessToken === 'function') {
+      accessTokenObservable = from(
+        Promise.resolve(this.configuration.accessToken()),
+      );
+    } else if (this.configuration.accessToken) {
+      accessTokenObservable = from(
+        Promise.resolve(this.configuration.accessToken),
+      );
+    }
     // to determine the Accept header
     let httpHeaderAccepts: string[] = ['application/json'];
     const httpHeaderAcceptSelected: string | undefined =

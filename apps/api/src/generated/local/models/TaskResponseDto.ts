@@ -55,7 +55,7 @@ export class TaskResponseDto {
   /**
    * The ID of the initiative this task is part of.
    */
-  'initiativeId'?: string;
+  'initiativeId'?: string | null;
   'status': WorkStatus;
   'source': TaskSource;
   'priority'?: TaskPriority;
@@ -75,20 +75,20 @@ export class TaskResponseDto {
   /**
    * The ID of the parent task, if this is a sub-task.
    */
-  'parentTaskId'?: string;
+  'parentTaskId'?: string | null;
   'childCounts'?: TaskResponseDtoChildCounts;
   /**
    * Number of design docs linked to this task. Present when includeDesignDocCounts=true; otherwise null.
    */
-  'designDocCount'?: number;
+  'designDocCount'?: number | null;
   /**
    * Number of coding sessions (type=CODING) linked to this task. Present when includeAgentSessionCounts=true; otherwise null.
    */
-  'codingSessionCount'?: number;
+  'codingSessionCount'?: number | null;
   /**
    * Number of non-coding agent sessions (e.g. DAILY_SESSION, TASK_REFINING) linked to this task. Present when includeAgentSessionCounts=true; otherwise null.
    */
-  'agentSessionCount'?: number;
+  'agentSessionCount'?: number | null;
   /**
    * Service-to-task relation records linked to this task. Present when includeServiceRelations=true.
    */
@@ -112,7 +112,7 @@ export class TaskResponseDto {
   /**
    * The timestamp when the task was archived (soft delete).
    */
-  'archivedAt'?: Date;
+  'archivedAt'?: Date | null;
   /**
    * Outgoing `TRACKS` edges from this task, inlined as snapshots so list views render tracked items without a second hop. Populated only for GOAL-typed tasks (other task types omit the field or return an empty array). Order is unspecified; callers should not rely on it.
    */

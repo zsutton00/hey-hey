@@ -462,7 +462,7 @@ const riskAlertReport: ReportDto = {
 } as ReportDto;
 
 describe("ReportViewer dispatcher", () => {
-  it("renders ordered behavioral changes with explanations immediately after literal code", () => {
+  it("renders ordered behavioral changes with explanations after literal code and source details", () => {
     const report: ReportDto = {
       ...baseFixture,
       reportType: ReportType.ChangeWalkthrough,
@@ -534,7 +534,13 @@ describe("ReportViewer dispatcher", () => {
     const steps = screen.getAllByTestId("walkthrough-step");
     expect(steps).toHaveLength(2);
     const code = within(steps[0]).getByTestId("walkthrough-code");
-    expect(code.nextElementSibling?.textContent).toContain("This small edit");
+    const explanation = within(steps[0]).getByText(
+      "This small edit changes the default.",
+    );
+    expect(
+      code.compareDocumentPosition(explanation) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(screen.getByText("Unauthorized requests are denied.")).toBeTruthy();
     expect(
       screen

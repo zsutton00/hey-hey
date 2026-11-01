@@ -18,7 +18,7 @@
  * routine returns `needs_repair` rather than guessing.
  */
 
-import type { ApiRuntime } from '../../../../../packages/ui-common/src/clients/shared';
+import type { ApiRuntime } from '../../shared/runtime/clients/shared';
 import type { KeyPairStore } from '../../credentials/index';
 import type { ServerLogger } from '../logger';
 

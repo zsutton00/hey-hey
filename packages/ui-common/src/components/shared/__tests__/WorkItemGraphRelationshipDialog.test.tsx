@@ -36,12 +36,23 @@ const declarations: readonly WorkItemTypeGraphRelationshipDeclaration[] = [
     sourceEndpoint: graphNodeEndpoint,
     targetEndpoint: graphNodeEndpoint,
   },
+  {
+    edgeType: AgentEdgeType.Standard,
+    category: AgentEdgeCategory.Flow,
+    sourceEndpoint: graphNodeEndpoint,
+    targetEndpoint: graphNodeEndpoint,
+    direction: {
+      required: true,
+      allowedDirections: [AgentEdgeDirection.Forward],
+    },
+  },
 ];
 
 function renderDialog(
   onCommit = vi.fn(),
   relationshipDeclarations = declarations,
-  relationship?: ProjectedWorkItemRelationship
+  relationship?: ProjectedWorkItemRelationship,
+  actionLabelRequired = false,
 ) {
   render(
     <ThemeProvider theme={createTheme()}>
@@ -49,15 +60,33 @@ function renderDialog(
         open
         declarations={relationshipDeclarations}
         relationship={relationship}
+        actionLabelRequired={actionLabelRequired}
         onCancel={vi.fn()}
         onCommit={onCommit}
       />
-    </ThemeProvider>
+    </ThemeProvider>,
   );
   return onCommit;
 }
 
 describe("WorkItemGraphRelationshipDialog", () => {
+  it("requires an action for UX flow transitions before committing", () => {
+    const onCommit = renderDialog(vi.fn(), declarations, undefined, true);
+    fireEvent.mouseDown(screen.getByLabelText("Relationship *"));
+    fireEvent.click(
+      screen.getByRole("option", { name: AgentEdgeType.Standard }),
+    );
+    const action = screen.getByLabelText("Action label *");
+    const commit = screen.getByTestId("work-item-graph-relationship-commit");
+    expect(action).toBeRequired();
+    expect(commit).toBeDisabled();
+    fireEvent.change(action, { target: { value: "  tap Continue  " } });
+    fireEvent.click(commit);
+    expect(onCommit).toHaveBeenCalledWith(
+      expect.objectContaining({ actionLabel: "tap Continue" }),
+    );
+  });
+
   it("requires and trims metadata declared for a conditional relationship", () => {
     const onCommit = renderDialog();
     const commit = screen.getByTestId("work-item-graph-relationship-commit");
@@ -94,6 +123,26 @@ describe("WorkItemGraphRelationshipDialog", () => {
     });
   });
 
+  it("captures an action label on a STANDARD flow relationship", () => {
+    const onCommit = renderDialog();
+
+    fireEvent.mouseDown(screen.getByLabelText("Relationship *"));
+    fireEvent.click(
+      screen.getByRole("option", { name: AgentEdgeType.Standard }),
+    );
+    fireEvent.change(screen.getByLabelText("Action label (optional)"), {
+      target: { value: "  tap Continue  " },
+    });
+    fireEvent.click(screen.getByTestId("work-item-graph-relationship-commit"));
+
+    expect(onCommit).toHaveBeenCalledWith({
+      edgeType: AgentEdgeType.Standard,
+      category: AgentEdgeCategory.Flow,
+      direction: AgentEdgeDirection.Forward,
+      actionLabel: "tap Continue",
+    });
+  });
+
   it("enforces the generated predicate requirement without branching on edge identity", () => {
     renderDialog(vi.fn(), [
       {
@@ -107,7 +156,7 @@ describe("WorkItemGraphRelationshipDialog", () => {
 
     expect(screen.getByLabelText("Predicate *")).toBeInTheDocument();
     expect(
-      screen.getByTestId("work-item-graph-relationship-commit")
+      screen.getByTestId("work-item-graph-relationship-commit"),
     ).toBeDisabled();
   });
 
@@ -121,6 +170,7 @@ describe("WorkItemGraphRelationshipDialog", () => {
       category: AgentEdgeCategory.Flow,
       direction: AgentEdgeDirection.Forward,
       predicate: "approved",
+      actionLabel: "tap Continue",
       reasoning: "The original reason",
       metadata: {
         label: "Approval path",
@@ -138,6 +188,7 @@ describe("WorkItemGraphRelationshipDialog", () => {
       edgeType: AgentEdgeType.Loop,
       category: AgentEdgeCategory.Flow,
       predicate: null,
+      actionLabel: "tap Continue",
       reasoning: "The original reason",
       metadata: {
         label: "Approval path",

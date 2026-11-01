@@ -1,8 +1,8 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import {
   Alert,
   Button,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,

@@ -21,6 +21,7 @@ import { UIHints } from './uIHints';
 import { AgentTrigger } from './agentTrigger';
 import { TaskMonitorLaunchRecoveryCollision } from './taskMonitorLaunchRecoveryCollision';
 import { TaskMonitorLaunchRecoveryLifecycle } from './taskMonitorLaunchRecoveryLifecycle';
+import { ProposalReconciliationSuggestion } from './proposalReconciliationSuggestion';
 import { TaskMonitorLaunchRecoveryAuthority } from './taskMonitorLaunchRecoveryAuthority';
 
 

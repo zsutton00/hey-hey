@@ -212,11 +212,21 @@ export const EntityConversationPage: React.FC = () => {
     agentSessionId: agentSession.id,
     entityType: aboutType,
     entityId: aboutId,
-    presentation: buildAgentSessionPresentation(agentSession, undefined, {
-      conversationId: canonicalConversationId,
-      entityId: aboutId,
-      entityType: aboutType,
-    }, agentSession.title),
+    presentation: buildAgentSessionPresentation(
+      agentSession,
+      undefined,
+      {
+        conversationId: canonicalConversationId,
+        entityId: aboutId,
+        entityType: aboutType,
+      },
+      agentSession.title === "Agent Session" ? undefined : agentSession.title,
+      isTaskSubject
+        ? (cachedSubjectFeature?.name ??
+            subjectHierarchy?.task.name ??
+            entityContext?.displayName)
+        : undefined,
+    ),
   });
 
   return (

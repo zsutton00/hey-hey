@@ -52,7 +52,6 @@ export const researchHandler: UserLaunchablePromptTypeHandler<LocalResearchPromp
       'get_diagram',
       'get_work_item_type_guidance_batch',
       'unified_search',
-      'search_implementation_hints',
       'list_services',
     ],
     builtinAllowedTools: ['Read', 'Glob', 'Grep', 'WebSearch', 'WebFetch'],
@@ -88,6 +87,7 @@ export const researchHandler: UserLaunchablePromptTypeHandler<LocalResearchPromp
       },
       Array.isArray(enriched._touchedFiles),
       enriched._projectAssistantChecks,
+      ctx?.provider,
     );
   },
 

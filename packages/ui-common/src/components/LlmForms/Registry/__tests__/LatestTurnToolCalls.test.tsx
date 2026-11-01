@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { CliReadToolCall } from "../../../../api";
 import { groupToolCallsByThought } from "../groupToolCallsByThought";
@@ -26,7 +32,7 @@ const call = (overrides: Partial<CliReadToolCall> = {}): CliReadToolCall => ({
 });
 
 describe("LatestTurnToolCalls", () => {
-  it("shows summaries and expands to detail with a truncated label", () => {
+  it("shows summaries and expands to detail with a truncated label", async () => {
     render(
       <LatestTurnToolCalls
         toolCalls={[call()]}
@@ -52,7 +58,9 @@ describe("LatestTurnToolCalls", () => {
     ).not.toBeInTheDocument();
 
     fireEvent.click(toggle);
-    expect(screen.queryByTestId("tool-call-detail")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByTestId("tool-call-detail")).not.toBeInTheDocument(),
+    );
   });
 
   it("marks subagent calls distinctly", () => {

@@ -230,6 +230,8 @@ export const handleAssistantComplete = async (
     !eventTurn.changedFileReporting.isReleasing
   ) {
     if (!eventTurn.changedFileReporting.isRepairing) {
+      // Retain even an omitted report until in-flight submissions and edits settle.
+      // The coordinator then releases omissions without validation or repair.
       eventTurn.changedFileReporting.retain(event);
       await ctx.persistChangedFileReporting(eventTurn);
     }
@@ -281,6 +283,13 @@ export const handleAssistantComplete = async (
     proposalCount: completionArtifactIds.proposalIds.length,
     reportCount: completionArtifactIds.reportIds.length,
   });
+
+  const unsavedOutputNotice =
+    dispatchResult.matched || dispatchResult.incompatibleResponseType
+      ? null
+      : (handler?.getUnsavedOutputNotice?.(event, eventTurn.payload, {
+          codingPlanElementTypes: ctx.readCodingPlanElementTypes(eventTurn.turnId),
+        }) ?? null);
 
   if (dispatchResult.matched) {
     deps.logger.info('local.handler.assistant_complete.dispatched', {
@@ -398,7 +407,25 @@ export const handleAssistantComplete = async (
             intentConfidence: 1,
           } satisfies AgentSystemMessageData,
         }
-      : buildCompletionData(event, handler, eventTurn.payload);
+      : unsavedOutputNotice !== null
+        ? {
+            // Kept as an ordinary completed reply so the user can answer and
+            // the next Turn retries; the notice makes the unsaved output plain.
+            data: {
+              type: SystemMessageDataTypeEnum.Agent,
+              response: `**${unsavedOutputNotice}**\n\n${event.summary}`,
+              detectedIntent: 'required_output_unsaved',
+              intentConfidence: 1,
+            } satisfies AgentSystemMessageData,
+          }
+        : buildCompletionData(event, handler, eventTurn.payload);
+    if (unsavedOutputNotice !== null) {
+      deps.logger.warn('local.handler.assistant_complete.required_output_unsaved', {
+        runId: ctx.runId,
+        turnId: eventTurn.turnId,
+        promptType: turnPromptType,
+      });
+    }
     const data = withFeatureVerificationSuggestion(
       addFeatureSyncAffordances(baseData, {
         promptType: turnPromptType,
@@ -434,6 +461,21 @@ export const handleAssistantComplete = async (
 
   if (completedSuccessfully && completionMessageId !== null && handler) {
     eventTurn.recordCompletedAssistantMessage(completionMessageId);
+
+    try {
+      await ctx.recordFinalAssistantMessage({
+        turnId: eventTurn.turnId,
+        messageId: completionMessageId,
+        text: ctx.lastProviderStreamMessage ?? event.summary,
+        committedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      deps.logger.error('local.handler.assistant_complete.persist_final_assistant_message_failed', {
+        runId: ctx.runId,
+        error,
+      });
+    }
+
     ctx.observeFinalAssistantMessageCommitted(eventTurn.turnId, completionMessageId);
     // Record the last text block the provider stream emitted — what the user
     // saw — rather than `event.summary` (the raw structured-response text) or a

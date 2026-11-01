@@ -193,12 +193,31 @@ export class MachineEnrollmentClaimService {
     this.webauthnOrigin = webauthn.origin;
   }
 
+  ensureBrowserContext(
+    secret: string | undefined,
+    userId: UserId,
+  ): Promise<IssuedControllerBinding> {
+    return this.controllerBrowserBindingService.ensureContext(secret, userId);
+  }
+
   async issueBrowserBindingForAwaitingConfirmation(params: {
     enrollmentId: string;
+    controllerBindingSecret?: string;
     userId: UserId;
     organizationId: OrganizationId;
   }): Promise<IssuedControllerBinding> {
-    const pending = this.controllerBrowserBindingService.issuePending();
+    const context = await this.controllerBrowserBindingService.ensureContext(
+      params.controllerBindingSecret,
+      params.userId,
+    );
+    const pending = {
+      ...this.controllerBrowserBindingService.issuePending(),
+      secret: context.secret,
+      credentialHash: crypto
+        .createHash('sha256')
+        .update(context.secret)
+        .digest('hex'),
+    };
     const updated = await this.prisma.db.pendingMachineEnrollment.updateMany({
       where: {
         id: params.enrollmentId,

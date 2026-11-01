@@ -49,6 +49,10 @@ export interface AgentEdgeResponseDto {
      * Predicate expression or branch label required for `CONDITIONAL` flow edges and optional for `LOOP` flow edges. Omitted for `STANDARD` and meta edges. 
      */
     predicate?: string | null;
+    /**
+     * Optional plain-language user action that triggers this flow transition. UX_FLOW Diagrams require it to be non-blank on each flow link. 
+     */
+    actionLabel?: string | null;
     reasoning: string;
     source?: EdgeSource;
     createdBySessionId?: string | null;

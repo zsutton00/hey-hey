@@ -179,6 +179,9 @@ describe('MachineEnrollmentClaimService', () => {
         : value === expected;
 
     const db: any = {
+      controllerBrowserContext: {
+        upsert: jest.fn().mockResolvedValue({ id: 'context' }),
+      },
       pendingMachineEnrollment: {
         findUnique: jest.fn(
           async ({

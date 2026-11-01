@@ -1,3 +1,4 @@
+import { ProposalReconciliationService } from '../proposal/proposal-reconciliation.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
@@ -51,6 +52,15 @@ describe('Message UserID Integration Tests', () => {
       controllers: [MessageController],
       providers: [
         MessageService,
+        {
+          provide: ProposalReconciliationService,
+          useValue: {
+            decisionsForProposals: jest.fn().mockResolvedValue(new Map()),
+          } satisfies Pick<
+            ProposalReconciliationService,
+            'decisionsForProposals'
+          >,
+        },
         {
           provide: EntityRegistryService,
           useValue: {

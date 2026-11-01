@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EvalAttemptReport, EvalRunReport } from "@hey-hey/ui-common/data";
@@ -10,6 +16,7 @@ const mockUseEvalHumanReviews = vi.fn();
 const mockSaveReview = vi.fn();
 const mockUpdateProposal = vi.fn();
 const mockReport = vi.fn();
+const deepLink = vi.hoisted(() => ({ attempt: null as string | null }));
 
 vi.mock("react-router-dom", () => ({
   useNavigate: () => mockNavigate,
@@ -20,7 +27,7 @@ vi.mock("nuqs", async () => {
   const { useState } = await vi.importActual<typeof import("react")>("react");
   return {
     parseAsString: {},
-    useQueryState: () => useState<string | null>(null),
+    useQueryState: () => useState<string | null>(deepLink.attempt),
   };
 });
 
@@ -104,6 +111,10 @@ const sonnet = {
   id: "sonnet",
   target: { provider: "claude", model: "sonnet", reasoningEffort: "medium" },
 };
+const codex = {
+  id: "codex",
+  target: { provider: "codex", model: "gpt", reasoningEffort: "low" },
+};
 
 const run = (status = "FINISHED"): EvalRunReport =>
   ({
@@ -119,9 +130,21 @@ const run = (status = "FINISHED"): EvalRunReport =>
       judgeSetup: { provider: "claude", model: "claude-opus-5-5" },
       cases: [
         {
+          id: "case-2",
+          evalCaseId: "eval-case-2",
+          title: "Unrelated change that needs no mockup update",
+          grading: {
+            expectations: "Do nothing: no mockup needs to change.",
+            checks: [],
+            rubric: [],
+          },
+        },
+        {
           id: "case-1",
+          evalCaseId: "eval-case-1",
           title: "Feature change that should update its mockup",
           grading: {
+            expectations: "Update the existing mockup instead of making one.",
             checks: [
               {
                 id: "targets-mockup",
@@ -133,7 +156,7 @@ const run = (status = "FINISHED"): EvalRunReport =>
           },
         },
       ],
-      configurations: [opusHigh, sonnet],
+      configurations: [opusHigh, sonnet, codex],
       settings: { maxConcurrentAttempts: 3 },
       coordinatorMeasurement: {
         scope: "COORDINATOR",
@@ -148,6 +171,7 @@ const run = (status = "FINISHED"): EvalRunReport =>
   }) as unknown as EvalRunReport;
 
 const assessed = {
+  judgeSessionId: "judge-agent-session",
   checkResults: [
     { checkId: "targets-mockup", passed: true },
     { checkId: "no-direct", passed: false, explanation: "Edited the feature" },
@@ -177,6 +201,7 @@ const attempt = (
   id: string,
   configuration: typeof opusHigh,
   payload: Record<string, unknown>,
+  caseInputId = "case-1",
 ): EvalAttemptReport =>
   ({
     id,
@@ -184,7 +209,7 @@ const attempt = (
     createdAt: "2026-10-22T10:00:00.000Z",
     payload: {
       reportType: "EVAL_ATTEMPT",
-      caseInputId: "case-1",
+      caseInputId,
       configuration,
       status: "COMPLETED",
       measurements: [],
@@ -197,6 +222,12 @@ const attempt = (
 const attempts = [
   attempt("opus-attempt", opusHigh, {
     automatedAssessment: assessed,
+    judgedOutput: "THE-SAVED-RESEARCH-TEXT",
+    attemptProviderSessionIds: [
+      "provider-first",
+      "pending_hidden",
+      "provider-rotated",
+    ],
     measurements: [
       {
         scope: "TARGET_PREPARATION",
@@ -204,20 +235,26 @@ const attempts = [
         inputTokens: 30_000,
         outputTokens: 8_000,
         toolCalls: 6,
+        cost: { state: "available", amount: 0.5, currency: "USD" },
       },
       {
         scope: "TARGET_HANDLER",
         elapsedMs: 400_000,
         inputTokens: 100_000,
         outputTokens: 12_000,
+        cacheReadInputTokens: 500_000,
+        cacheCreationInputTokens: 0,
         toolCalls: 35,
+        cost: { state: "available", amount: 1.41, currency: "USD" },
       },
+      // Stored by older runs; the judge is no longer measured or shown.
       {
         scope: "JUDGE",
         elapsedMs: 42_000,
         inputTokens: 15_000,
         outputTokens: 2_000,
         toolCalls: 6,
+        cost: { state: "available", amount: 9, currency: "USD" },
       },
     ],
   }),
@@ -231,16 +268,44 @@ const attempts = [
       },
     ],
   }),
+  // Ran the second case, errored after preparing, and reported nothing else.
+  attempt(
+    "codex-errored",
+    codex,
+    {
+      status: "ERROR",
+      measurements: [
+        {
+          scope: "TARGET_PREPARATION",
+          elapsedMs: 22_000,
+          inputTokens: 5_000,
+          outputTokens: 1_000,
+        },
+      ],
+    },
+    "case-2",
+  ),
+  // No session was ever recorded for this one.
+  attempt(
+    "codex-unstarted",
+    codex,
+    { targetSessionId: null, targetConversationId: null, measurements: [] },
+    "case-2",
+  ),
 ];
 
-const givenRun = (report: EvalRunReport): void => {
+const givenRun = (report: EvalRunReport, records = attempts): void => {
   mockUseEvalRun.mockReturnValue({
     data: report,
-    attempts,
+    attempts: records,
     error: null,
     isLoading: false,
     isFetched: true,
   });
+};
+
+const expand = (attemptId: string): void => {
+  fireEvent.click(screen.getByTestId(`eval-case-toggle-${attemptId}`));
 };
 
 const proposal = {
@@ -254,6 +319,7 @@ const proposal = {
 describe("EvalResultsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    deepLink.attempt = null;
     givenRun(run());
     mockUseEvalAttemptOutput.mockReturnValue({
       data: {
@@ -268,7 +334,7 @@ describe("EvalResultsPage", () => {
     mockSaveReview.mockResolvedValue({ id: "review-1" });
   });
 
-  it("compares setups with preparation and handler work kept apart", () => {
+  it("compares only the tested agent, ignoring legacy preparation", () => {
     render(<EvalResultsPage />);
     expect(
       screen.getByTestId("eval-results-setup-opus-high-recognition"),
@@ -281,22 +347,22 @@ describe("EvalResultsPage", () => {
     ).toHaveTextContent("1 / 2");
     expect(
       screen.getByTestId("eval-results-setup-opus-high-elapsed"),
-    ).toHaveTextContent("1m 00s / 6m 40s");
+    ).toHaveTextContent("6m 40s");
     expect(
       screen.getByTestId("eval-results-setup-opus-high-tokens"),
-    ).toHaveTextContent("38k / 112k");
+    ).toHaveTextContent("112k");
     expect(
       screen.getByTestId("eval-results-setup-opus-high-tool-calls"),
-    ).toHaveTextContent("6 / 35");
+    ).toHaveTextContent("35");
   });
 
   it("shows anything not measured as not reported, never 0", () => {
     render(<EvalResultsPage />);
     const tokens = screen.getByTestId("eval-results-setup-sonnet-tokens");
-    expect(tokens).toHaveTextContent("31k / eval.results.notReported");
+    expect(tokens).toHaveTextContent("eval.results.notReported");
     expect(
       screen.getByTestId("eval-results-setup-sonnet-tool-calls"),
-    ).toHaveTextContent("eval.results.notReported / eval.results.notReported");
+    ).toHaveTextContent("eval.results.notReported");
     expect(
       screen.getByTestId("eval-results-setup-sonnet-quality"),
     ).toHaveTextContent("eval.results.notReported");
@@ -305,12 +371,13 @@ describe("EvalResultsPage", () => {
     ).not.toHaveTextContent(/\b0\b/);
   });
 
-  it("puts judge and coordinator overhead on its own line, outside the setups", () => {
+  it("puts coordinator overhead on its own line and never shows the judge's work", () => {
     render(<EvalResultsPage />);
     const overhead = screen.getByTestId("eval-results-overhead");
     expect(overhead).toHaveTextContent("eval.results.overhead");
-    // Judge: 42s and 17k tokens; coordinator: 30s and 5k tokens.
-    expect(overhead.textContent).toMatch(/42s.*17k.*30s.*5k/);
+    // Coordinator: 30s and 5k tokens. Stored judge figures (42s, 17k) are ignored.
+    expect(overhead.textContent).toMatch(/30s.*5k/);
+    expect(overhead.textContent).not.toMatch(/42s|17k/);
     expect(
       screen.getByTestId("eval-results-observation-note"),
     ).toBeInTheDocument();
@@ -325,11 +392,9 @@ describe("EvalResultsPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("opens an attempt's saved output read-only with session and live-item links", () => {
+  it("opens an attempt's saved output read-only with a link to the live item", () => {
     render(<EvalResultsPage />);
-    fireEvent.click(
-      screen.getByTestId("eval-results-open-attempt-opus-attempt"),
-    );
+    expand("opus-attempt");
 
     expect(mockUseEvalAttemptOutput).toHaveBeenCalledWith(
       "org",
@@ -347,17 +412,11 @@ describe("EvalResultsPage", () => {
     expect(
       screen.getByTestId("eval-output-live-item-proposal-1"),
     ).toHaveAttribute("href", "/projects/p1/tasks/mockup-1");
-    expect(screen.getByTestId("eval-attempt-open-session")).toHaveAttribute(
-      "href",
-      "/projects/p1/sessions/session-opus-attempt",
-    );
   });
 
   it("scores recognition apart from quality, each with its explanation", () => {
     render(<EvalResultsPage />);
-    fireEvent.click(
-      screen.getByTestId("eval-results-open-attempt-opus-attempt"),
-    );
+    expand("opus-attempt");
 
     expect(screen.getByTestId("eval-rubric-recognition")).toHaveTextContent(
       "Found the mockup from the feature's children.",
@@ -375,9 +434,7 @@ describe("EvalResultsPage", () => {
 
   it("saves a person's review as its own record beside the automated one", async () => {
     render(<EvalResultsPage />);
-    fireEvent.click(
-      screen.getByTestId("eval-results-open-attempt-opus-attempt"),
-    );
+    expand("opus-attempt");
 
     expect(screen.getByTestId("eval-human-review-save")).toBeDisabled();
     fireEvent.click(screen.getByRole("radio", { name: /3 Stars/i }));
@@ -403,19 +460,56 @@ describe("EvalResultsPage", () => {
     expect(screen.getByTestId("eval-rubric-recognition")).toBeInTheDocument();
   });
 
-  it("starts a fresh review draft when another attempt is opened", () => {
+  it("shows which sessions an attempt ran in and exactly what the judge was given", () => {
     render(<EvalResultsPage />);
-    fireEvent.click(
-      screen.getByTestId("eval-results-open-attempt-opus-attempt"),
-    );
+    expand("opus-attempt");
+    const detail = screen.getByTestId("eval-attempt-detail-opus-attempt");
+
+    expect(
+      within(detail).getByTestId("eval-attempt-provider-ids"),
+    ).toHaveTextContent("provider-firstprovider-rotated");
+    expect(
+      within(detail).getByTestId("eval-open-judge-session"),
+    ).toHaveAttribute("href", expect.stringContaining("judge-agent-session"));
+    expect(
+      within(detail).queryByTestId("eval-attempt-session-run"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(detail).getByTestId("eval-attempt-judged-output"),
+    ).toHaveTextContent("THE-SAVED-RESEARCH-TEXT");
+
+    expand("sonnet-attempt");
+    const unjudged = screen.getByTestId("eval-attempt-detail-sonnet-attempt");
+    expect(
+      within(unjudged).getByTestId("eval-attempt-provider-ids"),
+    ).toHaveTextContent("eval.results.notReported");
+    expect(
+      within(unjudged).queryByTestId("eval-open-judge-session"),
+    ).not.toBeInTheDocument();
+    expect(detail).not.toHaveTextContent("pending_hidden");
+    expect(
+      within(unjudged).getByTestId("eval-attempt-judged-none"),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps each open row's review draft apart", () => {
+    render(<EvalResultsPage />);
+    expand("opus-attempt");
     fireEvent.change(screen.getByTestId("eval-human-review-comment"), {
       target: { value: "About the opus attempt" },
     });
-    fireEvent.click(
-      screen.getByTestId("eval-results-open-attempt-sonnet-attempt"),
-    );
+    expand("sonnet-attempt");
 
-    expect(screen.getByTestId("eval-human-review-comment")).toHaveValue("");
+    const sonnetDetail = screen.getByTestId(
+      "eval-attempt-detail-sonnet-attempt",
+    );
+    expect(
+      within(sonnetDetail).getByTestId("eval-human-review-comment"),
+    ).toHaveValue("");
+    const opusDetail = screen.getByTestId("eval-attempt-detail-opus-attempt");
+    expect(
+      within(opusDetail).getByTestId("eval-human-review-comment"),
+    ).toHaveValue("About the opus attempt");
   });
 
   it("lists earlier reviews with their challenge flag", () => {
@@ -429,12 +523,249 @@ describe("EvalResultsPage", () => {
       ],
     });
     render(<EvalResultsPage />);
-    fireEvent.click(
-      screen.getByTestId("eval-results-open-attempt-opus-attempt"),
-    );
+    expand("opus-attempt");
 
     const review = screen.getByTestId("eval-human-review-review-1");
     expect(review).toHaveTextContent("Weak");
     expect(review).toHaveTextContent("eval.results.review.challenged");
+  });
+
+  describe("case rows", () => {
+    it("lists each setup's cases, one row per attempt, in the run's setup order", () => {
+      render(<EvalResultsPage />);
+      const opus = screen.getByTestId("eval-results-cases-setup-opus-high");
+      expect(within(opus).getAllByTestId(/^eval-case-row-/)).toHaveLength(1);
+      const codexRows = screen.getByTestId("eval-results-cases-setup-codex");
+      expect(within(codexRows).getAllByTestId(/^eval-case-row-/)).toHaveLength(
+        2,
+      );
+      expect(screen.queryByTestId("eval-attempt-open-session")).toBeNull();
+      expect(screen.queryByText("eval.results.attempt.openSession")).toBeNull();
+    });
+
+    it("makes each case name the link to that attempt's own session", () => {
+      render(<EvalResultsPage />);
+      expect(screen.getByTestId("eval-case-link-opus-attempt")).toHaveAttribute(
+        "href",
+        "/projects/p1/sessions/session-opus-attempt",
+      );
+      expect(
+        screen.getByTestId("eval-case-link-sonnet-attempt"),
+      ).toHaveAttribute("href", "/projects/p1/sessions/session-sonnet-attempt");
+      // An errored case still opens its session.
+      expect(
+        screen.getByTestId("eval-case-link-codex-errored"),
+      ).toHaveAttribute("href", "/projects/p1/sessions/session-codex-errored");
+      // With no recorded session the name is plain text, not a dead link.
+      expect(screen.queryByTestId("eval-case-link-codex-unstarted")).toBeNull();
+      expect(
+        screen.getByTestId("eval-case-name-codex-unstarted"),
+      ).toHaveTextContent("Unrelated change that needs no mockup update");
+    });
+
+    it("shows the handler headline separately from preparation and cache", () => {
+      render(<EvalResultsPage />);
+      expect(
+        screen.getByTestId("eval-case-recognition-opus-attempt"),
+      ).toHaveTextContent("eval.results.recognition.correct");
+      expect(
+        screen.getByTestId("eval-case-quality-opus-attempt"),
+      ).toHaveTextContent("3.5");
+      expect(
+        screen.getByTestId("eval-case-checks-opus-attempt"),
+      ).toHaveTextContent("1 / 2");
+      expect(
+        screen.getByTestId("eval-case-elapsed-opus-attempt"),
+      ).toHaveTextContent("6m 40s");
+      expect(
+        screen.getByTestId("eval-case-tokens-opus-attempt"),
+      ).toHaveTextContent("112k");
+      const row = screen.getByTestId("eval-case-row-opus-attempt");
+      expect(within(row).getByTestId("eval-case-cache-read")).toHaveTextContent(
+        "500k",
+      );
+      expect(
+        within(row).getByTestId("eval-case-cache-creation"),
+      ).toHaveTextContent('"value":"0"');
+      expect(
+        screen.getByTestId("eval-case-tool-calls-opus-attempt"),
+      ).toHaveTextContent("35");
+    });
+
+    it("shows the tested agent's cost in the case cell and work table, research apart", () => {
+      render(<EvalResultsPage />);
+      expect(
+        screen.getByTestId("eval-case-cost-opus-attempt"),
+      ).toHaveTextContent("$1.41");
+      expect(
+        screen.getByTestId("eval-case-cost-sonnet-attempt"),
+      ).toHaveTextContent("eval.results.notReported");
+      expect(
+        screen.getByTestId("eval-results-setup-opus-high-cost"),
+      ).toHaveTextContent("$1.41");
+      expect(
+        screen.getByTestId("eval-results-setup-opus-high-cost"),
+      ).not.toHaveTextContent("9.00");
+    });
+
+    it("marks part-reported figures and shows the rest as not reported, never 0", () => {
+      render(<EvalResultsPage />);
+      // Sonnet reported preparation only.
+      expect(
+        screen.getByTestId("eval-case-tokens-sonnet-attempt"),
+      ).toHaveTextContent("eval.results.notReported");
+      expect(
+        screen.getByTestId("eval-case-tool-calls-sonnet-attempt"),
+      ).toHaveTextContent("eval.results.notReported");
+      expect(
+        screen.getByTestId("eval-case-quality-sonnet-attempt"),
+      ).toHaveTextContent("eval.results.notReported");
+      expect(
+        screen.getByTestId("eval-case-recognition-sonnet-attempt"),
+      ).toHaveTextContent("eval.results.recognition.pending");
+      expect(
+        screen.getByTestId("eval-case-elapsed-codex-unstarted"),
+      ).toHaveTextContent("eval.results.notReported");
+      expand("sonnet-attempt");
+      expect(screen.queryByTestId("eval-work-TARGET_PREPARATION")).toBeNull();
+    });
+
+    it("keeps what an errored case measured before it stopped", () => {
+      render(<EvalResultsPage />);
+      expect(
+        screen.getByTestId("eval-case-errored-codex-errored"),
+      ).toHaveTextContent("eval.results.cases.errored");
+      expect(
+        screen.queryByTestId("eval-case-recognition-codex-errored"),
+      ).toBeNull();
+      expect(
+        screen.getByTestId("eval-case-elapsed-codex-errored"),
+      ).toHaveTextContent("eval.results.notReported");
+      expect(
+        screen.getByTestId("eval-case-tokens-codex-errored"),
+      ).toHaveTextContent("eval.results.notReported");
+      expand("codex-errored");
+      expect(screen.queryByTestId("eval-work-TARGET_PREPARATION")).toBeNull();
+      expect(
+        screen.getByTestId("eval-case-tool-calls-codex-errored"),
+      ).toHaveTextContent("eval.results.notReported");
+    });
+
+    it("expands and collapses a row, several at a time", () => {
+      render(<EvalResultsPage />);
+      expect(
+        screen.queryByTestId("eval-attempt-detail-opus-attempt"),
+      ).toBeNull();
+      expand("opus-attempt");
+      expand("sonnet-attempt");
+      expect(
+        screen.getByTestId("eval-attempt-detail-opus-attempt"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByTestId("eval-attempt-detail-sonnet-attempt"),
+      ).toBeInTheDocument();
+      expand("opus-attempt");
+      return waitFor(() =>
+        expect(
+          screen.queryByTestId("eval-attempt-detail-opus-attempt"),
+        ).toBeNull(),
+      );
+    });
+
+    it("opens the attempt a deep link names, and only that one", () => {
+      deepLink.attempt = "sonnet-attempt";
+      render(<EvalResultsPage />);
+      expect(
+        screen.getByTestId("eval-attempt-detail-sonnet-attempt"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("eval-attempt-detail-opus-attempt"),
+      ).toBeNull();
+      expect(mockUseEvalAttemptOutput).toHaveBeenCalledWith(
+        "org",
+        expect.objectContaining({ id: "sonnet-attempt" }),
+      );
+    });
+
+    it("explains the expectation beside the judge's saved result and links the Eval Case", () => {
+      render(<EvalResultsPage />);
+      expand("opus-attempt");
+      const comparison = screen.getByTestId("eval-expected-vs-result");
+      expect(comparison).toHaveTextContent(
+        "Update the existing mockup instead of making one.",
+      );
+      expect(comparison).toHaveTextContent(
+        "Found the mockup from the feature's children.",
+      );
+      expect(screen.getByTestId("eval-open-case-opus-attempt")).toHaveAttribute(
+        "href",
+        "/projects/p1/tasks/eval-case-1",
+      );
+    });
+
+    it("keeps a separately executed research agent distinguishable", () => {
+      givenRun(run(), [
+        attempt("opus-attempt", opusHigh, {
+          ...attempts[0]?.payload,
+          execution: {
+            handler: "entity_conversation",
+            projectAssistantPrepares: true,
+            assessedOutput: "HANDLER_REPLY",
+          },
+        }),
+      ]);
+      render(<EvalResultsPage />);
+      expand("opus-attempt");
+      expect(
+        screen.getByTestId("eval-work-TARGET_PREPARATION"),
+      ).toHaveTextContent(/38k/);
+    });
+
+    it("removes generic preparation from the details even on historical reports", () => {
+      render(<EvalResultsPage />);
+      expand("opus-attempt");
+      expect(screen.queryByTestId("eval-work-TARGET_PREPARATION")).toBeNull();
+      expect(screen.getByTestId("eval-work-TARGET_HANDLER")).toHaveTextContent(
+        /6m 40s.*112k.*35/,
+      );
+    });
+  });
+
+  describe("what the attempt produced", () => {
+    it("reports a read failure apart from absent output", () => {
+      mockUseEvalAttemptOutput.mockReturnValue({
+        data: null,
+        error: new Error("boom"),
+        hasRecordedConversation: true,
+      });
+      render(<EvalResultsPage />);
+      expand("opus-attempt");
+      expect(screen.getByTestId("eval-output-error")).toBeInTheDocument();
+      expect(screen.queryByTestId("eval-output-none")).toBeNull();
+    });
+
+    it("says a missing session conversation is missing, not that nothing was produced", () => {
+      mockUseEvalAttemptOutput.mockReturnValue({
+        data: null,
+        error: null,
+        hasRecordedConversation: false,
+      });
+      render(<EvalResultsPage />);
+      expand("opus-attempt");
+      expect(
+        screen.getByTestId("eval-output-no-conversation"),
+      ).toBeInTheDocument();
+    });
+
+    it("says nothing was saved only when nothing was", () => {
+      mockUseEvalAttemptOutput.mockReturnValue({
+        data: { messages: [], proposals: [], reports: [] },
+        error: null,
+        hasRecordedConversation: true,
+      });
+      render(<EvalResultsPage />);
+      expand("opus-attempt");
+      expect(screen.getByTestId("eval-output-none")).toBeInTheDocument();
+    });
   });
 });

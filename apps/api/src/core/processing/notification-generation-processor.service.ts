@@ -164,6 +164,12 @@ export class NotificationGenerationProcessor {
   }
 
   async handleReportCreatedEvent(event: ReportCreatedEvent): Promise<void> {
+    if (
+      !event.payload.shouldProcess ||
+      event.payload.report.ragEnabled === false
+    ) {
+      return;
+    }
     try {
       if (
         !isUserVisiblePersistedReportAudience(event.payload.report.audience)

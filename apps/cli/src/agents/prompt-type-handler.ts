@@ -1,6 +1,16 @@
+import type { ReadRestriction } from '../shared/api/generated/api';
+import type { FullEntityContextDto } from '../shared/api/generated';
+import type { EvalAttemptExecution } from './run-eval/eval-attempt-execution';
+import { projectModeSettingsJsonSchema } from '../generated/project-mode-contract.schema';
+import type {
+  ImplementRuntimeSelection,
+  SessionRole,
+} from '../shared/agent-bridge-contract/generated/api';
 import type { LocalPromptType } from '../shared/agent-bridge-contract/generated';
 import type { AgenticSession } from '../session/types';
+import type { AgentProviderId } from './providers/provider-config';
 import type { RunStore } from '../run-store/run-store';
+import type { PreparationRecords } from './preparation-records';
 import type { ReportAudience, ReportType, UpdateMessageDto } from '../shared/api/index';
 import type {
   AssistantDeltaEvent,
@@ -55,9 +65,20 @@ export type { RecentUserReply };
  * resolver. Always present on the resolver-built context — empty when no
  * user messages fall in the trigger's window.
  */
+/** The input a runner hands to the provider; `parts` keep the boundaries of separate segments. */
+export interface ProviderInputRecord {
+  runId: string;
+  turnId: string;
+  payload: unknown;
+  logger: ServerLogger;
+  parts: { name: string; text: string }[];
+}
+
 export interface PromptTypeHandlerContext {
   /** Agentic Run identity used to correlate handler diagnostics across a Turn. */
   runId?: string;
+  /** Provider executing the Run; prompts name provider-specific tool forms from it. */
+  provider?: AgentProviderId | undefined;
   /** The Turn being prepared; set on Turn prompts only. */
   turnId?: string;
   /** The Run's abort signal, read when called; undefined once the Run is not running. */
@@ -112,17 +133,26 @@ export interface PromptTypeHandlerContext {
   /** Runtime-materialized captured MODE bundle, admitted as read-only provider context. */
   projectModeBundleDirectory?: string;
   /**
-   * Run-owned temporary directory admitted as read-only provider context for
-   * handlers declaring `repositorySnapshots`. The Run deletes it when it ends.
+   * Run-owned, owner-only temporary directory for handlers declaring
+   * `runEvidenceDirectory`. Repository-bound Runs also admit it as read-only
+   * provider context; service-free Runs keep it host-only. The Run deletes it
+   * when it ends.
    */
-  repositorySnapshotDirectory?: string;
+  runEvidenceDirectory?: string;
 }
 
 export interface PromptTypeHandlerDeps {
-  runStore: RunStore;
+  evalAttemptExecution?: EvalAttemptExecution;
+  /** Where `prepare` records its work; handlers never touch the run store directly. */
+  preparationRecords: PreparationRecords;
   fetchImpl: typeof fetch;
   auth: SubmissionToolAuth;
   apiBaseUrl: string;
+  /**
+   * Read restriction of the Run these deps belong to; every platform read a handler or its
+   * preparation makes for the model carries it. Set by the Run from its persisted inertness.
+   */
+  readRestriction?: ReadRestriction | undefined;
   logger: ServerLogger;
   /** Typed terminal-result handoff for the read-only Task Monitor coordinator. */
   taskMonitorDecisionStore: TaskMonitorDecisionStore;
@@ -131,7 +161,7 @@ export interface PromptTypeHandlerDeps {
   /** Authoritative first-turn entity startup-input owner. */
   startupPromptInput: AgentStartupPromptInput;
   /** Shared launcher for handlers that fan work out to registered child handlers. */
-  childAgentLauncher: Pick<ChildAgentLauncher, 'launchRegistered'>;
+  childAgentLauncher: Pick<ChildAgentLauncher, 'launchRegistered' | 'resolveChildHandler'>;
   /**
    * One-off, tool-free model call on the Run's own provider, model and effort.
    * Cancelled by the Turn's abort signal; rejects on failure. The Run sets
@@ -224,11 +254,12 @@ export interface OnCompleteDeps {
 export interface PrepareResult<TPayload> {
   payload: TPayload;
   sessionContext?: Record<string, unknown>;
-}
-
-export interface ProviderExecutionSelection {
-  provider: string;
-  model: string;
+  /**
+   * A relevance-narrowed copy of the loaded entity Context. The resolver re-renders it with the
+   * template already selected for the Run and delivers that block to this Turn's provider instead
+   * of the original one. The canonical loaded Context itself is never changed.
+   */
+  startupContextReplacement?: FullEntityContextDto;
 }
 
 export interface ResolveAdditionalAllowedToolsArgs<TPayload> {
@@ -358,6 +389,12 @@ type SubagentPermissionDecider = (
 export interface SubagentConfig {
   /** Exclude Run-registered mutation tools for a bounded collaboration child. */
   submissionTools?: 'run-registered' | 'none';
+  /**
+   * With `submissionTools: 'run-registered'`, mount only these Run-registered
+   * tools. Lets a child use a Run-owned tool without inheriting the Run's
+   * submission tools, such as `create_report`.
+   */
+  submissionToolNames?: readonly string[];
   /** Provider sandbox ceiling for a capability that must not write files. */
   codexSandboxMode?: 'read-only' | 'workspace-write';
   /**
@@ -416,6 +453,8 @@ export interface ReportSpec {
 }
 
 export interface PromptTypeHandler<TPayload> {
+  readonly sessionRole?: SessionRole;
+  resolveSessionRole?(session: AgenticSession): SessionRole;
   /**
    * Stable identity of this logical agent. A Run persists this value as the
    * owner of its current provider session; promptType is routing metadata and
@@ -546,6 +585,14 @@ export interface PromptTypeHandler<TPayload> {
    *   accumulated conversation history.
    */
   providerSessionLifetime?: 'run' | 'turn';
+  /** Continue ordinary replies in this handler after its originating workflow finishes. */
+  retainsConversationAfterWorkflow?: true;
+  /**
+   * An ordinary user reply normally stays with the agent that owns the Run's
+   * provider session. A handler sets this only when it is a deliberate
+   * starting point whose follow-ups are handed to `coding_freeform`.
+   */
+  handsOffOrdinaryReplies?: true;
   /** Replace provider defaults with the platform prompt on fresh sessions. */
   replaceProviderSystemPrompt?: boolean;
 
@@ -596,6 +643,12 @@ export interface PromptTypeHandler<TPayload> {
    * the Run is stopped.
    */
   runProcedure?(payload: TPayload, ctx: ProceduralRunContext, signal: AbortSignal): Promise<string>;
+  /** Persist an actionable, terminal result when this handler cannot start its Turn. */
+  onStartupFailure?(
+    payload: TPayload,
+    context: { session: AgenticSession; deps: PromptTypeHandlerBaseDeps },
+    message: string,
+  ): Promise<void>;
 
   /** Feature-owned work performed after an isolated subagent returns. */
   onSubagentComplete?(ctx: OnSubagentCompleteContext): Promise<void>;
@@ -608,11 +661,12 @@ export interface PromptTypeHandler<TPayload> {
   defaultReasoningEffort?: LocalReasoningEffort;
 
   /**
-   * Handler-owned executor selection for a provider-session Turn. Use this
-   * only when the trigger payload carries an authoritative provider/model
-   * choice that must not inherit the surrounding Run configuration.
+   * The complete runtime (provider, model, reasoning effort, Fast mode) this
+   * trigger's raw payload carries, or undefined when it carries none, such as
+   * a reply. The Run saves a returned runtime and every later Turn without one
+   * uses what is saved. Asked on every Turn, before the payload is prepared.
    */
-  resolveProviderExecution?(payload: TPayload): ProviderExecutionSelection;
+  resolveRuntime?(payload: TPayload): ImplementRuntimeSelection | undefined;
 
   prepare?(
     run: AgenticSession,
@@ -705,13 +759,19 @@ export interface PromptTypeHandler<TPayload> {
    * providers freeze the posture at session start.
    */
   readOnlyFilesystem?: boolean;
+  /**
+   * The read restriction this handler's own platform reads run under when its session is not
+   * already restricted. An inert session is always restricted as an evaluated attempt.
+   */
+  readRestriction?: ReadRestriction;
 
   /**
    * When true, the Run creates a temporary directory before the workspace
-   * boundary is fixed, admits it as a read-only root, passes it to `prepare`
-   * as `ctx.repositorySnapshotDirectory`, and deletes it when the Run ends.
+   * boundary is fixed, passes it to `prepare` as `ctx.runEvidenceDirectory`,
+   * and deletes it when the Run ends. A repository-bound Run also admits it as
+   * a read-only root; a service-free Run does not expose it to the provider.
    */
-  repositorySnapshots?: boolean;
+  runEvidenceDirectory?: boolean;
 
   /** Requests a provider-native, read-only repository research surface. */
   repositoryResearch?: RepositoryResearchCapability;
@@ -755,6 +815,14 @@ export interface PromptTypeHandler<TPayload> {
   transformInput?(userMessage: string): string | null;
 
   /**
+   * Called by the provider-session runners with the exact input handed to the
+   * provider, after all prompt assembly, and before the provider call. Lets a
+   * handler keep a verbatim copy of what its agent received. A failure here
+   * fails the Turn, so implementations must only throw on a real write error.
+   */
+  recordProviderInput?(record: ProviderInputRecord): Promise<void>;
+
+  /**
    * Async post-completion hook. Called after the message update has been
    * posted successfully. Use for side effects that require API calls
    * (e.g. report creation). Failures here do not block the message.
@@ -785,6 +853,17 @@ export interface PromptTypeHandler<TPayload> {
    * handler can close the workflow with a typed `invalid_completion` result.
    */
   getCompletionAction?(event: AssistantCompleteEvent, payload?: unknown): CompletionAction | null;
+
+  /**
+   * Returns a user-facing notice when a completion with no recognised
+   * response type left the Turn's required output unsaved. The notice leads
+   * the ordinary reply; the Turn still completes so the user can retry.
+   */
+  getUnsavedOutputNotice?(
+    event: AssistantCompleteEvent,
+    payload: unknown,
+    saved: { codingPlanElementTypes: readonly string[] },
+  ): string | null;
 
   /**
    * Maps a provider-runner failure into an EXTERNAL_AGENT action when the
@@ -854,4 +933,16 @@ export interface UserLaunchablePromptTypeHandler<
   TPayload extends { userMessage?: string },
 > extends PromptTypeHandler<TPayload> {
   addUserMessage(payload: TPayload): string | null;
+}
+
+/** Resolve only the executing handler; selected modes never set a Run-wide role. */
+export function resolveHandlerSessionRole<TPayload>(
+  handler: PromptTypeHandler<TPayload>,
+  session: AgenticSession,
+): SessionRole {
+  return (
+    handler.resolveSessionRole?.(session) ??
+    handler.sessionRole ??
+    projectModeSettingsJsonSchema.properties.sessionRole.default
+  );
 }

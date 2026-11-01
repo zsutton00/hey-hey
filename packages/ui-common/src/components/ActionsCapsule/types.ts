@@ -69,8 +69,7 @@ interface CapsuleActionOrdering {
  * Registration data for an expandable capsule action
  */
 export interface CapsuleActionExpandable
-  extends CapsuleActionVisualBase,
-    CapsuleActionOrdering {
+  extends CapsuleActionVisualBase, CapsuleActionOrdering {
   behavior: "expand";
   /** Which action group this belongs to for capsule button ordering */
   actionGroup: CapsuleActionGroup;
@@ -86,8 +85,7 @@ export interface CapsuleActionExpandable
  * Registration data for a click-only capsule action
  */
 export interface CapsuleActionClickable
-  extends CapsuleActionVisualBase,
-    CapsuleActionOrdering {
+  extends CapsuleActionVisualBase, CapsuleActionOrdering {
   behavior: "click";
   /** Which action group this belongs to for capsule button ordering */
   actionGroup: CapsuleActionGroup;
@@ -96,13 +94,16 @@ export interface CapsuleActionClickable
 }
 
 export type CapsuleActionRegistration =
-  | CapsuleActionExpandable
-  | CapsuleActionClickable;
+  CapsuleActionExpandable | CapsuleActionClickable;
 
 /**
  * Context value provided by ActionsCapsuleProvider
  */
 export interface ActionsCapsuleContextValue {
+  capsuleTop: number | null;
+  setCapsuleTop: (top: number | null) => void;
+  anchor: "bottom-left" | "bottom-right";
+  toggleAnchor: () => void;
   /** List of currently registered actions */
   actions: CapsuleActionRegistration[];
   /** ID of the currently active/expanded action, or null if none */
@@ -165,5 +166,4 @@ export interface CapsuleActionClickableProps extends CapsuleActionVisualBase {
 }
 
 export type CapsuleActionProps =
-  | CapsuleActionExpandableProps
-  | CapsuleActionClickableProps;
+  CapsuleActionExpandableProps | CapsuleActionClickableProps;

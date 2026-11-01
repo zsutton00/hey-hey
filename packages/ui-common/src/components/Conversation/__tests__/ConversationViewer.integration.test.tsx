@@ -92,6 +92,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -126,6 +127,12 @@ import {
 } from "../../../api";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
+import {
+  $createParagraphNode,
+  $createTextNode,
+  $getRoot,
+  type LexicalEditor,
+} from "lexical";
 import { __resetForTests as resetProposalCache } from "../../ProposalDispatchers/proposalSelectedStateCache";
 // Mock the API client
 const mockPostMessage = vi.hoisted(() => vi.fn());
@@ -707,83 +714,83 @@ describe("ConversationViewer agent session current state", () => {
       screen.queryByTestId("agent-session-current-state-indicator"),
     ).not.toBeInTheDocument();
   });
-});
 
-describe("live tool calls before narration exists", () => {
-  const availableCalls = {
-    status: "available" as const,
-    result: {
-      state: "available" as const,
-      runId: "agent-session-state",
-      turnId: "turn-1",
-      omittedEarlierCount: 0,
-      evictedCount: 0,
-      toolCalls: [
-        {
-          entryId: "entry-1",
-          toolUseId: "use-1",
-          toolName: "Read",
-          summary: "src/early.ts",
-          status: "running" as const,
-          exitCode: null,
-          lane: {
-            subagentTurnId: null,
-            providerThreadId: null,
-            parentToolUseId: null,
+  describe("live tool calls before narration exists", () => {
+    const availableCalls = {
+      status: "available" as const,
+      result: {
+        state: "available" as const,
+        runId: "agent-session-state",
+        turnId: "turn-1",
+        omittedEarlierCount: 0,
+        evictedCount: 0,
+        toolCalls: [
+          {
+            entryId: "entry-1",
+            toolUseId: "use-1",
+            toolName: "Read",
+            summary: "src/early.ts",
+            status: "running" as const,
+            exitCode: null,
+            lane: {
+              subagentTurnId: null,
+              providerThreadId: null,
+              parentToolUseId: null,
+            },
+            createdAt: "2026-10-20T00:00:00.000Z",
+            updatedAt: "2026-10-20T00:00:00.000Z",
+            detail: { input: null, output: null, result: null },
           },
-          createdAt: "2026-10-20T00:00:00.000Z",
-          updatedAt: "2026-10-20T00:00:00.000Z",
-          detail: { input: null, output: null, result: null },
-        },
-      ],
-    },
-  };
-  const renderState = (currentState: AgentSessionCurrentState) =>
-    render(
-      <ConversationViewer
-        conversation={conversation}
-        project={project}
-        showNavigation={false}
-        agentSessionId="agent-session-state"
-        agentSessionCurrentState={currentState}
-        showAgentSessionCurrentStateIndicator
-      />,
-      { wrapper: createTestWrapper() },
-    );
-  afterEach(() => {
-    liveToolCalls.current = { status: "idle" };
-  });
+        ],
+      },
+    };
+    const renderState = (currentState: AgentSessionCurrentState) =>
+      render(
+        <ConversationViewer
+          conversation={conversation}
+          project={project}
+          showNavigation={false}
+          agentSessionId="agent-session-state"
+          agentSessionCurrentState={currentState}
+          showAgentSessionCurrentStateIndicator
+        />,
+        { wrapper: createTestWrapper() },
+      );
+    afterEach(() => {
+      liveToolCalls.current = { status: "idle" };
+    });
 
-  it("shows the polled tool calls under the timeline while the Turn is active", () => {
-    liveToolCalls.current = availableCalls;
-    renderState(AgentSessionCurrentState.Writing);
+    it("shows the polled tool calls under the timeline while the Turn is active", () => {
+      liveToolCalls.current = availableCalls;
+      renderState(AgentSessionCurrentState.Writing);
 
-    expect(screen.getByTestId("latest-turn-tool-calls")).toHaveTextContent(
-      "src/early.ts",
-    );
-  });
+      expect(screen.getByTestId("latest-turn-tool-calls")).toHaveTextContent(
+        "src/early.ts",
+      );
+    });
 
-  it("shows nothing once the Turn is no longer active", () => {
-    liveToolCalls.current = availableCalls;
-    renderState(AgentSessionCurrentState.Idle);
+    it("shows nothing once the Turn is no longer active", () => {
+      liveToolCalls.current = availableCalls;
+      renderState(AgentSessionCurrentState.Idle);
 
-    expect(
-      screen.queryByTestId("latest-turn-tool-calls"),
-    ).not.toBeInTheDocument();
-  });
+      expect(
+        screen.queryByTestId("latest-turn-tool-calls"),
+      ).not.toBeInTheDocument();
+    });
 
-  it.each([
-    { status: "idle" } as const,
-    { status: "disabled" } as const,
-    { status: "unavailable", error: "boom" } as const,
-  ])("shows nothing for the $status outcome", (state) => {
-    liveToolCalls.current = state;
-    renderState(AgentSessionCurrentState.Writing);
+    it.each([
+      { status: "idle" } as const,
+      { status: "disabled" } as const,
+      { status: "unavailable", error: "boom" } as const,
+    ])("shows nothing for the $status outcome", (state) => {
+      liveToolCalls.current = state;
+      renderState(AgentSessionCurrentState.Writing);
 
-    expect(
-      screen.queryByTestId("latest-turn-tool-calls"),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText("boom")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("latest-turn-tool-calls"),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText("boom")).not.toBeInTheDocument();
+    });
   });
 });
 
@@ -1582,6 +1589,63 @@ describe("canonical Message lifecycle", () => {
       screen.queryByLabelText("Retry last message"),
     ).not.toBeInTheDocument();
   });
+  it.each([
+    "Service Example isn't bound to a folder on this machine. Bind a folder, then send your message again.",
+    "The session could not start because its preparation failed. Please try again.",
+    "The session failed while working on your message. Please try again.",
+    "A response was generated but could not be published. Please try again.",
+  ])(
+    "renders one persistent terminal explanation after reload: %s",
+    async (response) => {
+      const conversation = { ...metadata, id: "terminal-failure-read" };
+      canonicalMessageRead.mockResolvedValue({
+        data: {
+          data: {
+            messages: [
+              {
+                id: "terminal-explanation",
+                projectId: project.id,
+                conversationId: conversation.id,
+                type: "SYSTEM",
+                status: "completed",
+                parentMessageId: null,
+                createdAt: metadata.createdAt,
+                awaitingResponse: false,
+                data: {
+                  type: "AGENT",
+                  response,
+                  detectedIntent: "agent_response",
+                  intentConfidence: 1,
+                },
+              },
+            ],
+          },
+        },
+      });
+      const viewer = () =>
+        render(
+          <ConversationViewer
+            conversation={conversation}
+            project={project}
+            readOnly
+            timelineAnimationMode="none"
+            animationType="minimal"
+            scrollPolicy={{ mode: "disabled" }}
+          />,
+          { wrapper: createTestWrapper() },
+        );
+      const first = viewer();
+      await screen.findByText(response);
+      expect(screen.getAllByText(response)).toHaveLength(1);
+      first.unmount();
+      testQueryClient.clear();
+      viewer();
+      await screen.findByText(response);
+      expect(screen.getAllByText(response)).toHaveLength(1);
+      expect(canonicalMessageRead.mock.calls.length).toBeGreaterThanOrEqual(2);
+    },
+  );
+
   it("keeps a preview outside persisted reads", async () => {
     canonicalMessageRead.mockClear();
     render(
@@ -2010,4 +2074,203 @@ describe("inline approval through production viewer wiring", () => {
       unmount();
     },
   );
+});
+
+describe("Repository Import enrichment reply through production viewer wiring", () => {
+  const project = {
+    id: "enrichment-project",
+    organizationId: "enrichment-organization",
+    name: "Project",
+    createdAt: "2026-10-30T00:00:00Z",
+    updatedAt: "2026-10-30T00:00:00Z",
+  } as ProjectResponseDto;
+  const metadata = {
+    id: "enrichment-conversation",
+    projectId: project.id,
+    organizationId: project.organizationId,
+    workflowId: "import-workflow",
+    workflowName: "repository-import",
+    createdAt: project.createdAt,
+    updatedAt: project.createdAt,
+  } as ConversationResponseDto;
+  const question: MessageResponseDto = {
+    id: "enrichment-question",
+    projectId: project.id,
+    conversationId: metadata.id,
+    type: MessageType.System,
+    status: MessageStatus.Open,
+    createdAt: "2026-10-30T00:00:00Z",
+    awaitingResponse: true,
+    responses: [],
+    data: {
+      type: "QUESTIONS",
+      response: "1. What does Billing do?",
+      uiElements: [
+        {
+          id: "reply",
+          type: ExtendedUIFieldType.RepositoryFeatureEnrichmentReply,
+          label: "Your answer",
+          required: true,
+          submitText: "Send",
+        },
+      ],
+    },
+  };
+  const savedReply: MessageResponseDto = {
+    id: "enrichment-reply",
+    projectId: project.id,
+    conversationId: metadata.id,
+    parentMessageId: question.id,
+    type: MessageType.User,
+    createdAt: "2026-10-30T00:00:01Z",
+    data: { reply: "It charges customers monthly." },
+  };
+
+  beforeEach(() => {
+    // jsdom has no selection geometry, which the Lexical editor reads.
+    Object.defineProperty(Node.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value: () => new DOMRect(),
+    });
+    Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value: () => new DOMRect(),
+    });
+  });
+
+  const renderViewer = (
+    owners: {
+      onDirectTrigger: (message: CreateUserMessage) => Promise<void>;
+      onSubmitRepositoryImportReply: () => Promise<void>;
+    },
+    messages: MessageResponseDto[] = [question],
+  ) => {
+    const view = (nextMessages: MessageResponseDto[]) => (
+      <ConversationViewer
+        conversation={withCanonicalMessages(
+          conversationFixture(metadata, nextMessages),
+        )}
+        project={project}
+        timelineAnimationMode="none"
+        {...owners}
+      />
+    );
+    const Providers = createTestWrapper();
+    const rendered = render(view(messages), {
+      wrapper: ({ children }) => (
+        <Providers>
+          <MemoryRouter>{children}</MemoryRouter>
+        </Providers>
+      ),
+    });
+    return {
+      showMessages: (nextMessages: MessageResponseDto[]) =>
+        rendered.rerender(view(nextMessages)),
+    };
+  };
+
+  const replyEditor = () =>
+    within(
+      screen.getByTestId("repository-feature-enrichment-reply-reply"),
+    ).getByRole("textbox");
+
+  const typeAnswer = async () => {
+    const input = await screen.findByTestId("smarter-textarea-input");
+    await waitFor(() =>
+      expect(input).toHaveAttribute("contenteditable", "true"),
+    );
+    // jsdom gives Lexical no caret, so typing is a no-op; write the text into
+    // the mounted editor the way the editor itself would.
+    const { __lexicalEditor: editor } = input as HTMLElement & {
+      __lexicalEditor: LexicalEditor;
+    };
+    act(() => {
+      editor.update(() => {
+        const paragraph = $createParagraphNode();
+        paragraph.append($createTextNode("It charges customers monthly."));
+        $getRoot().clear().append(paragraph);
+      });
+    });
+    await waitFor(() =>
+      expect(input).toHaveTextContent("It charges customers monthly."),
+    );
+    return input;
+  };
+
+  it("sends the answer as an ordinary message with a non-empty userMessage, stays locked until the reply is saved, then shows it read-only", async () => {
+    const sent: CreateUserMessage[] = [];
+    const onDirectTrigger = vi.fn(async (message: CreateUserMessage) => {
+      sent.push(message);
+    });
+    const onSubmitRepositoryImportReply = vi.fn().mockResolvedValue(undefined);
+    const { showMessages } = renderViewer({
+      onDirectTrigger,
+      onSubmitRepositoryImportReply,
+    });
+
+    const input = await typeAnswer();
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(onDirectTrigger).toHaveBeenCalledTimes(1));
+    expect(onSubmitRepositoryImportReply).not.toHaveBeenCalled();
+    expect(sent[0]).toMatchObject({
+      parentMessageId: question.id,
+      conversationId: metadata.id,
+      data: {
+        agentInput: { userMessage: "It charges customers monthly." },
+      },
+    });
+
+    // Delivery succeeded, but the saved reply has not arrived yet.
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+    expect(input).toHaveAttribute("contenteditable", "false");
+
+    showMessages([{ ...question, responses: [savedReply] }]);
+
+    await waitFor(() =>
+      expect(replyEditor()).toHaveTextContent("It charges customers monthly."),
+    );
+    expect(replyEditor()).toHaveAttribute("contenteditable", "false");
+  });
+
+  it("unlocks immediately when the answer is rejected", async () => {
+    const onDirectTrigger = vi.fn().mockRejectedValue(new Error("rejected"));
+    renderViewer({
+      onDirectTrigger,
+      onSubmitRepositoryImportReply: vi.fn(),
+    });
+
+    const input = await typeAnswer();
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(onDirectTrigger).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(input).toHaveAttribute("contenteditable", "true"),
+    );
+    expect(screen.getByRole("button", { name: "Send" })).toBeEnabled();
+  });
+
+  it("unlocks immediately on a version conflict", async () => {
+    const conflict: VersionConflictError = {
+      error: "VERSION_CONFLICT",
+      currentVersion: 2,
+      expectedVersion: 1,
+      latestConversation: conversationFixture(metadata, [
+        question,
+      ]) as VersionedConversationResponseDto,
+    };
+    const onDirectTrigger = vi.fn().mockRejectedValue(conflict);
+    renderViewer({
+      onDirectTrigger,
+      onSubmitRepositoryImportReply: vi.fn(),
+    });
+
+    const input = await typeAnswer();
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(onDirectTrigger).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(input).toHaveAttribute("contenteditable", "true"),
+    );
+  });
 });

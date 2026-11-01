@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import path from 'node:path';
+import { RunReadPreparationError } from './run-read-preparation-error';
 import type { AgenticSession } from '../session/types';
 
 export type ChangedFilesReadPhase = 'restore' | 'reuse' | 'membership_seed' | 'normal_read';
@@ -177,3 +178,17 @@ export const getChangedFilesFailureClassification = (
 };
 
 export const safeChangedFilesErrorName = (error: Error): string => error.name || 'Error';
+
+/** Only include structured preparation details; messages may contain private paths. */
+export const safeRunReadPreparationDetails = (error: Error) =>
+  error instanceof RunReadPreparationError
+    ? {
+        errorCode: error.code,
+        ...(error.cause !== undefined
+          ? {
+              causeErrorName:
+                error.cause instanceof Error ? safeChangedFilesErrorName(error.cause) : 'NonError',
+            }
+          : {}),
+      }
+    : {};

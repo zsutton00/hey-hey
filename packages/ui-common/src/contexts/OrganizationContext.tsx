@@ -23,22 +23,21 @@ interface OrganizationContextType {
 }
 
 const OrganizationContext = createContext<OrganizationContextType | undefined>(
-  undefined
+  undefined,
 );
 
 export const useOrganization = () => {
   const context = useContext(OrganizationContext);
   if (context === undefined) {
     throw new Error(
-      "useOrganization must be used within an OrganizationProvider"
+      "useOrganization must be used within an OrganizationProvider",
     );
   }
   return context;
 };
 
 export const useOptionalOrganization = ():
-  | OrganizationContextType
-  | undefined => useContext(OrganizationContext);
+  OrganizationContextType | undefined => useContext(OrganizationContext);
 
 interface OrganizationProviderProps {
   children: React.ReactNode;
@@ -87,13 +86,13 @@ export const OrganizationProvider: React.FC<OrganizationProviderProps> = ({
       setOrganizations(orgs);
 
       const authoritativeOrganization = orgs.find(
-        (org) => org.id === user?.currentOrganizationId
+        (org) => org.id === user?.currentOrganizationId,
       );
       if (authoritativeOrganization) {
         setCurrentOrganization(authoritativeOrganization);
         localStorage.setItem(
           "currentOrganizationId",
-          authoritativeOrganization.id
+          authoritativeOrganization.id,
         );
       } else {
         setCurrentOrganization(null);
@@ -121,7 +120,9 @@ export const OrganizationProvider: React.FC<OrganizationProviderProps> = ({
       await switchAuthOrganization(orgId);
     } catch (error) {
       setError(
-        error instanceof Error ? error.message : "Organization selection failed"
+        error instanceof Error
+          ? error.message
+          : "Organization selection failed",
       );
       throw error;
     }
@@ -170,7 +171,7 @@ export const OrganizationProvider: React.FC<OrganizationProviderProps> = ({
       !organizationSelection
     ) {
       const org = organizations.find(
-        (o) => o.id === user.currentOrganizationId
+        (o) => o.id === user.currentOrganizationId,
       );
       if (org) {
         setCurrentOrganization(org);
@@ -200,3 +201,32 @@ export const OrganizationProvider: React.FC<OrganizationProviderProps> = ({
     </OrganizationContext.Provider>
   );
 };
+
+/** Retained work reads its origin's current organization data, never the route's selection. */
+export function OrganizationScope({
+  organizationId,
+  children,
+}: {
+  organizationId: string;
+  children: React.ReactNode;
+}) {
+  const context = useOptionalOrganization();
+  const scoped = React.useMemo(
+    () =>
+      context
+        ? {
+            ...context,
+            currentOrganization:
+              context.organizations.find(
+                (organization) => organization.id === organizationId,
+              ) ?? null,
+          }
+        : undefined,
+    [context, organizationId],
+  );
+  return (
+    <OrganizationContext.Provider value={scoped}>
+      {children}
+    </OrganizationContext.Provider>
+  );
+}

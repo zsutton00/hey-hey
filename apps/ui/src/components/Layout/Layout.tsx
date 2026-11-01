@@ -9,7 +9,10 @@ import React, {
 import { DemoSandboxBanner } from "@hey-hey/ui-common/components";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import { ProjectContext } from "@hey-hey/ui-common/context";
-import { useUserPairedMachines } from "@hey-hey/ui-common/data";
+import {
+  FutureOfferProvider,
+  useUserPairedMachines,
+} from "@hey-hey/ui-common/data";
 import {
   Box,
   Button,
@@ -191,10 +194,14 @@ const Layout = () => {
       ? { organizationId, projectId, navigate }
       : null;
 
+  // Size the shell to the visible viewport (dvh), not iOS Safari's largest
+  // viewport (vh). A vh shell leaves the document scrollable by the toolbar
+  // height, so the root and <main> compete to scroll and Safari's toolbar
+  // collapse leaves fixed controls hit-testing away from where they paint.
   return (
     <Box
       sx={{
-        minHeight: "100vh",
+        minHeight: "100dvh",
         display: "flex",
         flexDirection: "column",
         bgcolor: "background.default",
@@ -245,200 +252,223 @@ const Layout = () => {
 
         {/* Main content */}
         <ProjectContext.Provider value={projectContextValue}>
-          <LayoutMainScrollOwnerContext.Provider value={layoutMainScrollOwner}>
-            <Box
-              component="main"
-              data-testid="layout-main"
-              ref={mainContentRef}
-              sx={{
-                flexGrow: 1,
-                position: "relative",
-                isolation: "isolate",
-                height: isOnPublicMarketingPage ? "auto" : "100vh",
-                minHeight: 0,
-                minWidth: 0, // Prevent flex item from expanding beyond container
-                ...(isMainScrollSuppressed
-                  ? {
-                      // Bounded pages own their scroll surface (for example, a
-                      // conversation or editor). `clip` keeps <main> from
-                      // becoming a scroll container even when its children are
-                      // taller than the viewport.
-                      overflow: "clip",
-                    }
-                  : {
-                      overflowY: isOnPublicMarketingPage ? "visible" : "auto",
-                      overflowX: "hidden",
-                    }),
-                padding: 0,
-                paddingBottom:
-                  isBottomSpacingSuppressed || isOnPublicMarketingPage
-                    ? 0
-                    : "100px",
-                marginLeft: isOnProjectPage ? 0 : 0, // Drawer handles its own spacing
-                marginTop: isOnPublicMarketingPage
-                  ? 0
-                  : LAYOUT_CSS.MAIN_MARGIN_TOP,
-                bgcolor: "background.default",
-                ...(isOnLandingPage ? { px: 0 } : MAIN_CONTENT_PADDING_X_SX),
-              }}
+          <FutureOfferProvider key={location.pathname}>
+            <LayoutMainScrollOwnerContext.Provider
+              value={layoutMainScrollOwner}
             >
-              <MobileHeaderBreadcrumbProvider>
-                {isMobile &&
-                !isOnPublicMarketingPage &&
-                shouldRenderProjectChrome ? (
-                  // One persistent, pinned bar: Menu + centered title + Activity.
-                  // Fixed to the viewport so it never detaches regardless of the
-                  // scroll-container chain (sticky inside overflow:auto is fragile).
-                  // A sibling spacer below compensates for the out-of-flow height.
-                  <Box
-                    data-testid="mobile-pinned-header"
-                    sx={{
-                      position: "fixed",
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      zIndex: (zTheme) => zTheme.zIndex.appBar + 2,
-                      height: `${LAYOUT_CONSTANTS.MOBILE_HEADER_HEIGHT}px`,
-                      minHeight: `${LAYOUT_CONSTANTS.MOBILE_HEADER_HEIGHT}px`,
-                      boxSizing: "border-box",
-                      px: `${LAYOUT_CONSTANTS.MAIN_CONTENT_PADDING.LEFT_XS}px`,
-                      display: "grid",
-                      gridTemplateColumns: `${MOBILE_HEADER_ACTION_SIZE}px minmax(0, 1fr) ${MOBILE_HEADER_ACTION_SIZE}px`,
-                      alignItems: "center",
-                      columnGap: 1,
-                      bgcolor: "background.default",
-                      borderBottom: 1,
-                      borderColor: "divider",
-                      boxShadow: 1,
-                      overflow: "visible",
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        width: MOBILE_HEADER_ACTION_SIZE,
-                        height: MOBILE_HEADER_ACTION_SIZE,
-                        justifySelf: "start",
-                      }}
-                    >
-                      {shouldShowExplorer ? (
-                        <IconButton
-                          data-testid="mobile-nav-drawer-toggle"
-                          aria-label="Menu"
-                          onClick={handleMobileDrawerToggle}
-                          size="medium"
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: "column",
+                  flex: 1,
+                  height: isOnPublicMarketingPage ? "auto" : "100dvh",
+                  minWidth: 0,
+                  minHeight: 0,
+                }}
+              >
+                <Box
+                  component="main"
+                  data-testid="layout-main"
+                  ref={mainContentRef}
+                  sx={{
+                    flexGrow: 1,
+                    position: "relative",
+                    isolation: "isolate",
+                    height: isOnPublicMarketingPage ? "auto" : "100dvh",
+                    minHeight: 0,
+                    minWidth: 0, // Prevent flex item from expanding beyond container
+                    ...(isMainScrollSuppressed
+                      ? {
+                          // Bounded pages own their scroll surface (for example, a
+                          // conversation or editor). `clip` keeps <main> from
+                          // becoming a scroll container even when its children are
+                          // taller than the viewport.
+                          overflow: "clip",
+                        }
+                      : {
+                          overflowY: isOnPublicMarketingPage
+                            ? "visible"
+                            : "auto",
+                          overflowX: "hidden",
+                        }),
+                    padding: 0,
+                    paddingBottom:
+                      isBottomSpacingSuppressed || isOnPublicMarketingPage
+                        ? 0
+                        : "100px",
+                    marginLeft: isOnProjectPage ? 0 : 0, // Drawer handles its own spacing
+                    marginTop: isOnPublicMarketingPage
+                      ? 0
+                      : LAYOUT_CSS.MAIN_MARGIN_TOP,
+                    bgcolor: "background.default",
+                    ...(isOnLandingPage
+                      ? { px: 0 }
+                      : MAIN_CONTENT_PADDING_X_SX),
+                  }}
+                >
+                  <MobileHeaderBreadcrumbProvider>
+                    {isMobile &&
+                    !isOnPublicMarketingPage &&
+                    shouldRenderProjectChrome ? (
+                      // One persistent, pinned bar: Menu + centered title + Activity.
+                      // Fixed to the viewport so it never detaches regardless of the
+                      // scroll-container chain (sticky inside overflow:auto is fragile).
+                      // A sibling spacer below compensates for the out-of-flow height.
+                      <Box
+                        data-testid="mobile-pinned-header"
+                        sx={{
+                          position: "fixed",
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          zIndex: (zTheme) => zTheme.zIndex.appBar + 2,
+                          height: `${LAYOUT_CONSTANTS.MOBILE_HEADER_HEIGHT}px`,
+                          minHeight: `${LAYOUT_CONSTANTS.MOBILE_HEADER_HEIGHT}px`,
+                          boxSizing: "border-box",
+                          px: `${LAYOUT_CONSTANTS.MAIN_CONTENT_PADDING.LEFT_XS}px`,
+                          display: "grid",
+                          gridTemplateColumns: `${MOBILE_HEADER_ACTION_SIZE}px minmax(0, 1fr) ${MOBILE_HEADER_ACTION_SIZE}px`,
+                          alignItems: "center",
+                          columnGap: 1,
+                          bgcolor: "background.default",
+                          borderBottom: 1,
+                          borderColor: "divider",
+                          boxShadow: 1,
+                          overflow: "visible",
+                        }}
+                      >
+                        <Box
                           sx={{
                             width: MOBILE_HEADER_ACTION_SIZE,
                             height: MOBILE_HEADER_ACTION_SIZE,
-                            p: 1,
+                            justifySelf: "start",
                           }}
                         >
-                          <MenuIcon />
-                        </IconButton>
-                      ) : null}
-                    </Box>
-                    <MobileHeaderBreadcrumbSlot />
-                    <Box
-                      sx={{
-                        width: MOBILE_HEADER_ACTION_SIZE,
-                        height: MOBILE_HEADER_ACTION_SIZE,
-                        justifySelf: "end",
-                        minWidth: 0,
-                      }}
-                    >
-                      {isOnProjectPage && projectId && organizationId ? (
-                        <ProjectNotificationCenter
-                          organizationId={organizationId}
-                          projectId={projectId}
+                          {shouldShowExplorer ? (
+                            <IconButton
+                              data-testid="mobile-nav-drawer-toggle"
+                              aria-label="Menu"
+                              onClick={handleMobileDrawerToggle}
+                              size="medium"
+                              sx={{
+                                width: MOBILE_HEADER_ACTION_SIZE,
+                                height: MOBILE_HEADER_ACTION_SIZE,
+                                p: 1,
+                              }}
+                            >
+                              <MenuIcon />
+                            </IconButton>
+                          ) : null}
+                        </Box>
+                        <MobileHeaderBreadcrumbSlot />
+                        <Box
+                          sx={{
+                            width: MOBILE_HEADER_ACTION_SIZE,
+                            height: MOBILE_HEADER_ACTION_SIZE,
+                            justifySelf: "end",
+                            minWidth: 0,
+                          }}
+                        >
+                          {isOnProjectPage && projectId && organizationId ? (
+                            <ProjectNotificationCenter
+                              organizationId={organizationId}
+                              projectId={projectId}
+                            />
+                          ) : null}
+                        </Box>
+                      </Box>
+                    ) : null}
+                    {isMobile &&
+                      !isOnPublicMarketingPage &&
+                      shouldRenderProjectChrome && (
+                        // Spacer to compensate for the fixed header's out-of-flow height.
+                        <Box
+                          data-testid="mobile-pinned-header-spacer"
+                          sx={{
+                            height: `${LAYOUT_CONSTANTS.MOBILE_HEADER_HEIGHT}px`,
+                            flexShrink: 0,
+                          }}
                         />
-                      ) : null}
-                    </Box>
-                  </Box>
-                ) : null}
-                {isMobile &&
-                  !isOnPublicMarketingPage &&
-                  shouldRenderProjectChrome && (
-                    // Spacer to compensate for the fixed header's out-of-flow height.
-                    <Box
-                      data-testid="mobile-pinned-header-spacer"
-                      sx={{
-                        height: `${LAYOUT_CONSTANTS.MOBILE_HEADER_HEIGHT}px`,
-                        flexShrink: 0,
-                      }}
-                    />
-                  )}
+                      )}
+                    {!isMobile && shouldRenderProjectChrome && (
+                      // Desktop: floating controls overlaying in-flow page breadcrumbs.
+                      <Box
+                        data-testid="desktop-project-header"
+                        sx={{
+                          position: "sticky",
+                          top: 0,
+                          zIndex: (zTheme) => zTheme.zIndex.appBar + 2,
+                          height: 50,
+                          mb: "-50px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "flex-end",
+                          pointerEvents: "none",
+                        }}
+                      >
+                        {showPairCta && projectId && (
+                          <Box sx={{ pointerEvents: "auto" }}>
+                            <Button
+                              variant="contained"
+                              component="a"
+                              href={`/projects/${projectId}/settings?section=pairing`}
+                              data-testid="pair-cli-cta"
+                              aria-label={t(
+                                "pairing.cta.pairACli",
+                                "Pair a CLI",
+                              )}
+                              onClick={(
+                                e: React.MouseEvent<HTMLAnchorElement>,
+                              ) => {
+                                if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                                  e.preventDefault();
+                                  navigate(
+                                    `/projects/${projectId}/settings?section=pairing`,
+                                  );
+                                }
+                              }}
+                              sx={{
+                                mr: { xs: 1, md: 2 },
+                                transform: "translateY(-1px)",
+                                bgcolor: "secondary.main",
+                                "&:hover": { bgcolor: "secondary.dark" },
+                              }}
+                            >
+                              {t("pairing.cta.pairACli", "Pair a CLI")}
+                            </Button>
+                          </Box>
+                        )}
+                        {isOnProjectPage && projectId && organizationId && (
+                          <Box sx={{ pointerEvents: "auto", pr: 2 }}>
+                            <ProjectNotificationCenter
+                              organizationId={organizationId}
+                              projectId={projectId}
+                            />
+                          </Box>
+                        )}
+                      </Box>
+                    )}
+                    <AnimatedPageWrapper>
+                      <LayoutMainBottomSpacingContext.Provider
+                        value={suppressMainBottomSpacing}
+                      >
+                        {isOnPublicMarketingPage ? (
+                          <PublicMarketingShell>
+                            <Outlet />
+                          </PublicMarketingShell>
+                        ) : (
+                          <Outlet />
+                        )}
+                      </LayoutMainBottomSpacingContext.Provider>
+                    </AnimatedPageWrapper>
+                  </MobileHeaderBreadcrumbProvider>
+                </Box>
                 {!isOnPublicMarketingPage && (
-                  // Renders only for demo-sandbox users; everyone else sees nothing.
                   <DemoSandboxBanner enabled={Boolean(userIdentity)} />
                 )}
-                {!isMobile && shouldRenderProjectChrome && (
-                  // Desktop: floating controls overlaying in-flow page breadcrumbs.
-                  <Box
-                    data-testid="desktop-project-header"
-                    sx={{
-                      position: "sticky",
-                      top: 0,
-                      zIndex: (zTheme) => zTheme.zIndex.appBar + 2,
-                      height: 50,
-                      mb: "-50px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "flex-end",
-                      pointerEvents: "none",
-                    }}
-                  >
-                    {showPairCta && projectId && (
-                      <Box sx={{ pointerEvents: "auto" }}>
-                        <Button
-                          variant="contained"
-                          component="a"
-                          href={`/projects/${projectId}/settings?section=pairing`}
-                          data-testid="pair-cli-cta"
-                          aria-label={t("pairing.cta.pairACli", "Pair a CLI")}
-                          onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
-                            if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
-                              e.preventDefault();
-                              navigate(
-                                `/projects/${projectId}/settings?section=pairing`,
-                              );
-                            }
-                          }}
-                          sx={{
-                            mr: { xs: 1, md: 2 },
-                            transform: "translateY(-1px)",
-                            bgcolor: "secondary.main",
-                            "&:hover": { bgcolor: "secondary.dark" },
-                          }}
-                        >
-                          {t("pairing.cta.pairACli", "Pair a CLI")}
-                        </Button>
-                      </Box>
-                    )}
-                    {isOnProjectPage && projectId && organizationId && (
-                      <Box sx={{ pointerEvents: "auto", pr: 2 }}>
-                        <ProjectNotificationCenter
-                          organizationId={organizationId}
-                          projectId={projectId}
-                        />
-                      </Box>
-                    )}
-                  </Box>
-                )}
-                <AnimatedPageWrapper>
-                  <LayoutMainBottomSpacingContext.Provider
-                    value={suppressMainBottomSpacing}
-                  >
-                    {isOnPublicMarketingPage ? (
-                      <PublicMarketingShell>
-                        <Outlet />
-                      </PublicMarketingShell>
-                    ) : (
-                      <Outlet />
-                    )}
-                  </LayoutMainBottomSpacingContext.Provider>
-                </AnimatedPageWrapper>
-              </MobileHeaderBreadcrumbProvider>
-            </Box>
-          </LayoutMainScrollOwnerContext.Provider>
+              </Box>
+            </LayoutMainScrollOwnerContext.Provider>
+          </FutureOfferProvider>
         </ProjectContext.Provider>
       </Box>
     </Box>

@@ -11,6 +11,7 @@ import { reconcileAcceptedAgentLaunch } from "../../data/agentLaunchReconciliati
 import { getErrorMessage } from "../../utils/errorUtils";
 import { supportsFastMode } from "../AgentSession/capabilityCatalog";
 import { useAgentSessionInteractionAccessResolver } from "../AgentSession/operations/useAgentSessionInteractionAccess";
+import { bindGraphConversationAgentSessionMachine } from "../InteractionComponent/bindGraphConversationAgentSessionMachine";
 
 export interface AgentFixLaunchSelection {
   machineId: string;
@@ -26,7 +27,9 @@ export interface AgentFixLaunchSelection {
  * and authorization, carrying the recorded input unchanged. Every attempt,
  * including a retry, re-records first, which returns the same unstarted
  * session, so a retry starts against the same record with one stable
- * operation id per session.
+ * operation id per session. The chosen machine is bound to that session before
+ * the start, because controller authorization only admits a session already
+ * bound to the machine it runs on.
  */
 export function useProposalAgentFixLaunch() {
   const accessResolver = useAgentSessionInteractionAccessResolver();
@@ -56,6 +59,12 @@ export function useProposalAgentFixLaunch() {
             proposalId: proposal.id,
           })
         ).data.data;
+        await bindGraphConversationAgentSessionMachine({
+          organizationId: request.organizationId,
+          projectId: request.projectId,
+          agentSessionId: request.agentSessionId,
+          machineId: selection.machineId,
+        });
         const operationId =
           operationIds.current.get(request.agentSessionId) ??
           crypto.randomUUID();

@@ -128,12 +128,18 @@ export const validateProjectModeConfig = (
     issues.push('config projectModeSelection.modeId must match projectModeSnapshot.modeId');
   }
   if (snapshot) {
-    const isV2 = snapshot.schemaVersion === 'project-mode-snapshot.v2';
-    if (isV2 && snapshot.projectAssistant === undefined) {
+    const isV3 = snapshot.schemaVersion === 'project-mode-snapshot.v3';
+    if (isV3 ? snapshot.sessionRole === undefined : snapshot.sessionRole !== undefined) {
       issues.push(
-        'config/projectModeSnapshot/projectAssistant is required for project-mode-snapshot.v2',
+        `config/projectModeSnapshot/sessionRole ${isV3 ? 'is required' : 'is not allowed'} for ${snapshot.schemaVersion}`,
       );
-    } else if (!isV2 && snapshot.projectAssistant !== undefined) {
+    }
+    const isV2 = snapshot.schemaVersion === 'project-mode-snapshot.v2';
+    if ((isV2 || isV3) && snapshot.projectAssistant === undefined) {
+      issues.push(
+        `config/projectModeSnapshot/projectAssistant is required for ${snapshot.schemaVersion}`,
+      );
+    } else if (!isV2 && !isV3 && snapshot.projectAssistant !== undefined) {
       issues.push(
         `config/projectModeSnapshot/projectAssistant is not allowed for ${snapshot.schemaVersion}`,
       );

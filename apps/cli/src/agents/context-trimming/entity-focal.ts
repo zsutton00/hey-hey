@@ -30,7 +30,7 @@ export const allSectionsText = (sections: readonly MaterializedWorkItemSection[]
 export const workItemFocal = async (
   entity: FocalWorkItem,
   readParent: () => Promise<FocalParent | undefined>,
-  deps: Pick<PromptTypeHandlerDeps, 'auth' | 'apiBaseUrl' | 'logger'>,
+  deps: Pick<PromptTypeHandlerDeps, 'auth' | 'apiBaseUrl' | 'logger' | 'readRestriction'>,
 ): Promise<Focal> => {
   const sections = entity.sections ?? [];
   const description = sectionText(sections, 'description');

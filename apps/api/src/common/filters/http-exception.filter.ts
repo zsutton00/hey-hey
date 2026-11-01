@@ -62,7 +62,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
       }
       if (
         payload.diagnostic !== undefined ||
-        payload.projection !== undefined
+        payload.projection !== undefined ||
+        Array.isArray(payload.issues)
       ) {
         diagnostic = toProposalApprovalFailureDiagnostic(
           exception,

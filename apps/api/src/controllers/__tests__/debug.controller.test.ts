@@ -40,21 +40,23 @@ describe('DebugController', () => {
         ]),
       };
 
-      const controller = new DebugController({} as any,
-{} as any,
-{} as any,
-{} as any,
-{} as any,
-{} as any,
-{} as any,
-{} as any,
-{} as any,
-{} as any,
-outboxStore as any,
-{} as any,
-{} as any,
-{} as any,
-{} as any
+      const controller = new DebugController(
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        outboxStore as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
       );
 
       const result = await controller.getEntityOutboxEvents(
@@ -90,21 +92,23 @@ outboxStore as any,
         results: [],
       }),
     };
-    const controller = new DebugController({} as any,
-{} as any,
-{} as any,
-{} as any,
-{} as any,
-{} as any,
-{} as any,
-{} as any,
-{} as any,
-{} as any,
-{} as any,
-{} as any,
-{} as any,
-eventReplayRepairService as any,
-{} as any
+    const controller = new DebugController(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      eventReplayRepairService as any,
+      {} as any,
+      {} as any,
     );
     const request = { mode: 'VALIDATE_ONLY', limit: 25 } as any;
 
@@ -142,6 +146,9 @@ eventReplayRepairService as any,
         embeddingsClient as any,
         {} as any,
         projectAccess as any,
+        {
+          getEmbeddingsDebugToken: jest.fn().mockReturnValue('debug-token'),
+        } as any,
       );
     }
 
@@ -175,6 +182,11 @@ eventReplayRepairService as any,
         'user-1',
         'viewProjectEmbeddings',
       );
+      expect(embeddingsClient.getDebugEntity).toHaveBeenCalledWith(
+        'task',
+        'task-1',
+        'debug-token',
+      );
       expect(result.count).toBe(1);
       expect(result.found).toBe(true);
       expect(result.documents.map((document) => document.id)).toEqual([
@@ -192,7 +204,9 @@ eventReplayRepairService as any,
           type: 'task',
           id: 'task-1',
           count: 1,
-          documents: [{ id: 'doc-other', metadata: { projectId: 'project-2' } }],
+          documents: [
+            { id: 'doc-other', metadata: { projectId: 'project-2' } },
+          ],
         }),
       };
       const controller = buildController(projectAccess, embeddingsClient);
@@ -213,7 +227,9 @@ eventReplayRepairService as any,
       const projectAccess = {
         assertProjectRole: jest
           .fn()
-          .mockRejectedValue(new ForbiddenException('Insufficient permissions')),
+          .mockRejectedValue(
+            new ForbiddenException('Insufficient permissions'),
+          ),
       };
       const embeddingsClient = { getDebugEntity: jest.fn() };
       const controller = buildController(projectAccess, embeddingsClient);

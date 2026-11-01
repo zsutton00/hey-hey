@@ -1,8 +1,9 @@
+import { readReportUsage } from './report-usage.validation';
+import { restrictReportWhere } from 'src/read-restriction/read-policy';
 import { validateChangeWalkthroughPayload } from './change-walkthrough-payload.validation';
 import { validateCodingResearchPayload } from './coding-research-payload.validation';
 import { validateProjectReportPayload } from './project-report-payload.validation';
 import {
-  currentWritingSessionId,
   EvalOutputAdmissionService,
   ORDINARY_EVAL_OUTPUT_STAMP,
   type EvalOutputStamp,
@@ -269,7 +270,7 @@ export class ReportService {
     private readonly nodeExecutionService?: NodeExecutionService,
     private readonly projectReportRequests?: ProjectReportRequestService,
     @Optional()
-    private readonly evalOutputAdmission: EvalOutputAdmissionService = new EvalOutputAdmissionService(),
+    _evalOutputAdmission: EvalOutputAdmissionService = new EvalOutputAdmissionService(),
   ) {}
 
   getReportTitle(reportType: ReportType): string {
@@ -362,19 +363,18 @@ export class ReportService {
           ...linkedContextCreates,
         ]);
 
-        const evalStamp = await this.resolveEvalOutputStamp(
-          tx,
-          organizationId,
-          dto,
-        );
         const createdReport = await tx.report.create({
           data: {
             organizationId,
             projectId: dto.projectId ?? null,
-            ragEnabled: evalStamp.ragEnabled,
+            ragEnabled: dto.ragEnabled ?? true,
             reportType: dto.reportType as PrismaReportType,
             audience: audience as PrismaReportAudience,
             payload: this.toPersistedReportPayload(dto.payload, dto.agent),
+            usage:
+              dto.usage == null
+                ? Prisma.DbNull
+                : this.toUsageJson(dto.usage, organizationId, dto.reportType),
             schemaVersion,
             sourceExecutionId: dto.sourceExecutionId ?? null,
             parentReportId,
@@ -467,20 +467,19 @@ export class ReportService {
       reportType: dto.reportType,
       parentReportId: dto.parentReportId ?? null,
     });
-    const evalStamp = await this.resolveEvalOutputStamp(
-      tx,
-      organizationId,
-      dto,
-    );
     const created = await tx.report.create({
       data: {
         id,
         organizationId,
         projectId: dto.projectId ?? null,
-        ragEnabled: evalStamp.ragEnabled,
+        ragEnabled: dto.ragEnabled ?? true,
         reportType: dto.reportType as PrismaReportType,
         audience: dto.audience as PrismaReportAudience,
         payload: this.toPersistedReportPayload(dto.payload, dto.agent),
+        usage:
+          dto.usage == null
+            ? Prisma.DbNull
+            : this.toUsageJson(dto.usage, organizationId, dto.reportType),
         schemaVersion,
         sourceExecutionId: dto.sourceExecutionId ?? null,
         parentReportId: dto.parentReportId ?? null,
@@ -555,7 +554,7 @@ export class ReportService {
     });
 
     const reports = await this.prisma.db.report.findMany({
-      where: {
+      where: restrictReportWhere({
         organizationId,
         ...(filters.accessibleProjectIds
           ? {
@@ -586,23 +585,32 @@ export class ReportService {
         ...(!includeExpired
           ? { OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] }
           : {}),
-        ...(filters.entityType && filters.entityId
+        ...(filters.entityType === ReportRelatedEntityType.AgentSession &&
+        filters.entityId &&
+        filters.reportType === PrismaReportType.EVAL_ATTEMPT &&
+        !filters.relation
           ? {
-              reportEntities: {
-                some: {
-                  entityType: this.requireReportEntityType(filters.entityType),
-                  entityId: filters.entityId,
-                  ...(filters.relation
-                    ? {
-                        relation:
-                          filters.relation as PrismaReportEntityRelation,
-                      }
-                    : {}),
-                },
-              },
+              payload: { path: ['targetSessionId'], equals: filters.entityId },
             }
-          : {}),
-      },
+          : filters.entityType && filters.entityId
+            ? {
+                reportEntities: {
+                  some: {
+                    entityType: this.requireReportEntityType(
+                      filters.entityType,
+                    ),
+                    entityId: filters.entityId,
+                    ...(filters.relation
+                      ? {
+                          relation:
+                            filters.relation as PrismaReportEntityRelation,
+                        }
+                      : {}),
+                  },
+                },
+              }
+            : {}),
+      }),
       include: {
         reportEntities: {
           orderBy: { createdAt: 'asc' },
@@ -634,7 +642,7 @@ export class ReportService {
     });
 
     const reports = await this.prisma.db.report.findMany({
-      where: {
+      where: restrictReportWhere({
         organizationId,
         audience: {
           in: USER_VISIBLE_PERSISTED_REPORT_AUDIENCES,
@@ -645,7 +653,7 @@ export class ReportService {
             entityId: { in: uniqueIds },
           },
         },
-      },
+      }),
       include: {
         reportEntities: {
           orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
@@ -703,13 +711,14 @@ export class ReportService {
     });
 
     const reports = await this.prisma.db.report.findMany({
-      where: {
+      where: restrictReportWhere({
         organizationId,
+        ragEnabled: true,
         ...(reportType ? { reportType: reportType as PrismaReportType } : {}),
         reportEntities: {
           some: { entityId },
         },
-      },
+      }),
       select: {
         id: true,
         reportType: true,
@@ -1612,10 +1621,10 @@ export class ReportService {
     reportId: string,
   ): Promise<ReportDto> {
     const report = await this.prisma.db.report.findFirst({
-      where: {
+      where: restrictReportWhere({
         id: reportId,
         organizationId,
-      },
+      }),
       include: {
         reportEntities: {
           orderBy: { createdAt: 'asc' },
@@ -1703,6 +1712,7 @@ export class ReportService {
             dto.agent,
             existing.payload,
           ),
+          ragEnabled: dto.ragEnabled,
           version: { increment: 1 },
           ...(audience !== undefined
             ? { audience: audience as PrismaReportAudience }
@@ -1913,6 +1923,14 @@ export class ReportService {
     report: ReportDto,
     opts: { dryRun?: boolean } = {},
   ): Promise<FileTouchIndexingResult> {
+    if (report.ragEnabled === false) {
+      return {
+        reportId: report.id,
+        status: 'skipped',
+        indexedCount: 0,
+        reason: 'retrieval-disabled output',
+      };
+    }
     if (report.reportType !== ReportType.Implement) {
       return {
         reportId: report.id,
@@ -2503,6 +2521,23 @@ export class ReportService {
     };
   }
 
+  private toUsageJson(
+    value: unknown,
+    organizationId: OrganizationId,
+    reportType: ReportType,
+  ): Prisma.InputJsonValue | typeof Prisma.DbNull {
+    const usage = readReportUsage(value);
+    if (usage === null) {
+      this.logger.warn('report.usage.unavailable', {
+        organizationId,
+        reportType,
+        reason: 'invalid-snapshot',
+      });
+      return Prisma.DbNull;
+    }
+    return JSON.parse(JSON.stringify(usage));
+  }
+
   toDto(
     report: ReportWithEntities,
     nameMap: Map<string, string> = ReportService.EMPTY_NAME_MAP,
@@ -2529,6 +2564,7 @@ export class ReportService {
           ? payload.title
           : this.getReportTitle(reportType),
       version: report.version,
+      ...(report.usage == null ? {} : { usage: readReportUsage(report.usage) }),
       ...(agent !== null ? { agent } : {}),
       sourceExecutionId: report.sourceExecutionId ?? null,
       parentReportId: report.parentReportId ?? null,
@@ -2744,21 +2780,6 @@ export class ReportService {
       },
     );
     return { actions };
-  }
-
-  private async resolveEvalOutputStamp(
-    tx: AnyTransactionClient,
-    organizationId: OrganizationId,
-    dto: CreateReportDto,
-  ): Promise<EvalOutputStamp> {
-    if (!dto.projectId) {
-      return ORDINARY_EVAL_OUTPUT_STAMP;
-    }
-    return this.evalOutputAdmission.resolve(tx, {
-      organizationId,
-      projectId: dto.projectId as ProjectId,
-      writingSessionId: currentWritingSessionId(),
-    });
   }
 
   private async publishReportCreatedEvent(

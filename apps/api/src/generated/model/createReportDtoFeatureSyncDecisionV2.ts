@@ -12,12 +12,21 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { CreateReportEntityDto } from './createReportEntityDto';
+import { ReportUsageMeasurement } from './reportUsageMeasurement';
 import { FeatureSyncDecisionReportPayloadV2 } from './featureSyncDecisionReportPayloadV2';
 import { LinkedReportEntityRef } from './linkedReportEntityRef';
 import { ReportAudience } from './reportAudience';
 
 
 export interface CreateReportDtoFeatureSyncDecisionV2 { 
+    /**
+     * Usage available at creation; never updated with later measurements.
+     */
+    usage?: ReportUsageMeasurement | null;
+    /**
+     * Whether this report may be reused as project knowledge. Omitted means true on creation.
+     */
+    ragEnabled?: boolean;
     /**
      * Optional project scope for the report
      */

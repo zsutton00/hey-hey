@@ -1,3 +1,7 @@
+import { restrictTaskWhere } from 'src/read-restriction/read-policy';
+import { ReadVisibilityService } from 'src/read-restriction/read-visibility.service';
+import { forwardRef, Inject } from '@nestjs/common';
+import { ProposalReconciliationService } from '../proposal/proposal-reconciliation.service';
 import { PlanDependenciesService } from '../plan/plan-dependencies.service';
 import { orderPlanStages } from '../plan/order-plan-stages';
 import {
@@ -29,6 +33,11 @@ import {
   resolveProjectApprovalPolicies,
 } from 'src/services/proposal/proposal-response-policy';
 import { ORDINARY_PROPOSAL_VISIBILITY_WHERE } from 'src/services/proposal/proposal-visibility';
+import {
+  loadAuthorizedConversationSeed,
+  type AuthorizedConversationSeed,
+  type ConversationSeedKind,
+} from './conversation-seed-context';
 import type { ProposalWithApprovals } from 'src/services/proposal/proposal.types';
 import {
   GOAL_TRACKS_TOOL_NAMES,
@@ -280,6 +289,22 @@ type AuthorizedTaskSeed = Pick<
   | 'dueDate'
 >;
 
+function authorizedSeedMeta(
+  seed: AuthorizedTaskSeed | AuthorizedConversationSeed,
+): { createdAt: string; displayName: string; taskType?: string } {
+  if ('meta' in seed) {
+    return {
+      createdAt: seed.meta.createdAt.toISOString(),
+      displayName: seed.meta.displayName,
+    };
+  }
+  return {
+    createdAt: seed.createdAt.toISOString(),
+    displayName: seed.name ?? '(unnamed)',
+    taskType: seed.type,
+  };
+}
+
 /**
  * Collects the entity IDs of PLAN / PLAN_STAGE pivots reachable through the
  * seed's planContext. These are the plan-tree entities that should be
@@ -387,6 +412,11 @@ function withCreatingProposal(
 
 @Injectable()
 export class EntityContextService {
+  @Inject(forwardRef(() => ProposalReconciliationService))
+  private readonly reconciliation!: ProposalReconciliationService;
+
+  private readonly visibility: ReadVisibilityService;
+
   private readonly logger = new Logger(EntityContextService.name);
 
   constructor(
@@ -397,7 +427,9 @@ export class EntityContextService {
     private readonly taskService: TaskService,
     @Optional()
     private readonly projectApprovalPolicyService: ProjectApprovalPolicyService = new ProjectApprovalPolicyService(),
-  ) {}
+  ) {
+    this.visibility = new ReadVisibilityService(prisma);
+  }
 
   async getEntityContext(
     organizationId: OrganizationId,
@@ -405,32 +437,37 @@ export class EntityContextService {
     entityId: string,
     includeFlags?: EntityContextIncludeFlags,
     proposalTargetEntityIds: readonly string[] = [entityId],
-    seed?: AuthorizedTaskSeed,
+    seed?: AuthorizedTaskSeed | AuthorizedConversationSeed,
   ): Promise<EntityContextDto> {
     const includeProposals = includeFlags?.includeProposals !== false;
     const includeMcpTools = includeFlags?.includeAvailableMcpTools !== false;
     const proposalDetail = includeFlags?.proposalDetail ?? 'summary';
 
-    const [rawProposals, entityMeta, creatingProposal] = await Promise.all([
+    // A protected focal entity answers exactly like one that does not exist.
+    await this.visibility.assertVisible(entityType, entityId);
+    const visibleProposalTargetIds = await this.visibility.filterVisible(
+      proposalTargetEntityIds,
+      (targetId) => ({ entityType: EntityTypeEnum.Task, entityId: targetId }),
+    );
+
+    const [allProposals, entityMeta, creatingProposal] = await Promise.all([
       includeProposals
         ? this.findProposalsByEntities(
             organizationId,
-            proposalTargetEntityIds,
+            visibleProposalTargetIds,
             proposalDetail === 'summary'
               ? DEFAULT_PROPOSAL_QUERY_COUNT
               : FULL_PROPOSAL_QUERY_COUNT,
           )
         : Promise.resolve([] as ProposalWithApprovals[]),
       seed
-        ? Promise.resolve({
-            createdAt: seed.createdAt.toISOString(),
-            displayName: seed.name ?? '(unnamed)',
-            taskType: seed.type,
-          })
+        ? Promise.resolve(authorizedSeedMeta(seed))
         : this.resolveEntityMeta(entityType, entityId),
       this.findCreatingProposal(organizationId, entityId),
     ]);
 
+    const rawProposals =
+      await this.visibility.filterVisibleProposals(allProposals);
     const { createdAt, displayName, taskType } = entityMeta;
 
     const nonCreateProposals = rawProposals.filter(
@@ -459,7 +496,10 @@ export class EntityContextService {
             this.prisma.db,
             proposalsToMap,
             projectPolicies,
-            { workItemTypeRegistry: this.workItemTypeRegistry },
+            {
+              workItemTypeRegistry: this.workItemTypeRegistry,
+              reconciliation: this.reconciliation,
+            },
           )
         : undefined;
 
@@ -544,6 +584,19 @@ export class EntityContextService {
       }
       seed = task;
     }
+    let conversationSeed: AuthorizedConversationSeed | undefined;
+    if (
+      entityType === EntityTypeEnum.Conversation ||
+      entityType === EntityTypeEnum.Message
+    ) {
+      conversationSeed = await loadAuthorizedConversationSeed(
+        this.prisma.db,
+        organizationId,
+        projectId,
+        entityType as ConversationSeedKind,
+        entityId,
+      );
+    }
 
     const wantRelatedEntities = includeFlags?.includeRelatedEntities !== false;
     const wantHierarchy = includeFlags?.includeFeatureHierarchy !== false;
@@ -569,7 +622,7 @@ export class EntityContextService {
       entityId,
       includeFlags,
       [entityId],
-      seed,
+      seed ?? conversationSeed,
     );
     const planPromise = wantPlanContext
       ? this.buildPlanContext(entityType, entityId)
@@ -650,7 +703,13 @@ export class EntityContextService {
       result.planContext = planContext;
     }
     if (wantRelatedEntities) {
-      result.relatedEntities = auxiliary.relatedEntities ?? [];
+      result.relatedEntities = await this.visibility.filterVisible(
+        auxiliary.relatedEntities ?? [],
+        (related) => ({
+          entityType: related.entityType,
+          entityId: related.entityId,
+        }),
+      );
       result.agentSessions = auxiliary.agentSessions ?? [];
     }
     if (wantHierarchy) {
@@ -658,6 +717,9 @@ export class EntityContextService {
     }
     if (content) {
       result.content = content;
+    }
+    if (conversationSeed) {
+      result.conversationContext = conversationSeed.conversationContext;
     }
 
     this.logger.log('getFullEntityContext completed', {
@@ -1274,6 +1336,8 @@ export class EntityContextService {
       taskId,
     });
 
+    await this.visibility.assertVisible(EntityTypeEnum.Task, taskId);
+
     type AncestorRow = {
       id: string;
       name: string;
@@ -1470,14 +1534,14 @@ export class EntityContextService {
     });
 
     const features = await this.prisma.db.task.findMany({
-      where: {
+      where: restrictTaskWhere({
         organizationId,
         projectId,
         type: {
           in: this.workItemTypeRegistry.getHierarchyNodeTypes(projectId),
         },
         archivedAt: null,
-      },
+      }),
       select: { id: true, name: true, parentTaskId: true, tag: true },
     });
 
@@ -1598,12 +1662,12 @@ export class EntityContextService {
       this.workItemTypeRegistry.getHierarchyNodeTypes(projectId);
     const [features, childCountRows] = await Promise.all([
       this.prisma.db.task.findMany({
-        where: {
+        where: restrictTaskWhere({
           organizationId,
           projectId,
           type: { in: hierarchyNodeTypes },
           archivedAt: null,
-        },
+        }),
         select: {
           id: true,
           name: true,
@@ -1614,13 +1678,13 @@ export class EntityContextService {
       }),
       this.prisma.db.task.groupBy({
         by: ['parentTaskId'],
-        where: {
+        where: restrictTaskWhere({
           organizationId,
           projectId,
           type: { notIn: hierarchyNodeTypes },
           archivedAt: null,
           parentTaskId: { not: null },
-        },
+        }),
         _count: { _all: true },
       }),
     ]);
@@ -2981,7 +3045,16 @@ export class EntityContextService {
       taskType?: string;
     } | null;
 
-    const lookups: Partial<Record<EntityType, () => Promise<MetaRow>>> = {
+    // Exhaustive over EntityType so a new kind must choose how it resolves.
+    // `null` kinds have no standalone metadata read here: CONVERSATION and
+    // MESSAGE are resolved by their authorized seed before this point.
+    const lookups: Record<EntityType, (() => Promise<MetaRow>) | null> = {
+      ARTIFACT: null,
+      VALIDATION_SESSION: null,
+      PROPOSAL: null,
+      USER: null,
+      CONVERSATION: null,
+      MESSAGE: null,
       PROJECT: async () => {
         const r = await this.prisma.db.project.findUnique({
           where,
@@ -3015,13 +3088,6 @@ export class EntityContextService {
           select: { createdAt: true, name: true },
         });
         return r && { createdAt: r.createdAt, displayName: r.name };
-      },
-      CONVERSATION: async () => {
-        const r = await this.prisma.db.conversation.findUnique({
-          where,
-          select: { createdAt: true, title: true },
-        });
-        return r && { createdAt: r.createdAt, displayName: r.title };
       },
       REPORT: async () => {
         const r = await this.prisma.db.report.findUnique({

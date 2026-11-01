@@ -1,3 +1,5 @@
+import { hashControllerAction } from '../shared/api/generated/controller-action-contract';
+import type { HostActionPreparation } from '../shared/api/generated/api';
 import { createHash } from 'node:crypto';
 import { canonicalizeJson } from '../shared/canonical-json';
 import {
@@ -38,6 +40,7 @@ import {
   getChangedFilesFailureClassification,
   getChangedFilesExitCode,
   safeChangedFilesErrorName,
+  safeRunReadPreparationDetails,
   stableWorkspaceIdentity,
   type ChangedFilesReadFailureDiagnostic,
   type ChangedFilesReadPhase,
@@ -207,7 +210,11 @@ export class CliReadHandler {
         logger.error('cli-read.operation.failed', {
           requestId: body.requestId,
           operation: body.operation,
-          error: resolvedError.message,
+          error:
+            resolvedError instanceof RunReadPreparationError
+              ? safeChangedFilesErrorName(resolvedError)
+              : resolvedError.message,
+          ...safeRunReadPreparationDetails(resolvedError),
         });
         return this.toErrorResponse(verification.verified, resolvedError);
       }
@@ -219,8 +226,14 @@ export class CliReadHandler {
       projectId,
       actionCategory: 'CLI_READ',
       actionType: 'CLI_READ',
-      actionPayloadHash:
-        authorization.kind === 'controller_assertion' ? authorization.intent.actionPayloadHash : '',
+      actionPayloadHash: hashControllerAction({
+        requestId: verification.verified.envelope.nonce,
+        actionCategory: 'CLI_READ',
+        actionType: 'CLI_READ',
+        targetKind: 'AGENT_SESSION',
+        targetId: verification.verified.body.agentSessionId,
+        inputs: { kind: 'CLI_READ', body: verification.verified.body },
+      } satisfies HostActionPreparation),
       target: {
         kind: 'AGENT_SESSION',
         id: verification.verified.body.agentSessionId,
@@ -257,7 +270,9 @@ export class CliReadHandler {
         operation: body.operation,
         agentSessionId: 'agentSessionId' in body ? body.agentSessionId : null,
         runId: 'runId' in body ? body.runId : null,
+        ...safeRunReadPreparationDetails(resolvedError),
         error:
+          resolvedError instanceof RunReadPreparationError ||
           body.operation === 'run.changed_files.count' ||
           body.operation === 'run.changed_files.inventory' ||
           body.operation === 'run.changed_files.detail'

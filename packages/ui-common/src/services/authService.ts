@@ -14,6 +14,7 @@ import {
 import type { UnifiedApiClient } from "../clients/serviceClients";
 import { getApiClient, getApiRuntime } from "../clients/runtime";
 import memoize from "lodash/memoize.js";
+import { markDemoSandboxSession } from "../data/demoSandboxSession";
 
 // Memory storage for tokens (cleared on page refresh for security)
 let authToken: string | null = null;
@@ -426,6 +427,7 @@ export const login = async (
 
   const browserAuthResponse = parseBrowserAuthResponse(innerData);
   setBrowserAuthState(browserAuthResponse);
+  markDemoSandboxSession(false);
   return browserAuthResponse;
 };
 
@@ -443,6 +445,7 @@ export const changePassword = async (
     });
     const browserAuthResponse = parseBrowserAuthResponse(response.data?.data);
     setBrowserAuthState(browserAuthResponse);
+    markDemoSandboxSession(false);
     return browserAuthResponse;
   } catch (error) {
     clearAuthToken();
@@ -618,6 +621,8 @@ const terminateBrowserSession = async (
 
   browserSessionContinuityDecision =
     BrowserSessionContinuityDecision.RemainSignedOut;
+  // Signing out of a demo ends it for this browser; the API drops its binding.
+  markDemoSandboxSession(false);
   clearAuthToken();
 };
 

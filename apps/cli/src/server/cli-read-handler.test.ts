@@ -1,3 +1,7 @@
+import { controllerActionRuntimeSchema } from '../shared/api/generated/controller-action-contract';
+import { randomUUID } from 'node:crypto';
+import { directActionHarness } from './controller-authorization/direct-action.test-support';
+import type { TriggerVerifier } from './trigger-verification/verify';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -120,6 +124,7 @@ const readBodiesByOperation = {
     agentSessionId,
     operation: 'run.context_usage.get',
     runId,
+    providerSessionId: 'provider-session',
   },
   'run.skills.list': {
     requestId,
@@ -138,6 +143,10 @@ const readBodiesByOperation = {
     agentSessionId,
     operation: 'project.session_costs.list',
     projectId,
+    activityFrom: '2026-07-01T00:00:00.000Z',
+    activityTo: '2026-07-02T00:00:00.000Z',
+    minKnownCostUsd: 1,
+    cursor: null,
     limit: 25,
   },
   'provider.usage.get': {
@@ -191,6 +200,7 @@ const createSubject = (
     errors: [],
   }),
   subjectOptions: {
+    platformVerifier?: TriggerVerifier;
     logger?: ServerLogger;
     changedFilesError?: Error;
     readProviderUsage?: () => Promise<CliReadProviderUsageResult>;
@@ -208,7 +218,12 @@ const createSubject = (
   const repoStore = new RepoMappingStore();
   vi.spyOn(repoStore, 'getBinding').mockResolvedValue(null);
   const runChangedFilesReader = new RunChangedFilesReader(repoStore);
-  vi.spyOn(triggerVerificationRuntime, 'verifyCliReadFrame').mockReturnValue(verification);
+  const verifyRead = vi.spyOn(triggerVerificationRuntime, 'verifyCliReadFrame');
+  if (subjectOptions.platformVerifier) {
+    verifyRead.mockImplementation((raw) =>
+      subjectOptions.platformVerifier!.verifyCliReadFrame(raw),
+    );
+  } else verifyRead.mockReturnValue(verification);
   vi.spyOn(RunReadRestoreCoordinator.prototype, 'restore').mockImplementation(restore);
   vi.spyOn(RunReadRestoreCoordinator.prototype, 'restoreForContextUsage').mockImplementation(
     restore,
@@ -582,6 +597,62 @@ describe('CliReadHandler', () => {
     expect(diagnostics[0]?.membership.projectionCount).toBe(0);
     expect(diagnostics[0]?.membership.paths).toEqual([]);
     expect(diagnostics[0]?.result).toEqual({ changedFilesCount: 0, files: [] });
+  });
+
+  it.each([false, true])('logs safe preparation details (cause: %s)', async (withCause) => {
+    const logger = {
+      trace: vi.fn(),
+      debug: vi.fn(),
+      info: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+      child: () => NOOP_LOGGER,
+    } satisfies ServerLogger;
+    const failure = new RunReadPreparationError(
+      'READ_FAILED',
+      'Private /repository/file.ts message',
+      withCause ? { cause: new TypeError('Private /repository/cause.ts message') } : undefined,
+    );
+    const restore = vi.fn<(requestedRunId: string) => Promise<Run>>().mockRejectedValue(failure);
+    await createSubject(
+      restore,
+      verified,
+      undefined,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { logger },
+    ).handle({});
+    expect(logger.error).toHaveBeenCalledWith('cli-read.operation.failed', {
+      requestId,
+      operation: 'run.changed_files.count',
+      agentSessionId,
+      runId,
+      error: 'RunReadPreparationError',
+      errorCode: 'READ_FAILED',
+      ...(withCause ? { causeErrorName: 'TypeError' } : {}),
+    });
+    vi.restoreAllMocks();
+    const runStore = createTestRunStore();
+    const registry = createTestRunRegistryWiring({ runStore }).runRegistry;
+    vi.spyOn(runStore, 'getRunMetadata').mockRejectedValue(failure);
+    await expect(new RunFileContextReader(runStore, registry, logger).read(runId)).rejects.toBe(
+      failure,
+    );
+    expect(logger.warn).toHaveBeenCalledWith('local.changed_files_read.failed', {
+      runId,
+      errorName: 'RunReadPreparationError',
+      errorCode: 'READ_FAILED',
+      ...(withCause ? { causeErrorName: 'TypeError' } : {}),
+    });
+    expect(JSON.stringify([logger.error.mock.calls, logger.warn.mock.calls])).not.toContain(
+      'Private',
+    );
+    expect(JSON.stringify([logger.error.mock.calls, logger.warn.mock.calls])).not.toContain(
+      '/repository',
+    );
   });
 
   it('returns the coordinator typed error', async () => {
@@ -1647,6 +1718,194 @@ describe('workspace catalog admission', () => {
       expect(await subject.handle({})).toBeNull();
       expect(admit).not.toHaveBeenCalled();
       expect(restore).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe('fresh controller approval binds delivered session-read inputs', () => {
+  const cases = Object.values(readBodiesByOperation).filter((body) => 'agentSessionId' in body);
+
+  it.each(cases)(
+    'admits the approved $operation with real controller and platform signatures',
+    async (body) => {
+      const harness = directActionHarness({
+        requestId,
+        actionCategory: 'CLI_READ',
+        actionType: 'CLI_READ',
+        targetKind: 'AGENT_SESSION',
+        targetId: agentSessionId,
+        inputs: { kind: 'CLI_READ', body },
+      });
+      const frame = harness.frame('cli.read.request', body, conversationId);
+      expect(harness.verifier.verifyCliReadFrame(frame).ok).toBe(true);
+      const handler = createSubject(
+        vi.fn().mockRejectedValue(new Error('fixture has no run')),
+        verified,
+        undefined,
+        [],
+        undefined,
+        undefined,
+        harness.admission,
+        undefined,
+        { platformVerifier: harness.verifier },
+      );
+      // A new envelope nonce avoids the platform verifier's own replay guard.
+      await handler.handle(harness.frame('cli.read.request', body, conversationId));
+      expect(await harness.admit.mock.results[0]?.value).toMatchObject({ admitted: true });
+      expect(harness.createGrant).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each(cases)(
+    'rejects changed $operation inputs with unchanged valid controller proof and newly valid platform framing',
+    async (body) => {
+      const harness = directActionHarness({
+        requestId,
+        actionCategory: 'CLI_READ',
+        actionType: 'CLI_READ',
+        targetKind: 'AGENT_SESSION',
+        targetId: agentSessionId,
+        inputs: { kind: 'CLI_READ', body },
+      });
+      const changed =
+        'runId' in body
+          ? { ...body, runId: serviceId }
+          : body.operation === 'project.session_costs.list'
+            ? { ...body, limit: 26 }
+            : { requestId, agentSessionId, operation: 'run.skills.list' as const, runId };
+      const restore = vi.fn().mockRejectedValue(new Error('must not access host state'));
+      const handler = createSubject(
+        restore,
+        verified,
+        undefined,
+        [],
+        undefined,
+        undefined,
+        harness.admission,
+        undefined,
+        { platformVerifier: harness.verifier },
+      );
+      const frame = harness.frame('cli.read.request', changed, conversationId);
+      expect(harness.verifier.verifyCliReadFrame(frame).ok).toBe(true);
+      await expect(
+        handler.handle(harness.frame('cli.read.request', changed, conversationId)),
+      ).resolves.toBeNull();
+      expect(await harness.admit.mock.results[0]?.value).toMatchObject({
+        admitted: false,
+        reason: 'PAYLOAD_HASH_MISMATCH',
+      });
+      expect(restore).not.toHaveBeenCalled();
+      expect(harness.createGrant).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe('read input field coverage stays aligned with OpenAPI', () => {
+  const schema: any = controllerActionRuntimeSchema;
+  const resolve = (node: any): any =>
+    node.$ref
+      ? resolve(
+          node.$ref
+            .slice(2)
+            .split('/')
+            .reduce(
+              (value: any, key: string) => value[key.replace(/~1/g, '/').replace(/~0/g, '~')],
+              schema,
+            ),
+        )
+      : node;
+  const inputs = resolve(schema.definitions.ControllerActionInputs);
+  const read = inputs.oneOf
+    .map(resolve)
+    .find((branch: any) => branch.properties.kind.enum.includes('CLI_READ'));
+  const variants = resolve(read.properties.body).oneOf.map(resolve);
+  const mutations: Array<{
+    operation: string;
+    path: string;
+    approved: VerifiedCliReadFrame['body'];
+    changed: VerifiedCliReadFrame['body'];
+  }> = [];
+  for (const body of Object.values(readBodiesByOperation)) {
+    if (!('agentSessionId' in body)) continue;
+    const variant = variants.find((branch: any) =>
+      resolve(branch.properties.operation).enum.includes(body.operation),
+    );
+    const visit = (node: any, sample: any, path: string[]) => {
+      node = resolve(node);
+      if (node.properties) {
+        it(
+          body.operation + ' fixture covers every ' + (path.join('.') || 'body') + ' property',
+          () => {
+            expect(Object.keys(sample).sort()).toEqual(Object.keys(node.properties).sort());
+          },
+        );
+        for (const [key, child] of Object.entries(node.properties)) {
+          if (path.length === 0 && ['requestId', 'agentSessionId', 'operation'].includes(key))
+            continue;
+          visit(child, sample[key], [...path, key]);
+        }
+        return;
+      }
+      if (node.enum?.length === 1) return;
+      let value: string | number | boolean;
+      if (typeof sample === 'number') value = sample + 1;
+      else if (typeof sample === 'boolean') value = !sample;
+      else if (node.format === 'uuid') value = randomUUID();
+      else if (node.format === 'date-time')
+        value = new Date(Date.parse(sample) + 1000).toISOString();
+      else value = sample === null ? 'another-cursor' : String(sample) + '-changed';
+      const changed = structuredClone(body);
+      const parent: any = path.slice(0, -1).reduce((value: any, key) => value[key], changed);
+      parent[path[path.length - 1]!] = value;
+      mutations.push({ operation: body.operation, path: path.join('.'), approved: body, changed });
+    };
+    visit(variant, body, []);
+  }
+  it.each(mutations)(
+    'rejects a changed $operation $path before host access',
+    async ({ approved, changed }) => {
+      const harness = directActionHarness({
+        requestId,
+        actionCategory: 'CLI_READ',
+        actionType: 'CLI_READ',
+        targetKind: 'AGENT_SESSION',
+        targetId: agentSessionId,
+        inputs: { kind: 'CLI_READ', body: approved },
+      });
+      const restore = vi.fn().mockRejectedValue(new Error('must not access host state'));
+      const handler = createSubject(
+        restore,
+        verified,
+        undefined,
+        [],
+        undefined,
+        undefined,
+        harness.admission,
+        undefined,
+        { platformVerifier: harness.verifier },
+      );
+      const verifiedFrame = harness.verifier.verifyCliReadFrame(
+        harness.frame('cli.read.request', changed, conversationId),
+      );
+      if (!verifiedFrame.ok) {
+        // Project identity is already bound by the signed routing context.
+        expect(verifiedFrame.reason).toBe('routing_mismatch');
+        await expect(
+          handler.handle(harness.frame('cli.read.request', changed, conversationId)),
+        ).resolves.toBeNull();
+        expect(harness.admit).not.toHaveBeenCalled();
+        expect(restore).not.toHaveBeenCalled();
+        return;
+      }
+      await expect(
+        handler.handle(harness.frame('cli.read.request', changed, conversationId)),
+      ).resolves.toBeNull();
+      expect(await harness.admit.mock.results[0]?.value).toMatchObject({
+        admitted: false,
+        reason: 'PAYLOAD_HASH_MISMATCH',
+      });
+      expect(restore).not.toHaveBeenCalled();
+      expect(harness.createGrant).not.toHaveBeenCalled();
     },
   );
 });

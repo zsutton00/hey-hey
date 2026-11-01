@@ -1,4 +1,4 @@
-import { workItemTypeAgentGuidanceSchema } from '../../services/tasks/work-item-type-agent-guidance.schema';
+import { workItemTypeSessionRoleGuidanceSchema } from '../../services/tasks/work-item-type-agent-guidance.schema';
 import { diagramElementPolicySchema } from '../../services/tasks/diagram-metadata';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import {
@@ -123,6 +123,12 @@ const workItemTypeSectionDefinitionSchema = z
       .optional()
       .describe(
         'Named definition-owned HTML/CSS or structured-mockup presentation profiles; item content selects only a sizeKey.',
+      ),
+    required: z
+      .boolean()
+      .optional()
+      .describe(
+        'Whether this section must be supplied at creation; omission retains the legacy required policy.',
       ),
     defaultSizeKey: z
       .string()
@@ -327,6 +333,8 @@ export const WORK_ITEM_TYPE_PARENTAGE_GUIDANCE =
 
 export const createWorkItemTypeParameters = z
   .object({
+    ragEnabled: z.boolean().optional(),
+    applicationEligible: z.boolean().optional(),
     key: z
       .string()
       .min(1)
@@ -429,15 +437,16 @@ export const createWorkItemTypeParameters = z
       .array(z.nativeEnum(WorkStatus))
       .optional()
       .describe(
-        'Subset of allowedStatuses that agents may set directly; other statuses ' +
-          'remain reserved for system transitions.',
+        'Statuses from allowedStatuses that agents may propose directly. ' +
+          'Defaults to all allowedStatuses when omitted; pass a narrower list ' +
+          '(or an empty one) only to restrict agents on purpose.',
       ),
     anchorableReportTypes: z
       .array(z.nativeEnum(ReportType))
       .optional()
       .describe('Report types that may be anchored to an item of this type.'),
-    agentGuidance: workItemTypeAgentGuidanceSchema.optional(),
     maintenanceGuidance: z.string().optional(),
+    sessionRoleGuidance: workItemTypeSessionRoleGuidanceSchema.optional(),
     writingStandards: z
       .object({
         create: z.string(),
@@ -463,6 +472,8 @@ export const CREATE_WORK_ITEM_TYPE_AUTHORING_AXES = Object.freeze(
 
 export const editWorkItemTypeParameters = z
   .object({
+    ragEnabled: z.boolean().optional(),
+    applicationEligible: z.boolean().optional(),
     typeKey: z
       .string()
       .min(1)
@@ -621,7 +632,11 @@ export class WorkItemTypeProposalToolsProvider {
         auth.organizationId,
         projectId as ProjectId,
         auth.user.userId,
-        dto,
+        {
+          ...dto,
+          ragEnabled: params.ragEnabled,
+          applicationEligible: params.applicationEligible,
+        },
       );
 
       this.logger.log(
@@ -745,7 +760,11 @@ export class WorkItemTypeProposalToolsProvider {
         auth.organizationId,
         projectId as ProjectId,
         auth.user.userId,
-        dto,
+        {
+          ...dto,
+          ragEnabled: params.ragEnabled,
+          applicationEligible: params.applicationEligible,
+        },
       );
 
       this.logger.log(

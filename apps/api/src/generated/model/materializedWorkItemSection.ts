@@ -31,7 +31,7 @@ export interface MaterializedWorkItemSection {
      */
     materializedMarkdown: string;
     /**
-     * Proposal whose successfully materialized change produced the section\'s current composition or resolved presentation context. 
+     * Proposal whose successfully materialized change produced the section\'s current composition or resolved presentation context. Empty when the section has no recorded proposal provenance. 
      */
     materializedProposalId: string;
     /**

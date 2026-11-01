@@ -56,17 +56,17 @@ const readinessByState: Record<
 };
 
 export const getMachineExecutionReadinessPresentation = (
-  state: MachineDto["executionReadiness"]
+  state: MachineDto["executionReadiness"],
 ): MachineExecutionReadiness => ({
   state,
   ...readinessByState[state],
 });
 
 export const classifyMachineExecutionReadiness = (
-  machine: MachineDto
+  machine: MachineDto,
 ): MachineExecutionReadiness => {
   const globalReadiness = getMachineExecutionReadinessPresentation(
-    machine.executionReadiness
+    machine.executionReadiness,
   );
   if (!globalReadiness.selectable) return globalReadiness;
 
@@ -81,6 +81,14 @@ export const classifyMachineExecutionReadiness = (
       };
     case CurrentControllerMachineEligibilityState.Eligible:
       return globalReadiness;
+    case CurrentControllerMachineEligibilityState.Ambiguous:
+      return {
+        state: machine.executionReadiness,
+        label: "Controller selection required",
+        reason:
+          "This browser has multiple controllers for this Agent Bridge. Select an exact controller before authorizing an action.",
+        selectable: false,
+      };
     case CurrentControllerMachineEligibilityState.NotEnrolled:
       return {
         state: machine.executionReadiness,

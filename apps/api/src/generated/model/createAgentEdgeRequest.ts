@@ -42,6 +42,10 @@ export interface CreateAgentEdgeRequest {
      */
     predicate?: string | null;
     /**
+     * Optional plain-language action that triggers this flow transition.
+     */
+    actionLabel?: string | null;
+    /**
      * Label-specific relationship metadata declared by the edge contract.
      */
     metadata?: { [key: string]: any; } | null;

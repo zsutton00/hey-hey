@@ -26,7 +26,7 @@ import {
 } from "../../api";
 import { useConversation } from "../../data/hooks/useConversation";
 import { useQueryClient } from "@tanstack/react-query";
-import { invalidateConversationMessages } from "../../data/collections/messages";
+import { submitConversationMessage } from "./operations/submitConversationMessage";
 import { useAgentSessionCurrentState } from "../../data/hooks/useAgentSessionCurrentState";
 import { useProject } from "../../data/hooks/useProject";
 import {
@@ -272,7 +272,7 @@ const AgentConversationViewInner = ({
     organizationId,
     projectId,
     normalizedConversationId,
-    { enabled: shouldFetch || hasPreview },
+    { enabled: !readOnly && (shouldFetch || hasPreview) },
   );
   const recoveryState =
     sessionResumability === "legacy_non_resumable"
@@ -377,39 +377,15 @@ const AgentConversationViewInner = ({
     async (message: CreateUserMessage): Promise<void> => {
       if (!displayConversation)
         throw new Error("Conversation is not ready for message submission.");
-      if (!interactionAccess.isDeviceEnabled)
-        throw new Error(interactionAccess.unavailable.message);
-      const result = await interactionAccess.interactions.submitMessage({
+      await submitConversationMessage({
+        interactionAccess,
+        queryClient,
         organizationId,
         projectId,
         agentSessionId,
         conversationId: displayConversation.id,
-        intent: {
-          projectId: message.projectId,
-          type: message.type,
-          ...(message.userId ? { userId: message.userId } : {}),
-          ...(message.status ? { status: message.status } : {}),
-          conversationId: message.conversationId,
-          ...(message.parentMessageId !== undefined
-            ? { parentMessageId: message.parentMessageId }
-            : {}),
-          ...(message.createdAt ? { createdAt: message.createdAt } : {}),
-          data: message.data,
-          ...(message.handler ? { handler: message.handler } : {}),
-        },
+        message,
       });
-      if (result.state !== "succeeded" && result.state !== "accepted")
-        throw new Error(
-          result.state === "cancelled"
-            ? "The operation was cancelled."
-            : result.message,
-        );
-      void invalidateConversationMessages(
-        queryClient,
-        organizationId,
-        projectId,
-        displayConversation.id,
-      );
     },
     [
       interactionAccess,

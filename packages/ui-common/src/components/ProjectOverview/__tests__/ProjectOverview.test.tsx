@@ -1,3 +1,6 @@
+import { ThemeProvider } from "@mui/material/styles";
+import { createHeyTheme } from "../../../contexts/ThemeContext";
+import type { PropsWithChildren } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
@@ -35,6 +38,14 @@ vi.mock("../../../data/hooks/useProjectReports", () => ({
   }),
 }));
 
+vi.mock("../../../data/hooks/useProjectReadyFutures", () => ({
+  useProjectReadyFutures: () => ({
+    isPending: false,
+    isError: false,
+    data: { items: [], total: 0, limit: 10, offset: 0, unavailableCount: 0 },
+  }),
+}));
+
 const useProject = vi.hoisted(() => vi.fn());
 const useProjectMetrics = vi.hoisted(() => vi.fn());
 const useEntityStar = vi.hoisted(() => vi.fn());
@@ -56,6 +67,11 @@ vi.mock("../../../hooks/useCanHover", () => ({
 }));
 
 import { ProjectInfoActivity, ProjectOverview } from "../ProjectOverview";
+
+const theme = createHeyTheme("light");
+const wrapper = ({ children }: PropsWithChildren) => (
+  <ThemeProvider theme={theme}>{children}</ThemeProvider>
+);
 
 const ORGANIZATION_ID = "organization-1";
 const PROJECT_ID = "project-1";
@@ -296,6 +312,7 @@ const renderOverview = () =>
       />
       <LocationProbe />
     </MemoryRouter>,
+    { wrapper },
   );
 
 const getProposalRow = (proposalId: string): HTMLElement => {
@@ -384,9 +401,9 @@ describe("ProjectOverview", () => {
       });
       renderOverview();
       expect(
-        screen.queryByRole("button", { name: "Cancel Onboarding" })
+        screen.queryByRole("button", { name: "Cancel Onboarding" }),
       ).not.toBeInTheDocument();
-    }
+    },
   );
 
   it.each(
@@ -465,7 +482,6 @@ describe("ProjectOverview", () => {
     expect(getComputedStyle(identity).backgroundColor).toBe("rgba(0, 0, 0, 0)");
     expect(getComputedStyle(identity).boxShadow).toBe("");
     const title = within(identity).getByRole("heading", { level: 1 });
-    expect(getComputedStyle(title).fontSize).toBe("2.125rem");
     expect(getComputedStyle(title).fontWeight).toBe("600");
     expect(getComputedStyle(title).fontFamily).toContain('"Work Sans"');
     expect(

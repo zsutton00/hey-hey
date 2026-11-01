@@ -2,6 +2,7 @@ import {
   GetFullEntityToolsProvider,
   getFullEntityParameters,
 } from '../tools/get-full-entity-tools.provider';
+import { WorkItemTypeRegistryService } from '../../services/tasks/work-item-type-registry.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AgentEdgeClientService } from '../../services/agent-edge-client.service';
 import type { TaskService } from '../../services/tasks/task.service';
@@ -72,11 +73,17 @@ const mockAgentEdgeClient = {
   findIncident: jest.fn(),
 } as unknown as jest.Mocked<AgentEdgeClientService>;
 
+const mockRegistry = {
+  getRulesForProject: jest.fn(),
+  getDefinitions: jest.fn(),
+};
+
 function createProvider() {
   return new GetFullEntityToolsProvider(
     mockPrisma,
     mockTaskService as unknown as TaskService,
     mockAgentEdgeClient,
+    mockRegistry as unknown as WorkItemTypeRegistryService,
   );
 }
 
@@ -87,7 +94,109 @@ describe('GetFullEntityToolsProvider', () => {
     jest.clearAllMocks();
     mockAgentEdgeClient.findIncident.mockResolvedValue([]);
     mockTask.findMany.mockResolvedValue([]);
+    mockRegistry.getRulesForProject.mockImplementation((key, projectId) =>
+      projectId === PROJECT_ID && ['CONTRACT', 'custom_review'].includes(key)
+        ? {}
+        : undefined,
+    );
+    mockRegistry.getDefinitions.mockReturnValue(
+      ['CONTRACT', 'custom_review'].map((key) => ({ definition: { key } })),
+    );
     provider = createProvider();
+  });
+
+  describe('work-item type aliases', () => {
+    it.each(['TASK', 'CONTRACT', 'custom_review'])(
+      'reads the stored type and replacement metadata using %s',
+      async (entityType) => {
+        mockTaskService.findOneByOrganization.mockResolvedValue({
+          id: ENTITY_ID,
+          type: 'CONTRACT',
+          projectId: PROJECT_ID,
+          status: 'ACTIVE',
+          sections: [makeSection('description', 0, 'Provider promise')],
+        });
+        const params = getFullEntityParameters.parse({
+          entities: [{ entityType, entityId: ENTITY_ID }],
+        });
+        const result = await provider.getFullEntity(
+          params,
+          {} as any,
+          makeRequest(),
+        );
+        const record = JSON.parse((result as any).content[0].text)[ENTITY_ID];
+        expect(record.type).toBe('CONTRACT');
+        expect(record.sections.description).toBe('Provider promise');
+        expect(record.replacement).toEqual({
+          state: 'NOT_SUPERSEDED',
+          replacedBy: [],
+        });
+        expect(mockTaskService.findOneByOrganization).toHaveBeenCalledWith(
+          ORG_ID,
+          ENTITY_ID,
+        );
+        if (entityType !== 'TASK') {
+          expect(mockRegistry.getRulesForProject).toHaveBeenCalledWith(
+            entityType,
+            PROJECT_ID,
+          );
+        }
+      },
+    );
+
+    it.each(['CONTRACT', 'custom_review'])(
+      'preserves inaccessible and wrong-project null results for %s',
+      async (entityType) => {
+        mockTaskService.findOneByOrganization
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce({
+            id: ENTITY_ID_2,
+            projectId: 'another-project',
+            sections: [],
+          });
+        const result = await provider.getFullEntity(
+          {
+            entities: [
+              { entityType, entityId: ENTITY_ID },
+              { entityType, entityId: ENTITY_ID_2 },
+            ],
+          },
+          {} as any,
+          makeRequest(),
+        );
+        const records = JSON.parse((result as any).content[0].text);
+        expect(records[ENTITY_ID]).toBeNull();
+        expect(records[ENTITY_ID_2]).toBeNull();
+        expect(mockAgentEdgeClient.findIncident).not.toHaveBeenCalled();
+      },
+    );
+
+    it('rejects a non-work-item type for the whole call with the accepted vocabulary', async () => {
+      const result = await provider.getFullEntity(
+        {
+          entities: [
+            { entityType: 'TASK', entityId: ENTITY_ID },
+            { entityType: 'MESSAGE', entityId: ENTITY_ID_2 },
+          ],
+        },
+        {} as any,
+        makeRequest(),
+      );
+      expect(result.isError).toBe(true);
+      const text = (result as any).content[0].text;
+      for (const key of [
+        'TASK',
+        'INITIATIVE',
+        'DESIGN_DOC',
+        'SERVICE',
+        'IMPLEMENTATION_HINT',
+        'CONTRACT',
+        'custom_review',
+      ]) {
+        expect(text).toContain(key);
+      }
+      expect(mockTaskService.findOneByOrganization).not.toHaveBeenCalled();
+    });
   });
 
   describe('response budgeting', () => {

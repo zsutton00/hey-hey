@@ -32,6 +32,10 @@ export const navigateToEntity = async ({
         });
         break;
 
+      case "plan":
+        url = pathService.plan({ projectId, planId: entity.id });
+        break;
+
       case "design_doc":
         url = pathService.designDoc({ projectId, designDocId: entity.id });
         break;

@@ -22,6 +22,7 @@ export interface ClaudeWorkspaceContainment {
 
 type ClaudeSandboxFilesystem = {
   readonly allowWrite: readonly string[];
+  readonly denyWrite?: readonly string[];
   readonly allowRead: readonly string[];
 };
 
@@ -410,6 +411,8 @@ export class RunWorkspaceWriteBoundary {
       settings: {
         sandbox: claudeSandboxConfiguration({
           allowWrite: [],
+          // Claude implicitly allows cwd; explicitly deny the selected repositories.
+          denyWrite: this.allowedRepositoryRoots,
           allowRead: this.readOnlyDirectories,
         }),
       },

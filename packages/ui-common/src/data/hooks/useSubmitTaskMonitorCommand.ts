@@ -46,7 +46,7 @@ const AUTHORITY_INCREASING_ACTIONS = {
 >;
 
 const getAuthorityIncreasingAction = (
-  cause: TaskMonitorExternalCommand["cause"]
+  cause: TaskMonitorExternalCommand["cause"],
 ): HostAffectingActionTypeValue | null =>
   cause in AUTHORITY_INCREASING_ACTIONS
     ? AUTHORITY_INCREASING_ACTIONS[
@@ -55,12 +55,12 @@ const getAuthorityIncreasingAction = (
     : null;
 
 const isAuthorityIncreasingRequest = (
-  request: BrowserTaskMonitorCommandRequest
+  request: BrowserTaskMonitorCommandRequest,
 ): request is BrowserTaskMonitorAuthorityIncreasingCommandRequest =>
   request.command.cause in AUTHORITY_INCREASING_ACTIONS;
 
 export function useSubmitTaskMonitorCommand(
-  options: UseSubmitTaskMonitorCommandOptions = {}
+  options: UseSubmitTaskMonitorCommandOptions = {},
 ) {
   const { machines } = useUserPairedMachines();
   const authorization =
@@ -70,7 +70,7 @@ export function useSubmitTaskMonitorCommand(
     organizationId: string,
     projectId: string,
     monitorId: string,
-    request: SubmitTaskMonitorCommandRequestDto
+    request: SubmitTaskMonitorCommandRequestDto,
   ): Promise<SubmitTaskMonitorCommandResponseDto> => {
     const response = await tasksClient.submitTaskMonitorCommand({
       organizationId,
@@ -81,7 +81,7 @@ export function useSubmitTaskMonitorCommand(
     const payload = response.data?.data;
     if (!payload) {
       throw new Error(
-        "The platform did not return a monitor-command acknowledgement."
+        "The platform did not return a monitor-command acknowledgement.",
       );
     }
     return payload;
@@ -102,11 +102,11 @@ export function useSubmitTaskMonitorCommand(
     }
     if (!request.machineId) {
       throw new Error(
-        "A controller-ready selected machine is required for this Task Monitor command."
+        "A controller-ready selected machine is required for this Task Monitor command.",
       );
     }
     const machine = machines.find(
-      (candidate) => candidate.machineId === request.machineId
+      (candidate) => candidate.machineId === request.machineId,
     );
     if (
       !machine ||
@@ -124,6 +124,7 @@ export function useSubmitTaskMonitorCommand(
         actionType,
         targetKind: HostActionTargetKind.TaskMonitor,
         targetId: monitorId,
+        inputs: { kind: "TASK_MONITOR", command: request.command },
       },
       submit: ({ authorization }) =>
         submitRequest(organizationId, projectId, monitorId, {

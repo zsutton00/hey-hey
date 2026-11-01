@@ -27,7 +27,10 @@ import {
   CompleteMachineEnrollmentClaimResponseDto,
 } from '../generated';
 import { MachineEnrollmentClaimService } from '../services/machine-pairing/machine-enrollment-claim.service';
-import { ControllerBindingCookieService } from '../services/controller-authorization/controller-binding-cookie.service';
+import {
+  readControllerBindingSecret,
+  ControllerBindingCookieService,
+} from '../services/controller-authorization/controller-binding-cookie.service';
 import { ControllerBindingOriginGuard } from '../common/guards/controller-binding-origin.guard';
 
 @ApiTags('Machines')
@@ -57,11 +60,22 @@ export class MachineEnrollmentClaimController {
       request.ip,
       { email: user.email, name: user.name },
     );
+    const context =
+      await this.machineEnrollmentClaimService.ensureBrowserContext(
+        readControllerBindingSecret(request),
+        user.userId,
+      );
+    this.controllerBindingCookieService.set(
+      response,
+      context.secret,
+      context.expiresAt,
+    );
     if (result.state === 'awaiting-machine-confirmation') {
       const binding =
         await this.machineEnrollmentClaimService.issueBrowserBindingForAwaitingConfirmation(
           {
             enrollmentId: result.enrollmentId,
+            controllerBindingSecret: context.secret,
             userId: user.userId,
             organizationId: result.organizationId,
           },
@@ -95,6 +109,7 @@ export class MachineEnrollmentClaimController {
       await this.machineEnrollmentClaimService.issueBrowserBindingForAwaitingConfirmation(
         {
           enrollmentId: result.enrollmentId,
+          controllerBindingSecret: readControllerBindingSecret(request),
           userId: user.userId,
           organizationId: result.organizationId,
         },

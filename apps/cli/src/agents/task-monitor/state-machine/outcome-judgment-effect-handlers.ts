@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ApiRuntime } from '../../../../../../packages/ui-common/src/clients/shared';
+import type { ApiRuntime } from '../../../shared/runtime/clients/shared';
 import { MessageType } from '../../../shared/api/generated/api';
 import type { MessagePoster } from '../../../run/message-poster';
 import type { ServerLogger } from '../../../server/logger';

@@ -1,7 +1,12 @@
 import type { OAuthClient } from '../auth/index';
 import { extractOrganizationIdFromToken } from '../auth/index';
+import type { ReadRestriction } from '../shared/api/generated/api';
+import { readRestrictionFor, readRestrictionHeaders } from '../shared/api/read-restriction';
 
 export interface McpSessionContext {
+  readonly inert?: boolean;
+  /** Overrides what `inert` implies, for executions restricted without being inert (the judge). */
+  readonly readRestriction?: ReadRestriction | undefined;
   projectId?: string | undefined;
   conversationId?: string | undefined;
   planId?: string | undefined;
@@ -61,7 +66,6 @@ export const HEYHEY_RESERVED_MCP_SERVER_NAMES = [
 
 const MCP_TOOL_LIST: readonly McpTool[] = [
   { name: 'create_edge', useCases: ['coding', 'general'] },
-  { name: 'create_implementation_hint', useCases: ['coding', 'general'] },
   { name: 'create_plan', useCases: ['general'] },
   { name: 'create_design_doc', useCases: ['coding', 'general'] },
   { name: 'create_work_item', useCases: ['coding', 'general'] },
@@ -78,11 +82,8 @@ const MCP_TOOL_LIST: readonly McpTool[] = [
   })),
   { name: 'get_future_revision', useCases: ['coding', 'general'] },
   { name: 'delete_edge', useCases: ['coding', 'general'] },
-  { name: 'delete_implementation_hint', useCases: ['coding', 'general'] },
   { name: 'delete_proposal', useCases: ['coding', 'general'] },
   { name: 'edit_design_doc', useCases: ['coding', 'general'] },
-  { name: 'edit_implementation_hint', useCases: ['coding', 'general'] },
-  { name: 'edit_tasks', useCases: ['coding', 'general'] },
   { name: 'edit_work_item', useCases: ['coding', 'general'] },
   { name: 'get_context', useCases: ['coding', 'general'] },
   { name: 'get_edges', useCases: ['coding', 'general'] },
@@ -101,7 +102,6 @@ const MCP_TOOL_LIST: readonly McpTool[] = [
   { name: 'plan_search', useCases: ['coding', 'general'] },
   { name: 'search_design_docs', useCases: ['coding', 'general'] },
   { name: 'search_features', useCases: ['coding', 'general'] },
-  { name: 'search_implementation_hints', useCases: ['coding', 'general'] },
   { name: 'task_search', useCases: ['coding', 'general'] },
   { name: 'unified_search', useCases: ['coding', 'general'] },
   { name: 'update_edge', useCases: ['coding', 'general'] },
@@ -122,9 +122,7 @@ export const GENERAL_MCP_TOOLS: readonly string[] = MCP_TOOL_LIST.filter((t) =>
  * tool is stripped from the coding base list. Read/search/report tools
  * survive — including `get_report_schema`, which the planner needs to look
  * up the PLAN payload shape before calling `create_report` (the submission
- * tool wrapper). Implementation-hint tools also survive: hints are the
- * agent's own memory layer, not user-reviewed graph proposals, so the planner
- * may record what it learns while reading the codebase.
+ * tool wrapper).
  */
 const PLANNING_EXCLUDED_TOOLS: ReadonlySet<string> = new Set([
   // Entity-mutating proposal tools
@@ -132,7 +130,6 @@ const PLANNING_EXCLUDED_TOOLS: ReadonlySet<string> = new Set([
   'edit_design_doc',
   'create_work_item',
   'edit_work_item',
-  'edit_tasks',
   'update_proposal',
   'delete_proposal',
   'propose_future_revision',
@@ -184,8 +181,7 @@ export const PLAN_SHAPING_MCP_TOOLS: readonly string[] = [
  * Read-only investigation surface for the `research` mode. Curated to the
  * exact set of platform read tools a research turn needs to map the graph
  * surrounding a focal task: context/edges/full-entity for direct neighborhood
- * walks, the four searches for cross-hierarchy discovery, and
- * implementation-hints for prior-session knowledge. No `create_*`, `edit_*`,
+ * walks, and the four searches for cross-hierarchy discovery. No `create_*`, `edit_*`,
  * `create_edge`, proposal, or report tools — the research handler must not
  * mutate the graph or persist reports as a side effect of its turn.
  */
@@ -199,7 +195,6 @@ export const RESEARCH_MCP_TOOLS: readonly string[] = [
   'search_features',
   'task_search',
   'search_design_docs',
-  'search_implementation_hints',
 ];
 
 /**
@@ -268,13 +263,27 @@ export const PROJECT_REPORT_SECTION_MCP_TOOLS: readonly string[] = PROJECT_REPOR
 );
 
 /**
- * Hint tools, kept out of `MCP_TOOL_LIST` so no handler inherits them through a
- * shared base. Only entity conversations and coding sessions opt into the write
- * set, and only the Project Assistant into the read set. The API omits them
- * entirely when its deployment-wide hints switch is off.
+ * Hint tools, offered to the sessions in `HINT_USE_CASES`. The API omits them entirely when its
+ * deployment-wide hints switch is off.
  */
-export const HINT_WRITE_MCP_TOOLS: readonly string[] = ['create_hint', 'add_hint_connection'];
+export const HINT_WRITE_MCP_TOOLS: readonly string[] = [
+  'create_hint',
+  'add_hint_connection',
+  'delete_hint',
+];
 export const HINT_READ_MCP_TOOLS: readonly string[] = ['get_hints_for_items'];
+
+/**
+ * Sessions that do open-ended work get hints. Curated surfaces (reports,
+ * monitors, plan shaping, evidence gathering) stay exactly as designed.
+ */
+const HINT_USE_CASES: ReadonlySet<McpToolUseCase | undefined> = new Set([
+  undefined,
+  'coding',
+  'general',
+  'planning',
+  'research',
+]);
 
 export type HintPromptAccess = 'write' | 'read' | 'none';
 
@@ -324,12 +333,16 @@ export const resolveMcpToolNames = (
                       : options.useCase === 'task_monitor'
                         ? TASK_MONITOR_MCP_TOOLS
                         : CODING_MCP_TOOLS;
+  const hintTools = HINT_USE_CASES.has(options.useCase)
+    ? [...HINT_WRITE_MCP_TOOLS, ...HINT_READ_MCP_TOOLS]
+    : [];
   const needsAuthoringGuidance = additionalTools.some((tool) =>
     AUTHORING_GUIDANCE_GATED_MUTATION_MCP_TOOLS.has(tool),
   );
   return Array.from(
     new Set([
       ...baseTools,
+      ...hintTools,
       ...(needsAuthoringGuidance ? [AUTHORING_GUIDANCE_MCP_TOOL] : []),
       ...additionalTools,
     ]),
@@ -370,6 +383,12 @@ export const buildMcpHeaders = (
   if (context.agentSessionId) {
     headers['X-Agent-Session-ID'] = context.agentSessionId;
   }
+
+  // The Run's own restriction rides every call; the model cannot supply or clear it.
+  Object.assign(
+    headers,
+    readRestrictionHeaders(context.readRestriction ?? readRestrictionFor({ inert: context.inert })),
+  );
 
   return headers;
 };

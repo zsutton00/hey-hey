@@ -1,4 +1,12 @@
-import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { AgentSessionService } from '../agent-session.service';
+import { DirectActionServiceScopeResolver } from './direct-action-service-scope-resolver';
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import {
   ControllerAuthorizationCadence as PrismaControllerAuthorizationCadence,
   ExecutionAuthorization,
@@ -15,13 +23,10 @@ import {
   CanonicalControllerAuthorizationIntent,
   ControllerAuthorizationAllowedCredential,
   ControllerAuthorizationDenialReason,
-  AgentSessionHostActionPreparation,
-  ConversationHostActionPreparation,
   HostActionCategory,
   HostActionPreparation,
   HostActionTargetKind,
   HostAffectingActionType,
-  TaskMonitorHostActionPreparation,
   PrepareControllerAuthorizationRequestDto,
   PrepareControllerAuthorizationResponseDto,
   ResolveControllerAuthorizationRequestDto,
@@ -29,6 +34,11 @@ import {
   SubmitControllerAuthorizedActionRequestDto,
   SubmitControllerAuthorizedActionResponseDto,
 } from '../../generated';
+import {
+  hashControllerAction,
+  hostActionPreparationFailures,
+  isHostActionPreparation,
+} from '../../generated/controller-action-contract';
 import { canonicalizeJcs } from '../../core/websockets/trigger-canonicalization';
 import { MachinePresenceService } from '../../core/websockets/machine-presence.service';
 import {
@@ -187,6 +197,8 @@ export class ControllerAuthorizationService {
     private readonly assertionVerifier: ControllerAssertionVerifierService,
     private readonly webauthnConfig: ControllerAuthorizationWebAuthnConfigService,
     private readonly browserBindingService: ControllerBrowserBindingService,
+    @Inject(forwardRef(() => AgentSessionService))
+    private readonly agentSessionService: AgentSessionService,
   ) {}
 
   async resolve(params: {
@@ -209,6 +221,8 @@ export class ControllerAuthorizationService {
     });
     const binding = await this.browserBindingService.resolveForAdmission({
       secret: params.controllerBindingSecret,
+      machineId: input.machineId,
+      controllerCredentialId: input.controllerCredentialId,
       userId,
       organizationId,
     });
@@ -345,14 +359,16 @@ export class ControllerAuthorizationService {
     const existingBinding =
       await this.browserBindingService.resolveForSelection({
         secret: params.controllerBindingSecret,
+        machineId: machine.id,
+        controllerCredentialId: input.controllerCredentialId,
         userId,
         organizationId,
       });
     if (
-      existingBinding &&
-      (existingBinding.controllerCredentialId !== controllerCredential.id ||
-        existingBinding.controllerInstallationId !==
-          controllerCredential.controllerInstallationId)
+      !existingBinding ||
+      existingBinding.controllerCredentialId !== controllerCredential.id ||
+      existingBinding.controllerInstallationId !==
+        controllerCredential.controllerInstallationId
     ) {
       this.rejectPreparation(
         ControllerAuthorizationDenialReason.ControllerNotActive,
@@ -375,9 +391,7 @@ export class ControllerAuthorizationService {
     );
     const authorizationId = crypto.randomUUID();
     const nonce = crypto.randomBytes(32).toString('base64url');
-    const actionPayloadHash = this.sha256Hex(
-      canonicalizeJcs(resolvedAction.payload),
-    );
+    const actionPayloadHash = hashControllerAction(resolvedAction.payload);
     const policyRevision = CONTROLLER_DEVICE_POLICY_REVISION;
     const allowedActions = this.allowedGrantActions(resolvedAction.payload);
     const grantDescriptor = buildControllerDeviceGrantDescriptor({
@@ -497,6 +511,7 @@ export class ControllerAuthorizationService {
   }
 
   async submit(params: {
+    controllerBindingSecret?: string;
     organizationId: OrganizationId;
     projectId: ProjectId;
     userId: UserId;
@@ -661,6 +676,7 @@ export class ControllerAuthorizationService {
       projectId,
       userId,
       verifiedSignCount,
+      controllerBindingSecret: params.controllerBindingSecret,
       assertion: input.assertion,
     });
   }
@@ -675,6 +691,7 @@ export class ControllerAuthorizationService {
   }
 
   private async consumeAtomically(params: {
+    controllerBindingSecret?: string;
     authorizationId: string;
     organizationId: OrganizationId;
     projectId: ProjectId;
@@ -697,6 +714,30 @@ export class ControllerAuthorizationService {
           this.denied(
             stateReason ??
               ControllerAuthorizationDenialReason.AuthorizationNotFound,
+            current,
+            params,
+          ),
+        );
+      }
+
+      const browserBinding =
+        await this.browserBindingService.resolveForSelection({
+          secret: params.controllerBindingSecret,
+          userId: params.userId,
+          organizationId: params.organizationId,
+          machineId: current.machineId,
+          controllerCredentialId: current.controllerCredential.credentialId,
+        });
+      if (
+        !browserBinding ||
+        browserBinding.controllerCredentialId !==
+          current.controllerCredentialId ||
+        browserBinding.controllerInstallationId !==
+          current.controllerInstallationId
+      ) {
+        return this.submission(
+          this.denied(
+            ControllerAuthorizationDenialReason.ControllerNotActive,
             current,
             params,
           ),
@@ -769,6 +810,7 @@ export class ControllerAuthorizationService {
           expiresAt: getControllerDeviceGrantExpiry(current.issuedAt, cadence),
         },
         now,
+        params.controllerBindingSecret,
       );
       return {
         response: {
@@ -796,6 +838,7 @@ export class ControllerAuthorizationService {
     action: HostActionPreparation;
   }): Promise<ResolvedAction> {
     const { action } = params;
+
     const binding = ACTION_BINDINGS[action.actionType];
     if (action.targetKind === 'CLI_READ') {
       if (
@@ -906,7 +949,11 @@ export class ControllerAuthorizationService {
         taskMonitorId: null,
       } satisfies ResolvedTarget;
       return {
-        payload: this.toResolvedActionPayload(action, binding, target),
+        payload: this.toResolvedActionPayload(
+          await this.resolveDirectInputs(params),
+          binding,
+          target,
+        ),
         target,
       };
     }
@@ -949,57 +996,71 @@ export class ControllerAuthorizationService {
     );
   }
 
+  async resolveDirectInputs(params: {
+    organizationId: OrganizationId;
+    projectId: ProjectId;
+    userId: UserId;
+    machineId: string;
+    action: HostActionPreparation;
+  }): Promise<HostActionPreparation> {
+    const { action } = params;
+    if (!('inputs' in action) || !action.inputs) return action;
+    let inputs = action.inputs;
+    if (action.targetKind !== 'AGENT_SESSION') return action;
+    if (inputs.kind === 'START_RUN') {
+      if (inputs.payload.agentSessionId !== action.targetId) {
+        this.rejectPreparation(
+          ControllerAuthorizationDenialReason.TargetMismatch,
+          params,
+        );
+      }
+      const config =
+        await this.agentSessionService.resolveStartRunConfiguration({
+          organizationId: params.organizationId,
+          agentSessionId: action.targetId,
+          taskMonitorId: inputs.payload.contextMetadata.taskMonitorId,
+          config: inputs.payload.config,
+        });
+      if (config !== undefined)
+        inputs = { ...inputs, payload: { ...inputs.payload, config } };
+    }
+    if (inputs.kind === 'START_RUN' || inputs.kind === 'USER_MESSAGE') {
+      const userText =
+        inputs.kind === 'USER_MESSAGE'
+          ? inputs.payload.userMessage
+          : inputs.payload.payload && 'userMessage' in inputs.payload.payload
+            ? inputs.payload.payload.userMessage
+            : undefined;
+      const services = await new DirectActionServiceScopeResolver(
+        this.prisma,
+        this.machinePresence,
+      ).prepare({
+        organizationId: params.organizationId,
+        projectId: params.projectId,
+        userId: params.userId,
+        agentSessionId: action.targetId as import('../../types').AgentSessionId,
+        machineId: params.machineId as MachineId,
+        userText,
+      });
+      // Browser-provided scope never substitutes for the server-owned scope.
+      const { admittedServiceScope: _untrusted, ...submittedInputs } = inputs;
+      inputs = {
+        ...submittedInputs,
+        ...(services ? { admittedServiceScope: services.scope } : {}),
+      };
+    }
+    return { ...action, inputs };
+  }
+
   private toResolvedActionPayload(
     requested: HostActionPreparation,
     binding: { category: HostActionCategory; targetKind: HostActionTargetKind },
     target: ResolvedTarget,
   ): HostActionPreparation {
-    return this.buildHostActionPreparation({
-      requestId: requested.requestId,
-      actionCategory: binding.category,
-      actionType: requested.actionType,
-      targetKind: target.kind,
+    return {
+      ...requested,
       targetId: target.id,
-    });
-  }
-
-  private buildHostActionPreparation(params: {
-    requestId: string;
-    actionCategory: HostActionCategory;
-    actionType: HostAffectingActionType;
-    targetKind: HostActionTargetKind;
-    targetId: string;
-  }): HostActionPreparation {
-    switch (params.targetKind) {
-      case 'CONVERSATION':
-        return {
-          requestId: params.requestId,
-          actionCategory: params.actionCategory,
-          actionType: params.actionType,
-          targetKind: 'CONVERSATION',
-          targetId: params.targetId,
-        } satisfies ConversationHostActionPreparation;
-      case 'AGENT_SESSION':
-        return {
-          requestId: params.requestId,
-          actionCategory: params.actionCategory,
-          actionType: params.actionType,
-          targetKind: 'AGENT_SESSION',
-          targetId: params.targetId,
-        } satisfies AgentSessionHostActionPreparation;
-      case 'TASK_MONITOR':
-        return {
-          requestId: params.requestId,
-          actionCategory: params.actionCategory,
-          actionType: params.actionType,
-          targetKind: 'TASK_MONITOR',
-          targetId: params.targetId,
-        } satisfies TaskMonitorHostActionPreparation;
-      default:
-        throw new Error(
-          'Controller authorization target kind has no external preparation shape',
-        );
-    }
+    };
   }
 
   private allowedGrantActions(
@@ -1377,60 +1438,79 @@ export class ControllerAuthorizationService {
   private assertResolveRequest(
     input: ResolveControllerAuthorizationRequestDto,
   ): void {
-    if (
-      !input ||
-      typeof input !== 'object' ||
-      !this.hasExactKeys(input, ['machineId', 'action']) ||
-      !this.isUuid(input.machineId) ||
-      !this.isAction(input.action)
-    ) {
-      this.rejectPreparation(
-        ControllerAuthorizationDenialReason.ActionMismatch,
-        {},
-      );
+    const failure = this.findResolveRequestFailure(input);
+    if (!failure) {
+      return;
     }
+
+    this.rejectPreparation(
+      ControllerAuthorizationDenialReason.ActionMismatch,
+      {},
+      failure,
+    );
+  }
+
+  /**
+   * Names the first check a resolve request fails. Only check names, the
+   * action type and schema paths are reported, never request values.
+   */
+  private findResolveRequestFailure(
+    input: ResolveControllerAuthorizationRequestDto,
+  ): Record<string, unknown> | null {
+    if (!input || typeof input !== 'object') {
+      return { failedCheck: 'request_shape' };
+    }
+
+    if (
+      !this.hasExactKeys(
+        input,
+        input.controllerCredentialId === undefined
+          ? ['machineId', 'action']
+          : ['machineId', 'controllerCredentialId', 'action'],
+      )
+    ) {
+      return { failedCheck: 'request_keys', keys: Object.keys(input) };
+    }
+
+    if (
+      input.controllerCredentialId !== undefined &&
+      (typeof input.controllerCredentialId !== 'string' ||
+        input.controllerCredentialId.length === 0)
+    ) {
+      return { failedCheck: 'controller_credential_id' };
+    }
+
+    if (!this.isUuid(input.machineId)) {
+      return { failedCheck: 'machine_id' };
+    }
+
+    if (this.isAction(input.action)) {
+      return null;
+    }
+
+    const action: unknown = input.action;
+    const actionObject =
+      typeof action === 'object' && action !== null ? action : null;
+    const actionType =
+      actionObject && 'actionType' in actionObject
+        ? actionObject.actionType
+        : undefined;
+
+    return {
+      failedCheck: 'action_schema',
+      actionType: typeof actionType === 'string' ? actionType : undefined,
+      schemaFailures: actionObject
+        ? hostActionPreparationFailures(actionObject)
+        : [{ path: '', keyword: 'type' }],
+    };
   }
 
   private isAction(value: unknown): value is HostActionPreparation {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      return false;
-    }
-    const action = value as Record<string, unknown>;
-    const commonKeys = [
-      'requestId',
-      'actionCategory',
-      'actionType',
-      'targetKind',
-      'targetId',
-    ] as const;
-    if (
-      !this.isUuid(action.requestId) ||
-      !Object.values(HostActionCategory).includes(
-        action.actionCategory as HostActionCategory,
-      ) ||
-      !Object.values(HostAffectingActionType).includes(
-        action.actionType as HostAffectingActionType,
-      ) ||
-      !this.isUuid(action.targetId)
-    ) {
-      return false;
-    }
-
-    switch (action.targetKind) {
-      case HostActionTargetKind.Conversation:
-      case HostActionTargetKind.AgentSession:
-      case HostActionTargetKind.TaskMonitor:
-        return this.hasExactKeys(action, commonKeys);
-      case HostActionTargetKind.CliRead:
-        return this.hasExactKeys(
-          action,
-          'catalogContext' in action
-            ? [...commonKeys, 'provider', 'catalogContext']
-            : commonKeys,
-        );
-      default:
-        return false;
-    }
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      isHostActionPreparation(value)
+    );
   }
 
   private isSubmitRequest(
@@ -1502,8 +1582,10 @@ export class ControllerAuthorizationService {
   private rejectPreparation(
     reason: ControllerAuthorizationDenialReason,
     context: Record<string, unknown>,
+    diagnostics: Record<string, unknown> = {},
   ): never {
     this.logger.warn('Controller authorization preparation denied', {
+      ...diagnostics,
       machineId: context.machineId,
       organizationId: context.organizationId,
       projectId: context.projectId,

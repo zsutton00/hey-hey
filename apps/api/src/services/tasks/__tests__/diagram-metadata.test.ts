@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import {
   canonicalDiagramType,
+  checkDiagramSections,
   diagramMetadataSchema,
   diagramElementMetadataSchema,
   validateDiagramSections,
@@ -71,7 +72,7 @@ describe('Diagram semantic boundaries', () => {
     expect(withDiagramDefaults('DIAGRAM_ELEMENT', sections)).toBe(sections);
   });
 
-  it.each(['GENERAL', 'PROCESS', 'DYNAMIC', 'DEPLOYMENT'])(
+  it.each(['GENERAL', 'PROCESS', 'DYNAMIC', 'DEPLOYMENT', 'UX_FLOW'])(
     'rejects C4 levels on %s',
     (kind) => {
       expect(
@@ -153,6 +154,34 @@ describe('Diagram semantic boundaries', () => {
     await expect(validate({ role: 'PRESENTATION_ONLY' })).rejects.toThrow(
       'not declared',
     );
+  });
+
+  it('accepts an existing Mockup as a TASK reference under the canonical unrestricted TASK policy', () => {
+    const canonicalDefinitions: WorkItemTypeSectionDefinition[] = [
+      {
+        ...definitions[0]!,
+        diagramElementPolicy: {
+          roles: [{ key: 'UI', label: 'UI', notation: 'box' }],
+          referenceTargets: [{ entityType: 'TASK' }, { entityType: 'SERVICE' }],
+        },
+      },
+    ];
+    expect(() =>
+      checkDiagramSections({
+        type: 'DIAGRAM_ELEMENT',
+        definitions: canonicalDefinitions,
+        sections: [
+          {
+            key: 'diagramElementMetadata',
+            content: {
+              role: 'UI',
+              canonicalReference: { entityType: 'TASK', entityId: targetId },
+            },
+          },
+        ],
+        lookupTarget: () => ({ type: 'mockup' }),
+      }),
+    ).not.toThrow();
   });
 
   it('rejects unavailable, archived and disallowed targets', async () => {

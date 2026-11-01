@@ -4,6 +4,7 @@ import {
   LocalPromptTaskType,
 } from '../../../shared/agent-bridge-contract/generated/api';
 import { buildProjectAssistantPrompt as buildPromptContract } from '../../prompts/project-assistant';
+import type { AgentProviderId } from '../../providers/provider-config';
 import type { ProjectAssistantPolicy } from '../../prompt-type-handler';
 
 type ProjectAssistantBuildPayload = Parameters<typeof buildPromptContract>[0];
@@ -23,6 +24,7 @@ const buildProjectAssistantPrompt = (
     focalTaskType?: LocalPromptTaskType;
     parallelResearchSubagents?: boolean;
     hasNearestParentFeature?: boolean;
+    provider?: AgentProviderId;
   } = {},
 ): string =>
   buildPromptContract(payload, services, {
@@ -31,6 +33,7 @@ const buildProjectAssistantPrompt = (
     focalTaskType: options.focalTaskType ?? LocalPromptTaskType.Standard,
     parallelResearchSubagents: options.parallelResearchSubagents ?? false,
     hasNearestParentFeature: options.hasNearestParentFeature ?? true,
+    provider: options.provider,
   });
 
 const makePayload = (
@@ -103,7 +106,7 @@ describe('buildProjectAssistantPrompt', () => {
     expect(prompt).toContain('`get_work_item_type_guidance_batch`');
     expect(prompt).toContain('typeKeys: [key]');
     expect(prompt).toContain('deduplicated array of 1–10 relevant encountered keys');
-    expect(prompt).toContain('same purpose and relevant focal context');
+    expect(prompt).toContain('same purpose');
     expect(prompt).toContain('request order');
     expect(prompt).toContain('do not load the type catalog');
     expect(prompt).toContain('once per encountered type');
@@ -721,6 +724,25 @@ describe('buildProjectAssistantPrompt', () => {
     const prompt = buildPrompt();
     expect(prompt).toContain('mcp__heyhey-submission-tools__');
     expect(prompt).not.toContain('create_coding_research');
+  });
+
+  it('names the submission tools the way the Run provider exposes them', () => {
+    const options = { policy: ALL_POLICY };
+    const codexPrompt = buildProjectAssistantPrompt(
+      makePayload(),
+      {},
+      { ...options, provider: 'codex' },
+    );
+    const claudePrompt = buildProjectAssistantPrompt(
+      makePayload(),
+      {},
+      { ...options, provider: 'claude' },
+    );
+
+    expect(codexPrompt).toContain('mcp__heyhey_submission_tools__<name>');
+    expect(codexPrompt).not.toContain('mcp__heyhey-submission-tools__');
+    expect(claudePrompt).toContain('mcp__heyhey-submission-tools__<name>');
+    expect(claudePrompt).not.toContain('mcp__heyhey_submission_tools__');
   });
 
   it('requires canonical report schema lookup and explains the submission wrapper projection', () => {

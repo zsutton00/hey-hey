@@ -149,7 +149,8 @@ export const identityBoundaryRule: ProjectionRule<BoundaryScope> = {
       const key = nodeKey(identity);
       if (
         identity.refType === 'temporary' &&
-        !temporaryWorkItemCreates.has(key)
+        !temporaryWorkItemCreates.has(key) &&
+        !ctx.findings.overlayNodes.has(key)
       ) {
         ctx.addIssue(
           field,
@@ -188,7 +189,8 @@ export const identityBoundaryRule: ProjectionRule<BoundaryScope> = {
       const key = relKey(identity);
       if (
         identity.refType === 'temporary' &&
-        !temporaryRelationshipCreates.has(key)
+        !temporaryRelationshipCreates.has(key) &&
+        !ctx.findings.overlayRelationships.has(key)
       ) {
         ctx.addIssue(
           field,

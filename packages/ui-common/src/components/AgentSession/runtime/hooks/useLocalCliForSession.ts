@@ -18,13 +18,16 @@ export type LocalCliForSessionState =
  * actions are simply unavailable when the check fails.
  */
 export const useLocalCliForSession = (
-  sessionMachineId: string | null
+  sessionMachineId: string | null,
 ): LocalCliForSessionState => {
-  const [state, setState] = useState<LocalCliForSessionState>({
-    status: "checking",
-  });
+  const [scoped, setScoped] = useState<{
+    machineId: string | null;
+    state: LocalCliForSessionState;
+  }>({ machineId: sessionMachineId, state: { status: "checking" } });
 
   useEffect(() => {
+    const setState = (state: LocalCliForSessionState) =>
+      setScoped({ machineId: sessionMachineId, state });
     if (!sessionMachineId) {
       setState({ status: "unavailable", reason: "no-session-machine" });
       return;
@@ -32,7 +35,7 @@ export const useLocalCliForSession = (
     let cancelled = false;
     setState({ status: "checking" });
     const localApi = createDirectoryBindingApi(
-      resolveLocalDirectoryRuntimeBaseUrl()
+      resolveLocalDirectoryRuntimeBaseUrl(),
     );
     localApi.listRepos().then(
       ({ machineId }) => {
@@ -40,18 +43,21 @@ export const useLocalCliForSession = (
         setState(
           machineId === sessionMachineId
             ? { status: "local", machineId }
-            : { status: "unavailable", reason: "different-machine" }
+            : { status: "unavailable", reason: "different-machine" },
         );
       },
       () => {
         if (!cancelled)
           setState({ status: "unavailable", reason: "cli-unreachable" });
-      }
+      },
     );
     return () => {
       cancelled = true;
     };
   }, [sessionMachineId]);
 
-  return state;
+  // A newly addressed Run must never use the preceding Run's discovery result.
+  return scoped.machineId === sessionMachineId
+    ? scoped.state
+    : { status: "checking" };
 };

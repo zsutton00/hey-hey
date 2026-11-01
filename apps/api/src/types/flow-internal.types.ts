@@ -1434,6 +1434,24 @@ export abstract class FinalizeNodeBase<
   ): Promise<NodeResult>;
 }
 
+/** A terminal workflow node that starts an ordinary CLI conversation once. */
+export abstract class AgentHandoffNodeBase<
+  TContext extends FlowContext = FlowContext,
+> extends FinalizeNodeBase<TContext> {
+  abstract buildTriggerMessage(
+    context: MutableContextHandle<TContext>,
+  ): Promise<ExternalAgentTriggerMessage>;
+
+  async execute(context: MutableContextHandle<TContext>): Promise<NodeResult> {
+    const built = await this.buildTriggerMessage(context);
+    return {
+      type: NodeType.FINALIZE,
+      message: built.response,
+      triggersAgent: built.triggersAgent,
+    };
+  }
+}
+
 export type PromptConfig<TContext extends FlowContext = FlowContext> = {
   promptStrategy?: PromptBuilderStrategyType;
   systemPromptTemplate?:
@@ -2407,12 +2425,16 @@ export type RepositoryImportFlowContext = OnboardingFlowContext & {
   repositoryFeatureEnrichmentAcceptedAnalysis?: RepositoryGroundingSuccess;
   /** @deprecated Read-only compatibility for contexts serialized before snapshot evolution. */
   repositoryGroundingBaseline?: RepositoryGroundingSuccess;
+  repositoryFeatureEnrichmentFinishRequested?: boolean;
   repositoryFeatureEnrichmentChoice?: import('../generated').RepositoryFeatureEnrichmentChoice;
   repositoryFeatureEnrichmentReviewedCandidates?: RepositoryGroundingSuccess['hierarchy'];
   repositoryFeatureEnrichmentCompletedRounds?: number;
   repositoryFeatureEnrichmentAnswerBatches?: RepositoryFeatureEnrichmentAnswerBatch[];
   repositoryFeatureEnrichmentLatestOutcome?: RepositoryFeatureEnrichmentCompletion;
-  repositoryFeatureEnrichmentFinal?: RepositoryFeatureEnrichmentSuccess;
+  /** Stored pre-intent enrichment successes carry a full grounding snapshot. */
+  repositoryFeatureEnrichmentFinal?:
+    | RepositoryFeatureEnrichmentSuccess
+    | RepositoryGroundingSuccess;
   /** Typed result from existing-project intelligent root placement. */
   repositoryPlacementCompletion?:
     | RepositoryPlacementSuccess
@@ -2638,6 +2660,13 @@ export type WithFeatureSyncContext = {
 
 export type FeatureSyncFlowContext = FlowContext &
   WithFeatureSyncContext & {
+    codingPlanApprovedContext?: Pick<
+      import('src/generated').ImplementPromptPayload,
+      | 'approvedVersion'
+      | 'versionMessageId'
+      | 'planningDiscussion'
+      | 'approvalFeedback'
+    >;
     implementRuntime?: import('src/generated').ImplementRuntimeSelection;
     implementApprovalOperationId?: string;
     taskId?: TaskId;

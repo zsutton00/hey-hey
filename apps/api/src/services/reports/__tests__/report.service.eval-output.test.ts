@@ -1,9 +1,10 @@
+import { writeFileSync } from 'node:fs';
 import { EventContextManager } from '../../../core/events/observable-event.context';
 import { EvalOutputAdmissionService } from '../../eval/eval-output-admission.service';
 import { ReportService } from '../report.service';
 
-const ORG = 'org-1' as never;
-const PROJECT = 'project-1';
+const ORG = '11111111-1111-4111-8111-111111111111' as never;
+const PROJECT = '22222222-2222-4222-8222-222222222222';
 const SESSION_ID = '77777777-7777-4777-8777-777777777777';
 const REPORT_ID = '88888888-8888-4888-8888-888888888888';
 
@@ -12,7 +13,7 @@ const payload = { reportType: 'SNAPSHOT', summary: 'Eval attempt output.' };
 function row(overrides: Record<string, unknown> = {}) {
   return {
     id: REPORT_ID,
-    organizationId: 'org-1',
+    organizationId: ORG,
     projectId: PROJECT,
     reportType: 'SNAPSHOT',
     audience: 'PROJECT_VISIBLE',
@@ -79,12 +80,12 @@ const createdEvent = (publisher: { publishInTransaction: jest.Mock }) =>
     .find((event) => event.type === 'report.created');
 
 describe('ReportService eval attempt output', () => {
-  it('stores a report written by an in-flight attempt target as inert and publishes shouldProcess false', async () => {
+  it('persists supplied exclusion and publishes shouldProcess false without looking up attempts', async () => {
     const { service, tx, publisher } = build();
     tx.report.create.mockResolvedValue(row({ ragEnabled: false }));
 
     const created = await writingAs(SESSION_ID, () =>
-      service.create(ORG, dto as never),
+      service.create(ORG, { ...dto, ragEnabled: false } as never),
     );
 
     expect(tx.report.create.mock.calls[0][0].data).toMatchObject({
@@ -94,8 +95,27 @@ describe('ReportService eval attempt output', () => {
       'evalAttemptId',
     );
     expect(created).toMatchObject({ ragEnabled: false });
+    expect(tx.report.findFirst).not.toHaveBeenCalled();
     expect(createdEvent(publisher)?.payload).toMatchObject({
       shouldProcess: false,
+    });
+    const capturePath = process.env.HEY_HEY_EVAL_EVENT_CAPTURE;
+    if (capturePath) {
+      writeFileSync(
+        capturePath,
+        JSON.stringify({
+          event: {
+            id: '33333333-3333-4333-8333-333333333333',
+            ...createdEvent(publisher),
+          },
+          timestamp: '2026-10-28T00:00:00.000Z',
+        }),
+      );
+    }
+    tx.report.findFirst.mockResolvedValue(row({ ragEnabled: false }));
+    expect(await service.findOne(ORG, REPORT_ID)).toMatchObject({
+      ragEnabled: false,
+      payload,
     });
   });
 

@@ -1,8 +1,8 @@
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import CloseIcon from "@mui/icons-material/Close";
 import {
   Box,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -16,6 +16,9 @@ import { useTranslation } from "react-i18next";
 export interface PreviewModalProps {
   /** Whether the modal is shown. */
   open: boolean;
+  ownerKey?: string;
+  closeControl?: import("@hey-hey/ui-common/components/Modals").FunctionalDialogProps["closeControl"];
+  workTitle?: string;
   /**
    * Called when the user dismisses the modal (close button, backdrop, or
    * Escape). Implementations should simply clear the state that drives `open`;
@@ -94,6 +97,9 @@ const captureInternalAnchorActivation = (
  */
 export const PreviewModal: React.FC<PreviewModalProps> = ({
   open,
+  ownerKey,
+  closeControl,
+  workTitle,
   onClose,
   openHref,
   openTitle,
@@ -149,6 +155,11 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
   return (
     <>
       <Dialog
+        ownerKey={ownerKey}
+        workTitle={
+          workTitle ??
+          (layout === "viewport" ? (openTitle ?? "Preview") : undefined)
+        }
         aria-labelledby={labelledBy}
         aria-describedby={describedBy}
         data-testid="preview-modal"
@@ -168,51 +179,62 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
                 : { width: dialogWidth, maxWidth: "100%", maxHeight: "90vh" },
           },
         }}
+        closeControl={
+          closeControl ?? (
+            <IconButton
+              aria-label={t("preview.close", "Close preview")}
+              data-testid="preview-modal-close"
+              onClick={onClose}
+              size="small"
+              sx={{
+                color: "text.secondary",
+              }}
+            >
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          )
+        }
       >
-        {layout === "viewport" && openHref !== undefined && (
+        {layout === "viewport" && (
           <Box
             data-testid="preview-modal-header"
             sx={{
               flexShrink: 0,
               display: "flex",
               alignItems: "center",
-              minHeight: 48,
+              minHeight: 64,
               pl: 3,
-              pr: 7,
+              pr: 13,
               borderBottom: 1,
               borderColor: "divider",
             }}
           >
-            <Link
-              data-testid="preview-modal-open"
-              href={openHref}
-              noWrap
-              onClick={handleOpenClick}
-              sx={{ typography: "h6", fontWeight: 600 }}
-              title={t("preview.open", "Open")}
-              underline="hover"
-            >
-              {openTitle ?? t("preview.open", "Open")}
-            </Link>
+            {openHref === undefined ? (
+              <DialogTitle sx={{ p: 0 }}>{workTitle ?? "Preview"}</DialogTitle>
+            ) : (
+              <Link
+                data-testid="preview-modal-open"
+                href={openHref}
+                onClick={handleOpenClick}
+                sx={{
+                  typography: "h6",
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                  overflowX: "auto",
+                  maxWidth: "100%",
+                  minHeight: 44,
+                  display: "flex",
+                  alignItems: "center",
+                }}
+                title={t("preview.open", "Open")}
+                underline="hover"
+              >
+                {openTitle ?? t("preview.open", "Open")}
+              </Link>
+            )}
           </Box>
         )}
-        {layout === "viewport" && (
-          <IconButton
-            aria-label={t("preview.close", "Close preview")}
-            data-testid="preview-modal-close"
-            onClick={onClose}
-            size="small"
-            sx={{
-              position: "absolute",
-              top: 8,
-              right: 8,
-              zIndex: 1,
-              color: "text.secondary",
-            }}
-          >
-            <CloseIcon fontSize="small" />
-          </IconButton>
-        )}
+
         <Box
           data-testid="preview-modal-content"
           onAuxClickCapture={(event) =>
@@ -233,35 +255,35 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
         >
           {children}
         </Box>
-      </Dialog>
-      <Dialog
-        aria-describedby="preview-navigation-confirmation-description"
-        aria-labelledby="preview-navigation-confirmation-title"
-        data-testid="preview-navigation-confirmation"
-        onClose={handleCancelNavigation}
-        open={pendingNavigation !== null}
-      >
-        <DialogTitle id="preview-navigation-confirmation-title">
-          {t("preview.navigationConfirmation.title", "Leave preview?")}
-        </DialogTitle>
-        <DialogContent id="preview-navigation-confirmation-description">
-          {t(
-            "preview.navigationConfirmation.description",
-            "Continuing will close the preview and navigate to the selected page.",
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCancelNavigation}>
-            {t("common.cancel", "Cancel")}
-          </Button>
-          <Button
-            autoFocus
-            onClick={handleConfirmNavigation}
-            variant="contained"
-          >
-            {t("preview.navigationConfirmation.continue", "Continue")}
-          </Button>
-        </DialogActions>
+        <Dialog
+          aria-describedby="preview-navigation-confirmation-description"
+          aria-labelledby="preview-navigation-confirmation-title"
+          data-testid="preview-navigation-confirmation"
+          onClose={handleCancelNavigation}
+          open={pendingNavigation !== null}
+        >
+          <DialogTitle id="preview-navigation-confirmation-title">
+            {t("preview.navigationConfirmation.title", "Leave preview?")}
+          </DialogTitle>
+          <DialogContent id="preview-navigation-confirmation-description">
+            {t(
+              "preview.navigationConfirmation.description",
+              "Continuing will close the preview and navigate to the selected page.",
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCancelNavigation}>
+              {t("common.cancel", "Cancel")}
+            </Button>
+            <Button
+              autoFocus
+              onClick={handleConfirmNavigation}
+              variant="contained"
+            >
+              {t("preview.navigationConfirmation.continue", "Continue")}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Dialog>
     </>
   );

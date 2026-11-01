@@ -1,3 +1,4 @@
+import { SessionRole } from '../../generated/model/sessionRole';
 import { NotFoundException } from '@nestjs/common';
 import {
   getWorkItemTypeGuidanceBatchOutput,
@@ -25,12 +26,6 @@ const COMPLETE_SUMMARY = {
     name: 'Marketing',
     role: 'work-item' as const,
     description: 'Campaign and go-to-market work.',
-    agentGuidance: {
-      overview: 'Semantic meaning',
-      contexts: [
-        { focalTypeKeys: ['FEATURE'], guidance: 'Directional meaning' },
-      ],
-    },
     iconKey: 'task' as const,
     sections: [
       {
@@ -197,8 +192,8 @@ describe('get_work_item_type', () => {
 describe('get_work_item_type_guidance_batch', () => {
   const batch = {
     results: [
-      { typeKey: 'BUG', name: 'Bug', overview: 'Defects', examples: [] },
-      { typeKey: 'STANDARD', name: 'Task', overview: 'Work', examples: [] },
+      { typeKey: 'BUG', name: 'Bug', maintenanceGuidance: 'Defects' },
+      { typeKey: 'STANDARD', name: 'Task', maintenanceGuidance: 'Work' },
     ],
   };
 
@@ -230,6 +225,7 @@ describe('get_work_item_type_guidance_batch', () => {
     getGuidanceBatch.mockReturnValue(single);
     const params = getWorkItemTypeGuidanceBatchParameters.parse({
       typeKeys: ['BUG'],
+      purpose: 'maintenance',
     });
     const result = await provider.getWorkItemTypeGuidanceBatch(
       params,
@@ -246,7 +242,7 @@ describe('get_work_item_type_guidance_batch', () => {
     delete request.headers['x-project-id'];
     expect(
       await provider.getWorkItemTypeGuidanceBatch(
-        { typeKeys: ['BUG'] },
+        { typeKeys: ['BUG'], purpose: WorkItemTypeGuidancePurpose.Maintenance },
         {} as any,
         request,
       ),
@@ -255,7 +251,7 @@ describe('get_work_item_type_guidance_batch', () => {
     expect(findOne).not.toHaveBeenCalled();
   });
 
-  it('rejects administrative data in a semantic batch result', () => {
+  it('rejects administrative data in a guidance batch result', () => {
     expect(
       getWorkItemTypeGuidanceBatchOutput.safeParse({
         results: [
@@ -269,8 +265,7 @@ describe('get_work_item_type_guidance_batch', () => {
     const { provider, getGuidanceBatch, findOne } = setup();
     const params = {
       typeKeys: ['BUG', 'STANDARD'],
-      focalTypeKey: 'FEATURE',
-      purpose: WorkItemTypeGuidancePurpose.Semantic,
+      purpose: WorkItemTypeGuidancePurpose.Maintenance,
     };
 
     const result = await provider.getWorkItemTypeGuidanceBatch(
@@ -313,17 +308,57 @@ describe('get_work_item_type_guidance_batch', () => {
     );
   });
 
-  it('rejects empty, oversized, duplicate, or extra-field requests', () => {
+  it.each(Object.values(SessionRole))(
+    'requires an explicit selector and serves role %s',
+    async (sessionRole) => {
+      const { provider, getGuidanceBatch } = setup();
+      const missing = await provider.getWorkItemTypeGuidanceBatch(
+        { typeKeys: ['BUG'], purpose: WorkItemTypeGuidancePurpose.Role },
+        {} as any,
+        makeRequest(),
+      );
+      expect(missing).toMatchObject({ isError: true });
+      expect(getGuidanceBatch).not.toHaveBeenCalled();
+      const params = getWorkItemTypeGuidanceBatchParameters.parse({
+        typeKeys: ['BUG', 'STANDARD'],
+        purpose: 'role',
+        sessionRole,
+      });
+      const result = {
+        results: [
+          { typeKey: 'BUG', name: 'Bug', sessionRole, guidance: 'Advice' },
+          { typeKey: 'STANDARD', name: 'Task', sessionRole },
+        ],
+      };
+      getGuidanceBatch.mockReturnValue(result);
+      expect(
+        await provider.getWorkItemTypeGuidanceBatch(
+          params,
+          {} as any,
+          makeRequest(),
+        ),
+      ).toEqual(result);
+      expect(getWorkItemTypeGuidanceBatchOutput.parse(result)).toEqual(result);
+      expect(getGuidanceBatch).toHaveBeenCalledWith(PROJECT_ID, params);
+    },
+  );
+
+  it('rejects purposeless, empty, oversized, duplicate, or extra-field requests', () => {
     expect(
       getWorkItemTypeGuidanceBatchParameters.safeParse({
         typeKeys: Array.from({ length: 10 }, (_, i) => `TYPE_${i}`),
+        purpose: 'maintenance',
       }).success,
     ).toBe(true);
     for (const input of [
-      { typeKeys: [] },
-      { typeKeys: Array.from({ length: 11 }, (_, i) => `TYPE_${i}`) },
-      { typeKeys: ['BUG', 'BUG'] },
-      { typeKeys: ['BUG'], extra: true },
+      { typeKeys: ['BUG'] },
+      { typeKeys: [], purpose: 'maintenance' },
+      {
+        typeKeys: Array.from({ length: 11 }, (_, i) => `TYPE_${i}`),
+        purpose: 'maintenance',
+      },
+      { typeKeys: ['BUG', 'BUG'], purpose: 'maintenance' },
+      { typeKeys: ['BUG'], purpose: 'maintenance', extra: true },
     ]) {
       expect(
         getWorkItemTypeGuidanceBatchParameters.safeParse(input).success,
@@ -339,7 +374,10 @@ describe('get_work_item_type_guidance_batch', () => {
 
     await expect(
       provider.getWorkItemTypeGuidanceBatch(
-        { typeKeys: ['BUG', 'UNKNOWN'] },
+        {
+          typeKeys: ['BUG', 'UNKNOWN'],
+          purpose: WorkItemTypeGuidancePurpose.Maintenance,
+        },
         {} as any,
         makeRequest(),
       ),
@@ -356,7 +394,7 @@ describe('get_work_item_type_guidance_batch', () => {
 
     expect(
       await provider.getWorkItemTypeGuidanceBatch(
-        { typeKeys: ['BUG'] },
+        { typeKeys: ['BUG'], purpose: WorkItemTypeGuidancePurpose.Maintenance },
         {} as any,
         makeRequest(),
       ),

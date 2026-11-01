@@ -1,3 +1,7 @@
+import {
+  useModalState,
+  ModalWorkOwner,
+} from "@hey-hey/ui-common/components/Modals";
 import React, { useState } from "react";
 import {
   Box,
@@ -46,8 +50,13 @@ export const IntegrationsTab: React.FC<IntegrationsTabProps> = ({
   projectId,
 }) => {
   // Dialog state management
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [
+    isCreateDialogOpen,
+    setIsCreateDialogOpen,
+    isCreateDialogOpenOwnerKey,
+  ] = useModalState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen, isEditDialogOpenOwnerKey] =
+    useModalState(false);
   const [selectedIntegration, setSelectedIntegration] =
     useState<IntegrationResponseDto | null>(null);
   const [selectedType, setSelectedType] = useState<IntegrationType>("GITHUB");
@@ -364,26 +373,30 @@ export const IntegrationsTab: React.FC<IntegrationsTabProps> = ({
       </Stack>
 
       {/* Dialogs */}
-      <CreateIntegrationDialog
-        open={isCreateDialogOpen}
-        onClose={() => setIsCreateDialogOpen(false)}
-        onSuccess={() => {
-          refetch();
-          setIsCreateDialogOpen(false);
-        }}
-        projectId={projectId}
-        selectedType={selectedType}
-      />
-      {selectedIntegration && (
-        <EditIntegrationDialog
-          open={isEditDialogOpen}
-          onClose={() => setIsEditDialogOpen(false)}
+      <ModalWorkOwner.Provider value={isCreateDialogOpenOwnerKey}>
+        <CreateIntegrationDialog
+          open={isCreateDialogOpen}
+          onClose={() => setIsCreateDialogOpen(false)}
           onSuccess={() => {
             refetch();
-            setIsEditDialogOpen(false);
+            setIsCreateDialogOpen(false);
           }}
-          integration={selectedIntegration}
+          projectId={projectId}
+          selectedType={selectedType}
         />
+      </ModalWorkOwner.Provider>
+      {selectedIntegration && (
+        <ModalWorkOwner.Provider value={isEditDialogOpenOwnerKey}>
+          <EditIntegrationDialog
+            open={isEditDialogOpen}
+            onClose={() => setIsEditDialogOpen(false)}
+            onSuccess={() => {
+              refetch();
+              setIsEditDialogOpen(false);
+            }}
+            integration={selectedIntegration}
+          />
+        </ModalWorkOwner.Provider>
       )}
     </TabContainer>
   );

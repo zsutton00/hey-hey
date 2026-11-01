@@ -14,17 +14,23 @@
 import { ProposalReconciliationIntervening } from './proposalReconciliationIntervening';
 import { ProposalReconciliationRevision } from './proposalReconciliationRevision';
 import { ProposalReconciliationBasis } from './proposalReconciliationBasis';
+import { ProposalReconciliationSuggestion } from './proposalReconciliationSuggestion';
 import { ProposalReconciliationOverlap } from './proposalReconciliationOverlap';
 
 
 export interface ProposalReconciliationState { 
     status: ProposalReconciliationState.StatusEnum;
+    suggestions?: Array<ProposalReconciliationSuggestion>;
+    /**
+     * Stored future revision used to prepare this context; include as expectedFutureRevision when submitting future reconciliation.
+     */
+    futureRevision?: number;
     /**
      * When the change under review was originally written; for a merged replacement, when the proposal it reconciles was written.
      */
     writtenAt?: string;
     /**
-     * Proposals approved on the same target after this change was written, oldest first. Empty when the proposal is approved or rejected.
+     * Proposals approved on the same target after this change was written, oldest first. Empty for terminal proposals; approved unapplied futures remain reviewable.
      */
     interveningProposals: Array<ProposalReconciliationIntervening>;
     /**

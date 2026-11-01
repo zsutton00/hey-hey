@@ -33,6 +33,8 @@ export interface ProposalRenderOverrides {
    * render from retained content. Display only; the server refuses approval.
    */
   evaluationOutput?: boolean;
+  /** Show an accepted comparison expanded when it first appears. */
+  startExpanded?: boolean;
 }
 
 const OVERRIDES: Partial<Record<TargetEntityType, ProposalRenderOverrides>> = {
@@ -57,8 +59,13 @@ export function getProposalRenderOverrides(
         hideHeader: true,
         hideStateIndicator: true,
       };
+    case "future-review":
+      return { ...overrides, startExpanded: true };
+    case "reconciliation-refinement":
+      return overrides;
     case "evaluation-output":
       return { ...overrides, evaluationOutput: true };
+    case "detail":
     case "standalone":
       return overrides;
   }

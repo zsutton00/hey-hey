@@ -232,9 +232,15 @@ describe('standalone review preparation', () => {
     expect(tx.$queryRaw).not.toHaveBeenCalled();
     expect(owner.appendRevision).not.toHaveBeenCalled();
   });
-  it('returns Agent fix for unsupported patch semantics without changing the proposal', async () => {
-    const { load, tx } = setup(stale, { updates: { requirementOps: [] } });
-    expect((await load()).status).toBe('AGENT_FIX_REQUIRED');
-    expect(tx.proposal.update).not.toHaveBeenCalled();
+  it('merges an empty requirement operation list as a no-op', async () => {
+    const { load, owner, tx } = setup(stale, {
+      updates: { requirementOps: [] },
+    });
+    expect((await load()).status).toBe('READY_FOR_REVIEW');
+    expect(tx.proposal.update).toHaveBeenCalled();
+    expect(owner.appendRevision).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ source: 'MERGE' }),
+    );
   });
 });

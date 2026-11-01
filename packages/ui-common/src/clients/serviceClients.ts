@@ -332,6 +332,12 @@ export class UnifiedApiClient {
     return this.clients.demoSandboxes.getCurrentDemoSandbox(...args);
   }
 
+  getAdminProjectHints(
+    ...args: Parameters<DebugAdminApi["getAdminProjectHints"]>
+  ) {
+    return this.clients.debugAdmin.getAdminProjectHints(...args);
+  }
+
   getAdminProjectImplementationHints(
     ...args: Parameters<DebugAdminApi["getAdminProjectImplementationHints"]>
   ) {

@@ -1,12 +1,8 @@
 import { ProviderUsageActivityView } from "@hey-hey/ui-common/components";
-import {
-  useAgentSessions,
-  useUserPairedMachines,
-} from "@hey-hey/ui-common/data";
 import { Alert, CircularProgress, Stack } from "@mui/material";
 import {
   getCostsRoutingUnavailableMessage,
-  selectCostsRoutingSession,
+  useCostsRouting,
 } from "./CostsView";
 
 export interface UsageViewProps {
@@ -20,15 +16,13 @@ export const UsageView = ({
   projectId,
   userId,
 }: UsageViewProps) => {
-  const { agentSessions, isLoading: areSessionsLoading } = useAgentSessions(
+  const { machines, routingAgentSessionId, isLoading } = useCostsRouting(
     organizationId,
     projectId,
-    { userId },
+    userId,
   );
-  const { machines, isLoading: areMachinesLoading } = useUserPairedMachines();
-  const routingSession = selectCostsRoutingSession(agentSessions, machines);
 
-  if (areSessionsLoading || areMachinesLoading) {
+  if (isLoading) {
     return (
       <Stack
         alignItems="center"
@@ -40,14 +34,10 @@ export const UsageView = ({
     );
   }
 
-  if (!routingSession) {
+  if (!routingAgentSessionId) {
     return (
       <Alert data-testid="project-usage-host-unavailable" severity="info">
-        {getCostsRoutingUnavailableMessage(
-          agentSessions,
-          machines,
-          "Provider usage",
-        )}
+        {getCostsRoutingUnavailableMessage(machines, "Provider usage")}
       </Alert>
     );
   }
@@ -56,7 +46,7 @@ export const UsageView = ({
     <ProviderUsageActivityView
       organizationId={organizationId}
       projectId={projectId}
-      routingAgentSessionId={routingSession.id}
+      routingAgentSessionId={routingAgentSessionId}
     />
   );
 };

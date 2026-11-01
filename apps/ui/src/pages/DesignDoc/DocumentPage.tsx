@@ -1,3 +1,5 @@
+import { useModalState } from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import { WebPathService } from "@hey-hey/ui-common";
 import { TERMS } from "@hey-hey/ui-common/i18n";
 import {
@@ -30,7 +32,6 @@ import {
   Box,
   Button,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
@@ -92,7 +93,11 @@ const DocumentPage: React.FC<DocumentPageProps> = ({
   const [isContextualRailVisible, setIsContextualRailVisible] = useState(true);
   const previousRefiningStateRef = useRef<boolean | null>(null);
 
-  const [confirmArchiveOpen, setConfirmArchiveOpen] = useState(false);
+  const [
+    confirmArchiveOpen,
+    setConfirmArchiveOpen,
+    confirmArchiveOpenOwnerKey,
+  ] = useModalState(false);
   const [isSubmittingAdminAction, setIsSubmittingAdminAction] = useState(false);
 
   // Tab state management
@@ -677,6 +682,7 @@ const DocumentPage: React.FC<DocumentPageProps> = ({
             />
           )}
           <Dialog
+            ownerKey={confirmArchiveOpenOwnerKey}
             open={confirmArchiveOpen}
             onClose={handleCancelArchive}
             maxWidth="sm"

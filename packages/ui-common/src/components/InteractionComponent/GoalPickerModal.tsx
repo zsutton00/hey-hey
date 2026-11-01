@@ -1,3 +1,4 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
@@ -5,7 +6,6 @@ import {
   Button,
   Chip,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -59,11 +59,10 @@ export const GoalPickerModal: React.FC<GoalPickerModalProps> = ({
     projectId,
     targetTaskType,
     EntityTypeValue.Task,
-    "GOAL"
+    "GOAL",
   );
   const canAttach =
-    targetEntityType === EntityTypeValue.Task &&
-    eligibility.isAllowed === true;
+    targetEntityType === EntityTypeValue.Task && eligibility.isAllowed === true;
   const goals = useActiveGoals({ organizationId, projectId });
   const {
     attach,

@@ -65,7 +65,6 @@ function createProvider(
   const proposalCreate = opts.proposalCreate ?? jest.fn();
   const proposalService = {
     create: proposalCreate,
-    createBatch: jest.fn(),
     findOne: jest.fn(),
   } as unknown as ProposalService;
   const taskService = {

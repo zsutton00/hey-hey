@@ -40,7 +40,14 @@ export const readCheckTrace = (
 ): { judged: Judged[]; failures: JevFailureTrace[] } => {
   const label = labelLookup(labels);
   return {
-    judged: check.judged.map(({ id, applies, kept }) => ({ entity: label(id), applies, kept })),
+    judged: check.judged.map(({ id, text, applies, kept, excerpt }) => ({
+      text,
+      decision: applies === null ? 'kept-on-failure' : kept ? 'keep' : 'drop',
+      entity: label(id),
+      applies,
+      kept,
+      ...(excerpt ? { excerpt } : {}),
+    })),
     failures: check.failures.map(({ ids, failure }) =>
       jevFailureTrace('keep', ids.map(label), failure, 'kept-all'),
     ),

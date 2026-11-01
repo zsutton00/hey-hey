@@ -223,6 +223,59 @@ describe("CodingResearchReport", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows saved evaluation research with the updates but no way to start a discussion", () => {
+    render(
+      <MemoryRouter>
+        <MentionEditorContext.Provider
+          value={{
+            navigate: () => undefined,
+            organizationId: "org-1",
+            projectId: "project-1",
+          }}
+        >
+          <CodingResearchReport
+            payload={fullPayload}
+            reportTestId="research"
+            evaluationOutput
+          />
+        </MentionEditorContext.Provider>
+      </MemoryRouter>,
+    );
+
+    expect(
+      screen.getByTestId("research-coding-research-updates"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("research-coding-research-updates-discuss"),
+    ).not.toBeInTheDocument();
+    expect(launcherMock.launch).not.toHaveBeenCalled();
+  });
+
+  it("hides the discussion action for evaluation output even when a report exists", () => {
+    render(
+      <MemoryRouter>
+        <MentionEditorContext.Provider
+          value={{
+            navigate: () => undefined,
+            organizationId: "org-1",
+            projectId: "project-1",
+          }}
+        >
+          <CodingResearchReport
+            payload={fullPayload}
+            report={buildReport(fullPayload)}
+            reportTestId="research"
+            evaluationOutput
+          />
+        </MentionEditorContext.Provider>
+      </MemoryRouter>,
+    );
+
+    expect(
+      screen.queryByTestId("research-coding-research-updates-discuss"),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders no proposed changes when updates are missing", () => {
     render(
       <CodingResearchUpdatesSection

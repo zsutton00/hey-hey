@@ -1,3 +1,4 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
@@ -6,7 +7,6 @@ import {
   Box,
   Button,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -44,7 +44,7 @@ export interface AddExistingUserDialogProps {
 
 const getInitials = (
   name: string | undefined,
-  email: string | undefined
+  email: string | undefined,
 ): string => {
   const source = name?.trim() || email?.trim() || "";
   if (!source) return "?";
@@ -71,7 +71,7 @@ export const AddExistingUserDialog: React.FC<AddExistingUserDialogProps> = ({
     useState<OrganizationMemberResponseDto | null>(null);
   const [role, setRole] = useState<ProjectRole>(ProjectRole.Member);
   const [selectionError, setSelectionError] = useState<string | undefined>(
-    undefined
+    undefined,
   );
 
   useEffect(() => {
@@ -85,27 +85,27 @@ export const AddExistingUserDialog: React.FC<AddExistingUserDialogProps> = ({
   const sortedCandidates = useMemo(
     () =>
       [...candidates].sort((a, b) =>
-        getOptionLabel(a).localeCompare(getOptionLabel(b))
+        getOptionLabel(a).localeCompare(getOptionLabel(b)),
       ),
-    [candidates]
+    [candidates],
   );
 
   const handleSelectionChange = useCallback(
     (
       _event: React.SyntheticEvent,
-      value: OrganizationMemberResponseDto | null
+      value: OrganizationMemberResponseDto | null,
     ) => {
       setSelected(value);
       if (selectionError) setSelectionError(undefined);
     },
-    [selectionError]
+    [selectionError],
   );
 
   const handleRoleChange = useCallback(
     (event: SelectChangeEvent<ProjectRole>) => {
       setRole(event.target.value as ProjectRole);
     },
-    []
+    [],
   );
 
   const handleSubmit = useCallback(() => {

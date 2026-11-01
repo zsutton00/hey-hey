@@ -79,6 +79,7 @@ export const WorkflowStepPage: React.FC = () => {
     error: taskError,
   } = useTaskHierarchy(organizationId, projectId, taskId, {
     enabled: !!organizationId && !!projectId && !!taskId,
+    refetchOnMount: true,
     includeDesignDocCounts: true,
     includeAgentSessionCounts: true,
   });

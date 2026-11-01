@@ -29,11 +29,10 @@ import { useWorkItems } from "../../../data/hooks/useWorkItems";
 import { getWorkItemSectionContent } from "../../../utils/workItemSections";
 import type { FieldComponentContext, FieldComponentProps } from "./types";
 
-export interface TaskListFieldProps
-  extends Omit<
-    FieldComponentProps<TasksSystemMessageData>,
-    "onChange" | "value"
-  > {
+export interface TaskListFieldProps extends Omit<
+  FieldComponentProps<TasksSystemMessageData>,
+  "onChange" | "value"
+> {
   value: TasksSystemMessageData;
   onChange?: (value: unknown) => void;
   context: FieldComponentContext;
@@ -216,7 +215,7 @@ export const TaskListField: React.FC<TaskListFieldProps> = ({
 }) => {
   const { t } = useTranslation();
   const [submittingTasks, setSubmittingTasks] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
 
   // Extract task IDs from the value - memoize to avoid re-creating array
@@ -247,15 +246,15 @@ export const TaskListField: React.FC<TaskListFieldProps> = ({
 
     return tasks.filter(
       (task): task is TaskResponseDto =>
-        !!task && typeof task === "object" && typeof task.id === "string"
+        !!task && typeof task === "object" && typeof task.id === "string",
     );
   }, [value]);
 
   const initiativeIdFromTasks = useMemo(
     () =>
       tasksFromMessage.find((task) => typeof task?.initiativeId === "string")
-        ?.initiativeId,
-    [tasksFromMessage]
+        ?.initiativeId ?? undefined,
+    [tasksFromMessage],
   );
 
   let initiativeId = initiativeIdFromTasks;
@@ -285,7 +284,7 @@ export const TaskListField: React.FC<TaskListFieldProps> = ({
       status: generatedStatus,
       enabled: shouldFetchTasks,
       includeSectionKeys: ["description"],
-    }
+    },
   );
 
   const tasks = useMemo(() => {
@@ -296,7 +295,7 @@ export const TaskListField: React.FC<TaskListFieldProps> = ({
     return allTasks.filter(
       (task) =>
         !taskIdSet.size ||
-        (task.status === generatedStatus && taskIdSet.has(task.id))
+        (task.status === generatedStatus && taskIdSet.has(task.id)),
     );
   }, [workItems, generatedTaskIds]);
 
@@ -331,7 +330,7 @@ export const TaskListField: React.FC<TaskListFieldProps> = ({
         });
       }
     },
-    [updateTask]
+    [updateTask],
   );
 
   // Handle rejecting a task - remove it from the system
@@ -351,7 +350,7 @@ export const TaskListField: React.FC<TaskListFieldProps> = ({
         });
       }
     },
-    [remove]
+    [remove],
   );
 
   // Show loading state

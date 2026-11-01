@@ -5,8 +5,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ModeFilesSectionRenderer } from "../ModeFilesSectionRenderer";
 import { MarkdownRenderer } from "../MarkdownRenderer";
 
-vi.mock("react-markdown", () =>
-  import("../../../../node_modules/react-markdown/index.js")
+vi.mock(
+  "react-markdown",
+  () => import("../../../../node_modules/react-markdown/index.js"),
 );
 
 const hookMocks = vi.hoisted(() => ({
@@ -27,9 +28,8 @@ vi.mock("../../../data/hooks/useWorkItemTypes", async (importOriginal) => ({
 
 vi.mock("../../SmarterTextAreaCard/MentionBadge", async () => {
   const { useContext } = await import("react");
-  const { MentionEditorContext } = await import(
-    "../../SmarterTextAreaCard/EditorContext"
-  );
+  const { MentionEditorContext } =
+    await import("../../SmarterTextAreaCard/EditorContext");
 
   return {
     MentionBadgeInner: ({
@@ -92,7 +92,115 @@ describe("ModeFilesSectionRenderer", () => {
         isStale: false,
         refetch: vi.fn(),
         markStale: vi.fn(),
-      })
+      }),
+    );
+  });
+
+  it("reviews modified, added and removed files in the selected pane and retains unchanged files", () => {
+    const content = {
+      schemaVersion: "project-mode-files.v1",
+      files: {
+        "MODE.md": "# Guide\n\nRead the new guidance, then finish.",
+        "references/added.md": "Added guidance",
+        "same.md": "Unchanged guidance",
+      },
+    };
+    render(
+      <ModeFilesSectionRenderer
+        content={content}
+        comparison={{
+          defaultViewMode: "inline",
+          currentContent: {
+            schemaVersion: "project-mode-files.v1",
+            files: {
+              "MODE.md": "# Guide\n\nRead the old guidance, then stop.",
+              "references/removed.md": "Removed guidance",
+              "same.md": "Unchanged guidance",
+            },
+          },
+        }}
+      />,
+      { wrapper },
+    );
+    expect(
+      screen.getByRole("button", { name: "MODE.md (modified)" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getAllByTestId("mode-file-diff")).toHaveLength(1);
+    expect(screen.getByTestId("diff-renderer-inline-view")).toHaveTextContent(
+      "guidance",
+    );
+    const flowingParagraphs = screen
+      .getByTestId("diff-renderer-inline-view")
+      .querySelectorAll("p");
+    expect(flowingParagraphs.length).toBeGreaterThan(1);
+    flowingParagraphs.forEach((paragraph) =>
+      expect(paragraph).toHaveStyle({ display: "inline" }),
+    );
+    expect(screen.getByTestId("mode-files-selected-content")).toHaveTextContent(
+      "Read the oldnew guidance, then stopfinish.",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "references/removed.md (removed)" }),
+    );
+    expect(screen.getByTestId("mode-files-selected-content")).toHaveTextContent(
+      "Removed guidance",
+    );
+    fireEvent.click(screen.getByTestId("diff-renderer-view-mode-split"));
+    expect(
+      screen.getByTestId("diff-renderer-split-pane-old"),
+    ).toHaveTextContent("Removed guidance");
+    expect(
+      screen.getByTestId("diff-renderer-split-pane-new"),
+    ).not.toHaveTextContent("Removed guidance");
+    fireEvent.click(
+      screen.getByRole("button", { name: "references/added.md (added)" }),
+    );
+    expect(screen.getByTestId("mode-files-selected-content")).toHaveTextContent(
+      "Added guidance",
+    );
+    fireEvent.click(screen.getByTestId("mode-files-toggle-unchanged"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "same.md (unchanged)" }),
+    );
+    expect(screen.getByTestId("mode-files-selected-content")).toHaveTextContent(
+      "Unchanged guidance",
+    );
+    expect(screen.queryByTestId("mode-file-diff")).not.toBeInTheDocument();
+  });
+
+  it("keeps mentions interactive inside selected file comparisons in Inline and Split", () => {
+    const navigate = vi.fn();
+    const beforeMention =
+      "@[task:68895eb9-5d92-4643-8e8a-6692ebc13e0b|Earlier guidance]";
+    const afterMention =
+      "@[task:9849a854-fc1f-4d76-8830-78d537390ef6|Updated guidance]";
+    const bundle = (text: string) => ({
+      schemaVersion: "project-mode-files.v1",
+      files: { "MODE.md": text },
+    });
+    render(
+      <ModeFilesSectionRenderer
+        content={bundle(`Read ${afterMention}.`)}
+        comparison={{
+          currentContent: bundle(`Read ${beforeMention}.`),
+          defaultViewMode: "inline",
+        }}
+        mentionConfig={{
+          organizationId: "org-1",
+          projectId: "project-1",
+          navigate,
+        }}
+      />,
+      { wrapper },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Updated guidance" }));
+    expect(navigate).toHaveBeenCalledWith(
+      "/task/9849a854-fc1f-4d76-8830-78d537390ef6",
+    );
+    fireEvent.click(screen.getByTestId("diff-renderer-view-mode-split"));
+    fireEvent.click(screen.getByRole("button", { name: "Earlier guidance" }));
+    expect(navigate).toHaveBeenCalledWith(
+      "/task/68895eb9-5d92-4643-8e8a-6692ebc13e0b",
     );
   });
 
@@ -101,22 +209,41 @@ describe("ModeFilesSectionRenderer", () => {
       "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
     render(
       <>
-        <ModeFilesSectionRenderer content={{
-          schemaVersion: "project-mode-files.v1",
-          files: { "MODE.md": "# First\n\n## Second\n\n### Third\n\n#### Fourth\n\n##### Fifth\n\n###### Sixth\n\nBody text." },
-        }} />
+        <ModeFilesSectionRenderer
+          content={{
+            schemaVersion: "project-mode-files.v1",
+            files: {
+              "MODE.md":
+                "# First\n\n## Second\n\n### Third\n\n#### Fourth\n\n##### Fifth\n\n###### Sixth\n\nBody text.",
+            },
+          }}
+        />
         <MarkdownRenderer>{"# Ordinary heading"}</MarkdownRenderer>
       </>,
-      { wrapper }
+      { wrapper },
     );
-    expect(screen.getByRole("heading", { name: "First" }).parentElement)
-      .toHaveStyle({ fontFamily, fontSize: "1rem", lineHeight: "1.6" });
-    for (const name of ["First", "Second", "Third", "Fourth", "Fifth", "Sixth"]) {
+    expect(
+      screen.getByRole("heading", { name: "First" }).parentElement,
+    ).toHaveStyle({ fontFamily, fontSize: "1rem", lineHeight: "1.6" });
+    for (const name of [
+      "First",
+      "Second",
+      "Third",
+      "Fourth",
+      "Fifth",
+      "Sixth",
+    ]) {
       expect(screen.getByRole("heading", { name })).toHaveStyle({ fontFamily });
     }
-    expect(screen.getByRole("button", { name: "MODE.md" })).toHaveStyle({ fontFamily });
-    expect(screen.getByTestId("mode-files-selected-path")).toHaveStyle({ fontFamily });
-    expect(screen.getByRole("heading", { name: "Ordinary heading" })).not.toHaveStyle({ fontFamily });
+    expect(screen.getByRole("button", { name: "MODE.md" })).toHaveStyle({
+      fontFamily,
+    });
+    expect(screen.getByTestId("mode-files-selected-path")).toHaveStyle({
+      fontFamily,
+    });
+    expect(
+      screen.getByRole("heading", { name: "Ordinary heading" }),
+    ).not.toHaveStyle({ fontFamily });
   });
 
   it("keeps the entry file flush and gives every supporting path one indent", () => {
@@ -131,14 +258,14 @@ describe("ModeFilesSectionRenderer", () => {
           },
         }}
       />,
-      { wrapper }
+      { wrapper },
     );
 
     expect(screen.getByTestId("mode-files-selected-path")).toHaveTextContent(
-      "MODE.md"
+      "MODE.md",
     );
     expect(screen.getByTestId("mode-files-selected-content")).toHaveTextContent(
-      "Start here."
+      "Start here.",
     );
 
     const rootFile = screen.getByRole("button", { name: "MODE.md" });
@@ -154,14 +281,14 @@ describe("ModeFilesSectionRenderer", () => {
     }
 
     fireEvent.click(
-      screen.getByRole("button", { name: "references/checklist.md" })
+      screen.getByRole("button", { name: "references/checklist.md" }),
     );
 
     expect(screen.getByTestId("mode-files-selected-path")).toHaveTextContent(
-      "references/checklist.md"
+      "references/checklist.md",
     );
     expect(screen.getByTestId("mode-files-selected-content")).toHaveTextContent(
-      "Check this list."
+      "Check this list.",
     );
   });
 
@@ -184,59 +311,61 @@ describe("ModeFilesSectionRenderer", () => {
           navigate,
         }}
       />,
-      { wrapper }
+      { wrapper },
     );
 
     expect(screen.getByRole("link", { name: "review guide" })).toHaveAttribute(
       "href",
-      "https://example.com/review"
+      "https://example.com/review",
     );
     expect(screen.getByTestId("mention-node")).toHaveAttribute(
       "data-entity-id",
-      "8be2f12f-4313-427a-a279-70f94136f0c6"
+      "8be2f12f-4313-427a-a279-70f94136f0c6",
     );
     expect(screen.getByTestId("mention-node")).toHaveAttribute(
       "data-entity-type",
-      "feature"
+      "feature",
     );
     expect(screen.getByTestId("mention-node")).toHaveAttribute(
       "data-organization-id",
-      "organization-1"
+      "organization-1",
     );
     expect(screen.getByTestId("mention-node")).toHaveAttribute(
       "data-project-id",
-      "project-1"
+      "project-1",
     );
     fireEvent.click(screen.getByTestId("mention-node"));
     expect(navigate).toHaveBeenCalledWith(
-      "/feature/8be2f12f-4313-427a-a279-70f94136f0c6"
+      "/feature/8be2f12f-4313-427a-a279-70f94136f0c6",
     );
     expect(
       hookMocks.useWorkItem.mock.calls.some(
-        (call) => call[3]?.enabled === true
-      )
+        (call) => call[3]?.enabled === true,
+      ),
     ).toBe(false);
 
     fireEvent.click(
-      screen.getByRole("button", { name: "references/checklist.md" })
+      screen.getByRole("button", { name: "references/checklist.md" }),
     );
 
     expect(screen.getByRole("link", { name: "first item" })).toHaveAttribute(
       "href",
-      "https://example.com/checklist"
+      "https://example.com/checklist",
     );
     expect(screen.getByTestId("mention-node")).toHaveAttribute(
-      "data-entity-type", "contract"
+      "data-entity-type",
+      "contract",
     );
     expect(screen.getByTestId("mention-node")).toHaveAttribute(
-      "data-entity-id", "7913ee36-65ef-4549-85f1-d38dadd34b29"
+      "data-entity-id",
+      "7913ee36-65ef-4549-85f1-d38dadd34b29",
     );
     fireEvent.click(screen.getByTestId("mention-node"));
     expect(navigate).toHaveBeenLastCalledWith(
-      "/contract/7913ee36-65ef-4549-85f1-d38dadd34b29"
+      "/contract/7913ee36-65ef-4549-85f1-d38dadd34b29",
     );
     expect(
-      screen.queryByRole("link", { name: "review guide" })
+      screen.queryByRole("link", { name: "review guide" }),
     ).not.toBeInTheDocument();
   });
 
@@ -247,17 +376,17 @@ describe("ModeFilesSectionRenderer", () => {
           files: { "MODE.md": "This must not be shown as generic JSON." },
         }}
       />,
-      { wrapper }
+      { wrapper },
     );
 
     expect(
-      screen.getByTestId("mode-files-section-unavailable")
+      screen.getByTestId("mode-files-section-unavailable"),
     ).toHaveTextContent("files are unavailable");
     expect(
-      screen.queryByTestId("mode-files-selected-content")
+      screen.queryByTestId("mode-files-selected-content"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByText("This must not be shown as generic JSON.")
+      screen.queryByText("This must not be shown as generic JSON."),
     ).not.toBeInTheDocument();
   });
 });

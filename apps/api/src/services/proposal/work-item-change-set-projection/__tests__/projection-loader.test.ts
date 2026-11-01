@@ -1,3 +1,4 @@
+import type { GroupReservedEntity } from '../../proposal-group-authoring.service';
 import { AxiosError, AxiosHeaders } from 'axios';
 import type { Logger } from '@nestjs/common';
 import type {
@@ -76,6 +77,7 @@ function edge(
 }
 
 function setup(params: {
+  reservedEntities?: readonly GroupReservedEntity[];
   operations?: WorkItemChangeSetOperation[];
   nodes?: ProjectedNode[];
 }) {
@@ -99,6 +101,7 @@ function setup(params: {
   const loader = new ProjectionLoader({
     organizationId: ORG,
     projectId: PROJECT,
+    reservedEntities: params.reservedEntities,
     db: db as unknown as AnyTransactionClient,
     agentEdgeClient: agentEdgeClient as unknown as AgentEdgeClientService,
     tokenFactory: () => 'token',
@@ -331,6 +334,37 @@ describe('ProjectionLoader', () => {
       expect.objectContaining({ id: 'chain' }),
     );
   });
+
+  it.each([false, true])(
+    'resolves reserved screen targets only with group context: %s',
+    async (grouped) => {
+      const { db, loader, loaded } = setup({
+        reservedEntities: grouped
+          ? [
+              { entityId: TASK, entityType: 'TASK', workItemType: 'mockup' },
+              { entityId: DOC, entityType: 'TASK', workItemType: 'mockup' },
+            ]
+          : undefined,
+        operations: [
+          {
+            op: 'section.replace',
+            ref: { refType: 'temporary', tempId: 'el' },
+            key: 'diagramElementMetadata',
+            content: {
+              role: 'SCREEN',
+              canonicalReference: { entityType: 'TASK', entityId: TASK },
+            },
+          },
+        ],
+      });
+      db.task.findMany.mockResolvedValue([]);
+      await loader.load({ kind: 'diagramTargets', of: ['temporary:el'] });
+      expect(loaded.diagramTargets.get(TASK)).toEqual(
+        grouped ? { entityType: 'TASK', type: 'mockup' } : undefined,
+      );
+      expect(loaded.diagramTargets.has(DOC)).toBe(false);
+    },
+  );
 
   it('diagramTargets resolves canonical references written by the request', async () => {
     const { db, loader, loaded } = setup({

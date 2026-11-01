@@ -47,6 +47,7 @@ import {
   setBrowserSessionCookies,
 } from '../auth/browser-session-cookies';
 import { CorsConfig } from '../common/config/cors.config';
+import { clearDemoBindingCookie } from '../services/demo-sandbox/demo-binding-cookie';
 import { OrganizationId } from '../types';
 
 const LEGACY_REFRESH_TTL_MILLISECONDS = 7 * 24 * 60 * 60 * 1000;
@@ -114,6 +115,7 @@ export class AuthController {
     }
 
     setBrowserSessionCookies(response, result);
+    clearDemoBindingCookie(response);
     this.logger.log('Browser sign-in cookies set', {
       sessionId: result.sessionId,
       familyId: result.familyId,
@@ -159,6 +161,7 @@ export class AuthController {
 
     this.clearBrowserSessionCookies(response);
     setBrowserSessionCookies(response, session);
+    clearDemoBindingCookie(response);
 
     return session.response;
   }
@@ -225,6 +228,7 @@ export class AuthController {
       browserSessionRequestMetadata(request),
     );
     this.clearBrowserSessionCookies(response);
+    clearDemoBindingCookie(response);
 
     return { message: 'Logged out successfully' };
   }
@@ -338,6 +342,7 @@ export class AuthController {
     );
     this.clearBrowserSessionCookies(response);
     setBrowserSessionCookies(response, session);
+    clearDemoBindingCookie(response);
     return session.response;
   }
 

@@ -702,6 +702,7 @@ function buildReportEventDto(
 
   return {
     id: report.id,
+    ragEnabled: report.ragEnabled,
     organizationId: report.organizationId,
     projectId: report.projectId ?? null,
     reportType: report.reportType,
@@ -1158,6 +1159,7 @@ const ReportPayloadSchema = z
 const ReportDtoSchema = z
   .object({
     id: z.string(),
+    ragEnabled: z.boolean().optional(),
     organizationId: z.string(),
     projectId: z.string().nullable().optional(),
     reportType: ReportTypeEnum,
@@ -1169,7 +1171,7 @@ const ReportDtoSchema = z
     sourceExecutionId: z.string().nullable().optional(),
     parentReportId: z.string().nullable().optional(),
     createdAt: z.string(),
-    expiresAt: z.string(),
+    expiresAt: z.string().nullable(),
     entities: z.array(ReportEntitySchema),
   })
   .strict();
@@ -1726,6 +1728,7 @@ const AgentSessionDeletedSchema = ExecutionContext.extend({
 const ReportCreatedSchema = z
   .object({
     payloadType: z.literal('report.created'),
+    shouldProcess: z.boolean(),
     organizationId: z.string(),
     projectId: z.string().optional(),
     requestId: z.string().optional(),
@@ -3280,6 +3283,28 @@ export async function attemptFix(
       !Array.isArray(fixed.report)
         ? (fixed.report as Record<string, unknown>)
         : undefined;
+
+    if (
+      reportAfterHydration &&
+      typeof reportAfterHydration.ragEnabled !== 'boolean'
+    ) {
+      const stored = await prisma.report.findUnique({
+        where: { id: event.aggregateId },
+        select: { ragEnabled: true },
+      });
+      if (stored) {
+        reportAfterHydration.ragEnabled = stored.ragEnabled;
+        modified = true;
+      }
+    }
+    if (
+      typeof fixed.shouldProcess !== 'boolean' ||
+      (reportAfterHydration?.ragEnabled === false &&
+        fixed.shouldProcess !== false)
+    ) {
+      fixed.shouldProcess = reportAfterHydration?.ragEnabled !== false;
+      modified = true;
+    }
 
     if (
       !fixed.organizationId &&

@@ -1,3 +1,4 @@
+import { FunctionalDialog as Dialog } from "../../Modals/FunctionalDialog";
 import CloseIcon from "@mui/icons-material/Close";
 import CodeIcon from "@mui/icons-material/Code";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -5,7 +6,6 @@ import {
   Alert,
   Box,
   Button,
-  Dialog,
   DialogContent,
   DialogTitle,
   FormControlLabel,
@@ -89,7 +89,7 @@ const clampFileListWidth = (value: number): number => {
   if (!Number.isFinite(value)) return FILE_LIST_WIDTH_DEFAULT;
   return Math.min(
     FILE_LIST_WIDTH_MAX,
-    Math.max(FILE_LIST_WIDTH_MIN, Math.round(value))
+    Math.max(FILE_LIST_WIDTH_MIN, Math.round(value)),
   );
 };
 
@@ -118,7 +118,7 @@ const writeStoredFileListWidth = (value: number): void => {
 };
 
 const isDiffPresentationMode = (
-  value: unknown
+  value: unknown,
 ): value is DiffPresentationMode =>
   value === DIFF_PRESENTATION_MODES.sideBySide ||
   value === DIFF_PRESENTATION_MODES.vertical;
@@ -275,10 +275,10 @@ export const CollatedFileDiffModal: React.FC<CollatedFileDiffModalProps> = ({
   const theme = useTheme();
   const isPhone = useMediaQuery(theme.breakpoints.down("sm"));
   const [fileListWidth, setFileListWidth] = useState<number>(() =>
-    readStoredFileListWidth()
+    readStoredFileListWidth(),
   );
   const [hideComments, setHideComments] = useState<boolean>(() =>
-    readStoredHideComments()
+    readStoredHideComments(),
   );
   const [desktopPresentationMode, setDesktopPresentationMode] =
     useState<DiffPresentationMode>(() => readStoredPresentationMode());
@@ -286,7 +286,7 @@ export const CollatedFileDiffModal: React.FC<CollatedFileDiffModalProps> = ({
   const [mobileSurface, setMobileSurface] =
     useState<MobileDiffSurface>("file-list");
   const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(
-    null
+    null,
   );
 
   const sortedPatches = useMemo(
@@ -301,13 +301,13 @@ export const CollatedFileDiffModal: React.FC<CollatedFileDiffModalProps> = ({
             undefined,
             {
               sensitivity: "base",
-            }
+            },
           ) ||
           a.serviceId.localeCompare(b.serviceId, undefined, {
             sensitivity: "base",
-          })
+          }),
       ),
-    [entries]
+    [entries],
   );
   const filteredPatches = useMemo(() => {
     const query = fileFilter.trim().toLocaleLowerCase();
@@ -316,7 +316,7 @@ export const CollatedFileDiffModal: React.FC<CollatedFileDiffModalProps> = ({
     }
     return sortedPatches.filter((patch) => {
       const serviceName = serviceNamesState.serviceNamesById.get(
-        patch.serviceId
+        patch.serviceId,
       );
       return [patch.filePath, getRepoLabel(patch.repoPath), serviceName]
         .filter((value): value is string => value !== undefined)
@@ -326,14 +326,14 @@ export const CollatedFileDiffModal: React.FC<CollatedFileDiffModalProps> = ({
   const resolvedIndex = (() => {
     if (selectedIdentity !== null) {
       const idx = sortedPatches.findIndex(
-        (p) => getPatchIdentity(p) === selectedIdentity
+        (p) => getPatchIdentity(p) === selectedIdentity,
       );
       if (idx !== -1) return idx;
     }
     return sortedPatches.length > 0 ? 0 : -1;
   })();
   const selectedPatch =
-    resolvedIndex >= 0 ? sortedPatches[resolvedIndex] ?? null : null;
+    resolvedIndex >= 0 ? (sortedPatches[resolvedIndex] ?? null) : null;
   const selectedPatchIdentity = selectedPatch
     ? getPatchIdentity(selectedPatch)
     : null;
@@ -350,7 +350,7 @@ export const CollatedFileDiffModal: React.FC<CollatedFileDiffModalProps> = ({
       onSelect(identity);
       if (isPhone) setMobileSurface("file-detail");
     },
-    [isPhone, onSelect]
+    [isPhone, onSelect],
   );
 
   const showFileList = !isPhone || mobileSurface === "file-list";
@@ -374,7 +374,7 @@ export const CollatedFileDiffModal: React.FC<CollatedFileDiffModalProps> = ({
   const fileDecisions = useMemo<LocatedDecision[]>(() => {
     if (selectedPatchFilePath === null || !decisions) return [];
     return decisions.filter(
-      (decision) => decision.location.file === selectedPatchFilePath
+      (decision) => decision.location.file === selectedPatchFilePath,
     );
   }, [decisions, selectedPatchFilePath]);
 
@@ -384,19 +384,19 @@ export const CollatedFileDiffModal: React.FC<CollatedFileDiffModalProps> = ({
       setHideComments(next);
       writeStoredHideComments(next);
     },
-    []
+    [],
   );
 
   const handlePresentationModeChange = useCallback(
     (
       _event: React.MouseEvent<HTMLElement>,
-      nextMode: DiffPresentationMode | null
+      nextMode: DiffPresentationMode | null,
     ): void => {
       if (!isDiffPresentationMode(nextMode)) return;
       setDesktopPresentationMode(nextMode);
       writeStoredPresentationMode(nextMode);
     },
-    []
+    [],
   );
 
   const handlePointerDown = useCallback(
@@ -410,7 +410,7 @@ export const CollatedFileDiffModal: React.FC<CollatedFileDiffModalProps> = ({
         event.currentTarget.setPointerCapture(event.pointerId);
       }
     },
-    [fileListWidth]
+    [fileListWidth],
   );
 
   const handlePointerMove = useCallback(
@@ -420,7 +420,7 @@ export const CollatedFileDiffModal: React.FC<CollatedFileDiffModalProps> = ({
       const delta = event.clientX - dragState.startX;
       setFileListWidth(clampFileListWidth(dragState.startWidth + delta));
     },
-    []
+    [],
   );
 
   const handlePointerUp = useCallback(
@@ -441,7 +441,7 @@ export const CollatedFileDiffModal: React.FC<CollatedFileDiffModalProps> = ({
         return clamped;
       });
     },
-    []
+    [],
   );
 
   return (
@@ -463,6 +463,14 @@ export const CollatedFileDiffModal: React.FC<CollatedFileDiffModalProps> = ({
         }),
       }}
       data-testid="collated-file-diff-modal"
+      closeControl={
+        <IconButton
+          onClick={onClose}
+          data-testid="collated-file-diff-modal-close"
+        >
+          <CloseIcon />
+        </IconButton>
+      }
     >
       <DialogTitle
         sx={{
@@ -521,12 +529,6 @@ export const CollatedFileDiffModal: React.FC<CollatedFileDiffModalProps> = ({
           }
           label={<Typography variant="body2">Hide comments</Typography>}
         />
-        <IconButton
-          onClick={onClose}
-          data-testid="collated-file-diff-modal-close"
-        >
-          <CloseIcon />
-        </IconButton>
       </DialogTitle>
       <DialogContent
         sx={{

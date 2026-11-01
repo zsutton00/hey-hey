@@ -1,3 +1,4 @@
+import { ProposalReconciliationService } from '../../proposal/proposal-reconciliation.service';
 import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
@@ -173,24 +174,26 @@ describe('TaskService create path — archived type gate', () => {
         GraphsClientService,
         WorkItemParentageValidator,
       ],
-      overrides: [[PrismaService, mockPrisma],
-[WorkItemTypeRegistryService, registry],
-[RedisService, redisProvider.useValue],
-[
+      overrides: [
+        [PrismaService, mockPrisma],
+        [WorkItemTypeRegistryService, registry],
+        [RedisService, redisProvider.useValue],
+        [
           TaskArtifactService,
           {
             storeOriginalGeneration: jest.fn().mockResolvedValue([]),
             updateOriginalArtifactFields: jest.fn(),
           },
         ],
-[
+        [
           GraphsClientService,
           {
             searchGraph: jest
               .fn()
               .mockResolvedValue({ seedResults: [], totalElements: 0 }),
           },
-        ]],
+        ],
+      ],
     });
 
     return module.get<TaskService>(TaskService);
@@ -281,24 +284,26 @@ describe('TaskService re-parent path — archived type gate', () => {
         GraphsClientService,
         WorkItemParentageValidator,
       ],
-      overrides: [[PrismaService, mockPrisma],
-[WorkItemTypeRegistryService, registry],
-[RedisService, redisProvider.useValue],
-[
+      overrides: [
+        [PrismaService, mockPrisma],
+        [WorkItemTypeRegistryService, registry],
+        [RedisService, redisProvider.useValue],
+        [
           TaskArtifactService,
           {
             storeOriginalGeneration: jest.fn().mockResolvedValue([]),
             updateOriginalArtifactFields: jest.fn(),
           },
         ],
-[
+        [
           GraphsClientService,
           {
             searchGraph: jest
               .fn()
               .mockResolvedValue({ seedResults: [], totalElements: 0 }),
           },
-        ]],
+        ],
+      ],
     });
 
     const service = module.get<TaskService>(TaskService);
@@ -420,24 +425,26 @@ describe('TaskService update path — allowedStatuses gate', () => {
         GraphsClientService,
         WorkItemParentageValidator,
       ],
-      overrides: [[PrismaService, mockPrisma],
-[WorkItemTypeRegistryService, registry],
-[RedisService, redisProvider.useValue],
-[
+      overrides: [
+        [PrismaService, mockPrisma],
+        [WorkItemTypeRegistryService, registry],
+        [RedisService, redisProvider.useValue],
+        [
           TaskArtifactService,
           {
             storeOriginalGeneration: jest.fn().mockResolvedValue([]),
             updateOriginalArtifactFields: jest.fn(),
           },
         ],
-[
+        [
           GraphsClientService,
           {
             searchGraph: jest
               .fn()
               .mockResolvedValue({ seedResults: [], totalElements: 0 }),
           },
-        ]],
+        ],
+      ],
     });
 
     const service = module.get<TaskService>(TaskService);
@@ -525,6 +532,16 @@ describe('ProposalValidationEngine — archived type via snapshot seam', () => {
     const module = await Test.createTestingModule({
       providers: [
         ProposalValidationEngine,
+        {
+          provide: ProposalReconciliationService,
+          useValue: {
+            decision: jest.fn().mockReturnValue({
+              kind: 'NOT_REQUIRED',
+              differences: [],
+              differingPaths: [],
+            }),
+          } satisfies Pick<ProposalReconciliationService, 'decision'>,
+        },
         WorkItemParentageValidator,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: WorkItemTypeRegistryService, useValue: registry },

@@ -1,3 +1,4 @@
+import { retainProviderTestUsage } from '../provider-owner.test-support';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -73,12 +74,13 @@ const PROJECT_REPORT_PLATFORM_TOOLS = {
 
 describe('OpenCode project report tools', () => {
   it('denies every native tool and allows only read-only platform reads and canonical report submission', () => {
-    expect(resolveOpenCodeProjectReportTools(true, true)).toEqual({
+    expect(resolveOpenCodeProjectReportTools(true, true, true)).toEqual({
       '*': false,
       'heyhey-submission-tools_create_report': true,
+      'heyhey-submission-tools_read_evidence_shard': true,
       ...PROJECT_REPORT_PLATFORM_TOOLS,
     });
-    expect(resolveOpenCodeProjectReportTools(false, false)).toEqual({ '*': false });
+    expect(resolveOpenCodeProjectReportTools(false, false, false)).toEqual({ '*': false });
   });
 });
 
@@ -100,13 +102,10 @@ vi.mock('./opencode-server-launcher', () => ({
 const getOpencodeModelRefMock = vi.fn<
   (model: string) => { providerID: string; modelID: string } | null
 >(() => null);
-vi.mock(
-  '../../../../../../packages/ui-common/src/components/AgentSession/capabilityCatalog',
-  () => ({
-    getOpencodeModelRef: (model: string) => getOpencodeModelRefMock(model),
-    OPENCODE_DEFAULT_MODEL_ID: 'opencode-default',
-  }),
-);
+vi.mock('../../../shared/runtime/components/AgentSession/capabilityCatalog', () => ({
+  getOpencodeModelRef: (model: string) => getOpencodeModelRefMock(model),
+  OPENCODE_DEFAULT_MODEL_ID: 'opencode-default',
+}));
 
 const toolRuleStoreDirectory = mkdtempSync(join(tmpdir(), 'hey-hey-opencode-tool-rules-'));
 const toolRuleStore = new ToolRuleStore(join(toolRuleStoreDirectory, 'tool-rules.json'));
@@ -1674,6 +1673,7 @@ describe('session-runner-opencode parity', () => {
   it('records token usage via setRunTokenUsage when message.updated arrives', async () => {
     const harness = installFetchHarness();
     const runStore = makeRunStore();
+    await retainProviderTestUsage(runStore, makeSession());
     const { logger } = makeLogger();
     const runner = new OpenCodeAgentSessionRunner({
       localAgentEndpoint,
@@ -1711,6 +1711,12 @@ describe('session-runner-opencode parity', () => {
     harness.sseSink.current!.end();
     await runPromise;
 
+    await vi.waitFor(async () => {
+      expect((await runStore.getRunMetadata('agentic-1'))?.tokenUsage).toMatchObject({
+        inputTokens: 100,
+        outputTokens: 50,
+      });
+    });
     expect(runStore.setRunTokenUsage).toHaveBeenCalledWith(
       'agentic-1',
       expect.objectContaining({

@@ -58,6 +58,7 @@ export interface StartAgenticSessionArgs {
   model?: string;
   reasoningEffort?: LocalReasoningEffort;
   fastMode?: boolean;
+  inert?: boolean;
   createProviderSessionId?: () => string;
 }
 
@@ -93,6 +94,7 @@ export const startAgenticSession = async ({
   model,
   reasoningEffort,
   fastMode,
+  inert,
   createProviderSessionId = defaultCreateProviderSessionId,
 }: StartAgenticSessionArgs): Promise<AgentSessionStartResult> => {
   const agentSessionId = contextMetadata.agentSessionId?.trim();
@@ -129,6 +131,7 @@ export const startAgenticSession = async ({
   }
 
   const sessionInput: CreateAgenticSessionInput = {
+    ...(inert === undefined ? {} : { inert }),
     agentic_session_id: agentSessionId,
     entity,
     services,

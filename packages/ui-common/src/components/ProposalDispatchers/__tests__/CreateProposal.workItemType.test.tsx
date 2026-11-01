@@ -2,18 +2,21 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../../hooks/auth/useProjectCapabilities", async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import("../../../hooks/auth/useProjectCapabilities")
-    >();
-  return {
-    ...actual,
-    useProjectCapabilities: vi.fn(() =>
-      actual.projectCapabilitiesForRole("OWNER")
-    ),
-  };
-});
+vi.mock(
+  "../../../hooks/auth/useProjectCapabilities",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("../../../hooks/auth/useProjectCapabilities")
+      >();
+    return {
+      ...actual,
+      useProjectCapabilities: vi.fn(() =>
+        actual.projectCapabilitiesForRole("OWNER"),
+      ),
+    };
+  },
+);
 import {
   AgentEdgeType,
   EntityType,
@@ -118,7 +121,7 @@ const PROJ_ID = "proj-1";
 
 function makeWorkItemTypeProposal(
   id: string,
-  definition: WorkItemTypeDefinitionDto
+  definition: WorkItemTypeDefinitionDto,
 ): ProposalResponseDto & { updates: WorkItemTypeDefinitionDto } {
   return {
     id,
@@ -143,7 +146,6 @@ const fullDefinition: WorkItemTypeDefinitionDto = {
   name: "Marketing Campaign",
   role: WorkItemTypeRole.WorkItem,
   description: "Captures a marketing campaign and its launch plan.",
-  agentGuidance: { overview: "Campaign semantics", contexts: [{ focalTypeKeys: ["FEATURE"], guidance: "Feature context", examples: [{ title: "Campaign example", guidance: "Nested campaign meaning" }] }] },
   sections: [
     {
       key: "audience",
@@ -184,14 +186,31 @@ beforeEach(() => {
 describe("CreateProposal — WORK_ITEM_TYPE routing", () => {
   it("invalidates registry reads only after successful type approval", async () => {
     const proposal = makeWorkItemTypeProposal("approve-type", fullDefinition);
-    const onApply = vi.fn().mockRejectedValueOnce(new Error("Offline")).mockResolvedValue(undefined);
-    render(<MemoryRouter><CreateProposal proposals={[proposal]} onApply={onApply} /></MemoryRouter>);
+    const onApply = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Offline"))
+      .mockResolvedValue(undefined);
+    render(
+      <MemoryRouter>
+        <CreateProposal proposals={[proposal]} onApply={onApply} />
+      </MemoryRouter>,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
     await waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(screen.getByRole("button", { name: /retry|approve/i })).toBeEnabled());
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /retry|approve/i }),
+      ).toBeEnabled(),
+    );
     expect(invalidateType).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /retry|approve/i }));
-    await waitFor(() => expect(invalidateType).toHaveBeenCalledWith(ORG_ID, PROJ_ID, fullDefinition.key));
+    await waitFor(() =>
+      expect(invalidateType).toHaveBeenCalledWith(
+        ORG_ID,
+        PROJ_ID,
+        fullDefinition.key,
+      ),
+    );
   });
   it("routes a CREATE WORK_ITEM_TYPE proposal to the dedicated renderer, not the generic fallback", () => {
     const proposal = makeWorkItemTypeProposal("wit-1", fullDefinition);
@@ -199,18 +218,17 @@ describe("CreateProposal — WORK_ITEM_TYPE routing", () => {
     render(
       <MemoryRouter>
         <CreateProposal proposals={[proposal]} onApply={async () => {}} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     // The name is in the shared header; the type key remains reviewable in the
     // complete definition instead of becoming a third header badge.
     expect(screen.getByText("Marketing Campaign")).toBeInTheDocument();
-    expect(screen.getByText(/Nested campaign meaning/)).toBeInTheDocument();
     expect(
-      screen.getByTestId("proposal-identity-header")
+      screen.getByTestId("proposal-identity-header"),
     ).not.toHaveTextContent("MARKETING");
     expect(screen.getByTestId("work-item-type-key")).toHaveTextContent(
-      "MARKETING"
+      "MARKETING",
     );
 
     // Framed definition-axis groups only the dedicated renderer emits. The
@@ -218,19 +236,19 @@ describe("CreateProposal — WORK_ITEM_TYPE routing", () => {
     expect(screen.getByText("Structure & placement")).toBeInTheDocument();
     expect(screen.getAllByText("Capabilities")).toHaveLength(2);
     expect(
-      screen.getByTestId("work-item-type-create-example")
+      screen.getByTestId("work-item-type-create-example"),
     ).toHaveTextContent("Example Marketing Campaign");
     expect(
-      screen.getByText("Complete proposed definition")
+      screen.getByText("Complete proposed definition"),
     ).toBeInTheDocument();
 
     const card = screen.getByTestId(
-      "work-item-type-create-example"
+      "work-item-type-create-example",
     ).parentElement;
     const approve = screen.getByRole("button", { name: "Approve" });
     expect(approve).toBeInTheDocument();
     expect(
-      card?.compareDocumentPosition(approve) & Node.DOCUMENT_POSITION_FOLLOWING
+      card?.compareDocumentPosition(approve) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
 
     // The dedicated renderer's humanized "Work Item Type" chip is present; the

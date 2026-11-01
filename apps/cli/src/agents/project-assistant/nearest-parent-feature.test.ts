@@ -91,7 +91,6 @@ const mockParentRead = () =>
 
 const settings = (evaluate: (input: never) => Promise<JevResult>) => ({
   jevClient: { evaluate },
-  isEnabled: () => Promise.resolve(true),
   attemptLogDir: LOG_DIR,
   entityContextLoader: {
     load: vi.fn().mockResolvedValue({

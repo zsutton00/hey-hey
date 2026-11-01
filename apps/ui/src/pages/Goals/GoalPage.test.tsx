@@ -60,6 +60,7 @@ const mockDetach = vi.fn().mockResolvedValue(undefined);
 const mockAttach = vi.fn().mockResolvedValue(undefined);
 const mockRefetchGoalWorkItem = vi.fn().mockResolvedValue(undefined);
 const mockUseWorkItem = vi.fn();
+const mockUseTaskHierarchy = vi.fn();
 const mockUseWorkItems = vi.fn();
 const mockWorkItemMetadata = vi.fn();
 const {
@@ -347,11 +348,14 @@ vi.mock("@hey-hey/ui-common/data", () => ({
   useProject: () => ({
     data: { id: "project-1", name: "Project" },
   }),
-  useTaskHierarchy: () => ({
-    task: mockGoalTask,
-    isLoading: mockGoalLoading,
-    error: null,
-  }),
+  useTaskHierarchy: (...args: unknown[]) => {
+    mockUseTaskHierarchy(...args);
+    return {
+      task: mockGoalTask,
+      isLoading: mockGoalLoading,
+      error: null,
+    };
+  },
   useReports: () => ({
     reports: mockReports,
   }),
@@ -1065,6 +1069,23 @@ describe("GoalPage tabs", () => {
         "false",
       );
     });
+  });
+
+  it("re-reads its own goal and hierarchy each time the page opens", () => {
+    renderGoalPage();
+
+    expect(mockUseTaskHierarchy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      "goal-task-1",
+      expect.objectContaining({ refetchOnMount: true }),
+    );
+    expect(mockUseWorkItem).toHaveBeenCalledWith(
+      expect.anything(),
+      "task",
+      "goal-task-1",
+      expect.objectContaining({ refetchOnMount: true }),
+    );
   });
 
   it("does not launch Goal PM from a failed conversation inventory", async () => {
@@ -2586,9 +2607,10 @@ describe("GoalPage tabs", () => {
     expect(screen.getByTestId("goal-conversation-toc-scrollport")).toHaveStyle({
       overflowY: "visible",
     });
-    expect(screen.getByTestId("goal-related-work")).toHaveStyle({
-      overflowY: "visible",
-    });
+    expect(
+      window.getComputedStyle(screen.getByTestId("goal-related-work"))
+        .overflowY,
+    ).not.toMatch(/^(auto|scroll)$/);
     expect(screen.getByTestId("goal-latest-report")).toBeInTheDocument();
     expect(screen.getByTestId("goal-tracked-entities")).toBeInTheDocument();
     expect(

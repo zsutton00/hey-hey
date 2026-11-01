@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
-import type { ProjectModeSettings } from '../../generated';
+import { SessionRole, type ProjectModeSettings } from '../../generated';
 import { projectModeSettingsJsonSchema } from '../../generated/project-mode-contract.schema';
 
 export const PROJECT_MODE_SETTINGS_SECTION_KEY = 'settings';
@@ -60,6 +60,9 @@ export function validateProjectModeSettingsContent(
     schemaVersion: parsed.value.schemaVersion,
     projectAssistant: { enabled: parsed.value.projectAssistant.enabled },
   };
+  if (parsed.value.sessionRole !== undefined) {
+    value.sessionRole = parsed.value.sessionRole;
+  }
   // Absent stays absent: a MODE without the list keeps its legacy
   // type-level eligibility rather than being widened or narrowed here.
   if (keys !== undefined) {
@@ -119,4 +122,11 @@ export function parseProjectModeSettingsOrNull(
   if (typeof content !== 'string' || content === '') return null;
   const result = validateProjectModeSettingsContent(content);
   return result.success ? result.value : null;
+}
+
+/** Resolve a mode's declared role without synthesizing a settings section. */
+export function resolveProjectModeSessionRole(
+  settings: ProjectModeSettings | null | undefined,
+): SessionRole {
+  return settings?.sessionRole ?? SessionRole.Implementation;
 }

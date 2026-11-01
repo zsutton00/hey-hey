@@ -11,6 +11,7 @@ const ROOT_DEFINITIONS = [
   "RepositoryGroundingSuccess",
   "RepositoryGroundingRetryableFailure",
   "RepositoryGroundingTerminalFailure",
+  "RepositoryFeatureEnrichmentRequest",
   "RepositoryFeatureEnrichmentCompletion",
   "RepositoryFeatureEnrichmentDecisionCompletion",
   "RepositoryFeatureEnrichmentQuestions",
@@ -68,8 +69,13 @@ const rewriteSchemaReferences = (value) => {
   for (const [key, child] of Object.entries(value)) {
     if (key === "nullable") continue;
     // OpenAPI 3.0 uses boolean exclusive bounds; draft-07 uses numeric bounds.
-    if ((key === "exclusiveMinimum" || key === "exclusiveMaximum") && typeof child === "boolean") {
-      if (child) rewritten[key] = value[key === "exclusiveMinimum" ? "minimum" : "maximum"];
+    if (
+      (key === "exclusiveMinimum" || key === "exclusiveMaximum") &&
+      typeof child === "boolean"
+    ) {
+      if (child)
+        rewritten[key] =
+          value[key === "exclusiveMinimum" ? "minimum" : "maximum"];
       continue;
     }
     if (key === "$ref" && typeof child === "string") {

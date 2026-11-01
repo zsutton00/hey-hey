@@ -1,9 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { DomainEventPublisher } from '../../core/events/domain-event-publisher';
 import { runWithWorkflowContext } from '../../core/events/context-utils';
-import { OrganizationId, ProjectId, UserId } from '../../types';
+import { OrganizationId, ProjectId } from '../../types';
 import {
   TemplateGraphCopyCommand,
   TemplateGraphSnapshot,
@@ -44,6 +44,7 @@ export interface TemplateSnapshot {
 /** Copies content and historical provenance, without live executions or credentials. */
 @Injectable()
 export class ProjectTemplateCloneService {
+  private readonly logger = new Logger(ProjectTemplateCloneService.name);
   constructor(
     private readonly graph: DemoTemplateGraphService,
     private readonly events: DomainEventPublisher,
@@ -68,11 +69,12 @@ export class ProjectTemplateCloneService {
     input: {
       targetOrganizationId: string;
       targetProjectId: string;
-      actorUserId: string;
       templateSnapshot: TemplateSnapshot;
     },
   ): Promise<{
     idMap: ReadonlyMap<string, string>;
+    /** Destination IDs of exactly the FEATURE tasks this clone copied. */
+    copiedFeatureIds: string[];
     graphCopyIntentId: string;
   }> {
     const template = await tx.demoTemplate.findFirstOrThrow({
@@ -101,7 +103,9 @@ export class ProjectTemplateCloneService {
       (tx as unknown as Record<string, CloneDelegate>)[name]!;
     const tables: Table[] = [];
     const read = async (name: string, where: Row) => {
-      const rows = await delegate(name).findMany({ where });
+      const rows = (await delegate(name).findMany({ where })).map((row) => ({
+        ...row,
+      }));
       tables.push({ name, rows });
       return rows;
     };
@@ -158,9 +162,72 @@ export class ProjectTemplateCloneService {
     await read('proposalGroupMember', { groupId: { in: ids(groups) } });
     await read('proposalGroupDependency', { groupId: { in: ids(groups) } });
 
+    const metadata = (name: string) =>
+      Prisma.dmmf.datamodel.models.find(
+        (model) =>
+          model.name.charAt(0).toLowerCase() + model.name.slice(1) === name,
+      )!;
+    const sessionConversations = conversations.filter(
+      (row) =>
+        row.workflowAboutType === 'agent-session' &&
+        typeof row.workflowAboutId === 'string',
+    );
+    // Check actual existence, not membership in the project copy.
+    const existingSessions = await delegate('agentSession').findMany({
+      where: {
+        id: { in: sessionConversations.map((row) => row.workflowAboutId) },
+      },
+    });
+    const existingSessionIds = new Set(ids(existingSessions));
+    const omitted = new Set<unknown>();
+    for (const row of sessionConversations) {
+      if (existingSessionIds.has(row.workflowAboutId)) continue;
+      omitted.add(row.id);
+      this.logger.warn(
+        'Template clone skipped conversation for missing agent session',
+        {
+          sourceProjectId: source.id,
+          targetProjectId: target.id,
+          sourceConversationId: row.id,
+          missingAgentSessionId: row.workflowAboutId,
+        },
+      );
+    }
+    // Drop dependent rows through required relations (messages, mentions, etc.).
+    // Keep independent work and clear its optional provenance references.
+    let removed: boolean;
+    do {
+      removed = false;
+      for (const table of tables) {
+        const requiredFields = metadata(table.name)
+          .fields.filter((field) => field.kind === 'object' && field.isRequired)
+          .flatMap((field) => field.relationFromFields ?? []);
+        for (let index = table.rows.length - 1; index >= 0; index--) {
+          const row = table.rows[index]!;
+          if (
+            !omitted.has(row.id) &&
+            !requiredFields.some((field) => omitted.has(row[field]))
+          )
+            continue;
+          if (row.id !== undefined) omitted.add(row.id);
+          table.rows.splice(index, 1);
+          removed = true;
+        }
+      }
+    } while (removed);
+    for (const table of tables) {
+      const optionalFields = metadata(table.name)
+        .fields.filter((field) => field.kind === 'object' && !field.isRequired)
+        .flatMap((field) => field.relationFromFields ?? []);
+      for (const row of table.rows)
+        for (const field of optionalFields)
+          if (omitted.has(row[field])) row[field] = null;
+    }
+
     const remap = new TemplateCloneRemapper();
     remap.ids.set(source.id, target.id);
     remap.ids.set(source.organizationId, target.organizationId);
+    for (const id of omitted) remap.withheld.add(id);
     for (const table of tables)
       for (const row of table.rows) remap.collect(row);
     // CREATE proposals own reserved identities before their target rows exist.
@@ -182,7 +249,16 @@ export class ProjectTemplateCloneService {
             remap.ids.set(row[key] as string, row[key] as string);
         }
       }
-    const snapshot = input.templateSnapshot.graph;
+    const snapshot = {
+      ...input.templateSnapshot.graph,
+      nodes: input.templateSnapshot.graph.nodes.filter(
+        (node) => !omitted.has(node.id),
+      ),
+      edges: input.templateSnapshot.graph.edges.filter(
+        (edge) =>
+          !omitted.has(edge.sourceNodeId) && !omitted.has(edge.targetNodeId),
+      ),
+    };
     for (const edge of snapshot.edges) remap.allocate(edge.id);
     const intentId = randomUUID();
     const command = {
@@ -194,11 +270,6 @@ export class ProjectTemplateCloneService {
     // after all rows exist, including task parents and message/history chains.
     const pending: Array<{ name: string; id: string; data: Row }> = [];
     const remaining = new Set(tables.map((table) => table.name));
-    const metadata = (name: string) =>
-      Prisma.dmmf.datamodel.models.find(
-        (model) =>
-          model.name.charAt(0).toLowerCase() + model.name.slice(1) === name,
-      )!;
     while (remaining.size) {
       let progressed = false;
       for (const table of tables) {
@@ -247,12 +318,20 @@ export class ProjectTemplateCloneService {
           if (table.name === 'service') delete clean.repositoryId;
           delete clean.crdtSnapshotBytes;
           delete clean.crdtSnapshotSeq;
+          const optional = relations.filter((field) => !field.isRequired);
+          // An optional foreign key to a row outside the copy would link the
+          // sandbox to another project's record, or to nothing. Clear it.
+          for (const relation of optional)
+            for (const field of relation.relationFromFields ?? [])
+              if (
+                typeof clean[field] === 'string' &&
+                !remap.ids.has(clean[field])
+              )
+                clean[field] = null;
           const data = remap.rewrite(clean);
           if (repositoryId !== undefined) data.repositoryId = repositoryId;
           const deferred: Row = {};
-          for (const relation of relations.filter(
-            (field) => !field.isRequired,
-          )) {
+          for (const relation of optional) {
             for (const field of relation.relationFromFields ?? []) {
               if (data[field] != null) {
                 deferred[field] = data[field];
@@ -292,7 +371,6 @@ export class ProjectTemplateCloneService {
         context: {
           organizationId: target.organizationId as OrganizationId,
           projectId: target.id as ProjectId,
-          userId: input.actorUserId as UserId,
         },
         eventContext: {
           conversationId: null,
@@ -302,23 +380,16 @@ export class ProjectTemplateCloneService {
         },
       },
       () =>
-        publishCloneCreatedEvents(
-          tx,
-          this.events,
-          target,
-          input.actorUserId,
-          remap,
-          {
-            tasks,
-            docs,
-            conversations,
-            messages,
-            proposals,
-            services,
-            types,
-            sessions,
-          },
-        ),
+        publishCloneCreatedEvents(tx, this.events, target, remap, {
+          tasks,
+          docs,
+          conversations,
+          messages,
+          proposals,
+          services,
+          types,
+          sessions,
+        }),
     );
     await tx.demoGraphCopyIntent.create({
       data: {
@@ -328,6 +399,17 @@ export class ProjectTemplateCloneService {
         command: command as unknown as Prisma.InputJsonValue,
       },
     });
-    return { idMap: remap.ids, graphCopyIntentId: intentId };
+    // Derived from the rows this clone read, so a template edited mid-admission
+    // cannot copy a feature that readiness never waits for.
+    const copiedFeatureIds = tasks.flatMap((row) => {
+      const copied =
+        row.type === 'FEATURE' ? remap.ids.get(row.id as string) : undefined;
+      return copied ? [copied] : [];
+    });
+    return {
+      idMap: remap.ids,
+      copiedFeatureIds,
+      graphCopyIntentId: intentId,
+    };
   }
 }

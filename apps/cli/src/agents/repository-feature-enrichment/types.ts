@@ -1,16 +1,9 @@
 import type {
-  RepositoryFeatureEnrichmentDecisionCompletion,
   RepositoryFeatureEnrichmentRequest,
-  RepositoryFeatureEnrichmentSuccess,
-  RepositoryFeatureEnrichmentSuccessDecision,
+  UserMessagePromptPayload,
 } from '../../shared/agent-bridge-contract/generated/api';
 
-export type RepositoryFeatureEnrichmentPromptPayload = RepositoryFeatureEnrichmentRequest;
-type RepositoryFeatureEnrichmentResult = RepositoryFeatureEnrichmentDecisionCompletion;
-export type RepositoryFeatureEnrichmentSuccessDecisionResult =
-  RepositoryFeatureEnrichmentSuccessDecision;
-export type RepositoryFeatureEnrichmentSuccessResult = RepositoryFeatureEnrichmentSuccess;
-
-export type RepositoryFeatureEnrichmentParseResult =
-  | { ok: true; value: RepositoryFeatureEnrichmentResult }
-  | { ok: false; error: string };
+/** A one-time handoff or an ordinary reply to the same conversation. */
+export type RepositoryFeatureEnrichmentPromptPayload =
+  | RepositoryFeatureEnrichmentRequest
+  | Pick<UserMessagePromptPayload, 'userMessage'>;

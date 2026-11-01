@@ -1,28 +1,26 @@
+import {
+  useModalState,
+  ModalWorkOwner,
+} from "@hey-hey/ui-common/components/Modals";
 import { useRepositoryImportEntry } from "./useRepositoryImportEntry";
 import { RepositoryImportEntryDialog } from "./RepositoryImportEntryDialog";
 import { ServicesList } from "@hey-hey/ui-common/components";
-import {
-  useProject,
-  useServiceLifecycle,
-  useServices,
-} from "@hey-hey/ui-common/data";
+import { useProject, useServices } from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import { compose, KEYS } from "@hey-hey/ui-common/i18n";
 import AddIcon from "@mui/icons-material/Add";
-import RefreshIcon from "@mui/icons-material/Refresh";
 import {
   Alert,
   Box,
   Button,
   CircularProgress,
-  IconButton,
   Stack,
   Typography,
   Tab,
   Tabs,
 } from "@mui/material";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
-import React, { useState } from "react";
+import React from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { type ServiceDto } from "@hey-hey/ui-common/api";
@@ -30,7 +28,6 @@ import { CreateServiceModal } from "../../components/CreateServiceModal";
 import { PageBreadcrumbs } from "../../components/Layout";
 import { usePreviewPresentation } from "../../contexts/PreviewPresentationContext";
 import { RepositoryImportConversations } from "./RepositoryImportConversations";
-import { ServiceLifecycleControl } from "./ServiceLifecycleConfirmDialog";
 
 const SERVICES_PAGE_TABS = ["services", "archived", "importing"] as const;
 type ServicesPageTab = (typeof SERVICES_PAGE_TABS)[number];
@@ -54,13 +51,10 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
   const navigate = useNavigate();
   const isPreviewPresentation = usePreviewPresentation();
 
-  const { services, isLoading, error, refetch } = useServices(
-    resolvedOrganizationId,
-    {
-      projectId,
-      enabled: !!resolvedOrganizationId && !!projectId,
-    },
-  );
+  const { services, isLoading, error } = useServices(resolvedOrganizationId, {
+    projectId,
+    enabled: !!resolvedOrganizationId && !!projectId,
+  });
 
   const { data: project } = useProject(
     resolvedOrganizationId || "",
@@ -76,13 +70,12 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
     parseAsStringLiteral(SERVICES_PAGE_TABS).withDefault("services"),
   );
 
-  // Archived Services stay reachable here for deletion; active pickers keep
+  // Archived Services stay reachable for historical reading; active pickers keep
   // the default list, which excludes them.
   const {
     services: archivedServices,
     isLoading: isLoadingArchived,
     error: archivedError,
-    refetch: refetchArchived,
   } = useServices(resolvedOrganizationId, {
     projectId,
     status: "ARCHIVED",
@@ -90,22 +83,9 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
       !!resolvedOrganizationId && !!projectId && selectedTab === "archived",
   });
 
-  const lifecycle = useServiceLifecycle(resolvedOrganizationId, projectId);
-
   const entry = useRepositoryImportEntry(resolvedOrganizationId, projectId);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [refreshToken, setRefreshToken] = useState(0);
-
-  const handleRefresh = () => {
-    if (selectedTab === "services") refetch();
-    else if (selectedTab === "archived") refetchArchived();
-    else setRefreshToken((token) => token + 1);
-  };
-
-  const renderLifecycleAction = (service: ServiceDto) => (
-    <ServiceLifecycleControl service={service} lifecycle={lifecycle} />
-  );
-
+  const [showCreateModal, setShowCreateModal, showCreateModalOwnerKey] =
+    useModalState(false);
   const handleServiceClick = (service: ServiceDto) => {
     navigate(`/projects/${projectId}/services/${service.id}`);
   };
@@ -158,9 +138,6 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
           <Typography variant="h4">Services</Typography>
         )}
         <Box sx={{ display: "flex", gap: 1 }}>
-          <IconButton onClick={handleRefresh} title="Refresh">
-            <RefreshIcon />
-          </IconButton>
           {!isPreviewPresentation && (
             <>
               <Button
@@ -232,7 +209,6 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
           isLoading={isLoading}
           emptyMessage="No services found"
           onServiceClick={handleServiceClick}
-          renderActions={renderLifecycleAction}
         />
       ) : selectedTab === "archived" ? (
         <ServicesList
@@ -242,13 +218,11 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
           isLoading={isLoadingArchived}
           emptyMessage={t(KEYS.services.lifecycle.archivedEmpty)}
           onServiceClick={handleServiceClick}
-          renderActions={renderLifecycleAction}
         />
       ) : (
         <RepositoryImportConversations
           organizationId={resolvedOrganizationId || ""}
           projectId={projectId || ""}
-          refreshToken={refreshToken}
           onOpen={entry.openImport}
         />
       )}
@@ -256,12 +230,14 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
       <RepositoryImportEntryDialog entry={entry} />
 
       {/* Create Service Modal */}
-      <CreateServiceModal
-        open={showCreateModal}
-        organizationId={resolvedOrganizationId || ""}
-        onClose={() => setShowCreateModal(false)}
-        projectId={projectId!}
-      />
+      <ModalWorkOwner.Provider value={showCreateModalOwnerKey}>
+        <CreateServiceModal
+          open={showCreateModal}
+          organizationId={resolvedOrganizationId || ""}
+          onClose={() => setShowCreateModal(false)}
+          projectId={projectId!}
+        />
+      </ModalWorkOwner.Provider>
     </Box>
   );
 };

@@ -101,6 +101,7 @@ export const AgenticAgentSessionPage = ({
     initiativeQuery,
     agentSession,
     taskData,
+    conversationTitle,
     hasRequiredRouteParams,
     mode,
     onPromptSubmitted,
@@ -271,7 +272,15 @@ export const AgenticAgentSessionPage = ({
       stageId: resolvedStageId,
       stepId: resolvedStepId,
       taskId: taskData?.id ?? routeTaskId,
-      presentation: buildAgentSessionPresentation(agentSession),
+      presentation: buildAgentSessionPresentation(
+        agentSession,
+        undefined,
+        undefined,
+        conversationTitle,
+        taskData && taskData.id === agentSession.entityId
+          ? taskData.name
+          : undefined,
+      ),
     });
   const attentionLineage = getAttentionLineage(pageComposition);
   const hasTaskNavigation = Boolean(taskOverviewPath && taskCodingTabPath);

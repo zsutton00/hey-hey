@@ -47,6 +47,7 @@ function createService() {
   };
   const workItemChangeSetMaterializationCheckpoint = {
     update: jest.fn().mockResolvedValue(undefined),
+    updateMany: jest.fn().mockResolvedValue({ count: 1 }),
   };
   const tx = {
     workItemChangeSetMaterialization,
@@ -394,10 +395,13 @@ describe('WorkItemChangeSetMaterializerService requirement citation edges', () =
 
       expect(agentEdgeClient.delete).not.toHaveBeenCalled();
       expect(
-        checkpoints.workItemChangeSetMaterializationCheckpoint.update,
+        checkpoints.workItemChangeSetMaterializationCheckpoint.updateMany,
       ).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          where: { id: 'citation-checkpoint' },
+          where: {
+            id: 'citation-checkpoint',
+            status: { not: WorkItemChangeSetCheckpointStatus.COMPLETED },
+          },
           data: expect.objectContaining({
             status: WorkItemChangeSetCheckpointStatus.FAILED,
           }),

@@ -1,3 +1,8 @@
+import {
+  useModalState,
+  ModalWorkOwner,
+} from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import { WebPathService } from "@hey-hey/ui-common";
 import { TERMS } from "@hey-hey/ui-common/i18n";
 import type {
@@ -40,7 +45,6 @@ import {
   Button,
   Chip,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
@@ -104,10 +108,18 @@ export const InitiativePage: React.FC<InitiativePageProps> = ({
   const { isPlatformAdmin } = usePlatformAdminAccess();
 
   // State for task creation modal
-  const [isNewTaskModalOpen, setIsNewTaskModalOpen] = useState(false);
+  const [
+    isNewTaskModalOpen,
+    setIsNewTaskModalOpen,
+    isNewTaskModalOpenOwnerKey,
+  ] = useModalState(false);
 
   // State for delete/archive confirmation dialog
-  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+  const [
+    isConfirmDialogOpen,
+    setIsConfirmDialogOpen,
+    isConfirmDialogOpenOwnerKey,
+  ] = useModalState(false);
 
   // Edit mode state management
   const [isEditing, setIsEditing] = useState<boolean | null>(null);
@@ -888,15 +900,18 @@ export const InitiativePage: React.FC<InitiativePageProps> = ({
             )}
 
             {/* New Task Modal */}
-            <NewTaskModal
-              open={isNewTaskModalOpen}
-              onClose={handleCloseTaskModal}
-              onSubmit={handleSubmitTask}
-              initiativeId={initiativeId!}
-            />
+            <ModalWorkOwner.Provider value={isNewTaskModalOpenOwnerKey}>
+              <NewTaskModal
+                open={isNewTaskModalOpen}
+                onClose={handleCloseTaskModal}
+                onSubmit={handleSubmitTask}
+                initiativeId={initiativeId!}
+              />
+            </ModalWorkOwner.Provider>
 
             {/* Confirmation Dialog for Delete/Archive */}
             <Dialog
+              ownerKey={isConfirmDialogOpenOwnerKey}
               open={isConfirmDialogOpen}
               onClose={handleCancelAction}
               maxWidth="sm"

@@ -1,3 +1,9 @@
+import { useModalState } from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
+import {
+  extractProposalApprovalFailureDiagnostic,
+  ProposalFailureDiagnostic,
+} from "@hey-hey/ui-common/components/ProposalDispatchers/ProposalFailureDiagnostic";
 import {
   analyzeWorkItemTypeEdit,
   getCascadeImpactConflict,
@@ -21,6 +27,7 @@ import {
 } from "@hey-hey/ui-common/hooks";
 import {
   AgentEdgeType,
+  SessionRole,
   EntityType,
   ReportType,
   WorkItemTypeEffectiveSource,
@@ -30,6 +37,7 @@ import {
   WorkStatus,
 } from "@hey-hey/ui-common/api";
 import type {
+  ProposalApprovalFailureDiagnostic,
   ProposalResponseDto,
   WorkItemIconKey,
   WorkItemColorKey,
@@ -40,6 +48,7 @@ import type {
   WorkItemTypeSummaryDto,
   WorkItemTypeTracking,
   WorkItemTypeWritingStandards,
+  WorkItemTypeSessionRoleGuidance,
 } from "@hey-hey/ui-common/api";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -51,7 +60,6 @@ import {
   Checkbox,
   Chip,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -73,16 +81,11 @@ import {
 } from "@mui/material";
 import type { SelectChangeEvent } from "@mui/material";
 import {
+  getErrorMessage,
   resolveWorkItemIcon,
   resolveWorkItemIconPresentation,
 } from "@hey-hey/ui-common/utils";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { PageBreadcrumbs } from "../../components/Layout";
 import { proposalReviewPath } from "../Proposals/proposalReviewPath";
@@ -95,15 +98,6 @@ import {
   serializeEdgeTargetSelection,
 } from "./workItemTypeFormPresentation";
 import type { EdgeTargetSelectionValue } from "./workItemTypeFormPresentation";
-
-import {
-  WorkItemTypeGuidanceFields,
-  type WorkItemTypeGuidanceHandle,
-} from "./WorkItemTypeGuidanceFields";
-import {
-  applyGuidanceDraft,
-  isGuidanceValid,
-} from "./workItemTypeGuidanceForm";
 
 interface SectionRow {
   key: string;
@@ -336,7 +330,6 @@ export const WorkItemTypeFormPage: React.FC = () => {
   } = summaryQuery;
 
   const [key, setKey] = useState("");
-  const guidanceEditorRef = useRef<WorkItemTypeGuidanceHandle>(null);
   const [name, setName] = useState("");
   const [role, setRole] = useState<WorkItemTypeRole>(WorkItemTypeRole.WorkItem);
   const [description, setDescription] = useState("");
@@ -370,7 +363,12 @@ export const WorkItemTypeFormPage: React.FC = () => {
   const [writingStandardCreate, setWritingStandardCreate] = useState("");
   const [writingStandardEdit, setWritingStandardEdit] = useState("");
   const [maintenanceGuidance, setMaintenanceGuidance] = useState("");
+  const [sessionRoleGuidance, setSessionRoleGuidance] = useState<
+    WorkItemTypeSessionRoleGuidance | undefined
+  >();
 
+  const [failureDiagnostic, setFailureDiagnostic] =
+    useState<ProposalApprovalFailureDiagnostic>();
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<FormTab>("Overview");
   const [errorTarget, setErrorTarget] = useState<{
@@ -382,7 +380,8 @@ export const WorkItemTypeFormPage: React.FC = () => {
   const [impactConfirmed, setImpactConfirmed] = useState(false);
   const [pendingCanonicalDefinition, setPendingCanonicalDefinition] =
     useState<WorkItemTypeDefinitionDto | null>(null);
-  const [hardDeleteOpen, setHardDeleteOpen] = useState(false);
+  const [hardDeleteOpen, setHardDeleteOpen, hardDeleteOpenOwnerKey] =
+    useModalState(false);
   const [hardDeleteConfirmation, setHardDeleteConfirmation] = useState("");
   const [cascadeImpactOverride, setCascadeImpactOverride] =
     useState<WorkItemTypeCascadeImpactDto | null>(null);
@@ -455,6 +454,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
     setWritingStandardCreate(definition.writingStandards?.create ?? "");
     setWritingStandardEdit(definition.writingStandards?.edit ?? "");
     setMaintenanceGuidance(definition.maintenanceGuidance ?? "");
+    setSessionRoleGuidance(definition.sessionRoleGuidance);
     setCapabilities(
       Object.entries(definition.capabilities ?? {}).flatMap(
         ([capabilityKey, value]) =>
@@ -515,29 +515,29 @@ export const WorkItemTypeFormPage: React.FC = () => {
 
   const hasProjectOwnership = Boolean(
     isEditMode &&
-      projectId?.trim() &&
-      workItemTypeSummary?.projectId === projectId,
+    projectId?.trim() &&
+    workItemTypeSummary?.projectId === projectId,
   );
   const isArchived = Boolean(
     hasProjectOwnership &&
-      workItemTypeSummary?.status === WorkItemTypeLifecycleStatus.Archived,
+    workItemTypeSummary?.status === WorkItemTypeLifecycleStatus.Archived,
   );
   const canEditDefinition = Boolean(
     hasProjectOwnership &&
-      workItemTypeSummary?.status === WorkItemTypeLifecycleStatus.Active,
+    workItemTypeSummary?.status === WorkItemTypeLifecycleStatus.Active,
   );
   const canResetToCanonical = Boolean(
     hasProjectOwnership &&
-      (workItemTypeSummary?.status === WorkItemTypeLifecycleStatus.Active ||
-        workItemTypeSummary?.status === WorkItemTypeLifecycleStatus.Archived) &&
-      hasCanonicalOverride(workItemTypeSummary),
+    (workItemTypeSummary?.status === WorkItemTypeLifecycleStatus.Active ||
+      workItemTypeSummary?.status === WorkItemTypeLifecycleStatus.Archived) &&
+    hasCanonicalOverride(workItemTypeSummary),
   );
   const templateMetadata = getWorkItemTypeTemplateMetadata(workItemTypeSummary);
   const canReviewTemplateUpdate = Boolean(
     hasProjectOwnership &&
-      (workItemTypeSummary?.status === WorkItemTypeLifecycleStatus.Active ||
-        workItemTypeSummary?.status === WorkItemTypeLifecycleStatus.Archived) &&
-      hasNewerCanonicalRevision(templateMetadata),
+    (workItemTypeSummary?.status === WorkItemTypeLifecycleStatus.Active ||
+      workItemTypeSummary?.status === WorkItemTypeLifecycleStatus.Archived) &&
+    hasNewerCanonicalRevision(templateMetadata),
   );
   const { manageWorkItemTypes } = projectCapabilitiesForRole(
     project?.currentUserRole ?? null,
@@ -563,7 +563,16 @@ export const WorkItemTypeFormPage: React.FC = () => {
   };
   const handleMutationError = (err: Error) => {
     setCreatedProposal(null);
-    setError(err.message || "Failed to submit the type definition.");
+    setError(getErrorMessage(err, "Failed to submit the type definition."));
+    const diagnostic = extractProposalApprovalFailureDiagnostic(err);
+    setFailureDiagnostic(diagnostic);
+    if (
+      diagnostic?.issues.some((issue) =>
+        issue.field.includes("sessionRoleGuidance"),
+      )
+    ) {
+      setActiveTab("Agent guidance");
+    }
   };
 
   const createMutation = useCreateWorkItemType({
@@ -619,9 +628,9 @@ export const WorkItemTypeFormPage: React.FC = () => {
   );
   const canHardDelete = Boolean(
     isArchived &&
-      (workItemTypeSummary?.effectiveSource ===
-        WorkItemTypeEffectiveSource.ProjectCustom ||
-        templateMetadata?.canonicalTemplateKey === null),
+    (workItemTypeSummary?.effectiveSource ===
+      WorkItemTypeEffectiveSource.ProjectCustom ||
+      templateMetadata?.canonicalTemplateKey === null),
   );
   const hardDeleteUnavailable =
     !hardDeleteHasContext || !canHardDelete || isPending;
@@ -735,6 +744,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
       ...(maintenanceGuidance.trim()
         ? { maintenanceGuidance: maintenanceGuidance.trim() }
         : {}),
+      ...(sessionRoleGuidance === undefined ? {} : { sessionRoleGuidance }),
       capabilities: authoredCapabilities,
     };
 
@@ -746,6 +756,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
     const sourceWithoutIconKey = { ...source };
     delete sourceWithoutIconKey.iconKey;
     delete sourceWithoutIconKey.colorKey;
+    delete sourceWithoutIconKey.sessionRoleGuidance;
     const sourceDescription = source.description ?? "";
     const sourceCreateStandard = source.writingStandards?.create ?? "";
     const sourceEditStandard = source.writingStandards?.edit ?? "";
@@ -760,6 +771,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
     };
     return {
       ...sourceWithoutIconKey,
+      ...(sessionRoleGuidance === undefined ? {} : { sessionRoleGuidance }),
       key: resolvedKey,
       name: name === source.name ? source.name : name.trim(),
       role,
@@ -835,6 +847,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
     isEditMode,
     name,
     maintenanceGuidance,
+    sessionRoleGuidance,
     resolvedKey,
     role,
     scalarMembership,
@@ -951,6 +964,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
   const handleSubmit = (event: React.FormEvent): void => {
     event.preventDefault();
     setError(null);
+    setFailureDiagnostic(undefined);
     setErrorTarget(null);
     setCreatedProposal(null);
 
@@ -995,17 +1009,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
       return;
     }
 
-    if (!guidanceEditorRef.current) return;
-    const guidance = guidanceEditorRef.current.getValue();
-    const definition = applyGuidanceDraft(draftDefinition, guidance);
-    if (!isGuidanceValid(guidance)) {
-      showFieldError(
-        "Complete the required semantic guidance fields.",
-        "Agent guidance",
-        '[data-testid="wit-guidance"] [aria-invalid="true"]',
-      );
-      return;
-    }
+    const definition = draftDefinition;
     const submissionImpact = analyzeWorkItemTypeEdit(
       isEditMode ? workItemTypeSummary : undefined,
       definition,
@@ -1069,6 +1073,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
 
   const handleArchive = (): void => {
     setError(null);
+    setFailureDiagnostic(undefined);
     if (!currentOrgId || !projectId || !resolvedKey || !canEditDefinition) {
       return;
     }
@@ -1085,6 +1090,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
 
   const handleRestore = (): void => {
     setError(null);
+    setFailureDiagnostic(undefined);
     setCreatedProposal(null);
     if (!currentOrgId || !projectId || !isArchived || !workItemTypeSummary) {
       return;
@@ -1105,6 +1111,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
 
   const handleResetToCanonical = (): void => {
     setError(null);
+    setFailureDiagnostic(undefined);
     if (!currentOrgId || !projectId || !resolvedKey || !canResetToCanonical) {
       return;
     }
@@ -1123,6 +1130,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
   const handleOpenHardDelete = (): void => {
     if (hardDeleteUnavailable) return;
     setError(null);
+    setFailureDiagnostic(undefined);
     setHardDeleteConfirmation("");
     setCascadeImpactOverride(null);
     setHardDeleteOpen(true);
@@ -1136,6 +1144,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
 
   const handleHardDelete = (): void => {
     setError(null);
+    setFailureDiagnostic(undefined);
     if (
       hardDeleteUnavailable ||
       hardDeleteImpactUnavailable ||
@@ -1400,8 +1409,8 @@ export const WorkItemTypeFormPage: React.FC = () => {
         {isArchived
           ? "This archived type is definition-read-only. Restore it to return it to new-work choices; existing items and history are preserved."
           : isReadOnly
-          ? "This work-item type is readable but cannot be edited or archived."
-          : "Fill in the type-definition axes and submit. You’ll be taken to the proposal to review and approve it."}
+            ? "This work-item type is readable but cannot be edited or archived."
+            : "Fill in the type-definition axes and submit. You’ll be taken to the proposal to review and approve it."}
       </Typography>
 
       {isEditMode &&
@@ -1486,8 +1495,16 @@ export const WorkItemTypeFormPage: React.FC = () => {
             ) : undefined
           }
         >
+          <AlertTitle>Your changes couldn’t be saved</AlertTitle>
           {error}
+          <Typography variant="body2" sx={{ mt: 1 }}>
+            Your edits are still here across all tabs.
+          </Typography>
         </Alert>
+      ) : null}
+
+      {error ? (
+        <ProposalFailureDiagnostic diagnostic={failureDiagnostic} />
       ) : null}
 
       {createdProposal ? (
@@ -2464,6 +2481,49 @@ export const WorkItemTypeFormPage: React.FC = () => {
             </Paper>
 
             <Divider sx={{ my: 2 }} />
+            <Paper
+              variant="outlined"
+              sx={{ p: 2, mb: 2.5 }}
+              data-testid="wit-form-session-role-guidance"
+            >
+              <Typography variant="subtitle2" gutterBottom>
+                {WORK_ITEM_TYPE_FIELD_PRESENTATION.sessionRoleGuidance.label}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                {WORK_ITEM_TYPE_FIELD_PRESENTATION.sessionRoleGuidance.help}
+              </Typography>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                  gap: 2,
+                }}
+              >
+                {Object.values(SessionRole).map((sessionRole) => (
+                  <TextField
+                    key={sessionRole}
+                    label={`${sessionRole[0].toUpperCase()}${sessionRole.slice(1)} guidance`}
+                    value={sessionRoleGuidance?.[sessionRole] ?? ""}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setSessionRoleGuidance((current) => {
+                        const next = { ...current };
+                        if (value.trim()) next[sessionRole] = value;
+                        else delete next[sessionRole];
+                        return Object.keys(next).length ? next : undefined;
+                      });
+                    }}
+                    multiline
+                    minRows={3}
+                    size="small"
+                    fullWidth
+                    data-testid="wit-form-role-guidance-entry"
+                    data-session-role={sessionRole}
+                    helperText="Optional. Leave empty to provide no advice for this session role."
+                  />
+                ))}
+              </Box>
+            </Paper>
             <TextField
               label={
                 WORK_ITEM_TYPE_FIELD_PRESENTATION.maintenanceGuidance.label
@@ -2479,16 +2539,6 @@ export const WorkItemTypeFormPage: React.FC = () => {
               helperText={
                 WORK_ITEM_TYPE_FIELD_PRESENTATION.maintenanceGuidance.help
               }
-            />
-            <WorkItemTypeGuidanceFields
-              key={typeKey ?? "create"}
-              ref={guidanceEditorRef}
-              definition={workItemTypeSummary?.definition}
-              disabled={isReadOnly || isPending}
-              options={workItemTypes.map(({ definition }) => ({
-                key: definition.key,
-                name: definition.name,
-              }))}
             />
           </Box>
         </fieldset>
@@ -2613,6 +2663,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
       </Dialog>
 
       <Dialog
+        ownerKey={hardDeleteOpenOwnerKey}
         open={hardDeleteOpen}
         onClose={handleCloseHardDelete}
         maxWidth="sm"

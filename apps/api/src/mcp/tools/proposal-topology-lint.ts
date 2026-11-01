@@ -4,7 +4,12 @@ import type {
   WorkItemChangeSetIdentity,
   WorkItemChangeSetRelationshipIdentity,
 } from 'src/generated';
+import { DiagramKind } from 'src/generated/model/diagramKind';
 import type { ProjectedTopologySemantics } from 'src/services/tasks/work-item-type-registry.service';
+import {
+  diagramMetadataSchema,
+  parseDiagramJson,
+} from 'src/services/tasks/diagram-metadata';
 import type { LintFinding } from './proposal-lint';
 
 export const TOPOLOGY_LINT_CODES = {
@@ -49,6 +54,22 @@ function warning(
   return { rule, severity: 'warning', path, message, suggestion };
 }
 
+/** A UX flow screen's identity is its canonical Mockup reference, not an implementing task. */
+function isUxFlowDiagram(node: ProjectedWorkItem): boolean {
+  const section = node.sections.find(
+    (candidate) => candidate.key === 'diagramMetadata',
+  );
+  if (!section) return false;
+  try {
+    const parsed = diagramMetadataSchema.safeParse(
+      parseDiagramJson(section.content),
+    );
+    return parsed.success && parsed.data.kind === DiagramKind.UxFlow;
+  } catch {
+    return false;
+  }
+}
+
 export function lintProjectedTopology(
   input: ProjectedTopologyLintInput,
 ): LintFinding[] {
@@ -59,9 +80,18 @@ export function lintProjectedTopology(
   const nodeByKey = new Map(
     nodes.map((node) => [workItemIdentityKey(node.identity), node]),
   );
+  const uxFlowDiagramKeys = new Set(
+    nodes
+      .filter(isUxFlowDiagram)
+      .map((node) => workItemIdentityKey(node.identity)),
+  );
+  const isUxFlowScreen = (node: ProjectedWorkItem): boolean =>
+    uxFlowDiagramKeys.has(workItemIdentityKey(node.parent));
+  const isFulfillableStep = (node: ProjectedWorkItem): boolean =>
+    input.semantics.isWorkflowStep(node) && !isUxFlowScreen(node);
   const findings: LintFinding[] = [];
 
-  for (const step of nodes.filter(input.semantics.isWorkflowStep)) {
+  for (const step of nodes.filter(isFulfillableStep)) {
     const stepKey = workItemIdentityKey(step.identity);
     const hasFulfillment = relationships.some(
       (relationship) =>
@@ -73,8 +103,8 @@ export function lintProjectedTopology(
         warning(
           TOPOLOGY_LINT_CODES.missingFulfillment,
           `projected.nodes[${stepKey}].relationships`,
-          `Workflow step "${step.name}" has no projected FULFILLED_BY implementation evidence.`,
-          'Add a FULFILLED_BY relationship from this workflow step to its implementing STANDARD task.',
+          `Diagram element "${step.name}" has no projected FULFILLED_BY implementation evidence.`,
+          'Add a FULFILLED_BY relationship from this Diagram element to its implementing STANDARD task.',
         ),
       );
     }
@@ -159,6 +189,7 @@ export function lintProjectedTopology(
 
   return findings.sort(
     (left, right) =>
-      left.path.localeCompare(right.path) || left.rule.localeCompare(right.rule),
+      left.path.localeCompare(right.path) ||
+      left.rule.localeCompare(right.rule),
   );
 }

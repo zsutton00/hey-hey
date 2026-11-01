@@ -153,6 +153,16 @@ export function reconciliationPatch(
   candidate: Prisma.JsonObject,
 ): UpdateTaskDto | UpdateDesignDocDto {
   const patch = cloneDeep(originalPatch);
+  if ('requirementOps' in patch && patch.requirementOps) {
+    delete patch.requirementOps;
+    patch.sections = [
+      ...(patch.sections ?? []),
+      {
+        key: 'requirements',
+        content: (candidate.sections as Prisma.JsonObject).requirements,
+      },
+    ];
+  }
   for (const key of Object.keys(patch)) {
     if (key === 'sections' || key === 'sectionUpdateSource' || key === 'reason')
       continue;
@@ -182,6 +192,48 @@ export function reconciliationPatch(
       ) as typeof patch.sections;
   }
   return patch;
+}
+
+/** Manual review supplies complete content; every edited value must reach ordinary validation. */
+export function manualReconciliationPatch(
+  current: Prisma.JsonObject,
+  candidate: Prisma.JsonObject,
+  targetEntityType = 'TASK',
+): Prisma.JsonObject {
+  const patch = Object.fromEntries(
+    Object.entries(candidate).filter(
+      ([key, value]) =>
+        key !== 'sections' &&
+        key !== 'sectionOrder' &&
+        !isEqual(current[key], value),
+    ),
+  );
+  const before = current.sections as Prisma.JsonObject;
+  const after = candidate.sections as Prisma.JsonObject;
+  const beforeOrder = current.sectionOrder as Record<string, number>;
+  const afterOrder = candidate.sectionOrder as Record<string, number>;
+  return {
+    ...patch,
+    sections: [...new Set([...Object.keys(before), ...Object.keys(after)])]
+      .filter(
+        (key) =>
+          !isEqual(before[key], after[key]) ||
+          beforeOrder[key] !== afterOrder[key],
+      )
+      .map((key) => ({
+        key,
+        ...(targetEntityType === 'DESIGN_DOC'
+          ? after[key] == null
+            ? { order: null }
+            : { content: after[key], order: afterOrder[key] }
+          : {
+              content: after[key] ?? null,
+              ...(afterOrder[key] === undefined
+                ? {}
+                : { order: afterOrder[key] }),
+            }),
+      })),
+  };
 }
 
 const IDENTITY_FIELDS = new Set([

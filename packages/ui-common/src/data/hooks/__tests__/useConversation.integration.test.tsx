@@ -37,7 +37,7 @@ vi.mock("../../../contexts/AuthContext", () => ({
 vi.mock("../../websockets/debugger", () => ({
   webSocketDebugger: {
     logEvent: vi.fn(),
-    logCollectionAction: vi.fn(),
+    logQueryInvalidation: vi.fn(),
   },
 }));
 

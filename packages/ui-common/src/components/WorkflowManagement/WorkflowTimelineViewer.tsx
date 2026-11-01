@@ -1,3 +1,4 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 /**
  * Workflow Timeline Viewer Component
  *
@@ -15,7 +16,6 @@ import {
   Chip,
   IconButton,
   Tooltip,
-  Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
@@ -58,7 +58,7 @@ export const WorkflowTimelineViewer: React.FC<WorkflowTimelineViewerProps> = ({
     useState<WorkflowTimelineEventDto | null>(null);
   const [orphanDetailsOpen, setOrphanDetailsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"timeline" | "orphaned">(
-    "timeline"
+    "timeline",
   );
   const [showDebugLogs, setShowDebugLogs] = useState(false);
 
@@ -97,7 +97,7 @@ export const WorkflowTimelineViewer: React.FC<WorkflowTimelineViewerProps> = ({
 
   const handleTabChange = (
     _event: React.SyntheticEvent,
-    newValue: "timeline" | "orphaned"
+    newValue: "timeline" | "orphaned",
   ): void => {
     setActiveTab(newValue);
   };
@@ -158,14 +158,14 @@ export const WorkflowTimelineViewer: React.FC<WorkflowTimelineViewerProps> = ({
             <Tab
               label={`${t(
                 "workflow.timeline.timelineTab",
-                "Timeline"
+                "Timeline",
               )} (${nodeCount})`}
               value="timeline"
             />
             <Tab
               label={`${t(
                 "workflow.timeline.orphanedTab",
-                "Orphaned"
+                "Orphaned",
               )} (${orphanCount})`}
               value="orphaned"
             />
@@ -246,8 +246,8 @@ export const WorkflowTimelineViewer: React.FC<WorkflowTimelineViewerProps> = ({
                           event.level?.toLowerCase() === "error"
                             ? "error"
                             : event.level?.toLowerCase() === "warn"
-                            ? "warning"
-                            : "info"
+                              ? "warning"
+                              : "info"
                         }
                         sx={{ height: 20, fontSize: "0.7rem" }}
                       />

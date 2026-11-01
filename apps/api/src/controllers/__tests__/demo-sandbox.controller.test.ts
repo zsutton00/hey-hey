@@ -17,13 +17,30 @@ const sandbox = {
   repositoryUrl: 'https://github.com/example/template',
   resumed: false,
 };
+const active = { state: 'ACTIVE', sandbox };
+const provisioning = {
+  state: 'PROVISIONING',
+  progress: {
+    stage: 'COPYING',
+    connectedFeatureCount: 0,
+    totalFeatureCount: 0,
+  },
+};
 const session = {
   response: { accessToken: 'access', expiresIn: 900 },
   refreshSecret: 'refresh',
 };
 const request = (cookies: Record<string, string> = {}) =>
   ({ cookies, ip: '203.0.113.9', headers: { 'user-agent': 'jest' } }) as never;
-const response = () => ({ cookie: jest.fn(), clearCookie: jest.fn() });
+const response = () => {
+  const res = {
+    cookie: jest.fn(),
+    clearCookie: jest.fn(),
+    status: jest.fn(),
+  };
+  res.status.mockReturnValue(res);
+  return res;
+};
 
 const handlers = DemoSandboxController.prototype as unknown as Record<
   'provision' | 'resume' | 'current' | 'availability',
@@ -79,7 +96,7 @@ describe('DemoSandboxController', () => {
   );
 
   it('passes the browser-binding cookie, address and session metadata to admission', async () => {
-    admission.provision.mockResolvedValue({ sandbox, session });
+    admission.provision.mockResolvedValue({ admission: active, session });
 
     await controller.provision(
       body,
@@ -94,23 +111,51 @@ describe('DemoSandboxController', () => {
     });
   });
 
-  it('sets session and binding cookies only after a sandbox is admitted', async () => {
+  it('answers 202 with the provisioning progress and sets only the binding cookie on reservation', async () => {
     admission.provision.mockResolvedValue({
-      sandbox,
-      session,
+      admission: provisioning,
       bindingSecret: 'new-secret',
     });
     const res = response();
 
     await expect(
       controller.provision(body, request(), res as never),
-    ).resolves.toBe(sandbox);
+    ).resolves.toBe(provisioning);
 
+    expect(res.status).toHaveBeenCalledWith(202);
+    expect(res.cookie).toHaveBeenCalledTimes(1);
     expect(res.cookie).toHaveBeenCalledWith(
       DEMO_BINDING_COOKIE_NAME,
       'new-secret',
       expect.objectContaining({ httpOnly: true, path: '/' }),
     );
+  });
+
+  it('returns an existing setup with 200 and publishes nothing', async () => {
+    admission.provision.mockResolvedValue({ admission: provisioning });
+    const res = response();
+
+    await expect(
+      controller.provision(
+        body,
+        request({ [DEMO_BINDING_COOKIE_NAME]: 'secret' }),
+        res as never,
+      ),
+    ).resolves.toBe(provisioning);
+
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.cookie).not.toHaveBeenCalled();
+  });
+
+  it('signs in a returning browser whose sandbox is ACTIVE', async () => {
+    admission.provision.mockResolvedValue({ admission: active, session });
+    const res = response();
+
+    await expect(
+      controller.provision(body, request(), res as never),
+    ).resolves.toBe(active);
+
+    expect(res.status).not.toHaveBeenCalled();
     expect(res.cookie).toHaveBeenCalledWith(
       'accessToken',
       'access',
@@ -135,7 +180,7 @@ describe('DemoSandboxController', () => {
 
   it('resumes with a fresh session but leaves the existing binding cookie alone', async () => {
     admission.resume.mockResolvedValue({
-      sandbox: { ...sandbox, resumed: true },
+      admission: { state: 'ACTIVE', sandbox: { ...sandbox, resumed: true } },
       session,
     });
     const res = response();
@@ -145,7 +190,7 @@ describe('DemoSandboxController', () => {
         request({ [DEMO_BINDING_COOKIE_NAME]: 's' }),
         res as never,
       ),
-    ).resolves.toMatchObject({ resumed: true });
+    ).resolves.toMatchObject({ state: 'ACTIVE', sandbox: { resumed: true } });
 
     expect(res.cookie).not.toHaveBeenCalledWith(
       DEMO_BINDING_COOKIE_NAME,
@@ -158,6 +203,29 @@ describe('DemoSandboxController', () => {
       expect.anything(),
     );
   });
+
+  it.each([
+    ['PROVISIONING', provisioning],
+    ['FAILED', { state: 'FAILED' }],
+  ])(
+    'reports %s through the binding cookie alone, without a session',
+    async (_state, outcome) => {
+      admission.resume.mockResolvedValue({ admission: outcome });
+      const res = response();
+
+      await expect(
+        controller.resume(
+          request({ [DEMO_BINDING_COOKIE_NAME]: 's' }),
+          res as never,
+        ),
+      ).resolves.toBe(outcome);
+
+      expect(admission.resume).toHaveBeenCalledWith(
+        expect.objectContaining({ bindingSecret: 's' }),
+      );
+      expect(res.cookie).not.toHaveBeenCalled();
+    },
+  );
 
   it('sets no cookie when resume finds nothing', async () => {
     admission.resume.mockRejectedValue(new NotFoundException());

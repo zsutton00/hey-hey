@@ -1,3 +1,5 @@
+import { useModalState } from "../Modals/useModalState";
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import AlignHorizontalCenterIcon from "@mui/icons-material/AlignHorizontalCenter";
 import AspectRatioIcon from "@mui/icons-material/AspectRatio";
 import CircleOutlinedIcon from "@mui/icons-material/CircleOutlined";
@@ -20,7 +22,6 @@ import {
   Alert,
   Box,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -109,7 +110,7 @@ interface SubmenuAnchorPosition {
 }
 
 const getSubmenuAnchorPosition = (
-  anchorEl: HTMLElement
+  anchorEl: HTMLElement,
 ): SubmenuAnchorPosition => {
   const rect = anchorEl.getBoundingClientRect();
   return { left: rect.left + rect.width / 2, top: rect.bottom + 4 };
@@ -152,7 +153,7 @@ const STRUCTURED_MOCKUP_ACTION_BAR_GUTTER = 8;
 const getActionBarViewportCorrection = (
   rect: Pick<DOMRect, "left" | "top" | "right" | "bottom" | "width" | "height">,
   viewport: ActionBarViewportBounds,
-  gutter = STRUCTURED_MOCKUP_ACTION_BAR_GUTTER
+  gutter = STRUCTURED_MOCKUP_ACTION_BAR_GUTTER,
 ): ActionBarViewportCorrection => {
   const minX = viewport.left + gutter;
   const maxX = viewport.right - gutter;
@@ -162,18 +163,18 @@ const getActionBarViewportCorrection = (
     rect.width > maxX - minX
       ? minX - rect.left
       : rect.left < minX
-      ? minX - rect.left
-      : rect.right > maxX
-      ? maxX - rect.right
-      : 0;
+        ? minX - rect.left
+        : rect.right > maxX
+          ? maxX - rect.right
+          : 0;
   const y =
     rect.height > maxY - minY
       ? minY - rect.top
       : rect.top < minY
-      ? minY - rect.top
-      : rect.bottom > maxY
-      ? maxY - rect.bottom
-      : 0;
+        ? minY - rect.top
+        : rect.bottom > maxY
+          ? maxY - rect.bottom
+          : 0;
 
   return { x, y };
 };
@@ -202,7 +203,7 @@ const intersectViewportBounds = (
   clipRect: Pick<
     DOMRect,
     "left" | "top" | "right" | "bottom" | "width" | "height"
-  >
+  >,
 ): ActionBarViewportBounds => {
   if (clipRect.width <= 0 || clipRect.height <= 0) return viewport;
 
@@ -216,7 +217,7 @@ const intersectViewportBounds = (
 
 const useKeepActionBarInViewport = (
   actionBarRef: React.RefObject<HTMLElement | null>,
-  viewportRef: React.RefObject<HTMLElement | null>
+  viewportRef: React.RefObject<HTMLElement | null>,
 ): void => {
   const actionWrapperRef = useRef<HTMLElement | null>(null);
   const baseTransformRef = useRef("");
@@ -249,8 +250,8 @@ const useKeepActionBarInViewport = (
           bottom: 0,
           width: 0,
           height: 0,
-        }
-      )
+        },
+      ),
     );
     const hasCorrection = correction.x !== 0 || correction.y !== 0;
     const transform = hasCorrection
@@ -311,7 +312,7 @@ interface StructuredMockupEditorContextValue {
   openPropertyGroup: (
     group: PropertyGroupKey,
     target: PropertyTarget,
-    anchorEl: HTMLElement
+    anchorEl: HTMLElement,
   ) => void;
   openWrapperMenu: (target: PropertyTarget, anchorEl: HTMLElement) => void;
   closeSubmenu: () => void;
@@ -326,7 +327,7 @@ const useStructuredMockupEditorContext =
     const context = React.useContext(StructuredMockupEditorContext);
     if (!context) {
       throw new Error(
-        "Structured mockup editor context is required for property controls"
+        "Structured mockup editor context is required for property controls",
       );
     }
     return context;
@@ -458,20 +459,20 @@ const propertyGroup = (
   key: PropertyGroupKey,
   label: string,
   fieldNames: readonly string[],
-  icon: React.ReactElement
+  icon: React.ReactElement,
 ): PropertyGroup => ({ key, label, fieldNames, icon });
 
 const sizingPropertyGroup = propertyGroup(
   "sizing",
   "Sizing",
   ["widthMode", "widthValue", "heightMode", "heightValue"],
-  <AspectRatioIcon />
+  <AspectRatioIcon />,
 );
 const metadataPropertyGroup = propertyGroup(
   "metadata",
   "Description",
   ["description"],
-  <DescriptionOutlinedIcon />
+  <DescriptionOutlinedIcon />,
 );
 const appearanceFieldNames = ["color", "opacity", "overflow"] as const;
 
@@ -481,7 +482,7 @@ const containerPropertyGroups = [
     "layout",
     "Layout",
     ["direction", "justify", "align"],
-    <AlignHorizontalCenterIcon />
+    <AlignHorizontalCenterIcon />,
   ),
   propertyGroup("spacing", "Spacing", ["gap", "padding"], <SpaceBarIcon />),
   metadataPropertyGroup,
@@ -489,7 +490,7 @@ const containerPropertyGroups = [
     "appearance",
     "Appearance",
     ["surface", ...appearanceFieldNames],
-    <PaletteIcon />
+    <PaletteIcon />,
   ),
 ] as const;
 
@@ -501,7 +502,7 @@ const textPropertyGroups = [
     "appearance",
     "Appearance",
     ["variant", ...appearanceFieldNames],
-    <PaletteIcon />
+    <PaletteIcon />,
   ),
 ] as const;
 
@@ -512,13 +513,13 @@ const contentPropertyGroups = [
     "content",
     "Content",
     ["label", "placeholder", "value", "multiline", "altText"],
-    <EditNoteIcon />
+    <EditNoteIcon />,
   ),
   propertyGroup(
     "appearance",
     "Appearance",
     appearanceFieldNames,
-    <PaletteIcon />
+    <PaletteIcon />,
   ),
 ] as const;
 
@@ -529,13 +530,13 @@ const iconPropertyGroups = [
     "content",
     "Content",
     ["iconKey", "accessibleLabel"],
-    <EditNoteIcon />
+    <EditNoteIcon />,
   ),
   propertyGroup(
     "appearance",
     "Appearance",
     appearanceFieldNames,
-    <PaletteIcon />
+    <PaletteIcon />,
   ),
 ] as const;
 
@@ -556,7 +557,7 @@ const propertyGroupsByComponent: Record<
       "appearance",
       "Appearance",
       ["orientation", ...appearanceFieldNames],
-      <PaletteIcon />
+      <PaletteIcon />,
     ),
   ],
   row: containerPropertyGroups,
@@ -568,7 +569,7 @@ const propertyGroupsByComponent: Record<
       "appearance",
       "Appearance",
       ["surface", ...appearanceFieldNames],
-      <PaletteIcon />
+      <PaletteIcon />,
     ),
   ],
   icon: iconPropertyGroups,
@@ -579,7 +580,7 @@ const propertyGroupsByComponent: Record<
       "appearance",
       "Appearance",
       appearanceFieldNames,
-      <PaletteIcon />
+      <PaletteIcon />,
     ),
   ],
   shape: [
@@ -589,7 +590,7 @@ const propertyGroupsByComponent: Record<
       "appearance",
       "Appearance",
       appearanceFieldNames,
-      <PaletteIcon />
+      <PaletteIcon />,
     ),
   ],
   "mockup-occurrence": [
@@ -599,13 +600,13 @@ const propertyGroupsByComponent: Record<
       "appearance",
       "Appearance",
       appearanceFieldNames,
-      <PaletteIcon />
+      <PaletteIcon />,
     ),
   ],
 };
 
 const getPropertyGroups = (
-  componentType: StructuredMockupComponentType
+  componentType: StructuredMockupComponentType,
 ): readonly PropertyGroup[] => propertyGroupsByComponent[componentType];
 
 interface PuckFieldChildProps {
@@ -613,7 +614,7 @@ interface PuckFieldChildProps {
 }
 
 const isPuckFieldChild = (
-  field: React.ReactNode
+  field: React.ReactNode,
 ): field is React.ReactElement<PuckFieldChildProps> =>
   React.isValidElement<PuckFieldChildProps>(field) &&
   typeof field.props.fieldName === "string";
@@ -627,13 +628,13 @@ const CompactPuckFields = ({
   const fieldsByName = new Map(
     React.Children.toArray(children)
       .filter(isPuckFieldChild)
-      .map((field) => [field.props.fieldName, field] as const)
+      .map((field) => [field.props.fieldName, field] as const),
   );
   const isContainer =
     selectedItem?.type === "row" || selectedItem?.type === "column";
   const activeGroup = selectedItem
     ? getPropertyGroups(selectedItem.type).find(
-        (group) => group.key === activePropertyGroup
+        (group) => group.key === activePropertyGroup,
       )
     : undefined;
   const selectedFields = activeGroup
@@ -650,11 +651,11 @@ const CompactPuckFields = ({
       sx={(theme) => ({
         "--puck-field-label-color-text": alpha(
           theme.palette.text.primary,
-          0.78
+          0.78,
         ),
         "--puck-field-label-color-icon": alpha(
           theme.palette.text.primary,
-          0.68
+          0.68,
         ),
         display: "flex",
         flexWrap: "wrap",
@@ -704,7 +705,7 @@ const CompactPuckFields = ({
 const PropertyActionToolbar: React.FC = () => {
   const selectedItem = useStructuredMockupPuck((state) => state.selectedItem);
   const itemSelector = useStructuredMockupPuck(
-    (state) => state.appState.ui.itemSelector
+    (state) => state.appState.ui.itemSelector,
   );
   const {
     activePropertyGroup,
@@ -760,7 +761,7 @@ const PropertyActionToolbar: React.FC = () => {
                     componentType: selectedItem.type,
                     itemSelector,
                   },
-                  event.currentTarget
+                  event.currentTarget,
                 )
               }
               size="small"
@@ -795,7 +796,7 @@ const PropertyActionToolbar: React.FC = () => {
                       componentType: selectedItem.type,
                       itemSelector,
                     },
-                    event.currentTarget
+                    event.currentTarget,
                   )
                 }
                 size="small"
@@ -882,7 +883,7 @@ const QuietPuckComponentOverlay = ({
     "--puck-slot-component-color-overlay": "transparent",
     "--puck-slot-component-color-overlay-border": alpha(
       theme.palette.primary.main,
-      0.42
+      0.42,
     ),
     "--puck-slot-component-color-border-selected": theme.palette.primary.main,
   };
@@ -1022,7 +1023,7 @@ const SubmenuPopover: React.FC = () => {
 
   const activeGroup = selectedItem
     ? getPropertyGroups(selectedItem.type).find(
-        (group) => group.key === activePropertyGroup
+        (group) => group.key === activePropertyGroup,
       )
     : undefined;
 
@@ -1138,7 +1139,11 @@ export const StructuredMockupSectionEditor: React.FC<{
   const [annotationNote, setAnnotationNote] = useState("");
   const [annotationCategory, setAnnotationCategory] =
     useState<WorkItemStructuredMockupAnnotationCategory>("context");
-  const [componentSearchOpen, setComponentSearchOpen] = useState(false);
+  const [
+    componentSearchOpen,
+    setComponentSearchOpen,
+    componentSearchOpenOwnerKey,
+  ] = useModalState(false);
   const [componentQuery, setComponentQuery] = useState("");
   const [componentResults, setComponentResults] = useState<SearchEntity[]>([]);
   const [selectedComponentSource, setSelectedComponentSource] =
@@ -1146,25 +1151,25 @@ export const StructuredMockupSectionEditor: React.FC<{
   const { searchEntities } = useMentionEntitySearch(
     organizationId ?? null,
     projectId ?? null,
-    null
+    null,
   );
   const document = useMemo(
     () => decodeStructuredMockupSectionContent(value),
-    [value]
+    [value],
   );
   const data = useMemo(
     () => (document ? structuredMockupDocumentToPuckData(document) : null),
-    [document]
+    [document],
   );
   const handleChange = useCallback(
     (nextData: NonNullable<typeof data>) => {
       onChange(
         JSON.stringify(
-          puckDataToStructuredMockupDocument(nextData, document ?? undefined)
-        )
+          puckDataToStructuredMockupDocument(nextData, document ?? undefined),
+        ),
       );
     },
-    [document, onChange]
+    [document, onChange],
   );
   const searchComponents = useCallback(async () => {
     const results = await searchEntities(componentQuery, {
@@ -1195,7 +1200,7 @@ export const StructuredMockupSectionEditor: React.FC<{
             containerWidth: scrollportWidth,
           })
         : null,
-    [definition, document, scrollportWidth]
+    [definition, document, scrollportWidth],
   );
   const handleAnnotationLifecycleChange = useCallback(
     (annotationId: string, lifecycle: "open" | "resolved") => {
@@ -1206,12 +1211,12 @@ export const StructuredMockupSectionEditor: React.FC<{
           annotations: document.annotations.map((annotation) =>
             annotation.id === annotationId
               ? { ...annotation, lifecycle }
-              : annotation
+              : annotation,
           ),
-        })
+        }),
       );
     },
-    [document, onChange]
+    [document, onChange],
   );
   const handleCreateAnnotation = useCallback(() => {
     if (!document || !pendingTarget || !materializedProposalId) return;
@@ -1234,7 +1239,7 @@ export const StructuredMockupSectionEditor: React.FC<{
             target: pendingTarget,
           },
         ],
-      })
+      }),
     );
     setPendingTarget(null);
     setAnnotationNote("");
@@ -1275,7 +1280,7 @@ export const StructuredMockupSectionEditor: React.FC<{
                 group,
                 target,
                 anchorPosition: getSubmenuAnchorPosition(anchorEl),
-              }
+              },
         ),
       openWrapperMenu: (target, anchorEl) =>
         setActiveSubmenu((current) =>
@@ -1286,7 +1291,7 @@ export const StructuredMockupSectionEditor: React.FC<{
                 kind: "wrapper",
                 target,
                 anchorPosition: getSubmenuAnchorPosition(anchorEl),
-              }
+              },
         ),
       closeSubmenu: () => setActiveSubmenu(null),
     }),
@@ -1297,7 +1302,7 @@ export const StructuredMockupSectionEditor: React.FC<{
       hostTheme.palette.primary.main,
       hostTheme.palette.text.primary,
       hostTheme.palette.text.secondary,
-    ]
+    ],
   );
 
   if (!document || !data) {
@@ -1323,7 +1328,7 @@ export const StructuredMockupSectionEditor: React.FC<{
             disabled={disabled}
             onChange={(event) =>
               onChange(
-                JSON.stringify({ ...document, sizeKey: event.target.value })
+                JSON.stringify({ ...document, sizeKey: event.target.value }),
               )
             }
             slotProps={{
@@ -1587,7 +1592,7 @@ export const StructuredMockupSectionEditor: React.FC<{
                 onChange={(event) =>
                   setAnnotationCategory(
                     event.target
-                      .value as WorkItemStructuredMockupAnnotationCategory
+                      .value as WorkItemStructuredMockupAnnotationCategory,
                   )
                 }
               >
@@ -1596,7 +1601,7 @@ export const StructuredMockupSectionEditor: React.FC<{
                     <MenuItem key={category} value={category}>
                       {category[0].toUpperCase() + category.slice(1)}
                     </MenuItem>
-                  )
+                  ),
                 )}
               </TextField>
             </Stack>
@@ -1613,6 +1618,7 @@ export const StructuredMockupSectionEditor: React.FC<{
           </DialogActions>
         </Dialog>
         <Dialog
+          ownerKey={componentSearchOpenOwnerKey}
           open={componentSearchOpen}
           onClose={() => setComponentSearchOpen(false)}
           fullWidth

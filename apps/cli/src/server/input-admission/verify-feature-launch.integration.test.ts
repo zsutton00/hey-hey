@@ -1,3 +1,4 @@
+import { createTestMessagePoster } from '../../run/run.test-support';
 /** @vitest-environment node */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -128,7 +129,11 @@ describe('Verify Feature launch', () => {
     });
 
     // Verify Feature reads the parent session through the model's tools, never in the CLI.
-    const fetchImpl = vi.fn<typeof fetch>(() => {
+    // Its own conversation history is read only for passive screen annotations.
+    const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+      if (String(input).includes('/messages?')) {
+        return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      }
       throw new Error('Verify Feature launch reached the platform unexpectedly.');
     });
 
@@ -208,6 +213,7 @@ describe('Verify Feature launch', () => {
       logger,
       () => true,
       runStore,
+      createTestMessagePoster(),
     );
     service.bindInputAdmission(lifecycle);
     await lifecycle.start();

@@ -1,3 +1,5 @@
+import { ModalRestoreControls } from "@hey-hey/ui-common/components/Modals";
+import userEvent from "@testing-library/user-event";
 import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -24,8 +26,16 @@ vi.mock("@hey-hey/ui-common/i18n", () => ({
         nameTooLong: "tasks.dialog.nameTooLong",
         nameTooShort: "tasks.dialog.nameTooShort",
       },
-      form: { description: "tasks.form.description", priority: "tasks.form.priority", title: "tasks.form.title" },
-      priority: { high: "tasks.priority.high", low: "tasks.priority.low", medium: "tasks.priority.medium" },
+      form: {
+        description: "tasks.form.description",
+        priority: "tasks.form.priority",
+        title: "tasks.form.title",
+      },
+      priority: {
+        high: "tasks.priority.high",
+        low: "tasks.priority.low",
+        medium: "tasks.priority.medium",
+      },
     },
   },
 }));
@@ -56,7 +66,11 @@ const fillTitle = (): void => {
 
 describe("NewTaskModal registry sections", () => {
   it.each([
-    ["BUG", [{ key: "description", label: "Observed Behavior" }], ["Observed Behavior"]],
+    [
+      "BUG",
+      [{ key: "description", label: "Observed Behavior" }],
+      ["Observed Behavior"],
+    ],
     [
       "FEATURE",
       [
@@ -115,17 +129,22 @@ describe("NewTaskModal registry sections", () => {
       />,
     );
 
-    expect(screen.getAllByRole("textbox").map((field) => field.getAttribute("aria-label"))).toEqual([
-      "tasks.form.title",
-      "Name the intended readers.",
-      "Brief",
-    ]);
-    expect(screen.queryByText("tasks.dialog.acceptanceCriteriaLabel")).not.toBeInTheDocument();
+    expect(
+      screen
+        .getAllByRole("textbox")
+        .map((field) => field.getAttribute("aria-label")),
+    ).toEqual(["tasks.form.title", "Name the intended readers.", "Brief"]);
+    expect(
+      screen.queryByText("tasks.dialog.acceptanceCriteriaLabel"),
+    ).not.toBeInTheDocument();
 
     fillTitle();
-    fireEvent.change(screen.getByRole("textbox", { name: "Name the intended readers." }), {
-      target: { value: "Operators" },
-    });
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Name the intended readers." }),
+      {
+        target: { value: "Operators" },
+      },
+    );
     fireEvent.change(screen.getByRole("textbox", { name: "Brief" }), {
       target: { value: "Ship the workflow" },
     });
@@ -139,6 +158,36 @@ describe("NewTaskModal registry sections", () => {
         },
       }),
     );
+  });
+
+  it("keeps a page-owned creation form without Minimize and does not invoke actions on opening", () => {
+    const onClose = vi.fn();
+    const onSubmit = vi.fn();
+    render(
+      <>
+        <NewTaskModal
+          open
+          onClose={onClose}
+          onSubmit={onSubmit}
+          initiativeId="initiative-1"
+          sectionSelection={{
+            status: "resolved",
+            typeKey: "STANDARD",
+            sections: [{ key: "description", label: "Description" }],
+          }}
+        />
+        <ModalRestoreControls />
+      </>,
+    );
+    fillTitle();
+    const title = screen.getByRole("textbox", { name: "tasks.form.title" });
+    expect(screen.queryByTestId("modal-minimize")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "tasks.form.title" })).toBe(
+      title,
+    );
+    expect(title).toHaveValue("New child");
+    expect(onClose).not.toHaveBeenCalled();
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it("keeps an authoritative empty definition empty", () => {
@@ -157,8 +206,12 @@ describe("NewTaskModal registry sections", () => {
     );
 
     expect(screen.getAllByRole("textbox")).toHaveLength(1);
-    expect(screen.queryByText("tasks.form.description")).not.toBeInTheDocument();
-    expect(screen.queryByText("tasks.dialog.acceptanceCriteriaLabel")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("tasks.form.description"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("tasks.dialog.acceptanceCriteriaLabel"),
+    ).not.toBeInTheDocument();
   });
 
   it("fails closed while the selected definition is unavailable", () => {
@@ -173,7 +226,11 @@ describe("NewTaskModal registry sections", () => {
     );
 
     fillTitle();
-    expect(screen.getByTestId("new-task-sections-unavailable")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "common.create" })).toBeDisabled();
+    expect(
+      screen.getByTestId("new-task-sections-unavailable"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "common.create" }),
+    ).toBeDisabled();
   });
 });

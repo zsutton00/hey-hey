@@ -20,3 +20,11 @@ export * from "./types/modalTypes";
 
 // Export ThemeProvider alias for backward compatibility
 export { HeyThemeProvider as ThemeProvider } from "./ThemeContext";
+
+export { createUiDomain } from "../state/createUiDomain";
+export type {
+  PersistentModalRequest,
+  DiscussOpeningRequest,
+} from "./types/persistentModalRequest";
+export { copyPersistentModalRequest } from "./types/persistentModalRequest";
+export { createOpenItemEntity } from "../types/openItems";

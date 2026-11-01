@@ -18,8 +18,8 @@ import { Observable, from, of, switchMap } from 'rxjs';
 import { EntityNeighborhoodRequest } from '../model/entityNeighborhoodRequest';
 import { EntityNeighborhoodResponse } from '../model/entityNeighborhoodResponse';
 import { ErrorResponse } from '../model/errorResponse';
-import { GraphQueryRequest } from '../model/graphQueryRequest';
-import { GraphQueryResponse } from '../model/graphQueryResponse';
+import { FeatureProjectConnectionRequest } from '../model/featureProjectConnectionRequest';
+import { FeatureProjectConnectionResponse } from '../model/featureProjectConnectionResponse';
 import { IncidentEdgesRequest } from '../model/incidentEdgesRequest';
 import { IncidentEdgesResponse } from '../model/incidentEdgesResponse';
 import { ProvenanceLineageResponse } from '../model/provenanceLineageResponse';
@@ -55,42 +55,45 @@ export class QueriesService {
   }
 
   /**
-   * Execute a graph query
-   *
+   * Count listed features with a stored project connection
+   * Counts the distinct listed FEATURE tasks that have the exact SCOPED_TO_PROJECT edge to this project. Does not establish readiness of other projections.
    * @param organizationId Organization identifier
    * @param projectId Project identifier
-   * @param graphQueryRequest
+   * @param featureProjectConnectionRequest
    * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
    * @param reportProgress flag to report request and response progress.
-   * @param {*} [executeQueryOpts.config] Override http request option.
+   * @param {*} [checkFeatureProjectConnectionOpts.config] Override http request option.
    */
-  public executeQuery(
+  public checkFeatureProjectConnection(
     organizationId: string,
     projectId: string,
-    graphQueryRequest: GraphQueryRequest,
-    executeQueryOpts?: { config?: AxiosRequestConfig },
-  ): Observable<AxiosResponse<GraphQueryResponse>>;
-  public executeQuery(
+    featureProjectConnectionRequest: FeatureProjectConnectionRequest,
+    checkFeatureProjectConnectionOpts?: { config?: AxiosRequestConfig },
+  ): Observable<AxiosResponse<FeatureProjectConnectionResponse>>;
+  public checkFeatureProjectConnection(
     organizationId: string,
     projectId: string,
-    graphQueryRequest: GraphQueryRequest,
-    executeQueryOpts?: { config?: AxiosRequestConfig },
+    featureProjectConnectionRequest: FeatureProjectConnectionRequest,
+    checkFeatureProjectConnectionOpts?: { config?: AxiosRequestConfig },
   ): Observable<any> {
     if (organizationId === null || organizationId === undefined) {
       throw new Error(
-        'Required parameter organizationId was null or undefined when calling executeQuery.',
+        'Required parameter organizationId was null or undefined when calling checkFeatureProjectConnection.',
       );
     }
 
     if (projectId === null || projectId === undefined) {
       throw new Error(
-        'Required parameter projectId was null or undefined when calling executeQuery.',
+        'Required parameter projectId was null or undefined when calling checkFeatureProjectConnection.',
       );
     }
 
-    if (graphQueryRequest === null || graphQueryRequest === undefined) {
+    if (
+      featureProjectConnectionRequest === null ||
+      featureProjectConnectionRequest === undefined
+    ) {
       throw new Error(
-        'Required parameter graphQueryRequest was null or undefined when calling executeQuery.',
+        'Required parameter featureProjectConnectionRequest was null or undefined when calling checkFeatureProjectConnection.',
       );
     }
 
@@ -129,13 +132,16 @@ export class QueriesService {
           headers['Authorization'] = `Bearer ${accessToken}`;
         }
 
-        return this.httpClient.post<GraphQueryResponse>(
-          `${this.basePath}/organizations/${encodeURIComponent(String(organizationId))}/projects/${encodeURIComponent(String(projectId))}/query`,
-          graphQueryRequest,
+        return this.httpClient.post<FeatureProjectConnectionResponse>(
+          `${this.basePath}/organizations/${encodeURIComponent(String(organizationId))}/projects/${encodeURIComponent(String(projectId))}/feature-project-connection`,
+          featureProjectConnectionRequest,
           {
             withCredentials: this.configuration.withCredentials,
-            ...executeQueryOpts?.config,
-            headers: { ...headers, ...executeQueryOpts?.config?.headers },
+            ...checkFeatureProjectConnectionOpts?.config,
+            headers: {
+              ...headers,
+              ...checkFeatureProjectConnectionOpts?.config?.headers,
+            },
           },
         );
       }),

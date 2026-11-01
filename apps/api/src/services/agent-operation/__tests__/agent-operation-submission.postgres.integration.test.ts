@@ -78,13 +78,21 @@ describeDatabase('Agent operation submission PostgreSQL invariants', () => {
   beforeAll(async () => {
     prisma = new PrismaService();
     await prisma.$connect();
-    executionGrantService = new ExecutionGrantService(prisma, {
-      resolveForAdmission: jest
-        .fn()
-        .mockImplementation(({ secret }) =>
-          Promise.resolve(secret ? JSON.parse(secret) : null),
-        ),
-    } as any);
+    executionGrantService = new ExecutionGrantService(
+      prisma,
+      {
+        resolveForAdmission: jest
+          .fn()
+          .mockImplementation(({ secret }) =>
+            Promise.resolve(secret ? JSON.parse(secret) : null),
+          ),
+      } as any,
+      {
+        resolveDirectInputs: jest
+          .fn()
+          .mockImplementation(async ({ action }) => action),
+      } as any,
+    );
     const registry = new AgentOperationRegistryService(prisma);
     const messageService = {
       addMessageInTransaction: async (

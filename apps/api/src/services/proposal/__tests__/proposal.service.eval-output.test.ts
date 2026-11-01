@@ -175,12 +175,11 @@ describe('ProposalService eval target output', () => {
     );
 
     const result = await writingAs(SESSION_ID, () =>
-      service.create(
-        testIds.organization,
-        testIds.project,
-        testIds.user,
-        dto as never,
-      ),
+      service.create(testIds.organization, testIds.project, testIds.user, {
+        ...dto,
+        ragEnabled: false,
+        applicationEligible: false,
+      } as never),
     );
 
     expect(db.proposal.create.mock.calls[0][0].data).toMatchObject({
@@ -197,6 +196,7 @@ describe('ProposalService eval target output', () => {
         'sections.description.content': 'Original',
       },
     });
+    expect(db.report.findFirst).not.toHaveBeenCalled();
     expect(db.proposalApprovalRecord.create).not.toHaveBeenCalled();
     expect(approvalService.applyInTransaction).not.toHaveBeenCalled();
     expect(

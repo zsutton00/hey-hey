@@ -100,7 +100,7 @@ describe("UserMessageBubble sent attachments", () => {
           projectId="project-1"
           text="See attached"
           provenance={null}
-          author={null}
+          author={{ name: "Zac", id: null }}
           createdAt={null}
           renderTimestamp={false}
           delivery={{ state: "delivered" }}
@@ -125,12 +125,36 @@ describe("UserMessageBubble sent attachments", () => {
     }
   });
 
-  it("right-justifies the chip row below the bubble with a positive gap", () => {
+  it("shares a wrapping footer with the author and right-aligns chips", () => {
     render_([{ attachmentId: "a1", fileName: "notes.md" }]);
     const section = screen.getByTestId("sent-attachments");
     const row = screen.getByTestId("sent-attachment-chip").parentElement;
     expect(row).toHaveStyle({ justifyContent: "flex-end" });
-    expect(parseFloat(getComputedStyle(section).marginTop)).toBeGreaterThan(0);
+    const caption = screen.getByTestId("message-timestamp-message-1");
+    const footer = screen.getByTestId("user-message-footer");
+    expect(caption.parentElement).toBe(footer);
+    expect(section.parentElement).toBe(footer);
+    expect(footer).toHaveStyle({
+      display: "flex",
+      flexWrap: "wrap",
+      alignItems: "center",
+    });
+    expect(section).toHaveStyle({ marginLeft: "auto", maxWidth: "100%" });
+    expect(
+      parseFloat(
+        getComputedStyle(screen.getByTestId("message-bubble")).marginBottom,
+      ),
+    ).toBeGreaterThan(0);
+  });
+
+  it("constrains long filenames and wraps multiple chips within the footer", () => {
+    render_([
+      { attachmentId: "a1", fileName: "a-very-long-screenshot-file-name.png" },
+      { attachmentId: "a2", fileName: "notes.md" },
+    ]);
+    const chips = screen.getAllByTestId("sent-attachment-chip");
+    expect(chips[0].parentElement).toHaveStyle({ flexWrap: "wrap" });
+    for (const chip of chips) expect(chip).toHaveStyle({ maxWidth: "100%" });
   });
 
   it("adds no top gap when the message has no text", () => {

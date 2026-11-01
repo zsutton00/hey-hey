@@ -1,3 +1,5 @@
+import { FutureOfferContext } from "../../futureOffers/FutureOfferContext";
+import { proposalKeys } from "../../collections/proposals";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
@@ -15,6 +17,7 @@ import {
 import { useProposalGroupDecisions } from "../useProposalGroupDecisions";
 
 const client = vi.hoisted(() => ({
+  checkTask: vi.fn(),
   approve: vi.fn(),
   reject: vi.fn(),
   approveAll: vi.fn(),
@@ -22,10 +25,8 @@ const client = vi.hoisted(() => ({
 
 vi.mock("../../../clients/serviceClients", () => ({
   proposalsClient: {
-    updateProposal:
-      client.approve,
-    rejectProposal:
-      client.reject,
+    updateProposal: client.approve,
+    rejectProposal: client.reject,
     approveAllProposalGroupMembers: client.approveAll,
   },
 }));
@@ -83,21 +84,31 @@ describe("useProposalGroupDecisions", () => {
     vi.clearAllMocks();
     client.approve.mockResolvedValue({ data: { data: proposal } });
     client.reject.mockResolvedValue({
-      data: { data: { proposal: { ...proposal, status: ProposalStatus.Rejected } } },
+      data: {
+        data: { proposal: { ...proposal, status: ProposalStatus.Rejected } },
+      },
     });
     client.approveAll.mockResolvedValue({ data: { data: approveAllResult } });
   });
 
   const queryClient = new QueryClient();
-  const wrapper = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={queryClient}>
+      <FutureOfferContext.Provider value={{ checkTask: client.checkTask }}>
+        {children}
+      </FutureOfferContext.Provider>
+    </QueryClientProvider>
+  );
   const renderDecisions = () =>
-    renderHook(() =>
-      useProposalGroupDecisions({
-        organizationId: "org-1",
-        projectId: "project-1",
-        groupId: "group-1",
-        refetch,
-      }), { wrapper }
+    renderHook(
+      () =>
+        useProposalGroupDecisions({
+          organizationId: "org-1",
+          projectId: "project-1",
+          groupId: "group-1",
+          refetch,
+        }),
+      { wrapper },
     );
 
   it("runs typed individual decisions and writes returned proposals into the query cache", async () => {
@@ -112,18 +123,26 @@ describe("useProposalGroupDecisions", () => {
       expect.objectContaining({
         proposalId: "proposal-1",
         updateProposalDto: { status: ProposalStatus.Approved },
-      })
+      }),
     );
     expect(client.reject).toHaveBeenCalledWith(
       expect.objectContaining({
         proposalId: "proposal-1",
         rejectProposalDto: { reason: "Conflicts with scope" },
-      })
+      }),
     );
     expect(refetch).not.toHaveBeenCalled();
-    expect(queryClient.getQueryData(["proposals", "org-1", "project-1", "detail", "proposal-1"])).toMatchObject({ status: ProposalStatus.Rejected });
+    expect(
+      queryClient.getQueryData([
+        "proposals",
+        "org-1",
+        "project-1",
+        "detail",
+        "proposal-1",
+      ]),
+    ).toMatchObject({ status: ProposalStatus.Rejected });
     expect(result.current.decisionProposals.get("proposal-1")?.status).toBe(
-      ProposalStatus.Rejected
+      ProposalStatus.Rejected,
     );
   });
 
@@ -137,8 +156,62 @@ describe("useProposalGroupDecisions", () => {
     expect(result.current.approveAllResult).toEqual(approveAllResult);
     expect(result.current.approveAllResult?.results).toHaveLength(2);
     expect(result.current.approveAllResult?.results[1].outcome).toBe(
-      ProposalGroupDecisionOutcome.NotEligible
+      ProposalGroupDecisionOutcome.NotEligible,
     );
     expect(refetch).not.toHaveBeenCalled();
+  });
+  it("checks only completed approve-all members using proposals already in the review cache", async () => {
+    queryClient.setQueryData(
+      proposalKeys.group("org-1", "project-1", "group-1"),
+      {
+        members: [
+          { proposal: { ...proposal, updates: { status: "COMPLETED" } } },
+          {
+            proposal: {
+              ...proposal,
+              id: "proposal-2",
+              targetEntityId: "other",
+              updates: { status: "VERIFYING" },
+            },
+          },
+        ],
+      },
+    );
+    client.approveAll.mockResolvedValue({
+      data: {
+        data: {
+          ...approveAllResult,
+          results: approveAllResult.results.map((member, i) =>
+            i === 0
+              ? {
+                  ...member,
+                  executionState: ProposalGroupMemberExecutionState.Applied,
+                }
+              : member,
+          ),
+        },
+      },
+    });
+    const { result } = renderDecisions();
+    await act(async () => {
+      await result.current.approveAll();
+    });
+    expect(client.checkTask).toHaveBeenCalledExactlyOnceWith("target-1");
+  });
+  it("checks the completed response to an individual approval without another proposal read", async () => {
+    client.approve.mockResolvedValue({
+      data: {
+        data: {
+          ...proposal,
+          status: ProposalStatus.Approved,
+          updates: { status: "VERIFYING" },
+        },
+      },
+    });
+    const { result } = renderDecisions();
+    await act(async () => {
+      await result.current.approveMember(proposal.id);
+    });
+    expect(client.checkTask).toHaveBeenCalledExactlyOnceWith("target-1");
   });
 });

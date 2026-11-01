@@ -1,9 +1,9 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import React, { useState } from "react";
 import {
   Alert,
   Button,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -46,7 +46,7 @@ export const PlanArchiveDeleteDialog: React.FC<
   const [error, setError] = useState<string | null>(null);
   const { updatePlan, deletePlan } = useCanonicalPlanMutations(
     organizationId,
-    projectId
+    projectId,
   );
 
   const allowArchive = planStatus !== WorkStatus.Archived;

@@ -900,15 +900,6 @@ describe('AgentSessionService', () => {
         status: 'ACTIVE',
         definition: {
           sections: filesDefinition,
-          agentGuidance: {
-            overview: 'Project mode applicability',
-            contexts: [
-              {
-                focalTypeKeys: ['STANDARD'],
-                guidance: 'Use this mode for standard work items.',
-              },
-            ],
-          },
         },
       });
       prisma.db.project.findFirst.mockResolvedValue({ id: 'proj-1' });
@@ -987,76 +978,6 @@ describe('AgentSessionService', () => {
       expect(prisma.db.agentSession.create).toHaveBeenCalledTimes(1);
     });
 
-    it.each(['BUG', 'PROJECT_DEFINED_WORK_ITEM'])(
-      'accepts a focal %s type declared by the project-owned MODE guidance',
-      async (focalType) => {
-        workItemTypeRegistry.getDefinition.mockReturnValue({
-          status: 'ACTIVE',
-          definition: {
-            sections: filesDefinition,
-            agentGuidance: {
-              overview: 'Project mode applicability',
-              contexts: [
-                {
-                  focalTypeKeys: ['STANDARD', 'BUG'],
-                  guidance: 'Use this mode for work items.',
-                },
-                {
-                  focalTypeKeys: ['PROJECT_DEFINED_WORK_ITEM'],
-                  guidance: 'Use this mode for the project-defined type.',
-                },
-              ],
-            },
-          },
-        });
-        prisma.db.task.findFirst.mockImplementation(
-          ({ where, select }: { where: { id: string }; select?: object }) => {
-            if (where.id === modeId) {
-              return Promise.resolve({
-                projectId: 'proj-1',
-                type: 'MODE',
-                status: 'ACTIVE',
-                archivedAt: null,
-                sections: [
-                  {
-                    key: 'description',
-                    materializedMarkdown:
-                      'Use a proof-first review discipline.',
-                  },
-                  {
-                    key: 'files',
-                    materializedMarkdown:
-                      '{"files":{"MODE.md":"Ground every claim"},"schemaVersion":"project-mode-files.v1"}',
-                  },
-                ],
-              });
-            }
-            if (select && 'projectId' in select) {
-              return Promise.resolve({ projectId: 'proj-1' });
-            }
-            return Promise.resolve({ type: focalType });
-          },
-        );
-
-        const result = await service.create(
-          'org-1' as any,
-          'proj-1' as any,
-          'user-1' as any,
-          createDto(),
-        );
-
-        expect(result.config).toMatchObject({
-          projectModeSnapshot: {
-            applicableWorkItemTypeKeys: [
-              'BUG',
-              'PROJECT_DEFINED_WORK_ITEM',
-              'STANDARD',
-            ],
-          },
-        });
-      },
-    );
-
     it('captures a project-mode selection on update and returns the authoritative snapshot', async () => {
       const selectionConfig: AgentSessionConfigV2 = {
         type: AgentSessionConfigV2.TypeEnum.CodingSession,
@@ -1099,7 +1020,7 @@ describe('AgentSessionService', () => {
           modeId,
         },
         projectModeSnapshot: {
-          schemaVersion: 'project-mode-snapshot.v2',
+          schemaVersion: 'project-mode-snapshot.v3',
           modeId,
           catalogDescription: 'Use a proof-first review discipline.',
           applicableWorkItemTypeKeys: ['STANDARD'],
@@ -1135,12 +1056,6 @@ describe('AgentSessionService', () => {
           status: 'ACTIVE',
           definition: {
             sections: settingsDefinition,
-            agentGuidance: {
-              overview: 'Project mode applicability',
-              contexts: [
-                { focalTypeKeys: ['STANDARD'], guidance: 'Standard work.' },
-              ],
-            },
           },
         });
         prisma.db.task.findFirst.mockImplementation(
@@ -1175,7 +1090,7 @@ describe('AgentSessionService', () => {
         );
       };
 
-      it('defaults a MODE without settings to Project Assistant on in a v2 snapshot', async () => {
+      it('defaults a MODE without settings to Project Assistant on in a v3 snapshot', async () => {
         const result = await service.create(
           'org-1' as any,
           'proj-1' as any,
@@ -1185,11 +1100,64 @@ describe('AgentSessionService', () => {
 
         expect(result.config).toMatchObject({
           projectModeSnapshot: {
-            schemaVersion: 'project-mode-snapshot.v2',
+            schemaVersion: 'project-mode-snapshot.v3',
+            sessionRole: 'implementation',
             projectAssistant: { enabled: true },
           },
         });
       });
+
+      it.each(['implementation', 'research', 'planning', 'review'] as const)(
+        'captures %s and preserves it on readback while detecting role tampering',
+        async (sessionRole) => {
+          withSettings(
+            JSON.stringify({
+              schemaVersion: 'project-mode-settings.v1',
+              projectAssistant: { enabled: true },
+              sessionRole,
+            }),
+          );
+          const result = await service.create(
+            'org-1' as any,
+            'proj-1' as any,
+            'user-1' as any,
+            createDto(),
+          );
+          const captured = (result.config as AgentSessionConfigV2)
+            .projectModeSnapshot!;
+          expect(captured).toMatchObject({
+            schemaVersion: 'project-mode-snapshot.v3',
+            sessionRole,
+          });
+          withSettings(
+            JSON.stringify({
+              schemaVersion: 'project-mode-settings.v1',
+              projectAssistant: { enabled: false },
+              sessionRole: sessionRole === 'review' ? 'research' : 'review',
+            }),
+          );
+          prisma.db.agentSession.findFirst.mockResolvedValue({
+            ...buildAgentSession({ id: result.id }),
+            config: result.config,
+          });
+          const readback = await service.findOne('org-1' as any, result.id);
+          expect(
+            (readback.config as AgentSessionConfigV2).projectModeSnapshot,
+          ).toEqual(captured);
+          const tampered = {
+            ...captured,
+            sessionRole: sessionRole === 'review' ? 'research' : 'review',
+          };
+          prisma.db.agentSession.findFirst.mockResolvedValue({
+            ...buildAgentSession({ id: result.id }),
+            config: { ...result.config, projectModeSnapshot: tampered },
+          });
+          const invalid = await service.findOne('org-1' as any, result.id);
+          expect(
+            (invalid.config as AgentSessionConfigV2)?.projectModeSnapshot,
+          ).toBeUndefined();
+        },
+      );
 
       it.each([true, false])(
         'captures the authored setting enabled=%s and binds it into the hash',
@@ -1211,7 +1179,7 @@ describe('AgentSessionService', () => {
             .projectModeSnapshot!;
 
           expect(snapshot).toMatchObject({
-            schemaVersion: 'project-mode-snapshot.v2',
+            schemaVersion: 'project-mode-snapshot.v3',
             projectAssistant: { enabled },
           });
           const otherHash = createHash('sha256')
@@ -1302,7 +1270,7 @@ describe('AgentSessionService', () => {
         expect(prisma.db.agentSession.create).not.toHaveBeenCalled();
       });
 
-      it('keeps legacy type-level eligibility for a mode without its own list', async () => {
+      it('defaults a mode without its own list to STANDARD only', async () => {
         withSettings(
           JSON.stringify({
             schemaVersion: 'project-mode-settings.v1',
@@ -1489,15 +1457,6 @@ describe('AgentSessionService', () => {
         status: 'ACTIVE',
         definition: {
           sections: filesDefinition,
-          agentGuidance: {
-            overview: 'Project mode applicability',
-            contexts: [
-              {
-                focalTypeKeys: ['BUG'],
-                guidance: 'Use this mode for bug work items.',
-              },
-            ],
-          },
         },
       };
       workItemTypeRegistry.getDefinition.mockImplementation(
@@ -1528,7 +1487,9 @@ describe('AgentSessionService', () => {
             });
           }
           return Promise.resolve(
-            'projectId' in select ? { projectId: 'proj-1' } : { type: 'BUG' },
+            'projectId' in select
+              ? { projectId: 'proj-1' }
+              : { type: 'STANDARD' },
           );
         },
       );
@@ -1924,6 +1885,41 @@ describe('AgentSessionService', () => {
     });
     expect(listed).toHaveLength(1);
     expect(listed[0]!.type).toBe('VALIDATION');
+  });
+
+  it('finds the routing session as the most recent session on the given machines', async () => {
+    prisma.db.agentSession.findFirst.mockResolvedValue({ id: 'cs-routing' });
+
+    const result = await service.findRouting(
+      'org-1' as any,
+      'proj-1' as any,
+      'user-1',
+      ['machine-1'],
+    );
+
+    expect(prisma.db.agentSession.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          userId: 'user-1',
+          machineId: { in: ['machine-1'] },
+        }),
+        orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+      }),
+    );
+    expect(result).toEqual({ agentSessionId: 'cs-routing' });
+  });
+
+  it('reports no routing session when none is bound to the given machines', async () => {
+    prisma.db.agentSession.findFirst.mockResolvedValue(null);
+
+    const result = await service.findRouting(
+      'org-1' as any,
+      'proj-1' as any,
+      'user-1',
+      ['machine-1'],
+    );
+
+    expect(result).toEqual({ agentSessionId: null });
   });
 
   it('lists agent sessions filtered by PLAN entity', async () => {
@@ -3015,6 +3011,30 @@ describe('AgentSessionService', () => {
         }),
       }),
     );
+  });
+
+  it('rolls back an unstarted eval session and its bound conversation', async () => {
+    const deleteMessages = jest.fn().mockResolvedValue({ count: 0 });
+    Object.assign(prisma.db.message, { deleteMany: deleteMessages });
+    prisma.db.conversation.delete = jest.fn().mockResolvedValue({});
+    const existing = buildAgentSession({
+      conversationId: 'eval-conversation',
+      status: 'NOT_STARTED',
+    });
+    prisma.db.agentSession.findFirst.mockResolvedValue(existing);
+    prisma.db.agentOperation.findMany.mockResolvedValue([]);
+
+    await service.rollbackEvalLaunchSession('org-1' as never, existing.id);
+
+    expect(deleteMessages).toHaveBeenCalledWith({
+      where: { conversationId: existing.conversationId },
+    });
+    expect(prisma.db.conversation.delete).toHaveBeenCalledWith({
+      where: { id: existing.conversationId },
+    });
+    expect(prisma.db.agentSession.delete).toHaveBeenCalledWith({
+      where: { id: existing.id },
+    });
   });
 
   it('deletes operations, grants, authorizations, the session, and its event', async () => {

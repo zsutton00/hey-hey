@@ -44,3 +44,26 @@ describe('MODE Project Assistant setting migration', () => {
     expect(sql).toContain('RAISE EXCEPTION');
   });
 });
+
+describe('MODE session role guidance migration', () => {
+  const sql = readFileSync(
+    resolve(
+      __dirname,
+      '../../../../db/flyway/V2026.10.24.053221__publish_mode_session_role_guidance.sql',
+    ),
+    'utf8',
+  );
+  it('augments canonical and active project settings guidance without changing authored modes', () => {
+    expect(sql).toContain('UPDATE work_item_type_template AS mode');
+    expect(sql).toContain('UPDATE work_item_type AS mode');
+    expect(sql).toContain("mode.lifecycle_status = 'active'");
+    expect(sql).toContain("section->>'key' = 'settings'");
+    expect(sql).toContain('implementation, research, planning, or review');
+    expect(sql).toContain(
+      'including an omitted settings section, resolves to implementation',
+    );
+    expect(sql).toContain("NULLIF(section->>'writingStandard', '')");
+    expect(sql).not.toContain('UPDATE task');
+    expect(sql).not.toContain('agent_guidance =');
+  });
+});

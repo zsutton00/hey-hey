@@ -1,3 +1,4 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import CloseIcon from "@mui/icons-material/Close";
 import type { ReactNode } from "react";
 import {
@@ -5,7 +6,6 @@ import {
   Box,
   Button,
   CircularProgress,
-  Dialog,
   DialogContent,
   DialogTitle,
   FormControl,
@@ -267,11 +267,7 @@ export const RunContextUsageModal = ({
       maxWidth="md"
       fullWidth
       data-testid="run-context-usage-modal"
-    >
-      <DialogTitle sx={{ display: "flex", justifyContent: "space-between" }}>
-        <Typography component="span" variant="h6">
-          Context usage
-        </Typography>
+      closeControl={
         <IconButton
           onClick={onClose}
           size="small"
@@ -279,6 +275,12 @@ export const RunContextUsageModal = ({
         >
           <CloseIcon fontSize="small" />
         </IconButton>
+      }
+    >
+      <DialogTitle sx={{ display: "flex", justifyContent: "space-between" }}>
+        <Typography component="span" variant="h6">
+          Context usage
+        </Typography>
       </DialogTitle>
       <DialogContent dividers>
         {providerSessions.length > 1 ? (

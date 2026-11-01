@@ -1,3 +1,4 @@
+import { changedFileReportingPrompt } from '../completion-reconciliation/prompts/common';
 import { buildActivityResponsibilities } from '../prompts/knowledge-responsibilities';
 import type {
   LocalWorktreeStateByService,
@@ -28,6 +29,8 @@ export const buildProjectModePrompt = (input: ProjectModePromptInput): string =>
     'You are in a project-defined coding mode.',
     '',
     buildActivityResponsibilities(),
+    '',
+    changedFileReportingPrompt,
     '',
     '## Captured MODE bundle',
     '',

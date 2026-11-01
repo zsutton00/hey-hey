@@ -16,28 +16,26 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { EvalRunStatus } from "@hey-hey/ui-common/api";
-import {
-  useEvalRun,
-  type EvalAttemptReport,
-  type EvalRunReport,
-} from "@hey-hey/ui-common/data";
+import { useEvalRun, type EvalRunReport } from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import { WebPathService } from "@hey-hey/ui-common/services";
 
-import { EvalAttemptDetail } from "./EvalAttemptDetail";
+import { EvalCaseRows } from "./EvalCaseRows";
 import { EvalRunLayout } from "./EvalRunLayout";
 import {
-  automatedAssessment,
-  caseTitle,
   compareSetups,
   runOverhead,
   type AveragedMeasure,
   type OverheadMeasures,
-  type ScopedMeasures,
   type SetupComparison,
   type SummedMeasure,
 } from "./evalResultsView";
-import { formatElapsed, formatTokenCount, setupLabel } from "./evalRunView";
+import {
+  formatCost,
+  formatElapsed,
+  formatTokenCount,
+  setupLabel,
+} from "./evalRunView";
 
 type Format = (value: number) => string;
 
@@ -62,18 +60,15 @@ const useMeasureFormatter = (): ((
   };
 };
 
-const ScopedCell: React.FC<{
-  measures: ScopedMeasures;
+const MeasureCell: React.FC<{
+  measures: AveragedMeasure;
   format: Format;
   testId: string;
 }> = ({ measures, format, testId }) => {
   const formatMeasure = useMeasureFormatter();
   return (
     <TableCell data-testid={testId}>
-      {`${formatMeasure(measures.preparation, format)} / ${formatMeasure(
-        measures.handler,
-        format,
-      )}`}
+      {formatMeasure(measures, format)}
     </TableCell>
   );
 };
@@ -111,20 +106,25 @@ const ComparisonRow: React.FC<{ comparison: SetupComparison }> = ({
           ? notReported
           : `${checks.passed} / ${checks.total}`}
       </TableCell>
-      <ScopedCell
+      <MeasureCell
         measures={comparison.elapsedMs}
         format={formatElapsed}
         testId={`${testId}-elapsed`}
       />
-      <ScopedCell
+      <MeasureCell
         measures={comparison.tokens}
         format={formatTokenCount}
         testId={`${testId}-tokens`}
       />
-      <ScopedCell
+      <MeasureCell
         measures={comparison.toolCalls}
         format={formatCount}
         testId={`${testId}-tool-calls`}
+      />
+      <MeasureCell
+        measures={comparison.cost}
+        format={formatCost}
+        testId={`${testId}-cost`}
       />
     </TableRow>
   );
@@ -132,11 +132,10 @@ const ComparisonRow: React.FC<{ comparison: SetupComparison }> = ({
 
 const OverheadLine: React.FC<{
   run: EvalRunReport;
-  attempts: EvalAttemptReport[];
-}> = ({ run, attempts }) => {
+}> = ({ run }) => {
   const { t } = useTranslation();
   const formatMeasure = useMeasureFormatter();
-  const overhead = runOverhead(run, attempts);
+  const overhead = runOverhead(run);
   const describe = (measures: OverheadMeasures): string =>
     t("eval.results.overheadMeasures", {
       elapsed: formatMeasure(measures.elapsedMs, formatElapsed),
@@ -151,72 +150,9 @@ const OverheadLine: React.FC<{
       data-testid="eval-results-overhead"
     >
       {t("eval.results.overhead", {
-        judge: describe(overhead.judge),
         coordinator: describe(overhead.coordinator),
       })}
     </Typography>
-  );
-};
-
-const AttemptList: React.FC<{
-  run: EvalRunReport;
-  attempts: EvalAttemptReport[];
-  selectedId: string | null;
-  onSelect: (attemptId: string) => void;
-}> = ({ run, attempts, selectedId, onSelect }) => {
-  const { t } = useTranslation();
-  const notReported = t("eval.results.notReported");
-  return (
-    <Table size="small" data-testid="eval-results-attempts">
-      <TableHead>
-        <TableRow>
-          <TableCell>{t("eval.results.attempts.case")}</TableCell>
-          <TableCell>{t("eval.results.attempts.setup")}</TableCell>
-          <TableCell>{t("eval.results.attempts.status")}</TableCell>
-          <TableCell>{t("eval.results.columns.recognition")}</TableCell>
-          <TableCell />
-        </TableRow>
-      </TableHead>
-      <TableBody>
-        {attempts.map((attempt) => {
-          const assessment = automatedAssessment(attempt);
-          return (
-            <TableRow
-              key={attempt.id}
-              selected={attempt.id === selectedId}
-              data-testid={`eval-results-attempt-${attempt.id}`}
-            >
-              <TableCell>
-                {caseTitle(run, attempt) ??
-                  t("eval.results.attempt.unknownCase")}
-              </TableCell>
-              <TableCell>
-                {setupLabel(attempt.payload.configuration.target)}
-              </TableCell>
-              <TableCell>
-                {t(`eval.results.attempts.status.${attempt.payload.status}`)}
-              </TableCell>
-              <TableCell>
-                {assessment === null
-                  ? notReported
-                  : assessment.recognition.recognized
-                    ? t("eval.results.assessment.recognized")
-                    : t("eval.results.assessment.notRecognized")}
-              </TableCell>
-              <TableCell align="right">
-                <Button
-                  size="small"
-                  onClick={() => onSelect(attempt.id)}
-                  data-testid={`eval-results-open-attempt-${attempt.id}`}
-                >
-                  {t("eval.results.attempts.open")}
-                </Button>
-              </TableCell>
-            </TableRow>
-          );
-        })}
-      </TableBody>
-    </Table>
   );
 };
 
@@ -247,7 +183,6 @@ const EvalResultsView: React.FC<EvalResultsViewProps> = ({
     () => (run ? compareSetups(run, attempts) : []),
     [run, attempts],
   );
-  const selected = attempts.find(({ id }) => id === selectedId) ?? null;
 
   if (error) {
     return (
@@ -314,6 +249,7 @@ const EvalResultsView: React.FC<EvalResultsViewProps> = ({
             <TableCell>{t("eval.results.columns.elapsed")}</TableCell>
             <TableCell>{t("eval.results.columns.tokens")}</TableCell>
             <TableCell>{t("eval.results.columns.toolCalls")}</TableCell>
+            <TableCell>{t("eval.results.columns.cost")}</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -325,7 +261,7 @@ const EvalResultsView: React.FC<EvalResultsViewProps> = ({
           ))}
         </TableBody>
       </Table>
-      <OverheadLine run={run} attempts={attempts} />
+      <OverheadLine run={run} />
       <Typography variant="caption" color="text.secondary" component="p">
         {t("eval.results.averagesNote")}
       </Typography>
@@ -338,25 +274,14 @@ const EvalResultsView: React.FC<EvalResultsViewProps> = ({
         {t("eval.results.observationNote")}
       </Typography>
 
-      <Typography variant="h6" component="h2" sx={{ mt: 3, mb: 1 }}>
-        {t("eval.results.attempts.title")}
-      </Typography>
-      <AttemptList
+      <EvalCaseRows
+        organizationId={organizationId}
+        projectId={projectId}
         run={run}
         attempts={attempts}
-        selectedId={selected?.id ?? null}
+        selectedId={selectedId}
         onSelect={(attemptId) => void setSelectedId(attemptId)}
       />
-      {selected && (
-        // Keyed so a review draft never carries over to another attempt.
-        <EvalAttemptDetail
-          key={selected.id}
-          organizationId={organizationId}
-          projectId={projectId}
-          run={run}
-          attempt={selected}
-        />
-      )}
     </>
   );
 };

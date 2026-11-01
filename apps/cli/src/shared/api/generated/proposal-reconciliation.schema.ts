@@ -31,6 +31,16 @@ export const proposalReconciliationCandidateSchema = {
             "AGENT_FIX"
           ]
         },
+        "expectedCandidateRevisionId": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Required for future reconciliation; the exact persisted proposal content revision reviewed by the editor."
+        },
+        "expectedFutureRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Required for a future candidate; prevents a stale result replacing a newer reviewed future."
+        },
         "proposedResult": {
           "type": "object",
           "additionalProperties": true,
@@ -79,6 +89,101 @@ export const proposalReconciliationCandidateSchema = {
           "description": "The server-issued current bases used to prepare an Agent fix; further drift rejects submission."
         }
       }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "proposedResult",
+        "expectedCurrentBases"
+      ],
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "MANUAL"
+          ]
+        },
+        "expectedCandidateRevisionId": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Required for future reconciliation; the exact persisted proposal content revision reviewed by the editor."
+        },
+        "expectedFutureRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Required for a future candidate; prevents a stale result replacing a newer reviewed future."
+        },
+        "proposedResult": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Required for manual resolution; admitted through ordinary proposal validation before persistence. Submission never authorizes application."
+        },
+        "expectedCurrentBases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "entityType",
+              "entityId",
+              "version",
+              "content"
+            ],
+            "properties": {
+              "entityType": {
+                "type": "string",
+                "enum": [
+                  "TASK",
+                  "DESIGN_DOC",
+                  "REPORT",
+                  "SERVICE",
+                  "AGENT_SESSION",
+                  "CONVERSATION",
+                  "WORK_ITEM_TYPE",
+                  "ENTITY_PROMPT_TEMPLATE",
+                  "EDGE"
+                ]
+              },
+              "entityId": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "description": "Server-owned version of the exact captured content, including section edits."
+              },
+              "content": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Complete canonical content produced by the owning entity adapter; never a client-supplied historical baseline."
+              }
+            }
+          },
+          "description": "The server-issued current bases used to prepare a manual resolution; further drift rejects submission."
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "suggestionId"
+      ],
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "ACCEPT_SUGGESTION",
+            "REJECT_SUGGESTION"
+          ]
+        },
+        "suggestionId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
     }
   ]
 } as const;
@@ -104,6 +209,77 @@ export const proposalReconciliationStateSchema = {
         "READY_FOR_REVIEW"
       ]
     },
+    "suggestions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "proposalId",
+          "organizationId",
+          "projectId",
+          "status",
+          "candidateRevisionId",
+          "proposedResult",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "proposalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "ACCEPTED",
+              "REJECTED",
+              "SUPERSEDED",
+              "OUT_OF_DATE",
+              "RETIRED"
+            ]
+          },
+          "candidateRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "proposedResult": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "messageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "legacyProposalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    },
+    "futureRevision": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Stored future revision used to prepare this context; include as expectedFutureRevision when submitting future reconciliation."
+    },
     "writtenAt": {
       "type": "string",
       "format": "date-time",
@@ -111,7 +287,7 @@ export const proposalReconciliationStateSchema = {
     },
     "interveningProposals": {
       "type": "array",
-      "description": "Proposals approved on the same target after this change was written, oldest first. Empty when the proposal is approved or rejected.",
+      "description": "Proposals approved on the same target after this change was written, oldest first. Empty for terminal proposals; approved unapplied futures remain reviewable.",
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -277,7 +453,8 @@ export const proposalReconciliationStateSchema = {
             "enum": [
               "AUTHORING",
               "MERGE",
-              "AGENT_FIX"
+              "AGENT_FIX",
+              "MANUAL"
             ]
           },
           "previousRevisionId": {
@@ -360,6 +537,146 @@ export const proposalReconciliationStateSchema = {
     "replacementProposalId": {
       "type": "string",
       "format": "uuid"
+    }
+  }
+} as const;
+export const proposalReviewNoteSchema = {
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "noteId",
+    "frozenRevision",
+    "sectionKey",
+    "sizeKey",
+    "target",
+    "note"
+  ],
+  "properties": {
+    "noteId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Caller-owned stable identity for idempotent note saving."
+    },
+    "frozenRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "sectionKey": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sizeKey": {
+      "type": "string",
+      "minLength": 1
+    },
+    "target": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "nodeId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "element"
+              ]
+            },
+            "nodeId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Stable data-hh-id value exposed by the validated HTML/CSS document."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "x",
+            "y",
+            "sizeKey"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "position"
+              ]
+            },
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "sizeKey": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Presentation profile in which the normalized position was authored."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "componentId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "component"
+              ]
+            },
+            "componentId": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "x",
+            "y"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "position"
+              ]
+            },
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        }
+      ]
+    },
+    "note": {
+      "type": "string",
+      "minLength": 1
     }
   }
 } as const;

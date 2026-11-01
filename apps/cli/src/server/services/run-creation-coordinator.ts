@@ -1,3 +1,5 @@
+import { createRunArgsFromSession } from '../../run/run-activation';
+import { resolveProjectAssistantBootstrap } from '../../agents/project-assistant/proactive-behavior';
 import type { PromptTypeRegistry } from '../../agents/prompt-type-registry';
 import type { RunRegistry } from '../../run/run-registry';
 import type {
@@ -113,6 +115,7 @@ export class RunCreationCoordinator {
 
     const materialized = await this.dependencies.runService.materializeRun(input);
     if (materialized.status === 'repo-required') return materialized;
+    input.signal?.throwIfAborted();
 
     if (
       materialized.created &&
@@ -150,11 +153,44 @@ export class RunCreationCoordinator {
         references: input.references ?? { resolved: [], unresolved: [] },
         ...(input.skillSelection ? { skillSelection: input.skillSelection } : {}),
       };
+      if (input.projectAssistantConsumerHandlerId) {
+        const located = await this.dependencies.runService.activateRunByAnyId(
+          materialized.run.agentic_session_id,
+        );
+        if (!located) {
+          throw new Error('Standalone Project Assistant Run is unavailable.');
+        }
+        const bootstrap = resolveProjectAssistantBootstrap(
+          this.dependencies.promptTypeRegistry.getById(input.projectAssistantConsumerHandlerId),
+          located.agenticSession,
+          located.agenticSession.entity,
+          'userMessage' in input.payload ? (input.payload.userMessage ?? '') : '',
+          this.dependencies.logger,
+        );
+        if (!bootstrap) {
+          throw new Error('The selected consumer does not provide a Project Assistant policy.');
+        }
+        firstTurnRequest.promptType = LocalPromptType.ProjectAssistant;
+        firstTurnRequest.payload = bootstrap.payload;
+      }
       this.dependencies.logger.debug('local.service.create_run.first_turn_dispatch.started', {
         runId: materialized.run.agentic_session_id,
         promptType,
       });
+      if (input.inert) {
+        const located = await this.dependencies.runService.activateRunByAnyId(
+          materialized.run.agentic_session_id,
+        );
+        if (!located) {
+          throw new Error('Created inert Run is unavailable.');
+        }
+        const run =
+          this.dependencies.runRegistry.get(materialized.run.agentic_session_id) ??
+          this.dependencies.runRegistry.create(createRunArgsFromSession(located.agenticSession));
+        run.admitInitialInertInput();
+      }
       try {
+        input.signal?.throwIfAborted();
         await this.dependencies.messageService.sendMessage(
           materialized.run.agentic_session_id,
           firstTurnRequest,

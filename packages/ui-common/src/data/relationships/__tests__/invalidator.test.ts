@@ -20,12 +20,12 @@ import {
   type CollectionInvalidator,
   type InvalidationContext,
 } from "../invalidator";
-import type { QueryKey } from "../../core/types";
+import type { QueryKey } from "@tanstack/react-query";
 
 const routeMarkStaleMock = vi.mocked(coordinator.routeMarkStale);
 
 function sentinelKey(label: string): QueryKey {
-  return { __sentinel: label } as unknown as QueryKey;
+  return ["sentinel", label] as QueryKey;
 }
 
 function makeConfig(rules: InvalidationRule[]): InvalidationConfig {

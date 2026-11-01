@@ -1,3 +1,5 @@
+import { useModalState } from "../Modals/useModalState";
+import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import React, { useState, useCallback, useEffect, useMemo } from "react";
 import { Box, Fab, Tooltip, Zoom } from "@mui/material";
 import DebugIcon from "@mui/icons-material/BugReport";
@@ -54,7 +56,8 @@ export const DebugManager: React.FC<DebugManagerProps> = ({
 
   const preferences = { ...DEFAULT_PREFERENCES, ...propPreferences };
 
-  const [debugModalOpen, setDebugModalOpen] = useState(false);
+  const [debugModalOpen, setDebugModalOpen, debugModalOpenOwnerKey] =
+    useModalState(false);
   const [fabVisible, setFabVisible] = useState(enabled && !debugPanelVisible);
 
   // Memoize workflowId to prevent unnecessary re-renders
@@ -252,11 +255,13 @@ export const DebugManager: React.FC<DebugManagerProps> = ({
 
       {/* WebSocket Debug Modal */}
       {debugModalOpen && (
-        <WebSocketDebugModal
-          open={debugModalOpen}
-          onClose={closeDebugModal}
-          maxEvents={preferences.maxEventHistory}
-        />
+        <ModalWorkOwner.Provider value={debugModalOpenOwnerKey}>
+          <WebSocketDebugModal
+            open={debugModalOpen}
+            onClose={closeDebugModal}
+            maxEvents={preferences.maxEventHistory}
+          />
+        </ModalWorkOwner.Provider>
       )}
 
       {/* Development overlay indicator */}

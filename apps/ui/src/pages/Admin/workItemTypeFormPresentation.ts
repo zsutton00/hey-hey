@@ -23,8 +23,8 @@ export type WorkItemTypeFormField =
       | "tracking"
       | "anchorableReportTypes"
       | "writingStandards"
-      | "agentGuidance"
       | "maintenanceGuidance"
+      | "sessionRoleGuidance"
       | "capabilities"
     >
   | "sections.key"
@@ -36,12 +36,6 @@ export type WorkItemTypeFormField =
   | "tracking.allowedSourceTaskTypes"
   | "writingStandards.create"
   | "writingStandards.edit"
-  | "agentGuidance.overview"
-  | "agentGuidance.examples"
-  | "agentGuidance.contexts"
-  | "agentGuidance.contexts.focalTypeKeys"
-  | "agentGuidance.contexts.guidance"
-  | "agentGuidance.contexts.examples"
   | "capabilities.key";
 
 export const WORK_ITEM_TYPE_FIELD_PRESENTATION = {
@@ -133,9 +127,9 @@ export const WORK_ITEM_TYPE_FIELD_PRESENTATION = {
     label: "Writing standards",
     help: "Type-level standards agents read before creating or editing an item.",
   },
-  agentGuidance: {
-    label: "Semantic guidance",
-    help: "Optional meaning, recognition examples, and focal context guidance. Separate from the type purpose and creation or editing writing standards.",
+  sessionRoleGuidance: {
+    label: "Session-role guidance",
+    help: "Optional instructions for implementation, research, planning and review sessions. Session role describes the work being performed, separately from the type’s classification role, create/edit writing standards and maintenance advice.",
   },
   maintenanceGuidance: {
     label: "Maintenance guidance",
@@ -148,30 +142,6 @@ export const WORK_ITEM_TYPE_FIELD_PRESENTATION = {
   "writingStandards.edit": {
     label: "Writing standard — Edit",
     help: "Type-level writing standard an agent reads before editing an item of this type.",
-  },
-  "agentGuidance.overview": {
-    label: "Overview",
-    help: "Explain the meaning of this type and how to recognize it.",
-  },
-  "agentGuidance.examples": {
-    label: "Examples",
-    help: "General examples that help recognize this type.",
-  },
-  "agentGuidance.contexts": {
-    label: "Contextual guidance",
-    help: "Guidance that applies when working with selected focal types.",
-  },
-  "agentGuidance.contexts.focalTypeKeys": {
-    label: "Focal types",
-    help: "Work-item types for which this context applies.",
-  },
-  "agentGuidance.contexts.guidance": {
-    label: "Contextual guidance",
-    help: "Explain how this type relates to the selected focal types.",
-  },
-  "agentGuidance.contexts.examples": {
-    label: "Context examples",
-    help: "Examples specific to these focal types.",
   },
   capabilities: {
     label: "Capabilities",

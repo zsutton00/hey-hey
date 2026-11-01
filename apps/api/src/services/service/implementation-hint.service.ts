@@ -207,7 +207,7 @@ export class ImplementationHintService {
   ): Promise<ImplementationHintRecordDto[]> {
     const normalizedServiceId = this.normalizeQueryId(serviceId, 'serviceId');
     if (normalizedServiceId) {
-      await this.ensureServiceAccess(normalizedServiceId, organizationId);
+      await this.ensureServiceReadAccess(normalizedServiceId, organizationId);
     }
 
     const normalizedFilters = this.normalizeFindFilters(filters);
@@ -1266,6 +1266,21 @@ export class ImplementationHintService {
         : { service: { organizationId, archivedAt: null } }),
       ...filePathFilter,
     };
+  }
+
+  private async ensureServiceReadAccess(
+    serviceId: string,
+    organizationId: OrganizationId,
+  ): Promise<void> {
+    const exists = await this.prisma.db.service.findFirst({
+      where: { id: serviceId, organizationId },
+      select: { id: true },
+    });
+    if (!exists) {
+      throw new NotFoundException(
+        `Service ${serviceId} not found in organization ${organizationId}`,
+      );
+    }
   }
 
   private async ensureServiceAccess(

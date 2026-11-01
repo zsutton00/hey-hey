@@ -1,3 +1,4 @@
+import { ProposalReconciliationService } from '../proposal-reconciliation.service';
 import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
@@ -179,6 +180,26 @@ function makeCascadeDeleteWorkItemTypeDto(
   };
 }
 
+const reconciliationProvider = {
+  provide: ProposalReconciliationService,
+  useValue: new ProposalReconciliationService(
+    {} as never,
+    {} as never,
+    () => 'test',
+  ),
+};
+
+describe('task assignment update structure', () => {
+  it.each([undefined, testIds.user, null])(
+    'accepts a task update with assigneeId %s',
+    (assigneeId) => {
+      const proposal = makeUpdateTaskDto({ updates: { assigneeId } });
+
+      expect(validateProposalStructure(proposal)).toEqual([]);
+    },
+  );
+});
+
 describe('ProposalValidationEngine', () => {
   let engine: ProposalValidationEngine;
   let mockPrisma: ReturnType<typeof mockPrismaWithValidationSession>;
@@ -197,6 +218,7 @@ describe('ProposalValidationEngine', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProposalValidationEngine,
+        reconciliationProvider,
         { provide: PrismaService, useValue: mockPrisma },
         {
           provide: WorkItemTypeRegistryService,
@@ -3880,6 +3902,7 @@ describe('ProposalValidationEngine', () => {
         const module = await Test.createTestingModule({
           providers: [
             ProposalValidationEngine,
+            reconciliationProvider,
             WorkItemParentageValidator,
             { provide: PrismaService, useValue: mockPrisma },
             { provide: WorkItemTypeRegistryService, useValue: registry },
@@ -4033,6 +4056,7 @@ describe('ProposalValidationEngine', () => {
         const module = await Test.createTestingModule({
           providers: [
             ProposalValidationEngine,
+            reconciliationProvider,
             WorkItemParentageValidator,
             { provide: PrismaService, useValue: mockPrisma },
             { provide: WorkItemTypeRegistryService, useValue: registry },
@@ -4382,6 +4406,7 @@ describe('ProposalValidationEngine', () => {
         const module: TestingModule = await Test.createTestingModule({
           providers: [
             ProposalValidationEngine,
+            reconciliationProvider,
             WorkItemParentageValidator,
             { provide: PrismaService, useValue: mockPrisma },
             {
@@ -4462,6 +4487,7 @@ describe('ProposalValidationEngine', () => {
         const module: TestingModule = await Test.createTestingModule({
           providers: [
             ProposalValidationEngine,
+            reconciliationProvider,
             WorkItemParentageValidator,
             { provide: PrismaService, useValue: mockPrisma },
             { provide: WorkItemTypeRegistryService, useValue: registry },
@@ -4623,6 +4649,7 @@ describe('ProposalValidationEngine', () => {
         const module: TestingModule = await Test.createTestingModule({
           providers: [
             ProposalValidationEngine,
+            reconciliationProvider,
             WorkItemParentageValidator,
             { provide: PrismaService, useValue: mockPrisma },
             { provide: WorkItemTypeRegistryService, useValue: registry },
@@ -4954,30 +4981,25 @@ describe('ProposalValidationEngine', () => {
 
   describe('work-item-type definition validation', () => {
     describe('structural', () => {
-      it('accepts semantic guidance on definition proposals', async () => {
-        const result = await engine.validate({
-          proposals: [
-            makeCreateWorkItemTypeDto({
-              agentGuidance: {
-                overview: 'Meaning',
-                examples: [{ title: 'Example', guidance: 'Use case' }],
-                contexts: [
-                  {
-                    focalTypeKeys: ['custom-focus'],
-                    guidance: 'Directional meaning',
-                  },
-                ],
-              },
-            }),
-          ],
-          context: makeContext(),
-        });
-        expect(
-          result.proposals[0]!.errors.filter(
-            (error) => error.layer === 'structural',
-          ),
-        ).toEqual([]);
-      });
+      it.each([
+        {},
+        { review: '  Review advice  ' },
+        { implementation: 'Build', research: 'Learn', planning: 'Plan' },
+      ])(
+        'accepts optional role advice on definition proposals: %j',
+        async (sessionRoleGuidance) => {
+          const result = await engine.validate({
+            proposals: [makeCreateWorkItemTypeDto({ sessionRoleGuidance })],
+            context: makeContext(),
+          });
+          expect(
+            result.proposals[0]!.errors.filter(
+              (error) => error.layer === 'structural',
+            ),
+          ).toEqual([]);
+        },
+      );
+
       it('accepts maintenance advice on definition proposals', async () => {
         const result = await engine.validate({
           proposals: [
@@ -4993,35 +5015,6 @@ describe('ProposalValidationEngine', () => {
           ),
         ).toEqual([]);
       });
-
-      it.each([
-        { overview: '' },
-        { overview: 'Meaning', extra: true },
-        {
-          overview: 'Meaning',
-          contexts: [{ focalTypeKeys: [], guidance: 'Body' }],
-        },
-        {
-          overview: 'Meaning',
-          contexts: [
-            { focalTypeKeys: ['focus'], guidance: 'Body', extra: true },
-          ],
-        },
-      ])(
-        'rejects malformed guidance at proposal validation %j',
-        async (agentGuidance) => {
-          const result = await engine.validate({
-            proposals: [makeCreateWorkItemTypeDto({ agentGuidance })],
-            context: makeContext(),
-          });
-          expect(result.valid).toBe(false);
-          expect(
-            result.proposals[0]!.errors.some(
-              (error) => error.layer === 'structural',
-            ),
-          ).toBe(true);
-        },
-      );
 
       it('rejects an unrecognized status enum member', async () => {
         const dto = makeCreateWorkItemTypeDto({
@@ -5554,6 +5547,7 @@ describe('ProposalValidationEngine', () => {
           await Test.createTestingModule({
             providers: [
               ProposalValidationEngine,
+              reconciliationProvider,
               WorkItemParentageValidator,
               { provide: PrismaService, useValue: mockPrisma },
               {
@@ -5606,6 +5600,7 @@ describe('ProposalValidationEngine', () => {
           await Test.createTestingModule({
             providers: [
               ProposalValidationEngine,
+              reconciliationProvider,
               WorkItemParentageValidator,
               { provide: PrismaService, useValue: mockPrisma },
               {
@@ -5687,6 +5682,7 @@ describe('ProposalValidationEngine', () => {
           await Test.createTestingModule({
             providers: [
               ProposalValidationEngine,
+              reconciliationProvider,
               WorkItemParentageValidator,
               { provide: PrismaService, useValue: mockPrisma },
               {
@@ -5723,94 +5719,6 @@ describe('ProposalValidationEngine', () => {
           'Valid types: CONTRACT, DIAGRAM, DIAGRAM_ELEMENT, FEATURE, GOAL, PLAN, PLAN_STAGE, STANDARD, TASK_MONITOR, workflow, workflow_step',
         );
       });
-
-      it('accepts MODE applicability declared with an active effective type key', async () => {
-        mockPrisma.db.project.findFirst.mockResolvedValue({
-          id: testIds.project,
-        });
-
-        const result = await engine.validate({
-          proposals: [
-            makeCreateWorkItemTypeDto({
-              key: WORK_ITEM_TYPE_KEYS.Mode,
-              agentGuidance: {
-                overview: 'A project-owned coding-agent behavior bundle.',
-                contexts: [
-                  {
-                    focalTypeKeys: [WORK_ITEM_TYPE_KEYS.Standard],
-                    guidance: 'Apply this mode to STANDARD work items.',
-                  },
-                ],
-              },
-            }),
-          ],
-          context: makeContext(),
-        });
-
-        expect(result.valid).toBe(true);
-        expect(result.proposals[0]!.errors).toHaveLength(0);
-      });
-
-      it.each([
-        ['unknown', 'NOT_A_TYPE'],
-        ['archived', WORK_ITEM_TYPE_KEYS.Bug],
-      ] as const)(
-        'rejects MODE applicability for an %s effective type key',
-        async (kind, typeKey) => {
-          const registry =
-            kind === 'archived'
-              ? await createRegistryWithArchivedSystemType(
-                  WORK_ITEM_TYPE_KEYS.Bug,
-                )
-              : await createWarmWorkItemTypeRegistry();
-          const scopedModule: TestingModule = await Test.createTestingModule({
-            providers: [
-              ProposalValidationEngine,
-              WorkItemParentageValidator,
-              { provide: PrismaService, useValue: mockPrisma },
-              {
-                provide: WorkItemTypeRegistryService,
-                useValue: registry,
-              },
-            ],
-          }).compile();
-          const scopedEngine = scopedModule.get<ProposalValidationEngine>(
-            ProposalValidationEngine,
-          );
-          mockPrisma.db.project.findFirst.mockResolvedValue({
-            id: testIds.project,
-          });
-
-          const result = await scopedEngine.validate({
-            proposals: [
-              makeCreateWorkItemTypeDto({
-                key: WORK_ITEM_TYPE_KEYS.Mode,
-                agentGuidance: {
-                  overview: 'A project-owned coding-agent behavior bundle.',
-                  contexts: [
-                    {
-                      focalTypeKeys: [typeKey],
-                      guidance: 'Apply this mode to the selected work items.',
-                    },
-                  ],
-                },
-              }),
-            ],
-            context: makeContext(),
-          });
-
-          expect(result.valid).toBe(false);
-          expect(
-            result.proposals[0]!.errors.some(
-              (error) =>
-                error.code === 'unrecognized_type' &&
-                error.field.includes(
-                  'agentGuidance.contexts[0].focalTypeKeys[0]',
-                ),
-            ),
-          ).toBe(true);
-        },
-      );
 
       it('allows a self-reference to the key being created', async () => {
         mockPrisma.db.project.findFirst.mockResolvedValue({
@@ -5919,6 +5827,7 @@ describe('ProposalValidationEngine', () => {
         const customModule = await Test.createTestingModule({
           providers: [
             ProposalValidationEngine,
+            reconciliationProvider,
             WorkItemParentageValidator,
             { provide: PrismaService, useValue: mockPrisma },
             {
@@ -5957,6 +5866,7 @@ describe('ProposalValidationEngine', () => {
         const customModule = await Test.createTestingModule({
           providers: [
             ProposalValidationEngine,
+            reconciliationProvider,
             WorkItemParentageValidator,
             { provide: PrismaService, useValue: mockPrisma },
             {
@@ -6023,6 +5933,7 @@ describe('ProposalValidationEngine', () => {
         const archivedModule = await Test.createTestingModule({
           providers: [
             ProposalValidationEngine,
+            reconciliationProvider,
             WorkItemParentageValidator,
             { provide: PrismaService, useValue: mockPrisma },
             {
@@ -6217,6 +6128,7 @@ describe('ProposalValidationEngine', () => {
           await Test.createTestingModule({
             providers: [
               ProposalValidationEngine,
+              reconciliationProvider,
               WorkItemParentageValidator,
               { provide: PrismaService, useValue: mockPrisma },
               {
@@ -6284,6 +6196,7 @@ describe('ProposalValidationEngine', () => {
         const customModule = await Test.createTestingModule({
           providers: [
             ProposalValidationEngine,
+            reconciliationProvider,
             WorkItemParentageValidator,
             { provide: PrismaService, useValue: mockPrisma },
             { provide: WorkItemTypeRegistryService, useValue: customRegistry },

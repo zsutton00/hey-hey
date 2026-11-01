@@ -10,16 +10,14 @@
  * Do not edit the class manually.
  */
 
+import { EvalHandlerConfig } from '../models/EvalHandlerConfig';
 import { HttpFile } from '../http/http';
 
 export class EvalModelSetting {
   'provider': string;
   'model': string;
   'reasoningEffort'?: string;
-  /**
-   * Handler settings recorded from Agent Config.
-   */
-  'handlerConfig'?: { [key: string]: any };
+  'handlerConfig'?: EvalHandlerConfig;
 
   static readonly discriminator: string | undefined = undefined;
 
@@ -52,7 +50,7 @@ export class EvalModelSetting {
     {
       name: 'handlerConfig',
       baseName: 'handlerConfig',
-      type: '{ [key: string]: any; }',
+      type: 'EvalHandlerConfig',
       format: '',
     },
   ];

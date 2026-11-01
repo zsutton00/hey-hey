@@ -373,7 +373,7 @@ describe("AgentConversationView messages-collection cutover", () => {
       store,
       {
         logEvent: vi.fn(),
-        logCollectionAction: vi.fn(),
+        logQueryInvalidation: vi.fn(),
       },
       queryClient,
     );

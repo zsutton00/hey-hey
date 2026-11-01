@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+import { useModalState } from "../Modals/useModalState";
+import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
+import React from "react";
 import {
   Select,
   MenuItem,
@@ -62,7 +64,11 @@ export const WorkItemStatusSelector: React.FC<WorkItemStatusSelectorProps> = ({
   size = "medium",
   error = false,
 }) => {
-  const [supersedeDialogOpen, setSupersedeDialogOpen] = useState(false);
+  const [
+    supersedeDialogOpen,
+    setSupersedeDialogOpen,
+    supersedeDialogOpenOwnerKey,
+  ] = useModalState(false);
   const { getAllowedStatuses, isLoading } = useTaskAllowedStatuses({
     organizationId,
     projectId,
@@ -85,15 +91,15 @@ export const WorkItemStatusSelector: React.FC<WorkItemStatusSelectorProps> = ({
   const allowedStatuses = getAllowedStatuses(taskType).filter(
     (status) =>
       !isMachineManagedStatus(status) &&
-      (status !== WorkStatus.Superseded || Boolean(taskId))
+      (status !== WorkStatus.Superseded || Boolean(taskId)),
   );
   const isFeature = taskType === FEATURE_TASK_TYPE;
   const resolveLabel = (status: WorkStatus) =>
     isFeature
       ? getFeatureStatusLabel(status)
       : taskType === "PLAN"
-      ? getPlanStatusLabel(status)
-      : getStatusLabel(status);
+        ? getPlanStatusLabel(status)
+        : getStatusLabel(status);
 
   return (
     <>
@@ -140,13 +146,15 @@ export const WorkItemStatusSelector: React.FC<WorkItemStatusSelectorProps> = ({
         {helperText && <FormHelperText>{helperText}</FormHelperText>}
       </FormControl>
       {taskId && (
-        <SupersedeTaskDialog
-          open={supersedeDialogOpen}
-          organizationId={organizationId}
-          projectId={projectId}
-          taskId={taskId}
-          onClose={() => setSupersedeDialogOpen(false)}
-        />
+        <ModalWorkOwner.Provider value={supersedeDialogOpenOwnerKey}>
+          <SupersedeTaskDialog
+            open={supersedeDialogOpen}
+            organizationId={organizationId}
+            projectId={projectId}
+            taskId={taskId}
+            onClose={() => setSupersedeDialogOpen(false)}
+          />
+        </ModalWorkOwner.Provider>
       )}
     </>
   );

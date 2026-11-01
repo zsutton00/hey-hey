@@ -16,6 +16,8 @@ import { VerifyImpactedEntityReference } from './verifyImpactedEntityReference';
 
 
 export interface RunCreatePayloadVerifyFeature { 
+    promptType: RunCreatePayloadVerifyFeature.PromptTypeEnum;
+    entity: RunEntityReference;
     /**
      * The flagged discrepancy this session investigates, and nothing else.
      */
@@ -32,8 +34,6 @@ export interface RunCreatePayloadVerifyFeature {
      * The opening message (or the user\'s follow-up) for this turn.
      */
     userMessage: string;
-    promptType: RunCreatePayloadVerifyFeature.PromptTypeEnum;
-    entity: RunEntityReference;
 }
 export namespace RunCreatePayloadVerifyFeature {
     export type PromptTypeEnum = 'verify_feature';

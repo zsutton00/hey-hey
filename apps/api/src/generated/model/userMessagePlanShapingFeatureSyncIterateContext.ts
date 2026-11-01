@@ -19,6 +19,14 @@ import { PlanShapingFeatureSyncItemDecision } from './planShapingFeatureSyncItem
  * The plan-shaping feature-sync iterate fields copied from the active flow context for a follow-up turn. The handler is selected by the enclosing `handlerPromptType`; outstanding discrepancies remain in their existing order and every explicit decision is preserved. Empty arrays are valid when the flow explicitly has no findings or pending choices. 
  */
 export interface UserMessagePlanShapingFeatureSyncIterateContext { 
+    /**
+     * Canonical delivering Plan identity from the persisted plan seed.
+     */
+    planId: string;
+    /**
+     * Authoritative design document from the persisted plan seed.
+     */
+    designDocId: string;
     discrepancies: Array<FeatureSyncDiscrepancy>;
     decisions: Array<PlanShapingFeatureSyncItemDecision>;
 }

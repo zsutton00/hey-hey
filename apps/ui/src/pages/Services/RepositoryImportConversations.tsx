@@ -1,3 +1,4 @@
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import {
   ConversationStatus,
   type ConversationResponseDto,
@@ -12,7 +13,6 @@ import {
   Box,
   Button,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
@@ -191,8 +191,7 @@ export const RepositoryImportConversations: React.FC<
         </DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Delete “
-            {conversationPendingDelete?.title ?? "repository import"}
+            Delete “{conversationPendingDelete?.title ?? "repository import"}
             ”? This will permanently remove the import conversation and its
             messages.
           </DialogContentText>
@@ -227,12 +226,7 @@ interface RepositoryImportConversationRowProps {
 
 const RepositoryImportConversationRow: React.FC<
   RepositoryImportConversationRowProps
-> = ({
-  conversation,
-  isDeletePending,
-  onDelete,
-  onOpen,
-}) => {
+> = ({ conversation, isDeletePending, onDelete, onOpen }) => {
   const completed = isCompletedImportConversation(conversation);
 
   return (

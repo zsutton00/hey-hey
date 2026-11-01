@@ -238,6 +238,23 @@ describe('AuthController', () => {
       );
     });
 
+    it('drops a leftover demo binding so a real sign-in is not replaced by a demo', async () => {
+      jest
+        .spyOn(authService, 'login')
+        .mockResolvedValue(mockEstablishedSession);
+
+      await controller.login(
+        { email: 'test@example.com', password: 'validpassword' },
+        mockRequest as Request,
+        mockResponse as Response,
+      );
+
+      expect(mockResponse.clearCookie).toHaveBeenCalledWith(
+        'demoSandboxBinding',
+        expect.objectContaining({ path: '/' }),
+      );
+    });
+
     it('should handle login failures gracefully', async () => {
       // INTENT: Test error handling for authentication failures
       // This ensures the API provides appropriate feedback for invalid credentials
@@ -689,6 +706,20 @@ describe('AuthController', () => {
       });
     });
 
+    it('makes the browser forget its demo so resume cannot sign it back in', async () => {
+      mockRequest.cookies = {
+        refreshToken: 'refresh-secret',
+        accessToken: 'access-token',
+      };
+
+      await controller.logout(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.clearCookie).toHaveBeenCalledWith(
+        'demoSandboxBinding',
+        expect.objectContaining({ path: '/' }),
+      );
+    });
+
     it('does not clear cookies when session revocation fails', async () => {
       jest
         .spyOn(authService, 'logout')
@@ -777,6 +808,23 @@ describe('AuthController', () => {
         'refreshToken',
         mockEstablishedSession.refreshSecret,
         expect.objectContaining({ path: '/api/v1/auth' }),
+      );
+    });
+
+    it('drops a leftover demo binding when it completes a real sign-in', async () => {
+      jest
+        .spyOn(authService, 'changePassword')
+        .mockResolvedValue(mockEstablishedSession);
+
+      await controller.changePassword(
+        { passwordChangeToken: 'password-change', newPassword: 'replacement' },
+        mockRequest as Request,
+        mockResponse as Response,
+      );
+
+      expect(mockResponse.clearCookie).toHaveBeenCalledWith(
+        'demoSandboxBinding',
+        expect.objectContaining({ path: '/' }),
       );
     });
   });

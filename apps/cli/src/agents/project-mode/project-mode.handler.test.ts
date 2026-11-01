@@ -1,3 +1,7 @@
+import { resolveHandlerSessionRole } from '../prompt-type-handler';
+import { SessionRole } from '../../shared/agent-bridge-contract/generated/api';
+import { PromptTypeRegistry } from '../prompt-type-registry';
+import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../prompt-type-registry.test-support';
 import { describe, expect, it } from 'vitest';
 import { buildActivityResponsibilities } from '../prompts/knowledge-responsibilities';
 
@@ -208,8 +212,10 @@ describe('project-mode handler', () => {
       runnerKind: 'provider_session',
       mcpToolUseCase: 'coding',
       reports: [],
+      requiresChangedFileReporting: true,
     });
     expect(projectModeHandler.submissionTools?.map((tool) => tool.name)).toEqual([
+      'report_changed_files',
       'request_agent_session_service_scope',
     ]);
     expect(Object.isFrozen(projectModeHandler)).toBe(true);
@@ -268,5 +274,80 @@ describe('project-mode handler', () => {
     await expect(projectModeHandler.prepare!(makeSession(null), payload, deps)).rejects.toThrow(
       /captured config is invalid/,
     );
+  });
+});
+
+describe('handler-owned roles', () => {
+  it.each(Object.values(SessionRole))(
+    'retains captured %s independently of bootstrap and child handlers',
+    (sessionRole) => {
+      const captured = {
+        ...config,
+        projectModeSnapshot: {
+          ...snapshot,
+          schemaVersion: 'project-mode-snapshot.v3' as const,
+          projectAssistant: { enabled: true },
+          sessionRole,
+        },
+      };
+      const session = makeSession(captured);
+      const validated = validateProjectModeConfig(captured);
+      expect(validated.ok).toBe(true);
+      if (!validated.ok) throw new Error('invalid fixture');
+      expect(Object.isFrozen(validated.value.snapshot)).toBe(true);
+      expect(resolveHandlerSessionRole(projectModeHandler, session)).toBe(sessionRole);
+      expect(
+        resolveHandlerSessionRole(
+          new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES).get(
+            LocalPromptType.ProjectAssistant,
+          )!,
+          session,
+        ),
+      ).toBe(SessionRole.Research);
+      const { resolveSessionRole: _resolver, ...childHandler } = projectModeHandler;
+      expect(resolveHandlerSessionRole(childHandler, session)).toBe(SessionRole.Implementation);
+      // Reconstructing from persisted JSON does not consult the mutable MODE.
+      const resumed = makeSession(JSON.parse(JSON.stringify(captured)));
+      expect(resolveHandlerSessionRole(projectModeHandler, resumed)).toBe(sessionRole);
+    },
+  );
+
+  it.each(['project-mode-snapshot.v1', 'project-mode-snapshot.v2'] as const)(
+    'defaults legacy %s to implementation',
+    (schemaVersion) => {
+      const session = makeSession({
+        ...config,
+        projectModeSnapshot: {
+          ...snapshot,
+          schemaVersion,
+          ...(schemaVersion.endsWith('v2') ? { projectAssistant: { enabled: true } } : {}),
+        },
+      });
+      expect(resolveHandlerSessionRole(projectModeHandler, session)).toBe(
+        SessionRole.Implementation,
+      );
+    },
+  );
+
+  it.each([undefined, 'invalid'])('rejects a v3 snapshot with invalid role %s', (sessionRole) => {
+    const invalid = {
+      ...config,
+      projectModeSnapshot: {
+        ...snapshot,
+        schemaVersion: 'project-mode-snapshot.v3',
+        projectAssistant: { enabled: true },
+        sessionRole,
+      },
+    };
+    expect(validateProjectModeConfig(invalid)).toMatchObject({ ok: false });
+  });
+
+  it('rejects role declarations on legacy snapshots', () => {
+    expect(
+      validateProjectModeConfig({
+        ...config,
+        projectModeSnapshot: { ...snapshot, sessionRole: 'review' },
+      }),
+    ).toMatchObject({ ok: false });
   });
 });

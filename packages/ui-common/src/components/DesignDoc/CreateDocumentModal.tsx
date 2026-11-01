@@ -1,6 +1,6 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import React, { useCallback, useState } from "react";
 import {
-  Dialog,
   DialogTitle,
   DialogContent,
   Box,
@@ -61,15 +61,17 @@ export const CreateDocumentModal: React.FC<CreateDocumentModalProps> = ({
       PaperProps={{
         sx: { minHeight: "400px" },
       }}
+      closeControl={
+        <IconButton onClick={handleClose} size="small" disabled={isCreating}>
+          <CloseIcon />
+        </IconButton>
+      }
     >
       <DialogTitle>
         <Box display="flex" justifyContent="space-between" alignItems="center">
           <Typography variant="h6">
             {t("documents.createDocument", "Create Document")}
           </Typography>
-          <IconButton onClick={handleClose} size="small" disabled={isCreating}>
-            <CloseIcon />
-          </IconButton>
         </Box>
       </DialogTitle>
 

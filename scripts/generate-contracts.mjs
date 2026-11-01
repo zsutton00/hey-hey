@@ -126,12 +126,25 @@ const readRecord = () =>
     : null;
 
 const verify = () => {
+  const source = describeOpenapiSource();
+  if (
+    !run(
+      [
+        "node",
+        path.join(
+          source.openapiRoot,
+          "scripts/check-controller-schema-composition.js",
+        ),
+      ],
+      process.env,
+    )
+  )
+    return false;
   const record = readRecord();
   if (!record) {
     log("No generated-contracts.json record. Run pnpm generate:contracts.");
     return false;
   }
-  const source = describeOpenapiSource();
   const problems = [];
   if (source.closureDigest !== record.source.closureDigest) {
     problems.push(

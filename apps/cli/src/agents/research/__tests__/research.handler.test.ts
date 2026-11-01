@@ -77,7 +77,6 @@ describe('researchHandler — registration & toolset', () => {
     const forbidden = [
       'create_work_item',
       'edit_work_item',
-      'edit_tasks',
       'create_step',
       'update_step',
       'create_plan',
@@ -179,7 +178,6 @@ describe('researchHandler.buildPrompt', () => {
         'get_diagram',
         'get_work_item_type_guidance_batch',
         'unified_search',
-        'search_implementation_hints',
         'list_services',
       ],
       builtinAllowedTools: ['Read', 'Glob', 'Grep', 'WebSearch', 'WebFetch'],

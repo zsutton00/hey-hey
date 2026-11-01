@@ -30,7 +30,7 @@ export class MaterializedWorkItemSection {
    */
   'materializedMarkdown': string;
   /**
-   * Proposal whose successfully materialized change produced the section\'s current composition or resolved presentation context.
+   * Proposal whose successfully materialized change produced the section\'s current composition or resolved presentation context. Empty when the section has no recorded proposal provenance.
    */
   'materializedProposalId': string;
   /**
@@ -76,7 +76,7 @@ export class MaterializedWorkItemSection {
       name: 'materializedProposalId',
       baseName: 'materializedProposalId',
       type: 'string',
-      format: 'uuid',
+      format: '',
     },
     {
       name: 'crdtSnapshotSeq',

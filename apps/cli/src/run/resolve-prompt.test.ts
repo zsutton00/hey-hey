@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  createFirstTurnPromptRunState,
   resolvePrompt,
   type ResolvePromptArgs,
   type ResolvePromptRunState,
@@ -100,19 +101,14 @@ const makeHandlerDeps = (): PromptTypeHandlerDeps => {
   } as unknown as PromptTypeHandlerDeps['logger'];
 
   return createPromptTypeHandlerTestDeps({
-    fetchImpl: (() => Promise.resolve(new Response())) as typeof fetch,
+    fetchImpl: (() => Promise.resolve(Response.json({ data: [] }))) as typeof fetch,
     apiBaseUrl: 'http://localhost',
     logger,
   });
 };
 
 const makeRunState = (overrides?: Partial<ResolvePromptRunState>): ResolvePromptRunState => ({
-  currentPromptType: null,
-  isFirstTurn: true,
-  previousProviderSession: null,
-  reportChain: [],
-  memos: [],
-  startedPromptTypes: new Set(),
+  ...createFirstTurnPromptRunState(),
   ...overrides,
 });
 
@@ -276,6 +272,24 @@ const copiedStartupPayload = {
 };
 
 describe('resolvePrompt — first turn with handler and payload', () => {
+  it('creates independent empty first-turn snapshots', () => {
+    const state = createFirstTurnPromptRunState();
+    const nextState = createFirstTurnPromptRunState();
+
+    expect(state).toEqual({
+      currentPromptType: null,
+      isFirstTurn: true,
+      previousProviderSession: null,
+      reportChain: [],
+      memos: [],
+      startedPromptTypes: new Set(),
+    });
+    expect(nextState).toEqual(state);
+    expect(nextState.reportChain).not.toBe(state.reportChain);
+    expect(nextState.memos).not.toBe(state.memos);
+    expect(nextState.startedPromptTypes).not.toBe(state.startedPromptTypes);
+  });
+
   it('hands the prompt types that already started on the Run to the handler prompt context', async () => {
     const promptType = 'resolve_prompt_test_started_types';
     const buildPrompt = vi.fn(() => 'PROMPT');
@@ -958,7 +972,7 @@ describe('resolvePrompt — registered handlers consume one preloaded entity Con
       .join('\n\n---\n\n');
   };
 
-  it('preloads the focal Context once for Entity Conversation, Research, and Project Assistant', async () => {
+  it('resolves standalone first turns with the real handlers, entity template, and user request', async () => {
     const startupResolve = vi
       .fn<PromptTypeHandlerDeps['startupPromptInput']['resolve']>()
       .mockResolvedValue(startupResultWithContext('PRELOADED ENTITY CONTEXT'));
@@ -969,25 +983,27 @@ describe('resolvePrompt — registered handlers consume one preloaded entity Con
     const run = makeSession({
       entity: { entityType: RunEntityType.Task, entityId: 'task-1' },
     });
+    run.provider_session_id = '';
+    const userMessage = 'Explain the current entity and its next steps.';
 
     const cases: ReadonlyArray<{ promptType: string; payload: unknown }> = [
       {
         promptType: LocalPromptType.EntityConversation,
         payload: {
           entity: { entityType: 'TASK', entityId: 'task-1' },
-          userMessage: 'Explain the current entity.',
+          userMessage,
         },
       },
       {
         promptType: LocalPromptType.Research,
-        payload: { userMessage: 'Research the current entity.' },
+        payload: { userMessage },
       },
       {
         promptType: LocalPromptType.ProjectAssistant,
         payload: {
           promptType: LocalPromptType.Research,
           entity: { entityType: 'TASK', entityId: 'task-1' },
-          userMessage: 'Orient the next handler.',
+          userMessage,
           projectAssistantHandoff: {
             consumerHandlerId: LocalPromptType.Research,
             policy: {
@@ -1008,7 +1024,7 @@ describe('resolvePrompt — registered handlers consume one preloaded entity Con
         const result = await resolvePrompt({
           handler,
           run,
-          runState: makeRunState(),
+          runState: createFirstTurnPromptRunState(),
           input: makeInput({ promptType: testCase.promptType, payload: testCase.payload }),
           handlerDeps: deps,
           turnId: 'turn-1',
@@ -1020,6 +1036,23 @@ describe('resolvePrompt — registered handlers consume one preloaded entity Con
         const providerPrompt = composeProviderPrompt(result, 'first-turn-mint');
         expect(providerPrompt).toContain('PRELOADED ENTITY CONTEXT');
         expect(providerPrompt.match(/PRELOADED ENTITY CONTEXT/g)).toHaveLength(1);
+        expect(providerPrompt).toContain(userMessage);
+        expect(providerPrompt).toContain(
+          handler.buildPrompt(result.preparedPayload, {
+            runId: run.agentic_session_id,
+            provider: 'claude',
+            logger: deps.logger,
+            ...(result.startupPromptInput
+              ? { loadedEntityContext: result.startupPromptInput.loadedEntityContext }
+              : {}),
+            startedPromptTypes: new Set(),
+            recentUserReplies: [],
+            triggerParentMessageId: null,
+          }),
+        );
+        expect(result.preparedPayload).toBeDefined();
+        expect(result.startupPromptTemplate).toEqual(authoritativeStartupResult().template);
+        expect(result.consumedPreviousProviderSession).toBe(false);
       }
       expect(workflowAboutRead).toHaveBeenCalledTimes(1);
     } finally {
@@ -1031,6 +1064,39 @@ describe('resolvePrompt — registered handlers consume one preloaded entity Con
       String(url).includes('/entities/TASK/task-1/context'),
     );
     expect(focalContextCalls).toHaveLength(0);
+  });
+
+  it('names the submission tools in the Run provider form for a Codex Run', async () => {
+    const startupResolve = vi
+      .fn<PromptTypeHandlerDeps['startupPromptInput']['resolve']>()
+      .mockResolvedValue(startupResultWithContext('PRELOADED ENTITY CONTEXT'));
+    const { deps } = makeRegisteredDeps(startupResolve);
+    const handler = productionRegistry.get(LocalPromptType.Research);
+    if (!handler) throw new Error('Missing registered handler: research');
+    const run = makeSession({
+      entity: { entityType: RunEntityType.Task, entityId: 'task-1' },
+    });
+    run.provider = 'codex';
+    run.provider_session_id = '';
+
+    const result = await resolvePrompt({
+      handler,
+      run,
+      runState: createFirstTurnPromptRunState(),
+      input: makeInput({
+        promptType: LocalPromptType.Research,
+        payload: { userMessage: 'Look into it.' },
+      }),
+      handlerDeps: deps,
+      turnId: 'turn-1',
+      abortSignal: () => undefined,
+      recentUserReplies: [],
+      triggerParentMessageId: null,
+    });
+
+    const providerPrompt = composeProviderPrompt(result, 'first-turn-mint');
+    expect(providerPrompt).toContain('mcp__heyhey_submission_tools__<name>');
+    expect(providerPrompt).not.toContain('mcp__heyhey-submission-tools__');
   });
 
   it('refreshes the registered Feature Sync prompt with mutated entity and graph Context on remint', async () => {
@@ -1322,9 +1388,10 @@ describe('resolvePrompt — subagent-owned promptType', () => {
       payload: { prepared: true },
       sessionContext: { sub: true },
     });
+    const buildPrompt = vi.fn(() => 'SHOULD_NOT_APPEAR');
     registerHandler('commit', {
       runnerKind: 'subagent',
-      buildPrompt: () => 'SHOULD_NOT_APPEAR',
+      buildPrompt,
       prepare,
       buildStartingMessage: () => 'committing',
     });
@@ -1340,6 +1407,8 @@ describe('resolvePrompt — subagent-owned promptType', () => {
     expect(result.isSubagentOwned).toBe(true);
     expect(result.resolvedPrompt).toBeNull();
     expect(prepare).toHaveBeenCalledOnce();
+    expect(buildPrompt).not.toHaveBeenCalled();
+    expect(result.preparedPayload).toEqual({ prepared: true });
     expect(result.sessionContext).toEqual({ sub: true });
     expect(result.startingMessage).toBe('committing');
   });
@@ -1931,5 +2000,88 @@ describe('resolvePrompt — memo block prepend', () => {
     expect(result.resolvedPrompt).toContain('follow-up');
     expect(result.resolvedPrompt).not.toContain('## Context from prior phases');
     expect(result.resolvedPrompt).not.toContain('already delivered memo');
+  });
+});
+
+describe('passive screen annotations on ordinary session comments', () => {
+  it('restores all reviewers annotations from persisted history when the user continues, without requesting another run', async () => {
+    const handler = registerHandler('annotation-follow-up', {
+      buildPrompt: () => 'Respond to the user.',
+      addUserMessage: defaultAddUserMessage,
+    });
+    const deps = makeHandlerDeps();
+    const fetchHistory = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        Response.json({
+          data: {
+            messages: [
+              {
+                type: 'USER',
+                userId: 'reviewer-2',
+                data: {
+                  comment: 'Screen annotation: Increase contrast',
+                  proposalReviewNote: {
+                    proposalId: 'screen-proposal',
+                    review: {
+                      noteId: 'note-1',
+                      frozenRevision: 4,
+                      sectionKey: 'mockup',
+                      sizeKey: 'desktop',
+                      target: { type: 'component', componentId: 'pay-button' },
+                      note: 'Increase contrast',
+                    },
+                  },
+                },
+              },
+            ],
+            nextCursor: 'older',
+          },
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ data: { messages: [], nextCursor: 'older' } }))
+      .mockResolvedValueOnce(
+        Response.json({
+          data: {
+            messages: [
+              {
+                type: 'USER',
+                userId: 'reviewer-2',
+                data: {
+                  proposalReviewNote: {
+                    proposalId: 'screen-proposal',
+                    review: {
+                      noteId: 'note-1',
+                      frozenRevision: 4,
+                      sectionKey: 'mockup',
+                      sizeKey: 'desktop',
+                      target: { type: 'component', componentId: 'pay-button' },
+                      note: 'Increase contrast',
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        }),
+      );
+    deps.fetchImpl = fetchHistory;
+    const result = await callResolve({
+      handler,
+      handlerDeps: deps,
+      input: makeInput({
+        promptType: 'annotation-follow-up',
+        userMessage: 'Please revise the journey using my annotations.',
+      }),
+    });
+    expect(result.resolvedPrompt).toContain('Please revise the journey using my annotations.');
+    expect(result.resolvedPrompt).toContain('"authorId":"reviewer-2"');
+    expect(result.resolvedPrompt).toContain('"componentId":"pay-button"');
+    expect(result.resolvedPrompt).toContain('"frozenRevision":4');
+    expect(fetchHistory).toHaveBeenCalledTimes(2);
+    expect(String(fetchHistory.mock.calls[1]?.[0])).toContain('historyCursor=older');
+    expect(
+      fetchHistory.mock.calls.every(([, init]) => !init?.method || init.method === 'GET'),
+    ).toBe(true);
   });
 });

@@ -1,13 +1,16 @@
+import type { ReadRestriction } from '../../shared/api/generated/api';
+import { restrictedConfiguration } from '../../shared/api/read-restriction';
 import { isAxiosError } from 'axios';
 
 import {
-  Configuration,
   TasksApi,
   type FullEntityContextDto,
   type MaterializedWorkItemSection,
   type TaskResponseDto,
 } from '../../shared/api/generated';
 import type { LoadedEntityPromptContext } from '../entity-context/types';
+import type { Tier } from '../../jev/scenarios';
+import { firstSentence } from '../context-trimming/get-context-result';
 import type { PromptTypeHandlerDeps } from '../prompt-type-handler';
 import {
   recordJevCalls,
@@ -26,6 +29,8 @@ export interface NearestParentFeatureRequest {
   organizationId: string;
   projectId: string;
   context: FullEntityContextDto;
+  /** The Run's read restriction, carried into the parent reads. */
+  readRestriction?: ReadRestriction | undefined;
 }
 
 /** Project Assistant cannot run without its parent feature; the Run must stop visibly. */
@@ -41,7 +46,7 @@ export class ProjectAssistantPreparationError extends Error {
  * feature. Project Assistant needs the nearest one in full, so the CLI reads
  * it here instead of relying on the agent to.
  */
-const findNearestParentFeatureId = (context: FullEntityContextDto): string | null =>
+export const findNearestParentFeatureId = (context: FullEntityContextDto): string | null =>
   context.featureHierarchy?.find(
     (entry) =>
       entry.relationshipType === 'structural' &&
@@ -53,10 +58,12 @@ const readParentTask = async (
   request: NearestParentFeatureRequest,
   parent: 'feature' | 'plan',
   taskId: string,
-  deps: Pick<PromptTypeHandlerDeps, 'auth' | 'apiBaseUrl' | 'logger'>,
+  deps: Pick<PromptTypeHandlerDeps, 'auth' | 'apiBaseUrl' | 'logger' | 'readRestriction'>,
 ): Promise<TaskResponseDto | undefined> => {
   const accessToken = await deps.auth.getAccessToken();
-  const client = new TasksApi(new Configuration({ accessToken, basePath: deps.apiBaseUrl }));
+  const client = new TasksApi(
+    restrictedConfiguration({ accessToken, basePath: deps.apiBaseUrl }, deps.readRestriction),
+  );
   try {
     const response = await client.organizationsOrganizationIdProjectsProjectIdTasksTaskIdGet({
       organizationId: request.organizationId,
@@ -86,7 +93,7 @@ const readParentTask = async (
  */
 export const readParentPlan = async (
   request: NearestParentFeatureRequest,
-  deps: Pick<PromptTypeHandlerDeps, 'auth' | 'apiBaseUrl' | 'logger'>,
+  deps: Pick<PromptTypeHandlerDeps, 'auth' | 'apiBaseUrl' | 'logger' | 'readRestriction'>,
 ): Promise<(TaskResponseDto & { sections: MaterializedWorkItemSection[] }) | null> => {
   const planId = request.context.planContext?.parentPlan?.id;
   if (!planId) return null;
@@ -108,7 +115,7 @@ export const readParentPlan = async (
 /** Null when the focal entity has no parent feature. */
 export const readNearestParentFeature = async (
   request: NearestParentFeatureRequest,
-  deps: Pick<PromptTypeHandlerDeps, 'auth' | 'apiBaseUrl' | 'logger'>,
+  deps: Pick<PromptTypeHandlerDeps, 'auth' | 'apiBaseUrl' | 'logger' | 'readRestriction'>,
 ): Promise<(TaskResponseDto & { sections: MaterializedWorkItemSection[] }) | null> => {
   const featureId = findNearestParentFeatureId(request.context);
   if (featureId === null) {
@@ -145,6 +152,31 @@ const renderSections = (
     .map(({ key, markdown }) => `### ${key}\n\n${markdown}`)
     .join('\n\n');
 
+const parentFeatureHeading = (feature: Pick<TaskResponseDto, 'id' | 'name'>): string =>
+  `## Nearest parent feature\n\n@[feature:${feature.id}|${feature.name}]`;
+
+/**
+ * The parent as Jev judged it with the rest of the neighbourhood: in full, as a short excerpt of
+ * its description, or as a title line the agent can open on demand.
+ */
+export const renderParentFeatureSection = (
+  feature: TaskResponseDto & { sections: MaterializedWorkItemSection[] },
+  tier: Tier,
+): string => {
+  const heading = parentFeatureHeading(feature);
+  if (tier === 'full') {
+    return `${heading}, in full.\n\n${renderSections(feature.sections)}`;
+  }
+
+  if (tier === 'index') {
+    return `${heading}, title only. Open it with get_full_entity if its requirements bear on this work.`;
+  }
+
+  const description = feature.sections.find((section) => section.key === 'description');
+  const excerpt = description ? firstSentence(description.materializedMarkdown.trim()) : '';
+  return `${heading}, excerpt only. Open it with get_full_entity before relying on its requirements.${excerpt ? `\n\n${excerpt}` : ''}`;
+};
+
 /** With a filter, Jev picks which requirements load in full; anything that stops it keeps the full load. */
 export interface ParentFeatureFilterInput {
   settings: ParentRequirementsFilter;
@@ -153,19 +185,18 @@ export interface ParentFeatureFilterInput {
 
 export const loadNearestParentFeatureSection = async (
   request: NearestParentFeatureRequest,
-  deps: Pick<PromptTypeHandlerDeps, 'auth' | 'apiBaseUrl' | 'logger'>,
+  deps: Pick<PromptTypeHandlerDeps, 'auth' | 'apiBaseUrl' | 'logger' | 'readRestriction'>,
   filter?: ParentFeatureFilterInput,
 ): Promise<string | null> => {
   const feature = await readNearestParentFeature(request, deps);
   if (feature === null) return null;
 
-  const fullBody = renderSections(feature.sections);
   deps.logger.info('project_assistant.prepare.parent_feature.loaded', {
     featureId: feature.id,
     sectionCount: feature.sections.length,
   });
-  const heading = `## Nearest parent feature\n\n@[feature:${feature.id}|${feature.name}]`;
-  const fullSection = `${heading}, in full.\n\n${fullBody}`;
+  const heading = parentFeatureHeading(feature);
+  const fullSection = renderParentFeatureSection(feature, 'full');
   if (!filter) return fullSection;
 
   const recorder = recordJevCalls(filter.settings.jevClient);

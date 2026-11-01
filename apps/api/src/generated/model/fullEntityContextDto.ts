@@ -20,6 +20,7 @@ import { PlanContextDto } from './planContextDto';
 import { ProposalDetail } from './proposalDetail';
 import { EntityContentDto } from './entityContentDto';
 import { AgentSessionEntryDto } from './agentSessionEntryDto';
+import { ConversationContextDto } from './conversationContextDto';
 
 
 export interface FullEntityContextDto { 
@@ -71,6 +72,7 @@ export interface FullEntityContextDto {
     featureHierarchy?: Array<FeatureHierarchyEntryDto>;
     planContext?: PlanContextDto;
     content?: EntityContentDto;
+    conversationContext?: ConversationContextDto;
 }
 export namespace FullEntityContextDto {
 }

@@ -31,7 +31,7 @@ const makeTemplate = (withOverride: boolean) =>
       selector: { entityType: "WORK_ITEM", workItemTypeKey: "FEATURE" },
       syntaxVersion: "V1",
     },
-  } as EntityPromptTemplateCatalogEntryDto);
+  }) as EntityPromptTemplateCatalogEntryDto;
 
 const renderActions = (withOverride = true) =>
   render(
@@ -41,7 +41,7 @@ const renderActions = (withOverride = true) =>
       template={makeTemplate(withOverride)}
       selector={{ entityType: "WORK_ITEM", workItemTypeKey: "FEATURE" }}
       onProposalCreated={mocks.onProposalCreated}
-    />
+    />,
   );
 
 describe("EntityPromptTemplatePublicationActions", () => {
@@ -56,19 +56,26 @@ describe("EntityPromptTemplatePublicationActions", () => {
     renderActions();
 
     await user.click(
-      screen.getByTestId("entity-prompt-template-propose-retirement")
+      screen.getByTestId("entity-prompt-template-propose-retirement"),
     );
     expect(screen.getByRole("dialog")).toHaveTextContent(
-      "Until then, this project override remains authoritative"
+      "Until then, this project override remains authoritative",
+    );
+    await user.type(
+      screen.getByRole("textbox", {
+        name: "Explain this change in one sentence",
+      }),
+      "Restore the canonical context.",
     );
     await user.click(
-      screen.getByTestId("entity-prompt-template-retire-confirm")
+      screen.getByTestId("entity-prompt-template-retire-confirm"),
     );
 
     expect(mocks.retire).toHaveBeenCalledWith({
       organizationId: "org-1",
       projectId: "project-1",
       templateKey: "entity_context",
+      eli5: "Restore the canonical context.",
       selector: { entityType: "WORK_ITEM", workItemTypeKey: "FEATURE" },
       expectedEffectiveRevision: {
         revisionId: "override-id",
@@ -76,7 +83,7 @@ describe("EntityPromptTemplatePublicationActions", () => {
       },
     });
     expect(
-      screen.getByTestId("entity-prompt-template-retirement-success")
+      screen.getByTestId("entity-prompt-template-retirement-success"),
     ).toHaveTextContent("remains effective until approval");
     expect(mocks.onProposalCreated).toHaveBeenCalledWith({ id: "proposal-1" });
   });
@@ -84,7 +91,7 @@ describe("EntityPromptTemplatePublicationActions", () => {
   it("does not offer retirement without an active project override", () => {
     renderActions(false);
     expect(
-      screen.queryByTestId("entity-prompt-template-retirement-actions")
+      screen.queryByTestId("entity-prompt-template-retirement-actions"),
     ).not.toBeInTheDocument();
   });
 
@@ -92,16 +99,22 @@ describe("EntityPromptTemplatePublicationActions", () => {
     mocks.retire.mockResolvedValue({ id: "proposal-1" });
     renderActions();
     fireEvent.click(
-      screen.getByTestId("entity-prompt-template-propose-retirement")
+      screen.getByTestId("entity-prompt-template-propose-retirement"),
     );
     const confirm = screen.getByTestId("entity-prompt-template-retire-confirm");
+    fireEvent.change(
+      screen.getByRole("textbox", {
+        name: "Explain this change in one sentence",
+      }),
+      { target: { value: "Restore the canonical context." } },
+    );
     fireEvent.click(confirm);
     fireEvent.click(confirm);
     expect(mocks.retire).toHaveBeenCalledTimes(1);
     await waitFor(() =>
       expect(
-        screen.getByTestId("entity-prompt-template-retirement-success")
-      ).toBeInTheDocument()
+        screen.getByTestId("entity-prompt-template-retirement-success"),
+      ).toBeInTheDocument(),
     );
   });
 });

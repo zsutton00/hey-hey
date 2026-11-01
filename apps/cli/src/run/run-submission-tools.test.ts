@@ -694,6 +694,9 @@ describe('verified trigger envelope → Run → submission-tool registry', () =>
     vi.spyOn(agentService, 'stopRun').mockResolvedValue(undefined);
     vi.spyOn(agentService, 'compactRun').mockResolvedValue(undefined);
     const router = new TriggerFrameRouter({
+      servicesApi: {
+        getService: async () => ({ data: { data: { name: 'Test Service' } } }),
+      } as never,
       verifier,
       machinesApi: {
         listMachines: vi.fn().mockResolvedValue({ data: { data: { machines: [] } } }),

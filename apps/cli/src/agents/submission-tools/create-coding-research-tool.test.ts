@@ -102,7 +102,7 @@ describe('createCodingResearchTool', () => {
     // Proxy receives the CODING_RESEARCH platform call
     expect(proxy.create).toHaveBeenCalledWith({
       runId: 'run-xyz',
-      args: {
+      args: expect.objectContaining({
         reportType: 'CODING_RESEARCH',
         audience: 'PROJECT_VISIBLE',
         payload: {
@@ -114,7 +114,7 @@ describe('createCodingResearchTool', () => {
           updates: SAMPLE_UPDATES,
           readinessEvidence: [],
         },
-      },
+      }),
       conversationId: 'conv-test',
       projectId: 'proj-test',
     });

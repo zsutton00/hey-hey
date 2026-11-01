@@ -1,3 +1,4 @@
+import { ReportUsageSnapshotter } from '../../provider-usage/report-usage-snapshotter';
 import {
   parseChangeWalkthroughPayload,
   verifyChangeWalkthrough,
@@ -30,6 +31,11 @@ import {
   type CreateReportProxyResult,
 } from './create-report-proxy';
 import {
+  projectReportEvidenceLedgers,
+  type ProjectReportEvidenceLedgers,
+} from '../project-report/project-report-evidence-store';
+import {
+  assertProjectReportEvidenceRead,
   parseProjectReportPreparedEvidence,
   stampProjectReportCoverage,
 } from '../project-report/project-report-submission';
@@ -41,10 +47,15 @@ import { parseFeatureSyncDecisionReport } from './feature-sync-decision/schemas'
 
 export const CREATE_REPORT_TOOL_NAME = 'create_report';
 
-const CREATE_REPORT_INPUT_SCHEMA = {
+export const CREATE_REPORT_INPUT_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
+    ragEnabled: {
+      type: 'boolean',
+      description:
+        'Whether this report may be reused as project knowledge. The execution may force exclusion.',
+    },
     schemaVersion: {
       type: 'integer',
       minimum: 1,
@@ -105,7 +116,7 @@ const CREATE_REPORT_INPUT_SCHEMA = {
     },
   },
   required: ['reportType', 'audience', 'payload'],
-} as const;
+};
 
 interface ImplementReportPartition {
   args: Record<string, unknown>;
@@ -320,6 +331,8 @@ export class CreateReportTool implements PassThroughSubmissionToolDeclaration {
     private readonly proxy: CreateReportProxy,
     now: () => string = () => new Date().toISOString(),
     private readonly logger: ServerLogger = NOOP_LOGGER,
+    private readonly evidenceLedgers: ProjectReportEvidenceLedgers = projectReportEvidenceLedgers,
+    private readonly usageSnapshotter = new ReportUsageSnapshotter(undefined, undefined, logger),
   ) {
     this.now = now;
   }
@@ -380,6 +393,9 @@ export class CreateReportTool implements PassThroughSubmissionToolDeclaration {
           'project_report create_report requires a PROJECT_REPORT payload bound to this request, attempt, and project',
         );
       }
+
+      // Before any write is claimed: an unread shard is a refusal the agent can fix and retry.
+      assertProjectReportEvidenceRead(this.evidenceLedgers.get(run.session.agentic_session_id));
 
       const prepared = parseProjectReportPreparedEvidence(run.session.sessionContext);
       if (prepared.requestId !== config.requestId || prepared.attemptId !== config.attemptId) {
@@ -473,7 +489,13 @@ export class CreateReportTool implements PassThroughSubmissionToolDeclaration {
       if (partition.args['reportType'] === ReportType.Plan) {
         this.logger.debug('coding_plan.report.scope_submitted', planScope);
       }
-      const result = await this.create(ctx.runId, run, partition.args, isProjectReportRun);
+      const result = await this.create(
+        ctx.runId,
+        run,
+        partition.args,
+        isProjectReportRun,
+        ctx.usageExecutionId,
+      );
       if (partition.args['reportType'] === ReportType.Plan) {
         this.logger.debug('coding_plan.report.scope_persisted', {
           ...planScope,
@@ -511,11 +533,29 @@ export class CreateReportTool implements PassThroughSubmissionToolDeclaration {
     run: Run,
     args: Record<string, unknown>,
     isProjectReportRun: boolean,
+    usageExecutionId?: string,
   ): Promise<CreateReportProxyResult> {
+    const reportArgs = withRunAgent(args, run);
+    delete reportArgs['usage'];
+    if (
+      ['CODING_RESEARCH', 'IMPLEMENT', 'REVIEW', 'CHANGE_WALKTHROUGH'].includes(
+        String(args['reportType']),
+      )
+    ) {
+      try {
+        reportArgs['usage'] = await this.usageSnapshotter.capture(
+          run,
+          this.now(),
+          usageExecutionId,
+        );
+      } catch {
+        run.logReportUsageUnavailable(args['reportType']);
+      }
+    }
     try {
       return await this.proxy.create({
         runId,
-        args: withRunAgent(args, run),
+        args: reportArgs,
         conversationId: run.conversationId,
         projectId: run.projectId,
       });

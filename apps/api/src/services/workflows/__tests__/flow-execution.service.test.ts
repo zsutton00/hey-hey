@@ -12,6 +12,7 @@ import {
   WorkflowAboutType,
 } from '../../../types';
 import {
+  AgentHandoffNodeBase,
   FlowContext,
   FlowTemplate,
   NodeType,
@@ -773,6 +774,75 @@ describe('FlowExecutionService', () => {
       Object.assign(new Error('workflow not found'), {
         name: 'WorkflowNotFoundError',
       });
+
+    class TestHandoffNode extends AgentHandoffNodeBase {
+      readonly id = 'handoff';
+      readonly title = 'Handoff';
+      buildTriggerMessage = jest.fn();
+    }
+
+    it('returns workflowState=terminal when the live workflow is on an agent handoff node', async () => {
+      const queryMock = jest.fn().mockResolvedValue({
+        isComplete: false,
+        currentNodeId: 'handoff',
+      });
+      temporalClientMock.workflow.getHandle = jest
+        .fn()
+        .mockReturnValue({ signal: jest.fn(), query: queryMock });
+      nodeExecutionServiceMock.getNode.mockReturnValue({
+        node: new TestHandoffNode(),
+        routing: {},
+      });
+
+      const result = await service.resolveConversationPromptType({
+        conversationId: mockConversationId,
+        workflowId: mockWorkflowId,
+        workflowName: WorkflowName.Adr,
+        organizationId: mockOrganizationId,
+      });
+
+      expect(result).toEqual({
+        workflowState: WorkflowState.Terminal,
+        promptType: mockTerminalPromptType,
+        nodeId: null,
+        triggerMessageId: null,
+      });
+    });
+
+    it('returns workflowState=terminal when a finished workflow left a resumable execution on an agent handoff node', async () => {
+      const queryMock = jest.fn().mockRejectedValue(workflowGoneError());
+      temporalClientMock.workflow.getHandle = jest
+        .fn()
+        .mockReturnValue({ signal: jest.fn(), query: queryMock });
+      mockFindFirst.mockResolvedValue({
+        ...mockFlowExecution,
+        status: FlowExecutionStatus.COMPLETED,
+        resumable: true,
+        currentNode: 'handoff',
+        flowState: {
+          ...mockFlowExecution.flowState,
+          context: { pendingTransition: null },
+        },
+      });
+      nodeExecutionServiceMock.getNode.mockReturnValue({
+        node: new TestHandoffNode(),
+        routing: {},
+      });
+
+      const result = await service.resolveConversationPromptType({
+        conversationId: mockConversationId,
+        workflowId: mockWorkflowId,
+        workflowName: WorkflowName.Adr,
+        organizationId: mockOrganizationId,
+      });
+
+      expect(result).toEqual({
+        workflowState: WorkflowState.Terminal,
+        promptType: mockTerminalPromptType,
+        nodeId: null,
+        triggerMessageId: null,
+      });
+    });
 
     it('returns workflowState=terminal with null promptType when conversation has no workflow', async () => {
       const result = await service.resolveConversationPromptType({

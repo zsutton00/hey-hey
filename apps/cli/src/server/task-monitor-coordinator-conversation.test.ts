@@ -1,4 +1,4 @@
-import type { ApiRuntime } from '../../../../packages/ui-common/src/clients/shared';
+import type { ApiRuntime } from '../shared/runtime/clients/shared';
 import { describe, expect, it, vi } from 'vitest';
 
 import { NOOP_LOGGER } from './logger';

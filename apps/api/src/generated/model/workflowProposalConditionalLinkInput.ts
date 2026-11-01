@@ -30,6 +30,10 @@ export interface WorkflowProposalConditionalLinkInput {
      */
     predicate: string;
     /**
+     * Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate. 
+     */
+    actionLabel?: string;
+    /**
      * Optional human-readable explanation for the link.
      */
     description?: string;

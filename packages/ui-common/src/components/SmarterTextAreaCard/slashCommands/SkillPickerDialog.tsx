@@ -1,9 +1,9 @@
+import { FunctionalDialog as Dialog } from "../../Modals/FunctionalDialog";
 import CloseIcon from "@mui/icons-material/Close";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import {
   Alert,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -103,9 +103,7 @@ export const SkillPickerDialog = ({
       fullWidth
       maxWidth="sm"
       data-testid="skill-picker-dialog"
-    >
-      <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-        Choose an installed Skill
+      closeControl={
         <IconButton
           aria-label="Close Skill picker"
           data-testid="close-skill-picker"
@@ -114,6 +112,10 @@ export const SkillPickerDialog = ({
         >
           <CloseIcon />
         </IconButton>
+      }
+    >
+      <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        Choose an installed Skill
       </DialogTitle>
       <Divider />
       <DialogContent dividers>

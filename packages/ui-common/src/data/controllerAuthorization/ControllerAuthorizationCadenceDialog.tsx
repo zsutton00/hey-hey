@@ -1,7 +1,7 @@
+import { FunctionalDialog as Dialog } from "../../components/Modals/FunctionalDialog";
 import {
   Alert,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
@@ -41,7 +41,7 @@ const OPTIONS = [
 >;
 
 const isCadence = (
-  value: string
+  value: string,
 ): value is ControllerAuthorizationCadenceValue =>
   OPTIONS.some(([cadence]) => cadence === value);
 

@@ -1,6 +1,6 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import React, { useState, useEffect } from "react";
 import {
-  Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
@@ -122,6 +122,11 @@ export const WorkflowLogsModal: React.FC<WorkflowLogsModalProps> = ({
           maxHeight: "800px",
         },
       }}
+      closeControl={
+        <IconButton size="small" onClick={onClose} sx={{ padding: 0.5 }}>
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      }
     >
       <DialogTitle
         sx={{
@@ -145,9 +150,6 @@ export const WorkflowLogsModal: React.FC<WorkflowLogsModalProps> = ({
               <RefreshIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          <IconButton size="small" onClick={onClose} sx={{ padding: 0.5 }}>
-            <CloseIcon fontSize="small" />
-          </IconButton>
         </Box>
       </DialogTitle>
 

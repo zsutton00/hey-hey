@@ -15,7 +15,7 @@ describe('AgentApplicationRuntime', () => {
         apiBaseUrl: 'https://api.test/api/v1',
         logger: NOOP_LOGGER,
         taskMonitorManagedTurnRuntime: new TaskMonitorManagedTurnRuntime(NOOP_LOGGER),
-        isJevParentFeatureFilterEnabled: () => Promise.resolve(true),
+        isJevEnabled: () => Promise.resolve(true),
       });
     try {
       vi.stubEnv('TYPESAFE_API_KEY', undefined);
@@ -40,7 +40,7 @@ describe('AgentApplicationRuntime', () => {
         apiBaseUrl: 'https://api.test/api/v1',
         logger: NOOP_LOGGER,
         taskMonitorManagedTurnRuntime: new TaskMonitorManagedTurnRuntime(NOOP_LOGGER),
-        isJevParentFeatureFilterEnabled: isEnabled,
+        isJevEnabled: isEnabled,
       });
     try {
       vi.stubEnv('TYPESAFE_API_KEY', undefined);
@@ -62,7 +62,7 @@ describe('AgentApplicationRuntime', () => {
       logger: NOOP_LOGGER,
       fetchImpl: vi.fn() as typeof fetch,
       taskMonitorManagedTurnRuntime,
-      isJevParentFeatureFilterEnabled: () => Promise.resolve(true),
+      isJevEnabled: () => Promise.resolve(true),
     });
 
     expect(runtime.promptTypeRegistry.get(LocalPromptType.TaskMonitor)).toBeDefined();
@@ -70,7 +70,12 @@ describe('AgentApplicationRuntime', () => {
       runtime.promptTypeRegistry
         .get(LocalPromptType.EntityConversation)
         ?.submissionTools?.map((tool) => tool.name),
-    ).toEqual(['report_changed_files', 'request_agent_session_service_scope', 'submit_session_name', 'search_session']);
+    ).toEqual([
+      'report_changed_files',
+      'request_agent_session_service_scope',
+      'submit_session_name',
+      'search_session',
+    ]);
     expect(runtime.baseSubmissionTools.map((tool) => tool.name)).toEqual([
       CREATE_REPORT_TOOL_NAME,
       'suggest_feature_verification',
@@ -88,7 +93,7 @@ describe('AgentApplicationRuntime', () => {
       logger: NOOP_LOGGER,
       fetchImpl: vi.fn() as typeof fetch,
       taskMonitorManagedTurnRuntime,
-      isJevParentFeatureFilterEnabled: () => Promise.resolve(true),
+      isJevEnabled: () => Promise.resolve(true),
     });
     runtime.taskMonitorDecisionStore.bind('coordinator-session', 'source-turn');
     const waiting = runtime.taskMonitorDecisionStore.wait('coordinator-session');
@@ -117,7 +122,7 @@ describe('AgentApplicationRuntime', () => {
         logger: NOOP_LOGGER,
         fetchImpl: vi.fn() as typeof fetch,
         taskMonitorManagedTurnRuntime: new TaskMonitorManagedTurnRuntime(NOOP_LOGGER),
-        isJevParentFeatureFilterEnabled: () => Promise.resolve(true),
+        isJevEnabled: () => Promise.resolve(true),
       });
 
     afterEach(() => {

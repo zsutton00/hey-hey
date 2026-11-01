@@ -1,4 +1,13 @@
-import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
+import {
+  DirectActionServiceScopeResolver,
+  type PreparedServiceAdmission,
+} from '../controller-authorization/direct-action-service-scope-resolver';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import {
   AgentOperationKind as PrismaAgentOperationKind,
   AgentOperationState as PrismaAgentOperationState,
@@ -68,12 +77,6 @@ export interface SubmitPreparedAgentOperationInput
 
 type OperationTrigger = AgentTriggerStartRun | AgentTriggerUserMessage;
 
-interface PreparedServiceAdmission {
-  baselineServiceIds: string[];
-  baselineLaunchServiceId: string | null;
-  scope: UserMessageAdmittedServiceScope;
-}
-
 function isOperationTrigger(
   trigger: AgentTrigger,
 ): trigger is OperationTrigger {
@@ -85,11 +88,18 @@ function isOperationTrigger(
 // User-authored text admitted by an operation: the follow-up message, or the
 // first message that starts a session. Its Service mentions are admitted here,
 // so a typed mention never needs a separate approval.
-function admittedUserText(trigger: AgentTrigger | undefined): string | undefined {
-  if (trigger?.promptType === 'user_message') return trigger.payload.userMessage;
+function admittedUserText(
+  trigger: AgentTrigger | undefined,
+): string | undefined {
+  if (trigger?.promptType === 'user_message')
+    return trigger.payload.userMessage;
   if (trigger?.promptType === 'start_run') {
-    const runPayload = trigger.payload.payload as { userMessage?: unknown } | undefined;
-    return typeof runPayload?.userMessage === 'string' ? runPayload.userMessage : undefined;
+    const runPayload = trigger.payload.payload as
+      | { userMessage?: unknown }
+      | undefined;
+    return typeof runPayload?.userMessage === 'string'
+      ? runPayload.userMessage
+      : undefined;
   }
   return undefined;
 }
@@ -136,7 +146,8 @@ export class AgentOperationSubmissionService {
     input: SubmitAgentOperationInput,
   ): Promise<PreparedServiceAdmission | undefined> {
     const userText = admittedUserText(
-      (input.triggerMessage.data as SystemMessageData | undefined)?.triggersAgent,
+      (input.triggerMessage.data as SystemMessageData | undefined)
+        ?.triggersAgent,
     );
     if (!userText) return undefined;
     const mentionedServiceIds = Array.from(
@@ -155,63 +166,21 @@ export class AgentOperationSubmissionService {
     if (
       recordedOperation &&
       recordedOperation.state !== PrismaAgentOperationState.SUBMITTING
-    ) return undefined;
+    )
+      return undefined;
 
-    const session = await this.prisma.db.agentSession.findFirst({
-      where: {
-        id: input.agentSessionId,
-        organizationId: input.organizationId,
-        projectId: input.projectId,
-        userId: input.userId,
-        conversationId: input.conversationId,
-      },
-      include: {
-        serviceRelations: {
-          select: { serviceId: true },
-          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-        },
-      },
+    return new DirectActionServiceScopeResolver(
+      this.prisma,
+      this.machinePresenceService,
+    ).prepare({
+      organizationId: input.organizationId,
+      projectId: input.projectId,
+      userId: input.userId,
+      agentSessionId: input.agentSessionId,
+      conversationId: input.conversationId,
+      machineId: input.admission.machineId as MachineId,
+      userText,
     });
-    if (!session) {
-      throw new ConflictException('The Agent Session is unavailable for Service admission');
-    }
-    const baselineServiceIds = session.serviceRelations.map(({ serviceId }) => serviceId);
-    if (session.serviceId && !baselineServiceIds.includes(session.serviceId)) {
-      throw new ConflictException('The launch Service has no selected-Service link');
-    }
-    const serviceIds = Array.from(new Set([...baselineServiceIds, ...mentionedServiceIds]));
-    const launchServiceId = session.serviceId ?? serviceIds[0];
-    if (!launchServiceId) {
-      throw new ConflictException('The admitted Service scope has no launch anchor');
-    }
-    const services = await this.prisma.db.service.findMany({
-      where: { id: { in: serviceIds }, organizationId: input.organizationId },
-      select: { id: true, projectId: true },
-    });
-    if (
-      services.length !== serviceIds.length ||
-      services.some((service) => service.projectId !== input.projectId)
-    ) {
-      throw new BadRequestException('Every admitted Service must belong to the project');
-    }
-    const bindings = await this.machinePresenceService.getBindings(
-      input.admission.machineId as MachineId,
-    );
-    const boundServiceIds = new Set(bindings?.bindings.map(({ serviceId }) => serviceId));
-    if (
-      !bindings ||
-      bindings.organizationId !== input.organizationId ||
-      serviceIds.some((serviceId) => !boundServiceIds.has(serviceId))
-    ) {
-      throw new BadRequestException(
-        'Every admitted Service requires a live binding on the selected machine',
-      );
-    }
-    return {
-      baselineServiceIds,
-      baselineLaunchServiceId: session.serviceId,
-      scope: { serviceIds, launchServiceId } satisfies UserMessageAdmittedServiceScope,
-    };
   }
 
   async submit(
@@ -316,6 +285,28 @@ export class AgentOperationSubmissionService {
     const begun = { operation: operationRecord, executionOwner };
 
     const reserved = this.registry.reservedMessageIds(begun.operation);
+
+    const trigger = input.triggerMessage.data?.triggersAgent;
+    if (trigger && isOperationTrigger(trigger)) {
+      this.executionGrantService.assertDeliveredInputs(
+        input.admission,
+        trigger.promptType === 'start_run'
+          ? {
+              kind: 'START_RUN',
+              payload: trigger.payload,
+              ...(serviceAdmission
+                ? { admittedServiceScope: serviceAdmission.scope }
+                : {}),
+            }
+          : {
+              kind: 'USER_MESSAGE',
+              payload: trigger.payload,
+              ...(serviceAdmission
+                ? { admittedServiceScope: serviceAdmission.scope }
+                : {}),
+            },
+      );
+    }
     if (serviceAdmission) {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${input.agentSessionId}, 0))`;
       const session = await tx.agentSession.findUnique({
@@ -327,18 +318,23 @@ export class AgentOperationSubmissionService {
           },
         },
       });
-      const currentServiceIds: string[] | undefined = session?.serviceRelations.map(
-        (relation: { serviceId: string }) => relation.serviceId,
-      );
+      const currentServiceIds: string[] | undefined =
+        session?.serviceRelations.map(
+          (relation: { serviceId: string }) => relation.serviceId,
+        );
       if (
         !session ||
         session.serviceId !== serviceAdmission.baselineLaunchServiceId ||
-        currentServiceIds?.length !== serviceAdmission.baselineServiceIds.length ||
-        currentServiceIds.some((id: string, index: number) =>
-          id !== serviceAdmission.baselineServiceIds[index],
+        currentServiceIds?.length !==
+          serviceAdmission.baselineServiceIds.length ||
+        currentServiceIds.some(
+          (id: string, index: number) =>
+            id !== serviceAdmission.baselineServiceIds[index],
         )
       ) {
-        throw new ConflictException('The Agent Session Service scope changed during admission');
+        throw new ConflictException(
+          'The Agent Session Service scope changed during admission',
+        );
       }
       if (!session.serviceId) {
         await tx.agentSession.update({

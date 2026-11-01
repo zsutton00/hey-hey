@@ -4,8 +4,8 @@ import { firstValueFrom } from 'rxjs';
 import {
   CreateHintDto,
   EntityNeighborhoodRequest,
-  GraphQueryRequest,
-  GraphQueryResponse,
+  FeatureProjectConnectionRequest,
+  FeatureProjectConnectionResponse,
   FindHintsByConnectedItemsRequest,
   FindHintsByConnectedItemsResponse,
   Hint,
@@ -28,6 +28,7 @@ import { LifecycleService } from 'src/generated/graphs/api/lifecycle.service';
 import { QueriesService } from 'src/generated/graphs/api/queries.service';
 import { OrganizationId, ProjectId } from 'src/types';
 import { errorToLoggable } from 'src/utils/logging.util';
+import { GraphReadScope } from 'src/read-restriction/graph-read-scope';
 
 @Injectable()
 export class GraphsClientService {
@@ -38,6 +39,7 @@ export class GraphsClientService {
     private readonly queriesService: QueriesService,
     private readonly lifecycleService: LifecycleService,
     private readonly hintsService: HintsService,
+    private readonly readScope: GraphReadScope,
   ) {}
 
   private userAuthConfig(userToken: string) {
@@ -50,6 +52,21 @@ export class GraphsClientService {
         },
       },
     };
+  }
+
+  async listProjectHints(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    userToken: string,
+  ) {
+    const response = await firstValueFrom(
+      this.hintsService.listProjectHints(
+        organizationId,
+        projectId,
+        this.userAuthConfig(userToken),
+      ),
+    );
+    return response.data;
   }
 
   async createHint(
@@ -103,6 +120,22 @@ export class GraphsClientService {
       ),
     );
     return response.data;
+  }
+
+  async retireHint(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    hintId: string,
+    userToken: string,
+  ): Promise<void> {
+    await firstValueFrom(
+      this.hintsService.retireHint(
+        organizationId,
+        projectId,
+        hintId,
+        this.userAuthConfig(userToken),
+      ),
+    );
   }
 
   async findHintsByConnectedItems(
@@ -178,7 +211,7 @@ export class GraphsClientService {
     if (!response.structuredRead) {
       throw new Error('Graph returned no structured read response');
     }
-    return response.structuredRead;
+    return this.readScope.scopeStructuredRead(response.structuredRead);
   }
 
   async searchGraph(
@@ -193,15 +226,20 @@ export class GraphsClientService {
 
     try {
       const response = await firstValueFrom<AxiosResponse<SearchResponse>>(
-        this.queriesService.traverseGraph(organizationId, projectId, request, {
-          config: {
-            headers: {
-              Authorization: `Bearer ${userToken}`,
-              'X-API-Auth': `Bearer ${userToken}`,
-              'Content-Type': 'application/json',
+        this.queriesService.traverseGraph(
+          organizationId,
+          projectId,
+          this.readScope.scopeSearch(request),
+          {
+            config: {
+              headers: {
+                Authorization: `Bearer ${userToken}`,
+                'X-API-Auth': `Bearer ${userToken}`,
+                'Content-Type': 'application/json',
+              },
             },
           },
-        }),
+        ),
       );
 
       return response.data;
@@ -215,22 +253,29 @@ export class GraphsClientService {
     }
   }
 
-  async executeQuery(
+  async checkFeatureProjectConnection(
     organizationId: OrganizationId,
     projectId: ProjectId,
-    request: GraphQueryRequest,
+    request: FeatureProjectConnectionRequest,
     systemToken: string,
-  ): Promise<GraphQueryResponse> {
-    const response = await firstValueFrom<AxiosResponse<GraphQueryResponse>>(
-      this.queriesService.executeQuery(organizationId, projectId, request, {
-        config: {
-          headers: {
-            Authorization: `Bearer ${systemToken}`,
-            'X-API-Auth': `Bearer ${systemToken}`,
-            'Content-Type': 'application/json',
+  ): Promise<FeatureProjectConnectionResponse> {
+    const response = await firstValueFrom<
+      AxiosResponse<FeatureProjectConnectionResponse>
+    >(
+      this.queriesService.checkFeatureProjectConnection(
+        organizationId,
+        projectId,
+        request,
+        {
+          config: {
+            headers: {
+              Authorization: `Bearer ${systemToken}`,
+              'X-API-Auth': `Bearer ${systemToken}`,
+              'Content-Type': 'application/json',
+            },
           },
         },
-      }),
+      ),
     );
     return response.data;
   }
@@ -260,7 +305,7 @@ export class GraphsClientService {
         },
       ),
     );
-    return response.data;
+    return this.readScope.scopeIncidentEdges(response.data);
   }
 
   async getTopologyGraph(
@@ -328,7 +373,7 @@ export class GraphsClientService {
         ),
       );
 
-      return response.data;
+      return await this.readScope.scopeNeighborhood(response.data);
     } catch (error) {
       this.logger.error('Failed to fetch entity neighborhood', {
         error: errorToLoggable(error),

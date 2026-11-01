@@ -69,8 +69,11 @@ const isCompleteProjectModeCapture = (
   hasText(selection.modeId) &&
   (snapshot.schemaVersion ===
     ProjectModeSnapshotSchemaVersionEnum.ProjectModeSnapshotV1 ||
-    (snapshot.schemaVersion ===
-      ProjectModeSnapshotSchemaVersionEnum.ProjectModeSnapshotV2 &&
+    ((snapshot.schemaVersion ===
+      ProjectModeSnapshotSchemaVersionEnum.ProjectModeSnapshotV2 ||
+      (snapshot.schemaVersion ===
+        ProjectModeSnapshotSchemaVersionEnum.ProjectModeSnapshotV3 &&
+        snapshot.sessionRole !== undefined)) &&
       typeof snapshot.projectAssistant?.enabled === "boolean")) &&
   hasText(snapshot.modeId) &&
   snapshot.modeId === selection.modeId &&

@@ -1,12 +1,13 @@
+import { restrictedConfiguration } from '../../shared/api/read-restriction';
 import { z } from 'zod';
 import {
-  Configuration,
   ConversationsApi,
   EntityContextApi,
   EntityType,
   ImplementationHintsApi,
   type ImplementationHintDto,
   type MessageRecordDto,
+  type ReadRestriction,
 } from '../../shared/api/generated';
 import type { EntitySource } from './entity-source';
 import { createGraphReader, type LoadEntitySource } from './graph-reader';
@@ -123,6 +124,8 @@ export interface LiveReaderDeps {
   apiBaseUrl: string;
   organizationId: string;
   projectId: string;
+  /** The Run's read restriction; every read the walk makes carries it. */
+  readRestriction?: ReadRestriction | undefined;
 }
 
 /** A message has no context of its own: its text is what the sender wrote, and it links to nothing. */
@@ -165,7 +168,10 @@ export const createLiveSourceLoader =
   (deps: LiveReaderDeps): LoadEntitySource =>
   async (ref) => {
     const accessToken = await deps.auth.getAccessToken();
-    const configuration = new Configuration({ accessToken, basePath: deps.apiBaseUrl });
+    const configuration = restrictedConfiguration(
+      { accessToken, basePath: deps.apiBaseUrl },
+      deps.readRestriction,
+    );
     if (ref.kind === 'message') {
       const response = await new ConversationsApi(configuration).getMessage({
         id: ref.id,

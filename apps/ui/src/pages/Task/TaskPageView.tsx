@@ -1,7 +1,7 @@
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import {
   Box,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
@@ -390,11 +390,9 @@ export const TaskPageView: React.FC<TaskPageViewProps> = ({
     onTabChange(`children:${typeKey}`);
   };
 
-  const showStatusActionCapsule =
-    surfacesLifecycleScalars &&
-    (isRefining ||
-      task.status === WorkStatus.Backlog ||
-      task.status === WorkStatus.Active);
+  // Keep the mutation owner mounted through optimistic completion and its
+  // response. The capsule itself hides when no action is available.
+  const showStatusActionCapsule = surfacesLifecycleScalars;
   const adminMetadataItems = buildAdminMetadataItems({
     createdAt: task?.createdAt,
     updatedAt: task?.updatedAt,
@@ -713,7 +711,7 @@ export const TaskPageView: React.FC<TaskPageViewProps> = ({
                       renderItem={(child) => {
                         const props = taskAdapter.toEntityListItemProps(child, {
                           projectId,
-                          initiativeId: child.initiativeId,
+                          initiativeId: child.initiativeId ?? undefined,
                         });
                         return (
                           <InteractionComponent

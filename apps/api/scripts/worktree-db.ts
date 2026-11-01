@@ -28,6 +28,10 @@ import {
   replaceDatabaseName,
 } from '../src/utils/worktree-database';
 
+const { resolveOpenapiRoot } = require('./openapi-root') as {
+  resolveOpenapiRoot: () => string;
+};
+
 type DatabaseState = 'exists' | 'missing' | 'not_applicable';
 type DatabaseInitializationState =
   | 'completed'

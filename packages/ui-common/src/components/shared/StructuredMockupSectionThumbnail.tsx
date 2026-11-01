@@ -1,8 +1,11 @@
 import { Box } from "@mui/material";
 import React, { useMemo } from "react";
 import type { WorkItemTypeSectionDefinition } from "../../api";
-import { resolveHtmlCssSize } from "../../utils/htmlCssSizeProfiles";
 import { decodeStructuredMockupSectionContent } from "../../utils/workItemSections";
+import {
+  fitThumbnailSize,
+  resolveStructuredMockupThumbnailDeclaredSize,
+} from "./mockupThumbnailSize";
 import { StructuredMockupSectionRenderer } from "./StructuredMockupSectionRenderer";
 
 export interface StructuredMockupSectionThumbnailProps {
@@ -28,28 +31,13 @@ export const StructuredMockupSectionThumbnail: React.FC<
     [content],
   );
   const declaredSize = useMemo(
-    () =>
-      decoded
-        ? resolveHtmlCssSize({
-            definition,
-            content: decoded,
-            context: "page",
-            containerWidth: Number.MAX_SAFE_INTEGER,
-          })
-        : null,
+    () => resolveStructuredMockupThumbnailDeclaredSize(decoded, definition),
     [decoded, definition],
   );
 
   if (!decoded || !declaredSize || declaredSize.width <= 0) return null;
 
-  const scale =
-    maxHeight === undefined
-      ? width / declaredSize.width
-      : Math.min(
-          width / declaredSize.width,
-          maxHeight / declaredSize.height,
-          1,
-        );
+  const fitted = fitThumbnailSize(declaredSize, width, maxHeight);
 
   return (
     <Box
@@ -57,10 +45,10 @@ export const StructuredMockupSectionThumbnail: React.FC<
       aria-hidden
       sx={{
         position: "relative",
-        width: Math.round(declaredSize.width * scale),
+        width: fitted.width,
         maxWidth: "100%",
         mx: "auto",
-        height: Math.round(declaredSize.height * scale),
+        height: fitted.height,
         overflow: "hidden",
         borderRadius: 1,
       }}
@@ -74,7 +62,7 @@ export const StructuredMockupSectionThumbnail: React.FC<
           width: declaredSize.width,
           height: declaredSize.height,
           pointerEvents: "none",
-          transform: `scale(${scale})`,
+          transform: `scale(${fitted.scale})`,
           transformOrigin: "top left",
           "& *": { overflow: "hidden !important" },
         }}

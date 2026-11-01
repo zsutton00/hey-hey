@@ -1,3 +1,136 @@
+ReportUsageCoverage:
+  description: Availability of numeric measurements; provider, model and effort retain their own nullable availability.
+  type: string
+  enum: [complete, partial, unavailable]
+
+ReportUsageCacheAvailability:
+  description: Reported only when both cache read and cache creation components are established, including measured zero.
+  type: string
+  enum: [reported, unreported]
+
+ReportUsageFigures:
+  type: object
+  required:
+    - inputTokens
+    - freshInputTokens
+    - cacheReadInputTokens
+    - cacheCreationInputTokens
+    - outputTokens
+    - toolCalls
+    - cacheAvailability
+    - coverage
+  properties:
+    inputTokens:
+      description: Cache-inclusive input total when established by the provider, independently of cache-detail availability. Otherwise derived only when all applicable input components are established; never fresh input alone.
+      type: integer
+      minimum: 0
+      nullable: true
+    freshInputTokens:
+      description: Measured input excluding cache reads and cache creation.
+      type: integer
+      minimum: 0
+      nullable: true
+    cacheReadInputTokens:
+      type: integer
+      minimum: 0
+      nullable: true
+    cacheCreationInputTokens:
+      type: integer
+      minimum: 0
+      nullable: true
+    outputTokens:
+      type: integer
+      minimum: 0
+      nullable: true
+    toolCalls:
+      description: Distinct observed tool invocations attributable to this source; null when coverage cannot be established.
+      type: integer
+      minimum: 0
+      nullable: true
+    cacheAvailability:
+      $ref: "#/ReportUsageCacheAvailability"
+    coverage:
+      $ref: "#/ReportUsageCoverage"
+
+ReportUsageBreakdownEntry:
+  allOf:
+    - $ref: "#/ReportUsageFigures"
+    - type: object
+      required:
+        [executionId, providerSessionId, provider, model, effort, role, label]
+      properties:
+        executionId:
+          type: string
+        providerSessionId:
+          type: string
+          nullable: true
+        provider:
+          type: string
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        effort:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [parent, subagent, reviewer]
+        label:
+          type: string
+
+ReportUsageMeasurement:
+  description: Immutable cumulative usage available at report creation. Reports sharing execution attribution are snapshots, never additive execution samples. Version independently of the report envelope.
+  allOf:
+    - $ref: "#/ReportUsageFigures"
+    - type: object
+      required:
+        [
+          schemaVersion,
+          runId,
+          agentSessionId,
+          turnId,
+          executionId,
+          providerSessionId,
+          provider,
+          model,
+          effort,
+          capturedAt,
+          breakdown,
+        ]
+      properties:
+        schemaVersion:
+          type: integer
+          enum: [1]
+        runId:
+          type: string
+        agentSessionId:
+          type: string
+        turnId:
+          type: string
+          nullable: true
+        executionId:
+          type: string
+        providerSessionId:
+          type: string
+          nullable: true
+        provider:
+          type: string
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        effort:
+          type: string
+          nullable: true
+        capturedAt:
+          type: string
+          format: date-time
+        breakdown:
+          type: array
+          items:
+            $ref: "#/ReportUsageBreakdownEntry"
+
 ReportType:
   type: string
   enum:
@@ -2108,6 +2241,14 @@ CreateReportDtoBase:
   required:
     - audience
   properties:
+    usage:
+      nullable: true
+      allOf:
+        - $ref: "#/ReportUsageMeasurement"
+      description: Usage available at creation; never updated with later measurements.
+    ragEnabled:
+      type: boolean
+      description: Whether this report may be reused as project knowledge. Omitted means true on creation.
     projectId:
       type: string
       format: uuid
@@ -2172,7 +2313,34 @@ CreateReportDtoOther:
       properties:
         reportType:
           type: string
-          enum: [PROJECT_REPORT, CODING_RESEARCH, EVIDENCE_PIPELINE, SNAPSHOT, ROLLUP_PROPOSAL, DAILY_SESSION, GOAL_PROGRESS, RISK_ALERT, SESSION_SUMMARY, COMMIT, PLAN, IMPLEMENT, REVIEW, CHANGE_WALKTHROUGH, FEATURE_SYNC, FEATURE_SYNC_HANDOFF, DECISION_NEEDED, PHASE_GROUNDING, VALIDATION_WALKTHROUGH, FEATURE_TREE_ANALYSIS, COMPETITIVE_ANALYSIS, SESSION_MONITOR_DEFERRAL, EVAL_RUN, EVAL_ATTEMPT, EVAL_HUMAN_REVIEW]
+          enum:
+            [
+              PROJECT_REPORT,
+              CODING_RESEARCH,
+              EVIDENCE_PIPELINE,
+              SNAPSHOT,
+              ROLLUP_PROPOSAL,
+              DAILY_SESSION,
+              GOAL_PROGRESS,
+              RISK_ALERT,
+              SESSION_SUMMARY,
+              COMMIT,
+              PLAN,
+              IMPLEMENT,
+              REVIEW,
+              CHANGE_WALKTHROUGH,
+              FEATURE_SYNC,
+              FEATURE_SYNC_HANDOFF,
+              DECISION_NEEDED,
+              PHASE_GROUNDING,
+              VALIDATION_WALKTHROUGH,
+              FEATURE_TREE_ANALYSIS,
+              COMPETITIVE_ANALYSIS,
+              SESSION_MONITOR_DEFERRAL,
+              EVAL_RUN,
+              EVAL_ATTEMPT,
+              EVAL_HUMAN_REVIEW,
+            ]
         payload:
           $ref: "#/OtherReportPayload"
         schemaVersion:
@@ -2219,6 +2387,9 @@ UpdateReportDto:
 UpdateReportDtoBase:
   type: object
   properties:
+    ragEnabled:
+      type: boolean
+      description: Whether this report may be reused as project knowledge. Omitted means true on creation.
     audience:
       $ref: "#/ReportAudience"
     expiresAt:
@@ -2308,6 +2479,11 @@ ReportDto:
     - expiresAt
     - entities
   properties:
+    usage:
+      nullable: true
+      allOf:
+        - $ref: "#/ReportUsageMeasurement"
+      description: Usage available at creation; never updated with later measurements.
     id:
       type: string
       format: uuid
@@ -2352,7 +2528,7 @@ ReportDto:
       type: boolean
       description: >
         Whether this report may be ingested into graph and embeddings. Absent
-        means true. Derived by the API, never set by clients. A reusable
+        means true. Supplied by the writer and persisted by the API. A reusable
         exclusion control, not an approval flag.
     createdAt:
       type: string
@@ -2392,6 +2568,11 @@ ReportDtoBase:
     - expiresAt
     - entities
   properties:
+    usage:
+      nullable: true
+      allOf:
+        - $ref: "#/ReportUsageMeasurement"
+      description: Usage available at creation; never updated with later measurements.
     id:
       type: string
       format: uuid
@@ -2430,7 +2611,7 @@ ReportDtoBase:
       type: boolean
       description: >
         Whether this report may be ingested into graph and embeddings. Absent
-        means true. Derived by the API, never set by clients. A reusable
+        means true. Supplied by the writer and persisted by the API. A reusable
         exclusion control, not an approval flag.
     createdAt:
       type: string
@@ -2466,7 +2647,34 @@ ReportDtoOther:
       properties:
         reportType:
           type: string
-          enum: [PROJECT_REPORT, CODING_RESEARCH, EVIDENCE_PIPELINE, SNAPSHOT, ROLLUP_PROPOSAL, DAILY_SESSION, GOAL_PROGRESS, RISK_ALERT, SESSION_SUMMARY, COMMIT, PLAN, IMPLEMENT, REVIEW, CHANGE_WALKTHROUGH, FEATURE_SYNC, FEATURE_SYNC_HANDOFF, DECISION_NEEDED, PHASE_GROUNDING, VALIDATION_WALKTHROUGH, FEATURE_TREE_ANALYSIS, COMPETITIVE_ANALYSIS, SESSION_MONITOR_DEFERRAL, EVAL_RUN, EVAL_ATTEMPT, EVAL_HUMAN_REVIEW]
+          enum:
+            [
+              PROJECT_REPORT,
+              CODING_RESEARCH,
+              EVIDENCE_PIPELINE,
+              SNAPSHOT,
+              ROLLUP_PROPOSAL,
+              DAILY_SESSION,
+              GOAL_PROGRESS,
+              RISK_ALERT,
+              SESSION_SUMMARY,
+              COMMIT,
+              PLAN,
+              IMPLEMENT,
+              REVIEW,
+              CHANGE_WALKTHROUGH,
+              FEATURE_SYNC,
+              FEATURE_SYNC_HANDOFF,
+              DECISION_NEEDED,
+              PHASE_GROUNDING,
+              VALIDATION_WALKTHROUGH,
+              FEATURE_TREE_ANALYSIS,
+              COMPETITIVE_ANALYSIS,
+              SESSION_MONITOR_DEFERRAL,
+              EVAL_RUN,
+              EVAL_ATTEMPT,
+              EVAL_HUMAN_REVIEW,
+            ]
         payload:
           $ref: "#/OtherReportPayload"
         schemaVersion:
@@ -2581,7 +2789,7 @@ CreateReportCompletedAttempt:
 
 CreateReportCompletedAttemptError:
   allOf:
-    - $ref: './common.yaml#/ApiErrorResponse'
+    - $ref: "./common.yaml#/ApiErrorResponse"
     - type: object
       required: [code, data]
       properties:
@@ -2589,7 +2797,7 @@ CreateReportCompletedAttemptError:
           type: string
           enum: [PROJECT_REPORT_ATTEMPT_COMPLETED]
         data:
-          $ref: '#/CreateReportCompletedAttempt'
+          $ref: "#/CreateReportCompletedAttempt"
 
 ChangeWalkthroughWorkspaceSource:
   type: object
@@ -2609,12 +2817,12 @@ ChangeWalkthroughGitSource:
       enum: [GIT]
     revision:
       type: string
-      pattern: '^[0-9a-f]{40}([0-9a-f]{24})?$'
+      pattern: "^[0-9a-f]{40}([0-9a-f]{24})?$"
       description: Immutable full Git commit object ID.
 ChangeWalkthroughSourceVersion:
   oneOf:
-    - $ref: '#/ChangeWalkthroughWorkspaceSource'
-    - $ref: '#/ChangeWalkthroughGitSource'
+    - $ref: "#/ChangeWalkthroughWorkspaceSource"
+    - $ref: "#/ChangeWalkthroughGitSource"
 ChangeWalkthroughVerifiedSource:
   type: object
   additionalProperties: false
@@ -2640,11 +2848,21 @@ ChangeWalkthroughUnresolvedSource:
 ChangeWalkthroughSourceVerification:
   description: Host-computed evidence at submission time. Revalidate before opening current source.
   oneOf:
-    - $ref: '#/ChangeWalkthroughVerifiedSource'
-    - $ref: '#/ChangeWalkthroughUnresolvedSource'
+    - $ref: "#/ChangeWalkthroughVerifiedSource"
+    - $ref: "#/ChangeWalkthroughUnresolvedSource"
 ChangeWalkthroughExcerpt:
   type: object
-  required: [serviceId, file, startLine, endLine, language, code, sourceVersion, verification]
+  required:
+    [
+      serviceId,
+      file,
+      startLine,
+      endLine,
+      language,
+      code,
+      sourceVersion,
+      verification,
+    ]
   properties:
     serviceId:
       type: string
@@ -2666,15 +2884,15 @@ ChangeWalkthroughExcerpt:
       type: string
       description: Exact literal lines joined with newline, excluding the final line separator.
     sourceVersion:
-      $ref: '#/ChangeWalkthroughSourceVersion'
+      $ref: "#/ChangeWalkthroughSourceVersion"
     verification:
-      $ref: '#/ChangeWalkthroughSourceVerification'
+      $ref: "#/ChangeWalkthroughSourceVerification"
 ChangeWalkthroughStep:
   type: object
   required: [excerpt, explanation]
   properties:
     excerpt:
-      $ref: '#/ChangeWalkthroughExcerpt'
+      $ref: "#/ChangeWalkthroughExcerpt"
     explanation:
       type: string
 ChangeWalkthroughChange:
@@ -2688,7 +2906,7 @@ ChangeWalkthroughChange:
     walkthrough:
       type: array
       items:
-        $ref: '#/ChangeWalkthroughStep'
+        $ref: "#/ChangeWalkthroughStep"
     behavioralConsequence:
       type: string
 ChangeWalkthroughGroup:
@@ -2700,11 +2918,11 @@ ChangeWalkthroughGroup:
     changes:
       type: array
       items:
-        $ref: '#/ChangeWalkthroughChange'
+        $ref: "#/ChangeWalkthroughChange"
 ChangeWalkthroughReportPayload:
   description: Guided behavioral changes in importance order with inspected literal excerpts and immediate explanations. Required Review output, not a repair-authority gate.
   allOf:
-    - $ref: '#/BaseReportPayload'
+    - $ref: "#/BaseReportPayload"
   type: object
   required: [reportType, summary, targetRunId, groups]
   properties:
@@ -2720,4 +2938,4 @@ ChangeWalkthroughReportPayload:
     groups:
       type: array
       items:
-        $ref: '#/ChangeWalkthroughGroup'
+        $ref: "#/ChangeWalkthroughGroup"

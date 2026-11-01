@@ -1,9 +1,9 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import {
   Alert,
   Box,
   Button,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -178,7 +178,7 @@ export const EntityConversationPromptDialog = ({
           ) : null}
         </Stack>
       </DialogContent>
-      <DialogActions>
+      <DialogActions data-testid="entity-conversation-prompt-actions">
         <Button
           onClick={onClose}
           disabled={pending}

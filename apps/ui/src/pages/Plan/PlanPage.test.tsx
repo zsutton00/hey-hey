@@ -252,10 +252,7 @@ describe("canonical Plan page", () => {
       error: null,
     });
     renderPage();
-    expect(screen.getByTestId("dependent-futures")).toHaveAttribute(
-      "data-task-id",
-      plan.id,
-    );
+    expect(screen.queryByTestId("dependent-futures")).not.toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: plan.name }),
     ).toBeInTheDocument();
@@ -306,6 +303,24 @@ describe("canonical Plan page", () => {
       }),
     );
     expect(screen.getByTestId("plan-viewer")).toBeInTheDocument();
+  });
+
+  it("keeps Updates as a permanent tab hosting the Plan's dependent futures", () => {
+    renderPage({}, "?tab=updates");
+
+    expect(screen.getByTestId("plan-tab-updates")).toBeInTheDocument();
+    expect(screen.getByTestId("plan-updates-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("dependent-futures")).toHaveAttribute(
+      "data-task-id",
+      plan.id,
+    );
+  });
+
+  it("shows the Updates tab even when no tab is selected", () => {
+    renderPage();
+
+    expect(screen.getByTestId("plan-tab-updates")).toBeInTheDocument();
+    expect(screen.queryByTestId("plan-updates-panel")).not.toBeInTheDocument();
   });
 
   it("passes canonical Plan identity to the Design Docs tab", () => {

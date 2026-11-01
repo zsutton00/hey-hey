@@ -1,3 +1,5 @@
+import { useModalState } from "../Modals/useModalState";
+import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import {
   Alert,
   Box,
@@ -308,7 +310,8 @@ export const ReportCard: React.FC<ReportCardProps> = ({
     !goalAnchorId &&
     !embeddedInGoalPage;
 
-  const [createGoalOpen, setCreateGoalOpen] = useState(false);
+  const [createGoalOpen, setCreateGoalOpen, createGoalOpenOwnerKey] =
+    useModalState(false);
   const [isCreatingGoal, setIsCreatingGoal] = useState(false);
   const [createGoalError, setCreateGoalError] = useState<string | null>(null);
 
@@ -506,15 +509,17 @@ export const ReportCard: React.FC<ReportCardProps> = ({
         </InteractionComponent>
       </Box>
       {canCreateGoalFromReport && (
-        <NewGoalModal
-          open={createGoalOpen}
-          onClose={handleCloseCreateGoal}
-          onSubmit={handleCreateGoalSubmit}
-          isLoading={isCreatingGoal}
-          initialName={payloadTitle}
-          initialDescription={text}
-          initialSourceEntityRefs={initialSourceEntityRefs}
-        />
+        <ModalWorkOwner.Provider value={createGoalOpenOwnerKey}>
+          <NewGoalModal
+            open={createGoalOpen}
+            onClose={handleCloseCreateGoal}
+            onSubmit={handleCreateGoalSubmit}
+            isLoading={isCreatingGoal}
+            initialName={payloadTitle}
+            initialDescription={text}
+            initialSourceEntityRefs={initialSourceEntityRefs}
+          />
+        </ModalWorkOwner.Provider>
       )}
     </Paper>
   );

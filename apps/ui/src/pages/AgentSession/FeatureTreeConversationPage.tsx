@@ -25,7 +25,6 @@ export interface FeatureTreeConversationPageProps {
 export const FeatureTreeConversationPage: React.FC<
   FeatureTreeConversationPageProps
 > = ({ organizationId, projectId, agentSessionId, preview = false }) => {
-
   const { agentSession, error, isLoading, isFetched } = useAgentSession(
     organizationId || undefined,
     projectId,
@@ -80,7 +79,12 @@ export const FeatureTreeConversationPage: React.FC<
           "agent_session",
           agentSession.id,
           null,
-          buildAgentSessionPresentation(agentSession),
+          buildAgentSessionPresentation(
+            agentSession,
+            undefined,
+            undefined,
+            agentSession.title,
+          ),
         ),
       };
 

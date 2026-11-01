@@ -1,0 +1,30 @@
+name: heyhey-graph-search
+services:
+  service:
+    image: ${GRAPH_SEARCH_IMAGE:-heyhey-graph-search:local}
+    build:
+      context: ../..
+      dockerfile: apps/graph-search/Dockerfile
+    environment:
+      GRAPH_SEARCH_DATABASE_URL: ${GRAPH_SEARCH_DATABASE_URL:?Set the graph/search URL on the existing PostgreSQL 17 server}
+      GRAPH_SEARCH_BIND: 0.0.0.0:8090
+      GRAPH_SEARCH_MAX_CONNECTIONS: "5"
+      GRAPH_SEARCH_JWKS_URL: ${GRAPH_SEARCH_JWKS_URL:?Set the API JWKS URL reachable from the container}
+      GRAPH_SEARCH_JWT_ISSUER: ${GRAPH_SEARCH_JWT_ISSUER:-}
+      GRAPH_SEARCH_USER_AUDIENCE: ${GRAPH_SEARCH_USER_AUDIENCE:-}
+      GRAPH_SEARCH_GRAPH_AUDIENCE: ${GRAPH_SEARCH_GRAPH_AUDIENCE:-graph-service}
+      GRAPH_SEARCH_SEARCH_AUDIENCE: ${GRAPH_SEARCH_SEARCH_AUDIENCE:-embeddings-service}
+      REDIS_URL: ${REDIS_URL:?Set the Redis URL the API publishes events to}
+      EVENTS_CHANNEL_PREFIX: ${EVENTS_CHANNEL_PREFIX:-hey-hey:bus:}
+      GRAPH_ENABLED: "true"
+      SEARCH_ENABLED: "true"
+    volumes:
+      # Installed with scripts/fetch-model.sh; the image does not contain the model.
+      - ${GRAPH_SEARCH_MODEL_DIR:-./models/snowflake-arctic-embed-s}:/models/snowflake-arctic-embed-s:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:${GRAPH_SEARCH_PORT:-8090}:8090"
+    mem_limit: 512m
+    cpus: 1.0
+    stop_grace_period: 15s

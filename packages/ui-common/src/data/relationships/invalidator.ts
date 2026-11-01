@@ -9,9 +9,10 @@ import {
   type MarkStaleDispatch,
   routeMarkStale,
 } from "./coordinator";
-import type { QueryKey as TanStackQueryKey } from "@tanstack/react-query";
-import type { QueryKey } from "../core/types";
-import type { QueryKeyValue } from "../core/QueryKey";
+import type { QueryKey } from "@tanstack/react-query";
+
+/** A value read from a source entity to scope a relationship's target key. */
+export type QueryKeyValue = string | number | boolean | null | string[] | number[] | boolean[];
 
 export interface ScopeKeyFilter {
   lookupField: string;
@@ -26,7 +27,7 @@ export interface ItemKeyParams {
 
 /**
  * Per-collection bridge between abstract `QueryKeyPattern`s and the concrete
- * `QueryKey` instances + dispatcher this collection owns. The hook that owns
+ * TanStack key prefixes + dispatcher this collection owns. The hook that owns
  * a collection registers one of these so the invalidator can stay
  * collection-agnostic.
  */
@@ -40,14 +41,8 @@ export interface CollectionInvalidator<
   buildItemKey?: (params: ItemKeyParams) => K;
 }
 
-/**
- * Legacy collections register `QueryKey` builders; TanStack-backed
- * collections register TanStack key prefixes and invalidate them.
- */
-export type InvalidationContext = Record<
-  string,
-  CollectionInvalidator<QueryKey> | CollectionInvalidator<TanStackQueryKey>
->;
+/** Collections register TanStack key prefixes and invalidate them. */
+export type InvalidationContext = Record<string, CollectionInvalidator>;
 
 function isQueryKeyValue(value: unknown): value is QueryKeyValue {
   if (
@@ -154,10 +149,7 @@ export function invalidateForEntity(
   const patterns = getRelatedEntities(entityType, operation);
 
   for (const pattern of patterns) {
-    // Each registration's builders and dispatch share one key kind.
-    const collection = context[pattern.collection] as
-      | CollectionInvalidator<InvalidationKey>
-      | undefined;
+    const collection = context[pattern.collection];
     if (!collection) {
       throw new Error(
         `No invalidator registered for collection "${pattern.collection}"`

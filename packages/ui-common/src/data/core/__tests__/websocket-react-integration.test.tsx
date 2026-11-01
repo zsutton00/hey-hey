@@ -61,7 +61,7 @@ vi.mock("../../../contexts/AuthContext", () => ({
 vi.mock("../../websockets/debugger", () => ({
   webSocketDebugger: {
     logEvent: vi.fn(),
-    logCollectionAction: vi.fn(),
+    logQueryInvalidation: vi.fn(),
   },
 }));
 
@@ -246,7 +246,7 @@ describe("WebSocket React Integration", () => {
     });
     const mockDebugger = {
       logEvent: vi.fn(),
-      logCollectionAction: vi.fn(),
+      logQueryInvalidation: vi.fn(),
     };
     const handler = new WebSocketHandler(store, mockDebugger, queryClient);
 
@@ -453,7 +453,7 @@ describe("WebSocket React Integration", () => {
       store,
       {
         logEvent: vi.fn(),
-        logCollectionAction: vi.fn(),
+        logQueryInvalidation: vi.fn(),
       },
       queryClient
     );

@@ -1,7 +1,10 @@
 import { useState } from "react";
-import { Alert, Button, Link, Stack, Typography } from "@mui/material";
+import { Alert, Button, Stack } from "@mui/material";
 import { useProposals } from "../../data/hooks/useProposals";
 import { usePathService } from "../../contexts/PathServiceContext";
+import { ProposalList } from "../ProposalList";
+
+const PAGE_SIZE = 20;
 
 export function DependentFutures({
   organizationId,
@@ -17,50 +20,36 @@ export function DependentFutures({
   const { data, isLoading, error, pagination } = useProposals(
     organizationId,
     projectId,
-    { completionDependencyId: taskId, offset, limit: 20 },
+    { completionDependencyId: taskId, offset, limit: PAGE_SIZE },
   );
+
+  if (error) {
+    return <Alert severity="error">{error.message}</Alert>;
+  }
+
   return (
     <Stack spacing={1} data-testid="dependent-futures">
-      <Typography variant="subtitle2">Dependent futures</Typography>
-      {isLoading ? (
-        <Typography>Loading dependent futures…</Typography>
-      ) : error ? (
-        <Alert severity="error">{error.message}</Alert>
-      ) : (
-        <>
-          {data.length === 0 && <Typography>No dependent futures</Typography>}
-          {data.map((proposal) =>
-            proposal.title ? (
-              <Link
-                key={proposal.id}
-                href={paths.proposal({ projectId, proposalId: proposal.id })}
-                data-testid="dependent-future-link"
-                data-proposal-id={proposal.id}
-              >
-                {proposal.title}
-              </Link>
-            ) : (
-              <Alert key={proposal.id} severity="warning">
-                Future title unavailable
-              </Alert>
-            ),
-          )}
-          <Stack direction="row">
-            {offset > 0 && (
-              <Button
-                onClick={() => setOffset((value) => Math.max(0, value - 20))}
-              >
-                Previous
-              </Button>
-            )}
-            {pagination?.hasNext && (
-              <Button onClick={() => setOffset((value) => value + 20)}>
-                Next
-              </Button>
-            )}
-          </Stack>
-        </>
-      )}
+      <ProposalList
+        proposals={data}
+        loading={isLoading}
+        getProposalHref={(proposal) =>
+          paths.proposal({ projectId, proposalId: proposal.id })
+        }
+      />
+      <Stack direction="row">
+        {offset > 0 && (
+          <Button
+            onClick={() => setOffset((value) => Math.max(0, value - PAGE_SIZE))}
+          >
+            Previous
+          </Button>
+        )}
+        {pagination?.hasNext && (
+          <Button onClick={() => setOffset((value) => value + PAGE_SIZE)}>
+            Next
+          </Button>
+        )}
+      </Stack>
     </Stack>
   );
 }

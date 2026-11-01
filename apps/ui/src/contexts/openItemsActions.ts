@@ -4,6 +4,7 @@ import type { OpenItemsContextValue } from "./openItemsContextValue";
 import {
   matchesOpenItemIdentity,
   selectBulkRemovalTargets,
+  selectRemoveOthersTargets,
   type OpenItem,
   type OpenItemIdentity,
 } from "./openItemsModel";
@@ -211,10 +212,8 @@ function createRemovalActions(
       }),
     removeItems: (identities, includeDescendants) =>
       mutate(() => removeItems(identities, includeDescendants)),
-    removeOthers: (identity) =>
-      removeMatching((items) =>
-        selectBulkRemovalTargets(items, "others", identity),
-      ),
+    removeOthers: (keep) =>
+      removeMatching((items) => selectRemoveOthersTargets(items, keep)),
     removeAllAbove: (identity) =>
       removeMatching((items) =>
         selectBulkRemovalTargets(items, "above", identity),

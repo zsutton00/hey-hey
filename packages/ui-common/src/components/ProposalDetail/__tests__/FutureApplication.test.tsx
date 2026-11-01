@@ -6,6 +6,7 @@ import type {
   FutureApplyResponse,
   FutureRevisionResponse,
 } from "../../../api";
+import { ProposalReconciliationContext } from "../../ProposalReconciliation/ProposalReconciliationReview";
 import { FutureApplication } from "../FutureApplication";
 
 const api = vi.hoisted(() => ({
@@ -55,6 +56,7 @@ const future: FutureRevisionResponse = {
   },
   result: { ...content, sections: [] },
   dependencies: [],
+  dependencyPresentation: [],
   history: [],
   completionEligibility: { eligible: true, blockers: [] },
   outstandingRefinementProposalIds: new Set(["pending"]),
@@ -151,7 +153,7 @@ describe("manual future application", () => {
   it("shows an already applied API outcome without an Apply action", async () => {
     mount({ ...future, outcome: "APPLIED", appliedRevision: 2 });
 
-    expect(await screen.findByText("Applied version 2")).toBeInTheDocument();
+    expect(await screen.findByText("✓ Applied")).toBeInTheDocument();
     expect(screen.queryByTestId("future-apply")).not.toBeInTheDocument();
     expect(api.apply).not.toHaveBeenCalled();
   });
@@ -179,7 +181,7 @@ describe("manual future application", () => {
       }),
     );
     fireEvent.click(screen.getByTestId("future-apply-confirm"));
-    await screen.findByText("Applied version 2");
+    await screen.findByText("✓ Applied");
     expect(api.apply.mock.lastCall?.[0].futureApplyRequest).toEqual({
       expectedRevision: 2,
       confirmation,
@@ -235,4 +237,54 @@ describe("manual future application", () => {
       expect(screen.getByTestId("future-apply")).toBeEnabled(),
     );
   });
+});
+
+it.each(["BASELINE_CHANGED", "BASELINE_UNAVAILABLE"] as const)(
+  "keeps Apply guarded for %s while the shared comparison owns recovery",
+  async (blocker) => {
+    api.readiness.mockResolvedValue({
+      data: { data: { ...ready, canApply: false, blockers: [blocker] } },
+    });
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <FutureApplication future={future} onApplied={onApplied} />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(api.readiness).toHaveBeenCalled());
+    expect(screen.getByTestId("future-apply")).toBeDisabled();
+    expect(api.apply).not.toHaveBeenCalled();
+  },
+);
+
+it("withholds Apply while a fix awaits review even when the last readiness read was eligible", async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const tree = (approvalDisabled: boolean) => (
+    <QueryClientProvider client={client}>
+      <ProposalReconciliationContext.Provider
+        value={{
+          approvalDisabled,
+          state: null,
+          standaloneUpdate: false,
+          future: true,
+          staged: true,
+          submit: vi.fn(),
+        }}
+      >
+        <FutureApplication future={future} onApplied={onApplied} />
+      </ProposalReconciliationContext.Provider>
+    </QueryClientProvider>
+  );
+  const view = render(tree(true));
+  await waitFor(() => expect(api.readiness).toHaveBeenCalled());
+  expect(screen.getByTestId("future-apply")).toBeDisabled();
+  expect(api.apply).not.toHaveBeenCalled();
+  view.rerender(tree(false));
+  await waitFor(() => expect(screen.getByTestId("future-apply")).toBeEnabled());
+  expect(api.apply).not.toHaveBeenCalled();
 });

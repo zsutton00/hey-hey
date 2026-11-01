@@ -252,6 +252,9 @@ describe("EvalRunPage", () => {
     const summary = screen.getByTestId("eval-run-settings-summary");
     expect(summary).toHaveTextContent("15 min");
     expect(summary).toHaveTextContent('"tokens":"eval.run.page.limitNone"');
+    expect(summary).toHaveTextContent(
+      '"projectAssistant":"eval.run.page.projectAssistantOn"',
+    );
     expect(screen.getByTestId("eval-run-background-hint")).toBeInTheDocument();
   });
 

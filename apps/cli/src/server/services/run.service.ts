@@ -456,6 +456,11 @@ export class RunService {
     });
 
     try {
+      if (input.inert && provider === 'opencode') {
+        this.log('warn', 'local.service.create_run.inert.invalid_provider', { provider });
+        throw new LocalAgentApiError('INVALID_REQUEST', 'Inert runs require Claude or Codex.', 400);
+      }
+      this.log('debug', 'local.service.create_run.inert', { inert: input.inert === true });
       if (input.fastMode !== undefined && provider === 'opencode') {
         this.log('warn', 'local.service.create_run.fast_mode.invalid_provider', {
           provider,
@@ -489,6 +494,9 @@ export class RunService {
         // One Agent Session owns exactly one Run, whose id is the Agent Session id.
         const existing = await runStore.getRun(requestedAgentSessionId);
         if (existing) {
+          if ((existing.inert === true) !== (input.inert === true)) {
+            throw new LocalAgentApiError('INVALID_REQUEST', 'Run inertness cannot change.', 409);
+          }
           if (!sameRunEntity(existing.entity, entity)) {
             this.log('warn', 'local.service.create_run.entity_conflict', {
               agentSessionId: requestedAgentSessionId,
@@ -548,6 +556,7 @@ export class RunService {
       if (resolvedModel) startArgs.model = resolvedModel;
       if (resolvedEffort) startArgs.reasoningEffort = resolvedEffort;
       if (input.fastMode !== undefined) startArgs.fastMode = input.fastMode;
+      if (input.inert !== undefined) startArgs.inert = input.inert;
       const result = await startAgenticSession(startArgs);
 
       if (result.status === 'repo-required') {

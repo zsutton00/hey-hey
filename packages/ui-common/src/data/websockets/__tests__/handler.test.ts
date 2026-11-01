@@ -69,7 +69,7 @@ const isInvalidated = (
 describe("WebSocketHandler", () => {
   let mockDebugger: WebSocketDebugger;
   let logEventSpy: ReturnType<typeof vi.spyOn>;
-  let logCollectionActionSpy: ReturnType<typeof vi.spyOn>;
+  let logQueryInvalidationSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     // Create proper debugger instance with mocked methods
@@ -77,8 +77,8 @@ describe("WebSocketHandler", () => {
     logEventSpy = vi
       .spyOn(mockDebugger, "logEvent")
       .mockImplementation(() => {});
-    logCollectionActionSpy = vi
-      .spyOn(mockDebugger, "logCollectionAction")
+    logQueryInvalidationSpy = vi
+      .spyOn(mockDebugger, "logQueryInvalidation")
       .mockImplementation(() => {});
   });
 
@@ -308,7 +308,7 @@ describe("WebSocketHandler", () => {
   });
 
   it("should require store parameter", () => {
-    expect(() => new WebSocketHandler(null as any, mockDebugger)).toThrow(
+    expect(() => new WebSocketHandler(null as any, mockDebugger, createQueryClient())).toThrow(
       "WebSocketHandler requires a store instance"
     );
   });
@@ -516,9 +516,8 @@ describe("WebSocketHandler", () => {
       expect(isInvalidated(queryClient, keys.hierarchy)).toBe(true);
       expect(isInvalidated(queryClient, keys.changedDetail)).toBe(false);
       expect(isInvalidated(queryClient, keys.otherProjectList)).toBe(false);
-      expect(logCollectionActionSpy).toHaveBeenCalledWith(
+      expect(logQueryInvalidationSpy).toHaveBeenCalledWith(
         "workItems",
-        "INVALIDATE",
         "new-item",
         expect.objectContaining({
           eventType: "task.created",
@@ -587,9 +586,8 @@ describe("WebSocketHandler", () => {
       expect(queryClient.getQueryState(keys.changedDetail)).toBeUndefined();
       expect(queryClient.getQueryState(keys.projectlessDetail)).toBeUndefined();
       expect(isInvalidated(queryClient, keys.list)).toBe(true);
-      expect(logCollectionActionSpy).toHaveBeenCalledWith(
+      expect(logQueryInvalidationSpy).toHaveBeenCalledWith(
         "workItems",
-        "DELETE_ITEM",
         "deleted:task-123",
         expect.objectContaining({ eventType: "task.deleted" })
       );
@@ -609,12 +607,11 @@ describe("WebSocketHandler", () => {
       for (const queryKey of Object.values(keys)) {
         expect(isInvalidated(queryClient, queryKey)).toBe(true);
       }
-      expect(logCollectionActionSpy).toHaveBeenCalledWith(
-        "workItems",
-        "MARK_ALL_STALE",
+      expect(logQueryInvalidationSpy).toHaveBeenCalledWith(
+        "all",
         "all-queries",
         expect.objectContaining({
-          reason: expect.stringContaining("work item"),
+          reason: expect.stringContaining("reconnected"),
         })
       );
     });
@@ -673,7 +670,7 @@ describe("WebSocketHandler", () => {
 
     it("keys the latest bindings by machineId", () => {
       const store = createStore();
-      const handler = new WebSocketHandler(store, mockDebugger);
+      const handler = new WebSocketHandler(store, mockDebugger, createQueryClient());
 
       handler.handleEvent({
         type: "machine.repo_bindings",
@@ -690,7 +687,7 @@ describe("WebSocketHandler", () => {
 
     it("does not clobber other machines and overwrites with empty bindings on disconnect", () => {
       const store = createStore();
-      const handler = new WebSocketHandler(store, mockDebugger);
+      const handler = new WebSocketHandler(store, mockDebugger, createQueryClient());
 
       handler.handleEvent({
         type: "machine.repo_bindings",

@@ -1,3 +1,5 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { z } from 'zod';
 import {
   ActivityCorrelationActivityType,
@@ -14,40 +16,32 @@ import {
   type ProjectReportSubjectPlacement,
 } from '../../shared/api/generated/api';
 import type { ServerLogger } from '../../server/logger';
+import {
+  evidenceDirectoryOf,
+  type ProjectReportEvidenceManifest,
+} from './project-report-evidence-store';
+import {
+  planProjectReportGroups,
+  type ProjectReportSubjectSummary,
+} from './project-report-grouping';
 import type { ProjectReportRequestProjection } from './project-report-request-reader';
+import {
+  ProjectReportActivitySpool,
+  ProjectReportShardWriter,
+} from './project-report-shard-writer';
 
 export type ProjectReportActivityEvidence = Pick<
   ActivityCorrelationRecordDto,
   'entityType' | 'entityId' | 'title' | 'type' | 'timestamp' | 'source'
 >;
 
-interface ProjectReportSubjectActivity {
-  activityType: ActivityCorrelationActivityType;
-  source: ActivityCorrelationSource;
-  count: number;
-  firstOccurredAt: string;
-  lastOccurredAt: string;
-}
-
 /**
- * Everything the selected period recorded for one primary subject, joined with
- * that subject's current state. The author writes about subjects, so the host
- * groups activity by subject rather than by page or activity type.
+ * Where every matching record went. The records themselves are in the shards
+ * the manifest lists; nothing about the selection is carried in memory or in a
+ * prompt beyond this summary.
  */
-export interface ProjectReportSubjectDigest {
-  subject: ProjectReportSubject;
-  title: string;
-  currentStatus?: string;
-  activity: ProjectReportSubjectActivity[];
-  latestActivityEvidenceKey: string;
-  currentStateEvidenceKey?: string;
-  /** Owning plan and feature lineage; absent when current-state detail could not be read. */
-  placement?: ProjectReportSubjectPlacement;
-}
-
 export interface ProjectReportEvidenceResult {
-  subjects: ProjectReportSubjectDigest[];
-  evidenceReferences: ProjectReportEvidenceReference[];
+  manifest: ProjectReportEvidenceManifest;
   evidenceReadStartedAt: string;
   evidenceReadCompletedAt: string;
   coverage: ProjectReportCoverage;
@@ -88,8 +82,6 @@ class ProjectReportEvidenceRequestError extends Error {
 }
 
 const ACTIVITY_PAGE_SIZE = 50;
-const MAX_ACTIVITY_PAGES = 100;
-const MAX_ACTIVITY_RECORDS = 5000;
 /** The batch current-state read accepts at most this many subjects per call. */
 const CONTEXT_BATCH_SIZE = 100;
 
@@ -98,7 +90,6 @@ interface SubjectAccumulator {
   latest: ProjectReportActivityEvidence;
   activityCount: number;
   changeCount: number;
-  activity: Map<string, ProjectReportSubjectActivity>;
 }
 
 const projectReportSubjectSchema = z.object({
@@ -187,8 +178,32 @@ export class ProjectReportEvidenceReader {
     this.logger = options.logger;
   }
 
-  public async read(input: ProjectReportEvidenceReadInput): Promise<ProjectReportEvidenceResult> {
+  /**
+   * Reads every matching record and writes it into shards under `runDirectory`.
+   * Paging has no ceiling: it ends when the activity query reports the end.
+   */
+  public async read(
+    input: ProjectReportEvidenceReadInput,
+    runDirectory: string,
+  ): Promise<ProjectReportEvidenceResult> {
     const evidenceReadStartedAt = new Date().toISOString();
+    const evidenceDirectory = evidenceDirectoryOf(runDirectory);
+    await fs.mkdir(evidenceDirectory, { recursive: true, mode: 0o700 });
+    const spool = await ProjectReportActivitySpool.open(path.join(runDirectory, '.activity-spool'));
+
+    try {
+      return await this.readIntoShards(input, evidenceDirectory, spool, evidenceReadStartedAt);
+    } finally {
+      await spool.dispose();
+    }
+  }
+
+  private async readIntoShards(
+    input: ProjectReportEvidenceReadInput,
+    evidenceDirectory: string,
+    spool: ProjectReportActivitySpool,
+    evidenceReadStartedAt: string,
+  ): Promise<ProjectReportEvidenceResult> {
     const subjects = new Map<string, SubjectAccumulator>();
     let pagesRead = 0;
     let firstReportedTotal: number | undefined;
@@ -206,12 +221,10 @@ export class ProjectReportEvidenceReader {
       attemptId: input.attemptId,
       projectId: input.projectId,
       activityPageSize: ACTIVITY_PAGE_SIZE,
-      maxActivityPages: MAX_ACTIVITY_PAGES,
-      maxActivityRecords: MAX_ACTIVITY_RECORDS,
       contextBatchSize: CONTEXT_BATCH_SIZE,
     });
 
-    while (pagesRead < MAX_ACTIVITY_PAGES) {
+    for (;;) {
       this.logger.debug('project_report.activity_page.read.started', {
         requestId: input.requestId,
         attemptId: input.attemptId,
@@ -261,9 +274,7 @@ export class ProjectReportEvidenceReader {
       }
       pagesRead += 1;
 
-      const availableRecordCount = MAX_ACTIVITY_RECORDS - processedActivityCount;
-      const recordsToProcess = page.records.slice(0, availableRecordCount);
-      for (const record of recordsToProcess) {
+      for (const record of page.records) {
         const subject = { entityType: record.entityType, entityId: record.entityId };
         if (excludedSubjects.has(this.subjectKey(subject))) {
           this.logger.error('project_report.activity_page.excluded_primary_subject', {
@@ -279,6 +290,18 @@ export class ProjectReportEvidenceReader {
           );
         }
         this.accumulate(subjects, subject, record);
+        await spool.append(
+          this.subjectKey(subject),
+          record.timestamp,
+          JSON.stringify({
+            kind: ProjectReportEvidenceReferenceKindEnum.SelectedPeriod,
+            subject,
+            title: record.title,
+            type: record.type,
+            timestamp: record.timestamp,
+            source: record.source,
+          }),
+        );
         processedActivityCount += 1;
       }
       this.logger.debug('project_report.activity_page.read.completed', {
@@ -286,17 +309,10 @@ export class ProjectReportEvidenceReader {
         attemptId: input.attemptId,
         offset,
         retrievedActionCount: page.records.length,
-        processedActionCount: recordsToProcess.length,
         reportedTotal: page.total,
         nextOffset: page.nextOffset ?? null,
       });
 
-      if (recordsToProcess.length < page.records.length) {
-        limitations.push(
-          `Activity reading was bounded to ${MAX_ACTIVITY_RECORDS} of the retrieved actions.`,
-        );
-        break;
-      }
       if (page.nextOffset === undefined) {
         reachedEnd = true;
         break;
@@ -308,9 +324,6 @@ export class ProjectReportEvidenceReader {
       offset = page.nextOffset;
     }
 
-    if (!reachedEnd && pagesRead >= MAX_ACTIVITY_PAGES) {
-      limitations.push(`Activity reading reached the ${MAX_ACTIVITY_PAGES}-page bound.`);
-    }
     if (
       reachedEnd &&
       matchingActivityCount !== undefined &&
@@ -416,18 +429,49 @@ export class ProjectReportEvidenceReader {
       });
     }
 
-    const evidenceReadCompletedAt = new Date().toISOString();
-    const { subjects: subjectDigests, evidenceReferences } = this.buildSubjectDigests(
-      rankedSubjects,
-      currentStates,
+    const summaries = rankedSubjects.map((accumulator): ProjectReportSubjectSummary => {
+      const currentState = currentStates.get(this.subjectKey(accumulator.subject));
+      return {
+        subject: accumulator.subject,
+        title: currentState?.title ?? accumulator.latest.title,
+        changeCount: accumulator.changeCount,
+        activityCount: accumulator.activityCount,
+        lastOccurredAt: accumulator.latest.timestamp,
+        ...(currentState ? { placement: currentState.placement } : {}),
+      };
+    });
+    const rankBySubject = new Map(
+      rankedSubjects.map((accumulator, index) => [this.subjectKey(accumulator.subject), index + 1]),
     );
+    const latestBySubject = new Map(
+      rankedSubjects.map((accumulator) => [
+        this.subjectKey(accumulator.subject),
+        accumulator.latest,
+      ]),
+    );
+    const manifest = await new ProjectReportShardWriter(evidenceDirectory).write(
+      planProjectReportGroups(summaries),
+      async (summary) => {
+        const key = this.subjectKey(summary.subject);
+        const activityLines = await spool.readSubject(key);
+        const contextLine = this.contextLine({
+          summary,
+          currentState: currentStates.get(key),
+          latest: this.required(latestBySubject.get(key), 'latest activity'),
+          rank: this.required(rankBySubject.get(key), 'rank'),
+        });
+        return { lines: [contextLine, ...activityLines], activityCount: activityLines.length };
+      },
+    );
+
+    const evidenceReadCompletedAt = new Date().toISOString();
     const coverage: ProjectReportCoverage = {
       status:
         limitations.length === 0 && reachedEnd
           ? ProjectReportCoverageStatusEnum.Complete
           : ProjectReportCoverageStatusEnum.Incomplete,
       matchingActivityCount,
-      processedActivityCount,
+      processedActivityCount: manifest.totalActivityCount,
       pagesRead,
       limitations,
     };
@@ -440,17 +484,12 @@ export class ProjectReportEvidenceReader {
       processedActivityCount: coverage.processedActivityCount,
       currentStateContextsRead: currentStates.size,
       primarySubjects: rankedSubjects.length,
+      shardCount: manifest.shards.length,
       coverageStatus: coverage.status,
       limitationCount: limitations.length,
     });
 
-    return {
-      subjects: subjectDigests,
-      evidenceReferences,
-      evidenceReadStartedAt,
-      evidenceReadCompletedAt,
-      coverage,
-    };
+    return { manifest, evidenceReadStartedAt, evidenceReadCompletedAt, coverage };
   }
 
   private async readActivityPage(
@@ -592,74 +631,62 @@ export class ProjectReportEvidenceReader {
       latest: record,
       activityCount: 0,
       changeCount: 0,
-      activity: new Map<string, ProjectReportSubjectActivity>(),
     };
     accumulator.activityCount += 1;
-    if (record.type !== ActivityCorrelationActivityType.Viewed) accumulator.changeCount += 1;
-    if (record.timestamp > accumulator.latest.timestamp) accumulator.latest = record;
-
-    const activityKey = `${record.type}\u0000${record.source}`;
-    const activity = accumulator.activity.get(activityKey);
-    if (activity) {
-      activity.count += 1;
-      if (record.timestamp < activity.firstOccurredAt) activity.firstOccurredAt = record.timestamp;
-      if (record.timestamp > activity.lastOccurredAt) activity.lastOccurredAt = record.timestamp;
-    } else {
-      accumulator.activity.set(activityKey, {
-        activityType: record.type,
-        source: record.source,
-        count: 1,
-        firstOccurredAt: record.timestamp,
-        lastOccurredAt: record.timestamp,
-      });
+    if (record.type !== ActivityCorrelationActivityType.Viewed) {
+      accumulator.changeCount += 1;
+    }
+    if (record.timestamp > accumulator.latest.timestamp) {
+      accumulator.latest = record;
     }
     subjects.set(subjectKey, accumulator);
   }
 
-  private buildSubjectDigests(
-    subjects: readonly SubjectAccumulator[],
-    currentStates: ReadonlyMap<string, CurrentStateDetail>,
-  ): {
-    subjects: ProjectReportSubjectDigest[];
-    evidenceReferences: ProjectReportEvidenceReference[];
-  } {
-    const activityReferences: ProjectReportEvidenceReference[] = [];
-    const contextReferences: ProjectReportEvidenceReference[] = [];
-    const digests = subjects.map((accumulator, index) => {
-      const latestActivityEvidenceKey = `selected-period-${index + 1}`;
-      activityReferences.push({
-        key: latestActivityEvidenceKey,
-        subject: accumulator.subject,
-        title: accumulator.latest.title,
+  /**
+   * The line that opens each subject in a shard: its current state and the
+   * evidence references the agent may cite for it.
+   */
+  private contextLine(input: {
+    summary: ProjectReportSubjectSummary;
+    currentState: CurrentStateDetail | undefined;
+    latest: ProjectReportActivityEvidence;
+    rank: number;
+  }): string {
+    const { summary, currentState, latest, rank } = input;
+    const evidenceReferences: ProjectReportEvidenceReference[] = [
+      {
+        key: `selected-period-${String(rank)}`,
+        subject: summary.subject,
+        title: latest.title,
         kind: ProjectReportEvidenceReferenceKindEnum.SelectedPeriod,
-        occurredAt: accumulator.latest.timestamp,
-        source: accumulator.latest.source,
+        occurredAt: latest.timestamp,
+        source: latest.source,
+      },
+    ];
+    if (currentState) {
+      evidenceReferences.push({
+        key: `current-state-${summary.subject.entityType}-${summary.subject.entityId}`,
+        subject: summary.subject,
+        title: currentState.title,
+        kind: ProjectReportEvidenceReferenceKindEnum.CurrentStateContext,
       });
-      const currentState = currentStates.get(this.subjectKey(accumulator.subject));
-      let currentStateEvidenceKey: string | undefined;
-      if (currentState) {
-        currentStateEvidenceKey = `current-state-${accumulator.subject.entityType}-${accumulator.subject.entityId}`;
-        contextReferences.push({
-          key: currentStateEvidenceKey,
-          subject: accumulator.subject,
-          title: currentState.title,
-          kind: ProjectReportEvidenceReferenceKindEnum.CurrentStateContext,
-        });
-      }
-      return {
-        subject: accumulator.subject,
-        title: currentState?.title ?? accumulator.latest.title,
-        ...(currentState?.status !== undefined ? { currentStatus: currentState.status } : {}),
-        activity: Array.from(accumulator.activity.values()),
-        latestActivityEvidenceKey,
-        ...(currentStateEvidenceKey ? { currentStateEvidenceKey } : {}),
-        ...(currentState ? { placement: currentState.placement } : {}),
-      } satisfies ProjectReportSubjectDigest;
+    }
+
+    return JSON.stringify({
+      kind: ProjectReportEvidenceReferenceKindEnum.CurrentStateContext,
+      subject: summary.subject,
+      title: summary.title,
+      ...(currentState?.status !== undefined ? { currentStatus: currentState.status } : {}),
+      ...(currentState ? { placement: currentState.placement } : { currentStateUnavailable: true }),
+      evidenceReferences,
     });
-    return {
-      subjects: digests,
-      evidenceReferences: [...activityReferences, ...contextReferences],
-    };
+  }
+
+  private required<T>(value: T | undefined, name: string): T {
+    if (value === undefined) {
+      throw new Error(`project_report evidence reader lost its ${name} for a subject`);
+    }
+    return value;
   }
 
   private subjectKey(subject: ProjectReportSubject): string {

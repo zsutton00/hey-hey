@@ -27,6 +27,7 @@ import {
 
 export const CREATE_HINT_TOOL_NAME = 'create_hint';
 export const ADD_HINT_CONNECTION_TOOL_NAME = 'add_hint_connection';
+export const DELETE_HINT_TOOL_NAME = 'delete_hint';
 export const GET_HINTS_FOR_ITEMS_TOOL_NAME = 'get_hints_for_items';
 
 // The firing logic owns strength changes; new connections start equal.
@@ -79,6 +80,15 @@ const addHintConnectionParameters = z.object({
   connection: connectionTargetSchema,
 });
 
+const deleteHintParameters = z.object({
+  projectId: z
+    .string()
+    .uuid()
+    .optional()
+    .describe('Project the hint belongs to. Inferred from X-Project-ID.'),
+  hintId: z.string().uuid().describe('ID of the hint to delete'),
+});
+
 const getHintsForItemsParameters = z.object({
   projectId: z
     .string()
@@ -109,6 +119,7 @@ const hintViewSchema = z.object({
 });
 
 const hintOutput = z.object({ hint: hintViewSchema });
+const deletedHintOutput = z.object({ deletedHintId: z.string() });
 const hintsOutput = z.object({ hints: z.array(hintViewSchema) });
 
 const toolError = (action: string, error: unknown): CallToolResult =>
@@ -240,6 +251,41 @@ export class HintWriteToolsProvider {
         error: error instanceof Error ? error.message : String(error),
       });
       return toolError('add hint connection', error);
+    }
+  }
+
+  @Tool({
+    name: DELETE_HINT_TOOL_NAME,
+    description:
+      'Delete a hint that is wrong, duplicated or no longer applies. It stops ' +
+      'appearing in reads; its record is kept. Do not delete a hint just ' +
+      'because it was not useful to you. Only hints you could read can be ' +
+      'deleted.',
+    parameters: deleteHintParameters,
+    outputSchema: deletedHintOutput,
+  })
+  async deleteHint(
+    params: z.infer<typeof deleteHintParameters>,
+    _context: Context,
+    request: Request,
+  ): Promise<z.infer<typeof deletedHintOutput> | CallToolResult> {
+    const requestor = resolveRequestor(params, request);
+    if (!isRequestor(requestor)) return requestor;
+
+    this.logger.log('delete_hint called', {
+      projectId: requestor.projectId,
+      hintId: params.hintId,
+    });
+    try {
+      await this.hintService.retireHint(requestor, params.hintId);
+      return { deletedHintId: params.hintId };
+    } catch (error) {
+      this.logger.warn('delete_hint failed', {
+        projectId: requestor.projectId,
+        hintId: params.hintId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return toolError('delete hint', error);
     }
   }
 }

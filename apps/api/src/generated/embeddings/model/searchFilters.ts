@@ -106,6 +106,10 @@ export interface SearchFilters {
    * Task type filter. When provided, only task documents whose taskType metadata matches are returned.
    */
   taskTypes?: Array<string>;
+  /**
+   * Task types removed inside the query, before hits, offsets and totals. Never narrows which document schemas are searched; only task documents carry a taskType, and documents of other schemas are unaffected. Wins over taskTypes.
+   */
+  excludeTaskTypes?: Array<string>;
   created_after?: SearchFiltersCreatedAfter;
   created_before?: SearchFiltersCreatedBefore;
   updated_after?: SearchFiltersUpdatedAfter;

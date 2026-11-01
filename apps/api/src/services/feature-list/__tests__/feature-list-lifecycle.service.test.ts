@@ -172,6 +172,30 @@ describe('FeatureListLifecycleService placement', () => {
     return { service, authoring, finalization, decision, prisma };
   };
 
+  it('preserves an in-flight enriched review from before structured intent without inventing requirements', async () => {
+    const { service, authoring } = makeService();
+    const context = makeContext();
+    context.repositoryFeatureEnrichmentFinal = {
+      outcome: 'success',
+      serviceId: '44444444-4444-4444-8444-444444444444',
+      provider: 'codex',
+      resolvedFrontierModel: 'model',
+      narrative: 'Existing import',
+      hierarchy: { topLevels: [] },
+      evidence: [],
+      briefDiscrepancies: [],
+    };
+    const tracker = createMutableContextHandle(context);
+    await service.applyPlacementStrategy(
+      { action: 'ADD_AT_ROOT' },
+      tracker,
+      'placement',
+    );
+    expect(
+      authoring.updateMember.mock.calls[0][5].proposal.updates,
+    ).not.toHaveProperty('initialRequirements');
+  });
+
   it('updates only root proposal parents and preserves child wiring', async () => {
     const { service, authoring } = makeService();
     const tracker = createMutableContextHandle(makeContext());

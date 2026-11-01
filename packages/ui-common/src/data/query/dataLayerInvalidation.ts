@@ -5,7 +5,10 @@ import { organizationKeys } from "../collections/organizationsDirectory";
 import { integrationKeys } from "../collections/integrations";
 import { localRepoBindingKeys } from "../collections/localRepoBindings";
 import { promptTemplateKeys } from "../collections/entityPromptTemplates";
-import { initiativeKeys, initiativeListMatchesProject } from "../collections/initiatives";
+import {
+  initiativeKeys,
+  initiativeListMatchesProject,
+} from "../collections/initiatives";
 import { artifactKeys } from "../collections/artifacts";
 import { implementationHintKeys } from "../collections/implementationHints";
 import { fileReferenceKeys } from "../collections/fileReferenceCandidates";
@@ -104,7 +107,7 @@ export const dataLayerQueryRoots = () => [
  * stale: its hook owns the reconnect read, which also replays offline work.
  */
 export function invalidateAllDataLayerQueries(
-  queryClient: QueryClient
+  queryClient: QueryClient,
 ): Promise<void> {
   const [workItemRoot] = workItemKeys.root();
   return Promise.all(
@@ -142,8 +145,8 @@ export function invalidateAllDataLayerQueries(
         ? invalidateWithFollowUpRead(queryClient, { queryKey })
         : queryKey[0] === openItemsKeys.root()[0]
           ? queryClient.invalidateQueries({ queryKey, refetchType: "none" })
-          : queryClient.invalidateQueries({ queryKey })
-    )
+          : queryClient.invalidateQueries({ queryKey }),
+    ),
   ).then(() => undefined);
 }
 
@@ -164,7 +167,7 @@ export function invalidateProjectWorkItemQueries(
   queryClient: QueryClient,
   organizationId: string,
   projectId?: string,
-  taskId?: string
+  taskId?: string,
 ): Promise<void> {
   const scope =
     projectId === undefined
@@ -201,9 +204,15 @@ export function invalidateProjectWorkItemQueries(
             (queryKey[4] === "byId" && queryKey[5] === taskId),
         };
   return Promise.all([
+    invalidateWithFollowUpRead(queryClient, {
+      queryKey:
+        projectId === undefined
+          ? [...proposalKeys.root(), organizationId]
+          : proposalKeys.project(organizationId, projectId),
+    }),
     queryClient.invalidateQueries({ queryKey: scope.references }),
     ...workItemFilters.map((filter) =>
-      invalidateWithFollowUpRead(queryClient, filter)
+      invalidateWithFollowUpRead(queryClient, filter),
     ),
     queryClient.invalidateQueries(contentFilter),
   ]).then(() => undefined);
@@ -216,7 +225,7 @@ export function invalidateEditHistoryUpdated(
     type: "edit-history.updated";
     organizationId: string;
     initiativeId?: string;
-  }
+  },
 ): Promise<void> {
   if (!event.initiativeId) return Promise.resolve();
   const entityId = event.initiativeId;
@@ -226,23 +235,26 @@ export function invalidateEditHistoryUpdated(
         queryKey: editHistoryKeys.entity(
           event.organizationId,
           entityType,
-          entityId
+          entityId,
         ),
         exact: true,
-      })
-    )
+      }),
+    ),
   ).then(() => undefined);
 }
 
-
 /** One filter prevents overlapping detail/list invalidations from restarting each other. */
 export function invalidateInitiativeChange(
-  queryClient: QueryClient, organizationId: string, projectId?: string, initiativeId?: string
+  queryClient: QueryClient,
+  organizationId: string,
+  projectId?: string,
+  initiativeId?: string,
 ): Promise<void> {
   return invalidateWithFollowUpRead(queryClient, {
     queryKey: initiativeKeys.all(organizationId),
     predicate: ({ queryKey }) => {
-      if (queryKey[2] === "detail") return !!initiativeId && queryKey[3] === initiativeId;
+      if (queryKey[2] === "detail")
+        return !!initiativeId && queryKey[3] === initiativeId;
       if (queryKey[2] !== "list") return false;
       return initiativeListMatchesProject(queryKey, projectId);
     },

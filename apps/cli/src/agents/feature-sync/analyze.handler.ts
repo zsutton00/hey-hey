@@ -165,6 +165,7 @@ export const featureSyncAnalyzeHandler: UserLaunchablePromptTypeHandler<LocalFea
         launchStageId: payload.launchStageId ?? null,
         hasResearch: enriched._hasResearch ?? false,
         featureSeed: enriched._featureSeed ?? false,
+        provider: ctx?.provider,
         implementationReadinessSourceSnapshot: ctx?.implementationReadinessSourceSnapshot ?? null,
       });
     },

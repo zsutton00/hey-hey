@@ -17,4 +17,4 @@ export * from './PlatformMcpClient';
 export * from './SessionRunnerCore';
 export * from './types';
 
-export * from '../../../../../packages/ui-common/src/utils/run-attachment-format';
+export * from '../../shared/runtime/utils/run-attachment-format';

@@ -1,7 +1,7 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import { useEffect, useMemo, useState, type FC } from "react";
 import {
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -22,6 +22,7 @@ export interface WorkItemGraphRelationshipDialogValue {
   category: AgentEdgeCategory;
   direction?: AgentEdgeDirection;
   predicate?: string | null;
+  actionLabel?: string | null;
   reasoning?: string | null;
   metadata?: Readonly<Record<string, unknown>> | null;
 }
@@ -30,20 +31,21 @@ export interface WorkItemGraphRelationshipDialogProps {
   open: boolean;
   declarations: readonly WorkItemTypeGraphRelationshipDeclaration[];
   relationship?: ProjectedWorkItemRelationship | null;
+  actionLabelRequired?: boolean;
   onCancel: () => void;
   onCommit: (value: WorkItemGraphRelationshipDialogValue) => void;
 }
 
 function declarationFor(
   declarations: readonly WorkItemTypeGraphRelationshipDeclaration[],
-  edgeType: string
+  edgeType: string,
 ): WorkItemTypeGraphRelationshipDeclaration | undefined {
   return declarations.find((declaration) => declaration.edgeType === edgeType);
 }
 
 function initialDirection(
   declaration: WorkItemTypeGraphRelationshipDeclaration | undefined,
-  relationship: ProjectedWorkItemRelationship | null | undefined
+  relationship: ProjectedWorkItemRelationship | null | undefined,
 ): AgentEdgeDirection | "" {
   const allowed = declaration?.direction?.allowedDirections ?? [];
   if (relationship?.direction && allowed.includes(relationship.direction)) {
@@ -54,14 +56,23 @@ function initialDirection(
 
 export const WorkItemGraphRelationshipDialog: FC<
   WorkItemGraphRelationshipDialogProps
-> = ({ open, declarations, relationship, onCancel, onCommit }) => {
+> = ({
+  open,
+  declarations,
+  relationship,
+  actionLabelRequired = false,
+  onCancel,
+  onCommit,
+}) => {
   const [edgeType, setEdgeType] = useState<AgentEdgeType | "">("");
   const [direction, setDirection] = useState<AgentEdgeDirection | "">("");
   const [predicate, setPredicate] = useState("");
+  const [actionLabel, setActionLabel] = useState("");
   const [label, setLabel] = useState("");
   const [description, setDescription] = useState("");
   const [reasoning, setReasoning] = useState("");
   const [editedLabel, setEditedLabel] = useState(false);
+  const [editedActionLabel, setEditedActionLabel] = useState(false);
   const [editedDescription, setEditedDescription] = useState(false);
   const [editedReasoning, setEditedReasoning] = useState(false);
 
@@ -73,15 +84,17 @@ export const WorkItemGraphRelationshipDialog: FC<
     setEdgeType(initialEdgeType);
     setDirection(initialDirection(initialDeclaration, relationship));
     setPredicate(relationship?.predicate ?? "");
+    setActionLabel(relationship?.actionLabel ?? "");
+    setEditedActionLabel(false);
     setLabel(
       typeof relationship?.metadata?.label === "string"
         ? relationship.metadata.label
-        : ""
+        : "",
     );
     setDescription(
       typeof relationship?.metadata?.description === "string"
         ? relationship.metadata.description
-        : ""
+        : "",
     );
     setReasoning(relationship?.reasoning ?? "");
     setEditedLabel(false);
@@ -91,28 +104,37 @@ export const WorkItemGraphRelationshipDialog: FC<
 
   const selectedDeclaration = useMemo(
     () => declarationFor(declarations, edgeType),
-    [declarations, edgeType]
+    [declarations, edgeType],
   );
   const allowedDirections =
     selectedDeclaration?.direction?.allowedDirections ?? [];
   const directionRequired = selectedDeclaration?.direction?.required ?? false;
   const predicateRequired =
     selectedDeclaration?.direction?.predicateRequired ?? false;
+  const actionLabelAllowed = selectedDeclaration?.category === "flow";
   const canCommit =
     Boolean(selectedDeclaration) &&
     (!directionRequired || direction !== "") &&
-    (!predicateRequired || predicate.trim().length > 0);
+    (!predicateRequired || predicate.trim().length > 0) &&
+    (!actionLabelRequired ||
+      !actionLabelAllowed ||
+      actionLabel.trim().length > 0);
 
   const commit = () => {
     if (!selectedDeclaration || !canCommit) return;
     const changedType = Boolean(
-      relationship && relationship.edgeType !== selectedDeclaration.edgeType
+      relationship && relationship.edgeType !== selectedDeclaration.edgeType,
     );
     const committedPredicate = predicateRequired
       ? predicate.trim()
       : changedType
-      ? null
-      : undefined;
+        ? null
+        : undefined;
+    const committedActionLabel = actionLabelAllowed
+      ? actionLabel.trim() || (editedActionLabel ? null : undefined)
+      : changedType && relationship?.actionLabel
+        ? null
+        : undefined;
     const editedMetadata = editedLabel || editedDescription;
     const metadata = editedMetadata
       ? {
@@ -123,19 +145,22 @@ export const WorkItemGraphRelationshipDialog: FC<
             : {}),
         }
       : changedType
-      ? relationship?.metadata
-      : undefined;
+        ? relationship?.metadata
+        : undefined;
     const committedReasoning = editedReasoning
       ? reasoning.trim() || null
       : changedType
-      ? relationship?.reasoning
-      : undefined;
+        ? relationship?.reasoning
+        : undefined;
     onCommit({
       edgeType: selectedDeclaration.edgeType,
       category: selectedDeclaration.category,
       ...(direction ? { direction } : {}),
       ...(committedPredicate !== undefined
         ? { predicate: committedPredicate }
+        : {}),
+      ...(committedActionLabel !== undefined
+        ? { actionLabel: committedActionLabel }
         : {}),
       ...(committedReasoning !== undefined
         ? { reasoning: committedReasoning }
@@ -160,11 +185,14 @@ export const WorkItemGraphRelationshipDialog: FC<
               const nextEdgeType = event.target.value as AgentEdgeType;
               const nextDeclaration = declarationFor(
                 declarations,
-                nextEdgeType
+                nextEdgeType,
               );
               setEdgeType(nextEdgeType);
               setDirection(initialDirection(nextDeclaration, null));
               setPredicate("");
+              if (nextDeclaration?.category !== "flow") {
+                setActionLabel("");
+              }
             }}
             inputProps={{ "data-testid": "work-item-graph-relationship-type" }}
           >
@@ -203,6 +231,23 @@ export const WorkItemGraphRelationshipDialog: FC<
               onChange={(event) => setPredicate(event.target.value)}
               inputProps={{
                 "data-testid": "work-item-graph-relationship-predicate",
+              }}
+            />
+          )}
+          {actionLabelAllowed && (
+            <TextField
+              label={
+                actionLabelRequired ? "Action label" : "Action label (optional)"
+              }
+              required={actionLabelRequired}
+              value={actionLabel}
+              onChange={(event) => {
+                setActionLabel(event.target.value);
+                setEditedActionLabel(true);
+              }}
+              inputProps={{
+                maxLength: 200,
+                "data-testid": "work-item-graph-relationship-action-label",
               }}
             />
           )}

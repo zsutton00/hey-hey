@@ -14,7 +14,7 @@
 
 
 /**
- * Explicit choice after outline review. SKIP proceeds to placement and final approval without enrichment.
+ * Choice after Feature creation. ENRICH starts a continuing CLI conversation; SKIP completes the import.
  */
 export type RepositoryFeatureEnrichmentChoice = 'ENRICH' | 'SKIP';
 

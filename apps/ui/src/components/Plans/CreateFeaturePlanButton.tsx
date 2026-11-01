@@ -1,9 +1,10 @@
+import { useModalState } from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Alert,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -42,7 +43,7 @@ export const CreateFeaturePlanButton = ({
     projectId,
   );
   const planType = useWorkItemTypeByKey(organizationId, projectId, "PLAN");
-  const [open, setOpen] = useState(false);
+  const [open, setOpen, openOwnerKey] = useModalState(false);
   const [name, setName] = useState("");
   const [outcome, setOutcome] = useState("");
   const [saving, setSaving] = useState(false);
@@ -101,6 +102,7 @@ export const CreateFeaturePlanButton = ({
         onClick={() => setOpen(true)}
       />
       <Dialog
+        ownerKey={openOwnerKey}
         open={open}
         onClose={() => {
           if (!saving) setOpen(false);

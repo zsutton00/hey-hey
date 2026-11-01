@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(DISTINCT f.id) AS \"count!\" FROM graph.node f\n      JOIN graph.edge e ON e.organization_id=$1 AND e.project_id=$2 AND e.source_id=f.id\n        AND e.relationship_type='SCOPED_TO_PROJECT' AND e.target_id=$2\n      JOIN graph.node p ON p.organization_id=$1 AND p.project_id=$2 AND p.id=$2\n      WHERE f.organization_id=$1 AND f.project_id=$2 AND f.id=ANY($3)\n        AND f.entity_type='TASK' AND f.properties->>'type'='FEATURE' AND NOT f.stub AND NOT f.deleted\n        AND p.entity_type='PROJECT' AND NOT p.stub AND NOT p.deleted",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": ["Text", "Text", "TextArray"]
+    },
+    "nullable": [null]
+  },
+  "hash": "4ca6e5ac4c5e24081f6d28eed30b18fd5a7fd1c45e9dd87e18bec0d9d31469a6"
+}

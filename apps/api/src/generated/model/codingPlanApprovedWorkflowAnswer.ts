@@ -11,12 +11,12 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
-import { CodingPlanReviewAnswerPayload } from './codingPlanReviewAnswerPayload';
+import { CodingPlanApprovalPayload } from './codingPlanApprovalPayload';
 
 
 export interface CodingPlanApprovedWorkflowAnswer { 
     action: CodingPlanApprovedWorkflowAnswer.ActionEnum;
-    payload: CodingPlanReviewAnswerPayload;
+    payload: CodingPlanApprovalPayload;
 }
 export namespace CodingPlanApprovedWorkflowAnswer {
     export type ActionEnum = 'APPROVED';

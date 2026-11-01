@@ -66,16 +66,29 @@ beforeEach(() => {
 });
 
 describe("AgentFixConfirmDialog", () => {
-  it("warns, launches on confirm and takes the user into the new session", async () => {
+  it("warns, launches on confirm and returns the recorded session to the conflict panel", async () => {
     launch.mockResolvedValue({ projectId: "project", agentSessionId: "s1" });
     const onClose = vi.fn();
-    render(<AgentFixConfirmDialog proposal={proposal} onClose={onClose} />);
+    const onStarted = vi.fn();
+    render(
+      <AgentFixConfirmDialog
+        proposal={proposal}
+        onClose={onClose}
+        onStarted={onStarted}
+      />,
+    );
     expect(
       screen.getByText(/Agent fix starts an agent session on your machine/),
     ).toBeVisible();
     expect(launch).not.toHaveBeenCalled();
     fireEvent.click(screen.getByTestId("proposal-agent-fix-start"));
-    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/session/s1"));
+    await waitFor(() =>
+      expect(onStarted).toHaveBeenCalledWith({
+        projectId: "project",
+        agentSessionId: "s1",
+      }),
+    );
+    expect(navigate).not.toHaveBeenCalled();
     expect(launch).toHaveBeenCalledWith(proposal, {
       machineId: "machine",
       provider: "claude",
@@ -90,7 +103,14 @@ describe("AgentFixConfirmDialog", () => {
     launch.mockResolvedValue(null);
     launchState.error = "No CLI picked up the launch.";
     const onClose = vi.fn();
-    render(<AgentFixConfirmDialog proposal={proposal} onClose={onClose} />);
+    const onStarted = vi.fn();
+    render(
+      <AgentFixConfirmDialog
+        proposal={proposal}
+        onClose={onClose}
+        onStarted={onStarted}
+      />,
+    );
     expect(screen.getByTestId("proposal-agent-fix-error")).toHaveTextContent(
       "No CLI picked up the launch.",
     );
@@ -98,5 +118,6 @@ describe("AgentFixConfirmDialog", () => {
     await waitFor(() => expect(launch).toHaveBeenCalled());
     expect(navigate).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
+    expect(onStarted).not.toHaveBeenCalled();
   });
 });

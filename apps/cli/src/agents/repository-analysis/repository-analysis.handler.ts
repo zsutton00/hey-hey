@@ -30,7 +30,7 @@ import {
   type RepositoryAnalysisPromptInput,
 } from './repository-analysis-prompt';
 import type { RepositoryAnalysisPromptPayload, RepositoryAnalysisSuccess } from './types';
-import type { ProviderExecutionSelection } from '../prompt-type-handler';
+import { runtimeFromHandoff } from '../handoff-runtime';
 import { AgentSessionRunnerError } from '../providers/session-runner';
 
 type RepositoryAnalysisHandlerPayload = RepositoryAnalysisPromptPayload;
@@ -45,18 +45,14 @@ export class RepositoryAnalysisPreparationError extends Error {
   }
 }
 
-const resolveRepositoryAnalysisProviderExecution = (
-  payload: Pick<RepositoryAnalysisPromptPayload, 'provider' | 'resolvedFrontierModel'>,
-): ProviderExecutionSelection => {
-  const provider = payload.provider.trim();
-  const model = payload.resolvedFrontierModel.trim();
-  if (!model) {
+const resolveRepositoryAnalysisRuntime = (payload: RepositoryAnalysisPromptPayload) => {
+  if (!payload.resolvedFrontierModel.trim()) {
     throw new RepositoryAnalysisPreparationError(
       'INVALID_ANALYSIS_INPUT',
       'Repository analysis requires a resolved frontier model.',
     );
   }
-  return { provider, model };
+  return runtimeFromHandoff(payload);
 };
 
 const validateSuccessSemantics = (
@@ -270,8 +266,8 @@ const createRepositoryAnalysisHandler =
     omitServiceContextNote: true,
     reports: [],
 
-    resolveProviderExecution(payload): ProviderExecutionSelection {
-      return resolveRepositoryAnalysisProviderExecution(payload);
+    resolveRuntime(payload) {
+      return resolveRepositoryAnalysisRuntime(payload);
     },
 
     async prepare(

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { ApiRuntime } from '../../../../packages/ui-common/src/clients/shared';
+import type { ApiRuntime } from '../shared/runtime/clients/shared';
 import type { SessionMonitorEvaluationStore } from '../agents/session-monitor';
 import {
   TaskMonitorMachineOwner,

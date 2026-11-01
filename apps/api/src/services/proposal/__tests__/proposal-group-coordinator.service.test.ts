@@ -1,7 +1,4 @@
-import {
-  ConflictException,
-  HttpException,
-} from '@nestjs/common';
+import { ConflictException, HttpException } from '@nestjs/common';
 import type { PrismaService } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId } from 'src/types';
 import type { ProposalApprovalService } from '../proposal-approval.service';
@@ -227,6 +224,27 @@ describe('ProposalGroupCoordinatorService', () => {
       }),
     );
     expect(db.proposalGroupMember.count).not.toHaveBeenCalled();
+  });
+
+  it('preserves the original reconciliation conflict for grouped enactment', async () => {
+    db.proposalGroupMember.findFirst.mockResolvedValue(currentClaimRecord());
+    db.proposalGroupMember.updateMany.mockResolvedValue({ count: 1 });
+    const conflict = new ConflictException({
+      message: 'Changed after review',
+      issues: [
+        {
+          field: 'sections.description',
+          code: 'PROPOSAL_RECONCILIATION_REQUIRED',
+          reason: 'Content changed',
+          layer: 'referential',
+        },
+      ],
+      correlationId: 'conflict-correlation',
+    });
+    enactGroupedMember.mockRejectedValue(conflict);
+    db.$queryRaw.mockResolvedValue([]);
+    db.proposalGroupMember.count.mockResolvedValue(1);
+    await expect(service.executeClaim(claim())).rejects.toBe(conflict);
   });
 
   it('records recoverable failure without due-at scheduling', async () => {

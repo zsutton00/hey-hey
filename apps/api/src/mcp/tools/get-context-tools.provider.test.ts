@@ -1,3 +1,4 @@
+import { WorkItemTypeRegistryService } from '../../services/tasks/work-item-type-registry.service';
 import type { Request } from 'express';
 import type { Context } from '@rekog/mcp-nest';
 import Ajv from 'ajv';
@@ -189,6 +190,16 @@ describe('GetContextToolsProvider', () => {
     readFutureProposalApprovalStates: jest.Mock;
   };
 
+  const registeredKeys = ['FEATURE', 'GOAL', 'BUG', 'STANDARD', 'mockup'];
+  const workItemTypeRegistry = {
+    getRulesForProject: jest.fn((key: string) =>
+      registeredKeys.includes(key) ? {} : undefined,
+    ),
+    getDefinitions: jest.fn(() =>
+      registeredKeys.map((key) => ({ definition: { key } })),
+    ),
+  };
+
   beforeEach(() => {
     entityContextService = {
       getFullEntityContext: jest.fn(),
@@ -207,6 +218,7 @@ describe('GetContextToolsProvider', () => {
       entityContextService,
       agentEdgeClient as any,
       proposalApprovalService as any,
+      workItemTypeRegistry as unknown as WorkItemTypeRegistryService,
     );
   });
 
@@ -796,26 +808,85 @@ describe('GetContextToolsProvider', () => {
       expect(result.content[0].text).toContain('Entity not found');
     });
 
-    it.each(['FEATURE', 'GOAL', 'BUG', 'STANDARD'])(
-      'returns a teaching mcpError when entityType is the task type %s',
+    it.each(['FEATURE', 'GOAL', 'BUG', 'STANDARD', 'mockup'])(
+      'reads %s through the generic TASK boundary',
       async (taskType) => {
-        const result = (await provider.getContext(
-          makeParams({ entityType: taskType }),
+        entityContextService.getFullEntityContext.mockResolvedValue(
+          makeFullEntityContext() as any,
+        );
+        const params = makeParams({ entityType: taskType });
+        expect(getContextParameters.safeParse(params).success).toBe(true);
+        const result = await provider.getContext(
+          params,
           {} as any,
           makeRequest(),
-        )) as any;
-
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain(
-          `'${taskType}' is a task type, not an entity type`,
         );
-        expect(result.content[0].text).toContain("entityType: 'TASK'");
-        // The task-type guard short-circuits before the service is reached.
-        expect(
-          entityContextService.getFullEntityContext,
-        ).not.toHaveBeenCalled();
+        expect(entityContextService.getFullEntityContext).toHaveBeenCalledWith(
+          testIds.organization,
+          testIds.project,
+          'TASK',
+          entityId,
+          TEST_TOKEN,
+          { relatedEntityDepth: 2, proposalDetail: 'summary' },
+        );
+        expect(result).toMatchObject({
+          entityId,
+          entityType: 'TASK',
+          futureProposalDependencies: { status: 'loaded', proposals: [] },
+        });
+        expect(workItemTypeRegistry.getRulesForProject).toHaveBeenCalledWith(
+          taskType,
+          testIds.project,
+        );
       },
     );
+
+    it('rejects unknown keys with the project-specific accepted types', async () => {
+      const result = await provider.getContext(
+        makeParams({ entityType: 'unknown' }),
+        {} as any,
+        makeRequest(),
+      );
+      expect(result).toMatchObject({
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: expect.stringContaining(
+              'Invalid entityType. Accepted types:',
+            ),
+          },
+        ],
+      });
+      expect(result).toMatchObject({
+        content: [{ text: expect.stringContaining('mockup') }],
+      });
+      expect(entityContextService.getFullEntityContext).not.toHaveBeenCalled();
+    });
+
+    it('resolves built-in and custom keys independently in a batch', async () => {
+      entityContextService.getFullEntityContext.mockResolvedValue(
+        makeFullEntityContext() as any,
+      );
+      const seeds = ['FEATURE', 'mockup', 'unknown'].map((entityType) =>
+        makeSeed(entityId, { entityType }),
+      );
+      const result = await provider.getContext(
+        { seeds },
+        {} as any,
+        makeRequest(),
+      );
+      expect(entityContextService.getFullEntityContext).toHaveBeenCalledTimes(
+        2,
+      );
+      expect(result).toMatchObject({
+        items: [
+          { seed: seeds[0], result: { entityId, entityType: 'TASK' } },
+          { seed: seeds[1], result: { entityId, entityType: 'TASK' } },
+          { seed: seeds[2], error: expect.anything() },
+        ],
+      });
+    });
   });
 
   describe('single-or-batch request validation', () => {

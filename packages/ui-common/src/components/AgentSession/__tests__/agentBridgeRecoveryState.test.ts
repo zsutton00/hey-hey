@@ -9,7 +9,7 @@ import { resolveAgentBridgeRecoveryState } from "../agentBridgeRecoveryState";
 
 const machine = (
   name: string,
-  executionReadiness: MachineDto["executionReadiness"]
+  executionReadiness: MachineDto["executionReadiness"],
 ): MachineDto => ({
   machineId: `machine-${name}`,
   name,
@@ -23,7 +23,7 @@ const machine = (
 
 const boundStatus = (
   executionReadiness: ConversationCliStatusResponseDto["executionReadiness"],
-  selectedMachineId = "machine-Orbit"
+  selectedMachineId = "machine-Orbit",
 ): ConversationCliStatusResponseDto => ({
   connected: executionReadiness !== MachineExecutionReadinessState.Disconnected,
   selectedMachineId,
@@ -32,6 +32,23 @@ const boundStatus = (
 });
 
 describe("resolveAgentBridgeRecoveryState", () => {
+  it("keeps an ambiguous selected machine instead of substituting another ready machine", () => {
+    const selected = {
+      ...machine("Linux", MachineExecutionReadinessState.Ready),
+      currentControllerEligibility:
+        CurrentControllerMachineEligibilityState.Ambiguous,
+    };
+    const other = machine("Mac", MachineExecutionReadinessState.Ready);
+    expect(
+      resolveAgentBridgeRecoveryState({
+        type: "inventory",
+        isLoading: false,
+        machines: [selected, other],
+        selectedMachineId: selected.machineId,
+      }),
+    ).toEqual({ type: "controller_selection_required", machine: selected });
+  });
+
   it("resolves loading, legacy, zero, and ready inventory states", () => {
     const ready = machine("Ready", MachineExecutionReadinessState.Ready);
     const second = machine("Second", MachineExecutionReadinessState.Ready);
@@ -42,13 +59,13 @@ describe("resolveAgentBridgeRecoveryState", () => {
         isLoading: true,
         machines: [],
         selectedMachineId: null,
-      })
+      }),
     ).toEqual({ type: "loading" });
     expect(
-      resolveAgentBridgeRecoveryState({ type: "legacy_non_resumable" })
+      resolveAgentBridgeRecoveryState({ type: "legacy_non_resumable" }),
     ).toEqual({ type: "legacy_non_resumable" });
     expect(
-      resolveAgentBridgeRecoveryState({ type: "status_unavailable" })
+      resolveAgentBridgeRecoveryState({ type: "status_unavailable" }),
     ).toEqual({ type: "status_unavailable" });
     expect(
       resolveAgentBridgeRecoveryState({
@@ -56,7 +73,7 @@ describe("resolveAgentBridgeRecoveryState", () => {
         isLoading: false,
         machines: [],
         selectedMachineId: null,
-      })
+      }),
     ).toEqual({ type: "no_paired_machines" });
     expect(
       resolveAgentBridgeRecoveryState({
@@ -64,7 +81,7 @@ describe("resolveAgentBridgeRecoveryState", () => {
         isLoading: false,
         machines: [ready],
         selectedMachineId: null,
-      })
+      }),
     ).toEqual({ type: "ready", machine: ready });
     expect(
       resolveAgentBridgeRecoveryState({
@@ -72,7 +89,7 @@ describe("resolveAgentBridgeRecoveryState", () => {
         isLoading: false,
         machines: [ready, second],
         selectedMachineId: null,
-      })
+      }),
     ).toEqual({ type: "multiple_ready", machines: [ready, second] });
   });
 
@@ -104,7 +121,7 @@ describe("resolveAgentBridgeRecoveryState", () => {
         type: "paired_none_ready",
         machines: [{ type, machine: orbit }],
       });
-    }
+    },
   );
 
   it("uses the bound machine readiness without substituting another ready machine", () => {
@@ -117,7 +134,7 @@ describe("resolveAgentBridgeRecoveryState", () => {
         isLoading: false,
         machines: [orbit, spare],
         status: boundStatus(MachineExecutionReadinessState.Disconnected),
-      })
+      }),
     ).toEqual({
       type: "disconnected",
       machine: {
@@ -136,7 +153,7 @@ describe("resolveAgentBridgeRecoveryState", () => {
         isLoading: false,
         machines: [remote],
         selectedMachineId: null,
-      })
+      }),
     ).toEqual({ type: "ready", machine: remote });
   });
 
@@ -148,6 +165,10 @@ describe("resolveAgentBridgeRecoveryState", () => {
     [
       CurrentControllerMachineEligibilityState.Revoked,
       "browser_authorization_revoked",
+    ],
+    [
+      CurrentControllerMachineEligibilityState.Ambiguous,
+      "controller_selection_required",
     ],
     [null, "controller_context_unavailable"],
   ] as const)(
@@ -164,18 +185,18 @@ describe("resolveAgentBridgeRecoveryState", () => {
           isLoading: false,
           machines: [globallyReady],
           selectedMachineId: null,
-        })
+        }),
       ).toEqual({
         type: "paired_none_ready",
         machines: [{ type, machine: globallyReady }],
       });
-    }
+    },
   );
 
   it("renders one recovery state when inventory repeats a machine identity", () => {
     const orbit = machine(
       "MacBook-Pro",
-      MachineExecutionReadinessState.Disconnected
+      MachineExecutionReadinessState.Disconnected,
     );
 
     expect(
@@ -184,7 +205,7 @@ describe("resolveAgentBridgeRecoveryState", () => {
         isLoading: false,
         machines: [orbit, orbit],
         selectedMachineId: null,
-      })
+      }),
     ).toEqual({
       type: "paired_none_ready",
       machines: [{ type: "disconnected", machine: orbit }],
@@ -198,7 +219,7 @@ describe("resolveAgentBridgeRecoveryState", () => {
         isLoading: false,
         machines: [],
         status: boundStatus(MachineExecutionReadinessState.Ready),
-      })
+      }),
     ).toEqual({ type: "bound_machine_missing" });
   });
 
@@ -217,9 +238,9 @@ describe("resolveAgentBridgeRecoveryState", () => {
         machines: [bound, other],
         status: boundStatus(
           MachineExecutionReadinessState.Ready,
-          bound.machineId
+          bound.machineId,
         ),
-      })
+      }),
     ).toEqual({ type: "browser_authorization_required", machine: bound });
   });
 });

@@ -1,3 +1,13 @@
+export {
+  ReportUsageCacheAvailability,
+  ReportUsageCoverage,
+  ReportUsageBreakdownEntryRoleEnum,
+} from './generated/api';
+export type {
+  ReportUsageBreakdownEntry,
+  ReportUsageFigures,
+  ReportUsageMeasurement,
+} from './generated/api';
 // Types
 export type {
   ProjectResponseDto,
@@ -64,9 +74,7 @@ export type {
   UpdateReportDto,
   UserMessageData,
   WorkItemTypeDefinitionDto,
-  WorkItemTypeAgentGuidance,
-  WorkItemTypeGuidanceContext,
-  WorkItemTypeGuidanceExample,
+  WorkItemTypeSessionRoleGuidance,
   WorkItemTypeCapabilities,
   WorkItemTypeEdgeTarget,
   WorkItemTypeGraphCapability,

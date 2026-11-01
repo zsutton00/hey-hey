@@ -111,6 +111,8 @@ paths:
         Generate and store embeddings for the provided text content. Supports
         automatic chunking for large documents.
       operationId: createEmbedding
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         description: Text content and metadata for embedding creation
@@ -164,6 +166,8 @@ paths:
       summary: Search Embeddings (GET)
       description: Perform a search using query parameters scoped to the caller's organisation.
       operationId: searchEmbeddingsGet
+      security:
+        - BearerAuth: []
       parameters:
         - name: q
           in: query
@@ -279,6 +283,8 @@ paths:
       summary: Search Embeddings (POST)
       description: Search through stored embeddings using semantic similarity, keyword matching, or hybrid approach.
       operationId: searchEmbeddingsPost
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         description: Search query and filtering parameters
@@ -337,6 +343,8 @@ paths:
       summary: Structured Search (POST)
       description: Execute a Vespa structured query using must/should clauses, phrase boosts, and an optional embedding query.
       operationId: structuredSearchEmbeddings
+      security:
+        - BearerAuth: []
       parameters:
         - name: organizationId
           in: path
@@ -410,6 +418,8 @@ paths:
       summary: Organisation Search Embeddings (GET)
       description: Search within a specific organisation using query parameters.
       operationId: searchEmbeddingsOrgGet
+      security:
+        - BearerAuth: []
       parameters:
         - name: organizationId
           in: path
@@ -525,6 +535,8 @@ paths:
       summary: Organisation Search Embeddings (POST)
       description: Search within a specific organisation using a JSON request body.
       operationId: searchEmbeddingsOrgPost
+      security:
+        - BearerAuth: []
       parameters:
         - name: organizationId
           in: path
@@ -585,6 +597,8 @@ paths:
       summary: Batch Search Embeddings (POST)
       description: Submit multiple search queries within a single organisation and receive ordered results in one response.
       operationId: searchEmbeddingsOrgBatch
+      security:
+        - BearerAuth: []
       parameters:
         - name: organizationId
           in: path
@@ -730,9 +744,20 @@ paths:
       summary: Debug Information
       description:
         Get detailed debug information including all stored embeddings,
-        configuration, and internal state. Use with caution in production.
+        configuration, and internal state. Requires the API-issued debug
+        credential; ordinary read, write or admin credentials are rejected.
       operationId: getDebugInfo
+      security:
+        - BearerAuth: []
+      x-required-jwt-claims:
+        scopes:
+          - embeddings:debug:read
+        audience: embeddings-service
       responses:
+        "401":
+          description: Missing or invalid credential
+        "403":
+          description: Credential lacks the debug scope or audience
         "200":
           description: Debug information retrieved successfully
           content:
@@ -757,8 +782,17 @@ paths:
       tags:
         - Development
       summary: Fetch entity by type and ID
-      description: Return embeddings stored for a given entity type and source ID.
+      description: >-
+        Return embeddings stored for a given entity type and source ID. Requires
+        the API-issued debug credential; ordinary read, write or admin
+        credentials are rejected.
       operationId: getDebugEntity
+      security:
+        - BearerAuth: []
+      x-required-jwt-claims:
+        scopes:
+          - embeddings:debug:read
+        audience: embeddings-service
       parameters:
         - name: type
           in: query
@@ -805,6 +839,10 @@ paths:
                   timestamp:
                     type: string
                     format: date-time
+        "401":
+          description: Missing or invalid credential
+        "403":
+          description: Credential lacks the debug scope or audience
         "500":
           description: Internal server error
 components:
@@ -1380,6 +1418,15 @@ components:
           description: >-
             Task type filter. When provided, only task documents whose taskType
             metadata matches are returned.
+        excludeTaskTypes:
+          type: array
+          items:
+            type: string
+          description: >-
+            Task types removed inside the query, before hits, offsets and
+            totals. Never narrows which document schemas are searched; only task
+            documents carry a taskType, and documents of other schemas are
+            unaffected. Wins over taskTypes.
         created_after:
           oneOf:
             - type: string
@@ -1505,6 +1552,26 @@ components:
           description: Ordered list of queries to evaluate in a single call
           items:
             $ref: "#/components/schemas/BatchSearchQuery"
+    MatchSpan:
+      type: object
+      description: A matched stretch of the hit text, using end-exclusive UTF-16 code units.
+      required: [start, end, strength]
+      properties:
+        start:
+          type: integer
+          minimum: 0
+          description: Start offset in UTF-16 code units into the hit text.
+        end:
+          type: integer
+          minimum: 0
+          description: Exclusive end offset in UTF-16 code units into the hit text.
+        strength:
+          type: number
+          format: float
+          minimum: -1
+          maximum: 1
+          description: Best query-token cosine similarity within the span.
+
     SearchResult:
       type: object
       required:
@@ -1513,6 +1580,15 @@ components:
         - similarity
         - metadata
       properties:
+        matchSpans:
+          type: array
+          description: Optional matched spans ordered by start, present only for ColBERT hits whose stored text aligns with token vectors.
+          items:
+            $ref: "#/components/schemas/MatchSpan"
+          example:
+            - start: 0
+              end: 16
+              strength: 0.85
         id:
           type: string
           description: Unique identifier of the result

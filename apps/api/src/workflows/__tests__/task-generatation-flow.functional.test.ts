@@ -370,7 +370,9 @@ describeTaskFunctional(
 
       // Set up real Redis using redis-memory-server
       console.log('🔧 beforeEach: Setting up Redis server');
-      redisServer = new RedisMemoryServer();
+      redisServer = new RedisMemoryServer({
+        spawn: { env: { ...process.env, LC_ALL: 'C' } },
+      });
       const host = await redisServer.getHost();
       const port = await redisServer.getPort();
 

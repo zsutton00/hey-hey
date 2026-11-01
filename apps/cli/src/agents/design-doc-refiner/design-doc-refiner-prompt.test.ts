@@ -51,6 +51,8 @@ describe('buildDesignDocRefinerPrompt', () => {
     const result = buildDesignDocRefinerPrompt(makeInput());
     expect(result).toContain('BEHAVIOR — STRICT RULES');
     expect(result).toContain('Never respond with just an acknowledgement');
+    expect(result).toContain('a non-obvious reusable gotcha may be recorded as a graph Hint');
+    expect(result).toMatchSnapshot();
   });
 
   it('includes context when relatedEntities are provided', () => {

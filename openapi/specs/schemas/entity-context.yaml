@@ -309,6 +309,140 @@ FullEntityContextDto:
             The seed entity's own content body: its sections and work-tracking
             metadata. Present for TASK (including Plan and Stage work items)
             and DESIGN_DOC seeds.
+        conversationContext:
+          $ref: "#/ConversationContextDto"
+          description: >
+            Orientation for CONVERSATION and MESSAGE seeds: the owning
+            conversation, its agent sessions, the entity it is about,
+            related proposals and reports, and for MESSAGE seeds a capped
+            excerpt of the message body. Full thread content is read with
+            get_agent_session.
+
+ConversationContextDto:
+  type: object
+  description: >
+    Bounded orientation around a conversation. Lists are capped; a
+    message excerpt reports when it was cut.
+  required:
+    - conversationId
+    - agentSessions
+    - proposals
+    - reports
+  additionalProperties: false
+  properties:
+    conversationId:
+      type: string
+      format: uuid
+      description: The owning conversation. Never a message id.
+    conversationTitle:
+      type: string
+      nullable: true
+    about:
+      $ref: "#/ConversationAboutDto"
+    agentSessions:
+      type: array
+      items:
+        $ref: "#/ConversationContextSessionDto"
+    proposals:
+      type: array
+      items:
+        $ref: "#/ConversationContextProposalDto"
+      description: >
+        Newest proposals raised from this conversation (or, for a MESSAGE
+        seed, from that message), capped.
+    reports:
+      type: array
+      items:
+        $ref: "#/ConversationContextReportDto"
+      description: Newest reports linked to the conversation or its sessions, capped.
+    message:
+      $ref: "#/ConversationContextMessageDto"
+
+ConversationAboutDto:
+  type: object
+  required: [entityType, entityId]
+  additionalProperties: false
+  properties:
+    entityType:
+      type: string
+    entityId:
+      type: string
+
+ConversationContextSessionDto:
+  type: object
+  required: [id, title, status, type]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+    title:
+      type: string
+    status:
+      type: string
+    type:
+      type: string
+
+ConversationContextProposalDto:
+  type: object
+  required: [id, status, action, targetEntityType]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+    title:
+      type: string
+      nullable: true
+    status:
+      type: string
+    action:
+      type: string
+    targetEntityType:
+      type: string
+    targetEntityId:
+      type: string
+      nullable: true
+
+ConversationContextReportDto:
+  type: object
+  required: [id, reportType, createdAt]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+    reportType:
+      type: string
+    createdAt:
+      type: string
+      format: date-time
+
+ConversationContextMessageDto:
+  type: object
+  required: [messageId, type, excerpt, truncated, length]
+  additionalProperties: false
+  properties:
+    messageId:
+      type: string
+      format: uuid
+    type:
+      type: string
+      description: USER or SYSTEM.
+    createdAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Null while the message is a queued input not yet started.
+    excerpt:
+      type: string
+      description: The start of the message text, capped.
+    truncated:
+      type: boolean
+      description: True when excerpt is shorter than the full message text.
+    length:
+      type: integer
+      description: Character length of the full message text.
 
 EntityContentDto:
   type: object

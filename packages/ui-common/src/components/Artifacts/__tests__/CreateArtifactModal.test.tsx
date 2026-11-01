@@ -30,7 +30,7 @@ describe("CreateArtifactModal", () => {
 
     expect(screen.getByText("Create Document")).toBeInTheDocument();
     expect(
-      screen.getByText("Choose a template to get started")
+      screen.getByText("Choose a template to get started"),
     ).toBeInTheDocument();
   });
 
@@ -67,7 +67,9 @@ describe("CreateArtifactModal", () => {
   it("calls onClose when close button is clicked", () => {
     render(<CreateArtifactModal {...defaultProps} />);
 
-    const closeButton = screen.getByRole("button", { name: "" });
+    const closeButton = screen.getByRole("button", {
+      name: "Close Create Document",
+    });
     fireEvent.click(closeButton);
 
     expect(mockOnClose).toHaveBeenCalledTimes(1);

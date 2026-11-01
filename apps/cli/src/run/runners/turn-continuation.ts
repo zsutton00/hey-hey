@@ -13,24 +13,18 @@ export class TurnContinuation {
     options: { reportingRepair: boolean },
   ): Promise<void> {
     const ctx = this.context;
-    await this.facade.resumeSession(
-      ctx.run,
-      {
-        session: ctx.run.session,
-        prompt,
-        signal,
-        ...(ctx.effectiveModel ? { model: ctx.effectiveModel } : {}),
-        ...(ctx.effectiveReasoningEffort ? { reasoningEffort: ctx.effectiveReasoningEffort } : {}),
-        ...(ctx.browserMcpMount ? { browserMcpMount: ctx.browserMcpMount } : {}),
-        ...(ctx.platformMcpProxyMount ? { platformMcpProxyMount: ctx.platformMcpProxyMount } : {}),
-        ...(ctx.workspace ? { workspace: ctx.workspace } : {}),
-        ...(ctx.workspaceWriteBoundary
-          ? { workspaceWriteBoundary: ctx.workspaceWriteBoundary }
-          : {}),
-        ...(ctx.handler.mcpToolUseCase ? { mcpToolUseCase: ctx.handler.mcpToolUseCase } : {}),
-        ...(options.reportingRepair ? { reportingRepair: true } : {}),
-      },
-      ctx.executionProvider,
-    );
+    await this.facade.resumeSession(ctx.run, {
+      session: ctx.run.session,
+      prompt,
+      signal,
+      ...(ctx.effectiveModel ? { model: ctx.effectiveModel } : {}),
+      ...(ctx.effectiveReasoningEffort ? { reasoningEffort: ctx.effectiveReasoningEffort } : {}),
+      ...(ctx.browserMcpMount ? { browserMcpMount: ctx.browserMcpMount } : {}),
+      ...(ctx.platformMcpProxyMount ? { platformMcpProxyMount: ctx.platformMcpProxyMount } : {}),
+      ...(ctx.workspace ? { workspace: ctx.workspace } : {}),
+      ...(ctx.workspaceWriteBoundary ? { workspaceWriteBoundary: ctx.workspaceWriteBoundary } : {}),
+      ...(ctx.handler.mcpToolUseCase ? { mcpToolUseCase: ctx.handler.mcpToolUseCase } : {}),
+      ...(options.reportingRepair ? { reportingRepair: true } : {}),
+    });
   }
 }

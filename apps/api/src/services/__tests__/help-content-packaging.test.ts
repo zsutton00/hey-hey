@@ -6,13 +6,14 @@ import {
   DEFAULT_HELP_CONTENT_DIRECTORY,
 } from '../help-content-source';
 
-const REPOSITORY_ROOT = path.resolve(__dirname, '../../..');
+const API_ROOT = path.resolve(__dirname, '../../..');
+const REPOSITORY_ROOT = path.resolve(API_ROOT, '../..');
 const ASSET_NAME = 'agent-bridge-overview.svg';
 
 describe('packaged Help content', () => {
   it('keeps repository assets in the production content package', async () => {
     const dockerfile = await fs.readFile(
-      path.join(REPOSITORY_ROOT, 'Dockerfile'),
+      path.join(API_ROOT, 'Dockerfile'),
       'utf8',
     );
     const dockerignore = await fs.readFile(
@@ -24,11 +25,11 @@ describe('packaged Help content', () => {
     );
 
     try {
-      expect(dockerfile).toContain('COPY --from=build /app/content ./content');
-      expect(dockerignore).not.toMatch(/^content(?:\/|$)/m);
+      expect(dockerfile).toContain('COPY apps/api/content ./content');
+      expect(dockerignore).not.toMatch(/^(?:apps\/api\/|\*\*\/)?content(?:\/|$)/m);
 
       await fs.cp(
-        path.join(REPOSITORY_ROOT, 'content'),
+        path.join(API_ROOT, 'content'),
         path.join(packageDirectory, 'content'),
         { recursive: true },
       );
@@ -53,7 +54,7 @@ describe('packaged Help content', () => {
 
   it('uses the repository Help content directory as the default source', () => {
     expect(DEFAULT_HELP_CONTENT_DIRECTORY).toBe(
-      path.join(REPOSITORY_ROOT, 'content/help'),
+      path.join(API_ROOT, 'content/help'),
     );
   });
 });

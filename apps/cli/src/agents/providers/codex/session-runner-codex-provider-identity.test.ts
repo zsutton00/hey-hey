@@ -48,6 +48,9 @@ vi.mock('../../../agent-runtime/index', async () => {
       getRootTurnIdentity(): null {
         return null;
       }
+      onTokenUsage(): void {
+        return;
+      }
       onEvent(handler: CodexSdkEventHandler | null): void {
         eventHandler = handler;
       }

@@ -1,7 +1,7 @@
 import {
   getCapabilityCatalogLoadState,
   type CapabilityCatalogRow,
-} from '../../../../../packages/ui-common/src/components/AgentSession/capabilityCatalog';
+} from '../../shared/runtime/components/AgentSession/capabilityCatalog';
 import {
   CliReadRuntimeModelCatalogModelEffortsEnum,
   CliReadRuntimeModelCatalogProviderProviderEnum,

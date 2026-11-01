@@ -34,7 +34,7 @@ export const implementationHintKeys = {
 export const implementationHintQueryOptions = (
   organizationId: string,
   serviceId: string,
-  hintId: string
+  hintId: string,
 ) =>
   queryOptions({
     ...dataLayerQueryPolicy,
@@ -42,7 +42,7 @@ export const implementationHintQueryOptions = (
     queryFn: async ({ signal }) => {
       const response = await unifiedApiClient.getImplementationHint(
         { organizationId, serviceId, hintId },
-        { ...captureRequestOptions(), signal }
+        { ...captureRequestOptions(), signal },
       );
       const hint = response.data?.data;
       if (!hint) throw new Error(`Implementation hint not found: ${hintId}`);
@@ -51,23 +51,33 @@ export const implementationHintQueryOptions = (
   });
 export const implementationHintsQueryOptions = (
   organizationId: string,
-  filters: ImplementationHintsFilters = {}
+  filters: ImplementationHintsFilters = {},
 ) =>
   queryOptions({
     ...dataLayerQueryPolicy,
     queryKey: implementationHintKeys.list(organizationId, filters),
     queryFn: async ({ signal }) => {
-      const response =
-        await dataClient.request<ListImplementationHints200Response>({
-          ...captureRequestOptions(),
-          signal,
-          method: "GET",
-          url: `/organizations/${organizationId}/implementation-hints`,
-          params: {
-            serviceId: filters.serviceId || undefined,
-            agentSessionId: filters.agentSessionId || undefined,
-          },
-        });
-      return response.data?.data ?? [];
+      const hints: NonNullable<ListImplementationHints200Response["data"]> = [];
+      const size = 25;
+      let page = 1;
+      while (true) {
+        const response =
+          await dataClient.request<ListImplementationHints200Response>({
+            ...captureRequestOptions(),
+            signal,
+            method: "GET",
+            url: `/organizations/${organizationId}/implementation-hints`,
+            params: {
+              page,
+              size,
+              serviceId: filters.serviceId || undefined,
+              agentSessionId: filters.agentSessionId || undefined,
+            },
+          });
+        const items = response.data?.data ?? [];
+        hints.push(...items);
+        if (items.length < size) return hints;
+        page += 1;
+      }
     },
   });

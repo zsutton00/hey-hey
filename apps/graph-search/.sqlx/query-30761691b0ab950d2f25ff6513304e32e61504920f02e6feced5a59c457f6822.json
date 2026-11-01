@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT c.id AS category_id,c.properties->>'name' AS category_name,\n       f.id AS facet_id,f.properties->>'name' AS facet_name,\n       COALESCE(jsonb_agg(DISTINCT to_jsonb(n)) FILTER (WHERE n.id IS NOT NULL),'[]') AS \"nodes!\"\n      FROM graph.node c\n      JOIN graph.edge cf ON cf.organization_id=$1 AND cf.project_id=$2 AND cf.source_id=c.id AND cf.relationship_type='HAS_FACET'\n      JOIN graph.node f ON f.organization_id=$1 AND f.project_id=$2 AND f.id=cf.target_id AND f.entity_type='FACET' AND NOT f.deleted\n      LEFT JOIN graph.edge fe ON fe.organization_id=$1 AND fe.project_id=$2 AND fe.source_id=f.id AND fe.relationship_type='HAS_KB_ENTRY'\n      LEFT JOIN graph.node n ON n.organization_id=$1 AND n.project_id=$2 AND n.id=fe.target_id AND n.project_scoped AND NOT n.deleted AND n.created_at IS NOT NULL AND n.updated_at IS NOT NULL\n      WHERE c.organization_id=$1 AND c.project_id=$2 AND c.entity_type='CATEGORY' AND NOT c.deleted\n      GROUP BY c.id,c.properties->>'name',f.id,f.properties->>'name'\n      ORDER BY c.properties->>'name',f.properties->>'name'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "category_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "category_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "facet_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "facet_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "nodes!",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": ["Text", "Text"]
+    },
+    "nullable": [false, null, false, null, null]
+  },
+  "hash": "30761691b0ab950d2f25ff6513304e32e61504920f02e6feced5a59c457f6822"
+}

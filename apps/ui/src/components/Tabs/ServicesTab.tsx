@@ -1,3 +1,7 @@
+import {
+  useModalState,
+  ModalWorkOwner,
+} from "@hey-hey/ui-common/components/Modals";
 import { Box, Button, Stack } from "@mui/material";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -32,7 +36,7 @@ export const ServicesTab: React.FC<ServicesTabProps> = ({
   });
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("created-desc");
-  const [createOpen, setCreateOpen] = useState(false);
+  const [createOpen, setCreateOpen, createOpenOwnerKey] = useModalState(false);
 
   // Define filter configurations
   const filters: FilterConfig[] = [
@@ -40,7 +44,10 @@ export const ServicesTab: React.FC<ServicesTabProps> = ({
       type: "search",
       key: "search",
       label: t("services.filters.searchPlaceholder", "Search services..."),
-      placeholder: t("services.filters.searchPlaceholder", "Search services..."),
+      placeholder: t(
+        "services.filters.searchPlaceholder",
+        "Search services...",
+      ),
     },
   ];
 
@@ -140,12 +147,14 @@ export const ServicesTab: React.FC<ServicesTabProps> = ({
           </Button>
         </Box>
 
-        <CreateServiceModal
-          open={createOpen}
-          organizationId={organizationId}
-          projectId={projectId}
-          onClose={() => setCreateOpen(false)}
-        />
+        <ModalWorkOwner.Provider value={createOpenOwnerKey}>
+          <CreateServiceModal
+            open={createOpen}
+            organizationId={organizationId}
+            projectId={projectId}
+            onClose={() => setCreateOpen(false)}
+          />
+        </ModalWorkOwner.Provider>
 
         {/* Filters */}
         {enableFilters && (

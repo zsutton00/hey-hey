@@ -1,3 +1,5 @@
+import type { SessionRunnerFacade } from '../../runtime/providers/select';
+import type { SubmissionToolDeclaration } from '../../../agents/submission-tools/types';
 /**
  * Test helper that wires the full Run runtime (registry + session runner +
  * runner picker) the way `RunApplicationRuntime` does in production, bundled
@@ -24,6 +26,7 @@ import {
 } from '../../../agents/prompt-type-handler.test-support';
 import { PromptTypeRegistry } from '../../../agents/prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../../../agents/prompt-type-registry.test-support';
+import type { CreateReportProxy } from '../../../agents/submission-tools/create-report-proxy';
 import { SubmissionToolRegistry } from '../../../agents/submission-tools/registry';
 import type { RunStore } from '../../../run-store/run-store';
 import type { RepoMappingStore } from '../../../repo/index';
@@ -180,7 +183,7 @@ const createStubRepoStore = (): RepoMappingStore => createTestRepoMappingStore()
 const createStubHandlerDeps = (): PromptTypeHandlerDeps =>
   createPromptTypeHandlerTestDeps({
     runStore: createStubRunStore(),
-    fetchImpl: (async () => new Response()) as unknown as typeof fetch,
+    fetchImpl: (async () => new Response(JSON.stringify({ data: [] }))) as unknown as typeof fetch,
     apiBaseUrl: 'http://stub',
     logger: NOOP_LOGGER,
   });
@@ -200,6 +203,9 @@ const createStubSessionRunner = (): Pick<AgentSessionRunner, 'runPrompt' | 'resu
 
 export interface CreateTestRunRegistryWiringOptions {
   poster?: MessagePoster;
+  sessionRunnerFacade?: SessionRunnerFacade;
+  submissionToolRegistry?: SubmissionToolRegistry;
+  baseSubmissionTools?: SubmissionToolDeclaration[];
   logger?: ServerLogger;
   runStore?: RunStore;
   repoStore?: RepoMappingStore;
@@ -211,6 +217,8 @@ export interface CreateTestRunRegistryWiringOptions {
   /** Override the default `agent-pending` verdict source. */
   workflowDispatchVerdictReader?: WorkflowDispatchVerdictReader;
   projectModeBundleMaterializer?: ProjectModeBundleMaterializer;
+  /** Replace the report proxy handlers submit typed reports through. */
+  createReportProxy?: CreateReportProxy;
 }
 
 export const createTestRunRegistryWiring = (
@@ -229,11 +237,24 @@ export const createTestRunRegistryWiring = (
       getAccessToken: async () => ({ success: false, error: 'stub' }),
     });
 
-  const submissionToolRegistry = new SubmissionToolRegistry();
-  const promptTypeRegistry = new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES);
-  const sessionRunnerFacade = createTestSessionRunnerFacade(sessionRunner as AgentSessionRunner);
+  const submissionToolRegistry = overrides.submissionToolRegistry ?? new SubmissionToolRegistry();
+  const promptTypeRegistry = new PromptTypeRegistry({
+    ...PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES,
+    entityConversation: {
+      ...PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES.entityConversation,
+      auth: handlerDeps.auth,
+      apiBaseUrl: handlerDeps.apiBaseUrl,
+      fetchImpl: handlerDeps.fetchImpl,
+      logger: handlerDeps.logger,
+    },
+    ...(overrides.createReportProxy ? { createReportProxy: overrides.createReportProxy } : {}),
+  });
+  const sessionRunnerFacade =
+    overrides.sessionRunnerFacade ??
+    createTestSessionRunnerFacade(sessionRunner as AgentSessionRunner);
   const localAgentEndpoint = new LocalAgentEndpoint();
   const childAgentLauncher = new ChildAgentLauncher({
+    handlerDeps: createPromptTypeHandlerTestDeps(),
     promptTypeRegistry,
     repoStore,
     oauthClient,
@@ -255,6 +276,9 @@ export const createTestRunRegistryWiring = (
     runCollaborators: {
       runStore,
       repoStore,
+      ...(overrides.baseSubmissionTools
+        ? { baseSubmissionTools: overrides.baseSubmissionTools }
+        : {}),
       poster,
       broadcaster,
       handlerDeps,

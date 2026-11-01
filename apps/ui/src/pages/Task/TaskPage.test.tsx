@@ -1,3 +1,6 @@
+import { HostedModalFixture } from "../../test/HostedModalFixture";
+import { ModalRestoreControls } from "@hey-hey/ui-common/components/Modals";
+import { PreviewModal } from "../../components/PreviewModal";
 import type {
   TaskResponseDto,
   WorkItemTypeDefinitionDto,
@@ -27,7 +30,11 @@ const {
   mockCreateTask,
   mockInteractionComponent,
   mockNewTaskModal,
+  mockUseTaskHierarchy,
+  mockUseWorkItem,
 } = vi.hoisted(() => ({
+  mockUseTaskHierarchy: vi.fn(),
+  mockUseWorkItem: vi.fn(),
   mockChildTabsLogInfo: vi.fn(),
   mockChildTabsLogWarn: vi.fn(),
   mockCreateTask: vi.fn(),
@@ -53,6 +60,7 @@ const mockWorkItemFilesTab = vi.fn();
 const mockWorkItemMetadata = vi.fn();
 const mockWorkItemReadView = vi.fn();
 const mockWorkItemEditor = vi.fn();
+const mockStatusActionUnmount = vi.fn();
 const mockSetActiveTab = vi.fn();
 const mockSetActiveType = vi.fn();
 let mockActiveTab = "data-debug";
@@ -197,7 +205,8 @@ vi.mock("@hey-hey/ui-common/components", () => ({
   MentionBadgeInner: () => null,
 }));
 
-vi.mock("@hey-hey/ui-common/context", () => ({
+vi.mock("@hey-hey/ui-common/context", async (original) => ({
+  ...(await original<typeof import("@hey-hey/ui-common/context")>()),
   CanonicalPageBoundary: ({ children }: { children: React.ReactNode }) =>
     children,
   createCanonicalPageDescriptor: mockCreateCanonicalPageDescriptor,
@@ -286,19 +295,25 @@ vi.mock("@hey-hey/ui-common/data", () => ({
   useProject: () => ({
     data: { id: "project-1", name: "Project" },
   }),
-  useTaskHierarchy: () => ({
-    hierarchy: {
-      task: mockHierarchyTask,
-      parent: mockHierarchyParent,
-      children: [],
-    },
-    isLoading: false,
-    error: null,
-  }),
-  useWorkItem: () => ({
-    workItem: mockWorkItemTask,
-    refetch: vi.fn(),
-  }),
+  useTaskHierarchy: (...args: unknown[]) => {
+    mockUseTaskHierarchy(...args);
+    return {
+      hierarchy: {
+        task: mockHierarchyTask,
+        parent: mockHierarchyParent,
+        children: [],
+      },
+      isLoading: false,
+      error: null,
+    };
+  },
+  useWorkItem: (...args: unknown[]) => {
+    mockUseWorkItem(...args);
+    return {
+      workItem: mockWorkItemTask,
+      refetch: vi.fn(),
+    };
+  },
   useWorkItemTypeByKey: () => ({
     workItemTypeDefinition: mockWorkItemTypeDefinition,
     isLoading: false,
@@ -528,7 +543,10 @@ vi.mock("../../utils/logger", () => ({
 }));
 
 vi.mock("./SetReadyActionCapsule", () => ({
-  SetReadyActionCapsule: () => null,
+  SetReadyActionCapsule: () => {
+    React.useEffect(() => () => mockStatusActionUnmount(), []);
+    return <div data-testid="status-action-owner" />;
+  },
 }));
 
 vi.mock("./TaskAgentSessionsTab", () => ({
@@ -608,6 +626,66 @@ describe("TaskPage data debug tab", () => {
     mockWorkItemFilesTab.mockReset();
   });
 
+  it("preserves the actual canonical task composition and its context through Preview minimize and restore", async () => {
+    mockActiveTab = "task";
+    render(
+      <MemoryRouter initialEntries={["/underlying?tab=notes"]}>
+        <LocationProbe />
+        <HostedModalFixture>
+          <PreviewModal open onClose={vi.fn()}>
+            <TaskPage
+              organizationId="org-1"
+              projectId="project-1"
+              taskId="task-1"
+              preview
+            />
+          </PreviewModal>
+          <ModalRestoreControls />
+        </HostedModalFixture>
+      </MemoryRouter>,
+    );
+    const composition = screen.getByTestId("status-action-owner");
+    expect(screen.getByText("Feature Tree")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Hide Context" }));
+    expect(screen.queryByText("Feature Tree")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("modal-minimize"));
+    fireEvent.click(screen.getByRole("button", { name: "Restore Preview" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("status-action-owner")).toBeVisible(),
+    );
+    expect(screen.getByTestId("status-action-owner")).toBe(composition);
+    expect(mockStatusActionUnmount).not.toHaveBeenCalled();
+    expect(screen.queryByText("Feature Tree")).not.toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/underlying?tab=notes",
+    );
+  });
+
+  it("keeps the capsule mutation owner alive through optimistic completion until the page closes", () => {
+    mockActiveTab = "task";
+    mockHierarchyTask = createTask({ status: WorkStatus.Active });
+    mockWorkItemTask = mockHierarchyTask;
+    const page = () => (
+      <MemoryRouter>
+        <TaskPage
+          organizationId="org-1"
+          projectId="project-1"
+          initiativeId="initiative-1"
+          taskId="task-1"
+        />
+      </MemoryRouter>
+    );
+    const view = render(page());
+    expect(screen.getByTestId("status-action-owner")).toBeInTheDocument();
+    mockHierarchyTask = { ...mockHierarchyTask, status: WorkStatus.Completed };
+    mockWorkItemTask = mockHierarchyTask;
+    view.rerender(page());
+    expect(mockStatusActionUnmount).not.toHaveBeenCalled();
+    expect(screen.getByTestId("status-action-owner")).toBeInTheDocument();
+    view.unmount();
+    expect(mockStatusActionUnmount).toHaveBeenCalledTimes(1);
+  });
+
   it("starts Mockup context collapsed and lets users reopen and close both cards", () => {
     mockActiveTab = "task";
     mockHierarchyTask = createTask({ type: "mockup" });
@@ -631,6 +709,23 @@ describe("TaskPage data debug tab", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Hide Context" }));
     expect(screen.queryByTestId("task-detail-sidebar")).not.toBeInTheDocument();
+  });
+
+  it("re-reads its own task and hierarchy each time the page opens", () => {
+    renderTaskPage("/projects/project-1/initiatives/initiative-1/tasks/task-1");
+
+    expect(mockUseTaskHierarchy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      "task-1",
+      expect.objectContaining({ refetchOnMount: true }),
+    );
+    expect(mockUseWorkItem).toHaveBeenCalledWith(
+      expect.anything(),
+      "task",
+      "task-1",
+      expect.objectContaining({ refetchOnMount: true }),
+    );
   });
 
   it("keeps ordinary work-item context expanded initially", () => {
@@ -1560,15 +1655,6 @@ describe("TaskPage dynamic children tabs", () => {
           schemaRef: "#/components/schemas/ProjectModeFiles",
         },
       ],
-      agentGuidance: {
-        overview: "A selectable project coding discipline.",
-        contexts: [
-          {
-            focalTypeKeys: ["STANDARD"],
-            guidance: "Use this mode for STANDARD work items.",
-          },
-        ],
-      } as unknown as WorkItemTypeDefinitionDto["agentGuidance"],
       capabilities: { planEligible: false },
     });
     mockWorkItemTypes = [asSummary(mockWorkItemTypeDefinition)];

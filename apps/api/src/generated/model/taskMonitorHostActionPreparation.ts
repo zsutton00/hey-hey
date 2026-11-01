@@ -11,12 +11,13 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
+import { ControllerActionInputs } from './controllerActionInputs';
 import { HostActionCategory } from './hostActionCategory';
 import { HostAffectingActionType } from './hostAffectingActionType';
 
 
 /**
- * Closed selector for a Task Monitor machine action. Authorization binds the exact action and Task Monitor identity; the CLI machine evaluates the command against its own durable snapshot and internal revision.
+ * Preparation for a Task Monitor machine action. Authorization binds the complete typed command and Task Monitor identity; the CLI evaluates the command against its own durable snapshot and internal revision.
  */
 export interface TaskMonitorHostActionPreparation { 
     /**
@@ -30,6 +31,7 @@ export interface TaskMonitorHostActionPreparation {
      * Selection hint only. The server resolves and authorizes the canonical target instead of copying browser scope into the intent.
      */
     targetId: string;
+    inputs?: ControllerActionInputs;
 }
 export namespace TaskMonitorHostActionPreparation {
     export type TargetKindEnum = 'TASK_MONITOR';

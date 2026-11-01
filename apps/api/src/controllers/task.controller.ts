@@ -1002,7 +1002,7 @@ export class TaskController {
     );
 
     const task = await withApiSpan('work_item.patch.response_read', () =>
-      this.taskService.findOneByOrganization(organizationId, taskId),
+      this.taskService.findMutationResultByOrganization(organizationId, taskId),
     );
     if (!task) {
       throw new NotFoundException(`Task with ID ${taskId} not found.`);

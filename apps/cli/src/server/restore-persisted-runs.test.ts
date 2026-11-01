@@ -16,6 +16,8 @@ import { NOOP_LOGGER } from './logger';
 import { RunChangedFilesReader } from './run-changed-files';
 import { RunReadPreparationError, RunReadRestoreCoordinator } from './restore-persisted-runs';
 import { CreateReportTool } from '../agents/submission-tools/create-report-tool';
+import { ReportUsageSnapshotter } from '../provider-usage/report-usage-snapshotter';
+import { SessionTokenUsageReader } from '../provider-usage/session-token-usage';
 import { makeCreateReportProxy } from '../agents/submission-tools/create-report-proxy.test-support';
 import {
   createTestRepoMappingStore,
@@ -532,7 +534,11 @@ describe('RunReadRestoreCoordinator', () => {
       .mockResolvedValueOnce({ content: [], reportId: 'report-service-1' })
       .mockResolvedValueOnce({ content: [], reportId: 'report-service-2' });
     const appendReportChainEntry = vi.spyOn(restoredRun, 'appendReportChainEntry');
-    await new CreateReportTool(proxy).execute({
+    // Native session records live on the machine; the test has none.
+    const usageSnapshotter = new ReportUsageSnapshotter(
+      new SessionTokenUsageReader(async () => JSON.stringify({ sessions: [] })),
+    );
+    await new CreateReportTool(proxy, undefined, undefined, undefined, usageSnapshotter).execute({
       runId: 'run-restarted',
       run: restoredRun,
       args: {

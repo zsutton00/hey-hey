@@ -14,6 +14,7 @@ const queryState: Record<string, string> = {
 const setQueryMock = vi.fn();
 const unifiedSearchMock = vi.fn();
 const createAgentSessionMock = vi.fn();
+const defaultSurfaceSelectionMock = vi.fn();
 const mockUseSuppressLayoutMainBottomSpacing = vi.fn();
 const mockFeaturesPageContainerRef = vi.fn();
 const mockUseRemainingViewportHeight = vi.fn(() => ({
@@ -79,9 +80,11 @@ vi.mock("@hey-hey/ui-common/data", () => ({
   }),
   useWorkItems: () => ({ createTask: vi.fn() }),
   useUnifiedSearch: () => ({ unifiedSearch: unifiedSearchMock }),
-  useCreateAgentSession: (options: {
-    onSuccess?: (session: { id: string; title?: string }) => void;
-  } = {}) => ({
+  useCreateAgentSession: (
+    options: {
+      onSuccess?: (session: { id: string; title?: string }) => void;
+    } = {},
+  ) => ({
     mutate: (variables: unknown) => {
       createAgentSessionMock(variables);
       options.onSuccess?.({ id: "agent-session-1", title: "agent query" });
@@ -91,11 +94,7 @@ vi.mock("@hey-hey/ui-common/data", () => ({
 }));
 
 vi.mock("@hey-hey/ui-common/components", () => ({
-  buildDefaultSurfaceSelection: () => ({
-    provider: "codex",
-    model: "gpt-5",
-    reasoningEffort: "medium",
-  }),
+  buildDefaultSurfaceSelection: () => defaultSurfaceSelectionMock(),
   EntitySearchChat: ({
     initialUserMessage,
   }: {
@@ -456,6 +455,11 @@ describe("FeaturesPage tabs", () => {
       results: [{ entityId: "feature-match-1" }],
     });
     createAgentSessionMock.mockClear();
+    defaultSurfaceSelectionMock.mockReset().mockReturnValue({
+      provider: "codex",
+      model: "gpt-5",
+      reasoningEffort: "medium",
+    });
     mockUseSuppressLayoutMainBottomSpacing.mockClear();
     mockUseRemainingViewportHeight.mockClear();
   });
@@ -540,7 +544,7 @@ describe("FeaturesPage tabs", () => {
     expect(createButton).toHaveTextContent("Add");
     expect(title).toHaveStyle({
       fontFamily:
-          '"Work Sans", "Atkinson Hyperlegible", "Roboto", "Helvetica", "Arial", sans-serif',
+        '"Work Sans", "Atkinson Hyperlegible", "Roboto", "Helvetica", "Arial", sans-serif',
     });
     expect(screen.getByTestId("features-title-row")).toContainElement(
       createButton,
@@ -587,9 +591,7 @@ describe("FeaturesPage tabs", () => {
   it("renders the features tab with the tree view by default and switches to reports on click", async () => {
     const { rerender } = renderAt("/projects/project-1/features");
 
-    expect(
-      await screen.findByTestId("features-tree-view"),
-    ).toBeInTheDocument();
+    expect(await screen.findByTestId("features-tree-view")).toBeInTheDocument();
     expect(screen.getByTestId("features-view-toggle")).toBeInTheDocument();
     expect(
       screen.queryByTestId("feature-reports-tab-mock"),
@@ -613,9 +615,7 @@ describe("FeaturesPage tabs", () => {
     expect(screen.getByTestId("feature-reports-tab-mock")).toHaveTextContent(
       "reports org-1/project-1",
     );
-    expect(
-      screen.queryByTestId("features-tree-view"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("features-tree-view")).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("features-view-toggle"),
     ).not.toBeInTheDocument();
@@ -627,9 +627,7 @@ describe("FeaturesPage tabs", () => {
     renderAt("/projects/project-1/features?tab=reports");
 
     expect(screen.getByTestId("feature-reports-tab-mock")).toBeInTheDocument();
-    expect(
-      screen.queryByTestId("features-tree-view"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("features-tree-view")).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("features-document-view"),
     ).not.toBeInTheDocument();
@@ -645,9 +643,7 @@ describe("FeaturesPage tabs", () => {
     renderAt("/projects/project-1/features?tab=features&view=document");
 
     expect(screen.getByTestId("features-document-view")).toBeInTheDocument();
-    expect(
-      screen.queryByTestId("features-tree-view"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("features-tree-view")).not.toBeInTheDocument();
     expect(screen.getByTestId("features-view-toggle")).toBeInTheDocument();
   });
 
@@ -683,10 +679,7 @@ describe("FeaturesPage tabs", () => {
     );
 
     expect(setQueryMock).toHaveBeenCalledWith("feature", "feature-alpha");
-    expect(setQueryMock).toHaveBeenCalledWith(
-      "section",
-      "feature-alpha-child",
-    );
+    expect(setQueryMock).toHaveBeenCalledWith("section", "feature-alpha-child");
     expect(setQueryMock).toHaveBeenCalledWith("view", "document");
     expect(input).not.toHaveFocus();
     expect(input).toHaveValue("child");
@@ -819,6 +812,34 @@ describe("FeaturesPage tabs", () => {
 
     expect(setQueryMock).toHaveBeenCalledWith("contentSearch", null);
     expect(screen.getByTestId("features-view-toggle")).toBeInTheDocument();
+  });
+
+  it("keeps the query and allows retry when no agent model is available", async () => {
+    defaultSurfaceSelectionMock.mockReturnValue(null);
+    renderAt("/projects/project-1/features");
+    await userEvent.click(screen.getByTestId("search-mode-agent"));
+    const input = screen.getByRole("textbox", { name: "Agent Search" });
+    await userEvent.type(input, "find roadmap features");
+    await userEvent.keyboard("{Enter}");
+
+    expect(createAgentSessionMock).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("entity-search-chat")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "No agent models are available",
+    );
+    expect(input).toHaveValue("find roadmap features");
+
+    defaultSurfaceSelectionMock.mockReturnValue({
+      provider: "codex",
+      model: "gpt-5",
+      reasoningEffort: "medium",
+    });
+    await userEvent.keyboard("{Enter}");
+    expect(createAgentSessionMock).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("entity-search-chat")).toHaveTextContent(
+      "Search feature entities only for: find roadmap features",
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("starts Agent mode as an agent-search session with the submitted query", async () => {

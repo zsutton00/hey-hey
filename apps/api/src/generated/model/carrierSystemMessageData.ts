@@ -16,6 +16,7 @@ import { UIElement } from './uIElement';
 import { SystemMessageData } from './systemMessageData';
 import { UIHints } from './uIHints';
 import { AgentTrigger } from './agentTrigger';
+import { ProposalReconciliationSuggestion } from './proposalReconciliationSuggestion';
 
 
 export interface CarrierSystemMessageData extends SystemMessageData { 

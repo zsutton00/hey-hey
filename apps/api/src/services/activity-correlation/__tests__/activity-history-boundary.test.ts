@@ -1,6 +1,6 @@
 import { ProjectAccessService } from 'src/auth/services/project-access.service';
 import { join } from 'path';
-import { resolveSiblingRepository, resolveWorktreeContext } from 'src/utils/worktree-context';
+import { resolveWorktreeContext } from 'src/utils/worktree-context';
 import { ActivityCorrelationController } from 'src/controllers/activity-correlation.controller';
 import { ActivityCorrelationService } from 'src/services/activity-correlation.service';
 import { ActivitySleepService } from '../activity-sleep.service';
@@ -12,12 +12,13 @@ import { ActivityHistoryFilterDto, ProjectMetricIdentity } from 'src/generated';
 import { OrganizationId, ProjectId, UserId } from 'src/types';
 import { ActivityCorrelationRecordDraft } from '../activity-correlation.types';
 
-// Resolve the matching worktree's built client; a fixed ../ui-common source import
-// points outside the corresponding checkout in a linked-worktree session.
-const { ActivityCorrelationApiAxiosParamCreator } = require(join(
-  resolveSiblingRepository(resolveWorktreeContext(), 'ui-common'),
-  'dist/api.cjs',
-));
+// Resolve the built workspace package from the matching monorepo checkout.
+const { ActivityCorrelationApiAxiosParamCreator } = require(
+  join(
+    resolveWorktreeContext().repositoryRoot,
+    'packages/ui-common/dist/api.cjs',
+  ),
+);
 
 const organizationId = '550e8400-e29b-41d4-a716-446655440000' as OrganizationId;
 const projectId = '550e8400-e29b-41d4-a716-446655440001' as ProjectId;

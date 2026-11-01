@@ -10,6 +10,7 @@ export const DiagramMetadataSchema = z
       'PROCESS',
       'DYNAMIC',
       'DEPLOYMENT',
+      'UX_FLOW',
     ]),
     level: z.enum([
       'OVERVIEW',
@@ -24,7 +25,13 @@ export const DiagramMetadataSchema = z
     (value) =>
       !z
         .object({
-          kind: z.enum(['GENERAL', 'PROCESS', 'DYNAMIC', 'DEPLOYMENT']),
+          kind: z.enum([
+            'GENERAL',
+            'PROCESS',
+            'DYNAMIC',
+            'DEPLOYMENT',
+            'UX_FLOW',
+          ]),
           level: z.enum(['SYSTEM_CONTEXT', 'CONTAINER', 'COMPONENT', 'CODE']),
         })
         .passthrough()

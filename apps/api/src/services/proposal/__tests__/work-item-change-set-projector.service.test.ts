@@ -85,6 +85,7 @@ function graphCapability(
 async function createProjector(
   metadataSchemaRef = '#/components/schemas/RelationshipMetadata',
   alphaNodeParentEntityTypes?: EntityType[],
+  includeUxFlowRegistryPolicy = false,
 ) {
   const mockAgentEdgeClient = {
     findIncident: jest.fn().mockResolvedValue([]),
@@ -163,6 +164,61 @@ async function createProjector(
         { key: 'description', label: 'Description', kind: 'markdown' },
       ],
     },
+    ...(includeUxFlowRegistryPolicy
+      ? [
+          {
+            typeKey: 'DIAGRAM' as const,
+            projectId,
+            allowedParentTypes: ['FEATURE', 'STANDARD'],
+            allowedChildTypes: ['DIAGRAM_ELEMENT'],
+            sectionDefinitions: [
+              ...graphSectionDefinitions(),
+              {
+                key: 'diagramMetadata',
+                label: 'Diagram metadata',
+                kind: 'json' as const,
+                schemaRef: '#/components/schemas/DiagramMetadata',
+              },
+            ],
+            capabilities: {
+              requiresParent: false,
+              graph: graphCapability('DIAGRAM_ELEMENT'),
+            },
+          },
+          {
+            typeKey: 'DIAGRAM_ELEMENT' as const,
+            projectId,
+            allowedParentTypes: ['DIAGRAM'],
+            sectionDefinitions: [
+              {
+                key: 'diagramElementMetadata',
+                label: 'Element metadata',
+                kind: 'json' as const,
+                schemaRef: '#/components/schemas/DiagramElementMetadata',
+                diagramElementPolicy: {
+                  roles: [
+                    {
+                      key: 'GENERIC' as const,
+                      label: 'Generic',
+                      notation: 'box' as const,
+                    },
+                    {
+                      key: 'DIAGRAM_REFERENCE' as const,
+                      label: 'Diagram reference',
+                      notation: 'frame' as const,
+                    },
+                  ],
+                  referenceTargets: [
+                    { entityType: 'TASK' as const },
+                    { entityType: 'SERVICE' as const },
+                  ],
+                },
+              },
+            ],
+            capabilities: { requiresParent: true },
+          },
+        ]
+      : []),
     {
       typeKey: 'CUSTOM_WORK_ITEM',
       projectId,
@@ -712,6 +768,7 @@ describe('WorkItemChangeSetProjectorService', () => {
     expect(projected.issues).toEqual([]);
     expect(transactionTaskFindMany).toHaveBeenCalled();
     expect(prisma.db.task.findMany).not.toHaveBeenCalled();
+    expect(projected.projectedRoot.tag).toBe('product');
   });
 
   it('requires multiple Plan Stages to form one linear dependency chain', async () => {
@@ -1659,7 +1716,7 @@ describe('WorkItemChangeSetProjectorService', () => {
     expect(projected.valid).toBe(true);
     expect(projected.sections).toEqual(
       expect.arrayContaining([
-        { key: 'graphLayout', content: JSON.stringify(savedLayout) },
+        { key: 'graphLayout', content: savedLayout },
         {
           key: 'graphLayoutPreference',
           content: {
@@ -1799,6 +1856,7 @@ describe('WorkItemChangeSetProjectorService', () => {
             category: 'flow' as const,
             direction: 'forward' as const,
             predicate: 'approved',
+            actionLabel: 'tap Continue',
           }
         : operation,
     );
@@ -1811,6 +1869,11 @@ describe('WorkItemChangeSetProjectorService', () => {
 
     expect(projected.valid).toBe(true);
     expect(projected.issues).toEqual([]);
+    expect(projected.incidentRelationships).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ actionLabel: 'tap Continue' }),
+      ]),
+    );
   });
 
   it('accepts external fulfillment without revalidating graph capability policy', async () => {
@@ -2551,11 +2614,11 @@ describe('WorkItemChangeSetProjectorService', () => {
       expect.arrayContaining([
         expect.objectContaining({
           identity: { refType: 'existing', id: firstChildId },
-          tag: null,
+          tag: undefined,
         }),
         expect.objectContaining({
           identity: { refType: 'existing', id: secondChildId },
-          tag: null,
+          tag: undefined,
         }),
       ]),
     );
@@ -3218,6 +3281,273 @@ describe('Diagram metadata', () => {
       }),
     );
     expect(prisma.db.task.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('rejects UX_FLOW metadata that uses a C4 level at the proposal boundary', async () => {
+    const { projector } = await createProjector();
+    const result = await projector.project({
+      organizationId,
+      projectId,
+      db: callerDb(),
+      request: {
+        root: { refType: 'existing', id: DIAGRAM },
+        operations: [
+          {
+            op: 'section.replace',
+            ref: { refType: 'existing', id: DIAGRAM },
+            key: 'diagramMetadata',
+            content: { kind: 'UX_FLOW', level: 'COMPONENT' },
+          },
+        ],
+      },
+    });
+
+    expect(result.issues.map((issue) => issue.code)).toContain(
+      'invalid_diagram_metadata',
+    );
+  });
+});
+
+describe('UX flow constraints', () => {
+  const DIAGRAM = '81818181-8181-4181-8181-818181818181';
+  const SCREEN_ONE = '82828282-8282-4282-8282-828282828282';
+  const SCREEN_TWO = '83838383-8383-4383-8383-838383838383';
+  const MOCKUP = '84848484-8484-4484-8484-848484848484';
+  const EDGE = '85858585-8585-4585-8585-858585858585';
+
+  async function projectFlow(
+    targetType: string,
+    actionLabel?: string,
+    actionLabelUpdate?: string,
+    includeMockupReference = true,
+    screenEdit?: { keepReference: boolean; approval: boolean },
+    changeFlowType = false,
+  ) {
+    const { projector, prisma, mockAgentEdgeClient } = await createProjector(
+      undefined,
+      undefined,
+      true,
+    );
+    const rows = [
+      {
+        ...persistedTask(DIAGRAM, 'Onboarding', 'DIAGRAM'),
+        sections: [
+          {
+            key: 'diagramMetadata',
+            materializedMarkdown: JSON.stringify({
+              kind: 'UX_FLOW',
+              level: 'OVERVIEW',
+            }),
+          },
+        ],
+      },
+      ...[
+        [SCREEN_ONE, 'Welcome screen'],
+        [SCREEN_TWO, 'Profile screen'],
+      ].map(([id, name]) => ({
+        ...persistedTask(id!, name!, 'DIAGRAM_ELEMENT', DIAGRAM),
+        parentTask: { type: 'DIAGRAM' },
+        sections: [
+          {
+            key: 'diagramElementMetadata',
+            materializedMarkdown: JSON.stringify({
+              role: 'GENERIC',
+              ...(includeMockupReference
+                ? {
+                    canonicalReference: {
+                      entityType: 'TASK',
+                      entityId: MOCKUP,
+                    },
+                  }
+                : {}),
+            }),
+          },
+        ],
+      })),
+      persistedTask(MOCKUP, 'Welcome screen mockup', targetType),
+    ];
+    (prisma.db.task.findMany as jest.Mock).mockImplementation(
+      async ({ where }) =>
+        rows.filter(
+          (row) =>
+            where.id?.in?.includes(row.id) ||
+            where.id === row.id ||
+            (where.parentTaskId && row.parentTaskId === where.parentTaskId),
+        ),
+    );
+    mockAgentEdgeClient.findIncident.mockResolvedValue([
+      {
+        id: EDGE,
+        sourceNodeId: SCREEN_ONE,
+        sourceEntityType: 'TASK',
+        targetNodeId: SCREEN_TWO,
+        targetEntityType: 'TASK',
+        type: 'STANDARD',
+        category: 'flow',
+        direction: 'forward',
+        ...(actionLabel === undefined ? {} : { actionLabel }),
+        createdAt: '2026-10-01T00:00:00.000Z',
+        updatedAt: '2026-10-01T00:00:00.000Z',
+      },
+    ]);
+
+    return projector.project({
+      organizationId,
+      projectId,
+      ...(screenEdit?.approval ? { db: prisma.db } : {}),
+      request: {
+        root: { refType: 'existing', id: screenEdit ? SCREEN_ONE : DIAGRAM },
+        operations: screenEdit
+          ? [
+              {
+                op: 'section.replace',
+                ref: { refType: 'existing', id: SCREEN_ONE },
+                key: 'diagramElementMetadata',
+                content: {
+                  role: 'GENERIC',
+                  ...(screenEdit.keepReference
+                    ? {
+                        canonicalReference: {
+                          entityType: 'TASK',
+                          entityId: MOCKUP,
+                        },
+                      }
+                    : {}),
+                },
+              },
+            ]
+          : [
+              {
+                op: 'section.replace',
+                ref: { refType: 'existing', id: DIAGRAM },
+                key: 'diagramMetadata',
+                content: { kind: 'UX_FLOW', level: 'OVERVIEW' },
+              },
+              {
+                op: 'workItem.update',
+                ref: { refType: 'existing', id: DIAGRAM },
+                name: 'Onboarding flow',
+              },
+              ...(actionLabelUpdate === undefined && !changeFlowType
+                ? []
+                : [
+                    {
+                      op: 'relationship.update' as const,
+                      ref: { refType: 'existing' as const, id: EDGE },
+                      ...(actionLabelUpdate === undefined
+                        ? {}
+                        : { actionLabel: actionLabelUpdate }),
+                      ...(changeFlowType
+                        ? {
+                            edgeType: 'LOOP' as const,
+                            category: 'flow' as const,
+                          }
+                        : {}),
+                    },
+                  ]),
+            ],
+      },
+    });
+  }
+
+  it.each([false, true])(
+    'validates element-rooted screen edits (approval database: %s)',
+    async (approval) => {
+      const valid = await projectFlow(
+        'mockup',
+        'tap Continue',
+        undefined,
+        true,
+        { keepReference: true, approval },
+      );
+      expect(valid.issues).toEqual([]);
+      expect(valid.valid).toBe(true);
+
+      const invalid = await projectFlow(
+        'mockup',
+        'tap Continue',
+        undefined,
+        true,
+        { keepReference: false, approval },
+      );
+      expect(invalid.valid).toBe(false);
+      expect(invalid.issues.map((issue) => issue.code)).toContain(
+        'missing_ux_flow_mockup_reference',
+      );
+    },
+  );
+
+  it('keeps Mockup screens and action-labeled transitions in the projected read', async () => {
+    const projected = await projectFlow('mockup', 'tap Continue');
+
+    expect(projected.issues).toEqual([]);
+    expect(projected.valid).toBe(true);
+    expect(projected.sections).toContainEqual({
+      key: 'diagramMetadata',
+      content: { kind: 'UX_FLOW', level: 'OVERVIEW' },
+    });
+    expect(projected.incidentRelationships).toEqual([
+      expect.objectContaining({
+        identity: { refType: 'existing', id: EDGE },
+        actionLabel: 'tap Continue',
+      }),
+    ]);
+  });
+
+  it('rejects a UX flow screen that references a non-Mockup task', async () => {
+    const projected = await projectFlow('STANDARD', 'tap Continue');
+
+    expect(projected.issues.map((issue) => issue.code)).toContain(
+      'invalid_ux_flow_mockup_reference',
+    );
+  });
+
+  it('rejects a UX flow screen without a canonical Mockup reference', async () => {
+    const projected = await projectFlow(
+      'mockup',
+      'tap Continue',
+      undefined,
+      false,
+    );
+
+    expect(projected.issues.map((issue) => issue.code)).toContain(
+      'missing_ux_flow_mockup_reference',
+    );
+  });
+
+  it('rejects a UX flow transition with no triggering action', async () => {
+    const projected = await projectFlow('mockup');
+
+    expect(projected.issues.map((issue) => issue.code)).toContain(
+      'missing_ux_flow_action_label',
+    );
+  });
+
+  it('preserves the triggering action when changing a transition to a loop', async () => {
+    const projected = await projectFlow(
+      'mockup',
+      'tap Continue',
+      undefined,
+      true,
+      undefined,
+      true,
+    );
+    expect(projected.issues).toEqual([]);
+    expect(projected.incidentRelationships).toEqual([
+      expect.objectContaining({
+        edgeType: 'LOOP',
+        actionLabel: 'tap Continue',
+      }),
+    ]);
+  });
+
+  it('edits and projects the triggering action on an existing transition', async () => {
+    const projected = await projectFlow('mockup', 'tap Continue', 'tap Next');
+
+    expect(projected.valid).toBe(true);
+    expect(projected.incidentRelationships).toEqual([
+      expect.objectContaining({ actionLabel: 'tap Next' }),
+    ]);
   });
 });
 

@@ -274,6 +274,7 @@ const extractSessionRecords = (
 
 export const createCcusageSessionJsonReader = (
   resolveLauncher: () => string = resolveCcusageLauncher,
+  usageOnly = false,
 ): CcusageSessionJsonReader => {
   const codexInput = new CodexCostInput();
   return async (providerId, since, scope) => {
@@ -306,6 +307,7 @@ export const createCcusageSessionJsonReader = (
             providerId,
             'session',
             '--json',
+            ...(usageOnly ? ['--offline'] : []),
             ...(!restricted && since ? ['--since', since, '--timezone', 'UTC'] : []),
           ],
           {
@@ -325,6 +327,9 @@ export const createCcusageSessionJsonReader = (
         throw runtimeError;
       }
     };
+    if (usageOnly) {
+      return execute(env, false);
+    }
     return providerId === 'codex' && scope?.sessionIds.length
       ? codexInput.read(scope.sessionIds, env, execute, scope.logger)
       : execute(env, false);
@@ -368,6 +373,7 @@ export class SessionCostAdapter {
   private readonly reportCache: ProviderCostReportCache<CcusageSessionRecord[]>;
   public constructor(
     private readonly readCcusageSessionJson: CcusageSessionJsonReader = runCcusageSessionJson,
+    private readonly cacheReports = true,
   ) {
     const existing = reportCaches.get(readCcusageSessionJson);
     this.reportCache =
@@ -454,11 +460,14 @@ export class SessionCostAdapter {
         });
         let records: CcusageSessionRecord[];
         try {
-          records = await this.reportCache.read(
-            sourceIdentity(providerId, since, sessionIds),
-            () => this.loadReport(providerId, since, sessionIds, logger),
-            logger,
-          );
+          const load = () => this.loadReport(providerId, since, sessionIds, logger);
+          records = this.cacheReports
+            ? await this.reportCache.read(
+                sourceIdentity(providerId, since, sessionIds),
+                load,
+                logger,
+              )
+            : await load();
         } catch (error) {
           if (error instanceof InvalidCostReport) {
             sourceStates.set(providerId, 'malformed');

@@ -22,6 +22,10 @@ export interface ResolveControllerAuthorizationRequestDto {
      * Unique identifier for a paired machine (branded type)
      */
     machineId: string;
+    /**
+     * Base64url WebAuthn controller credential identifier. This is never the internal MachineControllerCredential relational row ID.
+     */
+    controllerCredentialId?: string;
     action: HostActionPreparation;
 }
 

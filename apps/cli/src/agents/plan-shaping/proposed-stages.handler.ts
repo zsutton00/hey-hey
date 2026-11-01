@@ -82,8 +82,9 @@ export const planShapingProposedStagesHandler: UserLaunchablePromptTypeHandler<P
       return { payload };
     },
 
-    buildPrompt(payload: PlanShapingProposedStagesPromptPayload): string {
+    buildPrompt(payload: PlanShapingProposedStagesPromptPayload, ctx): string {
       return buildProposedStagesPrompt({
+        provider: ctx?.provider,
         userMessage: payload.userMessage ?? null,
         designDocId: payload.designDocId,
         planId: payload.planId,

@@ -77,6 +77,52 @@ DemoSandboxResponseDto:
       type: boolean
       description: True when an existing sandbox was reused instead of provisioning a new one.
 
+DemoSandboxSetupStage:
+  type: string
+  enum: [COPYING, CONNECTING, READY]
+  description: >-
+    COPYING while the template is copied into the new project, CONNECTING while
+    the copied features reach the graph, READY once every copied feature is connected.
+
+DemoSandboxSetupProgressDto:
+  type: object
+  additionalProperties: false
+  required: [stage, connectedFeatureCount, totalFeatureCount]
+  properties:
+    stage:
+      $ref: "#/DemoSandboxSetupStage"
+    connectedFeatureCount:
+      type: integer
+      minimum: 0
+      description: Copied features already connected to the new project in the graph.
+    totalFeatureCount:
+      type: integer
+      minimum: 0
+      description: Copied features that must be connected; 0 until copying finishes.
+
+DemoSandboxAdmissionState:
+  type: string
+  enum: [ACTIVE, PROVISIONING, FAILED]
+  description: >-
+    ACTIVE when the sandbox is ready and the caller is signed in to it;
+    PROVISIONING while setup is still running; FAILED when setup failed or
+    passed its deadline and the attempt was discarded.
+
+DemoSandboxAdmissionDto:
+  type: object
+  additionalProperties: false
+  required: [state]
+  properties:
+    state:
+      $ref: "#/DemoSandboxAdmissionState"
+    sandbox:
+      $ref: "#/DemoSandboxResponseDto"
+    progress:
+      $ref: "#/DemoSandboxSetupProgressDto"
+  description: >-
+    sandbox is present only when state is ACTIVE; progress only when state is
+    PROVISIONING. A FAILED state carries neither.
+
 DemoSandboxUnavailableCode:
   type: string
   enum: [DISABLED, AT_CAPACITY, PROVISIONING_FAILED, RATE_LIMITED, BOT_CHECK_FAILED]

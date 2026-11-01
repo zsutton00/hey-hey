@@ -53,13 +53,15 @@ AgentEdgeType:
       where that step's implementation lives. It remains visible in generic
       meta-edge surfaces and is never categorized as flow.
     - STANDARD: flow edge from one WORKFLOW_STEP to the next ordinary step in
-      the same workflow graph. Carries category `flow` and requires direction.
+      the same workflow graph. Carries category `flow`, requires direction,
+      and may carry an action label.
     - CONDITIONAL: flow edge from a WORKFLOW_STEP to the next branch selected
       by a predicate. Carries category `flow` and requires both direction and
-      predicate.
+      predicate. It may also carry an action label.
     - LOOP: flow edge representing a self-loop or return loop in a workflow
       graph. Carries category `flow`, does not carry direction, and may carry
-      a predicate when the return is conditional.
+      a predicate when the return is conditional. It may also carry an action
+      label.
 
 AgentMetaEdgeType:
   type: string
@@ -115,6 +117,15 @@ WorkflowEdgePredicate:
     arithmetic characters so every service applies the same portable
     predicate syntax.
 
+WorkflowEdgeActionLabel:
+  type: string
+  minLength: 1
+  maxLength: 200
+  pattern: '.*\S.*'
+  description: >
+    Optional plain-language user action that triggers this flow transition,
+    such as "tap Continue". Distinct from a CONDITIONAL branch predicate.
+
 AgentEdgeEndpointEntityType:
   type: string
   enum:
@@ -150,6 +161,7 @@ AgentEdgeContractRules:
     - directionRequiredEdgeTypes
     - predicateAllowedEdgeTypes
     - predicateRequiredEdgeTypes
+    - actionLabelAllowedEdgeTypes
     - workflowCrossWorkflowSourceType
     - workflowCrossWorkflowTargetTypes
   properties:
@@ -208,6 +220,15 @@ AgentEdgeContractRules:
         - CONDITIONAL
         - LOOP
       description: Flow edge types that may carry a predicate.
+    actionLabelAllowedEdgeTypes:
+      type: array
+      items:
+        $ref: "#/AgentEdgeType"
+      example:
+        - STANDARD
+        - CONDITIONAL
+        - LOOP
+      description: Flow edge types that may carry an action label.
     workflowCrossWorkflowSourceType:
       type: string
       enum:
@@ -334,6 +355,13 @@ AgentEdgeResponseDto:
         Predicate expression or branch label required for `CONDITIONAL` flow
         edges and optional for `LOOP` flow edges. Omitted for `STANDARD` and
         meta edges.
+    actionLabel:
+      allOf:
+        - $ref: "#/WorkflowEdgeActionLabel"
+      nullable: true
+      description: >
+        Optional plain-language user action that triggers this flow transition.
+        UX_FLOW Diagrams require it to be non-blank on each flow link.
     reasoning:
       type: string
     source:

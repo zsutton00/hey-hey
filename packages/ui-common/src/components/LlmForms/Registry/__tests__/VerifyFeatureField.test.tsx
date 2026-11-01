@@ -121,19 +121,6 @@ vi.mock("../../../SmarterTextAreaCard/MentionBadge", () => ({
     </span>
   ),
 }));
-const entityNames = vi.hoisted(() => ({
-  lookups: [] as unknown[],
-  names: new Map<string, string>(),
-}));
-vi.mock("../../../../data/hooks/useEntityNames", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("../../../../data/hooks/useEntityNames")
-  >()),
-  useEntityNames: ({ entities }: { entities: unknown[] }) => {
-    entityNames.lookups = entities;
-    return { names: entityNames.names, isLoading: false, error: null };
-  },
-}));
 
 const context = {
   organizationId: "org",
@@ -167,6 +154,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.launch.mockResolvedValue(true);
 });
+
 describe("Verify Feature field and secondary action", () => {
   it("renders the explanation as markdown without changing form values", () => {
     const change = vi.fn();
@@ -213,9 +201,9 @@ describe("Verify Feature field and secondary action", () => {
         value={{
           ...field.payload,
           impactedEntities: [
-            { entityType: "TASK", entityId: "b" },
-            { entityType: "FEATURE", entityId: "a" },
-            { entityType: "TASK", entityId: "b" },
+            { entityType: "TASK", entityId: "b", title: "B" },
+            { entityType: "FEATURE", entityId: "a", title: "A" },
+            { entityType: "TASK", entityId: "b", title: "B" },
           ],
         }}
         context={context}
@@ -237,16 +225,15 @@ describe("Verify Feature field and secondary action", () => {
     ).toBeTruthy();
   });
 
-  it("labels affected entities with their resolved names", () => {
-    entityNames.names = new Map([["TASK:task-id", "Record eval runs"]]);
+  it("labels affected entities with their supplied titles and falls back to the id for older references", () => {
     render(
       <VerifyFeatureField
         config={{ field: field.id, type: field.type, description: field.label }}
         value={{
           ...field.payload,
           impactedEntities: [
-            { entityType: "MOCKUP", entityId: "task-id" },
-            { entityType: "FEATURE", entityId: "unnamed-id" },
+            { entityType: "plan", entityId: "plan-id", title: "Ship it" },
+            { entityType: "task", entityId: "older-id" },
           ],
         }}
         context={context}
@@ -254,16 +241,11 @@ describe("Verify Feature field and secondary action", () => {
         onChange={vi.fn()}
       />,
     );
-    expect(entityNames.lookups).toEqual([
-      { entityId: "task-id", entityType: "TASK" },
-      { entityId: "unnamed-id", entityType: "TASK" },
-    ]);
     const nodes = screen.getAllByTestId("mention-node");
     expect(nodes.map((n) => n.getAttribute("data-entity-name"))).toEqual([
-      "Record eval runs",
-      "unnamed-id",
+      "Ship it",
+      "older-id",
     ]);
-    entityNames.names = new Map();
   });
 
   it.each([

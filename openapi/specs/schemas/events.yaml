@@ -1014,7 +1014,6 @@ components:
         - type: object
           required:
             - task
-            - summaryPayload
           properties:
             task:
               "$ref": "#/components/schemas/TaskEventTaskSnapshot"

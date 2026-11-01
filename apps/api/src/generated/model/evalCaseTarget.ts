@@ -11,10 +11,13 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
+import { EntityType } from './entityType';
+import { EvalTargetHandlerKey } from './evalTargetHandlerKey';
+import { EvalConsumerHandlerKey } from './evalConsumerHandlerKey';
 
 
 /**
- * Everything the target handler may see. Never contains checks or rubric.
+ * Recorded case context. Only the initiating request and focal entity reach the target; situation and supporting items are reviewer and judge context.
  */
 export interface EvalCaseTarget { 
     /**
@@ -22,14 +25,22 @@ export interface EvalCaseTarget {
      */
     situation: string;
     focalItemId?: string | null;
+    /**
+     * Canonical entity family of the focal item. Required whenever focalItemId is present; work-item subtypes use TASK.
+     */
+    focalItemType?: EntityType;
     supportingItemIds?: Array<string>;
     /**
      * The single request that starts the case.
      */
     initiatingRequest: string;
+    targetHandler: EvalTargetHandlerKey;
     /**
-     * Handler the case runs through.
+     * Present exactly when `targetHandler` is `project_assistant`: the real handler whose policy, tools and prompt Project Assistant runs under. Always explicit; there is no default. 
      */
-    targetHandler: string;
+    consumerHandler?: EvalConsumerHandlerKey;
 }
+export namespace EvalCaseTarget {
+}
+
 

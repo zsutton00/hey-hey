@@ -1,3 +1,4 @@
+import { ANNOTATION_COLORS } from "../../utils/annotationColors";
 import EditIcon from "@mui/icons-material/Edit";
 import { Button, Tooltip } from "@mui/material";
 import React from "react";
@@ -59,9 +60,9 @@ const PencilButton: React.FC<PencilButtonProps> = ({
             textTransform: "none",
             fontWeight: 600,
             boxShadow: 3,
-            bgcolor: "error.main",
-            color: "error.contrastText",
-            "&:hover": { bgcolor: "error.dark" },
+            bgcolor: ANNOTATION_COLORS.main,
+            color: ANNOTATION_COLORS.contrastText,
+            "&:hover": { bgcolor: ANNOTATION_COLORS.hover },
           }}
           onClick={() =>
             void open(

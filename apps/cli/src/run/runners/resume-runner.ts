@@ -41,7 +41,6 @@ export class ResumeRunner implements Runner {
       handler,
       resolvedPrompt,
       effectiveModel,
-      executionProvider,
       effectiveReasoningEffort,
       input,
       browserMcpMount,
@@ -68,8 +67,12 @@ export class ResumeRunner implements Runner {
       startupInputAvailable: this.ctx.startupPromptInput !== undefined,
       startupInputDelivered: startupProjection?.delivered ?? false,
     });
-    const providerPrompt =
+    const baseProviderPrompt =
       startupProjection?.input.kind === 'turn' ? startupProjection.input.prompt : resolvedPrompt;
+
+    const providerPrompt = [this.ctx.roleGuidance?.text, baseProviderPrompt]
+      .filter(Boolean)
+      .join('\n\n');
 
     if (this.ctx.startupPromptInput) {
       const { provenance } = this.ctx.startupPromptInput;
@@ -102,33 +105,49 @@ export class ResumeRunner implements Runner {
           })();
     const additionalBuiltinTools = handler.additionalBuiltinTools;
     const readOnlyFilesystem = handler.readOnlyFilesystem;
-    const result = await this.deps.sessionRunnerFacade.resumeSession(
-      run,
-      {
-        session: run.session,
-        attachmentRunId: run.runId,
-        attachments: input.attachments ?? [],
-        ...(providerPrompt ? { prompt: providerPrompt } : {}),
-        ...(input.skillSelection ? { skillSelection: input.skillSelection } : {}),
-        ...(effectiveModel ? { model: effectiveModel } : {}),
-        ...(effectiveReasoningEffort ? { reasoningEffort: effectiveReasoningEffort } : {}),
-        ...(mcpToolUseCase ? { mcpToolUseCase } : {}),
-        ...(additionalAllowedTools && additionalAllowedTools.length > 0
-          ? { additionalAllowedTools }
-          : {}),
-        ...(browserMcpMount ? { browserMcpMount } : {}),
-        ...(platformMcpProxyMount ? { platformMcpProxyMount } : {}),
-        ...(additionalBuiltinTools && additionalBuiltinTools.length > 0
-          ? { additionalBuiltinTools }
-          : {}),
-        ...(readOnlyFilesystem ? { readOnlyFilesystem } : {}),
-        ...(workspace ? { workspace } : {}),
-        ...(workspaceWriteBoundary ? { workspaceWriteBoundary } : {}),
-        signal,
-      },
-      executionProvider,
-    );
+    if (this.ctx.turnId && providerPrompt) {
+      await handler.recordProviderInput?.({
+        runId: run.runId,
+        turnId: this.ctx.turnId,
+        logger: this.deps.logger,
+        payload: this.ctx.preparedPayload ?? input.payload,
+        parts: [{ name: 'prompt', text: providerPrompt }],
+      });
+    }
+    const result = await this.deps.sessionRunnerFacade.resumeSession(run, {
+      session: run.session,
+      attachmentRunId: run.runId,
+      attachments: input.attachments ?? [],
+      ...(providerPrompt ? { prompt: providerPrompt } : {}),
+      ...(input.skillSelection ? { skillSelection: input.skillSelection } : {}),
+      ...(effectiveModel ? { model: effectiveModel } : {}),
+      ...(effectiveReasoningEffort ? { reasoningEffort: effectiveReasoningEffort } : {}),
+      ...(mcpToolUseCase ? { mcpToolUseCase } : {}),
+      ...(additionalAllowedTools && additionalAllowedTools.length > 0
+        ? { additionalAllowedTools }
+        : {}),
+      ...(browserMcpMount ? { browserMcpMount } : {}),
+      ...(platformMcpProxyMount ? { platformMcpProxyMount } : {}),
+      ...(additionalBuiltinTools && additionalBuiltinTools.length > 0
+        ? { additionalBuiltinTools }
+        : {}),
+      ...(readOnlyFilesystem ? { readOnlyFilesystem } : {}),
+      ...(workspace ? { workspace } : {}),
+      ...(workspaceWriteBoundary ? { workspaceWriteBoundary } : {}),
+      signal,
+    });
 
+    if (
+      this.ctx.roleGuidance?.deliveryKeys.length &&
+      result.errorCount === 0 &&
+      (result.providerSessionId ?? run.session.provider_session_id)
+    ) {
+      await run.sessionRoleGuidance.acknowledge(
+        run.session,
+        (result.providerSessionId ?? run.session.provider_session_id)!,
+        this.ctx.roleGuidance,
+      );
+    }
     const patch: Partial<typeof run.session> = {};
     if (result.providerSessionId !== null) {
       patch.provider_session_id = result.providerSessionId;

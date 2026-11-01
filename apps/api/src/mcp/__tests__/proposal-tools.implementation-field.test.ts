@@ -2,7 +2,6 @@ import {
   ProposalToolsProvider,
   createWorkItemParameters,
   editWorkItemParameters,
-  editTasksParameters,
 } from '../tools/proposal-tools.provider';
 import type { ProposalService } from '../../services/proposal/proposal.service';
 import type { TaskService } from '../../services/tasks/task.service';
@@ -71,7 +70,6 @@ function createProvider(
   const taskFindOne = opts.taskFindOne ?? jest.fn();
   const proposalService = {
     create: proposalCreate,
-    createBatch: jest.fn(),
     findOne: jest.fn(),
   } as unknown as ProposalService;
   const taskService = {
@@ -422,19 +420,5 @@ describe('implementation field is scoped per work-item type', () => {
       'implementation is not accepted for FEATURE work items',
     );
     expect(proposalCreate).not.toHaveBeenCalled();
-  });
-
-  it('is stripped from edit_tasks batch entries', () => {
-    const parsed = editTasksParameters.parse({
-      edits: [
-        {
-          taskId: TASK_ID,
-          eli5: 'Explains the proposed change.',
-          name: 'Renamed',
-          implementation: IMPL_TEXT,
-        },
-      ],
-    });
-    expect(parsed.edits[0]).not.toHaveProperty('implementation');
   });
 });

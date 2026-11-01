@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import {
+  DemoSandboxStage,
   DemoSandboxStatus,
   OrganizationClosureExecutionStage,
   Prisma,
@@ -13,10 +14,25 @@ const DISCARD_ACTOR = 'demo-sandbox-discard';
 const DISCARD_REASON = 'Demo sandbox provisioning failed';
 
 /**
+ * What a discarded attempt leaves behind: no tenancy, only the binding hash and
+ * the FAILED stage, so the browser can still learn that its setup failed.
+ */
+const FAILED_TOMBSTONE = {
+  status: DemoSandboxStatus.DELETED,
+  stage: DemoSandboxStage.FAILED,
+  organizationId: null,
+  projectId: null,
+  demoUserId: null,
+  readinessFeatureIds: [],
+  connectedFeatureCount: 0,
+} satisfies Prisma.DemoSandboxUncheckedUpdateInput;
+
+/**
  * Discards an attempt that never became accessible. Closure is irreversible
  * and committed before any deletion starts; the existing projection-first
  * deletion pipeline then removes Graph and search projections and, only after
- * both acknowledge, the authoritative rows.
+ * both acknowledge, the authoritative rows. The sandbox row itself ends as a
+ * FAILED tombstone rather than being deleted.
  */
 @Injectable()
 export class DemoSandboxDiscardService {
@@ -50,14 +66,20 @@ export class DemoSandboxDiscardService {
         return false;
       }
       if (!sandbox.organizationId || !sandbox.projectId) {
-        // Preparation never committed, so there is nothing to delete; removing
-        // the reservation releases its slot and makes a late preparation fail.
-        await tx.demoSandbox.delete({ where: { id: sandboxId } });
+        // Preparation never committed, so there is nothing to delete; leaving
+        // PROVISIONING releases its slot and makes a late preparation fail.
+        await tx.demoSandbox.update({
+          where: { id: sandboxId },
+          data: FAILED_TOMBSTONE,
+        });
         return true;
       }
       await tx.demoSandbox.update({
         where: { id: sandboxId },
-        data: { status: DemoSandboxStatus.DISCARDING },
+        data: {
+          status: DemoSandboxStatus.DISCARDING,
+          stage: DemoSandboxStage.FAILED,
+        },
       });
       // Stops any further clone dispatch for this project.
       await tx.demoGraphCopyIntent.deleteMany({
@@ -135,13 +157,17 @@ export class DemoSandboxDiscardService {
       if (!completedOrganizations.has(sandbox.organizationId!)) continue;
       try {
         // Both projection acknowledgements preceded content deletion. Sessions
-        // and the binding record go with the user and sandbox rows. deleteMany
-        // keeps a concurrent instance's identical cleanup from failing.
+        // go with the user row; the sandbox row stays as the FAILED tombstone.
+        // The *Many forms keep a concurrent instance's identical cleanup from
+        // failing.
         await this.prisma.$transaction(async (tx) => {
           if (sandbox.demoUserId) {
             await tx.user.deleteMany({ where: { id: sandbox.demoUserId } });
           }
-          await tx.demoSandbox.deleteMany({ where: { id: sandbox.id } });
+          await tx.demoSandbox.updateMany({
+            where: { id: sandbox.id, status: DemoSandboxStatus.DISCARDING },
+            data: FAILED_TOMBSTONE,
+          });
         });
       } catch (error) {
         this.logger.error('Demo sandbox cleanup failed; will retry', {

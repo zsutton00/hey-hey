@@ -2,6 +2,7 @@ import type { WorkflowProposalLinkInput } from 'src/generated';
 import { z } from 'zod';
 
 export const WORKFLOW_EDGE_PREDICATE_MAX_LENGTH = 200;
+export const WORKFLOW_EDGE_ACTION_LABEL_MAX_LENGTH = 200;
 
 export const WORKFLOW_EDGE_PREDICATE_PATTERN =
   /^(?=.*[A-Za-z0-9_.:/=()!<>&|+\-])[A-Za-z0-9_ .:/=()!<>&|+\-]+$/;
@@ -34,12 +35,22 @@ export const workflowEdgePredicateSchema = z
     'Non-blank CONDITIONAL or LOOP branch label or predicate using the portable workflow predicate character set',
   );
 
+export const workflowEdgeActionLabelSchema = z
+  .string()
+  .min(1)
+  .max(WORKFLOW_EDGE_ACTION_LABEL_MAX_LENGTH)
+  .refine((value) => value.trim().length > 0, {
+    message: 'Action label must contain a non-whitespace character.',
+  })
+  .describe('Optional plain-language action that triggers a flow transition');
+
 const standardLinkSchema = z
   .object({
     sourceStepTempId: sourceStepTempIdSchema,
     type: z.literal('STANDARD'),
     targetStepTempId: targetStepTempIdSchema,
     direction: directionSchema,
+    actionLabel: workflowEdgeActionLabelSchema.optional(),
     description: descriptionSchema,
   })
   .strict();
@@ -51,6 +62,7 @@ const conditionalLinkSchema = z
     targetStepTempId: targetStepTempIdSchema,
     direction: directionSchema,
     predicate: workflowEdgePredicateSchema,
+    actionLabel: workflowEdgeActionLabelSchema.optional(),
     description: descriptionSchema,
   })
   .strict();
@@ -61,6 +73,7 @@ const loopLinkSchema = z
     type: z.literal('LOOP'),
     targetStepTempId: targetStepTempIdSchema.optional(),
     predicate: workflowEdgePredicateSchema.optional(),
+    actionLabel: workflowEdgeActionLabelSchema.optional(),
     description: descriptionSchema,
   })
   .strict();

@@ -28,8 +28,13 @@ Children return distilled research, not source dumps or finalized feature trees.
 If delegation is unavailable or disabled, conduct the same research directly. Small or tightly coupled repositories should remain lead-only.
 
 ## Capability synthesis and challenge
-Produce one capability narrative and one tagged, exactly two-level hierarchy. Top-level names are product concepts; child names are concise delivered capabilities, never implementation actions, transports, folders, or code components.
+Produce one capability narrative and one tagged, exactly two-level hierarchy. Top-level names are product concepts; child names are concise delivered capabilities, never implementation actions, transports, folders, or code components. Descriptions are not names: they should say what the capability is and does, as set out below.
 Then perform a distinct coherence challenge. Check duplicate capabilities, technical-slice titles, unsupported groups, overlapping evidence, and missed strongly supported capabilities. Use an independent reviewer when native delegation is available and worthwhile; otherwise make a clearly separate review pass yourself. Apply warranted corrections to the narrative and hierarchy before returning success.
+
+## Discovering what a capability is and does
+Before writing a description, learn the capability. For each candidate, trace from its user-facing entry points (screens, commands, endpoints, jobs) through the behavior they trigger to the data and outcomes they produce. Note what the user gets, the main behaviors, the boundaries the code enforces, and the neighboring capabilities it relies on or hands off to.
+Then write a description from what you learned, and check that someone who has not seen the code could understand the capability from it. This is a method, not a length target: say what the capability is and does, without padding or restating the name.
+Code observations describe apparent behavior only. They are never requirements or claimed intent; do not state that the product should or must behave a way merely because the code does.
 
 ## Evidence and reporting semantics
 Cite only paths you actually investigated. Paths must be repository-relative and must never be absolute or traverse above the workspace. Summaries must remain concise and must not contain source bodies.
@@ -39,7 +44,7 @@ Report every material difference between the brief and evidence in briefDiscrepa
 ## Required response
 Return exactly one JSON object in a fenced json block and no prose outside that block. The examples below describe the contract; copy only the branch you select into your response.
 Do not add a responseType field; the surrounding handler already identifies the repository_grounding contract.
-Every hierarchy node requires a stable id, capability-oriented name, description, and one tag from product, frontend, backend, infra, design, or AI.
+Every hierarchy node requires a stable id, capability-oriented name, a description that conveys what the capability is and does, and one tag from product, frontend, backend, infra, design, or AI.
 The evidence array contains repository-relative paths and concise summaries only. Do not include source bodies, local absolute paths, generated tasks, proposals, or feature mutations.
 The three outcome branches are mutually exclusive. Return every required field and only fields belonging to the selected branch.
 Success example (optional nested fields are shown):
@@ -55,19 +60,19 @@ Success example (optional nested fields are shown):
       {
         "id": "account-management",
         "name": "Account Management",
-        "description": "Customers manage their accounts.",
+        "description": "Account Management is where customers keep their identity and access to the product in good order. Customers sign in, review the details tied to their account, and change preferences such as contact information and notification choices, and the changes take effect for their later sessions. Access is limited to the signed-in customer, and changes to sensitive details require re-verification. It relies on the sign-in capability for identity and hands billing questions off to the billing area.",
         "tag": "product",
         "children": [
           {
             "id": "account-settings",
             "name": "Account Settings",
-            "description": "Customers maintain account preferences.",
+            "description": "Customers open a settings screen, see their current profile and preference values, and edit them. Saving validates the entries, stores them against the customer account, and shows the updated values immediately. Customers can only change their own settings, and invalid values are rejected with an explanation instead of being saved. Identity checks are handled by Account Access.",
             "tag": "frontend"
           },
           {
             "id": "account-access",
             "name": "Account Access",
-            "description": "Customers securely access their accounts.",
+            "description": "Customers prove who they are with credentials, receive a session that lets them reach their own account data, and can end that session when they leave. Requests without a valid session are refused, and repeated failed attempts are limited. Other account capabilities depend on this one to know which customer is acting.",
             "tag": "backend"
           }
         ]

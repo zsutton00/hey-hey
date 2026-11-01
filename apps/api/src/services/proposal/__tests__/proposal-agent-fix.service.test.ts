@@ -30,6 +30,9 @@ function setup(status = 'RECONCILIATION_REQUIRED') {
     },
   };
   const proposals = {
+    currentReconciliationProposal: jest.fn(
+      async (value: typeof proposal) => value,
+    ),
     reconciliationState: jest.fn().mockResolvedValue({ status }),
   };
   const sessions = {
@@ -79,6 +82,23 @@ describe('ProposalAgentFixService.record', () => {
     expect(request.payload).not.toHaveProperty('machineId');
   });
 
+  it('records latest reviewed content while retaining the originating proposal launch identity', async () => {
+    const { service, proposals } = setup();
+    proposals.currentReconciliationProposal.mockResolvedValue({
+      ...proposal,
+      id: 'latest-review',
+      updates: { status: 'ACTIVE' },
+    });
+    const request = await service.record(
+      organizationId,
+      projectId,
+      userId,
+      proposalId,
+    );
+    expect(request.proposalId).toBe(proposalId);
+    expect(request.payload.entity.entityId).toBe(proposalId);
+    expect(request.payload.proposal.updates).toEqual({ status: 'ACTIVE' });
+  });
   it('rejects a proposal that needs no reconciliation', async () => {
     const { service, sessions } = setup('CURRENT');
     await expect(

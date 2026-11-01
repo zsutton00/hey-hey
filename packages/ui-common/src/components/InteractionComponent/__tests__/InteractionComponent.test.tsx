@@ -1,7 +1,8 @@
+import { DiscussTestApplication } from "../../../test/DiscussTestHost";
 import React from "react";
 import { createPortal } from "react-dom";
 import {
-  render,
+  render as renderView,
   screen,
   fireEvent,
   waitFor,
@@ -85,7 +86,11 @@ vi.mock("../../../data/hooks/useEntityStars", () => ({
 }));
 
 vi.mock("../../../data/hooks/useWorkItem", () => ({
-  useWorkItem: vi.fn(() => ({ workItem: undefined })),
+  useWorkItem: vi.fn(() => ({
+    workItem: { type: "STANDARD" },
+    isFetching: false,
+    refetch: async () => null,
+  })),
 }));
 
 vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
@@ -1810,3 +1815,6 @@ describe("InteractionComponent — Show in open items", () => {
     });
   });
 });
+
+const render: typeof renderView = (ui, options) =>
+  renderView(ui, { ...options, wrapper: DiscussTestApplication });

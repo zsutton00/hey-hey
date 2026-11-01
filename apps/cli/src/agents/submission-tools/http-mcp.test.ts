@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ListToolsResultSchema } from '@modelcontextprotocol/sdk/types.js';
+import { PromptTypeRegistry } from '../prompt-type-registry';
+import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../prompt-type-registry.test-support';
 import type { Request, Response } from 'express';
 import { SubmissionToolsHttpController } from './http-mcp';
 import { SubmissionToolRegistry } from './registry';
@@ -63,6 +66,7 @@ const setActiveTurn = (
 ): void => {
   run.setActiveTurn(
     new Turn({
+      effectiveRole: 'implementation',
       turnId: 'test-turn-id',
       runId: run.runId,
       resolvedPrompt: '',
@@ -300,6 +304,47 @@ describe('createSubmissionToolsHttpHandler', () => {
         tools: [{ name: 'submit_no_discrepancy' }, { name: 'submit_discrepancies' }],
       },
     });
+  });
+
+  // One invalid inputSchema makes MCP clients reject the whole tools/list, so
+  // the agent silently loses every submission tool on that server.
+  it.each(
+    new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES)
+      .list()
+      // proposal_refiner is deprecated; its oneOf tool input is not being repaired.
+      .filter((handler) => handler.id !== 'proposal_refiner')
+      .filter((handler) => (handler.submissionTools?.length ?? 0) > 0)
+      .map((handler) => [handler.id, handler] as const),
+  )('serves a tools/list the MCP client accepts for %s', async (_id, promptHandler) => {
+    const reg = submissionToolRegistry.register({
+      runId: `run-list-${promptHandler.id}`,
+      organizationId: 'org-1',
+      projectId: 'proj-1',
+      conversationId: 'conv-1',
+      externalAgentNodeId: null,
+      triggerMessageId: null,
+      tools: promptHandler.submissionTools!,
+    });
+    const handler = createSubmissionToolsHttpHandler({
+      poster: makePoster(),
+      logger: makeLogger(),
+    });
+    const { req, res, captured } = makeReqRes(reg.token, {
+      jsonrpc: '2.0',
+      id: 3,
+      method: 'tools/list',
+    });
+    await handler(req, res);
+
+    const parsed = ListToolsResultSchema.safeParse(
+      (captured.body as { result?: unknown } | undefined)?.result,
+    );
+    expect(parsed.success ? [] : parsed.error.issues.map((issue) => issue.path.join('.'))).toEqual(
+      [],
+    );
+    expect(parsed.data?.tools.map((tool) => tool.name).sort()).toEqual(
+      promptHandler.submissionTools!.map((tool) => tool.name).sort(),
+    );
   });
 
   it('records a no-payload completion on the Run for turn-end flush rather than posting inline', async () => {

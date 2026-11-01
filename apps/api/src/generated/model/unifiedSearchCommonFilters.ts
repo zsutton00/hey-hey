@@ -14,6 +14,7 @@
 import { EntityType } from './entityType';
 import { UnifiedSearchCommonFiltersDateRange } from './unifiedSearchCommonFiltersDateRange';
 import { UnifiedSearchCommonFiltersUpdatedAtRange } from './unifiedSearchCommonFiltersUpdatedAtRange';
+import { ReportType } from './reportType';
 
 
 /**
@@ -28,6 +29,14 @@ export interface UnifiedSearchCommonFilters {
      * Sub-filter for TASK entities by task type. When provided, only tasks matching the specified type(s) are returned. Non-TASK entities are unaffected.
      */
     taskTypes?: Array<string>;
+    /**
+     * Task types removed from every search lane inside the retrieval query, before limits, offsets and totals. An excluded type is never returned, even when `taskTypes` requests it. Non-TASK entities are unaffected.
+     */
+    excludeTaskTypes?: Array<string>;
+    /**
+     * Report types removed from graph results and traversal paths inside the retrieval query, before limits, offsets and totals. Other entity types and report types are unaffected.
+     */
+    excludeReportTypes?: Array<ReportType>;
     /**
      * Canonical statuses to apply across graph and embeddings searches.
      */

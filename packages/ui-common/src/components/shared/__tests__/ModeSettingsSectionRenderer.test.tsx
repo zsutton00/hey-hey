@@ -26,6 +26,21 @@ const settings = (enabled: boolean) =>
   });
 
 describe("ModeSettingsSectionRenderer", () => {
+  it("does not imply a complete comparison when current settings are unreadable", () => {
+    render(
+      <ModeSettingsSectionRenderer
+        content={settings(true)}
+        previousContent="broken"
+      />,
+    );
+    expect(
+      screen.getByTestId("mode-settings-current-unavailable"),
+    ).toHaveTextContent("Current MODE settings could not be read");
+    expect(
+      screen.queryByTestId("mode-settings-project-assistant"),
+    ).not.toBeInTheDocument();
+  });
+
   it.each([
     [settings(true), "On", "true"],
     [settings(false), "Off", "false"],
@@ -39,7 +54,7 @@ describe("ModeSettingsSectionRenderer", () => {
       const value = screen.getByTestId("mode-settings-project-assistant");
       expect(value).toHaveTextContent(`Project Assistant: ${label}`);
       expect(value).toHaveAttribute("data-enabled", enabled);
-    }
+    },
   );
 
   it("shows the change when a proposal flips the setting", () => {
@@ -47,11 +62,11 @@ describe("ModeSettingsSectionRenderer", () => {
       <ModeSettingsSectionRenderer
         content={settings(false)}
         previousContent={settings(true)}
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("mode-settings-project-assistant")
+      screen.getByTestId("mode-settings-project-assistant"),
     ).toHaveTextContent("Project Assistant: On → Off");
   });
 
@@ -69,7 +84,7 @@ describe("ModeSettingsSectionRenderer", () => {
     render(<ModeSettingsSectionRenderer content={content} />);
 
     expect(
-      screen.getByTestId("mode-settings-section-unavailable")
+      screen.getByTestId("mode-settings-section-unavailable"),
     ).toBeInTheDocument();
   });
 
@@ -97,7 +112,7 @@ describe("ModeSettingsSectionRenderer eligible types", () => {
     render(<ModeSettingsSectionRenderer content={settings(true)} />);
 
     expect(
-      screen.getByTestId("mode-settings-eligible-types")
+      screen.getByTestId("mode-settings-eligible-types"),
     ).toHaveTextContent("Eligible work-item types: Default for all modes");
   });
 
@@ -106,13 +121,13 @@ describe("ModeSettingsSectionRenderer eligible types", () => {
       <ModeSettingsSectionRenderer
         content={withTypes(["STANDARD", "BUG"])}
         previousContent={settings(true)}
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("mode-settings-eligible-types")
+      screen.getByTestId("mode-settings-eligible-types"),
     ).toHaveTextContent(
-      "Eligible work-item types: Default for all modes → BUG, STANDARD"
+      "Eligible work-item types: Default for all modes → BUG, STANDARD",
     );
   });
 
@@ -122,7 +137,7 @@ describe("ModeSettingsSectionRenderer eligible types", () => {
       <ModeSettingsSectionRenderer
         content={withTypes(["BUG", "STANDARD"])}
         onChange={onChange}
-      />
+      />,
     );
 
     fireEvent.click(screen.getByLabelText("Run Project Assistant"));
@@ -132,7 +147,7 @@ describe("ModeSettingsSectionRenderer eligible types", () => {
         schemaVersion: "project-mode-settings.v1",
         projectAssistant: { enabled: false },
         eligibleWorkItemTypeKeys: ["BUG", "STANDARD"],
-      })
+      }),
     );
   });
 
@@ -140,7 +155,7 @@ describe("ModeSettingsSectionRenderer eligible types", () => {
     render(<ModeSettingsSectionRenderer content={withTypes([])} />);
 
     expect(
-      screen.getByTestId("mode-settings-section-unavailable")
+      screen.getByTestId("mode-settings-section-unavailable"),
     ).toBeInTheDocument();
   });
 });
@@ -153,29 +168,29 @@ describe("MODE settings helpers", () => {
         schemaVersion: "project-mode-settings.v1",
         projectAssistant: { enabled: true },
         eligibleWorkItemTypeKeys: ["BUG", "STANDARD"],
-      })
+      }),
     );
   });
 
   it("only matches the MODE settings JSON section", () => {
     expect(
-      isModeSettingsSection({ typeKey: "MODE", key: "settings", kind: "json" })
+      isModeSettingsSection({ typeKey: "MODE", key: "settings", kind: "json" }),
     ).toBe(true);
     expect(
       isModeSettingsSection({
         typeKey: "STANDARD",
         key: "settings",
         kind: "json",
-      })
+      }),
     ).toBe(false);
     expect(
-      isModeSettingsSection({ typeKey: "MODE", key: "files", kind: "json" })
+      isModeSettingsSection({ typeKey: "MODE", key: "files", kind: "json" }),
     ).toBe(false);
   });
 
   it("round-trips the serialized value", () => {
     expect(
-      readModeProjectAssistantSetting(serializeModeSettings(false))
+      readModeProjectAssistantSetting(serializeModeSettings(false)),
     ).toEqual({
       status: "valid",
       enabled: false,
@@ -200,7 +215,7 @@ describe("MODE settings helpers", () => {
             { key: "settings", label: "Session settings", kind: "json" },
           ],
         } as never,
-      }
+      },
     );
 
     expect(inputs.map(({ key }) => key)).toEqual(["description", "files"]);

@@ -11,7 +11,9 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
+import { ProposalReconciliationSuggestionDecision } from './proposalReconciliationSuggestionDecision';
 import { ProposalReconciliationBasis } from './proposalReconciliationBasis';
+import { ProposalReconciliationManualRequest } from './proposalReconciliationManualRequest';
 import { ProposalReconciliationMergeRequest } from './proposalReconciliationMergeRequest';
 import { ProposalReconciliationAgentFixRequest } from './proposalReconciliationAgentFixRequest';
 
@@ -20,5 +22,5 @@ import { ProposalReconciliationAgentFixRequest } from './proposalReconciliationA
  * @type CreateProposalReconciliationCandidate
  * @export
  */
-export type CreateProposalReconciliationCandidate = ProposalReconciliationAgentFixRequest | ProposalReconciliationMergeRequest;
+export type CreateProposalReconciliationCandidate = ProposalReconciliationAgentFixRequest | ProposalReconciliationManualRequest | ProposalReconciliationMergeRequest | ProposalReconciliationSuggestionDecision;
 

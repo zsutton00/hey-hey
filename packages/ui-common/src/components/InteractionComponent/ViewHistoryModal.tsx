@@ -1,7 +1,7 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import React, { useMemo } from "react";
 import {
   Box,
-  Dialog,
   DialogContent,
   DialogTitle,
   IconButton,
@@ -52,7 +52,7 @@ const buildHrefForEntity = (
   pathService: PathService,
   projectId: string | undefined,
   entityId: string,
-  entityType: EntityType
+  entityType: EntityType,
 ): string | null => {
   if (!projectId) return null;
   switch (entityType) {
@@ -116,6 +116,11 @@ export const ViewHistoryModal: React.FC<ViewHistoryModalProps> = ({
       maxWidth="sm"
       fullWidth
       data-testid="view-history-modal"
+      closeControl={
+        <IconButton onClick={onClose} size="small" aria-label="close">
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      }
     >
       <DialogTitle
         sx={{
@@ -132,9 +137,6 @@ export const ViewHistoryModal: React.FC<ViewHistoryModalProps> = ({
             </Typography>
           )}
         </Box>
-        <IconButton onClick={onClose} size="small" aria-label="close">
-          <CloseIcon fontSize="small" />
-        </IconButton>
       </DialogTitle>
       <DialogContent dividers>
         {proposals.map((proposal) => (
@@ -186,7 +188,7 @@ export const ViewHistoryModal: React.FC<ViewHistoryModalProps> = ({
                         pathService,
                         projectId,
                         influence.entityId,
-                        entityType
+                        entityType,
                       )
                     : null;
                   const separatorSx = {

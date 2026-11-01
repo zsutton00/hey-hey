@@ -54,6 +54,9 @@ export async function fetchProviderUsage(
     );
   }
 
+  const controllerReadInputs = {
+    operation: "provider.usage.get",
+  } as const;
   const authorized = await executeControllerAuthorizedAction({
     organizationId,
     projectId,
@@ -64,6 +67,14 @@ export async function fetchProviderUsage(
       actionType: HostAffectingActionType.CliRead,
       targetKind: HostActionTargetKind.AgentSession,
       targetId: routingAgentSessionId,
+      inputs: {
+        kind: "CLI_READ",
+        body: {
+          requestId: crypto.randomUUID(),
+          agentSessionId: routingAgentSessionId,
+          ...controllerReadInputs,
+        },
+      },
     },
     submit: ({ authorization }) =>
       agentSessionsClient.readAgentSessionCliState(
@@ -71,10 +82,7 @@ export async function fetchProviderUsage(
           organizationId,
           projectId,
           agentSessionId: routingAgentSessionId,
-          cliReadRequestDto: {
-            operation: "provider.usage.get",
-            authorization,
-          },
+          cliReadRequestDto: { ...controllerReadInputs, authorization },
         },
         requestOptions,
       ),

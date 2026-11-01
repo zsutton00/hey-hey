@@ -787,7 +787,7 @@ const workItemTypesFixture = [
       ],
       requiredScalars: [],
       forbiddenScalars: ['dueDate'],
-      allowedStatuses: ['ACTIVE', 'SUPERSEDED'],
+      allowedStatuses: ['ACTIVE', 'SUPERSEDED', 'ARCHIVED'],
       allowedParentTypes: ['FEATURE'],
       edgeTargets: [
         {
@@ -808,7 +808,7 @@ const workItemTypesFixture = [
         allowedSourceEntityTypes: [],
         allowedSourceTaskTypes: [],
       },
-      agentSettableStatuses: [],
+      agentSettableStatuses: ['ACTIVE', 'SUPERSEDED', 'ARCHIVED'],
       anchorableReportTypes: [],
       writingStandards: {
         edit: '',

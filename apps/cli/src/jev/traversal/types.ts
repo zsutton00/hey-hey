@@ -1,3 +1,5 @@
+import type { UnifiedEmbeddingsSearchResult } from '../../shared/api/generated';
+import type { ExcerptMetadata } from './excerpt';
 import type { JevEvaluator, Candidate, Focal, Wording } from '../scenarios';
 import type { JevResult } from '../client';
 import type { ExpansionFailure, HopStep } from '../trace';
@@ -11,6 +13,8 @@ export interface EntityRef {
 /** An entity named with its title, as search hits and candidates are. */
 export interface TitledRef extends EntityRef {
   title: string;
+  matchSpans?: UnifiedEmbeddingsSearchResult['matchSpans'];
+  indexedText?: string;
 }
 
 /** A candidate with the entity behind it, which the reader needs to load it. */
@@ -22,6 +26,7 @@ export interface FoundCandidate {
 /** An entity read in full. */
 export interface LoadedEntity extends TitledRef {
   text: string;
+  excerpt?: ExcerptMetadata;
 }
 
 /**
@@ -58,6 +63,7 @@ export interface WalkInput {
    * judged again; their candidates join the focal's in the first frontier.
    */
   seedIds?: readonly string[];
+  hits?: ReadonlyMap<string, TitledRef>;
   jev: WalkJev;
   limits: readonly LevelLimit[];
   /** Cancels the walk's Jev requests; the walk then rejects rather than recording a failure. */

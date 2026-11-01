@@ -35,6 +35,7 @@ import { submitCodingConversationReadinessTool } from './submit-readiness-tool';
 type CodingConversationDeclaration<TPayload extends CodingConversationPreparedPayload> = Pick<
   UserLaunchablePromptTypeHandler<TPayload>,
   | 'id'
+  | 'handsOffOrdinaryReplies'
   | 'promptType'
   | 'service'
   | 'launchEntity'
@@ -201,6 +202,7 @@ export const freeFormHandler = createCodingConversationHandler<
 >({
   mode: 'launch',
   id: 'free_form',
+  handsOffOrdinaryReplies: true,
   promptType: LocalPromptType.FreeForm,
   service: 'required',
   launchEntity: 'required',
@@ -238,8 +240,5 @@ export const codingFreeformHandler =
     graphResearchGuidance: true,
     epistemicCalibration: true,
     mcpToolUseCase: 'general',
-    submissionTools: [
-      reportChangedFilesTool,
-      requestAgentSessionServiceScopeTool,
-    ],
+    submissionTools: [reportChangedFilesTool, requestAgentSessionServiceScopeTool],
   });

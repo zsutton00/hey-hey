@@ -1,5 +1,10 @@
+import { request } from '../../agents/repository-feature-enrichment/repository-feature-enrichment.test-fixture';
 import { describe, expect, it } from 'vitest';
-import type { AgentTrigger } from '../../shared/agent-bridge-contract/generated/api';
+import {
+  LocalPromptType,
+  type AgentTrigger,
+} from '../../shared/agent-bridge-contract/generated/api';
+import { validateTriggerPayload } from '../conversation-dispatch/trigger-payload-schemas';
 import { toStoredTriggerFrame } from './input-admission-payload';
 
 const followUp = (payload: Record<string, unknown>): AgentTrigger =>
@@ -28,5 +33,22 @@ describe('toStoredTriggerFrame', () => {
     const stored = toStoredTriggerFrame(null, followUp(payload), payload);
 
     expect((stored.event as { payload: object }).payload).not.toHaveProperty('runtime');
+  });
+
+  it('stores a handoff with the created Feature identities', () => {
+    const payload = request;
+    const event = {
+      promptType: LocalPromptType.RepositoryFeatureEnrichment,
+      nodeId: 'onboarding-repository-feature-enrichment',
+      triggerMessageId: 'trigger-1',
+      payload,
+    } as unknown as AgentTrigger;
+    const validated = validateTriggerPayload(LocalPromptType.RepositoryFeatureEnrichment, payload);
+
+    const stored = toStoredTriggerFrame(null, event, validated);
+
+    expect(stored.event).toMatchObject({
+      payload: { materializedFeatureIds: payload.materializedFeatureIds },
+    });
   });
 });

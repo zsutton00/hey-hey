@@ -21,6 +21,11 @@ export const buildAgentSessionLabel = (
     return serviceName || fallback;
   }
 
-  const title = rawTitle || fallback;
+  const parent = parentLabel?.trim();
+  const isUntitled =
+    !rawTitle ||
+    normalizeForCompare(rawTitle) === normalizeForCompare(fallback);
+  const title =
+    isUntitled && parent ? `${fallback} - ${parent}` : rawTitle || fallback;
   return serviceName ? `${serviceName} - ${title}` : title;
 };

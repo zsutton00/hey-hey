@@ -43,6 +43,10 @@ export interface CreateAgentEdgeDto {
    */
   predicate?: string | null;
   /**
+   * Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.
+   */
+  actionLabel?: string;
+  /**
    * Label-specific relationship metadata declared by the edge contract.
    */
   metadata?: { [key: string]: any } | null;

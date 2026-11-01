@@ -47,7 +47,9 @@ describe("AgentSessionByIdResolver", () => {
     render(<AgentSessionByIdResolver />);
 
     expect(screen.getByText("Loading agent session...")).toBeInTheDocument();
-    expect(screen.queryByText("Unable to find agent session.")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Unable to find agent session."),
+    ).not.toBeInTheDocument();
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
@@ -61,7 +63,9 @@ describe("AgentSessionByIdResolver", () => {
 
     render(<AgentSessionByIdResolver />);
 
-    expect(screen.getByText("Unable to find agent session.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Unable to find agent session."),
+    ).toBeInTheDocument();
   });
 
   it("routes Daily Session sessions to the project Daily Session view", () => {
@@ -79,6 +83,26 @@ describe("AgentSessionByIdResolver", () => {
 
     expect(navigateMock).toHaveBeenCalledWith(
       "/projects/project-1?tab=project&view=daily-session",
+      { replace: true },
+    );
+  });
+
+  it("routes proposal-refining sessions to their owning session view", () => {
+    useAgentSessionMock.mockReturnValue({
+      agentSession: {
+        id: "session-1",
+        type: AgentSessionType.ProposalRefining,
+        conversationId: "conversation-1",
+      },
+      error: null,
+      isFetched: true,
+      isLoading: false,
+    });
+
+    render(<AgentSessionByIdResolver />);
+
+    expect(navigateMock).toHaveBeenCalledWith(
+      "/projects/project-1/agent-sessions/session-1",
       { replace: true },
     );
   });

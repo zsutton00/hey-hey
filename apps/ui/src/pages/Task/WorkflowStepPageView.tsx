@@ -1,3 +1,4 @@
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import { WebPathService } from "@hey-hey/ui-common/services";
 import React from "react";
 import type { Options } from "nuqs";
@@ -7,7 +8,6 @@ import {
   Box,
   Button,
   Chip,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,

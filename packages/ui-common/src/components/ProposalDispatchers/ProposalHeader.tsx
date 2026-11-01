@@ -1,6 +1,7 @@
 import { Chip, Stack, type SvgIconProps } from "@mui/material";
 import type { ComponentType, FC, ReactNode } from "react";
 import { ProposalAction, type ProposalResponseDto } from "../../api";
+import { isFutureProposal } from "./futureAsUpdate";
 import type { EntityColors } from "../../utils/entityIcons";
 
 export type ProposalHeaderTypePresentation =
@@ -14,6 +15,7 @@ export type ProposalHeaderTypePresentation =
 
 export interface ProposalMetadataProps {
   action: ProposalAction;
+  actionLabel?: string;
   typePresentation: ProposalHeaderTypePresentation;
   hideTypeChip?: boolean;
   typeTestId?: string;
@@ -23,6 +25,7 @@ export interface ProposalMetadataProps {
 export interface ProposalHeaderProps {
   proposal: ProposalResponseDto;
   typePresentation: ProposalMetadataProps["typePresentation"];
+  presentationAction?: ProposalAction;
   hideTypeChip?: ProposalMetadataProps["hideTypeChip"];
   typeTestId?: ProposalMetadataProps["typeTestId"];
   endAdornment?: ProposalMetadataProps["endAdornment"];
@@ -39,9 +42,16 @@ export const ProposalHeader: FC<ProposalHeaderProps> = ({
   hideTypeChip = false,
   typeTestId = "proposal-header-type",
   endAdornment,
+  presentationAction,
 }) => (
   <ProposalMetadata
-    action={proposal.action}
+    action={presentationAction ?? proposal.action}
+    actionLabel={
+      presentationAction === ProposalAction.VersionedUpdate ||
+      (isFutureProposal(proposal) && proposal.updates.operation === "REVISE")
+        ? "Updates after linked work"
+        : undefined
+    }
     typePresentation={typePresentation}
     hideTypeChip={hideTypeChip}
     typeTestId={typeTestId}
@@ -51,6 +61,7 @@ export const ProposalHeader: FC<ProposalHeaderProps> = ({
 
 export const ProposalMetadata: FC<ProposalMetadataProps> = ({
   action,
+  actionLabel,
   typePresentation,
   hideTypeChip = false,
   typeTestId = "proposal-header-type",
@@ -65,7 +76,7 @@ export const ProposalMetadata: FC<ProposalMetadataProps> = ({
     data-testid="proposal-header-metadata"
   >
     <Chip
-      label={formatProposalAction(action)}
+      label={actionLabel ?? formatProposalAction(action)}
       size="small"
       color="primary"
       data-testid="proposal-header-action"

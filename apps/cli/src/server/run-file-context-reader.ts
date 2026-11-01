@@ -9,7 +9,10 @@ import type { ServerLogger } from './logger';
 
 import { RunReadPreparationError } from './run-read-preparation-error';
 import type { ProjectModeBundleRestorer } from '../agents/project-mode';
-import type { ChangedFilesReadPhase } from './changed-files-read-diagnostics';
+import {
+  safeRunReadPreparationDetails,
+  type ChangedFilesReadPhase,
+} from './changed-files-read-diagnostics';
 import { prepareRunIdentity } from './run-read-identity';
 
 export interface RunFileContextReadOptions {
@@ -60,14 +63,16 @@ export class RunFileContextReader {
       });
       return { ...args, getFileChangeProjection: () => projection };
     } catch (error) {
+      const resolvedError =
+        error instanceof RunFamilyCompatibilityError
+          ? new RunReadPreparationError('READ_FAILED', error.message, { cause: error })
+          : error;
       logger.warn('local.changed_files_read.failed', {
         runId,
         errorName: error instanceof Error ? error.name : 'NonError',
+        ...(resolvedError instanceof Error ? safeRunReadPreparationDetails(resolvedError) : {}),
       });
-      if (error instanceof RunFamilyCompatibilityError) {
-        throw new RunReadPreparationError('READ_FAILED', error.message, { cause: error });
-      }
-      throw error;
+      throw resolvedError;
     }
   }
 

@@ -64,6 +64,7 @@ import {
   isRoutingMessage,
 } from "../utils";
 import { determineMessageState } from "../utils/messageStateUtils";
+import { placeCodingPlanReviewMessage } from "../utils/codingPlanConversation";
 import {
   applyVisualPreviewPresentationState,
   resolveCurrentVisualPreviewProposalIds,
@@ -231,8 +232,9 @@ type SystemConversationMessage = Extract<
   { type: "SYSTEM" }
 >;
 
-const ACTIVE_TURN_STATES: readonly AgentSessionCurrentState[] = [
-  AgentSessionCurrentState.Starting,
+// STARTING is excluded: until the new Turn is running, the CLI's latest Turn is
+// the previous one, so its tool calls must not be read or shown.
+const RUNNING_TURN_STATES: readonly AgentSessionCurrentState[] = [
   AgentSessionCurrentState.GatheringContext,
   AgentSessionCurrentState.Thinking,
   AgentSessionCurrentState.Writing,
@@ -415,9 +417,11 @@ const buildBaseConversationTimeline = (
     );
   }
 
-  return applyVisualPreviewPresentationState(
-    filterRoutingMessages(timeline),
-    messages,
+  return placeCodingPlanReviewMessage(
+    applyVisualPreviewPresentationState(
+      filterRoutingMessages(timeline),
+      messages,
+    ),
   );
 };
 
@@ -690,15 +694,6 @@ export const ConversationProvider: React.FC<ConversationProviderProps> = ({
     [conversationTimeline],
   );
   const hasInterstitialInTimeline = interstitialBodies.length > 0;
-  const latestTurnToolCalls = useLatestTurnToolCalls({
-    organizationId: project.organizationId,
-    projectId: project.id,
-    agentSessionId,
-    activityKey: interstitialBodies[interstitialBodies.length - 1] ?? "",
-    enabled:
-      agentSessionCurrentState !== undefined &&
-      ACTIVE_TURN_STATES.includes(agentSessionCurrentState),
-  });
 
   const userIdentity = useUserIdentity();
   const currentUserId = userIdentity?.userId || "";
@@ -738,6 +733,16 @@ export const ConversationProvider: React.FC<ConversationProviderProps> = ({
     onSubmitOnboardingReply,
     onSubmitRepositoryImportReply,
     onConversationUpdated: handleConversationUpdated,
+  });
+
+  const latestTurnToolCalls = useLatestTurnToolCalls({
+    organizationId: project.organizationId,
+    projectId: project.id,
+    agentSessionId,
+    activityKey: interstitialBodies[interstitialBodies.length - 1] ?? "",
+    enabled:
+      agentSessionCurrentState !== undefined &&
+      RUNNING_TURN_STATES.includes(agentSessionCurrentState),
   });
 
   const { handleStepClick, loadOlderMessages, initialScrollReady } =

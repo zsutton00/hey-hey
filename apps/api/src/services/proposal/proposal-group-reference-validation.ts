@@ -1,3 +1,8 @@
+import { workItemChangeSetValidationRequestSchema } from './work-item-change-set.schema';
+import {
+  parseDiagramJson,
+  diagramElementMetadataSchema,
+} from '../tasks/diagram-metadata';
 import { Injectable, Logger } from '@nestjs/common';
 import type { Proposal, ProposalGroupDependency } from '@prisma/client';
 import type {
@@ -261,6 +266,69 @@ export class ProposalGroupReferenceValidation {
     }
 
     if (proposal.targetEntityType === 'TASK') {
+      const graph = workItemChangeSetValidationRequestSchema.safeParse(
+        proposal.updates,
+      );
+      if (!graph.success) {
+        this.logger.warn(
+          'Proposal-group member updates are not a work-item change set; typed references skipped',
+          {
+            proposalId: proposal.id,
+            memberIndex,
+            action: proposal.action,
+            issues: graph.error.issues.slice(0, 5).map((issue) => ({
+              path: issue.path.join('.'),
+              code: issue.code,
+            })),
+          },
+        );
+      }
+      if (graph.success) {
+        graph.data.operations.forEach((operation, index) => {
+          if (
+            operation.op !== 'section.replace' ||
+            operation.key !== 'diagramElementMetadata'
+          ) {
+            return;
+          }
+          let content: unknown;
+          try {
+            content = parseDiagramJson(operation.content);
+          } catch {
+            this.logger.warn('Diagram element metadata is not valid JSON', {
+              proposalId: proposal.id,
+              memberIndex,
+              operationIndex: index,
+            });
+            return;
+          }
+          const parsed = diagramElementMetadataSchema.safeParse(content);
+          const reference = parsed.success
+            ? parsed.data.canonicalReference
+            : undefined;
+          this.logger.log('Inspected Diagram element metadata for references', {
+            proposalId: proposal.id,
+            memberIndex,
+            operationIndex: index,
+            metadataParsed: parsed.success,
+            parseIssuePaths: parsed.success
+              ? []
+              : parsed.error.issues
+                  .slice(0, 5)
+                  .map((issue) => issue.path.join('.')),
+            referenceEntityType: reference?.entityType,
+            referenceEntityId: reference?.entityId,
+          });
+          if (reference) {
+            candidates.push({
+              value: reference.entityId,
+              entityType: reference.entityType,
+              path: `${prefix}/updates/operations/${index}/content`,
+            });
+          }
+        });
+      }
+
       candidates.push({
         value: updates.parentTaskId,
         entityType: 'TASK',

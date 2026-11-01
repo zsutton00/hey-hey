@@ -50,7 +50,6 @@ export async function publishCloneCreatedEvents(
   tx: Prisma.TransactionClient,
   events: DomainEventPublisher,
   target: { id: string; organizationId: string },
-  actorUserId: string,
   remap: TemplateCloneRemapper,
   source: {
     tasks: Array<Record<string, unknown>>;
@@ -66,7 +65,6 @@ export async function publishCloneCreatedEvents(
   const context = {
     organizationId: target.organizationId as OrganizationId,
     projectId: target.id as ProjectId,
-    userId: actorUserId as UserId,
   };
   const mentionEvents = async (
     sourceEntityId: string,

@@ -94,8 +94,8 @@ const makePoster = (createOutOfBand?: MessagePoster['createOutOfBand']) =>
       createOutOfBand ?? vi.fn(async (_args: MessagePosterCreateOutOfBandArgs) => 'msg-1'),
   });
 
-const makeRunStore = (): RunStore => {
-  const store = createTestRunStore();
+const makeRunStore = (nativeSessions?: readonly unknown[]): RunStore => {
+  const store = createTestRunStore(nativeSessions);
   vi.spyOn(store, 'updateRunPromptType').mockResolvedValue(makeSession());
   vi.spyOn(store, 'updateRunSessionContext').mockResolvedValue(makeSession());
   vi.spyOn(store, 'updateRunWorktreeState').mockResolvedValue(makeSession());
@@ -113,8 +113,9 @@ const makeCollaborators = (
   pickRunner: (ctx: RunnerContext) => Runner,
   handlerDeps: PromptTypeHandlerDeps = {} as unknown as PromptTypeHandlerDeps,
   handler: PromptTypeHandler<unknown> = handlerStub,
+  nativeSessions?: readonly unknown[],
 ): RunCollaborators => ({
-  runStore: makeRunStore(),
+  runStore: makeRunStore(nativeSessions),
   repoStore: createTestRepoMappingStore(),
   poster,
   broadcaster: makeBroadcaster(),
@@ -201,6 +202,87 @@ describe('Run.flushPendingCompletion', () => {
       expect(second.request.action).toBe(action.action);
     },
   );
+
+  it.each(['claude', 'codex', 'opencode'] as const)(
+    'retains real %s Run completion for result reads',
+    async (provider) => {
+      const poster = makePoster();
+      let run: Run;
+      const collaborators = makeCollaborators(
+        poster,
+        () => ({
+          run: async () => {
+            run.onAgentOutput(assistantCompleteMessage('Retained answer'));
+          },
+        }),
+        undefined,
+        undefined,
+        [{ sessionId: 'prov-1', inputTokens: 12, outputTokens: 3 }],
+      );
+      const store = collaborators.runStore;
+      vi.mocked(store.updateRunLatestTurn).mockRestore();
+      await store.initialize();
+      const session = await store.createRun({
+        agentic_session_id: 'run-1',
+        provider_session_id: 'prov-1',
+        provider,
+        entity: null,
+        conversationId: 'conv-1',
+        services: [{ id: 'svc-1', path: '/tmp/repo' }],
+        launchServiceId: 'svc-1',
+        contextMetadata: {
+          capturedAt: new Date().toISOString(),
+          organizationId: 'org-1',
+          projectId: 'proj-1',
+          agentSessionId: 'agent-session-1',
+          userComments: [],
+          fileReferences: { resolved: [], unresolved: [] },
+        },
+      });
+      run = new Run(makeRunArgs({ provider, session }), collaborators);
+      await run.handleMessage(makeInput());
+      await run.awaitIdle();
+      expect(await store.getRunResult('run-1')).toMatchObject({
+        assistantCompleted: true,
+        outputText: 'Retained answer',
+        // Only claude and codex retain native session records to read usage from.
+        usage: provider === 'opencode' ? {} : { inputTokens: 12, outputTokens: 3 },
+      });
+    },
+  );
+
+  it('keeps execution and cleanup working when latest-result writes fail', async () => {
+    const runner = vi.fn(async () => {});
+    const collaborators = makeCollaborators(makePoster(), () => ({ run: runner }));
+    vi.mocked(collaborators.runStore.updateRunLatestTurn).mockRejectedValue(
+      new Error('disk unavailable'),
+    );
+    const run = new Run(makeRunArgs(), collaborators);
+    await run.handleMessage(makeInput());
+    await run.awaitIdle();
+    expect(runner).toHaveBeenCalledOnce();
+    expect(run.activeTurn).toBeNull();
+  });
+
+  it('preserves begin-failure cleanup when latest-result writes fail', async () => {
+    const collaborators = makeCollaborators(makePoster(), () => ({ run: async () => {} }));
+    vi.mocked(collaborators.runStore.updateRunLatestTurn).mockRejectedValue(
+      new Error('disk unavailable'),
+    );
+    const begin = vi
+      .spyOn(Turn.prototype, 'begin')
+      .mockRejectedValueOnce(new Error('begin failed'));
+    const run = new Run(makeRunArgs(), collaborators);
+    try {
+      await expect(run.handleMessage(makeInput())).resolves.toBeUndefined();
+      expect(collaborators.logger.error).toHaveBeenCalledWith(
+        'local.run.start_turn.begin_failed',
+        expect.anything(),
+      );
+    } finally {
+      begin.mockRestore();
+    }
+  });
 
   it('serializes concurrent flushes into one acknowledged delivery', async () => {
     let acknowledge!: (messageId: string) => void;
@@ -352,6 +434,7 @@ describe('Run.flushPendingCompletion', () => {
       }),
     };
     const turn = new Turn({
+      effectiveRole: 'implementation',
       turnId: 'turn-runner-failure',
       runId: 'run-1',
       resolvedPrompt: 'resolved',
@@ -688,17 +771,12 @@ describe('Run terminal output attention', () => {
       { terminalOutcome: 'FAILED', completedAssistantMessageId: null },
     ]);
     expect(poster.createOutOfBand).toHaveBeenCalledTimes(2);
-    const failureMessageDto = (
-      vi.mocked(poster.createOutOfBand).mock.calls[1]?.[0] as MessagePosterCreateOutOfBandArgs
-    ).dto;
-    expect(failureMessageDto).toMatchObject({
-      data: {
-        response:
-          'I generated a response, but could not publish it. This Turn was marked as failed; please try again.',
-      },
-    });
-    expect(failureMessageDto).not.toHaveProperty('proposalIds');
-    expect(failureMessageDto).not.toHaveProperty('reportIds');
+    expect(poster.postFailureMessage).toHaveBeenCalledOnce();
+    expect(poster.postFailureMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: 'PUBLICATION_FAILED',
+      }),
+    );
   });
 
   it('does not advance a pending external completion after final Message publication fails', async () => {
@@ -771,6 +849,7 @@ describe('Run terminal output attention', () => {
     );
     const run = new Run(makeRunArgs(), collaborators);
     const turn = new Turn({
+      effectiveRole: 'implementation',
       turnId: 'turn-aborted',
       runId: 'run-1',
       resolvedPrompt: 'resolved',

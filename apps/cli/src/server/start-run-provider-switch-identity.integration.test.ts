@@ -150,7 +150,7 @@ describe('provider switch keeps one Run per Agent Session', () => {
     const { baseDir, runStore, service } = await makeHarness();
     await start(service, { provider: 'claude', model: 'claude-test' });
 
-    const switched = await runStore.updateRunImplementRuntime(AGENT_SESSION_ID, {
+    const switched = await runStore.updateRunRuntime(AGENT_SESSION_ID, {
       provider: 'codex',
       model: 'gpt-6.1-sol',
       reasoningEffort: 'low',

@@ -1,0 +1,2 @@
+ALTER TABLE conversations
+    ADD COLUMN restricted BOOLEAN NOT NULL DEFAULT TRUE;

@@ -1,6 +1,6 @@
 import React, {
   useCallback,
-  useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -252,18 +252,87 @@ export const FeaturesDocumentView: React.FC<FeaturesDocumentView> = ({
     return entry?.status !== "loading" || Boolean(entry.data);
   });
 
+  const [navigationVersion, setNavigationVersion] = useState(0);
+  const [positionedSelection, setPositionedSelection] = useState<string>();
+  const positioningKey = `${openId ?? ""}:${navigationVersion}`;
+
   const selectFeature = useCallback(
     (featureId: string | null): void => {
+      setNavigationVersion((version) => version + 1);
       void setSectionId(featureId);
       void setSelectedFeatureId(null);
     },
     [setSectionId, setSelectedFeatureId],
   );
 
-  // A new level starts at its top rather than at the previous scroll position.
-  useEffect(() => {
-    if (documentPanelRef.current) documentPanelRef.current.scrollTop = 0;
-  }, [openFeature?.node.feature.id]);
+  // The selected section can move to a different sibling list or mount only
+  // after content resolves. Measure that committed layout, never the old level.
+  useLayoutEffect(() => {
+    const panel = documentPanelRef.current;
+    if (!panel || !isContentResolved || isLoading) return;
+    const target = Array.from(
+      panel.querySelectorAll<HTMLElement>("[data-feature-id]"),
+    ).find((element) => element.dataset.featureId === openId);
+    const position = (): void => {
+      if (target) {
+        panel.scrollTop = Math.max(
+          0,
+          panel.scrollTop +
+            target.getBoundingClientRect().top -
+            panel.getBoundingClientRect().top -
+            panel.clientTop -
+            16,
+        );
+      } else {
+        panel.scrollTop = 0;
+      }
+    };
+    position();
+    setPositionedSelection(positioningKey);
+
+    // Content above the target may grow after mounting. Preserve the explicit
+    // selection until the user deliberately starts scrolling.
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? undefined
+        : new ResizeObserver(position);
+    panel
+      .querySelectorAll<HTMLElement>("[data-feature-id]")
+      .forEach((element) => observer?.observe(element));
+    const release = (): void => observer?.disconnect();
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (
+        [
+          "ArrowDown",
+          "ArrowUp",
+          "PageDown",
+          "PageUp",
+          "Home",
+          "End",
+          " ",
+        ].includes(event.key)
+      )
+        release();
+    };
+    panel.addEventListener("wheel", release, { passive: true });
+    panel.addEventListener("touchstart", release, { passive: true });
+    panel.addEventListener("pointerdown", release);
+    panel.addEventListener("keydown", onKeyDown);
+    return () => {
+      release();
+      panel.removeEventListener("wheel", release);
+      panel.removeEventListener("touchstart", release);
+      panel.removeEventListener("pointerdown", release);
+      panel.removeEventListener("keydown", onKeyDown);
+    };
+  }, [
+    openId,
+    positioningKey,
+    sections,
+    isContentResolved,
+    isLoading,
+    mobileTocVisible,
+  ]);
 
   const hrefForSelection = useCallback(
     (featureId: string | null): string => {
@@ -358,6 +427,7 @@ export const FeaturesDocumentView: React.FC<FeaturesDocumentView> = ({
           maxWidth: "100%",
           boxSizing: "border-box",
           overflowY: "auto",
+          overflowAnchor: "none",
           overflowX: "hidden",
           overscrollBehaviorY: "contain",
           py: 1,
@@ -449,6 +519,10 @@ export const FeaturesDocumentView: React.FC<FeaturesDocumentView> = ({
                     showSectionActions={isDesktopViewport}
                     matchedFeatureIds={matchedFeatureIds}
                     activeSectionId={openFeatureId}
+                    suspendVisuals={
+                      positionedSelection !== positioningKey ||
+                      !isContentResolved
+                    }
                     onCreateWorkItem={handleOpenWorkItem}
                   />
                 );

@@ -1,8 +1,8 @@
+import { FunctionalDialog as Dialog } from "../../Modals/FunctionalDialog";
 import React, { useCallback, useRef, useState } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import CloseIcon from "@mui/icons-material/Close";
 import {
-  Dialog,
   DialogContent,
   DialogTitle,
   IconButton,
@@ -420,11 +420,7 @@ export const RichSlashCommandPlugin: React.FC<RichSlashCommandPluginProps> = ({
           maxWidth="lg"
           fullScreen={isSmallViewport}
           data-testid="slash-feature-tree-picker"
-        >
-          <DialogTitle
-            sx={{ display: "flex", alignItems: "center", gap: 1, pr: 1 }}
-          >
-            Choose a feature
+          closeControl={
             <IconButton
               aria-label="Close feature picker"
               data-testid="close-feature-tree-picker"
@@ -433,6 +429,12 @@ export const RichSlashCommandPlugin: React.FC<RichSlashCommandPluginProps> = ({
             >
               <CloseIcon />
             </IconButton>
+          }
+        >
+          <DialogTitle
+            sx={{ display: "flex", alignItems: "center", gap: 1, pr: 1 }}
+          >
+            Choose a feature
           </DialogTitle>
           <DialogContent dividers sx={{ minHeight: 0 }}>
             <FeaturePicker

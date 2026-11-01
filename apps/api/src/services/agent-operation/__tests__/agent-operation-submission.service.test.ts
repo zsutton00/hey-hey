@@ -48,7 +48,9 @@ describe('AgentOperationSubmissionService', () => {
         } as unknown as PrismaService,
         {} as AgentOperationRegistryService,
         {} as MessageService,
-        {} as ExecutionGrantService,
+        {
+          assertDeliveredInputs: jest.fn(),
+        } as unknown as ExecutionGrantService,
         {} as AgentOperationDispatchService,
         {} as never,
         {
@@ -153,6 +155,7 @@ describe('AgentOperationSubmissionService', () => {
       ),
     };
     const executionGrantService = {
+      assertDeliveredInputs: jest.fn(),
       deriveInteractiveGrantInTransaction: jest.fn(async () => {
         eventOrder.push('grant');
         return {
@@ -465,6 +468,7 @@ describe('AgentOperationSubmissionService', () => {
         registry as unknown as AgentOperationRegistryService,
         messageService as unknown as MessageService,
         {
+          assertDeliveredInputs: jest.fn(),
           deriveInteractiveGrantInTransaction: jest.fn().mockResolvedValue({
             grant: { id: 'grant-id', machineId: 'machine-id' },
             envelopeAuthorization: {},
@@ -617,7 +621,7 @@ describe('AgentOperationSubmissionService', () => {
       prisma as unknown as PrismaService,
       registry as unknown as AgentOperationRegistryService,
       {} as MessageService,
-      {} as ExecutionGrantService,
+      { assertDeliveredInputs: jest.fn() } as unknown as ExecutionGrantService,
       dispatchService as unknown as AgentOperationDispatchService,
       { recordWake: jest.fn() } as never,
       {} as never,

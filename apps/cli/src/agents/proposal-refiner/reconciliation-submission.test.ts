@@ -6,6 +6,7 @@ import { parseCandidate, parseReconciliationResponse } from './reconciliation-bo
 const proposalId = '10000000-0000-4000-8000-000000000001';
 const state = {
   status: 'AGENT_FIX_REQUIRED',
+  futureRevision: 4,
   currentBases: [
     { entityType: 'TASK', entityId: proposalId, version: 'current', content: { name: 'Current' } },
   ],
@@ -53,6 +54,7 @@ describe('scoped reconciliation submission', () => {
       method: 'AGENT_FIX',
       proposedResult: { name: 'Reconciled' },
       expectedCurrentBases: state.currentBases,
+      expectedFutureRevision: 4,
     });
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });

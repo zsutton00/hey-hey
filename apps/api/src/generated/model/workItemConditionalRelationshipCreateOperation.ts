@@ -28,6 +28,10 @@ export interface WorkItemConditionalRelationshipCreateOperation {
      * Non-blank branch label or predicate carried by a CONDITIONAL workflow edge or an optionally conditional LOOP workflow edge. Values are limited to printable ASCII identifier, comparison, boolean, grouping, path, and arithmetic characters so every service applies the same portable predicate syntax. 
      */
     predicate: string;
+    /**
+     * Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate. 
+     */
+    actionLabel?: string;
     reasoning?: string | null;
     metadata?: { [key: string]: any; } | null;
 }

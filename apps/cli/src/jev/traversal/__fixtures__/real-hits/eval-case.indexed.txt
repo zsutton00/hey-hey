@@ -1,0 +1,36 @@
+Discover the governing eval design when asked to automatically retry failed attempts
+
+situation:
+A user wants the eval runner to automatically retry failed attempts and use a successful retry for comparison. The current @[design_doc:8a7aed78-e688-4d4e-8fc4-8b58c36df034|In-App Agent Evaluations], discoverable through its owning feature @[task:24aa8d29-3219-4d0e-b3dc-62ffdc7d1fce|Agent Evaluations], explicitly says the runner does not rescue stuck or failing attempts: intervention changes the conditions being measured, errors remain recorded against their attempts, independent attempts continue, and rerunning is a new attempt the user chooses. Automatic retries are outside the release scope. The request does not name the document. This case tests whether Project Assistant discovers the governing document and carries the conflict into its research handoff.
+
+request:
+If an eval attempt errors, can we automatically retry it twice and use the successful retry in the comparison so I don't have to restart it myself?
+
+items:
+Focal: @[task:24aa8d29-3219-4d0e-b3dc-62ffdc7d1fce|Agent Evaluations]. The first item provides the normal entity context and the route to its governing design.
+Required governing source: @[design_doc:8a7aed78-e688-4d4e-8fc4-8b58c36df034|In-App Agent Evaluations], especially Isolated execution and Scope Boundary. This supporting item is judge context, not an attachment sent to the target.
+
+handler:
+project_assistant
+
+consumerHandler:
+entity_conversation
+
+expectations:
+Must discover and read @[design_doc:8a7aed78-e688-4d4e-8fc4-8b58c36df034|In-App Agent Evaluations], cite its identity in the research handoff, and explain that automatic retries conflict with its deliberate execution policy. Carry the substantive rule: no automatic rescue of stuck or failing attempts; record each error against its attempt and continue independent work; rerunning is a new attempt the user chooses. Explain the stated rationale that intervention changes the conditions being measured. Recognize that replacing a failed attempt with a successful retry in the comparison raises an evidence/attribution concern rather than treating retry success as erasing the original attempt.
+
+Must flag this as a requested change to the governing design requiring review, without inventing prior approval. Must not execute the request, silently endorse automatic retries as current behavior, or merely list the document's title. No proposal or prescribed tool sequence is required.
+
+checks:
+The handoff cites @[design_doc:8a7aed78-e688-4d4e-8fc4-8b58c36df034|In-App Agent Evaluations] and identifies its explicit exclusion of automatic retries.
+Retained read evidence includes the document's governing content, reached through normal research around the focal owning feature; title-only search results or repeating the feature summary are insufficient. No exact search or read sequence is required.
+The handoff states that errors stay attributable to their attempts, independent attempts continue, and rerunning is a separate attempt chosen by the user.
+The handoff explains that automatic intervention changes the conditions being measured and identifies the conflict with the user's request.
+It flags the governing design as needing review if this change is adopted; it does not claim adoption is already approved.
+It does not describe a successful retry as silently replacing or erasing the failed attempt's evidence.
+
+rubric:
+Does the handoff explain the document's deliberate measurement policy and why it matters for the requested convenience? Does it give the downstream agent enough substantive governing content to expose the disagreement before acting, rather than just provide a link? Keep recognition and source grounding distinct from style; do not demand exact wording, a proposal, implementation design, or a particular call sequence. Distinguish intended behavior from evidence of delivered implementation. If the live document later changes to allow automatic retries, report changed case conditions rather than claim this historical conflict still exists.
+
+evidence:
+Motivated by @[task:aab5f4ae-3caf-4832-891c-94fd783a0197|Feature Sync missed the eval design document's conflicting execution model]: governing design content was missed during reconciliation. The user explicitly rejected reusing the already-changed ordinary-Run-versus-child-agent scenario and asked for a different question that contradicts the current document. This case instead uses the explicit no-automatic-retries policy in @[design_doc:8a7aed78-e688-4d4e-8fc4-8b58c36df034|In-App Agent Evaluations]. It tests Project Assistant discovery and handoff, not the historical Feature Sync root cause, the old execution-model conflict, or end-to-end readiness. The earlier resolution allowing execution work to proceed with the design corrected separately and the once-per-Run readiness disposition remain settled. The link to @[task:d99242e3-12e9-4889-9b89-23d97a02b0ee|Run each eval attempt as a full inert session] records the originating execution work only; it supplies no grading expectation for this new question.

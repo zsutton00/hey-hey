@@ -3,6 +3,14 @@ import { getPathService } from "../../services";
 import { buildEntityHref } from "../buildEntityHref";
 
 describe("buildEntityHref", () => {
+  it("keeps Plan mention links on the plan route", () => {
+    expect(
+      buildEntityHref(getPathService(), "project-1", {
+        entityType: "plan",
+        entityId: "plan-1",
+      }),
+    ).toBe("/projects/project-1/plans/plan-1");
+  });
   it.each(["STANDARD", "mockups_v2", "mockups_v3", "CONTRACT"])(
     "builds the task path for the registry work-item key %s",
     (entityType) => {

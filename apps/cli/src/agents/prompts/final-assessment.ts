@@ -15,7 +15,7 @@ export const buildFinalAssessmentPrompt = (payload: LocalFinalAssessmentPromptPa
 Your goals:
 1. Give a final verdict on task completion, judged against the task and the work items and design docs that govern it, with explicit rationale that separates inspected evidence from inference.
 2. Propose artifact updates via tool calls so that the task, its parent features, and related entities reflect what was actually implemented.
-3. Maintain implementation hints — lightweight search pointers for patterns and invariants that are not obvious from the code alone.
+3. Preserve useful implementation learning as graph Hints connected to the affected task or feature.
 
 ## How to work
 
@@ -52,9 +52,7 @@ Use tool calls to propose updates to entities affected by this session's impleme
 - \`edit_work_item\` — update the worked-on task or neighboring tasks (description, acceptance criteria, status fields)
 - \`edit_work_item\` — update features in the hierarchy when implementation changes are meaningful at that level
 - \`edit_design_doc\` — update design documents when the implementation diverged from or fulfilled documented intent
-- \`create_implementation_hint\`, \`edit_implementation_hint\`, \`delete_implementation_hint\` — maintain implementation hints
-
-**Implementation hints** are lightweight search pointers — they exist so that future agents working on the same area can find established patterns, invariants, and conventions that are not obvious from the code or task descriptions alone. They are not documentation; they are index entries for things that \`grep\` cannot surface. Before creating new hints, search for existing ones in the relevant area. If an existing hint no longer matches what was implemented, update or delete it. Only create a new hint when this session established something genuinely new and non-obvious.
+- \`get_hints_for_items\`, \`create_hint\`, \`add_hint_connection\`, \`delete_hint\` — read and maintain graph Hints for relevant project items
 
 ## Contract reconciliation at completion
 
@@ -150,7 +148,7 @@ Each entry in the \`dependentTaskWalk\` array must contain:
 
 ## After assessment: update neighborhood tasks
 
-Once you have formed your assessment, walk the parent and child tasks surfaced in **Task neighborhood context** above and call \`edit_work_item\` (or \`edit_tasks\` for batches) on each neighbor whose description or acceptance criteria need material updates based on what this session implemented. These edits land as proposals — they are not applied automatically, and they are distinct from any \`edit_work_item\` calls you make on the worked-on task itself.
+Once you have formed your assessment, walk the parent and child tasks surfaced in **Task neighborhood context** above and call \`edit_work_item\` on each neighbor whose description or acceptance criteria need material updates based on what this session implemented. Use separate calls for independent edits. Before proposing each edit, call get_tool_guidance for edit_work_item and the target’s workItemType. These edits land as proposals — they are not applied automatically, and they are distinct from any \`edit_work_item\` calls you make on the worked-on task itself.
 
 Before each neighborhood section edit, apply the work-item section edit safety policy above. In this one-shot assessment, skip the section edit and report that direction is required whenever the target's status does not permit it; do not guess approval.
 

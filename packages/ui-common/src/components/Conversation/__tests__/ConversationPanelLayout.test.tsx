@@ -36,6 +36,39 @@ describe("ConversationPanelLayout", () => {
     window.matchMedia = originalMatchMedia;
   });
 
+  it("uses the full width without a right pane and preserves the body when chat opens", () => {
+    const { rerender } = render(
+      <ConversationPanelLayout
+        isExpanded={false}
+        leftContent={
+          <input aria-label="Review note" defaultValue="Keep my review" />
+        }
+        rightContent={null}
+      />,
+    );
+    const body = screen.getByRole("textbox", { name: "Review note" });
+    expect(screen.queryByTestId("conversation-layout-right-panel")).toBeNull();
+    expect(screen.getByTestId("conversation-layout-left-panel")).toHaveStyle({
+      flex: "1 1 100%",
+    });
+    expect(screen.getByTestId("conversation-layout-panel")).toHaveStyle({
+      maxWidth: "100%",
+    });
+    rerender(
+      <ConversationPanelLayout
+        isExpanded={false}
+        leftContent={
+          <input aria-label="Review note" defaultValue="Keep my review" />
+        }
+        rightContent={<div>Editing chat</div>}
+      />,
+    );
+    expect(screen.getByRole("textbox", { name: "Review note" })).toBe(body);
+    expect(
+      screen.getByTestId("conversation-layout-right-panel"),
+    ).toHaveTextContent("Editing chat");
+  });
+
   it("lays the panels out side by side with a sticky right panel on desktop", () => {
     renderLayout();
 

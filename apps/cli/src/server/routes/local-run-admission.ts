@@ -3,6 +3,7 @@ import type { RequestHandler } from 'express';
 import type { KeyPairStore } from '../../credentials';
 import {
   CliReadErrorCode,
+  type CliReadRunToolCallsLatestTurnErrorResponseDto,
   type LocalRunAttachmentErrorResponse,
   type LocalRunAttachmentOpenErrorResponse,
   type LocalStagedRunAttachmentErrorResponse,
@@ -11,6 +12,7 @@ import {
 } from '../../shared/local-agent-api/generated/api';
 import type { ServerLogger } from '../logger';
 type LocalRunFailure =
+  | CliReadRunToolCallsLatestTurnErrorResponseDto
   | LocalRunAttachmentErrorResponse
   | LocalRunAttachmentOpenErrorResponse
   | LocalStagedRunAttachmentErrorResponse
@@ -49,7 +51,9 @@ export const createCorsMiddleware = (
               ? 'This browser origin is not allowed to upload local Run attachments.'
               : operation === 'run.attachments.open'
                 ? 'This browser origin is not allowed to open local Run attachments.'
-                : 'This browser origin is not allowed to read local Run changed files.',
+                : operation === 'run.tool_calls.latest_turn'
+                  ? 'This browser origin is not allowed to read local tool calls.'
+                  : 'This browser origin is not allowed to read local Run changed files.',
           ),
         );
       return;

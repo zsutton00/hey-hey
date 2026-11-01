@@ -276,6 +276,24 @@ const searchResultItem = z.object({
   type: z.string().describe('Entity type'),
   title: z.string().describe('Entity title or summary'),
   snippet: z.string().describe('Relevant text snippet'),
+  matchSpans: z
+    .array(
+      z.object({
+        start: z.number(),
+        end: z.number(),
+        strength: z.number(),
+      }),
+    )
+    .optional()
+    .describe(
+      'Matched spans with end-exclusive UTF-16 code-unit offsets into matchText, never snippet. Present together with matchText.',
+    ),
+  matchText: z
+    .string()
+    .optional()
+    .describe(
+      'Exact source text indexed by matchSpans; present together with matchSpans.',
+    ),
   score: z.number().describe('Relevance score'),
   taskType: z
     .string()
@@ -428,6 +446,13 @@ function mapResult(item: UnifiedSearchResult) {
     title: item.title ?? '',
     snippet,
     score: item.score ?? 0,
+    ...(item.embeddings?.matchSpans !== undefined &&
+    item.embeddings.text !== undefined
+      ? {
+          matchSpans: item.embeddings.matchSpans,
+          matchText: item.embeddings.text,
+        }
+      : {}),
     // Surface the task subtype straight from the search metadata so callers
     // can tell a feature/bug/goal hit from a standard one without a follow-up
     // lookup; omit it entirely when the search data carries no subtype.

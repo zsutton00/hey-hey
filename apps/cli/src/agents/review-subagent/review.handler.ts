@@ -46,21 +46,16 @@ export const REVIEW_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
   'plan_search',
   'search_features',
   'search_design_docs',
-  'search_implementation_hints',
+  'get_hints_for_items',
 ];
 
-/**
- * Built-in agent tools this subagent uses to apply fixes and verify
- * them. Filesystem + shell access is unrestricted inside the isolated
- * session; MCP access stays read-only.
- */
+/** Inspection and checks run inside the provider's read-only filesystem boundary. */
 const REVIEW_SUBAGENT_BUILTIN_ALLOWED_TOOLS: readonly string[] = [
   'Read',
-  'Edit',
-  'Write',
   'Bash',
   'Glob',
   'Grep',
+  'ToolSearch',
 ];
 
 /**
@@ -79,6 +74,7 @@ export const reviewHandler: UserLaunchablePromptTypeHandler<LocalCodeReviewPromp
   implementationReadiness: 'gated',
   allowsEmptyUserMessage: true,
   runnerKind: 'subagent',
+  readOnlyFilesystem: true,
   providerSessionCountsForContext: false,
   reports: [
     {

@@ -1,3 +1,7 @@
+import {
+  createRunToolCallsRouter,
+  type RunToolCallsRouteDependencies,
+} from './routes/run-tool-calls';
 import { createStagedRunAttachmentsRouter } from './routes/staged-run-attachments';
 import { createWalkthroughSourceRouter } from './routes/walkthrough-source';
 import { RunAttachmentStore } from './run-attachment-store';
@@ -28,6 +32,10 @@ import { createRunChangedFileDetailRouter } from './routes/run-changed-file-deta
 import { createSubmissionToolsRouter } from './routes/submission-tools';
 
 export interface LocalAgentRouterDependencies {
+  toolCalls: Pick<
+    RunToolCallsRouteDependencies,
+    'sessionActivity' | 'isRemoteToolCallViewingEnabled'
+  >;
   browserToolsController?: BrowserToolsHttpController;
   /** Present only when the Shared Browser subsystem exists; mounts Open browser. */
   sharedBrowser?: { projectBrowsers: ProjectBrowser; tabs: RunTabs; readMockup: MockupReader };
@@ -91,6 +99,16 @@ export class LocalAgentRouter {
       submissionToolRegistry,
       sharedBrowser,
     } = this.dependencies;
+    this.app.use(
+      '/api/local/runs',
+      createRunToolCallsRouter({
+        allowedOrigins,
+        keyPairStore,
+        logger,
+        restoreCoordinator: runReadRestoreCoordinator,
+        ...this.dependencies.toolCalls,
+      }),
+    );
     // Browser routes own their admission middleware.
     this.app.use(
       '/api/local/runs',

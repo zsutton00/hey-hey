@@ -12,12 +12,21 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { CreateReportEntityDto } from './createReportEntityDto';
+import { ReportUsageMeasurement } from './reportUsageMeasurement';
 import { LinkedReportEntityRef } from './linkedReportEntityRef';
 import { OtherReportPayload } from './otherReportPayload';
 import { ReportAudience } from './reportAudience';
 
 
 export interface CreateReportDtoOther { 
+    /**
+     * Usage available at creation; never updated with later measurements.
+     */
+    usage?: ReportUsageMeasurement | null;
+    /**
+     * Whether this report may be reused as project knowledge. Omitted means true on creation.
+     */
+    ragEnabled?: boolean;
     /**
      * Optional project scope for the report
      */

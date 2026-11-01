@@ -1,3 +1,5 @@
+import { useModalState } from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import {
   CapsuleAction,
   useActionsCapsule,
@@ -12,7 +14,6 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import {
   Box,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
@@ -20,7 +21,14 @@ import {
 } from "@mui/material";
 import { keyframes } from "@mui/material/styles";
 import type { TaskResponseDto, UpdateTaskDto } from "@hey-hey/ui-common/api";
-import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import React from "react";
 
 const statusActionPulse = keyframes`
@@ -76,7 +84,10 @@ export const SetReadyActionCapsule = ({
   // initial render when the detail query is still in flight).
   const serviceRelationsLoadedRef = useRef(task.serviceRelations !== undefined);
   useEffect(() => {
-    if (!serviceRelationsLoadedRef.current && task.serviceRelations !== undefined) {
+    if (
+      !serviceRelationsLoadedRef.current &&
+      task.serviceRelations !== undefined
+    ) {
       serviceRelationsLoadedRef.current = true;
       setSelectedServiceIds(task.serviceRelations.map((r) => r.serviceId));
     }
@@ -88,27 +99,30 @@ export const SetReadyActionCapsule = ({
   const serviceIdsRef = useRef(selectedServiceIds);
   serviceIdsRef.current = selectedServiceIds;
 
-  const renderExtraContent = useCallback((): React.ReactNode => (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      <AssigneeSelector
-        organizationId={organizationId}
-        value={selectedAssigneeId}
-        onChange={setSelectedAssigneeId}
-        fullWidth
-        size="small"
-        enableAssignToMe
-      />
-      <ServiceSelector
-        organizationId={organizationId}
-        projectId={projectId}
-        multiple
-        value={selectedServiceIds}
-        onChange={(ids) => setSelectedServiceIds(ids)}
-        fullWidth
-        size="small"
-      />
-    </Box>
-  ), [organizationId, projectId, selectedAssigneeId, selectedServiceIds]);
+  const renderExtraContent = useCallback(
+    (): React.ReactNode => (
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <AssigneeSelector
+          organizationId={organizationId}
+          value={selectedAssigneeId}
+          onChange={setSelectedAssigneeId}
+          fullWidth
+          size="small"
+          enableAssignToMe
+        />
+        <ServiceSelector
+          organizationId={organizationId}
+          projectId={projectId}
+          multiple
+          value={selectedServiceIds}
+          onChange={(ids) => setSelectedServiceIds(ids)}
+          fullWidth
+          size="small"
+        />
+      </Box>
+    ),
+    [organizationId, projectId, selectedAssigneeId, selectedServiceIds],
+  );
 
   const getExtraUpdateFields = useCallback(
     (): Partial<UpdateTaskDto> => ({
@@ -127,13 +141,11 @@ export const SetReadyActionCapsule = ({
     if (!newServiceIds.length) return;
     await Promise.all(
       newServiceIds.map((serviceId) =>
-        unifiedApiClient.client.createServiceLink(
-          {
-            organizationId,
-            serviceId,
-            serviceLinkDto: { entityType: "task", entityId: task.id },
-          },
-        ),
+        unifiedApiClient.client.createServiceLink({
+          organizationId,
+          serviceId,
+          serviceLinkDto: { entityType: "task", entityId: task.id },
+        }),
       ),
     );
   }, [organizationId, task.id, task.serviceRelations]);
@@ -171,7 +183,8 @@ export const SetReadyActionCapsule = ({
 
   const unsavedChanges = useWorkItemUnsavedChanges();
   const { expandAction } = useActionsCapsule();
-  const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
+  const [unsavedDialogOpen, setUnsavedDialogOpen, unsavedDialogOpenOwnerKey] =
+    useModalState(false);
   const [isResolvingUnsaved, setIsResolvingUnsaved] = useState(false);
 
   const capsuleId = `${setReadyAction.actionId}-task-${task.id}`;
@@ -247,6 +260,7 @@ export const SetReadyActionCapsule = ({
         iconStyle={iconStyle}
       />
       <Dialog
+        ownerKey={unsavedDialogOpenOwnerKey}
         open={unsavedDialogOpen}
         onClose={handleKeepEditing}
         aria-labelledby="set-active-unsaved-dialog-title"

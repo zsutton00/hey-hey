@@ -337,6 +337,7 @@ export function createMockConversation(
   fields?: Array<keyof ConversationResponseDto>,
 ): ConversationResponseDto {
   const base: ConversationResponseDto = {
+    restricted: true,
     id: testIds.conversation,
     createdBy: null,
     projectId: testIds.project,
@@ -2452,6 +2453,7 @@ export function createMockConversationNode(
 
 // Database record types (what Prisma actually returns - Date objects)
 export type DbConversationRecord = {
+  restricted: boolean;
   id: ConversationId;
   createdBy: string | null;
   projectId: ProjectId;
@@ -2476,6 +2478,7 @@ export type DbConversationRecord = {
 
 // Response DTO types (what the API returns - ISO string dates)
 export type ConversationResponseRecord = {
+  restricted: boolean;
   id: ConversationId;
   createdBy: string | null;
   projectId: ProjectId;
@@ -2535,6 +2538,7 @@ export function createMockDbConversation(
   overrides: Partial<DbConversationRecord> = {},
 ): DbConversationRecord {
   return {
+    restricted: true,
     id: testIds.conversation,
     createdBy: null,
     projectId: testIds.project,
@@ -2563,6 +2567,7 @@ export function createMockConversationResponse(
   overrides: Partial<ConversationResponseRecord> = {},
 ): ConversationResponseRecord {
   return {
+    restricted: true,
     id: testIds.conversation,
     createdBy: null,
     projectId: testIds.project,

@@ -1,3 +1,5 @@
+import { useModalState } from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import React, { useEffect, useMemo, useState } from "react";
 import { useQueryState, parseAsInteger, parseAsString } from "nuqs";
 import {
@@ -7,7 +9,6 @@ import {
   Chip,
   CircularProgress,
   Collapse,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -124,7 +125,7 @@ const SubfacetsTab: React.FC<SubfacetsTabProps> = ({ subfacets, loading }) => {
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [selectedSubfacet, setSelectedSubfacet] =
     useState<TopologySubfacetDto | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
+  const [modalOpen, setModalOpen, modalOpenOwnerKey] = useModalState(false);
 
   const filteredSubfacets = useMemo(() => {
     if (!statusFilter) return subfacets;
@@ -229,6 +230,7 @@ const SubfacetsTab: React.FC<SubfacetsTabProps> = ({ subfacets, loading }) => {
       )}
 
       <Dialog
+        ownerKey={modalOpenOwnerKey}
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         maxWidth="md"
@@ -336,7 +338,7 @@ const EntitySummariesTab: React.FC<EntitySummariesTabProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedEntity, setSelectedEntity] =
     useState<TopologyEntitySummaryDto | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
+  const [modalOpen, setModalOpen, modalOpenOwnerKey] = useModalState(false);
 
   const filteredEntities = useMemo(() => {
     let filtered = entities;
@@ -479,6 +481,7 @@ const EntitySummariesTab: React.FC<EntitySummariesTabProps> = ({
       )}
 
       <Dialog
+        ownerKey={modalOpenOwnerKey}
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         maxWidth="md"

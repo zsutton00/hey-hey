@@ -50,6 +50,48 @@ function dependency(
 
 describe('ProposalGroupReferenceValidation', () => {
   const validator = new ProposalGroupReferenceValidation();
+
+  it('requires the screen creator as a prerequisite for Diagram canonical references', () => {
+    const screen = createMember({
+      id: MEMBER_A,
+      reservedTargetEntityId: RESERVED_A,
+    });
+    const journey = createMember({
+      id: MEMBER_B,
+      reservedTargetEntityId: null,
+    });
+    journey.proposal.action = 'UPDATE';
+    journey.proposal.targetEntityId = RESERVED_B;
+    journey.proposal.updates = {
+      root: { refType: 'existing', id: RESERVED_B },
+      operations: [
+        {
+          op: 'section.replace',
+          ref: { refType: 'temporary', tempId: 'screen' },
+          key: 'diagramElementMetadata',
+          content: {
+            role: 'SCREEN',
+            canonicalReference: { entityType: 'TASK', entityId: RESERVED_A },
+          },
+        },
+      ],
+    };
+    expect(validator.validate([screen, journey], []).issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'MEMBER_INVALID' }),
+      ]),
+    );
+    expect(
+      validator.validate([screen, journey], [dependency(MEMBER_B, MEMBER_A)])
+        .issues,
+    ).toEqual([]);
+    screen.proposal.targetEntityType = 'DESIGN_DOC';
+    expect(validator.validate([screen, journey], []).issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'MEMBER_REFERENCE_UNRESOLVED' }),
+      ]),
+    );
+  });
   it('requires CREATE materialization ordering for reserved future completion targets', () => {
     const creator = createMember({
       id: MEMBER_A,

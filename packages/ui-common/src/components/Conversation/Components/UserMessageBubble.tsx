@@ -213,6 +213,7 @@ export function SentAttachmentChips({
             data-testid="sent-attachment-chip"
             data-attachment-id={attachment.attachmentId}
             label={attachment.fileName}
+            sx={{ maxWidth: "100%" }}
             {...(target
               ? {
                   onClick: () => void open(attachment),
@@ -257,8 +258,17 @@ export function UserMessageBubble({
   const theme = useTheme();
   const isMonitor = getUserMessageAuthorship(provenance) === "monitor";
   const isPending = delivery.state !== "delivered";
+  const hasAttachments = Boolean(attachments?.length);
   return (
-    <Box data-testid="user-message-presentation" sx={{ display: "flow-root" }}>
+    <Box
+      data-testid="user-message-presentation"
+      sx={{
+        display: "flow-root",
+        ...(hasAttachments
+          ? { width: "fit-content", maxWidth: "min(100%, max(600px, 90%))" }
+          : {}),
+      }}
+    >
       {text ? (
         <Box
           data-testid={dataTestId}
@@ -267,7 +277,8 @@ export function UserMessageBubble({
           sx={{
             display: "inline-flex",
             opacity: isPending ? 0.7 : 1,
-            maxWidth: "min(100%, max(600px, 90%))",
+            maxWidth: hasAttachments ? "100%" : "min(100%, max(600px, 90%))",
+            ...(hasAttachments ? { width: "100%" } : {}),
             boxSizing: "border-box",
             p: { xs: 1.25, sm: 2 },
             borderRadius: 1,
@@ -308,22 +319,41 @@ export function UserMessageBubble({
           </Typography>
         </Box>
       ) : null}
-      <SentAttachmentChips
-        attachments={attachments}
-        sx={{ mt: text ? 0.5 : 0, mb: 3 }}
-      />
       {children}
-      <MessageAuthorCaption
-        messageId={identity}
-        createdAt={createdAt}
-        renderTimestamp={renderTimestamp}
-        userMessageProvenance={provenance}
-        userName={isMonitor ? undefined : author?.name}
-        userId={isMonitor ? undefined : author?.id}
-        projectId={projectId}
-        status={isPending ? <DeliveryStatus delivery={delivery} /> : undefined}
-        sx={{ display: "block", mt: 0, mb: 2 }}
-      />
+      <Box
+        data-testid="user-message-footer"
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 1,
+          mb: 2,
+        }}
+      >
+        <MessageAuthorCaption
+          messageId={identity}
+          createdAt={createdAt}
+          renderTimestamp={renderTimestamp}
+          userMessageProvenance={provenance}
+          userName={isMonitor ? undefined : author?.name}
+          userId={isMonitor ? undefined : author?.id}
+          projectId={projectId}
+          status={
+            isPending ? <DeliveryStatus delivery={delivery} /> : undefined
+          }
+          sx={{
+            display: "block",
+            mt: 0,
+            mb: 0,
+            flexShrink: 0,
+            maxWidth: "100%",
+          }}
+        />
+        <SentAttachmentChips
+          attachments={attachments}
+          sx={{ ml: "auto", maxWidth: "100%", flex: "0 1 auto" }}
+        />
+      </Box>
     </Box>
   );
 }

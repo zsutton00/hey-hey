@@ -12,6 +12,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { ProjectModeProjectAssistantSetting } from './projectModeProjectAssistantSetting';
+import { SessionRole } from './sessionRole';
 
 
 /**
@@ -23,6 +24,10 @@ export interface ProjectModeSettings {
      */
     schemaVersion: ProjectModeSettings.SchemaVersionEnum;
     projectAssistant: ProjectModeProjectAssistantSetting;
+    /**
+     * Session role declared by this Agent Mode. Omission, including omission of the settings section, resolves to implementation.
+     */
+    sessionRole?: SessionRole;
     /**
      * Stable effective work-item type keys this MODE may launch against, chosen per MODE. Keys must be unique (enforced by the platform validator rather than `uniqueItems`, which generators map to sets). Each key must resolve to an active type in the project\'s effective registry snapshot. Launch eligibility is this list intersected with the MODE\'s Feature `DEPENDS_ON` scope. When absent, the MODE keeps its legacy eligibility derived from the shared MODE type\'s agent-guidance contexts; consumers must not widen access for an absent list. 
      */

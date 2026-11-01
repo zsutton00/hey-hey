@@ -261,6 +261,7 @@ describe('durable input with agent-requested Service approval', () => {
       env.logger,
       () => true,
       runStore,
+      createTestMessagePoster(),
     );
     await lifecycle.start();
 

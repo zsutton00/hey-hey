@@ -76,7 +76,9 @@ const validateSchemas = (schemas) => {
     },
   };
   if (!validateFiles(validFiles)) {
-    throw new Error(`Valid ProjectModeFiles rejected: ${JSON.stringify(validateFiles.errors)}`);
+    throw new Error(
+      `Valid ProjectModeFiles rejected: ${JSON.stringify(validateFiles.errors)}`,
+    );
   }
 
   const invalidBundles = [
@@ -97,7 +99,9 @@ const validateSchemas = (schemas) => {
   ];
   for (const bundle of invalidBundles) {
     if (validateFiles(bundle)) {
-      throw new Error(`Invalid ProjectModeFiles accepted: ${JSON.stringify(bundle)}`);
+      throw new Error(
+        `Invalid ProjectModeFiles accepted: ${JSON.stringify(bundle)}`,
+      );
     }
   }
 
@@ -123,6 +127,34 @@ const validateSchemas = (schemas) => {
       throw new Error(
         `Valid ProjectModeSettings rejected: ${JSON.stringify(validateSettings.errors)}`,
       );
+    }
+  }
+
+  for (const sessionRole of [
+    "implementation",
+    "research",
+    "planning",
+    "review",
+  ]) {
+    if (
+      !validateSettings({
+        schemaVersion: "project-mode-settings.v1",
+        projectAssistant: { enabled: false },
+        sessionRole,
+      })
+    ) {
+      throw new Error(`Valid session role rejected: ${sessionRole}`);
+    }
+  }
+  for (const sessionRole of ["unknown", "", null, false, 42, [], {}]) {
+    if (
+      validateSettings({
+        schemaVersion: "project-mode-settings.v1",
+        projectAssistant: { enabled: false },
+        sessionRole,
+      })
+    ) {
+      throw new Error("Invalid session role accepted");
     }
   }
 
@@ -152,11 +184,16 @@ const validateSchemas = (schemas) => {
       projectAssistant: { enabled: true },
       toolGrants: ["Bash"],
     },
-    { schemaVersion: "project-mode-settings.v2", projectAssistant: { enabled: true } },
+    {
+      schemaVersion: "project-mode-settings.v2",
+      projectAssistant: { enabled: true },
+    },
   ];
   for (const settings of invalidSettings) {
     if (validateSettings(settings)) {
-      throw new Error(`Invalid ProjectModeSettings accepted: ${JSON.stringify(settings)}`);
+      throw new Error(
+        `Invalid ProjectModeSettings accepted: ${JSON.stringify(settings)}`,
+      );
     }
   }
 
@@ -195,7 +232,25 @@ const validateSchemas = (schemas) => {
     );
   }
 
+  for (const sessionRole of schemas.ProjectModeSettings.properties.sessionRole
+    .allOf[0].enum) {
+    if (
+      !validateSnapshot({
+        ...validSnapshotV2,
+        schemaVersion: "project-mode-snapshot.v3",
+        sessionRole,
+      })
+    ) {
+      throw new Error(`Valid v3 snapshot role rejected: ${sessionRole}`);
+    }
+  }
+
   for (const snapshot of [
+    {
+      ...validSnapshotV2,
+      schemaVersion: "project-mode-snapshot.v3",
+      sessionRole: "invalid",
+    },
     { ...validSnapshot, snapshotHash: "not-a-sha256" },
     { ...validSnapshot, untrustedRuntimeHook: "node install.js" },
     { ...validSnapshotV2, projectAssistant: { enabled: "no" } },
@@ -241,7 +296,7 @@ const main = async () => {
 
 main().catch((error) => {
   process.stderr.write(
-    `${error instanceof Error ? error.stack ?? error.message : String(error)}\n`,
+    `${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,
   );
   process.exitCode = 1;
 });

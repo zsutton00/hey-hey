@@ -47,6 +47,9 @@ describe("planSessionRoutes", () => {
     expect(
       buildPlanTabPath("project-1", "plan-1", "stage-1", "documents"),
     ).toBe("/projects/project-1/plans/plan-1/stages/stage-1?tab=documents");
+    expect(buildPlanTabPath("project-1", "plan-1", "stage-1", "updates")).toBe(
+      "/projects/project-1/plans/plan-1/stages/stage-1?tab=updates",
+    );
     expect(
       buildPlanTabPath("project-1", "plan-1", "stage-1", "automation"),
     ).toBe("/projects/project-1/plans/plan-1/stages/stage-1?tab=automation");

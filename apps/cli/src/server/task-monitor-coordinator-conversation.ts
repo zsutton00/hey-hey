@@ -1,4 +1,4 @@
-import type { ApiRuntime } from '../../../../packages/ui-common/src/clients/shared';
+import type { ApiRuntime } from '../shared/runtime/clients/shared';
 import { isAxiosError } from 'axios';
 
 import { AgentSessionType, WorkflowName } from '../shared/api/generated/api';

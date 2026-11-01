@@ -120,16 +120,3 @@ export const groupedAuthoringResultSchema = z.object({
   member: proposalGroupAuthoringMemberSchema,
   authoringSnapshot: proposalGroupAuthoringSnapshotSchema,
 });
-
-export const groupedBatchAuthoringResultSchema = z.object({
-  groupId: z.string().uuid(),
-  currentRevision: z
-    .number()
-    .int()
-    .min(0)
-    .describe(
-      'Persisted revision after this mutation. Copy this value to groupContext.expectedRevision for the next grouped mutation.',
-    ),
-  members: z.array(proposalGroupAuthoringMemberSchema).min(1),
-  authoringSnapshot: proposalGroupAuthoringSnapshotSchema,
-});

@@ -1,3 +1,4 @@
+import { ProposalReconciliationService } from '../../proposal/proposal-reconciliation.service';
 import { PlanDependenciesService } from '../../plan/plan-dependencies.service';
 import {
   WORK_ITEM_TYPE_KEYS,
@@ -234,6 +235,15 @@ describe('EntityContextService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EntityContextService,
+        {
+          provide: ProposalReconciliationService,
+          useValue: {
+            decisionsForProposals: jest.fn().mockResolvedValue(new Map()),
+          } satisfies Pick<
+            ProposalReconciliationService,
+            'decisionsForProposals'
+          >,
+        },
         {
           provide: PlanDependenciesService,
           useValue: { outgoing: jest.fn().mockResolvedValue([]) },
@@ -578,7 +588,6 @@ describe('EntityContextService', () => {
       const toolNames = result.availableMcpTools!.map((t) => t.toolName);
       expect(toolNames).toContain('create_work_item');
       expect(toolNames).not.toContain('edit_work_item');
-      expect(toolNames).not.toContain('edit_tasks');
       expect(
         result.availableMcpTools!.every((t) => t.targetEntityType === 'TASK'),
       ).toBe(true);
@@ -586,15 +595,26 @@ describe('EntityContextService', () => {
 
     it('should return empty MCP tools for entity types without tool mappings', async () => {
       (mockPrisma.db as any).proposal.findMany.mockResolvedValue([]);
-      (mockPrisma.db.conversation.findUnique as jest.Mock).mockResolvedValue({
-        createdAt: entityCreatedAt,
-        title: 'Test Conversation',
-      });
 
       const result = await service.getEntityContext(
         testIds.organization,
         'CONVERSATION' as EntityType,
         entityId,
+        undefined,
+        [entityId],
+        {
+          meta: {
+            createdAt: entityCreatedAt,
+            displayName: 'Test Conversation',
+          },
+          conversationContext: {
+            conversationId: entityId,
+            conversationTitle: 'Test Conversation',
+            agentSessions: [],
+            proposals: [],
+            reports: [],
+          },
+        },
       );
 
       expect(result.availableMcpTools).toEqual([]);

@@ -34,7 +34,6 @@ import { RunCreatePayloadPlanShapingProposedStages } from './runCreatePayloadPla
 import { LocalPromptDesignDocInput } from './localPromptDesignDocInput';
 import { OpenItemsTriageRequestKind } from './openItemsTriageRequestKind';
 import { RunCreatePayloadDesignDocRefiner } from './runCreatePayloadDesignDocRefiner';
-import { RepositoryFeatureEnrichmentAnswerBatch } from './repositoryFeatureEnrichmentAnswerBatch';
 import { RunCreatePayloadFreeForm } from './runCreatePayloadFreeForm';
 import { EvalRecordedAttempt } from './evalRecordedAttempt';
 import { RunCreatePayloadVerifyFeature } from './runCreatePayloadVerifyFeature';

@@ -714,7 +714,7 @@ describe("ModelSelector", () => {
     ).not.toHaveAttribute("aria-disabled", "true");
   });
 
-  it("omits redundant controls for a selected sole machine", () => {
+  it("keeps a selected sole machine visible and read-only", () => {
     render(
       <ModelSelector
         {...buildProps({
@@ -729,7 +729,9 @@ describe("ModelSelector", () => {
       />,
     );
 
-    expect(screen.queryByTestId("machine-picker")).not.toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("machine-picker")).getByRole("combobox"),
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
       screen.queryByTestId("model-selector-machine-readiness-notice"),
     ).not.toBeInTheDocument();
@@ -853,7 +855,9 @@ describe("ModelSelector", () => {
     );
     expect(screen.getByTestId("model-selector-controls")).toBeInTheDocument();
     expect(screen.getByTestId("model-selector-provider-select")).toBeVisible();
-    expect(screen.queryByTestId("machine-picker")).not.toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("machine-picker")).getByRole("combobox"),
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
       screen.queryByTestId("model-selector-machine-readiness-notice"),
     ).not.toBeInTheDocument();

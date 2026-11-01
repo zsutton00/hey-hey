@@ -10,6 +10,26 @@
  */
 
 import React from "react";
+import { ModalProvider, useModal } from "../../../../contexts/ModalContext";
+import { HostedDiscussOwner } from "../../../InteractionComponent/HostedDiscussOwner";
+import { copyPersistentModalRequest } from "../../../../contexts/types/persistentModalRequest";
+function TestHost() {
+  const modal = useModal();
+  return (
+    <>
+      {modal?.modalInstances.map((item) => {
+        const request = copyPersistentModalRequest(item.config);
+        return request?.type === "discuss" ? (
+          <HostedDiscussOwner
+            key={item.id}
+            request={request}
+            onClose={() => modal.closeModal(item.id)}
+          />
+        ) : null;
+      })}
+    </>
+  );
+}
 import { act, render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ThemeProvider } from "@mui/material/styles";
@@ -164,8 +184,13 @@ type ThemeMode = "light" | "dark";
 const renderWithProvider = (ui: React.ReactNode, mode: ThemeMode = "light") =>
   render(
     <ThemeProvider theme={createHeyTheme(mode)}>
-      <ActionsCapsuleProvider>{ui}</ActionsCapsuleProvider>
-    </ThemeProvider>
+      <ModalProvider>
+        <ActionsCapsuleProvider>
+          {ui}
+          <TestHost />
+        </ActionsCapsuleProvider>
+      </ModalProvider>
+    </ThemeProvider>,
   );
 
 const mockUseEntityConversationLauncher = vi.mocked(
@@ -216,7 +241,7 @@ describe("DiscussCapsuleAction", () => {
             }
           />
         </>,
-        mode
+        mode,
       );
 
       const action = seen.at(-1)?.[0];
@@ -239,22 +264,22 @@ describe("DiscussCapsuleAction", () => {
             isAnyExpanded={false}
             onClick={vi.fn()}
           />
-        </ThemeProvider>
+        </ThemeProvider>,
       );
 
       const button = screen.getByTestId("capsule-action-discuss");
       const iconChip = button.querySelector(
-        ".MuiButton-startIcon"
+        ".MuiButton-startIcon",
       ) as HTMLElement;
       const icon = button.querySelector(
-        ".MuiButton-startIcon .MuiSvgIcon-root"
+        ".MuiButton-startIcon .MuiSvgIcon-root",
       ) as HTMLElement;
 
       expect(window.getComputedStyle(iconChip).backgroundColor).toBe(
-        "rgb(60, 114, 160)"
+        "rgb(60, 114, 160)",
       );
       expect(window.getComputedStyle(icon).color).toBe("rgb(255, 255, 255)");
-    }
+    },
   );
 
   it("registers a click-behavior CapsuleAction that opens the DiscussModal", async () => {
@@ -513,7 +538,7 @@ describe("DiscussCapsuleAction", () => {
           projectId="project-1"
         />
         <ActionsHarness onActions={(actions) => seen.push(actions)} />
-      </>
+      </>,
     );
 
     const latest = seen[seen.length - 1] as Array<{ onClick?: () => void }>;
@@ -525,19 +550,19 @@ describe("DiscussCapsuleAction", () => {
       "org-1",
       "task",
       "project-1",
-      expect.objectContaining({ enabled: false })
+      expect.objectContaining({ enabled: false }),
     );
     expect(screen.getByTestId("mock-discuss-modal")).toHaveAttribute(
       "data-entity-title",
-      "Project Alpha"
+      "Project Alpha",
     );
     expect(screen.getByTestId("mock-discuss-modal")).toHaveAttribute(
       "data-focal-entity-type",
-      EntityType.Project
+      EntityType.Project,
     );
     expect(screen.getByTestId("mock-discuss-modal")).toHaveAttribute(
       "data-focal-entity-id",
-      "project-1"
+      "project-1",
     );
 
     await act(async () => {
@@ -550,7 +575,7 @@ describe("DiscussCapsuleAction", () => {
           entityId: "project-1",
           entityType: EntityType.Project,
         },
-      })
+      }),
     );
   });
 

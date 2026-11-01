@@ -1,5 +1,7 @@
 import {
   findIneligibleProjectModeTypeKeys,
+  resolveProjectModeSessionRole,
+  parseProjectModeSettingsOrNull,
   PROJECT_MODE_SETTINGS_SCHEMA_REF,
   validateProjectModeSettingsContent,
 } from '../project-mode-settings.validator';
@@ -12,6 +14,55 @@ describe('project MODE settings schema', () => {
     kind: 'json' as const,
     schemaRef: PROJECT_MODE_SETTINGS_SCHEMA_REF,
   };
+
+  it.each(['implementation', 'research', 'planning', 'review'])(
+    'retains the %s role and existing settings for multiple modes',
+    (sessionRole) => {
+      const content = {
+        schemaVersion: 'project-mode-settings.v1',
+        projectAssistant: { enabled: false },
+        eligibleWorkItemTypeKeys: ['BUG'],
+        sessionRole,
+      };
+      for (let mode = 0; mode < 2; mode++) {
+        const result = validateProjectModeSettingsContent(content);
+        expect(result.success).toBe(true);
+        if (!result.success) throw new Error(result.message);
+        expect(result.value).toEqual(content);
+        expect(resolveProjectModeSessionRole(result.value)).toBe(sessionRole);
+        expect(parseProjectModeSettingsOrNull(result.canonicalContent)).toEqual(
+          content,
+        );
+      }
+    },
+  );
+
+  it.each(['unknown', '', null, 42, false, [], {}])(
+    'rejects invalid sessionRole %j at the shared boundary',
+    (sessionRole) => {
+      expect(
+        new TaskSectionSchemaValidatorRegistry().validate(definition, {
+          schemaVersion: 'project-mode-settings.v1',
+          projectAssistant: { enabled: true },
+          sessionRole,
+        }),
+      ).toMatchObject({ success: false, code: 'invalid_json_section' });
+    },
+  );
+
+  it('defaults missing roles and settings to implementation without adding a section', () => {
+    expect(resolveProjectModeSessionRole(undefined)).toBe('implementation');
+    expect(resolveProjectModeSessionRole(null)).toBe('implementation');
+    const settings = parseProjectModeSettingsOrNull(
+      JSON.stringify({
+        schemaVersion: 'project-mode-settings.v1',
+        projectAssistant: { enabled: false },
+      }),
+    );
+    expect(resolveProjectModeSessionRole(settings)).toBe('implementation');
+    expect(settings).not.toHaveProperty('eligibleWorkItemTypeKeys');
+    expect(settings).not.toHaveProperty('sessionRole');
+  });
 
   it.each([true, false])(
     'canonicalizes Project Assistant enabled=%s through the shared registry',

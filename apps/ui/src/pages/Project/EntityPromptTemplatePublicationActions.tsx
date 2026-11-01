@@ -1,9 +1,10 @@
+import { useModalState } from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import {
   Alert,
   AlertTitle,
   Button,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
@@ -45,7 +46,7 @@ export const EntityPromptTemplatePublicationActions: React.FC<
   onProposalCreated,
 }) => {
   const activeProjectOverride = template.projectOverride;
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogOpen, setDialogOpen, dialogOpenOwnerKey] = useModalState(false);
   const [eli5, setEli5] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -92,7 +93,7 @@ export const EntityPromptTemplatePublicationActions: React.FC<
         .then((proposal) => {
           onProposalCreated?.(proposal);
           setSuccessMessage(
-            "Retirement proposal created. The project override remains effective until approval."
+            "Retirement proposal created. The project override remains effective until approval.",
           );
         })
         .catch((caughtError: unknown) => {
@@ -150,6 +151,7 @@ export const EntityPromptTemplatePublicationActions: React.FC<
       )}
 
       <Dialog
+        ownerKey={dialogOpenOwnerKey}
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         aria-labelledby="entity-prompt-template-retire-dialog-title"

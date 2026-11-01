@@ -10,6 +10,7 @@ import { listSessionMethods } from "./sessionMethodRegistry";
 export const PROJECT_MODE_TYPE_KEY = "MODE" as const;
 export const PROJECT_MODE_DESCRIPTION_SECTION_KEY = "description" as const;
 export const PROJECT_MODE_SETTINGS_SECTION_KEY = "settings" as const;
+const PROJECT_MODE_DEFAULT_WORK_ITEM_TYPE_KEY = "STANDARD" as const;
 
 export interface ProjectModeCatalogEntry {
   selection: ProjectModeSelection;
@@ -43,7 +44,7 @@ const modeDescription = (mode: WorkItemResponseDto): string | null => {
 };
 
 const isActiveModeType = (
-  modeTypeSummary: WorkItemTypeSummaryDto | undefined
+  modeTypeSummary: WorkItemTypeSummaryDto | undefined,
 ): modeTypeSummary is WorkItemTypeSummaryDto =>
   modeTypeSummary !== undefined &&
   modeTypeSummary.status === "ACTIVE" &&
@@ -52,13 +53,13 @@ const isActiveModeType = (
 /**
  * Reads the MODE's own eligible type list from its `settings` section.
  * Returns null when the MODE has no list (or the section is unreadable) so the
- * caller keeps the legacy type-level eligibility instead of widening access.
+ * caller applies the STANDARD-only default instead of widening access.
  */
 export const readProjectModeEligibleWorkItemTypeKeys = (
-  mode: WorkItemResponseDto
+  mode: WorkItemResponseDto,
 ): string[] | null => {
   const content = (Array.isArray(mode.sections) ? mode.sections : []).find(
-    (section) => section.key === PROJECT_MODE_SETTINGS_SECTION_KEY
+    (section) => section.key === PROJECT_MODE_SETTINGS_SECTION_KEY,
   )?.materializedMarkdown;
   if (typeof content !== "string" || content.trim() === "") return null;
   try {
@@ -75,24 +76,22 @@ export const readProjectModeEligibleWorkItemTypeKeys = (
 
 /**
  * Shared per-MODE type predicate for the picker and the stale-selection
- * recheck. Mirrors the API's capture resolver: the MODE's own list wins, and
- * the shared MODE agent-guidance contexts apply only when the list is absent.
+ * recheck. Mirrors the API's capture resolver: the MODE's own list wins, and a
+ * MODE without a list applies to STANDARD work items only.
  */
 const hasApplicableWorkItemType = (
   mode: WorkItemResponseDto,
-  modeTypeSummary: WorkItemTypeSummaryDto,
-  effectiveWorkItemTypeKey: string
-): boolean => {
-  const perMode = readProjectModeEligibleWorkItemTypeKeys(mode);
-  if (perMode !== null) return perMode.includes(effectiveWorkItemTypeKey);
-  return (modeTypeSummary.definition.agentGuidance?.contexts ?? []).some(
-    (context) => context.focalTypeKeys.includes(effectiveWorkItemTypeKey)
-  );
-};
+  effectiveWorkItemTypeKey: string,
+): boolean =>
+  (
+    readProjectModeEligibleWorkItemTypeKeys(mode) ?? [
+      PROJECT_MODE_DEFAULT_WORK_ITEM_TYPE_KEY,
+    ]
+  ).includes(effectiveWorkItemTypeKey);
 
 const hasApplicableFeature = (
   mode: WorkItemResponseDto,
-  focalFeatureIds: ReadonlySet<string> | null | undefined
+  focalFeatureIds: ReadonlySet<string> | null | undefined,
 ): boolean => {
   const featureDependencyIds = new Set(
     (mode.edges ?? [])
@@ -100,9 +99,9 @@ const hasApplicableFeature = (
         (edge) =>
           edge.type === AgentEdgeType.DependsOn &&
           edge.sourceNodeId === mode.id &&
-          edge.targetNodeType === "FEATURE"
+          edge.targetNodeType === "FEATURE",
       )
-      .map((edge) => edge.targetNodeId)
+      .map((edge) => edge.targetNodeId),
   );
   return (
     featureDependencyIds.size === 0 ||
@@ -114,7 +113,7 @@ const hasApplicableFeature = (
 
 const compareCatalogEntries = (
   left: ProjectModeCatalogEntry,
-  right: ProjectModeCatalogEntry
+  right: ProjectModeCatalogEntry,
 ): number => {
   const leftName = left.name.toLowerCase();
   const rightName = right.name.toLowerCase();
@@ -152,11 +151,7 @@ export const mapProjectModeCatalog = ({
       !modeId ||
       modeId !== mode.id ||
       seenIds.has(modeId) ||
-      !hasApplicableWorkItemType(
-        mode,
-        modeTypeSummary,
-        effectiveWorkItemTypeKey
-      ) ||
+      !hasApplicableWorkItemType(mode, effectiveWorkItemTypeKey) ||
       !hasApplicableFeature(mode, focalFeatureIds) ||
       reservedIdentities.has(modeId)
     ) {
@@ -183,7 +178,7 @@ export const mapProjectModeCatalog = ({
 
 export const isProjectModeSelectionEligible = (
   selection: ProjectModeSelection | null | undefined,
-  catalog: readonly ProjectModeCatalogEntry[]
+  catalog: readonly ProjectModeCatalogEntry[],
 ): boolean =>
   selection?.schemaVersion ===
     ProjectModeSelectionSchemaVersionEnum.ProjectModeSelectionV1 &&

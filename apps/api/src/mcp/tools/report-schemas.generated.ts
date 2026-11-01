@@ -722,9 +722,56 @@ export const REPORT_SCHEMAS = {
                     },
                     handlerConfig: {
                       type: 'object',
-                      additionalProperties: true,
+                      additionalProperties: false,
                       description:
-                        'Handler settings recorded from Agent Config.',
+                        'Handler settings recorded with a run setup, shared by every case in the run.',
+                      properties: {
+                        handler: {
+                          allOf: [
+                            {
+                              type: 'string',
+                              description:
+                                'Registry key of a handler an Eval Case or an eval run may execute. Each key must be a registered handler the Hey Hey CLI can start directly as the first agent; the CLI refuses to start when one is not registered.\n',
+                              enum: [
+                                'agent_search',
+                                'entity_conversation',
+                                'project_assistant',
+                                'feature_sync_analyze',
+                              ],
+                            },
+                          ],
+                          description:
+                            "The handler every case in the run executes, in place of the handler each case names. `project_assistant` runs Project Assistant research alone, ignoring `projectAssistant`. Omission keeps each case's own handler. Never edits the cases.\n",
+                        },
+                        projectAssistant: {
+                          allOf: [
+                            {
+                              type: 'object',
+                              additionalProperties: false,
+                              properties: {
+                                enabled: {
+                                  type: 'boolean',
+                                  description:
+                                    "Whether the consuming handler's Project Assistant bootstrap may run for\nthis session. False disables only Project Assistant; true or omission\npreserves the handler-declared participation baseline.\n",
+                                },
+                                allowEdgeUpdates: {
+                                  type: 'boolean',
+                                },
+                                notifyDiscrepancies: {
+                                  type: 'boolean',
+                                },
+                                allowUpdateProposals: {
+                                  type: 'boolean',
+                                },
+                              },
+                              description:
+                                'Optional launch-time Project Assistant participation and behavior settings\npersisted on AgentSession config. Omitting the object or an individual flag\npreserves the handler-declared baseline.\n',
+                            },
+                          ],
+                          description:
+                            "Project Assistant participation for an entity conversation case. `enabled: false` is an explicit choice to run without Project Assistant; omission keeps the handler's real-use behavior, where it runs. Never grants participation a handler does not declare.\n",
+                        },
+                      },
                     },
                   },
                 },
@@ -745,9 +792,56 @@ export const REPORT_SCHEMAS = {
                         },
                         handlerConfig: {
                           type: 'object',
-                          additionalProperties: true,
+                          additionalProperties: false,
                           description:
-                            'Handler settings recorded from Agent Config.',
+                            'Handler settings recorded with a run setup, shared by every case in the run.',
+                          properties: {
+                            handler: {
+                              allOf: [
+                                {
+                                  type: 'string',
+                                  description:
+                                    'Registry key of a handler an Eval Case or an eval run may execute. Each key must be a registered handler the Hey Hey CLI can start directly as the first agent; the CLI refuses to start when one is not registered.\n',
+                                  enum: [
+                                    'agent_search',
+                                    'entity_conversation',
+                                    'project_assistant',
+                                    'feature_sync_analyze',
+                                  ],
+                                },
+                              ],
+                              description:
+                                "The handler every case in the run executes, in place of the handler each case names. `project_assistant` runs Project Assistant research alone, ignoring `projectAssistant`. Omission keeps each case's own handler. Never edits the cases.\n",
+                            },
+                            projectAssistant: {
+                              allOf: [
+                                {
+                                  type: 'object',
+                                  additionalProperties: false,
+                                  properties: {
+                                    enabled: {
+                                      type: 'boolean',
+                                      description:
+                                        "Whether the consuming handler's Project Assistant bootstrap may run for\nthis session. False disables only Project Assistant; true or omission\npreserves the handler-declared participation baseline.\n",
+                                    },
+                                    allowEdgeUpdates: {
+                                      type: 'boolean',
+                                    },
+                                    notifyDiscrepancies: {
+                                      type: 'boolean',
+                                    },
+                                    allowUpdateProposals: {
+                                      type: 'boolean',
+                                    },
+                                  },
+                                  description:
+                                    'Optional launch-time Project Assistant participation and behavior settings\npersisted on AgentSession config. Omitting the object or an individual flag\npreserves the handler-declared baseline.\n',
+                                },
+                              ],
+                              description:
+                                "Project Assistant participation for an entity conversation case. `enabled: false` is an explicit choice to run without Project Assistant; omission keeps the handler's real-use behavior, where it runs. Never grants participation a handler does not declare.\n",
+                            },
+                          },
                         },
                       },
                     },
@@ -756,6 +850,70 @@ export const REPORT_SCHEMAS = {
                     'Distinct preparation setting, present only when it differs from the target.',
                 },
               },
+            },
+            execution: {
+              allOf: [
+                {
+                  type: 'object',
+                  additionalProperties: false,
+                  description:
+                    "What one attempt runs, resolved at launch from the run's chosen handler (or the case's own) and the Project Assistant setting. Recorded so later changes to defaults never rewrite what ran.\n",
+                  required: [
+                    'handler',
+                    'projectAssistantPrepares',
+                    'assessedOutput',
+                  ],
+                  properties: {
+                    handler: {
+                      type: 'string',
+                      description:
+                        'Registry key of a handler an Eval Case or an eval run may execute. Each key must be a registered handler the Hey Hey CLI can start directly as the first agent; the CLI refuses to start when one is not registered.\n',
+                      enum: [
+                        'agent_search',
+                        'entity_conversation',
+                        'project_assistant',
+                        'feature_sync_analyze',
+                      ],
+                    },
+                    consumerHandler: {
+                      allOf: [
+                        {
+                          type: 'string',
+                          description:
+                            'Registry key of a handler whose real Project Assistant policy a Project Assistant case runs under. Each key must be a registered handler that declares a Project Assistant policy; the Hey Hey CLI tests the list against its registry.\n',
+                          enum: [
+                            'startup_session',
+                            'design_doc_refiner',
+                            'feature_sync_analyze',
+                            'feature_refiner',
+                            'task_refiner',
+                            'plan_shaping_feature_sync_analyze',
+                            'free_form',
+                            'entity_conversation',
+                            'html_css_mockup_revision',
+                            'validation_walkthrough',
+                          ],
+                        },
+                      ],
+                      description:
+                        'Present exactly when `handler` is `project_assistant`: the handler whose real policy Project Assistant runs under.\n',
+                    },
+                    projectAssistantPrepares: {
+                      type: 'boolean',
+                      description:
+                        'True when Project Assistant runs first and hands its research to `handler`. False when `handler` runs alone, and for `project_assistant`, which is the research itself.\n',
+                    },
+                    assessedOutput: {
+                      type: 'string',
+                      description:
+                        'Which output the judge assesses for an attempt.',
+                      enum: ['RESEARCH_REPORT', 'HANDLER_REPLY'],
+                    },
+                  },
+                },
+              ],
+              description:
+                'Absent on attempts recorded before run-level handler selection existed.',
             },
             status: {
               type: 'string',
@@ -859,10 +1017,23 @@ export const REPORT_SCHEMAS = {
                 },
               ],
             },
+            attemptProviderSessionIds: {
+              type: 'array',
+              description:
+                'Real provider session ids from the attempt Run history, in observation order.',
+              items: {
+                type: 'string',
+              },
+            },
+            judgeProviderSessionId: {
+              type: 'string',
+              description:
+                'Real provider session id of the child that judged this attempt. Never a pending placeholder.',
+            },
             measurements: {
               type: 'array',
               description:
-                'At most one each of TARGET_PREPARATION, TARGET_HANDLER and JUDGE.',
+                'At most one each of TARGET_PREPARATION and TARGET_HANDLER. Older attempts may also hold a JUDGE entry, which is never shown.',
               items: {
                 type: 'object',
                 description:
@@ -872,7 +1043,7 @@ export const REPORT_SCHEMAS = {
                   scope: {
                     type: 'string',
                     description:
-                      'TARGET_PREPARATION, TARGET_HANDLER and JUDGE are measured per attempt. COORDINATOR is measured per run. Scopes are never summed into one another.\n',
+                      'TARGET_PREPARATION (the Project Assistant research agent, present only when research ran) and TARGET_HANDLER (the tested agent) are measured per attempt. JUDGE is no longer recorded; stored JUDGE entries are ignored. COORDINATOR is measured per run. Scopes are never summed into one another.\n',
                     enum: [
                       'TARGET_PREPARATION',
                       'TARGET_HANDLER',
@@ -885,10 +1056,24 @@ export const REPORT_SCHEMAS = {
                     minimum: 0,
                   },
                   inputTokens: {
+                    description:
+                      'Fresh uncached input tokens; excludes cache reads.',
                     type: 'integer',
                     minimum: 0,
                   },
                   outputTokens: {
+                    type: 'integer',
+                    minimum: 0,
+                  },
+                  cacheReadInputTokens: {
+                    description:
+                      'Input tokens read from cache; absent when unreported.',
+                    type: 'integer',
+                    minimum: 0,
+                  },
+                  cacheCreationInputTokens: {
+                    description:
+                      'Input tokens written to cache; absent when unreported.',
                     type: 'integer',
                     minimum: 0,
                   },
@@ -897,20 +1082,44 @@ export const REPORT_SCHEMAS = {
                     minimum: 0,
                   },
                   cost: {
-                    type: 'object',
-                    required: ['amount', 'currency', 'basis'],
-                    properties: {
-                      amount: {
-                        type: 'number',
+                    description:
+                      'What one measured agent cost, or that its cost is not reported.',
+                    oneOf: [
+                      {
+                        type: 'object',
+                        description:
+                          "A cost read from the provider's own record. `partial` means only some of the attempt's provider sessions could be read, so the amount is a lower bound.\n",
+                        additionalProperties: false,
+                        required: ['state', 'amount', 'currency'],
+                        properties: {
+                          state: {
+                            type: 'string',
+                            enum: ['available', 'partial'],
+                          },
+                          amount: {
+                            type: 'number',
+                            minimum: 0,
+                          },
+                          currency: {
+                            type: 'string',
+                            enum: ['USD'],
+                          },
+                        },
                       },
-                      currency: {
-                        type: 'string',
+                      {
+                        type: 'object',
+                        description:
+                          'The cost could not be read (unsupported provider such as OpenCode, no provider session, or a failed read). Carries no amount so it is never mistaken for zero.\n',
+                        additionalProperties: false,
+                        required: ['state'],
+                        properties: {
+                          state: {
+                            type: 'string',
+                            enum: ['unavailable'],
+                          },
+                        },
                       },
-                      basis: {
-                        type: 'string',
-                        description: 'How the cost was derived.',
-                      },
-                    },
+                    ],
                   },
                 },
               },
@@ -1002,6 +1211,18 @@ export const REPORT_SCHEMAS = {
                       },
                     },
                   ],
+                },
+                {
+                  type: 'null',
+                },
+              ],
+            },
+            judgedOutput: {
+              anyOf: [
+                {
+                  type: 'string',
+                  description:
+                    "The exact text the judge was given to assess: the saved research for research alone, otherwise the handler's reply. Absent when judging never started. The judge runs as an isolated child inside the run's coordinator session and has no session of its own, so this is the record of what it looked at.\n",
                 },
                 {
                   type: 'null',
@@ -1132,8 +1353,56 @@ export const REPORT_SCHEMAS = {
                 },
                 handlerConfig: {
                   type: 'object',
-                  additionalProperties: true,
-                  description: 'Handler settings recorded from Agent Config.',
+                  additionalProperties: false,
+                  description:
+                    'Handler settings recorded with a run setup, shared by every case in the run.',
+                  properties: {
+                    handler: {
+                      allOf: [
+                        {
+                          type: 'string',
+                          description:
+                            'Registry key of a handler an Eval Case or an eval run may execute. Each key must be a registered handler the Hey Hey CLI can start directly as the first agent; the CLI refuses to start when one is not registered.\n',
+                          enum: [
+                            'agent_search',
+                            'entity_conversation',
+                            'project_assistant',
+                            'feature_sync_analyze',
+                          ],
+                        },
+                      ],
+                      description:
+                        "The handler every case in the run executes, in place of the handler each case names. `project_assistant` runs Project Assistant research alone, ignoring `projectAssistant`. Omission keeps each case's own handler. Never edits the cases.\n",
+                    },
+                    projectAssistant: {
+                      allOf: [
+                        {
+                          type: 'object',
+                          additionalProperties: false,
+                          properties: {
+                            enabled: {
+                              type: 'boolean',
+                              description:
+                                "Whether the consuming handler's Project Assistant bootstrap may run for\nthis session. False disables only Project Assistant; true or omission\npreserves the handler-declared participation baseline.\n",
+                            },
+                            allowEdgeUpdates: {
+                              type: 'boolean',
+                            },
+                            notifyDiscrepancies: {
+                              type: 'boolean',
+                            },
+                            allowUpdateProposals: {
+                              type: 'boolean',
+                            },
+                          },
+                          description:
+                            'Optional launch-time Project Assistant participation and behavior settings\npersisted on AgentSession config. Omitting the object or an individual flag\npreserves the handler-declared baseline.\n',
+                        },
+                      ],
+                      description:
+                        "Project Assistant participation for an entity conversation case. `enabled: false` is an explicit choice to run without Project Assistant; omission keeps the handler's real-use behavior, where it runs. Never grants participation a handler does not declare.\n",
+                    },
+                  },
                 },
               },
             },
@@ -1159,7 +1428,7 @@ export const REPORT_SCHEMAS = {
                   target: {
                     type: 'object',
                     description:
-                      'Everything the target handler may see. Never contains checks or rubric.',
+                      'Recorded case context. Only the initiating request and focal entity reach the target; situation and supporting items are reviewer and judge context.',
                     required: [
                       'situation',
                       'initiatingRequest',
@@ -1182,6 +1451,32 @@ export const REPORT_SCHEMAS = {
                           },
                         ],
                       },
+                      focalItemType: {
+                        allOf: [
+                          {
+                            type: 'string',
+                            enum: [
+                              'PROJECT',
+                              'ARTIFACT',
+                              'INITIATIVE',
+                              'TASK',
+                              'DESIGN_DOC',
+                              'SERVICE',
+                              'AGENT_SESSION',
+                              'VALIDATION_SESSION',
+                              'MESSAGE',
+                              'CONVERSATION',
+                              'REPORT',
+                              'IMPLEMENTATION_HINT',
+                              'PROPOSAL',
+                            ],
+                            description:
+                              'Canonical platform entity family that scopes the Run. Every work item uses TASK here; its registry-authoritative subtype is carried separately by the work-item payload when a consumer needs it.',
+                          },
+                        ],
+                        description:
+                          'Canonical entity family of the focal item. Required whenever focalItemId is present; work-item subtypes use TASK.',
+                      },
                       supportingItemIds: {
                         type: 'array',
                         items: {
@@ -1195,7 +1490,36 @@ export const REPORT_SCHEMAS = {
                       },
                       targetHandler: {
                         type: 'string',
-                        description: 'Handler the case runs through.',
+                        description: 'Registry key of the handler under test.',
+                        enum: [
+                          'agent_search',
+                          'entity_conversation',
+                          'project_assistant',
+                          'feature_sync_analyze',
+                        ],
+                      },
+                      consumerHandler: {
+                        allOf: [
+                          {
+                            type: 'string',
+                            description:
+                              'Registry key of a handler whose real Project Assistant policy a Project Assistant case runs under. Each key must be a registered handler that declares a Project Assistant policy; the Hey Hey CLI tests the list against its registry.\n',
+                            enum: [
+                              'startup_session',
+                              'design_doc_refiner',
+                              'feature_sync_analyze',
+                              'feature_refiner',
+                              'task_refiner',
+                              'plan_shaping_feature_sync_analyze',
+                              'free_form',
+                              'entity_conversation',
+                              'html_css_mockup_revision',
+                              'validation_walkthrough',
+                            ],
+                          },
+                        ],
+                        description:
+                          'Present exactly when `targetHandler` is `project_assistant`: the real handler whose policy, tools and prompt Project Assistant runs under. Always explicit; there is no default.\n',
                       },
                     },
                   },
@@ -1276,9 +1600,56 @@ export const REPORT_SCHEMAS = {
                       },
                       handlerConfig: {
                         type: 'object',
-                        additionalProperties: true,
+                        additionalProperties: false,
                         description:
-                          'Handler settings recorded from Agent Config.',
+                          'Handler settings recorded with a run setup, shared by every case in the run.',
+                        properties: {
+                          handler: {
+                            allOf: [
+                              {
+                                type: 'string',
+                                description:
+                                  'Registry key of a handler an Eval Case or an eval run may execute. Each key must be a registered handler the Hey Hey CLI can start directly as the first agent; the CLI refuses to start when one is not registered.\n',
+                                enum: [
+                                  'agent_search',
+                                  'entity_conversation',
+                                  'project_assistant',
+                                  'feature_sync_analyze',
+                                ],
+                              },
+                            ],
+                            description:
+                              "The handler every case in the run executes, in place of the handler each case names. `project_assistant` runs Project Assistant research alone, ignoring `projectAssistant`. Omission keeps each case's own handler. Never edits the cases.\n",
+                          },
+                          projectAssistant: {
+                            allOf: [
+                              {
+                                type: 'object',
+                                additionalProperties: false,
+                                properties: {
+                                  enabled: {
+                                    type: 'boolean',
+                                    description:
+                                      "Whether the consuming handler's Project Assistant bootstrap may run for\nthis session. False disables only Project Assistant; true or omission\npreserves the handler-declared participation baseline.\n",
+                                  },
+                                  allowEdgeUpdates: {
+                                    type: 'boolean',
+                                  },
+                                  notifyDiscrepancies: {
+                                    type: 'boolean',
+                                  },
+                                  allowUpdateProposals: {
+                                    type: 'boolean',
+                                  },
+                                },
+                                description:
+                                  'Optional launch-time Project Assistant participation and behavior settings\npersisted on AgentSession config. Omitting the object or an individual flag\npreserves the handler-declared baseline.\n',
+                              },
+                            ],
+                            description:
+                              "Project Assistant participation for an entity conversation case. `enabled: false` is an explicit choice to run without Project Assistant; omission keeps the handler's real-use behavior, where it runs. Never grants participation a handler does not declare.\n",
+                          },
+                        },
                       },
                     },
                   },
@@ -1299,9 +1670,56 @@ export const REPORT_SCHEMAS = {
                           },
                           handlerConfig: {
                             type: 'object',
-                            additionalProperties: true,
+                            additionalProperties: false,
                             description:
-                              'Handler settings recorded from Agent Config.',
+                              'Handler settings recorded with a run setup, shared by every case in the run.',
+                            properties: {
+                              handler: {
+                                allOf: [
+                                  {
+                                    type: 'string',
+                                    description:
+                                      'Registry key of a handler an Eval Case or an eval run may execute. Each key must be a registered handler the Hey Hey CLI can start directly as the first agent; the CLI refuses to start when one is not registered.\n',
+                                    enum: [
+                                      'agent_search',
+                                      'entity_conversation',
+                                      'project_assistant',
+                                      'feature_sync_analyze',
+                                    ],
+                                  },
+                                ],
+                                description:
+                                  "The handler every case in the run executes, in place of the handler each case names. `project_assistant` runs Project Assistant research alone, ignoring `projectAssistant`. Omission keeps each case's own handler. Never edits the cases.\n",
+                              },
+                              projectAssistant: {
+                                allOf: [
+                                  {
+                                    type: 'object',
+                                    additionalProperties: false,
+                                    properties: {
+                                      enabled: {
+                                        type: 'boolean',
+                                        description:
+                                          "Whether the consuming handler's Project Assistant bootstrap may run for\nthis session. False disables only Project Assistant; true or omission\npreserves the handler-declared participation baseline.\n",
+                                      },
+                                      allowEdgeUpdates: {
+                                        type: 'boolean',
+                                      },
+                                      notifyDiscrepancies: {
+                                        type: 'boolean',
+                                      },
+                                      allowUpdateProposals: {
+                                        type: 'boolean',
+                                      },
+                                    },
+                                    description:
+                                      'Optional launch-time Project Assistant participation and behavior settings\npersisted on AgentSession config. Omitting the object or an individual flag\npreserves the handler-declared baseline.\n',
+                                  },
+                                ],
+                                description:
+                                  "Project Assistant participation for an entity conversation case. `enabled: false` is an explicit choice to run without Project Assistant; omission keeps the handler's real-use behavior, where it runs. Never grants participation a handler does not declare.\n",
+                              },
+                            },
                           },
                         },
                       },
@@ -1345,7 +1763,7 @@ export const REPORT_SCHEMAS = {
                     scope: {
                       type: 'string',
                       description:
-                        'TARGET_PREPARATION, TARGET_HANDLER and JUDGE are measured per attempt. COORDINATOR is measured per run. Scopes are never summed into one another.\n',
+                        'TARGET_PREPARATION (the Project Assistant research agent, present only when research ran) and TARGET_HANDLER (the tested agent) are measured per attempt. JUDGE is no longer recorded; stored JUDGE entries are ignored. COORDINATOR is measured per run. Scopes are never summed into one another.\n',
                       enum: [
                         'TARGET_PREPARATION',
                         'TARGET_HANDLER',
@@ -1358,10 +1776,24 @@ export const REPORT_SCHEMAS = {
                       minimum: 0,
                     },
                     inputTokens: {
+                      description:
+                        'Fresh uncached input tokens; excludes cache reads.',
                       type: 'integer',
                       minimum: 0,
                     },
                     outputTokens: {
+                      type: 'integer',
+                      minimum: 0,
+                    },
+                    cacheReadInputTokens: {
+                      description:
+                        'Input tokens read from cache; absent when unreported.',
+                      type: 'integer',
+                      minimum: 0,
+                    },
+                    cacheCreationInputTokens: {
+                      description:
+                        'Input tokens written to cache; absent when unreported.',
                       type: 'integer',
                       minimum: 0,
                     },
@@ -1370,20 +1802,44 @@ export const REPORT_SCHEMAS = {
                       minimum: 0,
                     },
                     cost: {
-                      type: 'object',
-                      required: ['amount', 'currency', 'basis'],
-                      properties: {
-                        amount: {
-                          type: 'number',
+                      description:
+                        'What one measured agent cost, or that its cost is not reported.',
+                      oneOf: [
+                        {
+                          type: 'object',
+                          description:
+                            "A cost read from the provider's own record. `partial` means only some of the attempt's provider sessions could be read, so the amount is a lower bound.\n",
+                          additionalProperties: false,
+                          required: ['state', 'amount', 'currency'],
+                          properties: {
+                            state: {
+                              type: 'string',
+                              enum: ['available', 'partial'],
+                            },
+                            amount: {
+                              type: 'number',
+                              minimum: 0,
+                            },
+                            currency: {
+                              type: 'string',
+                              enum: ['USD'],
+                            },
+                          },
                         },
-                        currency: {
-                          type: 'string',
+                        {
+                          type: 'object',
+                          description:
+                            'The cost could not be read (unsupported provider such as OpenCode, no provider session, or a failed read). Carries no amount so it is never mistaken for zero.\n',
+                          additionalProperties: false,
+                          required: ['state'],
+                          properties: {
+                            state: {
+                              type: 'string',
+                              enum: ['unavailable'],
+                            },
+                          },
                         },
-                        basis: {
-                          type: 'string',
-                          description: 'How the cost was derived.',
-                        },
-                      },
+                      ],
                     },
                   },
                 },
@@ -3418,3 +3874,364 @@ export const REPORT_SCHEMAS = {
 } satisfies Record<string, ReportSchemaEntry>;
 
 export type ReportSchemaKey = keyof typeof REPORT_SCHEMAS;
+
+export const REPORT_USAGE_SCHEMA = {
+  description:
+    'Immutable cumulative usage available at report creation. Reports sharing execution attribution are snapshots, never additive execution samples. Version independently of the report envelope.',
+  allOf: [
+    {
+      type: 'object',
+      required: [
+        'inputTokens',
+        'freshInputTokens',
+        'cacheReadInputTokens',
+        'cacheCreationInputTokens',
+        'outputTokens',
+        'toolCalls',
+        'cacheAvailability',
+        'coverage',
+      ],
+      properties: {
+        inputTokens: {
+          anyOf: [
+            {
+              description:
+                'Cache-inclusive input total when established by the provider, independently of cache-detail availability. Otherwise derived only when all applicable input components are established; never fresh input alone.',
+              type: 'integer',
+              minimum: 0,
+            },
+            {
+              type: 'null',
+            },
+          ],
+        },
+        freshInputTokens: {
+          anyOf: [
+            {
+              description:
+                'Measured input excluding cache reads and cache creation.',
+              type: 'integer',
+              minimum: 0,
+            },
+            {
+              type: 'null',
+            },
+          ],
+        },
+        cacheReadInputTokens: {
+          anyOf: [
+            {
+              type: 'integer',
+              minimum: 0,
+            },
+            {
+              type: 'null',
+            },
+          ],
+        },
+        cacheCreationInputTokens: {
+          anyOf: [
+            {
+              type: 'integer',
+              minimum: 0,
+            },
+            {
+              type: 'null',
+            },
+          ],
+        },
+        outputTokens: {
+          anyOf: [
+            {
+              type: 'integer',
+              minimum: 0,
+            },
+            {
+              type: 'null',
+            },
+          ],
+        },
+        toolCalls: {
+          anyOf: [
+            {
+              description:
+                'Distinct observed tool invocations attributable to this source; null when coverage cannot be established.',
+              type: 'integer',
+              minimum: 0,
+            },
+            {
+              type: 'null',
+            },
+          ],
+        },
+        cacheAvailability: {
+          description:
+            'Reported only when both cache read and cache creation components are established, including measured zero.',
+          type: 'string',
+          enum: ['reported', 'unreported'],
+        },
+        coverage: {
+          description:
+            'Availability of numeric measurements; provider, model and effort retain their own nullable availability.',
+          type: 'string',
+          enum: ['complete', 'partial', 'unavailable'],
+        },
+      },
+    },
+    {
+      type: 'object',
+      required: [
+        'schemaVersion',
+        'runId',
+        'agentSessionId',
+        'turnId',
+        'executionId',
+        'providerSessionId',
+        'provider',
+        'model',
+        'effort',
+        'capturedAt',
+        'breakdown',
+      ],
+      properties: {
+        schemaVersion: {
+          type: 'integer',
+          enum: [1],
+        },
+        runId: {
+          type: 'string',
+        },
+        agentSessionId: {
+          type: 'string',
+        },
+        turnId: {
+          anyOf: [
+            {
+              type: 'string',
+            },
+            {
+              type: 'null',
+            },
+          ],
+        },
+        executionId: {
+          type: 'string',
+        },
+        providerSessionId: {
+          anyOf: [
+            {
+              type: 'string',
+            },
+            {
+              type: 'null',
+            },
+          ],
+        },
+        provider: {
+          anyOf: [
+            {
+              type: 'string',
+            },
+            {
+              type: 'null',
+            },
+          ],
+        },
+        model: {
+          anyOf: [
+            {
+              type: 'string',
+            },
+            {
+              type: 'null',
+            },
+          ],
+        },
+        effort: {
+          anyOf: [
+            {
+              type: 'string',
+            },
+            {
+              type: 'null',
+            },
+          ],
+        },
+        capturedAt: {
+          type: 'string',
+          format: 'date-time',
+        },
+        breakdown: {
+          type: 'array',
+          items: {
+            allOf: [
+              {
+                type: 'object',
+                required: [
+                  'inputTokens',
+                  'freshInputTokens',
+                  'cacheReadInputTokens',
+                  'cacheCreationInputTokens',
+                  'outputTokens',
+                  'toolCalls',
+                  'cacheAvailability',
+                  'coverage',
+                ],
+                properties: {
+                  inputTokens: {
+                    anyOf: [
+                      {
+                        description:
+                          'Cache-inclusive input total when established by the provider, independently of cache-detail availability. Otherwise derived only when all applicable input components are established; never fresh input alone.',
+                        type: 'integer',
+                        minimum: 0,
+                      },
+                      {
+                        type: 'null',
+                      },
+                    ],
+                  },
+                  freshInputTokens: {
+                    anyOf: [
+                      {
+                        description:
+                          'Measured input excluding cache reads and cache creation.',
+                        type: 'integer',
+                        minimum: 0,
+                      },
+                      {
+                        type: 'null',
+                      },
+                    ],
+                  },
+                  cacheReadInputTokens: {
+                    anyOf: [
+                      {
+                        type: 'integer',
+                        minimum: 0,
+                      },
+                      {
+                        type: 'null',
+                      },
+                    ],
+                  },
+                  cacheCreationInputTokens: {
+                    anyOf: [
+                      {
+                        type: 'integer',
+                        minimum: 0,
+                      },
+                      {
+                        type: 'null',
+                      },
+                    ],
+                  },
+                  outputTokens: {
+                    anyOf: [
+                      {
+                        type: 'integer',
+                        minimum: 0,
+                      },
+                      {
+                        type: 'null',
+                      },
+                    ],
+                  },
+                  toolCalls: {
+                    anyOf: [
+                      {
+                        description:
+                          'Distinct observed tool invocations attributable to this source; null when coverage cannot be established.',
+                        type: 'integer',
+                        minimum: 0,
+                      },
+                      {
+                        type: 'null',
+                      },
+                    ],
+                  },
+                  cacheAvailability: {
+                    description:
+                      'Reported only when both cache read and cache creation components are established, including measured zero.',
+                    type: 'string',
+                    enum: ['reported', 'unreported'],
+                  },
+                  coverage: {
+                    description:
+                      'Availability of numeric measurements; provider, model and effort retain their own nullable availability.',
+                    type: 'string',
+                    enum: ['complete', 'partial', 'unavailable'],
+                  },
+                },
+              },
+              {
+                type: 'object',
+                required: [
+                  'executionId',
+                  'providerSessionId',
+                  'provider',
+                  'model',
+                  'effort',
+                  'role',
+                  'label',
+                ],
+                properties: {
+                  executionId: {
+                    type: 'string',
+                  },
+                  providerSessionId: {
+                    anyOf: [
+                      {
+                        type: 'string',
+                      },
+                      {
+                        type: 'null',
+                      },
+                    ],
+                  },
+                  provider: {
+                    anyOf: [
+                      {
+                        type: 'string',
+                      },
+                      {
+                        type: 'null',
+                      },
+                    ],
+                  },
+                  model: {
+                    anyOf: [
+                      {
+                        type: 'string',
+                      },
+                      {
+                        type: 'null',
+                      },
+                    ],
+                  },
+                  effort: {
+                    anyOf: [
+                      {
+                        type: 'string',
+                      },
+                      {
+                        type: 'null',
+                      },
+                    ],
+                  },
+                  role: {
+                    type: 'string',
+                    enum: ['parent', 'subagent', 'reviewer'],
+                  },
+                  label: {
+                    type: 'string',
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    },
+  ],
+};

@@ -49,6 +49,7 @@ const setup = (replies: string[]) => {
   });
   const runner: Runner = { run: () => Promise.resolve(), continueTurn };
   const turn = new Turn({
+    effectiveRole: 'implementation',
     turnId: 'turn-1',
     runId: run.runId,
     resolvedPrompt: '',

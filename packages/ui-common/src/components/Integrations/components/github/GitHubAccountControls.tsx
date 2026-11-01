@@ -1,8 +1,9 @@
+import { useModalState } from "../../../Modals/useModalState";
+import { FunctionalDialog as Dialog } from "../../../Modals/FunctionalDialog";
 import React, { useState } from "react";
 import {
   Box,
   Button,
-  Dialog,
   DialogTitle,
   DialogContent,
   DialogContentText,
@@ -44,7 +45,11 @@ export const GitHubAccountControls: React.FC<GitHubAccountControlsProps> = ({
   const { t } = useTranslation();
   const { updateIntegration } = useIntegrationService();
   const [isDisconnecting, setIsDisconnecting] = useState(false);
-  const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
+  const [
+    showDisconnectDialog,
+    setShowDisconnectDialog,
+    showDisconnectDialogOwnerKey,
+  ] = useModalState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleDisconnect = async () => {
@@ -128,6 +133,7 @@ export const GitHubAccountControls: React.FC<GitHubAccountControlsProps> = ({
 
       {/* Disconnect Confirmation Dialog */}
       <Dialog
+        ownerKey={showDisconnectDialogOwnerKey}
         open={showDisconnectDialog}
         onClose={() => !isDisconnecting && setShowDisconnectDialog(false)}
       >

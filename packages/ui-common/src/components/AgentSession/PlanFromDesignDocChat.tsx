@@ -1,3 +1,5 @@
+import { useModalState } from "../Modals/useModalState";
+import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import type { AgentSkillSelection, RunAttachmentReference } from "../../api";
 import type { PlanConfigurationV1 } from "../../api";
 import {
@@ -510,7 +512,11 @@ const PlanFromDesignDocActive: React.FC<PlanFromDesignDocActiveProps> = ({
 
   // Restart is only available while the plan is still a draft (BACKLOG).
   const isRunActive = plan.status === WorkStatus.Backlog;
-  const [isRestartDialogOpen, setIsRestartDialogOpen] = useState(false);
+  const [
+    isRestartDialogOpen,
+    setIsRestartDialogOpen,
+    isRestartDialogOpenOwnerKey,
+  ] = useModalState(false);
   const [isRestarting, setIsRestarting] = useState(false);
   const [restartError, setRestartError] = useState<string | null>(null);
 
@@ -561,12 +567,14 @@ const PlanFromDesignDocActive: React.FC<PlanFromDesignDocActiveProps> = ({
             Restart
           </Button>
         </Stack>
-        <RestartPlanGenerationDialog
-          open={isRestartDialogOpen}
-          onClose={() => setIsRestartDialogOpen(false)}
-          onConfirm={handleConfirmRestart}
-          restarting={isRestarting}
-        />
+        <ModalWorkOwner.Provider value={isRestartDialogOpenOwnerKey}>
+          <RestartPlanGenerationDialog
+            open={isRestartDialogOpen}
+            onClose={() => setIsRestartDialogOpen(false)}
+            onConfirm={handleConfirmRestart}
+            restarting={isRestarting}
+          />
+        </ModalWorkOwner.Provider>
       </>
     ) : null;
   const restartErrorAlert = restartError ? (

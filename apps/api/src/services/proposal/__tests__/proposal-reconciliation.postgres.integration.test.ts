@@ -1,3 +1,7 @@
+import { WorkItemTypeRegistryService } from '../../tasks/work-item-type-registry.service';
+import { ProposalApprovalService } from '../proposal-approval.service';
+import { WorkItemTypeLifecycleService } from '../../tasks/work-item-type-lifecycle.service';
+import { Logger } from '@nestjs/common';
 import { ProposalService } from '../proposal.service';
 import { randomUUID } from 'node:crypto';
 import { ConflictException } from '@nestjs/common';
@@ -13,8 +17,11 @@ databaseTests('reconciliation guarded PostgreSQL writes', () => {
   const prisma = new PrismaService();
   const organizationId = randomUUID() as OrganizationId;
   const projectId = randomUUID() as ProjectId;
+  const registry = new WorkItemTypeRegistryService(prisma, {} as never);
+  // Task fixtures use ordinary Markdown sections and need no warmed catalog.
+  jest.spyOn(registry, 'getSectionDefinition').mockReturnValue(undefined);
   const adapter = new ProposalReconciliationAdapterService(
-    { getSectionDefinition: () => undefined } as never,
+    registry,
     {} as never,
   );
   const owner = new ProposalReconciliationService(
@@ -22,6 +29,39 @@ databaseTests('reconciliation guarded PostgreSQL writes', () => {
     {} as never,
     () => 'unused',
   );
+
+  // Keep actual reconciliation, type classification, registry persistence and
+  // immediate approval; replace only unrelated event and graph integrations.
+  const approval = Object.create(
+    ProposalApprovalService.prototype,
+  ) as ProposalApprovalService;
+  Object.assign(approval, {
+    reconciliation: owner,
+    workItemTypeRegistry: registry,
+    workItemTypeLifecycle: new WorkItemTypeLifecycleService(registry),
+    logger: new Logger('TypeSavePersistenceTest'),
+    pendingEdgeService: { processDeclaredEdges: async () => [] },
+    workItemChangeSetMaterializer: {
+      isWorkItemChangeSetValidationRequest: () => false,
+      taskProposalChangeSet: () => null,
+    },
+    publishApprovedEvent: async () => undefined,
+  });
+  const creation = Object.create(ProposalService.prototype) as ProposalService;
+  Object.assign(creation, {
+    approvalService: approval,
+    logger: new Logger('TypeSaveCreationTest'),
+    evaluateApplyOnCreate: async () => ({
+      source: 'user',
+      config: { threshold: 0, allowsProposerApproval: false },
+      meetsThreshold: true,
+    }),
+  });
+  const immediateCreation = creation as unknown as {
+    maybeApplyOnCreate: (
+      ...args: unknown[]
+    ) => Promise<{ proposal: { status: string } }>;
+  };
 
   beforeAll(async () => {
     await prisma.$connect();
@@ -43,6 +83,141 @@ databaseTests('reconciliation guarded PostgreSQL writes', () => {
   afterAll(async () => {
     await prisma.organization.delete({ where: { id: organizationId } });
     await prisma.$disconnect();
+  });
+
+  const typeData = (typeKey: string) => ({
+    typeKey,
+    name: 'Original type',
+    role: 'project-info',
+    sectionDefinitions: [],
+    allowedParentTypes: [],
+    edgeTargets: [],
+    allowedStatuses: [],
+    requiredScalars: [],
+    forbiddenScalars: [],
+    parentage: { allowedParentEntityTypes: [] },
+    tracking: {},
+    agentSettableStatuses: [],
+    anchorableReportTypes: [],
+    writingStandards: {},
+    acceptedConfigKinds: [],
+    capabilities: {},
+  });
+
+  it.each(['custom', 'canonical'] as const)(
+    'captures and immediately applies a %s effective type through persisted JSON with unset presentation',
+    async (source) => {
+      const typeKey = `type-save-${randomUUID()}`;
+      const data = typeData(typeKey);
+      if (source === 'custom')
+        await prisma.workItemType.create({ data: { ...data, projectId } });
+      else await prisma.workItemTypeTemplate.create({ data });
+      try {
+        await prisma.db.$transaction(async (tx) => {
+          const proposal = await tx.proposal.create({
+            data: {
+              organizationId,
+              projectId,
+              requestorId: randomUUID(),
+              action: 'UPDATE',
+              targetEntityType: 'WORK_ITEM_TYPE',
+              targetEntityId: typeKey,
+              updates: {
+                definition: {
+                  ...registry.materializeDefinition(
+                    source === 'custom'
+                      ? await tx.workItemType.findUniqueOrThrow({
+                          where: { projectId_typeKey: { projectId, typeKey } },
+                        })
+                      : await tx.workItemTypeTemplate.findUniqueOrThrow({
+                          where: { typeKey },
+                        }),
+                  ),
+                  name: 'Saved type',
+                },
+                acknowledgeCanonicalCustomization: source === 'canonical',
+              },
+            },
+          });
+          const live = await adapter.workItemType(tx, proposal, false);
+          expect(live.content.definition).toHaveProperty('iconKey', undefined);
+          expect(live.content.definition).toHaveProperty('colorKey', undefined);
+          await owner.captureAuthoring(tx, proposal);
+          const persisted =
+            await tx.proposalReconciliationRevision.findFirstOrThrow({
+              where: { proposalId: proposal.id },
+            });
+          const stored = persisted.bases as unknown as (typeof live)[];
+          expect(stored[0]!.content.definition).not.toHaveProperty('iconKey');
+          expect(stored[0]!.content.definition).not.toHaveProperty('colorKey');
+          const result = await immediateCreation.maybeApplyOnCreate(
+            tx,
+            proposal,
+            organizationId,
+            projectId,
+            {
+              action: proposal.action,
+              targetEntityType: proposal.targetEntityType,
+              updates: proposal.updates,
+            },
+            {},
+            { generic: null },
+            () => undefined,
+          );
+          expect(result.proposal.status).toBe('APPROVED');
+        });
+        expect(
+          (
+            await prisma.workItemType.findUniqueOrThrow({
+              where: { projectId_typeKey: { projectId, typeKey } },
+            })
+          ).name,
+        ).toBe('Saved type');
+      } finally {
+        await prisma.workItemType.deleteMany({ where: { projectId, typeKey } });
+        if (source === 'canonical')
+          await prisma.workItemTypeTemplate.delete({ where: { typeKey } });
+      }
+    },
+  );
+
+  it('blocks genuinely changed and unavailable persisted type bases without replacing current content', async () => {
+    const typeKey = `type-drift-${randomUUID()}`;
+    await prisma.workItemType.create({
+      data: { ...typeData(typeKey), projectId },
+    });
+    const proposal = await prisma.proposal.create({
+      data: {
+        organizationId,
+        projectId,
+        requestorId: randomUUID(),
+        action: 'UPDATE',
+        targetEntityType: 'WORK_ITEM_TYPE',
+        targetEntityId: typeKey,
+        updates: { definition: { name: 'Stale edit' } },
+      },
+    });
+    await prisma.db.$transaction((tx) => owner.captureAuthoring(tx, proposal));
+    await prisma.workItemType.update({
+      where: { projectId_typeKey: { projectId, typeKey } },
+      data: { name: 'Intervening edit' },
+    });
+    await expect(
+      prisma.db.$transaction((tx) => owner.assertApplicable(tx, proposal)),
+    ).rejects.toThrow(ConflictException);
+    expect(
+      (
+        await prisma.workItemType.findUniqueOrThrow({
+          where: { projectId_typeKey: { projectId, typeKey } },
+        })
+      ).name,
+    ).toBe('Intervening edit');
+    await prisma.proposalReconciliationRevision.deleteMany({
+      where: { proposalId: proposal.id },
+    });
+    await expect(
+      prisma.db.$transaction((tx) => owner.assertApplicable(tx, proposal)),
+    ).rejects.toThrow('Original proposal content is unavailable');
   });
 
   async function authored() {

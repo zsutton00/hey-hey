@@ -1,3 +1,5 @@
+import { useModalState } from "../../Modals/useModalState";
+import { FunctionalDialog as Dialog } from "../../Modals/FunctionalDialog";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import AssistantIcon from "@mui/icons-material/AutoAwesome";
@@ -5,7 +7,6 @@ import {
   Box,
   Button,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
@@ -54,7 +55,8 @@ export const TaskGenerationAssistant: React.FC<
   const { t } = useTranslation();
   const userIdentity = useUserIdentity();
   const organizationId = userIdentity?.currentOrgId || "";
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen, deleteDialogOpenOwnerKey] =
+    useModalState(false);
   const [activeConversation, setActiveConversation] =
     useState<ConversationResponseDto | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -80,7 +82,7 @@ export const TaskGenerationAssistant: React.FC<
       maxRetries: 10,
       includeSuggestionDecisions: true,
       enabled: !!organizationId && !!projectId,
-    }
+    },
   );
 
   // Effective conversation to display
@@ -164,7 +166,7 @@ export const TaskGenerationAssistant: React.FC<
         {
           hasOrgId: !!organizationId,
           hasProjectId: !!projectId,
-        }
+        },
       );
       return;
     }
@@ -313,6 +315,7 @@ export const TaskGenerationAssistant: React.FC<
       )}
 
       <Dialog
+        ownerKey={deleteDialogOpenOwnerKey}
         open={deleteDialogOpen}
         onClose={handleDeleteCancel}
         aria-labelledby="delete-conversation-dialog-title"

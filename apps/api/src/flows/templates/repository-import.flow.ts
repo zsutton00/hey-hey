@@ -52,45 +52,17 @@ export const repositoryImportFlow = createFlow({
         },
         SKIP: {
           description: 'Continue with the reviewed outline.',
-          nextNodeId: REPOSITORY_IMPORT_NODES.PLACEMENT_STRATEGY,
+          nextNodeId: REPOSITORY_IMPORT_NODES.END,
         },
       },
     },
-    [REPOSITORY_IMPORT_NODES.ENRICHMENT]: {
-      transitions: {
-        questions: {
-          description: 'Collect bounded evidence questions.',
-          nextNodeId: REPOSITORY_IMPORT_NODES.ENRICHMENT_QUESTIONS,
-        },
-        success: {
-          description: 'Review the evidence-backed hierarchy.',
-          nextNodeId: REPOSITORY_IMPORT_NODES.GENERATE_FEATURES,
-        },
-        retryable_failure: {
-          description: 'Retry enrichment without losing evidence.',
-          nextNodeId: REPOSITORY_IMPORT_NODES.ENRICHMENT_RECOVERY,
-        },
-        terminal_failure: {
-          description: 'Expose the typed enrichment failure.',
-          nextNodeId: REPOSITORY_IMPORT_NODES.ENRICHMENT_RECOVERY,
-        },
-        default: {
-          description: 'Keep failures on the recovery path.',
-          nextNodeId: REPOSITORY_IMPORT_NODES.ENRICHMENT_RECOVERY,
-        },
-      },
-    },
-    [REPOSITORY_IMPORT_NODES.ENRICHMENT_QUESTIONS]: {
-      nextNode: REPOSITORY_IMPORT_NODES.ENRICHMENT,
-    },
-    [REPOSITORY_IMPORT_NODES.ENRICHMENT_RECOVERY]: {
-      nextNode: REPOSITORY_IMPORT_NODES.ENRICHMENT,
-    },
+    // A one-shot handoff completes the workflow. Further replies belong to the CLI.
+    [REPOSITORY_IMPORT_NODES.ENRICHMENT]: {},
     [REPOSITORY_IMPORT_NODES.RECOVERY]: {
       nextNode: REPOSITORY_IMPORT_NODES.START,
     },
     [REPOSITORY_IMPORT_NODES.GENERATE_FEATURES]: {
-      nextNode: REPOSITORY_IMPORT_NODES.ENRICHMENT_CHOICE,
+      nextNode: REPOSITORY_IMPORT_NODES.PLACEMENT_STRATEGY,
     },
     // Persisted pre-cutover imports can be parked on the former shared id.
     [SHARED_NODES.GENERATE_FEATURES]: {
@@ -135,10 +107,8 @@ export const repositoryImportFlow = createFlow({
     [REPOSITORY_IMPORT_NODES.PLACEMENT_REVIEW]: {
       nextNode: REPOSITORY_IMPORT_NODES.FINALIZE,
     },
-    // Executions materialized before the first-work stage are routed to END by
-    // routeRepositoryImportAfterFinalize in the workflow.
     [REPOSITORY_IMPORT_NODES.FINALIZE]: {
-      nextNode: REPOSITORY_IMPORT_NODES.FIRST_WORK_QUESTION,
+      nextNode: REPOSITORY_IMPORT_NODES.ENRICHMENT_CHOICE,
     },
     [REPOSITORY_IMPORT_NODES.FIRST_WORK_QUESTION]: {
       nextNode: REPOSITORY_IMPORT_NODES.FIRST_WORK,

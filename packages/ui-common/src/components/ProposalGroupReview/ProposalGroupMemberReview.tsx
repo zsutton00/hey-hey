@@ -1,3 +1,5 @@
+import { useModalState } from "../Modals/useModalState";
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import {
   ProposalReconciliationReview,
   ProposalReconciliationContext,
@@ -7,7 +9,6 @@ import {
   Button,
   Chip,
   Collapse,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -65,14 +66,24 @@ export interface ProposalGroupMemberReviewProps {
   onApprove: (proposalId: string) => Promise<unknown>;
   onReject: (proposalId: string, reason: string) => Promise<unknown>;
   isDeciding: boolean;
+  content?: React.ReactNode;
+  /** True for the Diagram member that links a UX flow journey's screens. */
+  journeyFlow: boolean;
 }
+
+const JOURNEY_FLOW_TITLE_PREFIX = "UX flow · links the screens above";
+const JOURNEY_FLOW_TYPE_LABEL = "UX flow";
+const JOURNEY_FLOW_DECISION_LABELS = {
+  approve: "Approve flow",
+  reject: "Reject flow",
+};
 
 const formatTimestamp = (value: string): string =>
   new Date(value).toLocaleString();
 
 type MemberDecision = "approved" | "rejected" | null;
 
-const getMemberDecision = (
+export const getMemberDecision = (
   proposal: ProposalResponseDto,
   currentUserId: string | undefined,
 ): MemberDecision => {
@@ -102,6 +113,7 @@ const MemberHeader: React.FC<{
   contentExpanded: boolean;
   onToggleContent: () => void;
   canToggleContent: boolean;
+  journeyFlow: boolean;
 }> = ({
   member,
   organizationId,
@@ -109,6 +121,7 @@ const MemberHeader: React.FC<{
   contentExpanded,
   onToggleContent,
   canToggleContent,
+  journeyFlow,
 }) => {
   const proposal = member.proposal;
   const pathService = usePathService();
@@ -135,7 +148,13 @@ const MemberHeader: React.FC<{
     isTaskProposal && workItemLoading
       ? { kind: "loading" as const }
       : typePresentation;
-  const headerTypePresentation = resolvedTypePresentation;
+  const headerTypePresentation =
+    journeyFlow && resolvedTypePresentation.kind === "available"
+      ? { ...resolvedTypePresentation, label: JOURNEY_FLOW_TYPE_LABEL }
+      : resolvedTypePresentation;
+  const displayTitle = journeyFlow
+    ? `${JOURNEY_FLOW_TITLE_PREFIX} — ${getProposalDisplayTitle(proposal)}`
+    : getProposalDisplayTitle(proposal);
   const href = isTaskProposal
     ? resolvedTaskType === "FEATURE"
       ? pathService.feature({ projectId, featureId: proposal.targetEntityId })
@@ -157,7 +176,7 @@ const MemberHeader: React.FC<{
   return (
     <ProposalTitle
       proposal={proposal}
-      resolvedTargetName={getProposalDisplayTitle(proposal)}
+      resolvedTargetName={displayTitle}
       typePresentation={headerTypePresentation}
       target={
         targetExists
@@ -282,7 +301,7 @@ const getMemberStatusPresentation = (
   }
 };
 
-const MemberState: React.FC<{
+export const MemberState: React.FC<{
   member: ProposalGroupMemberSnapshot;
   members: ProposalGroupMemberSnapshot[];
 }> = ({ member, members }) => {
@@ -385,13 +404,14 @@ const MemberState: React.FC<{
   );
 };
 
-const MemberDecisionControls: React.FC<{
+export const MemberDecisionControls: React.FC<{
   member: ProposalGroupMemberSnapshot;
   decision: MemberDecision;
   proposalStatus: ProposalStatus;
   onApprove: (proposalId: string) => Promise<unknown>;
   onReject: (proposalId: string, reason: string) => Promise<unknown>;
   isDeciding: boolean;
+  labels?: { approve: string; reject: string };
 }> = ({
   member,
   decision,
@@ -399,9 +419,11 @@ const MemberDecisionControls: React.FC<{
   onApprove,
   onReject,
   isDeciding,
+  labels = { approve: "Approve", reject: "Reject" },
 }) => {
   const reconciliation = React.useContext(ProposalReconciliationContext);
-  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejectDialogOpen, setRejectDialogOpen, rejectDialogOpenOwnerKey] =
+    useModalState(false);
   const [rejectReason, setRejectReason] = useState("");
   const actionability = getMemberActionability(member);
   const submitRejection = useCallback(async () => {
@@ -448,7 +470,7 @@ const MemberDecisionControls: React.FC<{
           data-selected={decision === "approved"}
           aria-pressed={decision === "approved"}
         >
-          Approve
+          {labels.approve}
         </Button>
         <Button
           size="small"
@@ -460,10 +482,11 @@ const MemberDecisionControls: React.FC<{
           data-selected={decision === "rejected"}
           aria-pressed={decision === "rejected"}
         >
-          Reject
+          {labels.reject}
         </Button>
       </Stack>
       <Dialog
+        ownerKey={rejectDialogOpenOwnerKey}
         open={rejectDialogOpen}
         onClose={() => setRejectDialogOpen(false)}
         maxWidth="sm"
@@ -511,11 +534,13 @@ const ProposalGroupMemberReviewContent: React.FC<
   members,
   decisionProposal,
   decisionOverride,
+  content,
   organizationId,
   projectId,
   onApprove,
   onReject,
   isDeciding,
+  journeyFlow,
 }) => {
   const { user } = useAuth();
   const allProposals = useMemo(
@@ -555,16 +580,19 @@ const ProposalGroupMemberReviewContent: React.FC<
           contentExpanded={contentExpanded}
           onToggleContent={() => setContentExpanded((expanded) => !expanded)}
           canToggleContent={acceptedUpdate}
+          journeyFlow={journeyFlow}
         />
         <MemberState member={member} members={members} />
         <Divider />
         <Collapse in={contentExpanded} unmountOnExit>
-          <ReadOnlyProposalContent
-            proposal={member.proposal}
-            allProposals={allProposals}
-            organizationId={organizationId}
-            projectId={projectId}
-          />
+          {content ?? (
+            <ReadOnlyProposalContent
+              proposal={member.proposal}
+              allProposals={allProposals}
+              organizationId={organizationId}
+              projectId={projectId}
+            />
+          )}
         </Collapse>
         {member.proposal.action !==
         ProposalAction.VersionedUpdate ? null : effectiveProposal.status ===
@@ -589,6 +617,7 @@ const ProposalGroupMemberReviewContent: React.FC<
           onApprove={onApprove}
           onReject={onReject}
           isDeciding={isDeciding}
+          labels={journeyFlow ? JOURNEY_FLOW_DECISION_LABELS : undefined}
         />
       </Stack>
     </Paper>

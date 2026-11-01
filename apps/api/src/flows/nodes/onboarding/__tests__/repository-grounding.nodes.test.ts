@@ -452,9 +452,9 @@ describe('repository-grounding onboarding nodes', () => {
     expect(tracker.getContext().repositoryGroundingCompletion).toEqual(
       successCompletion,
     );
-    expect(
-      tracker.getContext().repositoryFeatureEnrichmentAcceptedAnalysis,
-    ).toEqual(successCompletion);
+    expect(tracker.getContext().repositoryGroundingBaseline).toEqual(
+      successCompletion,
+    );
     await expect(
       node.determineRoutingFromAgentCompletion(tracker.getContext(), 'success'),
     ).resolves.toBe('repository-import-generate-features');

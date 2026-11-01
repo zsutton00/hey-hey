@@ -1,4 +1,8 @@
 import {
+  isControllerActionInputs,
+  messageControllerInputs,
+} from '../generated/controller-action-contract';
+import {
   ProjectAccessGuard,
   ProjectResourceId,
 } from '../auth/guards/project-access.guard';
@@ -49,7 +53,6 @@ import {
   UpdateMessageDto,
   UserMessageData,
   WorkflowName,
-  UserMessagePromptPayload,
   HostActionTargetKind,
   HostAffectingActionType,
   MessageStatus,
@@ -65,10 +68,7 @@ import {
 import { FlowExecutionService } from '../services/workflows/flow-execution.service';
 import { WorkflowTypeRegistryService } from '../services/workflows/workflow-type-registry.service';
 import { UserMessageExtractor } from '../utils/user-message-extractor';
-import {
-  getAgentInputPromptType,
-  isTaskMonitorAgentInput,
-} from '../utils/type-checks';
+import { getAgentInputPromptType } from '../utils/type-checks';
 import { WorkflowSignalHelper } from '../utils/workflow-signals.helper';
 import { getWorkflowStatus } from '../workflows/conversation-flow.workflow';
 import { canonicalizeJcs } from '../core/websockets/trigger-canonicalization';
@@ -330,6 +330,7 @@ export class MessageController {
           machineEffectAdmission ??
           (await this.executionGrantService.assertInteractiveAuthorized({
             authorization: executableRequest.authorization,
+            inputs: messageControllerInputs(executableRequest.data),
             organizationId,
             projectId,
             userId,
@@ -456,6 +457,7 @@ export class MessageController {
       machineEffectAdmission ??
       (await this.executionGrantService.assertInteractiveAuthorized({
         authorization: executableRequest.authorization,
+        inputs: messageControllerInputs(executableRequest.data),
         organizationId,
         projectId,
         userId,
@@ -643,48 +645,8 @@ export class MessageController {
         )
         .digest('hex');
     const userMessage = UserMessageExtractor.extractContentFromData(data, '');
-    const featureSyncContext =
-      agentInput?.promptType === 'feature_sync_iterate'
-        ? {
-            discrepancies: agentInput.discrepancies,
-          }
-        : agentInput?.promptType === 'plan_shaping_feature_sync_iterate'
-          ? {
-              discrepancies: agentInput.discrepancies,
-              decisions: agentInput.decisions,
-            }
-          : undefined;
     const attachments = data.attachments ?? [];
-    const payload: UserMessagePromptPayload = {
-      handlerPromptType,
-      userMessage,
-      attachments,
-      ...(agentInput?.skillSelection
-        ? { skillSelection: agentInput.skillSelection }
-        : {}),
-      ...(isTaskMonitorAgentInput(agentInput)
-        ? {
-            taskMonitorPayload: {
-              monitorId: agentInput.monitorId,
-              cause: agentInput.cause,
-              correlationId: agentInput.correlationId,
-              ...(agentInput.userMessage
-                ? { userMessage: agentInput.userMessage }
-                : {}),
-              ...(agentInput.launchConfig
-                ? { launchConfig: agentInput.launchConfig }
-                : {}),
-              ...(agentInput.judgment ? { judgment: agentInput.judgment } : {}),
-            },
-          }
-        : {}),
-      ...(featureSyncContext ? { featureSyncContext } : {}),
-      ...((agentInput?.promptType === 'commit' ||
-        agentInput?.promptType === 'code_review') &&
-      agentInput.runtime
-        ? { runtime: agentInput.runtime }
-        : {}),
-    };
+    const payload = messageControllerInputs(data).payload;
     const trigger: AgentTriggerUserMessage = {
       operationId: resolvedOperationId,
       operationFingerprint: resolvedOperationFingerprint,
@@ -755,7 +717,7 @@ export class MessageController {
         'Workflow answers must use the dedicated workflow-answer endpoint',
       );
     }
-    if (!hasPromptType) {
+    if (!data || !hasPromptType) {
       throw new BadRequestException(
         'A USER message must carry data.agentInput.promptType; workflow answers use the dedicated workflow-answer endpoint',
       );
@@ -771,11 +733,10 @@ export class MessageController {
     }
     if (
       agentInput?.promptType === 'plan_shaping_feature_sync_iterate' &&
-      (!Array.isArray(agentInput.discrepancies) ||
-        !Array.isArray(agentInput.decisions))
+      !isControllerActionInputs(messageControllerInputs(data))
     ) {
       throw new BadRequestException(
-        'plan_shaping_feature_sync_iterate USER messages require data.agentInput.discrepancies and data.agentInput.decisions',
+        'plan_shaping_feature_sync_iterate USER messages require the canonical planId, designDocId, discrepancies and decisions',
       );
     }
   }

@@ -27,6 +27,7 @@ import { ArtifactController } from './controllers/artifact.controller';
 import { AdminController } from './controllers/admin.controller';
 import { DemoSandboxController } from './controllers/demo-sandbox.controller';
 import { DemoTemplateController } from './controllers/demo-template.controller';
+import { AdminHintController } from './controllers/admin-hint.controller';
 import { AdminImplementationHintController } from './controllers/admin-implementation-hint.controller';
 import { PlatformAdminAccessController } from './controllers/platform-admin-access.controller';
 import { BotCheckService } from './services/demo-sandbox/bot-check.service';
@@ -200,9 +201,11 @@ import { ProjectReportRequestController } from './controllers/project-report-req
 import { ProjectReportLaunchService } from './services/project-reports/project-report-launch.service';
 import { MetricsModule } from './core/metrics/metrics.module';
 import { TypeSafeJevModule } from './services/typesafe-jev/typesafe-jev.module';
+import { ReadRestrictionModule } from './read-restriction/read-restriction.module';
 
 @Module({
   imports: [
+    ReadRestrictionModule,
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env.local', '.env'],
@@ -251,6 +254,7 @@ import { TypeSafeJevModule } from './services/typesafe-jev/typesafe-jev.module';
     AdminController,
     PlatformAdminAccessController,
     AdminImplementationHintController,
+    AdminHintController,
     DemoTemplateController,
     DemoSandboxController,
     AuthController,

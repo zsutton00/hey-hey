@@ -1,3 +1,12 @@
+import { reconciliationPatch } from './proposal-reconciliation-content';
+import { isEqual } from 'lodash';
+import { readProjectReadyCandidates } from './project-ready-futures';
+import {
+  futureGraph,
+  graphChangeSet,
+  remapGraphProjection,
+} from './future-graph';
+import { assertApprovedEvalCaseHandlers } from 'src/services/eval-runs/eval-case-handlers';
 import { assertProposalApplicationEligible } from './proposal-application-eligibility';
 import { readFutureRevision, stageFutureRevision } from './future-revision';
 import {
@@ -34,6 +43,8 @@ import type {
   CreateDesignDocDto,
   FutureApplicability,
   FutureApplicationOffer,
+  ProjectReadyFuture,
+  ProjectReadyFuturesPage,
   FutureApplyRequest,
   FutureApplyResponse,
   FutureRevisionResponse,
@@ -92,7 +103,10 @@ import {
   type RequirementCitationEdgeDiff,
 } from 'src/services/tasks/feature-requirement-citation-edges';
 import { WorkItemTypeLifecycleService } from 'src/services/tasks/work-item-type-lifecycle.service';
-import { WorkItemTypeRegistryService } from 'src/services/tasks/work-item-type-registry.service';
+import {
+  WorkItemTypeRegistryService,
+  writtenAgentSettableStatuses,
+} from 'src/services/tasks/work-item-type-registry.service';
 import {
   collectWorkItemMentionContent,
   type WorkItemMentionSectionRow,
@@ -121,7 +135,6 @@ import {
 import { evaluatePermissions } from './permission-evaluation';
 import { resolvePermissionEvaluationContext } from './permission-evaluation-context';
 import {
-  deriveProposalOutOfDateStatus,
   deriveProposalSourceContext,
   mapProposalResponse,
   resolveProjectApprovalPolicies,
@@ -235,6 +248,7 @@ type GroupedPublicationPayload = {
 
 type EnactmentOptions = {
   reviewedFuture?: FutureRevisionResponse;
+  mergedFutureUpdates?: UpdateTaskDto | UpdateDesignDocDto;
   reservedTargetEntityId?: string;
   onImmediateEdgeCreated?: (edge: MaterializedProposalEdge) => void;
 };
@@ -506,6 +520,93 @@ export class ProposalApprovalService {
     };
   }
 
+  /** Project outstanding work is selected by stable future identity, before paging. */
+  async listProjectReadyFutures(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    userId: UserId,
+    limit: number,
+    offset: number,
+  ): Promise<ProjectReadyFuturesPage> {
+    this.logger.debug('Reading project ready futures', {
+      organizationId,
+      projectId,
+      limit,
+      offset,
+    });
+    const db = this.prisma.db as unknown as Prisma.TransactionClient;
+    const policy = await this.projectApprovalPolicyService.resolve(projectId);
+    const selection = await readProjectReadyCandidates(
+      db,
+      this.workItemTypeRegistry,
+      policy,
+      organizationId,
+      projectId,
+    );
+    const items: ProjectReadyFuture[] = [];
+    let unavailableCount = selection.unavailableCount;
+    // Baseline checks cannot change membership: drift remains reviewable.
+    // Restrict this expensive reconciliation work to the requested page.
+    for (const { item, baseline, result } of selection.candidates.slice(
+      offset,
+      offset + limit,
+    )) {
+      try {
+        const blockers: FutureApplicability['blockers'] = [];
+        if (!selection.eligibleMemberIds.includes(userId))
+          blockers.push('PERMISSION_DENIED');
+        const blocker = await futureBaselineBlocker(
+          db,
+          {
+            organizationId,
+            projectId,
+            baseline,
+            result,
+            latestProposalId: item.proposalId,
+            targetEntityId: item.targetEntityId,
+            targetEntityType: item.targetEntityType,
+          },
+          this.reconciliation,
+        );
+        if (
+          blocker === 'BASELINE_CHANGED' ||
+          blocker === 'BASELINE_UNAVAILABLE'
+        )
+          blockers.push(blocker);
+        items.push({
+          ...item,
+          applicability: {
+            ...item.applicability,
+            canApply: blockers.length === 0,
+            blockers,
+          },
+        });
+      } catch {
+        unavailableCount += 1;
+        this.logger.warn('Project ready future read failed', {
+          futureId: item.futureId,
+          organizationId,
+          projectId,
+        });
+      }
+    }
+    this.logger.debug('Project ready futures selected', {
+      organizationId,
+      projectId,
+      total: selection.candidates.length,
+      unavailableCount,
+      limit,
+      offset,
+    });
+    return {
+      items,
+      total: selection.candidates.length,
+      limit,
+      offset,
+      unavailableCount,
+    };
+  }
+
   /** Staged futures depending on one work item, each with fresh readiness. */
   async listFutureOffers(
     dependencyTaskId: string,
@@ -568,6 +669,76 @@ export class ProposalApprovalService {
     userId: UserId,
     request: FutureApplyRequest,
   ): Promise<FutureApplyResponse> {
+    const selected = await this.prisma.db.$transaction((tx) =>
+      readFutureRevision(
+        tx,
+        this.workItemTypeRegistry,
+        futureId,
+        organizationId,
+        projectId,
+      ),
+    );
+    let graph = futureGraph(selected.result);
+    let graphBaseline = futureGraph(selected.baseline.content);
+    if (graph && graphBaseline && selected.baseline.kind === 'FUTURE') {
+      const parent = await this.prisma.db.proposalFuture.findFirst({
+        where: { id: selected.baseline.futureId, organizationId, projectId },
+      });
+      const parentIntent = parent
+        ? await this.prisma.db.workItemChangeSetMaterialization.findUnique({
+            where: { proposalId: parent.latestProposalId },
+          })
+        : null;
+      if (parentIntent?.status === 'PUBLISHED') {
+        const items = parentIntent.workItemIdMappings as Record<string, string>;
+        const relationships = parentIntent.relationshipIdMappings as Record<
+          string,
+          string
+        >;
+        graphBaseline = remapGraphProjection(
+          graphBaseline,
+          items,
+          relationships,
+        );
+        graph = remapGraphProjection(graph, items, relationships, true);
+      }
+    }
+    const existingIntent = graph
+      ? await this.prisma.db.workItemChangeSetMaterialization.findUnique({
+          where: { proposalId: selected.latestProposalId },
+        })
+      : null;
+    const graphRequest =
+      graph && graphBaseline ? graphChangeSet(graphBaseline, graph) : undefined;
+    if (
+      graphRequest &&
+      'type' in selected.result &&
+      'type' in selected.baseline.content &&
+      !isEqual(
+        selected.result.initiativeId ?? null,
+        selected.baseline.content.initiativeId ?? null,
+      ) &&
+      !graphRequest.operations.some(
+        (op) =>
+          op.op === 'workItem.update' &&
+          op.ref.refType === 'existing' &&
+          op.ref.id === selected.targetEntityId,
+      )
+    ) {
+      graphRequest.operations.unshift({
+        op: 'workItem.update',
+        ref: graphRequest.root,
+      });
+    }
+    const preparedGraph =
+      graphRequest && !existingIntent
+        ? await this.workItemChangeSetMaterializer.projectPreparation({
+            organizationId,
+            projectId,
+            request: graphRequest,
+            view: { kind: 'rootChildren', includeExternalRelationships: true },
+          })
+        : undefined;
     const result = await this.prisma.db.$transaction(
       async (tx) => {
         const db = tx as unknown as Prisma.TransactionClient;
@@ -620,11 +791,18 @@ export class ProposalApprovalService {
         } else {
           await tx.$queryRaw`SELECT id FROM design_docs WHERE id = ${future.targetEntityId} FOR UPDATE`;
         }
-        const baselineBlocker = await futureBaselineBlocker(
-          db,
-          future,
-          this.reconciliation,
-        );
+        if (graphBaseline) {
+          const ids = [graphBaseline.projectedRoot, ...graphBaseline.children]
+            .flatMap((node) =>
+              node.identity.refType === 'existing' ? [node.identity.id] : [],
+            )
+            .sort();
+          if (ids.length)
+            await tx.$queryRaw`SELECT id FROM tasks WHERE organization_id = ${organizationId} AND project_id = ${projectId} AND id IN (${Prisma.join(ids)}) ORDER BY id FOR UPDATE`;
+        }
+        const baselineBlocker = existingIntent
+          ? undefined
+          : await futureBaselineBlocker(db, future, this.reconciliation);
         if (baselineBlocker) return blocked(baselineBlocker);
         await tx.$queryRaw`SELECT id FROM proposals WHERE organization_id = ${organizationId} AND project_id = ${projectId} AND action = 'VERSIONED_UPDATE' AND status = 'DRAFT' AND updates->>'futureId' = ${futureId} ORDER BY id FOR UPDATE`;
         const confirmation = await readFutureApplyConfirmation(db, future);
@@ -641,25 +819,83 @@ export class ProposalApprovalService {
           };
         }
 
+        if (graph) {
+          if (
+            !graphBaseline ||
+            future.revision !== selected.revision ||
+            future.latestProposalId !== selected.latestProposalId
+          )
+            return blocked('REVISION_CHANGED');
+          if (preparedGraph) {
+            if (
+              !preparedGraph.snapshots.target.valid ||
+              this.reconciliation.decision({
+                kind: 'graph',
+                reviewed: graph,
+                current: preparedGraph.snapshots.target,
+              }).kind !== 'NOT_REQUIRED'
+            )
+              return blocked('BASELINE_CHANGED');
+            await this.workItemChangeSetMaterializer.enqueuePreparedIntent(tx, {
+              proposalId: proposal.id,
+              organizationId,
+              projectId,
+              prepared: preparedGraph,
+              futureApplication: {
+                futureId,
+                revision: future.revision,
+                reviewedBases: await this.reconciliation.currentBases(
+                  tx,
+                  {
+                    ...proposal,
+                    action: 'UPDATE',
+                    updates:
+                      preparedGraph.operationSet as unknown as Prisma.JsonObject,
+                  },
+                  true,
+                ),
+                refinementIds: confirmation.refinements.map(
+                  (entry) => entry.proposalId,
+                ),
+              },
+            });
+          }
+          return {
+            graphApplication: true as const,
+            response: {
+              status: 'APPLIED',
+              future,
+            } satisfies FutureApplyResponse,
+          };
+        }
+
+        const merged = await this.reconciliation.mergeFutureForApplication(
+          db,
+          future,
+          future.baseline,
+          future.result,
+        );
+        if (merged.kind !== 'MERGED') {
+          return blocked('BASELINE_CHANGED');
+        }
+        const mergedFutureUpdates = reconciliationPatch(
+          futureTargetUpdates(future, this.workItemTypeRegistry),
+          merged.basis.content,
+          merged.candidate,
+        );
         const enactment = await this.applyInTransaction(
           tx,
           proposal,
           organizationId,
           projectId,
-          { reviewedFuture: future },
+          { reviewedFuture: future, mergedFutureUpdates },
         );
-        const materializationMismatch = await futureBaselineBlocker(
-          db,
-          {
-            ...future,
-            baseline: {
-              kind: 'LIVE',
-              revision: future.baseline.revision,
-              content: future.result,
-            },
-          },
-          this.reconciliation,
-        );
+        const materializationMismatch =
+          !(await this.reconciliation.futureCandidateMatches(
+            db,
+            future,
+            merged.candidate,
+          ));
         if (materializationMismatch) {
           throw new ConflictException(
             'The target update contract could not materialize the complete reviewed result. Application was rolled back.',
@@ -717,6 +953,28 @@ export class ProposalApprovalService {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       },
     );
+    if ('graphApplication' in result) {
+      const materialized =
+        await this.workItemChangeSetMaterializer.materializeApprovedChangeSet({
+          proposalId: selected.latestProposalId,
+          organizationId,
+          projectId,
+        });
+      if (!materialized.enacted)
+        throw new ConflictException(
+          'Future graph application is incomplete; retry Apply to resume.',
+        );
+      const future = await this.prisma.db.$transaction((tx) =>
+        readFutureRevision(
+          tx,
+          this.workItemTypeRegistry,
+          futureId,
+          organizationId,
+          projectId,
+        ),
+      );
+      return { status: 'APPLIED', future };
+    }
     if ('enactment' in result && result.enactment) {
       await this.pendingEdgeService.materializeEdges(
         organizationId,
@@ -843,6 +1101,7 @@ export class ProposalApprovalService {
     proposalId: string,
     error: unknown,
   ): Promise<ApprovalResult> {
+    if (error instanceof ConflictException) throw error;
     const response = await this.toResponseDto(proposal, projectPolicy);
     if (
       response.status !== 'APPROVED' ||
@@ -892,10 +1151,6 @@ export class ProposalApprovalService {
       projectId,
       validationRevision: prepared.validationRevision,
     });
-    // This helper is also reached by apply-on-create and grouped approval
-    // flows, which do not necessarily pass through approve(). Keep the
-    // approval-time MODE registry check at the shared queue boundary.
-    this.assertCurrentModeApplicability(proposal, projectId);
     const updated = await tx.proposal.update({
       where: { id: proposal.id },
       data: { status: 'APPROVED' as PrismaProposalStatus },
@@ -1084,12 +1339,10 @@ export class ProposalApprovalService {
           genericChangeSetRequest,
           preparedChangeSet,
         );
-        this.assertCurrentModeApplicability(proposal, projectId);
         await this.assertGenericChangeSetValid(
           proposal,
           genericChangeSetRequest,
           prepared?.snapshots.target ?? null,
-          tx,
         );
 
         const contextInput = {
@@ -1578,12 +1831,6 @@ export class ProposalApprovalService {
     const groupedChangeSetRequest = storedIntent
       ? (storedIntent.operationSet as unknown as WorkItemChangeSetValidationRequest)
       : (graphChangeSetRequest ?? taskChangeSetRequest);
-
-    // Grouped enactment is an approval boundary too. Re-check MODE
-    // applicability here because grouped members do not pass through
-    // approve(), and their draft may have been authored against an older
-    // project registry snapshot.
-    this.assertCurrentModeApplicability(seed.proposal, params.projectId);
 
     if (groupedChangeSetRequest) {
       this.logger.log(
@@ -2310,7 +2557,9 @@ export class ProposalApprovalService {
           [
             'agentSettableStatuses',
             type.agentSettableStatuses,
-            updates.agentSettableStatuses ?? [],
+            writtenAgentSettableStatuses(
+              updates as unknown as WorkItemTypeDefinitionDto,
+            ),
           ],
           [
             'anchorableReportTypes',
@@ -2458,13 +2707,16 @@ export class ProposalApprovalService {
     proposal: Proposal,
     changeSet: WorkItemChangeSetValidationRequest | null,
     projection: ProjectedWorkItemChangeSetResponse | null,
-    db: AnyTransactionClient,
   ): Promise<void> {
     if (!changeSet || !projection) {
-      await this.assertFeatureRequirementBaseline(proposal, undefined, db);
       return;
     }
-    await this.assertFeatureRequirementBaseline(proposal, changeSet, db);
+    if (
+      projection.projectedRoot.type === WORK_ITEM_TYPE_KEYS.EvalCase &&
+      !projection.projectedRoot.deleted
+    ) {
+      assertApprovedEvalCaseHandlers(projection.projectedRoot);
+    }
     this.logger.debug(
       'Validated generic work-item change set before approval',
       {
@@ -2516,181 +2768,6 @@ export class ProposalApprovalService {
         );
       }
     }
-  }
-
-  /**
-   * MODE applicability is backed by the effective project registry, so it must
-   * be checked again at approval time. Authoring-time validation can be stale
-   * after another accepted type is archived or a registry snapshot changes.
-   */
-  private assertCurrentModeApplicability(
-    proposal: Proposal,
-    projectId: ProjectId,
-  ): void {
-    const updates =
-      proposal.updates !== null &&
-      typeof proposal.updates === 'object' &&
-      !Array.isArray(proposal.updates)
-        ? (proposal.updates as Record<string, unknown>)
-        : null;
-    if (!updates) return;
-
-    let guidance: unknown;
-    let requiresActiveMode = false;
-    if (proposal.targetEntityType === 'WORK_ITEM_TYPE') {
-      const definition =
-        updates.definition !== null &&
-        typeof updates.definition === 'object' &&
-        !Array.isArray(updates.definition)
-          ? (updates.definition as Record<string, unknown>)
-          : updates;
-      if (definition.key !== WORK_ITEM_TYPE_KEYS.Mode) return;
-      guidance = definition.agentGuidance;
-    } else if (proposal.targetEntityType === 'TASK') {
-      const proposedType =
-        typeof updates.type === 'string'
-          ? updates.type
-          : Array.isArray(updates.operations)
-            ? updates.operations.find(
-                (operation): operation is Record<string, unknown> =>
-                  operation !== null &&
-                  typeof operation === 'object' &&
-                  operation.op === 'workItem.create',
-              )?.type
-            : undefined;
-      if (proposedType !== WORK_ITEM_TYPE_KEYS.Mode) return;
-      requiresActiveMode = true;
-      guidance = this.workItemTypeRegistry.getDefinition(
-        projectId,
-        WORK_ITEM_TYPE_KEYS.Mode,
-      )?.definition.agentGuidance;
-    } else {
-      return;
-    }
-
-    if (requiresActiveMode) {
-      this.workItemTypeRegistry.assertTypeActive(
-        WORK_ITEM_TYPE_KEYS.Mode,
-        projectId,
-      );
-    }
-
-    const contexts =
-      guidance !== null &&
-      typeof guidance === 'object' &&
-      !Array.isArray(guidance) &&
-      Array.isArray((guidance as Record<string, unknown>).contexts)
-        ? ((guidance as Record<string, unknown>).contexts as unknown[])
-        : [];
-    const activeTypeKeys = new Set(
-      this.workItemTypeRegistry.getActiveTypeKeys(projectId),
-    );
-    for (const [contextIndex, context] of contexts.entries()) {
-      if (
-        context === null ||
-        typeof context !== 'object' ||
-        Array.isArray(context) ||
-        !Array.isArray((context as Record<string, unknown>).focalTypeKeys)
-      ) {
-        continue;
-      }
-      for (const [typeKeyIndex, typeKey] of (
-        (context as Record<string, unknown>).focalTypeKeys as unknown[]
-      ).entries()) {
-        if (typeof typeKey === 'string' && activeTypeKeys.has(typeKey)) {
-          continue;
-        }
-        throw new BadRequestException(
-          `MODE applicability key at contexts[${contextIndex}].focalTypeKeys[${typeKeyIndex}] ` +
-            `must name an active effective work-item type for this project.`,
-        );
-      }
-    }
-  }
-
-  /**
-   * A prepared requirements replacement is a review snapshot, not a patch to
-   * whatever collection happens to exist at approval time. The section's
-   * updatedAt is therefore the live baseline marker: if it moved after the
-   * proposal was last written, approval must fail before any vote or enqueue
-   * is persisted. Proposal updates refresh updatedAt, so an edited proposal
-   * establishes a new baseline without rebasing the reviewed collection.
-   */
-  private async assertFeatureRequirementBaseline(
-    proposal: Proposal,
-    request: WorkItemChangeSetValidationRequest | undefined,
-    db: AnyTransactionClient,
-  ): Promise<void> {
-    const taskIds = [
-      ...new Set(
-        request
-          ? request.operations.flatMap((operation) => {
-              if (
-                (operation.op !== 'section.replace' &&
-                  operation.op !== 'section.clear') ||
-                operation.key !== 'requirements' ||
-                operation.ref.refType !== 'existing'
-              ) {
-                return [];
-              }
-              return [operation.ref.id];
-            })
-          : this.hasOrdinaryFeatureRequirementUpdate(proposal)
-            ? [proposal.targetEntityId]
-            : [],
-      ),
-    ];
-    if (taskIds.length === 0) return;
-
-    if (typeof db.$queryRaw === 'function') {
-      await db.$queryRaw(
-        Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${proposal.organizationId}:${proposal.projectId}`}, 0))::text AS "lockAcquired"`,
-      );
-    }
-    const sections = await db.taskSection.findMany({
-      where: { taskId: { in: taskIds }, key: 'requirements' },
-      select: { taskId: true, updatedAt: true },
-    });
-    const changed = sections.find(
-      (section: { taskId: string; updatedAt: Date }) =>
-        section.updatedAt > proposal.updatedAt,
-    );
-    if (!changed) return;
-
-    this.logger.warn('Rejected stale FEATURE requirements baseline', {
-      proposalId: proposal.id,
-      taskId: changed.taskId,
-      proposalUpdatedAt: proposal.updatedAt,
-      sectionUpdatedAt: changed.updatedAt,
-    });
-    throw new ConflictException(
-      'FEATURE requirements changed after this proposal was prepared; review the current collection and resubmit.',
-    );
-  }
-
-  private hasOrdinaryFeatureRequirementUpdate(proposal: Proposal): boolean {
-    if (
-      proposal.targetEntityType !== 'TASK' ||
-      proposal.action !== 'UPDATE' ||
-      proposal.updates === null ||
-      typeof proposal.updates !== 'object' ||
-      Array.isArray(proposal.updates)
-    ) {
-      return false;
-    }
-    const updates = proposal.updates as Record<string, unknown>;
-    if (Object.prototype.hasOwnProperty.call(updates, 'requirementOps')) {
-      return true;
-    }
-    return (
-      Array.isArray(updates.sections) &&
-      updates.sections.some(
-        (section) =>
-          section !== null &&
-          typeof section === 'object' &&
-          (section as { key?: unknown }).key === 'requirements',
-      )
-    );
   }
 
   private isWorkItemChangeSetValidationRequest(
@@ -2747,19 +2824,15 @@ export class ProposalApprovalService {
 
     await this.reconciliation.assertApplicable(tx, proposal);
 
-    // Apply-on-create and non-generic grouped enactment use this path instead
-    // of the ordinary approve() flow, so they need the same approval-time
-    // MODE applicability check before changing proposal state.
-    this.assertCurrentModeApplicability(proposal, projectId);
-
     let approved = enactmentOptions.reviewedFuture
       ? {
           ...proposal,
           action: 'UPDATE' as const,
-          updates: futureTargetUpdates(
-            enactmentOptions.reviewedFuture,
-            this.workItemTypeRegistry,
-          ) as Prisma.InputJsonObject,
+          updates: (enactmentOptions.mergedFutureUpdates ??
+            futureTargetUpdates(
+              enactmentOptions.reviewedFuture,
+              this.workItemTypeRegistry,
+            )) as Prisma.InputJsonObject,
         }
       : await tx.proposal.update({
           where: { id: proposal.id },
@@ -3261,6 +3334,21 @@ export class ProposalApprovalService {
   ): Promise<
     Proposal & { groupMembership: { groupId: string } | null | undefined }
   > {
+    const selected = await tx.proposal.findFirst({
+      where: { id: proposalId, organizationId, projectId },
+      select: { action: true, updates: true },
+    });
+    if (selected?.action === 'VERSIONED_UPDATE') {
+      if (
+        await tx.proposalReconciliationSuggestion.findUnique({
+          where: { legacyProposalId: proposalId },
+        })
+      )
+        throw new ConflictException(
+          'This saved correction was retired and has nothing to accept.',
+        );
+      await tx.$queryRaw`SELECT f.id FROM proposal_futures f JOIN proposals p ON p.updates->>'futureId' = f.id WHERE p.id = ${proposalId} AND f.organization_id = ${organizationId} AND f.project_id = ${projectId} FOR UPDATE OF f`;
+    }
     // Acquire a pessimistic row lock. The raw query exists *solely* to get
     // `FOR UPDATE` — Prisma's typed API has no lock option. We select only
     // `id` and never read columns off the raw row: `$queryRaw` returns the
@@ -3595,12 +3683,28 @@ export class ProposalApprovalService {
 
       const workflowFields =
         link.type === 'CONDITIONAL'
-          ? { direction: link.direction, predicate: link.predicate }
+          ? {
+              direction: link.direction,
+              predicate: link.predicate,
+              ...(link.actionLabel !== undefined
+                ? { actionLabel: link.actionLabel }
+                : {}),
+            }
           : link.type === 'STANDARD'
-            ? { direction: link.direction }
-            : link.predicate !== undefined
-              ? { predicate: link.predicate }
-              : {};
+            ? {
+                direction: link.direction,
+                ...(link.actionLabel !== undefined
+                  ? { actionLabel: link.actionLabel }
+                  : {}),
+              }
+            : {
+                ...(link.predicate !== undefined
+                  ? { predicate: link.predicate }
+                  : {}),
+                ...(link.actionLabel !== undefined
+                  ? { actionLabel: link.actionLabel }
+                  : {}),
+              };
 
       return {
         sourceEntityId,
@@ -4566,6 +4670,7 @@ export class ProposalApprovalService {
     projectPolicy: ProjectApprovalPolicy,
   ): Promise<TypedProposalResponse> {
     return mapProposalResponse(this.prisma.db, proposal, projectPolicy, {
+      reconciliation: this.reconciliation,
       workItemTypeRegistry: this.workItemTypeRegistry,
     });
   }

@@ -963,6 +963,9 @@ export class PlatformWebSocketManager {
         transports: ['websocket'],
         autoConnect: true,
         reconnection: false,
+        // ws keeps native zlib deflate/inflate contexts per connection; over days
+        // that fragments into the untagged ~100 KB VM regions that grow while idle.
+        perMessageDeflate: false,
         extraHeaders: {
           Cookie: `accessToken=${encodeURIComponent(tokenResult.data)}`,
         },

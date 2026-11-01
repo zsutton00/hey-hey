@@ -28,14 +28,18 @@ vi.mock("@hey-hey/ui-common/components", () => ({
   ServicesList: ({
     services,
     renderActions,
+    onServiceClick,
   }: {
     services: Array<{ id: string; name: string }>;
+    onServiceClick?: (service: { id: string; name: string }) => void;
     renderActions?: (service: { id: string; name: string }) => React.ReactNode;
   }) => (
     <div data-testid="services-list">
       {services.map((service) => (
         <div key={service.id} data-testid={`services-list-row-${service.id}`}>
-          {service.name}
+          <button onClick={() => onServiceClick?.(service)}>
+            {service.name}
+          </button>
           {renderActions?.(service)}
         </div>
       ))}
@@ -107,6 +111,10 @@ const renderPage = (searchParams = "") =>
           <Route
             path="/projects/:projectId/services"
             element={<ServicesPage />}
+          />
+          <Route
+            path="/projects/:projectId/services/:serviceId"
+            element={<LocationProbe />}
           />
           <Route
             path="/projects/:projectId/repository-import"
@@ -311,64 +319,21 @@ describe("ServicesPage", () => {
       ).not.toBeInTheDocument();
     });
 
-    it("names the Service and states no files are deleted; cancel makes no change", async () => {
-      mocks.canManageLifecycle = true;
+    it("opens archived Service detail", async () => {
       renderPage("?tab=archived");
-
-      await userEvent.click(screen.getByTestId("service-delete-service-2"));
-      expect(
-        screen.getByTestId("service-lifecycle-dialog-delete"),
-      ).toHaveTextContent("Delete Legacy from this project?");
-      expect(
-        screen.getByTestId("service-lifecycle-dialog-body"),
-      ).toHaveTextContent(
-        "This removes the service Legacy from this project. No files or directories are deleted.",
+      await userEvent.click(screen.getByRole("button", { name: "Legacy" }));
+      expect(screen.getByTestId("location")).toHaveTextContent(
+        "/projects/project-1/services/service-2",
       );
-
-      await userEvent.click(
-        screen.getByTestId("service-lifecycle-dialog-cancel"),
-      );
-      expect(mocks.remove).not.toHaveBeenCalled();
     });
 
-    it("keeps a failed delete visible in the open dialog", async () => {
+    it("omits lifecycle and refresh controls even for eligible users", () => {
       mocks.canManageLifecycle = true;
-      mocks.remove.mockRejectedValue({
-        response: {
-          data: { message: "Service must be archived before deletion" },
-        },
-      });
       renderPage("?tab=archived");
-
-      await userEvent.click(screen.getByTestId("service-delete-service-2"));
-      await userEvent.click(
-        screen.getByTestId("service-lifecycle-dialog-confirm"),
-      );
-
       expect(
-        await screen.findByTestId("service-lifecycle-dialog-error"),
-      ).toHaveTextContent("Service must be archived before deletion");
-      expect(
-        screen.getByTestId("service-lifecycle-dialog-delete"),
-      ).toBeInTheDocument();
-    });
-
-    it("archives an active Service and closes the dialog on success", async () => {
-      mocks.canManageLifecycle = true;
-      mocks.archive.mockResolvedValue({ ...activeService, status: "ARCHIVED" });
-      renderPage();
-
-      await userEvent.click(screen.getByTestId("service-archive-service-1"));
-      await userEvent.click(
-        screen.getByTestId("service-lifecycle-dialog-confirm"),
-      );
-
-      expect(mocks.archive).toHaveBeenCalledWith("service-1");
-      await waitFor(() =>
-        expect(
-          screen.queryByTestId("service-lifecycle-dialog-archive"),
-        ).not.toBeInTheDocument(),
-      );
+        screen.queryByTestId("service-delete-service-2"),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByTitle("Refresh")).not.toBeInTheDocument();
     });
   });
 });

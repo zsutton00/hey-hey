@@ -11,6 +11,8 @@ export interface HelpScenarioDisplayEntry {
   id: string;
   /** Short heading shown on the help surface. */
   title: string;
+  /** Substring of `title` styled as a name (e.g. a guide's name). */
+  titleEmphasis?: string;
   /** One-line description shown beneath the title when available. */
   summary?: string;
   /** Complete ordered procedure that remains readable without animation. */

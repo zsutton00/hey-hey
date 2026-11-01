@@ -1,3 +1,7 @@
+import {
+  useModalState,
+  ModalWorkOwner,
+} from "@hey-hey/ui-common/components/Modals";
 import { WORK_ITEM_TYPE_KEYS } from "../../types/workItemTypes";
 import React, { useCallback, useState } from "react";
 import { Alert, Box, Button } from "@mui/material";
@@ -26,9 +30,17 @@ import {
 } from "../../components/Layout";
 import { usePreviewPresentation } from "../../contexts/PreviewPresentationContext";
 
-export interface GoalsPageProps { organizationId?: string; projectId?: string; preview?: boolean; }
+export interface GoalsPageProps {
+  organizationId?: string;
+  projectId?: string;
+  preview?: boolean;
+}
 
-export const GoalsPage: React.FC<GoalsPageProps> = ({ organizationId, projectId: projectIdProp, preview = false }) => {
+export const GoalsPage: React.FC<GoalsPageProps> = ({
+  organizationId,
+  projectId: projectIdProp,
+  preview = false,
+}) => {
   const { t } = useTranslation();
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const { currentOrgId } = useUserIdentity() || {};
@@ -36,12 +48,17 @@ export const GoalsPage: React.FC<GoalsPageProps> = ({ organizationId, projectId:
   const resolvedOrganizationId = organizationId ?? currentOrgId;
   const isPreviewPresentation = usePreviewPresentation();
 
-  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createModalOpen, setCreateModalOpen, createModalOpenOwnerKey] =
+    useModalState(false);
   const [isCreating, setIsCreating] = useState(false);
 
-  const { data: project } = useProject(resolvedOrganizationId ?? "", projectId ?? "", {
-    enabled: !!resolvedOrganizationId && !!projectId,
-  });
+  const { data: project } = useProject(
+    resolvedOrganizationId ?? "",
+    projectId ?? "",
+    {
+      enabled: !!resolvedOrganizationId && !!projectId,
+    },
+  );
 
   const queryClient = useQueryClient();
   const { workItemTypeDefinition: goalTypeDefinition, error: goalTypeError } =
@@ -94,23 +111,25 @@ export const GoalsPage: React.FC<GoalsPageProps> = ({ organizationId, projectId:
 
   return (
     <>
-      {!preview && <PageBreadcrumbs
-        sx={{ mb: 2 }}
-        items={[
-          { label: "Projects", to: "/projects" },
-          {
-            label: project?.name ?? "Project",
-            to: `/projects/${projectId}`,
-            type: "project",
-          },
-          {
-            label: t("goals.title", "Goals"),
-            to: `/projects/${projectId}/goals`,
-            type: "goal",
-            isCurrent: true,
-          },
-        ]}
-      />}
+      {!preview && (
+        <PageBreadcrumbs
+          sx={{ mb: 2 }}
+          items={[
+            { label: "Projects", to: "/projects" },
+            {
+              label: project?.name ?? "Project",
+              to: `/projects/${projectId}`,
+              type: "project",
+            },
+            {
+              label: t("goals.title", "Goals"),
+              to: `/projects/${projectId}/goals`,
+              type: "goal",
+              isCurrent: true,
+            },
+          ]}
+        />
+      )}
 
       <DetailPageContainer>
         {!isPreviewPresentation && (
@@ -120,21 +139,22 @@ export const GoalsPage: React.FC<GoalsPageProps> = ({ organizationId, projectId:
             alignItems="center"
             sx={{ mb: 1 }}
           >
-          <DetailPageHeader title={t("goals.title", "Goals")} />
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => setCreateModalOpen(true)}
-            data-testid="create-goal-button"
-          >
-            {t("goals.createGoal", "Create Goal")}
-          </Button>
+            <DetailPageHeader title={t("goals.title", "Goals")} />
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => setCreateModalOpen(true)}
+              data-testid="create-goal-button"
+            >
+              {t("goals.createGoal", "Create Goal")}
+            </Button>
           </Box>
         )}
 
         {goalTypeError && (
           <Alert severity="error" sx={{ mb: 2 }}>
-            {goalTypeError.message ?? t("goals.loadError", "Failed to load goals")}
+            {goalTypeError.message ??
+              t("goals.loadError", "Failed to load goals")}
           </Alert>
         )}
 
@@ -148,12 +168,14 @@ export const GoalsPage: React.FC<GoalsPageProps> = ({ organizationId, projectId:
           searchPlaceholder={t("goals.search", "Search goals")}
         />
 
-        <NewGoalModal
-          open={createModalOpen}
-          onClose={() => setCreateModalOpen(false)}
-          onSubmit={handleCreateGoal}
-          isLoading={isCreating}
-        />
+        <ModalWorkOwner.Provider value={createModalOpenOwnerKey}>
+          <NewGoalModal
+            open={createModalOpen}
+            onClose={() => setCreateModalOpen(false)}
+            onSubmit={handleCreateGoal}
+            isLoading={isCreating}
+          />
+        </ModalWorkOwner.Provider>
       </DetailPageContainer>
     </>
   );

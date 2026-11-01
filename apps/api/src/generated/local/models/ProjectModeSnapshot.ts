@@ -12,14 +12,15 @@
 
 import { ProjectModeFiles } from '../models/ProjectModeFiles';
 import { ProjectModeProjectAssistantSetting } from '../models/ProjectModeProjectAssistantSetting';
+import { SessionRole } from '../models/SessionRole';
 import { HttpFile } from '../http/http';
 
 /**
- * Platform-captured immutable MODE configuration persisted with a coding session. The repeated mode identity lets admission verify that the snapshot matches `ProjectModeSelection` before constructing a Run or Turn.
+ * Platform-captured immutable MODE configuration persisted with a coding session. The repeated mode identity lets admission verify that the snapshot matches `ProjectModeSelection` before constructing a Run or Turn. v3 requires sessionRole and projectAssistant; v2 requires projectAssistant and excludes sessionRole; v1 excludes both fields.
  */
 export class ProjectModeSnapshot {
   /**
-   * v2 adds `projectAssistant`. v1 is kept so snapshots captured before the setting existed still verify against their original hash.
+   * v3 adds the resolved `sessionRole`. v2 adds `projectAssistant`. v1/v2 retain their original hash inputs for resume compatibility.
    */
   'schemaVersion': ProjectModeSnapshotSchemaVersionEnum;
   /**
@@ -36,6 +37,7 @@ export class ProjectModeSnapshot {
   'applicableWorkItemTypeKeys': Array<string>;
   'files': ProjectModeFiles;
   'projectAssistant'?: ProjectModeProjectAssistantSetting;
+  'sessionRole'?: SessionRole;
   /**
    * Lowercase hexadecimal SHA-256 digest of the platform-canonicalized snapshot content. Consumers preserve and compare this value; they do not refresh the snapshot from the live MODE.
    */
@@ -88,6 +90,12 @@ export class ProjectModeSnapshot {
       format: '',
     },
     {
+      name: 'sessionRole',
+      baseName: 'sessionRole',
+      type: 'SessionRole',
+      format: '',
+    },
+    {
       name: 'snapshotHash',
       baseName: 'snapshotHash',
       type: 'string',
@@ -105,4 +113,5 @@ export class ProjectModeSnapshot {
 export enum ProjectModeSnapshotSchemaVersionEnum {
   project_mode_snapshot_v1 = 'project-mode-snapshot.v1',
   project_mode_snapshot_v2 = 'project-mode-snapshot.v2',
+  project_mode_snapshot_v3 = 'project-mode-snapshot.v3',
 }

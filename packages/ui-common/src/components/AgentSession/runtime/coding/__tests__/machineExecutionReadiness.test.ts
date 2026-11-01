@@ -11,7 +11,7 @@ import {
 
 const machine = (
   executionReadiness: MachineDto["executionReadiness"],
-  currentControllerEligibility: MachineDto["currentControllerEligibility"] = CurrentControllerMachineEligibilityState.Eligible
+  currentControllerEligibility: MachineDto["currentControllerEligibility"] = CurrentControllerMachineEligibilityState.Eligible,
 ): MachineDto => ({
   machineId: "machine-1",
   name: "Studio Mac",
@@ -27,6 +27,20 @@ const machine = (
 });
 
 describe("machine execution readiness", () => {
+  it("keeps multiple proven controller credentials unavailable until explicitly selected", () => {
+    expect(
+      classifyMachineExecutionReadiness(
+        machine(
+          MachineExecutionReadinessState.Ready,
+          CurrentControllerMachineEligibilityState.Ambiguous,
+        ),
+      ),
+    ).toMatchObject({
+      selectable: false,
+      label: "Controller selection required",
+    });
+  });
+
   it.each([
     [MachineExecutionReadinessState.NoMachineSelected, "No machine selected"],
     [MachineExecutionReadinessState.LegacyProtocol, "Legacy protocol"],
@@ -66,8 +80,8 @@ describe("machine execution readiness", () => {
   it("fails closed when no browser controller context was projected", () => {
     expect(
       classifyMachineExecutionReadiness(
-        machine(MachineExecutionReadinessState.Ready, null)
-      )
+        machine(MachineExecutionReadinessState.Ready, null),
+      ),
     ).toEqual({
       state: MachineExecutionReadinessState.Ready,
       label: "Controller context unavailable",
@@ -91,9 +105,9 @@ describe("machine execution readiness", () => {
     (eligibility, label) => {
       expect(
         classifyMachineExecutionReadiness(
-          machine(MachineExecutionReadinessState.Ready, eligibility)
-        )
+          machine(MachineExecutionReadinessState.Ready, eligibility),
+        ),
       ).toMatchObject({ label, selectable: false });
-    }
+    },
   );
 });

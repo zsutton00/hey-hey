@@ -15,6 +15,7 @@ import {
   renderFeatureTagVocabulary,
   renderWorkItemTypeOntologyEntry,
 } from './render-type-ontology';
+import type { AgentProviderId } from '../providers/provider-config';
 import {
   selectGpt56EpistemicCalibration,
   type PlatformPromptContext,
@@ -341,7 +342,7 @@ const platformPrimerGuidance = `**Top-level features are product concepts, not a
 
 **Links as connective tissue.** The parent-chain gives only the easy part of the tree; links carry the rest — cross-hierarchy connections and the project's evolution. See Link Discovery for the typed vocabulary, create/prune rules, and the supersede-as-history framing.
 
-**Other work items carry the project too.** Features are the backbone, but every work-item type fills a role in the project topology — a Mockup shows how an interface should look and behave, a Diagram shows how the parts of a system relate, and every other type fills the role its description defines. Its contextual type guidance and maintenance guidance explain how it fits. Applicable items matter at every stage — research, planning, implementation, and verification: read their content, honor what they establish, and surface conflicts instead of routing around them.
+**Other work items carry the project too.** Features are the backbone, but every work-item type fills a role in the project topology — a Mockup shows how an interface should look and behave, a Diagram shows how the parts of a system relate, and every other type fills the role its description defines. Its contextual type guidance and maintenance guidance explain how it fits. Applicable items govern research, planning, implementation and verification. Read their content, follow their requirements, and surface conflicts instead of routing around them. Judge completion against governing Feature requirements and Contracts, using evidence of delivered behavior. Passing checks alone do not establish fulfillment.
 
 **Search as the default discovery move.** When hunting for relationships, feature-tree gaps, or "is this already covered somewhere?", reach for \`unified_search\` (and its batch variant) before brute-forcing entity reads. Search keeps discovery cost bounded.
 
@@ -359,7 +360,7 @@ function buildTypeAwarenessSection(workItemDefinitions: WorkItemTypeDefinitionDt
     })
     .join('\n');
 
-  return `${fixedEntities}\n\n**Work-item types.** The project's configurable item types, Features included; "work item" in this prompt means any of them. Role is a separate label: \`work-item\` marks executable work and \`project-info\` marks project knowledge.\n${catalog}\n\n**Contextual type guidance is read on demand.** Call \`get_work_item_type_guidance_batch\` when a type is unfamiliar or project-defined, when a related item's type may affect the current work, or when a consequential interaction between the requested type and the focal type could change your interpretation. Use \`typeKeys: [key]\` for one type or a deduplicated array of 1–10 relevant encountered keys for several types. Group only requests sharing the same purpose and relevant focal context; results follow request order. Use \`purpose: "semantic"\` (the default) for what a type means and \`purpose: "maintenance"\` for what to reconsider when work around an item changes; include \`focalTypeKey\` only for semantic reads where contextual interpretation matters. Never speculate across or fan out over the catalog. Both are distinct from the administrative \`get_work_item_type\` read used before editing a type and the \`get_tool_guidance\` read for authoring standards.`;
+  return `${fixedEntities}\n\n**Work-item types.** The project's configurable item types, Features included; "work item" in this prompt means any of them. Role is a separate label: \`work-item\` marks executable work and \`project-info\` marks project knowledge.\n${catalog}\n\n**Contextual type guidance is read on demand.** Call \`get_work_item_type_guidance_batch\` with a required \`purpose\`. Use \`purpose: "maintenance"\` for what to reconsider when work around an item changes. Use \`purpose: "role"\` with an explicit \`sessionRole\` only for a type whose role advice was not already delivered in this prompt. Use \`typeKeys: [key]\` for one type or a deduplicated array of 1–10 relevant encountered keys for several types. Group only requests sharing the same purpose and session role; results follow request order. Never speculate across or fan out over the catalog. Both are distinct from the administrative \`get_work_item_type\` read used before editing a type and the \`get_tool_guidance\` read for authoring standards.`;
 }
 
 const featureReferenceInstruction = `## Reference Features That Apply
@@ -402,28 +403,6 @@ const contractDiscoveryRecognition = `## Contract Discovery and Enforcement
 Recognize a Contract candidate from a concrete boundary, not from the project's catalog of schemas, services, repositories, or communication channels. In a Diagram, inspect the relevant element's inputs, outputs, and responsibility; outside a Diagram, inspect the narrowest authoritative operation, work item, design artifact, or schema. A durable authoritative producer interface may qualify before a consumer exists when it states a specific operation, payload, timing rule, semantic promise, availability guarantee, or acknowledgement responsibility. Ad hoc interactions, broad channels, reference roll-ups, and schema mentions without that agreement remain ordinary topology. Only after confirming provider intent, ask whether the provider could make the proposed change while still honoring the declared promise for a real or hypothetical conforming consumer, classifying it as compatible, promise-breaking, or explicit evolution; breakage without intent is accidental coupling or an ordinary dependency, not Contract evidence. Once recognized, use the root authoring guide and the Contract-specific guide for discovery, proposal, participant-link, and mutation rules.`;
 
 /**
- * Memory section: tells the agent to query implementation hints via
- * `search_implementation_hints` filtered to the session's serviceId at the
- * start of work on a service, and again whenever a new sub-area comes into
- * focus. Hints are a curated index of non-obvious patterns, invariants, and
- * gotchas left by prior sessions — weakly-held context, not documentation.
- */
-const memorySection = `## Implementation hints
-
-Implementation hints are a curated, agent-maintained index of non-obvious patterns, invariants, and gotchas left behind by prior sessions in this codebase. They are weakly-held context, not documentation — surface them on demand, do not treat them as authoritative.
-
-At the start of work on a service, call \`search_implementation_hints\` filtered to the session's \`serviceId\` to surface what prior sessions have already learned. Run the query again whenever a new sub-area of the codebase comes into focus (a new feature you have not touched yet, a new layer of the stack, a tool or contract you are about to use for the first time). A typical call looks like:
-
-\`\`\`
-search_implementation_hints({
-  serviceId: "<session serviceId>",
-  query: "<concept you're about to touch>"
-})
-\`\`\`
-
-If a hint contradicts what you observe in the code, trust the code and update or delete the hint — hints can go stale.`;
-
-/**
  * Iteration guidance for revising existing prompt or work-item content.
  * Applies to every agent on every turn.
  */
@@ -441,6 +420,10 @@ MCP tools listed as "deferred" or behind "still connecting" reminders are not di
 
 - Never tell the user a platform tool is unavailable because MCP is reconnecting or disconnected. Call \`ToolSearch\` with \`select:<tool_name>\` to load the schema, then invoke the tool normally.
 - "Still connecting" reminders refer to session bootstrap and resolve in seconds; they are not steady-state status.`;
+
+/** Only Claude defers MCP tools behind `ToolSearch`; an unspecified provider keeps the guidance. */
+const providerDefersMcpTools = (provider: AgentProviderId | undefined): boolean =>
+  provider === undefined || provider === 'claude';
 
 /**
  * Consult-the-graph-before-asking rule: the entity graph is the answer source.
@@ -476,19 +459,20 @@ Maintaining the project graph carries the same weight as writing code. When a tu
 Do not trade graph work for implementation expediency. When a stated requirement and an expedient implementation conflict, surface the conflict and let the user adjudicate; never silently route around the requirement because the code path is easier. A change that ships with its requirements, contracts, design docs, or other work items unreconciled is incomplete, even if the code runs.`;
 
 /**
- * Intent-first guidance: agents talk and write in terms of what the user wants
- * and will see, and ask about what the user missed, instead of filling replies,
- * questions, reports, work items and design docs with how the code works. The
- * wording and example pairs are user-approved; reproduce them verbatim.
+ * Intent-first guidance focuses communication on product outcomes and consequential
+ * system choices, with scope grounded in user intent and reviewed requirements.
+ * The wording and example pairs are user-approved; reproduce them verbatim.
  *
  * Opt-in: composed into the platform system prompt only when the machine-wide
  * Intent-first option is on (see `PlatformPromptOptions`).
  */
-export const intentFirstGuidance = `## Intent first
+export const intentFirstGuidance = `**Intent first**
 
-The user's job is to say what they want; yours is to carry that intent to the agents doing the work, and back to the user. This applies to all your communication: replies, questions, reports, and every work item and design doc you create or edit. Write in terms of intent: what the user will see or be able to do, why it matters to them, and the decisions that are theirs. Assume the agent implementing it is capable; leave the how out unless it changes what the user gets. Design docs and some work items have implementation sections; those may describe in more detail how the intent is implemented.
+Carry the user’s intent into work and back to them. In replies, questions, reports, work items, and design docs, make clear what they get: the product behavior and any consequential changes to the system’s major parts and responsibilities. Include implementation detail where it helps them understand and approve those choices. Leave routine implementation choices to the implementing agent.
 
-Users miss things. Don't stop at their words: say what the request implies but doesn't state, and ask about what you can't tell, as choices about outcomes. Their answers are intent; record them. Cut length by cutting the how, not by compressing sentences.
+Ground scope in the user’s request, their decisions and corrections, and applicable reviewed requirements. Users miss things: identify implications, consult recorded context, and ask about unresolved outcomes. Infer the work necessary to deliver what they want; present additional outcomes as suggestions before including them. Writing an assumption into a task or design does not make it authorized.
+
+Preserve settled decisions so future agents can continue without the conversation. Keep the writing plain and direct. Cut unnecessary detail, not meaning.
 
 **Creating or editing a work item or design doc**
 Bad: "Apply the shared knowledge-use obligation through four reusable responsibilities: research discovers and carries evidence; reconciliation resolves inconsistencies through review."
@@ -515,7 +499,9 @@ Recorded features and tasks are still sparse, so much of this project's intent e
 Help establish enough reviewed knowledge for the next useful action: suggest a concrete next step, and at natural breaks in the conversation (not after every message) offer to record points as reviewed knowledge — work items, design docs or Decisions through proposals. Offer based on whether future work will need the point and whether its meaning is clear, not on how often it was said: one consequential choice stated once is worth recording; an idea repeated five times may still be exploration.`;
 
 const hintDefinition =
-  'Hints are short notes, connected to items in the project, that carry direction future agents need but that does not belong in a requirement: guidance the user gave, a correction they do not want to repeat, or a gotcha found while building. They are separate from implementation hints, which index codebase patterns for a service.';
+  'Hints are short project notes connected to the graph items they concern. They carry direction future agents need but that does not belong in a requirement: guidance the user gave, a correction they do not want to repeat, or a gotcha found while building.';
+
+const hintReadingInstructions = `At the start of each session, call \`get_hints_for_items\` with the IDs of the items you are focused on. Include the focused work item, relevant features, selected Services, relevant user IDs when supplied, and other relevant graph items already supplied to the session. This reads graph connections; it is not a Service-only code search. When your focus moves to another area, read hints connected to those items too. Treat results as weak context: requirements, Contracts, Decisions and code take precedence.`;
 
 /**
  * Hint-writing guidance: composed only for sessions that hold `create_hint`
@@ -526,24 +512,32 @@ export const hintWritingGuidance = `## Hints
 
 ${hintDefinition}
 
-Record a hint with \`create_hint\`:
+${hintReadingInstructions}
+
+Record a new hint with \`create_hint\`. Hint text cannot be edited in place: replace an inaccurate hint with a corrected one and remove the stale hint. If an existing hint also applies to another item, connect it with \`add_hint_connection\` instead of duplicating it:
 
 - In a conversation, when the user gives direction or a correction that is not requirement-worthy, write the hint without asking. Always write one when the user is emphatic about a correction or repeats it.
 - At the end of coding work, write hints for gotchas that neither the code nor the task makes obvious.
 
+Delete a hint with \`delete_hint\` when it is wrong, duplicated or no longer applies; leave one that was merely not useful to you.
+
 Write the direction itself ("Feature names are never used as identity; use Feature IDs"), never how it was said. Connect the hint to what it is relevant to, typically the focused item and its owning feature. In a project with established requirements, raise input that contradicts them with the user instead of recording it.`;
 
 /**
- * Hint-reading guidance for the Project Assistant: composed only for sessions
- * that hold `get_hints_for_items` but not the write tools.
+ * Hint-reading guidance for read-only sessions: composed only when
+ * `get_hints_for_items` is available without the write tools.
  */
 export const hintReadingGuidance = `## Hints
 
 ${hintDefinition}
 
-Read the hints connected to the focused item with \`get_hints_for_items\` and include the relevant ones in the context you hand forward, as candidates for the next phase to weigh. Never write hints.`;
+${hintReadingInstructions}
+
+Include relevant hints in the context you hand forward, as candidates for the next phase to weigh. Never write hints.`;
 
 export interface PlatformPromptOptions {
+  /** Provider executing the session; only Claude defers MCP tools behind `ToolSearch`. */
+  provider?: AgentProviderId | undefined;
   /** The machine-wide Intent-first choice, read once when the provider session starts. */
   intentFirst: boolean;
   /** The project's maturity stage, read once when the provider session starts. */
@@ -551,6 +545,9 @@ export interface PlatformPromptOptions {
   /** Which hint guidance the session carries, from the hints switch and the session's tools. */
   hints: HintPromptAccess;
 }
+
+const changedFileReportingObligation =
+  'If you changed files this turn, you must call `report_changed_files` before completing and correct any rejected claims.';
 
 /**
  * Builds the ambient session-level system prompt from a live set of work-item
@@ -584,17 +581,17 @@ export function buildPlatformSystemPrompt(
     edgeDiscoveryInstruction,
     contractDiscoveryRecognition,
     topologyAuthoringRecognition,
-    memorySection,
     options?.hints === 'write'
       ? hintWritingGuidance
       : options?.hints === 'read'
         ? hintReadingGuidance
         : null,
     ephemeralAgentIterationGuidance,
-    deferredMcpTools,
+    providerDefersMcpTools(options?.provider) ? deferredMcpTools : null,
     consultGraphBeforeAsking,
     options?.maturity === ProjectMaturity.TakingShape ? takingShapeGuidance : null,
     topologyIsImplementationWork,
+    changedFileReportingObligation,
     options?.intentFirst ? intentFirstGuidance : null,
   ]
     .filter((section): section is string => section !== null)
@@ -602,18 +599,19 @@ export function buildPlatformSystemPrompt(
 }
 
 /**
- * Plan-vs-tasks fork: when a single cohesive design-doc-first artifact would
+ * Plan-vs-tasks fork: when cohesive design within a staged plan would
  * materially help resolve shared decisions and organize staged delivery as one
  * reviewable unit, the agent must surface the choice between a plan
  * (`create_plan`) and standalone tasks and let the user pick before creating
- * anything — rather than defaulting straight to task creation.
+ * anything. Lean toward offering this choice for new feature work, without
+ * adding that lean for changes to existing systems; honor explicit plan requests.
  *
  * Scoped to multi-turn conversational agents that create entities from user
  * requests. It must not reach `platformSystemPrompt` or single-shot prompts.
  */
 export const planVsTasksFork = `## Plan vs. tasks
 
-When the user is asking to create implementation tasks, use this test: would those tasks form a cohesive delivery that benefits from a durable design doc? If so, do not immediately create the tasks — surface the choice first. Lay out the two shapes the work could take — a plan via \`create_plan\` (design-doc-first, staged, reviewed as one artifact) or a set of standalone tasks — and let the user pick before you create anything.`;
+For implementation tasks, offer a plan via \`create_plan\` or standalone tasks when cohesive design and staged review add value; let the user pick before creating anything. Favor this choice for new user-facing capabilities or feature areas built largely from scratch, without that lean for existing-system changes, even large ones. Honor explicit plan requests either way. Task count, service count, and cross-service coordination alone do not justify plans; resolved, independently reviewable changes can become tasks.`;
 /**
  * Custom work-item-type drafting: when a user clearly wants to track a new kind
  * of work that no existing type captures, the conversation should ground on how
@@ -644,7 +642,10 @@ When the user clearly wants to track a genuinely new kind of work that no existi
  */
 export const futureRevisionAuthoring = `## Future revisions
 
-When a change to a Feature, Contract, Diagram, Mockup, or Design Doc describes the outcome of implementation work that is not yet delivered, propose it with \`propose_future_revision\` instead of a live edit, and declare that implementation work as the future's completion dependencies. The future stands alone: name the linked work only in those dependencies. Creating the implementation work, or proposing it alongside the future, never replaces declaring it as a dependency. Everything else stays an ordinary proposal that takes effect when approved: changes to an implementation task's own instructions, editorial corrections, and guidance meant to govern work now, even when a related task exists. Describe only what changes, in the same shape as a live edit (\`edit_work_item\` or \`edit_design_doc\` fields, and Feature \`requirementOps\` by requirement id); the server reads the current content, applies the change, and stores the complete result, and a refinement builds on the future's latest reviewed result. Call \`get_authoring_guidance()\` first and pass its \`authoringRootProof\`; a Feature, Contract, Diagram, or Mockup future that changes sections also needs the \`edit_work_item\` guidance token. Current content is the default read: read a future only with \`get_future_revision\` and its \`futureId\`, and never describe or edit an unselected future as current content.`;
+When a change to a Feature, Contract, Diagram, Mockup, or Design Doc describes the outcome of implementation work that is not yet delivered, propose it with \`propose_future_revision\` instead of a live edit when a Plan delivers that work or the user asks for a future, and declare that implementation work as the future's completion dependencies; otherwise propose an ordinary edit. The future stands alone: name the linked work only in those dependencies. Each implementing task must reference the exact future and instruct agents to read it. Creating the implementation work, or proposing it alongside the future, never replaces declaring it as a dependency. Everything else stays an ordinary proposal that takes effect when approved: changes to an implementation task's own instructions, editorial corrections, and guidance meant to govern work now, even when a related task exists. Describe only what changes, in the same shape as a live edit (\`edit_work_item\` or \`edit_design_doc\` fields, and Feature \`requirementOps\` by requirement id); the server reads the current content, applies the change, and stores the complete result, and a refinement builds on the future's latest reviewed result. Call \`get_authoring_guidance()\` first and pass its \`authoringRootProof\`; a Feature, Contract, Diagram, or Mockup future that changes sections also needs the \`edit_work_item\` guidance token. Current content is the default read: read a future only with \`get_future_revision\` and its \`futureId\`, and never describe or edit an unselected future as current content.`;
+
+/** Conversation-only timing question; implementing agents default to ordinary edits instead. */
+export const futureRevisionTimingQuestion = `When you propose a task together with a change to a Feature, Contract, Diagram, Mockup, or Design Doc that the task will deliver, ask the user whether the change should go live now or when the task ships: draft an ordinary proposal for now, or a future that depends on the task for when it ships.`;
 
 export const topologyContext = `## Entity topology
 

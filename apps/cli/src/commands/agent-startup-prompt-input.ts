@@ -1,3 +1,4 @@
+import type { ReadRestriction } from '../shared/api/generated/api';
 import { z } from 'zod';
 import {
   EntityPromptTemplatesApiFactory,
@@ -48,6 +49,8 @@ export interface AgentStartupPromptInputRequest {
   runEntity: RunEntityReference;
   organizationId: string;
   projectId: string;
+  /** The Run's read restriction, carried into the startup context's platform reads. */
+  readRestriction?: ReadRestriction | undefined;
 }
 
 export interface AgentStartupPromptTemplateProvenance {
@@ -278,6 +281,50 @@ const buildStartupInput = (
   };
 };
 
+/**
+ * Render the effective template over one loaded Context. Used by the startup load and by
+ * callers re-rendering a replacement Context with the template already selected for the Run.
+ */
+export const renderStartupPromptTemplate = (
+  template: AgentStartupPromptTemplate,
+  loadedContext: Pick<LoadedEntityPromptContext, 'entity' | 'context'>,
+  logger: ServerLogger,
+): string => {
+  const renderInput: EntityPromptTemplateRenderInput = {
+    entity: loadedContext.entity,
+    context: loadedContext.context,
+  };
+  const fields = {
+    templateKey: template.templateKey,
+    ownershipSource: template.provenance.ownershipSource.scope,
+    revisionId: template.provenance.revisionId,
+    revisionNumber: template.provenance.revisionNumber,
+    boundary: 'effective_template_render',
+  };
+  logger.debug('agent_startup_prompt_input.template_render_started', fields);
+
+  let renderedInput: string;
+  try {
+    renderedInput = renderEntityPromptTemplate(
+      template.content,
+      template.syntaxVersion,
+      renderInput,
+    );
+  } catch {
+    logger.error('agent_startup_prompt_input.template_render_failed', fields);
+    throw new AgentStartupPromptInputError(
+      'Agent startup prompt input effective template render failed.',
+      'effective_template_render',
+    );
+  }
+
+  logger.debug('agent_startup_prompt_input.template_render_completed', {
+    ...fields,
+    renderedLength: renderedInput.length,
+  });
+  return renderedInput;
+};
+
 /** Owns authoritative entity startup-input resolution for a coding Run. */
 export class AgentStartupPromptInput {
   private readonly auth: SubmissionToolAuth;
@@ -312,6 +359,7 @@ export class AgentStartupPromptInput {
         runEntity: request.runEntity,
         organizationId: request.organizationId,
         projectId: request.projectId,
+        readRestriction: request.readRestriction,
       });
     } catch {
       this.logger.error('agent_startup_prompt_input.entity_context_failed', {
@@ -591,46 +639,7 @@ export class AgentStartupPromptInput {
       };
     }
 
-    const renderInput: EntityPromptTemplateRenderInput = {
-      entity: loadedContext.entity,
-      context: loadedContext.context,
-    };
-    this.logger.debug('agent_startup_prompt_input.template_render_started', {
-      templateKey: template.templateKey,
-      ownershipSource: template.provenance.ownershipSource.scope,
-      revisionId: template.provenance.revisionId,
-      revisionNumber: template.provenance.revisionNumber,
-      boundary: 'effective_template_render',
-    });
-    let renderedInput: string;
-    try {
-      renderedInput = renderEntityPromptTemplate(
-        template.content,
-        template.syntaxVersion,
-        renderInput,
-      );
-    } catch {
-      this.logger.error('agent_startup_prompt_input.template_render_failed', {
-        templateKey: template.templateKey,
-        ownershipSource: template.provenance.ownershipSource.scope,
-        revisionId: template.provenance.revisionId,
-        revisionNumber: template.provenance.revisionNumber,
-        boundary: 'effective_template_render',
-      });
-      throw new AgentStartupPromptInputError(
-        'Agent startup prompt input effective template render failed.',
-        'effective_template_render',
-      );
-    }
-
-    this.logger.debug('agent_startup_prompt_input.template_render_completed', {
-      templateKey: template.templateKey,
-      ownershipSource: template.provenance.ownershipSource.scope,
-      revisionId: template.provenance.revisionId,
-      revisionNumber: template.provenance.revisionNumber,
-      renderedLength: renderedInput.length,
-      boundary: 'effective_template_render',
-    });
+    const renderedInput = renderStartupPromptTemplate(template, loadedContext, this.logger);
     this.logger.info('agent_startup_prompt_input.resolved', {
       templateKey: template.templateKey,
       ownershipSource: template.provenance.ownershipSource.scope,

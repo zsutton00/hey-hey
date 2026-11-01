@@ -59,6 +59,7 @@ export interface FeatureDocumentRendererProps {
   workItemTypeDefinition?: WorkItemTypeDefinitionDto;
   depth?: number;
   activeSectionId?: string | null;
+  suspendVisuals?: boolean;
   // Number of direct sub-features; with `onShowSubFeatures` the section offers
   // to open them. Omitted for the open section, whose children render below it.
   subFeatureCount?: number;
@@ -94,6 +95,7 @@ export const FeatureDocumentRenderer: React.FC<
   workItemTypeDefinition,
   depth = 1,
   activeSectionId,
+  suspendVisuals = false,
   subFeatureCount = 0,
   subFeaturesHref,
   onShowSubFeatures,
@@ -422,6 +424,7 @@ export const FeatureDocumentRenderer: React.FC<
             <FeatureSectionVisuals
               key={node.feature.id}
               featureId={node.feature.id}
+              suspended={suspendVisuals}
               organizationId={organizationId}
               projectId={projectId}
             />

@@ -1,7 +1,7 @@
 import type { DiagnosticFeed } from '../diagnostic-feed';
 import type { PromptTypeRegistry } from '../../agents/prompt-type-registry';
 import path from 'node:path';
-import type { ApiRuntime } from '../../../../../packages/ui-common/src/clients/shared';
+import type { ApiRuntime } from '../../shared/runtime/clients/shared';
 import type { KeyPairStore } from '../../credentials';
 import type { ControllerRegistryStore } from '../../credentials';
 import type { MessagePoster } from '../../run/message-poster';
@@ -35,6 +35,7 @@ export interface TriggerVerificationRuntimeDependencies {
   keyPairStore: KeyPairStore;
   initialAccessToken: string;
   machinesApi: ApiRuntime['clients']['machines'];
+  servicesApi: Pick<ApiRuntime['clients']['services'], 'getService'>;
   runStore: RunStore;
   agentService: LocalAgentService;
   promptTypeRegistry: PromptTypeRegistry;
@@ -163,6 +164,7 @@ export class TriggerVerificationRuntime {
       logger,
     });
     this.router = new TriggerFrameRouter({
+      servicesApi: this.dependencies.servicesApi,
       ...(this.dependencies.diagnosticFeed
         ? { diagnosticFeed: this.dependencies.diagnosticFeed }
         : {}),

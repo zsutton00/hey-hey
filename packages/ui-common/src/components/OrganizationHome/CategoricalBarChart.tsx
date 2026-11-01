@@ -36,6 +36,12 @@ export const CategoricalBarChart: React.FC<CategoricalBarChartProps> = ({
   onItemActivate,
 }) => {
   const theme = useTheme();
+  const metricColors = {
+    Created: theme.palette.plan.main,
+    Completed: theme.palette.success.main,
+    Verifying: theme.palette.warning.main,
+    Updated: theme.palette.info.main,
+  };
 
   return (
     <Box
@@ -52,6 +58,11 @@ export const CategoricalBarChart: React.FC<CategoricalBarChartProps> = ({
             dataKey: "label",
             scaleType: "band",
             tickLabelStyle: { fontSize: 11 },
+            colorMap: {
+              type: "ordinal",
+              values: Object.keys(metricColors),
+              colors: Object.values(metricColors),
+            },
           },
         ]}
         yAxis={[{ min: 0, tickMinStep: 1, width: 32 }]}
@@ -59,7 +70,7 @@ export const CategoricalBarChart: React.FC<CategoricalBarChartProps> = ({
           {
             dataKey: "value",
             label: "Count",
-            color: theme.palette.primary.main,
+            color: theme.palette.info.main,
             barLabel: "value",
             barLabelPlacement: "outside",
           },

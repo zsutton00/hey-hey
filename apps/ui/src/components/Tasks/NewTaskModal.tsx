@@ -1,6 +1,6 @@
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import React, { useState, useCallback, useEffect } from "react";
 import {
-  Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,

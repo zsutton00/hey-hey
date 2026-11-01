@@ -1,8 +1,10 @@
+import { ModalProvider } from "../../../contexts/ModalContext";
+import { TestDiscussHost } from "../../../test/DiscussTestHost";
 import React, { useEffect, useState } from "react";
 import {
   act,
   fireEvent,
-  render,
+  render as renderView,
   screen,
   waitFor,
   within,
@@ -302,6 +304,7 @@ function renderApp({
               <Workspace {...props} explorerVisible={explorerVisible} />
             </CanonicalPageProvider>
           </EntityActivationProvider>
+          <TestDiscussHost />
         </GuidedWalkthroughProvider>
       </ThemeProvider>
     </MemoryRouter>,
@@ -317,6 +320,7 @@ function renderApp({
                 <Workspace {...props} explorerVisible={false} />
               </CanonicalPageProvider>
             </EntityActivationProvider>
+            <TestDiscussHost />
           </GuidedWalkthroughProvider>
         </ThemeProvider>
       </MemoryRouter>,
@@ -515,3 +519,6 @@ describe("Guided First Steps from a Walk me through button", () => {
     }
   });
 });
+
+const render: typeof renderView = (ui, options) =>
+  renderView(ui, { ...options, wrapper: ModalProvider });

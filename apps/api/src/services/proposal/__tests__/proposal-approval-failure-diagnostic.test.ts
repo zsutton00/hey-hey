@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import {
   parseProposalApprovalFailure,
   proposalApprovalFailureMessage,
@@ -6,6 +7,36 @@ import {
 } from '../proposal-approval-failure-diagnostic';
 
 describe('proposal approval failure diagnostics', () => {
+  it('reads Nest issues ahead of payload data and preserves bounded originating correlation', () => {
+    const diagnostic = toProposalApprovalFailureDiagnostic(
+      new ConflictException({
+        message: 'Reconciliation required',
+        correlationId: 'origin'.repeat(200),
+        data: { unrelated: true },
+        issues: [
+          {
+            field: 'definition.name',
+            code: 'changed',
+            reason: 'Changed after review',
+            layer: 'referential',
+            suggestion: 'Review again',
+          },
+        ],
+      }),
+      'header-id',
+    );
+    expect(diagnostic.correlationId).toBe('origin'.repeat(200).slice(0, 512));
+    expect(diagnostic.issues).toEqual([
+      {
+        field: 'definition.name',
+        code: 'changed',
+        reason: 'Changed after review',
+        layer: 'referential',
+        suggestion: 'Review again',
+      },
+    ]);
+  });
+
   it('normalizes generated issue fields and bounds the returned collection', () => {
     const diagnostic = toProposalApprovalFailureDiagnostic(
       {

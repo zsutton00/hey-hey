@@ -123,7 +123,9 @@ const rows: RegistryRow[] = [
     registry: 'featureSyncAnalyze',
     action: FEATURE_SYNC_ACTIONS.READINESS_REVIEW_REQUIRED,
     registrySchemas: featureSyncAnalyzeActions,
-    generatedWrapper: wrap(FeatureSyncAnalyzeActionSchemasREADINESSREVIEWREQUIRED),
+    generatedWrapper: wrap(
+      FeatureSyncAnalyzeActionSchemasREADINESSREVIEWREQUIRED,
+    ),
     pendingTask: null,
   },
 
@@ -233,15 +235,20 @@ const isEmptyZod = (zod: z.ZodTypeAny): boolean => {
 const wrapperHasPayloadProperty = (wrapper: GeneratedWrapper): boolean =>
   wrapper.getAttributeTypeMap().some((attr) => attr.name === 'payload');
 
-const isObjectJsonSchema = (schema: Record<string, unknown>): boolean =>
-  schema.type === 'object' ||
-  (Array.isArray(schema.allOf) &&
-    schema.allOf.every(
+const isObjectJsonSchema = (schema: Record<string, unknown>): boolean => {
+  if (schema.type === 'object') return true;
+  const members = schema.allOf ?? schema.anyOf ?? schema.oneOf;
+  return (
+    Array.isArray(members) &&
+    members.length > 0 &&
+    members.every(
       (member) =>
         typeof member === 'object' &&
         member !== null &&
         isObjectJsonSchema(member as Record<string, unknown>),
-    ));
+    )
+  );
+};
 
 const formatRowName = (row: RegistryRow): string =>
   `${row.registry}.${row.action}`;

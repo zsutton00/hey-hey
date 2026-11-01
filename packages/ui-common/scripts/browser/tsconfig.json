@@ -9,8 +9,15 @@
   "include": [
     "./project-report.tsx",
     "./conversation-scroll.tsx",
-    "../../src/types/vite-env.d.ts"
+    "../../src/types/vite-env.d.ts",
+    "./modal-shell.tsx",
+    "./model-selector.tsx",
+    "./diagram-element-screen.tsx"
   ],
   "exclude": [],
-  "references": [{ "path": "../../tsconfig.api.json" }]
+  "references": [
+    {
+      "path": "../../tsconfig.api.json"
+    }
+  ]
 }

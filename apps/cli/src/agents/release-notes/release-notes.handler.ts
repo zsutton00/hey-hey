@@ -25,6 +25,12 @@ import {
   type ProjectReportEvidenceResult,
 } from '../project-report/project-report-evidence-reader';
 import {
+  ProjectReportEvidenceLedger,
+  evidenceDirectoryOf,
+  projectReportEvidenceLedgers,
+} from '../project-report/project-report-evidence-store';
+import { readEvidenceShardTool } from '../submission-tools/read-evidence-shard-tool';
+import {
   ProjectReportRequestReader,
   type ProjectReportRequestProjection,
 } from '../project-report/project-report-request-reader';
@@ -70,7 +76,8 @@ export class ReleaseNotesHandler implements PromptTypeHandler<ReleaseNotesHandle
   public readonly providerSessionStart = 'fresh' as const;
   public readonly providerSessionCountsForContext = true;
   public readonly readOnlyFilesystem = true;
-  public readonly repositorySnapshots = true;
+  public readonly runEvidenceDirectory = true;
+  public readonly submissionTools = [readEvidenceShardTool];
   public readonly repositoryResearch = { delegation: 'disabled' as const };
   public readonly mcpToolUseCase = 'release_notes' as const;
   public readonly reports = [
@@ -89,7 +96,7 @@ export class ReleaseNotesHandler implements PromptTypeHandler<ReleaseNotesHandle
   ): Promise<PrepareResult<ReleaseNotesHandlerPayload>> {
     const config = readReportConfig(run.config);
     this.validateSessionScope(run, payload, config, deps);
-    const snapshotRoot = ctx?.repositorySnapshotDirectory;
+    const snapshotRoot = ctx?.runEvidenceDirectory;
     if (!snapshotRoot) {
       throw new Error('release_notes requires a Run-owned repository snapshot directory');
     }
@@ -137,15 +144,23 @@ export class ReleaseNotesHandler implements PromptTypeHandler<ReleaseNotesHandle
       apiBaseUrl: deps.apiBaseUrl,
       fetchImpl: deps.fetchImpl,
       logger: deps.logger,
-    }).read({
-      token,
-      organizationId,
-      projectId: payload.request.projectId,
-      requestId: payload.request.requestId,
-      attemptId: payload.request.attemptId,
-      agentSessionId: run.agentic_session_id,
-      request,
-    });
+    }).read(
+      {
+        token,
+        organizationId,
+        projectId: payload.request.projectId,
+        requestId: payload.request.requestId,
+        attemptId: payload.request.attemptId,
+        agentSessionId: run.agentic_session_id,
+        request,
+      },
+      snapshotRoot,
+    );
+    // The report agent reads every shard itself; create_report waits for that.
+    projectReportEvidenceLedgers.register(
+      run.agentic_session_id,
+      new ProjectReportEvidenceLedger(evidenceDirectoryOf(snapshotRoot), graphEvidence.manifest),
+    );
     const evidence = this.withRepositoryCoverage(graphEvidence, repositories);
 
     deps.logger.info('release_notes.handler.prepare.completed', {

@@ -239,6 +239,49 @@ describe('Open Items domain', () => {
       });
     });
 
+    it.each([{ lineage: [] }, { lineage: [ref(7)] }])(
+      'preserves the known branch during incomplete activation (%j)',
+      ({ lineage }) => {
+        const existing = item(1, {
+          entityType: 'AGENT_SESSION',
+          lineage: [ref(7), ref(8)],
+          presentation: {
+            label: 'Session',
+            routeParams: { lineageKinds: 'pt' },
+          },
+          note: 'keep',
+          pinned: true,
+          groupId: G1,
+          memberPosition: 'V',
+        });
+        const outcome = domain.activateOpenItem(
+          state(4, [existing], [group(G1)]),
+          env(5),
+          {
+            idempotencyKey: key(1),
+            item: ref(1, 'AGENT_SESSION'),
+            lineage,
+            presentation: {
+              label: 'Updated session',
+              routeParams: { lineageKinds: 'p' },
+            },
+          },
+        );
+        expect(mutation(outcome).items[0]).toMatchObject({
+          lineage: existing.lineage,
+          position: existing.position,
+          groupId: G1,
+          memberPosition: 'V',
+          pinned: true,
+          note: 'keep',
+          presentation: {
+            label: 'Updated session',
+            routeParams: { lineageKinds: 'pt' },
+          },
+        });
+      },
+    );
+
     it('reports an unchanged re-activation without advancing any revision', () => {
       const existing = item(1, { revision: 3 });
       const outcome = domain.activateOpenItem(state(4, [existing]), env(5), {

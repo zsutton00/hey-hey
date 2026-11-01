@@ -51,14 +51,14 @@ export const ModeSettingsSectionRenderer: React.FC<
 }) => {
   const setting = useMemo(
     () => readModeProjectAssistantSetting(content),
-    [content]
+    [content],
   );
   const previous = useMemo(
     () =>
       previousContent === undefined
         ? undefined
         : readModeProjectAssistantSetting(previousContent),
-    [previousContent]
+    [previousContent],
   );
   const { workItemTypes } = useWorkItemTypes(organizationId, {
     projectId,
@@ -70,7 +70,7 @@ export const ModeSettingsSectionRenderer: React.FC<
         .filter((type) => type.status === "ACTIVE")
         .map((type) => type.definition.key)
         .sort(),
-    [workItemTypes]
+    [workItemTypes],
   );
 
   if (setting.status === "invalid") {
@@ -78,6 +78,15 @@ export const ModeSettingsSectionRenderer: React.FC<
       <Alert severity="warning" data-testid="mode-settings-section-unavailable">
         MODE settings are unavailable because the stored settings value is
         invalid.
+      </Alert>
+    );
+  }
+
+  if (previous?.status === "invalid") {
+    return (
+      <Alert severity="error" data-testid="mode-settings-current-unavailable">
+        Current MODE settings could not be read. Approval is unavailable until
+        the complete comparison can be shown.
       </Alert>
     );
   }
@@ -111,8 +120,8 @@ export const ModeSettingsSectionRenderer: React.FC<
                     onChange(
                       serializeModeSettings(
                         event.target.checked,
-                        setting.eligibleWorkItemTypeKeys
-                      )
+                        setting.eligibleWorkItemTypeKeys,
+                      ),
                     )
                   }
                   slotProps={{
@@ -148,7 +157,7 @@ export const ModeSettingsSectionRenderer: React.FC<
                 new Set([
                   ...typeOptions,
                   ...(setting.eligibleWorkItemTypeKeys ?? []),
-                ])
+                ]),
               ).sort()}
               value={setting.eligibleWorkItemTypeKeys ?? []}
               onChange={(_event, keys) =>

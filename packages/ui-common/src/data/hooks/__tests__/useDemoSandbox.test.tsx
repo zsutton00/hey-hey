@@ -32,6 +32,11 @@ const sandbox: DemoSandboxResponseDto = {
   resumed: false,
 };
 
+const progress = {
+  stage: "CONNECTING" as const,
+  connectedFeatureCount: 2,
+  totalFeatureCount: 5,
+};
 const ok = (data: unknown) => ({ data: { success: true, data } });
 const httpError = (status: number, data: unknown) =>
   Object.assign(new Error(`HTTP ${status}`), {
@@ -94,12 +99,12 @@ describe("useDemoSandboxAdmission", () => {
 
   it("resumes an existing sandbox and adopts the API-established session", async () => {
     client.resumeDemoSandbox.mockResolvedValue(
-      ok({ ...sandbox, resumed: true }),
+      ok({ state: "ACTIVE", sandbox: { ...sandbox, resumed: true } }),
     );
     const { result } = renderHook(() => useDemoSandboxAdmission());
 
     await expect(result.current.resume()).resolves.toEqual({
-      outcome: "resumed",
+      outcome: "ready",
       sandbox: { ...sandbox, resumed: true },
     });
     expect(refreshAuthToken).toHaveBeenCalledOnce();
@@ -122,6 +127,89 @@ describe("useDemoSandboxAdmission", () => {
     },
   );
 
+  it("reports setup progress and a failed setup without starting a session", async () => {
+    const { result } = renderHook(() => useDemoSandboxAdmission());
+
+    client.resumeDemoSandbox.mockResolvedValueOnce(
+      ok({ state: "PROVISIONING", progress }),
+    );
+    await expect(result.current.resume()).resolves.toEqual({
+      outcome: "provisioning",
+      progress,
+    });
+    client.resumeDemoSandbox.mockResolvedValueOnce(ok({ state: "FAILED" }));
+    await expect(result.current.resume()).resolves.toEqual({
+      outcome: "failed",
+    });
+    expect(refreshAuthToken).not.toHaveBeenCalled();
+  });
+
+  it("follows setup about once a second until the sandbox is ready", async () => {
+    vi.useFakeTimers();
+    try {
+      client.resumeDemoSandbox
+        .mockResolvedValueOnce(ok({ state: "PROVISIONING", progress }))
+        .mockRejectedValueOnce(httpError(502, {}))
+        .mockResolvedValueOnce(ok({ state: "ACTIVE", sandbox }));
+      const { result } = renderHook(() => useDemoSandboxAdmission());
+      const onProgress = vi.fn();
+
+      const outcome = result.current.followSetup(
+        onProgress,
+        vi.fn(),
+        new AbortController().signal,
+      );
+      await vi.advanceTimersByTimeAsync(999);
+      expect(client.resumeDemoSandbox).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(onProgress).toHaveBeenCalledWith(progress);
+      await vi.advanceTimersByTimeAsync(2_000);
+
+      await expect(outcome).resolves.toEqual({ outcome: "ready", sandbox });
+      expect(client.resumeDemoSandbox).toHaveBeenCalledTimes(3);
+      expect(refreshAuthToken).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("says progress can't be checked after repeated failed reads, keeps retrying, and recovers", async () => {
+    vi.useFakeTimers();
+    try {
+      client.resumeDemoSandbox
+        .mockRejectedValueOnce(httpError(502, {}))
+        .mockRejectedValueOnce(new Error("Network Error"))
+        .mockRejectedValueOnce(httpError(503, {}))
+        .mockRejectedValueOnce(httpError(503, {}))
+        .mockResolvedValueOnce(ok({ state: "PROVISIONING", progress }))
+        .mockResolvedValueOnce(ok({ state: "FAILED" }));
+      const { result } = renderHook(() => useDemoSandboxAdmission());
+      const onProgress = vi.fn();
+      const onReachable = vi.fn();
+
+      const outcome = result.current.followSetup(
+        onProgress,
+        onReachable,
+        new AbortController().signal,
+      );
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(onReachable).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(onReachable).toHaveBeenLastCalledWith(false);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(onReachable).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(onReachable).toHaveBeenLastCalledWith(true);
+      expect(onProgress).toHaveBeenCalledWith(progress);
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      await expect(outcome).resolves.toEqual({ outcome: "failed" });
+      expect(client.resumeDemoSandbox).toHaveBeenCalledTimes(6);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("surfaces unexpected resume failures", async () => {
     client.resumeDemoSandbox.mockRejectedValue(httpError(500, {}));
     const { result } = renderHook(() => useDemoSandboxAdmission());
@@ -130,7 +218,9 @@ describe("useDemoSandboxAdmission", () => {
   });
 
   it("provisions with the supplied proof and versions", async () => {
-    client.provisionDemoSandbox.mockResolvedValue(ok(sandbox));
+    client.provisionDemoSandbox.mockResolvedValue(
+      ok({ state: "PROVISIONING", progress }),
+    );
     const { result } = renderHook(() => useDemoSandboxAdmission());
     const input = {
       botCheckToken: "token",
@@ -138,11 +228,15 @@ describe("useDemoSandboxAdmission", () => {
       agentBridgeAcknowledgmentVersion: "1.2-beta",
     };
 
-    await expect(result.current.provision(input)).resolves.toEqual(sandbox);
+    await expect(result.current.provision(input)).resolves.toEqual({
+      outcome: "provisioning",
+      progress,
+    });
     expect(client.provisionDemoSandbox).toHaveBeenCalledWith({
       provisionDemoSandboxDto: input,
     });
-    expect(refreshAuthToken).toHaveBeenCalledOnce();
+    // Setup has only started; the visitor is signed in once it is ready.
+    expect(refreshAuthToken).not.toHaveBeenCalled();
   });
 
   it.each([

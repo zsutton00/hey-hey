@@ -1,9 +1,11 @@
 import {
   Box,
   FormControl,
+  FormControlLabel,
   InputLabel,
   MenuItem,
   Select,
+  Switch,
   TextField,
   Typography,
   type SelectChangeEvent,
@@ -11,7 +13,10 @@ import {
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import { EvalTargetHandlerKey } from "@hey-hey/ui-common/api";
+
 import {
+  RUN_HANDLER_OPTIONS,
   TIME_LIMIT_PRESETS_MINUTES,
   TOKEN_LIMIT_PRESETS,
   formatTokenCount,
@@ -21,6 +26,7 @@ import {
 
 const NONE = "none";
 const CUSTOM = "custom";
+const CASE_OWN_HANDLER = "case";
 
 const parsePositiveInteger = (raw: string): number | null => {
   const value = Number(raw);
@@ -174,6 +180,89 @@ export const RunSettingsFields: React.FC<RunSettingsFieldsProps> = ({
           onChange={(tokenLimit) => onChange({ ...value, tokenLimit })}
         />
       </Box>
+      <FormControl
+        size="small"
+        sx={{ mt: 2, minWidth: 280 }}
+        disabled={disabled}
+      >
+        <InputLabel id="eval-run-setting-handler-label">
+          {t("eval.run.settings.handler")}
+        </InputLabel>
+        <Select
+          labelId="eval-run-setting-handler-label"
+          label={t("eval.run.settings.handler")}
+          value={value.handler ?? CASE_OWN_HANDLER}
+          onChange={(event) =>
+            onChange({
+              ...value,
+              handler:
+                event.target.value === CASE_OWN_HANDLER
+                  ? null
+                  : (event.target.value as EvalTargetHandlerKey),
+            })
+          }
+          data-testid="eval-run-setting-handler"
+          slotProps={{
+            input: { "aria-label": t("eval.run.settings.handler") },
+          }}
+        >
+          <MenuItem value={CASE_OWN_HANDLER}>
+            {t("eval.run.settings.handlerCaseOwn")}
+          </MenuItem>
+          {RUN_HANDLER_OPTIONS.map((handler) => (
+            <MenuItem key={handler} value={handler}>
+              {t(`eval.run.handler.${handler}`)}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        sx={{ mt: 0.5 }}
+        data-testid="eval-run-handler-note"
+      >
+        {t(
+          value.handler === EvalTargetHandlerKey.ProjectAssistant
+            ? "eval.run.settings.handlerNoteProjectAssistantAlone"
+            : value.handler
+              ? "eval.run.settings.handlerNoteHandler"
+              : "eval.run.settings.handlerNoteCaseOwn",
+        )}
+      </Typography>
+      {value.handler !== EvalTargetHandlerKey.ProjectAssistant && (
+        <>
+          <FormControlLabel
+            sx={{ mt: 1 }}
+            disabled={disabled}
+            control={
+              <Switch
+                checked={value.projectAssistantEnabled}
+                onChange={(event) =>
+                  onChange({
+                    ...value,
+                    projectAssistantEnabled: event.target.checked,
+                  })
+                }
+                data-testid="eval-run-setting-project-assistant"
+                slotProps={{
+                  input: {
+                    "aria-label": t("eval.run.settings.projectAssistant"),
+                  },
+                }}
+              />
+            }
+            label={t("eval.run.settings.projectAssistant")}
+          />
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            data-testid="eval-run-project-assistant-note"
+          >
+            {t("eval.run.settings.projectAssistantNote")}
+          </Typography>
+        </>
+      )}
       <Typography
         variant="body2"
         color="text.secondary"

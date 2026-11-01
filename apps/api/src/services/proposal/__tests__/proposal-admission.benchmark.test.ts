@@ -29,7 +29,7 @@ const enabled = process.env.PROPOSAL_ADMISSION_BENCHMARK === '1';
 const run = enabled ? describe : describe.skip;
 
 run('proposal admission PostgreSQL benchmark', () => {
-  it('measures create, draft update and repeated-reference batch workloads', async () => {
+  it('measures create and draft update workloads', async () => {
     const url = process.env.PROJECT_DATABASE_URL;
     if (
       !url ||
@@ -225,16 +225,6 @@ run('proposal admission PostgreSQL benchmark', () => {
                   userId,
                 ),
             },
-            {
-              workload: 'batch-20',
-              execute: () =>
-                service.createBatch(
-                  organizationId,
-                  projectId,
-                  userId,
-                  Array.from({ length: 20 }, () => dto),
-                ),
-            },
           ];
           for (const workload of workloads) {
             const times: number[] = [];
@@ -285,6 +275,6 @@ run('proposal admission PostgreSQL benchmark', () => {
         process.env.PROPOSAL_ADMISSION_BENCHMARK_OUTPUT,
         JSON.stringify(output, null, 2) + '\n',
       );
-    expect(results).toHaveLength(3);
+    expect(results).toHaveLength(2);
   }, 150000);
 });

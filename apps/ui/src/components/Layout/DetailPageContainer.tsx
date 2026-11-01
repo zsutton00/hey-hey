@@ -1,5 +1,4 @@
 import React from "react";
-import { QueryMountPolicyProvider } from "@hey-hey/ui-common/data";
 import {
   Box,
   Paper,
@@ -21,12 +20,17 @@ export const DetailPageContainer = React.forwardRef<
   DetailPageContainerProps
 >(function DetailPageContainer(
   { children, maxWidth = false, rootSx, paperSx },
-  ref
+  ref,
 ) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const containerSx: SxProps<Theme> = [
     {
+      // Auto margins center capped pages, but must not shrink a page inside
+      // the expanded preview's column flex layout.
+      width: "100%",
+      minWidth: 0,
+      boxSizing: "border-box",
       maxWidth:
         maxWidth === false
           ? "none"
@@ -52,9 +56,7 @@ export const DetailPageContainer = React.forwardRef<
         elevation={0}
         sx={resolvedPaperSx}
       >
-        <QueryMountPolicyProvider policy="always-refetch">
-          {children}
-        </QueryMountPolicyProvider>
+        {children}
       </Paper>
     </Box>
   );

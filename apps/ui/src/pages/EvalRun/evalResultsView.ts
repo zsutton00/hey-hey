@@ -7,6 +7,7 @@ import {
   type EvalMeasurement,
 } from "@hey-hey/ui-common/api";
 import type { EvalAttemptReport, EvalRunReport } from "@hey-hey/ui-common/data";
+import { WebPathService } from "@hey-hey/ui-common/services";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -37,18 +38,40 @@ const measurement = (
   attempt.payload.measurements.find((entry) => entry.scope === scope);
 
 /**
- * Tokens one scope used, or undefined when the provider reported neither
- * input nor output. A missing half is not read as 0 for the other half.
+ * Fresh input plus output, unavailable unless both halves were measured.
  */
 export const measuredTokens = (
   entry: EvalMeasurement | undefined,
 ): number | undefined => {
   if (!entry) return undefined;
   const { inputTokens, outputTokens } = entry;
-  if (inputTokens === undefined && outputTokens === undefined) {
+  if (inputTokens === undefined || outputTokens === undefined) {
     return undefined;
   }
-  return (inputTokens ?? 0) + (outputTokens ?? 0);
+  return inputTokens + outputTokens;
+};
+
+/**
+ * What the agent cost, or null when it is not reported. Costs stored before
+ * the available / partial / unavailable shape have no `state` and read as not
+ * reported, never as a number.
+ */
+export const measuredCost = (
+  entry: EvalMeasurement | undefined,
+): { amount: number; partial: boolean } | null => {
+  const cost = entry?.cost;
+  if (cost?.state === "available" || cost?.state === "partial") {
+    return { amount: cost.amount, partial: cost.state === "partial" };
+  }
+  return null;
+};
+
+/** Only a fully known cost joins an average; a lower bound would skew it. */
+const availableCostAmount = (
+  entry: EvalMeasurement | undefined,
+): number | undefined => {
+  const cost = measuredCost(entry);
+  return cost && !cost.partial ? cost.amount : undefined;
 };
 
 /**
@@ -75,27 +98,16 @@ const average = (values: (number | undefined)[]): AveragedMeasure => {
   };
 };
 
-/** Preparation and handler work, kept apart and never summed together. */
-export interface ScopedMeasures {
-  preparation: AveragedMeasure;
-  handler: AveragedMeasure;
-}
-
-const scoped = (
+/** Setup comparisons measure the tested agent only. */
+const handlerAverage = (
   attempts: EvalAttemptReport[],
   read: (entry: EvalMeasurement | undefined) => number | undefined,
-): ScopedMeasures => ({
-  preparation: average(
-    attempts.map((attempt) =>
-      read(measurement(attempt, EvalMeasurementScope.TargetPreparation)),
-    ),
-  ),
-  handler: average(
+): AveragedMeasure =>
+  average(
     attempts.map((attempt) =>
       read(measurement(attempt, EvalMeasurementScope.TargetHandler)),
     ),
-  ),
-});
+  );
 
 export interface SetupComparison {
   configuration: EvalConfiguration;
@@ -106,9 +118,10 @@ export interface SetupComparison {
   /** Mean of every scored quality dimension; null when none was scored. */
   quality: number | null;
   checks: { passed: number; total: number };
-  elapsedMs: ScopedMeasures;
-  tokens: ScopedMeasures;
-  toolCalls: ScopedMeasures;
+  elapsedMs: AveragedMeasure;
+  tokens: AveragedMeasure;
+  toolCalls: AveragedMeasure;
+  cost: AveragedMeasure;
 }
 
 export const compareSetup = (
@@ -149,9 +162,10 @@ export const compareSetup = (
       passed: checkResults.filter((result) => result.passed).length,
       total: checkResults.length,
     },
-    elapsedMs: scoped(own, (entry) => entry?.elapsedMs),
-    tokens: scoped(own, measuredTokens),
-    toolCalls: scoped(own, (entry) => entry?.toolCalls),
+    elapsedMs: handlerAverage(own, (entry) => entry?.elapsedMs),
+    tokens: handlerAverage(own, measuredTokens),
+    toolCalls: handlerAverage(own, (entry) => entry?.toolCalls),
+    cost: handlerAverage(own, availableCostAmount),
   };
 };
 
@@ -199,16 +213,12 @@ const overheadOf = (
 });
 
 /**
- * Judge work across every attempt and the run's coordinator, each on its own
- * and outside every setup's figures.
+ * The run's coordinator, outside every setup's figures. The judge is not part
+ * of the measured evaluation, so nothing stored for it is ever read.
  */
 export const runOverhead = (
   run: EvalRunReport,
-  attempts: EvalAttemptReport[],
-): { judge: OverheadMeasures; coordinator: OverheadMeasures } => ({
-  judge: overheadOf(
-    attempts.map((attempt) => measurement(attempt, EvalMeasurementScope.Judge)),
-  ),
+): { coordinator: OverheadMeasures } => ({
   coordinator: overheadOf([run.payload.coordinatorMeasurement]),
 });
 
@@ -225,9 +235,178 @@ export const checkDescriptions = (
   );
 };
 
-export const caseTitle = (
+/** A case row reports the tested agent only; absent measurements stay absent. */
+export interface RowMeasure {
+  value: number | null;
+  partial: boolean;
+}
+
+export const rowMeasure = (
+  attempt: EvalAttemptReport,
+  read: (entry: EvalMeasurement | undefined) => number | undefined,
+): RowMeasure => {
+  return {
+    value:
+      read(measurement(attempt, EvalMeasurementScope.TargetHandler)) ?? null,
+    partial: false,
+  };
+};
+
+export const costRowMeasure = (attempt: EvalAttemptReport): RowMeasure => {
+  const cost = measuredCost(
+    measurement(attempt, EvalMeasurementScope.TargetHandler),
+  );
+  return { value: cost?.amount ?? null, partial: cost?.partial ?? false };
+};
+
+/** A separately executed research agent and the tested agent, kept apart. */
+export interface WorkBreakdownRow {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cacheReadInputTokens: number | null;
+  cacheCreationInputTokens: number | null;
+  scope: EvalMeasurementScope;
+  elapsedMs: number | null;
+  tokens: number | null;
+  toolCalls: number | null;
+  cost: number | null;
+  costPartial: boolean;
+}
+
+const breakdownRow = (
+  attempt: EvalAttemptReport,
+  scope: EvalMeasurementScope,
+): WorkBreakdownRow => {
+  const entry = measurement(attempt, scope);
+  const cost = measuredCost(entry);
+  return {
+    scope,
+    elapsedMs: entry?.elapsedMs ?? null,
+    tokens: measuredTokens(entry) ?? null,
+    inputTokens: entry?.inputTokens ?? null,
+    outputTokens: entry?.outputTokens ?? null,
+    cacheReadInputTokens: entry?.cacheReadInputTokens ?? null,
+    cacheCreationInputTokens: entry?.cacheCreationInputTokens ?? null,
+    toolCalls: entry?.toolCalls ?? null,
+    cost: cost?.amount ?? null,
+    costPartial: cost?.partial ?? false,
+  };
+};
+
+export type RecognitionView = "correct" | "missed" | "pending";
+
+export interface CaseRow {
+  attemptId: string;
+  setupId: string;
+  title: string | null;
+  /** The attempt stopped on an error; its figures are what was measured first. */
+  errored: boolean;
+  recognition: RecognitionView;
+  /** Mean of the attempt's scored quality dimensions; null when none scored. */
+  quality: number | null;
+  checks: { passed: number; total: number } | null;
+  elapsedMs: RowMeasure;
+  tokens: RowMeasure;
+  toolCalls: RowMeasure;
+  cost: RowMeasure;
+  breakdown: WorkBreakdownRow[];
+  /** The attempt's own read-only session; null when none was recorded. */
+  sessionHref: string | null;
+  /** The judge's own session, to check by hand how the attempt was judged; null until judged. */
+  judgeSessionHref: string | null;
+  /** The Eval Case record this attempt ran; null when the run did not name one. */
+  evalCaseHref: string | null;
+  /** What the case expected, as recorded on the run. */
+  expectation: string | null;
+  /** The judge's saved explanation of its recognition result. */
+  recognitionExplanation: string | null;
+}
+
+export const caseRow = (
+  projectId: string,
   run: EvalRunReport,
   attempt: EvalAttemptReport,
-): string | null =>
-  run.payload.cases.find(({ id }) => id === attempt.payload.caseInputId)
-    ?.title ?? null;
+): CaseRow => {
+  const assessment = automatedAssessment(attempt);
+  const caseInput = run.payload.cases.find(
+    ({ id }) => id === attempt.payload.caseInputId,
+  );
+  const scores = (assessment?.quality ?? [])
+    .map((dimension) => dimension.score)
+    .filter((score): score is number => score !== undefined);
+  const sessionId = attempt.payload.targetSessionId;
+  const expectation = caseInput?.grading.expectations?.trim();
+  return {
+    attemptId: attempt.id,
+    setupId: attempt.payload.configuration.id,
+    title: caseInput?.title ?? null,
+    errored: attempt.payload.status === EvalAttemptStatus.Error,
+    recognition:
+      assessment === null
+        ? "pending"
+        : assessment.recognition.recognized
+          ? "correct"
+          : "missed",
+    quality:
+      scores.length === 0
+        ? null
+        : scores.reduce((total, score) => total + score, 0) / scores.length,
+    checks: assessment
+      ? {
+          passed: assessment.checkResults.filter((result) => result.passed)
+            .length,
+          total: assessment.checkResults.length,
+        }
+      : null,
+    elapsedMs: rowMeasure(attempt, (entry) => entry?.elapsedMs),
+    tokens: {
+      value:
+        measuredTokens(
+          measurement(attempt, EvalMeasurementScope.TargetHandler),
+        ) ?? null,
+      partial: false,
+    },
+    toolCalls: rowMeasure(attempt, (entry) => entry?.toolCalls),
+    cost: costRowMeasure(attempt),
+    breakdown: [
+      ...(attempt.payload.execution?.projectAssistantPrepares
+        ? [breakdownRow(attempt, EvalMeasurementScope.TargetPreparation)]
+        : []),
+      breakdownRow(attempt, EvalMeasurementScope.TargetHandler),
+    ],
+    sessionHref: sessionId
+      ? WebPathService.agentSession({ projectId, agentSessionId: sessionId })
+      : null,
+    judgeSessionHref: assessment?.judgeSessionId
+      ? WebPathService.agentSession({
+          projectId,
+          agentSessionId: assessment.judgeSessionId,
+        })
+      : null,
+    evalCaseHref: caseInput?.evalCaseId
+      ? WebPathService.task({ projectId, taskId: caseInput.evalCaseId })
+      : null,
+    expectation: expectation ? expectation : null,
+    recognitionExplanation: assessment?.recognition.explanation ?? null,
+  };
+};
+
+export interface SetupCases {
+  configuration: EvalConfiguration;
+  rows: CaseRow[];
+}
+
+/** Each setup in the run's own order with one row per attempt it ran. */
+export const groupCasesBySetup = (
+  projectId: string,
+  run: EvalRunReport,
+  attempts: EvalAttemptReport[],
+): SetupCases[] =>
+  run.payload.configurations.map((configuration) => ({
+    configuration,
+    rows: attempts
+      .filter(
+        (attempt) => attempt.payload.configuration.id === configuration.id,
+      )
+      .map((attempt) => caseRow(projectId, run, attempt)),
+  }));

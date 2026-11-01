@@ -1,3 +1,4 @@
+import type { SessionTokenUsageReader } from '../provider-usage/session-token-usage';
 import type {
   AgenticSession,
   AgenticSessionEvent,
@@ -14,6 +15,7 @@ export interface RunStorePaths {
 }
 
 export interface RunStoreOptions {
+  sessionTokenUsageReader?: SessionTokenUsageReader;
   paths?: RunStorePaths;
   now?: () => Date;
   randomId?: () => string;
@@ -29,11 +31,7 @@ export interface RunStoreOptions {
   onEventLogRead?: (read: RunEventLogRead) => void;
 }
 
-export type RunEventLogReadOperation =
-  | 'read_events'
-  | 'read_last_event'
-  | 'read_last_seq'
-  | 'append';
+export type RunEventLogReadOperation = 'read_events' | 'read_provider_identity_events';
 
 /** One whole-file event log read; carries sizes only, never event contents. */
 export interface RunEventLogRead {

@@ -338,6 +338,7 @@ export class WebsocketGateway
     @Inject(forwardRef(() => TriggerEmitter))
     private triggerEmitter: TriggerEmitter,
     private machineChallengeService: MachineChallengeService,
+    @Inject(forwardRef(() => AgentSessionService))
     private agentSessionService: AgentSessionService,
     private machinePresenceService: MachinePresenceService,
     private websocketAuthorizationService: WebsocketAuthorizationService,

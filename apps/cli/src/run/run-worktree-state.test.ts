@@ -85,7 +85,12 @@ vi.mock('./resolve-prompt', () => ({
       }) => Promise<unknown>;
     }) => {
       let preparedPayload: unknown;
-      const inputPayload = args.input.payload as { userMessage?: string } | undefined;
+      const inputPayload = args.input.payload as
+        | {
+            userMessage?: string;
+            approvedVersion?: import('../shared/api/generated/api').CodingPlanVersion;
+          }
+        | undefined;
       if (args.input.promptType === 'implement') {
         preparedPayload =
           inputPayload?.userMessage === 'missing-plan'
@@ -117,6 +122,9 @@ vi.mock('./resolve-prompt', () => ({
                 _services: [{ id: 'svc-1', path: '/repos/service-a' }],
                 _launchServiceId: 'svc-1',
               };
+        if (inputPayload?.approvedVersion) {
+          preparedPayload = { approvedVersion: inputPayload.approvedVersion };
+        }
         if (args.onPreparedPayload) {
           preparedPayload = await args.onPreparedPayload({
             handler: args.handler,
@@ -388,6 +396,29 @@ describe('Run worktree workspace state', () => {
     run.cleanup();
   });
 
+  it('rejects a workspace-required input once and explains the missing Service', async () => {
+    const collaborators = makeCollaborators(makeRunStore(), () => ({ run: async () => {} }));
+    const run = new Run(makeRunArgs({ session: makeSession({ services: [] }) }), collaborators);
+    const admittedInput = {
+      turnId: 'turn-no-service',
+      onStarted: vi.fn(),
+      onRejected: vi.fn(),
+      onSettled: vi.fn(),
+    };
+    try {
+      await expect(run.handleMessage(makeInput(), { admittedInput })).resolves.toBeUndefined();
+      expect(admittedInput.onRejected).toHaveBeenCalledOnce();
+      expect(admittedInput.onStarted).not.toHaveBeenCalled();
+      expect(collaborators.runnerPicker.pick).not.toHaveBeenCalled();
+      expect(collaborators.poster.postFailureMessage).toHaveBeenCalledOnce();
+      expect(collaborators.poster.postFailureMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: 'SERVICE_FOLDER_NOT_BOUND' }),
+      );
+    } finally {
+      run.cleanup();
+    }
+  });
+
   const serviceFreePromptTypes = [
     'work_tracker_connect',
     'work_tracker_import',
@@ -547,15 +578,19 @@ describe('Run worktree workspace state', () => {
         taskMonitorId: 'monitor-1',
       },
     });
+    const collaborators = makeCollaborators(runStore, () => ({ run: async () => {} }));
     const run = new Run(makeRunArgs({ session }), {
-      ...makeCollaborators(runStore, () => ({ run: async () => {} })),
+      ...collaborators,
       taskMonitorLaunchFailureRuntime: {
         publishLaunchFailure,
         clearLaunchFailures: vi.fn(),
       } as never,
     });
 
-    await expect(run.handleMessage(makeInput())).rejects.toBe(collision);
+    await expect(run.handleMessage(makeInput())).resolves.toBeUndefined();
+    expect(collaborators.poster.postFailureMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'STARTUP_FAILED' }),
+    );
     expect(publishLaunchFailure).toHaveBeenCalledWith({
       taskMonitorId: 'monitor-1',
       taskId: 'task-1',
@@ -585,19 +620,23 @@ describe('Run worktree workspace state', () => {
         agentSessionId: 'agent-session-1',
       },
     });
+    const collaborators = makeCollaborators(runStore, () => ({ run: async () => {} }));
     const run = new Run(makeRunArgs({ session, hasProviderSession: true }), {
-      ...makeCollaborators(runStore, () => ({ run: async () => {} })),
+      ...collaborators,
       taskMonitorLaunchFailureRuntime: {
         publishLaunchFailure,
         clearLaunchFailures: vi.fn(),
       } as never,
     });
 
-    await expect(run.handleMessage(makeInput())).rejects.toBe(collision);
+    await expect(run.handleMessage(makeInput())).resolves.toBeUndefined();
+    expect(collaborators.poster.postFailureMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'STARTUP_FAILED' }),
+    );
     expect(publishLaunchFailure).not.toHaveBeenCalled();
   });
 
-  it('preserves repository-required resolution for non-graph runs without services', async () => {
+  it('tells the user to bind the Service folder and resend when a local binding is missing', async () => {
     vi.mocked(resolveRunWorkspace).mockClear();
     vi.mocked(resolveRunWorkspace).mockResolvedValueOnce({
       ok: false,
@@ -605,22 +644,21 @@ describe('Run worktree workspace state', () => {
       message: 'Session has no resolved launch service; cannot resolve repository mapping.',
     });
     const runStore = makeRunStore();
+    const collaborators = makeCollaborators(runStore, () => ({ run: async () => {} }));
     const session = makeSession({
-      services: [],
       promptType: 'coding_freeform',
     });
-    delete session.launchServiceId;
     const run = new Run(
       makeRunArgs({
         session,
       }),
-      makeCollaborators(runStore, () => ({ run: async () => {} })),
+      collaborators,
     );
 
-    await expect(run.handleMessage(makeInput())).rejects.toMatchObject({
-      code: 'REPO_BINDING_MISSING',
-      statusCode: 409,
-    });
+    await expect(run.handleMessage(makeInput())).resolves.toBeUndefined();
+    expect(collaborators.poster.postFailureMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'SERVICE_FOLDER_NOT_BOUND' }),
+    );
     expect(resolveRunWorkspace).toHaveBeenCalledOnce();
   });
 
@@ -1001,6 +1039,70 @@ describe('Run worktree workspace state', () => {
     );
   });
 
+  it('reconciles conversational approval scope before implementation while preserving the launch Service', async () => {
+    const resolvedServices = [
+      { id: 'svc-1', path: '/repos/service-a' },
+      { id: 'a8fb6fbb-5747-4480-89e3-fc4a43ab7745', path: '/repos/service-b' },
+    ];
+    const workspace: ResolvedRunWorkspace = {
+      ok: true,
+      runMode: 'default',
+      repositoryPathForRunStarted: '/repos/service-a',
+      cwd: '/repos/service-a',
+      allowedRepositoryRoots: ['/repos/service-a', '/repos/service-b'],
+      bindingRepositoryPath: '/repos/service-a',
+      workspaceRoot: null,
+    };
+    vi.mocked(resolveServiceBindingsForIds).mockResolvedValueOnce({
+      ok: true,
+      services: resolvedServices,
+    });
+    vi.mocked(resolveRunWorkspace).mockResolvedValue(workspace);
+
+    const runStore = makeRunStore();
+    const captured: RunnerContext[] = [];
+    const runner = vi.fn((ctx: RunnerContext) => {
+      captured.push(ctx);
+      return { run: async () => {} };
+    });
+    const run = new Run(
+      makeRunArgs({ session: makeSession({ promptType: 'startup_session' }) }),
+      makeCollaborators(runStore, runner, implementHandlerStub),
+    );
+
+    const input = makeInput('implement');
+    input.payload = {
+      promptType: 'implement',
+      approvedVersion: {
+        responseType: 'coding_plan_version_v1',
+        markdown: 'Deliver the agreed outcome. Use both required workspaces.',
+        requiredServiceIds: ['a8fb6fbb-5747-4480-89e3-fc4a43ab7745'],
+      },
+    } as NonNullable<typeof input.payload>;
+    await run.handleMessage(input);
+
+    expect(resolveServiceBindingsForIds).toHaveBeenCalledWith(
+      expect.objectContaining({ serviceIds: ['svc-1', 'a8fb6fbb-5747-4480-89e3-fc4a43ab7745'] }),
+    );
+    expect(runStore.updateRunServices).toHaveBeenCalledWith('run-1', {
+      services: resolvedServices,
+      launchServiceId: 'svc-1',
+    });
+    expect(run.session.services).toEqual(resolvedServices);
+    expect(captured).toHaveLength(1);
+    expect(captured[0]?.workspace?.allowedRepositoryRoots).toEqual([
+      '/repos/service-a',
+      '/repos/service-b',
+    ]);
+    expect(captured[0]?.preparedPayload).toMatchObject({
+      _services: resolvedServices,
+      _launchServiceId: 'svc-1',
+    });
+    expect(vi.mocked(runStore.updateRunServices).mock.invocationCallOrder[0]).toBeLessThan(
+      runner.mock.invocationCallOrder[0]!,
+    );
+  });
+
   it('remints the Claude write boundary on the Turn after approved Service scope expands', async () => {
     const workspace: ResolvedRunWorkspace = {
       ok: true,
@@ -1121,19 +1223,20 @@ describe('Run worktree workspace state', () => {
   it('blocks the Implement transition when the approved Coding Plan is unavailable', async () => {
     const runStore = makeRunStore();
     const runner = vi.fn(() => ({ run: async () => {} }));
+    const collaborators = makeCollaborators(runStore, runner, implementHandlerStub);
     const run = new Run(
       makeRunArgs({ session: makeSession({ promptType: 'startup_session' }) }),
-      makeCollaborators(runStore, runner, implementHandlerStub),
+      collaborators,
     );
     const input = {
       ...makeInput('implement'),
       payload: { promptType: 'implement', userMessage: 'missing-plan' },
     } as InternalRunPromptRequest;
 
-    await expect(run.handleMessage(input)).rejects.toMatchObject({
-      code: 'INVALID_REQUEST',
-      statusCode: 400,
-    });
+    await expect(run.handleMessage(input)).resolves.toBeUndefined();
+    expect(collaborators.poster.postFailureMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'STARTUP_FAILED' }),
+    );
 
     expect(runStore.updateRunServices).not.toHaveBeenCalled();
     expect(runner).not.toHaveBeenCalled();
@@ -1155,12 +1258,13 @@ describe('Run worktree workspace state', () => {
     });
     const runStore = makeRunStore();
     const runner = vi.fn(() => ({ run: async () => {} }));
-    const run = new Run(makeRunArgs(), makeCollaborators(runStore, runner));
+    const collaborators = makeCollaborators(runStore, runner);
+    const run = new Run(makeRunArgs(), collaborators);
 
-    await expect(run.handleMessage(makePlanExecutionInput())).rejects.toMatchObject({
-      code: 'REPO_BINDING_MISSING',
-      statusCode: 409,
-    });
+    await expect(run.handleMessage(makePlanExecutionInput())).resolves.toBeUndefined();
+    expect(collaborators.poster.postFailureMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'SERVICE_FOLDER_NOT_BOUND' }),
+    );
 
     expect(resolveRunWorkspace).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1240,12 +1344,13 @@ describe('Run worktree workspace state', () => {
     });
     const runStore = makeRunStore();
     const runner = vi.fn(() => ({ run: async () => {} }));
-    const run = new Run(makeRunArgs(), makeCollaborators(runStore, runner));
+    const collaborators = makeCollaborators(runStore, runner);
+    const run = new Run(makeRunArgs(), collaborators);
 
-    await expect(run.handleMessage(makePlanExecutionInput())).rejects.toMatchObject({
-      code: 'REPO_BINDING_MISSING',
-      statusCode: 409,
-    });
+    await expect(run.handleMessage(makePlanExecutionInput())).resolves.toBeUndefined();
+    expect(collaborators.poster.postFailureMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'SERVICE_FOLDER_NOT_BOUND' }),
+    );
 
     expect(runStore.updateRunServices).not.toHaveBeenCalled();
     expect(runner).not.toHaveBeenCalled();

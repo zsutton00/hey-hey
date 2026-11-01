@@ -1,13 +1,28 @@
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const visualRenders = vi.hoisted(() => vi.fn());
 
 vi.mock("./FeatureSectionVisuals", () => ({
-  FeatureSectionVisuals: ({ featureId }: { featureId: string }) => (
-    <div data-testid={`feature-section-visuals-${featureId}`} />
-  ),
+  FeatureSectionVisuals: ({
+    featureId,
+    suspended,
+  }: {
+    featureId: string;
+    suspended?: boolean;
+  }) => {
+    visualRenders(featureId, suspended);
+    return <div data-testid={`feature-section-visuals-${featureId}`} />;
+  },
 }));
 
 const queryState: Record<string, string | null> = {
@@ -15,14 +30,23 @@ const queryState: Record<string, string | null> = {
   section: null,
 };
 const setQueryMock = vi.fn();
+const queryListeners = new Set<() => void>();
+const subscribeToQuery = (listener: () => void) => {
+  queryListeners.add(listener);
+  return () => {
+    queryListeners.delete(listener);
+  };
+};
 const querySetters: Record<string, (next: string | null) => void> = {
   feature: (next) => {
     queryState.feature = next;
     setQueryMock("feature", next);
+    queryListeners.forEach((listener) => listener());
   },
   section: (next) => {
     queryState.section = next;
     setQueryMock("section", next);
+    queryListeners.forEach((listener) => listener());
   },
 };
 
@@ -45,7 +69,10 @@ const setDesktopViewport = (matches: boolean): void => {
 vi.mock("nuqs", () => ({
   parseAsString: { __id: "string" },
   useQueryState: (key: string) => {
-    const value = queryState[key];
+    const value = React.useSyncExternalStore(
+      subscribeToQuery,
+      () => queryState[key],
+    );
     return [value, querySetters[key]];
   },
 }));
@@ -125,7 +152,7 @@ vi.mock("@hey-hey/ui-common/data", () => ({
     const walk = (node: MockFeatureNode) => {
       entries.set(node.feature.id, {
         status: loadingContentIds.has(node.feature.id) ? "loading" : "ready",
-        data: node.feature,
+        data: loadingContentIds.has(node.feature.id) ? undefined : node.feature,
       });
       node.children.forEach(walk);
     };
@@ -310,6 +337,7 @@ const renderView = (
 
 describe("FeaturesDocumentView", () => {
   beforeEach(() => {
+    visualRenders.mockClear();
     setDesktopViewport(false);
     queryState.feature = null;
     queryState.section = null;
@@ -336,6 +364,141 @@ describe("FeaturesDocumentView", () => {
       y: 0,
       toJSON: () => ({}),
     }));
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  const installSectionGeometry = (extraOffset = () => 0) => {
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: Element) {
+        const panel = document.querySelector(
+          '[data-testid="features-wiki-document-panel"]',
+        ) as HTMLElement | null;
+        const sections = Array.from(
+          panel?.querySelectorAll("[data-feature-id]") ?? [],
+        );
+        const index = sections.indexOf(this);
+        const top =
+          index < 0
+            ? 100
+            : 100 + 60 + index * 300 + extraOffset() - (panel?.scrollTop ?? 0);
+        return {
+          top,
+          bottom: top + 300,
+          height: 300,
+          left: 0,
+          right: 500,
+          width: 500,
+          x: 0,
+          y: top,
+          toJSON: () => ({}),
+        };
+      },
+    );
+  };
+
+  it("activates and positions the sixth nested item on its first TOC click", async () => {
+    setDesktopViewport(true);
+    const children = Array.from({ length: 10 }, (_, index) =>
+      leaf(`child-${index}`, `Child ${index}`),
+    );
+    useFeatureTreeMock.mockReturnValue({
+      roots: [{ ...makeRoots()[0], children }],
+      isLoading: false,
+    });
+    installSectionGeometry();
+    renderView();
+    await userEvent.click(
+      screen.getByTestId("features-wiki-toc-toggle-f-alpha"),
+    );
+    expect(screen.queryByTestId("feature-document-section-child-5")).toBeNull();
+    await userEvent.click(
+      screen.getByTestId("features-wiki-toc-entry-child-5"),
+    );
+
+    const panel = screen.getByTestId("features-wiki-document-panel");
+    const target = screen.getByTestId("feature-document-section-child-5");
+    expect(
+      visualRenders.mock.calls
+        .filter(([id]) => id === "child-5")
+        .map(([, suspended]) => suspended),
+    ).toEqual([true, false]);
+    expect(
+      screen.getByTestId("features-wiki-toc-entry-child-5"),
+    ).toHaveAttribute("data-active", "true");
+    expect(panel.scrollTop).toBe(1544);
+    expect(
+      target.getBoundingClientRect().top - panel.getBoundingClientRect().top,
+    ).toBe(16);
+    expect(target).toHaveAttribute("data-active", "true");
+    expect(
+      screen.getByTestId("feature-document-heading-child-5"),
+    ).toHaveAttribute("aria-current", "location");
+    expect(setQueryMock).toHaveBeenCalledWith("section", "child-5");
+
+    // Passive scrolling cannot replace an explicit selection; clicking it again
+    // returns to that section even though its URL is already selected.
+    panel.scrollTop = 100;
+    fireEvent.scroll(panel);
+    expect(target).toHaveAttribute("data-active", "true");
+    await userEvent.click(
+      screen.getByTestId("features-wiki-toc-entry-child-5"),
+    );
+    expect(panel.scrollTop).toBe(1544);
+  });
+
+  it("positions a deep link after its content mounts and restores external URL selections", () => {
+    queryState.section = "f-alpha-2";
+    loadingContentIds.add("f-alpha-2");
+    installSectionGeometry();
+    const view = renderView();
+    expect(
+      screen.queryByTestId("feature-document-section-f-alpha-2"),
+    ).toBeNull();
+    loadingContentIds.clear();
+    view.rerender(
+      <MemoryRouter>
+        <FeaturesDocumentView organizationId="org-1" projectId="project-1" />
+      </MemoryRouter>,
+    );
+    const panel = screen.getByTestId("features-wiki-document-panel");
+    expect(panel.scrollTop).toBe(344);
+    act(() => querySetters.section("f-alpha-1"));
+    expect(panel.scrollTop).toBe(44);
+    act(() => querySetters.section("f-alpha-2"));
+    expect(panel.scrollTop).toBe(344);
+    expect(
+      screen.getByTestId("feature-document-section-f-alpha-2"),
+    ).toHaveAttribute("data-active", "true");
+  });
+
+  it("keeps the target positioned through reflow until the user scrolls", () => {
+    let onResize = () => {};
+    const disconnect = vi.fn();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: () => void) {
+          onResize = callback;
+        }
+        observe = vi.fn();
+        disconnect = disconnect;
+      },
+    );
+    queryState.section = "f-alpha-2";
+    let extraOffset = 0;
+    installSectionGeometry(() => extraOffset);
+    renderView();
+    const panel = screen.getByTestId("features-wiki-document-panel");
+    expect(panel.scrollTop).toBe(344);
+    extraOffset = 200;
+    act(() => onResize());
+    expect(panel.scrollTop).toBe(544);
+    expect(
+      screen.getByTestId("feature-document-section-f-alpha-2"),
+    ).toHaveAttribute("data-active", "true");
+    fireEvent.wheel(panel);
+    expect(disconnect).toHaveBeenCalled();
   });
 
   it("renders one TOC entry per root feature", () => {

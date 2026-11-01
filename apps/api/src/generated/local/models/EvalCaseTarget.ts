@@ -10,10 +10,13 @@
  * Do not edit the class manually.
  */
 
+import { EntityType } from '../models/EntityType';
+import { EvalConsumerHandlerKey } from '../models/EvalConsumerHandlerKey';
+import { EvalTargetHandlerKey } from '../models/EvalTargetHandlerKey';
 import { HttpFile } from '../http/http';
 
 /**
- * Everything the target handler may see. Never contains checks or rubric.
+ * Recorded case context. Only the initiating request and focal entity reach the target; situation and supporting items are reviewer and judge context.
  */
 export class EvalCaseTarget {
   /**
@@ -21,15 +24,20 @@ export class EvalCaseTarget {
    */
   'situation': string;
   'focalItemId'?: string | null;
+  /**
+   * Canonical entity family of the focal item. Required whenever focalItemId is present; work-item subtypes use TASK.
+   */
+  'focalItemType'?: EntityType;
   'supportingItemIds'?: Array<string>;
   /**
    * The single request that starts the case.
    */
   'initiatingRequest': string;
+  'targetHandler': EvalTargetHandlerKey;
   /**
-   * Handler the case runs through.
+   * Present exactly when `targetHandler` is `project_assistant`: the real handler whose policy, tools and prompt Project Assistant runs under. Always explicit; there is no default.
    */
-  'targetHandler': string;
+  'consumerHandler'?: EvalConsumerHandlerKey;
 
   static readonly discriminator: string | undefined = undefined;
 
@@ -54,6 +62,12 @@ export class EvalCaseTarget {
       format: 'uuid',
     },
     {
+      name: 'focalItemType',
+      baseName: 'focalItemType',
+      type: 'EntityType',
+      format: '',
+    },
+    {
       name: 'supportingItemIds',
       baseName: 'supportingItemIds',
       type: 'Array<string>',
@@ -68,7 +82,13 @@ export class EvalCaseTarget {
     {
       name: 'targetHandler',
       baseName: 'targetHandler',
-      type: 'string',
+      type: 'EvalTargetHandlerKey',
+      format: '',
+    },
+    {
+      name: 'consumerHandler',
+      baseName: 'consumerHandler',
+      type: 'EvalConsumerHandlerKey',
       format: '',
     },
   ];

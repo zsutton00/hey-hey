@@ -1,3 +1,22 @@
+import { constants, accessSync } from 'node:fs';
+import { delimiter, join } from 'node:path';
+
+// Run an isolated Redis process using an installed binary when available.
+// Pin the source-build fallback: Redis "stable" can introduce new build tools.
+process.env.REDISMS_VERSION ??= '7.2.5';
+if (!process.env.REDISMS_SYSTEM_BINARY) {
+  for (const directory of (process.env.PATH ?? '').split(delimiter)) {
+    const binary = join(directory, 'redis-server');
+    try {
+      accessSync(binary, constants.X_OK);
+      process.env.REDISMS_SYSTEM_BINARY = binary;
+      break;
+    } catch {
+      // Continue looking on PATH; redis-memory-server can build the pinned version.
+    }
+  }
+}
+
 // Silence all application logging during tests.
 // Winston logger respects LOG_LEVEL=silent.
 // NestJS Logger respects Logger.overrideLogger([]).

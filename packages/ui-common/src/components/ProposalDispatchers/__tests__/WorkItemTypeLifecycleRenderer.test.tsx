@@ -7,18 +7,21 @@ import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../../hooks/auth/useProjectCapabilities", async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import("../../../hooks/auth/useProjectCapabilities")
-    >();
-  return {
-    ...actual,
-    useProjectCapabilities: vi.fn(() =>
-      actual.projectCapabilitiesForRole("OWNER")
-    ),
-  };
-});
+vi.mock(
+  "../../../hooks/auth/useProjectCapabilities",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("../../../hooks/auth/useProjectCapabilities")
+      >();
+    return {
+      ...actual,
+      useProjectCapabilities: vi.fn(() =>
+        actual.projectCapabilitiesForRole("OWNER"),
+      ),
+    };
+  },
+);
 import {
   ProjectRole,
   ProposalAction,
@@ -99,7 +102,7 @@ const readyImpact = <T,>(data: T | null) => ({
 });
 
 function editProposal(
-  definition: WorkItemTypeDefinitionDto
+  definition: WorkItemTypeDefinitionDto,
 ): ProposalResponseDto & {
   updates: { definition: WorkItemTypeDefinitionDto };
 } {
@@ -143,7 +146,7 @@ function archiveProposal(): ProposalResponseDto & {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(useProjectCapabilities).mockReturnValue(
-    projectCapabilitiesForRole(ProjectRole.Owner)
+    projectCapabilitiesForRole(ProjectRole.Owner),
   );
   useWorkItemTypeByKeyMock.mockReturnValue({
     workItemTypeSummary: currentSummary,
@@ -154,22 +157,58 @@ beforeEach(() => {
     readyImpact({
       totalAffectedItemCount: 3,
       sections: [{ sectionKey: "audience", affectedItemCount: 3 }],
-    })
+    }),
   );
   useTrackingImpactMock.mockReturnValue(
     readyImpact({
       totalAffectedLinkCount: 4,
       sources: [{ sourceTypeKey: "BUG", affectedLinkCount: 4 }],
-    })
+    }),
   );
 });
 
 describe("WorkItemTypeLifecycleRenderer", () => {
+  it("uses the retained definition for an evaluation diff after the live type changes", () => {
+    const historical = {
+      ...currentDefinition,
+      description: "Historical guidance",
+    };
+    const proposed = { ...currentDefinition, description: "Proposed guidance" };
+    useWorkItemTypeByKeyMock.mockReturnValue({
+      workItemTypeSummary: {
+        ...currentSummary,
+        definition: { ...currentDefinition, description: "Later live change" },
+      },
+      isLoading: false,
+      error: null,
+    });
+    const proposal = {
+      ...editProposal(proposed),
+      applicationEligible: false,
+      ragEnabled: false,
+      retainedOriginalTargetContent: { definition: historical },
+    };
+    render(
+      <WorkItemTypeLifecycleRenderer
+        mode="edit"
+        proposal={proposal}
+        organizationId="org-1"
+        projectId="project-1"
+        status={{ state: "pending" }}
+        onApply={vi.fn()}
+      />,
+    );
+    const review = screen.getByTestId("work-item-type-lifecycle-review");
+    expect(review).toHaveTextContent("Historical guidance");
+    expect(review).toHaveTextContent("Proposed guidance");
+    expect(review).not.toHaveTextContent("Later live change");
+  });
+
   it.each([ProjectRole.Owner, ProjectRole.Architect])(
     "offers approval to a project %s",
     (role) => {
       vi.mocked(useProjectCapabilities).mockReturnValue(
-        projectCapabilitiesForRole(role)
+        projectCapabilitiesForRole(role),
       );
       render(
         <WorkItemTypeLifecycleRenderer
@@ -180,18 +219,18 @@ describe("WorkItemTypeLifecycleRenderer", () => {
           status={{ state: "pending" }}
           onApply={vi.fn()}
           onReject={vi.fn()}
-        />
+        />,
       );
 
       expect(screen.getByTestId("proposal-approve")).toBeInTheDocument();
-    }
+    },
   );
 
   it.each([ProjectRole.Member, ProjectRole.Viewer])(
     "hides approval but keeps reject for a project %s",
     (role) => {
       vi.mocked(useProjectCapabilities).mockReturnValue(
-        projectCapabilitiesForRole(role)
+        projectCapabilitiesForRole(role),
       );
       render(
         <WorkItemTypeLifecycleRenderer
@@ -202,12 +241,14 @@ describe("WorkItemTypeLifecycleRenderer", () => {
           status={{ state: "pending" }}
           onApply={vi.fn()}
           onReject={vi.fn()}
-        />
+        />,
       );
 
       expect(screen.queryByTestId("proposal-approve")).not.toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
-    }
+      expect(
+        screen.getByRole("button", { name: "Reject" }),
+      ).toBeInTheDocument();
+    },
   );
 
   it.each(["missing", "error", "loading"])(
@@ -226,17 +267,17 @@ describe("WorkItemTypeLifecycleRenderer", () => {
           projectId="project-1"
           status={{ state: "pending" }}
           onApply={vi.fn()}
-        />
+        />,
       );
       expect(
-        screen.queryByRole("button", { name: "Update" })
+        screen.queryByRole("button", { name: "Update" }),
       ).not.toBeInTheDocument();
       expect(
         state === "loading"
           ? screen.getByRole("progressbar")
-          : screen.getByTestId("work-item-type-lifecycle-load-error")
+          : screen.getByTestId("work-item-type-lifecycle-load-error"),
       ).toBeInTheDocument();
-    }
+    },
   );
   it("blocks approval if stable declaration identities cannot be compared", () => {
     render(
@@ -253,13 +294,13 @@ describe("WorkItemTypeLifecycleRenderer", () => {
         projectId="project-1"
         status={{ state: "pending" }}
         onApply={vi.fn()}
-      />
+      />,
     );
     expect(
-      screen.getByTestId("work-item-type-comparison-error")
+      screen.getByTestId("work-item-type-comparison-error"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Update" })
+      screen.queryByRole("button", { name: "Update" }),
     ).not.toBeInTheDocument();
   });
   it.each(["loading", "error"])(
@@ -278,14 +319,14 @@ describe("WorkItemTypeLifecycleRenderer", () => {
           projectId="project-1"
           status={{ state: "pending" }}
           onApply={vi.fn()}
-        />
+        />,
       );
       expect(screen.getByRole("button", { name: "Update" })).toBeDisabled();
       if (state === "error")
         expect(
-          screen.getByTestId("work-item-type-impact-error")
+          screen.getByTestId("work-item-type-impact-error"),
         ).toBeInTheDocument();
-    }
+    },
   );
   it("renders additions, removals and order alongside complete declaration content", () => {
     render(
@@ -307,7 +348,7 @@ describe("WorkItemTypeLifecycleRenderer", () => {
         projectId="project-1"
         status={{ state: "pending" }}
         onApply={vi.fn()}
-      />
+      />,
     );
     expect(screen.getByText("Section order")).toBeInTheDocument();
     const sections = screen.getAllByTestId("work-item-type-section-comparison");
@@ -330,14 +371,14 @@ describe("WorkItemTypeLifecycleRenderer", () => {
         projectId="project-1"
         status={{ state: "pending" }}
         onApply={vi.fn()}
-      />
+      />,
     );
 
     expect(screen.getByTestId("work-item-type-role-change")).toHaveTextContent(
-      "work-item→scheduled"
+      "work-item→scheduled",
     );
     expect(
-      screen.queryByTestId("work-item-type-edit-impact")
+      screen.queryByTestId("work-item-type-edit-impact"),
     ).not.toBeInTheDocument();
   });
 
@@ -359,16 +400,16 @@ describe("WorkItemTypeLifecycleRenderer", () => {
         projectId="project-1"
         status={{ state: "pending" }}
         onApply={vi.fn()}
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("work-item-type-edit-impact")
+      screen.getByTestId("work-item-type-edit-impact"),
     ).toBeInTheDocument();
     expect(screen.getByText(/affects 3 existing items/)).toBeInTheDocument();
     expect(screen.getByText("audience: 3 items")).toBeInTheDocument();
     expect(
-      screen.getByText(/affects 4 existing tracking links/)
+      screen.getByText(/affects 4 existing tracking links/),
     ).toBeInTheDocument();
     expect(screen.getByText("BUG: 4 links")).toBeInTheDocument();
     expect(useSectionImpactMock).toHaveBeenCalledWith(
@@ -376,14 +417,14 @@ describe("WorkItemTypeLifecycleRenderer", () => {
       "project-1",
       "MARKETING",
       ["audience"],
-      { enabled: true }
+      { enabled: true },
     );
     expect(useTrackingImpactMock).toHaveBeenCalledWith(
       "org-1",
       "project-1",
       "MARKETING",
       ["BUG"],
-      { enabled: true }
+      { enabled: true },
     );
   });
 
@@ -402,14 +443,14 @@ describe("WorkItemTypeLifecycleRenderer", () => {
         projectId="project-1"
         status={{ state: "pending" }}
         onApply={vi.fn()}
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("work-item-type-added-sections")
+      screen.getByTestId("work-item-type-added-sections"),
     ).toHaveTextContent("channels");
     expect(
-      screen.queryByTestId("work-item-type-edit-impact")
+      screen.queryByTestId("work-item-type-edit-impact"),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Update" })).toBeEnabled();
   });
@@ -426,20 +467,20 @@ describe("WorkItemTypeLifecycleRenderer", () => {
         projectId="project-1"
         status={{ state: "pending" }}
         onApply={vi.fn()}
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("work-item-type-placement-changes")
+      screen.getByTestId("work-item-type-placement-changes"),
     ).toHaveTextContent("Placement changes");
     expect(
-      screen.getByTestId("work-item-type-added-parents")
+      screen.getByTestId("work-item-type-added-parents"),
     ).toHaveTextContent("Added parentsEPIC");
     expect(
-      screen.getByTestId("work-item-type-removed-parents")
+      screen.getByTestId("work-item-type-removed-parents"),
     ).toHaveTextContent("Removed parentsINITIATIVE");
     expect(
-      screen.queryByTestId("work-item-type-edit-impact")
+      screen.queryByTestId("work-item-type-edit-impact"),
     ).not.toBeInTheDocument();
   });
 
@@ -452,11 +493,11 @@ describe("WorkItemTypeLifecycleRenderer", () => {
         projectId="project-1"
         status={{ state: "pending" }}
         onApply={vi.fn()}
-      />
+      />,
     );
 
     expect(
-      screen.queryByTestId("work-item-type-placement-changes")
+      screen.queryByTestId("work-item-type-placement-changes"),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Update" })).toBeEnabled();
   });
@@ -476,7 +517,7 @@ describe("WorkItemTypeLifecycleRenderer", () => {
         projectId="project-1"
         status={{ state: "pending" }}
         onApply={vi.fn()}
-      />
+      />,
     );
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
     unmount();
@@ -494,10 +535,10 @@ describe("WorkItemTypeLifecycleRenderer", () => {
         projectId="project-1"
         status={{ state: "pending" }}
         onApply={vi.fn()}
-      />
+      />,
     );
     expect(
-      screen.getByTestId("work-item-type-lifecycle-load-error")
+      screen.getByTestId("work-item-type-lifecycle-load-error"),
     ).toBeInTheDocument();
   });
 
@@ -512,11 +553,11 @@ describe("WorkItemTypeLifecycleRenderer", () => {
         projectId="project-1"
         status={{ state: "pending" }}
         onApply={onApply}
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("work-item-type-archive-review")
+      screen.getByTestId("work-item-type-archive-review"),
     ).toHaveTextContent("Existing items and this definition remain readable");
     expect(screen.queryByText(/will be deleted/i)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));

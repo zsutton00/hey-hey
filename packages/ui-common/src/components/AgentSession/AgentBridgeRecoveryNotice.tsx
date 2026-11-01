@@ -1,8 +1,8 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import LinkOffOutlinedIcon from "@mui/icons-material/LinkOffOutlined";
 import {
   Box,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -26,16 +26,14 @@ export interface AgentBridgeRecoveryNoticeProps {
 }
 
 type GeneralGuidance =
-  | "no_paired_machines"
-  | "bound_machine_missing"
-  | "status_unavailable";
+  "no_paired_machines" | "bound_machine_missing" | "status_unavailable";
 
 type GuidanceTarget =
   | { kind: "machine"; state: AgentBridgeMachineUnavailableState }
   | { kind: "general"; type: GeneralGuidance };
 
 const browserAuthorizationUrl = (
-  state: AgentBridgeMachineUnavailableState
+  state: AgentBridgeMachineUnavailableState,
 ): string => {
   const params = new URLSearchParams({
     section: "pairing",
@@ -59,6 +57,8 @@ const machineStatus = (state: AgentBridgeMachineUnavailableState): string => {
       return "Authorize this browser";
     case "browser_authorization_revoked":
       return "Browser authorization revoked";
+    case "controller_selection_required":
+      return "Controller selection required";
     case "controller_context_unavailable":
       return "Controller status unavailable";
     case "machine_revoked":
@@ -69,7 +69,7 @@ const machineStatus = (state: AgentBridgeMachineUnavailableState): string => {
 };
 
 export const getAgentBridgeRecoveryActionLabel = (
-  state: AgentBridgeMachineUnavailableState
+  state: AgentBridgeMachineUnavailableState,
 ): string => {
   switch (state.type) {
     case "browser_authorization_required":
@@ -79,6 +79,8 @@ export const getAgentBridgeRecoveryActionLabel = (
       return "How to reconnect";
     case "legacy_protocol":
       return "View update steps";
+    case "controller_selection_required":
+      return "View controller details";
     case "controller_context_unavailable":
       return "How to restore";
     case "machine_revoked":
@@ -194,6 +196,14 @@ const MachineGuidance = ({
           <Command>heyhey pair</Command>
         </Stack>
       );
+    case "controller_selection_required":
+      return (
+        <Typography>
+          This browser has multiple enrolled controllers for {name}. An exact
+          controller must be selected before authorizing work. No controller has
+          been selected automatically.
+        </Typography>
+      );
     case "controller_context_unavailable":
       return (
         <Stack spacing={2}>
@@ -232,10 +242,10 @@ const GuidanceDialog = ({
   const title = machineState
     ? `${machineStatus(machineState)} — ${machineState.machine.name}`
     : target?.kind === "general" && target.type === "no_paired_machines"
-    ? "Pair an Agent Bridge"
-    : target?.kind === "general" && target.type === "bound_machine_missing"
-    ? "Agent Bridge no longer paired"
-    : "Agent Bridge status unavailable";
+      ? "Pair an Agent Bridge"
+      : target?.kind === "general" && target.type === "bound_machine_missing"
+        ? "Agent Bridge no longer paired"
+        : "Agent Bridge status unavailable";
   const authorizable =
     machineState?.type === "browser_authorization_required" ||
     machineState?.type === "browser_authorization_revoked" ||
@@ -366,12 +376,12 @@ export const AgentBridgeRecoveryNotice = ({
   testId = "agent-bridge-recovery-notice",
 }: AgentBridgeRecoveryNoticeProps) => {
   const [guidanceTarget, setGuidanceTarget] = useState<GuidanceTarget | null>(
-    null
+    null,
   );
   if (state.type === "loading" || state.type === "ready") return null;
 
   const openMachineGuidance = (
-    unavailableState: AgentBridgeMachineUnavailableState
+    unavailableState: AgentBridgeMachineUnavailableState,
   ) => setGuidanceTarget({ kind: "machine", state: unavailableState });
 
   const content = (() => {
@@ -453,6 +463,7 @@ export const AgentBridgeRecoveryNotice = ({
       case "browser_authorization_required":
       case "browser_authorization_revoked":
       case "controller_context_unavailable":
+      case "controller_selection_required":
       case "machine_revoked":
       case "legacy_protocol":
         return <RecoveryRow state={state} onOpen={openMachineGuidance} />;

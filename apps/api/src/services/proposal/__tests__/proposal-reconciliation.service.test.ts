@@ -58,8 +58,8 @@ describe('proposal reconciliation owner', () => {
   it('accepts semantically equal content with different property order', () => {
     expect(() =>
       service.assertReviewedBasisCurrent(
-        [basis({ a: 1, b: 2 })],
-        [basis({ b: 2, a: 1 })],
+        [basis({ sections: { data: { a: 1, b: 2 } } })],
+        [basis({ sections: { data: { b: 2, a: 1 } } })],
       ),
     ).not.toThrow();
   });
@@ -70,8 +70,43 @@ describe('proposal reconciliation owner', () => {
     );
     expect(() =>
       service.assertReviewedBasisCurrent(
-        [basis({ order: [1, 2] })],
-        [basis({ order: [2, 1] })],
+        [basis({ sections: { order: [1, 2] } })],
+        [basis({ sections: { order: [2, 1] } })],
+      ),
+    ).toThrow(ConflictException);
+  });
+
+  it('accepts omitted and undefined optional fields recursively after JSON persistence', () => {
+    const live = {
+      sections: {
+        definition: {
+          name: 'Mockup',
+          iconKey: undefined,
+          colorKey: undefined,
+          nested: [{ optional: undefined, keep: true }],
+        },
+      },
+    };
+    const stored = JSON.parse(JSON.stringify(live));
+    expect(() =>
+      service.assertReviewedBasisCurrent([basis(stored)], [basis(live)]),
+    ).not.toThrow();
+    expect(() =>
+      service.assertReviewedBasisCurrent([basis(live)], [basis(stored)]),
+    ).not.toThrow();
+  });
+
+  it.each([
+    [{}, { optional: null }],
+    [{ optional: null }, {}],
+    [{ values: [1] }, { values: [1, 2] }],
+    [{ values: [1, 2] }, { values: [2, 1] }],
+    [{ name: 'Before' }, { name: 'After' }],
+  ])('rejects meaningful definition changes: %j -> %j', (reviewed, current) => {
+    expect(() =>
+      service.assertReviewedBasisCurrent(
+        [basis({ sections: { definition: reviewed } })],
+        [basis({ sections: { definition: current } })],
       ),
     ).toThrow(ConflictException);
   });

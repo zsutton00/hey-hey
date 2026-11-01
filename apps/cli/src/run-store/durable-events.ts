@@ -233,7 +233,7 @@ export type DurableRunEventInput = Omit<
 >;
 
 const MAX_STRING_BYTES = 128 * 1024;
-const MAX_PROMPT_BYTES = 256 * 1024;
+export const MAX_PROMPT_BYTES = 256 * 1024;
 const MAX_JSON_BYTES = 128 * 1024;
 const MAX_ARRAY_ITEMS = 2_000;
 const MAX_ARTIFACT_REFS = 100;

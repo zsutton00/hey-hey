@@ -1,3 +1,4 @@
+import { startControllerInputs } from '../generated/controller-action-contract';
 import { ProjectAccessGuard } from '../auth/guards/project-access.guard';
 import {
   BadRequestException,
@@ -1167,6 +1168,7 @@ export class ConversationController implements IConversationControllerSpec {
         machineEffectAdmission ??
         (await this.executionGrantService.assertInteractiveAuthorized({
           authorization: requestDto.authorization!,
+          inputs: startControllerInputs(requestDto),
           organizationId,
           projectId,
           userId: callerUserId,
@@ -1436,66 +1438,11 @@ export class ConversationController implements IConversationControllerSpec {
         userKickoffMessage = buildUserKickoff(reservedIds.messageId);
       }
 
-      let triggerPayload: AgentTriggerStartRun['payload'];
-      if (isWorkflowArm) {
-        triggerPayload = {
-          workflowName: requestDto.workflowName,
-          ...(requestDto.payload ? { payload: requestDto.payload } : {}),
-          model: requestDto.model,
-          reasoningEffort: requestDto.reasoningEffort,
-          provider: requestDto.provider,
+      const triggerPayload: AgentTriggerStartRun['payload'] =
+        startControllerInputs({
+          ...requestDto,
           ...(startRunConfig !== undefined ? { config: startRunConfig } : {}),
-          ...(requestDto.fastMode !== undefined
-            ? { fastMode: requestDto.fastMode }
-            : {}),
-          contextMetadata: requestDto.contextMetadata,
-          // Non-coding sessions (refiners, entity conversations) carry no
-          // services — omit the service fields rather than forwarding empties.
-          ...(requestDto.serviceIds && requestDto.serviceIds.length > 0
-            ? {
-                serviceIds: requestDto.serviceIds,
-                launchServiceId: requestDto.launchServiceId,
-              }
-            : {}),
-          ...(requestDto.worktree ? { worktree: requestDto.worktree } : {}),
-          agentSessionId: requestDto.agentSessionId,
-        };
-      } else {
-        triggerPayload = {
-          handlerPromptType: requestDto.handlerPromptType,
-          attachments: requestDto.attachments,
-          // The tab the user opened before the session existed; the CLI adopts
-          // it before turn one. Only the id rides the envelope.
-          ...(requestDto.stagedBrowserTab !== undefined
-            ? { stagedBrowserTab: requestDto.stagedBrowserTab }
-            : {}),
-          payload: requestDto.payload,
-          model: requestDto.model,
-          reasoningEffort: requestDto.reasoningEffort,
-          provider: requestDto.provider,
-          ...(startRunConfig !== undefined ? { config: startRunConfig } : {}),
-          ...(requestDto.fastMode !== undefined
-            ? { fastMode: requestDto.fastMode }
-            : {}),
-          contextMetadata: requestDto.contextMetadata,
-          // Non-coding sessions (refiners, entity conversations) carry no
-          // services — omit the service fields rather than forwarding empties.
-          ...(requestDto.serviceIds && requestDto.serviceIds.length > 0
-            ? {
-                serviceIds: requestDto.serviceIds,
-                launchServiceId: requestDto.launchServiceId,
-              }
-            : {}),
-          ...(requestDto.worktree ? { worktree: requestDto.worktree } : {}),
-          agentSessionId: requestDto.agentSessionId,
-          // Non-dispatching SYSTEM seed: keep the handler/payload bound so the CLI
-          // materializes the Run and the conversationId → runId binding survives
-          // for the user's first message, but mark the turn-firing arm
-          // materialize-only so no first turn fires. Omitted on every other path
-          // (default true) to leave them byte-for-byte unchanged.
-          ...(suppressDispatch ? { triggersAgent: false } : {}),
-        } satisfies AgentTriggerStartRun['payload'];
-      }
+        }).payload;
 
       this.logger.debug(
         '[ConversationController] startConversationRun materialized signed-trigger payload',

@@ -1,3 +1,5 @@
+import { useModalState } from "../Modals/useModalState";
+import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import FlagIcon from "@mui/icons-material/Flag";
 import LayersIcon from "@mui/icons-material/Layers";
@@ -151,7 +153,11 @@ export const StatusActionCompact: React.FC<StatusActionCompactProps> = ({
   const [openMenu, setOpenMenu] = useState<
     "status" | "priority" | "dueDate" | "assignee" | "services" | null
   >(null);
-  const [supersedeDialogOpen, setSupersedeDialogOpen] = useState(false);
+  const [
+    supersedeDialogOpen,
+    setSupersedeDialogOpen,
+    supersedeDialogOpenOwnerKey,
+  ] = useModalState(false);
 
   const closeMenu = useCallback(() => setOpenMenu(null), []);
 
@@ -538,13 +544,15 @@ export const StatusActionCompact: React.FC<StatusActionCompactProps> = ({
       )}
 
       {taskId && (
-        <SupersedeTaskDialog
-          open={supersedeDialogOpen}
-          organizationId={organizationId}
-          projectId={projectId}
-          taskId={taskId}
-          onClose={() => setSupersedeDialogOpen(false)}
-        />
+        <ModalWorkOwner.Provider value={supersedeDialogOpenOwnerKey}>
+          <SupersedeTaskDialog
+            open={supersedeDialogOpen}
+            organizationId={organizationId}
+            projectId={projectId}
+            taskId={taskId}
+            onClose={() => setSupersedeDialogOpen(false)}
+          />
+        </ModalWorkOwner.Provider>
       )}
     </Box>
   );

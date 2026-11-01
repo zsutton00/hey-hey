@@ -11,6 +11,7 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
+import { ReportUsageMeasurement } from './reportUsageMeasurement';
 import { FeatureSyncDecisionReportPayloadV1 } from './featureSyncDecisionReportPayloadV1';
 import { LinkedReportEntityRef } from './linkedReportEntityRef';
 import { ReportEntityDto } from './reportEntityDto';
@@ -18,6 +19,10 @@ import { ReportAudience } from './reportAudience';
 
 
 export interface ReportDtoFeatureSyncDecisionV1 { 
+    /**
+     * Usage available at creation; never updated with later measurements.
+     */
+    usage?: ReportUsageMeasurement | null;
     id: string;
     organizationId: string;
     projectId?: string | null;
@@ -37,7 +42,7 @@ export interface ReportDtoFeatureSyncDecisionV1 {
      */
     parentReportId?: string | null;
     /**
-     * Whether this report may be ingested into graph and embeddings. Absent means true. Derived by the API, never set by clients. A reusable exclusion control, not an approval flag. 
+     * Whether this report may be ingested into graph and embeddings. Absent means true. Supplied by the writer and persisted by the API. A reusable exclusion control, not an approval flag. 
      */
     ragEnabled?: boolean;
     createdAt: string;

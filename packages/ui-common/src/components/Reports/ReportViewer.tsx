@@ -124,6 +124,7 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({
         rendererShowsTitle,
         evaluationOutput ? undefined : planInteraction,
         evaluationOutput ? undefined : featureSyncDecisionInteraction,
+        evaluationOutput,
       )}
     </ReportViewerFrame>
   );
@@ -135,6 +136,7 @@ const renderReportBody = (
   rendererShowsTitle: boolean,
   planInteraction?: PlanReportInteractionContext,
   featureSyncDecisionInteraction?: FeatureSyncDecisionReportInteractionContext,
+  evaluationOutput = false,
 ): React.ReactElement => {
   if (report.reportType === ReportType.ProjectReport) {
     const projectReportPayload = narrowProjectReportPayload(report);
@@ -261,6 +263,7 @@ const renderReportBody = (
           payload={payload as CodingResearchReportPayload}
           report={report}
           reportTestId={reportTestId}
+          evaluationOutput={evaluationOutput}
         />
       );
     case ReportType.FeatureSyncHandoff:

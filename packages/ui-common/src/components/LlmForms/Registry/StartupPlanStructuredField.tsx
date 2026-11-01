@@ -188,7 +188,8 @@ type LegacyStructuredResponseContainer = {
 };
 
 type StartupPlanStructuredFieldValue =
-  StartupPlanStructuredResponseValue | LegacyStructuredResponseContainer;
+  | StartupPlanStructuredResponseValue
+  | LegacyStructuredResponseContainer;
 
 export type StartupPlanStructuredFieldProps =
   FieldComponentProps<StartupPlanStructuredFieldValue>;
@@ -647,7 +648,7 @@ const readSourceTypeLabel = (value: unknown): string => {
   return trimmed ?? "unknown-source-type";
 };
 
-const StartupSourceReferenceInline: React.FC<StartupSourceReferenceInlineProps> =
+export const StartupSourceReferenceInline: React.FC<StartupSourceReferenceInlineProps> =
   React.memo(({ sourceRef, organizationId, projectId, testId }) => {
     const sourceId = readRequiredSourceId(sourceRef?.sourceId);
     const sourceType = readSourceTypeLabel(sourceRef?.sourceType);
@@ -1181,9 +1182,9 @@ interface StartupServiceScopeSectionProps {
   review: StartupServiceScopeReview;
 }
 
-const StartupServiceScopeSection: React.FC<StartupServiceScopeSectionProps> = ({
-  review,
-}) => {
+export const StartupServiceScopeSection: React.FC<
+  StartupServiceScopeSectionProps
+> = ({ review }) => {
   if (review.status === "loading") {
     return (
       <Alert severity="info" data-testid="startup-plan-service-scope-loading">

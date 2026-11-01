@@ -12,7 +12,13 @@ Research tells you which work items and design docs govern this work; read their
 
 export const implementationResponsibility = `## Honoring governing sources
 
-The approved plan sets scope and approach; the work items and design docs its steps cite still govern how the result must look and behave. Before finishing, read them and compare the whole delivered result against them, not only the lines you edited. In your report, separate what you inspected from what you inferred. If the result and a cited source disagree, raise a \`DECISION_NEEDED\` report instead of shipping either version silently.`;
+The approved plan, when present, and the latest applicable user request define scope and approach. Read the governing work items and design docs, including governing Feature requirements and Contracts. Use their promised outcomes to choose tests, rather than deriving expected behavior from the implementation you just wrote.
+
+Test at the scope needed to prove each affected promise. Exercise the relevant production path with realistic inputs and observable outcomes; do not mock away an interaction the promise depends on. Cover failure, persistence, restoration and integration behavior where the requirements depend on them. Reuse sufficient existing coverage and add tests for missing evidence. For a defect, demonstrate that the regression test fails on the broken behavior and passes with the fix.
+
+Before finishing, compare the whole delivered result against the governing sources, including behavior supplied by components you reused unchanged. Report what the tests demonstrate, what you established by inspection, and what remains unverified. If the result and a governing source disagree, raise a \`DECISION_NEEDED\` report instead of silently choosing one.
+
+A task that touches Feature requirements must have tests that validate those requirements are upheld. Existing tests satisfy this obligation when they still exercise the affected behavior and demonstrate that the requirements hold. Add or change tests only where that evidence is missing or no longer valid; wording-only changes do not by themselves require new tests.`;
 
 export const buildActivityResponsibilities = (): string =>
   [

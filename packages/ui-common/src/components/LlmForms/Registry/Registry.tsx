@@ -1,3 +1,6 @@
+import { HistoricalCodingPlanContextField } from "./HistoricalCodingPlanContextField";
+import { CodingPlanApprovalField } from "./CodingPlanApprovalField";
+import { CodingPlanDiscrepancyField } from "./CodingPlanDiscrepancyField";
 import { OpenItemsTriageField } from "./OpenItemsTriageField";
 import { goalPmAnswer } from "./goalPmAnswer";
 import React from "react";
@@ -67,6 +70,7 @@ import { PlanGenerationJourneyReviewField } from "./PlanGenerationJourneyReviewF
 import { PlanGenerationVisualPreviewField } from "./PlanGenerationVisualPreviewField";
 import { PlanGenerationVisualPreviewApproveAction } from "./PlanGenerationVisualPreviewApproveAction";
 import { PlanGenerationStageReviewField } from "./PlanGenerationStageReviewField";
+import { RepositoryFeatureEnrichmentReplyField } from "./RepositoryFeatureEnrichmentReplyField";
 import { PlanGenerationStageReviewReadyAction } from "./PlanGenerationStageReviewReadyAction";
 import { PlanShapingFeatureSyncReviewField } from "./PlanShapingFeatureSyncReviewField";
 import { PlanGenerationStepReviewField } from "./PlanGenerationStepReviewField";
@@ -738,6 +742,12 @@ export const FIELD_REGISTRY: Record<string, FieldRegistryEntry> = {
     getHasContent: hasTextareaValue,
     proposalsPlacement: "above-element",
   },
+  repository_feature_enrichment_reply: {
+    ...getFieldResponseMetadata("repository_feature_enrichment_reply"),
+    Component:
+      RepositoryFeatureEnrichmentReplyField as unknown as React.FC<FieldComponentProps>,
+    getHasContent: hasStringValue,
+  },
   currency: {
     ...getFieldResponseMetadata("currency"),
     Component: CurrencyField,
@@ -1090,6 +1100,24 @@ export const FIELD_REGISTRY: Record<string, FieldRegistryEntry> = {
         apply: applySuggestedAgentAction,
       },
     },
+  },
+  coding_plan_version: {
+    ...getFieldResponseMetadata("coding_plan_version"),
+    Component: CodingPlanApprovalField,
+    getHasContent: hasObjectValue,
+    shouldShowButtons: () => false,
+  },
+  coding_plan_context: {
+    ...getFieldResponseMetadata("coding_plan_context"),
+    Component: HistoricalCodingPlanContextField,
+    getHasContent: hasObjectValue,
+    shouldShowButtons: () => false,
+  },
+  coding_plan_discrepancy: {
+    ...getFieldResponseMetadata("coding_plan_discrepancy"),
+    Component: CodingPlanDiscrepancyField,
+    getHasContent: hasObjectValue,
+    shouldShowButtons: () => false,
   },
   coding_prompt_startup_plan: {
     ...getFieldResponseMetadata("coding_prompt_startup_plan"),

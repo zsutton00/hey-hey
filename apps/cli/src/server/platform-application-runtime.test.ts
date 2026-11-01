@@ -34,6 +34,10 @@ describe('PlatformApplicationRuntime local changed-file isolation', () => {
       getFileChangeProjection: () => [{ serviceId, repoRelativePath: identity.filePath }],
     } as Run;
     const router = new LocalAgentRouter({
+      toolCalls: {
+        sessionActivity: { snapshot: vi.fn() },
+        isRemoteToolCallViewingEnabled: vi.fn(),
+      },
       allowedOrigins: ['https://allowed.test'],
       keyPairStore: {
         loadCurrentMachineId: vi.fn(async () => 'machine-1'),

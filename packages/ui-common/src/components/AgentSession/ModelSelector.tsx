@@ -1,9 +1,10 @@
+import { useModalState } from "../Modals/useModalState";
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import {
   Alert,
   Autocomplete,
   Box,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -159,8 +160,7 @@ export const ModelSelectorMachineSelection = ({
   const hasResolvedSoleMachine =
     machineSelection.machineMode === "one" &&
     machineSelection.selectedMachineId !== null;
-  const showMachinePicker =
-    machineSelection.machines.length > 0 && !hasResolvedSoleMachine;
+  const showMachinePicker = machineSelection.machines.length > 0;
 
   return (
     <Stack spacing={1.5} data-testid={`${testIdPrefix}-machine-selection`}>
@@ -170,6 +170,7 @@ export const ModelSelectorMachineSelection = ({
           selectedMachineId={machineSelection.selectedMachineId}
           onSelect={machineSelection.onSelectMachine}
           mobileMode={mobileMode}
+          disabled={hasResolvedSoleMachine}
         />
       ) : (
         <AgentBridgeRecoveryNotice
@@ -272,7 +273,7 @@ const ModelSelectorControls = ({
   return (
     <Stack
       direction={direction ?? { xs: "column", sm: "row" }}
-      spacing={2}
+      spacing={1}
       data-testid={`${testIdPrefix}-controls`}
     >
       <FormControl
@@ -641,8 +642,12 @@ export const ModelSelector = ({
   );
   const [preferredFavoriteId, setPreferredFavoriteId] =
     useState<ModelSelectionFavoriteId | null>(null);
-  const [manageFavoritesOpen, setManageFavoritesOpen] = useState(false);
-  const [editorOpen, setEditorOpen] = useState(false);
+  const [
+    manageFavoritesOpen,
+    setManageFavoritesOpen,
+    manageFavoritesOpenOwnerKey,
+  ] = useModalState(false);
+  const [editorOpen, setEditorOpen, editorOpenOwnerKey] = useModalState(false);
   // A provider that reported zero models is explained by the CLI's notice
   // (shown by RuntimeModelSelector); it is not something to pick.
   const providers = listProviders().filter(
@@ -891,36 +896,48 @@ export const ModelSelector = ({
       data-testid={`${testIdPrefix}-root`}
       data-presentation={presentation}
     >
+      {/* Keep intrinsic probes out of the dialog's scrollable overflow. */}
       <Box
-        ref={fullMeasureRef}
         aria-hidden="true"
-        data-testid={`${testIdPrefix}-full-measure`}
+        inert
         sx={{
           position: "absolute",
-          visibility: "hidden",
+          inset: 0,
+          overflow: "hidden",
           pointerEvents: "none",
-          width: "max-content",
         }}
       >
-        {buildEditor(
-          `${testIdPrefix}-measure-full`,
-          "row",
-          false,
-          rowEnd ? <Box sx={{ width: ROW_END_MIN_WIDTH }} /> : undefined,
-        )}
-      </Box>
-      <Box
-        ref={chipsMeasureRef}
-        aria-hidden="true"
-        data-testid={`${testIdPrefix}-chips-measure`}
-        sx={{
-          position: "absolute",
-          visibility: "hidden",
-          pointerEvents: "none",
-          width: "max-content",
-        }}
-      >
-        {buildChipsSummary(`${testIdPrefix}-measure-chips`)}
+        <Box
+          ref={fullMeasureRef}
+          aria-hidden="true"
+          data-testid={`${testIdPrefix}-full-measure`}
+          sx={{
+            position: "absolute",
+            visibility: "hidden",
+            pointerEvents: "none",
+            width: "max-content",
+          }}
+        >
+          {buildEditor(
+            `${testIdPrefix}-measure-full`,
+            "row",
+            false,
+            rowEnd ? <Box sx={{ width: ROW_END_MIN_WIDTH }} /> : undefined,
+          )}
+        </Box>
+        <Box
+          ref={chipsMeasureRef}
+          aria-hidden="true"
+          data-testid={`${testIdPrefix}-chips-measure`}
+          sx={{
+            position: "absolute",
+            visibility: "hidden",
+            pointerEvents: "none",
+            width: "max-content",
+          }}
+        >
+          {buildChipsSummary(`${testIdPrefix}-measure-chips`)}
+        </Box>
       </Box>
 
       {presentation === "full" ? (
@@ -944,6 +961,7 @@ export const ModelSelector = ({
       )}
       {rowEndBelow}
       <Dialog
+        ownerKey={editorOpenOwnerKey}
         open={editorOpen}
         onClose={() => setEditorOpen(false)}
         fullWidth
@@ -959,6 +977,7 @@ export const ModelSelector = ({
       </Dialog>
 
       <Dialog
+        ownerKey={manageFavoritesOpenOwnerKey}
         open={manageFavoritesOpen}
         onClose={() => setManageFavoritesOpen(false)}
         fullWidth

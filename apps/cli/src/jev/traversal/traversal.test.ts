@@ -66,7 +66,10 @@ const focal: Focal = {
   description: 'Do the thing',
   acceptanceCriteria: 'It is done',
   parent: {
-    kind: 'feature', name: 'Parent', description: 'The parent' },
+    kind: 'feature',
+    name: 'Parent',
+    description: 'The parent',
+  },
 };
 
 /** Scores by entity id; every other entity gets 0 / does not apply. */
@@ -294,7 +297,7 @@ describe('walk', () => {
       { max: 1, minScore: 0 },
     ]);
     expect(result.entities.map(({ id, text }) => [id, text])).toEqual([
-      [A, full],
+      [A, '### description\n\nPlain.'],
       [E, 'Body of 06'],
     ]);
     const checkOfA = jev.requests.find(({ state }) => JSON.stringify(state).includes('Plain.'));

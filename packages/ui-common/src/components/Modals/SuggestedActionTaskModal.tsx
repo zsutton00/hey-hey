@@ -1,7 +1,7 @@
+import { FunctionalDialog as Dialog } from "./FunctionalDialog";
 import React, { useState, useCallback, useEffect } from "react";
 import type { TFunction } from "i18next";
 import {
-  Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
@@ -53,7 +53,7 @@ const validateName = (name: string, t: TFunction): string | undefined => {
 
 const validateDescription = (
   description: string,
-  t: TFunction
+  t: TFunction,
 ): string | undefined => {
   if (description.length > 500) {
     return t(KEYS.tasks.dialog.descriptionTooLong);
@@ -100,7 +100,7 @@ export const SuggestedActionTaskModal: React.FC<
       const error = validateName(value, t);
       setErrors((prev) => ({ ...prev, name: error }));
     },
-    [t]
+    [t],
   );
 
   const handleDescriptionChange = useCallback(
@@ -110,7 +110,7 @@ export const SuggestedActionTaskModal: React.FC<
       const error = validateDescription(value, t);
       setErrors((prev) => ({ ...prev, description: error }));
     },
-    [t]
+    [t],
   );
 
   const handlePriorityChange = useCallback((priority: TaskPriority) => {
@@ -240,7 +240,7 @@ export const SuggestedActionTaskModal: React.FC<
             projectId={projectId}
             label={t(KEYS.conversation.suggestedAction.initiativeLabel)}
             placeholder={t(
-              KEYS.conversation.suggestedAction.initiativePlaceholder
+              KEYS.conversation.suggestedAction.initiativePlaceholder,
             )}
             value={initiativeId}
             onChange={handleInitiativeChange}
@@ -254,7 +254,7 @@ export const SuggestedActionTaskModal: React.FC<
             projectId={projectId}
             label={t(KEYS.conversation.suggestedAction.parentTaskLabel)}
             placeholder={t(
-              KEYS.conversation.suggestedAction.parentTaskPlaceholder
+              KEYS.conversation.suggestedAction.parentTaskPlaceholder,
             )}
             value={parentTaskId}
             onChange={handleParentTaskChange}

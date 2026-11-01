@@ -261,9 +261,7 @@ describe('local-agent-service.sendMessage — review subagent routing', () => {
       '/abs/path/to/src/foo.ts',
       '/abs/path/to/src/bar.ts',
     ]);
-    expect((subagentArgs.payload as { userMessage?: string }).userMessage).toBe(
-      'pay attention to error paths',
-    );
+    expect(subagentArgs.prompt).toContain('pay attention to error paths');
     expect(subagentArgs.oauthClient).toBe(oauthClient);
     expect(subagentArgs.onAgentOutput).not.toBe(activeRun.onAgentOutput);
     expect(subagentArgs.session).toEqual(
@@ -281,3 +279,11 @@ describe('local-agent-service.sendMessage — review subagent routing', () => {
     expect(resumeSessionMock).not.toHaveBeenCalled();
   });
 });
+
+vi.mock('../../agents/prompts/session-start-context', () => ({
+  readSessionStartContext: async () => ({
+    workItemTypeDefinitions: [],
+    intentFirst: false,
+    maturity: 'ESTABLISHED',
+  }),
+}));

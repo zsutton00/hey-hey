@@ -1,18 +1,16 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import { useMemo } from "react";
 import {
   Alert,
   Box,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   Stack,
   Typography,
 } from "@mui/material";
-import { useNavigate } from "react-router-dom";
-import type { ProposalResponseDto } from "../../api";
-import { usePathService } from "../../contexts/PathServiceContext";
+import type { ProposalResponseDto, ProposalAgentFixRequest } from "../../api";
 import { useUserIdentity } from "../../hooks";
 import { resolveAgentBridgeRecoveryState } from "../AgentSession/agentBridgeRecoveryState";
 import { RuntimeModelSelector } from "../AgentSession/RuntimeModelSelector";
@@ -27,20 +25,20 @@ import { useProposalAgentFixLaunch } from "./useProposalAgentFixLaunch";
 
 /**
  * Warns that Agent fix starts an agent session, collects where and with which
- * model it runs, launches it and takes the user into the session. A failed
+ * model it runs, launches it and returns the recorded session to the conflict surface. A failed
  * launch stays here with its error and a Retry. Confirming never applies
  * anything. Mounted only while open, so proposal cards look up no machines.
  */
 export function AgentFixConfirmDialog({
   proposal,
   onClose,
+  onStarted,
 }: {
   proposal: ProposalResponseDto;
   onClose: () => void;
+  onStarted: (request: ProposalAgentFixRequest) => void;
 }) {
   const projectId = proposal.projectId;
-  const navigate = useNavigate();
-  const paths = usePathService();
   const { launch, isPending, error } = useProposalAgentFixLaunch();
   const organizationId = useUserIdentity()?.currentOrgId ?? "";
   const { machines, isReady, mode, selectedMachine, setSelectedMachineId } =
@@ -79,13 +77,8 @@ export function AgentFixConfirmDialog({
       fastMode: selection.fastMode,
     });
     if (!request) return;
+    onStarted(request);
     onClose();
-    navigate(
-      paths.agentSession({
-        projectId: request.projectId,
-        agentSessionId: request.agentSessionId,
-      }),
-    );
   };
   return (
     <Dialog

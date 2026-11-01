@@ -34,7 +34,7 @@ export const useRunContextUsage = (params: {
   const generation = useSyncExternalStore(
     runContextUsageCache.subscribe,
     runContextUsageCache.getGeneration,
-    runContextUsageCache.getGeneration
+    runContextUsageCache.getGeneration,
   );
   const key = params.providerSessionId
     ? runContextUsageKey({
@@ -44,18 +44,18 @@ export const useRunContextUsage = (params: {
     : null;
   const getSnapshot = useCallback(
     () => runContextUsageCache.getSnapshot(key),
-    [key]
+    [key],
   );
   const state = useSyncExternalStore(
     runContextUsageCache.subscribe,
     getSnapshot,
-    getSnapshot
+    getSnapshot,
   );
   const { agentSession } = useAgentSession(
     params.organizationId,
     params.projectId,
     params.agentSessionId,
-    { enabled: params.enabled }
+    { enabled: params.enabled },
   );
   const { machines } = useUserPairedMachines();
   const { mutate: authorize } =
@@ -63,7 +63,7 @@ export const useRunContextUsage = (params: {
       AxiosResponse<ReadAgentSessionCliState200Response>
     >();
   const machine = machines.find(
-    (candidate) => candidate.machineId === agentSession?.machineId
+    (candidate) => candidate.machineId === agentSession?.machineId,
   );
 
   useEffect(() => {
@@ -85,6 +85,12 @@ export const useRunContextUsage = (params: {
             errorCode: null,
           };
         }
+        const controllerReadInputs = {
+          operation:
+            CliReadRunContextUsageGetRequestOperationEnum.RunContextUsageGet,
+          runId: identity.runId,
+          providerSessionId: identity.providerSessionId,
+        } as const;
         const response = await authorize({
           cause: {
             operation: "read context usage from the connected computer",
@@ -99,19 +105,21 @@ export const useRunContextUsage = (params: {
             actionType: HostAffectingActionType.CliRead,
             targetKind: HostActionTargetKind.AgentSession,
             targetId: identity.agentSessionId,
+            inputs: {
+              kind: "CLI_READ",
+              body: {
+                requestId: crypto.randomUUID(),
+                agentSessionId: identity.agentSessionId,
+                ...controllerReadInputs,
+              },
+            },
           },
           submit: ({ authorization }) =>
             unifiedApiClient.readAgentSessionCliState({
               organizationId: identity.organizationId,
               projectId: identity.projectId,
               agentSessionId: identity.agentSessionId,
-              cliReadRequestDto: {
-                operation:
-                  CliReadRunContextUsageGetRequestOperationEnum.RunContextUsageGet,
-                runId: identity.runId,
-                providerSessionId: identity.providerSessionId,
-                authorization,
-              },
+              cliReadRequestDto: { ...controllerReadInputs, authorization },
             }),
         });
         if (response.outcome === "DENIED") {
@@ -131,7 +139,7 @@ export const useRunContextUsage = (params: {
           return { error: result.error.message, errorCode: result.error.code };
         }
         return { data: result.result };
-      }
+      },
     );
   }, [
     authorize,

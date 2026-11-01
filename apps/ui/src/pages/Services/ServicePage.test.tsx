@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => {
     project: vi.fn(),
     setActiveTab: vi.fn(),
     canManageLifecycle: false,
+    isPending: false,
     archive: vi.fn(),
     remove: vi.fn(),
   };
@@ -52,7 +53,7 @@ vi.mock("@hey-hey/ui-common/data", () => ({
   useService: () => mocks.service(),
   useServiceLifecycle: () => ({
     canManageLifecycle: mocks.canManageLifecycle,
-    archive: { mutate: mocks.archive, isPending: false },
+    archive: { mutate: mocks.archive, isPending: mocks.isPending },
     remove: { mutate: mocks.remove, isPending: false },
   }),
 }));
@@ -135,7 +136,9 @@ vi.mock("../../components/Layout", () => ({
 }));
 
 vi.mock("../../components/Tabs", () => ({
-  AdminTab: () => null,
+  AdminTab: ({ actions }: { actions?: React.ReactNode }) => (
+    <section data-testid="service-admin">{actions}</section>
+  ),
   buildAdminMetadataItems: () => [],
   ServiceFilesTab: (props: unknown) => {
     mocks.serviceFilesTab(props);
@@ -154,8 +157,8 @@ vi.mock("../../components/Tabs/ConversationListTab", () => ({
 vi.mock("../../components/Tabs/DesignDocsTab", () => ({
   DesignDocsTab: () => null,
 }));
-vi.mock("../../components/Tabs/ImplementationHintsTab", () => ({
-  ImplementationHintsTab: () => null,
+vi.mock("./ServiceImplementationHintsTab", () => ({
+  ServiceImplementationHintsTab: () => null,
 }));
 vi.mock("../../components/Tabs/TaskTab", () => ({
   TaskTab: () => <div>Tasks content</div>,
@@ -211,6 +214,7 @@ describe("ServicePage local directory controls", () => {
     });
     mocks.serviceFilesTab.mockReset();
     mocks.canManageLifecycle = false;
+    mocks.isPending = false;
     mocks.archive.mockReset();
     mocks.remove.mockReset();
     mocks.serviceSessionLaunchButton.mockReset();
@@ -283,6 +287,7 @@ describe("ServicePage local directory controls", () => {
       organizationId: "organization-1",
       projectId: "project-1",
       workflowAboutId: "service-1",
+      entityName: "UI",
       workflowAboutType: "service",
       conversationPathForId: expect.any(Function),
     });
@@ -324,6 +329,7 @@ describe("ServicePage local directory controls", () => {
   });
 
   it("hides lifecycle actions from roles outside Owner and Architect", () => {
+    mocks.activeTab = "admin";
     renderPage();
 
     expect(
@@ -334,7 +340,60 @@ describe("ServicePage local directory controls", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("archives an active Service from the header for eligible roles", async () => {
+  it("keeps lifecycle actions out of the header and Overview for eligible users", () => {
+    mocks.canManageLifecycle = true;
+    renderPage();
+    expect(
+      screen.queryByTestId("service-archive-service-1"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Refresh")).not.toBeInTheDocument();
+  });
+
+  it("leaves deletion unchanged when confirmation is cancelled in Admin", () => {
+    mocks.activeTab = "admin";
+    mocks.canManageLifecycle = true;
+    mocks.service.mockReturnValue({
+      data: { ...service, status: "ARCHIVED" },
+      isLoading: false,
+    });
+    renderPage();
+    fireEvent.click(screen.getByTestId("service-delete-service-1"));
+    expect(
+      screen.getByTestId("service-lifecycle-dialog-body"),
+    ).toHaveTextContent("No files or directories are deleted");
+    fireEvent.click(screen.getByTestId("service-lifecycle-dialog-cancel"));
+    expect(mocks.remove).not.toHaveBeenCalled();
+  });
+
+  it("keeps lifecycle errors visible in Admin", async () => {
+    mocks.activeTab = "admin";
+    mocks.canManageLifecycle = true;
+    mocks.archive.mockRejectedValue(new Error("Permission denied"));
+    renderPage();
+    fireEvent.click(screen.getByTestId("service-archive-service-1"));
+    fireEvent.click(screen.getByTestId("service-lifecycle-dialog-confirm"));
+    expect(
+      await screen.findByTestId("service-lifecycle-dialog-error"),
+    ).toHaveTextContent("Permission denied");
+  });
+
+  it("disables confirmation and cancellation while an Admin mutation is pending", () => {
+    mocks.activeTab = "admin";
+    mocks.canManageLifecycle = true;
+    mocks.isPending = true;
+    renderPage();
+    fireEvent.click(screen.getByTestId("service-archive-service-1"));
+    expect(
+      screen.getByTestId("service-lifecycle-dialog-confirm"),
+    ).toBeDisabled();
+    expect(
+      screen.getByTestId("service-lifecycle-dialog-cancel"),
+    ).toBeDisabled();
+    expect(mocks.archive).not.toHaveBeenCalled();
+  });
+
+  it("archives an active Service from Admin for eligible roles", async () => {
+    mocks.activeTab = "admin";
     mocks.canManageLifecycle = true;
     mocks.archive.mockResolvedValue({ ...service, status: "ARCHIVED" });
 
@@ -351,6 +410,7 @@ describe("ServicePage local directory controls", () => {
   });
 
   it("shows the Archived badge and deletes an archived Service, returning to Services", async () => {
+    mocks.activeTab = "admin";
     mocks.canManageLifecycle = true;
     mocks.remove.mockResolvedValue(undefined);
     mocks.service.mockReturnValue({

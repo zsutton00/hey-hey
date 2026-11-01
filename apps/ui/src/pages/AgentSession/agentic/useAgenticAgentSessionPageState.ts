@@ -122,6 +122,7 @@ export interface AgenticAgentSessionPageState {
     promptDraft: string,
     attachments: RunAttachmentReference[],
   ) => void;
+  conversationTitle: string | null;
   nodeDecisionWorkflowName: WorkflowName | undefined;
   sessionModel: string | null;
   sessionReasoningEffort: string | null;
@@ -579,6 +580,7 @@ export const useAgenticAgentSessionPageState = (
     hasRequiredRouteParams,
     mode,
     onPromptSubmitted,
+    conversationTitle: conversationQuery.data?.title ?? null,
     nodeDecisionWorkflowName,
     sessionModel,
     sessionReasoningEffort,

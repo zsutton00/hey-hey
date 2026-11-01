@@ -100,4 +100,5 @@ export enum ProposalReconciliationRevisionSourceEnum {
   AUTHORING = 'AUTHORING',
   MERGE = 'MERGE',
   AGENT_FIX = 'AGENT_FIX',
+  MANUAL = 'MANUAL',
 }

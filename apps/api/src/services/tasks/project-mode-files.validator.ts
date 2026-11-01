@@ -96,16 +96,27 @@ export function validateProjectModeSnapshot(
       message: formatStructuralIssues(validateSnapshotStructure.errors),
     };
   }
+  const isV3 =
+    content.schemaVersion ===
+    ProjectModeSnapshot.SchemaVersionEnum.ProjectModeSnapshotV3;
+  if (
+    isV3 ? content.sessionRole === undefined : content.sessionRole !== undefined
+  ) {
+    return {
+      success: false,
+      message: `/sessionRole: ${isV3 ? 'is required' : 'is not allowed'} for ${content.schemaVersion}`,
+    };
+  }
   const isV2 =
     content.schemaVersion ===
     ProjectModeSnapshot.SchemaVersionEnum.ProjectModeSnapshotV2;
-  if (isV2 && content.projectAssistant === undefined) {
+  if ((isV2 || isV3) && content.projectAssistant === undefined) {
     return {
       success: false,
-      message: '/projectAssistant: is required for project-mode-snapshot.v2',
+      message: `/projectAssistant: is required for ${content.schemaVersion}`,
     };
   }
-  if (!isV2 && content.projectAssistant !== undefined) {
+  if (!isV2 && !isV3 && content.projectAssistant !== undefined) {
     return {
       success: false,
       message: `/projectAssistant: is not allowed for ${content.schemaVersion}`,
@@ -121,6 +132,9 @@ export function validateProjectModeSnapshot(
     files: files.value,
     ...(content.projectAssistant
       ? { projectAssistant: { enabled: content.projectAssistant.enabled } }
+      : {}),
+    ...(content.sessionRole !== undefined
+      ? { sessionRole: content.sessionRole }
       : {}),
     snapshotHash: content.snapshotHash,
   };

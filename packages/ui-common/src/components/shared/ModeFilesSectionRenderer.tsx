@@ -1,9 +1,12 @@
 import { Alert, Box, Button, Paper, Stack, Typography } from "@mui/material";
-import React, { useMemo, useState } from "react";
+import React, { useContext, useMemo, useState } from "react";
 import {
   MarkdownRenderer,
   type MarkdownRendererMentionConfig,
 } from "./MarkdownRenderer";
+import { DiffRenderer, type DiffViewMode } from "../SuggestedContent";
+
+import { MentionEditorContext } from "../SmarterTextAreaCard/EditorContext";
 
 const MODE_FILES_SCHEMA_VERSION = "project-mode-files.v1";
 const MODE_ENTRY_FILE = "MODE.md";
@@ -84,6 +87,7 @@ const orderFilePaths = (files: ReadonlyMap<string, string>): string[] =>
 export interface ModeFilesSectionRendererProps {
   content: unknown;
   mentionConfig?: MarkdownRendererMentionConfig;
+  comparison?: { currentContent: unknown; defaultViewMode: DiffViewMode };
 }
 
 /**
@@ -93,22 +97,60 @@ export interface ModeFilesSectionRendererProps {
  */
 export const ModeFilesSectionRenderer: React.FC<
   ModeFilesSectionRendererProps
-> = ({ content, mentionConfig }) => {
+> = ({ content, mentionConfig, comparison }) => {
+  const inheritedMentionContext = useContext(MentionEditorContext);
+  const mentionContext = mentionConfig?.navigate
+    ? { ...mentionConfig, navigate: mentionConfig.navigate }
+    : inheritedMentionContext;
   const normalized = useMemo(() => readModeFilesContent(content), [content]);
-  const [selectedPath, setSelectedPath] = useState(MODE_ENTRY_FILE);
+  const current = useMemo(
+    () =>
+      comparison ? readModeFilesContent(comparison.currentContent) : undefined,
+    [comparison],
+  );
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [showUnchanged, setShowUnchanged] = useState(false);
 
   if (normalized.status === "unavailable") {
     return (
-      <Alert severity="warning" data-testid="mode-files-section-unavailable">
+      <Alert
+        severity={comparison ? "error" : "warning"}
+        data-testid="mode-files-section-unavailable"
+      >
         MODE files are unavailable because the stored files bundle is invalid.
       </Alert>
     );
   }
 
-  const filePaths = orderFilePaths(normalized.bundle.files);
-  const activePath = normalized.bundle.files.has(selectedPath)
-    ? selectedPath
-    : MODE_ENTRY_FILE;
+  if (current?.status === "unavailable") {
+    return (
+      <Alert severity="error" data-testid="mode-files-current-unavailable">
+        Current MODE files could not be read. Approval is unavailable until the
+        complete comparison can be shown.
+      </Alert>
+    );
+  }
+  const before = current?.bundle.files;
+  const allFiles = new Map([...(before ?? []), ...normalized.bundle.files]);
+  const filePaths = orderFilePaths(allFiles);
+  const changeFor = (path: string) =>
+    !before
+      ? undefined
+      : !before.has(path)
+        ? "added"
+        : !normalized.bundle.files.has(path)
+          ? "removed"
+          : before.get(path) !== normalized.bundle.files.get(path)
+            ? "modified"
+            : "unchanged";
+  const changedPaths = filePaths.filter(
+    (path) => changeFor(path) !== "unchanged",
+  );
+  const activePath =
+    selectedPath && allFiles.has(selectedPath)
+      ? selectedPath
+      : (changedPaths[0] ?? MODE_ENTRY_FILE);
+  const visiblePaths = before && !showUnchanged ? changedPaths : filePaths;
   const activeContent = normalized.bundle.files.get(activePath);
 
   return (
@@ -140,7 +182,7 @@ export const ModeFilesSectionRenderer: React.FC<
           >
             Files ({filePaths.length})
           </Typography>
-          {filePaths.map((path) => (
+          {visiblePaths.map((path) => (
             <Button
               key={path}
               variant={path === activePath ? "contained" : "text"}
@@ -149,6 +191,7 @@ export const ModeFilesSectionRenderer: React.FC<
               aria-pressed={path === activePath}
               data-testid="mode-files-file"
               data-file-path={path}
+              data-change={changeFor(path)}
               data-file-level={path === MODE_ENTRY_FILE ? "root" : "supporting"}
               sx={{
                 fontFamily: MODE_FILE_FONT_FAMILY,
@@ -161,8 +204,18 @@ export const ModeFilesSectionRenderer: React.FC<
               }}
             >
               {path}
+              {before ? ` (${changeFor(path)})` : ""}
             </Button>
           ))}
+          {before && filePaths.length > changedPaths.length ? (
+            <Button
+              data-testid="mode-files-toggle-unchanged"
+              onClick={() => setShowUnchanged((value) => !value)}
+            >
+              {showUnchanged ? "Hide" : "Show"} unchanged files (
+              {filePaths.length - changedPaths.length})
+            </Button>
+          ) : null}
         </Stack>
         <Stack sx={{ flex: 1, minWidth: 0 }}>
           <Box
@@ -179,20 +232,42 @@ export const ModeFilesSectionRenderer: React.FC<
           </Box>
           <Box
             data-testid="mode-files-selected-content"
-            sx={{ p: 2, flex: 1, minWidth: 0, overflow: "auto" }}
-          >
-            <MarkdownRenderer
-              sx={{
+            sx={{
+              p: 2,
+              flex: 1,
+              minWidth: 0,
+              overflow: "auto",
+              fontFamily: MODE_FILE_FONT_FAMILY,
+              "& p, & h1, & h2, & h3, & h4, & h5, & h6": {
                 fontFamily: MODE_FILE_FONT_FAMILY,
-                fontSize: "1rem",
-                lineHeight: 1.6,
-                "& h1, & h2, & h3, & h4, & h5, & h6": {
+              },
+            }}
+          >
+            {before && changeFor(activePath) !== "unchanged" ? (
+              <Box data-testid="mode-file-diff">
+                <MentionEditorContext.Provider value={mentionContext}>
+                  <DiffRenderer
+                    oldContent={before.get(activePath) ?? ""}
+                    newContent={activeContent ?? ""}
+                    defaultViewMode={comparison?.defaultViewMode}
+                    showViewModeToggle
+                  />
+                </MentionEditorContext.Provider>
+              </Box>
+            ) : (
+              <MarkdownRenderer
+                sx={{
                   fontFamily: MODE_FILE_FONT_FAMILY,
-                },
-              }}
-              mentionConfig={mentionConfig}
-              children={activeContent}
-            />
+                  fontSize: "1rem",
+                  lineHeight: 1.6,
+                  "& h1, & h2, & h3, & h4, & h5, & h6": {
+                    fontFamily: MODE_FILE_FONT_FAMILY,
+                  },
+                }}
+                mentionConfig={mentionConfig}
+                children={activeContent}
+              />
+            )}
           </Box>
         </Stack>
       </Stack>

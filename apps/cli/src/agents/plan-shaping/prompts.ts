@@ -25,6 +25,7 @@ import {
   type ServiceNote,
 } from '../../shared/agent-bridge-contract/generated/api';
 import { futureRevisionAuthoring } from '../prompts/common';
+import type { AgentProviderId } from '../providers/provider-config';
 import { withSubmissionToolTerminationSuffix } from '../submission-tools/prompt-suffix';
 import { renderApprovedVisualsBlock } from './approved-visuals.prompt';
 import { STAGE_REVIEW_STEP_CEILING } from './journey-map.schemas';
@@ -34,6 +35,7 @@ export interface PlanGenerationPromptInput {
   taskId?: string | null;
   /** Optional free-text user message that triggered the turn. */
   userMessage?: string | null;
+  provider?: AgentProviderId | undefined;
 }
 
 /**
@@ -130,7 +132,7 @@ const appendTaskContext = (prompt: string, taskId: string | null | undefined): s
 
 const buildPrompt = (systemPrompt: string, input: PlanGenerationPromptInput): string => {
   const withTask = appendTaskContext(systemPrompt, input.taskId);
-  return withSubmissionToolTerminationSuffix(withTask);
+  return withSubmissionToolTerminationSuffix(withTask, input.provider);
 };
 
 const renderAnchoredEntitiesBlock = (input: AnchoredPlanGenerationPromptInput): string =>

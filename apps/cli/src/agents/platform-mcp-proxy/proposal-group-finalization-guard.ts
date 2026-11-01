@@ -30,7 +30,7 @@ const readFinalizeGroupId = (request: JsonRpcRequest): string => {
   return groupId;
 };
 
-const readMcpPayload = (result: JsonValue): JsonValue => {
+export const readMcpPayload = (result: JsonValue): JsonValue => {
   if (!isObject(result)) {
     throw new Error('Snapshot tool returned an invalid MCP result');
   }

@@ -1,3 +1,10 @@
+import { ProposalReconciliationAdapterService } from '../proposal-reconciliation-adapter.service';
+import { createWarmWorkItemTypeRegistryWithCustomTypes } from '../../../../test/setup/work-item-type-registry.fixture';
+import { WorkItemParentageValidator } from '../../tasks/work-item-parentage-validator.service';
+import { WorkItemChangeSetProjectorService } from '../work-item-change-set-projector.service';
+import { ProposalValidationEngine } from '../proposal-validation.engine';
+import { AgentEdgeClientService } from '../../agent-edge-client.service';
+import type { CreateProposalDto } from 'src/generated';
 import { ProposalReconciliationService } from '../proposal-reconciliation.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as futureRevisions from '../future-revision';
@@ -220,6 +227,9 @@ describe('ProposalApprovalService', () => {
     mockPrisma = TestUtils.createMockPrismaService();
 
     txMock = {
+      proposalReconciliationSuggestion: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
       $queryRaw: jest.fn(),
       proposalGroupMember: {
         findFirst: jest.fn(),
@@ -923,6 +933,7 @@ describe('ProposalApprovalService', () => {
               targetStepTempId: 'approve',
               type: 'STANDARD',
               direction: 'forward',
+              actionLabel: 'tap Continue',
               description: 'Draft moves to approval.',
             },
             {
@@ -981,6 +992,7 @@ describe('ProposalApprovalService', () => {
             category: 'flow',
             direction: 'forward',
             predicate: undefined,
+            actionLabel: 'tap Continue',
             description: 'Draft moves to approval.',
           },
           {
@@ -3414,6 +3426,344 @@ describe('ProposalApprovalService', () => {
     });
   });
 
+  describe('UX flow review and approval integration', () => {
+    it.each(
+      ['edit', 'create', 'transition'].flatMap((change) =>
+        [true, false].map((keepReference) => ({ change, keepReference })),
+      ),
+    )(
+      'validates $change during review and approval (valid: $keepReference)',
+      async ({ change, keepReference }) => {
+        const diagramId = '81818181-8181-4181-8181-818181818181';
+        const screenId = '82828282-8282-4282-8282-828282828282';
+        const mockupId = '84848484-8484-4484-8484-848484848484';
+        const registry = await createWarmWorkItemTypeRegistryWithCustomTypes([
+          {
+            typeKey: 'mockup',
+            projectId: testIds.project,
+            capabilities: { requiresParent: false },
+            sectionDefinitions: [],
+          },
+          {
+            typeKey: 'DIAGRAM',
+            projectId: testIds.project,
+            capabilities: { requiresParent: false },
+            sectionDefinitions: [
+              {
+                key: 'diagramMetadata',
+                label: 'Diagram',
+                kind: 'json',
+                schemaRef: '#/components/schemas/DiagramMetadata',
+              },
+            ],
+          },
+          {
+            typeKey: 'DIAGRAM_ELEMENT',
+            projectId: testIds.project,
+            allowedParentTypes: ['DIAGRAM'],
+            capabilities: { requiresParent: true },
+            sectionDefinitions: [
+              {
+                key: 'diagramElementMetadata',
+                label: 'Element',
+                kind: 'json',
+                schemaRef: '#/components/schemas/DiagramElementMetadata',
+                diagramElementPolicy: {
+                  roles: [
+                    { key: 'GENERIC', label: 'Generic', notation: 'box' },
+                    {
+                      key: 'DIAGRAM_REFERENCE',
+                      label: 'Diagram',
+                      notation: 'frame',
+                    },
+                  ],
+                  referenceTargets: [
+                    { entityType: 'TASK' },
+                    { entityType: 'SERVICE' },
+                  ],
+                },
+              },
+            ],
+          },
+        ]);
+        const parentage = new WorkItemParentageValidator(registry);
+        const rows = [
+          {
+            id: diagramId,
+            name: 'Onboarding',
+            type: 'DIAGRAM',
+            parentTaskId: null,
+            parentTask: null,
+            sections: [
+              {
+                key: 'diagramMetadata',
+                materializedMarkdown: JSON.stringify({
+                  kind: 'UX_FLOW',
+                  level: 'OVERVIEW',
+                }),
+              },
+            ],
+          },
+          {
+            id: screenId,
+            name: 'Welcome',
+            type: 'DIAGRAM_ELEMENT',
+            parentTaskId: diagramId,
+            parentTask: { type: 'DIAGRAM' },
+            sections: [
+              {
+                key: 'diagramElementMetadata',
+                materializedMarkdown: JSON.stringify({
+                  role: 'GENERIC',
+                  canonicalReference: {
+                    entityType: 'TASK',
+                    entityId: mockupId,
+                  },
+                }),
+              },
+            ],
+          },
+          {
+            id: mockupId,
+            name: 'Welcome mockup',
+            type: 'mockup',
+            parentTaskId: null,
+            parentTask: null,
+            sections: [],
+          },
+        ].map((row) => ({
+          ...row,
+          status: 'ACTIVE',
+          priority: null,
+          dueDate: null,
+          assigneeId: null,
+          tag: null,
+          serviceRelations: [],
+        }));
+        (mockPrisma.db.task.findMany as jest.Mock).mockImplementation(
+          async ({ where }) =>
+            rows.filter(
+              (row) =>
+                where.id === row.id ||
+                where.id?.in?.includes(row.id) ||
+                (where.parentTaskId && row.parentTaskId === where.parentTaskId),
+            ),
+        );
+        const boundaryModule = await Test.createTestingModule({
+          providers: [
+            { provide: PrismaService, useValue: mockPrisma },
+            {
+              provide: AgentEdgeClientService,
+              useValue: { findIncident: async () => [] },
+            },
+          ],
+        }).compile();
+        const prisma = boundaryModule.get(PrismaService);
+        const projector = new WorkItemChangeSetProjectorService(
+          prisma,
+          registry,
+          parentage,
+          boundaryModule.get(AgentEdgeClientService),
+          serviceTokenFactory,
+        );
+        const engine = new ProposalValidationEngine(
+          prisma,
+          registry,
+          parentage,
+          projector,
+        );
+        const updates: import('src/generated').WorkItemChangeSetValidationRequest =
+          {
+            root: { refType: 'existing', id: screenId },
+            operations: [
+              {
+                op: 'section.replace',
+                ref: { refType: 'existing', id: screenId },
+                key: 'diagramElementMetadata',
+                content: {
+                  role: 'GENERIC',
+                  ...(keepReference
+                    ? {
+                        canonicalReference: {
+                          entityType: 'TASK',
+                          entityId: mockupId,
+                        },
+                      }
+                    : {}),
+                },
+              },
+            ],
+          };
+        if (change === 'create') {
+          updates.root = { refType: 'existing', id: diagramId };
+          const screen = {
+            refType: 'temporary',
+            tempId: 'profile-screen',
+          } satisfies import('src/generated').WorkItemChangeSetIdentity;
+          updates.operations = [
+            {
+              op: 'workItem.create',
+              ref: screen,
+              name: 'Profile',
+              type: 'DIAGRAM_ELEMENT',
+              parent: updates.root,
+            },
+            {
+              op: 'section.replace',
+              ref: screen,
+              key: 'diagramElementMetadata',
+              content: {
+                role: 'GENERIC',
+                ...(keepReference
+                  ? {
+                      canonicalReference: {
+                        entityType: 'TASK',
+                        entityId: mockupId,
+                      },
+                    }
+                  : {}),
+              },
+            },
+          ];
+        }
+        if (change === 'transition') {
+          // The root is outside the Diagram; only the endpoints identify its container.
+          updates.root = { refType: 'existing', id: mockupId };
+          updates.operations = [
+            {
+              op: 'relationship.create',
+              ref: { refType: 'temporary', tempId: 'return' },
+              edgeType: 'LOOP',
+              category: 'flow',
+              source: { refType: 'existing', id: screenId },
+              target: { refType: 'existing', id: screenId },
+              ...(keepReference ? { actionLabel: 'tap Retry' } : {}),
+            },
+          ];
+        }
+        const expectedIssue =
+          change === 'transition'
+            ? 'missing_ux_flow_action_label'
+            : 'missing_ux_flow_mockup_reference';
+        const draft = makeStoredProposal({
+          action: 'UPDATE',
+          targetEntityId: screenId,
+          updates,
+        });
+        setupForApproval(draft, {
+          taskLookup: { type: 'DIAGRAM_ELEMENT', parentTaskId: diagramId },
+        });
+        // Keep the production preparation/projector chain; stub only the durable queue boundary.
+        const materializer = new WorkItemChangeSetMaterializerService(
+          prisma,
+          projector,
+          mockTaskService as unknown as TaskService,
+          {} as AgentEdgeClientService,
+          mockEventPublisher,
+          serviceTokenFactory,
+          {} as ProposalReconciliationService,
+          registry,
+          mockPendingEdgeService as unknown as PendingEdgeService,
+          mockMentionProcessingService as unknown as MentionProcessingService,
+        );
+        mockWorkItemChangeSetMaterializer.validationRevision.mockImplementation(
+          (request) => materializer.validationRevision(request),
+        );
+        mockWorkItemChangeSetMaterializer.projectPreparation.mockImplementation(
+          (params) => materializer.projectPreparation(params),
+        );
+        if (!keepReference) {
+          let intent: Record<string, unknown> | null = null;
+          const intents = {
+            findUnique: jest.fn(async () => intent),
+            create: jest.fn(async ({ data }) => {
+              intent = {
+                ...data,
+                id: 'materialization-ux-flow',
+                status: 'PREPARED',
+                checkpoints: data.checkpoints.create,
+              };
+              return intent;
+            }),
+            update: jest.fn(async ({ data }) => {
+              intent = { ...intent, ...data };
+              return intent;
+            }),
+          };
+          Object.assign(mockPrisma.db, {
+            workItemChangeSetMaterialization: intents,
+          });
+          Object.assign(txMock, { workItemChangeSetMaterialization: intents });
+          txMock.task.findMany.mockImplementation(mockPrisma.db.task.findMany);
+          mockWorkItemChangeSetMaterializer.enqueuePreparedIntent.mockImplementation(
+            (tx, params) => materializer.enqueuePreparedIntent(tx, params),
+          );
+          mockWorkItemChangeSetMaterializer.materializeApprovedChangeSet.mockImplementation(
+            (params) => materializer.materializeApprovedChangeSet(params),
+          );
+        }
+        const candidate = {
+          type: 'SINGLE',
+          action: 'UPDATE',
+          targetEntityType: 'TASK',
+          targetEntityId: screenId,
+          eli5: 'Edit screen',
+          updates,
+        } satisfies CreateProposalDto;
+        const review = engine.assertTaskMutationAuthoringValid(
+          candidate,
+          testIds.organization,
+          testIds.project,
+        );
+        if (keepReference) {
+          await expect(review).resolves.toBeUndefined();
+          const result = await service.approve(
+            proposalId,
+            testIds.organization,
+            testIds.project,
+            approvingUserId,
+          );
+          expect(result.proposal.status).toBe('APPROVED');
+          expect(
+            mockWorkItemChangeSetMaterializer.enqueuePreparedIntent,
+          ).toHaveBeenCalled();
+        } else {
+          await expect(review).rejects.toMatchObject({
+            response: {
+              projection: {
+                valid: false,
+                issues: expect.arrayContaining([
+                  expect.objectContaining({
+                    code: expectedIssue,
+                  }),
+                ]),
+              },
+            },
+          });
+          await expect(
+            service.approve(
+              proposalId,
+              testIds.organization,
+              testIds.project,
+              approvingUserId,
+            ),
+          ).rejects.toMatchObject({
+            response: {
+              projection: {
+                issues: expect.arrayContaining([
+                  expect.objectContaining({
+                    code: expectedIssue,
+                  }),
+                ]),
+              },
+            },
+          });
+          expect(mockTaskService.updateInTransaction).not.toHaveBeenCalled();
+        }
+      },
+    );
+  });
+
   describe('validation', () => {
     it('throws when proposal not found', async () => {
       stubStoredProposal(null);
@@ -3661,40 +4011,115 @@ describe('ProposalApprovalService', () => {
       ).not.toHaveBeenCalled();
     });
 
-    it('rejects a stale FEATURE requirements baseline before approval', async () => {
-      const draft = makeStoredProposal({
-        action: 'UPDATE',
-        updatedAt: new Date('2026-03-18T00:00:00Z'),
-        updates: {
-          root: { refType: 'existing', id: testIds.task },
-          operations: [
+    it.each(['ordinary', 'graph'] as const)(
+      'blocks %s requirement approval before recording a vote when reviewed content changed',
+      async (shape) => {
+        const reviewedRequirements = {
+          records: [{ id: 'requirement', statement: 'Reviewed promise' }],
+        };
+        const draft = makeStoredProposal({
+          action: 'UPDATE',
+          updates:
+            shape === 'ordinary'
+              ? {
+                  sections: [
+                    { key: 'requirements', content: reviewedRequirements },
+                  ],
+                }
+              : {
+                  root: { refType: 'existing', id: testIds.task },
+                  operations: [
+                    {
+                      op: 'section.replace',
+                      ref: { refType: 'existing', id: testIds.task },
+                      key: 'requirements',
+                      content: reviewedRequirements,
+                    },
+                  ],
+                },
+        });
+        setupForApproval(draft, {
+          taskLookup: {
+            id: testIds.task,
+            type: 'FEATURE',
+            name: 'Feature',
+            updatedAt: new Date(),
+            serviceRelations: [],
+            sections: [
+              {
+                id: 'section',
+                key: 'requirements',
+                order: 0,
+                updatedAt: new Date(),
+                updates: [],
+                crdtSnapshotSeq: 0,
+                materializedMarkdown: JSON.stringify({
+                  records: [
+                    { id: 'requirement', statement: 'Changed promise' },
+                  ],
+                }),
+              },
+            ],
+          },
+        });
+        txMock.proposalGroupMember.findUnique = jest
+          .fn()
+          .mockResolvedValue(null);
+        txMock.proposalReconciliationRevision = {
+          findFirst: jest.fn().mockResolvedValue({
+            id: 'reviewed',
+            source: 'AUTHORING',
+            bases: [
+              {
+                entityType: 'TASK',
+                entityId: testIds.task,
+                version: 'authoring',
+                content: {
+                  name: 'Feature',
+                  sections: { requirements: reviewedRequirements },
+                },
+              },
+            ],
+          }),
+        };
+        const owner = new ProposalReconciliationService(
+          new ProposalReconciliationAdapterService(
             {
-              op: 'section.replace',
-              ref: { refType: 'existing', id: testIds.task },
-              key: 'requirements',
-              content: { records: [] },
-            },
-          ],
-        },
-      });
-      setupForApproval(draft);
-      txMock.taskSection.findMany.mockResolvedValue([
-        {
-          taskId: testIds.task,
-          updatedAt: new Date('2026-03-18T00:01:00Z'),
-        },
-      ]);
-
-      await expect(
-        service.approve(
-          proposalId,
-          testIds.organization,
-          testIds.project,
-          approvingUserId,
-        ),
-      ).rejects.toThrow(ConflictException);
-      expect(txMock.proposalApprovalRecord.create).not.toHaveBeenCalled();
-    });
+              ...mockWorkItemTypeRegistry,
+              getSectionDefinition: () => ({
+                key: 'requirements',
+                kind: 'json',
+              }),
+            } as never,
+            {} as never,
+          ),
+          {} as never,
+          () => 'test',
+        );
+        Object.assign(service, { reconciliation: owner });
+        await expect(
+          service.approve(
+            proposalId,
+            testIds.organization,
+            testIds.project,
+            approvingUserId,
+          ),
+        ).rejects.toMatchObject({
+          response: {
+            issues: expect.arrayContaining([
+              expect.objectContaining({
+                code: 'PROPOSAL_RECONCILIATION_REQUIRED',
+              }),
+            ]),
+          },
+        });
+        expect(txMock.proposalApprovalRecord.create).not.toHaveBeenCalled();
+        expect(txMock.proposal.update).not.toHaveBeenCalled();
+        expect(
+          mockWorkItemChangeSetMaterializer.enqueuePreparedIntent,
+        ).not.toHaveBeenCalled();
+      },
+    );
 
     it('records approval and completes the selected generic enactment before returning', async () => {
       const draft = makeStoredProposal({
@@ -4012,6 +4437,65 @@ describe('ProposalApprovalService', () => {
       expect(
         mockPendingEdgeService.processDeclaredEdges,
       ).not.toHaveBeenCalled();
+    });
+
+    it('preserves the reconciliation 409 body after generic approval and explicit retry', async () => {
+      const draft = makeStoredProposal({
+        updates: {
+          root: { refType: 'existing', id: testIds.task },
+          operations: [
+            {
+              op: 'section.replace',
+              ref: { refType: 'existing', id: testIds.task },
+              key: 'description',
+              content: 'Reviewed result',
+            },
+          ],
+        },
+      });
+      setupForApproval(draft);
+      const conflict = new ConflictException({
+        message: 'Content changed after review.',
+        issues: [
+          {
+            field: 'sections.description',
+            code: 'PROPOSAL_RECONCILIATION_REQUIRED',
+            reason: 'Changed after review',
+            layer: 'referential',
+          },
+        ],
+        correlationId: 'conflict-correlation',
+      });
+      mockWorkItemChangeSetMaterializer.materializeApprovedChangeSet.mockRejectedValue(
+        conflict,
+      );
+      const response = jest
+        .spyOn(service as any, 'toResponseDto')
+        .mockResolvedValue({
+          status: 'APPROVED',
+          materialization: { state: 'RECOVERABLE_FAILURE' },
+        });
+      await expect(
+        service.approve(
+          proposalId,
+          testIds.organization,
+          testIds.project,
+          approvingUserId,
+        ),
+      ).rejects.toBe(conflict);
+      (mockPrisma.db.proposal.findFirst as jest.Mock).mockResolvedValue({
+        ...draft,
+        status: 'APPROVED',
+        workItemChangeSetMaterialization: { id: 'intent' },
+      });
+      await expect(
+        service.retryApprovedGenericProposal({
+          proposalId,
+          organizationId: testIds.organization,
+          projectId: testIds.project,
+        }),
+      ).rejects.toBe(conflict);
+      expect(response).not.toHaveBeenCalled();
     });
 
     it('preserves durable approval and surfaces the concrete generic enactment failure', async () => {

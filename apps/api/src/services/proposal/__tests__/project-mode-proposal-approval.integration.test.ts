@@ -56,7 +56,7 @@ const MODE_PARENT_ID = '10000000-0000-4000-8000-000000000007';
 const MODE_FILES_SCHEMA_REF = '#/components/schemas/ProjectModeFiles';
 const MODE_SETTINGS_SCHEMA_REF = '#/components/schemas/ProjectModeSettings';
 
-function modeDefinition(focalTypeKey = 'STANDARD'): CustomTypeRowSpec {
+function modeDefinition(): CustomTypeRowSpec {
   return {
     typeKey: 'MODE',
     projectId: PROJECT_ID,
@@ -78,15 +78,6 @@ function modeDefinition(focalTypeKey = 'STANDARD'): CustomTypeRowSpec {
     allowedParentTypes: ['FEATURE'],
     allowedParentEntityTypes: ['TASK'],
     capabilities: { requiresParent: true },
-    agentGuidance: {
-      overview: 'A selectable project coding discipline.',
-      contexts: [
-        {
-          focalTypeKeys: [focalTypeKey],
-          guidance: 'Use this mode for the selected work-item type.',
-        },
-      ],
-    } as any,
   };
 }
 
@@ -135,22 +126,12 @@ function makeProposal(files: unknown, settings?: unknown) {
 }
 
 async function createApprovalHarness(
-  focalTypeKey = 'STANDARD',
   settings?: unknown,
   extraTypes: CustomTypeRowSpec[] = [],
 ) {
   const registry = await createWarmWorkItemTypeRegistryWithCustomTypes([
-    modeDefinition(focalTypeKey),
+    modeDefinition(),
     ...extraTypes,
-    ...(focalTypeKey === 'ARCHIVED_TARGET'
-      ? [
-          {
-            typeKey: 'ARCHIVED_TARGET',
-            projectId: PROJECT_ID,
-            lifecycleStatus: 'archived',
-          } satisfies CustomTypeRowSpec,
-        ]
-      : []),
   ]);
   const prisma = TestUtils.createMockPrismaService();
   const tx: any = {
@@ -360,7 +341,7 @@ describe('agent-authored MODE approval and canonical persistence', () => {
   });
 
   it('validates and canonicalizes the Project Assistant setting with the MODE', async () => {
-    const harness = await createApprovalHarness('STANDARD', {
+    const harness = await createApprovalHarness({
       projectAssistant: { enabled: false },
       schemaVersion: 'project-mode-settings.v1',
     });
@@ -380,7 +361,7 @@ describe('agent-authored MODE approval and canonical persistence', () => {
   });
 
   it('retains a per-MODE eligible type list through approval', async () => {
-    const harness = await createApprovalHarness('STANDARD', {
+    const harness = await createApprovalHarness({
       schemaVersion: 'project-mode-settings.v1',
       projectAssistant: { enabled: true },
       eligibleWorkItemTypeKeys: ['STANDARD', 'BUG'],
@@ -400,9 +381,8 @@ describe('agent-authored MODE approval and canonical persistence', () => {
     });
   });
 
-  it('enables a custom type for one MODE through its own settings without touching shared MODE guidance', async () => {
+  it('enables a custom type for one MODE through its own settings', async () => {
     const harness = await createApprovalHarness(
-      'STANDARD',
       {
         schemaVersion: 'project-mode-settings.v1',
         projectAssistant: { enabled: true },
@@ -410,11 +390,6 @@ describe('agent-authored MODE approval and canonical persistence', () => {
       },
       [{ typeKey: 'JOB_APPLICATION_RECORD', projectId: PROJECT_ID }],
     );
-    const sharedGuidanceBefore = structuredClone(
-      harness.registry.getDefinition(PROJECT_ID, 'MODE')?.definition
-        .agentGuidance,
-    );
-
     await harness.service.approve(
       PROPOSAL_ID,
       ORGANIZATION_ID as any,
@@ -435,18 +410,10 @@ describe('agent-authored MODE approval and canonical persistence', () => {
         'section.replace',
       ],
     );
-    expect(
-      harness.registry.getDefinition(PROJECT_ID, 'MODE')?.definition
-        .agentGuidance,
-    ).toEqual(sharedGuidanceBefore);
-    expect(
-      harness.registry.getDefinition(PROJECT_ID, 'MODE')?.definition
-        .agentGuidance?.contexts?.[0]?.focalTypeKeys,
-    ).toEqual(['STANDARD']);
   });
 
   it('rejects an eligible type list naming a type outside the effective registry', async () => {
-    const harness = await createApprovalHarness('STANDARD', {
+    const harness = await createApprovalHarness({
       schemaVersion: 'project-mode-settings.v1',
       projectAssistant: { enabled: true },
       eligibleWorkItemTypeKeys: ['STANDARD', 'NOT_A_TYPE'],
@@ -465,7 +432,7 @@ describe('agent-authored MODE approval and canonical persistence', () => {
   });
 
   it('rejects a Project Assistant setting that tries to grant authority', async () => {
-    const harness = await createApprovalHarness('STANDARD', {
+    const harness = await createApprovalHarness({
       schemaVersion: 'project-mode-settings.v1',
       projectAssistant: { enabled: true, workItemProposalMode: 'all' },
     });
@@ -484,24 +451,7 @@ describe('agent-authored MODE approval and canonical persistence', () => {
 
   it.each([
     [
-      'unknown applicability',
-      'NOT_A_TYPE',
-      {
-        schemaVersion: 'project-mode-files.v1',
-        files: { 'MODE.md': 'Read this first.' },
-      },
-    ],
-    [
-      'archived applicability',
-      'ARCHIVED_TARGET',
-      {
-        schemaVersion: 'project-mode-files.v1',
-        files: { 'MODE.md': 'Read this first.' },
-      },
-    ],
-    [
       'unsafe files',
-      'STANDARD',
       {
         schemaVersion: 'project-mode-files.v1',
         files: { 'MODE.md': 'Read this first.', '../escape.md': 'No.' },
@@ -509,32 +459,28 @@ describe('agent-authored MODE approval and canonical persistence', () => {
     ],
     [
       'malformed files',
-      'STANDARD',
       {
         schemaVersion: 'project-mode-files.v1',
         files: { 'MODE.md': 7 },
       },
     ],
-  ] as const)(
-    '%s fails before canonical persistence',
-    async (_case, focalTypeKey, files) => {
-      const harness = await createApprovalHarness(focalTypeKey);
-      const storedProposal = makeProposal(files);
-      harness.tx.proposal.findFirst.mockResolvedValue(storedProposal);
+  ] as const)('%s fails before canonical persistence', async (_case, files) => {
+    const harness = await createApprovalHarness();
+    const storedProposal = makeProposal(files);
+    harness.tx.proposal.findFirst.mockResolvedValue(storedProposal);
 
-      await expect(
-        harness.service.approve(
-          PROPOSAL_ID,
-          ORGANIZATION_ID as any,
-          PROJECT_ID as any,
-          APPROVER_ID as any,
-        ),
-      ).rejects.toThrow(BadRequestException);
+    await expect(
+      harness.service.approve(
+        PROPOSAL_ID,
+        ORGANIZATION_ID as any,
+        PROJECT_ID as any,
+        APPROVER_ID as any,
+      ),
+    ).rejects.toThrow(BadRequestException);
 
-      expect(harness.tx.proposal.update).not.toHaveBeenCalled();
-      expect(harness.tx.proposalApprovalRecord.create).not.toHaveBeenCalled();
-      expect(harness.materializer.enqueuePreparedIntent).not.toHaveBeenCalled();
-      expect(harness.canonicalWorkItem).toBeUndefined();
-    },
-  );
+    expect(harness.tx.proposal.update).not.toHaveBeenCalled();
+    expect(harness.tx.proposalApprovalRecord.create).not.toHaveBeenCalled();
+    expect(harness.materializer.enqueuePreparedIntent).not.toHaveBeenCalled();
+    expect(harness.canonicalWorkItem).toBeUndefined();
+  });
 });

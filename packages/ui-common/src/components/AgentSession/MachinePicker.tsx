@@ -1,7 +1,8 @@
+import { useModalState } from "../Modals/useModalState";
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import {
   Box,
   Button,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -49,7 +50,8 @@ export const MachinePicker = ({
 }: MachinePickerProps) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  const [mobileEditorOpen, setMobileEditorOpen] = useState(false);
+  const [mobileEditorOpen, setMobileEditorOpen, mobileEditorOpenOwnerKey] =
+    useModalState(false);
   const [recoveryState, setRecoveryState] =
     useState<AgentBridgeMachineUnavailableState | null>(null);
   const selectedMachine =
@@ -57,12 +59,12 @@ export const MachinePicker = ({
   const displayMachine = selectedMachine
     ? getMachineExecutionLabel(selectedMachine)
     : machines.length > 0
-    ? "No machine selected"
-    : "No machine available";
+      ? "No machine selected"
+      : "No machine available";
   const handleSelectionChange = (event: SelectChangeEvent<string>): void => {
     const machineId = event.target.value;
     const machine = machines.find(
-      (candidate) => candidate.machineId === machineId
+      (candidate) => candidate.machineId === machineId,
     );
     if (machine === undefined) {
       return;
@@ -170,6 +172,7 @@ export const MachinePicker = ({
           </Button>
         </Stack>
         <Dialog
+          ownerKey={mobileEditorOpenOwnerKey}
           open={mobileEditorOpen}
           onClose={() => setMobileEditorOpen(false)}
           fullWidth

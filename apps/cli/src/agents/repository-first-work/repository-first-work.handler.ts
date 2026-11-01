@@ -19,8 +19,8 @@ import type {
   PromptTypeHandler,
   PromptTypeHandlerContext,
   PromptTypeHandlerDeps,
-  ProviderExecutionSelection,
 } from '../prompt-type-handler';
+import { runtimeFromHandoff } from '../handoff-runtime';
 import { AgentSessionRunnerError } from '../providers/session-runner';
 import { buildRepositoryFirstWorkPrompt } from './repository-first-work-prompt';
 import { parseRepositoryFirstWorkCompletionFromText } from './response-parser';
@@ -64,8 +64,8 @@ class RepositoryFirstWorkHandler implements PromptTypeHandler<RepositoryFirstWor
   readonly omitServiceContextNote = true;
   readonly reports = [];
 
-  resolveProviderExecution(payload: RepositoryFirstWorkPromptPayload): ProviderExecutionSelection {
-    return { provider: payload.provider, model: payload.resolvedFrontierModel };
+  resolveRuntime(payload: RepositoryFirstWorkPromptPayload) {
+    return runtimeFromHandoff(payload);
   }
 
   prepare(

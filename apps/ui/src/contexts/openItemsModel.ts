@@ -74,7 +74,7 @@ export const matchesOpenItemIdentity = (
 /** Bulk removals larger than this require confirmation. */
 export const BULK_REMOVAL_CONFIRM_THRESHOLD = 5;
 
-export type BulkRemovalScope = "others" | "above" | "below" | "all";
+export type BulkRemovalScope = "above" | "below" | "all";
 
 /** Items a bulk removal command removes, in the order shown. */
 export const selectBulkRemovalTargets = (
@@ -83,14 +83,21 @@ export const selectBulkRemovalTargets = (
   identity?: OpenItemIdentity,
 ): OpenItem[] => {
   if (scope === "all") return items;
-  if (scope === "others")
-    return items.filter((item) => !matchesOpenItemIdentity(item, identity));
   const index = items.findIndex((item) =>
     matchesOpenItemIdentity(item, identity),
   );
   if (index < 0) return [];
   return scope === "above" ? items.slice(0, index) : items.slice(index + 1);
 };
+
+/** Items Remove Others removes: everything except the kept identities. */
+export const selectRemoveOthersTargets = (
+  items: OpenItem[],
+  keep: readonly OpenItemIdentity[],
+): OpenItem[] =>
+  items.filter(
+    (item) => !keep.some((kept) => matchesOpenItemIdentity(item, kept)),
+  );
 
 const openItemBranchKeys = (
   items: OpenItem[],

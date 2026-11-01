@@ -1,3 +1,8 @@
+import { useContext as useInlineBodyContext } from "react";
+import {
+  ProposalReconciliationContext,
+  InlineReconciliationBodyContext,
+} from "../ProposalReconciliation/ProposalReconciliationReview";
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import {
   AgentEdgeCategory,
@@ -544,118 +549,135 @@ const ResolvedWorkflowProposalRenderer: React.FC<
   );
   const typeIcon = AccountTreeIcon;
 
+  const reconciliationReview = useInlineBodyContext(
+    ProposalReconciliationContext,
+  );
+  const reconciliationBody = useInlineBodyContext(
+    InlineReconciliationBodyContext,
+  );
+
   const content = (
     <Stack spacing={1.5}>
-      {!overrides?.hideHeader && (
-        <ProposalTitle
-          proposal={proposal}
-          resolvedTargetName={title}
-          typePresentation={staticProposalTypePresentation(
-            typeLabel,
-            typeIcon,
-            getEntityColors(workflowType),
-          )}
-          target={
-            titleHref
-              ? {
-                  entityId: resolvedEntityId,
-                  href: titleHref,
-                  sx:
-                    proposal.action === ProposalAction.Update
-                      ? updateProposalTitleLinkSx
-                      : {
-                          textDecoration: "none",
-                          color: "inherit",
-                          "&:hover": { textDecoration: "underline" },
-                        },
-                }
-              : undefined
-          }
-          hideTypeChip={overrides?.hideTypeChip}
-          titleSx={titleSx}
-        />
-      )}
-
-      {shouldRenderDescription && (
-        <Stack spacing={0.5}>
-          {descriptionLabel && (
-            <Typography variant="caption" color="text.secondary">
-              {descriptionLabel}
-            </Typography>
-          )}
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            component="div"
-            data-testid="workflow-proposal-description"
-            sx={{
-              display: "-webkit-box",
-              WebkitLineClamp: 3,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-              overflowWrap: "anywhere",
-              whiteSpace: "pre-wrap",
-            }}
-          >
-            {compactDescription
-              ? renderInlineMentions(compactDescription, "minimal", {
-                  disableLinks: true,
-                })
-              : "(empty)"}
-          </Typography>
-        </Stack>
-      )}
-      {additionalSections.map((section) => (
-        <Stack
-          key={section.key}
-          spacing={0.5}
-          data-testid="workflow-proposal-section"
-          data-section-key={section.key}
-        >
-          <Typography variant="caption" color="text.secondary">
-            {section.label}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" component="div">
-            <MarkdownRenderer allowMentionEscapes disableMentionLinks>
-              {section.proposedContent || "(empty)"}
-            </MarkdownRenderer>
-          </Typography>
-        </Stack>
-      ))}
-
-      {graphData && (
-        <Box data-testid="workflow-proposal-graph">
-          <WorkflowGraphSurface graphData={graphData} disableLinks />
-        </Box>
-      )}
-
-      {siblingProposals && (
-        <ProposalEdges
-          edges={proposal.edges}
-          siblingProposals={siblingProposals}
-          organizationId={proposal.organizationId}
-          projectId={proposal.projectId}
-          ownerApplied={status.state === "applied"}
-        />
-      )}
-
-      {!overrides?.hideStateIndicator && (
-        <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
-          <ProposalStateIndicator
-            status={status}
-            action={proposal.action}
-            onApply={onApply}
-            onReject={onReject}
-            disabled={disabled}
-            approvalProgress={approvalProgress}
-            applyLabel={overrides?.applyLabel}
+      {!overrides?.hideHeader &&
+        (!reconciliationReview?.staged || !!reconciliationBody) && (
+          <ProposalTitle
+            proposal={proposal}
+            resolvedTargetName={title}
+            typePresentation={staticProposalTypePresentation(
+              typeLabel,
+              typeIcon,
+              getEntityColors(workflowType),
+            )}
+            target={
+              titleHref
+                ? {
+                    entityId: resolvedEntityId,
+                    href: titleHref,
+                    sx:
+                      proposal.action === ProposalAction.Update
+                        ? updateProposalTitleLinkSx
+                        : {
+                            textDecoration: "none",
+                            color: "inherit",
+                            "&:hover": { textDecoration: "underline" },
+                          },
+                  }
+                : undefined
+            }
+            hideTypeChip={overrides?.hideTypeChip}
+            titleSx={titleSx}
           />
-        </Box>
+        )}
+
+      {reconciliationBody ?? (
+        <>
+          {shouldRenderDescription && (
+            <Stack spacing={0.5}>
+              {descriptionLabel && (
+                <Typography variant="caption" color="text.secondary">
+                  {descriptionLabel}
+                </Typography>
+              )}
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                component="div"
+                data-testid="workflow-proposal-description"
+                sx={{
+                  display: "-webkit-box",
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                  overflowWrap: "anywhere",
+                  whiteSpace: "pre-wrap",
+                }}
+              >
+                {compactDescription
+                  ? renderInlineMentions(compactDescription, "minimal", {
+                      disableLinks: true,
+                    })
+                  : "(empty)"}
+              </Typography>
+            </Stack>
+          )}
+          {additionalSections.map((section) => (
+            <Stack
+              key={section.key}
+              spacing={0.5}
+              data-testid="workflow-proposal-section"
+              data-section-key={section.key}
+            >
+              <Typography variant="caption" color="text.secondary">
+                {section.label}
+              </Typography>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                component="div"
+              >
+                <MarkdownRenderer allowMentionEscapes disableMentionLinks>
+                  {section.proposedContent || "(empty)"}
+                </MarkdownRenderer>
+              </Typography>
+            </Stack>
+          ))}
+
+          {graphData && (
+            <Box data-testid="workflow-proposal-graph">
+              <WorkflowGraphSurface graphData={graphData} disableLinks />
+            </Box>
+          )}
+
+          {siblingProposals && (
+            <ProposalEdges
+              edges={proposal.edges}
+              siblingProposals={siblingProposals}
+              organizationId={proposal.organizationId}
+              projectId={proposal.projectId}
+              ownerApplied={status.state === "applied"}
+            />
+          )}
+
+          {!overrides?.hideStateIndicator && (
+            <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
+              <ProposalStateIndicator
+                status={status}
+                action={proposal.action}
+                onApply={onApply}
+                onReject={onReject}
+                disabled={disabled}
+                approvalProgress={approvalProgress}
+                applyLabel={overrides?.applyLabel}
+              />
+            </Box>
+          )}
+        </>
       )}
     </Stack>
   );
 
-  return overrides?.hideCard ? (
+  return overrides?.hideCard ||
+    (reconciliationReview?.staged && !reconciliationBody) ? (
     content
   ) : (
     <Paper

@@ -138,6 +138,11 @@ export const AgentSessionByIdResolver: React.FC = () => {
         return;
       }
 
+      case AgentSessionType.ProposalRefining: {
+        navigate(base, { replace: true });
+        return;
+      }
+
       default: {
         // Unknown type — fall back to conversation resolver if possible
         if (agentSession.conversationId) {

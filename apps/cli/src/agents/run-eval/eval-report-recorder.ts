@@ -90,7 +90,7 @@ export class EvalReportRecorder implements EvalRunRecorder {
         await this.client.updateReport({
           organizationId: this.organizationId,
           reportId,
-          updateReportDto: { payload: updated },
+          updateReportDto: { payload: updated, ragEnabled: false },
         });
         this.payloads.set(reportId, Promise.resolve(updated));
       });

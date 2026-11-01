@@ -1,3 +1,6 @@
+import { useModalState } from "../Modals/useModalState";
+import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import CancelIcon from "@mui/icons-material/Cancel";
 import SaveIcon from "@mui/icons-material/Save";
 import {
@@ -5,7 +8,6 @@ import {
   Box,
   Button,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
@@ -149,16 +151,23 @@ export const WorkItemEditor: React.FC<WorkItemEditorProps> = ({
 }) => {
   const { t } = useTranslation();
   const [error, setError] = useState<string | null>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
-  const [revealAllDialogOpen, setRevealAllDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen, deleteDialogOpenOwnerKey] =
+    useModalState(false);
+  const [discardDialogOpen, setDiscardDialogOpen, discardDialogOpenOwnerKey] =
+    useModalState(false);
+  const [
+    revealAllDialogOpen,
+    setRevealAllDialogOpen,
+    revealAllDialogOpenOwnerKey,
+  ] = useModalState(false);
   const [pendingRevealStage, setPendingRevealStage] =
     useState<RevealableWorkItemLevel | null>(null);
   const [isRevealingAll, setIsRevealingAll] = useState(false);
   const [isSavingContent, setIsSavingContent] = useState(false);
   const [saveMode, setSaveMode] = useState<"silent" | "feedback" | null>(null);
   const [saveSuccessCount, setSaveSuccessCount] = useState(0);
-  const [reasonModalOpen, setReasonModalOpen] = useState(false);
+  const [reasonModalOpen, setReasonModalOpen, reasonModalOpenOwnerKey] =
+    useModalState(false);
   const [pendingProposalMessage, setPendingProposalMessage] = useState<
     string | null
   >(null);
@@ -286,7 +295,11 @@ export const WorkItemEditor: React.FC<WorkItemEditorProps> = ({
 
   // Track conversationId for staged-content reveal and initiative refinement.
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [isCreateDesignDocOpen, setIsCreateDesignDocOpen] = useState(false);
+  const [
+    isCreateDesignDocOpen,
+    setIsCreateDesignDocOpen,
+    isCreateDesignDocOpenOwnerKey,
+  ] = useModalState(false);
   const { searchEntities } = useMentionEntitySearch(
     organizationId,
     projectId,
@@ -1264,6 +1277,7 @@ export const WorkItemEditor: React.FC<WorkItemEditorProps> = ({
 
       {/* Discard Unsaved Changes Dialog */}
       <Dialog
+        ownerKey={discardDialogOpenOwnerKey}
         open={discardDialogOpen}
         onClose={handleDiscardDialogClose}
         aria-labelledby="discard-work-item-changes-title"
@@ -1294,6 +1308,7 @@ export const WorkItemEditor: React.FC<WorkItemEditorProps> = ({
 
       {/* Delete Conversation Confirmation Dialog */}
       <Dialog
+        ownerKey={deleteDialogOpenOwnerKey}
         open={deleteDialogOpen}
         onClose={handleDeleteCancel}
         aria-labelledby="delete-conversation-dialog-title"
@@ -1323,6 +1338,7 @@ export const WorkItemEditor: React.FC<WorkItemEditorProps> = ({
 
       {/* Skip Refinement Confirmation Dialog */}
       <Dialog
+        ownerKey={revealAllDialogOpenOwnerKey}
         open={revealAllDialogOpen}
         onClose={handleRevealAllCancel}
         aria-labelledby="skip-refinement-dialog-title"
@@ -1352,63 +1368,67 @@ export const WorkItemEditor: React.FC<WorkItemEditorProps> = ({
         </DialogActions>
       </Dialog>
 
-      <SaveReasonModal
-        open={reasonModalOpen}
-        onClose={handleReasonModalClose}
-        onSubmit={handleReasonModalSubmit}
-        title={t("Save changes")}
-        submitLabel={t("Submit")}
-        cancelLabel={t("Cancel")}
-        helperText={t(
-          "Add an optional note explaining why you're making this change.",
-        )}
-        secondaryAction={
-          // Gated explicitly on the FEATURE core-type marker until the
-          // registry exposes a "creates implementation tasks" affordance.
-          taskType === "FEATURE"
-            ? {
-                label: t("Submit and Create Task"),
-                onAction: handleReasonModalSecondaryAction,
-                disabled: selectedMachine === null,
-                configuration: (
-                  <Box sx={{ mt: 2 }}>
-                    {machineMode === "zero" ? (
-                      <Alert severity="warning" sx={{ mb: 2 }}>
-                        No execution-ready CLI is available. Review the machine
-                        state below to continue.
-                      </Alert>
-                    ) : null}
-                    {machines.length > 0 ? (
-                      <MachinePicker
-                        machines={machines}
-                        selectedMachineId={selectedMachine?.machineId ?? null}
-                        onSelect={setSelectedMachineId}
-                        mobileMode="editor"
-                      />
-                    ) : null}
-                  </Box>
-                ),
-              }
-            : undefined
-        }
-      />
+      <ModalWorkOwner.Provider value={reasonModalOpenOwnerKey}>
+        <SaveReasonModal
+          open={reasonModalOpen}
+          onClose={handleReasonModalClose}
+          onSubmit={handleReasonModalSubmit}
+          title={t("Save changes")}
+          submitLabel={t("Submit")}
+          cancelLabel={t("Cancel")}
+          helperText={t(
+            "Add an optional note explaining why you're making this change.",
+          )}
+          secondaryAction={
+            // Gated explicitly on the FEATURE core-type marker until the
+            // registry exposes a "creates implementation tasks" affordance.
+            taskType === "FEATURE"
+              ? {
+                  label: t("Submit and Create Task"),
+                  onAction: handleReasonModalSecondaryAction,
+                  disabled: selectedMachine === null,
+                  configuration: (
+                    <Box sx={{ mt: 2 }}>
+                      {machineMode === "zero" ? (
+                        <Alert severity="warning" sx={{ mb: 2 }}>
+                          No execution-ready CLI is available. Review the
+                          machine state below to continue.
+                        </Alert>
+                      ) : null}
+                      {machines.length > 0 ? (
+                        <MachinePicker
+                          machines={machines}
+                          selectedMachineId={selectedMachine?.machineId ?? null}
+                          onSelect={setSelectedMachineId}
+                          mobileMode="editor"
+                        />
+                      ) : null}
+                    </Box>
+                  ),
+                }
+              : undefined
+          }
+        />
+      </ModalWorkOwner.Provider>
 
-      <CreateDocumentModal
-        open={isCreateDesignDocOpen}
-        onClose={handleCloseCreateDesignDoc}
-        projectId={projectId}
-        organizationId={organizationId}
-        workItemSelectorMode="workItem"
-        workItemSelectorInitialValue={
-          workItemData?.id
-            ? {
-                type: entityType,
-                id: workItemData.id,
-              }
-            : null
-        }
-        workItemSelectorReadOnly
-      />
+      <ModalWorkOwner.Provider value={isCreateDesignDocOpenOwnerKey}>
+        <CreateDocumentModal
+          open={isCreateDesignDocOpen}
+          onClose={handleCloseCreateDesignDoc}
+          projectId={projectId}
+          organizationId={organizationId}
+          workItemSelectorMode="workItem"
+          workItemSelectorInitialValue={
+            workItemData?.id
+              ? {
+                  type: entityType,
+                  id: workItemData.id,
+                }
+              : null
+          }
+          workItemSelectorReadOnly
+        />
+      </ModalWorkOwner.Provider>
     </Box>
   );
 };

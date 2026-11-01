@@ -157,7 +157,7 @@ const mockAuthValue = (userId: string | null) =>
     completeChangePassword: vi.fn(),
     logout: vi.fn(),
     toggleDevAdminMode: vi.fn(),
-  } as never);
+  }) as never;
 
 const featureUpdates: CreateTaskDto = {
   type: "FEATURE",
@@ -253,7 +253,7 @@ beforeEach(() => {
       isStale: false,
       refetch: vi.fn(),
       markStale: vi.fn(),
-    })
+    }),
   );
   useServicesMock.mockReturnValue({
     services: [],
@@ -285,11 +285,11 @@ describe("TaskCreateRenderer — service assignments", () => {
           status={{ state: "pending" }}
           onApply={() => {}}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(screen.getByTestId("task-proposal-services")).toHaveTextContent(
-      "ServicesAPI, Web App"
+      "ServicesAPI, Web App",
     );
     expect(screen.queryByText("service-api")).not.toBeInTheDocument();
     expect(screen.queryByText("service-ui")).not.toBeInTheDocument();
@@ -312,11 +312,11 @@ describe("TaskCreateRenderer — service assignments", () => {
           status={{ state: "pending" }}
           onApply={() => {}}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(
-      screen.getByText("One or more proposed services are unavailable.")
+      screen.getByText("One or more proposed services are unavailable."),
     ).toBeInTheDocument();
     expect(screen.queryByText("missing-service")).not.toBeInTheDocument();
   });
@@ -368,20 +368,20 @@ describe("TaskCreateRenderer — structured feature requirements", () => {
           status={{ state: "pending" }}
           onApply={() => {}}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const section = screen.getByTestId("task-proposal-section");
     expect(
-      within(section).getAllByTestId("structured-requirement-row")
+      within(section).getAllByTestId("structured-requirement-row"),
     ).toHaveLength(2);
     expect(
-      within(section).getByTestId("structured-requirements-group")
+      within(section).getByTestId("structured-requirements-group"),
     ).toHaveTextContent("Access");
     expect(section).toHaveTextContent("Ungrouped");
     expect(section).toHaveTextContent("Grouped");
     expect(
-      within(section).getByTestId("structured-requirement-citations")
+      within(section).getByTestId("structured-requirement-citations"),
     ).toHaveAttribute("data-citation-slot", "fulfilledBy");
     expect(section).not.toHaveTextContent("Other");
   });
@@ -418,15 +418,15 @@ describe("TaskCreateRenderer — structured feature requirements", () => {
           status={{ state: "pending" }}
           onApply={() => {}}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const section = screen.getByTestId("task-proposal-section");
     expect(
-      within(section).getByTestId("structured-requirements-group")
+      within(section).getByTestId("structured-requirements-group"),
     ).toHaveTextContent("Shared configuration contract");
     expect(
-      within(section).getByTestId("structured-requirement-row")
+      within(section).getByTestId("structured-requirement-row"),
     ).toHaveTextContent("Grouped requirement");
     expect(section).not.toHaveTextContent(/group:/);
   });
@@ -436,7 +436,7 @@ describe("TaskCreateRenderer — parent override via proposal PATCH", () => {
   it("changing the parent does not issue any network call while the proposal is pending", async () => {
     const proposalPatch = vi.mocked(proposalsClient.updateProposal);
     const taskPatch = vi.mocked(
-      tasksClient.organizationsOrganizationIdProjectsProjectIdTasksTaskIdPatch
+      tasksClient.organizationsOrganizationIdProjectsProjectIdTasksTaskIdPatch,
     );
 
     render(
@@ -446,7 +446,7 @@ describe("TaskCreateRenderer — parent override via proposal PATCH", () => {
           status={{ state: "pending" }}
           onApply={() => {}}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     act(() => mockOnParentChange?.("parent-new"));
@@ -471,7 +471,7 @@ describe("TaskCreateRenderer — parent override via proposal PATCH", () => {
           status={{ state: "pending" }}
           onApply={onApply}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     act(() => mockOnParentChange?.("parent-new"));
@@ -500,7 +500,7 @@ describe("TaskCreateRenderer — parent override via proposal PATCH", () => {
             },
           ],
         },
-      })
+      }),
     );
     await waitFor(() => {
       expect(onApply).toHaveBeenCalledTimes(1);
@@ -519,7 +519,7 @@ describe("TaskCreateRenderer — parent override via proposal PATCH", () => {
           status={{ state: "pending" }}
           onApply={onApply}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     await user.click(screen.getByRole("button", { name: /create/i }));
@@ -534,7 +534,7 @@ describe("TaskCreateRenderer — feature tag override", () => {
     const user = userEvent.setup();
     const proposalPatch = vi.mocked(proposalsClient.updateProposal);
     const mockedPatch = vi.mocked(
-      tasksClient.organizationsOrganizationIdProjectsProjectIdTasksTaskIdPatch
+      tasksClient.organizationsOrganizationIdProjectsProjectIdTasksTaskIdPatch,
     );
     mockedPatch.mockResolvedValue({ data: { data: {} } } as never);
 
@@ -547,11 +547,11 @@ describe("TaskCreateRenderer — feature tag override", () => {
           status={{ state: "pending" }}
           onApply={() => {}}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(
-      screen.getAllByText(FEATURE_TAG_PALETTE[FeatureTag.Product].label).length
+      screen.getAllByText(FEATURE_TAG_PALETTE[FeatureTag.Product].label).length,
     ).toBeGreaterThan(0);
 
     const select = screen.getByLabelText("Override feature tag");
@@ -559,7 +559,7 @@ describe("TaskCreateRenderer — feature tag override", () => {
     await user.click(
       screen.getByRole("option", {
         name: new RegExp(FEATURE_TAG_PALETTE[FeatureTag.Backend].label),
-      })
+      }),
     );
 
     rerender(
@@ -569,7 +569,7 @@ describe("TaskCreateRenderer — feature tag override", () => {
           status={{ state: "applied" }}
           onApply={() => {}}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     await waitFor(() => {
@@ -583,7 +583,7 @@ describe("TaskCreateRenderer — feature tag override", () => {
         updateTaskDto: {
           tag: FeatureTag.Backend,
         },
-      })
+      }),
     );
     expect(proposalPatch).not.toHaveBeenCalled();
   });
@@ -593,7 +593,7 @@ describe("TaskCreateRenderer — applied title preview", () => {
   it("links the resolved target while the post-apply tag PATCH is in flight", async () => {
     const user = userEvent.setup();
     const mockedPatch = vi.mocked(
-      tasksClient.organizationsOrganizationIdProjectsProjectIdTasksTaskIdPatch
+      tasksClient.organizationsOrganizationIdProjectsProjectIdTasksTaskIdPatch,
     );
     mockedPatch.mockReturnValue(new Promise(() => {}));
 
@@ -605,14 +605,14 @@ describe("TaskCreateRenderer — applied title preview", () => {
           status={{ state: "pending" }}
           onApply={() => {}}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     await user.click(screen.getByLabelText("Override feature tag"));
     await user.click(
       screen.getByRole("option", {
         name: new RegExp(FEATURE_TAG_PALETTE[FeatureTag.Backend].label),
-      })
+      }),
     );
 
     rerender(
@@ -622,13 +622,13 @@ describe("TaskCreateRenderer — applied title preview", () => {
           status={{ state: "applied" }}
           onApply={() => {}}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     await waitFor(() => expect(mockedPatch).toHaveBeenCalledTimes(1));
     expect(screen.getByRole("link", { name: "New Feature" })).toHaveAttribute(
       "href",
-      `/projects/${PROJ_ID}/features/${TARGET_ID}`
+      `/projects/${PROJ_ID}/features/${TARGET_ID}`,
     );
   });
 
@@ -643,7 +643,7 @@ describe("TaskCreateRenderer — applied title preview", () => {
             status={{ state: "applied" }}
             onApply={() => {}}
           />
-        </MemoryRouter>
+        </MemoryRouter>,
       );
 
       const link = screen.getByRole("link", { name: "New Task" });
@@ -711,7 +711,7 @@ describe("TaskCreateRenderer — project registry type labels", () => {
         },
         {
           key: "applicability",
-          content: { focalTypeKeys: ["STANDARD", "BUG"] },
+          content: { eligibleWorkItemTypeKeys: ["STANDARD", "BUG"] },
         },
       ],
     };
@@ -724,7 +724,7 @@ describe("TaskCreateRenderer — project registry type labels", () => {
           status={{ state: "pending" }}
           onApply={onApply}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(screen.getByText("Catalog description")).toBeInTheDocument();
@@ -732,50 +732,51 @@ describe("TaskCreateRenderer — project registry type labels", () => {
     expect(screen.getByText("Supporting files")).toBeInTheDocument();
     expect(screen.getByText("Applicable work-item types")).toBeInTheDocument();
     expect(
-      screen.getByTestId("mode-files-section-renderer")
+      screen.getByTestId("mode-files-section-renderer"),
     ).toBeInTheDocument();
     expect(screen.getByTestId("mode-files-selected-path")).toHaveTextContent(
-      "MODE.md"
+      "MODE.md",
     );
     expect(screen.getByTestId("mode-files-selected-content")).toHaveTextContent(
-      "# Follow the project instructions"
+      "# Follow the project instructions",
     );
     expect(
       within(screen.getByTestId("mode-files-selected-content")).getByTestId(
-        "mock-markdown-renderer"
-      )
+        "mock-markdown-renderer",
+      ),
     ).toHaveAttribute("data-mention-organization-id", ORG_ID);
     expect(
       within(screen.getByTestId("mode-files-selected-content")).getByTestId(
-        "mock-markdown-renderer"
-      )
+        "mock-markdown-renderer",
+      ),
     ).toHaveAttribute("data-mention-project-id", PROJ_ID);
     expect(screen.getAllByTestId("mode-files-file")[0]).toHaveTextContent(
-      "MODE.md"
+      "MODE.md",
     );
     expect(screen.getByTestId("mode-files-file-list")).toHaveTextContent(
-      "references/review.md"
+      "references/review.md",
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "references/review.md" })
+      screen.getByRole("button", { name: "references/review.md" }),
     );
     expect(screen.getByTestId("mode-files-selected-content")).toHaveTextContent(
-      "## Review the acceptance criteria"
+      "## Review the acceptance criteria",
     );
     expect(
       within(screen.getByTestId("mode-files-selected-content")).getByTestId(
-        "mock-markdown-renderer"
-      )
+        "mock-markdown-renderer",
+      ),
     ).toHaveAttribute("data-mention-project-id", PROJ_ID);
     expect(screen.getByTestId("mode-files-selected-path")).toHaveStyle({
-      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+      fontFamily:
+        "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
     });
     expect(screen.getAllByTestId("json-section-renderer")).toHaveLength(1);
     expect(screen.getByTestId("json-section-content")).toHaveTextContent(
-      "focalTypeKeys"
+      "eligibleWorkItemTypeKeys",
     );
     expect(screen.getByTestId("json-section-content")).toHaveTextContent(
-      '"STANDARD"'
+      '"STANDARD"',
     );
     expect(screen.getByRole("button", { name: /create/i })).toBeInTheDocument();
 
@@ -846,18 +847,18 @@ describe("TaskCreateRenderer — project registry type labels", () => {
           status={{ state: "pending" }}
           onApply={() => {}}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(
-      screen.getByTestId("structured-mockup-section-renderer")
+      screen.getByTestId("structured-mockup-section-renderer"),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId("structured-mockup-section-renderer")
+      screen.getByTestId("structured-mockup-section-renderer"),
     ).toHaveAttribute("data-rendering-context", "inline");
     expect(screen.getByLabelText("Settings")).toBeInTheDocument();
     expect(
-      screen.getByTestId("structured-mockup-semantic-metadata-indicator")
+      screen.getByTestId("structured-mockup-semantic-metadata-indicator"),
     ).toBeInTheDocument();
     expect(screen.queryByText(/schemaVersion/)).not.toBeInTheDocument();
   });
@@ -890,7 +891,7 @@ describe("TaskCreateRenderer — project registry type labels", () => {
           status={{ state: "pending" }}
           onApply={() => {}}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const sections = screen.getAllByTestId("task-proposal-section");
@@ -924,7 +925,7 @@ describe("TaskCreateRenderer — project registry type labels", () => {
           status={{ state: "pending" }}
           onApply={() => {}}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(screen.getByText("Research Brief")).toBeInTheDocument();
@@ -937,14 +938,14 @@ describe("TaskCreateRenderer — project registry type labels", () => {
           status={{ state: "pending" }}
           onApply={() => {}}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(screen.getByText("Project Task")).toBeInTheDocument();
     expect(useWorkItemTypeByKeyMock).toHaveBeenLastCalledWith(
       ORG_ID,
       PROJ_ID,
-      "STANDARD"
+      "STANDARD",
     );
   });
 
@@ -966,7 +967,7 @@ describe("TaskCreateRenderer — project registry type labels", () => {
           status={{ state: "pending" }}
           onApply={() => {}}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(screen.getByText("Archived Brief")).toBeInTheDocument();
@@ -981,10 +982,10 @@ describe("TaskCreateRenderer — project registry type labels", () => {
           status={{ state: "pending" }}
           onApply={() => {}}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     expect(
-      screen.getByTestId("task-create-work-item-type-loading")
+      screen.getByTestId("task-create-work-item-type-loading"),
     ).toBeInTheDocument();
 
     registryState.isLoading = false;
@@ -996,10 +997,10 @@ describe("TaskCreateRenderer — project registry type labels", () => {
           status={{ state: "pending" }}
           onApply={() => {}}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     expect(
-      screen.getByTestId("task-create-work-item-type-load-error")
+      screen.getByTestId("task-create-work-item-type-load-error"),
     ).toHaveTextContent("Registry unavailable");
 
     registryState.error = null;
@@ -1011,10 +1012,10 @@ describe("TaskCreateRenderer — project registry type labels", () => {
           status={{ state: "pending" }}
           onApply={() => {}}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     expect(
-      screen.getByTestId("task-create-work-item-type-unavailable")
+      screen.getByTestId("task-create-work-item-type-unavailable"),
     ).toBeInTheDocument();
     expect(screen.queryByText("STANDARD")).not.toBeInTheDocument();
     expect(screen.queryByText("Task")).not.toBeInTheDocument();
@@ -1045,11 +1046,11 @@ describe("TaskCreateRenderer — Agent Mode availability", () => {
           status={{ state: "pending" }}
           onApply={() => {}}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(
-      await screen.findByText("Available project-wide")
+      await screen.findByText("Available project-wide"),
     ).toBeInTheDocument();
     expect(getTaskMock).not.toHaveBeenCalled();
   });
@@ -1097,19 +1098,19 @@ describe("TaskCreateRenderer — Agent Mode availability", () => {
           onApply={() => {}}
           siblingProposals={new Map()}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const featureLink = await screen.findByTestId(
-      "mode-availability-feature-link"
+      "mode-availability-feature-link",
     );
     expect(featureLink).toHaveTextContent("Reporting");
     expect(featureLink).toHaveAttribute(
       "href",
-      `/projects/${PROJ_ID}/features/feature-1`
+      `/projects/${PROJ_ID}/features/feature-1`,
     );
     expect(
-      screen.getByText("Available in these Features and their descendants:")
+      screen.getByText("Available in these Features and their descendants:"),
     ).toBeInTheDocument();
     expect(screen.getByText("Relationships")).toBeInTheDocument();
     expect(screen.getByText("relates to")).toBeInTheDocument();

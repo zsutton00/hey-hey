@@ -12,9 +12,14 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { ImplementRuntimeSelection } from './implementRuntimeSelection';
+import { CodingPlanVersion } from './codingPlanVersion';
 
 
 export interface ImplementPromptPayload { 
+    approvedVersion?: CodingPlanVersion;
+    versionMessageId?: string;
+    approvalFeedback?: string;
+    planningDiscussion?: string;
     runtime?: ImplementRuntimeSelection;
     userMessage?: string;
 }

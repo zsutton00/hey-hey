@@ -5,6 +5,7 @@ import type { Request } from 'express';
 import { ProposalController } from '../proposal.controller';
 import { ProposalService } from '../../services/proposal/proposal.service';
 import { ProposalApprovalService } from '../../services/proposal/proposal-approval.service';
+import { ProposalAgentFixService } from '../../services/proposal/proposal-agent-fix.service';
 import type { AuthenticatedUser } from '../../auth/strategies/jwt.strategy';
 import type { OrganizationId, ProjectId, UserId } from '../../types';
 import type { CreateProposalRequestDto } from '../../services/proposal/proposal.dto';
@@ -44,6 +45,7 @@ describe('ProposalController.create — requestor context boundary', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ProposalController],
       providers: [
+        { provide: ProposalAgentFixService, useValue: { record: jest.fn() } },
         { provide: ProjectAccessService, useValue: { assertOrganization: jest.fn(), assertProject: jest.fn() } },
         { provide: ProjectResourceAccessService, useValue: { assertResource: jest.fn() } },
         {

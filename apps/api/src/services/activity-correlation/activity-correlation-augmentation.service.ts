@@ -96,6 +96,7 @@ export class ActivityCorrelationAugmentationService {
     const now = new Date();
     const reports = await this.prisma.db.report.findMany({
       where: {
+        ragEnabled: true,
         organizationId,
         id: { in: uniqueIds },
         expiresAt: { gt: now },

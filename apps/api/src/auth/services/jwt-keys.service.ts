@@ -34,6 +34,14 @@ export const PROJECTION_DELETION_AUTHORIZATION = {
   },
 } as const;
 
+/** Narrow credential the Embeddings service requires for its debug endpoints. */
+export const EMBEDDINGS_DEBUG_AUTHORIZATION = {
+  scope: 'embeddings:debug:read',
+  audience: 'embeddings-service',
+} as const;
+
+const EMBEDDINGS_DEBUG_TOKEN_LIFETIME_SECONDS = 60;
+
 export type ProjectionDeletionProvider =
   keyof typeof PROJECTION_DELETION_AUTHORIZATION;
 
@@ -280,6 +288,31 @@ export class JwtKeysService {
       throw new Error(
         'Failed to generate authentication token for embeddings service',
       );
+    }
+  }
+
+  /**
+   * Debug credential for the Embeddings service. Callers must have passed the
+   * platform-admin and project-owner checks first; the token carries only the
+   * debug scope, targets the Embeddings audience and expires quickly.
+   */
+  getEmbeddingsDebugToken(requestingUserId: UserId): string {
+    try {
+      return this.signToken(
+        {
+          sub: `system:embeddings-debug:${requestingUserId}`,
+          scopes: [EMBEDDINGS_DEBUG_AUTHORIZATION.scope],
+        },
+        {
+          audience: EMBEDDINGS_DEBUG_AUTHORIZATION.audience,
+          expiresIn: EMBEDDINGS_DEBUG_TOKEN_LIFETIME_SECONDS,
+        },
+      );
+    } catch (error) {
+      this.logger.error('[getEmbeddingsDebugToken] Failed to sign credential', {
+        error: error instanceof Error ? error.message : errorToLoggable(error),
+      });
+      throw new Error('Failed to generate embeddings debug credential');
     }
   }
 

@@ -136,11 +136,12 @@
     "test:related": "vitest related --run --passWithNoTests",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
+    "test:browser:diagram-element-screen": "pnpm tsc --noEmit -p scripts/browser/tsconfig.json && node scripts/verify-diagram-element-screen-browser.mjs",
     "test:browser:project-report": "pnpm tsc --noEmit -p scripts/browser/tsconfig.json && node scripts/verify-project-report-browser.mjs",
     "clean:api": "rm -rf src/api src/local-agent-api/generated src/generated",
     "generate:contract": "node \"$(node scripts/openapi-root.cjs)/scripts/task-monitor-contract.js\" --typescript-output src/generated/task-monitor-contract.schema.ts",
     "generate:entity-prompt-template-language": "node scripts/generate-entity-prompt-template-language.cjs",
-    "generate:api": "pnpm generate:contract && pnpm generate:entity-prompt-template-language && openapi-generator-cli generate -i \"$(node scripts/openapi-root.cjs)/specs/api/openapi.yaml\" -g typescript-axios -o src/api --additional-properties=npmName=hey-hey-api,supportsES6=true,withInterfaces=true,modelPropertyNaming=camelCase,typescriptThreePlus=true,useSingleRequestParameter=true --global-property=apiDocs=false,modelDocs=false && node \"$(node scripts/openapi-root.cjs)/scripts/postprocess-project-report-models.js\" src/api/api.ts && node scripts/generate-private-beta-access-contract.cjs && node scripts/generate-browser-session-contract.cjs && node scripts/generate-activity-history-contract.cjs && node scripts/generate-open-items-contract.cjs && node scripts/align-cli-source-types.cjs",
+    "generate:api": "pnpm generate:contract && pnpm generate:entity-prompt-template-language && openapi-generator-cli generate -i \"$(node scripts/openapi-root.cjs)/specs/api/openapi.yaml\" -g typescript-axios -o src/api --additional-properties=npmName=hey-hey-api,supportsES6=true,withInterfaces=true,modelPropertyNaming=camelCase,typescriptThreePlus=true,useSingleRequestParameter=true --global-property=apiDocs=false,modelDocs=false && node \"$(node scripts/openapi-root.cjs)/scripts/postprocess-project-report-models.js\" src/api/api.ts && node scripts/generate-private-beta-access-contract.cjs && node scripts/generate-browser-session-contract.cjs && node scripts/generate-activity-history-contract.cjs && node scripts/generate-open-items-contract.cjs && node scripts/align-cli-source-types.cjs && node \"$(node scripts/openapi-root.cjs)/scripts/generate-controller-action-contract.js\" --browser src/generated/controller-action-inputs.ts ../api && prettier --write src/generated/controller-action-inputs.ts",
     "generate:all": "pnpm clean:api && pnpm generate:api && pnpm generate:local",
     "generate:check": "pnpm generate:all",
     "verify:deploy": "pnpm generate:all && pnpm build && pnpm test:run",
@@ -218,7 +219,8 @@
     "socket.io-client": "^4.8.1",
     "y-protocols": "^1.0.6",
     "yjs": "^13.6.18",
-    "zod": "^3.25.30"
+    "zod": "^3.25.30",
+    "zustand": "5.0.15"
   },
   "peerDependencies": {
     "@tanstack/react-query": "^5.81.5",

@@ -1,6 +1,14 @@
-import { AgentSessionType } from "@hey-hey/ui-common/api";
-import { useAgentSession } from "@hey-hey/ui-common/data";
 import {
+  AgentSessionType,
+  LocalPromptType,
+  MessageType,
+  type CreateUserMessage,
+  type LocalPromptProposalInput,
+  type UserMessageDataProposalRefiner,
+} from "@hey-hey/ui-common/api";
+import { useAgentSession, useProposal } from "@hey-hey/ui-common/data";
+import {
+  AgentConversationView,
   ExistingEntityConversationSession,
   isExistingEntityConversationAgentSession,
   LoadingPanel,
@@ -28,6 +36,18 @@ export const AgentSessionContent: React.FC<AgentSessionContentProps> = ({
     projectId,
     agentSessionId,
     { enabled: !!organizationId && !!agentSessionId },
+  );
+  const isProposalRefining =
+    agentSession?.type === AgentSessionType.ProposalRefining;
+  const {
+    proposal,
+    error: proposalError,
+    isLoading: proposalLoading,
+  } = useProposal(
+    organizationId || undefined,
+    projectId,
+    isProposalRefining ? agentSession.entityId : undefined,
+    { enabled: isProposalRefining },
   );
   if (!organizationId.trim() || !projectId.trim() || !agentSessionId.trim()) {
     return (
@@ -60,6 +80,67 @@ export const AgentSessionContent: React.FC<AgentSessionContentProps> = ({
           Agent session not found.
         </Alert>
       </Box>
+    );
+  }
+
+  if (isProposalRefining) {
+    if (!agentSession.conversationId) {
+      return (
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error">
+            This proposal-refining session has no conversation to open.
+          </Alert>
+        </Box>
+      );
+    }
+    if (proposalLoading) {
+      return <LoadingPanel label="Loading proposal conversation..." />;
+    }
+    if (proposalError || !proposal) {
+      return (
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error">
+            {proposalError?.message || "Unable to load the proposal."}
+          </Alert>
+        </Box>
+      );
+    }
+
+    const proposalInput: LocalPromptProposalInput = {
+      id: proposal.id,
+      action: proposal.action,
+      status: proposal.status,
+      targetEntityId: proposal.targetEntityId,
+      targetEntityType: proposal.targetEntityType,
+      title: proposal.title,
+      updates: proposal.updates ?? {},
+    };
+    const conversationId = agentSession.conversationId;
+
+    return (
+      <AgentConversationView
+        organizationId={organizationId}
+        projectId={projectId}
+        agentSessionId={agentSessionId}
+        conversationId={conversationId}
+        scrollable
+        buildReplyMessage={(text, skillSelection, attachments = []) => {
+          const agentInput: UserMessageDataProposalRefiner = {
+            promptType: LocalPromptType.ProposalRefiner,
+            payloadVersion: 1,
+            proposal: proposalInput,
+            userMessage: text,
+            ...(skillSelection ? { skillSelection } : {}),
+          };
+          const message: CreateUserMessage = {
+            projectId,
+            conversationId,
+            type: MessageType.User,
+            data: { agentInput, attachments },
+          };
+          return message;
+        }}
+      />
     );
   }
 

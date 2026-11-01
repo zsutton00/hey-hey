@@ -1,6 +1,69 @@
+import { ProposalReconciliationService } from '../proposal-reconciliation.service';
+import { ProposalReconciliationAdapterService } from '../proposal-reconciliation-adapter.service';
 import type { PrismaService } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId } from 'src/types';
 import { ProposalGroupService } from '../proposal-group.service';
+
+function createService(prisma: PrismaService, currentName = 'Reviewed') {
+  const basis = {
+    entityType: 'TASK',
+    entityId: 'task-1',
+    version: 'authoring',
+    content: { name: 'Reviewed', sections: {} },
+  };
+  const revision = {
+    id: 'revision',
+    proposalId: 'proposal-1',
+    source: 'AUTHORING',
+    previousRevisionId: null,
+    bases: [basis],
+    proposedResult: { name: 'Proposed', sections: {} },
+    createdAt: new Date(),
+    intent: 'Rename',
+  };
+  const findTasks = prisma.db.task?.findMany ?? jest.fn(async () => []);
+  Object.assign(prisma.db, {
+    proposalGroupMember: { findUnique: jest.fn(async () => null) },
+    workItemChangeSetMaterialization: { findUnique: jest.fn(async () => null) },
+    proposalReconciliationReplacement: { findFirst: jest.fn(async () => null) },
+    proposalReconciliationRevision: {
+      findFirst: jest.fn(async () => revision),
+      findMany: jest.fn(async () => [revision]),
+    },
+    proposal: {
+      findMany: jest.fn(async () => []),
+      findUnique: jest.fn(async () => null),
+    },
+    task: {
+      ...prisma.db.task,
+      findMany: jest.fn(async (input) =>
+        input.include
+          ? [
+              {
+                id: 'task-1',
+                name: currentName,
+                type: 'STANDARD',
+                updatedAt: new Date(),
+                sections: [],
+                serviceRelations: [],
+              },
+            ]
+          : findTasks(input),
+      ),
+    },
+  });
+  const reconciliation = new ProposalReconciliationService(
+    new ProposalReconciliationAdapterService(
+      { getSectionDefinition: () => undefined } as never,
+      {} as never,
+    ),
+    {} as never,
+    () => 'test',
+  );
+  const service = new ProposalGroupService(prisma);
+  Object.assign(service, { reconciliation });
+  return service;
+}
 
 describe('ProposalGroupService', () => {
   beforeEach(() => {
@@ -84,6 +147,53 @@ describe('ProposalGroupService', () => {
       dependencies: [],
     };
   }
+
+  it('adds pending linked-work identity to canonical member responses without changing frozen mutation content', async () => {
+    const proposal = storedProposal('future-preview', [], {
+      action: 'VERSIONED_UPDATE',
+      status: 'REJECTED',
+      updates: {
+        operation: 'REVISE',
+        dependencies: [
+          {
+            edgeType: 'DEPENDS_ON',
+            targetEntityType: 'TASK',
+            targetEntityId: 'work',
+          },
+        ],
+      },
+    });
+    const group = canonicalGroup(proposal);
+    const findMany = jest
+      .fn()
+      .mockResolvedValue([
+        { id: 'work', name: 'Implementation', type: 'STANDARD' },
+      ]);
+    const prisma = {
+      db: {
+        proposalGroup: { findFirst: jest.fn().mockResolvedValue(group) },
+        task: { findMany },
+      },
+    } as unknown as PrismaService;
+    const snapshot = await createService(prisma).findOne(
+      'org-1' as OrganizationId,
+      'project-1' as ProjectId,
+      'group-1',
+    );
+    expect(snapshot.members).toHaveLength(1);
+    for (const member of snapshot.members) {
+      expect(member.proposal?.dependencyPresentation).toEqual([
+        {
+          targetEntityId: 'work',
+          availability: 'AVAILABLE',
+          title: 'Implementation',
+          workItemType: 'STANDARD',
+        },
+      ]);
+      expect(member.proposal?.updates).toEqual(proposal.updates);
+    }
+    expect(findMany).toHaveBeenCalledTimes(1);
+  });
 
   it('reads a scoped snapshot in persisted order and preserves per-member policy state', async () => {
     const findFirst = jest.fn().mockResolvedValue({
@@ -178,7 +288,7 @@ describe('ProposalGroupService', () => {
       },
     } as unknown as PrismaService;
 
-    const result = await new ProposalGroupService(prisma).findOne(
+    const result = await createService(prisma).findOne(
       'org-1' as OrganizationId,
       'project-1' as ProjectId,
       'group-1',
@@ -269,7 +379,7 @@ describe('ProposalGroupService', () => {
       },
     } as unknown as PrismaService;
     await expect(
-      new ProposalGroupService(prisma).findOne(
+      createService(prisma).findOne(
         'org-1' as OrganizationId,
         'project-1' as ProjectId,
         'group-1',
@@ -281,47 +391,45 @@ describe('ProposalGroupService', () => {
     {
       action: 'CREATE',
       targetEntityType: 'TASK',
-      captured: null,
-      current: null,
+      currentName: 'Reviewed',
       expected: 'NOT_APPLICABLE',
     },
     {
       action: 'UPDATE',
       targetEntityType: 'TASK',
-      captured: null,
-      current: null,
+      currentName: 'Reviewed',
       expected: 'CURRENT',
     },
     {
       action: 'UPDATE',
       targetEntityType: 'TASK',
-      captured: 'proposal-1',
-      current: 'proposal-2',
+      currentName: 'Later edit',
       expected: 'OUT_OF_DATE',
     },
     {
       action: 'DELETE',
       targetEntityType: 'TASK',
-      captured: 'proposal-1',
-      current: 'proposal-1',
+      currentName: 'Reviewed',
       expected: 'CURRENT',
     },
   ] as const)(
     'maps grouped $action $targetEntityType proposals through the API-owned status resolver',
-    async ({ action, targetEntityType, captured, current, expected }) => {
+    async ({ action, targetEntityType, currentName, expected }) => {
       const findFirst = jest.fn().mockResolvedValue(
         canonicalGroup(
           storedProposal('proposal-1', [], {
             action,
             targetEntityType,
             targetEntityId: 'task-1',
-            targetLastAppliedProposalId: captured,
+            targetLastAppliedProposalId: 'unchanged-marker',
           }),
         ),
       );
       const taskFindMany = jest
         .fn()
-        .mockResolvedValue([{ id: 'task-1', lastAppliedProposalId: current }]);
+        .mockResolvedValue([
+          { id: 'task-1', lastAppliedProposalId: 'unchanged-marker' },
+        ]);
       const prisma = {
         db: {
           proposalGroup: { findFirst },
@@ -329,7 +437,7 @@ describe('ProposalGroupService', () => {
         },
       } as unknown as PrismaService;
 
-      const result = await new ProposalGroupService(prisma).findOne(
+      const result = await createService(prisma, currentName).findOne(
         'org-1' as OrganizationId,
         'project-1' as ProjectId,
         'group-1',
@@ -337,19 +445,6 @@ describe('ProposalGroupService', () => {
 
       expect(result.members[0]?.proposal.outOfDateStatus).toBe(expected);
       expect(result.members[0]?.proposal.requiredApprovals).toBe(2);
-      if (action === 'UPDATE' || action === 'DELETE') {
-        expect(taskFindMany).toHaveBeenCalledWith(
-          expect.objectContaining({
-            where: expect.objectContaining({
-              organizationId: 'org-1',
-              projectId: 'project-1',
-              id: { in: ['task-1'] },
-            }),
-          }),
-        );
-      } else {
-        expect(taskFindMany).not.toHaveBeenCalled();
-      }
     },
   );
 });

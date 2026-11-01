@@ -1,3 +1,6 @@
+import { useModalState } from "../Modals/useModalState";
+import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 /**
  * Context Management Panel Component
  *
@@ -21,7 +24,6 @@ import {
   ListItemSecondaryAction,
   Divider,
   Paper,
-  Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
@@ -86,7 +88,17 @@ const RollbackDialog: React.FC<RollbackDialogProps> = ({
   if (!version) return null;
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="sm"
+      fullWidth
+      closeControl={
+        <IconButton onClick={onClose} size="small">
+          <CloseIcon />
+        </IconButton>
+      }
+    >
       <DialogTitle>
         <Box
           sx={{
@@ -96,9 +108,6 @@ const RollbackDialog: React.FC<RollbackDialogProps> = ({
           }}
         >
           <Typography variant="h6">Confirm Rollback</Typography>
-          <IconButton onClick={onClose} size="small">
-            <CloseIcon />
-          </IconButton>
         </Box>
       </DialogTitle>
       <DialogContent>
@@ -167,9 +176,13 @@ export const ContextManagementPanel: React.FC<ContextManagementPanelProps> = ({
   workflowId,
 }) => {
   const { t } = useTranslation();
-  const [rollbackDialogOpen, setRollbackDialogOpen] = useState(false);
+  const [
+    rollbackDialogOpen,
+    setRollbackDialogOpen,
+    rollbackDialogOpenOwnerKey,
+  ] = useModalState(false);
   const [selectedVersion, setSelectedVersion] = useState<ContextVersion | null>(
-    null
+    null,
   );
 
   const {
@@ -209,7 +222,7 @@ export const ContextManagementPanel: React.FC<ContextManagementPanelProps> = ({
   };
 
   const handleRollbackConfirm = async (
-    rollbackRequest: ContextRollbackRequest
+    rollbackRequest: ContextRollbackRequest,
   ) => {
     try {
       await rollbackMutation.mutateAsync({
@@ -443,7 +456,7 @@ export const ContextManagementPanel: React.FC<ContextManagementPanelProps> = ({
                             >
                               Updated:{" "}
                               {new Date(
-                                context.lastUpdated
+                                context.lastUpdated,
                               ).toLocaleDateString()}
                             </Typography>
                           </Box>
@@ -492,13 +505,15 @@ export const ContextManagementPanel: React.FC<ContextManagementPanelProps> = ({
       </Grid>
 
       {/* Rollback Confirmation Dialog */}
-      <RollbackDialog
-        open={rollbackDialogOpen}
-        version={selectedVersion}
-        onClose={handleCloseRollbackDialog}
-        onConfirm={handleRollbackConfirm}
-        isLoading={rollbackMutation.isPending}
-      />
+      <ModalWorkOwner.Provider value={rollbackDialogOpenOwnerKey}>
+        <RollbackDialog
+          open={rollbackDialogOpen}
+          version={selectedVersion}
+          onClose={handleCloseRollbackDialog}
+          onConfirm={handleRollbackConfirm}
+          isLoading={rollbackMutation.isPending}
+        />
+      </ModalWorkOwner.Provider>
     </Paper>
   );
 };

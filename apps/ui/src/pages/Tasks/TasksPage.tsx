@@ -1,3 +1,5 @@
+import { useModalState } from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import AddIcon from "@mui/icons-material/Add";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import {
@@ -5,7 +7,6 @@ import {
   Box,
   Button,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -31,7 +32,10 @@ import { KEYS, TERMS } from "@hey-hey/ui-common/i18n";
 
 import { apiClient } from "@hey-hey/ui-common/clients";
 import { TaskList } from "@hey-hey/ui-common/components";
-import type { WorkItemResponseDto } from "@hey-hey/ui-common/data";
+import {
+  useWorkItems,
+  type WorkItemResponseDto,
+} from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import { contentToSectionInputs } from "@hey-hey/ui-common/utils";
 interface TaskFormData {
@@ -54,6 +58,14 @@ export const TasksPage: React.FC = () => {
   }>();
   const { currentOrgId } = useUserIdentity() || {};
 
+  const { updateTask } = useWorkItems(
+    currentOrgId ?? "",
+    "task",
+    projectId ?? "",
+    undefined,
+    { enabled: false },
+  );
+
   const [initiative, setInitiative] = useState<InitiativeResponseDto | null>(
     null,
   );
@@ -62,9 +74,12 @@ export const TasksPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Dialog states
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen, createDialogOpenOwnerKey] =
+    useModalState(false);
+  const [editDialogOpen, setEditDialogOpen, editDialogOpenOwnerKey] =
+    useModalState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen, deleteDialogOpenOwnerKey] =
+    useModalState(false);
   const [editingTask, setEditingTask] = useState<TaskResponseDto | null>(null);
   const [deletingTask, setDeletingTask] = useState<WorkItemResponseDto | null>(
     null,
@@ -187,11 +202,8 @@ export const TasksPage: React.FC = () => {
         ),
       };
 
-      await apiClient.updateTask({
-        organizationId: currentOrgId,
-        taskId: editingTask?.id || "",
-        updateTaskDto: updateDto,
-        projectId,
+      await updateTask(editingTask.id, updateDto, {
+        authoritativeTask: editingTask,
       });
 
       setEditDialogOpen(false);
@@ -341,6 +353,7 @@ export const TasksPage: React.FC = () => {
 
         {/* Create Task Dialog */}
         <Dialog
+          ownerKey={createDialogOpenOwnerKey}
           open={createDialogOpen}
           onClose={handleCloseCreateDialog}
           maxWidth="sm"
@@ -447,6 +460,7 @@ export const TasksPage: React.FC = () => {
 
         {/* Edit Task Dialog */}
         <Dialog
+          ownerKey={editDialogOpenOwnerKey}
           open={editDialogOpen}
           onClose={handleCloseEditDialog}
           maxWidth="sm"
@@ -552,7 +566,11 @@ export const TasksPage: React.FC = () => {
         </Dialog>
 
         {/* Delete Confirmation Dialog */}
-        <Dialog open={deleteDialogOpen} onClose={handleCloseDeleteDialog}>
+        <Dialog
+          ownerKey={deleteDialogOpenOwnerKey}
+          open={deleteDialogOpen}
+          onClose={handleCloseDeleteDialog}
+        >
           <DialogTitle>{t(KEYS.tasks.dialog.deleteTitle)}</DialogTitle>
           <DialogContent>
             <Typography>

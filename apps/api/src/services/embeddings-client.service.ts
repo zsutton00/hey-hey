@@ -25,6 +25,10 @@ import { GetDebugEntity200Response } from 'src/generated/embeddings/model/getDeb
 import { OrganizationId, ProjectId } from 'src/types';
 import { errorToLoggable } from 'src/utils/logging.util';
 import { ApiKeyService } from './api-key.service';
+import {
+  assertSearchCanCarryReadPolicy,
+  scopeEmbeddingsRequest,
+} from 'src/read-restriction/embeddings-read-scope';
 
 @Injectable()
 export class EmbeddingsClientService {
@@ -132,7 +136,7 @@ export class EmbeddingsClientService {
         this.searchService.searchEmbeddingsOrgPost(
           organizationId,
           projectId,
-          request,
+          scopeEmbeddingsRequest(request),
           {
             config: this.extendRequestConfig(requestConfig, {
               headers: {
@@ -178,6 +182,7 @@ export class EmbeddingsClientService {
     if (!params.projectId) {
       throw new Error('Embeddings search requires a projectId');
     }
+    assertSearchCanCarryReadPolicy();
 
     try {
       this.logger.debug(`Searching embeddings with params: ${params.q}`);
@@ -246,6 +251,7 @@ export class EmbeddingsClientService {
     if (!params.projectId) {
       throw new Error('Embeddings search requires a projectId');
     }
+    assertSearchCanCarryReadPolicy();
     try {
       this.logger.debug(
         `Searching embeddings with user token for query: ${params.q}`,
@@ -340,7 +346,7 @@ export class EmbeddingsClientService {
         this.searchService.searchEmbeddingsOrgPost(
           organizationId,
           projectId,
-          request,
+          scopeEmbeddingsRequest(request),
           {
             config: {
               headers: {
@@ -489,9 +495,13 @@ export class EmbeddingsClientService {
   async getDebugEntity(
     type: string,
     id: string,
+    debugToken: string,
   ): Promise<GetDebugEntity200Response> {
     if (!this.isEnabled) {
       throw new Error('Embeddings service is disabled');
+    }
+    if (!debugToken) {
+      throw new Error('Embeddings debug lookup requires a debug credential');
     }
 
     try {
@@ -501,7 +511,9 @@ export class EmbeddingsClientService {
       });
 
       const response = await firstValueFrom(
-        this.developmentService.getDebugEntity(type, id),
+        this.developmentService.getDebugEntity(type, id, {
+          config: { headers: { Authorization: `Bearer ${debugToken}` } },
+        }),
       );
 
       return response.data;

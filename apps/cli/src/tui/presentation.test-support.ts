@@ -138,25 +138,23 @@ export class FakeSources {
   );
   public intentFirst: boolean | null = false;
   public remoteToolCallViewing: boolean | null = true;
-  public jevParentFeatureFilter: boolean | null = true;
+  public jevEnabled: boolean | null = true;
   public jevKeyDefined = true;
   public readonly optionsObservers = new Set<OptionsObserver>();
   public readonly setIntentFirst = vi.fn<(intentFirst: boolean) => Promise<void>>((intentFirst) => {
-    this.setOptions(intentFirst, this.remoteToolCallViewing, this.jevParentFeatureFilter);
+    this.setOptions(intentFirst, this.remoteToolCallViewing, this.jevEnabled);
     return Promise.resolve();
   });
   public readonly setRemoteToolCallViewing = vi.fn<(enabled: boolean) => Promise<void>>(
     (enabled) => {
-      this.setOptions(this.intentFirst, enabled, this.jevParentFeatureFilter);
+      this.setOptions(this.intentFirst, enabled, this.jevEnabled);
       return Promise.resolve();
     },
   );
-  public readonly setJevParentFeatureFilter = vi.fn<(enabled: boolean) => Promise<void>>(
-    (enabled) => {
-      this.setOptions(this.intentFirst, this.remoteToolCallViewing, enabled);
-      return Promise.resolve();
-    },
-  );
+  public readonly setJevEnabled = vi.fn<(enabled: boolean) => Promise<void>>((enabled) => {
+    this.setOptions(this.intentFirst, this.remoteToolCallViewing, enabled);
+    return Promise.resolve();
+  });
   private revision = 0;
 
   public readonly sources = {
@@ -227,7 +225,7 @@ export class FakeSources {
           snapshot: {
             intentFirst: this.intentFirst,
             remoteToolCallViewing: this.remoteToolCallViewing,
-            jevParentFeatureFilter: this.jevParentFeatureFilter,
+            jevEnabled: this.jevEnabled,
             jevKeyDefined: this.jevKeyDefined,
           },
           unsubscribe: () => this.optionsObservers.delete(observer),
@@ -235,22 +233,22 @@ export class FakeSources {
       },
       setIntentFirst: (intentFirst: boolean) => this.setIntentFirst(intentFirst),
       setRemoteToolCallViewing: (enabled: boolean) => this.setRemoteToolCallViewing(enabled),
-      setJevParentFeatureFilter: (enabled: boolean) => this.setJevParentFeatureFilter(enabled),
+      setJevEnabled: (enabled: boolean) => this.setJevEnabled(enabled),
     },
   };
 
   public setOptions(
     intentFirst: boolean | null,
     remoteToolCallViewing: boolean | null = true,
-    jevParentFeatureFilter: boolean | null = true,
+    jevEnabled: boolean | null = true,
     jevKeyDefined = this.jevKeyDefined,
   ): void {
     this.jevKeyDefined = jevKeyDefined;
     this.intentFirst = intentFirst;
     this.remoteToolCallViewing = remoteToolCallViewing;
-    this.jevParentFeatureFilter = jevParentFeatureFilter;
+    this.jevEnabled = jevEnabled;
     for (const observer of this.optionsObservers) {
-      observer({ intentFirst, remoteToolCallViewing, jevParentFeatureFilter, jevKeyDefined });
+      observer({ intentFirst, remoteToolCallViewing, jevEnabled, jevKeyDefined });
     }
   }
 

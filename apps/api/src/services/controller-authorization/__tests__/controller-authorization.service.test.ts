@@ -1,3 +1,16 @@
+import { Test } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
+import * as request from 'supertest';
+import { ControllerAuthorizationController } from '../../../controllers/controller-authorization.controller';
+import { ControllerBindingCookieService } from '../controller-binding-cookie.service';
+import { JwtAuthGuard } from '../../../auth/guards/jwt-auth.guard';
+import { OrganizationGuard } from '../../../auth/guards/organization.guard';
+import { ProjectAccessGuard } from '../../../auth/guards/project-access.guard';
+import { ControllerBindingOriginGuard } from '../../../common/guards/controller-binding-origin.guard';
+import {
+  hashControllerAction,
+  startControllerInputs,
+} from '../../../generated/controller-action-contract';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
 import { ControllerAuthorizationCadence as PrismaControllerAuthorizationCadence } from '@prisma/client';
@@ -145,6 +158,9 @@ describe('ControllerAuthorizationService', () => {
       verifier,
       config,
       browserBindingService as any,
+      {
+        resolveStartRunConfiguration: jest.fn().mockResolvedValue(undefined),
+      } as any,
     );
     const submitWithBinding = service.submit.bind(service);
     service.submit = (async (
@@ -265,6 +281,106 @@ describe('ControllerAuthorizationService', () => {
     });
   });
 
+  describe('rejected resolve requests over HTTP', () => {
+    let app: INestApplication;
+    let warn: jest.SpyInstance;
+
+    beforeEach(async () => {
+      warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const moduleRef = await Test.createTestingModule({
+        controllers: [ControllerAuthorizationController],
+        providers: [
+          { provide: ControllerAuthorizationService, useValue: service },
+          { provide: ControllerBindingCookieService, useValue: {} },
+        ],
+      })
+        .overrideGuard(JwtAuthGuard)
+        .useValue({ canActivate: () => true })
+        .overrideGuard(OrganizationGuard)
+        .useValue({ canActivate: () => true })
+        .overrideGuard(ProjectAccessGuard)
+        .useValue({ canActivate: () => true })
+        .overrideGuard(ControllerBindingOriginGuard)
+        .useValue({ canActivate: () => true })
+        .compile();
+      app = moduleRef.createNestApplication();
+      app.use((req: any, _res: unknown, next: () => void) => {
+        req.user = { userId: ids.user };
+        next();
+      });
+      await app.init();
+    });
+
+    afterEach(async () => {
+      await app.close();
+      warn.mockRestore();
+    });
+
+    const postResolve = (body: object) =>
+      request(app.getHttpServer())
+        .post(
+          `/api/v1/organizations/${ids.organization}/projects/${ids.project}/controller-authorizations/resolve`,
+        )
+        .send(body);
+
+    it('logs the failing schema path and action type for an invalid action', async () => {
+      const userMessage = 'private user-authored kickoff text';
+      const inputs = startControllerInputs({
+        agentSessionId: ids.agentSession,
+        workflowName: 'feature-sync',
+        model: 'gpt-5',
+        provider: 'codex',
+        payload: { promptType: 'workflow_kickoff', userMessage },
+      } as any);
+      const response = await postResolve({
+        machineId: ids.machine,
+        action: { ...action, inputs: { ...inputs, extra: userMessage } },
+      });
+
+      expect(response.status).toBe(403);
+      expect(response.body.message).toBe('ACTION_MISMATCH');
+      const [, logged] = warn.mock.calls.find(
+        ([message]) =>
+          message === 'Controller authorization preparation denied',
+      )!;
+      expect(logged).toMatchObject({
+        reasonCode: ControllerAuthorizationDenialReason.ActionMismatch,
+        failedCheck: 'action_schema',
+        actionType: action.actionType,
+      });
+      expect(logged.schemaFailures).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ path: expect.stringContaining('/inputs') }),
+        ]),
+      );
+      expect(JSON.stringify(warn.mock.calls)).not.toContain(userMessage);
+    });
+
+    it('names the key-set check when the request has unexpected keys', async () => {
+      const response = await postResolve({
+        machineId: ids.machine,
+        action,
+        extra: true,
+      });
+
+      expect(response.status).toBe(403);
+      expect(warn).toHaveBeenCalledWith(
+        'Controller authorization preparation denied',
+        expect.objectContaining({ failedCheck: 'request_keys' }),
+      );
+    });
+
+    it('names the machine id check when the machine id is not a UUID', async () => {
+      const response = await postResolve({ machineId: 'machine', action });
+
+      expect(response.status).toBe(403);
+      expect(warn).toHaveBeenCalledWith(
+        'Controller authorization preparation denied',
+        expect.objectContaining({ failedCheck: 'machine_id' }),
+      );
+    });
+  });
+
   it('requires fresh authorization when no bounded grant matches', async () => {
     await expect(
       service.resolve({
@@ -279,6 +395,64 @@ describe('ControllerAuthorizationService', () => {
       }),
     ).resolves.toEqual({ outcome: 'AUTHORIZATION_REQUIRED' });
   });
+
+  it.each(['Please start', ''])(
+    'admits task-bearing startup %j at resolve without weakening proof requirements',
+    async (userMessage) => {
+      const inputs = startControllerInputs({
+        agentSessionId: ids.agentSession,
+        workflowName: 'feature-sync',
+        model: 'gpt-5',
+        provider: 'codex',
+        payload: {
+          promptType: 'workflow_kickoff',
+          userMessage,
+          entity: { entityType: 'TASK', entityId: ids.taskMonitor },
+        },
+        contextMetadata: {
+          capturedAt: new Date().toISOString(),
+          organizationId: ids.organization,
+          projectId: ids.project,
+          agentSessionId: ids.agentSession,
+          userComments: [],
+          fileReferences: { resolved: [], unresolved: [] },
+          task: {
+            id: ids.taskMonitor,
+            name: 'Repair startup',
+            type: 'BUG',
+            status: 'BACKLOG',
+            source: 'user',
+            organizationId: ids.organization,
+            projectId: ids.project,
+            initiativeId: null,
+            parentTaskId: null,
+            archivedAt: null,
+            designDocCount: null,
+            codingSessionCount: null,
+            agentSessionCount: null,
+            sections: [
+              {
+                id: ids.taskMonitor,
+                key: 'description',
+                order: 0,
+                materializedMarkdown: 'Retain context',
+                materializedProposalId: '',
+              },
+            ],
+          },
+        },
+      });
+      await expect(
+        service.resolve({
+          organizationId: ids.organization,
+          projectId: ids.project,
+          userId: ids.user,
+          controllerBindingSecret: ids.bindingSecret,
+          input: { machineId: ids.machine, action: { ...action, inputs } },
+        }),
+      ).resolves.toEqual({ outcome: 'AUTHORIZATION_REQUIRED' });
+    },
+  );
 
   it.each([
     [ControllerAuthorizationCadence.FiveMinutes, 5 / (24 * 60)],
@@ -321,6 +495,71 @@ describe('ControllerAuthorizationService', () => {
     },
   );
 
+  it('binds every submitted read input before creating the WebAuthn challenge', async () => {
+    const readAction: HostActionPreparation = {
+      ...action,
+      actionCategory: HostActionCategory.CliRead,
+      actionType: HostAffectingActionType.CliRead,
+      inputs: {
+        kind: 'CLI_READ',
+        body: {
+          requestId: ids.request,
+          agentSessionId: ids.agentSession,
+          operation: 'run.changed_files.detail',
+          runId: ids.agentSession,
+          file: {
+            serviceId: ids.taskMonitor,
+            repoPath: '/workspace',
+            filePath: 'src/approved.ts',
+          },
+        },
+      },
+    };
+    const approved = await service.prepare({
+      organizationId: ids.organization,
+      projectId: ids.project,
+      userId: ids.user,
+      input: prepareInput(readAction),
+    });
+    expect(approved.intent.actionPayloadHash).toBe(
+      hashControllerAction(readAction),
+    );
+    const changed: HostActionPreparation = {
+      ...readAction,
+      requestId: crypto.randomUUID(),
+      inputs: {
+        kind: 'CLI_READ',
+        body: {
+          requestId: ids.request,
+          agentSessionId: ids.agentSession,
+          operation: 'run.changed_files.detail',
+          runId: ids.agentSession,
+          file: {
+            serviceId: ids.taskMonitor,
+            repoPath: '/workspace',
+            filePath: 'src/changed.ts',
+          },
+        },
+      },
+    };
+    const other = await service.prepare({
+      organizationId: ids.organization,
+      projectId: ids.project,
+      userId: ids.user,
+      input: prepareInput(changed),
+    });
+    expect(other.intent.actionPayloadHash).not.toBe(
+      approved.intent.actionPayloadHash,
+    );
+    expect(db.executionAuthorization.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          actionPayloadHash: hashControllerAction(changed),
+        }),
+      }),
+    );
+  });
+
   it('persists the exact canonical two-minute intent and fixed request options', async () => {
     const before = Date.now();
     const result = await service.prepare({
@@ -330,9 +569,7 @@ describe('ControllerAuthorizationService', () => {
       input: prepareInput(action),
     });
 
-    expect(result.intent.actionPayloadHash).toBe(
-      crypto.createHash('sha256').update(canonicalizeJcs(action)).digest('hex'),
-    );
+    expect(result.intent.actionPayloadHash).toBe(hashControllerAction(action));
     expect(result.intent.controllerCredentialId).toBe(controllerCredentialId);
     expect(result.intent.controllerCredentialId).not.toBe(ids.controller);
     expect(result.intent.target).toEqual({
@@ -855,10 +1092,7 @@ describe('ControllerAuthorizationService', () => {
     const expiresAt =
       override.expiresAt ??
       new Date(issuedAt.getTime() + CONTROLLER_AUTHORIZATION_TTL_MS);
-    const actionPayloadHash = crypto
-      .createHash('sha256')
-      .update(canonicalizeJcs(action))
-      .digest('hex');
+    const actionPayloadHash = hashControllerAction(action);
     const grantDescriptorHash = hashControllerDeviceGrantDescriptor(
       buildControllerDeviceGrantDescriptor({
         controllerCredentialId: controllerCredentialId,

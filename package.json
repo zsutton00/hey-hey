@@ -5,6 +5,7 @@
   "engines": {
     "node": ">=24"
   },
+  "version": "release/2026-10-24",
   "scripts": {
     "prepare": "if command -v husky >/dev/null 2>&1; then husky; fi",
     "bootstrap": "pnpm install --frozen-lockfile",
@@ -12,8 +13,9 @@
     "generate:check": "node scripts/generate-contracts.mjs --check",
     "generate:verify": "node scripts/generate-contracts.mjs --verify",
     "openapi:identity": "node scripts/openapi-source.cjs --identity",
-    "build": "pnpm generate:verify && pnpm --filter ./apps/ui build && pnpm --filter ./apps/cli build && pnpm --filter ./apps/api build",
-    "check": "pnpm generate:verify && pnpm --filter @hey-hey/ui-common build && pnpm --filter ./apps/ui type-check && pnpm --filter ./apps/ui test && pnpm --filter ./apps/cli typecheck && pnpm --filter ./apps/cli test",
+    "build": "pnpm generate:verify && pnpm check:controller-producers && pnpm --filter ./apps/ui build && pnpm --filter ./apps/cli build && pnpm --filter ./apps/api build && pnpm --filter @hey-hey/graph-search build",
+    "check": "pnpm --filter @hey-hey/graph-search check && pnpm generate:verify && pnpm check:controller-producers && pnpm --filter @hey-hey/ui-common build && pnpm --filter ./apps/ui type-check && pnpm --filter ./apps/ui test && pnpm --filter ./apps/cli typecheck && pnpm --filter ./apps/cli test",
+    "check:controller-producers": "pnpm --filter @hey-hey/ui-common type-check && NODE_ENV=test pnpm --filter @hey-hey/ui-common exec vitest run src/components/InteractionComponent/__tests__/useFeatureSyncConversationLauncher.test.tsx src/components/AgentSession/operations/__tests__/AgentOperationProvider.test.ts",
     "test:scripts": "node --test scripts/*.test.mjs"
   },
   "devDependencies": {

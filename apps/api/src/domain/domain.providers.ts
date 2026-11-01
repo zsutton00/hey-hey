@@ -79,7 +79,6 @@ import { LifecycleService as GraphsLifecycleService } from 'src/generated/graphs
 import { TemplateGraphService } from 'src/generated/graphs/api/templateGraph.service';
 import { AgentEdgesService as GraphsAgentEdgesService } from 'src/generated/graphs/api/agentEdges.service';
 import { HintsService as GraphsHintsService } from 'src/generated/graphs/api/hints.service';
-import { HintsConfig } from 'src/config/hints.config';
 import { HintService } from 'src/services/hints/hint.service';
 import { AgentEdgeClientService } from 'src/services/agent-edge-client.service';
 import { ProjectModeEligibilityService } from 'src/services/tasks/project-mode-eligibility.service';
@@ -198,7 +197,6 @@ export const DOMAIN_SERVICES: Provider[] = [
   TemplateGraphService,
   GraphsAgentEdgesService,
   GraphsHintsService,
-  HintsConfig,
   HintService,
   FeatureFlagService,
   EntityGraphEmbeddingMappingService,
@@ -346,7 +344,6 @@ export const DOMAIN_EXPORTS = [
   TemplateGraphService,
   GraphsAgentEdgesService,
   GraphsHintsService,
-  HintsConfig,
   HintService,
   FeatureFlagService,
   EntityGraphEmbeddingMappingService,

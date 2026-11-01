@@ -16,6 +16,7 @@ import {
   Typography,
 } from "@mui/material";
 import {
+  DiagramKind,
   AgentEdgeCategory,
   AgentEdgeEndpointEntityType,
   AgentEdgeType,
@@ -57,6 +58,7 @@ import {
   type WorkItemGraphRelationshipDialogValue,
 } from "./WorkItemGraphRelationshipDialog";
 import {
+  getDiagramMetadata,
   WorkflowGraphSurface,
   type WorkItemGraphConnectionGesture,
   type WorkItemGraphEmptyCanvasDrop,
@@ -95,14 +97,14 @@ type RelationshipDialogState =
 
 function identityEquals(
   left: WorkItemChangeSetIdentity,
-  right: WorkItemChangeSetIdentity
+  right: WorkItemChangeSetIdentity,
 ): boolean {
   return workItemIdentityKey(left) === workItemIdentityKey(right);
 }
 
 function relationshipIdentityEquals(
   left: WorkItemChangeSetRelationshipIdentity,
-  right: WorkItemChangeSetRelationshipIdentity
+  right: WorkItemChangeSetRelationshipIdentity,
 ): boolean {
   return (
     left.refType === right.refType &&
@@ -114,7 +116,7 @@ function relationshipIdentityEquals(
 
 function selectionsEqual(
   left: WorkItemGraphSelection,
-  right: WorkItemGraphSelection
+  right: WorkItemGraphSelection,
 ): boolean {
   if (
     left.children.length !== right.children.length ||
@@ -125,17 +127,17 @@ function selectionsEqual(
 
   return (
     left.children.every((identity, index) =>
-      identityEquals(identity, right.children[index])
+      identityEquals(identity, right.children[index]),
     ) &&
     left.relationships.every((identity, index) =>
-      relationshipIdentityEquals(identity, right.relationships[index])
+      relationshipIdentityEquals(identity, right.relationships[index]),
     )
   );
 }
 
 function declarationMatches(
   declaration: WorkItemTypeGraphRelationshipDeclaration,
-  relationship: ProjectedWorkItemRelationship
+  relationship: ProjectedWorkItemRelationship,
 ): boolean {
   return (
     declaration.edgeType === relationship.edgeType &&
@@ -145,7 +147,7 @@ function declarationMatches(
 
 function endpointAllowsGraphNode(
   endpoint: WorkItemTypeGraphEndpointRule,
-  nodeType: string
+  nodeType: string,
 ): boolean {
   return (
     endpoint.role === WorkItemTypeGraphEndpointRole.GraphNode &&
@@ -157,7 +159,7 @@ function endpointAllowsGraphNode(
 
 function allowsGraphNodeEndpoints(
   declaration: WorkItemTypeGraphRelationshipDeclaration,
-  nodeType: string
+  nodeType: string,
 ): boolean {
   return (
     endpointAllowsGraphNode(declaration.sourceEndpoint, nodeType) &&
@@ -167,14 +169,14 @@ function allowsGraphNodeEndpoints(
 
 function resolveSearchTarget(
   endpoint: WorkItemTypeGraphEndpointRule,
-  searchTarget: WorkItemTypeGraphSearchableMetaLinkTarget
+  searchTarget: WorkItemTypeGraphSearchableMetaLinkTarget,
 ): WorkItemTypeGraphSearchableMetaLinkTarget | null {
   if (endpoint.role !== WorkItemTypeGraphEndpointRole.ExternalEntity)
     return null;
   if (searchTarget.targetEntityTypes.length === 0) return null;
   if (
     !searchTarget.targetEntityTypes.every((entityType) =>
-      endpoint.entityTypes.includes(entityType)
+      endpoint.entityTypes.includes(entityType),
     )
   ) {
     return null;
@@ -182,7 +184,7 @@ function resolveSearchTarget(
   if (searchTarget.targetWorkItemTypeKeys?.length) {
     return !endpoint.workItemTypeKeys?.length ||
       searchTarget.targetWorkItemTypeKeys.every((typeKey) =>
-        endpoint.workItemTypeKeys?.includes(typeKey)
+        endpoint.workItemTypeKeys?.includes(typeKey),
       )
       ? searchTarget
       : null;
@@ -201,7 +203,7 @@ interface SearchableMetaDeclaration {
 }
 
 function isValidLayoutDeclaration(
-  typeDefinition: WorkItemTypeDefinitionDto
+  typeDefinition: WorkItemTypeDefinitionDto,
 ): boolean {
   const capability = typeDefinition.capabilities?.graph;
   if (!capability?.layout.sectionKey || !capability.layout.schemaRef)
@@ -211,24 +213,24 @@ function isValidLayoutDeclaration(
       (section) =>
         section.key === capability.layout.sectionKey &&
         section.kind === "json" &&
-        section.schemaRef === capability.layout.schemaRef
+        section.schemaRef === capability.layout.schemaRef,
     ) ?? false
   );
 }
 
 function isValidLayoutPreferenceDeclaration(
-  typeDefinition: WorkItemTypeDefinitionDto
+  typeDefinition: WorkItemTypeDefinitionDto,
 ): boolean {
   const declaration = typeDefinition.capabilities?.graph?.layoutPreference;
   return Boolean(
     declaration?.sectionKey &&
-      declaration.schemaRef &&
-      typeDefinition.sections?.some(
-        (section) =>
-          section.key === declaration.sectionKey &&
-          section.kind === "json" &&
-          section.schemaRef === declaration.schemaRef
-      )
+    declaration.schemaRef &&
+    typeDefinition.sections?.some(
+      (section) =>
+        section.key === declaration.sectionKey &&
+        section.kind === "json" &&
+        section.schemaRef === declaration.schemaRef,
+    ),
   );
 }
 
@@ -484,20 +486,20 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
   const capability = draft.draft.context.graphCapability;
   const supportedActions = useMemo(
     () => new Set(capability.supportedActions ?? []),
-    [capability.supportedActions]
+    [capability.supportedActions],
   );
   const editableRelationships = useMemo(
     () => capability.editableRelationships,
-    [capability.editableRelationships]
+    [capability.editableRelationships],
   );
   const flowDeclarations = useMemo(
     () =>
       editableRelationships.filter(
         (declaration) =>
           declaration.category === AgentEdgeCategory.Flow &&
-          allowsGraphNodeEndpoints(declaration, capability.nodeChildType)
+          allowsGraphNodeEndpoints(declaration, capability.nodeChildType),
       ),
-    [capability.nodeChildType, editableRelationships]
+    [capability.nodeChildType, editableRelationships],
   );
   const metaDeclarations = useMemo(
     () =>
@@ -507,7 +509,7 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
           relationship.edgeType === AgentEdgeType.FulfilledBy ||
           !endpointAllowsGraphNode(
             relationship.sourceEndpoint,
-            capability.nodeChildType
+            capability.nodeChildType,
           )
         ) {
           return [];
@@ -515,7 +517,7 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
         const searchTarget = capability.searchableMetaLinkTargets
           ?.filter((candidate) => candidate.edgeType === relationship.edgeType)
           .map((candidate) =>
-            resolveSearchTarget(relationship.targetEndpoint, candidate)
+            resolveSearchTarget(relationship.targetEndpoint, candidate),
           )
           .find((candidate) => candidate !== null);
         return searchTarget ? [{ relationship, searchTarget }] : [];
@@ -524,7 +526,7 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
       capability.nodeChildType,
       capability.searchableMetaLinkTargets,
       editableRelationships,
-    ]
+    ],
   );
   const [selection, setSelection] = useState<WorkItemGraphSelection>({
     children: [],
@@ -546,51 +548,51 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
   const preferenceSectionKey = capability.layoutPreference?.sectionKey;
   const initialPreference = parseWorkItemGraphLayoutPreference(
     draft.projected.projectedRoot.sections.find(
-      (section) => section.key === preferenceSectionKey
-    )?.content
+      (section) => section.key === preferenceSectionKey,
+    )?.content,
   );
   const preferenceRows = initialPreference?.rows;
   const preferenceColumns = initialPreference?.columns;
   const [preferredRows, setPreferredRows] = useState<string>(() =>
-    preferenceRows === undefined ? "" : String(preferenceRows)
+    preferenceRows === undefined ? "" : String(preferenceRows),
   );
   const [preferredColumns, setPreferredColumns] = useState<string>(() =>
-    preferenceColumns === undefined ? "" : String(preferenceColumns)
+    preferenceColumns === undefined ? "" : String(preferenceColumns),
   );
   useEffect(() => {
     setPreferredRows(
-      preferenceRows === undefined ? "" : String(preferenceRows)
+      preferenceRows === undefined ? "" : String(preferenceRows),
     );
     setPreferredColumns(
-      preferenceColumns === undefined ? "" : String(preferenceColumns)
+      preferenceColumns === undefined ? "" : String(preferenceColumns),
     );
   }, [preferenceColumns, preferenceRows]);
   // Layout previews suspend every edit, groups included, until cancelled.
   const [layoutPreviewing, setLayoutPreviewing] = useState(false);
   const handleSelectionChange = useCallback((next: WorkItemGraphSelection) => {
     setSelection((current) =>
-      selectionsEqual(current, next) ? current : next
+      selectionsEqual(current, next) ? current : next,
     );
   }, []);
   const handleVisibleCanvasPositionChange = useCallback(
     (next: WorkItemChangeSetPosition) => {
       setVisibleCanvasPosition((current) =>
-        current?.x === next.x && current.y === next.y ? current : next
+        current?.x === next.x && current.y === next.y ? current : next,
       );
     },
-    []
+    [],
   );
 
   const activeChildren = draft.projected.children.filter(
-    (child) => !child.deleted
+    (child) => !child.deleted,
   );
   const activeRelationships = draft.projected.incidentRelationships.filter(
-    (relationship) => !relationship.deleted
+    (relationship) => !relationship.deleted,
   );
   const selectedChild =
     selection.children.length === 1
       ? activeChildren.find((child) =>
-          identityEquals(child.identity, selection.children[0])
+          identityEquals(child.identity, selection.children[0]),
         )
       : undefined;
   const selectedRelationship =
@@ -598,20 +600,20 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
       ? activeRelationships.find((relationship) =>
           relationshipIdentityEquals(
             relationship.identity,
-            selection.relationships[0]
-          )
+            selection.relationships[0],
+          ),
         )
       : undefined;
   const selectedChildIsEligible =
     selectedChild?.type === capability.nodeChildType;
   const selectedFlowIsEditable = selectedRelationship
     ? flowDeclarations.some((declaration) =>
-        declarationMatches(declaration, selectedRelationship)
+        declarationMatches(declaration, selectedRelationship),
       )
     : false;
   const selectedMetaDeclaration = selectedRelationship
     ? metaDeclarations.find(({ relationship }) =>
-        declarationMatches(relationship, selectedRelationship)
+        declarationMatches(relationship, selectedRelationship),
       )
     : undefined;
   const canView = supportedActions.has(WorkItemTypeGraphAction.ViewGraph);
@@ -697,7 +699,7 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
         rows === "" &&
         columns === "" &&
         draft.projected.projectedRoot.sections.some(
-          (section) => section.key === preferenceSectionKey
+          (section) => section.key === preferenceSectionKey,
         )
       ) {
         draft.revise({
@@ -706,29 +708,29 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
         });
       }
     },
-    [draft, preferenceSectionKey]
+    [draft, preferenceSectionKey],
   );
   const changePreferredRows = useCallback(
     (rows: string) => {
       setPreferredRows(rows);
       updatePreference(rows, preferredColumns);
     },
-    [preferredColumns, updatePreference]
+    [preferredColumns, updatePreference],
   );
   const changePreferredColumns = useCallback(
     (columns: string) => {
       setPreferredColumns(columns);
       updatePreference(preferredRows, columns);
     },
-    [preferredRows, updatePreference]
+    [preferredRows, updatePreference],
   );
   const reconnectableRelationships = activeRelationships
     .filter(
       (relationship) =>
         relationship.category === AgentEdgeCategory.Flow &&
         flowDeclarations.some((declaration) =>
-          declarationMatches(declaration, relationship)
-        )
+          declarationMatches(declaration, relationship),
+        ),
     )
     .map((relationship) => relationship.identity);
 
@@ -741,7 +743,7 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
       if (!canDeleteNode && !canCreateMetaLink) return;
       setContextMenu({ kind: "node", ...menu });
     },
-    [canCreateMetaLink, canDeleteNode]
+    [canCreateMetaLink, canDeleteNode],
   );
 
   const handleEmptyCanvasContextMenu = useCallback(
@@ -749,7 +751,7 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
       if (!canCreateNode) return;
       setContextMenu({ kind: "canvas", ...menu });
     },
-    [canCreateNode]
+    [canCreateNode],
   );
 
   const deleteContextNode = useCallback(() => {
@@ -771,7 +773,7 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
       setMetaDeclaration(declaration);
       closeContextMenu();
     },
-    [canCreateMetaLink, closeContextMenu, contextMenu]
+    [canCreateMetaLink, closeContextMenu, contextMenu],
   );
 
   const existingMetaTargets = useMemo(() => {
@@ -780,7 +782,7 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
       .filter(
         (relationship) =>
           declarationMatches(metaDeclaration.relationship, relationship) &&
-          identityEquals(relationship.source, selectedChild.identity)
+          identityEquals(relationship.source, selectedChild.identity),
       )
       .map((relationship) => relationship.target);
   }, [activeRelationships, metaDeclaration, selectedChild]);
@@ -790,7 +792,7 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
     const declaration = flowDeclarations.find(
       (candidate) =>
         candidate.edgeType === value.edgeType &&
-        candidate.category === value.category
+        candidate.category === value.category,
     );
     if (!declaration) return;
     const fields = {
@@ -808,8 +810,8 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
       const previous = activeRelationships.find((relationship) =>
         relationshipIdentityEquals(
           relationship.identity,
-          relationshipDialog.gesture.relationship
-        )
+          relationshipDialog.gesture.relationship,
+        ),
       );
       if (
         previous &&
@@ -908,7 +910,9 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
         ...(editingMetaRelationship.direction
           ? { direction: editingMetaRelationship.direction }
           : {}),
-        ...(value.reasoning !== undefined ? { reasoning: value.reasoning } : {}),
+        ...(value.reasoning !== undefined
+          ? { reasoning: value.reasoning }
+          : {}),
         ...(value.metadata !== undefined ? { metadata: value.metadata } : {}),
       });
       setEditingMetaRelationship(null);
@@ -920,7 +924,7 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
       (relationship) =>
         declarationMatches(metaDeclaration.relationship, relationship) &&
         identityEquals(relationship.source, selectedChild.identity) &&
-        identityEquals(relationship.target, value.target.identity)
+        identityEquals(relationship.target, value.target.identity),
     );
     if (!duplicate) {
       draft.connect({
@@ -935,7 +939,9 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
                 metaDeclaration.relationship.direction.allowedDirections[0],
             }
           : {}),
-        ...(value.reasoning !== undefined ? { reasoning: value.reasoning } : {}),
+        ...(value.reasoning !== undefined
+          ? { reasoning: value.reasoning }
+          : {}),
         ...(value.metadata !== undefined ? { metadata: value.metadata } : {}),
       });
     }
@@ -948,8 +954,8 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
           (relationship) =>
             identityEquals(relationship.source, selectedChild.identity) &&
             metaDeclarations.some(({ relationship: declaration }) =>
-              declarationMatches(declaration, relationship)
-            )
+              declarationMatches(declaration, relationship),
+            ),
         )
       : [];
 
@@ -959,12 +965,14 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
     : [];
   const selectedGroupMembers = selection.children
     .filter((identity) =>
-      activeChildren.some((child) => identityEquals(child.identity, identity))
+      activeChildren.some((child) => identityEquals(child.identity, identity)),
     )
     .map(diagramGroupMemberRef);
-  const groupMemberLabel = (member: Parameters<typeof diagramGroupMemberIdentity>[0]) =>
+  const groupMemberLabel = (
+    member: Parameters<typeof diagramGroupMemberIdentity>[0],
+  ) =>
     activeChildren.find((child) =>
-      identityEquals(child.identity, diagramGroupMemberIdentity(member))
+      identityEquals(child.identity, diagramGroupMemberIdentity(member)),
     )?.name;
 
   return (
@@ -1081,14 +1089,14 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
             const relationship = activeRelationships.find((candidate) =>
               relationshipIdentityEquals(
                 candidate.identity,
-                gesture.relationship
-              )
+                gesture.relationship,
+              ),
             );
             if (
               canReconnectRelationship &&
               relationship &&
               flowDeclarations.some((declaration) =>
-                declarationMatches(declaration, relationship)
+                declarationMatches(declaration, relationship),
               )
             ) {
               draft.reconnect({
@@ -1172,13 +1180,17 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
       <WorkItemGraphRelationshipDialog
         open={relationshipDialog.kind !== "closed"}
         declarations={flowDeclarations}
+        actionLabelRequired={
+          getDiagramMetadata(draft.projected.projectedRoot)?.kind ===
+          DiagramKind.UxFlow
+        }
         relationship={
           relationshipDialog.kind === "reconnect"
             ? activeRelationships.find((relationship) =>
                 relationshipIdentityEquals(
                   relationship.identity,
-                  relationshipDialog.gesture.relationship
-                )
+                  relationshipDialog.gesture.relationship,
+                ),
               )
             : null
         }
@@ -1196,7 +1208,10 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
         searchTarget={metaDeclaration?.searchTarget ?? null}
         existingTargets={existingMetaTargets}
         relationship={editingMetaRelationship}
-        onCancel={() => { setMetaDeclaration(null); setEditingMetaRelationship(null); }}
+        onCancel={() => {
+          setMetaDeclaration(null);
+          setEditingMetaRelationship(null);
+        }}
         onCommit={commitMetaLink}
       />
     </Stack>

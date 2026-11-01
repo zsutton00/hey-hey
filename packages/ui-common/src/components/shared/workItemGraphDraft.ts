@@ -123,6 +123,7 @@ type RelationshipCreateFields = {
   category: WorkItemRelationshipCreateOperation["category"];
   direction?: RelationshipDirection;
   predicate?: string | null;
+  actionLabel?: string | null;
   reasoning?: string | null;
   metadata?: Record<string, unknown> | null;
 };
@@ -618,6 +619,8 @@ function applyOperation(
             : undefined,
         predicate:
           "predicate" in operation ? (operation.predicate ?? null) : null,
+        actionLabel:
+          "actionLabel" in operation ? (operation.actionLabel ?? null) : null,
         reasoning: operation.reasoning ?? null,
         metadata: operation.metadata ?? null,
         deleted: false,
@@ -642,6 +645,13 @@ function applyOperation(
         relationship.edgeType = operation.edgeType;
         relationship.label = operation.edgeType;
       }
+      if (
+        operation.category !== undefined &&
+        operation.category !== "flow" &&
+        !Object.prototype.hasOwnProperty.call(operation, "actionLabel")
+      ) {
+        relationship.actionLabel = null;
+      }
       if (operation.category !== undefined)
         relationship.category = operation.category;
       if (Object.prototype.hasOwnProperty.call(operation, "direction")) {
@@ -649,6 +659,9 @@ function applyOperation(
       }
       if (Object.prototype.hasOwnProperty.call(operation, "predicate")) {
         relationship.predicate = operation.predicate ?? null;
+      }
+      if (Object.prototype.hasOwnProperty.call(operation, "actionLabel")) {
+        relationship.actionLabel = operation.actionLabel ?? null;
       }
       if (Object.prototype.hasOwnProperty.call(operation, "reasoning")) {
         relationship.reasoning = operation.reasoning ?? null;
@@ -1259,6 +1272,9 @@ const buildRelationshipCreateOperation = (
         category: "flow",
         direction: fields.direction,
         predicate: fields.predicate ?? undefined,
+        ...(fields.actionLabel?.trim()
+          ? { actionLabel: fields.actionLabel.trim() }
+          : {}),
       };
     case "STANDARD":
       if (!fields.direction) {
@@ -1278,6 +1294,9 @@ const buildRelationshipCreateOperation = (
         edgeType: "STANDARD",
         category: "flow",
         direction: fields.direction,
+        ...(fields.actionLabel?.trim()
+          ? { actionLabel: fields.actionLabel.trim() }
+          : {}),
       };
     case "LOOP":
       return {
@@ -1285,6 +1304,9 @@ const buildRelationshipCreateOperation = (
         edgeType: "LOOP",
         category: "flow",
         predicate: fields.predicate ?? undefined,
+        ...(fields.actionLabel?.trim()
+          ? { actionLabel: fields.actionLabel.trim() }
+          : {}),
       };
     case "RELATED_TO":
       return {

@@ -1,3 +1,5 @@
+import { http, HttpResponse } from "msw";
+import { renderWithQueryClient as render } from "../../test/renderWithQueryClient";
 import { createEntityActivation } from "@hey-hey/ui-common/context";
 import {
   installOpenItemsTestRuntime,
@@ -16,6 +18,7 @@ import {
   type TaskResponseDto,
 } from "@hey-hey/ui-common/api";
 import {
+  markDemoSandboxSession,
   useFeatureHierarchy,
   useFeatureDocumentContent,
   useAgentSession,
@@ -38,13 +41,7 @@ import {
 } from "@hey-hey/ui-common/context";
 import { usePermissions } from "@hey-hey/ui-common/hooks";
 import { usePlatformAdminAccess } from "@hey-hey/ui-common/data";
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import {
@@ -94,6 +91,7 @@ vi.mock("@hey-hey/ui-common/context", async (importOriginal) => {
 });
 
 vi.mock("@hey-hey/ui-common/hooks", () => ({
+  useCanHover: () => true,
   usePermissions: vi.fn(),
 }));
 
@@ -652,6 +650,11 @@ describe("ExplorerSidebar", () => {
     ).toBe(false);
   });
   beforeEach(() => {
+    globalThis.mswServer.use(
+      http.get("*/api/v1/organizations/org-1/stars", () =>
+        HttpResponse.json({ success: true, data: [] }),
+      ),
+    );
     localStorage.clear();
     installOpenItemsTestRuntime();
     explorerSearchState.value = "";
@@ -1179,6 +1182,71 @@ describe("ExplorerSidebar", () => {
       ).toBeInTheDocument();
     },
   );
+
+  describe("logging out", () => {
+    const renderSidebarAndChooseLogout = async (): Promise<
+      ReturnType<typeof vi.fn>
+    > => {
+      const logout = vi.fn().mockResolvedValue(undefined);
+      useAuthMock.mockReturnValue({
+        isAuthenticated: true,
+        logout,
+        user: { email: "zac@example.com", name: "Zac" },
+      } as unknown as ReturnType<typeof useAuth>);
+      render(
+        <MemoryRouter initialEntries={["/projects/project-1"]}>
+          <Routes>
+            <Route element={<ProjectSidebar />} path="/projects/:projectId" />
+            <Route element={<div data-testid="home-page" />} path="/" />
+          </Routes>
+        </MemoryRouter>,
+      );
+      await waitFor(() =>
+        expect(
+          screen.getByTestId("canonical-open-items-ready"),
+        ).toHaveAttribute("data-ready", "true"),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Account menu" }));
+      fireEvent.click(screen.getByText("auth.logout"));
+      return logout;
+    };
+
+    it("warns a demo visitor that logging out ends the demo, and logs out only once confirmed", async () => {
+      markDemoSandboxSession(true);
+
+      const logout = await renderSidebarAndChooseLogout();
+
+      expect(screen.getByTestId("demo-logout-confirm")).toBeInTheDocument();
+      expect(logout).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByTestId("demo-logout-confirm"));
+
+      await waitFor(() => expect(logout).toHaveBeenCalledOnce());
+    });
+
+    it("keeps a demo visitor signed in when they cancel the warning", async () => {
+      markDemoSandboxSession(true);
+
+      const logout = await renderSidebarAndChooseLogout();
+      fireEvent.click(screen.getByTestId("demo-logout-cancel"));
+
+      await waitFor(() =>
+        expect(
+          screen.queryByTestId("demo-logout-confirm"),
+        ).not.toBeInTheDocument(),
+      );
+      expect(logout).not.toHaveBeenCalled();
+    });
+
+    it("logs a real user out straight away", async () => {
+      const logout = await renderSidebarAndChooseLogout();
+
+      await waitFor(() => expect(logout).toHaveBeenCalledOnce());
+      expect(
+        screen.queryByTestId("demo-logout-confirm"),
+      ).not.toBeInTheDocument();
+    });
+  });
 
   it("renders an Organizations link in the user menu that navigates without a full reload", async () => {
     const OrganizationsPage = () => {

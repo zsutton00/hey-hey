@@ -12,7 +12,7 @@ const mode = (
   description: string,
   overrides: Omit<Partial<WorkItemResponseDto>, "archivedAt"> & {
     archivedAt?: string | null;
-  } = {}
+  } = {},
 ): WorkItemResponseDto =>
   ({
     id,
@@ -30,30 +30,25 @@ const mode = (
       },
     ],
     ...overrides,
-  } as WorkItemResponseDto);
+  }) as WorkItemResponseDto;
 
-const modeTypeSummary = (focalTypeKeys: string[]): WorkItemTypeSummaryDto =>
-  ({
-    id: "mode-type",
-    projectId: "project-1",
-    status: "ACTIVE",
-    effectiveSource: "PROJECT_CUSTOM",
-    definition: {
-      key: "MODE",
-      name: "Project mode",
-      role: "project-info",
-      sections: [],
-      allowedStatuses: [],
-      agentGuidance: {
-        overview: "Project coding modes.",
-        contexts: [{ focalTypeKeys, guidance: "Use this mode." }],
-      },
-    },
-  } as WorkItemTypeSummaryDto);
+const modeTypeSummary = {
+  id: "mode-type",
+  projectId: "project-1",
+  status: "ACTIVE",
+  effectiveSource: "PROJECT_CUSTOM",
+  definition: {
+    key: "MODE",
+    name: "Project mode",
+    role: "project-info",
+    sections: [],
+    allowedStatuses: [],
+  },
+} as WorkItemTypeSummaryDto;
 
 const withEligibleTypes = (
   base: WorkItemResponseDto,
-  eligibleWorkItemTypeKeys: string[]
+  eligibleWorkItemTypeKeys: string[],
 ): WorkItemResponseDto =>
   ({
     ...base,
@@ -71,32 +66,32 @@ const withEligibleTypes = (
         materializedProposalId: "proposal-1",
       },
     ],
-  } as WorkItemResponseDto);
+  }) as WorkItemResponseDto;
 
 describe("mapProjectModeCatalog", () => {
   it("filters each mode by its own eligible type list", () => {
     const diagrams = withEligibleTypes(
       mode("mode-diagrams", "Diagrams", "Diagram work."),
-      ["STANDARD", "BUG"]
+      ["STANDARD", "BUG"],
     );
     const review = withEligibleTypes(
       mode("mode-review", "Review", "Review work."),
-      ["STANDARD"]
+      ["STANDARD"],
     );
-    const legacy = mode("mode-legacy", "Legacy", "Legacy work.");
+    const unlisted = mode("mode-unlisted", "Unlisted", "Standard work.");
     const catalogFor = (effectiveWorkItemTypeKey: string) =>
       mapProjectModeCatalog({
         projectId: "project-1",
         effectiveWorkItemTypeKey,
-        modeTypeSummary: modeTypeSummary(["STANDARD"]),
-        modeItems: [diagrams, review, legacy],
+        modeTypeSummary,
+        modeItems: [diagrams, review, unlisted],
         reservedIdentities: new Set(),
       }).map((entry) => entry.selection.modeId);
 
     expect(catalogFor("STANDARD")).toEqual([
       "mode-diagrams",
-      "mode-legacy",
       "mode-review",
+      "mode-unlisted",
     ]);
     expect(catalogFor("BUG")).toEqual(["mode-diagrams"]);
   });
@@ -113,18 +108,18 @@ describe("mapProjectModeCatalog", () => {
           },
         ],
       } as Partial<WorkItemResponseDto>),
-      ["BUG"]
+      ["BUG"],
     );
 
     expect(
       mapProjectModeCatalog({
         projectId: "project-1",
         effectiveWorkItemTypeKey: "BUG",
-        modeTypeSummary: modeTypeSummary(["STANDARD"]),
+        modeTypeSummary,
         modeItems: [scoped],
         focalFeatureIds: new Set(["feature-1"]),
         reservedIdentities: new Set(),
-      })
+      }),
     ).toEqual([]);
   });
 
@@ -132,7 +127,7 @@ describe("mapProjectModeCatalog", () => {
     const catalog = mapProjectModeCatalog({
       projectId: "project-1",
       effectiveWorkItemTypeKey: "BUG",
-      modeTypeSummary: modeTypeSummary(["STANDARD", "BUG"]),
+      modeTypeSummary,
       modeItems: [
         withEligibleTypes(mode("mode-review", "Review", "Review."), [
           "STANDARD",
@@ -144,8 +139,8 @@ describe("mapProjectModeCatalog", () => {
     expect(
       isProjectModeSelectionEligible(
         { schemaVersion: "project-mode-selection.v1", modeId: "mode-review" },
-        catalog
-      )
+        catalog,
+      ),
     ).toBe(false);
   });
 
@@ -153,7 +148,7 @@ describe("mapProjectModeCatalog", () => {
     const catalog = mapProjectModeCatalog({
       projectId: "project-1",
       effectiveWorkItemTypeKey: "STANDARD",
-      modeTypeSummary: modeTypeSummary(["STANDARD"]),
+      modeTypeSummary,
       modeItems: [
         mode("mode-z", "Zed", "Z description", { archivedAt: null }),
         mode("mode-a", "Alpha", "A description"),
@@ -184,7 +179,7 @@ describe("mapProjectModeCatalog", () => {
     const catalog = mapProjectModeCatalog({
       projectId: "project-1",
       effectiveWorkItemTypeKey: "STANDARD",
-      modeTypeSummary: modeTypeSummary(["BUG"]),
+      modeTypeSummary,
       modeItems: [
         mode("archived", "Archived", "description", {
           archivedAt: "2026-09-01T00:00:00.000Z",
@@ -193,6 +188,9 @@ describe("mapProjectModeCatalog", () => {
         mode("other-project", "Other", "description", {
           projectId: "project-2",
         }),
+        withEligibleTypes(mode("ineligible", "Ineligible", "description"), [
+          "BUG",
+        ]),
         mode("plan", "Reserved", "description"),
       ],
     });
@@ -204,7 +202,7 @@ describe("mapProjectModeCatalog", () => {
     const catalog = mapProjectModeCatalog({
       projectId: "project-1",
       effectiveWorkItemTypeKey: "STANDARD",
-      modeTypeSummary: modeTypeSummary(["STANDARD"]),
+      modeTypeSummary,
       focalFeatureIds: new Set([
         "feature-exact",
         "feature-ancestor",
@@ -269,9 +267,9 @@ describe("mapProjectModeCatalog", () => {
       mapProjectModeCatalog({
         projectId: "project-1",
         effectiveWorkItemTypeKey: null,
-        modeTypeSummary: modeTypeSummary(["STANDARD"]),
+        modeTypeSummary,
         modeItems: [mode("mode-1", "Mode", "description")],
-      })
+      }),
     ).toEqual([]);
   });
 
@@ -279,18 +277,18 @@ describe("mapProjectModeCatalog", () => {
     const catalog = mapProjectModeCatalog({
       projectId: "project-1",
       effectiveWorkItemTypeKey: "STANDARD",
-      modeTypeSummary: modeTypeSummary(["STANDARD"]),
+      modeTypeSummary,
       modeItems: [mode("mode-1", "Mode", "description")],
     });
 
     expect(isProjectModeSelectionEligible(catalog[0]?.selection, catalog)).toBe(
-      true
+      true,
     );
     expect(
       isProjectModeSelectionEligible(
         { schemaVersion: "project-mode-selection.v1", modeId: "stale" },
-        catalog
-      )
+        catalog,
+      ),
     ).toBe(false);
   });
 });

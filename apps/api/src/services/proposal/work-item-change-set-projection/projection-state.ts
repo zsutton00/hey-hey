@@ -55,6 +55,7 @@ export type ProjectionFindings = {
   namedUnavailable: { id: string; type: string }[];
   /** Caller-supplied overlay nodes, which count as present in the request. */
   overlayNodes: Set<NodeKey>;
+  overlayRelationships: Set<RelKey>;
   applied: ApplyOutcome[];
 };
 
@@ -63,6 +64,7 @@ export function createProjectionFindings(): ProjectionFindings {
     namedMissing: [],
     namedUnavailable: [],
     overlayNodes: new Set(),
+    overlayRelationships: new Set(),
     applied: [],
   };
 }

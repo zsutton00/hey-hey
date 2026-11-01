@@ -10,14 +10,10 @@
  * Do not edit the class manually.
  */
 
-import { RepositoryFeatureEnrichmentAnswerBatch } from '../models/RepositoryFeatureEnrichmentAnswerBatch';
 import { RepositoryGroundingHierarchy } from '../models/RepositoryGroundingHierarchy';
 import { RepositoryGroundingSuccess } from '../models/RepositoryGroundingSuccess';
 import { HttpFile } from '../http/http';
 
-/**
- * Stateless enrichment request. Each turn consumes the latest accepted repository analysis snapshot, while the API owns runtime identity, the ordered round count, and answer history. Enrichment is user-selected and may succeed without questions when repository evidence is sufficient.
- */
 export class RepositoryFeatureEnrichmentRequest {
   'promptType'?: RepositoryFeatureEnrichmentRequestPromptTypeEnum;
   /**
@@ -46,9 +42,15 @@ export class RepositoryFeatureEnrichmentRequest {
   'reasoningEffort': RepositoryFeatureEnrichmentRequestReasoningEffortEnum;
   'fastMode'?: boolean;
   'analysis': RepositoryGroundingSuccess;
-  'reviewedCandidates': RepositoryGroundingHierarchy;
-  'completedRounds': number;
-  'answerBatches': Array<RepositoryFeatureEnrichmentAnswerBatch>;
+  'reviewedCandidates'?: RepositoryGroundingHierarchy;
+  /**
+   * Approved Features created by this import. Enrichment proposes edits only to these Features.
+   */
+  'materializedFeatureIds': Array<string>;
+  /**
+   * Optional user reply within the continuing enrichment conversation.
+   */
+  'userMessage'?: string;
 
   static readonly discriminator: string | undefined = undefined;
 
@@ -139,15 +141,15 @@ export class RepositoryFeatureEnrichmentRequest {
       format: '',
     },
     {
-      name: 'completedRounds',
-      baseName: 'completedRounds',
-      type: 'number',
-      format: '',
+      name: 'materializedFeatureIds',
+      baseName: 'materializedFeatureIds',
+      type: 'Array<string>',
+      format: 'branded-TaskId',
     },
     {
-      name: 'answerBatches',
-      baseName: 'answerBatches',
-      type: 'Array<RepositoryFeatureEnrichmentAnswerBatch>',
+      name: 'userMessage',
+      baseName: 'userMessage',
+      type: 'string',
       format: '',
     },
   ];

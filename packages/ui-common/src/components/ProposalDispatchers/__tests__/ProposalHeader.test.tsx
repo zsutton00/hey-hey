@@ -39,10 +39,48 @@ const proposal = (action: ProposalAction): ProposalResponseDto =>
     requestorId: "user",
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
-  } as ProposalResponseDto);
+  }) as ProposalResponseDto;
 afterEach(cleanup);
 
 describe("ProposalHeader metadata", () => {
+  it("retains deferred timing when the comparison projects an ordinary update", () => {
+    render(
+      <ProposalHeader
+        proposal={proposal(ProposalAction.Update)}
+        presentationAction={ProposalAction.VersionedUpdate}
+        typePresentation={typePresentation}
+      />,
+    );
+    expect(screen.getByTestId("proposal-header-action")).toHaveTextContent(
+      "Updates after linked work",
+    );
+    expect(screen.getByTestId("proposal-header-type")).toHaveTextContent(
+      "Research Brief",
+    );
+  });
+
+  it("shows timing on grouped future headers and preserves cancellation wording", () => {
+    const future = {
+      ...proposal(ProposalAction.VersionedUpdate),
+      updates: { operation: "REVISE" },
+    };
+    const { rerender } = render(
+      <ProposalHeader proposal={future} typePresentation={typePresentation} />,
+    );
+    expect(screen.getByTestId("proposal-header-action")).toHaveTextContent(
+      "Updates after linked work",
+    );
+    rerender(
+      <ProposalHeader
+        proposal={{ ...future, updates: { operation: "CANCEL" } }}
+        typePresentation={typePresentation}
+      />,
+    );
+    expect(screen.getByTestId("proposal-header-action")).toHaveTextContent(
+      "Future revision",
+    );
+  });
+
   it.each([
     [ProposalAction.Create, "Create"],
     [ProposalAction.Update, "Update"],
@@ -52,13 +90,13 @@ describe("ProposalHeader metadata", () => {
       <ProposalHeader
         proposal={proposal(action)}
         typePresentation={typePresentation}
-      />
+      />,
     );
     expect(screen.getByTestId("proposal-header-action")).toHaveTextContent(
-      label
+      label,
     );
     expect(screen.getByTestId("proposal-header-type")).toHaveTextContent(
-      "Research Brief"
+      "Research Brief",
     );
     expect(screen.queryByTestId("proposal-title")).not.toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
@@ -68,10 +106,10 @@ describe("ProposalHeader metadata", () => {
 describe("proposal header task-type resolution", () => {
   it("uses proposed type for CREATE and loaded type otherwise", () => {
     expect(
-      resolveEffectiveTaskType({ kind: "create", proposedType: "CONTRACT" })
+      resolveEffectiveTaskType({ kind: "create", proposedType: "CONTRACT" }),
     ).toBe("CONTRACT");
     expect(
-      resolveEffectiveTaskType({ kind: "existing", loadedType: "CUSTOM" })
+      resolveEffectiveTaskType({ kind: "existing", loadedType: "CUSTOM" }),
     ).toBe("CUSTOM");
   });
   it("resolves custom colors", () => {
@@ -89,7 +127,7 @@ describe("proposal header task-type resolution", () => {
     };
     const presentation = resolveWorkItemTypePresentation(
       "decision",
-      decisionDefinition
+      decisionDefinition,
     );
 
     expect(presentation).toMatchObject({
@@ -105,7 +143,7 @@ describe("proposal header task-type resolution", () => {
         sections: [],
         allowedStatuses: [],
         iconKey: "design",
-      })
+      }),
     ).toEqual({
       background: "error.main",
       color: "error.contrastText",

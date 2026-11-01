@@ -4,7 +4,6 @@ import { workItemDetailQueryOptions } from "../collections/workItemLists";
 import type { CollectionHookOptions, DataHookReturn } from "../core/types";
 import { useDataLayerQuery } from "../query/useDataLayerQuery";
 import { useWebsocketSubscriptions } from "./useWebsocketSubscriptions";
-import { useWorkItemAuthoritativeMount } from "./useWorkItemMountPolicy";
 import type { AgentEdgeType } from "../../api";
 
 type UseWorkItemOptions = CollectionHookOptions<WorkItemResponseDto> & {
@@ -33,7 +32,6 @@ export function useWorkItem(
 ): UseWorkItemReturn {
   const { projectId, includeServiceRelations, includeEdges, edgeTypes } =
     options;
-  const authoritativeMount = useWorkItemAuthoritativeMount();
   const edgeTypesKey = edgeTypes?.join(",") ?? "";
 
   const queryOptions = useMemo(
@@ -61,7 +59,6 @@ export function useWorkItem(
     refetchOnWindowFocus: options.refetchOnWindowFocus,
     staleTimeMs: options.staleTimeMs,
     maxCacheAgeMs: options.maxCacheAgeMs,
-    authoritativeMount,
   });
 
   useWebsocketSubscriptions(

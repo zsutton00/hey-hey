@@ -21,13 +21,13 @@ vi.mock("@tanstack/react-query", async (importOriginal) => ({
 }));
 
 vi.mock("../../collections/workItemTypes", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("../../collections/workItemTypes")
-  >()),
+  ...(await importOriginal<typeof import("../../collections/workItemTypes")>()),
   getWorkItemTypesApi: getWorkItemTypesApiMock,
 }));
 
-const projectTypesPrefix = { queryKey: ["workItemTypes", "org-1", "project-1"] };
+const projectTypesPrefix = {
+  queryKey: ["workItemTypes", "org-1", "project-1"],
+};
 
 const mockPatch = vi.fn();
 const mockDelete = vi.fn();
@@ -105,6 +105,54 @@ describe("useEditWorkItemType", () => {
       }),
     );
     expect(onSuccess).toHaveBeenCalledWith(proposal);
+  });
+
+  it("preserves the complete rejected response for the editor and allows retry", async () => {
+    const failure = Object.assign(
+      new Error("Request failed with status code 409"),
+      {
+        response: {
+          data: {
+            message:
+              "Proposal content changed after review. Reconciliation is required.",
+            diagnostic: {
+              issues: [
+                {
+                  field: "definition.name",
+                  code: "PROPOSAL_RECONCILIATION_REQUIRED",
+                  reason: "This field changed after review.",
+                  layer: "referential",
+                },
+              ],
+              issueCount: 1,
+              truncated: false,
+              correlationId: "type-save-correlation",
+            },
+          },
+        },
+      },
+    );
+    mockPatch.mockRejectedValueOnce(failure);
+    const onError = vi.fn();
+    const { result } = renderHook(() => useEditWorkItemType({ onError }));
+    const request = {
+      organizationId: "org-1",
+      projectId: "project-1",
+      typeKey: "MARKETING",
+      definition,
+    };
+    await act(async () => {
+      await expect(result.current.mutate(request)).rejects.toBe(failure);
+    });
+    expect(onError).toHaveBeenCalledWith(failure);
+    expect(result.current.error).toBe(failure);
+    expect(mockInvalidateQueries).not.toHaveBeenCalled();
+    await act(async () => {
+      await result.current.mutate(request);
+    });
+    expect(mockPatch.mock.calls[1][0].workItemTypeEditRequestDto).toEqual({
+      definition,
+    });
   });
 
   it("sends canonical customization acknowledgement after confirmation", async () => {

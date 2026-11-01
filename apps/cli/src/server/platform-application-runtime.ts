@@ -1,5 +1,5 @@
 import type { DiagnosticFeed } from './diagnostic-feed';
-import type { ApiRuntime } from '../../../../packages/ui-common/src/clients/shared';
+import type { ApiRuntime } from '../shared/runtime/clients/shared';
 import type { AgentApplicationRuntime } from '../agents/agent-application-runtime';
 import { ReportEmissionPublisher } from '../agents/submission-tools/report-emission-publisher';
 import type { KeyPairStore } from '../credentials';
@@ -104,6 +104,7 @@ export class PlatformApplicationRuntime {
         logger: logger.child({ component: 'run-restore' }),
       });
     this.triggerVerificationRuntime = new TriggerVerificationRuntime({
+      servicesApi: dependencies.apiRuntime.clients.services,
       ...(dependencies.diagnosticFeed ? { diagnosticFeed: dependencies.diagnosticFeed } : {}),
       keyPairStore: dependencies.keyPairStore,
       initialAccessToken: dependencies.initialAccessToken,

@@ -1,3 +1,4 @@
+import { SessionRole } from '../../../generated/model/sessionRole';
 import type { WorkItemType } from '@prisma/client';
 import { InMemoryMessageBus } from '../../../core/events/in-memory-message-bus.service';
 import type { PrismaService } from '../../../prisma/prisma.service';
@@ -748,91 +749,55 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
   );
 });
 
-describe('contextual semantic guidance', () => {
-  const guide = {
-    overview: 'A reviewable capability.',
-    examples: [
-      { title: 'Second alphabetically', guidance: 'First declared' },
-      { title: 'A', guidance: 'Second declared' },
-    ],
-    contexts: [
-      {
-        focalTypeKeys: ['focus', 'other'],
-        guidance: 'First match',
-        examples: [
-          { title: 'B', guidance: 'First' },
-          { title: 'A', guidance: 'Second' },
+describe('purpose-scoped guidance', () => {
+  it.each(Object.values(SessionRole))(
+    'uses only effective role advice for %s, including missing advice',
+    async (sessionRole) => {
+      const service = makeService(
+        [
+          { ...projectRow('GUIDED', PROJECT_B), sessionRoleGuidance: null },
+          projectRow('archived', PROJECT_A, { lifecycleStatus: 'archived' }),
         ],
-      },
-      { focalTypeKeys: ['other'], guidance: 'Unrelated context' },
-      { focalTypeKeys: ['focus'], guidance: 'Second match' },
-    ],
-  };
-
-  async function setup() {
-    const canonical = {
-      ...projectRow('GUIDED', PROJECT_A),
-      agentGuidance: guide,
-    };
-    const service = makeService(
-      [
-        { ...projectRow('GUIDED', PROJECT_B), agentGuidance: null },
-        { ...projectRow('custom', PROJECT_A), agentGuidance: guide },
-        projectRow('focus', PROJECT_A),
-        projectRow('other', PROJECT_A),
-        projectRow('archived', PROJECT_A, { lifecycleStatus: 'archived' }),
-        {
-          ...projectRow('archived-guide', PROJECT_A, {
-            lifecycleStatus: 'archived',
-          }),
-          agentGuidance: guide,
-        },
-      ],
-      [canonical],
-      [PROJECT_A, PROJECT_B],
-    );
-    await service.refresh();
-    return service;
-  }
-
-  it.each(['GUIDED', 'custom'])(
-    'delivers ordered examples and all matching contexts for %s',
-    async (key) => {
-      const service = await setup();
-      const result = service.getGuidance(PROJECT_A, key, 'focus');
-      expect(result).toEqual({
-        typeKey: key,
-        name: key + ' name',
-        overview: guide.overview,
-        examples: guide.examples,
-        contextualGuidance: [
-          { guidance: 'First match', examples: guide.contexts[0]!.examples },
-          { guidance: 'Second match', examples: [] },
+        [
+          {
+            ...projectRow('GUIDED', PROJECT_A),
+            sessionRoleGuidance: { [sessionRole]: '  Canonical advice  ' },
+          },
         ],
-      });
-      expect(JSON.stringify(result)).not.toContain('focalTypeKeys');
-      expect(
-        service.getDefinition(PROJECT_A, key)?.definition.agentGuidance,
-      ).toEqual(guide);
-      result.examples.reverse();
-      expect(service.getGuidance(PROJECT_A, key).examples).toEqual(
-        guide.examples,
+        [PROJECT_A, PROJECT_B],
       );
+      await service.refresh();
+      expect(
+        service.getGuidance(
+          PROJECT_A,
+          'GUIDED',
+          WorkItemTypeGuidancePurpose.Role,
+          sessionRole,
+        ),
+      ).toEqual({
+        typeKey: 'GUIDED',
+        name: 'GUIDED name',
+        sessionRole,
+        guidance: '  Canonical advice  ',
+      });
+      expect(
+        service.getGuidance(
+          PROJECT_B,
+          'GUIDED',
+          WorkItemTypeGuidancePurpose.Role,
+          sessionRole,
+        ),
+      ).toEqual({ typeKey: 'GUIDED', name: 'GUIDED name', sessionRole });
+      expect(() =>
+        service.getGuidance(
+          PROJECT_A,
+          'archived',
+          WorkItemTypeGuidancePurpose.Role,
+          sessionRole,
+        ),
+      ).toThrow('archived');
     },
   );
-
-  it('keeps a complete override without guidance authoritative', async () => {
-    const service = await setup();
-    expect(service.getGuidance(PROJECT_A, 'GUIDED').overview).toBe(
-      guide.overview,
-    );
-    expect(
-      service.getDefinition(PROJECT_B, 'GUIDED')?.definition,
-    ).not.toHaveProperty('agentGuidance');
-    expect(() => service.getGuidance(PROJECT_B, 'GUIDED')).toThrow(
-      'Semantic guidance',
-    );
-  });
 
   it('returns only effective maintenance advice and never falls back to a canonical template', async () => {
     const service = makeService(
@@ -856,7 +821,6 @@ describe('contextual semantic guidance', () => {
       service.getGuidance(
         PROJECT_A,
         'GUIDED',
-        'UNAVAILABLE_FOCAL',
         WorkItemTypeGuidancePurpose.Maintenance,
       ),
     ).toEqual({
@@ -868,7 +832,6 @@ describe('contextual semantic guidance', () => {
       service.getGuidance(
         PROJECT_B,
         'GUIDED',
-        undefined,
         WorkItemTypeGuidancePurpose.Maintenance,
       ),
     ).toEqual({
@@ -893,7 +856,6 @@ describe('contextual semantic guidance', () => {
       service.getGuidance(
         PROJECT_A,
         'GUIDED',
-        undefined,
         WorkItemTypeGuidancePurpose.Maintenance,
       ),
     ).toEqual({
@@ -903,87 +865,29 @@ describe('contextual semantic guidance', () => {
     });
   });
 
-  it('selects override guidance as a complete axis without canonical examples or contexts', async () => {
-    const service = makeService(
-      [
-        {
-          ...projectRow('GUIDED', PROJECT_A),
-          agentGuidance: { overview: 'Project meaning' },
-        },
-        projectRow('focus', PROJECT_A),
-      ],
-      [{ ...projectRow('GUIDED', PROJECT_A), agentGuidance: guide }],
-      [PROJECT_A],
-    );
-    await service.refresh();
-    expect(service.getGuidance(PROJECT_A, 'GUIDED', 'focus')).toEqual({
-      typeKey: 'GUIDED',
-      name: 'GUIDED name',
-      overview: 'Project meaning',
-      examples: [],
-    });
-  });
-
-  it('returns general-only guidance without a focal key or match', async () => {
-    const service = await setup();
-    expect(service.getGuidance(PROJECT_A, 'GUIDED')).not.toHaveProperty(
-      'contextualGuidance',
-    );
-    expect(
-      service.getGuidance(PROJECT_A, 'GUIDED', 'custom'),
-    ).not.toHaveProperty('contextualGuidance');
-  });
-
-  it('normalizes omitted examples without synthesizing content', async () => {
-    const service = makeService([
-      {
-        ...projectRow('minimal', PROJECT_A),
-        agentGuidance: { overview: 'Explicit overview' },
-      },
-    ]);
-    await service.refresh();
-    expect(service.getGuidance(PROJECT_A, 'minimal')).toEqual({
-      typeKey: 'minimal',
-      name: 'minimal name',
-      overview: 'Explicit overview',
-      examples: [],
-    });
-  });
-
   it.each([
-    [PROJECT_A, 'missing', undefined],
-    [PROJECT_A, 'archived-guide', undefined],
-    [PROJECT_B, 'custom', undefined],
-    [PROJECT_A, 'GUIDED', 'missing'],
-    [PROJECT_A, 'GUIDED', 'archived'],
-    [PROJECT_B, 'GUIDED', 'focus'],
+    [PROJECT_A, 'missing'],
+    [PROJECT_A, 'archived'],
+    [PROJECT_B, 'custom'],
   ])(
-    'rejects unavailable requested/focal keys in project scope',
-    async (project, key, focal) => {
-      const service = await setup();
-      expect(() => service.getGuidance(project!, key!, focal)).toThrow(
-        'unavailable in this project',
+    'rejects unavailable requested keys in project scope',
+    async (project, key) => {
+      const service = makeService(
+        [
+          projectRow('custom', PROJECT_A),
+          projectRow('archived', PROJECT_A, { lifecycleStatus: 'archived' }),
+        ],
+        [],
+        [PROJECT_A, PROJECT_B],
       );
+      await service.refresh();
+      expect(() =>
+        service.getGuidance(
+          project,
+          key,
+          WorkItemTypeGuidancePurpose.Maintenance,
+        ),
+      ).toThrow('unavailable in this project');
     },
   );
-
-  it('validates the focal key even when the requested type lacks a guide', async () => {
-    const service = await setup();
-    expect(() => service.getGuidance(PROJECT_A, 'focus', 'missing')).toThrow(
-      "'missing'",
-    );
-    expect(() => service.getGuidance(PROJECT_A, 'focus')).toThrow(
-      'Semantic guidance',
-    );
-  });
-
-  it('rejects invalid stored guides rather than silently stripping fields', async () => {
-    const service = makeService([
-      {
-        ...projectRow('bad', PROJECT_A),
-        agentGuidance: { overview: 'Meaning', unknown: true },
-      },
-    ]);
-    await expect(service.refresh()).rejects.toThrow();
-  });
 });

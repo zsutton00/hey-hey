@@ -153,6 +153,9 @@ const createVerifiedBoundary = (
   keys: SigningKeys,
 ) =>
   new TriggerFrameRouter({
+    servicesApi: {
+      getService: async () => ({ data: { data: { name: 'Test Service' } } }),
+    } as never,
     verifier: new TriggerVerifier({
       serverSigningPublicKey: keys.rawPublicKey,
       expectedMachineId: MACHINE_ID,

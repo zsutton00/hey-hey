@@ -6,3 +6,4 @@ export { ServicesTab } from "./ServicesTab";
 export { IntegrationsTab } from "./IntegrationsTab";
 export { ServiceFilesTab } from "./ServiceFilesTab";
 export { ProposalsTab } from "./ProposalsTab";
+export { ProposalConversationsTab } from "./ProposalConversationsTab";

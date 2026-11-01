@@ -1,8 +1,8 @@
-import type { ApiRuntime } from '../../../../../../../packages/ui-common/src/clients/shared';
+import type { ApiRuntime } from '../../../../shared/runtime/clients/shared';
 import {
   resetCapabilityCatalogForTests,
   setCapabilityCatalogForTests,
-} from '../../../../../../../packages/ui-common/src/components/AgentSession/capabilityCatalog';
+} from '../../../../shared/runtime/components/AgentSession/capabilityCatalog';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NOOP_LOGGER } from '../../../../server/logger';

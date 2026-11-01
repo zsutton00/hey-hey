@@ -22,28 +22,33 @@ export class RepositoryImportEnrichmentChoiceNode extends QuestionsNodeBase<Repo
     RepositoryImportEnrichmentChoiceNode.name,
   );
 
-  async execute(): Promise<NodeResult> {
+  async execute(
+    tracker: MutableContextHandle<RepositoryImportFlowContext>,
+  ): Promise<NodeResult> {
+    if (!tracker.getContext().repositoryImportMaterializedFeatureIds?.length)
+      throw new Error(
+        'The enrichment choice requires approved, created Features.',
+      );
     return {
       type: NodeType.QUESTIONS,
       message:
-        'Your Feature outline is ready. You can deepen its details now or continue to placement and final approval. You can also edit the imported Features later.',
+        'Your Features have been created. Are you done, or would you like to explore their intent and requirements?',
       uiElements: [
         {
           id: ENRICHMENT_CHOICE_FIELD,
           type: 'select',
-          label: 'Add more detail before importing?',
+          label: 'Continue exploring your Features?',
           required: true,
           influences: [],
           submitText: 'Continue',
           options: [
             {
               value: RepositoryFeatureEnrichmentChoice.Enrich,
-              label:
-                'Enrich details with repository research and useful questions',
+              label: 'Ask more questions',
             },
             {
               value: RepositoryFeatureEnrichmentChoice.Skip,
-              label: 'Continue with this outline',
+              label: 'Done',
             },
           ],
         },
@@ -78,7 +83,7 @@ export class RepositoryImportEnrichmentChoiceNode extends QuestionsNodeBase<Repo
       case RepositoryFeatureEnrichmentChoice.Enrich:
         return REPOSITORY_IMPORT_NODES.ENRICHMENT;
       case RepositoryFeatureEnrichmentChoice.Skip:
-        return REPOSITORY_IMPORT_NODES.PLACEMENT_STRATEGY;
+        return REPOSITORY_IMPORT_NODES.END;
       default:
         return this.id;
     }

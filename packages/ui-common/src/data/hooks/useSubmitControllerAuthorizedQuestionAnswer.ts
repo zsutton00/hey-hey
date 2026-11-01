@@ -51,6 +51,10 @@ export const useSubmitControllerAuthorizedQuestionAnswer = (
           actionType: HostAffectingActionType.ConversationTrigger,
           targetKind: HostActionTargetKind.AgentSession,
           targetId: agentSessionId,
+          inputs: {
+            kind: "CONTROL",
+            body: { kind: "question_answer", agentSessionId, ...request },
+          },
         },
         submit: ({ authorization: admission }) =>
           apiClient.submitAgentSessionQuestionAnswer({

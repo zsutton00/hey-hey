@@ -1,3 +1,5 @@
+import { parseProposalReviewNote } from '../services/proposal/proposal-review-note';
+import type { ProposalReviewNoteResult } from '../generated';
 import {
   ProjectAccessGuard,
   ProjectResourceId,
@@ -11,6 +13,9 @@ import {
   HttpStatus,
   Param,
   ParseUUIDPipe,
+  ParseIntPipe,
+  DefaultValuePipe,
+  BadRequestException,
   Patch,
   Post,
   Query,
@@ -137,6 +142,9 @@ export class ProposalController {
         request,
         'POST /proposals/:id/reconciliation',
       ),
+      typeof request.headers['x-agent-session-id'] === 'string'
+        ? request.headers['x-agent-session-id']
+        : undefined,
     );
   }
 
@@ -231,6 +239,28 @@ export class ProposalController {
       organizationId,
       projectId,
       user.userId,
+    );
+  }
+
+  @Get('futures/ready')
+  @ApiOperation({
+    summary: 'List project futures with ready implementation work',
+  })
+  async listProjectReadyFutures(
+    @CurrentOrganization() organizationId: OrganizationId,
+    @Param('projectId', ParseUUIDPipe) projectId: ProjectId,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+    @Query('offset', new DefaultValuePipe(0), ParseIntPipe) offset: number,
+  ) {
+    if (limit < 1 || limit > 100 || offset < 0)
+      throw new BadRequestException('Invalid pagination');
+    return this.approvalService.listProjectReadyFutures(
+      organizationId,
+      projectId,
+      user.userId,
+      limit,
+      offset,
     );
   }
 
@@ -351,6 +381,28 @@ export class ProposalController {
       dto,
       user.userId,
       userToken,
+    );
+  }
+
+  @Post(':id/review-notes')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Save a frozen screen review annotation without starting a revision',
+  })
+  async saveReviewNote(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @CurrentOrganization() organizationId: OrganizationId,
+    @Param('projectId') projectId: ProjectId,
+    @Body() body: unknown,
+  ): Promise<ProposalReviewNoteResult> {
+    return this.proposalService.saveReviewNote(
+      id,
+      organizationId,
+      projectId,
+      user.userId,
+      parseProposalReviewNote(body),
     );
   }
 

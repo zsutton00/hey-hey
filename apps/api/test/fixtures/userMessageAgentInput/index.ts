@@ -274,6 +274,8 @@ const planShapingFeatureSyncAnalyze: UserMessageDataPlanShapingFeatureSyncAnalyz
 const planShapingFeatureSyncIterate: UserMessageDataPlanShapingFeatureSyncIterate =
   {
     promptType: 'plan_shaping_feature_sync_iterate',
+    planId: 'fixture-plan',
+    designDocId: 'fixture-design-doc',
     userMessage: msg('plan_shaping_feature_sync_iterate'),
     discrepancies: [
       { id: 'fs-1', summary: 'Fixture gap', rationale: 'Fixture rationale' },

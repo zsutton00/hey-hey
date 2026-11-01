@@ -5,47 +5,6 @@ import type {
   DefinitionFieldComparison,
   WorkItemTypeDefinitionComparison,
 } from "./workItemTypeDefinitionComparison";
-import type { WorkItemTypeDefinitionDto } from "../../api";
-
-function formatSemanticGuidance(value: string): string {
-  if (!value) return "";
-  // Comparison owns normalization. This formats its serialized result only.
-  const guidance = JSON.parse(value) as NonNullable<
-    WorkItemTypeDefinitionDto["agentGuidance"]
-  >;
-  // Quote authored values so a newline or label in the content cannot look
-  // like a different field, and distinct focal-key arrays stay distinct.
-  const lines = ["Overview", JSON.stringify(guidance.overview)];
-  if (guidance.examples !== undefined) {
-    lines.push("Examples");
-    lines.push(
-      ...guidance.examples.flatMap((example, index) => [
-        `Example ${index + 1}`,
-        `Title: ${JSON.stringify(example.title)}`,
-        `Guidance: ${JSON.stringify(example.guidance)}`,
-      ])
-    );
-  }
-  if (guidance.contexts !== undefined) {
-    lines.push("Contextual guidance");
-    guidance.contexts.forEach((context, index) => {
-      lines.push(`Context ${index + 1}`);
-      lines.push(`Focal types: ${JSON.stringify(context.focalTypeKeys)}`);
-      lines.push(`Guidance: ${JSON.stringify(context.guidance)}`);
-      if (context.examples !== undefined) {
-        lines.push("Context examples");
-        lines.push(
-          ...context.examples.flatMap((example, exampleIndex) => [
-            `Example ${exampleIndex + 1}`,
-            `Title: ${JSON.stringify(example.title)}`,
-            `Guidance: ${JSON.stringify(example.guidance)}`,
-          ])
-        );
-      }
-    });
-  }
-  return lines.join("\n");
-}
 
 function FieldDiff({
   field,
@@ -61,16 +20,8 @@ function FieldDiff({
     >
       <Typography variant="caption">{field.label}</Typography>
       <DiffRenderer
-        oldContent={
-          field.label === "Semantic guidance"
-            ? formatSemanticGuidance(field.before)
-            : field.before
-        }
-        newContent={
-          field.label === "Semantic guidance"
-            ? formatSemanticGuidance(field.after)
-            : field.after
-        }
+        oldContent={field.before}
+        newContent={field.after}
         defaultViewMode={defaultViewMode}
         showViewModeToggle
       />

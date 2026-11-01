@@ -1,0 +1,132 @@
+{
+  "sessions": {
+    "00000000-0000-4000-8000-000000000001": {
+      "schemaVersion": 8,
+      "records": [
+        {
+          "key": "00000000-0000-4000-8000-000000000002",
+          "fingerprint": "1bbcad29320f20847a515cc854063cda0ddaea20cdcff45eb6b5e0e9ee15fbd4",
+          "runId": "00000000-0000-4000-8000-000000000001",
+          "agentSessionId": "00000000-0000-4000-8000-000000000001",
+          "organizationId": "00000000-0000-4000-8000-000000000003",
+          "projectId": "00000000-0000-4000-8000-000000000004",
+          "machineId": "00000000-0000-4000-8000-000000000005",
+          "userId": "00000000-0000-4000-8000-000000000006",
+          "messageId": "00000000-0000-4000-8000-000000000007",
+          "payload": {
+            "conversationId": "00000000-0000-4000-8000-000000000008",
+            "signedEvent": {
+              "sourceUserMessageId": "00000000-0000-4000-8000-000000000007",
+              "operationId": "00000000-0000-4000-8000-000000000002",
+              "operationFingerprint": "1bbcad29320f20847a515cc854063cda0ddaea20cdcff45eb6b5e0e9ee15fbd4",
+              "promptType": "start_run",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000011",
+              "payload": {
+                "model": "gpt-5.6-luna",
+                "config": {
+                  "type": "ENTITY_CONVERSATION",
+                  "model": "gpt-5.6-luna",
+                  "effort": "xhigh",
+                  "version": "v1",
+                  "disableCodexSystemPrompt": false
+                },
+                "payload": {
+                  "entity": {
+                    "entityId": "00000000-0000-4000-8000-000000000012",
+                    "taskType": "STANDARD",
+                    "entityType": "TASK"
+                  },
+                  "promptType": "entity_conversation",
+                  "userMessage": "Scrubbed userMessage 1"
+                },
+                "fastMode": false,
+                "provider": "codex",
+                "agentSessionId": "00000000-0000-4000-8000-000000000001",
+                "contextMetadata": {
+                  "projectId": "00000000-0000-4000-8000-000000000004",
+                  "capturedAt": "2026-10-08T09:30:08.564Z",
+                  "userComments": [],
+                  "agentSessionId": "00000000-0000-4000-8000-000000000001",
+                  "fileReferences": {
+                    "resolved": [],
+                    "unresolved": []
+                  },
+                  "organizationId": "00000000-0000-4000-8000-000000000003"
+                },
+                "reasoningEffort": "xhigh",
+                "handlerPromptType": "entity_conversation"
+              }
+            },
+            "event": {
+              "sourceUserMessageId": "00000000-0000-4000-8000-000000000007",
+              "operationId": "00000000-0000-4000-8000-000000000002",
+              "operationFingerprint": "1bbcad29320f20847a515cc854063cda0ddaea20cdcff45eb6b5e0e9ee15fbd4",
+              "promptType": "start_run",
+              "triggerMessageId": "00000000-0000-4000-8000-000000000011",
+              "payload": {
+                "model": "gpt-5.6-luna",
+                "config": {
+                  "type": "ENTITY_CONVERSATION",
+                  "model": "gpt-5.6-luna",
+                  "effort": "xhigh",
+                  "version": "v1",
+                  "disableCodexSystemPrompt": false
+                },
+                "payload": {
+                  "entity": {
+                    "entityId": "00000000-0000-4000-8000-000000000012",
+                    "taskType": "STANDARD",
+                    "entityType": "TASK"
+                  },
+                  "promptType": "entity_conversation",
+                  "userMessage": "Scrubbed userMessage 1"
+                },
+                "fastMode": false,
+                "provider": "codex",
+                "agentSessionId": "00000000-0000-4000-8000-000000000001",
+                "contextMetadata": {
+                  "projectId": "00000000-0000-4000-8000-000000000004",
+                  "capturedAt": "2026-10-08T09:30:08.564Z",
+                  "userComments": [],
+                  "agentSessionId": "00000000-0000-4000-8000-000000000001",
+                  "fileReferences": {
+                    "resolved": [],
+                    "unresolved": []
+                  },
+                  "organizationId": "00000000-0000-4000-8000-000000000003"
+                },
+                "reasoningEffort": "xhigh",
+                "handlerPromptType": "entity_conversation",
+                "stagedBrowserTab": {
+                  "stagedTabId": "00000000-0000-4000-8000-000000000099"
+                }
+              }
+            }
+          },
+          "admissionId": "00000000-0000-4000-8000-000000000013",
+          "sequence": 0,
+          "state": "settled",
+          "turnId": "00000000-0000-4000-8000-000000000014",
+          "revision": 4,
+          "admissionDisposition": "immediate",
+          "projectedRevision": 4,
+          "settlement": {
+            "turnId": "00000000-0000-4000-8000-000000000014",
+            "terminalOutcome": "COMPLETED",
+            "completedAssistantMessageId": "00000000-0000-4000-8000-000000000015",
+            "reports": [],
+            "settledAt": "2026-10-08T09:35:38.477Z"
+          },
+          "settlementDelivered": true,
+          "projectionRetry": {
+            "attempts": 0,
+            "nextAttemptAt": 0
+          },
+          "kind": "trigger_frame",
+          "keyKind": "operation"
+        }
+      ],
+      "quarantined": []
+    }
+  }
+}

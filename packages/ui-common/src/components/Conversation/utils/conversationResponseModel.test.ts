@@ -1,3 +1,4 @@
+import { latestCodingPlanVersionMessageId } from "./codingPlanConversation";
 import { describe, expect, it, vi } from "vitest";
 import {
   MessageStatus,
@@ -61,6 +62,65 @@ const report: ReportDto = {
 };
 
 describe("conversation response model", () => {
+  it("keeps planning context and issues visible without taking ownership of the composer", () => {
+    const planning = message("planning", "coding_plan_context");
+    const issue = message("issue", "coding_plan_discrepancy");
+    const model = resolveConversationResponseModel(
+      [entry(planning), entry(issue)],
+      [planning, issue],
+      options,
+    );
+    expect(model.target.ownership).toBe("none");
+    expect(model.forms.get("planning")).toMatchObject({
+      shouldRenderForm: true,
+      isFormReadOnly: false,
+    });
+    expect(model.forms.get("issue")).toMatchObject({
+      shouldRenderForm: true,
+      isFormReadOnly: false,
+    });
+  });
+  it("keeps the latest approval context current when a narrative follows it", () => {
+    const first = message("first", "coding_plan_version");
+    const current = {
+      ...message("current", "coding_plan_version"),
+      createdAt: "2026-09-29T00:00:00Z",
+    };
+    const narrative = {
+      ...message("narrative", "agent_response"),
+      createdAt: "2026-09-30T00:00:00Z",
+      responses: [current],
+    };
+    expect(latestCodingPlanVersionMessageId([first, narrative])).toBe(
+      "current",
+    );
+  });
+
+  it("requires a replacement after ordinary feedback and keeps the replacement eligible after planner explanations", () => {
+    const first = {
+      ...message("first", "coding_plan_version"),
+      createdAt: "2026-10-24T01:00:00Z",
+    };
+    const reply = {
+      ...message("reply"),
+      type: MessageType.User,
+      createdAt: "2026-10-24T01:01:00Z",
+      data: { comment: "Change point E." },
+    };
+    expect(latestCodingPlanVersionMessageId([first, reply])).toBeNull();
+    const replacement = {
+      ...message("replacement", "coding_plan_version"),
+      createdAt: "2026-10-24T01:02:00Z",
+    };
+    const narrative = {
+      ...message("explanation", "agent_response"),
+      createdAt: "2026-10-24T01:03:00Z",
+    };
+    expect(
+      latestCodingPlanVersionMessageId([narrative, reply, replacement, first]),
+    ).toBe("replacement");
+  });
+
   it("shares one owner resolution and retains ownership through temporary disability and read-only access", () => {
     const source = message();
     const resolver = vi.fn<ConversationFormResolver>(() => ({
@@ -118,7 +178,7 @@ describe("conversation response model", () => {
     const source = message("plan-message", "plan_generation_stage_review");
     expect(
       resolveConversationResponseModel([entry(source)], [source], options)
-        .target
+        .target,
     ).toEqual({
       ownership: "exclusive",
       messageId: "plan-message",
@@ -131,7 +191,8 @@ describe("conversation response model", () => {
   it("publishes implementation readiness as a composer contribution", () => {
     const source = message("readiness-message", "implementation_readiness");
     expect(
-      resolveConversationResponseModel([entry(source)], [source], options).target
+      resolveConversationResponseModel([entry(source)], [source], options)
+        .target,
     ).toEqual({
       ownership: "contribution",
       messageId: "readiness-message",
@@ -148,24 +209,24 @@ describe("conversation response model", () => {
       resolveConversationResponseModel(
         [entry(first), entry(next)],
         [first, next],
-        options
-      ).target
+        options,
+      ).target,
     ).toMatchObject({ messageId: "next" });
     const answered = { ...entry(next), canEdit: false };
     expect(
       resolveConversationResponseModel(
         [entry(first), answered],
         [first, next],
-        options
-      ).target
+        options,
+      ).target,
     ).toEqual({ ownership: "none" });
     const display = message("display", "interstitial");
     expect(
       resolveConversationResponseModel(
         [entry(first), entry(display)],
         [first, display],
-        options
-      ).target
+        options,
+      ).target,
     ).toEqual({ ownership: "none" });
   });
 
@@ -185,7 +246,7 @@ describe("conversation response model", () => {
     const model = resolveConversationResponseModel(
       [entry(source)],
       [source],
-      options
+      options,
     );
     expect(model.target).toEqual({ ownership: "none" });
     expect(model.forms.get(source.id)?.formUiElements).toHaveLength(1);
@@ -203,7 +264,7 @@ describe("conversation response model", () => {
     const model = resolveConversationResponseModel(
       [entry(source)],
       [source],
-      options
+      options,
     );
     expect(model.target).toMatchObject({
       currentFieldId: "review",
@@ -242,15 +303,15 @@ describe("conversation response model", () => {
       const model = resolveConversationResponseModel(
         [entry(source)],
         [source],
-        { ...options, resolver }
+        { ...options, resolver },
       );
       expect(model.target.ownership).toBe(
-        ownership === "display-only" ? "none" : ownership
+        ownership === "display-only" ? "none" : ownership,
       );
       expect(
-        model.forms.get(source.id)?.interactiveReportAttachments
+        model.forms.get(source.id)?.interactiveReportAttachments,
       ).toHaveLength(1);
-    }
+    },
   );
 
   it("returns none for empty, absent, or noncanonical fields", () => {
@@ -259,13 +320,13 @@ describe("conversation response model", () => {
       ownership: "none",
     });
     expect(
-      resolveConversationResponseModel([entry(source)], [], options).target
+      resolveConversationResponseModel([entry(source)], [], options).target,
     ).toEqual({ ownership: "none" });
     if (source.type !== MessageType.System) throw new Error("Expected SYSTEM");
     source.data.uiElements = [];
     expect(
       resolveConversationResponseModel([entry(source)], [source], options)
-        .target
+        .target,
     ).toEqual({ ownership: "none" });
   });
 });

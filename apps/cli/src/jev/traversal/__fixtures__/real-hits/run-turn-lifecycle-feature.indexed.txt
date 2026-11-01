@@ -1,0 +1,23 @@
+Run and Turn Lifecycle
+
+description:
+The lifecycle model for the CLI's agent runtime — the layer that owns a long-lived agent session, its provider (Claude SDK, Codex), and every user-message turn that flows through it. See @[design_doc:85aa0c6e-5d39-4887-9da1-a856f823af41|Run & Turn Lifecycle] for the full specification.
+
+Concepts
+
+Session (AgenticSession) — the persisted record. Owns agenticsessionid, conversationId, contextMetadata, provider, and providersessionid. Session has no promptType — prompt type is not a session concept.
+Run — the long-lived unit of work anchored to an agenticsessionid. Owns the Session (held as a field, fetched once at Run activation), the provider session, the conversation, isProcessing, the current (externalAgentNodeId, triggerMessageId) trigger context (rotated only as an atomic pair from an agent-node dispatch — see invariant 14), the message queue, an append-only report chain, and at most one active Turn. Run is the scheduler: it resolves all Turn inputs, constructs a fully-formed Turn, and reacts to Turn completion to drain the queue. Run does not own promptType — that arrives with the trigger and belongs to the Turn.
+Turn — one user-message → assistant-complete cycle with three explicit phases. begin() / run() / end() operate exclusively on Turn-owned fields: resolvedPrompt, handler, processingMessageId, externalAgentNodeId, triggerMessageId, runnerChoice, abortController. A Turn is immutable once constructed and holds no reference to its Run.
+Handler — a pure data declaration per promptType: how to build a prompt, what submission tools are allowed, how to transform output, what to do on completion. Resolved once before Turn construction and carried on the Turn as a non-null field.
+Provider Session — the SDK's internal conversation/config, owned by the Run for the Run's lifetime. Anything configured at session start must remain valid for the whole Run.
+Submission-tool Registry — HTTP MCP endpoint keyed on a Run-scoped token. The dictionary entry (tools, parentMessageId, externalAgentNodeId) is mutable per Turn; the token is not.
+Workflow Service boundary — server-authoritative. The CLI tracks only the active Run's current externalAgentNodeId; the server owns node transitions.
+
+@[workflow:dc19ca91-7023-4a75-bace-459086179f05|Current Run and Turn Lifecycle]
+
+Lifecycle initiation
+
+Run creation and termination are initiated by signed envelopes from the API, not by direct local-HTTP calls from the UI. This decouples Run lifecycle from the device hosting the UI: any authenticated client can start or stop a Run, and the API routes the command over the same machine-addressed signed channel established by @[feature:5bd98aa4-f136-4146-88f7-3042432e95ce|CLI Channel Security].
+
+Start. A user-initiated start posts to the API, which authors a SYSTEM trigger message carrying an AgentTriggerStartRun variant and emits a SignedConversationTriggerEnvelope to the user's connected CLI. The CLI's dispatcher creates the Run as if createRun had been called locally — same Session resolution, same provider-session opening, same Turn construction.
+Stop. A user-initiated stop posts to the API, which emits a signed control envelope (see CLI Channel Security) to the owning CLI. The dispatcher calls the active Run's abort path.

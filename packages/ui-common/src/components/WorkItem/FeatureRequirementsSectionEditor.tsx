@@ -1,3 +1,4 @@
+import { ResolutionTextEditor } from "../ProposalReconciliation/ResolutionTextEditor";
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
@@ -749,3 +750,60 @@ export const FeatureRequirementsSectionEditor: React.FC<
     </Box>
   );
 };
+
+/** Edit one existing requirement without collection-level add, delete or reorder controls. */
+export function SingleRequirementEditor({
+  record,
+  onChange,
+  disabled,
+  context,
+}: {
+  record: FeatureRequirementRecord;
+  onChange: (record: FeatureRequirementRecord) => void;
+  disabled: boolean;
+  context: FeatureRequirementsEditorContext;
+}) {
+  return (
+    <Stack spacing={2}>
+      <ResolutionTextEditor
+        label="Requirement wording"
+        value={record.statement}
+        disabled={disabled}
+        organizationId={context.organizationId}
+        projectId={context.projectId}
+        onChange={(statement) => onChange({ ...record, statement })}
+      />
+      {REQUIREMENT_CITATION_SLOTS.map((slot) => (
+        <RequirementSlotRow
+          key={slot}
+          record={record}
+          slot={slot}
+          disabled={disabled}
+          context={context}
+          onAddCitation={(_id, selected, entity) => {
+            const citation = toRequirementSlotCitation(selected, entity);
+            if (citation)
+              onChange(
+                addRequirementCitation(
+                  [record],
+                  record.id,
+                  selected,
+                  citation,
+                )[0],
+              );
+          }}
+          onRemoveCitation={(_id, selected, citation) =>
+            onChange(
+              removeRequirementCitation(
+                [record],
+                record.id,
+                selected,
+                citation,
+              )[0],
+            )
+          }
+        />
+      ))}
+    </Stack>
+  );
+}

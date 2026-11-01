@@ -1,3 +1,4 @@
+import type { RunStore } from '../../run-store/run-store';
 /**
  * Thin proxy client that POSTs to the platform report REST endpoint.
  *
@@ -65,6 +66,7 @@ const platformReportPayloadSchema = z.object({
 });
 
 export interface CreateReportProxyOptions {
+  runStore?: RunStore;
   /**
    * Resolve a fresh platform OAuth bearer token. Called per request so
    * proxied calls inherit refreshed tokens.
@@ -93,6 +95,7 @@ export interface CreateReportProxyOptions {
 }
 
 export interface CreateReportProxyInput {
+  readonly inert?: boolean;
   /**
    * Active Run id — propagated as `X-Agent-Session-ID` so the platform
    * stamps `sourceExecutionId` on the created report.
@@ -197,6 +200,7 @@ const readRestPayload = (parsed: z.infer<typeof createReportRestResponseSchema>)
 };
 
 export class CreateReportProxy {
+  private readonly runStore: RunStore | undefined;
   private readonly auth: SubmissionToolAuth;
   private readonly apiBaseUrl: string;
   private readonly fetchImpl: typeof fetch;
@@ -204,6 +208,7 @@ export class CreateReportProxy {
   private readonly logger: ServerLogger;
 
   public constructor(options: CreateReportProxyOptions) {
+    this.runStore = options.runStore;
     this.auth = options.auth;
     this.apiBaseUrl = options.apiBaseUrl;
     this.fetchImpl = options.fetchImpl ?? fetch;
@@ -212,6 +217,11 @@ export class CreateReportProxy {
   }
 
   public async create(input: CreateReportProxyInput): Promise<CreateReportProxyResult> {
+    const stored = await this.runStore?.getRunMetadata(input.runId);
+    if (this.runStore && !stored) {
+      throw new Error('Cannot submit report without persisted execution metadata.');
+    }
+    const inert = stored?.inert === true || input.inert === true;
     const token = await this.auth.getAccessToken();
     const organizationId = extractOrganizationIdFromToken(token);
     if (!organizationId) {
@@ -237,6 +247,7 @@ export class CreateReportProxy {
       body: JSON.stringify({
         ...input.args,
         projectId: input.projectId,
+        ...(inert ? { ragEnabled: false } : {}),
       }),
     });
 
@@ -310,13 +321,15 @@ export class CreateReportProxy {
     const content = buildAgentContent(payload);
 
     try {
-      this.reportEmissionEvents.publish({
-        runId: input.runId,
-        reportId: payload.reportId,
-        ...(typeof input.args['reportType'] === 'string'
-          ? { reportType: input.args['reportType'] }
-          : {}),
-      });
+      if (!inert && input.args['ragEnabled'] !== false) {
+        this.reportEmissionEvents.publish({
+          runId: input.runId,
+          reportId: payload.reportId,
+          ...(typeof input.args['reportType'] === 'string'
+            ? { reportType: input.args['reportType'] }
+            : {}),
+        });
+      }
     } catch (error) {
       this.logger.warn('local.run.create_report.emission_listener_failed_after_persist', {
         runId: input.runId,

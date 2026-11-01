@@ -138,6 +138,51 @@ describe('TurnPlatformMcpProxy', () => {
     expect(response.body).toMatchObject({ result: { content: [{ type: 'text' }] } });
   });
 
+  it('observes an existing grouped update and removes it if its member is removed', async () => {
+    const proposalId = '11111111-1111-4111-8111-111111111111';
+    const memberId = '22222222-2222-4222-8222-222222222222';
+    const result = { id: proposalId, status: 'DRAFT', groupedAuthoring: { member: { memberId } } };
+    const forward = vi
+      .fn<PlatformMcpForwarder['forward']>()
+      .mockResolvedValueOnce({ jsonrpc: '2.0', id: 1, result: { structuredContent: result } })
+      .mockResolvedValueOnce({ jsonrpc: '2.0', id: 2, result: { structuredContent: {} } });
+    const proxy = new TurnPlatformMcpProxy({
+      runId: 'run-1',
+      turnId: 'turn-1',
+      context: { projectId: 'project-1' },
+      catalog: new ActivePlatformToolCatalog({
+        additionalTools: ['update_proposal', 'remove_proposal_group_member'],
+      }),
+      activeHandlerPromptType: 'entity_conversation',
+    });
+    const added = vi.fn();
+    const removed = vi.fn();
+    proxy.setProposalIdentityObserver(added);
+    proxy.setProposalRemovalObserver(removed);
+    const forwarder = makeForwarder(forward);
+    const response = await proxy.handleJsonRpc(
+      {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'update_proposal', arguments: {} },
+      },
+      forwarder,
+    );
+    await proxy.handleJsonRpc(
+      {
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/call',
+        params: { name: 'remove_proposal_group_member', arguments: { memberId } },
+      },
+      forwarder,
+    );
+    expect(response.body).toEqual({ jsonrpc: '2.0', id: 1, result: { structuredContent: result } });
+    expect(added).toHaveBeenCalledWith(proposalId);
+    expect(removed).toHaveBeenCalledWith(proposalId);
+  });
+
   it('observes every proposal from a reorder_stages batch response in creation order', async () => {
     const proposalIds = [
       '11111111-1111-4111-8111-111111111111',

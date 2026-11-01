@@ -1,3 +1,5 @@
+import { useModalState } from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import axios from "axios";
 import {
   usePlatformAdminAccess,
@@ -8,7 +10,6 @@ import {
   Box,
   Button,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
@@ -33,7 +34,8 @@ const safeAdmissionModeError = (error: unknown): string => {
 
 const PrivateBetaAdmissionModeControlContent: React.FC = () => {
   const admissionMode = usePrivateBetaAdmissionMode();
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen, confirmOpenOwnerKey] =
+    useModalState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const currentMode = admissionMode.data?.mode;
@@ -107,7 +109,11 @@ const PrivateBetaAdmissionModeControlContent: React.FC = () => {
         {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
       </Stack>
 
-      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
+      <Dialog
+        ownerKey={confirmOpenOwnerKey}
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+      >
         <DialogTitle>{actionLabel}?</DialogTitle>
         <DialogContent>
           <DialogContentText>

@@ -4,6 +4,7 @@ import {
   ProjectModeFilesSchemaVersionEnum,
   ProjectModeSelectionSchemaVersionEnum,
   ProjectModeSnapshotSchemaVersionEnum,
+  SessionRole,
   WorkflowName,
   type AgentSessionConfigV2,
 } from "../../../../../api";
@@ -118,6 +119,35 @@ describe("resolveStartRunPrompt", () => {
       },
     });
   });
+
+  it.each(Object.values(SessionRole))(
+    "launches a v3 capture with role %s",
+    (sessionRole) => {
+      const config = makeProjectModeConfig();
+      config.projectModeSnapshot = {
+        ...config.projectModeSnapshot!,
+        schemaVersion:
+          ProjectModeSnapshotSchemaVersionEnum.ProjectModeSnapshotV3,
+        projectAssistant: { enabled: false },
+        sessionRole,
+      };
+      expect(
+        resolveStartRunPrompt({
+          launch: makeLaunch(),
+          config,
+          userMessage: "Continue captured work.",
+        }),
+      ).toEqual({
+        kind: "handler",
+        promptType: LocalPromptType.ProjectMode,
+        payload: {
+          entity: { entityType: "TASK", entityId: "task-1" },
+          promptType: "project_mode",
+          userMessage: "Continue captured work.",
+        },
+      });
+    },
+  );
 
   const expectIncompleteProjectModeConfig = (config: AgentSessionConfigV2) => {
     expect(() =>

@@ -51,8 +51,7 @@ interface WorkItemTypeArchiveLifecycleProps {
 }
 
 type WorkItemTypeLifecycleRendererProps = (
-  | WorkItemTypeEditLifecycleProps
-  | WorkItemTypeArchiveLifecycleProps
+  WorkItemTypeEditLifecycleProps | WorkItemTypeArchiveLifecycleProps
 ) & {
   diffDefaultViewMode?: DiffViewMode;
   organizationId: string;
@@ -82,7 +81,7 @@ interface WorkItemTypeLifecycleDiff {
 
 function difference(
   current: readonly string[],
-  proposed: readonly string[]
+  proposed: readonly string[],
 ): string[] {
   const proposedValues = new Set(proposed);
   return Array.from(new Set(current))
@@ -92,7 +91,7 @@ function difference(
 
 function buildWorkItemTypeLifecycleDiff(
   current: WorkItemTypeDefinitionDto,
-  proposed: WorkItemTypeDefinitionDto
+  proposed: WorkItemTypeDefinitionDto,
 ): WorkItemTypeLifecycleDiff {
   const currentSectionKeys = current.sections.map((section) => section.key);
   const proposedSectionKeys = proposed.sections.map((section) => section.key);
@@ -101,18 +100,18 @@ function buildWorkItemTypeLifecycleDiff(
     addedChildTypeKeys: [],
     addedParentTypeKeys: difference(
       proposed.allowedParentTypes ?? [],
-      current.allowedParentTypes ?? []
+      current.allowedParentTypes ?? [],
     ),
     addedSectionKeys: difference(proposedSectionKeys, currentSectionKeys),
     removedChildTypeKeys: [],
     removedParentTypeKeys: difference(
       current.allowedParentTypes ?? [],
-      proposed.allowedParentTypes ?? []
+      proposed.allowedParentTypes ?? [],
     ),
     removedSectionKeys: difference(currentSectionKeys, proposedSectionKeys),
     revokedTrackingSourceTypeKeys: difference(
       current.tracking?.allowedSourceTaskTypes ?? [],
-      proposed.tracking?.allowedSourceTaskTypes ?? []
+      proposed.tracking?.allowedSourceTaskTypes ?? [],
     ),
     roleChange:
       current.role === proposed.role
@@ -173,7 +172,7 @@ export const WorkItemTypeLifecycleRenderer: React.FC<
   const typeKey = proposal.targetEntityId;
   const { manageWorkItemTypes } = useProjectCapabilities(
     organizationId,
-    projectId
+    projectId,
   );
   const {
     workItemTypeSummary,
@@ -181,30 +180,32 @@ export const WorkItemTypeLifecycleRenderer: React.FC<
     error: summaryError,
   } = useWorkItemTypeByKey(organizationId, projectId, typeKey);
 
+  const originalDefinition =
+    proposal.retainedOriginalTargetContent?.definition ??
+    (proposal.applicationEligible === false
+      ? undefined
+      : workItemTypeSummary?.definition);
   const proposedDefinition =
     mode === "edit" ? proposal.updates.definition : undefined;
   const comparisonResult = useMemo(() => {
-    if (!proposedDefinition || !workItemTypeSummary) return null;
+    if (!proposedDefinition || !originalDefinition) return null;
     try {
       return {
         comparison: compareWorkItemTypeDefinitions(
-          workItemTypeSummary.definition,
-          proposedDefinition
+          originalDefinition,
+          proposedDefinition,
         ),
       };
     } catch {
       return { comparison: null };
     }
-  }, [proposedDefinition, workItemTypeSummary]);
+  }, [proposedDefinition, originalDefinition]);
   const lifecycleDiff = useMemo(
     () =>
-      proposedDefinition && workItemTypeSummary && comparisonResult?.comparison
-        ? buildWorkItemTypeLifecycleDiff(
-            workItemTypeSummary.definition,
-            proposedDefinition
-          )
+      proposedDefinition && originalDefinition && comparisonResult?.comparison
+        ? buildWorkItemTypeLifecycleDiff(originalDefinition, proposedDefinition)
         : emptyDiff,
-    [proposedDefinition, workItemTypeSummary, comparisonResult]
+    [proposedDefinition, originalDefinition, comparisonResult],
   );
 
   const sectionImpact = useWorkItemTypeSectionContentImpact(
@@ -214,7 +215,7 @@ export const WorkItemTypeLifecycleRenderer: React.FC<
     lifecycleDiff.removedSectionKeys,
     {
       enabled: mode === "edit" && lifecycleDiff.removedSectionKeys.length > 0,
-    }
+    },
   );
   const trackingImpact = useWorkItemTypeTrackingLinkRevocationImpact(
     organizationId,
@@ -225,10 +226,14 @@ export const WorkItemTypeLifecycleRenderer: React.FC<
       enabled:
         mode === "edit" &&
         lifecycleDiff.revokedTrackingSourceTypeKeys.length > 0,
-    }
+    },
   );
 
-  if (isSummaryLoading) {
+  if (
+    isSummaryLoading &&
+    proposal.applicationEligible !== false &&
+    !originalDefinition
+  ) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
         <CircularProgress size={24} />
@@ -236,10 +241,15 @@ export const WorkItemTypeLifecycleRenderer: React.FC<
     );
   }
 
-  if (summaryError || !workItemTypeSummary) {
+  if (
+    !originalDefinition ||
+    (summaryError && !proposal.retainedOriginalTargetContent?.definition)
+  ) {
     return (
       <Alert severity="error" data-testid="work-item-type-lifecycle-load-error">
-        Could not load the current work-item-type definition.
+        {proposal.applicationEligible === false
+          ? "The original definition is unavailable."
+          : "Could not load the current work-item-type definition."}
       </Alert>
     );
   }
@@ -268,7 +278,7 @@ export const WorkItemTypeLifecycleRenderer: React.FC<
     lifecycleDiff.removedChildTypeKeys.length > 0;
   const action =
     mode === "edit" ? ProposalAction.Update : ProposalAction.Delete;
-  const displayName = workItemTypeSummary.definition.name;
+  const displayName = originalDefinition.name;
 
   const content = (
     <Stack spacing={1.5}>

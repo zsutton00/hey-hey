@@ -1,3 +1,4 @@
+import { FUTURE_REVISION_MCP_TOOLS } from '../mcp-server-config';
 /**
  * `plan_shaping_feature_sync_analyze` prompt-type handler.
  *
@@ -14,9 +15,7 @@
  * discrepancies list on the same turn as the findings table. No `prepare` is
  * needed — `get_full_entity`, `get_feature_sync_context`, and
  * `search_features` are all in the base provider tool list.
- * `edit_work_item` is also in that base list, but the analyze contract
- * forbids using it: this turn flags and suggests (remediations travel as
- * text in the verdict payload), it never authors proposals.
+ * Settled undelivered knowledge remediations are drafted as non-live futures.
  *
  * Analyze and iterate are distinct logical agents. A transition between them
  * mints iterate's own provider session and tool surface.
@@ -51,14 +50,15 @@ export const planShapingFeatureSyncAnalyzeHandler: UserLaunchablePromptTypeHandl
         required: false,
       },
     ],
-    additionalAllowedTools: ['get_report_schema'],
+    additionalAllowedTools: ['get_report_schema', 'get_proposal', ...FUTURE_REVISION_MCP_TOOLS],
 
     submissionTools: [...structuralAnalyzeSubmissionTools],
 
     addUserMessage: (payload) => turnUserMessageBlock(payload.userMessage),
 
-    buildPrompt(payload: LocalPlanShapingFeatureSyncAnalyzePromptPayload): string {
+    buildPrompt(payload: LocalPlanShapingFeatureSyncAnalyzePromptPayload, ctx): string {
       return buildPlanShapingAnalyzePrompt({
+        provider: ctx?.provider,
         planId: payload.planId,
         designDocId: payload.designDocId,
       });

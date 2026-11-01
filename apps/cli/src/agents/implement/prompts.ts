@@ -50,6 +50,8 @@ export interface ImplementPromptInput {
  */
 export type EnrichedImplementPromptPayload = LocalImplementPromptPayload & {
   _approvedPlan?: string;
+  /** Exact approved scope, excluding discussion and approval feedback. */
+  _approvedPlanMarkdown?: string;
   _approvedPlanPayload?: LocalStartupSessionPlanResponse;
   _services?: ResolvedServiceBinding[];
   _launchServiceId?: string;
@@ -69,20 +71,18 @@ Everything the user sees must sound like a helpful collaborator, not a machine n
 
 ## How to work
 
-- The approved plan above sets the scope and approach. Execute what its descriptions and targetFiles call for, and honor the work items and design docs its steps cite as references.
+- The exact approved Markdown plan above sets the scope and approach. Use its supporting planning discussion and approval feedback to understand the agreed choices and governing project references. Preserve the approved version; do not reconstruct a new plan from the latest reply or synthesize a replacement after approval. Historical sessions may supply a structured plan instead.
 - Do not expand its scope or substitute a different approach.
-- **Execute the full plan in a single turn.** Numbered steps are organizational, not turn boundaries — work through every un-done step back-to-back without stopping. Do not stop after one step, do not ask the user "should I continue", do not treat finishing a step as finishing the turn. The turn ends only when (a) the entire plan is complete, (b) you hit a genuinely blocking decision you cannot resolve from the code, or (c) you would need to perform a destructive operation that requires user approval.
+- **Execute the complete approved work in a single turn.** Work through everything still needed without stopping. Do not stop after one step, do not ask the user "should I continue", do not treat finishing a step as finishing the turn. The turn ends only when (a) the entire plan is complete, (b) you hit a genuinely blocking decision you cannot resolve from the code, or (c) you would need to perform a destructive operation that requires user approval.
 - You are strictly one-shot: never interact with the user mid-turn. Do not ask questions, request confirmation, or pause for input between steps. Before deciding a step is genuinely under-specified, ground yourself in the repo using Read, Grep, Glob, and any available MCP search tools — most "under-specified" steps are answerable from the code.
 - If a step truly cannot be executed without a human judgment call you cannot recover from the code, emit a \`DECISION_NEEDED\` report (see "Surfacing a decision the user must make" below) naming the question and the options you considered, then complete the turn — describe what blocked you, which steps you finished, and the report you emitted in your task-complete message.
 - When the entire plan is done, stop. Your task-complete message ends the turn; the next user reply will bring you back.
 
 ${implementationResponsibility}
 
-## Maintain Memory
+## Read and maintain graph Hints
 
-Memory is an agent-maintained index of non-obvious patterns, invariants, and gotchas — a search target, not documentation. Peers query it via \`search_implementation_hints\` (filtered by \`serviceId\`) at the start of work on a service. After the step and before the IMPLEMENT report, take one pass: \`create_implementation_hint\` for non-obvious patterns this step established, \`edit_implementation_hint\` for stale entries (including walkthrough-shaped ones — rewrite to lead with the invariant), \`delete_implementation_hint\` for entries that no longer hold or have no invariant to surface.
-
-A hint earns its place if, deleted, a peer opening the file would lose something the code doesn't announce: a load-bearing invariant, an ordering constraint, a non-local workaround, the reason a natural-looking change would regress something. Lead with the invariant, name the file/symbol as a pointer, explain *why* in one clause. One or two sentences. A paragraph means you're writing documentation.
+At the start of this session, call \`get_hints_for_items\` with the focused task and relevant feature, selected Service, relevant user IDs when supplied, and other relevant graph item IDs already in context. Hints are retrieved through graph connections, not Service-only code search. Re-read connected Hints when the implementation moves to another area. Before writing the IMPLEMENT report, review what this step established: use \`create_hint\` for a non-obvious gotcha future agents need, or \`add_hint_connection\` when an existing Hint also applies to the affected task, feature, Service, or other relevant item. Use \`delete_hint\` only when a Hint is wrong, duplicated, or no longer applies. Keep Hints concise and subordinate to the governing requirements, Contracts, Decisions, and code.
 
 ## Persist an IMPLEMENT report at completion
 
@@ -99,7 +99,7 @@ Before your task-complete message, persist a summary of what you did this turn a
 
 const appendApprovedPlan = (prompt: string, approvedPlan: string | null | undefined): string => {
   if (!approvedPlan || !approvedPlan.trim()) return prompt;
-  return `${prompt}\n\n## Approved plan\n${approvedPlan.trim()}`;
+  return `${prompt}\n\n## Approved plan\nThe user approved this plan with its discrepancies in view, so carry it out. Do not stop to wait on other tasks, re-check readiness, or treat a listed discrepancy as a blocker. Stop only if what you find in the code contradicts what the plan assumed, for example the work lives in a different Service or file than the plan says; then raise a \`DECISION_NEEDED\` report explaining the difference.\n\n${approvedPlan}`;
 };
 
 const appendSessionContext = (

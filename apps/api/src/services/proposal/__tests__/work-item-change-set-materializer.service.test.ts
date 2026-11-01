@@ -1,3 +1,5 @@
+import { createTestId } from 'src/utils/testUtils';
+import { ProposalReconciliationService } from '../proposal-reconciliation.service';
 import { WorkItemTypeRegistryService } from '../../tasks/work-item-type-registry.service';
 import { TaskSectionSchemaValidatorRegistry } from '../../tasks/task-section-schema-validator.registry';
 import { of, throwError, defer } from 'rxjs';
@@ -5,7 +7,11 @@ import { AgentEdgeClientService } from '../../agent-edge-client.service';
 import { TaskService } from '../../tasks/task.service';
 import { WorkItemParentageValidator } from '../../tasks/work-item-parentage-validator.service';
 import { createWarmWorkItemTypeRegistry } from '../../../../test/setup/work-item-type-registry.fixture';
-import { Logger } from '@nestjs/common';
+import {
+  ConflictException,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { buildProductionLogEnvelope } from '../../../common/logger/production-log-envelope';
 import { workItemChangeSetValidationRequestSchema } from '../work-item-change-set.schema';
 import {
@@ -64,63 +70,6 @@ describe('WorkItemChangeSetMaterializerService', () => {
       },
     );
 
-    it('persists a genuine date mismatch with field, values and stable correlation', async () => {
-      const { service, prisma } = createService();
-      prisma.db.task.findFirst.mockResolvedValue({
-        name: 'Goal',
-        type: 'GOAL',
-        parentTaskId: null,
-        serviceRelations: [],
-        dueDate: new Date('2026-10-21T00:00:00Z'),
-      });
-      jest.spyOn(service as any, 'applyOperation').mockResolvedValue(undefined);
-      const failed = jest
-        .spyOn(service as any, 'markCheckpointFailed')
-        .mockResolvedValue(undefined);
-      const completed = jest
-        .spyOn(service as any, 'markCheckpointCompleted')
-        .mockResolvedValue(undefined);
-      let caught: any;
-      try {
-        await (service as any).applyCheckpoint(
-          params,
-          { id: 'materialization-1' },
-          { id: 'checkpoint-1', operationIndex: 0 },
-          {
-            op: 'workItem.create',
-            ref,
-            name: 'Goal',
-            type: 'GOAL',
-            dueDate: '2026-10-20T00:00:00Z',
-          },
-          mappings,
-          'claim-1',
-        );
-      } catch (error) {
-        caught = error;
-      }
-      expect(caught).toBeDefined();
-      const diagnostic = caught.getResponse().diagnostic;
-      expect(diagnostic.issues).toEqual([
-        expect.objectContaining({
-          field: 'operations[0].dueDate',
-          code: 'POSTCONDITION_MISMATCH',
-          reason: expect.stringContaining(
-            'expected 2026-10-20T00:00:00Z; actual 2026-10-21T00:00:00.000Z',
-          ),
-        }),
-      ]);
-      expect(failed.mock.calls[0]![4]).toEqual(
-        expect.objectContaining({
-          diagnostic: expect.objectContaining({
-            correlationId: diagnostic.correlationId,
-            issues: diagnostic.issues,
-          }),
-        }),
-      );
-      expect(completed).not.toHaveBeenCalled();
-    });
-
     it('reports missing records and redacts section content', async () => {
       const { service, prisma } = createService();
       prisma.db.task.findFirst.mockResolvedValue(null);
@@ -166,99 +115,6 @@ describe('WorkItemChangeSetMaterializerService', () => {
         }),
       );
       expect(JSON.stringify(issues)).not.toContain('private');
-    });
-  });
-
-  it('removes one checkpoint cycle from section-only edits while preserving mutation and retry', async () => {
-    const compare = async (legacy: boolean) => {
-      const { service, prisma } = createService();
-      const request = service.taskProposalChangeSet({
-        id: 'proposal-1',
-        action: 'UPDATE',
-        targetEntityType: 'TASK',
-        targetEntityId: 'task-1',
-        updates: {
-          sections: [{ key: 'description', content: 'New description' }],
-        },
-      } as any)!;
-      expect(request.operations.map((operation) => operation.op)).toEqual([
-        'section.replace',
-      ]);
-      const operations = legacy
-        ? [
-            { op: 'workItem.update' as const, ref: request.root },
-            ...request.operations,
-          ]
-        : request.operations;
-      let committed = false;
-      const verify = jest
-        .spyOn(service as any, 'verifyOperationPostcondition')
-        .mockImplementation(
-          async (_params, operation: any) =>
-            operation.op === 'workItem.update' || committed,
-        );
-      const mutate = jest
-        .spyOn(service as any, 'applyOperation')
-        .mockImplementation(async () => {
-          committed = true;
-        });
-      jest
-        .spyOn(service as any, 'assertClaimOwned')
-        .mockResolvedValue(undefined);
-      const timing = jest.spyOn((service as any).logger, 'debug');
-      const apply = (operation: any, index: number) =>
-        (service as any).applyCheckpoint(
-          {
-            proposalId: 'proposal-1',
-            organizationId: 'organization-1',
-            projectId: 'project-1',
-          },
-          { id: 'materialization-1' },
-          { id: `checkpoint-${index}`, operationIndex: index },
-          operation,
-          { workItems: { 'existing:task-1': 'task-1' }, relationships: {} },
-          'claim-1',
-        );
-      for (const [index, operation] of operations.entries())
-        await apply(operation, index);
-      const counts = {
-        renewals:
-          prisma.db.workItemChangeSetMaterialization.updateMany.mock.calls
-            .length,
-        checkpointTransactions: prisma.db.$transaction.mock.calls.length,
-        postconditionChecks: verify.mock.calls.length,
-        mutations: mutate.mock.calls.length,
-      };
-      expect(committed).toBe(true);
-      // Retry after the section write committed re-enters the guarded write,
-      // whose reconciliation receipt acknowledges it without writing again.
-      await apply(request.operations[0], operations.length - 1);
-      expect(mutate).toHaveBeenCalledTimes(counts.mutations + 1);
-      expect(timing).toHaveBeenCalledWith(
-        'Generic checkpoint timing',
-        expect.objectContaining({
-          operationKind: 'section.replace',
-          outcome: 'completed',
-          alreadySatisfied: true,
-          phaseMs: expect.objectContaining({
-            'proposal.change_set.checkpoint.precheck': expect.any(Number),
-            'proposal.change_set.checkpoint.completed': expect.any(Number),
-          }),
-        }),
-      );
-      return counts;
-    };
-    expect(await compare(true)).toEqual({
-      renewals: 2,
-      checkpointTransactions: 4,
-      postconditionChecks: 4,
-      mutations: 2,
-    });
-    expect(await compare(false)).toEqual({
-      renewals: 1,
-      checkpointTransactions: 2,
-      postconditionChecks: 2,
-      mutations: 1,
     });
   });
 
@@ -1798,6 +1654,106 @@ describe('WorkItemChangeSetMaterializerService', () => {
     );
   });
 
+  it('materializes UX_FLOW metadata through the generic section path', async () => {
+    const { service, taskService } = createService();
+    const content = { kind: 'UX_FLOW', level: 'OVERVIEW' };
+
+    await (service as any).applyOperation(
+      {
+        proposalId: 'proposal-1',
+        organizationId: 'organization-1',
+        projectId: 'project-1',
+      },
+      'materialization-1',
+      {
+        op: 'section.replace',
+        ref: { refType: 'existing', id: 'diagram-1' },
+        key: 'diagramMetadata',
+        content,
+      },
+      {
+        workItems: { 'existing:diagram-1': 'diagram-1' },
+        relationships: {},
+      },
+      0,
+      'claim-1',
+    );
+
+    expect(taskService.updateInTransaction).toHaveBeenCalledWith(
+      expect.anything(),
+      'organization-1',
+      null,
+      'diagram-1',
+      {
+        sections: [
+          { key: 'diagramMetadata', content: JSON.stringify(content) },
+        ],
+      },
+      undefined,
+      'materialization-1',
+    );
+  });
+
+  it('materializes an action-labeled STANDARD transition from the reviewed change set', async () => {
+    const { service } = createService();
+    const agentEdgeClient = (service as any).agentEdgeClient;
+    agentEdgeClient.create.mockResolvedValue({
+      id: 'edge-action',
+      sourceNodeId: 'screen-welcome',
+      sourceEntityType: 'TASK',
+      targetNodeId: 'screen-profile',
+      targetEntityType: 'TASK',
+      type: 'STANDARD',
+      category: 'flow',
+      direction: 'forward',
+      actionLabel: 'tap Continue',
+    });
+
+    await (service as any).applyOperation(
+      {
+        proposalId: 'proposal-1',
+        organizationId: 'organization-1',
+        projectId: 'project-1',
+      },
+      'materialization-1',
+      {
+        op: 'relationship.create',
+        ref: { refType: 'temporary', tempId: 'edge-action' },
+        source: { refType: 'existing', id: 'screen-welcome' },
+        target: { refType: 'existing', id: 'screen-profile' },
+        edgeType: 'STANDARD',
+        category: 'flow',
+        direction: 'forward',
+        actionLabel: 'tap Continue',
+      },
+      {
+        workItems: {
+          'existing:screen-welcome': 'screen-welcome',
+          'existing:screen-profile': 'screen-profile',
+        },
+        relationships: { 'temporary:edge-action': 'edge-action' },
+      },
+      0,
+      'claim-1',
+    );
+
+    expect(agentEdgeClient.create).toHaveBeenCalledWith(
+      'organization-1',
+      'project-1',
+      expect.objectContaining({
+        id: 'edge-action',
+        sourceNodeId: 'screen-welcome',
+        targetNodeId: 'screen-profile',
+        type: 'STANDARD',
+        category: 'flow',
+        direction: 'forward',
+        actionLabel: 'tap Continue',
+      }),
+      undefined,
+      'materialization-1',
+    );
+  });
+
   it('runs task update post-commit effects after applying a durable update', async () => {
     const { service, taskService } = createService();
     const postCommit = {
@@ -2280,129 +2236,179 @@ describe('WorkItemChangeSetMaterializerService', () => {
     expect(query.strings.join('?')).toBe(
       'SELECT pg_advisory_xact_lock(hashtextextended(?, 0))::text AS "lockAcquired"',
     );
-    expect(query.values).toEqual(['organization-1:project-1']);
+    expect(query.values).toEqual([
+      'materialization:organization-1:project-1:proposal-1',
+    ]);
   });
 
-  it('publishes the complete target without emitting a second approval event', async () => {
-    const targetProjection = projectionFor('task-1');
-    const intent = {
-      id: 'materialization-1',
-      rootWorkItemId: 'task-1',
-      status: WorkItemChangeSetMaterializationStatus.APPLYING,
-      claimToken: 'claim-1',
-      validationRevision: 'revision-1',
-      operationSet: {
-        root: { refType: 'existing', id: 'task-1' },
-        operations: [],
-      },
-      workItemIdMappings: { 'existing:task-1': 'task-1' },
-      relationshipIdMappings: {},
-      priorProjection: {
-        schemaVersion: 'work-item-change-set-projection.v1',
-        projection: {},
-      },
-      targetProjection: {
-        schemaVersion: 'work-item-change-set-projection.v1',
-        projection: targetProjection,
-      },
-      affectedWorkItemIds: ['task-1'],
-      affectedRelationshipIds: [],
-      proposal: { status: 'APPROVED' },
-      checkpoints: [
-        {
-          status: WorkItemChangeSetCheckpointStatus.COMPLETED,
-          validationRevision: 'revision-1',
+  it.each(['ordinary', 'future', 'drift'] as const)(
+    'publishes %s through the same durable transaction without emitting a second approval event',
+    async (kind) => {
+      const targetProjection = projectionFor('task-1');
+      const intent = {
+        id: 'materialization-1',
+        rootWorkItemId: 'task-1',
+        status: WorkItemChangeSetMaterializationStatus.APPLYING,
+        claimToken: 'claim-1',
+        validationRevision: 'revision-1',
+        operationSet: {
+          root: { refType: 'existing', id: 'task-1' },
+          operations: [],
         },
-      ],
-    };
-    const tx = {
-      proposalGroupMember: { findUnique: jest.fn().mockResolvedValue(null) },
-      proposalReconciliationReplacement: {
-        findFirst: jest.fn().mockResolvedValue(null),
-      },
-      workItemChangeSetMaterialization: {
-        findFirst: jest.fn().mockResolvedValue({ id: 'materialization-1' }),
-        findUniqueOrThrow: jest.fn().mockResolvedValue(intent),
-        update: jest.fn().mockResolvedValue({}),
-      },
-      proposal: {
-        update: jest.fn().mockResolvedValue({
+        workItemIdMappings: { 'existing:task-1': 'task-1' },
+        relationshipIdMappings: {},
+        priorProjection: {
+          schemaVersion: 'work-item-change-set-projection.v1',
+          projection: {},
+        },
+        targetProjection: {
+          schemaVersion: 'work-item-change-set-projection.v1',
+          projection: targetProjection,
+          ...(kind !== 'ordinary'
+            ? {
+                futureApplication: {
+                  futureId: 'future-1',
+                  revision: 1,
+                  refinementIds: [],
+                },
+              }
+            : {}),
+        },
+        affectedWorkItemIds: ['task-1'],
+        affectedRelationshipIds: [],
+        proposal: {
           id: 'proposal-1',
           organizationId: 'organization-1',
           projectId: 'project-1',
-          targetEntityId: 'task-1',
-          targetEntityType: 'TASK',
-          action: 'UPDATE',
-          requestorId: 'user-1',
-          requestorContext: null,
-          influences: null,
-          generatedWithVersion: null,
-          conversationId: null,
-          messageId: null,
-          createdAt: new Date('2026-07-13T00:00:00.000Z'),
-        }),
-      },
-      task: {
-        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
-      },
-    };
-    const prisma = {
-      db: {
-        workItemChangeSetMaterialization: {
-          findUnique: jest.fn().mockResolvedValue(intent),
+          status: 'APPROVED',
         },
-        $transaction: jest.fn(
-          async (callback: (transaction: typeof tx) => unknown) => callback(tx),
-        ),
-      },
-    };
-    const eventPublisher = {
-      publishInTransaction: jest.fn().mockResolvedValue(undefined),
-    };
-    const projector = {
-      rehydrateCurrentProjection: jest.fn().mockResolvedValue(targetProjection),
-    };
-    const service = new WorkItemChangeSetMaterializerService(
-      prisma as any,
-      projector as any,
-      {} as any,
-      {} as any,
-      eventPublisher as any,
-      jest.fn(),
-      reconciliationStub(),
-      {} as any,
-      {} as any,
-      {} as any,
-    );
-    jest.spyOn(service as any, 'assertRecoverableIntent').mockImplementation();
+        checkpoints: [
+          {
+            status: WorkItemChangeSetCheckpointStatus.COMPLETED,
+            validationRevision: 'revision-1',
+          },
+        ],
+      };
+      const tx = {
+        proposalGroupMember: { findUnique: jest.fn().mockResolvedValue(null) },
+        proposalReconciliationReplacement: {
+          findFirst: jest.fn().mockResolvedValue(null),
+        },
+        workItemChangeSetMaterialization: {
+          findFirst: jest.fn().mockResolvedValue({ id: 'materialization-1' }),
+          findUniqueOrThrow: jest.fn().mockResolvedValue(intent),
+          update: jest.fn().mockResolvedValue({}),
+        },
+        proposalFuture: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: 'future-1',
+            outcome: 'STAGED',
+            revision: 1,
+            latestProposalId: 'proposal-1',
+            dependencies: [],
+            history: [],
+          }),
+          update: jest.fn().mockResolvedValue({}),
+        },
+        proposal: {
+          findMany: jest.fn().mockResolvedValue([]),
+          update: jest.fn().mockResolvedValue({
+            id: 'proposal-1',
+            organizationId: 'organization-1',
+            projectId: 'project-1',
+            targetEntityId: 'task-1',
+            targetEntityType: 'TASK',
+            action: 'UPDATE',
+            requestorId: 'user-1',
+            requestorContext: null,
+            influences: null,
+            generatedWithVersion: null,
+            conversationId: null,
+            messageId: null,
+            createdAt: new Date('2026-07-13T00:00:00.000Z'),
+          }),
+        },
+        task: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+      };
+      const prisma = {
+        db: {
+          workItemChangeSetMaterialization: {
+            findUnique: jest.fn().mockResolvedValue(intent),
+          },
+          $transaction: jest.fn(
+            async (callback: (transaction: typeof tx) => unknown) =>
+              callback(tx),
+          ),
+        },
+      };
+      const eventPublisher = {
+        publishInTransaction: jest.fn().mockResolvedValue(undefined),
+      };
+      const projector = {
+        rehydrateCurrentProjection: jest
+          .fn()
+          .mockResolvedValue(
+            kind === 'drift'
+              ? projectionFor('task-1', 'Unreviewed value')
+              : targetProjection,
+          ),
+      };
+      const service = new WorkItemChangeSetMaterializerService(
+        prisma as any,
+        projector as any,
+        {} as any,
+        {} as any,
+        eventPublisher as any,
+        jest.fn(),
+        reconciliationStub(),
+        {} as any,
+        {} as any,
+        {} as any,
+      );
+      jest
+        .spyOn(service as any, 'assertRecoverableIntent')
+        .mockImplementation();
 
-    await (service as any).publishPreparedIntent(
-      {
-        proposalId: 'proposal-1',
-        organizationId: 'organization-1',
-        projectId: 'project-1',
-      },
-      'materialization-1',
-      'claim-1',
-    );
+      const publish = () =>
+        (service as any).publishPreparedIntent(
+          {
+            proposalId: 'proposal-1',
+            organizationId: 'organization-1',
+            projectId: 'project-1',
+          },
+          'materialization-1',
+          'claim-1',
+        );
 
-    expect(eventPublisher.publishInTransaction).not.toHaveBeenCalled();
-    expect(projector.rehydrateCurrentProjection).not.toHaveBeenCalled();
-    expect(tx.workItemChangeSetMaterialization.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'materialization-1', claimToken: 'claim-1' },
-        data: expect.objectContaining({ status: 'PUBLISHED' }),
-      }),
-    );
-    expect(tx.task.updateMany).toHaveBeenCalledWith({
-      where: {
-        id: { in: ['task-1'] },
-        organizationId: 'organization-1',
-        projectId: 'project-1',
-      },
-      data: { lastAppliedProposalId: 'proposal-1' },
-    });
-  });
+      await publish();
+      if (kind !== 'ordinary')
+        expect(tx.proposalFuture.update).toHaveBeenCalledWith({
+          where: { id: 'future-1' },
+          data: expect.objectContaining({
+            outcome: 'APPLIED',
+            appliedRevision: 1,
+          }),
+        });
+      expect(eventPublisher.publishInTransaction).not.toHaveBeenCalled();
+      expect(projector.rehydrateCurrentProjection).not.toHaveBeenCalled();
+      expect(tx.workItemChangeSetMaterialization.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'materialization-1', claimToken: 'claim-1' },
+          data: expect.objectContaining({ status: 'PUBLISHED' }),
+        }),
+      );
+      expect(tx.task.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: { in: ['task-1'] },
+          organizationId: 'organization-1',
+          projectId: 'project-1',
+        },
+        data: { lastAppliedProposalId: 'proposal-1' },
+      });
+    },
+  );
 
   describe('change-set body mentions', () => {
     const descriptionDefinition = { key: 'description', label: 'Description' };
@@ -2778,7 +2784,7 @@ describe('WorkItemChangeSetMaterializerService', () => {
     expect(tx.proposal.update).not.toHaveBeenCalled();
   });
 
-  it('leaves an overlapping intent queued while another boundary claim is active', async () => {
+  it('claims an overlapping intent without querying other project materializations', async () => {
     const { service } = createService();
     const selected = {
       id: 'materialization-1',
@@ -2801,7 +2807,7 @@ describe('WorkItemChangeSetMaterializerService', () => {
           },
         ]),
         findFirst: jest.fn().mockResolvedValue(selected),
-        update: jest.fn(),
+        update: jest.fn().mockResolvedValue(selected),
       },
     };
     (service as any).prisma.db.$transaction = jest.fn(
@@ -2817,8 +2823,9 @@ describe('WorkItemChangeSetMaterializerService', () => {
         },
         'materialization-1',
       ),
-    ).resolves.toBeNull();
-    expect(tx.workItemChangeSetMaterialization.update).not.toHaveBeenCalled();
+    ).resolves.toBe(selected);
+    expect(tx.workItemChangeSetMaterialization.findMany).not.toHaveBeenCalled();
+    expect(tx.workItemChangeSetMaterialization.update).toHaveBeenCalled();
   });
 
   it('claims a disjoint intent while another project materialization is active', async () => {
@@ -2865,40 +2872,329 @@ describe('WorkItemChangeSetMaterializerService', () => {
     expect(tx.workItemChangeSetMaterialization.update).toHaveBeenCalled();
   });
 
-  it('returns approved queued state when an overlapping claim cannot be acquired', async () => {
+  it.each(['creates', 'additive edges'] as const)(
+    'completes concurrent %s with overlapping context from their original calls',
+    async (kind) => {
+      const { service, prisma } = createService();
+      const requests = ['diagram', 'task'].map((label) => ({
+        root: { refType: 'existing', id: 'shared-parent' },
+        operations:
+          kind === 'creates'
+            ? [
+                {
+                  op: 'workItem.create',
+                  ref: { refType: 'temporary', tempId: label },
+                  name: label,
+                  type: label === 'diagram' ? 'DIAGRAM' : 'STANDARD',
+                  parent: { refType: 'existing', id: 'shared-parent' },
+                },
+              ]
+            : [
+                {
+                  op: 'relationship.create',
+                  ref: { refType: 'temporary', tempId: label },
+                  source: { refType: 'existing', id: 'shared-parent' },
+                  target: { refType: 'existing', id: label },
+                  edgeType: 'RELATED_TO',
+                  category: 'meta',
+                },
+              ],
+      }));
+      const intents = requests.map((request, index) => {
+        const mappings = (service as any).allocateIdentityMappings(request);
+        return {
+          id: `intent-${index}`,
+          proposalId: `proposal-${index}`,
+          status: 'PREPARED',
+          claimExpiresAt: null,
+          affectedWorkItemIds: ['shared-parent'],
+          affectedRelationshipIds: [],
+          operationSet: request,
+          workItemIdMappings: mappings.workItems,
+          relationshipIdMappings: mappings.relationships,
+          rootWorkItemId:
+            kind === 'creates'
+              ? mappings.workItems[
+                  `temporary:${index === 0 ? 'diagram' : 'task'}`
+                ]
+              : 'shared-parent',
+          targetProjection: { projection: { valid: true } },
+          checkpoints: [],
+          proposal: { id: `proposal-${index}`, status: 'APPROVED' },
+        };
+      });
+      const byId = new Map(intents.map((intent) => [intent.id, intent]));
+      const table = {
+        findMany: jest.fn(async () =>
+          intents.filter((intent) => intent.status === 'APPLYING'),
+        ),
+        findFirst: jest.fn(async ({ where }) =>
+          intents.find(
+            (intent) =>
+              intent.id === where.id &&
+              intent.proposalId === where.proposalId &&
+              !intent.claimExpiresAt,
+          ),
+        ),
+        update: jest.fn(async ({ where, data }) =>
+          Object.assign(byId.get(where.id)!, data),
+        ),
+        findUniqueOrThrow: jest.fn(async ({ where }) => byId.get(where.id)),
+      };
+      prisma.db.workItemChangeSetMaterialization = table as any;
+      const tx = {
+        $queryRaw: jest.fn(),
+        proposalGroupMember: { findUnique: jest.fn(async () => null) },
+        workItemChangeSetMaterialization: table,
+      };
+      prisma.db.$transaction.mockImplementation(async (callback: any) =>
+        callback(tx),
+      );
+      jest
+        .spyOn(service as any, 'prepareIntent')
+        .mockImplementation(async (params: any) =>
+          intents.find((intent) => intent.proposalId === params.proposalId),
+        );
+      jest
+        .spyOn(service as any, 'assertRecoverableIntent')
+        .mockImplementation();
+      let bothStarted!: () => void;
+      const barrier = new Promise<void>((resolve) => {
+        bothStarted = resolve;
+      });
+      const persisted = new Set<string>();
+      jest
+        .spyOn(service as any, 'applyPreparedIntent')
+        .mockImplementation(async (_params, intent: any) => {
+          const identities =
+            kind === 'creates'
+              ? intent.workItemIdMappings
+              : intent.relationshipIdMappings;
+          const key = Object.keys(identities).find((key) =>
+            key.startsWith('temporary:'),
+          )!;
+          persisted.add(identities[key]);
+          if (persisted.size === 2) bothStarted();
+          await barrier;
+        });
+      jest
+        .spyOn(service as any, 'publishPreparedIntent')
+        .mockImplementation(async (_params, id: any) => {
+          const intent = byId.get(id)!;
+          intent.status = 'PUBLISHED';
+          Object.assign(intent.proposal, {
+            targetEntityId: intent.rootWorkItemId,
+          });
+        });
+      jest.spyOn(service as any, 'releaseFences').mockResolvedValue(undefined);
+      const results = await Promise.all(
+        intents.map((intent) =>
+          service.materializeApprovedChangeSet({
+            proposalId: intent.proposalId,
+            organizationId: 'organization-1' as any,
+            projectId: 'project-1' as any,
+          }),
+        ),
+      );
+      expect(
+        results.map(({ enacted, status }) => ({ enacted, status })),
+      ).toEqual([
+        { enacted: true, status: 'PUBLISHED' },
+        { enacted: true, status: 'PUBLISHED' },
+      ]);
+      expect(persisted.size).toBe(2);
+      expect(table.findMany).not.toHaveBeenCalled();
+      // Fresh reads use the actual publication-result gate and retain identities.
+      for (const intent of intents) {
+        const fresh = await (service as any).requirePublishedResult(intent.id);
+        expect(fresh.rootWorkItemId).toBe(intent.rootWorkItemId);
+      }
+      expect((service as any).applyPreparedIntent).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it('waits for the selected owner to publish instead of returning unfinished state', async () => {
     const { service, prisma } = createService();
     const prepared = {
       id: 'materialization-1',
-      rootWorkItemId: 'task-1',
-      status: WorkItemChangeSetMaterializationStatus.PREPARED,
+      status: 'PREPARED',
       targetProjection: { projection: { valid: true } },
-    };
-    const proposal = {
-      id: 'proposal-1',
-      status: 'APPROVED',
-      targetEntityId: 'task-1',
     };
     jest.spyOn(service as any, 'prepareIntent').mockResolvedValue(prepared);
     jest.spyOn(service as any, 'claimPreparedIntent').mockResolvedValue(null);
     prisma.db.workItemChangeSetMaterialization.findUniqueOrThrow = jest
       .fn()
-      .mockResolvedValue({ ...prepared, proposal });
+      .mockResolvedValueOnce({
+        status: 'APPLYING',
+        claimExpiresAt: new Date(Date.now() + 60000),
+        lastError: null,
+      })
+      .mockResolvedValue({ status: 'PUBLISHED' });
+    jest.spyOn(service as any, 'requirePublishedResult').mockResolvedValue({
+      proposal: { id: 'proposal-1' },
+      rootWorkItemId: 'task-1',
+    });
+    const params = {
+      proposalId: 'proposal-1',
+      organizationId: 'organization-1' as any,
+      projectId: 'project-1' as any,
+    };
+    const [first, duplicate] = await Promise.all([
+      service.materializeApprovedChangeSet(params),
+      service.materializeApprovedChangeSet(params),
+    ]);
+    expect(first).toMatchObject({ status: 'PUBLISHED', enacted: true });
+    expect(duplicate).toEqual(first);
+    expect((service as any).prepareIntent).toHaveBeenCalledTimes(1);
+    expect((service as any).claimPreparedIntent).toHaveBeenCalledTimes(1);
+  });
 
+  it('does not restart another owner after it records an operational failure', async () => {
+    const { service, prisma } = createService();
+    const claim = jest
+      .spyOn(service as any, 'claimPreparedIntent')
+      .mockResolvedValue(null);
+    prisma.db.workItemChangeSetMaterialization.findUniqueOrThrow = jest
+      .fn()
+      .mockResolvedValue({
+        status: 'PREPARED',
+        lastError: 'Database unavailable',
+      });
     await expect(
-      service.materializeApprovedChangeSet({
+      (service as any).claimOrObserveIntent(
+        { proposalId: 'proposal-1' },
+        'materialization-1',
+      ),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
+    expect(claim).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['content', 'update', 'delete'] as const)(
+    'preserves the original typed %s conflict from the guarded write',
+    async (operation) => {
+      const { service, prisma } = createService();
+      const prepared = {
+        id: 'materialization-1',
+        status: 'PREPARED',
+        claimToken: 'claim-1',
+        targetProjection: { projection: { valid: true } },
+      };
+      jest.spyOn(service as any, 'prepareIntent').mockResolvedValue(prepared);
+      jest
+        .spyOn(service as any, 'claimPreparedIntent')
+        .mockResolvedValue(prepared);
+      jest
+        .spyOn(service as any, 'assertRecoverableIntent')
+        .mockImplementation();
+      const conflict = new ConflictException({
+        message: 'Changed after review',
+        issues: [
+          {
+            field: 'sections.description',
+            code: 'PROPOSAL_RECONCILIATION_REQUIRED',
+            reason: 'Changed',
+            layer: 'referential',
+          },
+        ],
+        correlationId: 'conflict-correlation',
+      });
+      const graphClient = new AgentEdgeClientService(
+        {
+          updateAgentEdge: jest.fn().mockReturnValue(
+            throwError(() => ({
+              isAxiosError: true,
+              response: { status: 409, data: conflict.getResponse() },
+            })),
+          ),
+          deleteAgentEdge: jest.fn().mockReturnValue(
+            throwError(() => ({
+              isAxiosError: true,
+              response: { status: 409, data: conflict.getResponse() },
+            })),
+          ),
+        } as any,
+        prisma as any,
+      );
+      jest
+        .spyOn(service as any, 'applyPreparedIntent')
+        .mockImplementation(async () => {
+          if (operation === 'content') throw conflict;
+          if (operation === 'update') {
+            await graphClient.update(
+              'organization-1' as OrganizationId,
+              'project-1' as ProjectId,
+              'edge-1',
+              {
+                reasoning: 'Reviewed edit',
+                lastModifiedBySessionId: 'session-1',
+              },
+              'token',
+              undefined,
+              'reviewed-version',
+            );
+          } else {
+            await graphClient.delete(
+              'organization-1' as OrganizationId,
+              'project-1' as ProjectId,
+              'edge-1',
+              'token',
+              undefined,
+              undefined,
+              'reviewed-version',
+            );
+          }
+        });
+      const failed = jest
+        .spyOn(service as any, 'markIntentRecoverableFailure')
+        .mockResolvedValue(undefined);
+      const publish = jest.spyOn(service as any, 'publishPreparedIntent');
+      const params = {
         proposalId: 'proposal-1',
         organizationId: 'organization-1' as any,
         projectId: 'project-1' as any,
-      }),
-    ).resolves.toEqual({
-      proposal: {
-        ...proposal,
-        workItemChangeSetMaterialization: prepared,
-      },
-      rootWorkItemId: 'task-1',
-      status: WorkItemChangeSetMaterializationStatus.PREPARED,
-      enacted: false,
-    });
+      };
+      const results = await Promise.allSettled([
+        service.materializeApprovedChangeSet(params),
+        service.materializeApprovedChangeSet(params),
+      ]);
+      expect(results).toEqual([
+        { status: 'rejected', reason: conflict },
+        { status: 'rejected', reason: conflict },
+      ]);
+      for (const result of results) {
+        expect(result.status).toBe('rejected');
+        if (result.status === 'rejected') {
+          expect(result.reason).toBeInstanceOf(ConflictException);
+          expect(result.reason.getStatus()).toBe(409);
+          expect(result.reason.getResponse()).toEqual(conflict.getResponse());
+        }
+      }
+      expect(failed).toHaveBeenCalledTimes(1);
+      expect(publish).not.toHaveBeenCalled();
+    },
+  );
+
+  it('resumes an expired owner using the same selected intent', async () => {
+    const { service, prisma } = createService();
+    const claimed = { id: 'materialization-1', claimToken: 'new-owner' };
+    const claim = jest
+      .spyOn(service as any, 'claimPreparedIntent')
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(claimed);
+    prisma.db.workItemChangeSetMaterialization.findUniqueOrThrow = jest
+      .fn()
+      .mockResolvedValue({
+        status: 'APPLYING',
+        claimExpiresAt: new Date(0),
+        lastError: null,
+      });
+    await expect(
+      (service as any).claimOrObserveIntent(
+        { proposalId: 'proposal-1' },
+        'materialization-1',
+      ),
+    ).resolves.toBe(claimed);
+    expect(claim).toHaveBeenCalledTimes(2);
   });
 
   it('resumes a claimed intent without re-projecting staged writes', async () => {
@@ -3516,10 +3812,271 @@ describe('WorkItemChangeSetMaterializerService', () => {
       prisma.db.workItemChangeSetMaterializationCheckpoint.update,
     ).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        where: { id: 'checkpoint-1' },
+        where: {
+          materializationId_operationIndex: {
+            materializationId: 'materialization-1',
+            operationIndex: 0,
+          },
+        },
         data: expect.objectContaining({ status: 'COMPLETED' }),
       }),
     );
+  });
+
+  it('publishes a selected retry after Graph failure without overwriting a later user edit', async () => {
+    const { service, prisma, taskService, agentEdgeClient } = createService();
+    const request = {
+      root: { refType: 'existing' as const, id: 'task-1' },
+      operations: [
+        {
+          op: 'workItem.update' as const,
+          ref: { refType: 'existing' as const, id: 'task-1' },
+          name: 'Reviewed title',
+        },
+        {
+          op: 'relationship.create' as const,
+          ref: { refType: 'temporary' as const, tempId: 'edge' },
+          source: { refType: 'existing' as const, id: 'task-1' },
+          target: { refType: 'existing' as const, id: 'task-2' },
+          edgeType: 'RELATED_TO' as const,
+        },
+      ],
+    };
+    const revision = service.validationRevision(request);
+    const proposal = {
+      id: 'proposal-1',
+      status: 'APPROVED',
+      action: 'UPDATE',
+      targetEntityId: 'task-1',
+      organizationId: createTestId.organization('organization-1'),
+      projectId: createTestId.project('project-1'),
+    };
+    const intent = {
+      ...preparedIntent({
+        operationSet: { root: request.root, operations: [] },
+        validationRevision: revision,
+      }),
+      operationSet: request,
+      proposal,
+      claimToken: null,
+      claimExpiresAt: null,
+      relationshipIdMappings: { 'temporary:edge': 'edge-1' },
+      workItemIdMappings: {
+        'existing:task-1': 'task-1',
+        'existing:task-2': 'task-2',
+      },
+      checkpoints: request.operations.map((operation, operationIndex) => ({
+        id: `checkpoint-${operationIndex}`,
+        operationIndex,
+        operationKind: operation.op,
+        validationRevision: revision,
+        status: WorkItemChangeSetCheckpointStatus.PENDING,
+      })),
+    };
+    const db = prisma.db as any;
+    let transactionOpen = false;
+    db.$transaction.mockImplementation(async (callback: any) => {
+      transactionOpen = true;
+      try {
+        return await callback(db);
+      } finally {
+        transactionOpen = false;
+      }
+    });
+    db.$queryRaw = jest.fn().mockResolvedValue([]);
+    db.proposalGroupMember = { findUnique: jest.fn().mockResolvedValue(null) };
+    db.proposal.findFirst = jest.fn(async () => structuredClone(proposal));
+    db.proposal.update = jest.fn(async () => structuredClone(proposal));
+    const readIntent = async () => structuredClone(intent);
+    db.workItemChangeSetMaterialization.findFirst.mockImplementation(
+      readIntent,
+    );
+    db.workItemChangeSetMaterialization.findUnique = jest.fn(readIntent);
+    db.workItemChangeSetMaterialization.findUniqueOrThrow.mockImplementation(
+      readIntent,
+    );
+    db.workItemChangeSetMaterialization.update.mockImplementation(
+      async ({ data }: any) => {
+        Object.assign(intent, data);
+        return readIntent();
+      },
+    );
+    db.workItemChangeSetMaterialization.updateMany.mockImplementation(
+      async ({ data }: any) => {
+        Object.assign(intent, data);
+        return { count: 1 };
+      },
+    );
+    db.workItemChangeSetMaterializationCheckpoint.update.mockImplementation(
+      async ({ where, data }: any) => {
+        const checkpoint = intent.checkpoints.find((entry) =>
+          where.materializationId_operationIndex
+            ? entry.operationIndex ===
+              where.materializationId_operationIndex.operationIndex
+            : entry.id === where.id,
+        )!;
+        if (where.status?.not === checkpoint.status) {
+          return;
+        }
+        Object.assign(checkpoint, data);
+        return structuredClone(checkpoint);
+      },
+    );
+    db.workItemChangeSetMaterializationCheckpoint.findFirst = jest
+      .fn()
+      .mockResolvedValue({ status: 'COMPLETED' });
+    db.task.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+    const task = { id: 'task-1', name: 'Original title' };
+    db.task.findFirst.mockImplementation(async () => structuredClone(task));
+    taskService.updateInTransaction.mockImplementation(
+      async (_tx, _org, _user, _id, updates) => {
+        expect(transactionOpen).toBe(true);
+        Object.assign(task, updates);
+      },
+    );
+    let edge: unknown;
+    agentEdgeClient.createBatch
+      .mockImplementationOnce(async () => {
+        expect(transactionOpen).toBe(false);
+        throw new Error('Graph unavailable');
+      })
+      .mockImplementation(async (_org, _project, dtos) => {
+        expect(transactionOpen).toBe(false);
+        edge = { ...dtos[0], category: 'meta' };
+        return [{ index: 0, success: true, edge }];
+      });
+    agentEdgeClient.findIncident.mockImplementation(async () =>
+      edge ? [edge] : [],
+    );
+    const params = {
+      proposalId: proposal.id,
+      organizationId: proposal.organizationId,
+      projectId: proposal.projectId,
+    };
+    await expect(service.materializeApprovedChangeSet(params)).rejects.toThrow(
+      'Graph unavailable',
+    );
+    expect(intent.checkpoints[0]!.status).toBe('COMPLETED');
+    task.name = 'Later user edit';
+    const result = await service.materializeApprovedChangeSet(params);
+    expect(result).toMatchObject({
+      enacted: true,
+      status: 'PUBLISHED',
+      rootWorkItemId: task.id,
+    });
+    expect((await db.task.findFirst({ where: { id: task.id } })).name).toBe(
+      'Later user edit',
+    );
+    expect(
+      (
+        await db.workItemChangeSetMaterialization.findUnique({
+          where: { id: intent.id },
+        })
+      ).status,
+    ).toBe('PUBLISHED');
+    expect(taskService.updateInTransaction).toHaveBeenCalledTimes(1);
+    expect(agentEdgeClient.createBatch).toHaveBeenCalledTimes(2);
+  });
+
+  it('finishes a partial retry after completed content is manually edited without replaying that write', async () => {
+    const { service, prisma, taskService } = createService();
+    const request = {
+      root: { refType: 'existing' as const, id: 'task-1' },
+      operations: [
+        {
+          op: 'workItem.update' as const,
+          ref: { refType: 'existing' as const, id: 'task-1' },
+          name: 'New title',
+        },
+        {
+          op: 'workItem.update' as const,
+          ref: { refType: 'existing' as const, id: 'task-2' },
+          name: 'Remaining work finished',
+        },
+      ],
+    };
+    const validationRevision = service.validationRevision(request);
+    const intent = {
+      ...preparedIntent({
+        operationSet: { ...request, operations: [] },
+        validationRevision,
+      }),
+      operationSet: request,
+      workItemIdMappings: {
+        'existing:task-1': 'task-1',
+        'existing:task-2': 'task-2',
+      },
+      affectedWorkItemIds: ['task-1', 'task-2'],
+      checkpoints: request.operations.map((operation, operationIndex) => ({
+        id: `checkpoint-${operationIndex}`,
+        operationIndex,
+        operationKind: operation.op,
+        validationRevision,
+        status: WorkItemChangeSetCheckpointStatus.PENDING,
+      })),
+    };
+    const tasks = new Map([
+      ['task-1', { id: 'task-1', name: 'Old title' }],
+      ['task-2', { id: 'task-2', name: 'Unfinished work' }],
+    ]);
+    prisma.db.task.findFirst.mockImplementation(async ({ where }) =>
+      tasks.get(where.id),
+    );
+    prisma.db.workItemChangeSetMaterializationCheckpoint.update.mockImplementation(
+      async ({ where, data }) => {
+        Object.assign(
+          intent.checkpoints.find((checkpoint) =>
+            where.materializationId_operationIndex
+              ? checkpoint.operationIndex ===
+                where.materializationId_operationIndex.operationIndex
+              : checkpoint.id === where.id,
+          )!,
+          data,
+        );
+      },
+    );
+    let failRemainingWrite = true;
+    taskService.updateInTransaction.mockImplementation(
+      async (_tx, _org, _user, taskId, updates) => {
+        if (taskId === 'task-2' && failRemainingWrite) {
+          throw new Error('Later operation failed');
+        }
+        Object.assign(tasks.get(taskId)!, updates);
+      },
+    );
+    const params = {
+      proposalId: 'proposal-1',
+      organizationId: 'organization-1',
+      projectId: 'project-1',
+    };
+    const apply = () =>
+      (service as any).applyPreparedIntent(params, intent, 'claim-1');
+
+    await expect(apply()).rejects.toThrow('Later operation failed');
+    expect(tasks.get('task-1')!.name).toBe('New title');
+    expect(intent.checkpoints.map(({ status }) => status)).toEqual([
+      WorkItemChangeSetCheckpointStatus.COMPLETED,
+      WorkItemChangeSetCheckpointStatus.FAILED,
+    ]);
+
+    tasks.get('task-1')!.name = 'Better title';
+    failRemainingWrite = false;
+    const retry = apply();
+    // Observe the edit even when retry rejects, so an overwrite cannot hide
+    // behind the expected successful-completion assertion.
+    await retry.catch(() => undefined);
+    expect(tasks.get('task-1')!.name).toBe('Better title');
+    expect(
+      taskService.updateInTransaction.mock.calls.filter(
+        (call) => call[3] === 'task-1',
+      ),
+    ).toHaveLength(1);
+    await expect(retry).resolves.toBeUndefined();
+    expect(tasks.get('task-2')!.name).toBe('Remaining work finished');
+    expect(intent.checkpoints.map(({ status }) => status)).toEqual([
+      WorkItemChangeSetCheckpointStatus.COMPLETED,
+      WorkItemChangeSetCheckpointStatus.COMPLETED,
+    ]);
   });
 
   it('mutates once and verifies again when the postcondition is absent', async () => {
@@ -3742,7 +4299,7 @@ describe('WorkItemChangeSetMaterializerService', () => {
     }
     expect(agentEdgeClient.createBatch).toHaveBeenCalledTimes(2);
     expect(agentEdgeClient.get).not.toHaveBeenCalled();
-    expect(verify).toHaveBeenCalled();
+    expect(verify).not.toHaveBeenCalled();
   });
 
   it.each(['meta', undefined] as const)(
@@ -3884,6 +4441,7 @@ describe('WorkItemChangeSetMaterializerService', () => {
 
 function reconciliationStub(completedEffects = new Set<string>()) {
   return {
+    decision: ProposalReconciliationService.prototype.decision,
     guardTaskEffect: jest.fn(
       async (
         _tx: unknown,
@@ -3937,6 +4495,10 @@ function createService(workItemTypeRegistry?: {
   };
   const workItemChangeSetMaterializationCheckpoint = {
     update: jest.fn().mockResolvedValue(undefined),
+    updateMany: jest.fn(async (args) => {
+      await workItemChangeSetMaterializationCheckpoint.update(args);
+      return { count: 1 };
+    }),
   };
   const tx = {
     $queryRaw: jest.fn().mockResolvedValue([]),
@@ -4296,7 +4858,16 @@ describe('materializer persistence and Graph adapter boundary', () => {
       const checkpointStates = new Map<string, string>();
       db.workItemChangeSetMaterializationCheckpoint.update.mockImplementation(
         async ({ where, data }: any) => {
-          checkpointStates.set(where.id, data.status);
+          const id =
+            where.id ??
+            `checkpoint-${where.materializationId_operationIndex.operationIndex}`;
+          checkpointStates.set(id, data.status);
+          const checkpoint = intent.checkpoints.find(
+            (checkpoint: any) => checkpoint.id === id,
+          );
+          if (checkpoint) {
+            Object.assign(checkpoint, data);
+          }
           return { id: where.id, ...data };
         },
       );

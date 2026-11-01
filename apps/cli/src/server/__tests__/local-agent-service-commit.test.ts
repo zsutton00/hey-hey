@@ -263,12 +263,8 @@ describe('local-agent-service.sendMessage — commit subagent routing', () => {
       activeRun.getFileChangeProjection(),
     );
     expect(subagentArgs.touchedFiles).toEqual(['/abs/path/to/src/foo.ts']);
-    expect((subagentArgs.payload as { changedFiles?: string[] }).changedFiles).toEqual([
-      '/abs/path/to/src/foo.ts',
-    ]);
-    expect((subagentArgs.payload as { userMessage?: string }).userMessage).toBe(
-      'focus on the CLI cleanup',
-    );
+    expect(subagentArgs.prompt).toContain('/abs/path/to/src/foo.ts');
+    expect(subagentArgs.prompt).toContain('focus on the CLI cleanup');
     expect(subagentArgs.oauthClient).toBe(oauthClient);
     expect(subagentArgs.onAgentOutput).not.toBe(activeRun.onAgentOutput);
 
@@ -276,3 +272,11 @@ describe('local-agent-service.sendMessage — commit subagent routing', () => {
     expect(resumeSessionMock).not.toHaveBeenCalled();
   });
 });
+
+vi.mock('../../agents/prompts/session-start-context', () => ({
+  readSessionStartContext: async () => ({
+    workItemTypeDefinitions: [],
+    intentFirst: false,
+    maturity: 'ESTABLISHED',
+  }),
+}));

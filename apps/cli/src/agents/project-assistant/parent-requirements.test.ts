@@ -91,7 +91,6 @@ const filterWith = (
   evaluate: ReturnType<typeof evaluatorFor>,
 ): ParentRequirementsFilter => ({
   jevClient: { evaluate },
-  isEnabled: () => Promise.resolve(true),
   attemptLogDir: path.join(os.tmpdir(), 'jev-attempt-log-test'),
   entityContextLoader: {
     load: vi.fn().mockResolvedValue({ context: { content: { requirementsSection: { records } } } }),

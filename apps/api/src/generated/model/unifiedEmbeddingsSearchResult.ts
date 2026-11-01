@@ -12,9 +12,18 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { EmbeddingMetadata } from './embeddingMetadata';
+import { MatchSpan } from './matchSpan';
 
 
 export interface UnifiedEmbeddingsSearchResult { 
+    /**
+     * Matched spans with end-exclusive UTF-16 code-unit offsets into text. Present together with text, or both omitted.
+     */
+    matchSpans?: Array<MatchSpan>;
+    /**
+     * Exact source text indexed by matchSpans. UTF-16 code-unit offsets are valid only against this string, not the result content. Present together with matchSpans, or both omitted.
+     */
+    text?: string;
     id?: string;
     similarity?: number;
     metadata?: EmbeddingMetadata;

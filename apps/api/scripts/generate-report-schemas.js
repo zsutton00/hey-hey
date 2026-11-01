@@ -250,7 +250,16 @@ function buildFileContent(entries) {
 
 function main() {
   const entries = buildEntries();
-  const content = buildFileContent(entries);
+  const reportsDoc = loadYaml(REPORTS_YAML);
+  const usageSchema = normalizeNullable(
+    inlineRefs(reportsDoc.ReportUsageMeasurement, {
+      doc: reportsDoc,
+      file: REPORTS_YAML,
+    }),
+  );
+  const content =
+    buildFileContent(entries) +
+    `\nexport const REPORT_USAGE_SCHEMA = ${JSON.stringify(usageSchema, null, 2)};\n`;
   fs.mkdirSync(path.dirname(OUTPUT_PATH), { recursive: true });
   fs.writeFileSync(OUTPUT_PATH, content, 'utf8');
   console.log(

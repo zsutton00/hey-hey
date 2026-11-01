@@ -1,3 +1,17 @@
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { ReportUsageBar } from '../../../../../packages/ui-common/src/components/Reports/viewer/ReportUsageBar';
+import { CodingResearchTool } from './create-coding-research-tool';
+import type { Request as ExpressRequest, Response as ExpressResponse } from 'express';
+import { SubmissionToolsHttpController } from './http-mcp';
+import { SubmissionToolRegistry } from './registry';
+import { createTestRunRegistry, createTestMessagePoster } from '../../run/run.test-support';
+import { NOOP_LOGGER } from '../../server/logger';
+import { ReportUsageSnapshotter } from '../../provider-usage/report-usage-snapshotter';
+import { ReportUsageExecutions } from '../../provider-usage/report-usage-executions';
+import { SessionTokenUsageReader } from '../../provider-usage/session-token-usage';
+import { createPromptTypeHandlerTestRunStore } from '../prompt-type-handler.test-support';
+import { createTestRun } from '../../run/run.test-support';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CreateReportProxy, CreateReportProxyError } from './create-report-proxy';
 import { CreateReportTool } from './create-report-tool';
@@ -7,9 +21,22 @@ import { createTestOAuthClient as createProviderTestOAuthClient } from '../../au
 import { jointDecision } from '../feature-sync/__tests__/feature-sync-decision.fixtures';
 import type { Run } from '../../run/run';
 import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
-import type { ProjectReportCoverage, ProjectReportEvidenceReference } from '../../shared/api/generated/api';
+import type {
+  ProjectReportCoverage,
+  ProjectReportEvidenceReference,
+} from '../../shared/api/generated/api';
 import { serializeProjectReportPreparedEvidence } from '../project-report/project-report-submission';
 import type { ProjectReportEvidenceResult } from '../project-report/project-report-evidence-reader';
+import {
+  ProjectReportEvidenceLedger,
+  projectReportEvidenceLedgers,
+} from '../project-report/project-report-evidence-store';
+
+const uiRequire = createRequire(
+  path.resolve(__dirname, '../../../../../packages/ui-common/package.json'),
+);
+const { createElement } = uiRequire('react');
+const { renderToStaticMarkup } = uiRequire('react-dom/server');
 
 vi.mock('../../auth/index', () => ({
   extractOrganizationIdFromToken: (token: string) =>
@@ -47,6 +74,8 @@ const PROJECT_REPORT_PROJECT_ID = '55555555-6666-4666-8666-555555555555';
 const PREPARED_STARTED_AT = '2026-09-08T00:00:10.000Z';
 const PREPARED_COMPLETED_AT = '2026-09-08T00:00:20.000Z';
 
+const PROJECT_REPORT_SESSION_ID = '77777777-8888-4888-8888-777777777777';
+
 const makeProjectReportRun = (
   coverage: ProjectReportCoverage = {
     status: 'COMPLETE',
@@ -55,8 +84,17 @@ const makeProjectReportRun = (
     pagesRead: 1,
     limitations: [],
   },
-): Run =>
-  ({
+): Run => {
+  // These tests cover coverage stamping and submission; a manifest with no shards has nothing unread.
+  projectReportEvidenceLedgers.register(
+    PROJECT_REPORT_SESSION_ID,
+    new ProjectReportEvidenceLedger('/unused', {
+      shards: [],
+      totalRecordCount: 0,
+      totalActivityCount: 0,
+    }),
+  );
+  return {
     session: {
       sessionContext: serializeProjectReportPreparedEvidence({
         requestId: PROJECT_REPORT_REQUEST_ID,
@@ -67,7 +105,7 @@ const makeProjectReportRun = (
           coverage,
         } as ProjectReportEvidenceResult,
       }),
-      agentic_session_id: '77777777-8888-4888-8888-777777777777',
+      agentic_session_id: PROJECT_REPORT_SESSION_ID,
       promptType: LocalPromptType.ProjectReport,
       provider_session_id: 'provider-session-project-report',
       contextMetadata: { projectId: PROJECT_REPORT_PROJECT_ID },
@@ -83,7 +121,8 @@ const makeProjectReportRun = (
     projectId: PROJECT_REPORT_PROJECT_ID,
     conversationId: '99999999-aaaa-4aaa-8aaa-999999999999',
     appendReportChainEntry: vi.fn(),
-  }) as unknown as Run;
+  } as unknown as Run;
+};
 
 const makeProjectReportArgs = () => ({
   reportType: 'PROJECT_REPORT',
@@ -141,6 +180,60 @@ const restResult = (
   });
 
 describe('CreateReportProxy', () => {
+  it.each([false, true])(
+    'uses persisted Run inertness for ordinary and inert callers: %s',
+    async (inert) => {
+      const store = createPromptTypeHandlerTestRunStore();
+      await store.initialize();
+      const session = createTestRun().session;
+      const run = await store.createRun({
+        ...session,
+        inert,
+        contextMetadata: { ...session.contextMetadata, organizationId: 'org-42' },
+      });
+      const fetchImpl = makeFetch(restResult('stored-run-report'));
+      const listener = vi.fn();
+      const proxy = new CreateReportProxy({
+        runStore: store,
+        fetchImpl,
+        auth: makeSubmissionToolAuth('token-with-org:org-42'),
+        apiBaseUrl: 'http://localhost:3000/api/v1',
+        reportEmissionEvents: makeReportEmissionEvents(listener),
+      });
+      await proxy.create({
+        runId: run.agentic_session_id,
+        conversationId: run.conversationId!,
+        projectId: run.contextMetadata.projectId,
+        args: { reportType: 'SNAPSHOT', ragEnabled: true, payload: { summary: 'Report' } },
+      });
+      expect(JSON.parse(String(vi.mocked(fetchImpl).mock.calls[0]![1]!.body))).toMatchObject({
+        ragEnabled: !inert,
+      });
+      expect(listener).toHaveBeenCalledTimes(inert ? 0 : 1);
+    },
+  );
+
+  it('overrides agent-supplied retrieval eligibility for inert report evidence', async () => {
+    const fetchImpl = makeFetch(restResult('inert-report'));
+    const listener = vi.fn();
+    const proxy = new CreateReportProxy({
+      fetchImpl,
+      auth: makeSubmissionToolAuth('token-with-org:org-42'),
+      apiBaseUrl: 'http://localhost:3000/api/v1',
+      reportEmissionEvents: makeReportEmissionEvents(listener),
+    });
+    await proxy.create({
+      runId: 'inert-run',
+      conversationId: 'conversation',
+      projectId: 'project',
+      inert: true,
+      args: { reportType: 'SNAPSHOT', ragEnabled: true, payload: { summary: 'Evidence' } },
+    });
+    const init = vi.mocked(fetchImpl).mock.calls[0]![1]!;
+    expect(JSON.parse(String(init.body))).toMatchObject({ ragEnabled: false });
+    expect(listener).not.toHaveBeenCalled();
+  });
+
   it('preserves schemaVersion 2 and grouped choices in the REST body', async () => {
     const fetchImpl = makeFetch(restResult('report-grouped'));
     const listener = vi.fn();
@@ -572,21 +665,27 @@ describe('CreateReportProxy', () => {
   });
 
   it('preserves exact citation keys and typed evidence through canonical submission', async () => {
-    const create = vi.fn<CreateReportProxy['create']>()
+    const create = vi
+      .fn<CreateReportProxy['create']>()
       .mockResolvedValue({ content: [], reportId: 'project-report-1' });
     const tool = new CreateReportTool({ create } as unknown as CreateReportProxy);
     const run = makeProjectReportRun();
     const reference: ProjectReportEvidenceReference = {
       key: 'selected-period-1',
       subject: { entityType: 'TASK', entityId: PROJECT_REPORT_REQUEST_ID },
-      title: 'Deliver invoices', kind: 'SELECTED_PERIOD',
+      title: 'Deliver invoices',
+      kind: 'SELECTED_PERIOD',
     };
     const original = makeProjectReportArgs();
     const body = { html: `<span data-evidence-key="${reference.key}">Delivered</span>`, css: '' };
-    const args = { ...original, payload: {
-      ...original.payload, body,
-      provenance: { ...original.payload.provenance, evidence: [reference] },
-    } };
+    const args = {
+      ...original,
+      payload: {
+        ...original.payload,
+        body,
+        provenance: { ...original.payload.provenance, evidence: [reference] },
+      },
+    };
     await tool.execute({ runId: run.session.agentic_session_id, run, args });
     expect(sentPayload(create)).toMatchObject({ body, provenance: { evidence: [reference] } });
   });
@@ -812,5 +911,439 @@ describe('CreateReportProxy', () => {
     await expect(
       proxy.create({ runId: 'r', conversationId: 'conv-1', projectId: 'proj-1', args: {} }),
     ).rejects.toBeInstanceOf(CreateReportProxyError);
+  });
+});
+
+describe('creation-time report usage', () => {
+  function setup(
+    native: Record<string, unknown> = {
+      inputTokens: 10,
+      outputTokens: 5,
+      cacheReadTokens: 20,
+      cacheCreationTokens: 3,
+    },
+  ) {
+    const read = vi.fn(async () =>
+      JSON.stringify({ sessions: [{ sessionId: 'native-parent', ...native }] }),
+    );
+    const executions = new ReportUsageExecutions();
+    const snapshotter = new ReportUsageSnapshotter(new SessionTokenUsageReader(read), executions);
+    const run = createTestRun();
+    run.session.promptType = LocalPromptType.ProjectAssistant;
+    run.session.provider = 'claude';
+    run.session.provider_session_id = 'native-parent';
+    vi.spyOn(run, 'readReportUsageToolCalls').mockResolvedValue(2);
+    const fetchImpl = vi.fn<typeof fetch>(async () => restResult('created-report'));
+    const proxy = new CreateReportProxy({
+      fetchImpl,
+      auth: makeSubmissionToolAuth('token-with-org:org-1'),
+      apiBaseUrl: 'http://localhost:3000/api/v1',
+      reportEmissionEvents: makeReportEmissionEvents(),
+    });
+    const tool = new CreateReportTool(
+      proxy,
+      () => '2026-11-01T00:00:00.000Z',
+      undefined,
+      undefined,
+      snapshotter,
+    );
+    const submit = (usageExecutionId?: string) =>
+      tool.execute({
+        runId: run.runId,
+        run,
+        ...(usageExecutionId ? { usageExecutionId } : {}),
+        args: {
+          reportType: 'CODING_RESEARCH',
+          audience: 'PROJECT_VISIBLE',
+          payload: { reportType: 'CODING_RESEARCH', summary: 'Research' },
+        },
+      });
+    const body = (index: number) => JSON.parse(String(fetchImpl.mock.calls[index]?.[1]?.body));
+    return { read, run, tool, submit, body, fetchImpl, executions, proxy, snapshotter };
+  }
+
+  it('sends independent versioned snapshots in the create writes, with shared execution attribution and no later mutation', async () => {
+    const { submit, body, read, fetchImpl } = setup();
+    await submit();
+    const first = body(0).usage;
+    expect(first).toMatchObject({
+      schemaVersion: 1,
+      inputTokens: 33,
+      freshInputTokens: 10,
+      outputTokens: 5,
+      toolCalls: 2,
+      coverage: 'complete',
+      executionId: 'native-parent',
+    });
+    read.mockResolvedValue(
+      JSON.stringify({
+        sessions: [
+          {
+            sessionId: 'native-parent',
+            inputTokens: 50,
+            outputTokens: 10,
+            cacheReadTokens: 20,
+            cacheCreationTokens: 3,
+          },
+        ],
+      }),
+    );
+    await submit();
+    expect(body(1).usage).toMatchObject({
+      inputTokens: 73,
+      executionId: first.executionId,
+      runId: first.runId,
+      turnId: first.turnId,
+    });
+    expect(body(0).usage).toEqual(first);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    [
+      {},
+      {
+        inputTokens: null,
+        outputTokens: null,
+        coverage: 'partial',
+        cacheAvailability: 'unreported',
+      },
+    ],
+    [
+      { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 },
+      { inputTokens: 0, outputTokens: 0, coverage: 'complete' },
+    ],
+    [
+      { inputTokens: 12, outputTokens: 5 },
+      {
+        inputTokens: null,
+        freshInputTokens: 12,
+        coverage: 'partial',
+        cacheAvailability: 'unreported',
+      },
+    ],
+    [
+      { inputTokens: 12, outputTokens: 5, cacheReadTokens: 8 },
+      {
+        inputTokens: null,
+        freshInputTokens: 12,
+        cacheReadInputTokens: 8,
+        cacheCreationInputTokens: null,
+        coverage: 'partial',
+        cacheAvailability: 'unreported',
+      },
+    ],
+  ])('preserves missing, zero and partial measurements: %j', async (native, expected) => {
+    const { submit, body } = setup(native);
+    await submit();
+    expect(body(0).usage).toMatchObject(expected);
+  });
+
+  it.each([
+    {
+      parentProvider: 'codex',
+      parentCreation: undefined,
+      parentFresh: 10,
+      parentCached: 20,
+      childFresh: 2,
+      childCached: 3,
+      total: 35,
+      fresh: 12,
+      cached: 23,
+      inputs: [30, 5],
+    },
+    {
+      parentProvider: 'codex',
+      parentCreation: undefined,
+      parentFresh: 0,
+      parentCached: 0,
+      childFresh: 0,
+      childCached: 0,
+      total: 0,
+      fresh: 0,
+      cached: 0,
+      inputs: [0, 0],
+    },
+    {
+      parentProvider: 'claude',
+      parentCreation: 3,
+      parentFresh: 10,
+      parentCached: 20,
+      childFresh: 2,
+      childCached: 3,
+      total: 38,
+      fresh: 12,
+      cached: 23,
+      inputs: [33, 5],
+    },
+  ])(
+    'preserves Codex inclusive input through report creation and shared rendering: $parentProvider/$total',
+    async ({
+      parentProvider,
+      parentCreation,
+      parentFresh,
+      parentCached,
+      childFresh,
+      childCached,
+      total,
+      fresh,
+      cached,
+      inputs,
+    }) => {
+      const { run, submit, body, executions } = setup({
+        inputTokens: parentFresh,
+        cacheReadTokens: parentCached,
+        cacheCreationTokens: parentCreation,
+        outputTokens: 5,
+      });
+      run.session.provider = parentProvider === 'claude' ? 'claude' : 'codex';
+      const child = executions.start({
+        runId: run.runId,
+        turnId: null,
+        provider: 'codex',
+        model: 'codex',
+        effort: 'high',
+        role: 'subagent',
+        label: 'Research',
+      });
+      child.providerSessionId = 'native-child';
+      child.completed = true;
+      child.usage = await new SessionTokenUsageReader(async () =>
+        JSON.stringify({
+          sessions: [
+            {
+              sessionId: 'native-child',
+              inputTokens: childFresh,
+              cacheReadTokens: childCached,
+              outputTokens: 1,
+            },
+          ],
+        }),
+      ).read('codex', 'native-child');
+      await submit();
+      const usage = body(0).usage;
+      expect(usage).toMatchObject({
+        inputTokens: total,
+        freshInputTokens: fresh,
+        cacheReadInputTokens: cached,
+        cacheCreationInputTokens: null,
+        coverage: 'partial',
+        cacheAvailability: 'unreported',
+      });
+      expect(usage.breakdown.map((entry: { inputTokens: number }) => entry.inputTokens)).toEqual(
+        inputs,
+      );
+      const html = renderToStaticMarkup(createElement(ReportUsageBar, { usage }));
+      expect(html).toContain(`In ${total}`);
+      expect(html).toContain('cached unavailable');
+      expect(html).toContain('Partial');
+    },
+  );
+
+  it('makes unavailable totals explicit and isolates one unreadable child', async () => {
+    const { run, submit, body } = setup({});
+    vi.mocked(run.readReportUsageToolCalls).mockResolvedValue(null);
+    await submit();
+    expect(body(0).usage).toMatchObject({
+      coverage: 'unavailable',
+      inputTokens: null,
+      outputTokens: null,
+      toolCalls: null,
+    });
+    const other = setup();
+    const child = other.executions.start({
+      runId: other.run.runId,
+      turnId: null,
+      provider: 'claude',
+      model: null,
+      effort: null,
+      role: 'subagent',
+      label: 'Research',
+    });
+    child.providerSessionId = 'unreadable-child';
+    await other.submit();
+    expect(other.body(0).usage).toMatchObject({ coverage: 'partial', inputTokens: null });
+    expect(other.body(0).usage.breakdown[0].inputTokens).toBe(33);
+    expect(other.body(0).usage.breakdown[1].coverage).toBe('unavailable');
+  });
+
+  it('keeps child sessions disjoint, deduplicates repeated identities and excludes reviewers from the parent', async () => {
+    const { submit, body, run, executions, read } = setup();
+    const child = executions.start({
+      runId: run.runId,
+      turnId: null,
+      provider: 'claude',
+      model: 'child-model',
+      effort: 'high',
+      role: 'subagent',
+      label: 'Research',
+    });
+    child.providerSessionId = 'native-child';
+    child.completed = true;
+    child.usage = {
+      inputTokens: 2,
+      outputTokens: 1,
+      cacheReadInputTokens: 4,
+      cacheCreationInputTokens: 0,
+      toolCalls: 3,
+    };
+    const duplicate = executions.start({ ...child });
+    duplicate.providerSessionId = child.providerSessionId;
+    duplicate.completed = true;
+    duplicate.usage = child.usage;
+    const reviewer = executions.start({
+      runId: run.runId,
+      turnId: 'review',
+      provider: 'codex',
+      model: 'review-model',
+      effort: 'low',
+      role: 'reviewer',
+      label: 'Reviewer',
+    });
+    reviewer.providerSessionId = 'native-reviewer';
+    reviewer.completed = true;
+    reviewer.usage = {
+      ...(await new SessionTokenUsageReader(async () =>
+        JSON.stringify({
+          sessions: [
+            {
+              sessionId: 'native-reviewer',
+              inputTokens: 100,
+              cacheReadTokens: 40,
+              outputTokens: 20,
+            },
+          ],
+        }),
+      ).read('codex', 'native-reviewer')),
+      toolCalls: 7,
+    };
+    await submit();
+    expect(body(0).usage).toMatchObject({ inputTokens: 39, outputTokens: 6, toolCalls: 5 });
+    expect(body(0).usage.breakdown).toHaveLength(2);
+    await submit(reviewer.executionId);
+    expect(body(1).usage).toMatchObject({
+      executionId: reviewer.executionId,
+      providerSessionId: 'native-reviewer',
+      model: 'review-model',
+      effort: 'low',
+      freshInputTokens: 100,
+      outputTokens: 20,
+      toolCalls: 7,
+      inputTokens: 140,
+      cacheCreationInputTokens: null,
+      coverage: 'partial',
+    });
+    expect(body(1).usage.breakdown).toHaveLength(1);
+    expect(body(1).usage.breakdown[0].role).toBe('reviewer');
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it('captures usage on the structured research path without changing its handoff', async () => {
+    const { run, body, proxy, snapshotter } = setup();
+    const tool = new CodingResearchTool(proxy, () => '2026-11-01T00:00:00.000Z', snapshotter);
+    await tool.execute({
+      runId: run.runId,
+      run,
+      args: {
+        frame: { focalId: 'focal', nodes: [] },
+        analysis: 'Written research handoff',
+        summary: 'Research summary',
+        provenance: { discoveryCalls: [], edgesTraversed: [] },
+        updates: [],
+        readinessEvidence: [],
+      },
+    });
+    expect(body(0)).toMatchObject({
+      reportType: 'CODING_RESEARCH',
+      payload: {
+        summary: 'Research summary',
+        analysis: 'Written research handoff',
+        frame: { focalId: 'focal', nodes: [] },
+      },
+      usage: { inputTokens: 33, toolCalls: 2 },
+    });
+    expect(run.readReportChain()).toHaveLength(1);
+  });
+
+  it('attributes reports through a child MCP token without changing the parent registration', async () => {
+    const { run, tool, body, executions } = setup();
+    const reviewer = executions.start({
+      runId: run.runId,
+      turnId: 'review',
+      provider: 'codex',
+      model: 'review-model',
+      effort: 'high',
+      role: 'reviewer',
+      label: 'Reviewer',
+    });
+    reviewer.providerSessionId = 'review-native';
+    reviewer.completed = true;
+    reviewer.usage = { outputTokens: 7 };
+    const registry = new SubmissionToolRegistry();
+    const parent = registry.register({
+      runId: run.runId,
+      organizationId: run.organizationId,
+      projectId: run.projectId,
+      conversationId: run.conversationId,
+      externalAgentNodeId: null,
+      triggerMessageId: null,
+      tools: [tool],
+    });
+    const child = registry.registerChild(parent, reviewer.executionId);
+    const controller = new SubmissionToolsHttpController(
+      registry,
+      createTestRunRegistry(() => run),
+      createTestMessagePoster(),
+      NOOP_LOGGER,
+    );
+    const json = vi.fn();
+    const response = { json, status: vi.fn().mockReturnThis() } as unknown as ExpressResponse;
+    await controller.handle(
+      {
+        params: { token: child.token },
+        body: {
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: {
+            name: 'create_report',
+            arguments: {
+              reportType: 'CODING_RESEARCH',
+              audience: 'PROJECT_VISIBLE',
+              payload: { reportType: 'CODING_RESEARCH', summary: 'Research' },
+            },
+          },
+        },
+      } as unknown as ExpressRequest,
+      response,
+    );
+    expect(body(0).usage).toMatchObject({
+      executionId: reviewer.executionId,
+      providerSessionId: 'review-native',
+      outputTokens: 7,
+    });
+    expect(registry.get(parent.token)?.usageExecutionId).toBeUndefined();
+    registry.releaseChild(child.token);
+    expect(registry.get(child.token)).toBeNull();
+    expect(registry.get(parent.token)).not.toBeNull();
+  });
+
+  it('creates the report without usage when collection fails, and never collects for a skipped IMPLEMENT', async () => {
+    const { submit, body, read, tool, run, fetchImpl } = setup();
+    read.mockRejectedValue(new Error('Unreadable native session'));
+    await submit();
+    expect(body(0)).not.toHaveProperty('usage');
+    read.mockClear();
+    await tool.execute({
+      runId: run.runId,
+      run,
+      args: {
+        reportType: 'IMPLEMENT',
+        audience: 'PROJECT_VISIBLE',
+        payload: { reportType: 'IMPLEMENT', summary: 'No changes', filesChanged: [] },
+      },
+    });
+    expect(read).not.toHaveBeenCalled();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });

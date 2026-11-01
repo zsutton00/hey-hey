@@ -43,6 +43,7 @@ export async function readFutureApplyConfirmation(
       targetEntityId: future.targetEntityId,
       action: 'VERSIONED_UPDATE',
       status: 'DRAFT',
+      legacyReconciliationSuggestion: null,
       updates: { path: ['futureId'], equals: future.id },
       ...ORDINARY_PROPOSAL_VISIBILITY_WHERE,
     },
@@ -100,56 +101,35 @@ export function sectionContent(
 /** Compare the selected content basis, not response metadata or a new version token. */
 export async function futureBaselineBlocker(
   db: Prisma.TransactionClient,
-  future: FutureRevisionResponse,
+  future: Pick<
+    FutureRevisionResponse,
+    | 'baseline'
+    | 'organizationId'
+    | 'projectId'
+    | 'targetEntityId'
+    | 'targetEntityType'
+  > &
+    Partial<Pick<FutureRevisionResponse, 'result' | 'latestProposalId'>>,
   reconciliation: ProposalReconciliationService,
 ): Promise<FutureApplyResponse['blocker'] | undefined> {
-  if (future.baseline.kind === 'FUTURE') {
-    const parent = await db.proposalFuture.findFirst({
-      where: {
-        id: future.baseline.futureId,
-        organizationId: future.organizationId,
-        projectId: future.projectId,
-        targetEntityId: future.targetEntityId,
-        targetEntityType: future.targetEntityType,
-      },
-    });
-    if (
-      !parent ||
-      parent.outcome !== 'APPLIED' ||
-      String(parent.appliedRevision) !== future.baseline.revision
-    )
-      return 'BASELINE_UNAVAILABLE';
-  }
-  const where = {
-    id: future.targetEntityId,
-    organizationId: future.organizationId,
-    projectId: future.projectId,
-  };
-  const target =
-    future.targetEntityType === 'TASK'
-      ? await db.task.findFirst({ where, select: { id: true, archivedAt: true } })
-      : await db.designDoc.findFirst({
-          where,
-          select: { id: true, archivedAt: true },
-        });
-  if (!target || target.archivedAt) return 'BASELINE_UNAVAILABLE';
-  return (await reconciliation.futureBaselineChanged(
-    db,
-    {
-      organizationId: future.organizationId,
-      projectId: future.projectId,
-      targetEntityType: future.targetEntityType,
-      targetEntityId: future.targetEntityId,
-    },
-    future.baseline,
-  ))
-    ? 'BASELINE_CHANGED'
-    : undefined;
+  const decision = await reconciliation.decision({
+    kind: 'future',
+    proposalId: future.latestProposalId,
+    tx: db,
+    target: future,
+    baseline: future.baseline,
+    result: future.result,
+  });
+  return decision.kind === 'NOT_REQUIRED'
+    ? undefined
+    : decision.kind === 'BLOCKED'
+      ? 'BASELINE_UNAVAILABLE'
+      : 'BASELINE_CHANGED';
 }
 
 /** Adapt the reviewed result to the existing generated target update contract. */
 export function futureTargetUpdates(
-  future: FutureRevisionResponse,
+  future: Pick<FutureRevisionResponse, 'result' | 'baseline' | 'projectId'>,
   registry: WorkItemTypeRegistryService,
 ): UpdateTaskDto | UpdateDesignDocDto {
   const result = future.result;
@@ -158,7 +138,7 @@ export function futureTargetUpdates(
       name: result.name,
       priority: result.priority,
       tag: result.tag,
-      initiativeId: result.initiativeId,
+      initiativeId: result.initiativeId ?? undefined,
       parentTaskId: result.parentTaskId ?? null,
       assigneeId: result.assigneeId ?? null,
       dueDate: result.dueDate ?? null,

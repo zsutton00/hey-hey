@@ -19,6 +19,7 @@ import { SystemMessageData } from './systemMessageData';
 import { UIHints } from './uIHints';
 import { AgentTrigger } from './agentTrigger';
 import { TaskMonitorTaskActivityState } from './taskMonitorTaskActivityState';
+import { ProposalReconciliationSuggestion } from './proposalReconciliationSuggestion';
 
 
 export interface TaskMonitorTaskActivitySystemMessageData extends SystemMessageData { 

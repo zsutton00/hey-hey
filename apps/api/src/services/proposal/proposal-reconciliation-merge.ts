@@ -52,6 +52,65 @@ function isObject(value: Value): value is Prisma.JsonObject {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+/** Requirements have durable identities; their positions are presentation only. */
+function mergeRequirements(
+  baseline: Prisma.JsonArray,
+  current: Prisma.JsonArray,
+  proposed: Prisma.JsonArray,
+  path: string,
+  conflicts: string[],
+  textPaths: ReadonlySet<string>,
+): Prisma.JsonArray {
+  const byId = (records: Prisma.JsonArray) =>
+    new Map(
+      records.map((record) => {
+        if (!isObject(record) || typeof record.id !== 'string') {
+          throw new Error('Requirement merge requires canonical records.');
+        }
+        return [record.id, record] as const;
+      }),
+    );
+  const before = byId(baseline);
+  const live = byId(current);
+  const intended = byId(proposed);
+  const merged = new Map<string, Prisma.JsonValue>();
+  for (const id of new Set([
+    ...before.keys(),
+    ...live.keys(),
+    ...intended.keys(),
+  ])) {
+    const requirementPath = `${path}/${id}`;
+    const localConflicts: string[] = [];
+    const value = mergeValue(
+      before.get(id),
+      live.get(id),
+      intended.get(id),
+      requirementPath,
+      localConflicts,
+      new Set([...textPaths, `${requirementPath}/statement`]),
+    );
+    if (localConflicts.length) {
+      conflicts.push(requirementPath);
+    }
+    if (value !== undefined) {
+      merged.set(id, value);
+    }
+  }
+  const order = [...live.keys()].filter((id) => merged.has(id));
+  let predecessor: string | undefined;
+  for (const id of intended.keys()) {
+    if (!merged.has(id)) {
+      continue;
+    }
+    if (!order.includes(id)) {
+      const index = predecessor === undefined ? -1 : order.indexOf(predecessor);
+      order.splice(index + 1, 0, id);
+    }
+    predecessor = id;
+  }
+  return order.map((id) => merged.get(id)!);
+}
+
 function mergeValue(
   baseline: Value,
   current: Value,
@@ -62,6 +121,21 @@ function mergeValue(
 ): Value {
   if (isEqual(baseline, proposed)) return current;
   if (isEqual(baseline, current) || isEqual(current, proposed)) return proposed;
+  if (
+    path === '/sections/requirements/records' &&
+    Array.isArray(baseline) &&
+    Array.isArray(current) &&
+    Array.isArray(proposed)
+  ) {
+    return mergeRequirements(
+      baseline,
+      current,
+      proposed,
+      path,
+      conflicts,
+      textPaths,
+    );
+  }
   if (isObject(baseline) && isObject(current) && isObject(proposed)) {
     const candidate: Prisma.JsonObject = {};
     const keys = new Set([
@@ -133,9 +207,11 @@ export function valueAtPointer(value: Value, pointer: string): Value {
     .map((segment) => segment.replace(/~1/g, '/').replace(/~0/g, '~'))
     .reduce<Value>(
       (node, key) =>
-        isObject(node) && Object.prototype.hasOwnProperty.call(node, key)
-          ? node[key]
-          : undefined,
+        Array.isArray(node)
+          ? node.find((entry) => isObject(entry) && entry.id === key)
+          : isObject(node) && Object.prototype.hasOwnProperty.call(node, key)
+            ? node[key]
+            : undefined,
       value,
     );
 }

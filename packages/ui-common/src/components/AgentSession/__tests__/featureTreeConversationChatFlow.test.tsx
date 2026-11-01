@@ -26,6 +26,10 @@ vi.mock("../../../data/hooks/useLatestMessage", () => ({
   useLatestMessage: () => ({ data: null, isFetched: true }),
 }));
 
+vi.mock("../../../data/hooks/useReports", () => ({
+  useReports: () => ({ reports: [], error: null, isFetched: true }),
+}));
+
 const useAgentRunLifecycleMock = vi.fn();
 const { sendUserMessageMock } = vi.hoisted(() => ({
   sendUserMessageMock: vi.fn(async () => ({ ok: true as const })),
@@ -62,7 +66,7 @@ vi.mock("../operations/useAgentSessionInteractionAccess", () => ({
 let capturedConversationViewProps: {
   onSubmitReply?: (
     text: string,
-    skillSelection?: AgentSkillSelection
+    skillSelection?: AgentSkillSelection,
   ) => Promise<void>;
   onStopRun?: () => void;
   stoppingRun?: boolean;
@@ -74,7 +78,7 @@ vi.mock("../AgentConversationView", () => ({
   AgentConversationView: (props: {
     onSubmitReply?: (
       text: string,
-      skillSelection?: AgentSkillSelection
+      skillSelection?: AgentSkillSelection,
     ) => Promise<void>;
     onStopRun?: () => void;
     stoppingRun?: boolean;
@@ -82,9 +86,7 @@ vi.mock("../AgentConversationView", () => ({
     scrollable?: boolean;
   }) => {
     capturedConversationViewProps = {
-      ...(props.onSubmitReply
-        ? { onSubmitReply: props.onSubmitReply }
-        : {}),
+      ...(props.onSubmitReply ? { onSubmitReply: props.onSubmitReply } : {}),
       ...(props.onStopRun ? { onStopRun: props.onStopRun } : {}),
       ...(props.stoppingRun !== undefined
         ? { stoppingRun: props.stoppingRun }
@@ -126,6 +128,7 @@ const baseSession: AgentSessionDto = {
   userId: "user-1",
   type: AgentSessionType.ProjectConversation,
   status: AgentSessionStatus.Started,
+  machineId: "machine-1",
   sessionDate: "2026-05-17T00:00:00Z",
   conversationId: null,
   createdAt: "2026-05-17T00:00:00Z",
@@ -151,7 +154,7 @@ describe("FeatureTreeConversationChat", () => {
     vi.clearAllMocks();
     capturedConversationViewProps = null;
     createAgentSessionConversationMock.mockResolvedValue(
-      createdConversationResponse
+      createdConversationResponse,
     );
     submitMessageMock.mockResolvedValue({
       state: "succeeded",
@@ -193,7 +196,7 @@ describe("FeatureTreeConversationChat", () => {
           organizationId="org-1"
           projectId="proj-1"
           agentSession={sessionWithConversation}
-        />
+        />,
       );
     });
 
@@ -223,7 +226,7 @@ describe("FeatureTreeConversationChat", () => {
           organizationId="org-1"
           projectId="proj-1"
           agentSession={sessionWithService}
-        />
+        />,
       );
     });
 
@@ -248,7 +251,7 @@ describe("FeatureTreeConversationChat", () => {
           projectId="proj-1"
           agentSession={sessionWithConversation}
           scrollable
-        />
+        />,
       );
     });
 
@@ -267,7 +270,7 @@ describe("FeatureTreeConversationChat", () => {
           organizationId="org-1"
           projectId="proj-1"
           agentSession={baseSession}
-        />
+        />,
       );
     });
 
@@ -299,7 +302,7 @@ describe("FeatureTreeConversationChat", () => {
           organizationId="org-1"
           projectId="proj-1"
           agentSession={baseSession}
-        />
+        />,
       );
     });
 
@@ -343,7 +346,7 @@ describe("FeatureTreeConversationChat", () => {
           organizationId="org-1"
           projectId="proj-1"
           agentSession={sessionWithConversation}
-        />
+        />,
       );
     });
 
@@ -363,7 +366,7 @@ describe("FeatureTreeConversationChat", () => {
           organizationId="org-1"
           projectId="proj-1"
           agentSession={sessionWithConversation}
-        />
+        />,
       );
     });
 
@@ -375,7 +378,7 @@ describe("FeatureTreeConversationChat", () => {
     expect(sendUserMessageMock).toHaveBeenCalledExactlyOnceWith(
       "keep exploring",
       undefined,
-      []
+      [],
     );
   });
 });

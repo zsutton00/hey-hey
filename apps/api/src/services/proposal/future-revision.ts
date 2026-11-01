@@ -1,3 +1,4 @@
+import { readDependencyPresentation } from './future-dependency-presentation';
 import {
   BadRequestException,
   ConflictException,
@@ -17,6 +18,7 @@ import type {
   FutureCompletionEligibility,
   FutureCompletionDependency,
   FutureCompletionBlocker,
+  WorkStatus,
 } from 'src/generated';
 import { futureRevisionMutationSchema } from 'src/generated/future-revision.schema';
 import { ORDINARY_PROPOSAL_VISIBILITY_WHERE } from './proposal-visibility';
@@ -24,6 +26,7 @@ import type { WorkItemTypeRegistryService } from '../tasks/work-item-type-regist
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 addFormats(ajv);
+ajv.addFormat('branded-ServiceId', true);
 const validate = ajv.compile<FutureRevisionMutation>(
   futureRevisionMutationSchema,
 );
@@ -58,7 +61,12 @@ export async function lockFutureForMutation(
     tx as Prisma.TransactionClient
   ).proposalFuture.findFirst({
     where: { id: mutation.futureId, organizationId, projectId },
-    select: { outcome: true, revision: true },
+    select: {
+      outcome: true,
+      revision: true,
+      result: true,
+      latestProposalId: true,
+    },
   });
   if (
     !future ||
@@ -68,6 +76,18 @@ export async function lockFutureForMutation(
     throw new ConflictException(
       'Future target, reviewed revision or outcome changed; submit a newly reviewed refinement.',
     );
+  }
+  if (future && (future.result as unknown as { graph?: unknown }).graph) {
+    const intent = await (
+      tx as Prisma.TransactionClient
+    ).workItemChangeSetMaterialization.findUnique({
+      where: { proposalId: future.latestProposalId },
+      select: { status: true },
+    });
+    if (intent && intent.status !== 'PUBLISHED')
+      throw new ConflictException(
+        'This future is being applied; resume Apply before refining or cancelling it.',
+      );
   }
 }
 
@@ -276,8 +296,15 @@ export async function stageFutureRevision(
   proposal: Proposal,
 ): Promise<void> {
   const db = tx as Prisma.TransactionClient;
-  const replay = await db.proposalFutureRevision.findUnique({
+  const candidate = await db.proposalReconciliationRevision.findFirst({
     where: { proposalId: proposal.id },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+  });
+  const replay = await db.proposalFutureRevision.findFirst({
+    where: {
+      proposalId: proposal.id,
+      candidateRevisionId: candidate?.id ?? null,
+    },
   });
   if (replay) return;
   const mutation = await validateFutureRevision(
@@ -339,6 +366,7 @@ export async function stageFutureRevision(
       futureId: mutation.futureId,
       revision,
       proposalId: proposal.id,
+      candidateRevisionId: candidate?.id ?? null,
       reviewedAt,
       mutation: mutation as unknown as Prisma.InputJsonValue,
     },
@@ -437,6 +465,7 @@ export async function readFutureRevisions(
           projectId,
           action: 'VERSIONED_UPDATE',
           status: 'DRAFT',
+          legacyReconciliationSuggestion: null,
           OR: futureIds.map((futureId) => ({
             updates: { path: ['futureId'], equals: futureId },
           })),
@@ -462,6 +491,16 @@ export async function readFutureRevisions(
       ]);
     }
 
+    const presentation = await readDependencyPresentation(
+      tx,
+      organizationId,
+      projectId,
+      [...dependenciesByTarget.values()],
+      true,
+    );
+    const presentationById = new Map(
+      presentation.map((p) => [p.targetEntityId, p]),
+    );
     for (const future of futures) {
       const dependencies = future.dependencies.map((dependency) => ({
         edgeType: 'DEPENDS_ON' as const,
@@ -494,6 +533,9 @@ export async function readFutureRevisions(
         baseline: future.baseline as unknown as FutureRevisionBaseline,
         result: future.result as unknown as FutureRevisionContent,
         dependencies,
+        dependencyPresentation: dependencies.map(
+          (d) => presentationById.get(d.targetEntityId)!,
+        ),
         history: future.history.map((entry) => ({
           revision: entry.revision,
           proposalId: entry.proposalId,
@@ -541,6 +583,7 @@ export async function readFutureRevision(
       targetEntityType: future.targetEntityType,
       action: 'VERSIONED_UPDATE',
       status: 'DRAFT',
+      legacyReconciliationSuggestion: null,
       updates: { path: ['futureId'], equals: future.id },
       ...ORDINARY_PROPOSAL_VISIBILITY_WHERE,
     },
@@ -574,6 +617,17 @@ export async function readFutureRevision(
     ),
     baseline: future.baseline as unknown as FutureRevisionBaseline,
     result: future.result as unknown as FutureRevisionContent,
+    dependencyPresentation: await readDependencyPresentation(
+      tx,
+      organizationId,
+      projectId,
+      future.dependencies.map((dependency) => ({
+        edgeType: 'DEPENDS_ON',
+        targetEntityType: 'TASK',
+        targetEntityId: dependency.targetEntityId,
+      })),
+      true,
+    ),
     dependencies: future.dependencies.map((dependency) => ({
       edgeType: 'DEPENDS_ON',
       targetEntityType: 'TASK',
@@ -608,7 +662,24 @@ export async function readFutureCompletionEligibility(
     },
     select: { id: true, type: true, status: true, archivedAt: true },
   });
-  const byId = new Map(tasks.map((task) => [task.id, task]));
+  return futureCompletionEligibility(
+    registry,
+    projectId,
+    dependencies,
+    new Map(tasks.map((task) => [task.id, task])),
+  );
+}
+
+/** Shared lifecycle rules for single-future and batched collection reads. */
+export function futureCompletionEligibility(
+  registry: WorkItemTypeRegistryService,
+  projectId: string,
+  dependencies: readonly FutureCompletionDependency[],
+  byId: ReadonlyMap<
+    string,
+    { id: string; type: string; status: WorkStatus; archivedAt: Date | null }
+  >,
+): FutureCompletionEligibility {
   const blockers: FutureCompletionBlocker[] = [];
   for (const dependency of dependencies) {
     const task = byId.get(dependency.targetEntityId);

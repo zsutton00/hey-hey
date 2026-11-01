@@ -17,6 +17,7 @@ import { SystemMessageData } from './systemMessageData';
 import { UIHints } from './uIHints';
 import { AgentTrigger } from './agentTrigger';
 import { GenerationSystemMessageDataAllOfSummary } from './generationSystemMessageDataAllOfSummary';
+import { ProposalReconciliationSuggestion } from './proposalReconciliationSuggestion';
 import { ArtifactInsight } from './artifactInsight';
 
 

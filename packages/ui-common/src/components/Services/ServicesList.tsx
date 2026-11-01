@@ -103,6 +103,7 @@ export const ServicesList: React.FC<ServicesListProps> = ({
         return (
           <EntityListItem
             {...props}
+            status={service.status === "ARCHIVED" ? "Archived" : undefined}
             onClick={handleClick}
             onDelete={handleDelete}
             actions={renderActions?.(service)}

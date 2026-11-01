@@ -1,3 +1,5 @@
+import { restrictedConfiguration } from '../../shared/api/read-restriction';
+import type { ReadRestriction } from '../../shared/api/generated/api';
 import { z } from 'zod';
 import {
   AgentSessionsApi,
@@ -127,13 +129,15 @@ export interface EntityContextLoaderOptions {
   auth: SubmissionToolAuth;
   apiBaseUrl: string;
   logger: ServerLogger;
-  createClient?: (accessToken: string) => EntityContextApiClient;
+  createClient?: (accessToken: string, readRestriction?: ReadRestriction) => EntityContextApiClient;
 }
 
 export interface EntityContextLoaderInput {
   runEntity: RunEntityReference;
   organizationId: string;
   projectId: string;
+  /** The Run's read restriction; every platform read this load makes carries it. */
+  readRestriction?: ReadRestriction | undefined;
 }
 
 const isAgentSessionEntity = (
@@ -165,18 +169,24 @@ const canonicalEntityTypeFor = (
 export class EntityContextLoader {
   private readonly auth: SubmissionToolAuth;
   private readonly logger: ServerLogger;
-  private readonly createClient: (accessToken: string) => EntityContextApiClient;
+  private readonly createClient: (
+    accessToken: string,
+    readRestriction?: ReadRestriction,
+  ) => EntityContextApiClient;
 
   public constructor(options: EntityContextLoaderOptions) {
     this.auth = options.auth;
     this.logger = options.logger;
     this.createClient =
       options.createClient ??
-      ((accessToken: string): EntityContextApiClient => {
-        const configuration = new Configuration({
-          accessToken,
-          basePath: options.apiBaseUrl,
-        });
+      ((accessToken: string, readRestriction?: ReadRestriction): EntityContextApiClient => {
+        const configuration = restrictedConfiguration(
+          {
+            accessToken,
+            basePath: options.apiBaseUrl,
+          },
+          readRestriction,
+        );
         const conversationsClient = new ConversationsApi(configuration);
         const agentSessionsClient = new AgentSessionsApi(configuration);
         const designDocsClient = new DesignDocsApi(configuration);
@@ -243,7 +253,7 @@ export class EntityContextLoader {
       throw new Error('Agent Session context could not authenticate its platform read.');
     }
 
-    const client = this.createClient(accessToken);
+    const client = this.createClient(accessToken, input.readRestriction);
     let sessionResponse: Awaited<ReturnType<EntityContextApiClient['getAgentSession']>>;
     try {
       sessionResponse = await client.getAgentSession({
@@ -401,7 +411,7 @@ export class EntityContextLoader {
       throw new Error('Entity context could not authenticate its platform read.');
     }
 
-    const client = this.createClient(accessToken);
+    const client = this.createClient(accessToken, input.readRestriction);
     const entity = await this.readCurrentEntity(client, input);
     this.assertCurrentEntityIdentity(entity, input);
 

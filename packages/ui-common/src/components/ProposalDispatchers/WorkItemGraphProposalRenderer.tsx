@@ -1,6 +1,5 @@
 import { useFeatureLookup } from "../../data/hooks/useFeatureHierarchy";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import { isAxiosError } from "axios";
 import {
   Alert,
   Button,
@@ -26,6 +25,7 @@ import {
 } from "../../api";
 import { unifiedApiClient } from "../../clients/serviceClients";
 import { useWorkItemGraph } from "../../data/hooks/useWorkItemGraph";
+import { getResponseStatus } from "../../data/query/queryPolicy";
 import type { ApprovalProgress } from "../../permissions";
 import type {
   WorkItemGraphExternalEntity,
@@ -34,6 +34,7 @@ import type {
   WorkflowGraphDiffElements,
   WorkflowGraphPresentationState,
   WorkflowGraphSurfaceData,
+  WorkItemGraphProjectionData,
 } from "../shared/WorkflowMentionInlineRenderer";
 import { WorkflowGraphSurface } from "../shared/WorkflowMentionInlineRenderer";
 import type { WorkItemGraphDraftProjection } from "../shared/workItemGraphDraft";
@@ -72,8 +73,7 @@ const publishedWorkItemGraphData = (
 
 function isTerminalGraphReadError(error: Error | null): boolean {
   if (!error) return false;
-  if (!isAxiosError(error)) return true;
-  const status = error.response?.status;
+  const status = getResponseStatus(error);
   // Missing publication, transport failures, and retryable responses do not
   // establish that the approved graph has failed.
   return (
@@ -88,7 +88,6 @@ function isTerminalGraphReadError(error: Error | null): boolean {
 
 const PUBLISHED_GRAPH_POLL_BASE_MS = 1000;
 const PUBLISHED_GRAPH_POLL_MAX_MS = 30_000;
-const PUBLISHED_GRAPH_MAX_POLL_ATTEMPTS = 8;
 
 const PublishedWorkItemGraph: FC<{
   proposal: WorkItemGraphProposal;
@@ -120,9 +119,7 @@ const PublishedWorkItemGraph: FC<{
     materializationState !== WorkItemChangeSetMaterializationState.Published;
   const terminalReadFailure = isTerminalGraphReadError(graphQuery.error);
   const [pollAttempts, setPollAttempts] = useState(0);
-  const pollingExhausted = pollAttempts >= PUBLISHED_GRAPH_MAX_POLL_ATTEMPTS;
-  const awaitingAggregate =
-    hasTarget && !graphData && !terminalReadFailure && !pollingExhausted;
+  const awaitingAggregate = hasTarget && !graphData && !terminalReadFailure;
 
   useEffect(() => {
     setPollAttempts(0);
@@ -131,7 +128,7 @@ const PublishedWorkItemGraph: FC<{
   useEffect(() => {
     if (
       !hasTarget ||
-      pollingExhausted ||
+      terminalReadFailure ||
       graphQuery.isFetching ||
       !graphQuery.isFetched ||
       (!awaitingPublication && !awaitingAggregate)
@@ -148,7 +145,7 @@ const PublishedWorkItemGraph: FC<{
     return () => clearTimeout(timer);
   }, [
     hasTarget,
-    pollingExhausted,
+    terminalReadFailure,
     pollAttempts,
     awaitingPublication,
     awaitingAggregate,
@@ -171,7 +168,7 @@ const PublishedWorkItemGraph: FC<{
   );
 
   if (
-    (awaitingPublication && !pollingExhausted) ||
+    (awaitingPublication && !terminalReadFailure) ||
     awaitingAggregate ||
     !graphQuery.isFetched ||
     graphQuery.isFetching ||
@@ -190,7 +187,7 @@ const PublishedWorkItemGraph: FC<{
     );
   }
 
-  if (graphQuery.error || !graphData) {
+  if (terminalReadFailure || !graphData) {
     return (
       <Alert severity="error" data-testid="published-work-item-graph-error">
         The published graph could not be loaded.
@@ -350,13 +347,13 @@ const graphIdentityKey = (identity: WorkItemChangeSetIdentity): string =>
     ? `existing:${identity.id}`
     : `temporary:${identity.tempId}`;
 
-const getProposalElementEntityLinks = ({
+export const getProposalElementEntityLinks = ({
   proposal,
   projection,
   siblingProposals,
 }: {
   proposal: WorkItemGraphProposal;
-  projection: WorkItemGraphDraftProjection | undefined;
+  projection: Pick<WorkItemGraphProjectionData, "children"> | undefined;
   siblingProposals: Map<string, ProposalResponseDto> | undefined;
 }): WorkflowGraphDirectEntityLink[] => {
   if (!projection) return [];

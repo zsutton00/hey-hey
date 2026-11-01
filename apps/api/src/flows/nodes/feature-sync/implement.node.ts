@@ -73,8 +73,15 @@ export class FeatureSyncImplementNode extends ExternalAgentNodeBase<FeatureSyncF
       triggersAgent: {
         promptType: this.promptType,
         nodeId: this.id,
-        ...(context.implementRuntime
-          ? { payload: { runtime: context.implementRuntime } }
+        ...(context.codingPlanApprovedContext || context.implementRuntime
+          ? {
+              payload: {
+                ...context.codingPlanApprovedContext,
+                ...(context.implementRuntime
+                  ? { runtime: context.implementRuntime }
+                  : {}),
+              },
+            }
           : {}),
       },
       data: {

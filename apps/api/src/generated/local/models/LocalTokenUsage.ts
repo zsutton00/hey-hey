@@ -18,9 +18,9 @@ export class LocalTokenUsage {
    */
   'inputTokens': number | null;
   /**
-   * Cumulative output tokens produced.
+   * Cumulative output tokens produced, or null when unavailable.
    */
-  'outputTokens': number;
+  'outputTokens': number | null;
   /**
    * Cumulative input tokens written to prompt cache, or null when unavailable.
    */

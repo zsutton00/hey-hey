@@ -29,6 +29,7 @@ import { featureGenerationResponseSchema } from '../../utils/shared-schemas';
 import { GenerateNodeBase } from '../base/';
 import { MutableContextHandle } from 'src/utils/mutable-context';
 import {
+  repositoryImportAnalysis,
   mapRepositoryGroundingSuccessToFeatureGeneration,
   mapRepositoryEnrichmentToGroundingPresentation,
 } from './repository-grounding-review.mapper';
@@ -71,9 +72,7 @@ export class OnboardingGenerateFeaturesNode extends GenerateNodeBase<RepositoryI
     _previousUserMessage?: FlowUserMessage,
   ): Promise<IntermediateSystemMessageData | undefined> {
     const context = tracker.getContext();
-    const completion =
-      context.repositoryFeatureEnrichmentFinal ??
-      context.repositoryFeatureEnrichmentAcceptedAnalysis;
+    const completion = repositoryImportAnalysis(context);
 
     if (
       !completion ||
@@ -125,9 +124,7 @@ export class OnboardingGenerateFeaturesNode extends GenerateNodeBase<RepositoryI
       conversationId: context.core.conversationId,
     });
 
-    const presentation =
-      context.repositoryFeatureEnrichmentFinal ??
-      context.repositoryFeatureEnrichmentAcceptedAnalysis;
+    const presentation = repositoryImportAnalysis(context);
     const systemMessageData: Partial<FeatureListSystemMessageData> = {
       narrative: state.narrative,
       topLevels: topLevelNodes,
@@ -194,10 +191,7 @@ export class OnboardingGenerateFeaturesNode extends GenerateNodeBase<RepositoryI
 
     if (structured.action === 'APPROVED') {
       return shouldCollectRepositoryPlacement(_context)
-        ? _context.repositoryFeatureEnrichmentChoice ||
-          _context.repositoryFeatureEnrichmentFinal
-          ? REPOSITORY_IMPORT_NODES.PLACEMENT_STRATEGY
-          : REPOSITORY_IMPORT_NODES.ENRICHMENT_CHOICE
+        ? REPOSITORY_IMPORT_NODES.PLACEMENT_STRATEGY
         : ONBOARDING_NODES.FINALIZE;
     }
 
@@ -246,24 +240,7 @@ export class OnboardingGenerateFeaturesNode extends GenerateNodeBase<RepositoryI
         return;
       }
 
-      if (shouldCollectRepositoryPlacement(context)) {
-        tracker.mutate((draft) => {
-          draft.repositoryFeatureEnrichmentReviewedCandidates = {
-            topLevels: existingState.topLevels.map((root) => ({
-              id: root.candidateId ?? root.reservedFeatureId,
-              name: root.name,
-              description: root.description,
-              tag: root.tag,
-              children: root.children.map((child) => ({
-                id: child.candidateId ?? child.reservedFeatureId,
-                name: child.name,
-                description: child.description,
-                tag: child.tag,
-              })),
-            })),
-          };
-        });
-      } else {
+      if (!shouldCollectRepositoryPlacement(context)) {
         await this.featureListLifecycle.approve(tracker, this.id);
       }
     }
@@ -403,9 +380,7 @@ EXAMPLE JSON STRUCTURE:
       sections.push(this.buildRefinementPromptSection(previousProposal));
     }
 
-    const repositoryFeatureEnrichmentFinal =
-      context.repositoryFeatureEnrichmentFinal ??
-      context.repositoryFeatureEnrichmentAcceptedAnalysis;
+    const repositoryFeatureEnrichmentFinal = repositoryImportAnalysis(context);
     if (repositoryFeatureEnrichmentFinal?.outcome === 'success') {
       sections.push(
         this.buildRepositoryGroundingPromptSection(

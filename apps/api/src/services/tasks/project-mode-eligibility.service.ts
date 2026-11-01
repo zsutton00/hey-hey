@@ -27,7 +27,7 @@ type TaskHierarchyRow = {
 /**
  * Owns the launch policy shared by the picker and the authoritative capture
  * boundary. Work-item type eligibility comes from the selected MODE's own
- * settings list (legacy type-level guidance when absent). Structural ownership
+ * settings list (STANDARD only when absent). Structural ownership
  * is intentionally read from the task tree, while only outbound
  * MODE -> FEATURE DEPENDS_ON edges restrict applicability.
  */
@@ -62,10 +62,7 @@ export class ProjectModeEligibilityService {
     }
 
     const { keys: applicableWorkItemTypeKeys, source } =
-      resolveProjectModeEligibleWorkItemTypeKeys({
-        modeTypeDefinition: modeDefinition.definition,
-        settings: params.modeSettings,
-      });
+      resolveProjectModeEligibleWorkItemTypeKeys(params.modeSettings);
 
     const focalWorkItem = await params.dbClient.task.findFirst({
       where: {

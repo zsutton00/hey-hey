@@ -21,6 +21,14 @@ import { ProposalType } from './proposalType';
 
 
 export interface CreateProposalDto { 
+    /**
+     * Whether this proposal may be ingested into project knowledge. Omitted means true.
+     */
+    ragEnabled?: boolean;
+    /**
+     * Whether this proposal may be approved or applied, independently of retrieval. Omitted means true.
+     */
+    applicationEligible?: boolean;
     type: ProposalType;
     action: ProposalAction;
     /**

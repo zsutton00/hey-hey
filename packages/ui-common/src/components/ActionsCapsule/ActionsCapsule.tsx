@@ -18,7 +18,13 @@ import {
   type Theme,
 } from "@mui/material";
 import { motion } from "motion/react";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { capsuleExpandVariants } from "../../animations/variants";
 import { useActionsCapsule } from "./ActionsCapsuleContext";
 import { CapsuleActionButton } from "./CapsuleActionButton";
@@ -105,6 +111,11 @@ export const ActionsCapsule: React.FC = () => {
     setActiveMenuItem,
   } = useActionsCapsule();
 
+  const {
+    anchor,
+    toggleAnchor: handleToggleAnchor,
+    setCapsuleTop,
+  } = useActionsCapsule();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
@@ -116,10 +127,6 @@ export const ActionsCapsule: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [inactiveWidth, setInactiveWidth] = useState<number | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [anchor, setAnchor] = useState<CapsuleAnchor>(() => {
-    const stored = localStorage.getItem("capsule-anchor");
-    return stored === "bottom-left" ? "bottom-left" : "bottom-right";
-  });
 
   const sortedActions = sortCapsuleActions([
     ...actions,
@@ -136,14 +143,31 @@ export const ActionsCapsule: React.FC = () => {
   const hasTopContent = isExpanded || isDragging;
   const isBottomRightAnchor = anchor === "bottom-right";
 
-  const handleToggleAnchor = useCallback(() => {
-    setAnchor((currentAnchor) => {
-      const next =
-        currentAnchor === "bottom-right" ? "bottom-left" : "bottom-right";
-      localStorage.setItem("capsule-anchor", next);
-      return next;
-    });
-  }, []);
+  useLayoutEffect(() => {
+    const element = containerRef.current;
+    if (!element) {
+      setCapsuleTop(null);
+      return;
+    }
+    const measure = () => setCapsuleTop(element.getBoundingClientRect().top);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+      setCapsuleTop(null);
+    };
+  }, [
+    setCapsuleTop,
+    isMobile,
+    isMinimized,
+    isMobileMenuOpen,
+    isExpanded,
+    isFullSize,
+    anchor,
+  ]);
 
   const handleActionClick = useCallback(
     (action: CapsuleActionRegistration) => {

@@ -66,7 +66,14 @@ export interface HelpScenarioTemplatedCopy {
  */
 export type HelpActionId = "import-repository";
 export type HelpScenarioCta =
-  | { kind: "navigation"; label: string; intent: string; disabled?: boolean }
+  | {
+      kind: "navigation";
+      label: string;
+      intent: string;
+      disabled?: boolean;
+      /** Leading button icon; the card maps each key to a fixed MUI icon. */
+      icon?: "guide";
+    }
   | { kind: "action"; label: string; action: HelpActionId };
 
 /**
@@ -106,6 +113,8 @@ export interface HelpScenarioEntry {
   id: HelpScenarioId;
   /** Short heading shown on every help surface. */
   title: string;
+  /** Substring of `title` styled as a name (e.g. a guide's name). */
+  titleEmphasis?: string;
   /** One-line description shown beneath the title. */
   summary: string;
   /** Complete ordered procedure that remains readable without animation. */
@@ -227,16 +236,16 @@ const SCENARIO_ENTRIES: Record<HelpScenarioId, HelpScenarioEntry> = {
   },
   "read-first-project": {
     id: "read-first-project",
-    title: "Read Your First Project",
+    title: "Read the Your First Project guide",
+    titleEmphasis: "Your First Project",
     summary:
       "Learn how to shape your feature tree, turn questions into tasks and plans, choose a coding-session mode, and build shared understanding.",
-    instructions: [
-      "Open Your First Project to explore the ways you can work in your project.",
-    ],
+    instructions: [],
     callToAction: {
       kind: "navigation",
-      label: "Read Your First Project",
+      label: "Open guide →",
       intent: "read-first-project",
+      icon: "guide",
     },
   },
   "create-a-task": {

@@ -1,4 +1,5 @@
-import { Dialog, DialogContent, DialogTitle } from "@mui/material";
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
+import { DialogContent, DialogTitle } from "@mui/material";
 import type { ExternalEditorPreference } from "./editorPreference";
 import { ExternalEditorPreferenceControl } from "./ExternalEditorPreferenceControl";
 

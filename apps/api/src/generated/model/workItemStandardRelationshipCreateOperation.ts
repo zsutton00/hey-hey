@@ -24,6 +24,10 @@ export interface WorkItemStandardRelationshipCreateOperation {
     edgeType: WorkItemStandardRelationshipCreateOperation.EdgeTypeEnum;
     category: WorkItemStandardRelationshipCreateOperation.CategoryEnum;
     direction: AgentEdgeDirection;
+    /**
+     * Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate. 
+     */
+    actionLabel?: string;
     reasoning?: string | null;
     metadata?: { [key: string]: any; } | null;
 }

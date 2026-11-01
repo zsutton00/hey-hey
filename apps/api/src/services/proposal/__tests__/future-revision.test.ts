@@ -116,9 +116,14 @@ describe('reviewed future persistence', () => {
           return { count: 1 };
         }),
       },
+      proposalReconciliationRevision: { findFirst: jest.fn(async () => null) },
       proposalFutureRevision: {
-        findUnique: jest.fn(async ({ where }: any) =>
-          history.find((h) => h.proposalId === where.proposalId),
+        findFirst: jest.fn(async ({ where }: any) =>
+          history.find(
+            (h) =>
+              h.proposalId === where.proposalId &&
+              h.candidateRevisionId === where.candidateRevisionId,
+          ),
         ),
         create: jest.fn(async ({ data }: any) =>
           history.push(structuredClone(data)),
@@ -135,6 +140,34 @@ describe('reviewed future persistence', () => {
         }),
       },
     };
+  });
+
+  it('stages fresh content on the same proposal once without replaying its older approved result', async () => {
+    const first = proposal(mutation());
+    tx.proposalReconciliationRevision.findFirst.mockResolvedValue({
+      id: 'content-one',
+    });
+    await stageFutureRevision(tx, registry, first);
+    const next = {
+      ...first,
+      updates: mutation({
+        expectedRevision: 1,
+        result: { ...content, name: 'Saved resolution' },
+      }),
+    };
+    tx.proposalReconciliationRevision.findFirst.mockResolvedValue({
+      id: 'content-two',
+    });
+    await stageFutureRevision(tx, registry, next);
+    await stageFutureRevision(tx, registry, next);
+    expect(history).toHaveLength(2);
+    expect(history.map((entry) => entry.proposalId)).toEqual([
+      first.id,
+      first.id,
+    ]);
+    expect(futures.get(futureId).result.name).toBe('Saved resolution');
+    expect(futures.get(futureId).revision).toBe(2);
+    expect(dependencies.map((entry) => entry.targetEntityId)).toEqual([workId]);
   });
 
   it('round trips complete reviewed content, baseline, lineage and future-owned dependencies', async () => {
@@ -397,6 +430,7 @@ describe('reviewed future persistence', () => {
         targetEntityType: 'TASK',
         action: 'VERSIONED_UPDATE',
         status: 'DRAFT',
+        legacyReconciliationSuggestion: null,
         updates: { path: ['futureId'], equals: futureId },
         NOT: {
           groupMembership: { is: { group: { is: { status: 'BUILDING' } } } },

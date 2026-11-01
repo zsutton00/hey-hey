@@ -1,11 +1,9 @@
+import { WorkItemTypeRegistryService } from '../tasks/work-item-type-registry.service';
 import {
   ProposalReconciliationService,
   type ReconciliationGroupMember,
 } from './proposal-reconciliation.service';
-import {
-  currentWritingSessionId,
-  EvalOutputAdmissionService,
-} from '../eval/eval-output-admission.service';
+import { EvalOutputAdmissionService } from '../eval/eval-output-admission.service';
 import {
   BadRequestException,
   ConflictException,
@@ -70,7 +68,7 @@ type PreparedGroupProposal = {
   reservedTargetEntityId: string | null;
 };
 
-type GroupReservedEntity = {
+export type GroupReservedEntity = {
   entityId: string;
   entityType: string;
   workItemType?: string;
@@ -79,6 +77,7 @@ type GroupReservedEntity = {
 @Injectable()
 export class ProposalGroupAuthoringService {
   private readonly logger = new Logger(ProposalGroupAuthoringService.name);
+  private readonly evalOutputAdmission: EvalOutputAdmissionService;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -87,8 +86,12 @@ export class ProposalGroupAuthoringService {
     private readonly projectAccess: ProjectAccessService,
     private readonly reconciliation: ProposalReconciliationService,
     @Optional()
-    private readonly evalOutputAdmission: EvalOutputAdmissionService = new EvalOutputAdmissionService(),
-  ) {}
+    evalOutputAdmission?: EvalOutputAdmissionService,
+    @Optional() workItemTypes?: WorkItemTypeRegistryService,
+  ) {
+    this.evalOutputAdmission =
+      evalOutputAdmission ?? new EvalOutputAdmissionService(workItemTypes);
+  }
 
   private async assertMayAuthorProposals(
     projectId: ProjectId,
@@ -866,7 +869,6 @@ export class ProposalGroupAuthoringService {
       await this.evalOutputAdmission.resolveProposal(tx, {
         organizationId,
         projectId,
-        writingSessionId: currentWritingSessionId(),
         proposal: prepared,
       })
     ).data;
@@ -965,6 +967,24 @@ export class ProposalGroupAuthoringService {
       };
     }
     return input;
+  }
+
+  async getReservedEntities(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    groupId: string,
+    expectedRevision: number,
+  ): Promise<GroupReservedEntity[]> {
+    return this.prisma.db.$transaction(async (tx) => {
+      await this.lockBuildingGroup(
+        tx,
+        organizationId,
+        projectId,
+        groupId,
+        expectedRevision,
+      );
+      return this.loadGroupReservedEntities(tx, groupId);
+    });
   }
 
   private async loadGroupReservedEntities(

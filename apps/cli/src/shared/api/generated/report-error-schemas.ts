@@ -1,5 +1,22 @@
 // Generated from OpenAPI by scripts/generate-report-error-schemas.cjs. Do not edit.
 export const reportErrorSchemas = {
+  "LocalRunToolCallsLatestTurnRequest": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "machineId"
+    ],
+    "properties": {
+      "machineId": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "LocalRunToolCallsLatestTurnRunId": {
+    "type": "string",
+    "format": "uuid"
+  },
   "LocalWalkthroughSourceRequest": {
     "type": "object",
     "additionalProperties": false,

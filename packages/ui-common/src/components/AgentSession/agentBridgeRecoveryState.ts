@@ -22,6 +22,7 @@ export type AgentBridgeMachineUnavailableState =
   | { type: "browser_authorization_required"; machine: AgentBridgeMachine }
   | { type: "browser_authorization_revoked"; machine: AgentBridgeMachine }
   | { type: "controller_context_unavailable"; machine: AgentBridgeMachine }
+  | { type: "controller_selection_required"; machine: AgentBridgeMachine }
   | { type: "machine_revoked"; machine: AgentBridgeMachine }
   | { type: "legacy_protocol"; machine: AgentBridgeMachine };
 
@@ -61,7 +62,7 @@ const assertNever = (value: never): never => {
 };
 
 const uniqueMachinesById = (
-  machines: readonly MachineDto[]
+  machines: readonly MachineDto[],
 ): readonly MachineDto[] => {
   const machineIds = new Set<string>();
   return machines.filter((machine) => {
@@ -72,10 +73,10 @@ const uniqueMachinesById = (
 };
 
 export const resolveMachineUnavailableState = (
-  machine: AgentBridgeMachine
+  machine: AgentBridgeMachine,
 ): AgentBridgeMachineUnavailableState => {
   const readiness = getMachineExecutionReadinessPresentation(
-    machine.executionReadiness
+    machine.executionReadiness,
   );
   switch (readiness.state) {
     case MachineExecutionReadinessState.Disconnected:
@@ -96,11 +97,13 @@ export const resolveMachineUnavailableState = (
           return { type: "controller_context_unavailable", machine };
         case CurrentControllerMachineEligibilityState.NotEnrolled:
           return { type: "browser_authorization_required", machine };
+        case CurrentControllerMachineEligibilityState.Ambiguous:
+          return { type: "controller_selection_required", machine };
         case CurrentControllerMachineEligibilityState.Revoked:
           return { type: "browser_authorization_revoked", machine };
         case CurrentControllerMachineEligibilityState.Eligible:
           throw new Error(
-            `Machine ${machine.name} is available and does not require recovery.`
+            `Machine ${machine.name} is available and does not require recovery.`,
           );
       }
       return assertNever(machine.currentControllerEligibility);
@@ -111,14 +114,23 @@ export const resolveMachineUnavailableState = (
 
 const resolveInventory = (
   machines: readonly MachineDto[],
-  selectedMachineId: string | null
+  selectedMachineId: string | null,
 ): AgentBridgeRecoveryState => {
   const uniqueMachines = uniqueMachinesById(machines);
+  const selected = uniqueMachines.find(
+    (machine) => machine.machineId === selectedMachineId,
+  );
+  if (
+    selected?.currentControllerEligibility ===
+    CurrentControllerMachineEligibilityState.Ambiguous
+  ) {
+    return { type: "controller_selection_required", machine: selected };
+  }
   const readyMachines = uniqueMachines.filter(
-    (machine) => classifyMachineExecutionReadiness(machine).selectable
+    (machine) => classifyMachineExecutionReadiness(machine).selectable,
   );
   const selectedMachine = readyMachines.find(
-    (machine) => machine.machineId === selectedMachineId
+    (machine) => machine.machineId === selectedMachineId,
   );
   if (selectedMachine) return { type: "ready", machine: selectedMachine };
   if (readyMachines.length === 1)
@@ -130,13 +142,13 @@ const resolveInventory = (
   return {
     type: "paired_none_ready",
     machines: uniqueMachines.map((machine) =>
-      resolveMachineUnavailableState(machine)
+      resolveMachineUnavailableState(machine),
     ),
   };
 };
 
 export const resolveAgentBridgeRecoveryState = (
-  input: AgentBridgeRecoveryResolutionInput
+  input: AgentBridgeRecoveryResolutionInput,
 ): AgentBridgeRecoveryState => {
   switch (input.type) {
     case "legacy_non_resumable":
@@ -163,7 +175,7 @@ export const resolveAgentBridgeRecoveryState = (
         return resolveInventory(input.machines, null);
       }
       const machine = input.machines.find(
-        (candidate) => candidate.machineId === machineId
+        (candidate) => candidate.machineId === machineId,
       );
       if (!machine) return { type: "bound_machine_missing" };
       if (

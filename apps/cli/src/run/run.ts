@@ -1,3 +1,10 @@
+import { reportUsageExecutions } from '../provider-usage/report-usage-executions';
+import { readRestrictionFor } from '../shared/api/read-restriction';
+import { isAxiosError } from 'axios';
+import type { FailureReason } from './failure-message';
+import { isInertSubmissionToolAllowed } from './inert-execution-policy';
+import { SessionRoleGuidance } from '../agents/session-role-guidance/session-role-guidance';
+import { resolveHandlerSessionRole } from '../agents/prompt-type-handler';
 import { RunAttachmentNotFoundError } from '../server/run-attachment-store';
 import { RunAttachmentContentReader } from '../agents/providers/run-attachment-content-reader';
 import type { BrowserMcpAccess } from '../agents/browser-tools/browser-mcp-access';
@@ -55,7 +62,6 @@ import {
   AgentSessionRunnerError,
   type AgentSessionRunner,
 } from '../agents/providers/session-runner';
-import { CAPACITY_RETRY_MESSAGE } from '../agents/providers/codex/session-runner-codex';
 import type {
   PermissionCallbackType,
   PermissionDecision,
@@ -71,9 +77,11 @@ import type {
   RecentUserReply,
 } from '../agents/prompt-type-handler';
 import type { PromptTypeRegistry } from '../agents/prompt-type-registry';
-import { resolveProjectAssistantPolicy } from '../agents/project-assistant/proactive-behavior';
+import {
+  resolveProjectAssistantBootstrap,
+  resolveProjectAssistantConfig,
+} from '../agents/project-assistant/proactive-behavior';
 import { ProjectAssistantPreparationError } from '../agents/project-assistant/nearest-parent-feature';
-import type { ProjectAssistantPromptPayload } from '../agents/project-assistant/project-assistant.handler';
 import {
   AgentStartupPromptInputError,
   isEntityPromptTemplateFocalType,
@@ -121,12 +129,10 @@ import type {
   InternalRunPromptRequest,
   LocalAnyPromptPayload,
   LocalRunScope,
-  ProjectAssistantConfig,
   ResolvedServiceBinding,
   SendMessageOptions,
 } from '../shared/agent-bridge-contract/contract';
 import { LocalPromptType } from '../shared/agent-bridge-contract/generated/api';
-import { ImplementRuntimeOwner } from '../agents/implement/implement-runtime-owner';
 import type { RunEntityReference } from '../shared/agent-bridge-contract/generated/api';
 import { resolvePromptText } from '../shared/agent-bridge-contract/contract';
 import { LocalAgentApiError } from '../shared/agent-bridge-contract/errors';
@@ -147,6 +153,7 @@ import { CODING_AGENT_REPORT_TYPES } from '../agents/prompts/report-chain';
 import { evaluateDeclaredReports } from './report-enforcement';
 import { emitOpenImplementReportIfNeeded } from './open-implement-report';
 import { resolvePrompt } from './resolve-prompt';
+import { resolveOwnerFollowup } from '../agents/resolve-owner-followup';
 import type { RunnerContext } from './runners/types';
 import { RunWorkspaceWriteBoundary } from '../agents/workspace-write-boundary';
 import {
@@ -257,9 +264,15 @@ const readImplementationReadinessFromPayload = (
 export const buildRunMcpSessionContext = (
   session: Pick<
     AgenticSession,
-    'agentic_session_id' | 'conversationId' | 'contextMetadata' | 'launchServiceId' | 'services'
+    | 'agentic_session_id'
+    | 'conversationId'
+    | 'contextMetadata'
+    | 'launchServiceId'
+    | 'services'
+    | 'inert'
   >,
 ): McpSessionContext => ({
+  inert: session.inert === true,
   projectId: session.contextMetadata.projectId,
   conversationId: session.conversationId,
   serviceId: session.launchServiceId,
@@ -560,25 +573,6 @@ const readCodexCommandLifecycle = (
   };
 };
 
-/**
- * Reads Project Assistant intent only from session-config variants that own
- * that setting. The Entity Conversation variant is part of the same durable
- * config boundary even when an older generated client has not emitted its
- * discriminator yet, so the runtime check remains deliberately structural.
- */
-const resolveProjectAssistantConfig = (
-  config: AgenticSession['config'],
-): ProjectAssistantConfig | undefined => {
-  if (!config) return undefined;
-
-  const configType: string = config.type;
-  if (configType !== 'CODING_SESSION' && configType !== 'ENTITY_CONVERSATION') {
-    return undefined;
-  }
-
-  return 'projectAssistant' in config ? config.projectAssistant : undefined;
-};
-
 type EventProducer = { kind: 'run-provider-session' } | { kind: 'active-turn'; turnId: string };
 
 interface ResolvedEventProducer {
@@ -826,6 +820,8 @@ export class Run {
    * into the current handler span, then cleared.
    */
   private readonly _submittedTurnIds: Set<string> = new Set();
+  /** Coding Plan items (plan version, discrepancy, question) each Turn persisted. */
+  private readonly _codingPlanElementsByTurn: Map<string, Set<string>> = new Map();
   /**
    * Report-chain length at Turn start, keyed by `Turn.turnId`. Open's
    * changed-workspace report helper reads the slice from this index to avoid
@@ -876,11 +872,11 @@ export class Run {
   private readonly browserTabNotices: BrowserTabNoticeDelivery | undefined;
   private readonly runStore: RunStore;
   private readonly implementationReadinessOwner: ImplementationReadinessOwner;
-  private readonly implementRuntimeOwner: ImplementRuntimeOwner;
   private readonly repoStore: RepoMappingStore;
   private readonly poster: MessagePoster;
   private readonly submissionActionPoster: SubmissionActionPoster;
   private readonly broadcaster: RunEventPublisher;
+  readonly sessionRoleGuidance: SessionRoleGuidance;
   private readonly handlerDeps: PromptTypeHandlerBaseDeps;
   /** Latest authoritative entity startup projection for the current Turn. */
   private startupPromptInputResult: AgentStartupPromptInputResult | null = null;
@@ -916,12 +912,13 @@ export class Run {
   private readonly projectModeBundleMaterializer: ProjectModeBundleMaterializer;
   private readonly ownsProjectModeBundleMaterializer: boolean;
   private workspaceWriteBoundary: RunWorkspaceWriteBoundary | null = null;
-  private repositorySnapshotDirectory: Promise<string> | null = null;
+  private runEvidenceDirectory: Promise<string> | null = null;
 
   private readonly dispatcher: EventDispatcher;
 
   constructor(args: RunArgs, collaborators: RunCollaborators) {
     this.runId = args.runId;
+    reportUsageExecutions.open(this.runId);
     this.organizationId = args.organizationId;
     this.projectId = args.projectId;
     this.conversationId = args.conversationId;
@@ -936,16 +933,22 @@ export class Run {
     this.browserAnnotations = collaborators.browserAnnotations;
     this.browserTabNotices = collaborators.browserTabNotices;
     this.runStore = collaborators.runStore;
-    this.implementRuntimeOwner = new ImplementRuntimeOwner(this.runStore);
     this.implementationReadinessOwner = new ImplementationReadinessOwner(
       this.runStore,
       collaborators.logger,
     );
     this.repoStore = collaborators.repoStore;
-    this.poster = collaborators.poster;
+    this.poster = args.session.inert ? collaborators.poster.inertSibling() : collaborators.poster;
     this.submissionActionPoster = new SubmissionActionPoster(this.poster);
     this.broadcaster = collaborators.broadcaster;
-    this.handlerDeps = collaborators.handlerDeps;
+    this.handlerDeps = {
+      ...collaborators.handlerDeps,
+      readRestriction: readRestrictionFor({ inert: args.session.inert }),
+    };
+    this.sessionRoleGuidance = new SessionRoleGuidance(
+      { ...this.handlerDeps, logger: collaborators.logger },
+      this.runStore,
+    );
     this.reviewFileScopeCoordinator = new ReviewFileScopeCoordinator({
       admission: collaborators.runFollowUpAdmission,
       runStore: this.runStore,
@@ -1028,7 +1031,9 @@ export class Run {
       ...(collaborators.reportSyncService
         ? { reportSyncService: collaborators.reportSyncService }
         : {}),
-      ...(collaborators.onCompleteDeps ? { onCompleteDeps: collaborators.onCompleteDeps } : {}),
+      ...(collaborators.onCompleteDeps
+        ? { onCompleteDeps: { ...collaborators.onCompleteDeps, poster: this.poster } }
+        : {}),
     };
 
     this.dispatcher = new EventDispatcher(handlerFacingDeps);
@@ -1910,10 +1915,51 @@ export class Run {
     perTurn.add(file);
   }
 
+  public logReportUsageUnavailable(reportType: unknown): void {
+    this.logger.warn('local.run.create_report.usage_unavailable', {
+      runId: this.runId,
+      turnId: this.activeTurn?.turnId ?? null,
+      reportType,
+    });
+  }
+
+  private readonly reportToolSources = new Map<string, string | null>();
+
+  public async readReportUsageToolCalls(providerSessionId: string | null): Promise<number | null> {
+    if (!this.trackToolUsage) {
+      return null;
+    }
+    const entries = await this.runStore.getToolUsage(this.runId);
+    const sources = new Map(
+      entries.map((entry) => [
+        JSON.stringify([entry.providerSessionId ?? null, entry.toolUseId]),
+        entry.providerSessionId ?? null,
+      ]),
+    );
+    for (const [id, source] of this.reportToolSources) {
+      sources.set(id, source);
+    }
+    if ([...sources.values()].some((source) => source === null)) {
+      return null;
+    }
+    return [...sources.values()].filter((source) => source === providerSessionId).length;
+  }
+
   recordToolUsage(blocks: ToolUseNormalizedBlock[]): void {
-    if (!this.trackToolUsage) return;
+    if (!this.trackToolUsage) {
+      return;
+    }
+
+    const providerSessionId =
+      this.activeTurn?.handler.runnerKind === 'subagent'
+        ? this.activeTurn.subagentProviderSessionId
+        : this.session.provider_session_id || null;
+    for (const block of blocks) {
+      this.reportToolSources.set(JSON.stringify([providerSessionId, block.id]), providerSessionId);
+    }
     const entries = blocks.map((block) => ({
       toolName: block.toolName,
+      providerSessionId,
       toolUseId: block.id,
       timestamp: new Date().toISOString(),
       input: block.input,
@@ -2830,6 +2876,13 @@ export class Run {
     });
   }
 
+  async recordFinalAssistantMessage(
+    message: NonNullable<AgenticSession['finalAssistantMessage']>,
+  ): Promise<void> {
+    await this.runStore.updateRunFinalAssistantMessage(this.runId, message);
+    this.refreshSessionFields({ finalAssistantMessage: message });
+  }
+
   /**
    * Persist the previous provider session's final output onto the session so
    * the next phase's prompt resolution can prepend it. Patches `run.session`
@@ -3690,7 +3743,34 @@ export class Run {
     return this._messageQueue.length;
   }
 
+  private inertInput: InternalRunPromptRequest | null = null;
+  private inertInputStarted = false;
+  /** The admitted input's own Project Assistant research turn; part of its execution, not follow-up input. */
+  private inertPreparation: InternalRunPromptRequest | null = null;
+  private initialInertInputAllowed = false;
+
+  public admitInitialInertInput(): void {
+    this.initialInertInputAllowed = true;
+  }
+
+  private assertOrdinaryExecution(input?: InternalRunPromptRequest): void {
+    if (!this.session.inert) {
+      return;
+    }
+    if (input && this.inertInput === input && !this.inertInputStarted) {
+      return;
+    }
+    if (input && this.inertPreparation === input) {
+      return;
+    }
+    this.logger.debug('local.run.inert.input_refused', { runId: this.runId });
+    throw new Error(
+      'Evaluation evidence cannot be resumed as an ordinary Run. Inert Runs refuse follow-up input and restoration.',
+    );
+  }
+
   enqueue(input: InternalRunPromptRequest): number {
+    this.assertOrdinaryExecution(input);
     this._messageQueue.push(input);
     this.readStateChanged();
     return this._messageQueue.length;
@@ -3743,6 +3823,20 @@ export class Run {
   // ==================================================================
 
   /**
+   * The agent whose reply behavior governs ordinary replies. A captured project
+   * mode owns them even when restoration left no persisted provider-session
+   * owner.
+   */
+  private resolveReplyOwner(): PromptTypeHandler<unknown> | undefined {
+    if (hasCapturedProjectModeConfig(this.session.config)) {
+      return this.promptTypeRegistry.get(LocalPromptType.ProjectMode);
+    }
+
+    const ownerId = this.session.provider_session_agent_id;
+    return ownerId ? this.promptTypeRegistry.getById(ownerId) : undefined;
+  }
+
+  /**
    * Accept a concrete prompt request. Either enqueue it (Turn in flight)
    * or start a Turn now.
    *
@@ -3760,6 +3854,23 @@ export class Run {
     input: InternalRunPromptRequest,
     options?: SendMessageOptions,
   ): Promise<void> {
+    if (this.session.inert && this.initialInertInputAllowed && !this.inertInput) {
+      this.initialInertInputAllowed = false;
+      this.inertInput = input;
+      this.logger.debug('local.run.inert.initial_input', { runId: this.runId });
+    } else {
+      this.assertOrdinaryExecution();
+    }
+    const ownerInput = resolveOwnerFollowup(this.resolveReplyOwner(), input);
+    if (ownerInput !== input) {
+      this.logger.debug('local.run.followup_owner_retained', {
+        runId: this.runId,
+        requestedPromptType: input.promptType,
+        resolvedPromptType: ownerInput.promptType,
+        providerSessionAgentId: this.session.provider_session_agent_id,
+      });
+      input = ownerInput;
+    }
     const timelineTurnId = options?.admittedInput?.turnId;
     if (timelineTurnId) {
       this.operationTimeline?.updateMetadata(timelineTurnId, {
@@ -3844,6 +3955,9 @@ export class Run {
           [ADMITTED_SERVICE_SCOPE_MARKER]: options.admittedServiceScope,
         } as InternalRunPromptRequest)
       : stamped;
+    if (this.session.inert) {
+      this.inertInput = scoped;
+    }
     if (this.hasPendingScopeReview()) {
       this.logger.warn('local.run.message_blocked_pending_scope_review', {
         runId: this.runId,
@@ -3864,11 +3978,12 @@ export class Run {
     }
     const consumerHandler = this.promptTypeRegistry.get(stamped.promptType);
     const projectAssistantConfig = resolveProjectAssistantConfig(this.session.config);
-    const projectAssistantPolicy = resolveProjectAssistantPolicy(
-      consumerHandler?.resolveProjectAssistant
-        ? consumerHandler.resolveProjectAssistant(this.session, this.logger)
-        : consumerHandler?.projectAssistant,
-      projectAssistantConfig,
+    const projectAssistantBootstrap = resolveProjectAssistantBootstrap(
+      consumerHandler,
+      this.session,
+      this.entity,
+      resolvePromptText(stamped) ?? '',
+      this.logger,
     );
     if (projectAssistantConfig?.enabled === false) {
       this.logger.debug('local.run.project_assistant.disabled_by_session_config', {
@@ -3909,13 +4024,14 @@ export class Run {
     // One-shot Project Assistant subagent: the consuming handler owns both
     // participation and the maximum capability policy. Carry the exact object
     // resolved above through tools and prompt construction.
-    const focalEntity = this.entity;
-    if (
-      !this._projectAssistantDone &&
-      focalEntity !== null &&
-      consumerHandler !== undefined &&
-      projectAssistantPolicy !== undefined
-    ) {
+    if (!this._projectAssistantDone && projectAssistantBootstrap !== undefined) {
+      const { policy: projectAssistantPolicy, payload: projectAssistantPayload } =
+        projectAssistantBootstrap;
+      this.logger.debug('local.run.project_assistant_payload.task_context_resolved', {
+        runId: this.runId,
+        entityId: projectAssistantPayload.entity.entityId,
+        runEntityType: projectAssistantPayload.entity.entityType,
+      });
       this.logger.info('local.run.project_assistant.bootstrap_started', {
         runId: this.runId,
         consumerPromptType: stamped.promptType,
@@ -3940,17 +4056,15 @@ export class Run {
         promptType: LocalPromptType.ProjectAssistant,
         references: stamped.references,
         triggerContext: null,
-        payload: this.buildProjectAssistantPayload(
-          focalEntity,
-          stamped,
-          consumerHandler.id,
-          projectAssistantPolicy,
-        ),
+        payload: projectAssistantPayload,
         // Research is execution of the admitted input, so it projects the
         // input's start. It deliberately omits inputAdmissionTurnId: the main
         // Turn keeps the admission's Turn identity and owns settlement.
         ...(preparedAdmission ? { [BOOTSTRAP_INPUT_ADMISSION_MARKER]: preparedAdmission } : {}),
       } as InternalRunPromptRequest;
+      if (this.session.inert) {
+        this.inertPreparation = projectAssistantRequest;
+      }
       this.enqueue(stamped);
       await this.startTurn(projectAssistantRequest);
       return;
@@ -4012,31 +4126,6 @@ export class Run {
     } as InternalRunPromptRequest;
   }
 
-  /** Build the Project Assistant payload from the persisted Run identity. The
-   * provider startup path supplies the canonical focal entity projection. */
-  private buildProjectAssistantPayload(
-    focalEntity: RunEntityReference,
-    stamped: InternalRunPromptRequest,
-    consumerHandlerId: string,
-    policy: NonNullable<PromptTypeHandler<unknown>['projectAssistant']>,
-  ): ProjectAssistantPromptPayload {
-    const userMessage = resolvePromptText(stamped) ?? '';
-    this.logger.debug('local.run.project_assistant_payload.task_context_resolved', {
-      runId: this.runId,
-      entityId: focalEntity.entityId,
-      runEntityType: focalEntity.entityType,
-    });
-    return {
-      promptType: LocalPromptType.Research,
-      entity: focalEntity,
-      userMessage,
-      projectAssistantHandoff: {
-        consumerHandlerId,
-        policy,
-      },
-    };
-  }
-
   /**
    * Run a Turn from scratch: resolve all inputs, construct the Turn,
    * kick off begin/run. Throws synchronously on invalid input; ordinary
@@ -4045,6 +4134,10 @@ export class Run {
    * the Run to idle without retrying the failed boundary.
    */
   private async startTurn(input: InternalRunPromptRequest): Promise<void> {
+    this.assertOrdinaryExecution(input);
+    if (this.session.inert && input === this.inertInput) {
+      this.inertInputStarted = true;
+    }
     input = this.routeImplementationReadinessClarification(input);
     const admission = this.inputAdmissionFor(input);
     const timelineTurnId = admission?.turnId;
@@ -4088,9 +4181,21 @@ export class Run {
     let browserTabNoticeId: string | null;
     let proposalNotices: ProposalDecisionNotices;
     try {
+      await this.persistLatestTurn({ turnId, state: 'running' });
       ({ ctx, platformMcpProxy, browserAnnotationIds, browserTabNoticeId, proposalNotices } =
         await this.resolveTurnInputs(input, turnId));
       if (preparationAbortController.signal.aborted) {
+        await this.persistLatestTurn({
+          turnId,
+          state: 'settled',
+          outcome: 'ABORTED',
+        });
+        const stoppedAdmission = admission ?? readBootstrapInputAdmission(input);
+        if (stoppedAdmission) {
+          this.clearQueue();
+          await stoppedAdmission.onRejected('ABORTED');
+        }
+        await this.postFailureMessage('STOPPED');
         void this.drainQueue();
         return;
       }
@@ -4100,92 +4205,75 @@ export class Run {
         this.readStateChanged();
       }
     } catch (error) {
+      await this.persistLatestTurn({
+        turnId,
+        state: 'settled',
+        outcome: preparationAbortController.signal.aborted ? 'ABORTED' : 'FAILED',
+      });
       if (error instanceof AgentStartupPromptInputError && !this.entityContextLoadFailed) {
         this.entityContextLoadFailed = true;
         this.readStateChanged();
       }
       if (this.activeTurnInput !== null || this._processing) this.settleTurnPreparation();
-      const admission = this.inputAdmissionFor(input);
-      const definitiveRejection =
-        error instanceof RunAttachmentNotFoundError ||
-        (error instanceof LocalAgentApiError && error.statusCode === 400);
-      if (definitiveRejection && admission) {
-        await admission.onRejected();
-        this.projectedInputStartTurnIds.delete(admission.turnId);
+      const admission = this.inputAdmissionFor(input) ?? readBootstrapInputAdmission(input);
+      const failedHandler = this.promptTypeRegistry.get(input.promptType);
+      if (failedHandler?.onStartupFailure) {
+        try {
+          await failedHandler.onStartupFailure(
+            input.payload,
+            {
+              session: this.session,
+              deps: this.handlerDeps,
+            },
+            error instanceof Error ? error.message : 'The session could not start.',
+          );
+        } catch (reportError) {
+          this.logger.error('local.run.start_turn.handler_report_failed', {
+            runId: this.runId,
+            turnId,
+            error: reportError,
+          });
+        }
+        if (admission) {
+          await admission.onRejected();
+          this.projectedInputStartTurnIds.delete(admission.turnId);
+        }
+        await this.postFailureMessage('STARTUP_FAILED');
+        this.logger.error('local.run.start_turn.failure_reported', {
+          turnId,
+          runId: this.runId,
+          promptType: input.promptType,
+          error,
+        });
+        void this.drainQueue();
+        return;
       }
       this.logger.error('local.run.start_turn.resolve_failed', {
         turnId,
         runId: this.runId,
         error,
       });
-      // Startup context errors can wrap transient API failures. Let the durable
-      // owner retry preparation with the same input and selected Turn identity.
-      if (admission && !definitiveRejection) throw error;
-      // Project Assistant preparation failure is terminal for the admitted input it
-      // prepares. Draining would run the queued main Turn without the assistant.
-      if (error instanceof ProjectAssistantPreparationError) {
-        this._processing = true;
-        const preparedAdmission = readBootstrapInputAdmission(input);
-        if (preparedAdmission) {
-          await preparedAdmission.onRejected();
-          this.projectedInputStartTurnIds.delete(preparedAdmission.turnId);
-        }
-        try {
-          await this.postAgentSystemMessage(
-            `I could not start this session because Project Assistant could not be prepared: ${error.message}`,
-          );
-        } catch (postError) {
-          this.logger.error('local.run.start_turn.project_assistant_failure_post_failed', {
-            turnId,
-            runId: this.runId,
-            error: postError,
-          });
-        }
-        const queuedCount = this.queueLength;
-        this.clearQueue();
-        this.logger.info('local.run.start_turn.project_assistant_failure_queue_cleared', {
-          turnId,
-          runId: this.runId,
-          queuedCount,
-        });
-        this._processing = false;
-        this.armInactivityTimerIfIdle();
-        this.notifyIfDurableInputAcceptable();
-        return;
+      const transient = isAxiosError(error) && (!error.response || error.response.status >= 500);
+      if (admission && transient && !preparationAbortController.signal.aborted) {
+        throw error;
       }
-      if (error instanceof AgentStartupPromptInputError) {
-        this._processing = true;
-        this.logger.error('local.run.start_turn.startup_input_failed', {
-          turnId,
-          runId: this.runId,
-          boundary: error.boundary,
-        });
-        try {
-          await this.postAgentSystemMessage(
-            'I could not start this session because its current entity context could not be prepared. Please try again.',
-          );
-        } catch (postError) {
-          this.logger.error('local.run.start_turn.startup_failure_post_failed', {
-            turnId,
-            runId: this.runId,
-            boundary: error.boundary,
-            error: postError,
-          });
-        }
-        const queuedCount = this.queueLength;
+      const reason = preparationAbortController.signal.aborted
+        ? 'STOPPED'
+        : this.failureReasonFor(error, 'STARTUP_FAILED');
+      const rejectedAdmission = admission ?? readBootstrapInputAdmission(input);
+      if (rejectedAdmission) {
+        await rejectedAdmission.onRejected(reason === 'STOPPED' ? 'ABORTED' : 'FAILED');
+        this.projectedInputStartTurnIds.delete(rejectedAdmission.turnId);
+      }
+      await this.postFailureMessage(reason);
+      if (
+        error instanceof ProjectAssistantPreparationError ||
+        error instanceof AgentStartupPromptInputError
+      ) {
         this.clearQueue();
-        this.logger.info('local.run.start_turn.startup_failure_queue_cleared', {
-          turnId,
-          runId: this.runId,
-          queuedCount,
-        });
-        this._processing = false;
-        this.armInactivityTimerIfIdle();
-        this.notifyIfDurableInputAcceptable();
-        return;
       }
       void this.drainQueue();
-      throw error;
+      return;
     }
 
     let turn: Turn;
@@ -4210,6 +4298,7 @@ export class Run {
         resolvedPrompt: ctx.resolvedPrompt,
         attachments: ctx.input.attachments ?? [],
         handler: ctx.handler,
+        effectiveRole: resolveHandlerSessionRole(ctx.handler, this.session),
         payload: ctx.preparedPayload ?? input.payload,
         externalAgentNodeId: this.triggerContext?.externalAgentNodeId ?? null,
         triggerMessageId: this.triggerContext?.triggerMessageId ?? null,
@@ -4243,6 +4332,11 @@ export class Run {
         this.observeConversationPhase('reviewing');
       }
     } catch (error) {
+      await this.persistLatestTurn({
+        turnId,
+        state: 'settled',
+        outcome: 'FAILED',
+      });
       this._reportChainStartByTurn.delete(turnId);
       this.settleTurnPreparation(this.activeTurn !== null);
       this.logger.error('local.run.start_turn.begin_failed', {
@@ -4250,8 +4344,14 @@ export class Run {
         runId: this.runId,
         error,
       });
+      const failedAdmission = admission ?? readBootstrapInputAdmission(input);
+      const failureReason = this.failureReasonFor(error, 'STARTUP_FAILED');
+      if (failedAdmission) {
+        await failedAdmission.onRejected();
+      }
+      await this.postFailureMessage(failureReason);
       void this.drainQueue();
-      throw error;
+      return;
     }
 
     const PHASE_HEARTBEAT_INTERVAL_MS = 10_000;
@@ -4441,6 +4541,7 @@ export class Run {
       !turn.changedFileReporting.snapshot().retainedResponse
     )
       return;
+    // Omitted submissions release the retained response without repair or validated evidence.
     let prompt = turn.changedFileReporting.beginRepair();
     while (prompt !== null) {
       try {
@@ -4478,6 +4579,48 @@ export class Run {
     if (event) await this.dispatcher.dispatch(event, this, Symbol('retained_completion'));
   }
 
+  private failureReasonFor(error: unknown, fallback: FailureReason): FailureReason {
+    if (error instanceof RunAttachmentNotFoundError) {
+      return 'ATTACHMENT_NOT_FOUND';
+    }
+    if (
+      error instanceof LocalAgentApiError &&
+      (error.code === 'REPO_REQUIRED' || error.code === 'REPO_BINDING_MISSING')
+    ) {
+      return 'SERVICE_FOLDER_NOT_BOUND';
+    }
+    if (error instanceof AgentSessionRunnerError) {
+      if (['INVALID_CREDENTIAL', 'REFRESH_FAILED', 'MISSING_CREDENTIAL'].includes(error.code)) {
+        return 'AUTHORIZATION_REJECTED';
+      }
+      if (error.code === 'REPO_BINDING_MISSING') {
+        return 'SERVICE_FOLDER_NOT_BOUND';
+      }
+      if (error.code === 'MODEL_CAPACITY') {
+        return 'MODEL_CAPACITY';
+      }
+    }
+    return fallback;
+  }
+
+  private readonly terminalFailureReasons = new Map<string, FailureReason>();
+
+  private async postFailureMessage(reason: FailureReason): Promise<void> {
+    // A Turn aborted to wait for Service approval is paused, not stopped; the approval request
+    // already tells the user what is happening.
+    if (reason === 'STOPPED' && this.serviceScope.hasServiceScopeContinuation()) {
+      return;
+    }
+
+    await this.poster.postFailureMessage({
+      organizationId: this.organizationId,
+      projectId: this.projectId,
+      conversationId: this.session.conversationId,
+      reason,
+      inert: this.session.inert === true,
+    });
+  }
+
   async onTurnRunnerCompleted(turn: Turn): Promise<void> {
     await this.drainInFlightDispatch(IN_FLIGHT_DISPATCH_DRAIN_TIMEOUT_MS);
 
@@ -4489,17 +4632,7 @@ export class Run {
         terminalOutcome: turn.terminalOutcome,
         completedAssistantMessageId: turn.completedAssistantMessageId,
       });
-      try {
-        await this.postAgentSystemMessage(
-          'I generated a response, but could not publish it. This Turn was marked as failed; please try again.',
-        );
-      } catch (error) {
-        this.logger.error('local.run.turn_completion.failure_message_failed', {
-          runId: this.runId,
-          turnId: turn.turnId,
-          error,
-        });
-      }
+      this.terminalFailureReasons.set(turn.turnId, 'PUBLICATION_FAILED');
     }
 
     const completedAssistantMessageId = turn.completedAssistantMessageId;
@@ -4536,6 +4669,7 @@ export class Run {
   }
 
   async onTurnRunnerFailed(turn: Turn, error: unknown): Promise<void> {
+    this.terminalFailureReasons.set(turn.turnId, this.failureReasonFor(error, 'EXECUTION_FAILED'));
     const runnerFailureAction = turn.handler.getRunnerFailureAction?.(error, turn.payload) ?? null;
     if (runnerFailureAction) {
       const externalAgentNodeId = turn.externalAgentNodeId;
@@ -4583,7 +4717,21 @@ export class Run {
       provider: this.provider,
       error,
     });
-    await this.postAgentSystemMessage(CAPACITY_RETRY_MESSAGE);
+    this.terminalFailureReasons.set(turn.turnId, 'MODEL_CAPACITY');
+  }
+
+  private async persistLatestTurn(
+    latest: NonNullable<AgenticSession['latestTurn']>,
+  ): Promise<void> {
+    try {
+      await this.runStore.updateRunLatestTurn(this.runId, latest);
+    } catch (error) {
+      this.logger.error('local.run.latest_turn.save_failed', {
+        runId: this.runId,
+        turnId: latest.turnId,
+        error,
+      });
+    }
   }
 
   async onTurnEnded(turn: Turn): Promise<void> {
@@ -4608,17 +4756,6 @@ export class Run {
       const reportChainStartIndex = this._reportChainStartByTurn.get(turn.turnId);
       const finalizedReports =
         reportChainStartIndex === undefined ? [] : this._reportChain.slice(reportChainStartIndex);
-      if (this.taskMonitorManagedTurnRuntime) {
-        await this.taskMonitorManagedTurnRuntime.publishSettledTurn({
-          agentSessionId: this.session.agentic_session_id,
-          turnId: turn.turnId,
-          promptType: turn.handler.promptType,
-          terminalOutcome: turn.terminalOutcome,
-          completedAssistantMessageId: turn.completedAssistantMessageId,
-          reports: finalizedReports.map(({ reportId, reportType }) => ({ reportId, reportType })),
-          settledAt: new Date().toISOString(),
-        });
-      }
       const settledAdmission =
         (this.activeTurnInput && this.inputAdmissionFor(this.activeTurnInput)) ?? null;
       const evidence: InputSettlementEvidence = {
@@ -4628,6 +4765,23 @@ export class Run {
         reports: finalizedReports.map(({ reportId }) => reportId),
         settledAt: new Date().toISOString(),
       };
+      if (turn.terminalOutcome !== 'COMPLETED') {
+        const reason =
+          turn.terminalOutcome === 'ABORTED'
+            ? 'STOPPED'
+            : (this.terminalFailureReasons.get(turn.turnId) ?? 'EXECUTION_FAILED');
+        await this.postFailureMessage(reason);
+        const bootstrapAdmission =
+          !settledAdmission && this.activeTurnInput
+            ? readBootstrapInputAdmission(this.activeTurnInput)
+            : null;
+        if (bootstrapAdmission) {
+          this.clearQueue();
+          await bootstrapAdmission.onRejected(turn.terminalOutcome);
+          this.projectedInputStartTurnIds.delete(bootstrapAdmission.turnId);
+        }
+      }
+      this.terminalFailureReasons.delete(turn.turnId);
       const inputSettlement = this.serviceScope.settleTurnInput(
         turn.turnId,
         settledAdmission,
@@ -4650,6 +4804,33 @@ export class Run {
           await settledAdmission.onSettled(evidence);
           this.projectedInputStartTurnIds.delete(settledAdmission.turnId);
         }
+      }
+      try {
+        await this.runStore.updateRunLatestTurn(this.runId, {
+          turnId: turn.turnId,
+          state: 'settled',
+          outcome: turn.terminalOutcome,
+        });
+        if (turn.handler.promptType === LocalPromptType.ProjectAssistant) {
+          await this.handlerDeps.evalAttemptExecution?.recordResearchUsage(this.runId);
+        }
+      } catch (error) {
+        this.logger.error('local.run.latest_turn.save_failed', {
+          runId: this.runId,
+          turnId: turn.turnId,
+          error,
+        });
+      }
+      if (this.taskMonitorManagedTurnRuntime) {
+        await this.taskMonitorManagedTurnRuntime.publishSettledTurn({
+          agentSessionId: this.session.agentic_session_id,
+          turnId: turn.turnId,
+          promptType: turn.handler.promptType,
+          terminalOutcome: turn.terminalOutcome,
+          completedAssistantMessageId: turn.completedAssistantMessageId,
+          reports: finalizedReports.map(({ reportId, reportType }) => ({ reportId, reportType })),
+          settledAt: new Date().toISOString(),
+        });
       }
       if (this.activeTurnInput)
         readUserMessageBoundary(this.activeTurnInput)?.onTurnSettled?.({
@@ -4680,6 +4861,7 @@ export class Run {
         this._stagedFileChanges.clear();
       }
       this._submittedTurnIds.delete(turn.turnId);
+      this._codingPlanElementsByTurn.delete(turn.turnId);
       this._reportChainStartByTurn.delete(turn.turnId);
       // Seal the Turn's coalesced narration row: dropping the slot means the
       // next Turn's first segment authors a fresh row instead of updating this
@@ -4991,9 +5173,11 @@ export class Run {
           this.logger.error('local.run.drain.failed', { runId: this.runId, error });
           this.clearQueue();
           try {
-            await this.postAgentSystemMessage(
-              'I could not start your queued message. Please try sending it again.',
-            );
+            const admission = this.inputAdmissionFor(batch[0]!);
+            if (admission) {
+              await admission.onRejected();
+            }
+            await this.postFailureMessage('STARTUP_FAILED');
           } catch (postError) {
             this.logger.error('local.run.drain.failure_post_failed', {
               runId: this.runId,
@@ -5136,9 +5320,15 @@ export class Run {
       );
     }
 
-    const runtimeSession = await this.implementRuntimeOwner.apply(session, input);
+    // A trigger that carries a runtime choice saves the complete choice on the Run;
+    // a trigger that carries none (such as a reply) uses what is saved.
+    const triggerRuntime = handler.resolveRuntime?.(input.payload);
     let providerSwitched = false;
-    if (runtimeSession !== session) {
+    if (triggerRuntime) {
+      const runtimeSession = await this.runStore.updateRunRuntime(
+        session.agentic_session_id,
+        triggerRuntime,
+      );
       this.refreshSessionFields(runtimeSession);
       session = this.session;
       providerSwitched = this.switchProvider(session.provider as Run['provider']);
@@ -5231,12 +5421,12 @@ export class Run {
     // worktree.
     const workspaceStartedAt = performance.now();
     const projectModeBundleDirectory = await this.resolveProjectModeBundleDirectory(session);
-    const repositorySnapshotDirectory = handler.repositorySnapshots
-      ? await this.resolveRepositorySnapshotDirectory()
+    const runEvidenceDirectory = handler.runEvidenceDirectory
+      ? await this.resolveRunEvidenceDirectory()
       : null;
     let turnWorkspace = await this.resolveTurnWorkspace(session, input.promptType, isFirstTurn, [
       ...(projectModeBundleDirectory ? [projectModeBundleDirectory] : []),
-      ...(repositorySnapshotDirectory ? [repositorySnapshotDirectory] : []),
+      ...(runEvidenceDirectory ? [runEvidenceDirectory] : []),
     ]);
     session = this.session;
     const admission = this.inputAdmissionFor(input);
@@ -5270,6 +5460,13 @@ export class Run {
               entry.reportType !== 'CODING_RESEARCH',
           );
 
+    // A handler with a run evidence directory starts children in `prepare`, and
+    // those children read their evidence through Run-registered tools, so the
+    // registration must exist before `prepare` runs.
+    if (handler.runEvidenceDirectory) {
+      this.registerSubmissionTools(handler, turnId, input.awaitingUserReview === true);
+    }
+
     const resolvePromptStartedAt = performance.now();
     const resolvedPromptData = await resolvePrompt({
       handler,
@@ -5302,7 +5499,7 @@ export class Run {
         ? { implementationReadinessClarification: readinessClarification }
         : {}),
       ...(projectModeBundleDirectory ? { projectModeBundleDirectory } : {}),
-      ...(repositorySnapshotDirectory ? { repositorySnapshotDirectory } : {}),
+      ...(runEvidenceDirectory ? { runEvidenceDirectory } : {}),
       ...(providerSessionDecisionPreview
         ? { providerSessionDecision: providerSessionDecisionPreview }
         : {}),
@@ -5328,6 +5525,11 @@ export class Run {
               this.enforceImplementationReadinessAdmission(input),
           }
         : {}),
+    }).finally(() => {
+      this.handlerDeps.evalAttemptExecution?.recordPreparation(
+        this.runId,
+        performance.now() - resolvePromptStartedAt,
+      );
     });
     if (admission) {
       this.operationTimeline?.recordDuration(
@@ -5429,7 +5631,9 @@ export class Run {
       input,
       payload: preparedPayload ?? input.payload,
     });
-    const browserMcpMount = await this.browserMcpAccess?.mount(this.runId, this.projectId, turnId);
+    const browserMcpMount = session.inert
+      ? undefined
+      : await this.browserMcpAccess?.mount(this.runId, this.projectId, turnId);
     const platformMcpAdditionalAllowedTools = Array.from(
       new Set([
         ...(handler.additionalAllowedTools ?? []),
@@ -5456,8 +5660,6 @@ export class Run {
       toolCount: platformMcpCatalog.shortNames.length,
       tools: platformMcpCatalog.shortNames,
     });
-
-    const providerExecution = handler.resolveProviderExecution?.(preparedPayload ?? input.payload);
 
     // Handler.id is the stable identity of the logical agent that owns the
     // Run's provider transcript. Resume only when persisted ownership matches
@@ -5591,14 +5793,31 @@ export class Run {
             .join('\n\n')
         : (resolvedPrompt ?? '');
     const effectiveProviderSessionStartupSegments = providerSessionStartupSegments;
+    const roleGuidance =
+      handler.runnerKind === 'provider_session'
+        ? await this.sessionRoleGuidance.prepare({
+            session: this.session,
+            handler,
+            payload: preparedPayload ?? input.payload,
+            ...(this.startupPromptInputResult ? { startup: this.startupPromptInputResult } : {}),
+            fresh: providerSessionDecision !== 'resume',
+            userMessages: readRecentUserReplies(input).map((reply) => reply.text),
+          })
+        : undefined;
+    if (this.sessionRoleGuidance.continuity)
+      this.refreshSessionFields({
+        sessionContext: {
+          ...this.session.sessionContext,
+          sessionRoleGuidance: this.sessionRoleGuidance.continuity,
+        },
+      });
     const serviceScopeRecovery = this.serviceScope.pendingRecovery();
 
     const resolvedTurnEffective = resolveTurnEffective(handler, session);
     // A per-Turn runtime selection is the user's exact choice for this Turn: unset fields are
     // not filled from the Run, whose stored runtime stays as it was.
     const turnRuntime = input.turnRuntime;
-    const effectiveModel =
-      turnRuntime?.model ?? providerExecution?.model ?? resolvedTurnEffective.model;
+    const effectiveModel = turnRuntime?.model ?? resolvedTurnEffective.model;
     const effectiveReasoningEffort = turnRuntime
       ? (turnRuntime.reasoningEffort ?? null)
       : resolvedTurnEffective.reasoningEffort;
@@ -5608,7 +5827,6 @@ export class Run {
       promptType: handler.promptType,
       runnerKind: handler.runnerKind,
       provider: this.provider,
-      executionProvider: turnRuntime?.provider ?? providerExecution?.provider ?? this.provider,
       sessionModel: session.model ?? null,
       effectiveModel,
       sessionReasoningEffort: session.reasoningEffort ?? null,
@@ -5621,8 +5839,15 @@ export class Run {
       ctx: {
         run: this,
         turnId,
+        childPromptContext: {
+          turnId,
+          startedPromptTypes: new Set(this._startedPromptTypes),
+          recentUserReplies: readRecentUserReplies(input),
+          triggerParentMessageId: readTriggerParentMessageId(input),
+        },
         handler,
         resolvedPrompt: resolvedPromptNonNull,
+        ...(roleGuidance ? { roleGuidance } : {}),
         input,
         ...(preparedPayload !== undefined ? { preparedPayload } : {}),
         cwd: turnWorkspace.cwd,
@@ -5631,7 +5856,6 @@ export class Run {
           ? { workspaceWriteBoundary: turnWorkspace.workspaceWriteBoundary }
           : {}),
         effectiveModel,
-        ...(providerExecution ? { executionProvider: providerExecution.provider } : {}),
         effectiveReasoningEffort,
         ...(turnRuntime ? { turnRuntime } : {}),
         priorReports,
@@ -5871,6 +6095,14 @@ export class Run {
       return { cwd };
     }
 
+    if ((session.services?.length ?? 0) === 0) {
+      throw new LocalAgentApiError(
+        'REPO_REQUIRED',
+        'This Run has no Service folder. Start a new Run with a Service and bind its folder on this machine.',
+        400,
+      );
+    }
+
     let workspace: Awaited<ReturnType<typeof resolveRunWorkspace>>;
     try {
       workspace = await resolveRunWorkspace({
@@ -5977,11 +6209,11 @@ export class Run {
    * read-only directory so the write boundary identity stays stable.
    */
   /** One directory per Run so the workspace boundary's read-only roots stay stable across turns. */
-  private async resolveRepositorySnapshotDirectory(): Promise<string> {
-    this.repositorySnapshotDirectory ??= fs
-      .mkdtemp(path.join(os.tmpdir(), 'heyhey-repository-snapshots-'))
+  private async resolveRunEvidenceDirectory(): Promise<string> {
+    this.runEvidenceDirectory ??= fs
+      .mkdtemp(path.join(os.tmpdir(), 'heyhey-run-evidence-'))
       .then((directory) => fs.realpath(directory));
-    return this.repositorySnapshotDirectory;
+    return this.runEvidenceDirectory;
   }
 
   private async resolveProjectModeBundleDirectory(session: AgenticSession): Promise<string | null> {
@@ -6105,8 +6337,12 @@ export class Run {
     const baseTools = this.baseSubmissionTools.filter(
       (tool) => !handler.excludedBaseSubmissionTools?.includes(tool.name),
     );
-    const tools = [...baseTools, ...filteredHandlerTools];
-    const activeToolNames = [...baseTools, ...activeHandlerTools].map((tool) => tool.name);
+    const tools = [...baseTools, ...filteredHandlerTools].filter(
+      (tool) => !session.inert || isInertSubmissionToolAllowed(tool.name),
+    );
+    const activeToolNames = [...baseTools, ...activeHandlerTools]
+      .filter((tool) => !session.inert || isInertSubmissionToolAllowed(tool.name))
+      .map((tool) => tool.name);
 
     if (
       tools.length === 0 ||
@@ -6114,6 +6350,16 @@ export class Run {
       !session.contextMetadata.projectId ||
       !session.conversationId
     ) {
+      this.logger.info('local.run.submission_tools.registration_skipped', {
+        runId: this.runId,
+        turnId,
+        promptType: handler.promptType,
+        toolCount: tools.length,
+        hasOrganizationId: Boolean(session.contextMetadata.organizationId),
+        hasProjectId: Boolean(session.contextMetadata.projectId),
+        hasConversationId: Boolean(session.conversationId),
+        awaitingUserReview,
+      });
       // A turn awaiting a user review may end up with no tools to mount (the
       // routed handlers — coding_freeform and the feature-sync review
       // persona — declare none) yet a prior turn's registration on the same
@@ -6142,6 +6388,7 @@ export class Run {
     // the turn with no completion path. See the writeup at the top of this
     // file for the trigger-message-id history.
     const perTurnFields = {
+      usageTurnId: turnId,
       tools,
       activeToolNames,
       externalAgentNodeId,
@@ -6215,6 +6462,71 @@ export class Run {
     this.setTriggerContext(null);
   }
 
+  public async persistCodingPlanElement(
+    type: import('../shared/api/generated/api').ExtendedUIFieldType,
+    payload: import('../shared/api/generated/api').CodingPlanVersion,
+  ): Promise<string> {
+    return this.persistCodingPlanMessage(type, '', [
+      {
+        id: randomUUID(),
+        type,
+        label: 'Complete plan',
+        required: false,
+        influences: [],
+        payload,
+      },
+    ]);
+  }
+
+  /** Posts a planner question as visible text; the user's reply starts the next Turn. */
+  public async persistCodingPlanQuestion(question: string): Promise<string> {
+    return this.persistCodingPlanMessage('coding_plan_question', question);
+  }
+
+  private async persistCodingPlanMessage(
+    savedType: string,
+    response: string,
+    uiElements?: AgentSystemMessageData['uiElements'],
+  ): Promise<string> {
+    const turn = this.activeTurn;
+    if (turn?.handler.promptType !== 'startup_session') {
+      throw new Error('Planning conversation tools require the active planning handler.');
+    }
+    const session = this.session;
+    const messageId = await this.poster.createOutOfBand({
+      organizationId: session.contextMetadata.organizationId,
+      projectId: session.contextMetadata.projectId,
+      conversationId: session.conversationId,
+      dto: {
+        type: MessageType.System,
+        status: MessageStatus.Completed,
+        projectId: session.contextMetadata.projectId,
+        data: {
+          type: SystemMessageDataTypeEnum.Agent,
+          response,
+          detectedIntent: 'coding_plan_conversation',
+          intentConfidence: 1,
+          ...(uiElements ? { uiElements } : {}),
+        },
+      },
+      stamp: null,
+    });
+    const saved = this._codingPlanElementsByTurn.get(turn.turnId) ?? new Set<string>();
+    saved.add(savedType);
+    this._codingPlanElementsByTurn.set(turn.turnId, saved);
+    this.logger.debug('local.coding_plan.conversation.persisted', {
+      runId: this.runId,
+      turnId: turn.turnId,
+      type: savedType,
+      messageId,
+    });
+    return messageId;
+  }
+
+  public readCodingPlanElementTypes(turnId: string): readonly string[] {
+    return [...(this._codingPlanElementsByTurn.get(turnId) ?? [])];
+  }
+
   private async postAgentSystemMessage(
     response: string,
     session: AgenticSession = this.session,
@@ -6267,6 +6579,7 @@ export class Run {
     this._activeProviderThreadId = null;
     this._activeProviderTurnId = null;
     this._submittedTurnIds.clear();
+    this._codingPlanElementsByTurn.clear();
     this._reportChainStartByTurn.clear();
     this._narrationByTurn.clear();
     this.agentSessionCurrentState.cleanup(
@@ -6303,14 +6616,14 @@ export class Run {
         }),
       );
     }
-    const repositorySnapshotDirectory = this.repositorySnapshotDirectory;
-    this.repositorySnapshotDirectory = null;
-    if (repositorySnapshotDirectory) {
+    const runEvidenceDirectory = this.runEvidenceDirectory;
+    this.runEvidenceDirectory = null;
+    if (runEvidenceDirectory) {
       void runnerDisposePromise
-        .then(() => repositorySnapshotDirectory)
+        .then(() => runEvidenceDirectory)
         .then((directory) => fs.rm(directory, { recursive: true, force: true }))
         .catch((error: unknown) => {
-          this.logger.warn('local.run.cleanup.repository_snapshot_dispose_failed', {
+          this.logger.warn('local.run.cleanup.run_evidence_dispose_failed', {
             runId: this.runId,
             error,
           });

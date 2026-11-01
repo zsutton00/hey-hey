@@ -1,3 +1,4 @@
+import { AxiosError } from 'axios';
 import { describe, expect, it, vi } from 'vitest';
 import { LocalAgentApiError } from '../shared/agent-bridge-contract/errors';
 import { NOOP_LOGGER } from '../server/logger';
@@ -139,38 +140,42 @@ describe('Run message queue', () => {
     }
   });
 
-  it.each([
-    new Error('temporary network failure'),
-    new AgentStartupPromptInputError('template service unavailable', 'effective_template_read'),
-  ])('preserves durable admission after retryable preparation failure: %s', async (error) => {
-    const collaborators = makeCollaborators();
-    const run = new Run(makeRunArgs(), collaborators);
-    const resolve = vi
-      .spyOn(
-        run as unknown as {
-          resolveTurnInputs: () => Promise<never>;
-        },
-        'resolveTurnInputs',
-      )
-      .mockRejectedValue(error);
-    const admittedInput = {
-      turnId: 'selected-turn',
-      onStarted: vi.fn(),
-      onRejected: vi.fn(),
-      onSettled: vi.fn(),
-    };
-    try {
-      await expect(run.handleMessage(makeInput('retry me'), { admittedInput })).rejects.toBe(error);
-      await expect(run.handleMessage(makeInput('retry me'), { admittedInput })).rejects.toBe(error);
-      expect(resolve).toHaveBeenCalledTimes(2);
-      expect(admittedInput.onRejected).not.toHaveBeenCalled();
-      expect(admittedInput.onStarted).not.toHaveBeenCalled();
-      expect(run.isProcessing).toBe(false);
-      expect(collaborators.runnerPicker.pick).not.toHaveBeenCalled();
-    } finally {
-      run.cleanup();
-    }
-  });
+  it.each([new AxiosError('temporary network failure', 'ERR_NETWORK')])(
+    'preserves durable admission after retryable preparation failure: %s',
+    async (error) => {
+      const collaborators = makeCollaborators();
+      const run = new Run(makeRunArgs(), collaborators);
+      const resolve = vi
+        .spyOn(
+          run as unknown as {
+            resolveTurnInputs: () => Promise<never>;
+          },
+          'resolveTurnInputs',
+        )
+        .mockRejectedValue(error);
+      const admittedInput = {
+        turnId: 'selected-turn',
+        onStarted: vi.fn(),
+        onRejected: vi.fn(),
+        onSettled: vi.fn(),
+      };
+      try {
+        await expect(run.handleMessage(makeInput('retry me'), { admittedInput })).rejects.toBe(
+          error,
+        );
+        await expect(run.handleMessage(makeInput('retry me'), { admittedInput })).rejects.toBe(
+          error,
+        );
+        expect(resolve).toHaveBeenCalledTimes(2);
+        expect(admittedInput.onRejected).not.toHaveBeenCalled();
+        expect(admittedInput.onStarted).not.toHaveBeenCalled();
+        expect(run.isProcessing).toBe(false);
+        expect(collaborators.runnerPicker.pick).not.toHaveBeenCalled();
+      } finally {
+        run.cleanup();
+      }
+    },
+  );
 
   it('posts a conversation message when a queued message fails to start', async () => {
     const collaborators = makeCollaborators();
@@ -183,14 +188,8 @@ describe('Run message queue', () => {
     try {
       await (run as unknown as { drainQueue: () => Promise<void> }).drainQueue();
 
-      expect(collaborators.poster.createOutOfBand).toHaveBeenCalledWith(
-        expect.objectContaining({
-          dto: expect.objectContaining({
-            data: expect.objectContaining({
-              response: 'I could not start your queued message. Please try sending it again.',
-            }),
-          }),
-        }),
+      expect(collaborators.poster.postFailureMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: 'STARTUP_FAILED' }),
       );
       expect(run.queueLength).toBe(0);
       expect(run.isProcessing).toBe(false);
@@ -215,7 +214,9 @@ describe('Run message queue', () => {
       onSettled: vi.fn(),
     };
     try {
-      await expect(run.handleMessage(makeInput('invalid'), { admittedInput })).rejects.toBe(error);
+      await expect(
+        run.handleMessage(makeInput('invalid'), { admittedInput }),
+      ).resolves.toBeUndefined();
       expect(admittedInput.onRejected).toHaveBeenCalledOnce();
       expect(admittedInput.onStarted).not.toHaveBeenCalled();
     } finally {
@@ -449,68 +450,81 @@ describe('Run Project Assistant handoff', () => {
     return { run, startTurn, updateRunProjectAssistantDone, collaborators };
   };
 
-  it('does not run the bootstrap Turn until the admitted input start is projected', async () => {
-    const h = buildProjectAssistantHarness();
-    h.startTurn.mockRestore();
-    vi.spyOn(h.collaborators.runStore, 'updateRunPromptType').mockResolvedValue(
-      makeParticipatingSession('STANDARD'),
-    );
-    vi.spyOn(
-      h.run as unknown as {
-        resolveTurnInputs: (
-          input: InternalRunPromptRequest,
-          turnId: string,
-        ) => Promise<{
-          ctx: RunnerContext;
-          platformMcpProxy: null;
-          browserAnnotationIds: readonly string[];
-          proposalNotices: { lines: readonly string[]; proposalIds: readonly string[] };
-        }>;
-      },
-      'resolveTurnInputs',
-    ).mockImplementation(async (input, turnId) => ({
-      ctx: {
-        run: h.run,
-        turnId,
-        handler: freeFormHandler,
-        resolvedPrompt: 'test prompt',
-        input,
-        cwd: '/tmp/repo',
-        effectiveModel: null,
-        effectiveReasoningEffort: null,
-        priorReports: [],
-      } as RunnerContext,
-      platformMcpProxy: null,
-      browserAnnotationIds: [],
-      proposalNotices: { lines: [], proposalIds: [] },
-    }));
-    const runnerRun = vi.fn(async () => undefined);
-    vi.mocked(h.collaborators.runnerPicker.pick).mockImplementation(() => ({ run: runnerRun }));
-    let accept: () => void = () => {};
-    const admittedInput = {
-      turnId: 'admitted-user-turn',
-      onStarted: vi.fn(
-        () =>
-          new Promise<void>((resolve) => {
-            accept = resolve;
-          }),
-      ),
-      onRejected: vi.fn(),
-      onSettled: vi.fn(),
-    };
-    try {
-      const handled = h.run.handleMessage(makeParticipatingInput(), { admittedInput });
-      await vi.waitFor(() => expect(admittedInput.onStarted).toHaveBeenCalledOnce());
-      expect(h.collaborators.runnerPicker.pick).toHaveBeenCalledOnce();
-      expect(runnerRun).not.toHaveBeenCalled();
-      accept();
-      await handled;
-      await vi.waitFor(() => expect(runnerRun).toHaveBeenCalledOnce());
-    } finally {
-      await h.run.awaitIdle();
-      h.run.cleanup();
-    }
-  });
+  it.each([false, true])(
+    'projects bootstrap start and reports failure against its original input (fails: %s)',
+    async (fails) => {
+      const h = buildProjectAssistantHarness();
+      h.startTurn.mockRestore();
+      vi.spyOn(h.collaborators.runStore, 'updateRunPromptType').mockResolvedValue(
+        makeParticipatingSession('STANDARD'),
+      );
+      vi.spyOn(
+        h.run as unknown as {
+          resolveTurnInputs: (
+            input: InternalRunPromptRequest,
+            turnId: string,
+          ) => Promise<{
+            ctx: RunnerContext;
+            platformMcpProxy: null;
+            browserAnnotationIds: readonly string[];
+            proposalNotices: { lines: readonly string[]; proposalIds: readonly string[] };
+          }>;
+        },
+        'resolveTurnInputs',
+      ).mockImplementation(async (input, turnId) => ({
+        ctx: {
+          run: h.run,
+          turnId,
+          handler: freeFormHandler,
+          resolvedPrompt: 'test prompt',
+          input,
+          cwd: '/tmp/repo',
+          effectiveModel: null,
+          effectiveReasoningEffort: null,
+          priorReports: [],
+        } as RunnerContext,
+        platformMcpProxy: null,
+        browserAnnotationIds: [],
+        proposalNotices: { lines: [], proposalIds: [] },
+      }));
+      const runnerRun = vi.fn(async () => {
+        if (fails) {
+          throw new Error('private provider failure');
+        }
+      });
+      vi.mocked(h.collaborators.runnerPicker.pick).mockImplementation(() => ({ run: runnerRun }));
+      let accept: () => void = () => {};
+      const admittedInput = {
+        turnId: 'admitted-user-turn',
+        onStarted: vi.fn(
+          () =>
+            new Promise<void>((resolve) => {
+              accept = resolve;
+            }),
+        ),
+        onRejected: vi.fn(),
+        onSettled: vi.fn(),
+      };
+      try {
+        const handled = h.run.handleMessage(makeParticipatingInput(), { admittedInput });
+        await vi.waitFor(() => expect(admittedInput.onStarted).toHaveBeenCalledOnce());
+        expect(h.collaborators.runnerPicker.pick).toHaveBeenCalledOnce();
+        expect(runnerRun).not.toHaveBeenCalled();
+        accept();
+        await handled;
+        await vi.waitFor(() => expect(runnerRun).toHaveBeenCalledOnce());
+      } finally {
+        await h.run.awaitIdle();
+        if (fails) {
+          expect(admittedInput.onRejected).toHaveBeenCalledOnce();
+          expect(h.collaborators.poster.postFailureMessage).toHaveBeenCalledOnce();
+          expect(runnerRun).toHaveBeenCalledOnce();
+          expect(h.run.queueLength).toBe(0);
+        }
+        h.run.cleanup();
+      }
+    },
+  );
 
   it('keeps bootstrap timing separate from the admitted user turn', async () => {
     const logger = { ...NOOP_LOGGER, info: vi.fn() };

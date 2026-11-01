@@ -63,7 +63,7 @@ const getErrorMessage = (error: unknown): string =>
     : "The installed Skill catalog could not be loaded.";
 
 const toCatalogState = (
-  catalog: CliReadWorkspaceSkillsListSuccessResponseDtoResult
+  catalog: CliReadWorkspaceSkillsListSuccessResponseDtoResult,
 ): AgentSkillsCatalogState => {
   if (catalog.errors.length > 0 && catalog.skills.length === 0) {
     return { status: "discovery-error", errors: catalog.errors };
@@ -75,7 +75,7 @@ const toCatalogState = (
 };
 
 export function useAgentSkillsCatalog(
-  options: AgentSkillsCatalogOptions
+  options: AgentSkillsCatalogOptions,
 ): AgentSkillsCatalogResult {
   const { enabled, organizationId, projectId, machineId, provider } = options;
   const agentSessionId = "runId" in options ? options.agentSessionId : null;
@@ -135,7 +135,7 @@ export function useAgentSkillsCatalog(
     }
 
     const machine = machinesQuery.machines.find(
-      (candidate) => candidate.machineId === machineId
+      (candidate) => candidate.machineId === machineId,
     );
     if (!machine) {
       setState({
@@ -154,8 +154,11 @@ export function useAgentSkillsCatalog(
       catalogPolicy === "service_workspace" && catalogServiceId
         ? { policy: "service_workspace", serviceId: catalogServiceId }
         : { policy: "non_repository" };
+    const controllerReadInputs = runId
+      ? ({ operation: "run.skills.list", runId } as const)
+      : null;
     const read =
-      agentSessionId && runId
+      agentSessionId && controllerReadInputs
         ? executeControllerAuthorizedAction({
             organizationId,
             projectId,
@@ -166,17 +169,21 @@ export function useAgentSkillsCatalog(
               actionType: HostAffectingActionType.CliRead,
               targetKind: HostActionTargetKind.AgentSession,
               targetId: agentSessionId,
+              inputs: {
+                kind: "CLI_READ",
+                body: {
+                  requestId: crypto.randomUUID(),
+                  agentSessionId: agentSessionId,
+                  ...controllerReadInputs,
+                },
+              },
             },
             submit: ({ authorization }) =>
               agentSessionsClient.readAgentSessionCliState({
                 organizationId,
                 projectId,
                 agentSessionId,
-                cliReadRequestDto: {
-                  operation: "run.skills.list",
-                  runId,
-                  authorization,
-                },
+                cliReadRequestDto: { ...controllerReadInputs, authorization },
               }),
           })
         : executeControllerAuthorizedAction({
@@ -273,7 +280,7 @@ export function useAgentSkillsCatalog(
 }
 
 export const skillSelectionFromCatalogEntry = (
-  entry: AgentSkillCatalogEntry
+  entry: AgentSkillCatalogEntry,
 ) => ({
   provider: entry.provider,
   name: entry.name,

@@ -211,6 +211,11 @@ export const useRemoteChangedFilesCount = (params: {
           ? lastFailureRef.current
           : null,
     });
+    const controllerReadInputs = {
+      operation:
+        CliReadRunChangedFilesCountRequestOperationEnum.RunChangedFilesCount,
+      runId,
+    } as const;
     void authorize({
       cause: {
         operation:
@@ -226,6 +231,14 @@ export const useRemoteChangedFilesCount = (params: {
         actionType: HostAffectingActionType.CliRead,
         targetKind: HostActionTargetKind.AgentSession,
         targetId: params.agentSessionId,
+        inputs: {
+          kind: "CLI_READ",
+          body: {
+            requestId: crypto.randomUUID(),
+            agentSessionId: params.agentSessionId,
+            ...controllerReadInputs,
+          },
+        },
       },
       submit: ({ authorization: admission }) =>
         unifiedApiClient.readAgentSessionCliState({
@@ -233,9 +246,7 @@ export const useRemoteChangedFilesCount = (params: {
           projectId: params.projectId,
           agentSessionId: params.agentSessionId,
           cliReadRequestDto: {
-            operation:
-              CliReadRunChangedFilesCountRequestOperationEnum.RunChangedFilesCount,
-            runId,
+            ...controllerReadInputs,
             authorization: admission,
           },
         }),

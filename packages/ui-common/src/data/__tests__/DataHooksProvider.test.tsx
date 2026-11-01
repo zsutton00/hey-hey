@@ -3,7 +3,7 @@ import { render } from "@testing-library/react";
 import { useEffect } from "react";
 
 import { DataHooksProvider } from "../DataHooksProvider";
-import type { QueryKey } from "../core/types";
+import type { QueryKey } from "@tanstack/react-query";
 import {
   getRelatedEntities,
   initRelationshipConfig,
@@ -61,7 +61,7 @@ describe("DataHooksProvider boot ordering", () => {
 
     const Descendant = () => {
       useEffect(() => {
-        const scopeKey = { __sentinel: "scope" } as unknown as QueryKey;
+        const scopeKey: QueryKey = ["sentinel", "scope"];
         const collection: CollectionInvalidator = {
           dispatch: () => {},
           buildScopeKey: () => scopeKey,

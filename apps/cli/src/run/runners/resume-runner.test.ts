@@ -350,3 +350,42 @@ describe('ResumeRunner', () => {
     await expect(runner.run(new AbortController().signal)).rejects.toBe(failure);
   });
 });
+
+describe('later role advice at provider handoff', () => {
+  it('precedes the affected input and acknowledges only a successful handoff', async () => {
+    const run = new Run(makeRunArgs(), makeCollaborators());
+    const acknowledge = vi
+      .spyOn(run.sessionRoleGuidance, 'acknowledge')
+      .mockResolvedValue(undefined);
+    const facade = createTestSessionRunnerFacade();
+    vi.mocked(facade.resumeSession).mockResolvedValue({
+      providerSessionId: null,
+      providerConversationId: null,
+      errorCount: 0,
+    });
+    const ctx = {
+      ...makeCtx(run, 'NEW USER INPUT'),
+      roleGuidance: {
+        text: 'LATER DIAGRAM ADVICE',
+        deliveryKeys: ['implementation:DIAGRAM'],
+        resolutions: [],
+        failedTypeKeys: [],
+      },
+    };
+    await new ResumeRunner(ctx, { sessionRunnerFacade: facade, logger: makeLogger() }).run(
+      new AbortController().signal,
+    );
+    expect(vi.mocked(facade.resumeSession).mock.calls[0]![1].prompt).toBe(
+      'LATER DIAGRAM ADVICE\n\nNEW USER INPUT',
+    );
+    expect(acknowledge).toHaveBeenCalledOnce();
+    acknowledge.mockClear();
+    vi.mocked(facade.resumeSession).mockRejectedValue(Error('handoff failed'));
+    await expect(
+      new ResumeRunner(ctx, { sessionRunnerFacade: facade, logger: makeLogger() }).run(
+        new AbortController().signal,
+      ),
+    ).rejects.toThrow('handoff failed');
+    expect(acknowledge).not.toHaveBeenCalled();
+  });
+});

@@ -1,3 +1,4 @@
+import { FutureOfferProvider } from "./futureOffers/FutureOfferProvider";
 import type { PropsWithChildren } from "react";
 import { useRef } from "react";
 import { Provider as JotaiProvider, createStore } from "jotai";
@@ -58,7 +59,7 @@ export const DataHooksProvider = ({
   return (
     <JotaiProvider store={resolvedStore}>
       <QueryClientProvider client={resolvedQueryClient}>
-        {children}
+        <FutureOfferProvider>{children}</FutureOfferProvider>
         <ControllerAuthorizationPromptHost />
       </QueryClientProvider>
     </JotaiProvider>

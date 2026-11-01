@@ -1,3 +1,4 @@
+import { SessionRole } from '../../generated/model/sessionRole';
 import { ProjectAccessGuard } from '../../auth/guards/project-access.guard';
 import { ProjectService } from '../../services/project.service';
 import {
@@ -167,31 +168,8 @@ describe('WorkItemTypeController', () => {
     jest.clearAllMocks();
   });
 
-  describe('semantic guidance', () => {
-    it('authorizes the project before forwarding both type keys', async () => {
-      projectService.findOne.mockResolvedValue({ id: PROJECT_ID });
-      const guide = {
-        typeKey: 'MARKETING',
-        name: 'Marketing',
-        overview: 'Meaning',
-        examples: [],
-      };
-      registry.getGuidance.mockReturnValue(guide);
-      await expect(
-        controller.getGuidance(ORG_ID, PROJECT_ID, 'MARKETING', {
-          focalTypeKey: 'FEATURE',
-        }),
-      ).resolves.toEqual(guide);
-      expect(projectService.findOne).toHaveBeenCalledWith(PROJECT_ID, ORG_ID);
-      expect(registry.getGuidance).toHaveBeenCalledWith(
-        PROJECT_ID,
-        'MARKETING',
-        'FEATURE',
-        undefined,
-      );
-    });
-
-    it('forwards an explicit maintenance purpose', async () => {
+  describe('guidance', () => {
+    it('authorizes the project before forwarding an explicit maintenance purpose', async () => {
       projectService.findOne.mockResolvedValue({ id: PROJECT_ID });
       const guide = { typeKey: 'MARKETING', name: 'Marketing' };
       registry.getGuidance.mockReturnValue(guide);
@@ -200,18 +178,55 @@ describe('WorkItemTypeController', () => {
           purpose: WorkItemTypeGuidancePurpose.Maintenance,
         }),
       ).resolves.toEqual(guide);
+      expect(projectService.findOne).toHaveBeenCalledWith(PROJECT_ID, ORG_ID);
       expect(registry.getGuidance).toHaveBeenCalledWith(
         PROJECT_ID,
         'MARKETING',
-        undefined,
         WorkItemTypeGuidancePurpose.Maintenance,
+        undefined,
       );
     });
+
+    it.each(Object.values(SessionRole))(
+      'accepts and forwards explicit role %s',
+      async (sessionRole) => {
+        const query = {
+          purpose: WorkItemTypeGuidancePurpose.Role,
+          sessionRole,
+        };
+        for (const [type, metatype, input] of [
+          ['query', WorkItemTypeGuidanceQueryDto, query],
+          [
+            'body',
+            WorkItemTypeGuidanceBatchRequestDto,
+            { ...query, typeKeys: ['MARKETING'] },
+          ],
+        ] as const) {
+          await expect(
+            new ValidationPipe({
+              transform: true,
+              whitelist: true,
+              forbidNonWhitelisted: true,
+            }).transform(input, { type, metatype }),
+          ).resolves.toMatchObject(query);
+        }
+        projectService.findOne.mockResolvedValue({ id: PROJECT_ID });
+        await controller.getGuidance(ORG_ID, PROJECT_ID, 'MARKETING', query);
+        expect(registry.getGuidance).toHaveBeenCalledWith(
+          PROJECT_ID,
+          'MARKETING',
+          WorkItemTypeGuidancePurpose.Role,
+          sessionRole,
+        );
+      },
+    );
 
     it('denies a project outside the authorized organization without reading guidance', async () => {
       projectService.findOne.mockResolvedValue(null);
       await expect(
-        controller.getGuidance(ORG_ID, PROJECT_ID, 'MARKETING', {}),
+        controller.getGuidance(ORG_ID, PROJECT_ID, 'MARKETING', {
+          purpose: WorkItemTypeGuidancePurpose.Maintenance,
+        }),
       ).rejects.toThrow(NotFoundException);
       expect(registry.getGuidance).not.toHaveBeenCalled();
     });
@@ -222,16 +237,18 @@ describe('WorkItemTypeController', () => {
         throw new NotFoundException('Guidance unavailable');
       });
       await expect(
-        controller.getGuidance(ORG_ID, PROJECT_ID, 'MARKETING', {}),
+        controller.getGuidance(ORG_ID, PROJECT_ID, 'MARKETING', {
+          purpose: WorkItemTypeGuidancePurpose.Maintenance,
+        }),
       ).rejects.toThrow('Guidance unavailable');
     });
 
     it.each([
-      { focalTypeKey: '' },
-      { focalTypeKey: ['FEATURE'] },
-      { focalTypeKey: 1 },
+      {},
       { purpose: 'unknown' },
-      { extra: true },
+      { purpose: 'role' },
+      { purpose: 'role', sessionRole: 'unknown' },
+      { purpose: 'maintenance', extra: true },
     ])('rejects malformed query %j', async (query) => {
       const pipe = new ValidationPipe({
         transform: true,
@@ -250,20 +267,18 @@ describe('WorkItemTypeController', () => {
   describe('batch guidance', () => {
     const request = {
       typeKeys: ['BUG', 'STANDARD'],
-      focalTypeKey: 'FEATURE',
-      purpose: WorkItemTypeGuidancePurpose.Semantic,
+      purpose: WorkItemTypeGuidancePurpose.Maintenance,
     };
 
     it('authorizes the project before forwarding the shared request', async () => {
       projectService.findOne.mockResolvedValue({ id: PROJECT_ID });
       const result = {
         results: [
-          { typeKey: 'BUG', name: 'Bug', overview: 'Defects', examples: [] },
+          { typeKey: 'BUG', name: 'Bug', maintenanceGuidance: 'Defects' },
           {
             typeKey: 'STANDARD',
             name: 'Task',
-            overview: 'Implementation work',
-            examples: [],
+            maintenanceGuidance: 'Implementation work',
           },
         ],
       };
@@ -299,17 +314,25 @@ describe('WorkItemTypeController', () => {
           type: 'body',
           metatype: WorkItemTypeGuidanceBatchRequestDto,
         });
+      const purpose = WorkItemTypeGuidancePurpose.Maintenance;
 
       await expect(
         transform({
           typeKeys: Array.from({ length: 10 }, (_, i) => `TYPE_${i}`),
+          purpose,
         }),
       ).resolves.toMatchObject({ typeKeys: expect.any(Array) });
       for (const body of [
-        { typeKeys: [] },
-        { typeKeys: Array.from({ length: 11 }, (_, i) => `TYPE_${i}`) },
-        { typeKeys: ['BUG', 'BUG'] },
-        { typeKeys: ['BUG'], extra: true },
+        { typeKeys: ['BUG'] },
+        { typeKeys: [], purpose },
+        {
+          typeKeys: Array.from({ length: 11 }, (_, i) => `TYPE_${i}`),
+          purpose,
+        },
+        { typeKeys: ['BUG', 'BUG'], purpose },
+        { typeKeys: ['BUG'], purpose, extra: true },
+        { typeKeys: ['BUG'], purpose: 'role' },
+        { typeKeys: ['BUG'], purpose: 'role', sessionRole: 'unknown' },
       ]) {
         await expect(transform(body)).rejects.toThrow(BadRequestException);
       }

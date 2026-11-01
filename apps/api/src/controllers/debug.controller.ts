@@ -4,6 +4,7 @@ import {
   timelineCreatedAt,
 } from 'src/utils/message-timeline.util';
 import { AdminGuard } from '../auth/guards/admin.guard';
+import { JwtKeysService } from '../auth/services/jwt-keys.service';
 import { ProjectAccessService } from '../auth/services/project-access.service';
 import {
   BadRequestException,
@@ -358,6 +359,7 @@ export class DebugController {
     private readonly embeddingsClient: EmbeddingsClientService,
     private readonly eventReplayRepairService: EventReplayRepairService,
     private readonly projectAccess: ProjectAccessService,
+    private readonly jwtKeys: JwtKeysService,
   ) {}
 
   @Post('relationships/resolve')
@@ -2209,7 +2211,11 @@ export class DebugController {
       projectId,
     });
 
-    const entity = await this.embeddingsClient.getDebugEntity(type, id);
+    const entity = await this.embeddingsClient.getDebugEntity(
+      type,
+      id,
+      this.jwtKeys.getEmbeddingsDebugToken(user.userId),
+    );
     const documents = (entity.documents ?? []).filter(
       (document) => document.metadata?.projectId === projectId,
     );

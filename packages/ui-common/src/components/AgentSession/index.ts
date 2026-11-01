@@ -54,6 +54,7 @@ export {
   useAgentSessionInteractionAccessResolver,
   type AgentSessionInteractionAccessResolver,
 } from "./operations/useAgentSessionInteractionAccess";
+export { useConversationMessageSubmitter } from "./useConversationMessageSubmitter";
 export * from "./MachinePicker";
 export * from "./runtime/coding/machineExecutionReadiness";
 export * from "./runtime/coding/useMachineResolution";

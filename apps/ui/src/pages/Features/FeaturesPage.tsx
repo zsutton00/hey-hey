@@ -1,3 +1,7 @@
+import {
+  useModalState,
+  ModalWorkOwner,
+} from "@hey-hey/ui-common/components/Modals";
 import { WORK_ITEM_TYPE_KEYS } from "../../types/workItemTypes";
 import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
@@ -71,9 +75,17 @@ const featureAgentSearchEntityTypes = [EntityType.Task] as NonNullable<
   EntitySearchChatProps["entityTypes"]
 >;
 
-export interface FeaturesPageProps { organizationId?: string; projectId?: string; preview?: boolean; }
+export interface FeaturesPageProps {
+  organizationId?: string;
+  projectId?: string;
+  preview?: boolean;
+}
 
-export const FeaturesPage: React.FC<FeaturesPageProps> = ({ organizationId, projectId: projectIdProp, preview = false }) => {
+export const FeaturesPage: React.FC<FeaturesPageProps> = ({
+  organizationId,
+  projectId: projectIdProp,
+  preview = false,
+}) => {
   const { t } = useTranslation();
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const { currentOrgId: identityOrganizationId } = useUserIdentity() || {};
@@ -83,7 +95,8 @@ export const FeaturesPage: React.FC<FeaturesPageProps> = ({ organizationId, proj
   const isMobileViewport = useMediaQuery(theme.breakpoints.down("md"));
   const isPreviewPresentation = usePreviewPresentation();
 
-  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createModalOpen, setCreateModalOpen, createModalOpenOwnerKey] =
+    useModalState(false);
   const [isCreating, setIsCreating] = useState(false);
 
   const [activeTab, setActiveTab] = useQueryState(
@@ -151,9 +164,8 @@ export const FeaturesPage: React.FC<FeaturesPageProps> = ({ organizationId, proj
   );
   const [agentSearchError, setAgentSearchError] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<UnifiedSearchResult[]>([]);
-  const agentSelection = useMemo<SurfaceSelection>(
-    () => buildDefaultSurfaceSelection(),
-    [],
+  const [agentSelection, setAgentSelection] = useState<SurfaceSelection | null>(
+    null,
   );
 
   const { data: project } = useProject(currentOrgId ?? "", projectId ?? "", {
@@ -185,10 +197,7 @@ export const FeaturesPage: React.FC<FeaturesPageProps> = ({ organizationId, proj
       setAgentSearchError(
         error instanceof Error
           ? error.message
-          : t(
-              "features.agentSearch.error",
-              "Failed to start agent search.",
-            ),
+          : t("features.agentSearch.error", "Failed to start agent search."),
       );
     },
   });
@@ -249,9 +258,7 @@ export const FeaturesPage: React.FC<FeaturesPageProps> = ({ organizationId, proj
   const featureSelectionPathActive =
     !hasMobileSearchSelection &&
     searchMode === "title" &&
-    (isMobileViewport ||
-      isFeatureSearchFocused ||
-      !!titleSearchQuery.trim());
+    (isMobileViewport || isFeatureSearchFocused || !!titleSearchQuery.trim());
 
   const tabs = [
     { value: "features", label: t("features.tab.features", "Features") },
@@ -305,8 +312,16 @@ export const FeaturesPage: React.FC<FeaturesPageProps> = ({ organizationId, proj
     (query: string): void => {
       const trimmed = query.trim();
       if (!trimmed || !currentOrgId || !projectId) return;
-      setAgentInitialMessage(`Search feature entities only for: ${trimmed}`);
+      const selection = buildDefaultSurfaceSelection();
+      setAgentSelection(selection);
       setAgentSession(null);
+      if (!selection) {
+        setAgentSearchError(
+          "No agent models are available. Connect your CLI and try again.",
+        );
+        return;
+      }
+      setAgentInitialMessage(`Search feature entities only for: ${trimmed}`);
       setAgentSearchError(null);
       createAgentSessionMutation.mutate({
         organizationId: currentOrgId,
@@ -325,10 +340,8 @@ export const FeaturesPage: React.FC<FeaturesPageProps> = ({ organizationId, proj
   const isAgentSearchActive = searchMode === "agent" && !!agentSession;
   const isFeaturesTabActive = activeTab === "features";
   useSuppressLayoutMainBottomSpacing(isFeaturesTabActive);
-  const {
-    containerRef: featuresPageContainerRef,
-    height: featuresPageHeight,
-  } = useRemainingViewportHeight(isFeaturesTabActive, 0);
+  const { containerRef: featuresPageContainerRef, height: featuresPageHeight } =
+    useRemainingViewportHeight(isFeaturesTabActive, 0);
 
   const boundedPageRootSx: SxProps<Theme> | undefined = isFeaturesTabActive
     ? {
@@ -358,30 +371,30 @@ export const FeaturesPage: React.FC<FeaturesPageProps> = ({ organizationId, proj
   const matchedFeatureIds = useMemo<Set<string> | undefined>(() => {
     if (!isContentSearchActive) return undefined;
     return new Set(
-      searchResults
-        .map((r) => r.entityId)
-        .filter((id): id is string => !!id),
+      searchResults.map((r) => r.entityId).filter((id): id is string => !!id),
     );
   }, [isContentSearchActive, searchResults]);
 
   return (
     <>
-      {!preview && <PageBreadcrumbs
-        sx={{ mb: 2 }}
-        items={[
-          { label: "Projects", to: "/projects" },
-          {
-            label: project?.name ?? "Project",
-            to: `/projects/${projectId}`,
-            type: "project",
-          },
-          {
-            label: t("features.title", "Features"),
-            to: `/projects/${projectId}/features`,
-            isCurrent: true,
-          },
-        ]}
-      />}
+      {!preview && (
+        <PageBreadcrumbs
+          sx={{ mb: 2 }}
+          items={[
+            { label: "Projects", to: "/projects" },
+            {
+              label: project?.name ?? "Project",
+              to: `/projects/${projectId}`,
+              type: "project",
+            },
+            {
+              label: t("features.title", "Features"),
+              to: `/projects/${projectId}/features`,
+              isCurrent: true,
+            },
+          ]}
+        />
+      )}
 
       <DetailPageContainer
         ref={featuresPageContainerRef}
@@ -403,51 +416,48 @@ export const FeaturesPage: React.FC<FeaturesPageProps> = ({ organizationId, proj
               <DetailPageHeader
                 title={
                   <Box
-                  data-testid="features-title-row"
-                  sx={{
-                    alignItems: "center",
-                    display: "flex",
-                    gap: 1,
-                    justifyContent: "space-between",
-                    width: "100%",
-                  }}
-                >
-                  <Typography
-                    component="h1"
-                    variant="h4"
+                    data-testid="features-title-row"
                     sx={{
-                      fontFamily:
-                        '"Work Sans", "Atkinson Hyperlegible", "Roboto", "Helvetica", "Arial", sans-serif',
-                      fontWeight: 600,
+                      alignItems: "center",
+                      display: "flex",
+                      gap: 1,
+                      justifyContent: "space-between",
+                      width: "100%",
                     }}
                   >
-                    {t("features.title", "Features")}
-                  </Typography>
-                  <Button
-                    aria-label={t(
-                      "features.createFeature",
-                      "Create Feature",
-                    )}
-                    data-testid="create-feature-button"
-                    onClick={() => setCreateModalOpen(true)}
-                    size="small"
-                    startIcon={<AddIcon />}
-                    sx={{ flexShrink: 0 }}
-                    variant="contained"
-                  >
-                    <Box
-                      component="span"
-                      sx={{ display: { xs: "inline", sm: "none" } }}
+                    <Typography
+                      component="h1"
+                      variant="h4"
+                      sx={{
+                        fontFamily:
+                          '"Work Sans", "Atkinson Hyperlegible", "Roboto", "Helvetica", "Arial", sans-serif',
+                        fontWeight: 600,
+                      }}
                     >
-                      {t("features.add", "Add")}
-                    </Box>
-                    <Box
-                      component="span"
-                      sx={{ display: { xs: "none", sm: "inline" } }}
+                      {t("features.title", "Features")}
+                    </Typography>
+                    <Button
+                      aria-label={t("features.createFeature", "Create Feature")}
+                      data-testid="create-feature-button"
+                      onClick={() => setCreateModalOpen(true)}
+                      size="small"
+                      startIcon={<AddIcon />}
+                      sx={{ flexShrink: 0 }}
+                      variant="contained"
                     >
-                      {t("features.createFeature", "Create Feature")}
-                    </Box>
-                  </Button>
+                      <Box
+                        component="span"
+                        sx={{ display: { xs: "inline", sm: "none" } }}
+                      >
+                        {t("features.add", "Add")}
+                      </Box>
+                      <Box
+                        component="span"
+                        sx={{ display: { xs: "none", sm: "inline" } }}
+                      >
+                        {t("features.createFeature", "Create Feature")}
+                      </Box>
+                    </Button>
                   </Box>
                 }
               />
@@ -538,7 +548,7 @@ export const FeaturesPage: React.FC<FeaturesPageProps> = ({ organizationId, proj
                 minWidth: 0,
               }}
             >
-              {isAgentSearchActive ? (
+              {isAgentSearchActive && agentSelection ? (
                 <EntitySearchChat
                   organizationId={currentOrgId ?? ""}
                   projectId={projectId ?? ""}
@@ -607,12 +617,14 @@ export const FeaturesPage: React.FC<FeaturesPageProps> = ({ organizationId, proj
           </Box>
         )}
 
-        <NewFeatureModal
-          open={createModalOpen}
-          onClose={() => setCreateModalOpen(false)}
-          onSubmit={handleCreateFeature}
-          isLoading={isCreating}
-        />
+        <ModalWorkOwner.Provider value={createModalOpenOwnerKey}>
+          <NewFeatureModal
+            open={createModalOpen}
+            onClose={() => setCreateModalOpen(false)}
+            onSubmit={handleCreateFeature}
+            isLoading={isCreating}
+          />
+        </ModalWorkOwner.Provider>
       </DetailPageContainer>
       <DiscussFeatureTreeActionCapsule
         organizationId={currentOrgId}

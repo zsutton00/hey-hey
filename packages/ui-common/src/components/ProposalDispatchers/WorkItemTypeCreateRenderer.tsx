@@ -1,3 +1,4 @@
+import { SessionRole } from "../../api";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import {
   Accordion,
@@ -160,7 +161,7 @@ export const WorkItemTypeCreateRenderer: React.FC<{
   const { updates } = proposal;
   const { manageWorkItemTypes } = useProjectCapabilities(
     proposal.organizationId,
-    proposal.projectId
+    proposal.projectId,
   );
   const isRestoration =
     !isPlaceholderEntityId(proposal.targetEntityId) &&
@@ -175,7 +176,7 @@ export const WorkItemTypeCreateRenderer: React.FC<{
   const anchorableReportTypes = updates.anchorableReportTypes ?? [];
   const edgeTargets = updates.edgeTargets ?? [];
   const capabilities = Object.entries(updates.capabilities ?? {}).filter(
-    ([, value]) => value !== undefined
+    ([, value]) => value !== undefined,
   );
   const { tracking, writingStandards } = updates;
 
@@ -205,7 +206,7 @@ export const WorkItemTypeCreateRenderer: React.FC<{
           typePresentation={staticProposalTypePresentation(
             "Work Item Type",
             undefined,
-            resolveWorkItemTypeColors(updates.key, updates, "PROJECT_CUSTOM")
+            resolveWorkItemTypeColors(updates.key, updates, "PROJECT_CUSTOM"),
           )}
           hideTypeChip={overrides?.hideTypeChip}
           titleSx={
@@ -403,81 +404,26 @@ export const WorkItemTypeCreateRenderer: React.FC<{
               </Group>
             )}
 
-            {updates.agentGuidance && (
-              <Group
-                title="Semantic guidance"
-                caption="Meaning, examples, and guidance for selected focal types."
-              >
-                <Stack
-                  spacing={1.5}
-                  data-testid="work-item-type-semantic-guidance"
-                >
-                  <AxisBlock label="Overview">
-                    <MarkdownRenderer allowMentionEscapes>
-                      {updates.agentGuidance.overview}
-                    </MarkdownRenderer>
-                  </AxisBlock>
-                  {updates.agentGuidance.examples &&
-                    updates.agentGuidance.examples.length > 0 && (
-                      <AxisBlock label="Examples">
-                        <Stack spacing={1}>
-                          {updates.agentGuidance.examples.map(
-                            (example, index) => (
-                              <Box key={index}>
-                                <Typography variant="subtitle2">
-                                  {example.title}
-                                </Typography>
-                                <MarkdownRenderer allowMentionEscapes>
-                                  {example.guidance}
-                                </MarkdownRenderer>
-                              </Box>
-                            )
-                          )}
-                        </Stack>
-                      </AxisBlock>
-                    )}
-                  {updates.agentGuidance.contexts &&
-                    updates.agentGuidance.contexts.length > 0 && (
-                      <AxisBlock label="Contextual guidance">
-                        <Stack spacing={1.5}>
-                          {updates.agentGuidance.contexts.map(
-                            (context, index) => (
-                              <Box key={index}>
-                                <AxisBlock label="Focal types">
-                                  <ChipRow values={context.focalTypeKeys} />
-                                </AxisBlock>
-                                <MarkdownRenderer allowMentionEscapes>
-                                  {context.guidance}
-                                </MarkdownRenderer>
-                                {context.examples &&
-                                  context.examples.length > 0 && (
-                                    <AxisBlock label="Context examples">
-                                      <Stack spacing={1}>
-                                        {context.examples.map(
-                                          (example, exampleIndex) => (
-                                            <Box key={exampleIndex}>
-                                              <Typography variant="subtitle2">
-                                                {example.title}
-                                              </Typography>
-                                              <MarkdownRenderer
-                                                allowMentionEscapes
-                                              >
-                                                {example.guidance}
-                                              </MarkdownRenderer>
-                                            </Box>
-                                          )
-                                        )}
-                                      </Stack>
-                                    </AxisBlock>
-                                  )}
-                              </Box>
-                            )
-                          )}
-                        </Stack>
-                      </AxisBlock>
-                    )}
-                </Stack>
-              </Group>
+            {updates.sessionRoleGuidance && (
+              <Box data-testid="work-item-type-create-role-guidance">
+                <Typography variant="subtitle2">
+                  Session-role guidance
+                </Typography>
+                {Object.values(SessionRole).map(
+                  (role) =>
+                    updates.sessionRoleGuidance?.[role] !== undefined && (
+                      <Box key={role} sx={{ mt: 1 }}>
+                        <Typography variant="subtitle2">{role}</Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{ whiteSpace: "pre-wrap" }}
+                        >
+                          {updates.sessionRoleGuidance[role]}
+                        </Typography>
+                      </Box>
+                    ),
+                )}
+              </Box>
             )}
 
             {tracking && (
@@ -489,7 +435,7 @@ export const WorkItemTypeCreateRenderer: React.FC<{
                   <AxisBlock label="Allowed Source Entity Types">
                     <ChipRow
                       values={tracking.allowedSourceEntityTypes.map(
-                        humanizeKey
+                        humanizeKey,
                       )}
                     />
                   </AxisBlock>

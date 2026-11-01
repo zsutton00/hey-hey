@@ -4,10 +4,15 @@ import type { ProposalResponseDto } from "../../../api";
 import { proposalsClient } from "../../../clients/serviceClients";
 import { useProposalAgentFixLaunch } from "../useProposalAgentFixLaunch";
 
-const { startSession, getAccess } = vi.hoisted(() => ({
+const { startSession, getAccess, bindMachine } = vi.hoisted(() => ({
   startSession: vi.fn(),
   getAccess: vi.fn(),
+  bindMachine: vi.fn(),
 }));
+vi.mock(
+  "../../InteractionComponent/bindGraphConversationAgentSessionMachine",
+  () => ({ bindGraphConversationAgentSessionMachine: bindMachine }),
+);
 vi.mock(
   "../../AgentSession/operations/useAgentSessionInteractionAccess",
   () => ({
@@ -76,6 +81,15 @@ describe("useProposalAgentFixLaunch", () => {
       launched = await result.current.launch(proposal, selection);
     });
     expect(launched).toEqual(recorded);
+    expect(bindMachine).toHaveBeenCalledWith({
+      organizationId: "org",
+      projectId: "project",
+      agentSessionId: "session",
+      machineId: "machine",
+    });
+    expect(bindMachine.mock.invocationCallOrder[0]).toBeLessThan(
+      startSession.mock.invocationCallOrder[0]!,
+    );
     expect(getAccess).toHaveBeenCalledWith("machine");
     const start = startSession.mock.calls[0]![0];
     expect(start).toMatchObject({

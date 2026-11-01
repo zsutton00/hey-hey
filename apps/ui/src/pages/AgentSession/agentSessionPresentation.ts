@@ -11,6 +11,7 @@ export const buildAgentSessionPresentation = (
     entityType?: string;
   },
   conversationTitle?: string | null,
+  parentLabel?: string,
 ): AgentSessionPresentationSnapshot => {
   const launchServiceId =
     agentSession.launchServiceId ?? agentSession.service?.id;
@@ -26,10 +27,7 @@ export const buildAgentSessionPresentation = (
   const hasEntityConversationRoute =
     agentSession.type === AgentSessionType.EntityConversation &&
     Boolean(route.conversationId && route.entityId && route.entityType);
-  const conversationTitleLabel =
-    agentSession.type === AgentSessionType.EntityConversation
-      ? conversationTitle?.trim()
-      : undefined;
+  const conversationTitleLabel = conversationTitle?.trim();
 
   return {
     kind: "agent_session",
@@ -38,6 +36,7 @@ export const buildAgentSessionPresentation = (
       buildAgentSessionLabel(
         agentSession,
         serviceName?.trim() || embeddedLaunchServiceName,
+        parentLabel,
       ),
     sessionType: agentSession.type,
     ...(hasEntityConversationRoute

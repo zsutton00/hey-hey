@@ -776,7 +776,14 @@ export class SubmissionToolsHttpController {
 
     let result: SubmissionToolPassThroughResult;
     try {
-      const raw = await tool.execute({ runId: registration.runId, args, run });
+      const raw = await tool.execute({
+        runId: registration.runId,
+        args,
+        run,
+        ...(registration.usageExecutionId
+          ? { usageExecutionId: registration.usageExecutionId }
+          : {}),
+      });
       if (!isPassThroughResult(raw)) {
         throw new Error(
           'Pass-through tool execute() must return { content: [{ type, ... }, ...] }',

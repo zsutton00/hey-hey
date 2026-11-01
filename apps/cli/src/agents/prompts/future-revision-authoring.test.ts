@@ -1,3 +1,6 @@
+import { planShapingFeatureSyncAnalyzeHandler } from '../plan-shaping-feature-sync/analyze.handler';
+import { planShapingFeatureSyncIterateHandler } from '../plan-shaping-feature-sync/iterate.handler';
+import { planShapingFeatureSyncDiscussHandler } from '../plan-shaping-feature-sync/discuss.handler';
 import { describe, expect, it } from 'vitest';
 import { PlanShapingValidationMode } from '../../shared/agent-bridge-contract/generated/api';
 import {
@@ -18,7 +21,7 @@ import { featureTreeConversationHandler } from '../feature-tree-conversation/fea
 import { featureSyncAnalyzeHandler } from '../feature-sync/analyze.handler';
 import { planShapingVisualPreviewHandler } from '../plan-shaping/visual-preview.handler';
 import { buildVisualPreviewPrompt } from '../plan-shaping/visual-preview.prompt';
-import { futureRevisionAuthoring } from './common';
+import { futureRevisionAuthoring, futureRevisionTimingQuestion } from './common';
 import { buildEntityConversationPrompt } from './entity-conversation';
 
 describe('future-revision tool scoping', () => {
@@ -124,5 +127,104 @@ describe('futureRevisionAuthoring', () => {
         prompt.includes(futureRevisionAuthoring),
       );
     }
+  });
+});
+
+describe('future-revision defaults by delivering work', () => {
+  const entityConversation = buildEntityConversationPrompt({
+    entity: { entityId: 'task-1', entityType: 'TASK', title: 'T' },
+    userMessage: 'hey',
+  });
+  const featureTreeConversation = buildFeatureTreeConversationPrompt({ skeleton: [] });
+  const taskFeatureSync = [
+    buildAnalyzePrompt({ taskId: 'task-1' }),
+    buildAnalyzePrompt({
+      taskId: 'task-1',
+      launchPlanId: 'plan-1',
+      launchStepId: 'step-1',
+      launchStageId: 'stage-1',
+    }),
+  ];
+  const planPrompts = [
+    buildProposedStagesPrompt({ designDocId: 'dd-1', planId: 'plan-1' }),
+    buildRefineStagePrompt({
+      planId: 'plan-1',
+      stageId: 'stage-1',
+      validation: PlanShapingValidationMode.On,
+    }),
+  ];
+
+  it('defaults Plan-delivered changes to futures and other undelivered work to ordinary edits', () => {
+    expect(futureRevisionAuthoring).toContain(
+      'instead of a live edit when a Plan delivers that work or the user asks for a future',
+    );
+    expect(futureRevisionAuthoring).toContain('otherwise propose an ordinary edit');
+    for (const prompt of planPrompts) expect(prompt).toContain(futureRevisionAuthoring);
+  });
+
+  it('keeps task-level Feature Sync on ordinary edits unless the user asks for a future', () => {
+    const [freeTask] = taskFeatureSync;
+    expect(freeTask).toContain(
+      'drafted as an ordinary edit that cites the active task in `fulfilledBy`; draft a future revision only when the user asks for one',
+    );
+    expect(freeTask).toContain('Draft a future revision instead only when the user asks for one.');
+    for (const prompt of taskFeatureSync) {
+      expect(prompt).toContain('in a live edit, unless the user asks for a future revision.');
+      expect(prompt).toContain('in a live edit, unless the user asks for a future revision, and include');
+      expect(prompt).not.toContain('drafted as a future revision that depends on the active task');
+      expect(prompt).not.toContain(futureRevisionTimingQuestion);
+    }
+  });
+
+  it('asks now or when the task ships only in conversations', () => {
+    expect(futureRevisionTimingQuestion).toContain('go live now or when the task ships');
+    expect(entityConversation).toContain(futureRevisionTimingQuestion);
+    expect(featureTreeConversation).toContain(futureRevisionTimingQuestion);
+    for (const prompt of planPrompts) expect(prompt).not.toContain(futureRevisionTimingQuestion);
+  });
+});
+
+describe('plan-shaping review future authoring parity', () => {
+  const seed = {
+    planId: 'canonical-plan',
+    designDocId: 'seed-doc',
+    userMessage: '',
+    discrepancies: [],
+    decisions: [],
+  };
+  for (const handler of [
+    planShapingFeatureSyncAnalyzeHandler,
+    planShapingFeatureSyncIterateHandler,
+    planShapingFeatureSyncDiscussHandler,
+  ]) {
+    it(`${handler.id} composes guided authoring with canonical context`, () => {
+      const prompt = handler.buildPrompt(seed);
+      const tools = resolveMcpToolNames({
+        useCase: 'plan_shaping',
+        additionalTools: handler.additionalAllowedTools ?? [],
+      });
+      expect(prompt).toMatchSnapshot();
+      expect(prompt).toContain(futureRevisionAuthoring);
+      expect(prompt).toContain('Current plan id: canonical-plan');
+      expect(prompt).toContain('explicit completion dependency');
+      expect(prompt).toContain('same futureId');
+      expect(prompt).toContain('Unqualified reads remain live');
+      expect(prompt).toContain('planning does not wait for implementation or Apply');
+      expect(prompt).toContain('remain ordinary proposals');
+      expect(tools).toContain('get_proposal');
+      expect(tools).toContain('propose_future_revision');
+      expect(tools).toContain('get_future_revision');
+    });
+  }
+  it('keeps exact remediation identity available on revision without a new schema', () => {
+    const proposal = 'Refine @[proposal:11111111-1111-4111-8111-111111111111|Upcoming capability]';
+    const prompt = planShapingFeatureSyncIterateHandler.buildPrompt({
+      ...seed,
+      discrepancies: [
+        { id: 'fs-1', summary: 'Upcoming capability', rationale: 'Not delivered', proposal },
+      ],
+    });
+    expect(prompt).toContain(proposal);
+    expect(planShapingFeatureSyncDiscussHandler.submissionTools).toEqual([]);
   });
 });

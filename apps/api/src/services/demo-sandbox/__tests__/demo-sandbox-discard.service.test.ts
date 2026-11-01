@@ -1,5 +1,15 @@
-import { DemoSandboxStatus } from '@prisma/client';
+import { DemoSandboxStage, DemoSandboxStatus } from '@prisma/client';
 import { DemoSandboxDiscardService } from '../demo-sandbox-discard.service';
+
+const tombstone = {
+  status: DemoSandboxStatus.DELETED,
+  stage: DemoSandboxStage.FAILED,
+  organizationId: null,
+  projectId: null,
+  demoUserId: null,
+  readinessFeatureIds: [],
+  connectedFeatureCount: 0,
+};
 
 function setup(status: DemoSandboxStatus = DemoSandboxStatus.PROVISIONING) {
   const tx = {
@@ -8,7 +18,7 @@ function setup(status: DemoSandboxStatus = DemoSandboxStatus.PROVISIONING) {
       .mockResolvedValue([
         { status, organizationId: 'org-1', projectId: 'project-1' },
       ]),
-    demoSandbox: { update: jest.fn(), delete: jest.fn() },
+    demoSandbox: { update: jest.fn() },
     demoGraphCopyIntent: { deleteMany: jest.fn() },
   };
   const prisma = {
@@ -17,7 +27,7 @@ function setup(status: DemoSandboxStatus = DemoSandboxStatus.PROVISIONING) {
     ),
     demoSandbox: {
       findMany: jest.fn().mockResolvedValue([]),
-      deleteMany: jest.fn(),
+      updateMany: jest.fn(),
     },
     organizationClosureExecution: { findMany: jest.fn() },
     user: { deleteMany: jest.fn() },
@@ -33,7 +43,7 @@ function setup(status: DemoSandboxStatus = DemoSandboxStatus.PROVISIONING) {
 }
 
 describe('DemoSandboxDiscardService', () => {
-  it('commits DISCARDING, stops clone dispatch and irreversibly closes in one transaction', async () => {
+  it('commits DISCARDING with the FAILED stage, stops clone dispatch and irreversibly closes in one transaction', async () => {
     const { service, tx, prisma, lifecycle } = setup();
 
     await expect(service.discard('sandbox-1')).resolves.toBe(true);
@@ -41,7 +51,10 @@ describe('DemoSandboxDiscardService', () => {
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(tx.demoSandbox.update).toHaveBeenCalledWith({
       where: { id: 'sandbox-1' },
-      data: { status: DemoSandboxStatus.DISCARDING },
+      data: {
+        status: DemoSandboxStatus.DISCARDING,
+        stage: DemoSandboxStage.FAILED,
+      },
     });
     expect(tx.demoGraphCopyIntent.deleteMany).toHaveBeenCalledWith({
       where: { projectId: 'project-1' },
@@ -56,7 +69,7 @@ describe('DemoSandboxDiscardService', () => {
     );
   });
 
-  it('just removes a reservation whose preparation never committed', async () => {
+  it('turns a reservation whose preparation never committed straight into a FAILED tombstone', async () => {
     const { service, tx, lifecycle } = setup();
     tx.$queryRaw.mockResolvedValue([
       {
@@ -68,10 +81,11 @@ describe('DemoSandboxDiscardService', () => {
 
     await expect(service.discard('sandbox-1')).resolves.toBe(true);
 
-    expect(tx.demoSandbox.delete).toHaveBeenCalledWith({
+    expect(tx.demoSandbox.update).toHaveBeenCalledTimes(1);
+    expect(tx.demoSandbox.update).toHaveBeenCalledWith({
       where: { id: 'sandbox-1' },
+      data: tombstone,
     });
-    expect(tx.demoSandbox.update).not.toHaveBeenCalled();
     expect(
       lifecycle.closeImmediatelyForSystemOrganization,
     ).not.toHaveBeenCalled();
@@ -127,7 +141,7 @@ describe('DemoSandboxDiscardService', () => {
       ) => callback(cleanup)) as never);
     }
 
-    it('removes the demo user and sandbox only after final deletion completed', async () => {
+    it('removes the demo user and leaves a cleared FAILED tombstone only after final deletion completed', async () => {
       const { service, prisma } = setup();
       discarding(prisma);
       prisma.demoSandbox.findMany.mockResolvedValueOnce([
@@ -144,8 +158,10 @@ describe('DemoSandboxDiscardService', () => {
       expect(prisma.user.deleteMany).toHaveBeenCalledWith({
         where: { id: 'user-a' },
       });
-      expect(prisma.demoSandbox.deleteMany).toHaveBeenCalledWith({
-        where: { id: 'a' },
+      expect(prisma.demoSandbox.updateMany).toHaveBeenCalledTimes(1);
+      expect(prisma.demoSandbox.updateMany).toHaveBeenCalledWith({
+        where: { id: 'a', status: DemoSandboxStatus.DISCARDING },
+        data: tombstone,
       });
     });
 
@@ -164,9 +180,10 @@ describe('DemoSandboxDiscardService', () => {
 
       await expect(service.sweep()).resolves.toBeUndefined();
 
-      expect(prisma.demoSandbox.deleteMany).toHaveBeenCalledTimes(1);
-      expect(prisma.demoSandbox.deleteMany).toHaveBeenCalledWith({
-        where: { id: 'b' },
+      expect(prisma.demoSandbox.updateMany).toHaveBeenCalledTimes(1);
+      expect(prisma.demoSandbox.updateMany).toHaveBeenCalledWith({
+        where: { id: 'b', status: DemoSandboxStatus.DISCARDING },
+        data: tombstone,
       });
     });
   });

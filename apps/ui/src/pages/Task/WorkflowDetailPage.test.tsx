@@ -379,6 +379,12 @@ describe("WorkflowDetailPage", () => {
     } as ReturnType<typeof useTaskHierarchy>);
     page.rerender(<WorkflowDetailPage />);
     expect(viewProps.latest?.isTreeVisible).toBe(true);
+    expect(mockUseTaskHierarchy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.any(String),
+      expect.objectContaining({ refetchOnMount: true }),
+    );
   });
 
   it("shows the loading state while workflow graph data is loading", () => {

@@ -17,6 +17,14 @@ import { ProposalReconciliationBasis } from './proposalReconciliationBasis';
 export interface ProposalReconciliationAgentFixRequest { 
     method: ProposalReconciliationAgentFixRequest.MethodEnum;
     /**
+     * Required for future reconciliation; the exact persisted proposal content revision reviewed by the editor.
+     */
+    expectedCandidateRevisionId?: string;
+    /**
+     * Required for a future candidate; prevents a stale result replacing a newer reviewed future.
+     */
+    expectedFutureRevision?: number;
+    /**
      * Required for Agent fix; admitted through ordinary proposal validation before persistence. Submission never authorizes application.
      */
     proposedResult: { [key: string]: any; };

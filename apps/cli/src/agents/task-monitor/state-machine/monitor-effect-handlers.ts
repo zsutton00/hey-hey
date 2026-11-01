@@ -4,8 +4,8 @@ import {
   listEfforts,
   listModels,
   supportsFastMode,
-} from '../../../../../../packages/ui-common/src/components/AgentSession/capabilityCatalog';
-import type { ApiRuntime } from '../../../../../../packages/ui-common/src/clients/shared';
+} from '../../../shared/runtime/components/AgentSession/capabilityCatalog';
+import type { ApiRuntime } from '../../../shared/runtime/clients/shared';
 
 import type {
   EffectExecutionIdentity,

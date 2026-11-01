@@ -122,7 +122,8 @@ vi.mock("nuqs", () => ({
         ],
 }));
 
-vi.mock("react-i18next", () => ({
+vi.mock("react-i18next", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("react-i18next")>()),
   useTranslation: () => ({
     t: (_key: string, fallback?: string) => fallback ?? _key,
   }),
@@ -310,7 +311,7 @@ describe("FeaturePage registry-derived children", () => {
     expect(mockFeaturePageView).toHaveBeenLastCalledWith(
       expect.objectContaining({
         task: featureTask,
-        featureHierarchy,
+        featureAncestors: [{ id: "ancestor-1", name: "Ancestor feature" }],
       }),
     );
     const childQueryCall = mockUseWorkItems.mock.calls.find((args) => {

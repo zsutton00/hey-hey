@@ -1,115 +1,151 @@
+import { DemoSandboxStatus } from '@prisma/client';
 import type { GraphsClientService } from '../../graphs-client.service';
-import {
-  DemoSandboxReadinessService,
-  READINESS_QUERY,
-  ReadinessAttempt,
-} from '../demo-sandbox-readiness.service';
+import { DemoSandboxReadinessService } from '../demo-sandbox-readiness.service';
 
-const attempt = (deadlineInMs: number): ReadinessAttempt => ({
+const FEATURES = ['feature-a', 'feature-b', 'feature-c'];
+const row = (deadlineInMs: number) => ({
   organizationId: 'org-1',
   projectId: 'project-1',
-  readinessFeatureId: 'feature-copy',
+  readinessFeatureIds: FEATURES,
   provisioningDeadline: new Date(Date.now() + deadlineInMs),
 });
 
 describe('DemoSandboxReadinessService', () => {
-  const executeQuery = jest.fn();
+  const checkFeatureProjectConnection = jest.fn();
+  const db = {
+    demoSandbox: { findUnique: jest.fn(), updateMany: jest.fn() },
+  };
+  // A fresh instance each time, as after an API restart.
   const build = () =>
     new DemoSandboxReadinessService(
-      { executeQuery } as unknown as GraphsClientService,
+      { db } as never,
+      { checkFeatureProjectConnection } as unknown as GraphsClientService,
       () => 'token',
+    );
+  const connected = (count: number) => ({ connectedCount: count });
+  const recordedCounts = () =>
+    db.demoSandbox.updateMany.mock.calls.map(
+      ([{ data }]: [{ data: { connectedFeatureCount: number } }]) =>
+        data.connectedFeatureCount,
     );
 
   beforeEach(() => {
     jest.resetAllMocks();
     jest.useFakeTimers();
+    db.demoSandbox.findUnique.mockResolvedValue(row(120_000));
   });
   afterEach(() => jest.useRealTimers());
 
-  it('sends the one parameterized query with destination identifiers only', async () => {
-    executeQuery.mockResolvedValue({ relationships: [{}] });
+  it('checks every persisted feature in its destination scope in one call', async () => {
+    checkFeatureProjectConnection.mockResolvedValue(connected(3));
 
-    await expect(build().waitUntilConnected(attempt(120_000))).resolves.toBe(
-      true,
-    );
+    await expect(build().waitUntilConnected('sandbox-1')).resolves.toBe(true);
 
-    expect(executeQuery).toHaveBeenCalledTimes(1);
-    expect(executeQuery).toHaveBeenCalledWith(
+    expect(db.demoSandbox.findUnique).toHaveBeenCalledWith({
+      where: { id: 'sandbox-1' },
+      select: {
+        organizationId: true,
+        projectId: true,
+        readinessFeatureIds: true,
+        provisioningDeadline: true,
+      },
+    });
+    expect(checkFeatureProjectConnection).toHaveBeenCalledTimes(1);
+    expect(checkFeatureProjectConnection).toHaveBeenCalledWith(
       'org-1',
       'project-1',
-      {
-        query: READINESS_QUERY,
-        parameters: {
-          featureId: 'feature-copy',
-          projectId: 'project-1',
-          organizationId: 'org-1',
-        },
-      },
+      { featureIds: FEATURES },
       'token',
     );
-    expect(READINESS_QUERY).toBe(
-      'MATCH (f {id: $featureId})-[r:SCOPED_TO_PROJECT]->(p:Project {id: $projectId}) WHERE f.organizationId = $organizationId AND p.organizationId = $organizationId RETURN f, r, p LIMIT 1',
-    );
+    expect(db.demoSandbox.updateMany).toHaveBeenCalledWith({
+      where: { id: 'sandbox-1', status: DemoSandboxStatus.PROVISIONING },
+      data: { connectedFeatureCount: 3 },
+    });
   });
 
-  it('waits once per second while the chosen sample is missing, then permits activation on the exact match', async () => {
-    executeQuery
-      .mockResolvedValueOnce({ nodes: [], relationships: [] })
-      .mockResolvedValueOnce({ nodes: [], relationships: [] })
-      .mockResolvedValueOnce({ nodes: [{}], relationships: [{}] });
+  it('keeps waiting once per second on a partial set and records the counts, then permits activation on the full set', async () => {
+    checkFeatureProjectConnection
+      .mockResolvedValueOnce(connected(1))
+      .mockResolvedValueOnce(connected(2))
+      .mockResolvedValueOnce(connected(2))
+      .mockResolvedValueOnce(connected(3));
 
-    const outcome = build().waitUntilConnected(attempt(120_000));
+    const outcome = build().waitUntilConnected('sandbox-1');
     await jest.advanceTimersByTimeAsync(0);
-    expect(executeQuery).toHaveBeenCalledTimes(1);
+    expect(checkFeatureProjectConnection).toHaveBeenCalledTimes(1);
+    expect(recordedCounts()).toEqual([1]);
     await jest.advanceTimersByTimeAsync(999);
-    expect(executeQuery).toHaveBeenCalledTimes(1);
+    expect(checkFeatureProjectConnection).toHaveBeenCalledTimes(1);
     await jest.advanceTimersByTimeAsync(1);
-    expect(executeQuery).toHaveBeenCalledTimes(2);
-    await jest.advanceTimersByTimeAsync(1_000);
+    expect(checkFeatureProjectConnection).toHaveBeenCalledTimes(2);
+    await jest.advanceTimersByTimeAsync(2_000);
 
     await expect(outcome).resolves.toBe(true);
-    expect(executeQuery).toHaveBeenCalledTimes(3);
+    expect(checkFeatureProjectConnection).toHaveBeenCalledTimes(4);
+    // An unchanged count is not rewritten.
+    expect(recordedCounts()).toEqual([1, 2, 3]);
   });
 
-  it('treats an unavailable Graph like a missing sample', async () => {
-    executeQuery
+  it('treats an unavailable Graph like missing features', async () => {
+    checkFeatureProjectConnection
       .mockRejectedValueOnce(new Error('connect ECONNREFUSED'))
-      .mockResolvedValueOnce({ relationships: [{}] });
+      .mockResolvedValueOnce(connected(3));
 
-    const outcome = build().waitUntilConnected(attempt(120_000));
+    const outcome = build().waitUntilConnected('sandbox-1');
     await jest.advanceTimersByTimeAsync(1_000);
 
     await expect(outcome).resolves.toBe(true);
-    expect(executeQuery).toHaveBeenCalledTimes(2);
+    expect(checkFeatureProjectConnection).toHaveBeenCalledTimes(2);
   });
 
-  it('gives up at the persisted deadline', async () => {
-    executeQuery.mockResolvedValue({ nodes: [], relationships: [] });
+  it('gives up at the persisted deadline while some features are still missing', async () => {
+    db.demoSandbox.findUnique.mockResolvedValue(row(3_000));
+    checkFeatureProjectConnection.mockResolvedValue(connected(2));
 
-    const outcome = build().waitUntilConnected(attempt(3_000));
+    const outcome = build().waitUntilConnected('sandbox-1');
     await jest.advanceTimersByTimeAsync(3_000);
 
     await expect(outcome).resolves.toBe(false);
-    expect(executeQuery).toHaveBeenCalledTimes(3);
+    expect(checkFeatureProjectConnection).toHaveBeenCalledTimes(3);
   });
 
-  it('after a restart resumes against the persisted sample and deadline without extending it', async () => {
-    executeQuery.mockResolvedValue({ nodes: [], relationships: [] });
-    const persisted = attempt(2_000);
+  it('after a restart resumes against the persisted features and deadline without extending it', async () => {
+    const persisted = row(2_000);
+    db.demoSandbox.findUnique.mockResolvedValue(persisted);
+    checkFeatureProjectConnection.mockResolvedValue(connected(0));
     await jest.advanceTimersByTimeAsync(1_500);
 
-    const outcome = build().waitUntilConnected(persisted);
+    const outcome = build().waitUntilConnected('sandbox-1');
     await jest.advanceTimersByTimeAsync(500);
 
     await expect(outcome).resolves.toBe(false);
-    expect(executeQuery).toHaveBeenCalledTimes(1);
-    expect(executeQuery.mock.calls[0]![2].parameters.featureId).toBe(
-      'feature-copy',
+    expect(checkFeatureProjectConnection).toHaveBeenCalledTimes(1);
+    expect(checkFeatureProjectConnection.mock.calls[0]![2]).toEqual({
+      featureIds: FEATURES,
+    });
+  });
+
+  it('retries persistent read errors only within the persisted budget', async () => {
+    db.demoSandbox.findUnique.mockResolvedValue(row(2_500));
+    checkFeatureProjectConnection.mockRejectedValue(
+      new Error('Graph unavailable'),
     );
+    const outcome = build().waitUntilConnected('sandbox-1');
+    await jest.advanceTimersByTimeAsync(2_500);
+    await expect(outcome).resolves.toBe(false);
+    expect(checkFeatureProjectConnection).toHaveBeenCalledTimes(3);
+    expect(db.demoSandbox.updateMany).not.toHaveBeenCalled();
   });
 
   it('does not query once the deadline has already passed', async () => {
-    await expect(build().waitUntilConnected(attempt(-1))).resolves.toBe(false);
-    expect(executeQuery).not.toHaveBeenCalled();
+    db.demoSandbox.findUnique.mockResolvedValue(row(-1));
+    await expect(build().waitUntilConnected('sandbox-1')).resolves.toBe(false);
+    expect(checkFeatureProjectConnection).not.toHaveBeenCalled();
+  });
+
+  it('fails an attempt that was discarded before it could be checked', async () => {
+    db.demoSandbox.findUnique.mockResolvedValue(null);
+    await expect(build().waitUntilConnected('sandbox-1')).resolves.toBe(false);
+    expect(checkFeatureProjectConnection).not.toHaveBeenCalled();
   });
 });

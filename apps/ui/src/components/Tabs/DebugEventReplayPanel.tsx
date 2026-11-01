@@ -1,13 +1,11 @@
+import { useModalState } from "@hey-hey/ui-common/components/Modals";
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import { DebugEventReplayMode } from "@hey-hey/ui-common/api";
-import {
-  useDebugEventReplay,
-  useOutboxEvents,
-} from "@hey-hey/ui-common/data";
+import { useDebugEventReplay, useOutboxEvents } from "@hey-hey/ui-common/data";
 import {
   Alert,
   Button,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -55,7 +53,8 @@ export const DebugEventReplayPanel: React.FC<DebugEventReplayPanelProps> = ({
   const [mode, setMode] = useState<DebugEventReplayMode>(
     DebugEventReplayMode.ValidateOnly,
   );
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen, confirmOpenOwnerKey] =
+    useModalState(false);
 
   useEffect(() => {
     if (events.length === 0) {
@@ -108,7 +107,8 @@ export const DebugEventReplayPanel: React.FC<DebugEventReplayPanelProps> = ({
           <Stack spacing={0.5}>
             <Typography variant="h6">Event replay</Typography>
             <Typography color="text.secondary" variant="body2">
-              Validate or re-emit an outbox event without changing its source row.
+              Validate or re-emit an outbox event without changing its source
+              row.
             </Typography>
           </Stack>
 
@@ -125,7 +125,9 @@ export const DebugEventReplayPanel: React.FC<DebugEventReplayPanelProps> = ({
           ) : (
             <Stack direction={{ md: "row", xs: "column" }} spacing={2}>
               <FormControl fullWidth size="small">
-                <InputLabel id="debug-event-replay-event-label">Event</InputLabel>
+                <InputLabel id="debug-event-replay-event-label">
+                  Event
+                </InputLabel>
                 <Select
                   label="Event"
                   labelId="debug-event-replay-event-label"
@@ -140,7 +142,9 @@ export const DebugEventReplayPanel: React.FC<DebugEventReplayPanelProps> = ({
                 </Select>
               </FormControl>
               <FormControl fullWidth size="small">
-                <InputLabel id="debug-event-replay-mode-label">Operation</InputLabel>
+                <InputLabel id="debug-event-replay-mode-label">
+                  Operation
+                </InputLabel>
                 <Select
                   label="Operation"
                   labelId="debug-event-replay-mode-label"
@@ -198,12 +202,16 @@ export const DebugEventReplayPanel: React.FC<DebugEventReplayPanelProps> = ({
         </Stack>
       ) : null}
 
-      <Dialog onClose={() => setConfirmOpen(false)} open={confirmOpen}>
+      <Dialog
+        ownerKey={confirmOpenOwnerKey}
+        onClose={() => setConfirmOpen(false)}
+        open={confirmOpen}
+      >
         <DialogTitle>Confirm event replay</DialogTitle>
         <DialogContent>
-          This will call “{modeLabels[mode]}” for the selected event and may queue a
-          fresh PENDING replay copy with a distinct identity. The source event and
-          payload remain unchanged.
+          This will call “{modeLabels[mode]}” for the selected event and may
+          queue a fresh PENDING replay copy with a distinct identity. The source
+          event and payload remain unchanged.
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>

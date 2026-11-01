@@ -1,12 +1,15 @@
 import { Box } from "@mui/material";
 import React, { useMemo } from "react";
 import type { WorkItemTypeSectionDefinition } from "../../api";
-import { resolveHtmlCssSize } from "../../utils/htmlCssSizeProfiles";
 import { decodeHtmlCssSectionContent } from "../../utils/workItemSections";
 import {
   buildHtmlCssDocument,
   DEFAULT_HTML_CSS_PRESENTATION_STYLE,
 } from "./htmlCssSketchTheme";
+import {
+  fitThumbnailSize,
+  resolveHtmlCssThumbnailDeclaredSize,
+} from "./mockupThumbnailSize";
 
 export interface HtmlCssSectionThumbnailProps {
   content: unknown;
@@ -36,15 +39,7 @@ export const HtmlCssSectionThumbnail: React.FC<
     [content],
   );
   const declaredSize = useMemo(
-    () =>
-      decoded
-        ? resolveHtmlCssSize({
-            definition,
-            content: decoded,
-            context: "inline",
-            containerWidth: Number.MAX_SAFE_INTEGER,
-          })
-        : null,
+    () => resolveHtmlCssThumbnailDeclaredSize(decoded, definition),
     [decoded, definition],
   );
   const srcDoc = useMemo(
@@ -61,24 +56,17 @@ export const HtmlCssSectionThumbnail: React.FC<
 
   if (!decoded || !declaredSize || declaredSize.width <= 0) return null;
 
-  const scale =
-    maxHeight === undefined
-      ? width / declaredSize.width
-      : Math.min(
-          width / declaredSize.width,
-          maxHeight / declaredSize.height,
-          1,
-        );
+  const fitted = fitThumbnailSize(declaredSize, width, maxHeight);
 
   return (
     <Box
       data-testid="html-css-section-thumbnail"
       sx={{
         position: "relative",
-        width: Math.round(declaredSize.width * scale),
+        width: fitted.width,
         maxWidth: "100%",
         mx: "auto",
-        height: Math.round(declaredSize.height * scale),
+        height: fitted.height,
         overflow: "hidden",
         borderRadius: 1,
         bgcolor: "#f4f6fb",
@@ -101,7 +89,7 @@ export const HtmlCssSectionThumbnail: React.FC<
           height: declaredSize.height,
           border: 0,
           pointerEvents: "none",
-          transform: `scale(${scale})`,
+          transform: `scale(${fitted.scale})`,
           transformOrigin: "top left",
         }}
       />

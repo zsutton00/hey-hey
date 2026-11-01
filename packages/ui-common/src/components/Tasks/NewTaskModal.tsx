@@ -1,6 +1,6 @@
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import React, { useState, useCallback } from "react";
 import {
-  Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,

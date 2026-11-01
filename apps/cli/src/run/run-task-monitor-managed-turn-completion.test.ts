@@ -67,6 +67,7 @@ describe('settled Turn monitor publication', () => {
       buildPrompt: () => '',
     } as PromptTypeHandler<unknown>;
     const turn = new Turn({
+    effectiveRole: 'implementation',
       turnId: TURN_ID,
       runId: SESSION_ID,
       resolvedPrompt: '',

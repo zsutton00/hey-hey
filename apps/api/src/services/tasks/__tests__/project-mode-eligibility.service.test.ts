@@ -16,14 +16,7 @@ describe('ProjectModeEligibilityService', () => {
   };
   let service: ProjectModeEligibilityService;
 
-  const activeDefinition = (focalTypeKeys: string[]) => ({
-    status: 'ACTIVE',
-    definition: {
-      agentGuidance: {
-        contexts: [{ focalTypeKeys }],
-      },
-    },
-  });
+  const activeDefinition = { status: 'ACTIVE', definition: {} };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -31,10 +24,7 @@ describe('ProjectModeEligibilityService', () => {
       agentEdgeClient as any,
       registry as any,
     );
-    registry.getDefinition.mockImplementation(
-      (_project: string, type: string) =>
-        type === 'MODE' ? activeDefinition(['STANDARD']) : activeDefinition([]),
-    );
+    registry.getDefinition.mockReturnValue(activeDefinition);
     dbClient.task.findFirst.mockResolvedValue({
       id: focalTaskId,
       type: 'STANDARD',
@@ -60,6 +50,7 @@ describe('ProjectModeEligibilityService', () => {
       }),
     ).resolves.toMatchObject({
       applicableWorkItemTypeKeys: ['STANDARD'],
+      applicableWorkItemTypeSource: 'default',
       focalFeatureIds: ['feature-child', 'feature-root'],
     });
   });
@@ -136,30 +127,25 @@ describe('ProjectModeEligibilityService', () => {
     ).rejects.toThrow('not eligible for this Feature');
   });
 
-  it('rejects type-incompatible work before reading graph applicability', async () => {
-    registry.getDefinition.mockImplementation(
-      (_project: string, type: string) =>
-        type === 'MODE' ? activeDefinition(['BUG']) : activeDefinition([]),
-    );
+  const settingsWith = (eligibleWorkItemTypeKeys: string[]) => ({
+    schemaVersion: 'project-mode-settings.v1' as const,
+    projectAssistant: { enabled: true },
+    eligibleWorkItemTypeKeys,
+  });
 
+  it('rejects type-incompatible work before reading graph applicability', async () => {
     await expect(
       service.assertEligible({
         dbClient: dbClient as any,
         organizationId,
         projectId,
         modeId,
-        modeSettings: null,
+        modeSettings: settingsWith(['BUG']) as any,
         focalTaskId,
         userToken: 'token',
       }),
     ).rejects.toThrow('not eligible for this work-item type');
     expect(agentEdgeClient.list).not.toHaveBeenCalled();
-  });
-
-  const settingsWith = (eligibleWorkItemTypeKeys: string[]) => ({
-    schemaVersion: 'project-mode-settings.v1' as const,
-    projectAssistant: { enabled: true },
-    eligibleWorkItemTypeKeys,
   });
 
   it.each(['STANDARD', 'BUG'])(
@@ -212,7 +198,7 @@ describe('ProjectModeEligibilityService', () => {
     expect(agentEdgeClient.list).toHaveBeenCalledTimes(1);
   });
 
-  it('falls back to the legacy shared type guidance when the mode has no list', async () => {
+  it('defaults to STANDARD only when the mode has no list', async () => {
     dbClient.task.findFirst.mockResolvedValue({
       id: focalTaskId,
       type: 'BUG',
@@ -272,9 +258,6 @@ describe('ProjectModeEligibilityService', () => {
       projectAssistant: { enabled: true },
       eligibleWorkItemTypeKeys: [customTypeKey],
     };
-    const sharedModeDefinition = {
-      agentGuidance: { contexts: [{ focalTypeKeys: ['STANDARD'] }] },
-    };
 
     beforeEach(() => {
       dbClient.task.findFirst.mockResolvedValue({
@@ -300,14 +283,12 @@ describe('ProjectModeEligibilityService', () => {
         applicableWorkItemTypeSource: 'mode-settings',
       });
       expect(result.applicableWorkItemTypeKeys).toEqual(
-        resolveProjectModeEligibleWorkItemTypeKeys({
-          modeTypeDefinition: sharedModeDefinition,
-          settings: customTypeSettings as any,
-        }).keys,
+        resolveProjectModeEligibleWorkItemTypeKeys(customTypeSettings as any)
+          .keys,
       );
     });
 
-    it('rejects the same custom type for a mode without a list, which keeps the shared fallback', async () => {
+    it('rejects the same custom type for a mode without a list, which keeps the STANDARD default', async () => {
       await expect(
         service.assertEligible({
           dbClient: dbClient as any,
@@ -319,29 +300,10 @@ describe('ProjectModeEligibilityService', () => {
           userToken: 'token',
         }),
       ).rejects.toThrow('not eligible for this work-item type');
-      expect(
-        resolveProjectModeEligibleWorkItemTypeKeys({
-          modeTypeDefinition: sharedModeDefinition,
-          settings: null,
-        }),
-      ).toEqual({ keys: ['STANDARD'], source: 'legacy-type-guidance' });
-    });
-
-    it('never reads shared focal keys when the mode carries a list', () => {
-      const throwingDefinition = {
-        agentGuidance: {
-          get contexts(): never {
-            throw new Error('shared focalTypeKeys must not be read');
-          },
-        },
-      };
-
-      expect(
-        resolveProjectModeEligibleWorkItemTypeKeys({
-          modeTypeDefinition: throwingDefinition as any,
-          settings: customTypeSettings as any,
-        }),
-      ).toEqual({ keys: [customTypeKey], source: 'mode-settings' });
+      expect(resolveProjectModeEligibleWorkItemTypeKeys(null)).toEqual({
+        keys: ['STANDARD'],
+        source: 'default',
+      });
     });
 
     it('applies Feature scope on top of a custom type list', async () => {

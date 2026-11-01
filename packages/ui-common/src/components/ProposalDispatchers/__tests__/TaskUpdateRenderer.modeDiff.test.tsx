@@ -128,7 +128,17 @@ vi.mock("../../SuggestedContent", () => ({
 }));
 
 vi.mock("../ProposalStateIndicator", () => ({
-  ProposalStateIndicator: () => <div data-testid="proposal-state" />,
+  ProposalStateIndicator: ({
+    disabled,
+    onApply,
+  }: {
+    disabled?: boolean;
+    onApply: () => void;
+  }) => (
+    <button data-testid="proposal-state" disabled={disabled} onClick={onApply}>
+      Approve
+    </button>
+  ),
 }));
 
 vi.mock("../ProposalEdges", () => ({ ProposalEdges: () => null }));
@@ -283,7 +293,7 @@ describe("TaskUpdateRenderer diff default mode", () => {
     vi.clearAllMocks();
   });
 
-  it("opens every changed Agent Mode file inline, including added files", () => {
+  it("opens the selected changed file inline and changes the comparison with navigation", () => {
     renderUpdate(modeExisting, modeDefinition, {
       sections: [
         {
@@ -296,16 +306,55 @@ describe("TaskUpdateRenderer diff default mode", () => {
         },
       ],
     });
-    const fileDiffs = rendererSpies.diff.mock.calls
-      .map(([props]) => props)
-      .filter((props) => props.oldContent !== "(no changes)");
-    expect(fileDiffs.map((p) => p.newContent).sort()).toEqual([
-      "added",
-      "new entry",
-    ]);
-    expect(fileDiffs.every((p) => p.defaultViewMode === "inline")).toBe(true);
-    expect(screen.getAllByTestId("mode-file-diff")).toHaveLength(2);
+    expect(screen.getAllByTestId("mode-file-diff")).toHaveLength(1);
+    expect(rendererSpies.diff).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        oldContent: "old entry",
+        newContent: "new entry",
+        defaultViewMode: "inline",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "b.md (added)" }));
+    expect(rendererSpies.diff).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        oldContent: "",
+        newContent: "added",
+        defaultViewMode: "inline",
+      }),
+    );
+    expect(
+      screen.queryByRole("button", { name: "a.md (unchanged)" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("mode-files-toggle-unchanged"));
+    fireEvent.click(screen.getByRole("button", { name: "a.md (unchanged)" }));
+    expect(screen.queryByTestId("mode-file-diff")).not.toBeInTheDocument();
+    expect(screen.getByTestId("mode-files-selected-content")).toHaveTextContent(
+      "same",
+    );
   });
+
+  it.each(["{invalid", "", "{}"])(
+    "blocks approval when current files cannot be read: %s",
+    (current) => {
+      renderUpdate(
+        {
+          ...modeExisting,
+          sections: [{ key: "files", materializedMarkdown: current }],
+        },
+        modeDefinition,
+        {
+          sections: [
+            { key: "files", content: bundle({ "MODE.md": "proposed" }) },
+          ],
+        },
+      );
+      expect(
+        screen.getByTestId("mode-files-current-unavailable"),
+      ).toHaveTextContent("Current MODE files could not be read");
+      expect(screen.getByTestId("proposal-state")).toBeDisabled();
+      expect(screen.queryByTestId("mode-file-diff")).not.toBeInTheDocument();
+    },
+  );
 
   it("keeps Agent Mode inline even when the caller default is split", () => {
     renderUpdate(

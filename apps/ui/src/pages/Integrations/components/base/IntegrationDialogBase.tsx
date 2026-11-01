@@ -1,6 +1,6 @@
+import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import React, { useState } from "react";
 import {
-  Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
@@ -105,7 +105,17 @@ export const IntegrationDialogBase: React.FC<IntegrationDialogBaseProps> = ({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="md"
+      fullWidth
+      closeControl={
+        <IconButton onClick={onClose} size="small">
+          <CloseIcon />
+        </IconButton>
+      }
+    >
       <DialogTitle>
         <Box
           sx={{
@@ -117,9 +127,6 @@ export const IntegrationDialogBase: React.FC<IntegrationDialogBaseProps> = ({
           <Typography variant="h6">
             {title} {getIntegrationDisplayName(integrationType)} Integration
           </Typography>
-          <IconButton onClick={onClose} size="small">
-            <CloseIcon />
-          </IconButton>
         </Box>
       </DialogTitle>
 

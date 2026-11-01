@@ -256,9 +256,7 @@ describe('local-agent-service.sendMessage — final_assessment subagent routing'
     expect(subagentMock).toHaveBeenCalledTimes(1);
     const subagentArgs = subagentMock.mock.calls[0]![0] as SubAgentArgs;
     expect(subagentArgs.session.agentic_session_id).toBe('run-1');
-    expect((subagentArgs.payload as { executionSummary?: string }).executionSummary).toBe(
-      'Implemented.',
-    );
+    expect(subagentArgs.prompt).toContain('Implemented.');
     expect(subagentArgs.oauthClient).toBe(oauthClient);
     expect(subagentArgs.onAgentOutput).not.toBe(activeRun.onAgentOutput);
 
@@ -266,3 +264,11 @@ describe('local-agent-service.sendMessage — final_assessment subagent routing'
     expect(resumeSessionMock).not.toHaveBeenCalled();
   });
 });
+
+vi.mock('../../agents/prompts/session-start-context', () => ({
+  readSessionStartContext: async () => ({
+    workItemTypeDefinitions: [],
+    intentFirst: false,
+    maturity: 'ESTABLISHED',
+  }),
+}));

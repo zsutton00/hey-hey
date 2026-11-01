@@ -12,6 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   DemoSandbox,
   DemoSandboxProgramState,
+  DemoSandboxStage,
   DemoSandboxStatus,
   OrganizationMember,
   OrganizationRole,
@@ -20,7 +21,10 @@ import {
 } from '@prisma/client';
 import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import {
+  DemoSandboxAdmissionDto,
+  DemoSandboxAdmissionState,
   DemoSandboxResponseDto,
+  DemoSandboxSetupStage,
   DemoSandboxUnavailableCode,
   DemoSandboxResumeState,
   ProvisionDemoSandboxDto,
@@ -63,26 +67,25 @@ export interface DemoSandboxRequestContext {
 }
 
 export interface DemoSandboxAdmission {
-  sandbox: DemoSandboxResponseDto;
-  session: EstablishedBrowserSession;
-  /** Present only for a newly provisioned sandbox; published as the binding cookie. */
+  admission: DemoSandboxAdmissionDto;
+  /** Present only for an ACTIVE sandbox; the caller is signed in to it. */
+  session?: EstablishedBrowserSession;
+  /** Present only for a newly reserved sandbox; published as the binding cookie. */
   bindingSecret?: string;
 }
+
+const SETUP_STAGE: Record<DemoSandboxStage, DemoSandboxSetupStage> = {
+  [DemoSandboxStage.COPYING]: DemoSandboxSetupStage.Copying,
+  [DemoSandboxStage.CONNECTING]: DemoSandboxSetupStage.Connecting,
+  [DemoSandboxStage.READY]: DemoSandboxSetupStage.Ready,
+  // A FAILED attempt has already left PROVISIONING; never reported as progress.
+  [DemoSandboxStage.FAILED]: DemoSandboxSetupStage.Connecting,
+};
 
 const ADMISSION_LOCK = 'demo-sandbox-admission';
 const PREPARE_TRANSACTION_TIMEOUT_MILLISECONDS = 60_000;
 const hashBindingSecret = (secret: string): string =>
   createHash('sha256').update(secret).digest('hex');
-
-/** The persisted attempt state that readiness and activation resume from. */
-interface ProvisioningAttempt {
-  id: string;
-  organizationId: string;
-  projectId: string;
-  demoUserId: string;
-  readinessFeatureId: string;
-  provisioningDeadline: Date;
-}
 
 @Injectable()
 export class DemoSandboxAdmissionService {
@@ -102,13 +105,22 @@ export class DemoSandboxAdmissionService {
     private readonly workItemTypes: WorkItemTypeRegistryService,
   ) {}
 
-  /** POST /demo-sandboxes */
+  /**
+   * POST /demo-sandboxes. Returns once the PROVISIONING row is reserved; the
+   * slow setup continues in the background and is read through resume.
+   */
   async provision(
     input: ProvisionDemoSandboxDto,
     context: DemoSandboxRequestContext,
   ): Promise<DemoSandboxAdmission> {
-    const returning = await this.resumeExisting(context);
-    if (returning) return returning;
+    const bound = await this.lookupBound(context);
+    // A FAILED binding starts over; Try again replaces it with a new one.
+    if (
+      typeof bound === 'object' &&
+      bound.admission.state !== DemoSandboxAdmissionState.Failed
+    ) {
+      return bound;
+    }
 
     const creatorIpHash = this.hashIp(context.ipAddress);
     await this.assertAdmissible(this.prisma.db, creatorIpHash, new Date());
@@ -131,36 +143,49 @@ export class DemoSandboxAdmissionService {
 
     const bindingSecret = randomBytes(32).toString('base64url');
     const reservationId = await this.reserve(creatorIpHash, bindingSecret);
+    void this.completeInBackground(reservationId);
+    return {
+      admission: {
+        state: DemoSandboxAdmissionState.Provisioning,
+        progress: {
+          stage: DemoSandboxSetupStage.Copying,
+          connectedFeatureCount: 0,
+          totalFeatureCount: 0,
+        },
+      },
+      bindingSecret,
+    };
+  }
 
-    let attempt: ProvisioningAttempt;
+  /**
+   * Prepare, wait for every copied feature, then activate. No request waits
+   * on this, so it never throws; a restart abandons it and the deadline sweep
+   * discards the row without extending the deadline.
+   */
+  private async completeInBackground(sandboxId: string): Promise<void> {
     try {
-      attempt = await this.prepare(reservationId);
+      const organizationId = await this.prepare(sandboxId);
+      await this.refreshWorkItemTypes(organizationId);
+      if (
+        (await this.readiness.waitUntilConnected(sandboxId)) &&
+        (await this.activate(sandboxId))
+      ) {
+        return;
+      }
     } catch (error) {
-      await this.discardQuietly(reservationId);
-      throw error;
+      this.logger.error('Demo sandbox setup failed', {
+        sandboxId,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
-    const connected = await this.readiness.waitUntilConnected(attempt);
-    if (connected) {
-      const admission = await this.activate(
-        attempt,
-        bindingSecret,
-        context.sessionMetadata,
-      );
-      if (admission) return admission;
-    }
-    await this.discardQuietly(attempt.id);
-    throw this.refusal(
-      HttpStatus.SERVICE_UNAVAILABLE,
-      DemoSandboxUnavailableCode.ProvisioningFailed,
-      'The demo could not be prepared',
-    );
+    await this.discardQuietly(sandboxId);
   }
 
   private async discardQuietly(sandboxId: string): Promise<void> {
     try {
       await this.discard.discard(sandboxId);
     } catch (error) {
-      // The sweep retries the discard; the visitor still gets the typed refusal.
+      // The deadline sweep retries the discard; resume reports it then.
       this.logger.error('Demo sandbox discard failed; sweep will retry', {
         sandboxId,
         error: error instanceof Error ? error.message : String(error),
@@ -172,23 +197,11 @@ export class DemoSandboxAdmissionService {
   async resume(
     context: DemoSandboxRequestContext,
   ): Promise<DemoSandboxAdmission> {
-    const resumed = await this.resumeExisting(context);
-    if (resumed) return resumed;
-    const known = context.bindingSecret
-      ? await this.prisma.db.demoSandbox.findUnique({
-          where: {
-            browserBindingHash: hashBindingSecret(context.bindingSecret),
-          },
-          select: { id: true },
-        })
-      : null;
+    const bound = await this.lookupBound(context);
+    if (typeof bound === 'object') return bound;
     throw new NotFoundException({
       message: 'No unexpired demo sandbox for this browser',
-      data: {
-        state: known
-          ? DemoSandboxResumeState.Expired
-          : DemoSandboxResumeState.None,
-      },
+      data: { state: bound },
     });
   }
 
@@ -205,28 +218,56 @@ export class DemoSandboxAdmissionService {
     return this.toResponse(this.prisma.db, sandbox, false);
   }
 
-  /** Shared by provision (step 1) and resume: an ACTIVE, unexpired sandbox bound to this browser. */
-  private async resumeExisting(
+  /**
+   * Shared by provision and resume: what the sandbox bound to this browser
+   * shows it. Only an ACTIVE, unexpired sandbox issues a session; setup in
+   * progress exposes only its stage and feature counts.
+   */
+  private async lookupBound(
     context: DemoSandboxRequestContext,
-  ): Promise<DemoSandboxAdmission | null> {
-    if (!context.bindingSecret) return null;
+  ): Promise<DemoSandboxAdmission | DemoSandboxResumeState> {
+    if (!context.bindingSecret) return DemoSandboxResumeState.None;
     const bindingHash = hashBindingSecret(context.bindingSecret);
     return this.prisma.$transaction(async (tx) => {
-      const sandbox = await tx.demoSandbox.findFirst({
-        where: {
-          browserBindingHash: bindingHash,
-          status: DemoSandboxStatus.ACTIVE,
-          expiresAt: { gt: new Date() },
-          demoUserId: { not: null },
-        },
+      const sandbox = await tx.demoSandbox.findUnique({
+        where: { browserBindingHash: bindingHash },
       });
-      if (!sandbox) return null;
-      const session = await this.browserSessions.establishInTransaction(
-        tx,
-        await this.principalFor(tx, sandbox.demoUserId!),
-        context.sessionMetadata,
-      );
-      return { sandbox: await this.toResponse(tx, sandbox, true), session };
+      if (!sandbox) return DemoSandboxResumeState.None;
+      if (
+        sandbox.status === DemoSandboxStatus.ACTIVE &&
+        sandbox.expiresAt &&
+        sandbox.expiresAt > new Date() &&
+        sandbox.demoUserId
+      ) {
+        const session = await this.browserSessions.establishInTransaction(
+          tx,
+          await this.principalFor(tx, sandbox.demoUserId),
+          context.sessionMetadata,
+        );
+        return {
+          admission: {
+            state: DemoSandboxAdmissionState.Active,
+            sandbox: await this.toResponse(tx, sandbox, true),
+          },
+          session,
+        };
+      }
+      if (sandbox.status === DemoSandboxStatus.PROVISIONING) {
+        return {
+          admission: {
+            state: DemoSandboxAdmissionState.Provisioning,
+            progress: {
+              stage: SETUP_STAGE[sandbox.stage],
+              connectedFeatureCount: sandbox.connectedFeatureCount,
+              totalFeatureCount: sandbox.readinessFeatureIds.length,
+            },
+          },
+        };
+      }
+      if (sandbox.stage === DemoSandboxStage.FAILED) {
+        return { admission: { state: DemoSandboxAdmissionState.Failed } };
+      }
+      return DemoSandboxResumeState.Expired;
     });
   }
 
@@ -264,6 +305,8 @@ export class DemoSandboxAdmissionService {
       where: {
         creatorIpHash,
         createdAt: { gt: this.windowStart(program, now) },
+        // A failed setup never became a sandbox, so it does not use up a slot.
+        stage: { not: DemoSandboxStage.FAILED },
       },
     });
     if (recent >= program.perIpLimit) {
@@ -299,6 +342,7 @@ export class DemoSandboxAdmissionService {
             now.getTime() + DEFAULT_PROVISIONING_DEADLINE_SECONDS * 1000,
           ),
           status: DemoSandboxStatus.PROVISIONING,
+          stage: DemoSandboxStage.COPYING,
         },
         select: { id: true },
       });
@@ -308,26 +352,18 @@ export class DemoSandboxAdmissionService {
 
   /**
    * Builds the whole sandbox in one transaction of its own, inaccessible: no
-   * visitor membership, no session, and no published binding cookie. The
-   * reservation row gains its tenancy only if it is still PROVISIONING, so a
-   * discard that won the race rolls the whole preparation back.
+   * visitor membership and no session. The reservation row gains its tenancy,
+   * the copied feature IDs and the CONNECTING stage only if it is still
+   * PROVISIONING, so a discard that won the race rolls the whole preparation
+   * back. Returns the new organization.
    */
-  private async prepare(reservationId: string): Promise<ProvisioningAttempt> {
+  private async prepare(reservationId: string): Promise<string> {
     try {
       const templateSnapshot = await this.clone.snapshotTemplate(
         this.prisma.db,
       );
-      const attempt = await this.prisma.$transaction(
+      return await this.prisma.$transaction(
         async (tx) => {
-          const sampleSource = await tx.task.findFirstOrThrow({
-            where: {
-              projectId: templateSnapshot.sourceProjectId,
-              type: 'FEATURE',
-            },
-            orderBy: { id: 'asc' },
-            select: { id: true },
-          });
-
           const suffix = randomUUID();
           const organization =
             await this.organizations.createOrganizationWithTransaction(
@@ -359,15 +395,15 @@ export class DemoSandboxAdmissionService {
             },
           });
 
-          const { idMap } = await this.clone.cloneInto(tx, {
-            targetOrganizationId: organization.id,
-            targetProjectId: project.id,
-            actorUserId: DEMO_SYSTEM_USER_ID,
-            templateSnapshot,
-          });
-          const readinessFeatureId = idMap.get(sampleSource.id);
-          if (!readinessFeatureId) {
-            throw new Error('Clone did not map the readiness sample feature');
+          const { copiedFeatureIds: readinessFeatureIds } =
+            await this.clone.cloneInto(tx, {
+              targetOrganizationId: organization.id,
+              targetProjectId: project.id,
+              templateSnapshot,
+            });
+          // Every copied feature must reach the graph before activation.
+          if (readinessFeatureIds.length === 0) {
+            throw new Error('Clone copied no template features');
           }
 
           for (const document of [
@@ -397,63 +433,54 @@ export class DemoSandboxAdmissionService {
               organizationId: organization.id,
               projectId: project.id,
               demoUserId: demoUser.id,
-              readinessFeatureId,
+              readinessFeatureIds,
+              stage: DemoSandboxStage.CONNECTING,
             },
           });
           if (claimed.count !== 1) {
             throw new Error('Demo sandbox reservation was discarded');
           }
-          const reservation = await tx.demoSandbox.findUniqueOrThrow({
-            where: { id: reservationId },
-            select: { provisioningDeadline: true },
-          });
-          return {
-            id: reservationId,
-            organizationId: organization.id,
-            projectId: project.id,
-            demoUserId: demoUser.id,
-            readinessFeatureId,
-            provisioningDeadline: reservation.provisioningDeadline,
-          };
+          return organization.id;
           // The clone copies every template row one at a time; the 5s default
           // would roll back any non-trivial template.
         },
         { timeout: PREPARE_TRANSACTION_TIMEOUT_MILLISECONDS },
       );
-      await this.refreshWorkItemTypes(attempt.organizationId);
-      return attempt;
     } catch (error) {
-      if (error instanceof HttpException) throw error;
       this.logger.error('Demo sandbox preparation rolled back', {
         sandboxId: reservationId,
         error: error instanceof Error ? error.message : String(error),
       });
-      throw this.refusal(
-        HttpStatus.SERVICE_UNAVAILABLE,
-        DemoSandboxUnavailableCode.ProvisioningFailed,
-        'The demo could not be prepared',
-      );
+      throw error;
     }
   }
 
   /**
    * Makes the attempt accessible, but only if it is still PROVISIONING, before
-   * its deadline, and not closed. Returns null when closure won.
+   * its deadline, and not closed. Returns false when closure won. No session
+   * is issued here: the browser's next resume signs it in.
    */
-  private async activate(
-    attempt: ProvisioningAttempt,
-    bindingSecret: string,
-    sessionMetadata: BrowserSessionRequestMetadata,
-  ): Promise<DemoSandboxAdmission | null> {
+  private async activate(sandboxId: string): Promise<boolean> {
     return this.prisma.$transaction(async (tx) => {
-      const locked = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-        SELECT id FROM demo_sandboxes
-        WHERE id = ${attempt.id}
+      const locked = await tx.$queryRaw<
+        Array<{
+          organizationId: string;
+          projectId: string;
+          demoUserId: string;
+        }>
+      >(Prisma.sql`
+        SELECT organization_id AS "organizationId", project_id AS "projectId",
+          demo_user_id AS "demoUserId"
+        FROM demo_sandboxes
+        WHERE id = ${sandboxId}
           AND status = 'PROVISIONING'::demo_sandbox_status
           AND provisioning_deadline > ${new Date()}
+          AND organization_id IS NOT NULL
+          AND demo_user_id IS NOT NULL
         FOR UPDATE
       `);
-      if (locked.length !== 1) return null;
+      const attempt = locked[0];
+      if (!attempt) return false;
 
       const now = new Date();
       await tx.organizationMember.create({
@@ -471,26 +498,18 @@ export class DemoSandboxAdmissionService {
         { userId: attempt.demoUserId as UserId, role: ProjectRole.MEMBER },
         tx,
       );
-      const sandbox = await tx.demoSandbox.update({
-        where: { id: attempt.id },
+      await tx.demoSandbox.update({
+        where: { id: sandboxId },
         data: {
           status: DemoSandboxStatus.ACTIVE,
+          stage: DemoSandboxStage.READY,
           lastActivityAt: now,
           expiresAt: new Date(
             now.getTime() + resolveInactivityTimeoutSeconds(this.config) * 1000,
           ),
         },
       });
-      const session = await this.browserSessions.establishInTransaction(
-        tx,
-        await this.principalFor(tx, attempt.demoUserId),
-        sessionMetadata,
-      );
-      return {
-        sandbox: await this.toResponse(tx, sandbox, false),
-        session,
-        bindingSecret,
-      };
+      return true;
     });
   }
 

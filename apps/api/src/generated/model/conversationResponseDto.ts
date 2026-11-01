@@ -26,6 +26,10 @@ export interface ConversationResponseDto {
      */
     id: ConversationId;
     /**
+     * Whether only the creator may read this conversation.
+     */
+    restricted: boolean;
+    /**
      * User who initiated the conversation, when human initiated
      */
     createdBy: string | null;

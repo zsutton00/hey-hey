@@ -56,9 +56,8 @@ vi.mock("../../../data/hooks/useEntityNames", async (importOriginal) => ({
 
 vi.mock("../../SmarterTextAreaCard/MentionBadge", async () => {
   const { useContext } = await import("react");
-  const { MentionEditorContext } = await import(
-    "../../SmarterTextAreaCard/EditorContext"
-  );
+  const { MentionEditorContext } =
+    await import("../../SmarterTextAreaCard/EditorContext");
 
   return {
     MentionBadgeInner: ({
@@ -94,14 +93,18 @@ vi.mock("../../../data/hooks/useWorkItemTypes", async (importOriginal) => ({
   useWorkItemTypeByKey: hookMocks.useWorkItemTypeByKey,
 }));
 
-vi.mock("../../AgentSession/runtime/directoryBindingApi", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("../../AgentSession/runtime/directoryBindingApi")
-  >()),
-  createDirectoryBindingApi: () => ({
-    listRepos: () => Promise.resolve({ machineId: "machine-1", bindings: [] }),
+vi.mock(
+  "../../AgentSession/runtime/directoryBindingApi",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("../../AgentSession/runtime/directoryBindingApi")
+    >()),
+    createDirectoryBindingApi: () => ({
+      listRepos: () =>
+        Promise.resolve({ machineId: "machine-1", bindings: [] }),
+    }),
   }),
-}));
+);
 
 vi.mock("../MermaidCodeBlock", () => ({
   MermaidCodeBlock: ({ code }: { code: string }) => (
@@ -1323,7 +1326,9 @@ describe("WorkItemReadView registry-defined sections", () => {
               "references/review.md": "[Review it](https://example.com/review)",
             },
           }),
-          applicability: JSON.stringify({ focalTypeKeys: ["STANDARD"] }),
+          applicability: JSON.stringify({
+            eligibleWorkItemTypeKeys: ["STANDARD"],
+          }),
         })}
         mentionConfig={{
           organizationId: "mention-organization",
@@ -1365,7 +1370,7 @@ describe("WorkItemReadView registry-defined sections", () => {
       "https://example.com/review",
     );
     expect(screen.getByTestId("json-section-content")).toHaveTextContent(
-      "focalTypeKeys",
+      "eligibleWorkItemTypeKeys",
     );
   });
 

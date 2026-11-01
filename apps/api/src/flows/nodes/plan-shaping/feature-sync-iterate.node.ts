@@ -1,3 +1,4 @@
+import { PlanFromDesignDocSeedService } from 'src/services/plan/plan-from-design-doc-seed.service';
 import { Injectable, Logger } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -75,6 +76,10 @@ export class PlanShapingFeatureSyncIterateNode extends ExternalAgentNodeBase<Pla
 
   private readonly logger = new Logger(PlanShapingFeatureSyncIterateNode.name);
 
+  constructor(private readonly seedService: PlanFromDesignDocSeedService) {
+    super();
+  }
+
   async buildTriggerMessage(
     tracker: MutableContextHandle<PlanFromDesignDocFlowContext>,
   ): Promise<ExternalAgentTriggerMessage> {
@@ -113,7 +118,14 @@ export class PlanShapingFeatureSyncIterateNode extends ExternalAgentNodeBase<Pla
       );
     }
 
+    const seed = await this.seedService.resolve(context.core.conversationId);
+    this.logger.debug('Resolved canonical Plan for feature-sync revision', {
+      planId: seed.planId,
+      designDocId: seed.designDocId,
+    });
     const triggerPayload: PlanShapingFeatureSyncIteratePromptPayload = {
+      planId: seed.planId,
+      designDocId: seed.designDocId,
       discrepancies,
       decisions,
     };

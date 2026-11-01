@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import {
   buildDefaultSurfaceSelection,
   readSurfaceSelection,
+  reconcileSurfaceSelection,
   type SurfaceSelection,
 } from "./surfaceSelectionMemory";
 import {
@@ -30,6 +31,8 @@ export interface UseSurfaceSelectionResult {
  * Selection state for a surface that embeds a model picker. The catalog is
  * requested for the machine in `catalogSource` (null until one is picked).
  * `surfaceId` is the surface's memory key, or null when it keeps none.
+ * `fallbackProvider` seeds the catalog default from that provider when nothing
+ * is remembered and the catalog offers it.
  * Whenever `resetKey` changes (a dialog opening, say) the held choice is
  * dropped and the remembered one is read again; pass null when that never
  * applies.
@@ -38,8 +41,10 @@ export const useSurfaceSelection = ({
   surfaceId,
   catalogSource,
   resetKey,
+  fallbackProvider = null,
 }: {
   surfaceId: string | null;
+  fallbackProvider?: SurfaceSelection["provider"] | null;
   catalogSource: RuntimeModelCatalogSource | null;
   resetKey: string | number | boolean | null;
 }): UseSurfaceSelectionResult => {
@@ -48,11 +53,18 @@ export const useSurfaceSelection = ({
     () =>
       catalogState.status === "ready"
         ? ((surfaceId ? readSurfaceSelection(surfaceId) : null) ??
+          (fallbackProvider
+            ? reconcileSurfaceSelection({
+                provider: fallbackProvider,
+                model: "",
+                reasoningEffort: null,
+              })
+            : null) ??
           buildDefaultSurfaceSelection())
         : null,
     // `resetKey` is deliberate: it re-reads the remembered selection.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [catalogState, surfaceId, resetKey],
+    [catalogState, surfaceId, resetKey, fallbackProvider],
   );
   const [chosen, setChosen] = useState<SurfaceSelection | null>(null);
   const [seenResetKey, setSeenResetKey] = useState(resetKey);

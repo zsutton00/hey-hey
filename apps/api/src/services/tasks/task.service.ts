@@ -1,3 +1,4 @@
+import { restrictTaskWhere } from 'src/read-restriction/read-policy';
 import { withApiSpan } from 'src/telemetry/api-tracing';
 import type { ProjectModeSettings } from '../../generated';
 import {
@@ -1594,7 +1595,7 @@ export class TaskService {
 
     const grouped = await this.prisma.db.task.groupBy({
       by: ['parentTaskId', 'status'],
-      where,
+      where: restrictTaskWhere(where),
       _count: {
         _all: true,
       },
@@ -3710,7 +3711,7 @@ export class TaskService {
     sortOrder: 'asc' | 'desc' = 'asc',
   ): Promise<PaginatedWorkItemReferenceResponseDto> {
     const normalizedFilter = filter?.trim();
-    const where: Prisma.TaskWhereInput = {
+    const where: Prisma.TaskWhereInput = restrictTaskWhere({
       organizationId,
       projectId,
       type,
@@ -3722,7 +3723,7 @@ export class TaskService {
       ...(normalizedFilter
         ? { name: { contains: normalizedFilter, mode: 'insensitive' } }
         : {}),
-    };
+    });
     const skip = (page - 1) * limit;
 
     const [total, rows] = await Promise.all([
@@ -3879,7 +3880,7 @@ export class TaskService {
     const prismaSortBy = sortBy === 'title' ? 'name' : sortBy;
 
     const findManyArgs: Prisma.TaskFindManyArgs = {
-      where,
+      where: restrictTaskWhere(where),
       orderBy: {
         [prismaSortBy]: sortDir,
       },
@@ -3958,11 +3959,11 @@ export class TaskService {
     }
 
     const tasks = (await this.prisma.db.task.findMany({
-      where: {
+      where: restrictTaskWhere({
         id: { in: taskIds },
         organizationId,
         archivedAt: null,
-      },
+      }),
     })) as TaskEntity[];
 
     const sectionsByTaskId =
@@ -4106,18 +4107,41 @@ export class TaskService {
     });
 
     const findFirstArgs: Prisma.TaskFindFirstArgs = {
-      where: {
+      where: restrictTaskWhere({
         id: taskId,
         organizationId,
         archivedAt: null,
         status: { not: WorkStatus.ARCHIVED },
-      },
+      }),
     };
     if (taskInclude) {
       findFirstArgs.include = taskInclude;
     }
 
     return this.prisma.db.task.findFirst(findFirstArgs as any);
+  }
+
+  /** Read a mutation result, including a task archived by that mutation. */
+  async findMutationResultByOrganization(
+    organizationId: OrganizationId,
+    taskId: TaskId,
+  ): Promise<TaskResponseDto | null> {
+    const task = await this.prisma.db.task.findFirst({
+      where: { id: taskId, organizationId },
+    });
+    if (!task) {
+      return null;
+    }
+
+    const [response] = await this.mapTasksWithChildCounts(
+      [task],
+      organizationId,
+      task.initiativeId as InitiativeId,
+      undefined,
+      undefined,
+      ALL_DECLARED_SECTIONS,
+    );
+    return response ?? null;
   }
 
   async findOneByOrganization(
@@ -4180,14 +4204,14 @@ export class TaskService {
     }
 
     const childRows = (await this.prisma.db.task.findMany({
-      where: {
+      where: restrictTaskWhere({
         organizationId,
         projectId,
         parentTaskId: root.id,
         type: capability.nodeChildType,
         archivedAt: null,
         status: { not: WorkStatus.ARCHIVED },
-      },
+      }),
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     })) as TaskWithCountsAndRelations[];
     const children = await this.mapMixedInitiativeTasksWithChildCounts(
@@ -4460,7 +4484,11 @@ export class TaskService {
     includeServiceRelations = false,
   ): Promise<TaskHierarchyResponseDto> {
     const taskExists = await this.prisma.db.task.findFirst({
-      where: { id: taskId, organizationId, archivedAt: null },
+      where: restrictTaskWhere({
+        id: taskId,
+        organizationId,
+        archivedAt: null,
+      }),
       select: { id: true },
     });
 
@@ -5453,11 +5481,11 @@ export class TaskService {
     organizationId: OrganizationId,
   ): Promise<TaskResponseDto | null> {
     const task = await this.prisma.db.task.findFirst({
-      where: {
+      where: restrictTaskWhere({
         id: taskId,
         organizationId,
         archivedAt: null,
-      },
+      }),
     });
 
     if (!task) {
@@ -5941,7 +5969,7 @@ export class TaskService {
     });
 
     const findManyArgs: Prisma.TaskFindManyArgs = {
-      where,
+      where: restrictTaskWhere(where),
       orderBy: {
         [prismaSortBy]: sortDir,
       },

@@ -2,8 +2,6 @@ import React from "react";
 import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  FeatureHierarchyEntryDtoRelationshipEnum,
-  FeatureHierarchyEntryDtoRelationshipTypeEnum,
   ProposalAction,
   ProposalGroupLifecycle,
   ProposalOutOfDateStatus,
@@ -981,74 +979,25 @@ describe("ProposalDetail mode toggle", () => {
   });
 });
 
-describe("ProposalDetail placement block", () => {
-  it("renders the placement block focused on the structural ancestor for UPDATE proposals", async () => {
-    setProposalState(ProposalStatus.Approved, ProposalAction.Update);
-    mockUseFullEntityContext.mockReturnValue({
-      data: {
-        entityId: "tgt",
-        entityType: "TASK",
-        displayName: "Target Task",
-        createdAt: "2026-04-16T00:00:00Z",
-        featureHierarchy: [
-          {
-            id: "feature-far",
-            name: "Far Ancestor",
-            relationshipType:
-              FeatureHierarchyEntryDtoRelationshipTypeEnum.Structural,
-            relationship: FeatureHierarchyEntryDtoRelationshipEnum.Ancestor,
-            distance: 3,
-          },
-          {
-            id: "feature-near",
-            name: "Closest Ancestor",
-            relationshipType:
-              FeatureHierarchyEntryDtoRelationshipTypeEnum.Structural,
-            relationship: FeatureHierarchyEntryDtoRelationshipEnum.Ancestor,
-            distance: 1,
-          },
-        ],
-      },
-      isLoading: false,
-      isFetched: true,
-      error: null,
-      refetch: vi.fn(),
-    });
-
-    renderWithProviders(
-      <ProposalDetail
-        proposalId="prop-1"
-        organizationId="org-1"
-        projectId="proj-1"
-      />,
-    );
-
-    const card = screen.getByTestId("proposal-placement-block");
-    expect(card).toBeInTheDocument();
-    const tree = await screen.findByTestId("feature-tree-visualization");
-    expect(tree).toHaveAttribute("data-focused-feature-id", "feature-near");
-  });
-
-  it("renders the placement block focused on parentTaskId for CREATE proposals", async () => {
-    setProposalState(ProposalStatus.Approved, ProposalAction.Create, {
-      name: "New Task",
-      parentTaskId: "feature-create-parent",
-    });
-
-    renderWithProviders(
-      <ProposalDetail
-        proposalId="prop-1"
-        organizationId="org-1"
-        projectId="proj-1"
-      />,
-    );
-
-    const card = screen.getByTestId("proposal-placement-block");
-    expect(card).toBeInTheDocument();
-    const tree = await screen.findByTestId("feature-tree-visualization");
-    expect(tree).toHaveAttribute(
-      "data-focused-feature-id",
-      "feature-create-parent",
-    );
-  });
+describe("ProposalDetail full-width read mode", () => {
+  it.each([ProposalAction.Create, ProposalAction.Update])(
+    "removes placement and influences for %s proposals",
+    (action) => {
+      setProposalState(ProposalStatus.Approved, action);
+      renderWithProviders(
+        <ProposalDetail
+          proposalId="prop-1"
+          organizationId="org-1"
+          projectId="proj-1"
+        />,
+      );
+      expect(
+        screen.queryByTestId("proposal-placement-block"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("proposal-influences-block"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByTestId("right-pane")).toBeEmptyDOMElement();
+    },
+  );
 });

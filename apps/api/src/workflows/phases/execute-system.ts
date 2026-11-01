@@ -249,6 +249,16 @@ export async function handleAutoNodeExecution(
   });
 
   state.context = result.updatedContext;
+  // Terminal handoffs persist their trigger inline and complete without a CLI reply.
+  if (result.immediateResponse) {
+    state.pendingLLMResponse = result.immediateResponse;
+    // Reconnect delivery resolves the trigger against the saved workflow cursor,
+    // including after this terminal handoff has completed the workflow.
+    await saveFlowState({
+      workflowState: state,
+      executionId: state.executionId,
+    });
+  }
   // Bind execution/request ids to this request (drives user response ownership)
   setCurrentExecutionId(state, result.requestId, 'handleAutoNodeExecution');
 

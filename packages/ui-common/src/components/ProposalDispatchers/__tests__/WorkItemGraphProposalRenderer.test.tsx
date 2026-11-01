@@ -2,6 +2,7 @@ import { cloneElement, type ReactElement, type PropsWithChildren } from "react";
 import { AxiosError, AxiosHeaders } from "axios";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
+  act,
   fireEvent,
   render as testingLibraryRender,
   screen,
@@ -108,6 +109,7 @@ vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
 
 const mockValidate = vi.fn();
 const mockGetTask = vi.fn();
+const mockGetWorkItemGraph = vi.fn();
 const stateIndicatorProps = vi.fn();
 const graphSurfaceProps = vi.fn();
 const buildCanonicalPositions = vi.fn(
@@ -125,6 +127,7 @@ const buildCanonicalPositions = vi.fn(
 vi.mock("../../../clients/serviceClients", () => ({
   unifiedApiClient: {
     getTask: (...args: unknown[]) => mockGetTask(...args),
+    getWorkItemGraph: (...args: unknown[]) => mockGetWorkItemGraph(...args),
   },
   proposalsClient: {
     validateProposal: (...args: unknown[]) => mockValidate(...args),
@@ -942,6 +945,102 @@ describe("WorkItemGraphProposalRenderer", () => {
     },
   );
 
+  it("keeps waiting beyond eight reads and renders a late publication", async () => {
+    vi.useFakeTimers();
+    try {
+      const refetch = vi.fn().mockResolvedValue(null);
+      mockUseWorkItemGraph.mockReturnValue({
+        data: null,
+        isFetched: true,
+        isFetching: false,
+        error: null,
+        refetch,
+      });
+      const ui = (
+        <WorkItemGraphProposalRenderer
+          proposal={buildProposal()}
+          status={{ state: "applied" }}
+          onApply={vi.fn()}
+          organizationId="organization-id"
+          projectId="project-id"
+        />
+      );
+      const view = render(ui);
+      for (let read = 0; read < 10; read += 1) {
+        await act(() => vi.advanceTimersByTimeAsync(30_000));
+        expect(
+          screen.queryByTestId("published-work-item-graph-error"),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.getByTestId("published-work-item-graph-loading"),
+        ).toBeInTheDocument();
+      }
+      expect(refetch.mock.calls.length).toBeGreaterThan(8);
+      mockUseWorkItemGraph.mockReturnValue({
+        data: {
+          root: { id: "root-id", name: "Published graph", type: "workflow" },
+          children: [],
+          relationships: [],
+          layout: null,
+          derivedReferences: [],
+        },
+        isFetched: true,
+        isFetching: false,
+        error: null,
+        refetch,
+      });
+      view.rerender(cloneElement(ui));
+      expect(screen.getByTestId("projected-graph")).toBeInTheDocument();
+      const reads = refetch.mock.calls.length;
+      await act(() => vi.advanceTimersByTimeAsync(60_000));
+      expect(refetch).toHaveBeenCalledTimes(reads);
+      view.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("retries a transient read through the real graph hook until publication", async () => {
+    const { useWorkItemGraph } = await vi.importActual<
+      typeof import("../../../data/hooks/useWorkItemGraph")
+    >("../../../data/hooks/useWorkItemGraph");
+    mockUseWorkItemGraph.mockImplementation(useWorkItemGraph);
+    mockGetWorkItemGraph
+      .mockReset()
+      .mockRejectedValueOnce(
+        Object.assign(new Error("Not published yet"), { status: 404 }),
+      )
+      .mockResolvedValue({
+        data: {
+          data: {
+            root: { id: "root-id", name: "Published graph", type: "workflow" },
+            children: [],
+            relationships: [],
+            layout: null,
+            derivedReferences: [],
+          },
+        },
+      });
+    render(
+      <WorkItemGraphProposalRenderer
+        proposal={buildProposal()}
+        status={{ state: "applied" }}
+        onApply={vi.fn()}
+        organizationId="organization-id"
+        projectId="project-id"
+      />,
+    );
+    await waitFor(() => expect(mockGetWorkItemGraph).toHaveBeenCalledOnce());
+    expect(
+      screen.queryByTestId("published-work-item-graph-error"),
+    ).not.toBeInTheDocument();
+    await waitFor(
+      () => expect(screen.getByTestId("projected-graph")).toBeInTheDocument(),
+      { timeout: 2500 },
+    );
+    expect(mockGetWorkItemGraph).toHaveBeenCalledTimes(2);
+  });
+
   it.each([
     WorkItemChangeSetMaterializationState.Queued,
     WorkItemChangeSetMaterializationState.Applying,
@@ -990,6 +1089,35 @@ describe("WorkItemGraphProposalRenderer", () => {
       />,
     );
     expect(screen.getByTestId("projected-graph")).toBeInTheDocument();
+  });
+
+  it("preserves an available graph when a refresh fails transiently", () => {
+    mockUseWorkItemGraph.mockReturnValue({
+      data: {
+        root: { id: "root-id", name: "Published graph", type: "workflow" },
+        children: [],
+        relationships: [],
+        layout: null,
+        derivedReferences: [],
+      },
+      isFetched: true,
+      isFetching: false,
+      error: new Error("Network unavailable"),
+      refetch: vi.fn(),
+    });
+    render(
+      <WorkItemGraphProposalRenderer
+        proposal={buildProposal()}
+        status={{ state: "applied" }}
+        onApply={vi.fn()}
+        organizationId="organization-id"
+        projectId="project-id"
+      />,
+    );
+    expect(screen.getByTestId("projected-graph")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("published-work-item-graph-error"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows an authoritative terminal graph read failure", () => {

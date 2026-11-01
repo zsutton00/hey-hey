@@ -89,6 +89,7 @@ export const makeDeps = (poster?: HandlerDeps['poster']): HandlerDeps => {
 
 export const makeTestRun = (
   overrides?: Partial<Run> & {
+    persistenceStore?: RunCollaborators['runStore'];
     recordedTurnSummaries?: PreviousProviderSession[];
     recordedMemos?: RunMemo[];
     taskMonitorId?: string;
@@ -106,6 +107,7 @@ export const makeTestRun = (
     child: vi.fn().mockReturnThis(),
   } as unknown as RunCollaborators['logger'];
   const runStore = createPromptTypeHandlerTestRunStore();
+  vi.spyOn(runStore, 'updateRunFinalAssistantMessage').mockResolvedValue({} as AgenticSession);
   vi.spyOn(runStore, 'getFileChangeFacts').mockResolvedValue([]);
   vi.spyOn(runStore, 'getTouchedFiles').mockResolvedValue([]);
   vi.spyOn(runStore, 'addTouchedFiles').mockResolvedValue(undefined);
@@ -143,7 +145,7 @@ export const makeTestRun = (
       } as unknown as ConstructorParameters<typeof Run>[0]['session'],
     },
     {
-      runStore,
+      runStore: overrides?.persistenceStore ?? runStore,
       repoStore: createTestRepoMappingStore(),
       poster: makePoster(),
       broadcaster,
@@ -187,7 +189,9 @@ export const makeTestRun = (
         touchedFiles.add(file);
       }),
   );
-  vi.spyOn(run, 'recordToolUsage').mockImplementation(overrides?.recordToolUsage ?? (() => {}));
+  if (!overrides?.persistenceStore) {
+    vi.spyOn(run, 'recordToolUsage').mockImplementation(overrides?.recordToolUsage ?? vi.fn());
+  }
   vi.spyOn(run, 'observeProviderPhase').mockImplementation(
     overrides?.observeProviderPhase ?? (() => {}),
   );
@@ -272,10 +276,13 @@ export const makeTestTurn = (
   handler: PromptTypeHandler<unknown> = defaultTestTurnHandler,
   turnId = 'turn-1',
   platformMcpProxy: TurnPlatformMcpProxy | null = null,
+  payload?: unknown,
 ): Turn => {
   const owner = makeTestRun();
   const turn = new Turn({
+    effectiveRole: 'implementation',
     turnId,
+    payload,
     runId: owner.runId,
     resolvedPrompt: '',
     handler,

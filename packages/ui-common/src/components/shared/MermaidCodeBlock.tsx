@@ -1,10 +1,11 @@
+import { useModalState } from "../Modals/useModalState";
+import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import CloseIcon from "@mui/icons-material/Close";
 import {
   Alert,
   Box,
   Button,
   CircularProgress,
-  Dialog,
   DialogContent,
   DialogTitle,
   IconButton,
@@ -97,7 +98,7 @@ const normalizeMermaidLabelText = (value: string): string => {
 const readMermaidLabelSegment = (
   value: string,
   startIndex: number,
-  delimiter: MermaidLabelDelimiter
+  delimiter: MermaidLabelDelimiter,
 ): { nextIndex: number; normalizedSegment: string } | null => {
   const { open, close } = delimiter;
   const supportsInnerSingleCharacterPairs =
@@ -153,7 +154,7 @@ const readMermaidLabelSegment = (
         return {
           nextIndex: index + close.length,
           normalizedSegment: `${open}${normalizeMermaidLabelText(
-            innerText
+            innerText,
           )}${close}`,
         };
       }
@@ -174,7 +175,7 @@ export const normalizeMermaidCode = (value: string): string => {
 
   while (index < value.length) {
     const delimiter = MERMAID_LABEL_DELIMITERS.find(({ open }) =>
-      value.startsWith(open, index)
+      value.startsWith(open, index),
     );
 
     if (!delimiter) {
@@ -213,7 +214,7 @@ const clearMermaidRenderHost = (renderHost: HTMLDivElement | null): void => {
 
 const initializeMermaidRenderer = (
   mermaidRenderer: MermaidRenderer,
-  mermaidTheme: MermaidTheme
+  mermaidTheme: MermaidTheme,
 ): void => {
   if (configuredMermaidTheme === mermaidTheme) {
     return;
@@ -232,22 +233,23 @@ export const MermaidCodeBlock: React.FC<MermaidCodeBlockProps> = ({ code }) => {
   const theme = useTheme();
   const mermaidTheme = useMemo(
     () => resolveMermaidTheme(theme.palette.mode),
-    [theme.palette.mode]
+    [theme.palette.mode],
   );
   const normalizedCode = useMemo(
     () => normalizeMermaidCode(code.trim()),
-    [code]
+    [code],
   );
   const [renderState, setRenderState] = useState<MermaidRenderState>({
     status: "loading",
     svg: null,
     errorMessage: null,
   });
-  const [isViewerOpen, setIsViewerOpen] = useState(false);
+  const [isViewerOpen, setIsViewerOpen, isViewerOpenOwnerKey] =
+    useModalState(false);
   const renderSequenceRef = useRef(0);
   const renderHostRef = useRef<HTMLDivElement | null>(null);
   const mermaidInstanceIdRef = useRef(
-    `mermaid-${Math.random().toString(36).slice(2, 10)}`
+    `mermaid-${Math.random().toString(36).slice(2, 10)}`,
   );
 
   useEffect(() => {
@@ -285,7 +287,7 @@ export const MermaidCodeBlock: React.FC<MermaidCodeBlockProps> = ({ code }) => {
         const renderResult = await mermaidRenderer.render(
           renderId,
           normalizedCode,
-          renderHostRef.current ?? undefined
+          renderHostRef.current ?? undefined,
         );
 
         if (disposed || renderSequenceRef.current !== renderSequence) {
@@ -373,6 +375,7 @@ export const MermaidCodeBlock: React.FC<MermaidCodeBlockProps> = ({ code }) => {
             dangerouslySetInnerHTML={{ __html: renderState.svg }}
           />
           <Dialog
+            ownerKey={isViewerOpenOwnerKey}
             open={isViewerOpen}
             onClose={() => setIsViewerOpen(false)}
             fullWidth
@@ -387,6 +390,16 @@ export const MermaidCodeBlock: React.FC<MermaidCodeBlockProps> = ({ code }) => {
                 },
               },
             }}
+            closeControl={
+              <IconButton
+                size="small"
+                onClick={() => setIsViewerOpen(false)}
+                aria-label="Close Mermaid viewer"
+                data-testid="markdown-mermaid-close-viewer"
+              >
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            }
           >
             <DialogTitle
               sx={{
@@ -400,14 +413,6 @@ export const MermaidCodeBlock: React.FC<MermaidCodeBlockProps> = ({ code }) => {
               <Typography variant="subtitle1" component="span">
                 Mermaid Diagram
               </Typography>
-              <IconButton
-                size="small"
-                onClick={() => setIsViewerOpen(false)}
-                aria-label="Close Mermaid viewer"
-                data-testid="markdown-mermaid-close-viewer"
-              >
-                <CloseIcon fontSize="small" />
-              </IconButton>
             </DialogTitle>
             <DialogContent
               dividers

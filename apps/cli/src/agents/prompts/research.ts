@@ -5,6 +5,7 @@ import {
   type ServicesContextInput,
 } from './common';
 import { withSubmissionToolTerminationSuffix } from '../submission-tools/prompt-suffix';
+import type { AgentProviderId } from '../providers/provider-config';
 import {
   buildProjectAssistantChildChecksPrompt,
   type ProjectAssistantChildChecks,
@@ -16,6 +17,7 @@ export const buildResearchPrompt = (
   child = false,
   /** Present when the child runs for a Project Assistant fan-out; adds the research checks for its slice. */
   projectAssistantChecks?: ProjectAssistantChildChecks,
+  provider?: AgentProviderId,
 ): string => {
   if (child) {
     const servicesBlock = buildServicesContextBlock(servicesContext);
@@ -112,5 +114,5 @@ Read-only. No proposals, no edges, no mutations of any kind — the toolset enfo
 
   sections.push(focalContextOrientation);
 
-  return withSubmissionToolTerminationSuffix(sections.join('\n\n'));
+  return withSubmissionToolTerminationSuffix(sections.join('\n\n'), provider);
 };

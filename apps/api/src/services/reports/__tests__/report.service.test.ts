@@ -1,4 +1,10 @@
+import { ReadRestriction } from 'src/generated';
+import {
+  ReadPolicyContext,
+  readPolicyFor,
+} from 'src/read-restriction/read-policy';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import {
   CreateReportDto,
   PlanReportPayload,
@@ -10,6 +16,9 @@ import {
   ReportSortBy,
   ReportSortOrder,
   ReportType,
+  ReportUsageCacheAvailability,
+  ReportUsageCoverage,
+  type ReportUsageMeasurement,
 } from 'src/generated';
 import {
   createMockDomainEventPublisher,
@@ -39,6 +48,28 @@ const validPlanStep = {
 };
 
 describe('ReportService', () => {
+  const usage = {
+    schemaVersion: 1,
+    runId: 'run',
+    agentSessionId: 'session',
+    turnId: 'turn',
+    executionId: 'native-session',
+    providerSessionId: 'native-session',
+    provider: 'claude',
+    model: 'model',
+    effort: 'high',
+    capturedAt: '2026-11-01T00:00:00.000Z',
+    inputTokens: 33,
+    freshInputTokens: 10,
+    cacheReadInputTokens: 20,
+    cacheCreationInputTokens: 3,
+    outputTokens: 5,
+    toolCalls: 2,
+    coverage: ReportUsageCoverage.Complete,
+    cacheAvailability: ReportUsageCacheAvailability.Reported,
+    breakdown: [],
+  } satisfies ReportUsageMeasurement;
+
   it('round-trips ordered walkthroughs through create, retrieval and update', async () => {
     const organizationId =
       '11111111-1111-4111-8111-111111111111' as OrganizationId;
@@ -67,6 +98,7 @@ describe('ReportService', () => {
       reportType: ReportType.ChangeWalkthrough,
       audience: ReportAudience.ProjectVisible,
       payload,
+      usage,
       version: 1,
       schemaVersion: 1,
       sourceExecutionId: null,
@@ -76,25 +108,38 @@ describe('ReportService', () => {
       reportEntities: [],
       projectId: null,
     };
-    prisma.db.report.create.mockResolvedValue(stored);
+    let savedUsage: unknown = null;
+    prisma.db.report.create.mockImplementation(async ({ data }) => {
+      savedUsage = data.usage === Prisma.DbNull ? null : data.usage;
+      return { ...stored, usage: savedUsage };
+    });
     await service.create(organizationId, {
       reportType: ReportType.ChangeWalkthrough,
       audience: ReportAudience.ProjectVisible,
       payload,
+      usage,
     });
     expect(prisma.db.report.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ payload }),
+        data: expect.objectContaining({ payload, usage }),
       }),
     );
-    prisma.db.report.findFirst.mockResolvedValue(stored);
+    prisma.db.report.findFirst.mockImplementation(async () => ({
+      ...stored,
+      usage: savedUsage,
+    }));
     expect((await service.findOne(organizationId, stored.id)).payload).toEqual(
       payload,
     );
+    expect((await service.findOne(organizationId, stored.id)).usage).toEqual(
+      usage,
+    );
     const updatedPayload = { ...payload, summary: 'Updated explanation' };
-    prisma.db.report.update.mockResolvedValue({
-      ...stored,
-      payload: updatedPayload,
+    prisma.db.report.update.mockImplementation(async ({ data }) => {
+      if ('usage' in data) {
+        savedUsage = data.usage;
+      }
+      return { ...stored, payload: updatedPayload, usage: savedUsage };
     });
     expect(
       (
@@ -103,6 +148,31 @@ describe('ReportService', () => {
         })
       ).payload,
     ).toEqual(updatedPayload);
+    expect(prisma.db.report.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.not.objectContaining({ usage: expect.anything() }),
+      }),
+    );
+    expect((await service.findOne(organizationId, stored.id)).usage).toEqual(
+      usage,
+    );
+    prisma.db.report.create.mockResolvedValue({ ...stored, usage: null });
+    await service.create(organizationId, {
+      reportType: ReportType.ChangeWalkthrough,
+      audience: ReportAudience.ProjectVisible,
+      payload,
+      usage: JSON.parse('{"schemaVersion":2}'),
+    });
+    expect(prisma.db.report.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ usage: Prisma.DbNull }),
+      }),
+    );
+    prisma.db.report.findFirst.mockResolvedValue({
+      ...stored,
+      usage: { schemaVersion: 2 },
+    });
+    expect((await service.findOne(organizationId, stored.id)).usage).toBeNull();
     await expect(
       service.update(organizationId, stored.id, {
         payload: {
@@ -1921,6 +1991,66 @@ describe('ReportService', () => {
     });
   });
 
+  describe('under a read restriction', () => {
+    const asEvaluatedAttempt = <T>(read: () => T): T =>
+      ReadPolicyContext.run(readPolicyFor(ReadRestriction.EvalTarget), read);
+    const hiddenReports = {
+      reportType: { notIn: ['EVAL_RUN', 'EVAL_ATTEMPT', 'EVAL_HUMAN_REVIEW'] },
+    };
+
+    it('answers a direct read of a grading report like a report that does not exist', async () => {
+      (prisma.db.report.findFirst as jest.Mock).mockResolvedValue(null);
+
+      await expect(
+        asEvaluatedAttempt(() =>
+          service.findOne('org-1' as any, 'attempt-report'),
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(prisma.db.report.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            AND: [
+              { id: 'attempt-report', organizationId: 'org-1' },
+              hiddenReports,
+            ],
+          },
+        }),
+      );
+    });
+
+    it('lists reports without the grading types, whatever types the caller asked for', async () => {
+      (prisma.db.report.findMany as jest.Mock).mockResolvedValue([]);
+
+      await asEvaluatedAttempt(() =>
+        service.findAll('org-1' as any, {
+          reportTypes: [ReportType.EvalAttempt],
+        }),
+      );
+
+      const { where } = (prisma.db.report.findMany as jest.Mock).mock
+        .calls[0]![0];
+      expect(where.AND[0].reportType).toEqual({ in: [ReportType.EvalAttempt] });
+      expect(where.AND[1]).toEqual(hiddenReports);
+    });
+
+    it('lists the judge’s reports without live grading reports, and ordinary callers all reports', async () => {
+      (prisma.db.report.findMany as jest.Mock).mockResolvedValue([]);
+
+      await ReadPolicyContext.run(
+        readPolicyFor(ReadRestriction.EvalJudge),
+        () => service.findAll('org-1' as any),
+      );
+      await service.findAll('org-1' as any);
+
+      const [judge, ordinary] = (
+        prisma.db.report.findMany as jest.Mock
+      ).mock.calls.map(([args]) => args.where);
+      expect(judge.AND[1]).toEqual(hiddenReports);
+      expect(ordinary.AND).toBeUndefined();
+    });
+  });
+
   describe('findAll reportTypes + offset', () => {
     it('translates reportTypes to a Prisma `in:` clause', async () => {
       (prisma.db.report.findMany as jest.Mock).mockResolvedValue([]);
@@ -2981,7 +3111,7 @@ describe('ReportService', () => {
   describe('listSummariesByEntity', () => {
     const createdAt = new Date('2026-04-26T12:00:00.000Z');
 
-    it('filters reports by entityId only and maps to ReportSummaryDto', async () => {
+    it('filters project-knowledge reports by entityId and maps to ReportSummaryDto', async () => {
       (prisma.db.report.findMany as jest.Mock).mockResolvedValue([
         {
           id: 'report-1',
@@ -3005,6 +3135,7 @@ describe('ReportService', () => {
       expect(prisma.db.report.findMany).toHaveBeenCalledWith({
         where: {
           organizationId: 'org-1',
+          ragEnabled: true,
           reportEntities: { some: { entityId: 'entity-1' } },
         },
         select: {
