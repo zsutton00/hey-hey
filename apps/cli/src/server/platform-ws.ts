@@ -1,6 +1,6 @@
 import { DeterministicE2EEvidence } from '../run/runners/deterministic-e2e-evidence';
 import type { TaskMonitorStateObservation } from '../shared/api/generated/api';
-import { io, type Socket } from 'socket.io-client';
+import { io, type ManagerOptions, type Socket, type SocketOptions } from 'socket.io-client';
 import type { ServerLogger } from './logger';
 import type { OAuthClient } from '../auth/oauth-client';
 import { extractOrganizationIdFromToken, extractUserIdFromToken } from '../auth/index';
@@ -29,6 +29,21 @@ const isMachineRevocationReduction = (event: PlatformWebSocketEvent): boolean =>
   const envelope = (event as { envelope?: { event?: { kind?: unknown } } }).envelope;
   return envelope?.event?.kind === 'machine_revocation_reduction';
 };
+
+type SocketClientOptions = Partial<ManagerOptions & SocketOptions>;
+
+// engine.io-client types `perMessageDeflate` as `{ threshold: number }`, but its
+// runtime (and its own doc comment) accepts `false` to disable compression, and
+// the default is enabled with a 1024-byte threshold. This is the one place that
+// widens the option to match runtime behavior.
+type SocketClientOptionsWithoutCompression = Omit<SocketClientOptions, 'perMessageDeflate'> & {
+  perMessageDeflate: false;
+};
+
+const connectWithoutCompression = (
+  url: string,
+  options: SocketClientOptionsWithoutCompression,
+): Socket => io(url, options as unknown as SocketClientOptions);
 
 const BASE_RECONNECT_DELAY_MS = 1_000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
@@ -959,7 +974,7 @@ export class PlatformWebSocketManager {
       // and ignores any token in the `authenticate` message body. Browsers send
       // this cookie automatically; the Node client must set it explicitly via
       // extraHeaders.
-      const sock = io(url, {
+      const sock = connectWithoutCompression(url, {
         transports: ['websocket'],
         autoConnect: true,
         reconnection: false,
