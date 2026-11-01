@@ -19,6 +19,7 @@ import {
   type EnrichedCodingPlanPromptPayload,
 } from '../coding-plan.handler';
 import { codingPlanSubmissionTools } from '../submission-tools';
+import { resolveHintPromptAccess } from '../../mcp-server-config';
 
 const makeStartupInput = (): LocalPromptStartupInput =>
   ({
@@ -100,7 +101,7 @@ describe('codingPlanHandler', () => {
     );
   });
 
-  it('exposes a read-only subagent MCP allowlist with no proposal or edge mutations', () => {
+  it('allows graph-Hints maintenance without proposal or structural graph mutations', () => {
     const allow = new Set(CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS);
     // The subagent calls create_report via the run-scoped submission tool wrapper,
     // while get_report_schema is a read-only platform lookup required by the prompt.
@@ -117,11 +118,11 @@ describe('codingPlanHandler', () => {
       expect(allow).toContain(reader);
     }
     expect(allow).toContain('unified_search');
-    // Implementation-hint tools survive — hints are the agent's own memory
-    // layer, not user-reviewed graph proposals.
-    expect(allow).toContain('create_implementation_hint');
-    expect(allow).toContain('edit_implementation_hint');
-    expect(allow).toContain('delete_implementation_hint');
+    expect(allow).toContain('get_hints_for_items');
+    for (const hintWriter of ['create_hint', 'add_hint_connection', 'delete_hint']) {
+      expect(allow).toContain(hintWriter);
+    }
+    expect(resolveHintPromptAccess(true, [...allow])).toBe('write');
     // Every proposal-mutating and edge tool is stripped.
     for (const tool of [
       'create_work_item',

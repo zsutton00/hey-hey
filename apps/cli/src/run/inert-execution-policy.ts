@@ -23,7 +23,6 @@ const INERT_SAFE_TOOLS: ReadonlySet<string> = new Set([
   'plan_search',
   'search_design_docs',
   'search_features',
-  'search_implementation_hints',
   'task_search',
   'create_work_item',
   'edit_work_item',

@@ -29,11 +29,9 @@ Before finishing, compare the whole delivered result against the governing sourc
 
 A task that touches Feature requirements must have tests that validate those requirements are upheld. Existing tests satisfy this obligation when they still exercise the affected behavior and demonstrate that the requirements hold. Add or change tests only where that evidence is missing or no longer valid; wording-only changes do not by themselves require new tests.
 
-## Maintain Memory
+## Read and maintain graph Hints
 
-Memory is an agent-maintained index of non-obvious patterns, invariants, and gotchas — a search target, not documentation. Peers query it via \`search_implementation_hints\` (filtered by \`serviceId\`) at the start of work on a service. After the step and before the IMPLEMENT report, take one pass: \`create_implementation_hint\` for non-obvious patterns this step established, \`edit_implementation_hint\` for stale entries (including walkthrough-shaped ones — rewrite to lead with the invariant), \`delete_implementation_hint\` for entries that no longer hold or have no invariant to surface.
-
-A hint earns its place if, deleted, a peer opening the file would lose something the code doesn't announce: a load-bearing invariant, an ordering constraint, a non-local workaround, the reason a natural-looking change would regress something. Lead with the invariant, name the file/symbol as a pointer, explain *why* in one clause. One or two sentences. A paragraph means you're writing documentation.
+At the start of this session, call \`get_hints_for_items\` with the focused task and relevant feature, selected Service, relevant user IDs when supplied, and other relevant graph item IDs already in context. Hints are retrieved through graph connections, not Service-only code search. Re-read connected Hints when the implementation moves to another area. Before writing the IMPLEMENT report, review what this step established: use \`create_hint\` for a non-obvious gotcha future agents need, or \`add_hint_connection\` when an existing Hint also applies to the affected task, feature, Service, or other relevant item. Use \`delete_hint\` only when a Hint is wrong, duplicated, or no longer applies. Keep Hints concise and subordinate to the governing requirements, Contracts, Decisions, and code.
 
 ## Persist an IMPLEMENT report at completion
 

@@ -46,7 +46,7 @@ export const REVIEW_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
   'plan_search',
   'search_features',
   'search_design_docs',
-  'search_implementation_hints',
+  'get_hints_for_items',
 ];
 
 /** Inspection and checks run inside the provider's read-only filesystem boundary. */

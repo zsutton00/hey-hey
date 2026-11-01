@@ -178,7 +178,6 @@ describe('researchHandler.buildPrompt', () => {
         'get_diagram',
         'get_work_item_type_guidance_batch',
         'unified_search',
-        'search_implementation_hints',
         'list_services',
       ],
       builtinAllowedTools: ['Read', 'Glob', 'Grep', 'WebSearch', 'WebFetch'],

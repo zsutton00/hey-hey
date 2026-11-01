@@ -253,11 +253,6 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
     'get_context',
     'get_agent_sessions',
     'list_services',
-    // implementation hints
-    'search_implementation_hints',
-    'create_implementation_hint',
-    'edit_implementation_hint',
-    'delete_implementation_hint',
     // proposals
     'create_work_item',
     'edit_work_item',

@@ -66,7 +66,6 @@ export const HEYHEY_RESERVED_MCP_SERVER_NAMES = [
 
 const MCP_TOOL_LIST: readonly McpTool[] = [
   { name: 'create_edge', useCases: ['coding', 'general'] },
-  { name: 'create_implementation_hint', useCases: ['coding', 'general'] },
   { name: 'create_plan', useCases: ['general'] },
   { name: 'create_design_doc', useCases: ['coding', 'general'] },
   { name: 'create_work_item', useCases: ['coding', 'general'] },
@@ -83,10 +82,8 @@ const MCP_TOOL_LIST: readonly McpTool[] = [
   })),
   { name: 'get_future_revision', useCases: ['coding', 'general'] },
   { name: 'delete_edge', useCases: ['coding', 'general'] },
-  { name: 'delete_implementation_hint', useCases: ['coding', 'general'] },
   { name: 'delete_proposal', useCases: ['coding', 'general'] },
   { name: 'edit_design_doc', useCases: ['coding', 'general'] },
-  { name: 'edit_implementation_hint', useCases: ['coding', 'general'] },
   { name: 'edit_work_item', useCases: ['coding', 'general'] },
   { name: 'get_context', useCases: ['coding', 'general'] },
   { name: 'get_edges', useCases: ['coding', 'general'] },
@@ -105,7 +102,6 @@ const MCP_TOOL_LIST: readonly McpTool[] = [
   { name: 'plan_search', useCases: ['coding', 'general'] },
   { name: 'search_design_docs', useCases: ['coding', 'general'] },
   { name: 'search_features', useCases: ['coding', 'general'] },
-  { name: 'search_implementation_hints', useCases: ['coding', 'general'] },
   { name: 'task_search', useCases: ['coding', 'general'] },
   { name: 'unified_search', useCases: ['coding', 'general'] },
   { name: 'update_edge', useCases: ['coding', 'general'] },
@@ -126,9 +122,7 @@ export const GENERAL_MCP_TOOLS: readonly string[] = MCP_TOOL_LIST.filter((t) =>
  * tool is stripped from the coding base list. Read/search/report tools
  * survive — including `get_report_schema`, which the planner needs to look
  * up the PLAN payload shape before calling `create_report` (the submission
- * tool wrapper). Implementation-hint tools also survive: hints are the
- * agent's own memory layer, not user-reviewed graph proposals, so the planner
- * may record what it learns while reading the codebase.
+ * tool wrapper).
  */
 const PLANNING_EXCLUDED_TOOLS: ReadonlySet<string> = new Set([
   // Entity-mutating proposal tools
@@ -187,8 +181,7 @@ export const PLAN_SHAPING_MCP_TOOLS: readonly string[] = [
  * Read-only investigation surface for the `research` mode. Curated to the
  * exact set of platform read tools a research turn needs to map the graph
  * surrounding a focal task: context/edges/full-entity for direct neighborhood
- * walks, the four searches for cross-hierarchy discovery, and
- * implementation-hints for prior-session knowledge. No `create_*`, `edit_*`,
+ * walks, and the four searches for cross-hierarchy discovery. No `create_*`, `edit_*`,
  * `create_edge`, proposal, or report tools — the research handler must not
  * mutate the graph or persist reports as a side effect of its turn.
  */
@@ -202,7 +195,6 @@ export const RESEARCH_MCP_TOOLS: readonly string[] = [
   'search_features',
   'task_search',
   'search_design_docs',
-  'search_implementation_hints',
 ];
 
 /**

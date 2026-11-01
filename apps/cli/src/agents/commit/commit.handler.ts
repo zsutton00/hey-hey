@@ -24,7 +24,7 @@ import { buildCommitPrompt } from './commit-prompt';
 const COMMIT_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
   'get_context',
   'get_full_entity',
-  'search_implementation_hints',
+  'get_hints_for_items',
 ];
 
 const COMMIT_SUBAGENT_BUILTIN_ALLOWED_TOOLS: readonly string[] = ['Read', 'Bash', 'ToolSearch'];

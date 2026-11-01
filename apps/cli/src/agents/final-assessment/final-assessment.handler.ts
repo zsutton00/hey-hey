@@ -24,16 +24,17 @@ const FINAL_ASSESSMENT_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
   'plan_search',
   'search_features',
   'search_design_docs',
-  'search_implementation_hints',
+  // Graph Hints replace the legacy implementation-hint memory tools.
+  'get_hints_for_items',
+  'create_hint',
+  'add_hint_connection',
+  'delete_hint',
   // Proposal creation
   'create_work_item',
   'create_design_doc',
-  'create_implementation_hint',
   // Proposal edits
   'edit_work_item',
   'edit_design_doc',
-  'edit_implementation_hint',
-  'delete_implementation_hint',
   // Proposal lifecycle
   'update_proposal',
   // Edges

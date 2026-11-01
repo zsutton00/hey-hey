@@ -27,9 +27,8 @@ export const CODING_PLAN_NOT_SAVED_MESSAGE =
 
 /**
  * Restricted MCP tool allowlist for the coding-plan subagent. The planner may
- * ground its plan in project state (search + context tools), read prior
- * report bodies, maintain its implementation-hint memory, and persist its
- * conversation context — but must never mutate the graph.
+ * ground its plan in project state, read and maintain graph Hints, and persist
+ * its conversation context. It may not mutate project structure or proposals.
  */
 export const CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
   // Context / read
@@ -50,11 +49,10 @@ export const CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
   'plan_search',
   'search_features',
   'search_design_docs',
-  'search_implementation_hints',
-  // Memory maintenance
-  'create_implementation_hint',
-  'edit_implementation_hint',
-  'delete_implementation_hint',
+  'get_hints_for_items',
+  'create_hint',
+  'add_hint_connection',
+  'delete_hint',
 ];
 
 /**

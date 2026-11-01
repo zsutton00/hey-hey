@@ -23,6 +23,7 @@ import {
   resolveMcpToolNames,
   type McpSessionContext,
 } from './mcp-server-config';
+import { CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS } from './coding-plan/coding-plan.handler';
 import { featureSyncAnalyzeHandler } from './feature-sync/analyze.handler';
 import { featureSyncIterateHandler } from './feature-sync/iterate.handler';
 import { createTestOAuthClient as createProviderTestOAuthClient } from '../auth/oauth-client.test-support';
@@ -34,6 +35,13 @@ const createMockOAuthClient = (
 // Minimal JWT with organizationId claim for testing.
 // Payload: { "sub": "user-1", "organizationId": "org-123" }
 const HINT_TOOLS = [...HINT_WRITE_MCP_TOOLS, ...HINT_READ_MCP_TOOLS];
+
+const LEGACY_IMPLEMENTATION_HINT_TOOLS = [
+  'search_implementation_hints',
+  'create_implementation_hint',
+  'edit_implementation_hint',
+  'delete_implementation_hint',
+];
 
 const TEST_TOKEN =
   'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.' +
@@ -479,20 +487,33 @@ describe('buildMcpServerConfig', () => {
         'get_report_body',
         'get_report_schema',
         'unified_search',
-        'search_implementation_hints',
         'list_features',
       ]) {
         expect(PLANNING_MCP_TOOLS).toContain(tool);
       }
     });
 
-    it('keeps implementation-hint tools so the planner can record what it learns', () => {
-      for (const tool of [
-        'create_implementation_hint',
-        'edit_implementation_hint',
-        'delete_implementation_hint',
-      ]) {
-        expect(PLANNING_MCP_TOOLS).toContain(tool);
+    it('offers no agent the legacy implementation-hint tools, on any surface', () => {
+      const surfaces = {
+        CODING_MCP_TOOLS,
+        GENERAL_MCP_TOOLS,
+        PLANNING_MCP_TOOLS,
+        RESEARCH_MCP_TOOLS,
+        CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS,
+      };
+      for (const tools of Object.values(surfaces)) {
+        for (const tool of LEGACY_IMPLEMENTATION_HINT_TOOLS) {
+          expect(tools).not.toContain(tool);
+        }
+      }
+    });
+
+    it('offers graph Hints tools on every open-ended surface that had implementation hints', () => {
+      for (const useCase of ['coding', 'general', 'planning', 'research'] as const) {
+        const resolved = resolveMcpToolNames({ useCase });
+        for (const tool of HINT_TOOLS) {
+          expect(resolved).toContain(tool);
+        }
       }
     });
 
@@ -578,11 +599,10 @@ describe('buildMcpServerConfig', () => {
           'search_features',
           'task_search',
           'search_design_docs',
-          'search_implementation_hints',
           ...HINT_TOOLS,
         ].map((tool) => `mcp__heyhey-platform__${tool}`),
       );
-      expect(RESEARCH_MCP_TOOLS).toHaveLength(10);
+      expect(RESEARCH_MCP_TOOLS).toHaveLength(9);
     });
 
     it('contains no mutation, edge, proposal, report, or creation tool names', async () => {

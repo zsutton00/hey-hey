@@ -403,28 +403,6 @@ const contractDiscoveryRecognition = `## Contract Discovery and Enforcement
 Recognize a Contract candidate from a concrete boundary, not from the project's catalog of schemas, services, repositories, or communication channels. In a Diagram, inspect the relevant element's inputs, outputs, and responsibility; outside a Diagram, inspect the narrowest authoritative operation, work item, design artifact, or schema. A durable authoritative producer interface may qualify before a consumer exists when it states a specific operation, payload, timing rule, semantic promise, availability guarantee, or acknowledgement responsibility. Ad hoc interactions, broad channels, reference roll-ups, and schema mentions without that agreement remain ordinary topology. Only after confirming provider intent, ask whether the provider could make the proposed change while still honoring the declared promise for a real or hypothetical conforming consumer, classifying it as compatible, promise-breaking, or explicit evolution; breakage without intent is accidental coupling or an ordinary dependency, not Contract evidence. Once recognized, use the root authoring guide and the Contract-specific guide for discovery, proposal, participant-link, and mutation rules.`;
 
 /**
- * Memory section: tells the agent to query implementation hints via
- * `search_implementation_hints` filtered to the session's serviceId at the
- * start of work on a service, and again whenever a new sub-area comes into
- * focus. Hints are a curated index of non-obvious patterns, invariants, and
- * gotchas left by prior sessions — weakly-held context, not documentation.
- */
-const memorySection = `## Implementation hints
-
-Implementation hints are a curated, agent-maintained index of non-obvious patterns, invariants, and gotchas left behind by prior sessions in this codebase. They are weakly-held context, not documentation — surface them on demand, do not treat them as authoritative.
-
-At the start of work on a service, call \`search_implementation_hints\` filtered to the session's \`serviceId\` to surface what prior sessions have already learned. Run the query again whenever a new sub-area of the codebase comes into focus (a new feature you have not touched yet, a new layer of the stack, a tool or contract you are about to use for the first time). A typical call looks like:
-
-\`\`\`
-search_implementation_hints({
-  serviceId: "<session serviceId>",
-  query: "<concept you're about to touch>"
-})
-\`\`\`
-
-If a hint contradicts what you observe in the code, trust the code and update or delete the hint — hints can go stale.`;
-
-/**
  * Iteration guidance for revising existing prompt or work-item content.
  * Applies to every agent on every turn.
  */
@@ -521,7 +499,9 @@ Recorded features and tasks are still sparse, so much of this project's intent e
 Help establish enough reviewed knowledge for the next useful action: suggest a concrete next step, and at natural breaks in the conversation (not after every message) offer to record points as reviewed knowledge — work items, design docs or Decisions through proposals. Offer based on whether future work will need the point and whether its meaning is clear, not on how often it was said: one consequential choice stated once is worth recording; an idea repeated five times may still be exploration.`;
 
 const hintDefinition =
-  'Hints are short notes, connected to items in the project, that carry direction future agents need but that does not belong in a requirement: guidance the user gave, a correction they do not want to repeat, or a gotcha found while building. They are separate from implementation hints, which index codebase patterns for a service.';
+  'Hints are short project notes connected to the graph items they concern. They carry direction future agents need but that does not belong in a requirement: guidance the user gave, a correction they do not want to repeat, or a gotcha found while building.';
+
+const hintReadingInstructions = `At the start of each session, call \`get_hints_for_items\` with the IDs of the items you are focused on. Include the focused work item, relevant features, selected Services, relevant user IDs when supplied, and other relevant graph items already supplied to the session. This reads graph connections; it is not a Service-only code search. When your focus moves to another area, read hints connected to those items too. Treat results as weak context: requirements, Contracts, Decisions and code take precedence.`;
 
 /**
  * Hint-writing guidance: composed only for sessions that hold `create_hint`
@@ -532,7 +512,9 @@ export const hintWritingGuidance = `## Hints
 
 ${hintDefinition}
 
-Record a hint with \`create_hint\`:
+${hintReadingInstructions}
+
+Record a new hint with \`create_hint\`. Hint text cannot be edited in place: replace an inaccurate hint with a corrected one and remove the stale hint. If an existing hint also applies to another item, connect it with \`add_hint_connection\` instead of duplicating it:
 
 - In a conversation, when the user gives direction or a correction that is not requirement-worthy, write the hint without asking. Always write one when the user is emphatic about a correction or repeats it.
 - At the end of coding work, write hints for gotchas that neither the code nor the task makes obvious.
@@ -542,14 +524,16 @@ Delete a hint with \`delete_hint\` when it is wrong, duplicated or no longer app
 Write the direction itself ("Feature names are never used as identity; use Feature IDs"), never how it was said. Connect the hint to what it is relevant to, typically the focused item and its owning feature. In a project with established requirements, raise input that contradicts them with the user instead of recording it.`;
 
 /**
- * Hint-reading guidance for the Project Assistant: composed only for sessions
- * that hold `get_hints_for_items` but not the write tools.
+ * Hint-reading guidance for read-only sessions: composed only when
+ * `get_hints_for_items` is available without the write tools.
  */
 export const hintReadingGuidance = `## Hints
 
 ${hintDefinition}
 
-Read the hints connected to the focused item with \`get_hints_for_items\` and include the relevant ones in the context you hand forward, as candidates for the next phase to weigh. Never write hints.`;
+${hintReadingInstructions}
+
+Include relevant hints in the context you hand forward, as candidates for the next phase to weigh. Never write hints.`;
 
 export interface PlatformPromptOptions {
   /** Provider executing the session; only Claude defers MCP tools behind `ToolSearch`. */
@@ -597,7 +581,6 @@ export function buildPlatformSystemPrompt(
     edgeDiscoveryInstruction,
     contractDiscoveryRecognition,
     topologyAuthoringRecognition,
-    memorySection,
     options?.hints === 'write'
       ? hintWritingGuidance
       : options?.hints === 'read'

@@ -218,7 +218,7 @@ describe('buildPlatformSystemPrompt', () => {
     expect(build('opencode')).not.toContain('ToolSearch');
   });
 
-  it('adds hint guidance only for sessions with hint tools, after implementation hints', () => {
+  it('adds graph-Hints guidance only for sessions with hint tools', () => {
     const options = (hints: 'write' | 'read' | 'none') =>
       buildPlatformSystemPrompt(sampleDefs, undefined, {
         intentFirst: false,
@@ -230,11 +230,12 @@ describe('buildPlatformSystemPrompt', () => {
     expect(options('none')).toBe(omitted);
     expect(options('write')).toContain(hintWritingGuidance);
     expect(options('write')).not.toContain(hintReadingGuidance);
+    expect(options('write')).toContain('At the start of each session');
+    expect(options('write')).toContain('get_hints_for_items');
+    expect(options('write')).toContain('relevant user IDs when supplied');
     expect(options('read')).toContain(hintReadingGuidance);
     expect(options('read')).not.toContain(hintWritingGuidance);
-    expect(options('write').indexOf(hintWritingGuidance)).toBeGreaterThan(
-      options('write').indexOf('## Implementation hints'),
-    );
+    expect(options('read')).toContain('At the start of each session');
   });
 
   it('words hint writing neutrally and records the direction, not the mood', () => {
@@ -242,8 +243,13 @@ describe('buildPlatformSystemPrompt', () => {
     expect(hintWritingGuidance).toContain('never how it was said');
     expect(hintWritingGuidance).not.toMatch(/angry|annoyed|forceful|frustrat/i);
     expect(hintReadingGuidance).toContain('Never write hints.');
+    expect(hintWritingGuidance).toContain('This reads graph connections');
+    expect(hintWritingGuidance).toContain('not a Service-only code search');
+    expect(hintWritingGuidance).toContain('add_hint_connection');
+    expect(hintWritingGuidance).toContain('Hint text cannot be edited in place');
     for (const guidance of [hintWritingGuidance, hintReadingGuidance]) {
-      expect(guidance).toContain('separate from implementation hints');
+      expect(guidance).toContain('connected to the graph items they concern');
+      expect(guidance).not.toContain('implementation hints');
     }
   });
   it('adds the Taking shape guidance only for that stage, right after the graph-before-asking section', () => {
@@ -593,11 +599,6 @@ Good: "Turning Shared Browser off now stays off after you restart the CLI."`;
     expect(buildPlatformSystemPrompt(sampleDefs)).not.toContain('**Mention discipline.**');
   });
 
-  it('renames the implementation-hints heading away from the user-level "Memory" name', () => {
-    expect(buildPlatformSystemPrompt(sampleDefs)).toContain('## Implementation hints');
-    expect(buildPlatformSystemPrompt(sampleDefs)).not.toContain('## Memory (Implementation hints)');
-  });
-
   it('bundles the ambient platform-context block', () => {
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain('## Platform Context');
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain(
@@ -674,21 +675,10 @@ Good: "Turning Shared Browser off now stays off after you restart the CLI."`;
     expect(prompt).toContain('remains canonical and requires `EVOLVES` instead');
   });
 
-  it('bundles the implementation-hints section instructing agents to query implementation hints', () => {
-    expect(buildPlatformSystemPrompt(sampleDefs)).toContain('## Implementation hints');
-    expect(buildPlatformSystemPrompt(sampleDefs)).toContain('search_implementation_hints');
-  });
-
-  it('tells the agent to filter implementation-hint search by the session serviceId', () => {
-    expect(buildPlatformSystemPrompt(sampleDefs)).toContain('serviceId');
-    expect(buildPlatformSystemPrompt(sampleDefs)).toMatch(
-      /filter[^.]*serviceId|serviceId[^.]*filter/i,
-    );
-  });
-
-  it('frames implementation hints as weakly-held context, not documentation', () => {
-    expect(buildPlatformSystemPrompt(sampleDefs)).toContain('not documentation');
-    expect(buildPlatformSystemPrompt(sampleDefs)).toContain('weakly-held');
+  it('does not direct agents to the legacy implementation-hint tools', () => {
+    const prompt = buildPlatformSystemPrompt(sampleDefs);
+    expect(prompt).not.toContain('## Implementation hints');
+    expect(prompt).not.toMatch(/(search|create|edit|delete)_implementation_hints?/);
   });
 
   it('bundles the consult-the-graph-before-asking snippet', () => {
@@ -961,7 +951,7 @@ describe('buildFinalAssessmentPrompt', () => {
     expect(result).toContain('API mismatch');
   });
 
-  it('includes implementation hint maintenance guidance', () => {
+  it('does not direct the assessor to the legacy implementation-hint tools', () => {
     const payload: LocalFinalAssessmentPromptPayload = {
       context: makeContext(),
       startupInput: makeStartupInput(),
@@ -969,8 +959,10 @@ describe('buildFinalAssessmentPrompt', () => {
       taskNeighborhood: emptyNeighborhood(),
     };
     const result = buildFinalAssessmentPrompt(payload);
-    expect(result).toContain('Implementation hints');
-    expect(result).toContain('lightweight search pointers');
+    expect(result).not.toMatch(/(search|create|edit|delete)_implementation_hints?/);
+    expect(result).not.toContain('Implementation hints');
+    expect(result).toContain('Preserve useful implementation learning as graph Hints');
+    expect(result).toContain('get_hints_for_items');
   });
 
   it('evaluates description and requirements as independent feature sections', () => {
