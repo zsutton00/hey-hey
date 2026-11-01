@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  HttpCode,
   Param,
   Post,
   UseGuards,
@@ -10,6 +11,7 @@ import {
   AuthToken,
   CurrentOrganization,
 } from '../auth/decorators/current-user.decorator';
+import { ProjectAccessGuard } from '../auth/guards/project-access.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OrganizationGuard } from '../auth/guards/organization.guard';
 import {
@@ -23,12 +25,13 @@ import { OrganizationId, ProjectId } from '../types';
 
 @ApiTags('Search')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, OrganizationGuard)
+@UseGuards(JwtAuthGuard, OrganizationGuard, ProjectAccessGuard)
 @Controller('api/v1/organizations/:organizationId/projects/:projectId/search')
 export class UnifiedSearchController {
   constructor(private readonly unifiedSearchService: UnifiedSearchService) {}
 
   @Post()
+  @HttpCode(200)
   @ApiOperation({
     summary: 'Unified search across graph and embeddings services',
     description:
@@ -49,6 +52,7 @@ export class UnifiedSearchController {
   }
 
   @Post('batch')
+  @HttpCode(200)
   @ApiOperation({
     summary: 'Batch unified search across graph and embeddings services',
     description:
