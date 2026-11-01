@@ -1,6 +1,6 @@
 import { tmpdir } from 'node:os';
 import { z } from 'zod';
-import type { CapabilityCatalogModel } from '../../../../../packages/ui-common/src/components/AgentSession/capabilityCatalog';
+import type { CapabilityCatalogModel } from '../../shared/runtime/components/AgentSession/capabilityCatalog';
 import { JsonLineProcess } from './provider-process';
 import type {
   ProviderModelReader,

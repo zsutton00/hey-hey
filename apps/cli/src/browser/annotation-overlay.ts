@@ -1,4 +1,4 @@
-import { ANNOTATION_COLORS } from '../../../../packages/ui-common/src/utils/annotationColors';
+import { ANNOTATION_COLORS } from '../shared/runtime/utils/annotationColors';
 
 export const ANNOTATION_BINDING = '__heyheyAnnotate';
 export const ANNOTATION_SYNC_EVENT = '__heyhey-annotations-sync';

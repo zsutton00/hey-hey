@@ -1,4 +1,4 @@
-import type { RunAttachmentContent } from '../../../../../packages/ui-common/src/utils/run-attachment-format';
+import type { RunAttachmentContent } from '../../shared/runtime/utils/run-attachment-format';
 /**
  * Claude Code SDK Client.
  *

@@ -1,7 +1,7 @@
-import { WorkflowName } from '../../../../../packages/ui-common/src/api/index';
-import { LocalPromptType } from '../../../../../packages/ui-common/src/api/index';
-import { getMethodConfig } from '../../../../../packages/ui-common/src/agents/coordination/sessionMethodRegistry';
-import type { SessionMethod } from '../../../../../packages/ui-common/src/agents/coordination/types';
+import { WorkflowName } from '../../shared/api/generated/index';
+import { LocalPromptType } from '../../shared/api/generated/index';
+import { getMethodConfig } from '../../shared/runtime/agents/coordination/sessionMethodRegistry';
+import type { SessionMethod } from '../../shared/runtime/agents/coordination/types';
 
 const NODE_PROMPT_TYPE: Partial<Record<WorkflowName, Record<string, LocalPromptType>>> = {
   [WorkflowName.FeatureSync]: {

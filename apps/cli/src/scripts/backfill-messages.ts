@@ -20,7 +20,7 @@ import {
   createBrowserApiRuntime,
   registerApiRuntime,
   platformClient,
-} from '../../../../packages/ui-common/src/clients/shared';
+} from '../shared/runtime/clients/shared';
 import {
   MessageStatus,
   MessageType,

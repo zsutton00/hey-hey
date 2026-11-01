@@ -3,7 +3,7 @@ import {
   createBrowserApiRuntime,
   registerApiRuntime,
   type ApiRuntime,
-} from '../../../../packages/ui-common/src/clients/shared';
+} from '../shared/runtime/clients/shared';
 import {
   MachineControllerAuthority,
   MachineDirectoryUnavailableError,

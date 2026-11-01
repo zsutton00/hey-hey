@@ -1,5 +1,5 @@
 import type { DiagnosticFeed } from './diagnostic-feed';
-import type { ApiRuntime } from '../../../../packages/ui-common/src/clients/shared';
+import type { ApiRuntime } from '../shared/runtime/clients/shared';
 import type { AgentApplicationRuntime } from '../agents/agent-application-runtime';
 import { ReportEmissionPublisher } from '../agents/submission-tools/report-emission-publisher';
 import type { KeyPairStore } from '../credentials';

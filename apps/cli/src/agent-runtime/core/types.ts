@@ -1,8 +1,5 @@
-import type { AgentSessionId } from '../../../../../packages/ui-common/src/agents/core/identity';
-export {
-  toAgentSessionId,
-  type AgentSessionId,
-} from '../../../../../packages/ui-common/src/agents/core/identity';
+import type { AgentSessionId } from '../../shared/runtime/agents/core/identity';
+export { toAgentSessionId, type AgentSessionId } from '../../shared/runtime/agents/core/identity';
 declare const AGENT_RUN_ID_BRAND: unique symbol;
 
 export type AgentRunId = string & {

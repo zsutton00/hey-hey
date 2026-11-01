@@ -1,7 +1,7 @@
 import type { DiagnosticFeed } from '../diagnostic-feed';
 import type { PromptTypeRegistry } from '../../agents/prompt-type-registry';
 import path from 'node:path';
-import type { ApiRuntime } from '../../../../../packages/ui-common/src/clients/shared';
+import type { ApiRuntime } from '../../shared/runtime/clients/shared';
 import type { KeyPairStore } from '../../credentials';
 import type { ControllerRegistryStore } from '../../credentials';
 import type { MessagePoster } from '../../run/message-poster';

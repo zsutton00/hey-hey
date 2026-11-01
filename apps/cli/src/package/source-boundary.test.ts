@@ -12,8 +12,8 @@ describe('CLI source boundary', () => {
       absWorkingDir: repositoryRoot,
       entryPoints: [
         'apps/cli/src/agent-runtime/index.ts',
-        'packages/ui-common/src/clients/shared.ts',
-        'packages/ui-common/src/components/AgentSession/capabilityCatalog.ts',
+        'apps/cli/src/shared/runtime/clients/shared.ts',
+        'apps/cli/src/shared/runtime/components/AgentSession/capabilityCatalog.ts',
       ],
       outdir: 'unused-boundary-output',
       platform: 'node',
@@ -31,7 +31,7 @@ describe('CLI source boundary', () => {
     expect(inputs.some((file) => file.endsWith('clients/runtimeRegistry.ts'))).toBe(true);
     expect(
       inputs.filter((file) =>
-        /ui-common\/dist|WebClientProvider|contexts\/|services\/(authService|configService|runtimeConfig)|entityIcons/.test(
+        /packages\/ui-common|WebClientProvider|contexts\/|services\/(authService|configService|runtimeConfig)|entityIcons/.test(
           file,
         ),
       ),

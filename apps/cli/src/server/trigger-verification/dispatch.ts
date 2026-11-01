@@ -31,7 +31,7 @@ import { canonicalizeJson } from './jcs';
  */
 
 import type { ServerLogger } from '../logger';
-import type { ApiRuntime } from '../../../../../packages/ui-common/src/clients/shared';
+import type { ApiRuntime } from '../../shared/runtime/clients/shared';
 import type { KeyPairStore } from '../../credentials';
 import type { PlatformDeliveryContext, PlatformWebSocketEvent } from '../platform-ws';
 import type {

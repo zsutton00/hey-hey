@@ -1,7 +1,5 @@
-import {
-  parseStartupSessionPlanResponseFromText,
-  type StartupSessionPlanResponse,
-} from '../agent-runtime/index';
+import { parseStartupSessionPlanResponseFromText } from '../agents/response-parser';
+import type { LocalStartupSessionPlanResponse as StartupSessionPlanResponse } from '../shared/agent-bridge-contract';
 import type { AgenticSessionEvent } from '../session/index';
 import { extractLatestAssistantResponseText } from './agent-session-event-helpers';
 

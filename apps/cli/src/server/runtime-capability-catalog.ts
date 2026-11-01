@@ -3,7 +3,7 @@ import {
   validateCapabilityCatalogRows,
   type CapabilityCatalogModel,
   type CapabilityCatalogRow,
-} from '../../../../packages/ui-common/src/components/AgentSession/capabilityCatalog';
+} from '../shared/runtime/components/AgentSession/capabilityCatalog';
 import { ClaudeModelReader } from './model-catalog/claude-models';
 import { CodexModelReader } from './model-catalog/codex-models';
 import { OpenCodeModelReader } from './model-catalog/opencode-models';

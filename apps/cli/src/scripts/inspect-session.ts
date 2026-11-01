@@ -7,7 +7,7 @@ import {
   createBrowserApiRuntime,
   registerApiRuntime,
   platformClient,
-} from '../../../../packages/ui-common/src/clients/shared';
+} from '../shared/runtime/clients/shared';
 
 const targetAgentSessionId = process.argv[2];
 if (!targetAgentSessionId) {

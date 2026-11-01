@@ -1,4 +1,4 @@
-import { createBrowserApiRuntime } from '../../../../../packages/ui-common/src/clients/shared';
+import { createBrowserApiRuntime } from '../../shared/runtime/clients/shared';
 import { createTestKeyPairStore } from '../../credentials/keypair.test-support';
 import { createTestMessagePoster, createTestRunStore } from '../../run/run.test-support';
 import type { RunRegistry } from '../../run/run-registry';

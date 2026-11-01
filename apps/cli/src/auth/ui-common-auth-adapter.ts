@@ -1,7 +1,4 @@
-import type {
-  AccessToken,
-  ApiAuthAdapter,
-} from '../../../../packages/ui-common/src/clients/shared';
+import type { AccessToken, ApiAuthAdapter } from '../shared/runtime/clients/shared';
 import type { OAuthClient } from './index';
 
 const toAccessToken = (token: string | null): AccessToken | null => token as AccessToken | null;

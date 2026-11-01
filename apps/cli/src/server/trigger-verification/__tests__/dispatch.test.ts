@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import type { ApiRuntime } from '../../../../../../packages/ui-common/src/clients/shared';
+import type { ApiRuntime } from '../../../shared/runtime/clients/shared';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
