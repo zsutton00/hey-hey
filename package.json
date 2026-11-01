@@ -5,6 +5,7 @@
   "engines": {
     "node": ">=24"
   },
+  "version": "release/2026-10-24",
   "scripts": {
     "prepare": "if command -v husky >/dev/null 2>&1; then husky; fi",
     "bootstrap": "pnpm install --frozen-lockfile",
