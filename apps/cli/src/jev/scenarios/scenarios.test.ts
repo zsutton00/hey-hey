@@ -230,24 +230,18 @@ describe('buildQuestions', () => {
     expect(questions['x']).toMatchObject({ type: 'choice' });
     expect(Object.keys(questions['x']?.criteria ?? {})).toEqual([...EDGE_RELATIONSHIPS]);
     expect(questions['x']?.instructions).toBe(
-      DEFAULT_WORDING.edges.readMoreQuestion
-        .replace('{candidate}', 'the linked entity under state.edges.x')
-        .replace('{focal}', 'task'),
+      'Judge the line at state.edges.x using the rules in state.judging.',
     );
-    expect(questions['x']?.instructions).not.toContain(DEFAULT_WORDING.edges.openingSentence.task);
   });
 
   it('uses edited edges question wording in the request', () => {
     const wording = structuredClone(DEFAULT_WORDING);
     wording.edges.readMoreQuestion = 'For the {focal}, read {candidate}?';
-    const questions = buildQuestions(
-      EDGES,
-      task,
-      [{ id: 'x', kind: 'linked', text: 'T' }],
-      wording,
-    );
-    expect(questions['x']?.instructions).toContain('For the task, read ');
-    expect(questions['x']?.instructions).toContain('state.edges.x?');
+    const candidates: Candidate[] = [{ id: 'x', kind: 'linked', text: 'T' }];
+    const state = buildState(EDGES, task, candidates, wording);
+    expect(state).toMatchObject({
+      judging: { text: 'For the task, read the candidate being asked about?' },
+    });
   });
 });
 
@@ -495,10 +489,15 @@ describe('judge', () => {
       edges: { x: 'T' },
       focal: { description: question.text },
     });
+    expect(request?.state).toMatchObject({
+      judging: {
+        text: DEFAULT_WORDING.edges.readMoreQuestion
+          .replace('{candidate}', 'the candidate being asked about')
+          .replace('{focal}', 'question'),
+      },
+    });
     expect(request?.questions['x']?.instructions).toBe(
-      DEFAULT_WORDING.edges.readMoreQuestion
-        .replace('{candidate}', 'the linked entity under state.edges.x')
-        .replace('{focal}', 'question'),
+      'Judge the line at state.edges.x using the rules in state.judging.',
     );
     expect(result).toMatchObject({
       ok: true,
@@ -580,7 +579,7 @@ describe('requests of the scenarios that existed before the read check', () => {
         { id: 'l', kind: 'linked', text: 'DEPENDS_ON · T' },
         { id: 'm', kind: 'mentioned', text: 'mentioned in X' },
       ],
-      '33f3c5339837728699a4a98fb8e30ec1035679c592d9d973904dceee03a13b16',
+      'a0a5fde83dc865bcb1717635604e6b746eacd428dc83b81bca70d19bcd077d2e',
     ],
     [
       'hint_selection',

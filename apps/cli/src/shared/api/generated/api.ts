@@ -30846,6 +30846,25 @@ export interface EntityNameDto {
 /**
  *
  * @export
+ * @interface EntityPromptTemplateAuthoringBlockDto
+ */
+export interface EntityPromptTemplateAuthoringBlockDto {
+    /**
+     *
+     * @type {string}
+     * @memberof EntityPromptTemplateAuthoringBlockDto
+     */
+    'syntax': string;
+    /**
+     *
+     * @type {string}
+     * @memberof EntityPromptTemplateAuthoringBlockDto
+     */
+    'description': string;
+}
+/**
+ *
+ * @export
  * @interface EntityPromptTemplateAuthoringFamilyDto
  */
 export interface EntityPromptTemplateAuthoringFamilyDto {
@@ -30874,6 +30893,12 @@ export interface EntityPromptTemplateAuthoringFamilyDto {
  * @interface EntityPromptTemplateAuthoringMetadataDto
  */
 export interface EntityPromptTemplateAuthoringMetadataDto {
+    /**
+     * Conditional block tags with editor help text.
+     * @type {Array<EntityPromptTemplateAuthoringBlockDto>}
+     * @memberof EntityPromptTemplateAuthoringMetadataDto
+     */
+    'conditionalBlocks': Array<EntityPromptTemplateAuthoringBlockDto>;
     /**
      *
      * @type {string}
@@ -31006,6 +31031,44 @@ export interface EntityPromptTemplateCatalogEntryDto {
      */
     'effective': EntityPromptTemplateEffectiveDto;
 }
+/**
+ * Bounded presence-test blocks; not an expression language.
+ * @export
+ * @interface EntityPromptTemplateConditionalBlocksDto
+ */
+export interface EntityPromptTemplateConditionalBlocksDto {
+    /**
+     *
+     * @type {string}
+     * @memberof EntityPromptTemplateConditionalBlocksDto
+     */
+    'ifKeyword': string;
+    /**
+     *
+     * @type {string}
+     * @memberof EntityPromptTemplateConditionalBlocksDto
+     */
+    'elseKeyword': string;
+    /**
+     *
+     * @type {string}
+     * @memberof EntityPromptTemplateConditionalBlocksDto
+     */
+    'endIfKeyword': string;
+    /**
+     * A condition on a supported value that is absent or empty (empty string, list or object) is false instead of failing. Unsupported paths in a condition remain errors.
+     * @type {string}
+     * @memberof EntityPromptTemplateConditionalBlocksDto
+     */
+    'absentValueBehavior': EntityPromptTemplateConditionalBlocksDtoAbsentValueBehaviorEnum;
+}
+
+export const EntityPromptTemplateConditionalBlocksDtoAbsentValueBehaviorEnum = {
+    TreatAsFalse: 'TREAT_AS_FALSE'
+} as const;
+
+export type EntityPromptTemplateConditionalBlocksDtoAbsentValueBehaviorEnum = typeof EntityPromptTemplateConditionalBlocksDtoAbsentValueBehaviorEnum[keyof typeof EntityPromptTemplateConditionalBlocksDtoAbsentValueBehaviorEnum];
+
 /**
  *
  * @export
@@ -31193,6 +31256,12 @@ export type EntityPromptTemplateFixedEntitySelectorDtoEntityTypeEnum = typeof En
  * @interface EntityPromptTemplateLanguageDto
  */
 export interface EntityPromptTemplateLanguageDto {
+    /**
+     *
+     * @type {EntityPromptTemplateConditionalBlocksDto}
+     * @memberof EntityPromptTemplateLanguageDto
+     */
+    'conditionalBlocks': EntityPromptTemplateConditionalBlocksDto;
     /**
      *
      * @type {EntityPromptTemplateAuthoringMetadataDto}

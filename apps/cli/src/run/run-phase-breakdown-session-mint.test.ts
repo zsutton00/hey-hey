@@ -493,9 +493,7 @@ describe('per-turn discard awaits the runner before the next queued turn starts'
     // events we care about are in.
     releaseDiscard();
     await Promise.all([firstTurn, secondTurn]);
-    for (let i = 0; i < 200 && !events.includes('runPrompt:2'); i += 1) {
-      await new Promise<void>((resolve) => setImmediate(resolve));
-    }
+    await vi.waitFor(() => expect(events).toContain('runPrompt:2'));
 
     expect(events.slice(0, 4)).toEqual([
       'runPrompt:1',

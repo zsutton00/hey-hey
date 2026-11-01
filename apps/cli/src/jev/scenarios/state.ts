@@ -127,6 +127,15 @@ const focalState = (focal: Focal): Record<string, Record<string, string>> => {
   }
 };
 
+/**
+ * The edges question text and examples are identical for every candidate, so they are sent once in
+ * state; each question only points at its candidate's line and at this guide.
+ */
+const edgesJudgingGuide = (template: string, focal: Focal): string =>
+  template
+    .replace('{candidate}', () => 'the candidate being asked about')
+    .replace('{focal}', () => FOCAL_NOUNS[focal.kind]);
+
 /** The state a request carries: the focal work plus candidate text grouped by kind. */
 export const buildState = (
   scenario: Scenario,
@@ -137,8 +146,10 @@ export const buildState = (
   assertCandidates(scenario, candidates);
   const state = focalState(focal);
   if (focal.kind !== 'question' && focal.ask?.trim()) state['ask'] = { text: focal.ask };
-  if (scenario.id === 'edges')
+  if (scenario.id === 'edges') {
     state['about'] = { text: openingFor(wording.edges.openingSentence[focal.kind], focal) };
+    state['judging'] = { text: edgesJudgingGuide(wording.edges.readMoreQuestion, focal) };
+  }
   if (scenario.id === 'read_check') {
     state['about'] = { text: openingFor(wording.read_check.openingSentence[focal.kind], focal) };
   }
@@ -206,12 +217,10 @@ export const buildQuestions = (
         ),
       };
     } else {
-      const { readMoreQuestion, criteria } = wording.edges;
+      const { criteria } = wording.edges;
       questions[candidate.id] = {
         type: 'choice',
-        instructions: readMoreQuestion
-          .replace('{candidate}', () => subject)
-          .replace('{focal}', () => focalNoun),
+        instructions: `Judge the line at state.${stateKey}.${candidate.id} using the rules in state.judging.`,
         criteria: Object.fromEntries(
           Object.entries(criteria).map(([relationship, template]) => [
             relationship,
