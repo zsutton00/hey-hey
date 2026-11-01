@@ -1,3 +1,4 @@
+import { ProposalReconciliationService } from '../../proposal/proposal-reconciliation.service';
 import { PlanDependenciesService } from '../../plan/plan-dependencies.service';
 import {
   WORK_ITEM_TYPE_KEYS,
@@ -234,6 +235,15 @@ describe('EntityContextService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EntityContextService,
+        {
+          provide: ProposalReconciliationService,
+          useValue: {
+            decisionsForProposals: jest.fn().mockResolvedValue(new Map()),
+          } satisfies Pick<
+            ProposalReconciliationService,
+            'decisionsForProposals'
+          >,
+        },
         {
           provide: PlanDependenciesService,
           useValue: { outgoing: jest.fn().mockResolvedValue([]) },

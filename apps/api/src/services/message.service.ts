@@ -205,7 +205,7 @@ export type AddMessageInTransactionOptions = {
 
 @Injectable()
 export class MessageService {
-  @Inject(ProposalReconciliationService)
+  @Inject(forwardRef(() => ProposalReconciliationService))
   private readonly reconciliation!: ProposalReconciliationService;
 
   private readonly logger = ContextAwareLogger.createServiceLogger(

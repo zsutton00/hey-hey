@@ -1,3 +1,4 @@
+import { ProposalReconciliationService } from '../proposal/proposal-reconciliation.service';
 import { EventContextManager } from '../../core/events/observable-event.context';
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -156,6 +157,15 @@ describe('MessageService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MessageService,
+        {
+          provide: ProposalReconciliationService,
+          useValue: {
+            decisionsForProposals: jest.fn().mockResolvedValue(new Map()),
+          } satisfies Pick<
+            ProposalReconciliationService,
+            'decisionsForProposals'
+          >,
+        },
         {
           provide: PrismaService,
           useValue: mockPrismaService,

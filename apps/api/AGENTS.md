@@ -12,6 +12,7 @@ NestJS + Prisma (client generation only) + Flyway migrations. Tests are Jest.
 
 ## Database and migrations
 
+- Always ask the user and receive explicit approval before adding any database table or column, including in schema definitions or migrations.
 - Flyway is the only schema-change path, with SQL in `db/flyway/`. Never run `prisma migrate *`; Prisma is for `prisma generate` only.
 - Never modify a `V*`/`B*` migration that has been applied in any environment. Add a forward migration. Being in git doesn't make an unapplied migration immutable. Check Flyway history, and ask before editing an existing one.
 - Name migrations `VYYYY.MM.DD.HHMMSS__snake_case.sql` using the UTC creation time (`date -u +%Y.%m.%d.%H%M%S`), with a unique version and increasing timestamps for dependent migrations. Don't rename existing ones.

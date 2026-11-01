@@ -1,3 +1,4 @@
+import { ProposalReconciliationService } from '../proposal/proposal-reconciliation.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { MessageService } from '../message.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -35,6 +36,15 @@ describe('MessageService - Clone Functionality', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MessageService,
+        {
+          provide: ProposalReconciliationService,
+          useValue: {
+            decisionsForProposals: jest.fn().mockResolvedValue(new Map()),
+          } satisfies Pick<
+            ProposalReconciliationService,
+            'decisionsForProposals'
+          >,
+        },
         { provide: PrismaService, useValue: mockPrismaService },
         {
           provide: RedisService,

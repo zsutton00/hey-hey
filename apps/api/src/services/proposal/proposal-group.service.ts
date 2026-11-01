@@ -1,4 +1,4 @@
-import { Inject } from '@nestjs/common';
+import { forwardRef, Inject } from '@nestjs/common';
 import { ProposalReconciliationService } from './proposal-reconciliation.service';
 import { readProposalDependencyPresentation } from './future-dependency-presentation';
 import {
@@ -46,7 +46,7 @@ export type ProposalGroupWithSnapshot = Prisma.ProposalGroupGetPayload<{
 
 @Injectable()
 export class ProposalGroupService {
-  @Inject(ProposalReconciliationService)
+  @Inject(forwardRef(() => ProposalReconciliationService))
   private readonly reconciliation!: ProposalReconciliationService;
 
   private readonly logger = new Logger(ProposalGroupService.name);

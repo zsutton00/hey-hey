@@ -1,5 +1,5 @@
 import { ProposalReconciliationService } from './proposal-reconciliation.service';
-import { Inject } from '@nestjs/common';
+import { forwardRef, Inject } from '@nestjs/common';
 import { sectionContent } from './future-application';
 import { rootChildrenView } from './work-item-change-set-projector.service';
 import { isEqual } from 'lodash';
@@ -1374,7 +1374,7 @@ export function assertWorkflowProposalLinksStructurallyValid(
 
 @Injectable()
 export class ProposalValidationEngine {
-  @Inject(ProposalReconciliationService)
+  @Inject(forwardRef(() => ProposalReconciliationService))
   private readonly reconciliation!: ProposalReconciliationService;
   private readonly logger = new Logger(ProposalValidationEngine.name);
   private readonly taskSectionSchemaValidators: TaskSectionSchemaValidatorRegistry;

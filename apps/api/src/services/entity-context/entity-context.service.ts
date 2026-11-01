@@ -1,6 +1,6 @@
 import { restrictTaskWhere } from 'src/read-restriction/read-policy';
 import { ReadVisibilityService } from 'src/read-restriction/read-visibility.service';
-import { Inject } from '@nestjs/common';
+import { forwardRef, Inject } from '@nestjs/common';
 import { ProposalReconciliationService } from '../proposal/proposal-reconciliation.service';
 import { PlanDependenciesService } from '../plan/plan-dependencies.service';
 import { orderPlanStages } from '../plan/order-plan-stages';
@@ -412,7 +412,7 @@ function withCreatingProposal(
 
 @Injectable()
 export class EntityContextService {
-  @Inject(ProposalReconciliationService)
+  @Inject(forwardRef(() => ProposalReconciliationService))
   private readonly reconciliation!: ProposalReconciliationService;
 
   private readonly visibility: ReadVisibilityService;
