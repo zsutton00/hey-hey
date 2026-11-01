@@ -56,12 +56,6 @@ export const TARGETS = [
       "pnpm --filter @hey-hey/cli build",
     ],
   },
-  {
-    id: "graph-search",
-    directory: "apps/graph-search",
-    checks: ["pnpm --filter @hey-hey/graph-search check"],
-    image: "graph-search-service",
-  },
   { id: "openapi", directory: "openapi", checks: [] },
 ];
 

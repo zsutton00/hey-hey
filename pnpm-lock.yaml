@@ -484,12 +484,6 @@ importers:
         specifier: ^3.25.76
         version: 3.25.76
 
-  apps/graph-search:
-    devDependencies:
-      yaml:
-        specifier: 2.9.1
-        version: 2.9.1
-
   apps/ui:
     dependencies:
       '@dnd-kit/core':

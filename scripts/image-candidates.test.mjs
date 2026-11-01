@@ -109,7 +109,7 @@ test("single workflow publishes after one build and smoke without standalone che
   assert.match(workflow, /set -euo pipefail/);
 });
 
-test("manual retries select UI, API or both, and never graph-search", () => {
+test("manual retries select UI, API or both", () => {
   const retry = (target) =>
     candidateSelection({ ...push, event: "workflow_dispatch", target }).images;
   assert.deepEqual(retry("Both"), ["ui", "api"]);
