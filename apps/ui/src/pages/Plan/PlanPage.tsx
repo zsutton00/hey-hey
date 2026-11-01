@@ -124,6 +124,7 @@ export const PlanPage = ({
   const routeTab = new URLSearchParams(location.search).get("tab");
   const tabs: { value: PlanTab; label: string }[] = [
     { value: "plan", label: "Plan" },
+    { value: "updates", label: "Updates" },
     { value: "documents", label: "Documents" },
     { value: "conversations", label: "Conversations" },
     { value: "automation", label: "Automation" },
@@ -316,12 +317,6 @@ export const PlanPage = ({
             }
           >
             <DetailPageHeader title={plan.name} />
-            <DependentFutures
-              key={planId}
-              organizationId={organizationId}
-              projectId={projectId}
-              taskId={planId}
-            />
             <Chip
               label={getPlanStatusLabel(plan.status)}
               size="small"
@@ -341,6 +336,7 @@ export const PlanPage = ({
                   key={entry.value}
                   value={entry.value}
                   label={entry.label}
+                  data-testid={"plan-tab-" + entry.value}
                 />
               ))}
             </Tabs>
@@ -374,6 +370,16 @@ export const PlanPage = ({
                     {...automationProps}
                   />
                 )}
+              </Box>
+            )}
+            {tab === "updates" && (
+              <Box sx={{ mt: 3 }} data-testid="plan-updates-panel">
+                <DependentFutures
+                  key={planId}
+                  organizationId={organizationId}
+                  projectId={projectId}
+                  taskId={planId}
+                />
               </Box>
             )}
             {tab === "documents" && (

@@ -11,6 +11,7 @@ export const buildPlanDetailPath = (
 
 export type PlanTab =
   | "plan"
+  | "updates"
   | "documents"
   | "data-debug"
   | "conversations"
