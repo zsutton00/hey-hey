@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Candidate } from '../../jev/scenarios';
+import { entityEntriesOf } from './entity-entries';
 
 /**
  * The part of a singular `get_context` result that trimming reads. Every other field passes
@@ -200,13 +201,17 @@ const hierarchyKind = (relationship: 'descendant' | 'sibling' | undefined): Cand
  */
 export const slotsOf = (result: ContextResult, focalEntityId: string): Slot[] => {
   const slots: Slot[] = [];
-  (result.featureHierarchy ?? []).forEach((entry, position) => {
-    if (entry.relationship === 'ancestor') return;
-    slots.push(hierarchySlot(entry, position, hierarchyKind(entry.relationship)));
-  });
-  (result.relatedEntities ?? []).forEach((entry, position) => {
-    slots.push(relatedSlot(entry, position));
-  });
+  for (const row of entityEntriesOf(result)) {
+    if (row.section === 'featureHierarchy') {
+      const { entry, position } = row;
+      if (entry.relationship === 'ancestor') {
+        continue;
+      }
+      slots.push(hierarchySlot(entry, position, hierarchyKind(entry.relationship)));
+    } else {
+      slots.push(relatedSlot(row.entry, row.position));
+    }
+  }
   (result.agentSessions ?? []).forEach((entry, position) => {
     slots.push(sessionSlot(entry, position));
   });
