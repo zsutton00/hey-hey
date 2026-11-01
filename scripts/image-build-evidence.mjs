@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Records what a locally built image was built from, for promotion review.
 //
-//   node scripts/image-build-evidence.mjs --image <ui|api|graph-search> --image-id <sha256:...> --tag <ref>
+//   node scripts/image-build-evidence.mjs --image <ui|api> --image-id <sha256:...> --tag <ref>
 //   ... --verify <evidence.json>   exit non-zero unless this checkout matches it
-//   node scripts/image-build-evidence.mjs --repository <ui|api|graph-search>
+//   node scripts/image-build-evidence.mjs --repository <ui|api>
 //
 // Evidence describes one exact candidate revision. It is not publication: the
 // registry name is the intended identity, and nothing here pushes or deploys.
@@ -27,10 +27,6 @@ const checkoutRoot = path.resolve(
 // Registry names stay those current deployments reference; changing them is a
 // separately reviewed deployment-reference change.
 export const IMAGES = {
-  "graph-search": {
-    repository: "ghcr.io/zsutton00/graph-search-service",
-    dockerfile: "apps/graph-search/Dockerfile",
-  },
   ui: {
     repository: "ghcr.io/zsutton00/ui-service",
     dockerfile: "apps/ui/Dockerfile",
@@ -83,12 +79,6 @@ export const collectEvidence = ({ image: name, imageId, tag }) => {
       workspace: sha256("pnpm-workspace.yaml"),
       generatedContracts: sha256("generated-contracts.json"),
       openapiClosure: digestClosure(path.join(checkoutRoot, "openapi")),
-      ...(name === "graph-search"
-        ? {
-            cargoLockfile: sha256("apps/graph-search/Cargo.lock"),
-            rustToolchain: sha256("apps/graph-search/rust-toolchain.toml"),
-          }
-        : {}),
       baseImages,
     },
   };
@@ -127,8 +117,8 @@ export const evidenceMismatches = (recorded, fresh) => {
 };
 
 const USAGE = [
-  "Usage: image-build-evidence.mjs --image <ui|api|graph-search> --image-id <id> --tag <ref> [--verify <evidence.json>]",
-  "       image-build-evidence.mjs --repository <ui|api|graph-search>",
+  "Usage: image-build-evidence.mjs --image <ui|api> --image-id <id> --tag <ref> [--verify <evidence.json>]",
+  "       image-build-evidence.mjs --repository <ui|api>",
 ].join("\n");
 
 const parseArguments = (argv) => {

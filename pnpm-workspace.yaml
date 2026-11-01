@@ -2,7 +2,6 @@ packages:
   - apps/ui
   - apps/api
   - apps/cli
-  - apps/graph-search
   - packages/ui-common
   - openapi
 

@@ -3,9 +3,6 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { selectAffected } from "./affected-builds.mjs";
 
-// This release does not ship graph-search; it is never built or published here.
-const UNSHIPPED_IMAGES = new Set(["graph-search"]);
-
 export function candidateSelection(
   { ref, event, target, before, revision },
   diff = (base, head) =>
@@ -39,7 +36,6 @@ export function candidateSelection(
     }
     selection = selectAffected(files);
   } else throw new Error("Unsupported candidate event");
-  selection.images = selection.images.filter((id) => !UNSHIPPED_IMAGES.has(id));
   if (selection.images.length)
     selection.checks.push({
       target: "contracts",
