@@ -447,15 +447,31 @@ describe('per-turn discard awaits the runner before the next queued turn starts'
     // was still in flight, throwing `Session already active.` The fix awaits
     // the discard; this test verifies the ordering.
     const events: string[] = [];
+    let releaseFirstPrompt: () => void = () => {};
+    const firstPromptGate = new Promise<void>((resolve) => {
+      releaseFirstPrompt = resolve;
+    });
+    let markFirstPromptStarted: () => void = () => {};
+    const firstPromptStarted = new Promise<void>((resolve) => {
+      markFirstPromptStarted = resolve;
+    });
     let releaseDiscard: () => void = () => {};
     const discardGate = new Promise<void>((resolve) => {
       releaseDiscard = resolve;
     });
+    let markDiscardStarted: () => void = () => {};
+    const discardStarted = new Promise<void>((resolve) => {
+      markDiscardStarted = resolve;
+    });
+    let discardResolved = false;
+    let queuedPromptStartedBeforeDiscardResolved = false;
 
     const { run, runPrompt } = makeRun({
       discardSession: vi.fn(async () => {
         events.push('discard:start');
+        markDiscardStarted();
         await discardGate;
+        discardResolved = true;
         events.push('discard:end');
       }),
     });
@@ -463,38 +479,39 @@ describe('per-turn discard awaits the runner before the next queued turn starts'
     const originalRunPrompt = runPrompt.getMockImplementation();
     if (!originalRunPrompt) throw new Error('expected default runPrompt impl');
     runPrompt.mockImplementation(async (args) => {
-      events.push(`runPrompt:${String(runPrompt.mock.calls.length)}`);
+      const callNumber = runPrompt.mock.calls.length;
+      events.push(`runPrompt:${String(callNumber)}`);
+      if (callNumber === 1) {
+        markFirstPromptStarted();
+        await firstPromptGate;
+      } else if (!discardResolved) {
+        queuedPromptStartedBeforeDiscardResolved = true;
+      }
       return originalRunPrompt(args);
     });
 
-    // First Turn starts; wait for the actual provider invocation because the
-    // Run resolves its workspace asynchronously before constructing the Turn.
+    // Hold the first provider call open so the second input is definitely
+    // queued before the first Turn can end.
     const firstTurn = run.handleMessage(makeInput('plan_shaping_phase_breakdown'));
-    await vi.waitFor(() => expect(runPrompt).toHaveBeenCalledTimes(1));
+    await firstPromptStarted;
     const secondTurn = run.handleMessage(makeInput('plan_shaping_phase_breakdown'));
+    await secondTurn;
+    releaseFirstPrompt();
+    await discardStarted;
 
-    // Spin until the first Turn enters discard.
-    for (let i = 0; i < 100 && !events.includes('discard:start'); i += 1) {
-      await new Promise<void>((resolve) => setImmediate(resolve));
-    }
-    expect(events).toContain('discard:start');
-
-    // Give the event loop ample ticks. With the fix, runPrompt:2 cannot
-    // fire because the discard is awaited; without the fix, drainQueue
-    // races past the in-flight discard and the queued Turn's runPrompt
-    // leaks in.
-    for (let i = 0; i < 50; i += 1) {
-      await new Promise<void>((resolve) => setImmediate(resolve));
-    }
-    expect(events).toEqual(['runPrompt:1', 'discard:start']);
-
-    // Release the discard; the queued Turn now starts. `_processing` flips
-    // briefly to false between Turns, so don't poll on it — wait until the
-    // events we care about are in.
-    releaseDiscard();
-    await Promise.all([firstTurn, secondTurn]);
-    for (let i = 0; i < 200 && !events.includes('runPrompt:2'); i += 1) {
-      await new Promise<void>((resolve) => setImmediate(resolve));
+    try {
+      // The active Turn must remain in progress while the runner is blocked
+      // in discard. This observes the exact gated state without polling or
+      // timers.
+      expect(run.isProcessing).toBe(true);
+      expect(runPrompt).toHaveBeenCalledTimes(1);
+      expect(events).toEqual(['runPrompt:1', 'discard:start']);
+      expect(queuedPromptStartedBeforeDiscardResolved).toBe(false);
+    } finally {
+      // Release the controlled runner even if an assertion fails, then follow
+      // the active Turn and queue through their full drain lifecycle.
+      releaseDiscard();
+      await Promise.all([firstTurn, secondTurn, run.awaitIdle()]);
     }
 
     expect(events.slice(0, 4)).toEqual([
@@ -503,5 +520,6 @@ describe('per-turn discard awaits the runner before the next queued turn starts'
       'discard:end',
       'runPrompt:2',
     ]);
+    expect(queuedPromptStartedBeforeDiscardResolved).toBe(false);
   });
 });
