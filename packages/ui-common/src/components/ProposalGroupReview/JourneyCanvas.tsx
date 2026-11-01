@@ -1,6 +1,7 @@
 import React, { useId, useLayoutEffect, useRef, useState } from "react";
 import { Box } from "@mui/material";
 import type { WorkflowGraphSurfaceData } from "../shared/WorkflowMentionInlineRenderer";
+import { JOURNEY_SCREEN_WIDTH } from "./JourneyScreen";
 import { placeJourneyScreens } from "./placeJourneyScreens";
 
 type Step = WorkflowGraphSurfaceData["steps"][number];
@@ -8,8 +9,8 @@ type Step = WorkflowGraphSurfaceData["steps"][number];
 /** Plain canvas gray: the UX Flow Grid View mockup's light gray, or a dark gray in dark mode. */
 const CANVAS_COLOR = { light: "#f0f2f5", dark: "#1e2126" };
 const TRANSITION_COLOR = { light: "#5f6670", dark: "#a3aab4" };
-const SCREEN_WIDTH = 400;
-const DEFAULT_SCREEN_HEIGHT = 600;
+const SCREEN_WIDTH = JOURNEY_SCREEN_WIDTH;
+const DEFAULT_SCREEN_HEIGHT = 450;
 const COLUMN_GAP = 160;
 const ROW_GAP = 96;
 const ARROW_INSET = 8;

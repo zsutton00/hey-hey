@@ -9,10 +9,18 @@ import {
 } from "@mui/material";
 import React from "react";
 import { Link as RouterLink } from "react-router-dom";
-import type { ReportDto } from "../../../api";
+import { ReportType, type ReportDto } from "../../../api";
 import { formatActivityTimestamp } from "../../Activity/activityFormatting";
 import { usePathService } from "../../../contexts";
 import { buildEntityHref } from "../../../utils/buildEntityHref";
+import { ReportUsageBar } from "./ReportUsageBar";
+
+const USAGE_REPORT_TYPES: ReadonlySet<ReportType> = new Set([
+  ReportType.CodingResearch,
+  ReportType.Implement,
+  ReportType.ChangeWalkthrough,
+  ReportType.Review,
+]);
 
 export interface ReportViewerTitleLink {
   entityId: string;
@@ -138,6 +146,10 @@ export const ReportViewerFrame: React.FC<ReportViewerFrameProps> = ({
         ) : null}
 
         {children}
+
+        {USAGE_REPORT_TYPES.has(report.reportType) && (
+          <ReportUsageBar usage={report.usage ?? null} />
+        )}
       </Stack>
     </Paper>
   );

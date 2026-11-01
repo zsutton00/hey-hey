@@ -42,6 +42,7 @@ export { SessionSummaryReport } from "./SessionSummaryReport";
 export { SessionMonitorDeferralReport } from "./SessionMonitorDeferralReport";
 
 export { ReportSection } from "./ReportSection";
+export { ReportUsageBar } from "./ReportUsageBar";
 export { ReportViewerFrame } from "./ReportViewerFrame";
 export type { ReportViewerTitleLink } from "./ReportViewerFrame";
 
