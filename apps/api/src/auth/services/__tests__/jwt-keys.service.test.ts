@@ -92,6 +92,20 @@ describe('JwtKeysService projection deletion credentials', () => {
     ).toThrow();
   });
 
+  it('issues a short-lived debug credential bound to the Embeddings audience and debug scope only', () => {
+    const token = service.getEmbeddingsDebugToken('admin-1' as never);
+    const payload = jwt.verify(token, keys.publicKey, {
+      algorithms: ['RS256'],
+      audience: 'embeddings-service',
+    }) as jwt.JwtPayload;
+
+    expect(payload.scopes).toEqual(['embeddings:debug:read']);
+    expect(payload.sub).toBe('system:embeddings-debug:admin-1');
+    expect(payload.isDevAdmin).toBeUndefined();
+    expect(payload.orgMemberships).toBeUndefined();
+    expect(payload.exp! - payload.iat!).toBeLessThanOrEqual(60);
+  });
+
   it('rejects an expired provider credential', () => {
     const token = issue('GRAPH');
     jest.setSystemTime(new Date('2026-08-19T12:06:01.000Z'));

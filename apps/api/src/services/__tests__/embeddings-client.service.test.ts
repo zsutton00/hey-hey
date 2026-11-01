@@ -42,6 +42,7 @@ describe('EmbeddingsClientService', () => {
   let lifecycleService: {
     deleteOrganizationProjection: jest.Mock;
   };
+  let developmentService: { getDebugEntity: jest.Mock };
 
   beforeEach(async () => {
     const mockConfigService = {
@@ -71,6 +72,7 @@ describe('EmbeddingsClientService', () => {
     lifecycleService = {
       deleteOrganizationProjection: jest.fn(),
     };
+    developmentService = { getDebugEntity: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -102,7 +104,7 @@ describe('EmbeddingsClientService', () => {
         },
         {
           provide: DevelopmentService,
-          useValue: {},
+          useValue: developmentService,
         },
       ],
     }).compile();
@@ -164,6 +166,29 @@ describe('EmbeddingsClientService', () => {
         }),
       }),
     );
+  });
+
+  describe('getDebugEntity', () => {
+    it('forwards the debug credential as a bearer token', async () => {
+      developmentService.getDebugEntity.mockReturnValue(
+        of({ data: { found: true, documents: [] } } as AxiosResponse),
+      );
+
+      await service.getDebugEntity('task', 'task-1', 'debug-token');
+
+      expect(developmentService.getDebugEntity).toHaveBeenCalledWith(
+        'task',
+        'task-1',
+        { config: { headers: { Authorization: 'Bearer debug-token' } } },
+      );
+    });
+
+    it('refuses to call the provider without a credential', async () => {
+      await expect(
+        service.getDebugEntity('task', 'task-1', ''),
+      ).rejects.toThrow('debug credential');
+      expect(developmentService.getDebugEntity).not.toHaveBeenCalled();
+    });
   });
 
   describe('embedding operations', () => {

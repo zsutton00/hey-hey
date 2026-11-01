@@ -495,9 +495,13 @@ export class EmbeddingsClientService {
   async getDebugEntity(
     type: string,
     id: string,
+    debugToken: string,
   ): Promise<GetDebugEntity200Response> {
     if (!this.isEnabled) {
       throw new Error('Embeddings service is disabled');
+    }
+    if (!debugToken) {
+      throw new Error('Embeddings debug lookup requires a debug credential');
     }
 
     try {
@@ -507,7 +511,9 @@ export class EmbeddingsClientService {
       });
 
       const response = await firstValueFrom(
-        this.developmentService.getDebugEntity(type, id),
+        this.developmentService.getDebugEntity(type, id, {
+          config: { headers: { Authorization: `Bearer ${debugToken}` } },
+        }),
       );
 
       return response.data;

@@ -29,6 +29,7 @@ pub enum Policy {
     EmbeddingWrite,
     Deletion(Surface),
     Template,
+    Debug,
 }
 
 pub struct TrustConfig {
@@ -456,6 +457,15 @@ async fn authorize(requirement: &Requirement, request: Request) -> Result<Reques
                 return Err(StatusCode::FORBIDDEN);
             }
         }
+        Policy::Debug => {
+            // Only the API-issued, Embeddings-targeted debug credential; ordinary
+            // read/write/admin credentials never reach stored documents.
+            if principal.scopes != ["embeddings:debug:read"]
+                || !principal.exact_audience(&config.search_audience)
+            {
+                return Err(StatusCode::FORBIDDEN);
+            }
+        }
         Policy::Template => {
             if principal.scopes != ["project:template:copy"]
                 || !principal.exact_audience(&config.graph_audience)
@@ -473,11 +483,11 @@ async fn authorize(requirement: &Requirement, request: Request) -> Result<Reques
             }
         }
         policy => {
-            if principal
-                .scopes
-                .iter()
-                .any(|s| s == "organization:projection:delete" || s == "project:template:copy")
-            {
+            if principal.scopes.iter().any(|s| {
+                s == "organization:projection:delete"
+                    || s == "project:template:copy"
+                    || s == "embeddings:debug:read"
+            }) {
                 return Err(StatusCode::FORBIDDEN);
             }
             if config

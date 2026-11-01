@@ -744,9 +744,20 @@ paths:
       summary: Debug Information
       description:
         Get detailed debug information including all stored embeddings,
-        configuration, and internal state. Use with caution in production.
+        configuration, and internal state. Requires the API-issued debug
+        credential; ordinary read, write or admin credentials are rejected.
       operationId: getDebugInfo
+      security:
+        - BearerAuth: []
+      x-required-jwt-claims:
+        scopes:
+          - embeddings:debug:read
+        audience: embeddings-service
       responses:
+        "401":
+          description: Missing or invalid credential
+        "403":
+          description: Credential lacks the debug scope or audience
         "200":
           description: Debug information retrieved successfully
           content:
@@ -771,8 +782,17 @@ paths:
       tags:
         - Development
       summary: Fetch entity by type and ID
-      description: Return embeddings stored for a given entity type and source ID.
+      description: >-
+        Return embeddings stored for a given entity type and source ID. Requires
+        the API-issued debug credential; ordinary read, write or admin
+        credentials are rejected.
       operationId: getDebugEntity
+      security:
+        - BearerAuth: []
+      x-required-jwt-claims:
+        scopes:
+          - embeddings:debug:read
+        audience: embeddings-service
       parameters:
         - name: type
           in: query
@@ -819,6 +839,10 @@ paths:
                   timestamp:
                     type: string
                     format: date-time
+        "401":
+          description: Missing or invalid credential
+        "403":
+          description: Credential lacks the debug scope or audience
         "500":
           description: Internal server error
 components:
