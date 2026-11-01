@@ -9,6 +9,7 @@
 
 pub mod config;
 pub mod consumer;
+mod conversation;
 pub mod error;
 pub mod event;
 mod html_css;
@@ -72,6 +73,12 @@ impl Ingest {
             event::TASK_UPDATED => task::updated(self, Event::parse(event)?).await,
             event::TASK_STATUS_CHANGED => task::status_changed(self, Event::parse(event)?).await,
             event::TASK_ARCHIVED => task::archived(self, Event::parse(event)?).await,
+            kind if kind.starts_with("message.")
+                || kind.starts_with("conversation.")
+                || kind == "report.created" =>
+            {
+                conversation::handle(self, kind, event).await
+            }
             _ => knowledge::handle(self, kind, event).await,
         }
     }

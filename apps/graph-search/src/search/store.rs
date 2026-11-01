@@ -217,7 +217,7 @@ pub async fn delete_task_tree(
              SELECT u.document_id, t.depth + 1
              FROM search.unit u
              JOIN tree t ON u.metadata ->> 'parentTaskId' = t.document_id
-             WHERE u.organization_id = $1 AND u.project_id = $2 AND u.type = 'task'
+             WHERE u.text <> '' AND u.organization_id = $1 AND u.project_id = $2 AND u.type = 'task'
                AND t.depth < $4
          )
          DELETE FROM search.unit
@@ -265,7 +265,8 @@ const RETRIEVE: &str = r#"
 WITH scoped AS (
     SELECT u.*
     FROM search.unit u
-    WHERE u.organization_id = $1
+    WHERE u.text <> ''
+      AND u.organization_id = $1
       AND ($2::text IS NULL OR u.project_id = $2)
       AND u.metadata @> $3::jsonb
       AND ($4::text[] IS NULL OR lower(u.type) = ANY ($4) OR lower(u.task_type) = ANY ($4))
@@ -480,4 +481,31 @@ fn from_micros(micros: i64) -> Result<OffsetDateTime> {
 fn vector_literal(vector: &[f32]) -> String {
     let values: Vec<String> = vector.iter().map(f32::to_string).collect();
     format!("[{}]", values.join(","))
+}
+
+/// Deployed conversation deletion removes messages and retains the empty root.
+pub async fn delete_conversation_content(
+    pool: &PgPool,
+    organization: &str,
+    project: &str,
+    id: &str,
+    conversation: bool,
+) -> Result<()> {
+    sqlx::query("DELETE FROM search.unit WHERE organization_id=$1 AND project_id=$2 AND type='message' AND (($4 AND metadata->>'conversationId'=$3) OR (NOT $4 AND document_id=$3))")
+        .bind(organization).bind(project).bind(id).bind(conversation).execute(pool).await?;
+    Ok(())
+}
+
+/// Reports attach deduplicated artifact references without encoding report text.
+pub async fn append_report(
+    pool: &PgPool,
+    organization: &str,
+    project: &str,
+    id: &str,
+    kind: &str,
+    report: &str,
+) -> Result<()> {
+    sqlx::query("UPDATE search.unit SET metadata=jsonb_set(metadata,'{enrichmentEmbeddings}', COALESCE(metadata->'enrichmentEmbeddings','[]'::jsonb) || jsonb_build_array(jsonb_build_object('artifactId',$5::text,'artifactType','REPORT'))) WHERE organization_id=$1 AND project_id=$2 AND document_id=$3 AND type=$4 AND NOT COALESCE(metadata->'enrichmentEmbeddings','[]'::jsonb) @> jsonb_build_array(jsonb_build_object('artifactId',$5::text,'artifactType','REPORT'))")
+        .bind(organization).bind(project).bind(id).bind(kind).bind(report).execute(pool).await?;
+    Ok(())
 }

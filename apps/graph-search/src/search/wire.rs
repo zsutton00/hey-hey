@@ -587,8 +587,12 @@ fn metadata_text(metadata: &Map<String, Value>, key: &str) -> Option<String> {
 
 impl EmbeddingRequest {
     pub fn validate(self) -> Result<Document, Invalid> {
+        self.validate_content(false)
+    }
+
+    pub(crate) fn validate_content(self, canonical_only: bool) -> Result<Document, Invalid> {
         let length = self.text.chars().count();
-        if self.text.trim().is_empty() || length > MAX_TEXT_CHARS {
+        if (!canonical_only && self.text.trim().is_empty()) || length > MAX_TEXT_CHARS {
             return Err(invalid("text", "must be 1 to 50000 characters"));
         }
 
@@ -616,6 +620,7 @@ impl EmbeddingRequest {
                 "sourceType",
             ],
             "message" => &["conversationId"],
+            "conversation" => &["projectId", "workflowName", "initiatedBy", "status"],
             "artifact" => &["artifactType"],
             _ => {
                 return Err(invalid(

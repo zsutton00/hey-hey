@@ -16,7 +16,14 @@ pub const ORGANIZATION_CLOSED: &str = "organization.closed";
 
 /// The event types the consumer subscribes to: the ones the deployed
 /// Embeddings service handles that this store can represent.
-pub const SUBSCRIBED: [&str; 17] = [
+pub const SUBSCRIBED: [&str; 24] = [
+    "message.created",
+    "message.updated",
+    "message.deleted",
+    "conversation.created",
+    "conversation.updated",
+    "conversation.deleted",
+    "report.created",
     TASK_CREATED,
     TASK_UPDATED,
     TASK_CONTENT_CHANGED,

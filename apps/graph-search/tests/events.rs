@@ -540,3 +540,118 @@ async fn knowledge_lifecycles_replace_preserve_remove_and_restore() -> anyhow::R
     }
     Ok(())
 }
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL and downloaded model"]
+async fn conversation_content_lifecycle_matches_deployed_behavior() -> anyhow::Result<()> {
+    let (ingest, search, pool) = setup().await?;
+    let conv = "conversation-content-test";
+    let parent = "system-content-test";
+    let child = "user-content-test";
+    let mut p = context("conversation.created");
+    p["workflowName"] = json!("entity-conversation");
+    p["initiatedBy"] = json!("USER");
+    p["status"] = json!("ACTIVE");
+    ingest
+        .handle(&envelope("conversation.created", conv, p))
+        .await?;
+    let mut p = context("message.created");
+    p["conversationId"] = json!(conv);
+    p["message"] = json!({"type":"SYSTEM","status":"pending","createdAt":"2026-11-01T10:00:00Z"});
+    ingest
+        .handle(&envelope("message.created", parent, p))
+        .await?;
+    assert!(search.find("canonical").await.is_empty());
+    let semantic =
+        json!({"query": "conversation", "search_type": "semantic", "similarity_threshold": 0});
+    assert!(search.hits(semantic.clone()).await.is_empty());
+    for id in [conv, parent] {
+        assert!(
+            hey_hey_graph_search::search::store::load_document(&pool, ORG, id)
+                .await?
+                .is_some()
+        );
+    }
+    let mut p = context("message.created");
+    p["conversationId"] = json!(conv);
+    p["message"] = json!({"type":"USER","userMessage":"quasar orchard", "parentMessage":{"id":parent,"content":"stellar garden"}});
+    let created = envelope("message.created", child, p.clone());
+    ingest.handle(&created).await?;
+    ingest.handle(&created).await?;
+    let hits = search.find("quasar orchard").await;
+    assert!(hits.contains(&parent.into()) && hits.contains(&child.into()));
+    p["message"]["ragEnabled"] = json!(false);
+    p["message"]["userMessage"] = json!("forbidden inert evidence");
+    ingest
+        .handle(&envelope("message.created", "inert-content-test", p))
+        .await?;
+    assert!(search.find("forbidden inert evidence").await.is_empty());
+    let mut malformed = created.clone();
+    malformed["event"]["payload"]["message"]["userMessage"] = json!({"invalid":"text"});
+    assert!(ingest.handle(&malformed).await.is_err());
+    assert!(search.find("quasar orchard").await.contains(&child.into()));
+    let mut missing_parent = created.clone();
+    missing_parent["event"]["aggregateId"] = json!("orphan-content-test");
+    missing_parent["event"]["payload"]["message"]["parentMessage"]["id"] = json!("absent-parent");
+    ingest.handle(&missing_parent).await?;
+    let mut p = context("report.created");
+    p["report"] = json!({"id":"report-content-test","payload":{"summary":"unsearchable report wording"},"entities":[{"entityId":child,"entityType":"MESSAGE"}]});
+    let mut inert = p.clone();
+    inert["report"]["ragEnabled"] = json!(false);
+    ingest
+        .handle(&envelope("report.created", "report-content-test", inert))
+        .await?;
+    let metadata: Value = sqlx::query_scalar(
+        "SELECT metadata FROM search.unit WHERE organization_id=$1 AND document_id=$2",
+    )
+    .bind(ORG)
+    .bind(child)
+    .fetch_one(&pool)
+    .await?;
+    assert!(metadata.get("enrichmentEmbeddings").is_none());
+    let report = envelope("report.created", "report-content-test", p);
+    ingest.handle(&report).await?;
+    ingest.handle(&report).await?;
+    let refs: Value=sqlx::query_scalar("SELECT metadata->'enrichmentEmbeddings' FROM search.unit WHERE organization_id=$1 AND document_id=$2").bind(ORG).bind(child).fetch_one(&pool).await?;
+    assert_eq!(
+        refs,
+        json!([{"artifactId":"report-content-test","artifactType":"REPORT"}])
+    );
+    assert!(search.find("unsearchable report wording").await.is_empty());
+    let mut p = context("message.updated");
+    p["conversationId"] = json!(conv);
+    p["update"] = json!({"systemMessage":"replacement nebula"});
+    ingest
+        .handle(&envelope("message.updated", parent, p))
+        .await?;
+    assert!(!search.find("quasar orchard").await.contains(&parent.into()));
+    assert!(
+        search
+            .find("replacement nebula")
+            .await
+            .contains(&parent.into())
+    );
+    ingest
+        .handle(&envelope(
+            "message.deleted",
+            child,
+            context("message.deleted"),
+        ))
+        .await?;
+    assert!(!search.find("quasar orchard").await.contains(&child.into()));
+    ingest
+        .handle(&envelope(
+            "conversation.deleted",
+            conv,
+            context("conversation.deleted"),
+        ))
+        .await?;
+    assert!(search.find("replacement nebula").await.is_empty());
+    assert!(search.hits(semantic).await.is_empty());
+    assert!(
+        hey_hey_graph_search::search::store::load_document(&pool, ORG, conv)
+            .await?
+            .is_some()
+    );
+    Ok(())
+}

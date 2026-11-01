@@ -553,3 +553,27 @@ uses locally projected conversation identities; no child-deletion events are
 published by this consumer. API ownership, bounded encoding, per-item ordering,
 failure isolation and the no-replay/no-rebuild limitation remain unchanged.
 Deprecated initiative, summary and subfacet event families remain excluded.
+
+Conversation-content events consumed by search are `message.created`,
+`message.updated`, `message.deleted`, `conversation.created`,
+`conversation.updated`, `conversation.deleted` and `report.created`.
+User messages combine parent content as `ASSISTANT: …\nUSER: …`; a present
+canonical parent receives the same searchable text. Parent metadata is read from
+the search store, as it is from Vespa on the deployed path, never from the API.
+New system messages and conversations retain empty canonical records excluded
+from retrieval. System-message updates supply searchable text; status-only
+updates and conversation updates are no-ops. Conversation deletion removes its
+messages and retains the empty canonical conversation, matching deployed behavior.
+Message deletion removes only that message.
+
+Reports validate text-bearing payloads and attach deduplicated REPORT artifact
+references to supported existing message, task (including legacy PLAN), design
+doc and service documents. They neither encode report text nor create independent
+searchable report documents; missing and unsupported targets are skipped.
+`shouldProcess: false` and `ragEnabled: false` exclude output from ingestion.
+Proposal events remain unsubscribed. Deprecated initiative targets are excluded.
+Organization-based lanes order cross-item enrichment, deletion and closure;
+a failing event is recorded and the lane continues. Independent organizations
+can run concurrently. Empty canonical records use the bounded encoder and share
+the existing store's durable organization-closure fence. No replay or rebuild is
+added.

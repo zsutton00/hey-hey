@@ -286,7 +286,7 @@ fn read(
         if stop.load(Ordering::SeqCst) {
             return Ok(());
         }
-        if route(message.get_payload_bytes(), lanes).is_err() {
+        if route(message.get_payload_bytes(), lanes, subscribed == SUBSCRIBED).is_err() {
             return Ok(());
         }
     }
@@ -296,7 +296,11 @@ fn read(
 struct LanesClosed;
 
 /// Validates just enough to place the event, then waits for room in its lane.
-fn route(payload: &[u8], lanes: &[mpsc::Sender<Job>]) -> Result<(), LanesClosed> {
+fn route(
+    payload: &[u8],
+    lanes: &[mpsc::Sender<Job>],
+    order_organization: bool,
+) -> Result<(), LanesClosed> {
     let envelope: Value = match serde_json::from_slice(payload) {
         Ok(envelope) => envelope,
         Err(_) => {
@@ -318,7 +322,17 @@ fn route(payload: &[u8], lanes: &[mpsc::Sender<Job>]) -> Result<(), LanesClosed>
         }
     };
 
-    let lane = &lanes[lane_for(&aggregate_id, lanes.len())];
+    // Related events must share a lane: a child can enrich its parent and a
+    // conversation delete can remove many messages. Organization routing also
+    // orders closure against those writes, while other organizations proceed.
+    let ordering_key = if order_organization {
+        event["payload"]["organizationId"]
+            .as_str()
+            .unwrap_or(&aggregate_id)
+    } else {
+        &aggregate_id
+    };
+    let lane = &lanes[lane_for(ordering_key, lanes.len())];
     let job = Job {
         event_type,
         event_id,
