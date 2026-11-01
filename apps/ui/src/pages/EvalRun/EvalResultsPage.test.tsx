@@ -171,6 +171,7 @@ const run = (status = "FINISHED"): EvalRunReport =>
   }) as unknown as EvalRunReport;
 
 const assessed = {
+  judgeSessionId: "judge-agent-session",
   checkResults: [
     { checkId: "targets-mockup", passed: true },
     { checkId: "no-direct", passed: false, explanation: "Edited the feature" },
@@ -227,7 +228,6 @@ const attempts = [
       "pending_hidden",
       "provider-rotated",
     ],
-    judgeProviderSessionId: "provider-judge",
     measurements: [
       {
         scope: "TARGET_PREPARATION",
@@ -235,6 +235,7 @@ const attempts = [
         inputTokens: 30_000,
         outputTokens: 8_000,
         toolCalls: 6,
+        cost: { state: "available", amount: 0.5, currency: "USD" },
       },
       {
         scope: "TARGET_HANDLER",
@@ -244,13 +245,16 @@ const attempts = [
         cacheReadInputTokens: 500_000,
         cacheCreationInputTokens: 0,
         toolCalls: 35,
+        cost: { state: "available", amount: 1.41, currency: "USD" },
       },
+      // Stored by older runs; the judge is no longer measured or shown.
       {
         scope: "JUDGE",
         elapsedMs: 42_000,
         inputTokens: 15_000,
         outputTokens: 2_000,
         toolCalls: 6,
+        cost: { state: "available", amount: 9, currency: "USD" },
       },
     ],
   }),
@@ -367,12 +371,13 @@ describe("EvalResultsPage", () => {
     ).not.toHaveTextContent(/\b0\b/);
   });
 
-  it("puts judge and coordinator overhead on its own line, outside the setups", () => {
+  it("puts coordinator overhead on its own line and never shows the judge's work", () => {
     render(<EvalResultsPage />);
     const overhead = screen.getByTestId("eval-results-overhead");
     expect(overhead).toHaveTextContent("eval.results.overhead");
-    // Judge: 42s and 17k tokens; coordinator: 30s and 5k tokens.
-    expect(overhead.textContent).toMatch(/42s.*17k.*30s.*5k/);
+    // Coordinator: 30s and 5k tokens. Stored judge figures (42s, 17k) are ignored.
+    expect(overhead.textContent).toMatch(/30s.*5k/);
+    expect(overhead.textContent).not.toMatch(/42s|17k/);
     expect(
       screen.getByTestId("eval-results-observation-note"),
     ).toBeInTheDocument();
@@ -464,8 +469,8 @@ describe("EvalResultsPage", () => {
       within(detail).getByTestId("eval-attempt-provider-ids"),
     ).toHaveTextContent("provider-firstprovider-rotated");
     expect(
-      within(detail).getByTestId("eval-judge-provider-id"),
-    ).toHaveTextContent("provider-judge");
+      within(detail).getByTestId("eval-open-judge-session"),
+    ).toHaveAttribute("href", expect.stringContaining("judge-agent-session"));
     expect(
       within(detail).queryByTestId("eval-attempt-session-run"),
     ).not.toBeInTheDocument();
@@ -479,8 +484,8 @@ describe("EvalResultsPage", () => {
       within(unjudged).getByTestId("eval-attempt-provider-ids"),
     ).toHaveTextContent("eval.results.notReported");
     expect(
-      within(unjudged).getByTestId("eval-judge-provider-id"),
-    ).toHaveTextContent("eval.results.notReported");
+      within(unjudged).queryByTestId("eval-open-judge-session"),
+    ).not.toBeInTheDocument();
     expect(detail).not.toHaveTextContent("pending_hidden");
     expect(
       within(unjudged).getByTestId("eval-attempt-judged-none"),
@@ -585,6 +590,22 @@ describe("EvalResultsPage", () => {
       expect(
         screen.getByTestId("eval-case-tool-calls-opus-attempt"),
       ).toHaveTextContent("35");
+    });
+
+    it("shows the tested agent's cost in the case cell and work table, research apart", () => {
+      render(<EvalResultsPage />);
+      expect(
+        screen.getByTestId("eval-case-cost-opus-attempt"),
+      ).toHaveTextContent("$1.41");
+      expect(
+        screen.getByTestId("eval-case-cost-sonnet-attempt"),
+      ).toHaveTextContent("eval.results.notReported");
+      expect(
+        screen.getByTestId("eval-results-setup-opus-high-cost"),
+      ).toHaveTextContent("$1.41");
+      expect(
+        screen.getByTestId("eval-results-setup-opus-high-cost"),
+      ).not.toHaveTextContent("9.00");
     });
 
     it("marks part-reported figures and shows the rest as not reported, never 0", () => {

@@ -52,6 +52,29 @@ export const measuredTokens = (
 };
 
 /**
+ * What the agent cost, or null when it is not reported. Costs stored before
+ * the available / partial / unavailable shape have no `state` and read as not
+ * reported, never as a number.
+ */
+export const measuredCost = (
+  entry: EvalMeasurement | undefined,
+): { amount: number; partial: boolean } | null => {
+  const cost = entry?.cost;
+  if (cost?.state === "available" || cost?.state === "partial") {
+    return { amount: cost.amount, partial: cost.state === "partial" };
+  }
+  return null;
+};
+
+/** Only a fully known cost joins an average; a lower bound would skew it. */
+const availableCostAmount = (
+  entry: EvalMeasurement | undefined,
+): number | undefined => {
+  const cost = measuredCost(entry);
+  return cost && !cost.partial ? cost.amount : undefined;
+};
+
+/**
  * An average over the attempts that reported a value. `value` is null when
  * none did, which the page shows as "not reported", never 0.
  */
@@ -98,6 +121,7 @@ export interface SetupComparison {
   elapsedMs: AveragedMeasure;
   tokens: AveragedMeasure;
   toolCalls: AveragedMeasure;
+  cost: AveragedMeasure;
 }
 
 export const compareSetup = (
@@ -141,6 +165,7 @@ export const compareSetup = (
     elapsedMs: handlerAverage(own, (entry) => entry?.elapsedMs),
     tokens: handlerAverage(own, measuredTokens),
     toolCalls: handlerAverage(own, (entry) => entry?.toolCalls),
+    cost: handlerAverage(own, availableCostAmount),
   };
 };
 
@@ -188,16 +213,12 @@ const overheadOf = (
 });
 
 /**
- * Judge work across every attempt and the run's coordinator, each on its own
- * and outside every setup's figures.
+ * The run's coordinator, outside every setup's figures. The judge is not part
+ * of the measured evaluation, so nothing stored for it is ever read.
  */
 export const runOverhead = (
   run: EvalRunReport,
-  attempts: EvalAttemptReport[],
-): { judge: OverheadMeasures; coordinator: OverheadMeasures } => ({
-  judge: overheadOf(
-    attempts.map((attempt) => measurement(attempt, EvalMeasurementScope.Judge)),
-  ),
+): { coordinator: OverheadMeasures } => ({
   coordinator: overheadOf([run.payload.coordinatorMeasurement]),
 });
 
@@ -231,6 +252,13 @@ export const rowMeasure = (
   };
 };
 
+export const costRowMeasure = (attempt: EvalAttemptReport): RowMeasure => {
+  const cost = measuredCost(
+    measurement(attempt, EvalMeasurementScope.TargetHandler),
+  );
+  return { value: cost?.amount ?? null, partial: cost?.partial ?? false };
+};
+
 /** A separately executed research agent and the tested agent, kept apart. */
 export interface WorkBreakdownRow {
   inputTokens: number | null;
@@ -241,6 +269,8 @@ export interface WorkBreakdownRow {
   elapsedMs: number | null;
   tokens: number | null;
   toolCalls: number | null;
+  cost: number | null;
+  costPartial: boolean;
 }
 
 const breakdownRow = (
@@ -248,6 +278,7 @@ const breakdownRow = (
   scope: EvalMeasurementScope,
 ): WorkBreakdownRow => {
   const entry = measurement(attempt, scope);
+  const cost = measuredCost(entry);
   return {
     scope,
     elapsedMs: entry?.elapsedMs ?? null,
@@ -257,6 +288,8 @@ const breakdownRow = (
     cacheReadInputTokens: entry?.cacheReadInputTokens ?? null,
     cacheCreationInputTokens: entry?.cacheCreationInputTokens ?? null,
     toolCalls: entry?.toolCalls ?? null,
+    cost: cost?.amount ?? null,
+    costPartial: cost?.partial ?? false,
   };
 };
 
@@ -275,9 +308,12 @@ export interface CaseRow {
   elapsedMs: RowMeasure;
   tokens: RowMeasure;
   toolCalls: RowMeasure;
+  cost: RowMeasure;
   breakdown: WorkBreakdownRow[];
   /** The attempt's own read-only session; null when none was recorded. */
   sessionHref: string | null;
+  /** The judge's own session, to check by hand how the attempt was judged; null until judged. */
+  judgeSessionHref: string | null;
   /** The Eval Case record this attempt ran; null when the run did not name one. */
   evalCaseHref: string | null;
   /** What the case expected, as recorded on the run. */
@@ -331,6 +367,7 @@ export const caseRow = (
       partial: false,
     },
     toolCalls: rowMeasure(attempt, (entry) => entry?.toolCalls),
+    cost: costRowMeasure(attempt),
     breakdown: [
       ...(attempt.payload.execution?.projectAssistantPrepares
         ? [breakdownRow(attempt, EvalMeasurementScope.TargetPreparation)]
@@ -339,6 +376,12 @@ export const caseRow = (
     ],
     sessionHref: sessionId
       ? WebPathService.agentSession({ projectId, agentSessionId: sessionId })
+      : null,
+    judgeSessionHref: assessment?.judgeSessionId
+      ? WebPathService.agentSession({
+          projectId,
+          agentSessionId: assessment.judgeSessionId,
+        })
       : null,
     evalCaseHref: caseInput?.evalCaseId
       ? WebPathService.task({ projectId, taskId: caseInput.evalCaseId })

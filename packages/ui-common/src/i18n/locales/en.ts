@@ -1419,7 +1419,7 @@ export const en = {
   "eval.results.notReported": "not reported",
   "eval.results.partial": "{{value}} ({{reported}} of {{total}} reported)",
   "eval.results.averagesNote":
-    "Time, tokens and tool calls are averages for the tested agent per attempt.",
+    "Time, tokens, tool calls and cost are averages for the tested agent per attempt. Cost averages only the attempts that reported it.",
   "eval.results.observationNote":
     "These are observations on your current project and cases, not a general ranking of models.",
   "eval.results.columns.setup": "Setup",
@@ -1429,10 +1429,10 @@ export const en = {
   "eval.results.columns.elapsed": "Elapsed",
   "eval.results.columns.tokens": "Fresh input + output",
   "eval.results.columns.toolCalls": "Tool calls",
+  "eval.results.columns.cost": "Cost per attempt",
   "eval.results.errors_one": "{{count}} error",
   "eval.results.errors_other": "{{count}} errors",
-  "eval.results.overhead":
-    "Judge: {{judge}} · Coordinator: {{coordinator}} (not included above)",
+  "eval.results.overhead": "Coordinator: {{coordinator}} (not included above)",
   "eval.results.overheadMeasures":
     "{{elapsed}} · {{tokens}} tokens · {{toolCalls}} tool calls",
   "eval.results.cases.title": "Cases",
@@ -1445,6 +1445,7 @@ export const en = {
   "eval.results.cases.col.elapsed": "Elapsed",
   "eval.results.cases.col.tokens": "Fresh input + output",
   "eval.results.cases.col.toolCalls": "Tool calls",
+  "eval.results.cases.col.cost": "Cost",
   "eval.results.cases.unknownCase": "Unrecorded case",
   "eval.results.cases.noSession": "No session was recorded for this attempt.",
   "eval.results.cases.expand": "Show details for {{case}}",
@@ -1465,7 +1466,8 @@ export const en = {
   "eval.results.usage.cacheCreation": "Cache creation: {{value}}",
   "eval.results.usage.partial":
     "Partial — fresh input: {{input}}, output: {{output}}",
-  "eval.results.work.TARGET_PREPARATION": "Research agent",
+  "eval.results.work.TARGET_PREPARATION":
+    "Project Assistant research (not in the figures above)",
   "eval.results.work.TARGET_HANDLER": "Handler (the tested work)",
   "eval.results.attempt.produced": "What this attempt produced",
   "eval.results.attempt.savedNote":
@@ -1475,7 +1477,7 @@ export const en = {
   "eval.results.sessions.judge": "Judge",
   "eval.results.sessions.info": "Info",
   "eval.results.sessions.attemptProvider": "Attempt provider id",
-  "eval.results.sessions.judgeProvider": "Judge provider id",
+  "eval.results.sessions.openJudge": "Open judge session",
   "eval.results.sessions.judged": "Given to the judge ({{count}} characters)",
   "eval.results.sessions.judgedNone":
     "Nothing was given to the judge: the attempt ended before judging started.",

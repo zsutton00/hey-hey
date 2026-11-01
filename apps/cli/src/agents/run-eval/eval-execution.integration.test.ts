@@ -60,6 +60,7 @@ const recordProviderUsage = async (
   }
   reports.set(sessionId, {
     sessionId,
+    totalCost: NATIVE_SESSION_COST_USD,
     ...(usage.inputTokens != null ? { inputTokens: usage.inputTokens } : {}),
     ...(usage.outputTokens != null ? { outputTokens: usage.outputTokens } : {}),
     ...(usage.cacheReadInputTokens != null ? { cacheReadTokens: usage.cacheReadInputTokens } : {}),
@@ -79,6 +80,19 @@ const recordProviderUsage = async (
     outputTokens: usage.outputTokens ?? null,
   });
 };
+
+const NATIVE_SESSION_COST_USD = 1.25;
+
+/** ccusage is the boundary: it answers from the same native records as token usage. */
+const executionFor = (store: RunStore): EvalAttemptExecution =>
+  new EvalAttemptExecution(
+    NOOP_LOGGER,
+    new SessionCostReader(NOOP_LOGGER, () =>
+      Promise.resolve(
+        JSON.stringify({ sessions: [...(nativeReports.get(store)?.values() ?? [])] }),
+      ),
+    ),
+  );
 
 const storeAt = (baseDir: string): RunStore => {
   const runsDir = path.join(baseDir, 'runs');
@@ -119,7 +133,7 @@ const makeHarness = async () => {
   const projectModeBundleMaterializer = new ProjectModeBundleMaterializer();
   const postMessage = vi.fn(() => Promise.resolve({ id: 'message' }));
   const updateMessage = vi.fn<MessagePosterApiClient['updateMessage']>(() => Promise.resolve({}));
-  const execution = new EvalAttemptExecution(NOOP_LOGGER);
+  const execution = executionFor(runStore);
   const wiring = createTestRunRegistryWiring({
     handlerDeps: createPromptTypeHandlerTestDeps({
       runStore,
@@ -182,6 +196,7 @@ const startRunPayload = (overrides: Partial<StartRunTriggerPayload>): StartRunTr
   }) as unknown as StartRunTriggerPayload;
 
 import { EvalAttemptExecution } from './eval-attempt-execution';
+import { SessionCostReader } from '../../provider-usage/session-cost';
 import type {
   EvalRecordedAttempt,
   EvalResolvedExecution,
@@ -465,7 +480,7 @@ describe('eval attempts through ordinary Runs', () => {
 
   it('does not start an attempt cancelled before creation', async () => {
     const { service, runStore, runPrompt } = await makeHarness();
-    const execution = new EvalAttemptExecution(NOOP_LOGGER);
+    const execution = executionFor(runStore);
     execution.bind(service, runStore);
     const controller = new AbortController();
     controller.abort();
@@ -482,7 +497,7 @@ describe('eval attempts through ordinary Runs', () => {
       await recordProviderUsage(runStore, AGENT_SESSION_ID, { inputTokens: 11, outputTokens: 2 });
       return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
     });
-    const execution = new EvalAttemptExecution(NOOP_LOGGER);
+    const execution = executionFor(runStore);
     execution.bind(service, runStore);
     const onTokenLimit = vi.fn();
     const result = await execution.execute(coordinator, attempt('agent_search'), {
@@ -512,7 +527,7 @@ describe('eval startup and execution cancellation', () => {
       return original(request);
     });
     const controller = new AbortController();
-    const execution = new EvalAttemptExecution(NOOP_LOGGER);
+    const execution = executionFor(runStore);
     execution.bind(service, runStore);
     const result = execution.execute(coordinator, attempt('agent_search'), {
       signal: controller.signal,
@@ -554,7 +569,7 @@ describe('eval startup and execution cancellation', () => {
         });
         return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
       });
-      const execution = new EvalAttemptExecution(NOOP_LOGGER);
+      const execution = executionFor(runStore);
       execution.bind(service, runStore);
       const onTokenLimit = vi.fn(() => controller.abort());
       const onProviderSessionIds = vi.fn(async () => undefined);
@@ -768,8 +783,6 @@ describe('settled eval usage evidence', () => {
               quality: [],
               createdAt: new Date().toISOString(),
             },
-            usage: { inputTokens: 17, outputTokens: 3 },
-            elapsedMs: 1,
           }),
         },
       );
@@ -782,10 +795,8 @@ describe('settled eval usage evidence', () => {
         outputTokens: 8,
         cacheReadInputTokens: 500000,
       });
-      expect(measurements?.find((entry) => entry.scope === 'JUDGE')).toMatchObject({
-        inputTokens: 17,
-        outputTokens: 3,
-      });
+      expect(usage?.cost).toEqual({ state: 'available', amount: 1.25, currency: 'USD' });
+      expect(measurements?.some((entry) => entry.scope === 'JUDGE')).toBe(false);
       if (provider === 'codex') {
         expect(usage).not.toHaveProperty('cacheCreationInputTokens');
       } else {

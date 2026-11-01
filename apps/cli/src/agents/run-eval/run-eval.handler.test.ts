@@ -153,19 +153,13 @@ describe('runEvalHandler', () => {
       expect(reports.get(payload.evalRunId)).toMatchObject({ status: 'FINISHED' });
       expect(reports.get(attempt.attemptId)).toMatchObject({
         status: 'COMPLETED',
-        measurements: [
-          { scope: 'TARGET_HANDLER', inputTokens: 10, outputTokens: 5, toolCalls: 2 },
-          { scope: 'JUDGE' },
-        ],
+        measurements: [{ scope: 'TARGET_HANDLER', inputTokens: 10, outputTokens: 5, toolCalls: 2 }],
         automatedAssessment: { recognition: { recognized: true } },
       });
       expect(reports.get(attempt.attemptId)?.['judgeProviderSessionId']).toBe(
         providerSessionId.startsWith('pending_') ? undefined : providerSessionId,
       );
-      const judgeMeasurement = (
-        reports.get(attempt.attemptId)!['measurements'] as Record<string, unknown>[]
-      )[1]!;
-      expect(judgeMeasurement).not.toHaveProperty('inputTokens');
+      expect(reports.get(attempt.attemptId)!['measurements']).toHaveLength(1);
       expect(saved).toHaveLength(0);
       expect(launches[1]!.request).not.toHaveProperty('onAgentOutput');
       expect(fetchSpy).not.toHaveBeenCalled();

@@ -3,18 +3,17 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import type { EvalAttemptReport } from "@hey-hey/ui-common/data";
+import { SpaLink } from "./SpaLink";
+
 export const AttemptSessions: React.FC<{
   attempt: EvalAttemptReport;
-}> = ({ attempt }) => {
+  judgeSessionHref: string | null;
+}> = ({ attempt, judgeSessionHref }) => {
   const { t } = useTranslation();
-  const { judgedOutput, judgeProviderSessionId } = attempt.payload;
+  const { judgedOutput } = attempt.payload;
   const attemptIds = (attempt.payload.attemptProviderSessionIds ?? []).filter(
     (id) => !id.startsWith("pending_"),
   );
-  const judgeId =
-    judgeProviderSessionId && !judgeProviderSessionId.startsWith("pending_")
-      ? judgeProviderSessionId
-      : null;
 
   return (
     <Box sx={{ mb: 2 }} data-testid="eval-attempt-sessions">
@@ -39,20 +38,13 @@ export const AttemptSessions: React.FC<{
             ))
           : t("eval.results.notReported")}
       </Typography>
-      <Typography
-        variant="body2"
-        component="div"
-        data-testid="eval-judge-provider-id"
-      >
-        <b>{t("eval.results.sessions.judgeProvider")}:</b>{" "}
-        {judgeId ? (
-          <Box component="code" sx={{ userSelect: "all" }}>
-            {judgeId}
-          </Box>
-        ) : (
-          t("eval.results.notReported")
-        )}
-      </Typography>
+      {judgeSessionHref && (
+        <Box sx={{ mt: 0.5 }} data-testid="eval-judge-session">
+          <SpaLink href={judgeSessionHref} testId="eval-open-judge-session">
+            {t("eval.results.sessions.openJudge")}
+          </SpaLink>
+        </Box>
+      )}
       {judgedOutput ? (
         <Box
           component="details"

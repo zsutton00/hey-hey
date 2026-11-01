@@ -7,11 +7,11 @@ import type { EvalAttemptReport, EvalRunReport } from "@hey-hey/ui-common/data";
 
 import { EvalCaseDetail } from "./EvalCaseDetail";
 import type { CaseRow, RowMeasure } from "./evalResultsView";
-import { formatElapsed, formatTokenCount } from "./evalRunView";
+import { formatCost, formatElapsed, formatTokenCount } from "./evalRunView";
 import { SpaLink } from "./SpaLink";
 
-/** Name, recognition, quality, checks, elapsed, tokens, tool calls. */
-export const CASE_GRID_COLUMNS = "32px 3fr 1.3fr .7fr .7fr .8fr .9fr .8fr";
+/** Name, recognition, quality, checks, elapsed, tokens, tool calls, cost. */
+export const CASE_GRID_COLUMNS = "32px 3fr 1.3fr .7fr .7fr .8fr .9fr .8fr .7fr";
 
 const formatCount = (value: number): string => String(Math.round(value));
 
@@ -214,6 +214,12 @@ export const EvalCaseRow: React.FC<EvalCaseRowProps> = ({
           data-testid={`eval-case-tool-calls-${row.attemptId}`}
         >
           {formatMeasure(row.toolCalls, formatCount)}
+        </Typography>
+        <Typography
+          variant="body2"
+          data-testid={`eval-case-cost-${row.attemptId}`}
+        >
+          {formatMeasure(row.cost, formatCost)}
         </Typography>
       </Box>
       <Collapse in={expanded} timeout="auto" unmountOnExit>

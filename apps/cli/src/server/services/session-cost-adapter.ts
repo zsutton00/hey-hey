@@ -373,6 +373,7 @@ export class SessionCostAdapter {
   private readonly reportCache: ProviderCostReportCache<CcusageSessionRecord[]>;
   public constructor(
     private readonly readCcusageSessionJson: CcusageSessionJsonReader = runCcusageSessionJson,
+    private readonly cacheReports = true,
   ) {
     const existing = reportCaches.get(readCcusageSessionJson);
     this.reportCache =
@@ -459,11 +460,14 @@ export class SessionCostAdapter {
         });
         let records: CcusageSessionRecord[];
         try {
-          records = await this.reportCache.read(
-            sourceIdentity(providerId, since, sessionIds),
-            () => this.loadReport(providerId, since, sessionIds, logger),
-            logger,
-          );
+          const load = () => this.loadReport(providerId, since, sessionIds, logger);
+          records = this.cacheReports
+            ? await this.reportCache.read(
+                sourceIdentity(providerId, since, sessionIds),
+                load,
+                logger,
+              )
+            : await load();
         } catch (error) {
           if (error instanceof InvalidCostReport) {
             sourceStates.set(providerId, 'malformed');

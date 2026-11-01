@@ -5,11 +5,13 @@ import {
   EvalTargetHandlerKey,
   type EvalRecordedAttempt,
   type EvalMeasurement,
+  type EvalCost,
 } from '../../shared/api/generated/api';
+import { SessionCostReader } from '../../provider-usage/session-cost';
 import type { AgenticSession } from '../../session/types';
 import type { LocalAgentService } from '../../server/local-agent-service';
 import type { RunStore } from '../../run-store/run-store';
-import type { EvalTargetResult } from './eval-runner';
+import { EvalTargetFailure, type EvalTargetResult } from './eval-runner';
 import { assessedOutputText } from './eval-assessed-output';
 import { buildEvalFirstTurn } from './eval-handler-launch';
 import { resolveEvalTargetEntity } from './eval-targets';
@@ -39,9 +41,11 @@ export class EvalAttemptExecution {
     }
     try {
       const result = await this.store.getRunResult(runId);
+      const cost = await this.readSettledCost(runId);
       this.researchUsage.set(runId, {
         scope: 'TARGET_PREPARATION',
         ...result?.usage,
+        cost,
       });
     } catch (error) {
       this.logger.warn('run_eval.attempt.research_usage_read_failed', { runId, error });
@@ -49,10 +53,28 @@ export class EvalAttemptExecution {
     }
   }
 
+  /** Cost of the provider session the Run's latest settled Turn used; never throws. */
+  private async readSettledCost(runId: string): Promise<EvalCost> {
+    const metadata = await this.store?.getRunMetadata(runId);
+    const latest = metadata?.latestTurn;
+    if (latest?.state !== 'settled' || !latest.providerSession) {
+      return { state: 'unavailable' };
+    }
+
+    return this.costReader.read(latest.providerSession.provider, latest.providerSession.sessionId);
+  }
+
   private service?: LocalAgentService;
   private store?: RunStore;
 
-  public constructor(private readonly logger: ServerLogger) {}
+  private readonly costReader: SessionCostReader;
+
+  public constructor(
+    private readonly logger: ServerLogger,
+    costReader?: SessionCostReader,
+  ) {
+    this.costReader = costReader ?? new SessionCostReader(logger);
+  }
 
   public bind(service: LocalAgentService, store: RunStore): void {
     this.service = service;
@@ -210,25 +232,8 @@ export class EvalAttemptExecution {
         source: 'native_session_record',
         usage: result?.usage ?? null,
       });
-      const stopped = isStopped();
-      if (
-        !stopped &&
-        metadata?.latestTurn?.state === 'settled' &&
-        metadata.latestTurn.outcome === 'FAILED'
-      ) {
-        throw new Error(
-          `${execution.handler} failed before producing an answer; the attempt's conversation records the reason.`,
-        );
-      }
-      const assessedText = assessedOutputText(execution, result?.outputText, metadata?.memos);
-      const completed = !stopped && (result?.assistantCompleted ?? false);
-      if (
-        completed &&
-        execution.assessedOutput === EvalAssessedOutput.ResearchReport &&
-        assessedText === undefined
-      ) {
-        throw new Error('Project Assistant research ended without saving a research report.');
-      }
+      // Read after the Run settles, from the tested agent's provider session only.
+      const testedCost = await this.readSettledCost(attempt.targetSessionId);
       // Only native agent-session measurements belong in agent token accounting.
       // Jev service request counters remain on their gather traces.
       const research = execution.projectAssistantPrepares
@@ -246,20 +251,44 @@ export class EvalAttemptExecution {
           preparationUsage[field] = value;
         }
       }
+      const researchMeasurements: EvalMeasurement[] = execution.projectAssistantPrepares
+        ? [
+            {
+              scope: 'TARGET_PREPARATION' as const,
+              ...preparationUsage,
+              ...(research?.cost ? { cost: research.cost } : {}),
+            },
+          ]
+        : [];
+      const stopped = isStopped();
+      if (
+        !stopped &&
+        metadata?.latestTurn?.state === 'settled' &&
+        metadata.latestTurn.outcome === 'FAILED'
+      ) {
+        throw new EvalTargetFailure(
+          `${execution.handler} failed before producing an answer; the attempt's conversation records the reason.`,
+          { ...result?.usage, cost: testedCost, researchMeasurements },
+        );
+      }
+      const assessedText = assessedOutputText(execution, result?.outputText, metadata?.memos);
+      const completed = !stopped && (result?.assistantCompleted ?? false);
+      if (
+        completed &&
+        execution.assessedOutput === EvalAssessedOutput.ResearchReport &&
+        assessedText === undefined
+      ) {
+        throw new EvalTargetFailure(
+          'Project Assistant research ended without saving a research report.',
+          { ...result?.usage, cost: testedCost, researchMeasurements },
+        );
+      }
       return {
         assistantCompleted: completed,
         ...(completed && assessedText !== undefined ? { outputText: assessedText } : {}),
         usage: result?.usage ?? {},
-        ...(execution.projectAssistantPrepares
-          ? {
-              researchMeasurements: [
-                {
-                  scope: 'TARGET_PREPARATION' as const,
-                  ...preparationUsage,
-                },
-              ],
-            }
-          : {}),
+        cost: testedCost,
+        ...(researchMeasurements.length > 0 ? { researchMeasurements } : {}),
         handlerElapsedMs: Math.max(0, Date.now() - startedAt - preparation.elapsedMs),
         budgetExhausted,
       };

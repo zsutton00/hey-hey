@@ -20623,6 +20623,56 @@ paths:
         "401":
           description: Unauthorized
 
+  /organizations/{organizationId}/reports/usage-measurements:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Organization ID
+    put:
+      operationId: upsertReportUsageMeasurement
+      summary: Record usage for the Turn that produced reports
+      description: >
+        Replaces the usage measurement keyed by (executionId, turnId). Rejected
+        unless a report already carries that source execution and Turn. A
+        finalized measurement is never replaced by a non-finalized one.
+      tags: [Reports]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportUsageMeasurementInput"
+      responses:
+        "200":
+          description: Measurement stored.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReportUsageMeasurement"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: No report carries this execution and Turn.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "401":
+          description: Unauthorized
+
   /organizations/{organizationId}/reports/{reportId}:
     parameters:
       - name: organizationId
@@ -24914,6 +24964,22 @@ components:
       $ref: "../schemas/reports.yaml#/UpdateReportDto"
     ReportDto:
       $ref: "../schemas/reports.yaml#/ReportDto"
+    ReportUsageKind:
+      $ref: "../schemas/reports.yaml#/ReportUsageKind"
+    ReportUsageInputBasis:
+      $ref: "../schemas/reports.yaml#/ReportUsageInputBasis"
+    ReportUsageCacheAvailability:
+      $ref: "../schemas/reports.yaml#/ReportUsageCacheAvailability"
+    ReportUsageCoverage:
+      $ref: "../schemas/reports.yaml#/ReportUsageCoverage"
+    ReportUsageFigures:
+      $ref: "../schemas/reports.yaml#/ReportUsageFigures"
+    ReportUsageBreakdownEntry:
+      $ref: "../schemas/reports.yaml#/ReportUsageBreakdownEntry"
+    ReportUsageMeasurementInput:
+      $ref: "../schemas/reports.yaml#/ReportUsageMeasurementInput"
+    ReportUsageMeasurement:
+      $ref: "../schemas/reports.yaml#/ReportUsageMeasurement"
     ValidationAction:
       $ref: "../schemas/reports.yaml#/ValidationAction"
     ValidationStep:
@@ -30627,8 +30693,12 @@ components:
       $ref: "../schemas/eval-runs.yaml#/EvalRunCaseInput"
     EvalRecordedAttempt:
       $ref: "../schemas/eval-runs.yaml#/EvalRecordedAttempt"
-    EvalCostMeasurement:
-      $ref: "../schemas/eval-runs.yaml#/EvalCostMeasurement"
+    EvalKnownCost:
+      $ref: "../schemas/eval-runs.yaml#/EvalKnownCost"
+    EvalUnavailableCost:
+      $ref: "../schemas/eval-runs.yaml#/EvalUnavailableCost"
+    EvalCost:
+      $ref: "../schemas/eval-runs.yaml#/EvalCost"
     EvalMeasurement:
       $ref: "../schemas/eval-runs.yaml#/EvalMeasurement"
     EvalAutomatedAssessment:

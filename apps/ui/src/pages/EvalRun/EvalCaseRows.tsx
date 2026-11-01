@@ -70,6 +70,7 @@ export const EvalCaseRows: React.FC<EvalCaseRowsProps> = ({
     "elapsed",
     "tokens",
     "toolCalls",
+    "cost",
   ] as const;
 
   return (

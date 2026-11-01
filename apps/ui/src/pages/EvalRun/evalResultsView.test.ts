@@ -3,6 +3,7 @@ import type { EvalAttemptReport, EvalRunReport } from "@hey-hey/ui-common/data";
 
 import {
   caseRow,
+  compareSetup,
   groupCasesBySetup,
   rowMeasure,
   measuredTokens,
@@ -241,5 +242,74 @@ describe("fresh input headline", () => {
       cacheReadInputTokens: 500000,
       cacheCreationInputTokens: 0,
     });
+  });
+});
+
+describe("cost", () => {
+  const cost = (state: string, amount?: number) => ({
+    state,
+    ...(amount === undefined ? {} : { amount, currency: "USD" }),
+  });
+
+  it("averages only fully reported costs, counts the rest, and labels partial", () => {
+    const attempts = [
+      attempt("a", setupA, "case-1", {
+        measurements: [handler({ cost: cost("available", 1) })],
+      }),
+      attempt("b", setupA, "case-2", {
+        measurements: [handler({ cost: cost("available", 3) })],
+      }),
+      attempt("c", setupA, "case-3", {
+        measurements: [handler({ cost: cost("unavailable") })],
+      }),
+      attempt("d", setupA, "case-4", {
+        measurements: [handler({ cost: cost("partial", 0.2) })],
+      }),
+    ];
+
+    expect(compareSetup(setupA, attempts).cost).toEqual({
+      value: 2,
+      reported: 2,
+      total: 4,
+    });
+    expect(caseRow("p1", run, attempts[3]!).cost).toEqual({
+      value: 0.2,
+      partial: true,
+    });
+    expect(caseRow("p1", run, attempts[2]!).cost).toEqual({
+      value: null,
+      partial: false,
+    });
+  });
+
+  it("reads costs stored before the available/partial/unavailable shape as not reported", () => {
+    const legacy = attempt("old", setupA, "case-1", {
+      measurements: [
+        handler({ cost: { amount: 2, currency: "USD", basis: "estimated" } }),
+      ],
+    });
+
+    expect(caseRow("p1", run, legacy).cost.value).toBeNull();
+    expect(compareSetup(setupA, [legacy]).cost.value).toBeNull();
+  });
+
+  it("keeps research cost on its own row, out of the tested figure", () => {
+    const row = caseRow(
+      "p1",
+      run,
+      attempt("x", setupA, "case-1", {
+        execution: { projectAssistantPrepares: true },
+        measurements: [
+          prep({ cost: cost("available", 0.5) }),
+          handler({ cost: cost("available", 1.4) }),
+        ],
+      }),
+    );
+
+    expect(row.cost.value).toBe(1.4);
+    expect(row.breakdown.map(({ scope, cost: c }) => [scope, c])).toEqual([
+      ["TARGET_PREPARATION", 0.5],
+      ["TARGET_HANDLER", 1.4],
+    ]);
   });
 });

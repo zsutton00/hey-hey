@@ -16,11 +16,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { EvalRunStatus } from "@hey-hey/ui-common/api";
-import {
-  useEvalRun,
-  type EvalAttemptReport,
-  type EvalRunReport,
-} from "@hey-hey/ui-common/data";
+import { useEvalRun, type EvalRunReport } from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import { WebPathService } from "@hey-hey/ui-common/services";
 
@@ -34,7 +30,12 @@ import {
   type SetupComparison,
   type SummedMeasure,
 } from "./evalResultsView";
-import { formatElapsed, formatTokenCount, setupLabel } from "./evalRunView";
+import {
+  formatCost,
+  formatElapsed,
+  formatTokenCount,
+  setupLabel,
+} from "./evalRunView";
 
 type Format = (value: number) => string;
 
@@ -120,17 +121,21 @@ const ComparisonRow: React.FC<{ comparison: SetupComparison }> = ({
         format={formatCount}
         testId={`${testId}-tool-calls`}
       />
+      <MeasureCell
+        measures={comparison.cost}
+        format={formatCost}
+        testId={`${testId}-cost`}
+      />
     </TableRow>
   );
 };
 
 const OverheadLine: React.FC<{
   run: EvalRunReport;
-  attempts: EvalAttemptReport[];
-}> = ({ run, attempts }) => {
+}> = ({ run }) => {
   const { t } = useTranslation();
   const formatMeasure = useMeasureFormatter();
-  const overhead = runOverhead(run, attempts);
+  const overhead = runOverhead(run);
   const describe = (measures: OverheadMeasures): string =>
     t("eval.results.overheadMeasures", {
       elapsed: formatMeasure(measures.elapsedMs, formatElapsed),
@@ -145,7 +150,6 @@ const OverheadLine: React.FC<{
       data-testid="eval-results-overhead"
     >
       {t("eval.results.overhead", {
-        judge: describe(overhead.judge),
         coordinator: describe(overhead.coordinator),
       })}
     </Typography>
@@ -245,6 +249,7 @@ const EvalResultsView: React.FC<EvalResultsViewProps> = ({
             <TableCell>{t("eval.results.columns.elapsed")}</TableCell>
             <TableCell>{t("eval.results.columns.tokens")}</TableCell>
             <TableCell>{t("eval.results.columns.toolCalls")}</TableCell>
+            <TableCell>{t("eval.results.columns.cost")}</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -256,7 +261,7 @@ const EvalResultsView: React.FC<EvalResultsViewProps> = ({
           ))}
         </TableBody>
       </Table>
-      <OverheadLine run={run} attempts={attempts} />
+      <OverheadLine run={run} />
       <Typography variant="caption" color="text.secondary" component="p">
         {t("eval.results.averagesNote")}
       </Typography>

@@ -32,9 +32,10 @@ for (const field of [
     `${field} must not default to 0`,
   );
 }
-assert.ok(
-  evalRuns.EvalCostMeasurement.required.includes("basis"),
-  "Cost must identify its basis",
+assert.equal(
+  "amount" in evalRuns.EvalUnavailableCost.properties,
+  false,
+  "Unavailable cost must carry no amount",
 );
 assert.deepEqual(evalRuns.EvalMeasurementScope.enum, [
   "TARGET_PREPARATION",

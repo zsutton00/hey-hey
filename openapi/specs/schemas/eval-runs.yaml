@@ -33,7 +33,9 @@ EvalRunSettings:
 EvalMeasurementScope:
   type: string
   description: >
-    TARGET_PREPARATION, TARGET_HANDLER and JUDGE are measured per attempt.
+    TARGET_PREPARATION (the Project Assistant research agent, present only
+    when research ran) and TARGET_HANDLER (the tested agent) are measured per
+    attempt. JUDGE is no longer recorded; stored JUDGE entries are ignored.
     COORDINATOR is measured per run. Scopes are never summed into one another.
   enum: [TARGET_PREPARATION, TARGET_HANDLER, JUDGE, COORDINATOR]
 
@@ -282,17 +284,42 @@ EvalAttemptError:
     code:
       type: string
 
-EvalCostMeasurement:
+EvalKnownCost:
   type: object
-  required: [amount, currency, basis]
+  description: >
+    A cost read from the provider's own record. `partial` means only some of
+    the attempt's provider sessions could be read, so the amount is a lower bound.
+  additionalProperties: false
+  required: [state, amount, currency]
   properties:
+    state:
+      type: string
+      enum: [available, partial]
     amount:
       type: number
+      minimum: 0
     currency:
       type: string
-    basis:
+      enum: [USD]
+
+EvalUnavailableCost:
+  type: object
+  description: >
+    The cost could not be read (unsupported provider such as OpenCode, no
+    provider session, or a failed read). Carries no amount so it is never
+    mistaken for zero.
+  additionalProperties: false
+  required: [state]
+  properties:
+    state:
       type: string
-      description: How the cost was derived.
+      enum: [unavailable]
+
+EvalCost:
+  description: What one measured agent cost, or that its cost is not reported.
+  oneOf:
+    - $ref: "#/EvalKnownCost"
+    - $ref: "#/EvalUnavailableCost"
 
 EvalMeasurement:
   type: object
@@ -325,7 +352,7 @@ EvalMeasurement:
       type: integer
       minimum: 0
     cost:
-      $ref: "#/EvalCostMeasurement"
+      $ref: "#/EvalCost"
 
 EvalCheckResult:
   type: object
@@ -549,7 +576,7 @@ EvalAttemptReportPayload:
           description: Real provider session id of the child that judged this attempt. Never a pending placeholder.
         measurements:
           type: array
-          description: At most one each of TARGET_PREPARATION, TARGET_HANDLER and JUDGE.
+          description: At most one each of TARGET_PREPARATION and TARGET_HANDLER. Older attempts may also hold a JUDGE entry, which is never shown.
           items:
             $ref: "#/EvalMeasurement"
         automatedAssessment:

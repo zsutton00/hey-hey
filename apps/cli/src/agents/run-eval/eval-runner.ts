@@ -1,6 +1,7 @@
 import type {
   EvalAttemptReportPayload,
   EvalAutomatedAssessment,
+  EvalCost,
   EvalMeasurement,
   EvalRecordedAttempt,
   EvalRunSettings,
@@ -15,12 +16,25 @@ export interface EvalTargetResult {
   outputText?: string;
   budgetExhausted?: boolean;
   usage: SubAgentUsage;
+  /** The tested agent's cost, read after its Run settled. */
+  cost?: EvalCost;
+}
+
+/** A target failure that still carries what the failed attempt measured. */
+export class EvalTargetFailure extends Error {
+  public constructor(
+    message: string,
+    public readonly measured: SubAgentUsage & {
+      cost?: EvalCost;
+      researchMeasurements?: EvalMeasurement[];
+    },
+  ) {
+    super(message);
+  }
 }
 
 export interface EvalJudgeResult {
   assessment: EvalAutomatedAssessment;
-  usage: SubAgentUsage;
-  elapsedMs: number;
 }
 
 /** Fields of an EVAL_ATTEMPT payload the runner owns. */
@@ -74,9 +88,11 @@ const toMeasurement = (
   scope: EvalMeasurement['scope'],
   elapsedMs: number,
   usage: SubAgentUsage,
+  cost?: EvalCost,
 ): EvalMeasurement => ({
   scope,
   elapsedMs,
+  ...(cost ? { cost } : {}),
   ...(usage.inputTokens !== undefined ? { inputTokens: usage.inputTokens } : {}),
   ...(usage.outputTokens !== undefined ? { outputTokens: usage.outputTokens } : {}),
   ...(usage.cacheReadInputTokens !== undefined
@@ -151,7 +167,10 @@ export const runEvalAttempts = async (
         });
       } catch (error) {
         const elapsedMs = ports.now().getTime() - startedAt.getTime();
-        measurements.push({ scope: 'TARGET_HANDLER', elapsedMs });
+        const { cost, researchMeasurements, ...usage } =
+          error instanceof EvalTargetFailure ? error.measured : {};
+        measurements.push(...(researchMeasurements ?? []));
+        measurements.push(toMeasurement('TARGET_HANDLER', elapsedMs, usage, cost));
         if (stopped.reason !== null) {
           tally.stopped += 1;
           await finish({ status: 'STOPPED', stopReason: stopped.reason });
@@ -167,6 +186,7 @@ export const runEvalAttempts = async (
           'TARGET_HANDLER',
           target.handlerElapsedMs ?? ports.now().getTime() - startedAt.getTime(),
           target.usage,
+          target.cost,
         ),
       );
       if (target.budgetExhausted) stopped.reason ??= 'TOKEN_LIMIT';
@@ -198,7 +218,6 @@ export const runEvalAttempts = async (
       });
       try {
         const judged = await ports.judge(attempt, target.outputText, controller.signal);
-        measurements.push(toMeasurement('JUDGE', judged.elapsedMs, judged.usage));
         tally.completed += 1;
         await finish({ status: 'COMPLETED', automatedAssessment: judged.assessment, summary });
       } catch (error) {

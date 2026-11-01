@@ -72,7 +72,7 @@ const runRecordedAttempts = async (
       });
     },
     async judge(attempt, outputText, judgeSignal) {
-      const startedAt = Date.now();
+      let judgeSessionId: string | undefined;
       const result = await launcher
         .launchRegistered(EVAL_JUDGE_HANDLER_ID, {
           parentSession: session,
@@ -80,6 +80,9 @@ const runRecordedAttempts = async (
             if (!id.startsWith('pending_')) {
               await recorder.updateAttempt(attempt.attemptId, { judgeProviderSessionId: id });
             }
+          },
+          onExecutionCreated: async (child) => {
+            judgeSessionId = child.agentic_session_id;
           },
           payload: { caseInput: attempt.caseInput, outputText },
           signal: judgeSignal,
@@ -93,18 +96,14 @@ const runRecordedAttempts = async (
           });
           throw error;
         });
-      const elapsedMs = Date.now() - startedAt;
       if (!result.assistantCompleted || !result.outputText) {
         throw new Error('The judge ended without an assessment.');
       }
       return {
-        assessment: parseEvalJudgeOutput(
-          result.outputText,
-          attempt.caseInput,
-          new Date().toISOString(),
-        ),
-        usage: result.usage,
-        elapsedMs,
+        assessment: {
+          ...parseEvalJudgeOutput(result.outputText, attempt.caseInput, new Date().toISOString()),
+          ...(judgeSessionId ? { judgeSessionId } : {}),
+        },
       };
     },
   };

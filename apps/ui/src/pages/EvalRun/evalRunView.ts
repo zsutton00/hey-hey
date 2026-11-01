@@ -161,6 +161,10 @@ export const formatTokenCount = (tokens: number): string => {
   return String(tokens);
 };
 
+/** Dollars with cents; a cost under a cent reads "<$0.01", never "$0.00". */
+export const formatCost = (amount: number): string =>
+  amount > 0 && amount < 0.01 ? "<$0.01" : `$${amount.toFixed(2)}`;
+
 /** A STOPPED attempt's reason, with the limit value it reached when known. */
 export interface StopView {
   reason: EvalAttemptStopReason;

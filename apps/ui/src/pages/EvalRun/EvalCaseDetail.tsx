@@ -49,7 +49,7 @@ import {
   type CaseRow,
   type WorkBreakdownRow,
 } from "./evalResultsView";
-import { formatElapsed, formatTokenCount } from "./evalRunView";
+import { formatCost, formatElapsed, formatTokenCount } from "./evalRunView";
 import { SpaLink } from "./SpaLink";
 
 /** Eval output can never be approved; the server refuses it regardless. */
@@ -338,6 +338,7 @@ const WorkBreakdown: React.FC<{ rows: WorkBreakdownRow[] }> = ({ rows }) => {
           <TableCell>{t("eval.results.cases.col.elapsed")}</TableCell>
           <TableCell>{t("eval.results.cases.col.tokens")}</TableCell>
           <TableCell>{t("eval.results.cases.col.toolCalls")}</TableCell>
+          <TableCell>{t("eval.results.cases.col.cost")}</TableCell>
         </TableRow>
       </TableHead>
       <TableBody>
@@ -392,6 +393,15 @@ const WorkBreakdown: React.FC<{ rows: WorkBreakdownRow[] }> = ({ rows }) => {
                 notReported,
               )}
             </TableCell>
+            <TableCell data-testid={`eval-work-cost-${row.scope}`}>
+              {row.cost === null
+                ? notReported
+                : row.costPartial
+                  ? t("eval.results.cases.partial", {
+                      value: formatCost(row.cost),
+                    })
+                  : formatCost(row.cost)}
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>
@@ -444,7 +454,10 @@ export const EvalCaseDetail: React.FC<EvalCaseDetailProps> = ({
   <Box sx={{ p: 2 }} data-testid={`eval-attempt-detail-${attempt.id}`}>
     <AttemptExecutionSummary attempt={attempt} />
     <ExpectedVersusResult row={row} />
-    <AttemptSessions attempt={attempt} />
+    <AttemptSessions
+      attempt={attempt}
+      judgeSessionHref={row.judgeSessionHref}
+    />
     <WorkBreakdown rows={row.breakdown} />
     <Grid container spacing={2}>
       <Grid size={{ xs: 12, md: 6 }}>
