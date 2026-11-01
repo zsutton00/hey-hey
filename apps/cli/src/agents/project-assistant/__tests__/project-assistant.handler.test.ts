@@ -19,6 +19,7 @@ import {
 } from '../../../shared/agent-bridge-contract/generated/api';
 import { makeCreateReportProxy } from '../../submission-tools/create-report-proxy.test-support';
 import type * as ContextGathering from '../context-gathering';
+import type { JevInput, JevResult } from '../../../jev/client';
 import { createTestSessionRunnerFacade } from '../../../run/run.test-support';
 
 const handler = new ProjectAssistantHandler(makeCreateReportProxy());
@@ -122,6 +123,43 @@ const makeDeps = (
     logger,
     taskMonitorDecisionStore: { bind: vi.fn() },
   }) as unknown as PromptTypeHandlerDeps;
+
+/** Network-boundary Jev: every candidate gets the same relevance, or the whole call fails. */
+const jevJudging = (relevance: number | 'fail') =>
+  vi.fn(async (input: JevInput): Promise<JevResult> => {
+    if (relevance === 'fail') {
+      return { ok: false, failure: { code: 'PROVIDER_ERROR', message: 'jev down' } };
+    }
+    const answers: Extract<JevResult, { ok: true }>['answers'] = {};
+    for (const [id, question] of Object.entries(input.questions)) {
+      answers[id] =
+        question.type === 'noul'
+          ? { type: 'noul', noul: 0 }
+          : {
+              type: 'choice',
+              choice: 'implements',
+              confidence: 1,
+              probabilities: {
+                implements: relevance,
+                informs: 0,
+                same_feature_unrelated: 1 - relevance,
+                other: 0,
+              },
+            };
+    }
+    return {
+      ok: true,
+      answers,
+      model: input.model,
+      usage: { inputTokens: 10, outputTokens: 10 },
+      durationMs: 1,
+    };
+  });
+const gatheringWith = (evaluate: ReturnType<typeof jevJudging>) =>
+  ({
+    jev: { client: { evaluate }, model: 'jev-test' },
+    traceLogDir: path.join(os.tmpdir(), 'jev-trace-test'),
+  }) as unknown as ContextGathering.ContextGatheringDeps;
 
 describe('projectAssistantHandler — read-only by construction', () => {
   it('runs under the research MCP use case (no mutation/edge/proposal tools in the base)', () => {
@@ -491,7 +529,7 @@ describe('projectAssistantHandler — recent report startup context', () => {
       },
     } as unknown as PromptTypeHandlerContext;
     const makeFilter = () => ({
-      jevClient: { evaluate: vi.fn() },
+      jevClient: { evaluate: jevJudging(0.95) },
       entityContextLoader: { load: vi.fn().mockRejectedValue(new Error('requirements read')) },
       attemptLogDir: path.join(os.tmpdir(), 'jev-attempt-log-test'),
     });
@@ -532,7 +570,7 @@ describe('projectAssistantHandler — recent report startup context', () => {
         makeCreateReportProxy(),
         null,
         undefined,
-        {} as ContextGathering.ContextGatheringDeps,
+        gatheringWith(jevJudging(0.95)),
         isJevEnabled,
       );
       const ctx = {
@@ -551,7 +589,7 @@ describe('projectAssistantHandler — recent report startup context', () => {
       read.mockRestore();
     });
 
-    it('reads the setting on every prepare and filters when it is on', async () => {
+    it('reads the setting on every prepare and narrows only when it is on', async () => {
       const read = mockParentRead();
       const filter = makeFilter();
       const isJevEnabled = vi.fn().mockResolvedValue(true);
@@ -563,12 +601,24 @@ describe('projectAssistantHandler — recent report startup context', () => {
         isJevEnabled,
       );
 
-      await filtered.prepare!(makeRun(), makePayload(), makeDeps(reportsOnlyFetch), loadedCtx);
+      const on = await filtered.prepare!(
+        makeRun(),
+        makePayload(),
+        makeDeps(reportsOnlyFetch),
+        loadedCtx,
+      );
       isJevEnabled.mockResolvedValue(false);
-      await filtered.prepare!(makeRun(), makePayload(), makeDeps(reportsOnlyFetch), loadedCtx);
+      const off = await filtered.prepare!(
+        makeRun(),
+        makePayload(),
+        makeDeps(reportsOnlyFetch),
+        loadedCtx,
+      );
 
       expect(isJevEnabled).toHaveBeenCalledTimes(2);
-      expect(filter.entityContextLoader.load).toHaveBeenCalledTimes(1);
+      expect(filter.jevClient.evaluate).toHaveBeenCalled();
+      expect(on.startupContextReplacement).toBeDefined();
+      expect(off.startupContextReplacement).toBeUndefined();
       read.mockRestore();
     });
 
@@ -584,38 +634,8 @@ describe('projectAssistantHandler — recent report startup context', () => {
       read.mockRestore();
     });
 
-    it('logs a Feature focal as an expected unfiltered load, not a warning', async () => {
-      const read = mockParentRead();
-      const filter = makeFilter();
-      const filtered = new ProjectAssistantHandler(makeCreateReportProxy(), null, filter);
-      const featureCtx = {
-        loadedEntityContext: {
-          ...loadedCtx.loadedEntityContext,
-          entity: { id: 'task-1', name: 'Focal', type: 'FEATURE', sections: [] },
-        },
-      } as unknown as PromptTypeHandlerContext;
-      const logger = makeLogger();
-
-      await filtered.prepare!(
-        makeRun(),
-        makePayload(),
-        makeDeps(reportsOnlyFetch, logger),
-        featureCtx,
-      );
-
-      expect(logger.warn).not.toHaveBeenCalledWith(
-        'project_assistant.prepare.parent_feature.filter_failed',
-        expect.anything(),
-      );
-      expect(logger.info).toHaveBeenCalledWith(
-        'project_assistant.prepare.parent_feature.filter_failed',
-        expect.objectContaining({ reason: 'focal_not_a_task', focalType: 'FEATURE' }),
-      );
-      read.mockRestore();
-    });
-
     describe('gathered context', () => {
-      const gathering = {} as ContextGathering.ContextGatheringDeps;
+      const gathering = gatheringWith(jevJudging(0.95));
       const turnCtx = (overrides: Partial<PromptTypeHandlerContext> = {}) =>
         ({
           ...loadedCtx,

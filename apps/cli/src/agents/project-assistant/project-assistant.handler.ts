@@ -24,12 +24,20 @@ import { CodingResearchTool } from '../submission-tools/create-coding-research-t
 import type { CreateReportProxy } from '../submission-tools/create-report-proxy';
 import { RunSubagentsTool } from '../submission-tools/run-subagents-tool';
 import { resolveFocal } from '../context-trimming/create-trimmer';
+import { DEFAULT_JEV_MODEL } from '../../jev/client';
+import type { Tier } from '../../jev/scenarios';
+import type { FullEntityContextDto } from '../../shared/api/generated';
 import { gatherProjectContext, type ContextGatheringDeps } from './context-gathering';
 import {
   findNearestParentFeatureId,
   loadNearestParentFeatureSection,
+  readNearestParentFeature,
+  renderParentFeatureSection,
 } from './nearest-parent-feature';
+import { narrowContext } from './narrow-context';
 import type { ParentRequirementsFilter } from './parent-requirements';
+import type { JevEvaluator } from '../../jev/scenarios';
+import type { LoadedEntityPromptContext } from '../entity-context/types';
 import { resolveProjectAssistantAdditionalTools } from './proactive-behavior';
 import { prepareRecentProjectAssistantReportContext } from './recent-report-context';
 import { resolveProjectAssistantTaskType } from './task-context';
@@ -50,6 +58,8 @@ type EnrichedPayload = ProjectAssistantPromptPayload & {
   _launchServiceId?: string;
   _worktreeState?: LocalWorktreeStateByService;
   _gatheredContext?: string;
+  /** Set when the starting context was narrowed; names the saved-input trace. */
+  _startingContextNarrowed?: true;
 };
 
 export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssistantPromptPayload> {
@@ -162,21 +172,40 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
     const jevEnabled = hasJev ? await this.isJevEnabled() : false;
     const parentRequirements = jevEnabled ? this.parentRequirements : undefined;
     const contextGathering = jevEnabled ? this.contextGathering : undefined;
-    const nearestParentFeature =
+    const jevClient = contextGathering?.jev.client ?? parentRequirements?.jevClient;
+    const narrowing = jevClient && loaded?.kind === 'entity' ? { jevClient, loaded } : undefined;
+    const parentRequest =
       loaded && organizationId && projectId
-        ? await loadNearestParentFeatureSection(
-            {
-              organizationId,
-              projectId,
-              context: loaded.context,
-              readRestriction: deps.readRestriction,
-            },
-            deps,
-            parentRequirements && !contextGathering
-              ? { settings: parentRequirements, loaded }
-              : undefined,
-          )
+        ? {
+            organizationId,
+            projectId,
+            context: loaded.context,
+            readRestriction: deps.readRestriction,
+          }
+        : undefined;
+
+    // One parent read serves its presentation, its relevance decision and gathering.
+    const parentFeature =
+      narrowing && parentRequest ? await readNearestParentFeature(parentRequest, deps) : null;
+    const startingContext = narrowing
+      ? await this.narrowStartingContext({
+          ...narrowing,
+          parentFeature,
+          run,
+          ask: payload.userMessage.trim(),
+          model: contextGathering?.jev.model ?? parentRequirements?.model ?? DEFAULT_JEV_MODEL,
+          deps,
+          ctx,
+        })
+      : null;
+    const parentTier: Tier = startingContext?.tiers.get(parentFeature?.id ?? '') ?? 'full';
+    const nearestParentFeature = parentFeature
+      ? renderParentFeatureSection(parentFeature, startingContext ? parentTier : 'full')
+      : parentRequest && !narrowing
+        ? await loadNearestParentFeatureSection(parentRequest, deps)
         : null;
+    // Judgment failed: the ordinary Project Assistant researches on its own, without gathering.
+    const gathering = narrowing && !startingContext ? undefined : contextGathering;
 
     const enriched: EnrichedPayload = {
       ...payload,
@@ -190,9 +219,14 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
     };
 
     let gatheredContext: string | undefined;
-    if (contextGathering) {
+    if (gathering) {
       const ask = payload.userMessage.trim();
-      const focal = await resolveFocal(loaded ?? null, ask || undefined, deps);
+      const focal = await resolveFocal(
+        loaded ?? null,
+        ask || undefined,
+        deps,
+        parentFeature ?? undefined,
+      );
       if (focal) {
         const turnId = ctx?.turnId;
         const abortSignal = ctx?.abortSignal?.();
@@ -204,12 +238,14 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
         }
         gatheredContext = await gatherProjectContext({
           fullEntityIds:
-            loaded && nearestParentFeature
-              ? [findNearestParentFeatureId(loaded.context)].filter(
-                  (id): id is string => id !== null,
-                )
-              : [],
-          deps: contextGathering,
+            parentFeature && parentTier === 'full' && startingContext
+              ? [parentFeature.id]
+              : loaded && nearestParentFeature && !narrowing
+                ? [findNearestParentFeatureId(loaded.context)].filter(
+                    (id): id is string => id !== null,
+                  )
+                : [],
+          deps: gathering,
           handlerDeps: deps,
           runId: run.agentic_session_id,
           turnId,
@@ -229,7 +265,70 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
     }
 
     if (gatheredContext) enriched._gatheredContext = gatheredContext;
-    return { payload: enriched };
+    if (startingContext) {
+      enriched._startingContextNarrowed = true;
+    }
+    return {
+      payload: enriched,
+      ...(startingContext ? { startupContextReplacement: startingContext.context } : {}),
+    };
+  }
+
+  /**
+   * Jev judges the whole starting neighbourhood against the user's ask. A failure is logged and
+   * returns null so the caller keeps the original context: nothing partial is ever used.
+   */
+  private async narrowStartingContext(args: {
+    jevClient: JevEvaluator;
+    loaded: Extract<LoadedEntityPromptContext, { kind: 'entity' }>;
+    parentFeature: Awaited<ReturnType<typeof readNearestParentFeature>>;
+    run: AgenticSession;
+    ask: string;
+    model: string;
+    deps: PromptTypeHandlerDeps;
+    ctx: PromptTypeHandlerContext | undefined;
+  }): Promise<{ context: FullEntityContextDto; tiers: ReadonlyMap<string, Tier> } | null> {
+    const { run, deps } = args;
+    const focal = await resolveFocal(
+      args.loaded,
+      args.ask || undefined,
+      deps,
+      args.parentFeature ?? undefined,
+    );
+    if (!focal) {
+      deps.logger.warn('project_assistant.prepare.starting_context_narrowing_skipped', {
+        runId: run.agentic_session_id,
+        reason: 'no_focal_work',
+      });
+      return null;
+    }
+
+    const signal = args.ctx?.abortSignal?.();
+    const result = await narrowContext({
+      focal,
+      context: args.loaded.context,
+      ask: args.ask,
+      client: args.jevClient,
+      model: args.model,
+      ...(signal ? { signal } : {}),
+    });
+    if (!result.ok) {
+      deps.logger.warn('project_assistant.prepare.starting_context_narrowing_failed', {
+        runId: run.agentic_session_id,
+        outcome: 'fallback_to_original_context',
+        error: result.cause instanceof Error ? result.cause.message : String(result.cause),
+      });
+      return null;
+    }
+
+    deps.logger.info('project_assistant.prepare.starting_context_narrowed', {
+      runId: run.agentic_session_id,
+      requests: result.usage.requests,
+      inputTokens: result.usage.inputTokens,
+      outputTokens: result.usage.outputTokens,
+      candidates: result.tiers.size,
+    });
+    return result;
   }
 
   /**
@@ -238,18 +337,20 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
    */
   public async recordProviderInput(record: ProviderInputRecord): Promise<void> {
     const enriched = record.payload as EnrichedPayload;
-    if (!this.contextGathering || enriched._gatheredContext === undefined) {
+    const traceLogDir =
+      this.contextGathering?.traceLogDir ?? this.parentRequirements?.attemptLogDir;
+    if (
+      !traceLogDir ||
+      (enriched._gatheredContext === undefined && !enriched._startingContextNarrowed)
+    ) {
       return;
     }
 
-    const file = path.join(
-      this.contextGathering.traceLogDir,
-      `${record.runId}.${record.turnId}.input.txt`,
-    );
+    const file = path.join(traceLogDir, `${record.runId}.${record.turnId}.input.txt`);
     const text = record.parts
       .map(({ name, text: part }) => `===== ${name} =====\n${part}`)
       .join('\n');
-    await mkdir(this.contextGathering.traceLogDir, { recursive: true });
+    await mkdir(traceLogDir, { recursive: true });
     await writeFile(file, text, 'utf8');
     record.logger.info('project_assistant.provider_input_saved', {
       runId: record.runId,
