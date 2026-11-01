@@ -16,7 +16,6 @@ on:
           - UI
           - API
           - Both
-          - Graph Search
           - All
 
 permissions:
@@ -125,12 +124,6 @@ jobs:
               new (require(\"@prisma/client\").PrismaClient)();
             "
           '
-
-      - name: Check graph/search startup and restart
-        if: matrix.image == 'graph-search'
-        env:
-          GRAPH_SEARCH_IMAGE: ${{ steps.meta.outputs.repository }}:candidate-${{ github.sha }}
-        run: bash apps/graph-search/scripts/test-container.sh
 
       - name: Record verified build
         env:
