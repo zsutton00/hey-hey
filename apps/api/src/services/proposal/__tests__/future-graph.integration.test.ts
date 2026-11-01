@@ -214,8 +214,11 @@ describe('future Diagram graph round trip through the generic projector', () => 
           return { count: 1 };
         }),
       },
+      proposalReconciliationRevision: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
       proposalFutureRevision: {
-        findUnique: jest.fn().mockResolvedValue(null),
+        findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn(async ({ data }) => {
           history.push(JSON.parse(JSON.stringify(data)));
         }),
