@@ -4995,7 +4995,7 @@ const WorkflowStepCardContent: React.FC<{
             <DiagramRoleIcon
               aria-hidden
               data-testid={diagramRoleIconTestId}
-              sx={{ fontSize: 14 }}
+              sx={{ fontSize: "1rem" }}
             />
           </Box>
         </Tooltip>

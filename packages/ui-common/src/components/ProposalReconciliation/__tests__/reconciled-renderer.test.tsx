@@ -232,7 +232,7 @@ describe("ordinary renderer reconciliation seam", () => {
       ],
     });
     await screen.findByTestId("proposal-three-way-review");
-    expect(screen.getByTestId("actual-diff")).not.toBeVisible();
-    expect(screen.getByTestId("proposal-approve")).toBeDisabled();
+    expect(screen.queryByTestId("actual-diff")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("proposal-approve")).not.toBeInTheDocument();
   });
 });

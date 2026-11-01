@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
@@ -23,6 +24,24 @@ import { ProposalReconciliationReview } from "../../ProposalReconciliation/Propo
 import { proposalsClient } from "../../../clients/serviceClients";
 import type { ProposalReconciliationState } from "../../../api";
 import type { UpdateTaskProposalUpdates } from "../types";
+
+vi.mock("../../SmarterTextAreaCard/SmarterTextAreaEditor", () => ({
+  SmarterTextAreaEditor: ({
+    initialValue,
+    onChange,
+    presentation,
+  }: {
+    initialValue: string;
+    onChange: (value: string) => void;
+    presentation: { contentEditableTestId: string };
+  }) => (
+    <textarea
+      data-testid={presentation.contentEditableTestId}
+      defaultValue={initialValue}
+      onChange={(event) => onChange(event.target.value)}
+    />
+  ),
+}));
 
 const { featureLookup } = vi.hoisted(() => ({
   featureLookup: { isLoading: false, isReady: true, get: () => undefined },
@@ -595,9 +614,11 @@ it("edits a future's structured overlap by hand and shows the complete revised r
   fireEvent.click(
     await screen.findByTestId("proposal-reconciliation-edit-by-hand"),
   );
-  const editable = screen
-    .getAllByTestId("requirement-statement-input")
-    .find((node) => !(node as HTMLTextAreaElement).disabled)!;
+  const requirementResolution = screen.getAllByTestId("resolution-item")[1]!;
+  fireEvent.click(
+    within(requirementResolution).getByRole("button", { name: "Edit" }),
+  );
+  const editable = await screen.findByTestId("resolution-text-editor");
   fireEvent.change(editable, {
     target: { value: "Reviewed wording preserves current work" },
   });
@@ -607,8 +628,10 @@ it("edits a future's structured overlap by hand and shows the complete revised r
       screen.queryByTestId("proposal-reconciliation-manual-editor"),
     ).toBeNull(),
   );
-  expect(screen.getByTestId("proposal-three-way-review")).toBeVisible();
-  // Saving only prepares a refinement. A persisted approval supplies the accepted revision.
+  expect(
+    screen.getByTestId("proposal-reconciliation-merged-result"),
+  ).toBeVisible();
+  // Saving prepares the candidate; a subsequent reconciliation read supplies its accepted revision.
   const accepted = {
     ...state,
     status: "READY_FOR_REVIEW",

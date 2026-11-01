@@ -44,7 +44,10 @@ const draftState = {
   current: null as UseWorkItemGraphDraftReturn | null,
 };
 
-vi.mock("../WorkflowMentionInlineRenderer", () => ({
+vi.mock("../WorkflowMentionInlineRenderer", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("../WorkflowMentionInlineRenderer")
+  >()),
   buildCanonicalProjectedGraphPositions: (children: ProjectedWorkItem[]) =>
     new Map(
       children.map((child, index) => [
@@ -52,10 +55,10 @@ vi.mock("../WorkflowMentionInlineRenderer", () => ({
           ? `existing:${child.identity.id}`
           : `temporary:${child.identity.tempId}`,
         { x: 24 + index * 264, y: 24 },
-      ])
+      ]),
     ),
   buildPreferredProjectedGraphPositionResult: (
-    children: ProjectedWorkItem[]
+    children: ProjectedWorkItem[],
   ) => ({
     positions: new Map(
       children.map((child, index) => [
@@ -63,7 +66,7 @@ vi.mock("../WorkflowMentionInlineRenderer", () => ({
           ? `existing:${child.identity.id}`
           : `temporary:${child.identity.tempId}`,
         { x: 24 + index * 264, y: 24 },
-      ])
+      ]),
     ),
     actual: { rows: 1, columns: children.length },
     departures: ["requested-shape-unattainable"],
@@ -249,7 +252,7 @@ function relationshipInput() {
 }
 
 function preferredLayoutInput(
-  preference: { rows: number; columns: number } | null = null
+  preference: { rows: number; columns: number } | null = null,
 ) {
   const base = relationshipInput();
   return {
@@ -296,10 +299,10 @@ describe("WorkItemGraphEditor", () => {
     render(<EditorHarness graphInput={preferredLayoutInput()} />, { wrapper });
 
     const rows = within(
-      screen.getByTestId("work-item-graph-preferred-rows")
+      screen.getByTestId("work-item-graph-preferred-rows"),
     ).getByRole("spinbutton");
     const columns = within(
-      screen.getByTestId("work-item-graph-preferred-columns")
+      screen.getByTestId("work-item-graph-preferred-columns"),
     ).getByRole("spinbutton");
     const apply = screen.getByTestId("work-item-graph-apply-preferred-layout");
 
@@ -319,7 +322,7 @@ describe("WorkItemGraphEditor", () => {
     expect(draftState.current?.operations).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ op: "layout.replace" }),
-      ])
+      ]),
     );
     expect(apply).not.toBeDisabled();
 
@@ -331,11 +334,11 @@ describe("WorkItemGraphEditor", () => {
           sectionKey: "positions",
           entries: expect.any(Array),
         }),
-      ])
+      ]),
     );
     expect(draftState.current?.projected.layoutSource).toBe("authored");
     expect(
-      screen.getByTestId("work-item-graph-layout-departures")
+      screen.getByTestId("work-item-graph-layout-departures"),
     ).toHaveTextContent("Requested 5 rows × 3 columns");
   });
 
@@ -343,10 +346,10 @@ describe("WorkItemGraphEditor", () => {
     render(<EditorHarness graphInput={preferredLayoutInput()} />, { wrapper });
 
     const rows = within(
-      screen.getByTestId("work-item-graph-preferred-rows")
+      screen.getByTestId("work-item-graph-preferred-rows"),
     ).getByRole("spinbutton");
     const columns = within(
-      screen.getByTestId("work-item-graph-preferred-columns")
+      screen.getByTestId("work-item-graph-preferred-columns"),
     ).getByRole("spinbutton");
     const apply = screen.getByTestId("work-item-graph-apply-preferred-layout");
 
@@ -366,11 +369,11 @@ describe("WorkItemGraphEditor", () => {
           WorkItemTypeGraphAction.ReplaceLayout,
         ])}
       />,
-      { wrapper }
+      { wrapper },
     );
 
     expect(
-      screen.queryByTestId("work-item-graph-preferred-rows")
+      screen.queryByTestId("work-item-graph-preferred-rows"),
     ).not.toBeInTheDocument();
   });
 
@@ -384,9 +387,15 @@ describe("WorkItemGraphEditor", () => {
     delete graph.layoutPreference;
     render(<EditorHarness graphInput={graphInput} />, { wrapper });
 
-    expect(draftState.current?.projected.children).toHaveLength(graphInput.children.length);
-    expect(screen.queryByTestId("work-item-graph-preferred-rows")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("work-item-graph-apply-preferred-layout")).not.toBeInTheDocument();
+    expect(draftState.current?.projected.children).toHaveLength(
+      graphInput.children.length,
+    );
+    expect(
+      screen.queryByTestId("work-item-graph-preferred-rows"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("work-item-graph-apply-preferred-layout"),
+    ).not.toBeInTheDocument();
   });
 
   it("reuses the configured editor for a non-workflow type and emits generic operations", async () => {
@@ -398,12 +407,12 @@ describe("WorkItemGraphEditor", () => {
           WorkItemTypeGraphAction.ClearLayout,
         ])}
       />,
-      { wrapper }
+      { wrapper },
     );
 
     expect(screen.getByTestId("mock-work-item-graph-surface")).toHaveAttribute(
       "data-mode",
-      "edit"
+      "edit",
     );
     fireEvent.click(screen.getByTestId("work-item-graph-add-child"));
     fireEvent.change(screen.getByTestId("work-item-graph-node-name"), {
@@ -414,7 +423,7 @@ describe("WorkItemGraphEditor", () => {
     await waitFor(() =>
       expect(draftState.current?.operations).toEqual([
         expect.objectContaining({ op: "workItem.create", type: "CARD" }),
-      ])
+      ]),
     );
 
     fireEvent.click(screen.getByTestId("work-item-graph-reflow"));
@@ -425,8 +434,8 @@ describe("WorkItemGraphEditor", () => {
             op: "layout.clear",
             sectionKey: "positions",
           }),
-        ])
-      )
+        ]),
+      ),
     );
   });
 
@@ -434,27 +443,43 @@ describe("WorkItemGraphEditor", () => {
     render(<EditorHarness graphInput={input([])} />, { wrapper });
 
     expect(
-      screen.queryByTestId("work-item-graph-add-child")
+      screen.queryByTestId("work-item-graph-add-child"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId("work-item-graph-reflow")
+      screen.queryByTestId("work-item-graph-reflow"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId("work-item-graph-add-meta-link")
+      screen.queryByTestId("work-item-graph-add-meta-link"),
     ).not.toBeInTheDocument();
   });
 
   it("passes pending edits and authored positions intact through selection changes", () => {
     render(<EditorHarness graphInput={relationshipInput()} />, { wrapper });
-    act(() => draftState.current?.move({ refType: "existing", id: "first" }, { x: 145, y: 215 }));
+    act(() =>
+      draftState.current?.move(
+        { refType: "existing", id: "first" },
+        { x: 145, y: 215 },
+      ),
+    );
     const operations = structuredClone(draftState.current?.operations);
     const projected = surfaceProps.current.projection;
-    const select = surfaceProps.current.onSelectionChange as (selection: { children: { refType: "existing"; id: string }[]; relationships: [] }) => void;
-    act(() => select({ children: [{ refType: "existing", id: "first" }], relationships: [] }));
+    const select = surfaceProps.current.onSelectionChange as (selection: {
+      children: { refType: "existing"; id: string }[];
+      relationships: [];
+    }) => void;
+    act(() =>
+      select({
+        children: [{ refType: "existing", id: "first" }],
+        relationships: [],
+      }),
+    );
     expect(surfaceProps.current.mode).toBe("edit");
     expect(surfaceProps.current.projection).toEqual(projected);
     expect(draftState.current?.operations).toEqual(operations);
-    expect(draftState.current?.projected.effectiveLayout.nodes).toContainEqual({ node: { refType: "existing", id: "first" }, position: { x: 145, y: 215 } });
+    expect(draftState.current?.projected.effectiveLayout.nodes).toContainEqual({
+      node: { refType: "existing", id: "first" },
+      position: { x: 145, y: 215 },
+    });
   });
 
   it("ignores repeated equivalent graph selections", () => {
@@ -494,7 +519,7 @@ describe("WorkItemGraphEditor", () => {
           WorkItemTypeGraphAction.ReplaceLayout,
         ])}
       />,
-      { wrapper }
+      { wrapper },
     );
 
     act(() => {
@@ -525,7 +550,7 @@ describe("WorkItemGraphEditor", () => {
             }),
           ],
         }),
-      ])
+      ]),
     );
   });
 
@@ -561,11 +586,11 @@ describe("WorkItemGraphEditor", () => {
             op: "relationship.delete",
             ref: { refType: "existing", id: "relationship" },
           },
-        ])
+        ]),
       );
     });
     expect(
-      draftState.current?.projected.incidentRelationships[0]?.deleted
+      draftState.current?.projected.incidentRelationships[0]?.deleted,
     ).toBe(true);
   });
 
@@ -578,7 +603,7 @@ describe("WorkItemGraphEditor", () => {
           WorkItemTypeGraphAction.ReplaceLayout,
         ])}
       />,
-      { wrapper }
+      { wrapper },
     );
 
     act(() => {
@@ -608,7 +633,7 @@ describe("WorkItemGraphEditor", () => {
           op: "layout.replace",
           entries: [expect.objectContaining({ position: { x: 910, y: 640 } })],
         }),
-      ])
+      ]),
     );
   });
 
@@ -629,11 +654,17 @@ describe("WorkItemGraphEditor", () => {
         displayedLayout: Array<{
           node: { refType: "existing"; id: string };
           position: { x: number; y: number };
-        }>
+        }>,
       ) => void;
       onNodeDragStop({ refType: "existing", id: "first" }, { x: 640, y: 360 }, [
-        { node: { refType: "existing", id: "first" }, position: { x: 24, y: 24 } },
-        { node: { refType: "existing", id: "second" }, position: { x: 24, y: 450 } },
+        {
+          node: { refType: "existing", id: "first" },
+          position: { x: 24, y: 24 },
+        },
+        {
+          node: { refType: "existing", id: "second" },
+          position: { x: 24, y: 450 },
+        },
       ]);
     });
 
@@ -656,12 +687,12 @@ describe("WorkItemGraphEditor", () => {
       ]);
     });
     expect(draftState.current?.projected.incidentRelationships).toEqual(
-      relationshipsBeforeMove
+      relationshipsBeforeMove,
     );
     expect(
       draftState.current?.operations.some((operation) =>
-        operation.op.startsWith("relationship.")
-      )
+        operation.op.startsWith("relationship."),
+      ),
     ).toBe(false);
 
     act(() => {
@@ -675,8 +706,8 @@ describe("WorkItemGraphEditor", () => {
     expect(
       draftState.current?.projected.effectiveLayout.nodes.find(
         (entry) =>
-          entry.node.refType === "existing" && entry.node.id === "first"
-      )?.position
+          entry.node.refType === "existing" && entry.node.id === "first",
+      )?.position,
     ).toEqual({ x: 640, y: 360 });
   });
 
@@ -706,18 +737,18 @@ describe("WorkItemGraphEditor", () => {
             edgeType: AgentEdgeType.Standard,
             direction: AgentEdgeDirection.Forward,
           }),
-        ])
-      )
+        ]),
+      ),
     );
 
     connect();
     fireEvent.mouseDown(screen.getByLabelText("Relationship *"));
     fireEvent.click(
-      screen.getByRole("option", { name: AgentEdgeType.Conditional })
+      screen.getByRole("option", { name: AgentEdgeType.Conditional }),
     );
     fireEvent.change(
       screen.getByTestId("work-item-graph-relationship-predicate"),
-      { target: { value: "approved" } }
+      { target: { value: "approved" } },
     );
     fireEvent.click(screen.getByTestId("work-item-graph-relationship-commit"));
     await waitFor(() =>
@@ -729,8 +760,8 @@ describe("WorkItemGraphEditor", () => {
             direction: AgentEdgeDirection.Forward,
             predicate: "approved",
           }),
-        ])
-      )
+        ]),
+      ),
     );
 
     connect();
@@ -744,8 +775,8 @@ describe("WorkItemGraphEditor", () => {
             op: "relationship.create",
             edgeType: AgentEdgeType.Loop,
           }),
-        ])
-      )
+        ]),
+      ),
     );
     expect(draftState.current?.operations).not.toEqual(
       expect.arrayContaining([
@@ -753,7 +784,7 @@ describe("WorkItemGraphEditor", () => {
           edgeType: AgentEdgeType.Loop,
           direction: expect.anything(),
         }),
-      ])
+      ]),
     );
   });
 
@@ -798,13 +829,13 @@ describe("WorkItemGraphEditor", () => {
     });
 
     expect(
-      screen.getByTestId("work-item-graph-edit-child")
+      screen.getByTestId("work-item-graph-edit-child"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByTestId("work-item-graph-delete-child")
+      screen.queryByTestId("work-item-graph-delete-child"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId("work-item-graph-add-child")
+      screen.queryByTestId("work-item-graph-add-child"),
     ).not.toBeInTheDocument();
     expect(surfaceProps.current.allowConnections).toBe(false);
     expect(surfaceProps.current.allowReconnection).toBe(false);
@@ -851,7 +882,7 @@ describe("WorkItemGraphEditor", () => {
 
     expect(screen.getByTestId("work-item-graph-add-meta-link")).toHaveAttribute(
       "data-edge-type",
-      AgentEdgeType.DependsOn
+      AgentEdgeType.DependsOn,
     );
     fireEvent.click(screen.getByTestId("work-item-graph-add-meta-link"));
     expect(metaLinkDialogProps.current.searchTarget).toEqual({
@@ -903,7 +934,7 @@ describe("WorkItemGraphEditor", () => {
     });
 
     fireEvent.click(
-      screen.getByTestId("work-item-graph-context-add-meta-link")
+      screen.getByTestId("work-item-graph-context-add-meta-link"),
     );
 
     expect(metaLinkDialogProps.current.sourceChild).toEqual({
@@ -965,7 +996,7 @@ describe("WorkItemGraphEditor", () => {
       expect(operations).not.toEqual(
         expect.arrayContaining([
           expect.objectContaining({ op: "relationship.update" }),
-        ])
+        ]),
       );
     });
   });
@@ -1033,7 +1064,7 @@ describe("WorkItemGraphEditor", () => {
             { refType: "existing", id: "second" },
           ],
           relationships: [],
-        })
+        }),
       );
 
     it("only offers groups when the type declares a groups section", () => {
@@ -1044,7 +1075,7 @@ describe("WorkItemGraphEditor", () => {
     it("adds a group as one section replacement without touching saved positions", () => {
       render(<EditorHarness graphInput={groupsInput()} />, { wrapper });
       const layoutBefore = structuredClone(
-        draftState.current?.projected.effectiveLayout
+        draftState.current?.projected.effectiveLayout,
       );
       selectBoth();
       fireEvent.click(screen.getByTestId("diagram-group-add"));
@@ -1072,7 +1103,7 @@ describe("WorkItemGraphEditor", () => {
         },
       });
       expect(draftState.current?.projected.effectiveLayout).toEqual(
-        layoutBefore
+        layoutBefore,
       );
     });
 
@@ -1082,9 +1113,11 @@ describe("WorkItemGraphEditor", () => {
       const field = screen.getByTestId("diagram-group-label-g-group-1");
       fireEvent.change(field, { target: { value: "us-east-1" } });
       fireEvent.blur(field);
-      const content = (draftState.current?.operations.at(-1) as {
-        content: { groups: { id: string; label: string }[] };
-      }).content;
+      const content = (
+        draftState.current?.operations.at(-1) as {
+          content: { groups: { id: string; label: string }[] };
+        }
+      ).content;
       expect(content.groups).toEqual([
         expect.objectContaining({ id: "g-group-1", label: "us-east-1" }),
       ]);
@@ -1095,12 +1128,12 @@ describe("WorkItemGraphEditor", () => {
       selectBoth();
       fireEvent.click(screen.getByTestId("diagram-group-add"));
       const layout = structuredClone(
-        draftState.current?.projected.effectiveLayout
+        draftState.current?.projected.effectiveLayout,
       );
       fireEvent.mouseDown(
         screen
           .getByTestId("diagram-group-color")
-          .parentElement!.querySelector('[role="combobox"]')!
+          .parentElement!.querySelector('[role="combobox"]')!,
       );
       fireEvent.click(screen.getByRole("option", { name: "Purple" }));
       const colored = draftState.current?.operations.at(-1);
@@ -1121,7 +1154,7 @@ describe("WorkItemGraphEditor", () => {
       fireEvent.mouseDown(
         screen
           .getByTestId("diagram-group-color")
-          .parentElement!.querySelector('[role="combobox"]')!
+          .parentElement!.querySelector('[role="combobox"]')!,
       );
       fireEvent.click(screen.getByRole("option", { name: "Auto" }));
       const cleared = draftState.current?.operations.at(-1) as {
@@ -1135,9 +1168,9 @@ describe("WorkItemGraphEditor", () => {
       render(<EditorHarness graphInput={groupsInput()} />, { wrapper });
       expect(screen.getByTestId("diagram-group-add")).not.toBeDisabled();
       act(() =>
-        (surfaceProps.current.onLayoutPreviewChange as (value: boolean) => void)(
-          true
-        )
+        (
+          surfaceProps.current.onLayoutPreviewChange as (value: boolean) => void
+        )(true),
       );
       expect(screen.getByTestId("diagram-group-add")).toBeDisabled();
     });
@@ -1146,10 +1179,13 @@ describe("WorkItemGraphEditor", () => {
       render(<EditorHarness graphInput={groupsInput()} />, { wrapper });
       selectBoth();
       fireEvent.click(screen.getByTestId("diagram-group-add"));
-      act(() => draftState.current?.delete({ refType: "existing", id: "first" }));
+      act(() =>
+        draftState.current?.delete({ refType: "existing", id: "first" }),
+      );
       const replace = draftState.current?.operations.find(
         (operation) =>
-          operation.op === "section.replace" && operation.key === "diagramGroups"
+          operation.op === "section.replace" &&
+          operation.key === "diagramGroups",
       ) as { content: { groups: { members: unknown[] }[] } };
       expect(replace.content.groups[0]!.members).toEqual([
         { kind: "persistedWorkItem", workItemId: "second" },
@@ -1162,7 +1198,12 @@ describe("WorkItemGraphEditor", () => {
         workItemId: id,
       });
       const groups = [
-        { id: "aws", label: "AWS", meaning: "DEPLOYMENT_BOUNDARY" as const, members: [] },
+        {
+          id: "aws",
+          label: "AWS",
+          meaning: "DEPLOYMENT_BOUNDARY" as const,
+          members: [],
+        },
         {
           id: "east",
           label: "us-east-1",
@@ -1192,11 +1233,13 @@ describe("WorkItemGraphEditor", () => {
       // Descendants and visual groups cannot enclose a factual boundary.
       expect(eligibleDiagramGroupParents(groups, groups[0]!)).toEqual([]);
       expect(
-        eligibleDiagramGroupParents(groups, groups[1]!).map((group) => group.id)
+        eligibleDiagramGroupParents(groups, groups[1]!).map(
+          (group) => group.id,
+        ),
       ).toEqual(["aws", "west"]);
       expect(
         removeDiagramGroup(groups, "aws").find((group) => group.id === "east")
-          ?.parentGroupId
+          ?.parentGroupId,
       ).toBeUndefined();
     });
   });

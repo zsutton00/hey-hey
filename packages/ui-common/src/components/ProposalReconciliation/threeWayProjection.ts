@@ -69,10 +69,10 @@ export function projectThreeWayReview(
         ? normalizeReconciliationContent(basis.content)
         : undefined,
     live: current ? normalizeReconciliationContent(current.content) : undefined,
-    intended: revision
-      ? normalizeReconciliationContent(revision.proposedResult)
-      : future
-        ? normalizeReconciliationContent({ ...future.result })
+    intended: future
+      ? normalizeReconciliationContent({ ...future.result })
+      : revision
+        ? normalizeReconciliationContent(revision.proposedResult)
         : undefined,
   };
 }

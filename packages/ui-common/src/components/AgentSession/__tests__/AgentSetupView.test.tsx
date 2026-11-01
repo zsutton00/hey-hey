@@ -614,10 +614,12 @@ describe("AgentSetupView", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("auto-resolves the sole ready machine without rendering the picker", () => {
+  it("shows the auto-resolved sole ready machine as read-only", () => {
     render(<AgentSetupView {...buildProps()} />);
 
-    expect(screen.queryByTestId("machine-picker")).not.toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("machine-picker")).getByRole("combobox"),
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   it("keeps the picker available when a sole ready machine needs explicit reselection", () => {

@@ -215,6 +215,21 @@ const server = setupServer(
       statusCode: 200,
     }),
   ),
+  // Components may check retained eval evidence while opening a conversation.
+  // Most tests do not need an attempt, so the default report read is empty.
+  http.get("*/api/v1/organizations/:organizationId/reports", () =>
+    HttpResponse.json({
+      success: true,
+      message: "Reports loaded.",
+      data: [],
+      timestamp: "2026-01-01T00:00:00.000Z",
+      statusCode: 200,
+    }),
+  ),
+  // File reference labels and setup surfaces may check the paired local CLI.
+  http.get("*/api/local/repos", () =>
+    HttpResponse.json({ machineId: "machine-1", bindings: [] }),
+  ),
   // Proposal review surfaces load reconciliation state; default to current.
   http.get("*/proposals/:proposalId/reconciliation", () =>
     HttpResponse.json({

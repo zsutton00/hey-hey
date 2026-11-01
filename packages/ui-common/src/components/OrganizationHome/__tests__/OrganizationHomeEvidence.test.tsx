@@ -1,3 +1,6 @@
+import { ThemeProvider } from "@mui/material/styles";
+import { createHeyTheme } from "../../../contexts/ThemeContext";
+import type { PropsWithChildren } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
@@ -38,9 +41,9 @@ vi.mock("@mui/x-charts/BarChart", async () => {
               onClick: (event: React.MouseEvent) =>
                 props.onItemClick(event, { dataIndex }),
             },
-            `${label}: ${String(value)}`
-          )
-        )
+            `${label}: ${String(value)}`,
+          ),
+        ),
       );
     },
   };
@@ -61,6 +64,11 @@ import {
   groupProjectMetrics,
 } from "../organizationHomeMetrics";
 import { OrganizationHomeEvidence } from "../OrganizationHomeEvidence";
+
+const theme = createHeyTheme("light");
+const wrapper = ({ children }: PropsWithChildren) => (
+  <ThemeProvider theme={theme}>{children}</ThemeProvider>
+);
 
 const WINDOW_START = "2026-09-03T12:00:00.000Z";
 const WINDOW_END = "2026-09-04T12:00:00.000Z";
@@ -83,7 +91,7 @@ const allIdentities: ProjectMetricIdentity[] = [
 
 const makeMetric = (
   metric: ProjectMetricIdentity,
-  value = 0
+  value = 0,
 ): ProjectMetricDto => {
   const activityContinuation: ActivityMetricContinuationDto = {
     metric,
@@ -97,7 +105,7 @@ const makeMetric = (
 
 const makeData = (value = 0): ProjectMetricsResponseDto => ({
   metrics: allIdentities.map((identity, index) =>
-    makeMetric(identity, value === 0 ? 0 : value + index)
+    makeMetric(identity, value === 0 ? 0 : value + index),
   ),
   actorScope: { mode: "ORGANIZATION" },
   effectiveProjectIds: ["project-1"],
@@ -106,7 +114,7 @@ const makeData = (value = 0): ProjectMetricsResponseDto => ({
 });
 
 const renderEvidence = (
-  overrides: Partial<ComponentProps<typeof OrganizationHomeEvidence>> = {}
+  overrides: Partial<ComponentProps<typeof OrganizationHomeEvidence>> = {},
 ) => {
   const refetch = vi.fn().mockResolvedValue(null);
   const props: ComponentProps<typeof OrganizationHomeEvidence> = {
@@ -123,7 +131,10 @@ const renderEvidence = (
     ...overrides,
   };
 
-  return { ...render(<OrganizationHomeEvidence {...props} />), refetch };
+  return {
+    ...render(<OrganizationHomeEvidence {...props} />, { wrapper }),
+    refetch,
+  };
 };
 
 describe("OrganizationHomeEvidence", () => {
@@ -153,30 +164,30 @@ describe("OrganizationHomeEvidence", () => {
     renderEvidence({ data, onMetricActivate });
 
     expect(
-      screen.getByTestId("organization-home-throughput")
+      screen.getByTestId("organization-home-throughput"),
     ).toBeInTheDocument();
     expect(screen.getByTestId("organization-home-updates")).toBeInTheDocument();
     expect(
       screen.getByRole("combobox", {
         name: "Organization Activity time range",
-      })
+      }),
     ).toHaveTextContent("Last 24 hours");
     expect(screen.getByText("Organization Activity")).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Organization Activity" })
+      screen.getByRole("heading", { name: "Organization Activity" }),
     ).toBeVisible();
     expect(screen.getByText("All accessible projects")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Activity from everyone in the selected organization, limited to projects you can access."
-      )
+        "Activity from everyone in the selected organization, limited to projects you can access.",
+      ),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("region", { name: "Home activity summary" })
+      screen.getByRole("region", { name: "Home activity summary" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("Evidence")).not.toBeInTheDocument();
     expect(
-      screen.getAllByTestId("organization-home-categorical-chart")
+      screen.getAllByTestId("organization-home-categorical-chart"),
     ).toHaveLength(5);
     expect(screen.getAllByTestId("mui-bar-chart")).toHaveLength(5);
     expect(barChartProps).toHaveLength(5);
@@ -202,14 +213,14 @@ describe("OrganizationHomeEvidence", () => {
       tabIndex: 0,
     });
     expect(
-      barChartProps[1]?.slotProps?.bar?.({ dataIndex: 0 })?.onKeyDown
+      barChartProps[1]?.slotProps?.bar?.({ dataIndex: 0 })?.onKeyDown,
     ).toEqual(expect.any(Function));
 
     const throughput = screen.getByTestId("organization-home-throughput");
     const updates = screen.getByTestId("organization-home-updates");
     expect(
       throughput.compareDocumentPosition(updates) &
-        Node.DOCUMENT_POSITION_FOLLOWING
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
@@ -223,19 +234,19 @@ describe("OrganizationHomeEvidence", () => {
 
     const control = screen.getByRole("button", { name: "About Task Activity" });
     expect(
-      screen.getByRole("heading", { name: "Task Activity" }).parentElement
+      screen.getByRole("heading", { name: "Task Activity" }).parentElement,
     ).toContainElement(control);
     expect(
-      screen.getByRole("heading", { name: "Task Activity" }).parentElement
+      screen.getByRole("heading", { name: "Task Activity" }).parentElement,
     ).not.toContainElement(
-      screen.getByRole("combobox", { name: "Task Activity time range" })
+      screen.getByRole("combobox", { name: "Task Activity time range" }),
     );
     await user.click(control);
     expect(await screen.findByRole("tooltip")).toHaveTextContent(
-      "Implementation work and its progress"
+      "Implementation work and its progress",
     );
     expect(
-      screen.queryByTestId("organization-home-updates")
+      screen.queryByTestId("organization-home-updates"),
     ).not.toBeInTheDocument();
   });
 
@@ -248,10 +259,10 @@ describe("OrganizationHomeEvidence", () => {
         includeProjectInfo: false,
       });
       expect(
-        screen.queryByTestId("activity-section-info")
+        screen.queryByTestId("activity-section-info"),
       ).not.toBeInTheDocument();
       expect(
-        screen.getByRole("combobox", { name: "Task Activity time range" })
+        screen.getByRole("combobox", { name: "Task Activity time range" }),
       ).toBeInTheDocument();
     } finally {
       canHoverState.value = true;
@@ -263,19 +274,19 @@ describe("OrganizationHomeEvidence", () => {
     const onMetricActivate = vi.fn();
     const data = makeData(1);
     const continuation = data.metrics.find(
-      ({ metric }) => metric === ProjectMetricIdentity.AgentSessionCreated
+      ({ metric }) => metric === ProjectMetricIdentity.AgentSessionCreated,
     )!.activityContinuation;
     renderEvidence({ data, onMetricActivate });
 
     await user.click(
-      screen.getAllByRole("button", { name: "Created: 10" })[0]!
+      screen.getAllByRole("button", { name: "Created: 10" })[0]!,
     );
 
     expect(onMetricActivate).toHaveBeenCalledWith(
       WebPathService.organizationActivity({
         organizationId: ORGANIZATION_ID,
         metricContinuation: continuation,
-      })
+      }),
     );
   });
 
@@ -288,13 +299,13 @@ describe("OrganizationHomeEvidence", () => {
     });
 
     expect(
-      screen.getByTestId("organization-home-evidence-loading")
+      screen.getByTestId("organization-home-evidence-loading"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByTestId("organization-home-throughput")
+      screen.queryByTestId("organization-home-throughput"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId("organization-home-updates")
+      screen.queryByTestId("organization-home-updates"),
     ).not.toBeInTheDocument();
   });
 
@@ -311,10 +322,10 @@ describe("OrganizationHomeEvidence", () => {
 
     renderEvidence({ data: makeData(1), isStale: true });
     expect(
-      screen.getByTestId("organization-home-evidence-stale")
+      screen.getByTestId("organization-home-evidence-stale"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("These rolling metrics are stale.")
+      screen.getByText("These rolling metrics are stale."),
     ).toBeInTheDocument();
   });
 
@@ -324,7 +335,7 @@ describe("OrganizationHomeEvidence", () => {
     renderEvidence({ data });
 
     expect(
-      screen.queryByText("No matching events in this rolling 24-hour window.")
+      screen.queryByText("No matching events in this rolling 24-hour window."),
     ).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /: 0$/ })).toHaveLength(12);
     expect(screen.getByRole("combobox")).toHaveTextContent("Last 24 hours");
@@ -334,10 +345,10 @@ describe("OrganizationHomeEvidence", () => {
     renderEvidence({ includeProjectInfo: false });
 
     expect(
-      screen.getByTestId("organization-home-throughput")
+      screen.getByTestId("organization-home-throughput"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByTestId("organization-home-updates")
+      screen.queryByTestId("organization-home-updates"),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Project Info Updates")).not.toBeInTheDocument();
     expect(screen.getAllByText("Last 24 hours")).toHaveLength(1);

@@ -77,14 +77,14 @@ export function resolutionItems(
         after = records(proposed);
       if (before && now && after) {
         const ids = new Set([...before, ...after].map((record) => record.id));
+        const individualConflicts = conflicts
+          .filter((conflict) => conflict.startsWith(`${path}.records.`))
+          .map((conflict) => conflict.slice(`${path}.records.`.length))
+          .filter((id) => id.length > 0);
         return [...ids]
           .filter((id) => {
-            const requirementPath = `${path}.records.${id}`;
-            const hasIndividualConflicts = conflicts.some((conflict) =>
-              conflict.startsWith(`${path}.records.`),
-            );
-            if (hasIndividualConflicts) {
-              return conflicts.includes(requirementPath);
+            if (individualConflicts.length > 0) {
+              return individualConflicts.includes(id);
             }
             return !isEqual(
               before.find((record) => record.id === id),
