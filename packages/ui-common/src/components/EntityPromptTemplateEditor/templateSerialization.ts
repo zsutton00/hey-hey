@@ -6,7 +6,10 @@ import {
   type LexicalNode,
 } from "lexical";
 import type { EntityPromptTemplateSyntaxVersion } from "../../api";
-import { ENTITY_PROMPT_TEMPLATE_LANGUAGES } from "../../generated/entity-prompt-template-language";
+import {
+  ENTITY_PROMPT_TEMPLATE_LANGUAGES,
+  parseEntityPromptTemplate,
+} from "../../generated/entity-prompt-template-language";
 import { $createTemplateSubstitutionNode } from "./TemplateSubstitutionNode";
 
 export interface TemplateSegment {
@@ -15,35 +18,25 @@ export interface TemplateSegment {
 }
 export function splitTemplateSource(
   content: string,
-  version: EntityPromptTemplateSyntaxVersion
+  version: EntityPromptTemplateSyntaxVersion,
 ): TemplateSegment[] {
-  const { authoring, supportedPaths, pathFamilies } =
-    ENTITY_PROMPT_TEMPLATE_LANGUAGES[version];
-  const { openingDelimiter: open, closingDelimiter: close } = authoring;
+  const { tokens } = parseEntityPromptTemplate(
+    content,
+    ENTITY_PROMPT_TEMPLATE_LANGUAGES[version],
+  );
   const segments: TemplateSegment[] = [];
-  let cursor = 0;
   let literalStart = 0;
-  while (cursor < content.length) {
-    const start = content.indexOf(open, cursor);
-    if (start < 0) break;
-    const end = content.indexOf(close, start + open.length);
-    if (end < 0) break;
-    const path = content.slice(start + open.length, end).trim();
-    const supported =
-      new RegExp(authoring.inputPathPattern, "u").test(path) &&
-      (supportedPaths.includes(path) ||
-        pathFamilies.some((family) =>
-          new RegExp(family.pattern, "u").test(path)
-        ));
-    cursor = end + close.length;
-    if (!supported) continue;
-    if (literalStart < start)
+  for (const token of tokens) {
+    if (literalStart < token.start)
       segments.push({
-        source: content.slice(literalStart, start),
+        source: content.slice(literalStart, token.start),
         substitution: false,
       });
-    segments.push({ source: content.slice(start, cursor), substitution: true });
-    literalStart = cursor;
+    segments.push({
+      source: content.slice(token.start, token.end),
+      substitution: true,
+    });
+    literalStart = token.end;
   }
   if (literalStart < content.length)
     segments.push({ source: content.slice(literalStart), substitution: false });
@@ -51,22 +44,22 @@ export function splitTemplateSource(
 }
 export function $templateNodes(
   content: string,
-  version: EntityPromptTemplateSyntaxVersion
+  version: EntityPromptTemplateSyntaxVersion,
 ): LexicalNode[] {
   return splitTemplateSource(content, version).map((segment) =>
     segment.substitution
       ? $createTemplateSubstitutionNode(segment.source)
-      : $createTextNode(segment.source)
+      : $createTextNode(segment.source),
   );
 }
 export function $loadTemplateSource(
   content: string,
-  version: EntityPromptTemplateSyntaxVersion
+  version: EntityPromptTemplateSyntaxVersion,
 ): void {
   const root = $getRoot();
   root.clear();
   root.append(
-    $createParagraphNode().append(...$templateNodes(content, version))
+    $createParagraphNode().append(...$templateNodes(content, version)),
   );
 }
 export function serializeTemplateSource(state: EditorState): string {

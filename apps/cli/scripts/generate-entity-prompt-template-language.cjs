@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { resolveOpenapiRoot } = require('./openapi-root.cjs');
+const parserSource = require('../../../scripts/entity-prompt-template-parser-source.cjs');
 
 const fixturePath = path.join(
   resolveOpenapiRoot(),
@@ -22,11 +23,13 @@ const runtimeLanguage = {
   missingPathBehavior: fixture.missingPathBehavior,
   malformedSubstitutionBehavior: fixture.malformedSubstitutionBehavior,
   malformedSubstitutions: fixture.malformedSubstitutions,
+  conditionalBlocks: fixture.conditionalBlocks,
 };
 if (
   fixture.syntaxVersion !== 'V1' ||
   fixture.missingPathBehavior !== 'ERROR' ||
   fixture.malformedSubstitutionBehavior !== 'ERROR' ||
+  fixture.conditionalBlocks?.absentValueBehavior !== 'TREAT_AS_FALSE' ||
   !Array.isArray(fixture.supportedPaths) ||
   !Array.isArray(fixture.pathFamilies) ||
   !Array.isArray(fixture.malformedSubstitutions)
@@ -66,10 +69,17 @@ const generated =
   `  readonly missingPathBehavior: 'ERROR';\n` +
   `  readonly malformedSubstitutionBehavior: 'ERROR';\n` +
   `  readonly malformedSubstitutions: readonly string[];\n` +
+  `  readonly conditionalBlocks: {\n` +
+  `    readonly ifKeyword: string;\n` +
+  `    readonly elseKeyword: string;\n` +
+  `    readonly endIfKeyword: string;\n` +
+  `    readonly absentValueBehavior: 'TREAT_AS_FALSE';\n` +
+  `  };\n` +
   `}\n\n` +
   `export const ENTITY_PROMPT_TEMPLATE_LANGUAGES = {\n` +
   `  [EntityPromptTemplateSyntaxVersion.V1]: ${JSON.stringify(runtimeLanguage, null, 2)},\n` +
-  `} as const satisfies Readonly<Record<EntityPromptTemplateSyntaxVersion, EntityPromptTemplateLanguage>>;\n`;
+  `} as const satisfies Readonly<Record<EntityPromptTemplateSyntaxVersion, EntityPromptTemplateLanguage>>;\n\n` +
+  parserSource;
 
 fs.mkdirSync(outputDirectory, { recursive: true });
 fs.writeFileSync(outputPath, generated);

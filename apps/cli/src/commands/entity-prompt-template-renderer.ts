@@ -14,7 +14,9 @@ import type {
 } from '../shared/api/generated/api';
 import {
   ENTITY_PROMPT_TEMPLATE_LANGUAGES,
+  parseEntityPromptTemplate,
   type EntityPromptTemplateLanguage,
+  type EntityPromptTemplateNode,
 } from '../shared/api/generated/entity-prompt-template-language';
 import type { CurrentEntityDto } from '../agents/entity-context/types';
 
@@ -35,8 +37,6 @@ export class EntityPromptTemplateRenderError extends Error {
     this.name = 'EntityPromptTemplateRenderError';
   }
 }
-
-const pathPattern = /^[a-z][A-Za-z0-9_]*(?:\.[a-z][A-Za-z0-9_]*)*$/u;
 
 const structuredTemplatePaths = new Set([
   'entity.sections',
@@ -315,9 +315,7 @@ const projectProposal = (proposal: NonNullable<FullEntityContextDto['proposals']
   targetEntityId: proposal.targetEntityId,
   targetEntityType: proposal.targetEntityType,
   ...(proposal.title === undefined ? {} : { title: proposal.title }),
-  ...(proposal.eli5 !== undefined
-    ? { eli5: proposal.eli5 }
-    : {}),
+  ...(proposal.eli5 !== undefined ? { eli5: proposal.eli5 } : {}),
   ...('updates' in proposal
     ? { updates: canonicalizeProposalUpdates(proposal.updates) }
     : {
@@ -553,24 +551,12 @@ const languageFor = (
   return language;
 };
 
-const isSupportedPath = (path: string, language: EntityPromptTemplateLanguage): boolean =>
-  pathPattern.test(path) &&
-  (language.supportedPaths.includes(path) ||
-    language.pathFamilies.some((family) => new RegExp(family.pattern, 'u').test(path)));
-
 const renderSubstitution = (
   path: string,
   input: EntityPromptTemplateRenderInput,
   language: EntityPromptTemplateLanguage,
   structuredBudget: { remaining: number },
 ): string => {
-  if (!isSupportedPath(path, language)) {
-    throw new EntityPromptTemplateRenderError(
-      `Entity prompt template path "${path}" is not supported.`,
-      'unsupported_path',
-    );
-  }
-
   if (structuredTemplatePaths.has(path)) {
     const collection = projectStructuredCollection(path, input);
     if (collection === null) {
@@ -617,10 +603,43 @@ const renderSubstitution = (
   return String(value);
 };
 
+const isPresent = (path: string, input: EntityPromptTemplateRenderInput): boolean => {
+  if (structuredTemplatePaths.has(path)) {
+    const collection = projectStructuredCollection(path, input);
+    return collection !== null && collection.length > 0;
+  }
+
+  const value = readPath(path, input);
+  return value !== null && String(value) !== '';
+};
+
+const renderNodes = (
+  nodes: readonly EntityPromptTemplateNode[],
+  input: EntityPromptTemplateRenderInput,
+  language: EntityPromptTemplateLanguage,
+  structuredBudget: { remaining: number },
+  chunks: string[],
+): void => {
+  for (const node of nodes) {
+    if (node.type === 'text') {
+      chunks.push(node.value);
+    } else if (node.type === 'substitution') {
+      chunks.push(renderSubstitution(node.path, input, language, structuredBudget));
+    } else {
+      const branch = isPresent(node.path, input) ? node.then : node.else;
+      if (branch) {
+        renderNodes(branch, input, language, structuredBudget, chunks);
+      }
+    }
+  }
+};
+
 /**
  * Render one validated entity prompt template without evaluating code or
  * recursively interpreting substituted values. A preceding backslash escapes
- * a literal `{{...}}` sequence.
+ * a literal `{{...}}` sequence. `{{#if path}}...{{else}}...{{/if}}` renders one
+ * branch by testing whether the value is present; only the taken branch is
+ * rendered.
  */
 export const renderEntityPromptTemplate = (
   template: string,
@@ -635,59 +654,18 @@ export const renderEntityPromptTemplate = (
     );
   }
 
+  const { nodes, issues } = parseEntityPromptTemplate(template, language);
+  const [firstIssue] = issues;
+  if (firstIssue) {
+    throw new EntityPromptTemplateRenderError(
+      firstIssue.message,
+      firstIssue.code === 'UNSUPPORTED_INPUT' ? 'unsupported_path' : 'syntax',
+    );
+  }
+
   const chunks: string[] = [];
   const structuredBudget = { remaining: STRUCTURED_SUBSTITUTION_AGGREGATE_BYTE_LIMIT };
-  let cursor = 0;
-  while (cursor < template.length) {
-    const open = template.indexOf('{{', cursor);
-    const closeWithoutOpen = template.indexOf('}}', cursor);
-    if (open === -1) {
-      if (closeWithoutOpen !== -1) {
-        throw new EntityPromptTemplateRenderError(
-          'Entity prompt template contains an unexpected closing delimiter.',
-          'syntax',
-        );
-      }
-      chunks.push(template.slice(cursor));
-      break;
-    }
-    if (closeWithoutOpen !== -1 && closeWithoutOpen < open) {
-      throw new EntityPromptTemplateRenderError(
-        'Entity prompt template contains an unexpected closing delimiter.',
-        'syntax',
-      );
-    }
-
-    const escaped = open > 0 && template[open - 1] === '\\';
-    chunks.push(template.slice(cursor, escaped ? open - 1 : open));
-    const close = template.indexOf('}}', open + 2);
-    if (close === -1) {
-      throw new EntityPromptTemplateRenderError(
-        'Entity prompt template contains an unterminated substitution.',
-        'syntax',
-      );
-    }
-
-    const expression = template.slice(open + 2, close).trim();
-    if (!expression || expression.includes('{') || expression.includes('}')) {
-      throw new EntityPromptTemplateRenderError(
-        'Entity prompt template contains malformed substitution syntax.',
-        'syntax',
-      );
-    }
-    if (escaped) {
-      if (!isSupportedPath(expression, language)) {
-        throw new EntityPromptTemplateRenderError(
-          `Entity prompt template path "${expression}" is not supported.`,
-          'unsupported_path',
-        );
-      }
-      chunks.push(`{{${expression}}}`);
-    } else {
-      chunks.push(renderSubstitution(expression, input, language, structuredBudget));
-    }
-    cursor = close + 2;
-  }
+  renderNodes(nodes, input, language, structuredBudget, chunks);
 
   return chunks.join('');
 };

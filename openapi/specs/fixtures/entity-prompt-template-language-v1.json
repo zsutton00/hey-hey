@@ -42,6 +42,12 @@
     "{{}}",
     "{{entity.{name}}}"
   ],
+  "conditionalBlocks": {
+    "ifKeyword": "#if",
+    "elseKeyword": "else",
+    "endIfKeyword": "/if",
+    "absentValueBehavior": "TREAT_AS_FALSE"
+  },
   "authoring": {
     "openingDelimiter": "{{",
     "closingDelimiter": "}}",
@@ -146,6 +152,20 @@
         "template": "context.content.sections.<key>",
         "pattern": "^context\\.content\\.sections\\.[a-z][A-Za-z0-9_]*$",
         "description": "A named section in the context content. Replace <key> with a concrete section key; the family itself is not insertable."
+      }
+    ],
+    "conditionalBlocks": [
+      {
+        "syntax": "{{#if path}}",
+        "description": "Start a block that renders only when the value at path is present (exists and is not an empty string, list or object)."
+      },
+      {
+        "syntax": "{{else}}",
+        "description": "Optional. Content rendered when the enclosing if block does not render."
+      },
+      {
+        "syntax": "{{/if}}",
+        "description": "End the enclosing if block. Blocks may nest."
       }
     ]
   }

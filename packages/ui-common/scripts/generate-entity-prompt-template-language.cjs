@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const yaml = require("js-yaml");
+const parserSource = require("../../../scripts/entity-prompt-template-parser-source.cjs");
 const { resolveOpenapiRoot } = require("../../../scripts/openapi-source.cjs");
 
 const outputPath = path.resolve(
@@ -168,6 +169,7 @@ function normalizeLanguages(source) {
     languages[syntaxVersion] = {
       supportedPaths,
       authoring: entry.authoring,
+      conditionalBlocks: entry.conditionalBlocks,
       pathFamilies: rawPathFamilies.map((family, index) =>
         normalizePathFamily(family, index, syntaxVersion),
       ),
@@ -199,6 +201,12 @@ function render(languages, fixturePath) {
     "",
     "export interface EntityPromptTemplateLanguageMetadata {",
     "  readonly authoring: EntityPromptTemplateAuthoringMetadataDto;",
+    "  readonly conditionalBlocks: {",
+    "    readonly ifKeyword: string;",
+    "    readonly elseKeyword: string;",
+    "    readonly endIfKeyword: string;",
+    '    readonly absentValueBehavior: "TREAT_AS_FALSE";',
+    "  };",
     "  readonly supportedPaths: readonly string[];",
     "  readonly pathFamilies: readonly EntityPromptTemplatePathFamilyMetadata[];",
     "}",
@@ -209,6 +217,7 @@ function render(languages, fixturePath) {
     "  EntityPromptTemplateLanguageMetadata",
     ">;",
     "",
+    parserSource,
   ].join("\n");
 }
 

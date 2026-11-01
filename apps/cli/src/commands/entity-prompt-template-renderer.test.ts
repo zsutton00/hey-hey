@@ -532,4 +532,147 @@ describe('renderEntityPromptTemplate', () => {
       ),
     ).toThrow(/syntax version "V2" is not supported/);
   });
+
+  describe('conditional blocks', () => {
+    const render = (template: string, renderInput = input()): string =>
+      renderEntityPromptTemplate(template, EntityPromptTemplateSyntaxVersion.V1, renderInput);
+
+    it('renders a block only when the value is present, and else exactly when it is not', () => {
+      expect(render('[{{#if entity.name}}yes{{/if}}]')).toBe('[yes]');
+      expect(render('[{{#if entity.name}}yes{{else}}no{{/if}}]')).toBe('[yes]');
+      expect(render('[{{#if entity.outcome}}yes{{/if}}]')).toBe('[]');
+      expect(render('[{{#if entity.outcome}}yes{{else}}no{{/if}}]')).toBe('[no]');
+    });
+
+    it('treats empty strings, lists and objects as absent without erroring', () => {
+      const empty = input();
+      empty.context = {
+        ...empty.context,
+        relatedEntities: [],
+        proposals: [],
+        content: { sections: { description: '' } },
+      };
+      const template = (path: string): string => `{{#if ${path}}}yes{{else}}no{{/if}}`;
+
+      expect(render(template('context.relatedEntities'), empty)).toBe('no');
+      expect(render(template('context.proposals'), empty)).toBe('no');
+      expect(render(template('context.content.sections.description'), empty)).toBe('no');
+      expect(render(template('context.content.sections.missing'), empty)).toBe('no');
+      expect(render(template('context.agentSessions'), input())).toBe('yes');
+    });
+
+    it('renders nested blocks and keeps surrounding whitespace as written', () => {
+      const template = 'A\n{{#if entity.name}}\nB{{#if entity.outcome}}X{{else}}Y{{/if}}\n{{/if}}C';
+
+      expect(render(template)).toBe('A\n\nBY\nC');
+    });
+
+    it('drops padding inside an escaped substitution exactly as before', () => {
+      expect(render('\\{{ entity.name }}')).toBe('{{entity.name}}');
+    });
+
+    describe('a realistic multi-paragraph template', () => {
+      const template = [
+        '# {{entity.name}} ({{entity.status}})',
+        '',
+        '{{#if entity.sections.description}}',
+        '## Description',
+        '{{entity.sections.description}}',
+        '{{else}}',
+        'No description has been written yet.',
+        '{{/if}}',
+        '',
+        '{{#if entity.sections.acceptanceCriteria}}',
+        '## Acceptance criteria',
+        '{{entity.sections.acceptanceCriteria}}',
+        '{{/if}}',
+        '',
+        '{{#if context.relatedEntities}}',
+        '## Related work',
+        '{{#if context.proposals}}',
+        'Proposals have been recorded; review them before changing scope.',
+        '{{else}}',
+        'No proposals have been recorded.',
+        '{{/if}}',
+        '{{else}}',
+        'This item is not connected to any other work.',
+        '{{/if}}',
+        '',
+        'Escape hatch: \\{{ entity.name }} is printed literally.',
+      ].join('\n');
+
+      it('includes every optional section when the context is populated', () => {
+        const populated = input();
+        populated.entity = { ...entity(), name: 'Add conditional blocks' };
+
+        expect(render(template, populated)).toBe(
+          [
+            '# Add conditional blocks (ACTIVE)',
+            '',
+            '',
+            '## Description',
+            'Authoritative description {{literal}}',
+            '',
+            '',
+            '',
+            '## Acceptance criteria',
+            'Acceptance $& \\{{literal}}',
+            '',
+            '',
+            '',
+            '## Related work',
+            '',
+            'Proposals have been recorded; review them before changing scope.',
+            '',
+            '',
+            '',
+            'Escape hatch: {{entity.name}} is printed literally.',
+          ].join('\n'),
+        );
+      });
+
+      it('falls back or omits sections when the values are absent or empty', () => {
+        const sparse = input();
+        sparse.entity = { ...entity(), name: 'Add conditional blocks', sections: [] };
+        sparse.context = { ...context(), relatedEntities: [], proposals: [] };
+
+        expect(render(template, sparse)).toBe(
+          [
+            '# Add conditional blocks (ACTIVE)',
+            '',
+            '',
+            'No description has been written yet.',
+            '',
+            '',
+            '',
+            '',
+            '',
+            'This item is not connected to any other work.',
+            '',
+            '',
+            'Escape hatch: {{entity.name}} is printed literally.',
+          ].join('\n'),
+        );
+      });
+    });
+
+    it('only evaluates the branch taken', () => {
+      expect(render('{{#if entity.outcome}}{{entity.outcome}}{{else}}none{{/if}}')).toBe('none');
+      expect(render('{{#if entity.name}}ok{{else}}{{entity.outcome}}{{/if}}')).toBe('ok');
+    });
+
+    it('still fails for plain substitution of a missing path and unsupported condition paths', () => {
+      expect(() => render('{{entity.outcome}}')).toThrow(/missing/);
+      expect(() => render('{{#if entity.nope}}x{{/if}}')).toThrow(/not supported/);
+    });
+
+    it.each([
+      '{{#if entity.name}}x',
+      '{{else}}',
+      '{{/if}}',
+      '{{#if entity.name}}{{else}}{{else}}{{/if}}',
+    ])('rejects unbalanced block syntax %j', (template) => {
+      expect(() => render(template)).toThrow(EntityPromptTemplateRenderError);
+    });
+  });
 });

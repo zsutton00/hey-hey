@@ -45,7 +45,7 @@ export interface EntityPromptTemplateOverrideEditorProps {
   onReviseRejected: (content: string) => void;
   onPendingOperationChange: (
     proposalId: string,
-    operation: EntityPromptTemplatePendingOperation | null
+    operation: EntityPromptTemplatePendingOperation | null,
   ) => void;
   onProposalCreated?: (proposal: ProposalResponseDto) => void;
 }
@@ -62,7 +62,7 @@ const formatLifecycleLabel = (state: string): string =>
   state.charAt(0) + state.slice(1).toLowerCase();
 
 const renderTemplateLanguageHelp = (
-  metadata: ReturnType<typeof getEntityPromptTemplateCompositionMetadata>
+  metadata: ReturnType<typeof getEntityPromptTemplateCompositionMetadata>,
 ): React.ReactNode => (
   <Paper
     data-testid="entity-prompt-template-language-help"
@@ -95,10 +95,25 @@ const renderTemplateLanguageHelp = (
         <Box component="ul" sx={{ m: 0, pl: 3, overflowWrap: "anywhere" }}>
           {metadata.templateLanguage.authoring.pathFamilies.map((family) => (
             <Typography component="li" variant="body2" key={family.template}>
-              <Box component="code">{family.template}</Box> — {family.description} Pattern{" "}
+              <Box component="code">{family.template}</Box> —{" "}
+              {family.description} Pattern{" "}
               <Box component="code">{family.pattern}</Box>
             </Typography>
           ))}
+        </Box>
+      </Box>
+      <Box>
+        <Typography variant="body2" fontWeight="fontWeightMedium">
+          Conditional blocks
+        </Typography>
+        <Box component="ul" sx={{ m: 0, pl: 3, overflowWrap: "anywhere" }}>
+          {metadata.templateLanguage.authoring.conditionalBlocks.map(
+            (block) => (
+              <Typography component="li" variant="body2" key={block.syntax}>
+                <Box component="code">{block.syntax}</Box> — {block.description}
+              </Typography>
+            ),
+          )}
         </Box>
       </Box>
     </Stack>
@@ -247,7 +262,7 @@ export const EntityPromptTemplateOverrideEditor: React.FC<
   onProposalCreated,
 }) => {
   const [content, setContent] = useState(
-    rejectedContent ?? template.effective.content
+    rejectedContent ?? template.effective.content,
   );
   const [eli5, setEli5] = useState("");
   const [isEditing, setIsEditing] = useState(rejectedContent !== undefined);
@@ -257,15 +272,18 @@ export const EntityPromptTemplateOverrideEditor: React.FC<
   const submissionLock = useRef(false);
   const createProposal = useCreateEntityPromptTemplateChangeProposal();
   const compositionMetadata = getEntityPromptTemplateCompositionMetadata(
-    template.effective
+    template.effective,
   );
 
   const validation = useEntityPromptTemplateDraftValidation(
     { organizationId, projectId, templateKey: template.templateKey },
     isEditing ? { selector, syntaxVersion, content } : null,
   );
-  const canSave = eli5.trim().length > 0 && validation.status === "valid" &&
-    validation.source.content === content && validation.source.syntaxVersion === syntaxVersion;
+  const canSave =
+    eli5.trim().length > 0 &&
+    validation.status === "valid" &&
+    validation.source.content === content &&
+    validation.source.syntaxVersion === syntaxVersion;
 
   useEffect(() => {
     setContent(template.effective.content);
@@ -286,9 +304,7 @@ export const EntityPromptTemplateOverrideEditor: React.FC<
     setError(null);
   }, [rejectedContent]);
 
-  const handleContentChange = (
-    content: string
-  ): void => {
+  const handleContentChange = (content: string): void => {
     setContent(content);
     setSuccessMessage(null);
     setError(null);
@@ -352,7 +368,7 @@ export const EntityPromptTemplateOverrideEditor: React.FC<
           onProposalCreated?.(proposal);
           setIsEditing(false);
           setSuccessMessage(
-            "Change proposal created. The effective template will change only after approval."
+            "Change proposal created. The effective template will change only after approval.",
           );
         })
         .catch((caughtError: unknown) => {

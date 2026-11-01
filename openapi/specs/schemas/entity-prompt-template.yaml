@@ -62,11 +62,46 @@ EntityPromptTemplateAuthoringFamilyDto:
     description:
       type: string
 
+EntityPromptTemplateAuthoringBlockDto:
+  type: object
+  additionalProperties: false
+  required: [syntax, description]
+  properties:
+    syntax:
+      type: string
+    description:
+      type: string
+
+EntityPromptTemplateConditionalBlocksDto:
+  type: object
+  additionalProperties: false
+  required: [ifKeyword, elseKeyword, endIfKeyword, absentValueBehavior]
+  properties:
+    ifKeyword:
+      type: string
+    elseKeyword:
+      type: string
+    endIfKeyword:
+      type: string
+    absentValueBehavior:
+      type: string
+      enum: [TREAT_AS_FALSE]
+      description: >-
+        A condition on a supported value that is absent or empty (empty
+        string, list or object) is false instead of failing. Unsupported paths
+        in a condition remain errors.
+  description: Bounded presence-test blocks; not an expression language.
+
 EntityPromptTemplateAuthoringMetadataDto:
   type: object
   additionalProperties: false
-  required: [openingDelimiter, closingDelimiter, inputPathPattern, paths, pathFamilies]
+  required: [openingDelimiter, closingDelimiter, inputPathPattern, paths, pathFamilies, conditionalBlocks]
   properties:
+    conditionalBlocks:
+      type: array
+      items:
+        $ref: '#/EntityPromptTemplateAuthoringBlockDto'
+      description: Conditional block tags with editor help text.
     openingDelimiter:
       type: string
     closingDelimiter:
@@ -118,8 +153,11 @@ EntityPromptTemplateLanguageDto:
     - missingPathBehavior
     - malformedSubstitutionBehavior
     - malformedSubstitutions
+    - conditionalBlocks
     - authoring
   properties:
+    conditionalBlocks:
+      $ref: '#/EntityPromptTemplateConditionalBlocksDto'
     authoring:
       $ref: '#/EntityPromptTemplateAuthoringMetadataDto'
     syntaxVersion:

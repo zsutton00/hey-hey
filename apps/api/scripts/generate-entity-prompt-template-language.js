@@ -1,4 +1,5 @@
 const fs = require('fs');
+const parserSource = require('../../../scripts/entity-prompt-template-parser-source.cjs');
 const path = require('path');
 const { resolveOpenapiRoot } = require('./openapi-root');
 const { resolveGeneratedRoot } = require('./generated-root');
@@ -17,6 +18,7 @@ const outputPath = path.join(
 const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
 const expectedKeys = [
   'authoring',
+  'conditionalBlocks',
   'malformedSubstitutionBehavior',
   'malformedSubstitutions',
   'missingPathBehavior',
@@ -34,6 +36,7 @@ if (
   fixture.syntaxVersion !== 'V1' ||
   fixture.missingPathBehavior !== 'ERROR' ||
   fixture.malformedSubstitutionBehavior !== 'ERROR' ||
+  fixture.conditionalBlocks?.absentValueBehavior !== 'TREAT_AS_FALSE' ||
   !Array.isArray(fixture.supportedPaths) ||
   !Array.isArray(fixture.pathFamilies) ||
   !Array.isArray(fixture.malformedSubstitutions)
@@ -58,7 +61,9 @@ for (const requiredPath of requiredStructuredPaths) {
   }
 }
 if (new Set(fixture.supportedPaths).size !== fixture.supportedPaths.length) {
-  throw new Error('Entity prompt-template V1 fixture contains duplicate paths.');
+  throw new Error(
+    'Entity prompt-template V1 fixture contains duplicate paths.',
+  );
 }
 
 const generated =
@@ -69,6 +74,7 @@ const generated =
   `  readonly pattern: string;\n` +
   `}\n\n` +
   `import type { EntityPromptTemplateAuthoringMetadataDto } from './model/entityPromptTemplateAuthoringMetadataDto';\n` +
+  `import type { EntityPromptTemplateConditionalBlocksDto } from './model/entityPromptTemplateConditionalBlocksDto';\n` +
   `export interface EntityPromptTemplateLanguage {\n` +
   `  readonly authoring: EntityPromptTemplateAuthoringMetadataDto;\n` +
   `  readonly syntaxVersion: EntityPromptTemplateSyntaxVersion;\n` +
@@ -77,9 +83,11 @@ const generated =
   `  readonly missingPathBehavior: 'ERROR';\n` +
   `  readonly malformedSubstitutionBehavior: 'ERROR';\n` +
   `  readonly malformedSubstitutions: readonly string[];\n` +
+  `  readonly conditionalBlocks: EntityPromptTemplateConditionalBlocksDto;\n` +
   `}\n\n` +
   `export const ENTITY_PROMPT_TEMPLATE_LANGUAGES = {\n` +
   `  [EntityPromptTemplateSyntaxVersion.V1]: ${JSON.stringify(fixture, null, 2)},\n` +
-  `} satisfies Readonly<Record<EntityPromptTemplateSyntaxVersion, EntityPromptTemplateLanguage>>;\n`;
+  `} satisfies Readonly<Record<EntityPromptTemplateSyntaxVersion, EntityPromptTemplateLanguage>>;\n\n` +
+  parserSource;
 
 fs.writeFileSync(outputPath, generated);
