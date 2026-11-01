@@ -1,16 +1,18 @@
 import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
-import type {
-  ProjectReportEvidenceReference,
-  ProjectReportScope,
-  ProjectReportSubject,
-} from '../../shared/api/generated/api';
+import type { ProjectReportScope, ProjectReportSubject } from '../../shared/api/generated/api';
 import { PROJECT_REPORT_SECTION_MCP_TOOLS } from '../mcp-server-config';
 import type { PromptTypeHandler } from '../prompt-type-handler';
-import type { ProjectReportSubjectDigest } from './project-report-evidence-reader';
+import { READ_EVIDENCE_SHARD_TOOL_NAME } from '../submission-tools/read-evidence-shard-tool';
+import type { ProjectReportShardEntry } from './project-report-evidence-store';
 import type { ProjectReportGroupKind } from './project-report-grouping';
 import { buildProjectReportSectionPrompt } from './project-report-section-prompt';
 
 export const PROJECT_REPORT_SECTION_HANDLER_ID = 'project_report_section';
+
+/** One shard a section child must read, and the pages of it still unread. */
+export interface ProjectReportSectionShard extends ProjectReportShardEntry {
+  pagesToRead: number[];
+}
 
 export interface ProjectReportSectionPayload {
   request: {
@@ -19,56 +21,16 @@ export interface ProjectReportSectionPayload {
     exclusions: ProjectReportSubject[];
   };
   group: { key: string; kind: ProjectReportGroupKind; title: string };
-  subjects: ProjectReportSubjectDigest[];
-  /** Only the references for this group's subjects. */
-  evidenceReferences: ProjectReportEvidenceReference[];
+  shards: ProjectReportSectionShard[];
   toolCallBudget: number;
 }
 
-/** A group the host summarised through its own section child. */
-export interface ProjectReportSection {
-  groupKey: string;
-  kind: ProjectReportGroupKind;
-  title: string;
-  subjectCount: number;
-  html: string;
-  citedEvidenceKeys: string[];
-}
-
-/** A group listed in one line instead of a section, with why. */
-export interface ProjectReportMention {
-  groupKey: string;
-  kind: ProjectReportGroupKind;
-  title: string;
-  subjectCount: number;
-  changeCount: number;
-  reason: 'OUTSIDE_BUDGET' | 'BUDGET_EXHAUSTED' | 'FAILED' | 'PROVIDER_UNSUPPORTED';
-}
-
 /**
- * Reads the single <section> fragment a child returns. Citations are kept only
- * when they name a key the host supplied for this group.
- */
-export const parseProjectReportSectionOutput = (
-  outputText: string | undefined,
-  allowedEvidenceKeys: ReadonlySet<string>,
-): { html: string; citedEvidenceKeys: string[] } | null => {
-  const text = outputText ?? '';
-  const start = text.search(/<section[\s>]/iu);
-  const end = text.toLowerCase().lastIndexOf('</section>');
-  if (start < 0 || end < start) return null;
-  const html = text.slice(start, end + '</section>'.length);
-  const cited = new Set<string>();
-  for (const [, key] of html.matchAll(/data-evidence-key="([^"]+)"/gu)) {
-    if (key !== undefined && allowedEvidenceKeys.has(key)) cited.add(key);
-  }
-  return { html, citedEvidenceKeys: [...cited] };
-};
-
-/**
- * Child-only handler that summarises one work group for a project report.
- * Read-only graph tools, no submission tools, no built-ins, read-only sandbox:
- * it returns a section to the parent report agent, never a report.
+ * Child-only handler that reads one work group's evidence shards and returns
+ * dated findings per subject to the parent report agent.
+ *
+ * Read-only graph tools, no built-ins, read-only sandbox, and one submission
+ * tool: `read_evidence_shard`. It never submits or creates anything.
  */
 export const projectReportSectionHandler: PromptTypeHandler<ProjectReportSectionPayload> = {
   id: PROJECT_REPORT_SECTION_HANDLER_ID,
@@ -84,7 +46,8 @@ export const projectReportSectionHandler: PromptTypeHandler<ProjectReportSection
     adapterId: 'project-report-section-subagent',
     mcpAllowedTools: PROJECT_REPORT_SECTION_MCP_TOOLS,
     builtinAllowedTools: [],
-    submissionTools: 'none',
+    submissionTools: 'run-registered',
+    submissionToolNames: [READ_EVIDENCE_SHARD_TOOL_NAME],
     codexSandboxMode: 'read-only',
     includePriorReports: false,
   },

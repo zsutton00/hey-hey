@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AgenticSession } from '../../session/types';
 import {
   AgentSessionConfigProjectReportV1TypeEnum,
@@ -20,8 +23,19 @@ import {
   createPromptTypeHandlerTestDeps,
 } from '../prompt-type-handler.test-support';
 import type { RegisteredChildLaunchRequest } from '../../run/child-agent-launcher';
+import type { Run } from '../../run/run';
 import type { SubAgentResult } from '../../run/subagent';
+import { MAX_PROMPT_BYTES } from '../../run-store/durable-events';
+import { NOOP_LOGGER } from '../../server/logger';
+import type { CreateReportProxy } from '../submission-tools/create-report-proxy';
+import { CreateReportTool } from '../submission-tools/create-report-tool';
+import { ReadEvidenceShardTool } from '../submission-tools/read-evidence-shard-tool';
+import { SubmissionToolCorrectableError } from '../submission-tools/types';
 import { projectReportHandler } from './project-report.handler';
+import {
+  projectReportEvidenceLedgers,
+  type ProjectReportEvidenceLedger,
+} from './project-report-evidence-store';
 import {
   projectReportSectionHandler,
   type ProjectReportSectionPayload,
@@ -190,6 +204,7 @@ const makeFetch = (
     withPreset?: boolean;
     provider?: ProjectReportProvider;
     placementFor?: (entityId: string) => Placement;
+    newestFirst?: boolean;
   } = {},
 ) => {
   let contextBatchOffset = 0;
@@ -204,11 +219,14 @@ const makeFetch = (
         if (options.pageFailureOffset === offset) {
           return new Response('unavailable', { status: 503 });
         }
+        const [first, second] = options.newestFirst
+          ? ['2026-09-04T12:00:00.000Z', '2026-09-03T12:00:00.000Z']
+          : ['2026-09-03T12:00:00.000Z', '2026-09-04T12:00:00.000Z'];
         return new Response(
           apiResponseBody(
             offset === 0
-              ? activityPage([activityRecord('2026-09-03T12:00:00.000Z')], 1)
-              : activityPage([activityRecord('2026-09-04T12:00:00.000Z')]),
+              ? activityPage([activityRecord(first!)], 1)
+              : activityPage([activityRecord(second!)]),
           ),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         );
@@ -250,19 +268,46 @@ const makeFetch = (
   return { fetchImpl, calls };
 };
 
-const sectionHtml = (payload: ProjectReportSectionPayload) =>
-  `<section><h2>${payload.group.title}</h2><p><span data-evidence-key="${payload.evidenceReferences[0]!.key}">Moved forward</span> <span data-evidence-key="invented-key">x</span></p></section>`;
+const tempDirectories: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(
+    tempDirectories
+      .splice(0)
+      .map((directory) => fs.rm(directory, { recursive: true, force: true })),
+  );
+});
+
+const ledgerOf = (): ProjectReportEvidenceLedger => {
+  const ledger = projectReportEvidenceLedgers.get(RUN_ID);
+  if (!ledger) throw new Error('Expected prepare to register an evidence ledger');
+  return ledger;
+};
+
+/** What a section child does through read_evidence_shard: read every page it is assigned. */
+const readAssignedPages = async (payload: ProjectReportSectionPayload): Promise<void> => {
+  for (const shard of payload.shards) {
+    for (const page of shard.pagesToRead) {
+      await ledgerOf().readPage(shard.id, page);
+    }
+  }
+};
+
+const readingChild = async (payload: ProjectReportSectionPayload): Promise<SubAgentResult> => {
+  await readAssignedPages(payload);
+  return {
+    assistantCompleted: true,
+    usage: {},
+    outputText: `- ${payload.group.title}: moved forward (selected-period-1)`,
+  };
+};
 
 const makeDeps = (
   fetchImpl: typeof fetch,
   launch: (
     payload: ProjectReportSectionPayload,
     request: RegisteredChildLaunchRequest,
-  ) => Promise<SubAgentResult> = async (payload) => ({
-    assistantCompleted: true,
-    usage: {},
-    outputText: `Here is the section.\n${sectionHtml(payload)}`,
-  }),
+  ) => Promise<SubAgentResult> = readingChild,
 ) => {
   const launchRegistered = vi.fn(
     async (_handlerId: string, request: RegisteredChildLaunchRequest) =>
@@ -276,6 +321,101 @@ const makeDeps = (
   });
   return Object.assign(deps, { launchRegistered });
 };
+
+const prepare = async (
+  session: AgenticSession,
+  deps: ReturnType<typeof makeDeps>,
+): ReturnType<NonNullable<typeof projectReportHandler.prepare>> => {
+  const runEvidenceDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'project-report-test-'));
+  tempDirectories.push(runEvidenceDirectory);
+  return projectReportHandler.prepare!(session, payload, deps, {
+    runId: RUN_ID,
+    logger: NOOP_LOGGER,
+    recentUserReplies: [],
+    triggerParentMessageId: null,
+    runEvidenceDirectory,
+  });
+};
+
+/** Every line of every shard, in manifest order, through the same reads an agent makes. */
+const readAllShardLines = async (): Promise<Array<Record<string, unknown>>> => {
+  const ledger = ledgerOf();
+  const lines: Array<Record<string, unknown>> = [];
+  for (const shard of ledger.manifest.shards) {
+    for (let page = 1; page <= shard.pageCount; page += 1) {
+      const result = await ledger.readPage(shard.id, page);
+      lines.push(
+        ...result.text.split('\n').map((line) => JSON.parse(line) as Record<string, unknown>),
+      );
+    }
+  }
+  return lines;
+};
+
+/** `subjects` subjects with `perSubject` activities each, newest records first as the API orders them. */
+const denseFetch = (
+  subjects: number,
+  perSubject: number,
+  options: Parameters<typeof makeFetch>[0] = {},
+): typeof fetch => {
+  const base = makeFetch(options);
+  const total = subjects * perSubject;
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (!url.includes('/project-report-requests/' + REQUEST_ID + '/activity')) {
+      return base.fetchImpl(input, init);
+    }
+    const offset = Number(new URL(url).searchParams.get('offset'));
+    const records = Array.from({ length: Math.min(50, total - offset) }, (_, index) => {
+      const position = offset + index;
+      const day = String(1 + (position % 7)).padStart(2, '0');
+      return {
+        ...activityRecord(`2026-09-${day}T12:00:00.000Z`),
+        entityId: uuid((position % subjects) + 1),
+        title: `Subject ${(position % subjects) + 1} change ${position}`,
+      };
+    });
+    const nextOffset = offset + records.length;
+    return new Response(
+      apiResponseBody({
+        requestId: REQUEST_ID,
+        attemptId: ATTEMPT_ID,
+        records,
+        total,
+        ...(nextOffset < total ? { nextOffset } : {}),
+        queriedAt: '2026-09-08T00:01:00.000Z',
+      }),
+      { status: 200 },
+    );
+  }) as typeof fetch;
+};
+
+const submissionArgs = (coverage: Record<string, unknown>) => ({
+  reportType: 'PROJECT_REPORT',
+  audience: 'PROJECT_VISIBLE',
+  payload: {
+    reportType: 'PROJECT_REPORT',
+    title: 'Project activity',
+    summary: 'A short evidence-backed summary.',
+    question: 'Which work moved forward and what remains at risk?',
+    scope: {
+      projectId: PROJECT_ID,
+      windowStart: '2026-09-01T00:00:00.000Z',
+      windowEnd: '2026-09-08T00:00:00.000Z',
+      timeZone: 'America/Los_Angeles',
+    },
+    exclusions: [],
+    provenance: {
+      requestId: REQUEST_ID,
+      attemptId: ATTEMPT_ID,
+      evidenceReadStartedAt: '2026-09-08T00:00:00.000Z',
+      evidenceReadCompletedAt: '2026-09-08T00:01:00.000Z',
+      evidence: [],
+    },
+    coverage,
+    body: { html: '<main>Report</main>', css: '' },
+  },
+});
 
 /** An activity page with one change on each of `count` distinct subjects. */
 const manySubjectsFetch = (
@@ -310,7 +450,7 @@ const manySubjectsFetch = (
 };
 
 describe('projectReportHandler', () => {
-  it('runs fresh with no repository, built-in, or platform graph tools and requires a visible Project Report', () => {
+  it('runs fresh with no built-in tools, reads evidence only through the host tool, and requires a visible Project Report', () => {
     expect(projectReportHandler).toMatchObject({
       id: 'project_report',
       promptType: LocalPromptType.ProjectReport,
@@ -318,18 +458,18 @@ describe('projectReportHandler', () => {
       providerSessionStart: 'fresh',
       readOnlyFilesystem: true,
       builtinTools: [],
+      runEvidenceDirectory: true,
       mcpToolUseCase: 'project_report',
       reports: [{ reportType: 'PROJECT_REPORT', audience: 'PROJECT_VISIBLE', required: true }],
     });
+    expect(projectReportHandler.submissionTools?.map(({ name }) => name)).toEqual([
+      'read_evidence_shard',
+    ]);
   });
 
-  it('reads the request and every authorized activity page, then supplies separate current-state context', async () => {
-    const { fetchImpl, calls } = makeFetch();
-    const prepared = await projectReportHandler.prepare!(
-      makeSession(),
-      payload,
-      makeDeps(fetchImpl),
-    );
+  it('reads the request and every authorized activity page, then writes current-state context and activity to shards', async () => {
+    const { fetchImpl, calls } = makeFetch({ newestFirst: true });
+    const prepared = await prepare(makeSession(), makeDeps(fetchImpl));
 
     expect(calls).toHaveLength(4);
     expect(calls.map(({ url }) => url)).toEqual(
@@ -359,73 +499,68 @@ describe('projectReportHandler', () => {
       promptType: LocalPromptType.ProjectReport,
       request: { requestId: REQUEST_ID, attemptId: ATTEMPT_ID, projectId: PROJECT_ID },
     });
-    expect(prepared.payload).toMatchObject({
-      request: { requestId: REQUEST_ID, attemptId: ATTEMPT_ID, projectId: PROJECT_ID },
-      _projectReport: {
-        request: {
-          submission: {
-            question: 'Which work moved forward and what remains at risk?',
-            preset: { key: 'weekly-review' },
-            exclusions: [{ entityType: 'TASK', entityId: EXCLUDED_SUBJECT_ID }],
-          },
-        },
-        evidence: {
-          subjects: [
-            {
-              subject: { entityType: 'TASK', entityId: SUBJECT_ID },
-              title: 'Improve report evidence',
-              currentStatus: 'ACTIVE',
-              activity: [
-                {
-                  activityType: ActivityCorrelationActivityType.Unblocked,
-                  source: ActivityCorrelationSource.TaskRelationship,
-                  count: 2,
-                  firstOccurredAt: '2026-09-03T12:00:00.000Z',
-                  lastOccurredAt: '2026-09-04T12:00:00.000Z',
-                },
-              ],
-              latestActivityEvidenceKey: 'selected-period-1',
-              currentStateEvidenceKey: `current-state-TASK-${SUBJECT_ID}`,
-              placement: { features: [FEATURE] },
-            },
-          ],
-          evidenceReferences: [
-            {
-              key: 'selected-period-1',
-              kind: 'SELECTED_PERIOD',
-              occurredAt: '2026-09-04T12:00:00.000Z',
-            },
-            { key: `current-state-TASK-${SUBJECT_ID}`, kind: 'CURRENT_STATE_CONTEXT' },
-          ],
-          coverage: {
-            status: 'COMPLETE',
-            matchingActivityCount: 2,
-            processedActivityCount: 2,
-            pagesRead: 2,
-            limitations: [],
-          },
-        },
-        sections: [
-          {
-            title: 'Project Reports',
-            subjectCount: 1,
-            citedEvidenceKeys: ['selected-period-1'],
-          },
-        ],
-        mentions: [],
-      },
+
+    const report = prepared.payload._projectReport!;
+    expect(report.request.submission).toMatchObject({
+      question: 'Which work moved forward and what remains at risk?',
+      preset: { key: 'weekly-review' },
+      exclusions: [{ entityType: 'TASK', entityId: EXCLUDED_SUBJECT_ID }],
     });
-    expect(
-      prepared.payload._projectReport?.sections[0]?.html.startsWith('<section><h2>Project Reports'),
-    ).toBe(true);
+    expect(report.evidence.coverage).toEqual({
+      status: 'COMPLETE',
+      matchingActivityCount: 2,
+      processedActivityCount: 2,
+      pagesRead: 2,
+      limitations: [],
+    });
+    expect(report.evidence).not.toHaveProperty('subjects');
+    expect(report.evidence.manifest).toMatchObject({
+      totalRecordCount: 3,
+      totalActivityCount: 2,
+      shards: [
+        {
+          id: 'shard-0001',
+          groupTitle: 'Project Reports',
+          subjectCount: 1,
+          recordCount: 3,
+          activityCount: 2,
+        },
+      ],
+    });
+
+    // One subject opens with its current state, then every activity, oldest first.
+    const lines = await readAllShardLines();
+    expect(lines).toMatchObject([
+      {
+        kind: 'CURRENT_STATE_CONTEXT',
+        subject: { entityType: 'TASK', entityId: SUBJECT_ID },
+        currentStatus: 'ACTIVE',
+        placement: { features: [FEATURE] },
+        evidenceReferences: [
+          { key: 'selected-period-1', kind: 'SELECTED_PERIOD' },
+          { key: `current-state-TASK-${SUBJECT_ID}`, kind: 'CURRENT_STATE_CONTEXT' },
+        ],
+      },
+      { kind: 'SELECTED_PERIOD', timestamp: '2026-09-03T12:00:00.000Z' },
+      { kind: 'SELECTED_PERIOD', timestamp: '2026-09-04T12:00:00.000Z' },
+    ]);
+    expect(parseProjectReportPreparedEvidence(prepared.sessionContext)).toEqual({
+      requestId: REQUEST_ID,
+      attemptId: ATTEMPT_ID,
+      evidenceReadStartedAt: report.evidence.evidenceReadStartedAt,
+      evidenceReadCompletedAt: report.evidence.evidenceReadCompletedAt,
+      coverage: report.evidence.coverage,
+    });
   });
 
-  it('builds a stable question-shaped prompt with optional preset guidance and typed isolated submission', async () => {
+  it('builds a stable question-shaped prompt that carries the request, totals and manifest, never the evidence', async () => {
     const { fetchImpl } = makeFetch();
-    const prepared = await projectReportHandler.prepare!(
+    const prepared = await prepare(
       makeSession(),
-      payload,
-      makeDeps(fetchImpl),
+      makeDeps(fetchImpl, async (sectionPayload) => {
+        await readAssignedPages(sectionPayload);
+        return { assistantCompleted: true, usage: {}, outputText: 'Moved forward.' };
+      }),
     );
     const prompt = projectReportHandler.buildPrompt(prepared.payload);
 
@@ -440,7 +575,7 @@ describe('projectReportHandler', () => {
     expect(prompt).toContain('weekly-review');
     expect(prompt).toContain('CURRENT_STATE_CONTEXT');
     expect(prompt).toContain('SELECTED_PERIOD');
-    expect(prompt).toContain('selected-period-1');
+    expect(prompt).toContain('read_evidence_shard');
     expect(prompt).toContain('get_report_schema');
     expect(prompt).toContain(EXCLUDED_SUBJECT_ID);
     expect(prompt).toContain('Call the local create_report tool exactly once');
@@ -461,20 +596,31 @@ describe('projectReportHandler', () => {
       expect(prompt).toContain(`class="${className}"`);
     }
     expect(prompt).not.toContain('class="stats"');
-    expect(prompt).toContain('## Sections by work group');
-    expect(prompt).toContain('<section><h2>Project Reports</h2>');
-    expect(prompt).toContain('None. Every group has a section.');
     expect(prompt).toContain('list_reports_by_entity');
-    expect(prompt).toContain('Graph reads inform your prose but never add evidence references');
     expect(prompt).toContain('Visual summaries are optional');
     expect(prompt).toContain('Write about the project, not about the report.');
     expect(prompt).toContain('never add left accent borders');
     expect(prompt).toContain('PROJECT_REPORT');
     expect(prompt).toContain('gpt-5.6-sol');
     expect(prompt).not.toContain('filesystem tools');
+    // The evidence itself stays in the shards.
+    expect(prompt).not.toContain('Improve report evidence');
+    expect(prompt).not.toContain(SUBJECT_ID);
   });
 
-  it('digests every large-population action per subject, changed subjects first, without listing individual records', async () => {
+  it('publishes child findings with the evidence references they cite for the editing agent', async () => {
+    const { fetchImpl } = makeFetch();
+    const prepared = await prepare(makeSession(), makeDeps(fetchImpl));
+
+    expect(prepared.payload._projectReport?.findingsPublished).toBe(true);
+    const findings = await ledgerOf().readPage('findings', 1);
+    expect(findings.text).toContain('Project Reports: moved forward (selected-period-1)');
+    expect(findings.text).toContain('Evidence references for the keys cited above');
+    expect(findings.text).toContain('"key": "selected-period-1"');
+    expect(findings.text).not.toContain(`current-state-TASK-${SUBJECT_ID}`);
+  });
+
+  it('keeps every record of a subject together, changed subjects first, without listing them in the prompt', async () => {
     const baseFetch = makeFetch();
     const matchingActivityCount = 180;
     const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -514,51 +660,30 @@ describe('projectReportHandler', () => {
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       );
     }) as typeof fetch;
-    const deps = makeDeps(fetchImpl);
-    const prepared = await projectReportHandler.prepare!(makeSession(), payload, deps);
-    const evidence = prepared.payload._projectReport?.evidence;
+    const prepared = await prepare(makeSession(), makeDeps(fetchImpl));
+    const report = prepared.payload._projectReport!;
     const prompt = projectReportHandler.buildPrompt(prepared.payload);
-    const sectionPrompt = projectReportSectionHandler.buildPrompt(
-      deps.launchRegistered.mock.calls[0]![1].payload as ProjectReportSectionPayload,
-    );
 
-    expect(evidence?.subjects.map(({ subject }) => subject.entityId)).toEqual([
+    const lines = await readAllShardLines();
+    const contextLines = lines.filter(({ kind }) => kind === 'CURRENT_STATE_CONTEXT');
+    expect(contextLines.map(({ subject }) => (subject as { entityId: string }).entityId)).toEqual([
       SUBJECT_ID,
       VIEWED_SUBJECT_ID,
     ]);
-    expect(evidence?.subjects[0]?.activity).toEqual([
-      expect.objectContaining({
-        activityType: ActivityCorrelationActivityType.Unblocked,
-        count: 162,
-      }),
-    ]);
-    expect(evidence?.subjects[1]?.activity).toEqual([
-      expect.objectContaining({ activityType: ActivityCorrelationActivityType.Viewed, count: 18 }),
-    ]);
-    expect(evidence?.evidenceReferences.map(({ kind }) => kind)).toEqual([
-      'SELECTED_PERIOD',
-      'SELECTED_PERIOD',
-      'CURRENT_STATE_CONTEXT',
-      'CURRENT_STATE_CONTEXT',
-    ]);
-    expect(evidence?.coverage).toMatchObject({
+    expect(lines.filter(({ kind }) => kind === 'SELECTED_PERIOD')).toHaveLength(180);
+    expect(lines.filter(({ title }) => title === 'Viewed only')).toHaveLength(18);
+    expect(report.evidence.coverage).toMatchObject({
       status: 'COMPLETE',
       matchingActivityCount,
       processedActivityCount: matchingActivityCount,
       pagesRead: 4,
     });
-    expect(sectionPrompt).toContain('"count": 162');
-    expect(sectionPrompt).not.toContain('Large population action 180');
     expect(prompt).not.toContain('Large population action 180');
   });
 
   it('allows requests without a preset and makes failed paging explicitly incomplete', async () => {
     const { fetchImpl } = makeFetch({ pageFailureOffset: 1, withPreset: false });
-    const prepared = await projectReportHandler.prepare!(
-      makeSession(),
-      payload,
-      makeDeps(fetchImpl),
-    );
+    const prepared = await prepare(makeSession(), makeDeps(fetchImpl));
     const prompt = projectReportHandler.buildPrompt(prepared.payload);
     const reportContext = prepared.payload._projectReport;
 
@@ -570,6 +695,8 @@ describe('projectReportHandler', () => {
       pagesRead: 1,
       limitations: [expect.stringContaining('offset 1')],
     });
+    // The manifest only lists records that were actually written.
+    expect(reportContext?.evidence.manifest.totalActivityCount).toBe(1);
     expect(prompt).toContain('coverage.status must remain INCOMPLETE');
     expect(prompt).toContain('the report body must explain the gap');
     expect(prompt).toContain('you may only lower coverage');
@@ -596,11 +723,7 @@ describe('projectReportHandler', () => {
         }
         return base.fetchImpl(input, init);
       });
-      const prepared = await projectReportHandler.prepare!(
-        makeSession(),
-        payload,
-        makeDeps(fetchImpl),
-      );
+      const prepared = await prepare(makeSession(), makeDeps(fetchImpl));
       expect(prepared.payload._projectReport?.evidence.coverage.status).toBe('COMPLETE');
       expect(reads).toBe(kind === 'activity' ? 4 : 3);
     },
@@ -616,11 +739,7 @@ describe('projectReportHandler', () => {
       }
       return base.fetchImpl(input, init);
     });
-    const prepared = await projectReportHandler.prepare!(
-      makeSession(),
-      payload,
-      makeDeps(fetchImpl),
-    );
+    const prepared = await prepare(makeSession(), makeDeps(fetchImpl));
     expect(reads).toBe(status === 503 ? 3 : 1);
     expect(prepared.payload._projectReport?.evidence.coverage).toMatchObject({
       status: 'INCOMPLETE',
@@ -630,11 +749,7 @@ describe('projectReportHandler', () => {
 
   it('marks current-state context failures incomplete without counting them as selected-period actions', async () => {
     const { fetchImpl } = makeFetch({ contextFailure: true });
-    const prepared = await projectReportHandler.prepare!(
-      makeSession(),
-      payload,
-      makeDeps(fetchImpl),
-    );
+    const prepared = await prepare(makeSession(), makeDeps(fetchImpl));
 
     expect(prepared.payload._projectReport?.evidence.coverage).toMatchObject({
       status: 'INCOMPLETE',
@@ -645,6 +760,8 @@ describe('projectReportHandler', () => {
         'Current-state detail for 1 of 1 included subjects could not be read (HTTP 503); coverage is incomplete.',
       ],
     });
+    const [context] = await readAllShardLines();
+    expect(context).toMatchObject({ currentStateUnavailable: true });
   });
 
   it('reads current-state detail for more than 100 subjects in batches with no subject-detail bound', async () => {
@@ -654,16 +771,15 @@ describe('projectReportHandler', () => {
       calls.push(String(input));
       return base(input, init);
     }) as typeof fetch;
-    const prepared = await projectReportHandler.prepare!(
-      makeSession(),
-      payload,
-      makeDeps(fetchImpl),
-    );
+    const prepared = await prepare(makeSession(), makeDeps(fetchImpl));
     const evidence = prepared.payload._projectReport!.evidence;
+    const contextLines = (await readAllShardLines()).filter(
+      ({ kind }) => kind === 'CURRENT_STATE_CONTEXT',
+    );
 
     expect(calls.filter((url) => url.endsWith('/context:batch'))).toHaveLength(2);
-    expect(evidence.subjects).toHaveLength(150);
-    expect(evidence.subjects.every((subject) => subject.currentStateEvidenceKey)).toBe(true);
+    expect(contextLines).toHaveLength(150);
+    expect(contextLines.every((line) => line['currentStateUnavailable'] === undefined)).toBe(true);
     expect(evidence.coverage).toMatchObject({
       status: 'COMPLETE',
       processedActivityCount: 150,
@@ -673,15 +789,17 @@ describe('projectReportHandler', () => {
   });
 
   it('keeps the other batches when one current-state batch fails', async () => {
-    const prepared = await projectReportHandler.prepare!(
+    const prepared = await prepare(
       makeSession(),
-      payload,
       makeDeps(manySubjectsFetch(150, { contextFailureOffset: 100 })),
     );
     const evidence = prepared.payload._projectReport!.evidence;
+    const contextLines = (await readAllShardLines()).filter(
+      ({ kind }) => kind === 'CURRENT_STATE_CONTEXT',
+    );
 
-    expect(evidence.subjects.filter((subject) => subject.currentStateEvidenceKey)).toHaveLength(
-      100,
+    expect(contextLines.filter((line) => line['currentStateUnavailable'] === true)).toHaveLength(
+      50,
     );
     expect(evidence.coverage).toMatchObject({
       status: 'INCOMPLETE',
@@ -691,12 +809,12 @@ describe('projectReportHandler', () => {
     });
   });
 
-  it('launches one read-only section child per funded group, on the run model, with its token share', async () => {
+  it('launches one section child per work group on the run model, reading only the evidence tool', async () => {
     const placementFor = (entityId: string): Placement => ({
       features: [{ id: entityId, title: `Area ${entityId.slice(-3)}` }],
     });
     const deps = makeDeps(manySubjectsFetch(3, { placementFor }));
-    const prepared = await projectReportHandler.prepare!(makeSession(), payload, deps);
+    const prepared = await prepare(makeSession(), deps);
 
     expect(deps.launchRegistered).toHaveBeenCalledTimes(3);
     for (const [handlerId, request] of deps.launchRegistered.mock.calls) {
@@ -708,93 +826,176 @@ describe('projectReportHandler', () => {
         tokenBudget: expect.any(Number),
       });
       const sectionPayload = request.payload as ProjectReportSectionPayload;
-      expect(sectionPayload.subjects).toHaveLength(1);
-      expect(sectionPayload.evidenceReferences.map(({ key }) => key)).toEqual([
-        sectionPayload.subjects[0]!.latestActivityEvidenceKey,
-        sectionPayload.subjects[0]!.currentStateEvidenceKey,
-      ]);
+      expect(sectionPayload.shards).toHaveLength(1);
+      expect(sectionPayload.shards[0]!.pagesToRead).toEqual([1]);
+      expect(sectionPayload).not.toHaveProperty('subjects');
     }
-    const budgets = deps.launchRegistered.mock.calls.map(([, request]) => request.tokenBudget!);
-    expect(budgets.reduce((sum, budget) => sum + budget, 0)).toBeLessThanOrEqual(3_000_000);
     expect(projectReportSectionHandler.childConfig).toMatchObject({
-      submissionTools: 'none',
+      submissionTools: 'run-registered',
+      submissionToolNames: ['read_evidence_shard'],
       builtinAllowedTools: [],
       codexSandboxMode: 'read-only',
     });
     expect(projectReportSectionHandler.childConfig!.mcpAllowedTools).not.toContain(
       'get_report_schema',
     );
-    expect(projectReportSectionHandler.childConfig!.mcpAllowedTools).not.toContain('create_report');
-    expect(prepared.payload._projectReport?.sections).toHaveLength(3);
+    expect(prepared.payload._projectReport?.parentShardIds).toEqual([]);
     expect(prepared.payload._projectReport?.evidence.coverage.status).toBe('COMPLETE');
+    expect(ledgerOf().unreadShards()).toEqual([]);
   });
 
-  it('turns unfunded, exhausted and failed groups into named mentions and incomplete coverage', async () => {
-    // Thirteen root product areas cannot climb, so one falls outside twelve sections.
+  it('replaces a child that stops early, then hands a group that keeps stalling to the report agent', async () => {
     const placementFor = (entityId: string): Placement => ({
       features: [{ id: entityId, title: `Area ${Number(entityId.slice(-3))}` }],
     });
-    const deps = makeDeps(manySubjectsFetch(13, { placementFor }), async (sectionPayload) => {
+    const deps = makeDeps(manySubjectsFetch(3, { placementFor }), async (sectionPayload) => {
       if (sectionPayload.group.title === 'Area 1') {
-        return {
-          assistantCompleted: false,
-          usage: {},
-          outputText: '<section>half',
-          budgetExhausted: true,
-        };
+        // Ends without reading anything, as a child out of token budget would.
+        return { assistantCompleted: false, usage: {}, outputText: '', budgetExhausted: true };
       }
       if (sectionPayload.group.title === 'Area 2') throw new Error('provider failed');
-      return { assistantCompleted: true, usage: {}, outputText: sectionHtml(sectionPayload) };
+      return readingChild(sectionPayload);
     });
-    const prepared = await projectReportHandler.prepare!(makeSession(), payload, deps);
-    const report = prepared.payload._projectReport!;
-    const prompt = projectReportHandler.buildPrompt(prepared.payload);
+    const prepared = await prepare(makeSession(), deps);
+    const launchedFor = (title: string) =>
+      deps.launchRegistered.mock.calls.filter(
+        ([, request]) => (request.payload as ProjectReportSectionPayload).group.title === title,
+      ).length;
 
-    expect(deps.launchRegistered).toHaveBeenCalledTimes(12);
-    expect(report.sections).toHaveLength(10);
-    expect(report.mentions.map(({ title, reason }) => [title, reason])).toEqual([
-      ['Area 1', 'BUDGET_EXHAUSTED'],
-      ['Area 2', 'FAILED'],
-      ['Area 13', 'OUTSIDE_BUDGET'],
-    ]);
-    expect(report.evidence.coverage.status).toBe('INCOMPLETE');
-    expect(report.evidence.coverage.limitations).toEqual([
-      'The report token budget could not cover every work group; 1 work group (1 subject) is only mentioned, without a section of their own: Area 13.',
-      'Section summaries ran out of their token share; 1 work group (1 subject) is only mentioned, without a section of their own: Area 1.',
-      'Section summaries could not be written; 1 work group (1 subject) is only mentioned, without a section of their own: Area 2.',
-    ]);
-    expect(parseProjectReportPreparedEvidence(prepared.sessionContext).coverage).toEqual(
-      report.evidence.coverage,
-    );
-    expect(prompt).toContain('- Area 13: 1 subject, 1 recorded change');
-    expect(prompt).toContain('name every work group without a section');
+    // One child, then replacements until two in a row read nothing new.
+    expect(launchedFor('Area 1')).toBe(3);
+    expect(launchedFor('Area 2')).toBe(3);
+    expect(launchedFor('Area 3')).toBe(1);
+    const report = prepared.payload._projectReport!;
+    const unread = ledgerOf().unreadShards();
+    expect(unread.map(({ groupTitle }) => groupTitle).sort()).toEqual(['Area 1', 'Area 2']);
+    expect(report.parentShardIds).toEqual(unread.map(({ id }) => id));
+    const prompt = projectReportHandler.buildPrompt(prepared.payload);
+    expect(prompt).toContain('You must read every page of these 2 shards yourself');
+    for (const shard of unread) expect(prompt).toContain(shard.id);
   });
 
-  it('lists every group as a mention on a provider that cannot run section children', async () => {
+  it('has the report agent read every shard itself on a provider that cannot run section children', async () => {
     const deps = makeDeps(makeFetch({ provider: 'opencode' }).fetchImpl);
-    const prepared = await projectReportHandler.prepare!(
-      makeSession({ provider: 'opencode' }),
-      payload,
-      deps,
-    );
+    const prepared = await prepare(makeSession({ provider: 'opencode' }), deps);
+
     expect(deps.launchRegistered).not.toHaveBeenCalled();
-    expect(prepared.payload._projectReport?.mentions).toMatchObject([
-      { title: 'Project Reports', reason: 'PROVIDER_UNSUPPORTED' },
-    ]);
-    expect(prepared.payload._projectReport?.evidence.coverage).toMatchObject({
-      status: 'INCOMPLETE',
-      limitations: [expect.stringContaining('not available for this provider')],
+    expect(prepared.payload._projectReport?.parentShardIds).toEqual(['shard-0001']);
+    expect(prepared.payload._projectReport?.findingsPublished).toBe(false);
+    expect(prepared.payload._projectReport?.evidence.coverage.status).toBe('COMPLETE');
+  });
+
+  it('starts a report whose evidence exceeds the prompt limit, and the prompt does not grow with the selection', async () => {
+    const small = await prepare(makeSession(), makeDeps(denseFetch(300, 10)));
+    const smallPrompt = projectReportHandler.buildPrompt(small.payload);
+
+    const deps = makeDeps(denseFetch(600, 10));
+    const large = await prepare(makeSession(), deps);
+    const largePrompt = projectReportHandler.buildPrompt(large.payload);
+    const { manifest, coverage } = large.payload._projectReport!.evidence;
+
+    // 6,000 activities is past the old 5,000-record and 100-page bounds.
+    expect(coverage).toMatchObject({
+      status: 'COMPLETE',
+      matchingActivityCount: 6000,
+      processedActivityCount: 6000,
+      pagesRead: 120,
+      limitations: [],
+    });
+    expect(manifest.totalActivityCount).toBe(6000);
+    expect(manifest.totalRecordCount).toBe(6600);
+    expect(manifest.shards.reduce((sum, shard) => sum + shard.recordCount, 0)).toBe(6600);
+    expect(manifest.shards.reduce((sum, shard) => sum + shard.subjectCount, 0)).toBe(600);
+    expect(manifest.shards.length).toBeGreaterThan(1);
+    expect(manifest.shards.every((shard) => shard.byteSize < 200_000)).toBe(true);
+
+    // Inlined, this evidence would have been over the run store's prompt limit.
+    expect(manifest.shards.reduce((sum, shard) => sum + shard.byteSize, 0)).toBeGreaterThan(
+      MAX_PROMPT_BYTES,
+    );
+    expect(Buffer.byteLength(largePrompt, 'utf8')).toBeLessThan(MAX_PROMPT_BYTES);
+    expect(Math.abs(largePrompt.length - smallPrompt.length)).toBeLessThan(200);
+    expect(largePrompt).not.toContain('Subject 600 change');
+
+    // Every record is on disk and was read by a helper through the host.
+    expect(await readAllShardLines()).toHaveLength(6600);
+    expect(ledgerOf().unreadShards()).toEqual([]);
+    expect(deps.launchRegistered).toHaveBeenCalledOnce();
+  });
+
+  describe('create_report', () => {
+    const coverage = {
+      status: 'COMPLETE',
+      matchingActivityCount: 2,
+      processedActivityCount: 2,
+      pagesRead: 2,
+      limitations: [] as string[],
+    };
+
+    it('is refused, listing the unread shards, until the host has served every page, and a refusal claims nothing', async () => {
+      const session = makeSession({ provider: 'opencode' });
+      const prepared = await prepare(
+        session,
+        makeDeps(makeFetch({ provider: 'opencode' }).fetchImpl),
+      );
+      const run = {
+        session: { ...session, sessionContext: prepared.sessionContext },
+        projectId: PROJECT_ID,
+        conversationId: session.conversationId,
+        appendReportChainEntry: vi.fn(),
+      } as unknown as Run;
+      const create = vi
+        .fn<CreateReportProxy['create']>()
+        .mockResolvedValue({ content: [], reportId: 'project-report-1' });
+      const createReport = new CreateReportTool({ create } as unknown as CreateReportProxy);
+      const submit = () =>
+        createReport.execute({ runId: RUN_ID, run, args: submissionArgs(coverage) });
+
+      const refusal: unknown = await submit().catch((error: unknown) => error);
+      expect(refusal).toBeInstanceOf(SubmissionToolCorrectableError);
+      expect((refusal as SubmissionToolCorrectableError).findings).toMatchObject([
+        { identity: 'shard-0001', correction: expect.stringContaining('read_evidence_shard') },
+      ]);
+      expect(create).not.toHaveBeenCalled();
+
+      // An agent claiming it read the shard changes nothing; only pages the host served count.
+      await expect(submit()).rejects.toBeInstanceOf(SubmissionToolCorrectableError);
+
+      const read = await new ReadEvidenceShardTool().execute({
+        runId: RUN_ID,
+        run,
+        args: { shardId: 'shard-0001', page: 1 },
+      });
+      expect(read.content[0]).toMatchObject({ text: expect.stringContaining('SELECTED_PERIOD') });
+      await expect(submit()).resolves.toBeDefined();
+      expect(create).toHaveBeenCalledOnce();
+    });
+
+    it('stays refused for a multi-page shard until its last page is read', async () => {
+      const session = makeSession({ provider: 'opencode' });
+      await prepare(session, makeDeps(denseFetch(40, 10, { provider: 'opencode' })));
+      const [shard] = ledgerOf().manifest.shards;
+      expect(shard!.pageCount).toBeGreaterThan(1);
+
+      for (let page = 1; page < shard!.pageCount; page += 1) {
+        await ledgerOf().readPage(shard!.id, page);
+      }
+      expect(
+        ledgerOf()
+          .unreadShards()
+          .map(({ id }) => id),
+      ).toEqual([shard!.id]);
+      expect(ledgerOf().unreadPages(shard!)).toEqual([shard!.pageCount]);
+
+      await ledgerOf().readPage(shard!.id, shard!.pageCount);
+      expect(ledgerOf().unreadShards()).toEqual([]);
     });
   });
 
   it('rejects a service-scoped session and rejects a request bound to another active attempt', async () => {
     const { fetchImpl } = makeFetch();
     await expect(
-      projectReportHandler.prepare!(
-        makeSession({ services: [{ id: 'service', path: '/repo' }] }),
-        payload,
-        makeDeps(fetchImpl),
-      ),
+      prepare(makeSession({ services: [{ id: 'service', path: '/repo' }] }), makeDeps(fetchImpl)),
     ).rejects.toThrow(/service-free session boundary/);
 
     const staleAttemptFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -806,9 +1007,9 @@ describe('projectReportHandler', () => {
       }
       return fetchImpl(input, init);
     }) as typeof fetch;
-    await expect(
-      projectReportHandler.prepare!(makeSession(), payload, makeDeps(staleAttemptFetch)),
-    ).rejects.toThrow(/did not match the signed AgentSession/);
+    await expect(prepare(makeSession(), makeDeps(staleAttemptFetch))).rejects.toThrow(
+      /did not match the signed AgentSession/,
+    );
   });
 
   it('rejects an excluded subject returned as primary activity evidence', async () => {
@@ -828,8 +1029,8 @@ describe('projectReportHandler', () => {
       }
       return fetchImpl(input, init);
     }) as typeof fetch;
-    await expect(
-      projectReportHandler.prepare!(makeSession(), payload, makeDeps(maliciousFetch)),
-    ).rejects.toThrow(/excluded entity as a primary subject/);
+    await expect(prepare(makeSession(), makeDeps(maliciousFetch))).rejects.toThrow(
+      /excluded entity as a primary subject/,
+    );
   });
 });

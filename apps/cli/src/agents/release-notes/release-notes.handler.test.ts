@@ -74,8 +74,7 @@ describe('ReleaseNotesHandler accepted repository coverage', () => {
   const prepare = async (activeRun = run) => {
     vi.spyOn(ProjectReportRequestReader.prototype, 'read').mockResolvedValue(request);
     vi.spyOn(ProjectReportEvidenceReader.prototype, 'read').mockResolvedValue({
-      subjects: [],
-      evidenceReferences: [],
+      manifest: { shards: [], totalRecordCount: 0, totalActivityCount: 0 },
       evidenceReadStartedAt: '2026-10-01T00:00:00Z',
       evidenceReadCompletedAt: '2026-10-01T00:00:01Z',
       coverage: {
@@ -99,7 +98,7 @@ describe('ReleaseNotesHandler accepted repository coverage', () => {
         logger: NOOP_LOGGER,
         recentUserReplies: [],
         triggerParentMessageId: null,
-        repositorySnapshotDirectory: '/snapshots',
+        runEvidenceDirectory: '/snapshots',
       },
     );
   };

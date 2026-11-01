@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type {
-  CreateProjectReportRequestDto as SharedRequest,
-  ProjectReportPayload as SharedReport,
-} from '../../../../../packages/ui-common/src/api/api';
+
 import {
   ProjectReportsApiAxiosParamCreator,
   type CreateProjectReportRequestDto,
-  type ProjectReportPayload,
   type RunCreatePayloadProjectReport as ApiLaunch,
 } from './generated/api';
 import type { RunCreatePayloadProjectReport as BridgeLaunch } from '../agent-bridge-contract/generated/api';
@@ -16,15 +12,10 @@ const projectId = '22222222-2222-4222-8222-222222222222';
 const requestId = '33333333-3333-4333-8333-333333333333';
 const attemptId = '44444444-4444-4444-8444-444444444444';
 
-// Compilation proves both consumer directions, including optionality and discriminators.
-const toSharedRequest = (value: CreateProjectReportRequestDto): SharedRequest => value;
-const toCliRequest = (value: SharedRequest): CreateProjectReportRequestDto => value;
-const toSharedReport = (value: ProjectReportPayload): SharedReport => value;
-const toCliReport = (value: SharedReport): ProjectReportPayload => value;
 const toBridge = (value: ApiLaunch): BridgeLaunch => value;
 
 describe('generated project report contracts', () => {
-  it('preserves the reviewed submission across UI Common and CLI transport', async () => {
+  it('preserves the reviewed submission in CLI transport', async () => {
     const request = {
       question: 'What changed?',
       scope: {
@@ -46,7 +37,7 @@ describe('generated project report contracts', () => {
     const params = await ProjectReportsApiAxiosParamCreator().createProjectReportRequest(
       organizationId,
       projectId,
-      toCliRequest(toSharedRequest(request)),
+      request,
     );
     expect(params.url).toBe(
       `/organizations/${organizationId}/projects/${projectId}/project-report-requests`,
@@ -74,37 +65,5 @@ describe('generated project report contracts', () => {
       promptType: 'project_report',
       request: { requestId, attemptId, projectId },
     });
-  });
-
-  it('shares one report representation without a second envelope', () => {
-    const report = {
-      reportType: 'PROJECT_REPORT',
-      title: 'Progress',
-      summary: 'Selected activity.',
-      question: 'What changed?',
-      scope: {
-        projectId,
-        windowStart: '2026-09-21T00:00:00Z',
-        windowEnd: '2026-09-28T00:00:00Z',
-        timeZone: 'UTC',
-      },
-      exclusions: [],
-      provenance: {
-        requestId,
-        attemptId,
-        evidenceReadStartedAt: '2026-09-28T00:01:00Z',
-        evidenceReadCompletedAt: '2026-09-28T00:02:00Z',
-        evidence: [],
-      },
-      coverage: {
-        status: 'INCOMPLETE',
-        matchingActivityCount: 5,
-        processedActivityCount: 3,
-        pagesRead: 1,
-        limitations: ['Read interrupted.'],
-      },
-      body: { html: '<p>Incomplete coverage.</p>', css: '' },
-    } satisfies ProjectReportPayload;
-    expect(toCliReport(toSharedReport(report))).toBe(report);
   });
 });

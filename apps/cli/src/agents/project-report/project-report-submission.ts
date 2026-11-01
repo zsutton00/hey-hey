@@ -7,6 +7,10 @@
  * AgentSession is one request attempt), and the `create_report` wrapper stamps
  * it onto the submitted payload. The model may only lower coverage: mark it
  * INCOMPLETE, lower processedActivityCount, or add limitations.
+ *
+ * Coverage is only true if every evidence shard was read. The host, not the
+ * agent, establishes that: `assertProjectReportEvidenceRead` refuses a
+ * submission until the ledger shows the host served every page of every shard.
  */
 
 import { z } from 'zod';
@@ -14,7 +18,12 @@ import {
   ProjectReportCoverageStatusEnum,
   type ProjectReportCoverage,
 } from '../../shared/api/generated/api';
+import {
+  SubmissionToolCorrectableError,
+  type SubmissionToolCorrectableFinding,
+} from '../submission-tools/types';
 import type { ProjectReportEvidenceResult } from './project-report-evidence-reader';
+import type { ProjectReportEvidenceLedger } from './project-report-evidence-store';
 
 const PROJECT_REPORT_PREPARED_EVIDENCE_KEY = 'projectReport.preparedEvidence';
 
@@ -161,4 +170,48 @@ export const stampProjectReportCoverage = (
       coverage,
     },
   };
+};
+
+const MAX_UNREAD_SHARDS_LISTED = 50;
+
+/**
+ * Refuses a submission while any shard is unread. The refusal is correctable:
+ * the agent reads what is listed and submits again, and no write is claimed.
+ */
+export const assertProjectReportEvidenceRead = (
+  ledger: ProjectReportEvidenceLedger | undefined,
+): void => {
+  if (!ledger) {
+    throw new SubmissionToolCorrectableError({
+      reason:
+        'The host has no record of this report’s evidence being read, so coverage cannot be established.',
+      findings: [
+        {
+          identity: 'evidence',
+          reason: 'No evidence ledger exists for this session.',
+          correction:
+            'The report cannot be submitted from this session. Stop and tell the user the evidence could not be verified.',
+        },
+      ],
+    });
+  }
+
+  const unread = ledger.unreadShards();
+  if (unread.length === 0) {
+    return;
+  }
+
+  const findings: SubmissionToolCorrectableFinding[] = unread
+    .slice(0, MAX_UNREAD_SHARDS_LISTED)
+    .map((shard) => ({
+      identity: shard.id,
+      reason: `Pages ${ledger.unreadPages(shard).join(', ')} of ${String(shard.pageCount)} have not been read (${shard.groupTitle}).`,
+      correction: `Call read_evidence_shard with shardId "${shard.id}" for each unread page, then submit again.`,
+    }));
+  const omitted = unread.length - findings.length;
+
+  throw new SubmissionToolCorrectableError({
+    reason: `${String(unread.length)} of ${String(ledger.manifest.shards.length)} evidence shards have not been read to their last page${omitted > 0 ? `; ${String(omitted)} more than the ${String(findings.length)} listed` : ''}. A report cannot be submitted with unread evidence.`,
+    findings,
+  });
 };
