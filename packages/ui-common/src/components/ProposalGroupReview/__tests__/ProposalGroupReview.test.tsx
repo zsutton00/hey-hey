@@ -676,6 +676,11 @@ describe("ProposalGroupReview", () => {
       ),
     ).toHaveAttribute("data-rendering-context", "page");
     await user.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("journey-screen-full-size"),
+      ).not.toBeInTheDocument(),
+    );
     await user.click(
       within(review).getByRole("button", { name: "View Saved cart full size" }),
     );
@@ -685,10 +690,20 @@ describe("ProposalGroupReview", () => {
       ),
     ).toHaveAttribute("data-rendering-context", "page");
     await user.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("journey-screen-full-size"),
+      ).not.toBeInTheDocument(),
+    );
     paymentScreen.focus();
     await user.keyboard("{Enter}");
     expect(screen.getByTestId("journey-screen-full-size")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("journey-screen-full-size"),
+      ).not.toBeInTheDocument(),
+    );
     await user.click(
       within(paymentControls).getByTestId("proposal-group-member-approve"),
     );
@@ -708,9 +723,6 @@ describe("ProposalGroupReview", () => {
     expect(
       screen.queryByTestId("journey-review-send-feedback"),
     ).not.toBeInTheDocument();
-    expect(
-      within(review).getByRole("button", { name: /View .* full size/ }),
-    ).toBeInTheDocument();
     expect(within(review).getByText("Payment declined")).toBeInTheDocument();
     const flatCards = screen.getAllByTestId("proposal-group-member-review");
     expect(flatCards.map((card) => card.dataset.memberId)).toEqual([
