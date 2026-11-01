@@ -240,6 +240,13 @@ export const createTestRunRegistryWiring = (
   const submissionToolRegistry = overrides.submissionToolRegistry ?? new SubmissionToolRegistry();
   const promptTypeRegistry = new PromptTypeRegistry({
     ...PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES,
+    entityConversation: {
+      ...PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES.entityConversation,
+      auth: handlerDeps.auth,
+      apiBaseUrl: handlerDeps.apiBaseUrl,
+      fetchImpl: handlerDeps.fetchImpl,
+      logger: handlerDeps.logger,
+    },
     ...(overrides.createReportProxy ? { createReportProxy: overrides.createReportProxy } : {}),
   });
   const sessionRunnerFacade =
