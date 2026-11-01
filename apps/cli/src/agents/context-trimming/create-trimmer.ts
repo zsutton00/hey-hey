@@ -27,12 +27,15 @@ type TrimmingDeps = Pick<
   'auth' | 'apiBaseUrl' | 'logger' | 'readRestriction'
 >;
 
+type ParentFeature = NonNullable<Awaited<ReturnType<typeof readNearestParentFeature>>>;
+
 /** The feature directly above the focal, else the plan it belongs to, else none. */
 const resolveParent = async (
   request: NearestParentFeatureRequest,
   deps: TrimmingDeps,
+  readFeature?: ParentFeature,
 ): Promise<FocalParent | undefined> => {
-  const feature = await readNearestParentFeature(request, deps);
+  const feature = readFeature ?? (await readNearestParentFeature(request, deps));
   if (feature) {
     return { kind: 'feature', name: feature.name, description: allSectionsText(feature.sections) };
   }
@@ -49,6 +52,8 @@ export const resolveFocal = async (
   loaded: LoadedEntityPromptContext | null,
   userMessage: string | undefined,
   deps: TrimmingDeps,
+  /** The nearest parent feature when the caller has already read it, so it is not read again. */
+  readFeature?: ParentFeature,
 ): Promise<Focal | null> => {
   if (loaded?.kind === 'entity' && 'type' in loaded.entity && 'sections' in loaded.entity) {
     const { entity } = loaded;
@@ -63,6 +68,7 @@ export const resolveFocal = async (
             readRestriction: deps.readRestriction,
           },
           deps,
+          readFeature,
         ),
       deps,
     );

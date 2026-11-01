@@ -1,4 +1,5 @@
 import type { ReadRestriction } from '../shared/api/generated/api';
+import type { FullEntityContextDto } from '../shared/api/generated';
 import type { EvalAttemptExecution } from './run-eval/eval-attempt-execution';
 import { projectModeSettingsJsonSchema } from '../generated/project-mode-contract.schema';
 import type {
@@ -253,6 +254,12 @@ export interface OnCompleteDeps {
 export interface PrepareResult<TPayload> {
   payload: TPayload;
   sessionContext?: Record<string, unknown>;
+  /**
+   * A relevance-narrowed copy of the loaded entity Context. The resolver re-renders it with the
+   * template already selected for the Run and delivers that block to this Turn's provider instead
+   * of the original one. The canonical loaded Context itself is never changed.
+   */
+  startupContextReplacement?: FullEntityContextDto;
 }
 
 export interface ResolveAdditionalAllowedToolsArgs<TPayload> {

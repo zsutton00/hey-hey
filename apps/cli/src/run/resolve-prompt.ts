@@ -19,6 +19,7 @@ import type {
 import {
   AgentStartupPromptInputError,
   isEntityPromptTemplateFocalType,
+  renderStartupPromptTemplate,
   type AgentStartupPromptInputRequest,
 } from '../commands/agent-startup-prompt-input';
 import { LocalAgentApiError } from '../shared/agent-bridge-contract/errors';
@@ -31,6 +32,7 @@ import { resolvePromptString } from '../agents/prompts/resolve';
 import { buildStartingMessage } from '../agents/prompts/starting-message';
 import type { SessionRoleGuidance } from '../agents/session-role-guidance/session-role-guidance';
 import type { WorkItemTypeDefinitionDto } from '../shared/api/generated/api';
+import type { FullEntityContextDto } from '../shared/api/generated';
 import type { ReportChainEntry } from './types';
 import type { RecoverableTurnCheckpoint } from '../session/types';
 import type {
@@ -359,6 +361,29 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
     }
   }
 
+  // Re-renders a handler's narrowed Context with the Run's already-selected template. Only the
+  // rendered block changes; the loaded Context, template and its provenance stay canonical.
+  const replaceStartupContext = (replacement: FullEntityContextDto): void => {
+    const current = startupPromptInputResult;
+    if (!current?.template) {
+      return;
+    }
+
+    const renderedInput = renderStartupPromptTemplate(
+      current.template,
+      { entity: current.loadedEntityContext.entity, context: replacement },
+      handlerDeps.logger,
+    );
+    handlerDeps.logger.info('local.run.prompt.startup_context_replaced', {
+      runId: run.agentic_session_id,
+      promptType: handler.promptType,
+      outcome: 'narrowed',
+      beforeBytes: Buffer.byteLength(current.renderedInput),
+      afterBytes: Buffer.byteLength(renderedInput),
+    });
+    startupPromptInputResult = { ...current, renderedInput };
+  };
+
   const prepareForPrompt = async (): Promise<unknown> => {
     const prepareResult =
       handler.prepare && !child?.prepared
@@ -402,6 +427,9 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
       // Workspace reconciliation changed a resume into a new projection cycle.
       // Prepare again with that cycle's fresh context before rendering it.
       return prepareForPrompt();
+    }
+    if (prepareResult.startupContextReplacement) {
+      replaceStartupContext(prepareResult.startupContextReplacement);
     }
     const effectivePayload =
       child && reconciledPayload !== null && typeof reconciledPayload === 'object'
