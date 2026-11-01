@@ -41,7 +41,6 @@ export class ResumeRunner implements Runner {
       handler,
       resolvedPrompt,
       effectiveModel,
-      executionProvider,
       effectiveReasoningEffort,
       input,
       browserMcpMount,
@@ -106,32 +105,37 @@ export class ResumeRunner implements Runner {
           })();
     const additionalBuiltinTools = handler.additionalBuiltinTools;
     const readOnlyFilesystem = handler.readOnlyFilesystem;
-    const result = await this.deps.sessionRunnerFacade.resumeSession(
-      run,
-      {
-        session: run.session,
-        attachmentRunId: run.runId,
-        attachments: input.attachments ?? [],
-        ...(providerPrompt ? { prompt: providerPrompt } : {}),
-        ...(input.skillSelection ? { skillSelection: input.skillSelection } : {}),
-        ...(effectiveModel ? { model: effectiveModel } : {}),
-        ...(effectiveReasoningEffort ? { reasoningEffort: effectiveReasoningEffort } : {}),
-        ...(mcpToolUseCase ? { mcpToolUseCase } : {}),
-        ...(additionalAllowedTools && additionalAllowedTools.length > 0
-          ? { additionalAllowedTools }
-          : {}),
-        ...(browserMcpMount ? { browserMcpMount } : {}),
-        ...(platformMcpProxyMount ? { platformMcpProxyMount } : {}),
-        ...(additionalBuiltinTools && additionalBuiltinTools.length > 0
-          ? { additionalBuiltinTools }
-          : {}),
-        ...(readOnlyFilesystem ? { readOnlyFilesystem } : {}),
-        ...(workspace ? { workspace } : {}),
-        ...(workspaceWriteBoundary ? { workspaceWriteBoundary } : {}),
-        signal,
-      },
-      executionProvider,
-    );
+    if (this.ctx.turnId && providerPrompt) {
+      await handler.recordProviderInput?.({
+        runId: run.runId,
+        turnId: this.ctx.turnId,
+        logger: this.deps.logger,
+        payload: this.ctx.preparedPayload ?? input.payload,
+        parts: [{ name: 'prompt', text: providerPrompt }],
+      });
+    }
+    const result = await this.deps.sessionRunnerFacade.resumeSession(run, {
+      session: run.session,
+      attachmentRunId: run.runId,
+      attachments: input.attachments ?? [],
+      ...(providerPrompt ? { prompt: providerPrompt } : {}),
+      ...(input.skillSelection ? { skillSelection: input.skillSelection } : {}),
+      ...(effectiveModel ? { model: effectiveModel } : {}),
+      ...(effectiveReasoningEffort ? { reasoningEffort: effectiveReasoningEffort } : {}),
+      ...(mcpToolUseCase ? { mcpToolUseCase } : {}),
+      ...(additionalAllowedTools && additionalAllowedTools.length > 0
+        ? { additionalAllowedTools }
+        : {}),
+      ...(browserMcpMount ? { browserMcpMount } : {}),
+      ...(platformMcpProxyMount ? { platformMcpProxyMount } : {}),
+      ...(additionalBuiltinTools && additionalBuiltinTools.length > 0
+        ? { additionalBuiltinTools }
+        : {}),
+      ...(readOnlyFilesystem ? { readOnlyFilesystem } : {}),
+      ...(workspace ? { workspace } : {}),
+      ...(workspaceWriteBoundary ? { workspaceWriteBoundary } : {}),
+      signal,
+    });
 
     if (
       this.ctx.roleGuidance?.deliveryKeys.length &&

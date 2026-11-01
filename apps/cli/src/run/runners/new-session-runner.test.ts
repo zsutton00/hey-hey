@@ -1,4 +1,9 @@
+import { mkdtemp, readFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import { ProjectAssistantHandler } from '../../agents/project-assistant/project-assistant.handler';
+import type { ContextGatheringDeps } from '../../agents/project-assistant/context-gathering';
 import {
   createTestRunEventPublisher,
   createTestMessagePoster,
@@ -136,7 +141,6 @@ describe('NewSessionRunner', () => {
         replaceProviderSystemPrompt: true,
         repositoryResearch: { delegation: 'disabled' },
       }),
-      undefined,
     );
   });
 
@@ -158,11 +162,49 @@ describe('NewSessionRunner', () => {
     expect(facade.runPrompt).toHaveBeenCalledWith(
       run,
       expect.objectContaining({ epistemicCalibration: true }),
-      undefined,
     );
   });
 
-  it('forwards the authoritative execution provider and effective model', async () => {
+  it('saves the exact input handed to the provider beside the Jev gathering trace', async () => {
+    const traceLogDir = await mkdtemp(path.join(os.tmpdir(), 'jev-input-'));
+    const handler = new ProjectAssistantHandler({ create: vi.fn() } as never, null, undefined, {
+      traceLogDir,
+    } as ContextGatheringDeps);
+    const run = new Run(makeRunArgs(), makeCollaborators());
+    const runPrompt = vi.fn().mockResolvedValue({
+      providerSessionId: 'new-session',
+      providerConversationId: null,
+      errorCount: 0,
+    });
+    const prompt = `INSTRUCTIONS\n\n${'gathered paragraph. '.repeat(5000)}END-MARKER\n\nUSER REQUEST`;
+
+    await new NewSessionRunner(
+      {
+        ...makeCtx(run, prompt),
+        turnId: 'turn-9',
+        handler: handler as PromptTypeHandler<unknown>,
+        preparedPayload: {
+          _gatheredContext: 'gathered',
+          projectAssistantHandoff: {
+            consumerHandlerId: 'coding_freeform',
+            policy: {
+              allowEdgeUpdates: false,
+              notifyDiscrepancies: false,
+              workItemProposalMode: 'none',
+            },
+          },
+        },
+      },
+      { sessionRunnerFacade: sessionRunnerFacadeFor(runPrompt), logger: makeLogger() },
+    ).run(new AbortController().signal);
+
+    const handedOff = runPrompt.mock.calls[0]![0].prompt;
+    const saved = await readFile(path.join(traceLogDir, 'run-1.turn-9.input.txt'), 'utf8');
+    expect(saved).toBe(`===== prompt =====\n${handedOff}`);
+    expect(saved).toContain('END-MARKER');
+  });
+
+  it('forwards the effective model', async () => {
     const run = new Run(makeRunArgs(), makeCollaborators());
     const facade = createTestSessionRunnerFacade();
     vi.mocked(facade.runPrompt).mockResolvedValue({
@@ -173,7 +215,6 @@ describe('NewSessionRunner', () => {
     const runner = new NewSessionRunner(
       {
         ...makeCtx(run, 'repository prompt'),
-        executionProvider: 'openai',
         effectiveModel: 'gpt-5.1',
       },
       { sessionRunnerFacade: facade, logger: makeLogger() },
@@ -184,7 +225,6 @@ describe('NewSessionRunner', () => {
     expect(facade.runPrompt).toHaveBeenCalledWith(
       run,
       expect.objectContaining({ model: 'gpt-5.1' }),
-      'openai',
     );
   });
 

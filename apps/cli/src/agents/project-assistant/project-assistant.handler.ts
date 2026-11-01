@@ -1,3 +1,5 @@
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { resolveMcpToolNames } from '../mcp-server-config';
 import type { AgenticSession } from '../../session/types';
 import { LocalPromptType, SessionRole } from '../../shared/agent-bridge-contract/generated/api';
@@ -13,6 +15,7 @@ import {
   type PromptTypeHandler,
   type PromptTypeHandlerContext,
   type PromptTypeHandlerDeps,
+  type ProviderInputRecord,
   type ReportSpec,
   type ResolveAdditionalAllowedToolsArgs,
 } from '../prompt-type-handler';
@@ -227,6 +230,33 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
 
     if (gatheredContext) enriched._gatheredContext = gatheredContext;
     return { payload: enriched };
+  }
+
+  /**
+   * Saves the exact input handed to the provider beside the run's gathering trace, so the
+   * context the agent received can be read afterwards. Only runs that gathered context save one.
+   */
+  public async recordProviderInput(record: ProviderInputRecord): Promise<void> {
+    const enriched = record.payload as EnrichedPayload;
+    if (!this.contextGathering || enriched._gatheredContext === undefined) {
+      return;
+    }
+
+    const file = path.join(
+      this.contextGathering.traceLogDir,
+      `${record.runId}.${record.turnId}.input.txt`,
+    );
+    const text = record.parts
+      .map(({ name, text: part }) => `===== ${name} =====\n${part}`)
+      .join('\n');
+    await mkdir(this.contextGathering.traceLogDir, { recursive: true });
+    await writeFile(file, text, 'utf8');
+    record.logger.info('project_assistant.provider_input_saved', {
+      runId: record.runId,
+      turnId: record.turnId,
+      file,
+      chars: text.length,
+    });
   }
 
   public buildPrompt(

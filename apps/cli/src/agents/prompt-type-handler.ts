@@ -64,6 +64,15 @@ export type { RecentUserReply };
  * resolver. Always present on the resolver-built context — empty when no
  * user messages fall in the trigger's window.
  */
+/** The input a runner hands to the provider; `parts` keep the boundaries of separate segments. */
+export interface ProviderInputRecord {
+  runId: string;
+  turnId: string;
+  payload: unknown;
+  logger: ServerLogger;
+  parts: { name: string; text: string }[];
+}
+
 export interface PromptTypeHandlerContext {
   /** Agentic Run identity used to correlate handler diagnostics across a Turn. */
   runId?: string;
@@ -797,6 +806,14 @@ export interface PromptTypeHandler<TPayload> {
    * isn't a recognized shape — the raw message passes through unchanged.
    */
   transformInput?(userMessage: string): string | null;
+
+  /**
+   * Called by the provider-session runners with the exact input handed to the
+   * provider, after all prompt assembly, and before the provider call. Lets a
+   * handler keep a verbatim copy of what its agent received. A failure here
+   * fails the Turn, so implementations must only throw on a real write error.
+   */
+  recordProviderInput?(record: ProviderInputRecord): Promise<void>;
 
   /**
    * Async post-completion hook. Called after the message update has been

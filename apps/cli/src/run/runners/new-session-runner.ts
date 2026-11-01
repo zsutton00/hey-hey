@@ -45,7 +45,6 @@ export class NewSessionRunner implements Runner {
       resolvedPrompt,
       input,
       effectiveModel,
-      executionProvider,
       effectiveReasoningEffort,
       browserMcpMount,
       platformMcpProxyMount,
@@ -151,47 +150,58 @@ export class NewSessionRunner implements Runner {
     const prompt = this.ctx.serviceScopeRecovery
       ? `${renderServiceScopeRecovery(this.ctx.serviceScopeRecovery.checkpoint)}\n\n---\n\n${providerPrompt}`
       : providerPrompt;
-    const result = await this.deps.sessionRunnerFacade.runPrompt(
-      run,
-      {
-        session: run.session,
-        attachmentRunId: run.runId,
-        attachments: input.attachments ?? [],
-        prompt,
-        ...(handler.epistemicCalibration ? { epistemicCalibration: true as const } : {}),
-        ...(handler.replaceProviderSystemPrompt ? { replaceProviderSystemPrompt: true } : {}),
-        ...(providerInput.kind === 'startup'
-          ? {
-              startupSegments: {
-                ...providerInput.segments,
-                dynamicContext: this.ctx.serviceScopeRecovery
-                  ? `${renderServiceScopeRecovery(this.ctx.serviceScopeRecovery.checkpoint)}\n\n---\n\n${providerInput.segments.dynamicContext}`
-                  : providerInput.segments.dynamicContext,
-              },
-            }
-          : {}),
-        ...(input.references ? { references: input.references } : {}),
-        ...(input.skillSelection ? { skillSelection: input.skillSelection } : {}),
-        ...(mcpToolUseCase ? { mcpToolUseCase } : {}),
-        ...(additionalAllowedTools && additionalAllowedTools.length > 0
-          ? { additionalAllowedTools }
-          : {}),
-        ...(browserMcpMount ? { browserMcpMount } : {}),
-        ...(platformMcpProxyMount ? { platformMcpProxyMount } : {}),
-        ...(additionalBuiltinTools && additionalBuiltinTools.length > 0
-          ? { additionalBuiltinTools }
-          : {}),
-        ...(readOnlyFilesystem ? { readOnlyFilesystem } : {}),
-        ...(repositoryResearch ? { repositoryResearch } : {}),
-        ...(builtinTools !== undefined ? { builtinTools } : {}),
-        ...(effectiveModel ? { model: effectiveModel } : {}),
-        ...(effectiveReasoningEffort ? { reasoningEffort: effectiveReasoningEffort } : {}),
-        ...(workspace ? { workspace } : {}),
-        ...(workspaceWriteBoundary ? { workspaceWriteBoundary } : {}),
-        signal,
-      },
-      executionProvider,
-    );
+    const startupSegments =
+      providerInput.kind === 'startup'
+        ? {
+            ...providerInput.segments,
+            dynamicContext: this.ctx.serviceScopeRecovery
+              ? `${renderServiceScopeRecovery(this.ctx.serviceScopeRecovery.checkpoint)}\n\n---\n\n${providerInput.segments.dynamicContext}`
+              : providerInput.segments.dynamicContext,
+          }
+        : null;
+    if (this.ctx.turnId) {
+      await handler.recordProviderInput?.({
+        runId: run.runId,
+        turnId: this.ctx.turnId,
+        logger: this.deps.logger,
+        payload: this.ctx.preparedPayload ?? input.payload,
+        parts: startupSegments
+          ? [
+              { name: 'stableInstructions', text: startupSegments.stableInstructions },
+              { name: 'dynamicContext', text: startupSegments.dynamicContext },
+              { name: 'userInput', text: startupSegments.userInput },
+            ]
+          : [{ name: 'prompt', text: prompt }],
+      });
+    }
+    const result = await this.deps.sessionRunnerFacade.runPrompt(run, {
+      session: run.session,
+      attachmentRunId: run.runId,
+      attachments: input.attachments ?? [],
+      prompt,
+      ...(handler.epistemicCalibration ? { epistemicCalibration: true as const } : {}),
+      ...(handler.replaceProviderSystemPrompt ? { replaceProviderSystemPrompt: true } : {}),
+      ...(startupSegments ? { startupSegments } : {}),
+      ...(input.references ? { references: input.references } : {}),
+      ...(input.skillSelection ? { skillSelection: input.skillSelection } : {}),
+      ...(mcpToolUseCase ? { mcpToolUseCase } : {}),
+      ...(additionalAllowedTools && additionalAllowedTools.length > 0
+        ? { additionalAllowedTools }
+        : {}),
+      ...(browserMcpMount ? { browserMcpMount } : {}),
+      ...(platformMcpProxyMount ? { platformMcpProxyMount } : {}),
+      ...(additionalBuiltinTools && additionalBuiltinTools.length > 0
+        ? { additionalBuiltinTools }
+        : {}),
+      ...(readOnlyFilesystem ? { readOnlyFilesystem } : {}),
+      ...(repositoryResearch ? { repositoryResearch } : {}),
+      ...(builtinTools !== undefined ? { builtinTools } : {}),
+      ...(effectiveModel ? { model: effectiveModel } : {}),
+      ...(effectiveReasoningEffort ? { reasoningEffort: effectiveReasoningEffort } : {}),
+      ...(workspace ? { workspace } : {}),
+      ...(workspaceWriteBoundary ? { workspaceWriteBoundary } : {}),
+      signal,
+    });
     const patch: Partial<typeof run.session> = {};
     if (result.providerSessionId !== null) {
       patch.provider_session_id = result.providerSessionId;
