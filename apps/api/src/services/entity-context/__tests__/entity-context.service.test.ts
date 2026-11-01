@@ -595,15 +595,26 @@ describe('EntityContextService', () => {
 
     it('should return empty MCP tools for entity types without tool mappings', async () => {
       (mockPrisma.db as any).proposal.findMany.mockResolvedValue([]);
-      (mockPrisma.db.conversation.findUnique as jest.Mock).mockResolvedValue({
-        createdAt: entityCreatedAt,
-        title: 'Test Conversation',
-      });
 
       const result = await service.getEntityContext(
         testIds.organization,
         'CONVERSATION' as EntityType,
         entityId,
+        undefined,
+        [entityId],
+        {
+          meta: {
+            createdAt: entityCreatedAt,
+            displayName: 'Test Conversation',
+          },
+          conversationContext: {
+            conversationId: entityId,
+            conversationTitle: 'Test Conversation',
+            agentSessions: [],
+            proposals: [],
+            reports: [],
+          },
+        },
       );
 
       expect(result.availableMcpTools).toEqual([]);

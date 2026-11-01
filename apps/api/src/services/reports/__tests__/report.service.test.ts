@@ -3111,7 +3111,7 @@ describe('ReportService', () => {
   describe('listSummariesByEntity', () => {
     const createdAt = new Date('2026-04-26T12:00:00.000Z');
 
-    it('filters reports by entityId only and maps to ReportSummaryDto', async () => {
+    it('filters project-knowledge reports by entityId and maps to ReportSummaryDto', async () => {
       (prisma.db.report.findMany as jest.Mock).mockResolvedValue([
         {
           id: 'report-1',
@@ -3135,6 +3135,7 @@ describe('ReportService', () => {
       expect(prisma.db.report.findMany).toHaveBeenCalledWith({
         where: {
           organizationId: 'org-1',
+          ragEnabled: true,
           reportEntities: { some: { entityId: 'entity-1' } },
         },
         select: {

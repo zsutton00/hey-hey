@@ -309,6 +309,7 @@ describe('Accepted work-item type is immediately usable (live registry snapshot)
           provide: ProposalReconciliationService,
           useValue: {
             assertApplicable: jest.fn(),
+            decisionsForProposals: jest.fn().mockResolvedValue(new Map()),
             recordCreatedDelivery: jest.fn(),
           },
         },

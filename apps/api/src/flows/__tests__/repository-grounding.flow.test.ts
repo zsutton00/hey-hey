@@ -40,15 +40,11 @@ describe('repository import workflow isolation', () => {
     });
     expect(
       repositoryImportFlow.nodes[REPOSITORY_IMPORT_NODES.ENRICHMENT],
-    ).toMatchObject({
-      transitions: {
-        success: { nextNodeId: REPOSITORY_IMPORT_NODES.GENERATE_FEATURES },
-      },
-    });
+    ).toEqual({});
     expect(
       repositoryImportFlow.nodes[REPOSITORY_IMPORT_NODES.GENERATE_FEATURES],
     ).toMatchObject({
-      nextNode: REPOSITORY_IMPORT_NODES.ENRICHMENT_CHOICE,
+      nextNode: REPOSITORY_IMPORT_NODES.PLACEMENT_STRATEGY,
     });
     expect(
       repositoryImportFlow.nodes[SHARED_NODES.GENERATE_FEATURES],
@@ -56,7 +52,7 @@ describe('repository import workflow isolation', () => {
     expect(
       repositoryImportFlow.nodes[REPOSITORY_IMPORT_NODES.FINALIZE],
     ).toMatchObject({
-      nextNode: REPOSITORY_IMPORT_NODES.FIRST_WORK_QUESTION,
+      nextNode: REPOSITORY_IMPORT_NODES.ENRICHMENT_CHOICE,
     });
   });
 

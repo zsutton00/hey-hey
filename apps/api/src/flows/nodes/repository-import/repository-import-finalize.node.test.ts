@@ -8,7 +8,8 @@ describe('repository import finalization', () => {
   it('finishes after proposal approval without onboarding activation effects', async () => {
     await expect(new RepositoryImportFinalizeNode().execute()).resolves.toEqual(
       {
-        type: NodeType.FINALIZE,
+        type: NodeType.ACTION,
+        data: { type: 'ACTION_COMPLETE' },
         message: 'Your imported Features were created after approval.',
       },
     );

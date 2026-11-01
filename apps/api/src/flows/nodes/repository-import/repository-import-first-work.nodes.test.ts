@@ -73,20 +73,18 @@ const success = {
 };
 
 describe('repository import first-work stage', () => {
-  it('routes FINALIZE through the question and agent to END', () => {
+  it('offers Done or optional enrichment after Feature approval', () => {
     const nodes = repositoryImportFlow.nodes;
     expect(nodes[REPOSITORY_IMPORT_NODES.FINALIZE]).toMatchObject({
-      nextNode: REPOSITORY_IMPORT_NODES.FIRST_WORK_QUESTION,
+      nextNode: REPOSITORY_IMPORT_NODES.ENRICHMENT_CHOICE,
     });
-    expect(nodes[REPOSITORY_IMPORT_NODES.FIRST_WORK_QUESTION]).toMatchObject({
-      nextNode: REPOSITORY_IMPORT_NODES.FIRST_WORK,
-    });
-    expect(nodes[REPOSITORY_IMPORT_NODES.FIRST_WORK]).toMatchObject({
+    expect(nodes[REPOSITORY_IMPORT_NODES.ENRICHMENT_CHOICE]).toMatchObject({
       transitions: {
-        questions: { nextNodeId: REPOSITORY_IMPORT_NODES.FIRST_WORK_FOLLOW_UP },
-        success: { nextNodeId: REPOSITORY_IMPORT_NODES.END },
+        ENRICH: { nextNodeId: REPOSITORY_IMPORT_NODES.ENRICHMENT },
+        SKIP: { nextNodeId: REPOSITORY_IMPORT_NODES.END },
       },
     });
+    expect(nodes[REPOSITORY_IMPORT_NODES.ENRICHMENT]).toEqual({});
   });
 
   it('keeps pre-patch and pre-stage executions completing at END', () => {

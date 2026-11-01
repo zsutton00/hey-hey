@@ -387,6 +387,7 @@ const SHAPES: ShapeRow[] = [
       'layout.identityUnique',
       'layout.boundary',
       'diagram.metadata',
+      'diagram.uxFlow',
       // A child create under a groups-capable Diagram; no load beyond named.
       'diagram.groups',
     ],
@@ -394,6 +395,7 @@ const SHAPES: ShapeRow[] = [
       { kind: 'parent', of: 'temporary:element' },
       { kind: 'siblingsNamed', parent: key(DIAGRAM), name: 'New element' },
       { kind: 'diagramTargets', of: ['temporary:element'] },
+      { kind: 'diagramGraph', of: key(DIAGRAM) },
     ],
   },
   {
@@ -402,8 +404,8 @@ const SHAPES: ShapeRow[] = [
       root: existing(DIAGRAM),
       operations: [{ op: 'workItem.delete', ref: existing(ELEMENT) }],
     },
-    rules: [...BASE_RULES, 'diagram.groups'],
-    loads: [],
+    rules: [...BASE_RULES, 'diagram.groups', 'diagram.uxFlow'],
+    loads: [{ kind: 'diagramGraph', of: key(DIAGRAM) }],
   },
   {
     shape: 'DIAGRAM description replace',

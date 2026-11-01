@@ -132,6 +132,7 @@ describe('application eligibility at every approval and enactment entry point', 
   it('refuses materialization of an approved change set', async () => {
     const service = instance(WorkItemChangeSetMaterializerService, {
       logger,
+      runningAttempts: new Map(),
       prisma: {
         db: {
           proposal: { findFirst: jest.fn().mockResolvedValue(evalProposal) },
