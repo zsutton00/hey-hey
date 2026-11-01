@@ -15,3 +15,5 @@ mod template;
 mod agent_edges;
 mod hints;
 mod native;
+
+pub mod ingest;

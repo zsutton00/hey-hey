@@ -32,6 +32,22 @@ async fn main() -> Result<()> {
         .transpose()?;
     let pool = database::connect_and_migrate(&config).await?;
     let mut app = server::router(&config, pool.clone(), auth);
+    let graph_events = if config.graph.enabled {
+        let settings = ingest::config::EventsConfig::from_lookup(&|key| {
+            if key == "SEARCH_EVENTS_ENABLED" {
+                return Ok(Some("true".into()));
+            }
+            let key = key.replace("SEARCH_EVENT_", "GRAPH_EVENT_");
+            Ok(std::env::var(key).ok())
+        })?
+        .expect("graph event ingestion is always enabled with graph");
+        Some(ingest::consumer::Consumer::start_graph(
+            settings,
+            hey_hey_graph_search::graph::ingest::Ingest::new(pool.clone()),
+        ))
+    } else {
+        None
+    };
     let mut events = None;
     if let Some(encoder) = encoder {
         search::model_record::verify(&pool, &config.search.encoder).await?;
@@ -57,6 +73,9 @@ async fn main() -> Result<()> {
         .with_graceful_shutdown(shutdown())
         .await?;
     if let Some(events) = events {
+        events.stop().await;
+    }
+    if let Some(events) = graph_events {
         events.stop().await;
     }
     pool.close().await;

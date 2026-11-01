@@ -416,3 +416,48 @@ async fn agent_wire(
         })
         .collect()
 }
+
+/// Atomic event materialization, sharing the HTTP store's canonical identity.
+pub async fn merge_event_node(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    scope: &Scope,
+    id: &str,
+    entity: (&str, &str),
+    properties: &Value,
+    timestamp: &str,
+    only_if_missing: bool,
+) -> anyhow::Result<()> {
+    let (kind, label) = entity;
+    sqlx::query("INSERT INTO graph.node (organization_id,project_id,id,entity_type,labels,properties,project_scoped,created_at,updated_at) VALUES ($1,$2,$3,$4,ARRAY[$5],$6,$4 NOT IN ('USER','PROJECT'),$7::text::timestamptz,$7::text::timestamptz) ON CONFLICT (organization_id,project_id,id) DO UPDATE SET properties=graph.node.properties||EXCLUDED.properties,stub=false,updated_at=EXCLUDED.updated_at WHERE NOT $8")
+        .bind(&scope.organization).bind(&scope.project).bind(id).bind(kind).bind(label).bind(properties).bind(timestamp).bind(only_if_missing).execute(&mut **tx).await?;
+    Ok(())
+}
+
+pub async fn merge_event_edge(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    scope: &Scope,
+    source: &str,
+    target: &str,
+    kind: &str,
+    properties: &Value,
+    timestamp: &str,
+) -> anyhow::Result<()> {
+    sqlx::query("INSERT INTO graph.edge (organization_id,project_id,source_id,target_id,relationship_type,properties,created_at,deduplication_key) VALUES ($1,$2,$3,$4,$5,$6,$7::text::timestamptz,$3||':'||$4||':'||$5) ON CONFLICT (organization_id,project_id,deduplication_key) DO UPDATE SET properties=graph.edge.properties||EXCLUDED.properties,updated_at=now()")
+        .bind(&scope.organization).bind(&scope.project).bind(source).bind(target).bind(kind).bind(properties).bind(timestamp).execute(&mut **tx).await?;
+    Ok(())
+}
+
+/// Claims are committed with projection changes, so failed events remain retryable.
+/// The deployed Graph retains its idempotency keys for 24 hours too.
+pub async fn claim_event(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    scope: &Scope,
+    event_id: &str,
+) -> anyhow::Result<bool> {
+    sqlx::query("DELETE FROM graph.event_receipt WHERE processed_at < now()-interval '24 hours'")
+        .execute(&mut **tx)
+        .await?;
+    let result=sqlx::query("INSERT INTO graph.event_receipt (organization_id,project_id,event_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING")
+        .bind(&scope.organization).bind(&scope.project).bind(event_id).execute(&mut **tx).await?;
+    Ok(result.rows_affected() == 1)
+}

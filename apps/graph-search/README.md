@@ -505,3 +505,28 @@ node replacement/deletion, traversal policies, ranking, projections, neighborhoo
 depth/pivots, topology and provenance. The large-project case verifies complete
 identity groups and fixed incident selection, and inspects the adjacency query
 plan in the presence of unrelated-tenant volume.
+
+### Graph event ingestion
+
+The graph worker uses its own Redis connection and the same event channels as
+Graph's deployed handlers: task, initiative, message, conversation, design doc,
+service, artifact, agent session, implementation hint, report, proposal approval,
+mention, summary, and organization closure events. The exact subscription inventory
+is `src/graph/ingest/lifecycle.rs`. Subscribed no-op events remain no-ops.
+`EVENTS_CHANNEL_PREFIX` defaults to `hey-hey:bus:`. The worker starts whenever
+`GRAPH_ENABLED=true`, independently of search and its encoder. `REDIS_URL` is
+required; `GRAPH_EVENT_LANES` and `GRAPH_EVENT_LANE_CAPACITY` default to 4 and 64.
+
+Approval influences retain the latest reason type and reasoning for CREATE and
+UPDATE approvals of the same target. Relationship merges update metadata without
+creating duplicates. Atomic local event receipts prevent a duplicate older event
+from overwriting newer state, with the deployed Graph's 24-hour retention. These
+receipts hold identities only, not replayable payloads. Organization closure deletes
+the graph and receipts and fences subsequent writes through the shared store.
+PROPOSED_TOGETHER rules remain separately owned.
+
+The workers use bounded lanes and apply an aggregate's events in receive order.
+A rejected, failed or panicking event is logged by identity and does not stop the
+lane, HTTP server or other consumer. Redis Pub/Sub retains no history: events
+published while disconnected, including a slow subscriber being disconnected,
+are lost. Reconnection does not replay them. No replay or rebuild is provided.

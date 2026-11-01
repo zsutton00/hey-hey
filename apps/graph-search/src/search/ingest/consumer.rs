@@ -68,8 +68,38 @@ pub fn lane_for(aggregate_id: &str, lanes: usize) -> usize {
     crc32fast::hash(aggregate_id.as_bytes()) as usize % lanes
 }
 
+#[derive(Clone)]
+enum Handler {
+    Search(Ingest),
+    Graph(crate::graph::ingest::Ingest),
+}
+impl Handler {
+    async fn handle(&self, envelope: &Value) -> Result<(), IngestError> {
+        match self {
+            Self::Search(ingest) => ingest.handle(envelope).await,
+            Self::Graph(ingest) => ingest.handle(envelope).await,
+        }
+    }
+}
+
 impl Consumer {
     pub fn start(config: EventsConfig, ingest: Ingest) -> Self {
+        Self::start_handler(config, Handler::Search(ingest), &SUBSCRIBED)
+    }
+
+    pub fn start_graph(config: EventsConfig, ingest: crate::graph::ingest::Ingest) -> Self {
+        Self::start_handler(
+            config,
+            Handler::Graph(ingest),
+            crate::graph::ingest::SUBSCRIBED,
+        )
+    }
+
+    fn start_handler(
+        config: EventsConfig,
+        ingest: Handler,
+        subscribed: &'static [&'static str],
+    ) -> Self {
         let (stopping, _) = watch::channel(false);
         let mut senders = Vec::with_capacity(config.lanes);
         let mut workers = Vec::with_capacity(config.lanes);
@@ -85,7 +115,7 @@ impl Consumer {
         }
 
         let stop = Arc::new(AtomicBool::new(false));
-        spawn_reader(config, senders, stop.clone());
+        spawn_reader_for(config, senders, stop.clone(), subscribed);
         Self {
             stop,
             stopping,
@@ -102,7 +132,7 @@ impl Consumer {
 
         let drain = futures_util::future::join_all(self.workers);
         if tokio::time::timeout(SHUTDOWN_DRAIN, drain).await.is_err() {
-            tracing::warn!("search events still being applied at shutdown were abandoned");
+            tracing::warn!("projection events still being applied at shutdown were abandoned");
         }
     }
 }
@@ -110,7 +140,7 @@ impl Consumer {
 async fn run_lane(
     lane: usize,
     mut jobs: mpsc::Receiver<Job>,
-    ingest: Ingest,
+    ingest: Handler,
     mut stopping: watch::Receiver<bool>,
 ) {
     loop {
@@ -131,7 +161,7 @@ async fn run_lane(
     }
 }
 
-async fn apply(lane: usize, ingest: &Ingest, job: Job) {
+async fn apply(lane: usize, ingest: &Handler, job: Job) {
     // A panic in one event must not end the lane and strand its items.
     let outcome = AssertUnwindSafe(ingest.handle(&job.envelope))
         .catch_unwind()
@@ -142,7 +172,7 @@ async fn apply(lane: usize, ingest: &Ingest, job: Job) {
                 lane,
                 event_type = job.event_type,
                 event_id = job.event_id,
-                "search event applied"
+                "projection event applied"
             );
         }
         Ok(Err(error)) => record(lane, &job, &error),
@@ -150,7 +180,7 @@ async fn apply(lane: usize, ingest: &Ingest, job: Job) {
             lane,
             event_type = job.event_type,
             event_id = job.event_id,
-            "search event handling panicked"
+            "projection event handling panicked"
         ),
     }
 }
@@ -163,7 +193,7 @@ fn record(lane: usize, job: &Job, error: &IngestError) {
         event_id = job.event_id,
         outcome = error.kind(),
         reason = %error,
-        "search event not applied"
+        "projection event not applied"
     );
 }
 
@@ -174,23 +204,37 @@ pub fn spawn_reader(
     lanes: Vec<mpsc::Sender<Job>>,
     stop: Arc<AtomicBool>,
 ) -> thread::JoinHandle<()> {
+    spawn_reader_for(config, lanes, stop, &SUBSCRIBED)
+}
+
+fn spawn_reader_for(
+    config: EventsConfig,
+    lanes: Vec<mpsc::Sender<Job>>,
+    stop: Arc<AtomicBool>,
+    subscribed: &'static [&'static str],
+) -> thread::JoinHandle<()> {
     thread::Builder::new()
-        .name("search-events-reader".into())
-        .spawn(move || read_forever(&config, &lanes, &stop))
+        .name("projection-events-reader".into())
+        .spawn(move || read_forever(&config, &lanes, &stop, subscribed))
         .expect("the OS can start a thread")
 }
 
 /// Reads until stopped. A lost connection is retried; events published while
 /// disconnected are not recovered, because Pub/Sub keeps no history.
-fn read_forever(config: &EventsConfig, lanes: &[mpsc::Sender<Job>], stop: &AtomicBool) {
+fn read_forever(
+    config: &EventsConfig,
+    lanes: &[mpsc::Sender<Job>],
+    stop: &AtomicBool,
+    subscribed: &[&str],
+) {
     let mut delay = FIRST_RETRY;
     while !stop.load(Ordering::SeqCst) {
-        match read(config, lanes, stop) {
-            Ok(()) => tracing::warn!("search event subscription ended"),
+        match read(config, lanes, stop, subscribed) {
+            Ok(()) => tracing::warn!("projection event subscription ended"),
             Err(error) => {
                 tracing::error!(
                     error = format!("{error:#}"),
-                    "search event subscription failed"
+                    "projection event subscription failed"
                 );
             }
         }
@@ -209,31 +253,36 @@ fn wait_unless_stopped(delay: Duration, stop: &AtomicBool) {
     }
 }
 
-fn read(config: &EventsConfig, lanes: &[mpsc::Sender<Job>], stop: &AtomicBool) -> Result<()> {
+fn read(
+    config: &EventsConfig,
+    lanes: &[mpsc::Sender<Job>],
+    stop: &AtomicBool,
+    subscribed: &[&str],
+) -> Result<()> {
     // The URL can carry credentials, so it never appears in an error message.
     let client = redis::Client::open(config.redis_url.as_str())
         .map_err(|_| anyhow::anyhow!("REDIS_URL is not a valid Redis URL"))?;
     let mut connection = client
         .get_connection_with_timeout(CONNECT_TIMEOUT)
-        .context("Cannot connect to Redis for search events")?;
+        .context("Cannot connect to Redis for projection events")?;
     let mut pubsub = connection.as_pubsub();
 
     // Subscribing waits for the server's answers; waiting for messages must not
     // time out, because a timeout in the middle of a message loses its start.
     pubsub.set_read_timeout(Some(SUBSCRIBE_TIMEOUT))?;
-    for event_type in SUBSCRIBED {
+    for event_type in subscribed {
         let channel = format!("{}{event_type}", config.channel_prefix);
         pubsub
             .subscribe(&channel)
             .with_context(|| format!("Cannot subscribe to {channel}"))?;
     }
     pubsub.set_read_timeout(None)?;
-    tracing::info!(channels = SUBSCRIBED.len(), "search events subscribed");
+    tracing::info!(channels = subscribed.len(), "projection events subscribed");
 
     loop {
         let message = pubsub
             .get_message()
-            .context("The search event subscription was lost")?;
+            .context("The projection event subscription was lost")?;
         if stop.load(Ordering::SeqCst) {
             return Ok(());
         }
@@ -251,7 +300,7 @@ fn route(payload: &[u8], lanes: &[mpsc::Sender<Job>]) -> Result<(), LanesClosed>
     let envelope: Value = match serde_json::from_slice(payload) {
         Ok(envelope) => envelope,
         Err(_) => {
-            tracing::error!(outcome = "rejected", "search event is not valid JSON");
+            tracing::error!(outcome = "rejected", "projection event is not valid JSON");
             return Ok(());
         }
     };
@@ -264,7 +313,7 @@ fn route(payload: &[u8], lanes: &[mpsc::Sender<Job>]) -> Result<(), LanesClosed>
     let (aggregate_id, event_type, event_id) = match placed {
         Ok(placed) => placed,
         Err(error) => {
-            tracing::error!(outcome = error.kind(), reason = %error, "search event cannot be routed");
+            tracing::error!(outcome = error.kind(), reason = %error, "projection event cannot be routed");
             return Ok(());
         }
     };

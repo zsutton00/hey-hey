@@ -31,6 +31,10 @@ pub async fn delete(pool: &PgPool, identity: &DeletionIdentity) -> anyhow::Resul
     if retained != requested {
         return Ok(Outcome::Conflict(retained));
     }
+    sqlx::query("DELETE FROM graph.event_receipt WHERE organization_id=$1")
+        .bind(&identity.organization_id)
+        .execute(&mut *tx)
+        .await?;
     sqlx::query("DELETE FROM graph.edge WHERE organization_id=$1")
         .bind(&identity.organization_id)
         .execute(&mut *tx)

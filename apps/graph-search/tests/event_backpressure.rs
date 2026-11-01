@@ -64,6 +64,8 @@ fn fake_redis(listener: UnixListener, written: Arc<AtomicUsize>) {
                 channel.len()
             );
             stream.write_all(reply.as_bytes()).unwrap();
+        } else {
+            stream.write_all(b"+OK\r\n").unwrap();
         }
     }
 

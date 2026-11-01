@@ -39,6 +39,11 @@ impl Fixture {
             .bind(&scope.project)
             .execute(&pool)
             .await?;
+        sqlx::query("DELETE FROM graph.event_receipt WHERE organization_id=$1 AND project_id=$2")
+            .bind(&scope.organization)
+            .bind(&scope.project)
+            .execute(&pool)
+            .await?;
         let app = server::router(&config, pool.clone(), common::auth());
         Ok(Self { pool, app, scope })
     }
@@ -1230,5 +1235,485 @@ async fn reviewed_edge_deletion_retains_its_basis_for_retries() -> anyhow::Resul
         f.call("DELETE", &checked, &token, Value::Null).await.0,
         StatusCode::CONFLICT
     );
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn approvals_preserve_create_and_edit_influences_without_duplicates() -> anyhow::Result<()> {
+    use hey_hey_graph_search::graph::ingest::Ingest;
+    let f = Fixture::new(990).await?;
+    let ingest = Ingest::new(f.pool.clone());
+    for (n, action) in [(991, "CREATE"), (992, "UPDATE")] {
+        let mut event = json!({"event":{"id":id(n+10),"type":"proposal.approved","aggregateId":id(n),"payload":{
+            "proposalId":id(n),"organizationId":f.scope.organization,"projectId":f.scope.project,
+            "targetEntityId":id(1021),"targetEntityType":"TASK","action":action,"requestorId":id(2),
+            "createdAt":"2026-11-01T00:00:00Z","shouldProcess":true,
+            "influences":[{"entityId":id(3),"entityType":"TASK","reasonType":"derived","reasoning":"Reviewed requirement"}]
+        }}});
+        let target = id(1021);
+        let reason = if action == "CREATE" {
+            "Initial requirement"
+        } else {
+            "Revised requirement"
+        };
+        event["event"]["payload"]["influences"][0]["reasoning"] = json!(reason);
+        let reason_type = if action == "CREATE" {
+            "derived"
+        } else {
+            "explicit_mention"
+        };
+        event["event"]["payload"]["influences"][0]["reasonType"] = json!(reason_type);
+        if action == "CREATE" {
+            event["event"]["payload"]["resultingEntityId"] = json!(target);
+        }
+        ingest.handle(&event).await?;
+        ingest.handle(&event).await?;
+        let result = f
+            .query(&format!("entities/{}/provenance", id(3)), json!({}))
+            .await;
+        let edges = result["edges"].as_array().unwrap();
+        let matching: Vec<_> = edges
+            .iter()
+            .filter(|edge| edge["targetNodeId"] == target && edge["type"] == "INFLUENCES")
+            .collect();
+        assert_eq!(matching.len(), 1, "{result}");
+        assert_eq!(matching[0]["reasonType"], reason_type);
+        assert_eq!(matching[0]["reasoning"], reason);
+    }
+    Ok(())
+}
+
+impl Fixture {
+    fn event(&self, sequence: u64, kind: &str, aggregate: u64, mut payload: Value) -> Value {
+        payload["organizationId"] = json!(self.scope.organization);
+        payload["projectId"] = json!(self.scope.project);
+        payload["payloadType"] = json!(kind);
+        payload["timestamp"] = json!("2026-11-01T00:00:00Z");
+        json!({"event":{"id":id(sequence),"aggregateId":id(aggregate),"type":kind,"payload":payload}})
+    }
+    async fn projected(&self, entity: u64) -> Value {
+        self.query("traversal",json!({"seedEntityIds":[id(entity)],"includeSeedEntities":true,"traversal":{"depth":1}})).await
+    }
+    async fn has_edge(&self, source: u64, target: u64, kind: &str) -> bool {
+        let response = self
+            .query(
+                "incident-edges",
+                json!({"seedEntityIds":[id(source)],"relationshipTypes":[kind]}),
+            )
+            .await;
+        response["groups"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|g| g["relationships"].as_array().unwrap())
+            .any(|r| {
+                r["sourceNodeId"] == id(source)
+                    && r["targetNodeId"] == id(target)
+                    && r["type"] == kind
+            })
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn lifecycle_sequences_project_nodes_relationships_replacements_and_cascades()
+-> anyhow::Result<()> {
+    use hey_hey_graph_search::graph::ingest::Ingest;
+    let f = Fixture::new(1100).await?;
+    let ingest = Ingest::new(f.pool.clone());
+    let events = [
+        (
+            "initiative.created",
+            1101,
+            json!({"initiative":{"name":"Release","status":"ACTIVE"}}),
+        ),
+        (
+            "task.created",
+            1102,
+            json!({"initiativeId":id(1101),"task":{"name":"Parent","type":"FEATURE","status":"BACKLOG"}}),
+        ),
+        (
+            "task.created",
+            1103,
+            json!({"task":{"name":"Child","type":"STANDARD","parentTaskId":id(1102)}}),
+        ),
+        ("task.updated", 1103, json!({"update":{"name":"Renamed"}})),
+        ("task.assigned", 1103, json!({"assigneeId":id(1)})),
+        ("task.unassigned", 1103, json!({})),
+        (
+            "task.status_changed",
+            1103,
+            json!({"newStatus":"ACTIVE","previousStatus":"BACKLOG"}),
+        ),
+        (
+            "service.created",
+            1104,
+            json!({"service":{"name":"API","language":"Rust"}}),
+        ),
+        ("service.updated", 1104, json!({"service":{"name":"Graph"}})),
+        (
+            "design_doc.created",
+            1105,
+            json!({"designDoc":{"name":"Design","status":"READY"}}),
+        ),
+        (
+            "design_doc.updated",
+            1105,
+            json!({"designDoc":{"name":"Reviewed design"}}),
+        ),
+        (
+            "conversation.created",
+            1106,
+            json!({"conversationTitle":"Thread","status":"ACTIVE","workflowAboutId":id(1102),"workflowAboutType":"task"}),
+        ),
+        (
+            "conversation.updated",
+            1106,
+            json!({"update":{"title":"Discussion"}}),
+        ),
+        (
+            "message.created",
+            1107,
+            json!({"conversationId":id(1106),"message":{"type":"USER","shouldProcess":true,"userMessage":"First","userId":id(1)}}),
+        ),
+        (
+            "message.created",
+            1108,
+            json!({"conversationId":id(1106),"message":{"type":"USER","shouldProcess":true,"userMessage":"Next","parentMessageId":id(1107)}}),
+        ),
+        (
+            "message.updated",
+            1108,
+            json!({"conversationId":id(1106),"update":{"shouldProcess":true,"systemMessage":"Updated","parentMessageId":id(1109)}}),
+        ),
+        (
+            "artifact.created",
+            1110,
+            json!({"artifact":{"title":"Document","type":"TEXT","sourceId":id(1107),"sourceType":"MESSAGE"}}),
+        ),
+        ("artifact.updated", 1110, json!({})),
+        (
+            "agent_session.created",
+            1111,
+            json!({"taskId":id(1103),"serviceId":id(1104),"conversationId":id(1106),"agentSession":{"id":id(1111),"title":"Implement","status":"IN_PROGRESS"}}),
+        ),
+        (
+            "agent_session.status_changed",
+            1111,
+            json!({"newStatus":"COMPLETED"}),
+        ),
+        (
+            "implementation_hint.created",
+            1112,
+            json!({"implementationHint":{"id":id(1112),"serviceId":id(1104),"agentSessionId":id(1111),"hint":"Use shared store"}}),
+        ),
+        (
+            "implementation_hint.updated",
+            1112,
+            json!({"implementationHint":{"id":id(1112),"serviceId":id(1113),"hint":"Updated guidance"}}),
+        ),
+        (
+            "report.created",
+            1114,
+            json!({"shouldProcess":true,"report":{"id":id(1114),"reportType":"IMPLEMENT","title":"Evidence","ragEnabled":true,"entities":[{"entityId":id(1103),"entityType":"TASK","relation":"PRIMARY"}]}}),
+        ),
+        (
+            "mention.created",
+            1115,
+            json!({"sourceEntityId":id(1107),"sourceEntityType":"MESSAGE","entityId":id(1103),"entityType":"TASK","workflowAboutId":id(1102),"workflowAboutType":"TASK"}),
+        ),
+        (
+            "summary.created",
+            1116,
+            json!({"entityId":id(1103),"entityType":"task","category":"product","subfacets":["Delivery"]}),
+        ),
+    ];
+    for (sequence, (kind, aggregate, payload)) in events.into_iter().enumerate() {
+        let e = f.event(1200 + sequence as u64, kind, aggregate, payload);
+        ingest.handle(&e).await?;
+        ingest.handle(&e).await?;
+    }
+    for (source, target, kind) in [
+        (1101, 1102, "HAS_TASK"),
+        (1102, 1103, "HAS_TASK"),
+        (1106, 1102, "ABOUT"),
+        (1106, 1107, "HAS_MESSAGE"),
+        (1109, 1108, "MESSAGE_FOLLOWS"),
+        (1110, 1107, "DERIVES_FROM"),
+        (1103, 1111, "HAS_AGENT_SESSION"),
+        (1113, 1112, "HAS_IMPLEMENTATION_HINT"),
+        (1114, 1103, "REPORTS_ON"),
+        (1102, 1103, "MENTIONS"),
+    ] {
+        assert!(f.has_edge(source, target, kind).await, "missing {kind}");
+    }
+    assert!(!f.has_edge(1107, 1108, "MESSAGE_FOLLOWS").await);
+    assert!(!f.has_edge(1104, 1112, "HAS_IMPLEMENTATION_HINT").await);
+    assert!(!f.has_edge(1112, 1111, "DERIVES_FROM").await);
+    for (entity, key, expected) in [
+        (1103, "name", "Renamed"),
+        (1103, "status", "ACTIVE"),
+        (1104, "name", "Graph"),
+        (1105, "title", "Reviewed design"),
+        (1108, "content", "Updated"),
+        (1111, "status", "COMPLETED"),
+        (1112, "hint", "Updated guidance"),
+    ] {
+        let result = f.projected(entity).await;
+        let node = result["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|n| n["entityId"] == id(entity))
+            .unwrap();
+        assert_eq!(node["node"]["properties"][key], expected);
+    }
+    for (entity, field) in [(1103, "assigneeId"), (1112, "agentSessionId")] {
+        let result = f.projected(entity).await;
+        let node = result["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|n| n["entityId"] == id(entity))
+            .unwrap();
+        assert!(node["node"]["properties"].get(field).is_none());
+    }
+    let topology = f.query("topology", json!({})).await;
+    assert_eq!(
+        topology["categories"][0]["subfacets"][0]["name"],
+        "Delivery"
+    );
+    ingest.handle(&f.event(1300,"summary.updated",1116,json!({"entityId":id(1103),"entityType":"task","category":"product","subfacets":["Released"]}))).await?;
+    let topology = f.query("topology", json!({})).await;
+    let facets = topology["categories"][0]["subfacets"].as_array().unwrap();
+    assert!(
+        facets.iter().find(|f| f["name"] == "Delivery").unwrap()["entities"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        facets.iter().find(|f| f["name"] == "Released").unwrap()["entities"][0]["id"],
+        id(1103)
+    );
+    for (sequence, kind, aggregate, payload) in [
+        (1301, "mention.removed", 1115, json!({})),
+        (
+            1302,
+            "summary.deleted",
+            1116,
+            json!({"entityId":id(1103),"category":"product"}),
+        ),
+        (1303, "artifact.deleted", 1110, json!({})),
+        (1304, "message.deleted", 1108, json!({})),
+        (1305, "implementation_hint.deleted", 1112, json!({})),
+        (1306, "agent_session.deleted", 1111, json!({})),
+        (1307, "design_doc.archived", 1105, json!({})),
+        (1308, "service.archived", 1104, json!({})),
+        (1309, "task.archived", 1102, json!({})),
+        (
+            1310,
+            "initiative.updated",
+            1101,
+            json!({"update":{"name":"Finished"}}),
+        ),
+        (
+            1311,
+            "initiative.status_changed",
+            1101,
+            json!({"previousStatus":"ACTIVE","newStatus":"COMPLETED"}),
+        ),
+        (1312, "initiative.archived", 1101, json!({})),
+        (
+            1313,
+            "conversation.deleted",
+            1106,
+            json!({"hardDelete":true}),
+        ),
+    ] {
+        ingest
+            .handle(&f.event(sequence, kind, aggregate, payload))
+            .await?;
+    }
+    assert!(!f.has_edge(1102, 1103, "MENTIONS").await);
+    for entity in [
+        1101, 1102, 1103, 1104, 1105, 1106, 1107, 1108, 1110, 1111, 1112,
+    ] {
+        assert_eq!(f.projected(entity).await["totalElements"], 0);
+    }
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL and GRAPH_SEARCH_TEST_REDIS_URL"]
+async fn redis_graph_events_preserve_order_isolate_failures_and_fence_closed_organizations()
+-> anyhow::Result<()> {
+    use hey_hey_graph_search::{
+        graph::ingest::{Ingest, SUBSCRIBED},
+        search::ingest::{config::EventsConfig, consumer::Consumer},
+    };
+    use redis::AsyncCommands;
+    use std::time::{Duration, Instant};
+    let f = Fixture::new(1400).await?;
+    // Closure affects an entire organization; use an organization private to this fixture.
+    let f = Fixture {
+        scope: Scope {
+            organization: id(1400),
+            project: f.scope.project.clone(),
+        },
+        ..f
+    };
+    sqlx::query("DELETE FROM graph.projection_deletion WHERE organization_id=$1")
+        .bind(&f.scope.organization)
+        .execute(&f.pool)
+        .await?;
+    sqlx::query("DELETE FROM graph.event_receipt WHERE organization_id=$1")
+        .bind(&f.scope.organization)
+        .execute(&f.pool)
+        .await?;
+    let redis_url = std::env::var("GRAPH_SEARCH_TEST_REDIS_URL")?;
+    let prefix = format!("graph-test-{}:", std::process::id());
+    let consumer = Consumer::start_graph(
+        EventsConfig {
+            redis_url: redis_url.clone(),
+            channel_prefix: prefix.clone(),
+            lanes: 2,
+            lane_capacity: 4,
+        },
+        Ingest::new(f.pool.clone()),
+    );
+    let mut connection = redis::Client::open(redis_url)?
+        .get_multiplexed_async_connection()
+        .await?;
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let channels: Vec<String> = SUBSCRIBED
+            .iter()
+            .map(|kind| format!("{prefix}{kind}"))
+            .collect();
+        let counts: Vec<(String, i64)> = redis::cmd("PUBSUB")
+            .arg("NUMSUB")
+            .arg(channels)
+            .query_async(&mut connection)
+            .await?;
+        if counts.iter().all(|(_, n)| *n == 1) {
+            break;
+        }
+        anyhow::ensure!(Instant::now() < deadline, "consumer did not subscribe");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    let created = f.event(
+        1401,
+        "task.created",
+        1410,
+        json!({"task":{"name":"Initial","type":"FEATURE"}}),
+    );
+    let events = [
+        created.clone(),
+        f.event(
+            1402,
+            "task.updated",
+            1410,
+            json!({"update":{"name":"Later"}}),
+        ),
+        f.event(1403, "task.updated", 1410, json!({"update":5})),
+        f.event(
+            1404,
+            "task.updated",
+            1410,
+            json!({"update":{"name":"Final"}}),
+        ),
+        created,
+    ];
+    for e in events {
+        let channel = format!("{prefix}{}", e["event"]["type"].as_str().unwrap());
+        connection
+            .publish::<_, _, i64>(channel, e.to_string())
+            .await?;
+    }
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let response = f.projected(1410).await;
+        if response["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|n| n["node"]["properties"]["name"] == "Final")
+        {
+            break;
+        }
+        anyhow::ensure!(
+            Instant::now() < deadline,
+            "ordered healthy event was not visible: {response}"
+        );
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    let closure = json!({"event":{"id":id(1450),"type":"organization.closed","aggregateId":f.scope.organization,"payload":{"payloadType":"organization.closed","organizationId":f.scope.organization,"markerId":id(1451),"irreversibleClosureAt":"2026-11-01T00:00:00Z","deletionDeadline":"2026-11-02T00:00:00Z"}}});
+    connection
+        .publish::<_, _, i64>(format!("{prefix}organization.closed"), closure.to_string())
+        .await?;
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while f.projected(1410).await["totalElements"] != 0 {
+        anyhow::ensure!(
+            Instant::now() < deadline,
+            "closure did not delete projection"
+        );
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert!(
+        Ingest::new(f.pool.clone())
+            .handle(&f.event(
+                1452,
+                "task.created",
+                1410,
+                json!({"task":{"name":"Cannot return","type":"FEATURE"}})
+            ))
+            .await
+            .is_err()
+    );
+    consumer.stop().await;
+    assert_eq!(f.projected(1410).await["totalElements"], 0);
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn deleted_artifacts_disappear_from_authenticated_graph_reads_on_duplicate_delivery()
+-> anyhow::Result<()> {
+    use hey_hey_graph_search::graph::ingest::Ingest;
+    let f = Fixture::new(1500).await?;
+    let ingest = Ingest::new(f.pool.clone());
+    ingest
+        .handle(&f.event(
+            1501,
+            "task.created",
+            1502,
+            json!({"task":{"name":"Source","type":"STANDARD"}}),
+        ))
+        .await?;
+    ingest.handle(&f.event(1503, "artifact.created", 1504, json!({"artifact":{"title":"Evidence","type":"DOCUMENT","sourceId":id(1502),"sourceType":"TASK"}}))).await?;
+    assert!(
+        f.projected(1504).await["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|node| node["entityId"] == id(1504))
+    );
+    assert!(f.has_edge(1504, 1502, "DERIVES_FROM").await);
+    let deleted = f.event(1505, "artifact.deleted", 1504, json!({}));
+    for _ in 0..2 {
+        ingest.handle(&deleted).await?;
+        assert_eq!(f.projected(1504).await["totalElements"], 0);
+        assert!(!f.has_edge(1504, 1502, "DERIVES_FROM").await);
+        let from_source = f.projected(1502).await;
+        assert!(
+            from_source["results"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|node| node["entityId"] != id(1504))
+        );
+    }
     Ok(())
 }
