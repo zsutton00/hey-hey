@@ -3,6 +3,7 @@ import { CommitHandler } from '../commit.handler';
 import type { LocalCommitPromptPayload } from '../../../shared/agent-bridge-contract/runtime-types';
 import { ReportAudience, ReportType } from '../../../shared/api/index';
 import { makeCreateReportProxy } from '../../submission-tools/create-report-proxy.test-support';
+import { resolveHintPromptAccess } from '../../mcp-server-config';
 
 const commitHandler = new CommitHandler(makeCreateReportProxy());
 
@@ -15,6 +16,10 @@ const makePayload = (
 });
 
 describe('CommitHandler', () => {
+  it('can read graph Hints where the legacy service-hint search was available', () => {
+    expect(commitHandler.subagentConfig?.mcpAllowedTools).toContain('get_hints_for_items');
+  });
+
   it('has promptType "commit"', () => {
     expect(commitHandler.promptType).toBe('commit');
   });
@@ -35,6 +40,13 @@ describe('CommitHandler', () => {
 
   it('does not load prior reports into the commit subagent', () => {
     expect(commitHandler.subagentConfig?.includePriorReports).toBe(false);
+  });
+
+  it('gets graph-Hints read guidance where legacy hint search was available', () => {
+    const allowedTools = commitHandler.subagentConfig?.mcpAllowedTools ?? [];
+    expect(allowedTools).toContain('get_hints_for_items');
+    expect(allowedTools).not.toContain('search_implementation_hints');
+    expect(resolveHintPromptAccess(true, [...allowedTools])).toBe('read');
   });
 
   describe('buildPrompt', () => {

@@ -68,6 +68,17 @@ describe('platform system prompt', () => {
     ).toMatchSnapshot();
   });
 
+  it('matches captured graph-Hints prompts for read and write access', () => {
+    const promptFor = (hints: 'read' | 'write') =>
+      buildPlatformSystemPrompt(builtInTypes, undefined, {
+        intentFirst: false,
+        maturity: ProjectMaturity.Established,
+        hints,
+      });
+
+    expect({ read: promptFor('read'), write: promptFor('write') }).toMatchSnapshot();
+  });
+
   it('excludes archived references from usable context', () => {
     const prompt = buildPlatformSystemPrompt(builtInTypes);
 
