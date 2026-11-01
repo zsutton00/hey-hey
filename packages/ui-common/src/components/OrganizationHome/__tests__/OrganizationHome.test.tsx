@@ -1,6 +1,7 @@
+import { createHeyTheme } from "../../../contexts/ThemeContext";
 import userEvent from "@testing-library/user-event";
 import { render, screen, waitFor } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { ThemeProvider } from "@mui/material/styles";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -61,6 +62,8 @@ import {
   formatProjectUpdatedAt,
   formatProjectStatus,
 } from "../OrganizationHome";
+
+const theme = createHeyTheme("light");
 
 const ORGANIZATION_ID = "organization-1";
 const USER_ID = "user-1";
@@ -238,7 +241,7 @@ const renderHome = (
   };
 
   return render(
-    <ThemeProvider theme={createTheme()}>
+    <ThemeProvider theme={theme}>
       <PathServiceProvider pathService={pathService}>
         <MemoryRouter>
           <OrganizationHome
@@ -652,7 +655,7 @@ describe("OrganizationHome", () => {
     ).toBeInTheDocument();
 
     view.rerender(
-      <ThemeProvider theme={createTheme()}>
+      <ThemeProvider theme={theme}>
         <MemoryRouter>
           <OrganizationHome
             header={null}
@@ -670,7 +673,7 @@ describe("OrganizationHome", () => {
     );
     useEntityStarsMock.mockReturnValue(starsResult([]));
     view.rerender(
-      <ThemeProvider theme={createTheme()}>
+      <ThemeProvider theme={theme}>
         <PathServiceProvider pathService={getPathService()}>
           <MemoryRouter>
             <OrganizationHome
@@ -736,7 +739,7 @@ describe("OrganizationHome", () => {
       isReady: false,
     });
     rerender(
-      <ThemeProvider theme={createTheme()}>
+      <ThemeProvider theme={theme}>
         <PathServiceProvider pathService={getPathService()}>
           <MemoryRouter>
             <OrganizationHome
@@ -756,7 +759,7 @@ describe("OrganizationHome", () => {
 
     useProjectsMock.mockReturnValue(projectsResult([]));
     rerender(
-      <ThemeProvider theme={createTheme()}>
+      <ThemeProvider theme={theme}>
         <PathServiceProvider pathService={getPathService()}>
           <MemoryRouter>
             <OrganizationHome
@@ -793,7 +796,7 @@ describe("OrganizationHome", () => {
 
     const pathService = getPathService();
     const view = render(
-      <ThemeProvider theme={createTheme()}>
+      <ThemeProvider theme={theme}>
         <PathServiceProvider pathService={pathService}>
           <MemoryRouter>
             <OrganizationHome
@@ -809,7 +812,7 @@ describe("OrganizationHome", () => {
     );
 
     view.rerender(
-      <ThemeProvider theme={createTheme()}>
+      <ThemeProvider theme={theme}>
         <PathServiceProvider pathService={pathService}>
           <MemoryRouter>
             <OrganizationHome

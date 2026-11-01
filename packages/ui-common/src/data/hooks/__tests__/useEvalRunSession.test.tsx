@@ -50,6 +50,11 @@ const caseInput = {
   target: {},
   grading: {},
 };
+const execution = {
+  handler: "entity_conversation",
+  projectAssistantPrepares: true,
+  assessedOutput: "HANDLER_REPLY",
+} as const;
 
 const runReport = (status: EvalRunReport["payload"]["status"]) =>
   ({
@@ -92,6 +97,7 @@ const attemptReport = {
     reportType: ReportType.EvalAttempt,
     caseInputId: "case-input-1",
     configuration,
+    execution,
     status: EvalAttemptStatus.Queued,
     measurements: [],
     targetSessionId: "target-session",
@@ -168,6 +174,7 @@ describe("useEvalRunSession", () => {
           targetConversationId: "target-conversation",
           caseInput,
           configuration,
+          execution,
         },
       ],
     });

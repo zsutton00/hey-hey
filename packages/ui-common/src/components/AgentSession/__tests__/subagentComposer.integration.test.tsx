@@ -95,6 +95,10 @@ vi.mock("../../SmarterTextAreaCard/MentionPlugin", () => ({
   MentionPlugin: () => null,
 }));
 
+vi.mock("../../../data/hooks/useReports", () => ({
+  useReports: () => ({ reports: [], error: null, isFetched: true }),
+}));
+
 vi.mock("../../SmarterTextAreaCard/FeatureReferenceDiscoveryPlugin", () => ({
   FeatureReferenceDiscoveryPlugin: ({
     organizationId,
@@ -491,6 +495,9 @@ function view() {
   );
 }
 async function submit(text: string) {
+  await act(async () => {
+    for (let turn = 0; turn < 20; turn++) await Promise.resolve();
+  });
   fireEvent.change(screen.getByTestId("mock-editor-input"), {
     target: { value: text },
   });

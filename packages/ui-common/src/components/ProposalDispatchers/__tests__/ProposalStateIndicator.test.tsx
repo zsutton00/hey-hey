@@ -269,7 +269,7 @@ describe("ProposalStateIndicator out-of-date approval state", () => {
     expect(
       screen.queryByTestId("proposal-reconciliation-merge"),
     ).not.toBeInTheDocument();
-    expect(screen.getByTestId("proposal-approve")).toBeDisabled();
+    expect(screen.queryByTestId("proposal-approve")).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("proposal-out-of-date-acknowledgement"),
     ).not.toBeInTheDocument();

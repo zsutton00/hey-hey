@@ -177,8 +177,15 @@ describe("TanStack proposal reads", () => {
       }),
       { wrapper },
     );
-    await waitFor(() => expect(result.current.other.isReady).toBe(true));
+    await waitFor(() => {
+      expect(result.current.group.isReady).toBe(true);
+      expect(result.current.other.isReady).toBe(true);
+      expect(result.current.proposal.isReady).toBe(true);
+      expect(result.current.list.isReady).toBe(true);
+    });
     mocks.getProposalGroup.mockClear();
+    mocks.getProposal.mockClear();
+    mocks.listProposals.mockClear();
     await act(async () => handler.handleEvent(event));
     await waitFor(() =>
       expect(mocks.getProposalGroup).toHaveBeenCalledTimes(1),
@@ -186,7 +193,7 @@ describe("TanStack proposal reads", () => {
     expect(mocks.getProposalGroup.mock.calls[0][0]).toMatchObject({
       groupId: "group-1",
     });
-    expect(mocks.getProposal).toHaveBeenCalledTimes(1);
+    expect(mocks.getProposal).not.toHaveBeenCalled();
     expect(mocks.listProposals).toHaveBeenCalledTimes(1);
     await act(async () =>
       handler.handleEvent({ ...event, organizationId: "another-org" }),
