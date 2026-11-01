@@ -11,14 +11,17 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
+import { EvalKnownCost } from './evalKnownCost';
+import { EvalUnavailableCost } from './evalUnavailableCost';
 
 
-export interface EvalCostMeasurement { 
-    amount: number;
-    currency: string;
-    /**
-     * How the cost was derived.
-     */
-    basis: string;
-}
+/**
+ * What one measured agent cost, or that its cost is not reported.
+ */
+/**
+ * @type EvalCost
+ * What one measured agent cost, or that its cost is not reported.
+ * @export
+ */
+export type EvalCost = EvalKnownCost | EvalUnavailableCost;
 

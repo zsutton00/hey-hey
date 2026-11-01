@@ -14,7 +14,7 @@
 
 
 /**
- * TARGET_PREPARATION, TARGET_HANDLER and JUDGE are measured per attempt. COORDINATOR is measured per run. Scopes are never summed into one another. 
+ * TARGET_PREPARATION (the Project Assistant research agent, present only when research ran) and TARGET_HANDLER (the tested agent) are measured per attempt. JUDGE is no longer recorded; stored JUDGE entries are ignored. COORDINATOR is measured per run. Scopes are never summed into one another. 
  */
 export type EvalMeasurementScope = 'TARGET_PREPARATION' | 'TARGET_HANDLER' | 'JUDGE' | 'COORDINATOR';
 

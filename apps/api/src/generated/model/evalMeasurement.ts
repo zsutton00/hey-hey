@@ -11,7 +11,7 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
-import { EvalCostMeasurement } from './evalCostMeasurement';
+import { EvalCost } from './evalCost';
 import { EvalMeasurementScope } from './evalMeasurementScope';
 
 
@@ -35,7 +35,7 @@ export interface EvalMeasurement {
      */
     cacheCreationInputTokens?: number;
     toolCalls?: number;
-    cost?: EvalCostMeasurement;
+    cost?: EvalCost;
 }
 export namespace EvalMeasurement {
 }

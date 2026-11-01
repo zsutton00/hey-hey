@@ -58,7 +58,7 @@ export interface EvalAttemptReportPayload {
      */
     judgeProviderSessionId?: string;
     /**
-     * At most one each of TARGET_PREPARATION, TARGET_HANDLER and JUDGE.
+     * At most one each of TARGET_PREPARATION and TARGET_HANDLER. Older attempts may also hold a JUDGE entry, which is never shown.
      */
     measurements: Array<EvalMeasurement>;
     automatedAssessment?: object | null;
