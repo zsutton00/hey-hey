@@ -1444,6 +1444,7 @@ model Report {
   projectId             String?                @map("project_id")
   reportType            ReportType             @map("report_type")
   audience              ReportAudience
+  usage                 Json?
   payload               Json
   version               Int                    @default(1)
   schemaVersion         Int                    @default(1) @map("schema_version")

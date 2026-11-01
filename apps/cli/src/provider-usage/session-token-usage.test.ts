@@ -1,3 +1,4 @@
+import { createTestRun } from '../run/run.test-support';
 /** @vitest-environment node */
 import { afterEach, expect, it, vi } from 'vitest';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
@@ -76,6 +77,58 @@ it.each(['claude', 'codex'] as const)(
         .map((record) => JSON.stringify(record))
         .join('\n'),
     );
+    // Independent host-launched sessions must remain separate even when provider
+    // records describe their ancestry. The real ccusage reader is exercised here.
+    const childId = '22222222-2222-4222-8222-222222222222';
+    await writeFile(
+      path.join(claude, 'projects', 'fixture', `${childId}.jsonl`),
+      JSON.stringify({
+        ...claudeRecord,
+        sessionId: childId,
+        uuid: 'child-message',
+        requestId: 'child-request',
+        message: {
+          ...claudeRecord.message,
+          id: 'child-message',
+          usage: { ...claudeRecord.message.usage, input_tokens: 900 },
+        },
+      }),
+    );
+    await writeFile(
+      path.join(codex, 'sessions', `rollout-${childId}.jsonl`),
+      [
+        {
+          timestamp,
+          type: 'session_meta',
+          payload: {
+            id: childId,
+            source: { subagent: { thread_spawn: { parent_thread_id: sessionId } } },
+          },
+        },
+        {
+          timestamp,
+          type: 'event_msg',
+          payload: {
+            type: 'token_count',
+            info: {
+              model: 'gpt-5',
+              last_token_usage: {
+                input_tokens: 900,
+                cached_input_tokens: 0,
+                output_tokens: 3,
+                reasoning_output_tokens: 0,
+                total_tokens: 903,
+              },
+            },
+          },
+        },
+      ]
+        .map((record) => JSON.stringify(record))
+        .join('\n'),
+    );
+    expect(await new SessionTokenUsageReader().read(provider, childId)).toMatchObject({
+      inputTokens: 900,
+    });
     const store = new RunStore({
       paths: {
         baseDir: root,
@@ -129,6 +182,21 @@ it.each(['claude', 'codex'] as const)(
       },
     });
     expect((await reopened.getRunResult(run.agentic_session_id))?.usage).toEqual(usage);
+    await reopened.addToolUsage(run.agentic_session_id, [
+      { toolName: 'read', toolUseId: 'shared-id', timestamp, providerSessionId: sessionId },
+      { toolName: 'read', toolUseId: 'shared-id', timestamp, providerSessionId: sessionId },
+      { toolName: 'read', toolUseId: 'shared-id', timestamp, providerSessionId: childId },
+    ]);
+    const restored = createTestRun(
+      { runId: run.agentic_session_id, session: run },
+      { runStore: reopened },
+    );
+    expect(await restored.readReportUsageToolCalls(sessionId)).toBe(1);
+    await reopened.addToolUsage(run.agentic_session_id, [
+      { toolName: 'legacy', toolUseId: 'unknown-source', timestamp },
+    ]);
+    expect(await restored.readReportUsageToolCalls(sessionId)).toBeNull();
+
     await rm(
       provider === 'claude'
         ? path.join(claude, 'projects', 'fixture', `${sessionId}.jsonl`)

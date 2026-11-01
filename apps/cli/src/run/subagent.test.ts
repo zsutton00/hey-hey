@@ -1939,7 +1939,12 @@ describe('SubAgent — unified runtime contract', () => {
         expect(signal?.aborted ?? false).toBe(false);
       });
       await expect(launch('codex')).resolves.toMatchObject({
-        usage: { inputTokens: 120, outputTokens: 8, cacheReadInputTokens: 500000 },
+        usage: {
+          inputTokens: 120,
+          outputTokens: 8,
+          cacheReadInputTokens: 500000,
+          cacheInclusiveInputTokens: 500120,
+        },
       });
     });
   });

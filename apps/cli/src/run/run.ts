@@ -1,3 +1,4 @@
+import { reportUsageExecutions } from '../provider-usage/report-usage-executions';
 import { readRestrictionFor } from '../shared/api/read-restriction';
 import { isAxiosError } from 'axios';
 import type { FailureReason } from './failure-message';
@@ -917,6 +918,7 @@ export class Run {
 
   constructor(args: RunArgs, collaborators: RunCollaborators) {
     this.runId = args.runId;
+    reportUsageExecutions.open(this.runId);
     this.organizationId = args.organizationId;
     this.projectId = args.projectId;
     this.conversationId = args.conversationId;
@@ -1913,10 +1915,51 @@ export class Run {
     perTurn.add(file);
   }
 
+  public logReportUsageUnavailable(reportType: unknown): void {
+    this.logger.warn('local.run.create_report.usage_unavailable', {
+      runId: this.runId,
+      turnId: this.activeTurn?.turnId ?? null,
+      reportType,
+    });
+  }
+
+  private readonly reportToolSources = new Map<string, string | null>();
+
+  public async readReportUsageToolCalls(providerSessionId: string | null): Promise<number | null> {
+    if (!this.trackToolUsage) {
+      return null;
+    }
+    const entries = await this.runStore.getToolUsage(this.runId);
+    const sources = new Map(
+      entries.map((entry) => [
+        JSON.stringify([entry.providerSessionId ?? null, entry.toolUseId]),
+        entry.providerSessionId ?? null,
+      ]),
+    );
+    for (const [id, source] of this.reportToolSources) {
+      sources.set(id, source);
+    }
+    if ([...sources.values()].some((source) => source === null)) {
+      return null;
+    }
+    return [...sources.values()].filter((source) => source === providerSessionId).length;
+  }
+
   recordToolUsage(blocks: ToolUseNormalizedBlock[]): void {
-    if (!this.trackToolUsage) return;
+    if (!this.trackToolUsage) {
+      return;
+    }
+
+    const providerSessionId =
+      this.activeTurn?.handler.runnerKind === 'subagent'
+        ? this.activeTurn.subagentProviderSessionId
+        : this.session.provider_session_id || null;
+    for (const block of blocks) {
+      this.reportToolSources.set(JSON.stringify([providerSessionId, block.id]), providerSessionId);
+    }
     const entries = blocks.map((block) => ({
       toolName: block.toolName,
+      providerSessionId,
       toolUseId: block.id,
       timestamp: new Date().toISOString(),
       input: block.input,
@@ -6342,6 +6385,7 @@ export class Run {
     // the turn with no completion path. See the writeup at the top of this
     // file for the trigger-message-id history.
     const perTurnFields = {
+      usageTurnId: turnId,
       tools,
       activeToolNames,
       externalAgentNodeId,

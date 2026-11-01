@@ -1,3 +1,13 @@
+export {
+  ReportUsageCacheAvailability,
+  ReportUsageCoverage,
+  ReportUsageBreakdownEntryRoleEnum,
+} from './generated/api';
+export type {
+  ReportUsageBreakdownEntry,
+  ReportUsageFigures,
+  ReportUsageMeasurement,
+} from './generated/api';
 // Types
 export type {
   ProjectResponseDto,

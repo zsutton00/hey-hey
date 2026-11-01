@@ -88,6 +88,8 @@ type LocalRunReferences = RunReferences;
 export type LocalContextData = ContextData;
 
 export interface LocalToolUsageEntry {
+  /** Native source identity for retained tool evidence; absent on legacy records. */
+  providerSessionId?: string | null;
   toolName: string;
   toolUseId: string;
   timestamp: string;

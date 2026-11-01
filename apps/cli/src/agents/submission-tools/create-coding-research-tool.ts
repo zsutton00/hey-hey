@@ -1,3 +1,5 @@
+import { CreateReportTool } from './create-report-tool';
+import { ReportUsageSnapshotter } from '../../provider-usage/report-usage-snapshotter';
 import { renderCodingResearchMemo } from '../prompts/coding-research-memo';
 /**
  * `create_coding_research` pass-through submission tool.
@@ -242,12 +244,15 @@ export class CodingResearchTool implements PassThroughSubmissionToolDeclaration 
     unknown
   >;
   private readonly now: () => string;
+  private readonly reportTool: CreateReportTool;
 
   public constructor(
-    private readonly proxy: CreateReportProxy,
+    proxy: CreateReportProxy,
     now: () => string = () => new Date().toISOString(),
+    usageSnapshotter = new ReportUsageSnapshotter(),
   ) {
     this.now = now;
+    this.reportTool = new CreateReportTool(proxy, now, undefined, undefined, usageSnapshotter);
   }
 
   public readonly execute = async (ctx: SubmissionToolExecuteContext) => {
@@ -329,21 +334,7 @@ export class CodingResearchTool implements PassThroughSubmissionToolDeclaration 
       payload: reportPayload,
     };
 
-    const result = await this.proxy.create({
-      runId: ctx.runId,
-      args: platformArgs,
-      conversationId: run.conversationId,
-      projectId: run.projectId,
-    });
-
-    run.appendReportChainEntry({
-      createdAt: this.now(),
-      phase,
-      reportId: result.reportId,
-      reportType: 'CODING_RESEARCH',
-      summary,
-      audience: 'EXTERNAL',
-    });
+    await this.reportTool.execute({ ...ctx, args: platformArgs });
 
     // Carry the research frame and analysis forward as a Run memo so every
     // subsequent phase's first-turn prompt sees the bootstrap context. The

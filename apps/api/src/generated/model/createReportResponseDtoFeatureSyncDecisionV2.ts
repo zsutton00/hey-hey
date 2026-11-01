@@ -11,6 +11,7 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
+import { ReportUsageMeasurement } from './reportUsageMeasurement';
 import { SessionMonitorReportGuidance } from './sessionMonitorReportGuidance';
 import { FeatureSyncDecisionReportPayloadV2 } from './featureSyncDecisionReportPayloadV2';
 import { LinkedReportEntityRef } from './linkedReportEntityRef';
@@ -19,6 +20,10 @@ import { ReportAudience } from './reportAudience';
 
 
 export interface CreateReportResponseDtoFeatureSyncDecisionV2 { 
+    /**
+     * Usage available at creation; never updated with later measurements.
+     */
+    usage?: ReportUsageMeasurement | null;
     id: string;
     organizationId: string;
     projectId?: string | null;

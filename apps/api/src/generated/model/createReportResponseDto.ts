@@ -11,6 +11,7 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
+import { ReportUsageMeasurement } from './reportUsageMeasurement';
 import { CreateReportResponseDtoFeatureSyncDecisionV2 } from './createReportResponseDtoFeatureSyncDecisionV2';
 import { SessionMonitorReportGuidance } from './sessionMonitorReportGuidance';
 import { CreateReportResponseDtoFeatureSyncDecisionV1 } from './createReportResponseDtoFeatureSyncDecisionV1';

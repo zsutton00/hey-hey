@@ -12,6 +12,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { CreateReportEntityDto } from './createReportEntityDto';
+import { ReportUsageMeasurement } from './reportUsageMeasurement';
 import { CreateReportDtoFeatureSyncDecisionV2 } from './createReportDtoFeatureSyncDecisionV2';
 import { CreateReportDtoOther } from './createReportDtoOther';
 import { CreateReportDtoFeatureSyncDecisionV1 } from './createReportDtoFeatureSyncDecisionV1';

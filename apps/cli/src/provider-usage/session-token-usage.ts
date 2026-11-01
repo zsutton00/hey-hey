@@ -1,3 +1,4 @@
+import { getCacheInclusiveInputTokens } from './cache-inclusive-input';
 import { z } from 'zod';
 import type { SubAgentUsage } from '../run/subagent';
 import {
@@ -54,7 +55,7 @@ export class SessionTokenUsageReader {
     const session = sessionUsage.parse(matches[0]);
     // ccusage's unified session report already separates fresh input from cache
     // reads for both providers. Its totalTokens includes cache and is never used.
-    return {
+    const usage: SubAgentUsage = {
       ...(session.inputTokens !== undefined ? { inputTokens: session.inputTokens } : {}),
       ...(session.outputTokens !== undefined ? { outputTokens: session.outputTokens } : {}),
       ...(session.cacheReadTokens !== undefined
@@ -63,6 +64,11 @@ export class SessionTokenUsageReader {
       ...(provider === 'claude' && session.cacheCreationTokens !== undefined
         ? { cacheCreationInputTokens: session.cacheCreationTokens }
         : {}),
+    };
+    const cacheInclusiveInputTokens = getCacheInclusiveInputTokens(provider, usage);
+    return {
+      ...usage,
+      ...(cacheInclusiveInputTokens !== undefined ? { cacheInclusiveInputTokens } : {}),
     };
   }
 }

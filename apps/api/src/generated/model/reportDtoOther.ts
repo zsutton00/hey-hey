@@ -11,6 +11,7 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
+import { ReportUsageMeasurement } from './reportUsageMeasurement';
 import { LinkedReportEntityRef } from './linkedReportEntityRef';
 import { OtherReportPayload } from './otherReportPayload';
 import { ReportEntityDto } from './reportEntityDto';
@@ -18,6 +19,10 @@ import { ReportAudience } from './reportAudience';
 
 
 export interface ReportDtoOther { 
+    /**
+     * Usage available at creation; never updated with later measurements.
+     */
+    usage?: ReportUsageMeasurement | null;
     id: string;
     organizationId: string;
     projectId?: string | null;

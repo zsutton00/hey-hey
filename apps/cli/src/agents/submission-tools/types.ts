@@ -63,6 +63,7 @@ export interface SubmissionToolPassThroughResult {
 }
 
 export interface SubmissionToolExecuteContext {
+  usageExecutionId?: string;
   /**
    * Identifier of the agentic run this tool was invoked in. Handlers use it
    * for logging/telemetry; the action payload is opaque to the runtime.

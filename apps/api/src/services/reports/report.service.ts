@@ -1,3 +1,4 @@
+import { readReportUsage } from './report-usage.validation';
 import { restrictReportWhere } from 'src/read-restriction/read-policy';
 import { validateChangeWalkthroughPayload } from './change-walkthrough-payload.validation';
 import { validateCodingResearchPayload } from './coding-research-payload.validation';
@@ -370,6 +371,10 @@ export class ReportService {
             reportType: dto.reportType as PrismaReportType,
             audience: audience as PrismaReportAudience,
             payload: this.toPersistedReportPayload(dto.payload, dto.agent),
+            usage:
+              dto.usage == null
+                ? Prisma.DbNull
+                : this.toUsageJson(dto.usage, organizationId, dto.reportType),
             schemaVersion,
             sourceExecutionId: dto.sourceExecutionId ?? null,
             parentReportId,
@@ -471,6 +476,10 @@ export class ReportService {
         reportType: dto.reportType as PrismaReportType,
         audience: dto.audience as PrismaReportAudience,
         payload: this.toPersistedReportPayload(dto.payload, dto.agent),
+        usage:
+          dto.usage == null
+            ? Prisma.DbNull
+            : this.toUsageJson(dto.usage, organizationId, dto.reportType),
         schemaVersion,
         sourceExecutionId: dto.sourceExecutionId ?? null,
         parentReportId: dto.parentReportId ?? null,
@@ -2512,6 +2521,23 @@ export class ReportService {
     };
   }
 
+  private toUsageJson(
+    value: unknown,
+    organizationId: OrganizationId,
+    reportType: ReportType,
+  ): Prisma.InputJsonValue | typeof Prisma.DbNull {
+    const usage = readReportUsage(value);
+    if (usage === null) {
+      this.logger.warn('report.usage.unavailable', {
+        organizationId,
+        reportType,
+        reason: 'invalid-snapshot',
+      });
+      return Prisma.DbNull;
+    }
+    return JSON.parse(JSON.stringify(usage));
+  }
+
   toDto(
     report: ReportWithEntities,
     nameMap: Map<string, string> = ReportService.EMPTY_NAME_MAP,
@@ -2538,6 +2564,7 @@ export class ReportService {
           ? payload.title
           : this.getReportTitle(reportType),
       version: report.version,
+      ...(report.usage == null ? {} : { usage: readReportUsage(report.usage) }),
       ...(agent !== null ? { agent } : {}),
       sourceExecutionId: report.sourceExecutionId ?? null,
       parentReportId: report.parentReportId ?? null,

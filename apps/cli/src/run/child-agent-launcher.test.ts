@@ -1,3 +1,4 @@
+import { SubmissionToolRegistry } from '../agents/submission-tools/registry';
 import { reviewHandler } from '../agents/review-subagent/review.handler';
 import { mentionFormatReminder } from '../agents/prompts/common';
 import { createPromptTypeHandlerTestDeps } from '../agents/prompt-type-handler.test-support';
@@ -45,7 +46,7 @@ const makeLauncher = () =>
     },
     repoStore: {},
     oauthClient: {},
-    submissionToolRegistry: {},
+    submissionToolRegistry: new SubmissionToolRegistry(),
     localAgentEndpoint: {},
     logger: { debug: vi.fn() },
   } as unknown as ChildAgentLauncherDependencies);

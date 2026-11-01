@@ -4,6 +4,7 @@ import {
   readPolicyFor,
 } from 'src/read-restriction/read-policy';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import {
   CreateReportDto,
   PlanReportPayload,
@@ -15,6 +16,9 @@ import {
   ReportSortBy,
   ReportSortOrder,
   ReportType,
+  ReportUsageCacheAvailability,
+  ReportUsageCoverage,
+  type ReportUsageMeasurement,
 } from 'src/generated';
 import {
   createMockDomainEventPublisher,
@@ -44,6 +48,28 @@ const validPlanStep = {
 };
 
 describe('ReportService', () => {
+  const usage = {
+    schemaVersion: 1,
+    runId: 'run',
+    agentSessionId: 'session',
+    turnId: 'turn',
+    executionId: 'native-session',
+    providerSessionId: 'native-session',
+    provider: 'claude',
+    model: 'model',
+    effort: 'high',
+    capturedAt: '2026-11-01T00:00:00.000Z',
+    inputTokens: 33,
+    freshInputTokens: 10,
+    cacheReadInputTokens: 20,
+    cacheCreationInputTokens: 3,
+    outputTokens: 5,
+    toolCalls: 2,
+    coverage: ReportUsageCoverage.Complete,
+    cacheAvailability: ReportUsageCacheAvailability.Reported,
+    breakdown: [],
+  } satisfies ReportUsageMeasurement;
+
   it('round-trips ordered walkthroughs through create, retrieval and update', async () => {
     const organizationId =
       '11111111-1111-4111-8111-111111111111' as OrganizationId;
@@ -72,6 +98,7 @@ describe('ReportService', () => {
       reportType: ReportType.ChangeWalkthrough,
       audience: ReportAudience.ProjectVisible,
       payload,
+      usage,
       version: 1,
       schemaVersion: 1,
       sourceExecutionId: null,
@@ -81,25 +108,38 @@ describe('ReportService', () => {
       reportEntities: [],
       projectId: null,
     };
-    prisma.db.report.create.mockResolvedValue(stored);
+    let savedUsage: unknown = null;
+    prisma.db.report.create.mockImplementation(async ({ data }) => {
+      savedUsage = data.usage === Prisma.DbNull ? null : data.usage;
+      return { ...stored, usage: savedUsage };
+    });
     await service.create(organizationId, {
       reportType: ReportType.ChangeWalkthrough,
       audience: ReportAudience.ProjectVisible,
       payload,
+      usage,
     });
     expect(prisma.db.report.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ payload }),
+        data: expect.objectContaining({ payload, usage }),
       }),
     );
-    prisma.db.report.findFirst.mockResolvedValue(stored);
+    prisma.db.report.findFirst.mockImplementation(async () => ({
+      ...stored,
+      usage: savedUsage,
+    }));
     expect((await service.findOne(organizationId, stored.id)).payload).toEqual(
       payload,
     );
+    expect((await service.findOne(organizationId, stored.id)).usage).toEqual(
+      usage,
+    );
     const updatedPayload = { ...payload, summary: 'Updated explanation' };
-    prisma.db.report.update.mockResolvedValue({
-      ...stored,
-      payload: updatedPayload,
+    prisma.db.report.update.mockImplementation(async ({ data }) => {
+      if ('usage' in data) {
+        savedUsage = data.usage;
+      }
+      return { ...stored, payload: updatedPayload, usage: savedUsage };
     });
     expect(
       (
@@ -108,6 +148,31 @@ describe('ReportService', () => {
         })
       ).payload,
     ).toEqual(updatedPayload);
+    expect(prisma.db.report.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.not.objectContaining({ usage: expect.anything() }),
+      }),
+    );
+    expect((await service.findOne(organizationId, stored.id)).usage).toEqual(
+      usage,
+    );
+    prisma.db.report.create.mockResolvedValue({ ...stored, usage: null });
+    await service.create(organizationId, {
+      reportType: ReportType.ChangeWalkthrough,
+      audience: ReportAudience.ProjectVisible,
+      payload,
+      usage: JSON.parse('{"schemaVersion":2}'),
+    });
+    expect(prisma.db.report.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ usage: Prisma.DbNull }),
+      }),
+    );
+    prisma.db.report.findFirst.mockResolvedValue({
+      ...stored,
+      usage: { schemaVersion: 2 },
+    });
+    expect((await service.findOne(organizationId, stored.id)).usage).toBeNull();
     await expect(
       service.update(organizationId, stored.id, {
         payload: {

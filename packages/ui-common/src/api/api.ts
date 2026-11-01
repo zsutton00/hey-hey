@@ -24668,6 +24668,12 @@ export type CreateReportDto = CreateReportDtoFeatureSyncDecisionV1 | CreateRepor
  */
 export interface CreateReportDtoBase {
     /**
+     * Usage available at creation; never updated with later measurements.
+     * @type {ReportUsageMeasurement}
+     * @memberof CreateReportDtoBase
+     */
+    'usage'?: ReportUsageMeasurement | null;
+    /**
      * Whether this report may be reused as project knowledge. Omitted means true on creation.
      * @type {boolean}
      * @memberof CreateReportDtoBase
@@ -24736,6 +24742,12 @@ export interface CreateReportDtoBase {
  * @interface CreateReportDtoFeatureSyncDecisionV1
  */
 export interface CreateReportDtoFeatureSyncDecisionV1 {
+    /**
+     * Usage available at creation; never updated with later measurements.
+     * @type {ReportUsageMeasurement}
+     * @memberof CreateReportDtoFeatureSyncDecisionV1
+     */
+    'usage'?: ReportUsageMeasurement | null;
     /**
      * Whether this report may be reused as project knowledge. Omitted means true on creation.
      * @type {boolean}
@@ -24834,6 +24846,12 @@ export type CreateReportDtoFeatureSyncDecisionV1SchemaVersionEnum = typeof Creat
  */
 export interface CreateReportDtoFeatureSyncDecisionV2 {
     /**
+     * Usage available at creation; never updated with later measurements.
+     * @type {ReportUsageMeasurement}
+     * @memberof CreateReportDtoFeatureSyncDecisionV2
+     */
+    'usage'?: ReportUsageMeasurement | null;
+    /**
      * Whether this report may be reused as project knowledge. Omitted means true on creation.
      * @type {boolean}
      * @memberof CreateReportDtoFeatureSyncDecisionV2
@@ -24930,6 +24948,12 @@ export type CreateReportDtoFeatureSyncDecisionV2SchemaVersionEnum = typeof Creat
  * @interface CreateReportDtoOther
  */
 export interface CreateReportDtoOther {
+    /**
+     * Usage available at creation; never updated with later measurements.
+     * @type {ReportUsageMeasurement}
+     * @memberof CreateReportDtoOther
+     */
+    'usage'?: ReportUsageMeasurement | null;
     /**
      * Whether this report may be reused as project knowledge. Omitted means true on creation.
      * @type {boolean}
@@ -25080,6 +25104,12 @@ export type CreateReportResponseDto = CreateReportResponseDtoFeatureSyncDecision
  */
 export interface CreateReportResponseDtoFeatureSyncDecisionV1 {
     /**
+     * Usage available at creation; never updated with later measurements.
+     * @type {ReportUsageMeasurement}
+     * @memberof CreateReportResponseDtoFeatureSyncDecisionV1
+     */
+    'usage'?: ReportUsageMeasurement | null;
+    /**
      * 
      * @type {string}
      * @memberof CreateReportResponseDtoFeatureSyncDecisionV1
@@ -25213,6 +25243,12 @@ export type CreateReportResponseDtoFeatureSyncDecisionV1SchemaVersionEnum = type
  */
 export interface CreateReportResponseDtoFeatureSyncDecisionV2 {
     /**
+     * Usage available at creation; never updated with later measurements.
+     * @type {ReportUsageMeasurement}
+     * @memberof CreateReportResponseDtoFeatureSyncDecisionV2
+     */
+    'usage'?: ReportUsageMeasurement | null;
+    /**
      * 
      * @type {string}
      * @memberof CreateReportResponseDtoFeatureSyncDecisionV2
@@ -25345,6 +25381,12 @@ export type CreateReportResponseDtoFeatureSyncDecisionV2SchemaVersionEnum = type
  * @interface CreateReportResponseDtoOther
  */
 export interface CreateReportResponseDtoOther {
+    /**
+     * Usage available at creation; never updated with later measurements.
+     * @type {ReportUsageMeasurement}
+     * @memberof CreateReportResponseDtoOther
+     */
+    'usage'?: ReportUsageMeasurement | null;
     /**
      * 
      * @type {string}
@@ -32264,7 +32306,7 @@ export interface EvalAttemptReportPayload {
      */
     'judgeProviderSessionId'?: string;
     /**
-     * At most one each of TARGET_PREPARATION, TARGET_HANDLER and JUDGE.
+     * At most one each of TARGET_PREPARATION and TARGET_HANDLER. Older attempts may also hold a JUDGE entry, which is never shown.
      * @type {Array<EvalMeasurement>}
      * @memberof EvalAttemptReportPayload
      */
@@ -32593,30 +32635,12 @@ export type EvalConsumerHandlerKey = typeof EvalConsumerHandlerKey[keyof typeof 
 
 
 /**
- * 
+ * @type EvalCost
+ * What one measured agent cost, or that its cost is not reported.
  * @export
- * @interface EvalCostMeasurement
  */
-export interface EvalCostMeasurement {
-    /**
-     * 
-     * @type {number}
-     * @memberof EvalCostMeasurement
-     */
-    'amount': number;
-    /**
-     * 
-     * @type {string}
-     * @memberof EvalCostMeasurement
-     */
-    'currency': string;
-    /**
-     * How the cost was derived.
-     * @type {string}
-     * @memberof EvalCostMeasurement
-     */
-    'basis': string;
-}
+export type EvalCost = EvalKnownCost | EvalUnavailableCost;
+
 /**
  * Base shape shared by every eval progress event.
  * @export
@@ -32721,6 +32745,44 @@ export const EvalHumanReviewReportPayloadReportTypeEnum = {
 export type EvalHumanReviewReportPayloadReportTypeEnum = typeof EvalHumanReviewReportPayloadReportTypeEnum[keyof typeof EvalHumanReviewReportPayloadReportTypeEnum];
 
 /**
+ * A cost read from the provider\'s own record. `partial` means only some of the attempt\'s provider sessions could be read, so the amount is a lower bound. 
+ * @export
+ * @interface EvalKnownCost
+ */
+export interface EvalKnownCost {
+    /**
+     * 
+     * @type {string}
+     * @memberof EvalKnownCost
+     */
+    'state': EvalKnownCostStateEnum;
+    /**
+     * 
+     * @type {number}
+     * @memberof EvalKnownCost
+     */
+    'amount': number;
+    /**
+     * 
+     * @type {string}
+     * @memberof EvalKnownCost
+     */
+    'currency': EvalKnownCostCurrencyEnum;
+}
+
+export const EvalKnownCostStateEnum = {
+    Available: 'available',
+    Partial: 'partial'
+} as const;
+
+export type EvalKnownCostStateEnum = typeof EvalKnownCostStateEnum[keyof typeof EvalKnownCostStateEnum];
+export const EvalKnownCostCurrencyEnum = {
+    Usd: 'USD'
+} as const;
+
+export type EvalKnownCostCurrencyEnum = typeof EvalKnownCostCurrencyEnum[keyof typeof EvalKnownCostCurrencyEnum];
+
+/**
  * Every number is optional and absent when the provider did not report it. It is never defaulted to 0. 
  * @export
  * @interface EvalMeasurement
@@ -32770,15 +32832,15 @@ export interface EvalMeasurement {
     'toolCalls'?: number;
     /**
      * 
-     * @type {EvalCostMeasurement}
+     * @type {EvalCost}
      * @memberof EvalMeasurement
      */
-    'cost'?: EvalCostMeasurement;
+    'cost'?: EvalCost;
 }
 
 
 /**
- * TARGET_PREPARATION, TARGET_HANDLER and JUDGE are measured per attempt. COORDINATOR is measured per run. Scopes are never summed into one another. 
+ * TARGET_PREPARATION (the Project Assistant research agent, present only when research ran) and TARGET_HANDLER (the tested agent) are measured per attempt. JUDGE is no longer recorded; stored JUDGE entries are ignored. COORDINATOR is measured per run. Scopes are never summed into one another. 
  * @export
  * @enum {string}
  */
@@ -33213,6 +33275,26 @@ export const EvalTargetHandlerKey = {
 
 export type EvalTargetHandlerKey = typeof EvalTargetHandlerKey[keyof typeof EvalTargetHandlerKey];
 
+
+/**
+ * The cost could not be read (unsupported provider such as OpenCode, no provider session, or a failed read). Carries no amount so it is never mistaken for zero. 
+ * @export
+ * @interface EvalUnavailableCost
+ */
+export interface EvalUnavailableCost {
+    /**
+     * 
+     * @type {string}
+     * @memberof EvalUnavailableCost
+     */
+    'state': EvalUnavailableCostStateEnum;
+}
+
+export const EvalUnavailableCostStateEnum = {
+    Unavailable: 'unavailable'
+} as const;
+
+export type EvalUnavailableCostStateEnum = typeof EvalUnavailableCostStateEnum[keyof typeof EvalUnavailableCostStateEnum];
 
 /**
  * 
@@ -75875,6 +75957,12 @@ export interface ReportCreatedPayload {
  */
 export interface ReportDto {
     /**
+     * Usage available at creation; never updated with later measurements.
+     * @type {ReportUsageMeasurement}
+     * @memberof ReportDto
+     */
+    'usage'?: ReportUsageMeasurement | null;
+    /**
      * 
      * @type {string}
      * @memberof ReportDto
@@ -75986,6 +76074,12 @@ export interface ReportDto {
  */
 export interface ReportDtoBase {
     /**
+     * Usage available at creation; never updated with later measurements.
+     * @type {ReportUsageMeasurement}
+     * @memberof ReportDtoBase
+     */
+    'usage'?: ReportUsageMeasurement | null;
+    /**
      * 
      * @type {string}
      * @memberof ReportDtoBase
@@ -76078,6 +76172,12 @@ export interface ReportDtoBase {
  * @interface ReportDtoFeatureSyncDecisionV1
  */
 export interface ReportDtoFeatureSyncDecisionV1 {
+    /**
+     * Usage available at creation; never updated with later measurements.
+     * @type {ReportUsageMeasurement}
+     * @memberof ReportDtoFeatureSyncDecisionV1
+     */
+    'usage'?: ReportUsageMeasurement | null;
     /**
      * 
      * @type {string}
@@ -76200,6 +76300,12 @@ export type ReportDtoFeatureSyncDecisionV1SchemaVersionEnum = typeof ReportDtoFe
  */
 export interface ReportDtoFeatureSyncDecisionV2 {
     /**
+     * Usage available at creation; never updated with later measurements.
+     * @type {ReportUsageMeasurement}
+     * @memberof ReportDtoFeatureSyncDecisionV2
+     */
+    'usage'?: ReportUsageMeasurement | null;
+    /**
      * 
      * @type {string}
      * @memberof ReportDtoFeatureSyncDecisionV2
@@ -76320,6 +76426,12 @@ export type ReportDtoFeatureSyncDecisionV2SchemaVersionEnum = typeof ReportDtoFe
  * @interface ReportDtoOther
  */
 export interface ReportDtoOther {
+    /**
+     * Usage available at creation; never updated with later measurements.
+     * @type {ReportUsageMeasurement}
+     * @memberof ReportDtoOther
+     */
+    'usage'?: ReportUsageMeasurement | null;
     /**
      * 
      * @type {string}
@@ -76785,6 +76897,326 @@ export const ReportType = {
 
 export type ReportType = typeof ReportType[keyof typeof ReportType];
 
+
+/**
+ * 
+ * @export
+ * @interface ReportUsageBreakdownEntry
+ */
+export interface ReportUsageBreakdownEntry {
+    /**
+     * Cache-inclusive input total when established by the provider, independently of cache-detail availability. Otherwise derived only when all applicable input components are established; never fresh input alone.
+     * @type {number}
+     * @memberof ReportUsageBreakdownEntry
+     */
+    'inputTokens': number | null;
+    /**
+     * Measured input excluding cache reads and cache creation.
+     * @type {number}
+     * @memberof ReportUsageBreakdownEntry
+     */
+    'freshInputTokens': number | null;
+    /**
+     * 
+     * @type {number}
+     * @memberof ReportUsageBreakdownEntry
+     */
+    'cacheReadInputTokens': number | null;
+    /**
+     * 
+     * @type {number}
+     * @memberof ReportUsageBreakdownEntry
+     */
+    'cacheCreationInputTokens': number | null;
+    /**
+     * 
+     * @type {number}
+     * @memberof ReportUsageBreakdownEntry
+     */
+    'outputTokens': number | null;
+    /**
+     * Distinct observed tool invocations attributable to this source; null when coverage cannot be established.
+     * @type {number}
+     * @memberof ReportUsageBreakdownEntry
+     */
+    'toolCalls': number | null;
+    /**
+     * 
+     * @type {ReportUsageCacheAvailability}
+     * @memberof ReportUsageBreakdownEntry
+     */
+    'cacheAvailability': ReportUsageCacheAvailability;
+    /**
+     * 
+     * @type {ReportUsageCoverage}
+     * @memberof ReportUsageBreakdownEntry
+     */
+    'coverage': ReportUsageCoverage;
+    /**
+     * 
+     * @type {string}
+     * @memberof ReportUsageBreakdownEntry
+     */
+    'executionId': string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ReportUsageBreakdownEntry
+     */
+    'providerSessionId': string | null;
+    /**
+     * 
+     * @type {string}
+     * @memberof ReportUsageBreakdownEntry
+     */
+    'provider': string | null;
+    /**
+     * 
+     * @type {string}
+     * @memberof ReportUsageBreakdownEntry
+     */
+    'model': string | null;
+    /**
+     * 
+     * @type {string}
+     * @memberof ReportUsageBreakdownEntry
+     */
+    'effort': string | null;
+    /**
+     * 
+     * @type {string}
+     * @memberof ReportUsageBreakdownEntry
+     */
+    'role': ReportUsageBreakdownEntryRoleEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof ReportUsageBreakdownEntry
+     */
+    'label': string;
+}
+
+export const ReportUsageBreakdownEntryRoleEnum = {
+    Parent: 'parent',
+    Subagent: 'subagent',
+    Reviewer: 'reviewer'
+} as const;
+
+export type ReportUsageBreakdownEntryRoleEnum = typeof ReportUsageBreakdownEntryRoleEnum[keyof typeof ReportUsageBreakdownEntryRoleEnum];
+
+/**
+ * Reported only when both cache read and cache creation components are established, including measured zero.
+ * @export
+ * @enum {string}
+ */
+
+export const ReportUsageCacheAvailability = {
+    Reported: 'reported',
+    Unreported: 'unreported'
+} as const;
+
+export type ReportUsageCacheAvailability = typeof ReportUsageCacheAvailability[keyof typeof ReportUsageCacheAvailability];
+
+
+/**
+ * Availability of numeric measurements; provider, model and effort retain their own nullable availability.
+ * @export
+ * @enum {string}
+ */
+
+export const ReportUsageCoverage = {
+    Complete: 'complete',
+    Partial: 'partial',
+    Unavailable: 'unavailable'
+} as const;
+
+export type ReportUsageCoverage = typeof ReportUsageCoverage[keyof typeof ReportUsageCoverage];
+
+
+/**
+ * 
+ * @export
+ * @interface ReportUsageFigures
+ */
+export interface ReportUsageFigures {
+    /**
+     * Cache-inclusive input total when established by the provider, independently of cache-detail availability. Otherwise derived only when all applicable input components are established; never fresh input alone.
+     * @type {number}
+     * @memberof ReportUsageFigures
+     */
+    'inputTokens': number | null;
+    /**
+     * Measured input excluding cache reads and cache creation.
+     * @type {number}
+     * @memberof ReportUsageFigures
+     */
+    'freshInputTokens': number | null;
+    /**
+     * 
+     * @type {number}
+     * @memberof ReportUsageFigures
+     */
+    'cacheReadInputTokens': number | null;
+    /**
+     * 
+     * @type {number}
+     * @memberof ReportUsageFigures
+     */
+    'cacheCreationInputTokens': number | null;
+    /**
+     * 
+     * @type {number}
+     * @memberof ReportUsageFigures
+     */
+    'outputTokens': number | null;
+    /**
+     * Distinct observed tool invocations attributable to this source; null when coverage cannot be established.
+     * @type {number}
+     * @memberof ReportUsageFigures
+     */
+    'toolCalls': number | null;
+    /**
+     * 
+     * @type {ReportUsageCacheAvailability}
+     * @memberof ReportUsageFigures
+     */
+    'cacheAvailability': ReportUsageCacheAvailability;
+    /**
+     * 
+     * @type {ReportUsageCoverage}
+     * @memberof ReportUsageFigures
+     */
+    'coverage': ReportUsageCoverage;
+}
+
+
+/**
+ * Immutable cumulative usage available at report creation. Reports sharing execution attribution are snapshots, never additive execution samples. Version independently of the report envelope.
+ * @export
+ * @interface ReportUsageMeasurement
+ */
+export interface ReportUsageMeasurement {
+    /**
+     * Cache-inclusive input total when established by the provider, independently of cache-detail availability. Otherwise derived only when all applicable input components are established; never fresh input alone.
+     * @type {number}
+     * @memberof ReportUsageMeasurement
+     */
+    'inputTokens': number | null;
+    /**
+     * Measured input excluding cache reads and cache creation.
+     * @type {number}
+     * @memberof ReportUsageMeasurement
+     */
+    'freshInputTokens': number | null;
+    /**
+     * 
+     * @type {number}
+     * @memberof ReportUsageMeasurement
+     */
+    'cacheReadInputTokens': number | null;
+    /**
+     * 
+     * @type {number}
+     * @memberof ReportUsageMeasurement
+     */
+    'cacheCreationInputTokens': number | null;
+    /**
+     * 
+     * @type {number}
+     * @memberof ReportUsageMeasurement
+     */
+    'outputTokens': number | null;
+    /**
+     * Distinct observed tool invocations attributable to this source; null when coverage cannot be established.
+     * @type {number}
+     * @memberof ReportUsageMeasurement
+     */
+    'toolCalls': number | null;
+    /**
+     * 
+     * @type {ReportUsageCacheAvailability}
+     * @memberof ReportUsageMeasurement
+     */
+    'cacheAvailability': ReportUsageCacheAvailability;
+    /**
+     * 
+     * @type {ReportUsageCoverage}
+     * @memberof ReportUsageMeasurement
+     */
+    'coverage': ReportUsageCoverage;
+    /**
+     * 
+     * @type {number}
+     * @memberof ReportUsageMeasurement
+     */
+    'schemaVersion': ReportUsageMeasurementSchemaVersionEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof ReportUsageMeasurement
+     */
+    'runId': string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ReportUsageMeasurement
+     */
+    'agentSessionId': string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ReportUsageMeasurement
+     */
+    'turnId': string | null;
+    /**
+     * 
+     * @type {string}
+     * @memberof ReportUsageMeasurement
+     */
+    'executionId': string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ReportUsageMeasurement
+     */
+    'providerSessionId': string | null;
+    /**
+     * 
+     * @type {string}
+     * @memberof ReportUsageMeasurement
+     */
+    'provider': string | null;
+    /**
+     * 
+     * @type {string}
+     * @memberof ReportUsageMeasurement
+     */
+    'model': string | null;
+    /**
+     * 
+     * @type {string}
+     * @memberof ReportUsageMeasurement
+     */
+    'effort': string | null;
+    /**
+     * 
+     * @type {string}
+     * @memberof ReportUsageMeasurement
+     */
+    'capturedAt': string;
+    /**
+     * 
+     * @type {Array<ReportUsageBreakdownEntry>}
+     * @memberof ReportUsageMeasurement
+     */
+    'breakdown': Array<ReportUsageBreakdownEntry>;
+}
+
+export const ReportUsageMeasurementSchemaVersionEnum = {
+    NUMBER_1: 1
+} as const;
+
+export type ReportUsageMeasurementSchemaVersionEnum = typeof ReportUsageMeasurementSchemaVersionEnum[keyof typeof ReportUsageMeasurementSchemaVersionEnum];
 
 /**
  * 
@@ -105466,7 +105898,7 @@ export type VerifyFeatureReferenceEntityTypeEnum = typeof VerifyFeatureReference
  */
 export interface VerifyImpactedEntityReference {
     /**
-     * Entity type of a possibly impacted entity (any type, e.g. FEATURE, TASK, DESIGN_DOC, CONTRACT, MOCKUP, DIAGRAM, DECISION).
+     * Mention type of a possibly impacted entity, exactly as written in its `@[type:id|title]` mention (e.g. feature, task, plan, contract, mockup, diagram, decision, or a custom work-item type key).
      * @type {string}
      * @memberof VerifyImpactedEntityReference
      */
@@ -105477,6 +105909,12 @@ export interface VerifyImpactedEntityReference {
      * @memberof VerifyImpactedEntityReference
      */
     'entityId': string;
+    /**
+     * Human-readable title shown on the mention. Always supplied for new references; references saved before the field existed omit it and render by id.
+     * @type {string}
+     * @memberof VerifyImpactedEntityReference
+     */
+    'title'?: string;
 }
 /**
  * 

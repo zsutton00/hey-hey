@@ -1,3 +1,4 @@
+import { reportUsageExecutions } from '../../provider-usage/report-usage-executions';
 /**
  * In-memory registry of submission tools active for a Run.
  *
@@ -32,6 +33,8 @@ const MAX_ACTIVE_REGISTRATIONS = 256;
 export interface SubmissionToolRegistration {
   /** Token used by the local MCP endpoint URL path. */
   token: string;
+  usageExecutionId?: string;
+  usageTurnId?: string;
   runId: string;
   organizationId: string;
   projectId: string;
@@ -74,13 +77,26 @@ const generateToken = (): string => randomBytes(24).toString('base64url');
 export type SubmissionToolRegistrationPatch = Partial<
   Pick<
     SubmissionToolRegistration,
-    'tools' | 'activeToolNames' | 'externalAgentNodeId' | 'triggerMessageId'
+    'tools' | 'activeToolNames' | 'externalAgentNodeId' | 'triggerMessageId' | 'usageTurnId'
   >
 >;
 
 export class SubmissionToolRegistry {
   private readonly registrations = new Map<string, SubmissionToolRegistration>();
   private readonly tokensByRun = new Map<string, string>();
+
+  public registerChild(
+    parent: SubmissionToolRegistration,
+    executionId: string,
+  ): SubmissionToolRegistration {
+    const registration = { ...parent, token: generateToken(), usageExecutionId: executionId };
+    this.registrations.set(registration.token, registration);
+    return registration;
+  }
+
+  public releaseChild(token: string): void {
+    this.registrations.delete(token);
+  }
 
   /**
    * Idempotent per runId: the first call mints a stable token and stores the
@@ -97,12 +113,10 @@ export class SubmissionToolRegistry {
       this.tokensByRun.delete(input.runId);
     }
 
-    if (this.registrations.size >= MAX_ACTIVE_REGISTRATIONS) {
-      const oldest = this.registrations.keys().next().value;
-      if (oldest) {
-        const stale = this.registrations.get(oldest);
-        this.registrations.delete(oldest);
-        if (stale) this.tokensByRun.delete(stale.runId);
+    if (this.tokensByRun.size >= MAX_ACTIVE_REGISTRATIONS) {
+      const oldestRunId = this.tokensByRun.keys().next().value;
+      if (oldestRunId) {
+        this.unregisterByRunId(oldestRunId);
       }
     }
 
@@ -152,8 +166,15 @@ export class SubmissionToolRegistry {
 
   public unregisterByRunId(runId: string): void {
     const token = this.tokensByRun.get(runId);
-    if (!token) return;
-    this.unregisterByToken(token);
+    if (token) {
+      this.unregisterByToken(token);
+    }
+    for (const [childToken, entry] of this.registrations) {
+      if (entry.runId === runId) {
+        this.registrations.delete(childToken);
+      }
+    }
+    reportUsageExecutions.release(runId);
   }
 
   public size(): number {
@@ -161,6 +182,9 @@ export class SubmissionToolRegistry {
   }
 
   public clearAll(): void {
+    for (const entry of this.registrations.values()) {
+      reportUsageExecutions.release(entry.runId);
+    }
     this.registrations.clear();
     this.tokensByRun.clear();
   }

@@ -14,10 +14,14 @@ import { HttpFile } from '../http/http';
 
 export class VerifyImpactedEntityReference {
   /**
-   * Entity type of a possibly impacted entity (any type, e.g. FEATURE, TASK, DESIGN_DOC, CONTRACT, MOCKUP, DIAGRAM, DECISION).
+   * Mention type of a possibly impacted entity, exactly as written in its `@[type:id|title]` mention (e.g. feature, task, plan, contract, mockup, diagram, decision, or a custom work-item type key).
    */
   'entityType': string;
   'entityId': string;
+  /**
+   * Human-readable title shown on the mention. Always supplied for new references; references saved before the field existed omit it and render by id.
+   */
+  'title'?: string;
 
   static readonly discriminator: string | undefined = undefined;
 
@@ -40,6 +44,12 @@ export class VerifyImpactedEntityReference {
       baseName: 'entityId',
       type: 'string',
       format: 'uuid',
+    },
+    {
+      name: 'title',
+      baseName: 'title',
+      type: 'string',
+      format: '',
     },
   ];
 

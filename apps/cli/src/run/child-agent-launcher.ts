@@ -1,3 +1,4 @@
+import { reportUsageExecutions } from '../provider-usage/report-usage-executions';
 import type { RunStore } from '../run-store/run-store';
 import type { CreateReportProxy } from '../agents/submission-tools/create-report-proxy';
 import { randomUUID } from 'node:crypto';
@@ -258,7 +259,32 @@ export class ChildAgentLauncher {
       provider: session.provider,
       adapterId: config.adapterId,
     });
+    const usageExecution = reportUsageExecutions.isOpen(session.agentic_session_id)
+      ? reportUsageExecutions.start({
+          runId: session.agentic_session_id,
+          parentProviderSessionId:
+            session.provider_session_id && !session.provider_session_id.startsWith('pending_')
+              ? session.provider_session_id
+              : null,
+          turnId:
+            request.promptContext?.turnId ??
+            this.deps.submissionToolRegistry.getByRunId(session.agentic_session_id)?.usageTurnId ??
+            null,
+          provider: session.provider ?? null,
+          model: request.model ?? null,
+          effort: request.reasoningEffort ?? null,
+          role: request.handler.promptType === 'code_review' ? 'reviewer' : 'subagent',
+          label:
+            request.handler.promptType === 'code_review'
+              ? 'Reviewer'
+              : request.handler.promptType === 'project_assistant' ||
+                  request.handler.promptType === 'research'
+                ? 'Research'
+                : 'Subagent',
+        })
+      : undefined;
     const child = new SubAgent({
+      ...(usageExecution ? { usageExecution } : {}),
       session,
       handler: request.handler,
       config: {
@@ -301,6 +327,18 @@ export class ChildAgentLauncher {
       ...(request.fastMode !== undefined ? { fastMode: request.fastMode } : {}),
       ...(request.tokenBudget !== undefined ? { tokenBudget: request.tokenBudget } : {}),
     });
-    return child.execute();
+    try {
+      const result = await child.execute();
+      if (usageExecution) {
+        usageExecution.usage = { ...result.usage };
+        usageExecution.providerSessionId =
+          result.providerSessionId ?? usageExecution.providerSessionId;
+      }
+      return result;
+    } finally {
+      if (usageExecution) {
+        usageExecution.completed = true;
+      }
+    }
   }
 }

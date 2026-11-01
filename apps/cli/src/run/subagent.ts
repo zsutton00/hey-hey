@@ -1,3 +1,5 @@
+import { getCacheInclusiveInputTokens } from '../provider-usage/cache-inclusive-input';
+import type { ReportUsageExecution } from '../provider-usage/report-usage-executions';
 import { readRestrictionFor } from '../shared/api/read-restriction';
 import type { TokenUsage } from '../session/types';
 import { randomUUID } from 'node:crypto';
@@ -303,6 +305,7 @@ const applyCodexWorkspaceContainment = (
 });
 
 export interface SubAgentArgs {
+  usageExecution?: ReportUsageExecution;
   onProviderSessionId?: (id: string) => Promise<void>;
   reportProxy?: CreateReportProxy;
   session: AgenticSession;
@@ -352,6 +355,8 @@ export interface SubAgentResult {
 }
 
 export interface SubAgentUsage {
+  /** Established inclusive input, independent of missing cache-detail fields. */
+  cacheInclusiveInputTokens?: number;
   cacheReadInputTokens?: number;
   cacheCreationInputTokens?: number;
   cacheAvailability?: NonNullable<AgenticSession['tokenUsage']>['cacheAvailability'];
@@ -360,30 +365,41 @@ export interface SubAgentUsage {
   toolCalls?: number;
 }
 
-/** Final provider usage is the only source of child token totals. */
+/** Provider-reported cumulative usage replaces earlier snapshots. */
 class ChildUsageMeter {
   private providerUsage: TokenUsage | null = null;
-  private readonly claudeToolUseIds = new Set<string>();
-  private observedClaudeTools = false;
+  private readonly toolUseIds = new Set<string>();
+  private observedTools = false;
 
   public recordClaudeAssistant(event: ClaudeCodeSdkEvent): void {
     const message = event['message'];
     if (!isRecord(message) || !Array.isArray(message['content'])) return;
-    this.observedClaudeTools = true;
+    this.observedTools = true;
     for (const block of message['content']) {
       if (isRecord(block) && block['type'] === 'tool_use' && typeof block['id'] === 'string') {
-        this.claudeToolUseIds.add(block['id']);
+        this.toolUseIds.add(block['id']);
       }
     }
   }
 
-  public recordFinalUsage(usage: TokenUsage): void {
+  public recordToolIds(ids: readonly string[]): void {
+    this.observedTools = true;
+    for (const id of ids) {
+      this.toolUseIds.add(id);
+    }
+  }
+
+  public recordUsage(usage: TokenUsage): void {
     this.providerUsage = usage;
   }
 
-  public read(): SubAgentUsage {
+  public read(provider: string): SubAgentUsage {
     const usage = this.providerUsage;
+    const cacheInclusiveInputTokens = usage
+      ? getCacheInclusiveInputTokens(provider, usage)
+      : undefined;
     return {
+      ...(cacheInclusiveInputTokens !== undefined ? { cacheInclusiveInputTokens } : {}),
       ...(usage
         ? {
             ...(usage.inputTokens !== null ? { inputTokens: usage.inputTokens } : {}),
@@ -397,7 +413,7 @@ class ChildUsageMeter {
             cacheAvailability: usage.cacheAvailability,
           }
         : {}),
-      ...(this.observedClaudeTools ? { toolCalls: this.claudeToolUseIds.size } : {}),
+      ...(this.observedTools ? { toolCalls: this.toolUseIds.size } : {}),
     };
   }
 }
@@ -492,6 +508,7 @@ export class SubAgent {
   private providerSessionId?: string;
   private releaseProxy: (() => void) | null = null;
   private readonly usageMeter = new ChildUsageMeter();
+  private releaseSubmissionContext: (() => void) | null = null;
 
   constructor(private readonly args: SubAgentArgs) {}
 
@@ -505,6 +522,7 @@ export class SubAgent {
         }
       } finally {
         this.releaseProxy?.();
+        this.releaseSubmissionContext?.();
       }
     }
   }
@@ -655,8 +673,22 @@ export class SubAgent {
       const childTools = config.submissionToolNames
         ? runRegistration.tools.filter((tool) => config.submissionToolNames?.includes(tool.name))
         : runRegistration.tools;
+      const childRegistration = this.args.usageExecution
+        ? submissionToolRegistry.registerChild(
+            {
+              ...runRegistration,
+              tools: childTools,
+              activeToolNames: childTools.map((tool) => tool.name),
+            },
+            this.args.usageExecution.executionId,
+          )
+        : runRegistration;
+      if (childRegistration !== runRegistration) {
+        this.releaseSubmissionContext = () =>
+          submissionToolRegistry.releaseChild(childRegistration.token);
+      }
       const submissionConfig = buildSubmissionToolsMcpConfig({
-        token: runRegistration.token,
+        token: childRegistration.token,
         cliBaseUrl,
         tools: session.inert
           ? childTools.filter((tool) => isInertSubmissionToolAllowed(tool.name))
@@ -853,7 +885,7 @@ export class SubAgent {
       const eventType = typeof event['type'] === 'string' ? event['type'] : 'unknown';
       if (eventType === 'assistant') this.usageMeter.recordClaudeAssistant(event);
       if (eventType === 'result')
-        this.usageMeter.recordFinalUsage(normalizeClaudeResultUsage(event['usage']));
+        this.usageMeter.recordUsage(normalizeClaudeResultUsage(event['usage']));
       if (budgetGuard && eventType === 'assistant') {
         const usage = readClaudeMessageUsage(event);
         if (usage) {
@@ -869,6 +901,11 @@ export class SubAgent {
       const eventTimestamp =
         typeof event['timestamp'] === 'string' ? event['timestamp'] : new Date().toISOString();
       const eventSessionId = typeof event['session_id'] === 'string' ? event['session_id'] : null;
+      if (this.args.usageExecution) {
+        this.args.usageExecution.providerSessionId =
+          eventSessionId ?? this.args.usageExecution.providerSessionId;
+        this.args.usageExecution.usage = this.usageMeter.read(this.args.session.provider);
+      }
 
       if (normalizationConfig) {
         emitNormalizedSubagentEvent({
@@ -1115,7 +1152,7 @@ export class SubAgent {
       ...(contextReading !== undefined ? { contextReading } : {}),
       ...(budgetGuard?.isExhausted ? { budgetExhausted: true } : {}),
       ...(providerSessionId ? { providerSessionId } : {}),
-      usage: this.usageMeter.read(),
+      usage: this.usageMeter.read(this.args.session.provider),
     };
   }
 
@@ -1391,6 +1428,10 @@ export class SubAgent {
     client.onEvent((event: CodexSdkEvent) => {
       const eventTimestamp = new Date().toISOString();
       const fallbackSessionId = client.getSessionId();
+      if (this.args.usageExecution) {
+        this.args.usageExecution.providerSessionId = fallbackSessionId;
+        this.args.usageExecution.usage = this.usageMeter.read(this.args.session.provider);
+      }
 
       const normalized = mapCodexEvent({
         provider: 'codex',
@@ -1402,6 +1443,12 @@ export class SubAgent {
         rawEvent: event.params ?? {},
         config: normalizationConfig,
       });
+      this.usageMeter.recordToolIds(
+        (normalized.facts?.toolUses ?? []).map((tool) => tool.toolUseId),
+      );
+      if (this.args.usageExecution) {
+        this.args.usageExecution.usage = this.usageMeter.read(this.args.session.provider);
+      }
       const payloadSessionId = normalized.payload['session_id'];
       const sessionIdForEmit =
         typeof payloadSessionId === 'string' ? payloadSessionId : fallbackSessionId;
@@ -1477,6 +1524,10 @@ export class SubAgent {
     // Codex reports cumulative thread totals, so each update replaces the last.
     client.onTokenUsage((usage) => {
       latestTokenUsage = usage;
+      this.usageMeter.recordUsage(usage);
+      if (this.args.usageExecution) {
+        this.args.usageExecution.usage = this.usageMeter.read(this.args.session.provider);
+      }
       if (usage.inputTokens !== null && usage.outputTokens !== null) {
         budgetGuard?.record(
           usage.inputTokens + (usage.cacheReadInputTokens ?? 0) + usage.outputTokens,
@@ -1577,7 +1628,7 @@ export class SubAgent {
         signal ? { signal } : undefined,
       );
       if (latestTokenUsage) {
-        this.usageMeter.recordFinalUsage(latestTokenUsage);
+        this.usageMeter.recordUsage(latestTokenUsage);
       }
     } catch (error) {
       if (!budgetGuard?.isExhausted) {
@@ -1641,7 +1692,7 @@ export class SubAgent {
       ...(contextReading !== undefined ? { contextReading } : {}),
       ...(budgetGuard?.isExhausted ? { budgetExhausted: true } : {}),
       ...(providerSessionId ? { providerSessionId } : {}),
-      usage: this.usageMeter.read(),
+      usage: this.usageMeter.read(this.args.session.provider),
     };
   }
 }

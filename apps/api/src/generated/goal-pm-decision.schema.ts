@@ -951,11 +951,16 @@ export const GoalPmRoutingEnactmentRequestSchema = {
                       "entityType": {
                         "type": "string",
                         "minLength": 1,
-                        "description": "Entity type of a possibly impacted entity (any type, e.g. FEATURE, TASK, DESIGN_DOC, CONTRACT, MOCKUP, DIAGRAM, DECISION)."
+                        "description": "Mention type of a possibly impacted entity, exactly as written in its `@[type:id|title]` mention (e.g. feature, task, plan, contract, mockup, diagram, decision, or a custom work-item type key)."
                       },
                       "entityId": {
                         "type": "string",
                         "format": "uuid"
+                      },
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Human-readable title shown on the mention. Always supplied for new references; references saved before the field existed omit it and render by id."
                       }
                     }
                   }
@@ -1488,11 +1493,16 @@ export const GoalPmRoutingAnswerSchema = {
                       "entityType": {
                         "type": "string",
                         "minLength": 1,
-                        "description": "Entity type of a possibly impacted entity (any type, e.g. FEATURE, TASK, DESIGN_DOC, CONTRACT, MOCKUP, DIAGRAM, DECISION)."
+                        "description": "Mention type of a possibly impacted entity, exactly as written in its `@[type:id|title]` mention (e.g. feature, task, plan, contract, mockup, diagram, decision, or a custom work-item type key)."
                       },
                       "entityId": {
                         "type": "string",
                         "format": "uuid"
+                      },
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Human-readable title shown on the mention. Always supplied for new references; references saved before the field existed omit it and render by id."
                       }
                     }
                   }
