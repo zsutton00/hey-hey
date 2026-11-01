@@ -67,6 +67,15 @@ export const reportLargeRead = (
 const spaceUsed = (spaces: readonly v8.HeapSpaceInfo[], name: string): number =>
   spaces.find((space) => space.space_name === name)?.space_used_size ?? 0;
 
+/** Open timers, sockets, child processes and file requests by Node resource type. */
+const countActiveResources = (): Readonly<Record<string, number>> => {
+  const counts: Record<string, number> = {};
+  for (const type of process.getActiveResourcesInfo()) {
+    counts[type] = (counts[type] ?? 0) + 1;
+  }
+  return counts;
+};
+
 const readProcessMemory = (): MemoryReading => {
   const usage = process.memoryUsage();
   const spaces = v8.getHeapSpaceStatistics();
@@ -139,6 +148,8 @@ export class MemoryMonitor {
       largeObjectSpaceMb: toMb(memory.largeObjectSpaceUsed),
       stdoutPendingBytes: memory.stdoutPendingBytes,
       stderrPendingBytes: memory.stderrPendingBytes,
+      // A count that climbs alongside footprint points at the native owner.
+      activeResources: countActiveResources(),
       ...this.dependencies.gauges(),
     };
     const level = MEMORY_PRESSURE_THRESHOLDS.filter(
