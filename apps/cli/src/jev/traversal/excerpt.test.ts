@@ -35,23 +35,18 @@ describe('matched whole paragraphs', () => {
       }).text,
     ).toBe(paragraphs[5]);
   });
-  it.each(['no-spans', 'weak-spans', 'text-mismatch'] as const)(
-    'returns full content for %s',
-    (reason) => {
-      const hit = {
-        ...entity,
-        indexedText: reason === 'text-mismatch' ? 'different' : text,
-        matchSpans:
-          reason === 'no-spans'
-            ? []
-            : [{ ...span(2), strength: reason === 'weak-spans' ? 0.1 : 1 }],
-      };
-      expect(excerptEntity(entity, hit)).toMatchObject({
-        text,
-        excerpt: { partial: false, fullReason: reason },
-      });
-    },
-  );
+  it.each(['no-spans', 'weak-spans'] as const)('returns full content for %s', (reason) => {
+    const hit = {
+      ...entity,
+      indexedText: text,
+      matchSpans:
+        reason === 'no-spans' ? [] : [{ ...span(2), strength: reason === 'weak-spans' ? 0.1 : 1 }],
+    };
+    expect(excerptEntity(entity, hit)).toMatchObject({
+      text,
+      excerpt: { partial: false, fullReason: reason },
+    });
+  });
   it('keeps single paragraphs and oversized paragraphs whole', () => {
     const single = { ...entity, text: 'x'.repeat(210_000) };
     expect(excerptEntity(single).text).toBe(single.text);

@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -74,4 +75,20 @@ export const resolveBaseDir = (): string => {
     return process.env['HEYHEY_SESSION_DIR'];
   }
   return resolveProfileDataDir();
+};
+
+/**
+ * `jev-logs/` at the repo root (the directory holding `pnpm-workspace.yaml`), found from this
+ * module so it is the same folder whatever the caller's cwd. Works from `src/` and from the bundled `dist/`.
+ */
+export const resolveJevLogsDir = (): string => {
+  let directory = __dirname;
+  while (!existsSync(path.join(directory, 'pnpm-workspace.yaml'))) {
+    const parent = path.dirname(directory);
+    if (parent === directory) {
+      throw new Error('Cannot locate the repo root (pnpm-workspace.yaml) for jev-logs.');
+    }
+    directory = parent;
+  }
+  return path.join(directory, 'jev-logs');
 };

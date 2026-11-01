@@ -29,7 +29,7 @@ export const judgedSchema = z.object({
       paragraphs: z.array(z.number()),
       totalParagraphs: z.number(),
       source: z.enum(['spans', 'full']),
-      fullReason: z.enum(['no-spans', 'weak-spans', 'text-mismatch']).optional(),
+      fullReason: z.enum(['no-spans', 'weak-spans']).optional(),
     })
     .optional(),
 });

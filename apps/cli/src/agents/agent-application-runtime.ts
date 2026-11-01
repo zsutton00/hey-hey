@@ -1,6 +1,6 @@
 import type { RunStore } from '../run-store/run-store';
 import path from 'node:path';
-import { resolveBaseDir } from '../session/paths';
+import { resolveJevLogsDir } from '../session/paths';
 import type { OAuthClient } from '../auth';
 import type { ServerLogger } from '../server/logger';
 import type { TaskMonitorManagedTurnRuntime } from '../server/task-monitor-managed-turn-runtime';
@@ -59,7 +59,7 @@ const createContextGathering = (
   executorFor: (project) => createLiveSearchExecutor({ auth, apiBaseUrl, ...project }),
   readerFor: (project, focal, known) =>
     createLiveReader(focal, { auth, apiBaseUrl, ...project }, known),
-  traceLogDir: path.join(resolveBaseDir(), 'jev-logs', 'gather'),
+  traceLogDir: path.join(resolveJevLogsDir(), 'gather'),
 });
 
 /** Owns prompt handlers, submission tools, and their shared agent-side state. */
@@ -126,7 +126,7 @@ export class AgentApplicationRuntime {
             parentRequirements: {
               jevClient: this.jevClient,
               entityContextLoader: this.entityContextLoader,
-              attemptLogDir: path.join(resolveBaseDir(), 'jev-logs', 'parent-requirements'),
+              attemptLogDir: path.join(resolveJevLogsDir(), 'parent-requirements'),
             },
             isJevEnabled: dependencies.isJevEnabled,
           }
