@@ -20,8 +20,14 @@ tokenizers = { version = "0.23.2", default-features = false, features = ["onig"]
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "sync", "time"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+redis = { version = "0.32", default-features = false }
+crc32fast = "1.5.3"
+html-escape = "0.3.0"
+futures-util = "0.3.34"
+regex = "1.13.1"
 
 [dev-dependencies]
+redis = { version = "0.32", default-features = false, features = ["tokio-comp", "aio"] }
 tower = { version = "0.5", features = ["util"] }
 
 [profile.release]

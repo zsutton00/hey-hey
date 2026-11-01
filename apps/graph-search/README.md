@@ -4,8 +4,10 @@ The Rust foundation for a PostgreSQL graph/search backend. One process owns
 separate `graph` and `search` modules and a dedicated logical database on the
 existing PostgreSQL server. The search module includes the text encoder and the
 search operations (see [Search](#search)). The graph module serves the core queries
-and batch relationship creation. Event ingestion and the remaining graph write
-surfaces are follow-on work; this app is not yet a complete backend replacement.
+and batch relationship creation. The search module also consumes work-item events
+(see [Search events](#search-events)). Graph event ingestion and the remaining
+graph write surfaces are follow-on work; this app is not yet a complete backend
+replacement.
 
 ## Build from a clean checkout
 
@@ -119,6 +121,11 @@ The application reads environment variables; it does not load `.env` files.
 | `SEARCH_EMBEDDING_MAX_BATCH`   | `1`                         | Texts per encoding run, 1–8; see the encoder section      |
 | `SEARCH_EMBEDDING_MODEL_DIR`   | `models/<model>`            | Folder with the model files; image default `/models/...`  |
 | `GRAPH_SEARCH_MODEL_DIR`       | `./models/<model>`          | Compose host folder mounted read-only as the model folder |
+| `SEARCH_EVENTS_ENABLED`        | `true`                      | Consume search events from Redis; `false` runs without it |
+| `REDIS_URL`                    | Required for events         | Redis the API publishes events to (plain `redis://`)      |
+| `EVENTS_CHANNEL_PREFIX`        | `hey-hey:bus:`              | Channel prefix; must match the API                        |
+| `SEARCH_EVENT_LANES`           | `4`                         | Parallel ordered lanes for events, 1–64                   |
+| `SEARCH_EVENT_LANE_CAPACITY`   | `64`                        | Events waiting per lane before the reader waits, 1–10000  |
 | `RUST_LOG`                     | `info`                      | Tracing filter; logs are JSON on stdout                   |
 | `GRAPH_SEARCH_DB_PORT`         | `55437`                     | Disposable test fixture port only                         |
 | `GRAPH_SEARCH_PORT`            | `8090`                      | Compose host HTTP port                                    |
@@ -269,6 +276,98 @@ without a reachable database. Convert them to checked macros and regenerate
   case-insensitively; `taskTypes` and `excludeTaskTypes` match the key exactly.
 - **Debug operations** (`/debug`, `/debug/entity`) are not available.
 
+## Search events
+
+The API is the only publisher and the only writer of canonical records. The
+search module runs one Redis consumer inside the same process as the HTTP server,
+isolated from it: they share the database pool and the bounded encoder, and a
+failing event never reaches an HTTP request. It subscribes to the channel of each
+event type below (`<EVENTS_CHANNEL_PREFIX><type>`) and writes through the same
+search store the HTTP handlers use; there is no other write path. Starting
+without `REDIS_URL` fails unless `SEARCH_EVENTS_ENABLED=false`.
+
+| Event                  | Effect                                                                                   |
+| ---------------------- | ---------------------------------------------------------------------------------------- |
+| `task.created`         | Stores the task: name plus the text of its sections (or the legacy fields)               |
+| `task.content_changed` | Replaces the task's searchable text and content metadata; cleared sections leave nothing |
+| `task.updated`         | Updates name, status, priority, due date, assignee, parent and tag metadata              |
+| `task.status_changed`  | Updates the status metadata                                                              |
+| `task.archived`        | Removes the task and the tasks nested under it (up to five levels)                       |
+| `organization.closed`  | Deletes and fences the organization's content, like projection deletion                  |
+
+These are the work-item events of the deployed Embeddings service. The deployed
+service also consumes design doc, service, implementation hint, message,
+conversation, report, artifact and Help events; **those are not consumed yet** and
+are planned as follow-on tasks, so search does not have parity with the deployed
+event set until they land. The store's HTTP write path rejects the service,
+implementation hint, report and Help document types today. Initiative, summary
+and subfacet events are deprecated and will not be consumed.
+
+What is searchable:
+
+- A task's text is its name plus its textual sections as `key:\ncontent` in
+  section order, reduced from markdown to plain words. A FEATURE's requirements
+  are appended in order, each prefixed by its group. The exact work-item type key
+  is stored and filtered as written.
+- A section is textual when its current content is a string that is not a
+  structured JSON payload. An html/css payload contributes the text of its HTML
+  (comments, scripts, styles and templates dropped, entities decoded), never its
+  CSS, markup or layout. Other valid structured payloads are not indexed.
+- A section whose content is neither text nor `null`, a payload that opens with
+  `{` but is not valid JSON, an html/css payload that is not the complete canonical
+  `WorkItemHtmlCssSectionContent` (string `html` and `css`, a non-empty `sizeKey`
+  if present, every annotation fully shaped, no other fields), and a snapshot with an empty or
+  repeated section key are malformed. The whole event is rejected and the
+  earlier searchable text stays. Text that opens with `[` is markdown unless it
+  is a valid JSON array.
+- A content change replaces everything derived from the previous content, so old
+  wording stops matching and a removed or cleared section leaves nothing behind.
+- Events lacking the complete `sections` snapshot are read through the legacy
+  `description` and `acceptanceCriteria` fields, as the event schema says.
+- Text is capped at 50,000 characters, the HTTP limit.
+
+An event that is malformed or unsupported (a wrong shape, a task id that is not
+the aggregate, a requirements copy that is not a canonical collection, a closed
+organization) changes nothing and is logged at error level with its type, id and
+reason, never its content. A valid event that cannot be applied, for example an
+update for a task that is not searchable, is logged the same way. Other events
+are unaffected.
+
+**Ordering.** The events of one item always use one lane, chosen by the same
+CRC32 hash of the aggregate id the deployed service uses, and a lane applies its
+events one at a time, so an item's events apply in publication order. Different
+items proceed independently, and there is no ordering across items. A full lane
+makes the reader wait. Replaying an event converges on the same state.
+
+**Memory.** Every lane encodes through the one bounded encoder, which takes one
+text at a time (see [Text encoder](#text-encoder)), so a burst of events waits
+instead of growing memory. Waiting reaches back to the socket: the reader is a
+thread on a blocking Redis connection that takes one message and waits for room
+in its lane before reading the next, so at most `SEARCH_EVENT_LANES` ×
+`SEARCH_EVENT_LANE_CAPACITY` events wait here, plus the one being routed and
+one being applied per lane. While every lane an event needs is full, the rest of
+the burst stays in the socket buffers and in Redis. If Redis gives up on the slow
+subscriber it disconnects it, and events published meanwhile are lost like any
+other outage (see Recovery). The limits count events, not bytes.
+
+**Recovery.** Redis Pub/Sub keeps no history and this service adds no replay or
+rebuild. An event published while the consumer is down, or while it is
+reconnecting, is lost to search until a later event for the same item writes it
+again. That is the recovery posture of the deployed Embeddings and Graph
+services. The consumer reconnects with backoff after a lost connection.
+
+**Differences from the deployed consumer.**
+
+- html/css section payloads are indexed by their text; the deployed service does
+  not index them yet.
+- Underscores inside identifiers (`task_type`) are kept; the deployed markdown
+  reduction removes them.
+- A rename updates the stored title but not the name inside the stored text, as
+  in the deployed service.
+- Archiving removes nested tasks only; conversations and messages are not stored
+  here.
+- Redis connections are plain `redis://`; TLS (`rediss://`) is not supported.
+
 ## Integration verification
 
 Unit/HTTP tests run without PostgreSQL. The database test needs an explicitly
@@ -360,7 +459,7 @@ The `/api` route group serves traversal (rich ranked, compact ranked, grouped
 identities and structured reads), incident edges, entity neighborhoods, topology,
 provenance, feature/project connections and batch relationship creation. Generic
 node CRUD, generic relationship CRUD and admin backup remain 501 placeholders,
-as in Java. Agent-edge CRUD, hints, templates, projection deletion and event
+as in Java. Agent-edge CRUD, hints, templates, projection deletion and graph event
 consumption remain separate work.
 
 Node and edge keys, foreign keys and adjacency indexes include organization and

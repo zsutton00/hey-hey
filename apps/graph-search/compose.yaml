@@ -14,6 +14,8 @@ services:
       GRAPH_SEARCH_USER_AUDIENCE: ${GRAPH_SEARCH_USER_AUDIENCE:-}
       GRAPH_SEARCH_GRAPH_AUDIENCE: ${GRAPH_SEARCH_GRAPH_AUDIENCE:-graph-service}
       GRAPH_SEARCH_SEARCH_AUDIENCE: ${GRAPH_SEARCH_SEARCH_AUDIENCE:-embeddings-service}
+      REDIS_URL: ${REDIS_URL:?Set the Redis URL the API publishes events to}
+      EVENTS_CHANNEL_PREFIX: ${EVENTS_CHANNEL_PREFIX:-hey-hey:bus:}
       GRAPH_ENABLED: "true"
       SEARCH_ENABLED: "true"
     volumes:

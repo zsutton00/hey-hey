@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 use anyhow::{Context, Result};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use sqlx::{PgPool, Postgres, Transaction};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
@@ -103,6 +103,134 @@ pub async fn replace_document(
 
     transaction.commit().await?;
     Ok(Ok(()))
+}
+
+/// What is stored about a document apart from its text and vectors.
+pub struct StoredDocument {
+    pub project_id: Option<String>,
+    pub kind: String,
+    pub task_type: Option<String>,
+    pub title: String,
+    pub metadata: Map<String, Value>,
+    pub created_at: Option<OffsetDateTime>,
+    pub updated_at: Option<OffsetDateTime>,
+}
+
+#[derive(sqlx::FromRow)]
+struct StoredRow {
+    project_id: Option<String>,
+    #[sqlx(rename = "type")]
+    kind: String,
+    task_type: Option<String>,
+    title: String,
+    metadata: Value,
+    created_text: Option<String>,
+    updated_text: Option<String>,
+}
+
+/// Loads a document's stored details, or `None` when it is not searchable.
+pub async fn load_document(
+    pool: &PgPool,
+    organization_id: &str,
+    document_id: &str,
+) -> Result<Option<StoredDocument>> {
+    let row: Option<StoredRow> = sqlx::query_as(
+        "SELECT project_id, type, task_type, title, metadata,
+                to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS created_text,
+                to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS updated_text
+         FROM search.unit
+         WHERE organization_id = $1 AND document_id = $2
+         ORDER BY chunk_index LIMIT 1",
+    )
+    .bind(organization_id)
+    .bind(document_id)
+    .fetch_optional(pool)
+    .await
+    .context("Cannot load a stored document")?;
+
+    row.map(|row| {
+        let Value::Object(metadata) = row.metadata else {
+            anyhow::bail!("Stored metadata of a document is not an object");
+        };
+        let instant = |text: Option<String>| {
+            text.map(|text| OffsetDateTime::parse(&text, &Rfc3339))
+                .transpose()
+                .context("Stored timestamp is not RFC 3339")
+        };
+        Ok(StoredDocument {
+            project_id: row.project_id,
+            kind: row.kind,
+            task_type: row.task_type,
+            title: row.title,
+            metadata,
+            created_at: instant(row.created_text)?,
+            updated_at: instant(row.updated_text)?,
+        })
+    })
+    .transpose()
+}
+
+/// Merges the given metadata into every unit of a document without
+/// re-encoding. Returns whether the document exists.
+pub async fn patch_document(
+    pool: &PgPool,
+    organization_id: &str,
+    document_id: &str,
+    patch: &Map<String, Value>,
+    title: Option<&str>,
+    updated_at: Option<OffsetDateTime>,
+) -> Result<bool> {
+    let result = sqlx::query(
+        "UPDATE search.unit
+         SET metadata = metadata || $3::jsonb,
+             title = COALESCE($4, title),
+             updated_at = COALESCE($5::timestamptz, updated_at)
+         WHERE organization_id = $1 AND document_id = $2",
+    )
+    .bind(organization_id)
+    .bind(document_id)
+    .bind(Value::Object(patch.clone()))
+    .bind(title)
+    .bind(updated_at.map(timestamp_text))
+    .execute(pool)
+    .await
+    .context("Cannot update a stored document")?;
+    Ok(result.rows_affected() > 0)
+}
+
+/// How many levels of child tasks an archived task takes with it.
+const MAX_TASK_DEPTH: i32 = 5;
+
+/// Removes a task and the tasks nested under it, so none of them stay
+/// searchable. Returns how many units were removed; none is not an error,
+/// because a repeated archive converges on the same state.
+pub async fn delete_task_tree(
+    pool: &PgPool,
+    organization_id: &str,
+    project_id: &str,
+    task_id: &str,
+) -> Result<u64> {
+    let result = sqlx::query(
+        "WITH RECURSIVE tree (document_id, depth) AS (
+             SELECT $3::text, 0
+             UNION
+             SELECT u.document_id, t.depth + 1
+             FROM search.unit u
+             JOIN tree t ON u.metadata ->> 'parentTaskId' = t.document_id
+             WHERE u.organization_id = $1 AND u.project_id = $2 AND u.type = 'task'
+               AND t.depth < $4
+         )
+         DELETE FROM search.unit
+         WHERE organization_id = $1 AND document_id IN (SELECT document_id FROM tree)",
+    )
+    .bind(organization_id)
+    .bind(project_id)
+    .bind(task_id)
+    .bind(MAX_TASK_DEPTH)
+    .execute(pool)
+    .await
+    .context("Cannot remove an archived task")?;
+    Ok(result.rows_affected())
 }
 
 /// A unit found by text, by meaning, or both, with its raw signal scores.

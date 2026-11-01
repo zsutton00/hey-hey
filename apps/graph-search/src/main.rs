@@ -1,6 +1,11 @@
 use anyhow::{Context, Result};
 use axum::Extension;
-use hey_hey_graph_search::{config::Config, database, search, server};
+use hey_hey_graph_search::{
+    config::Config,
+    database,
+    search::{self, ingest},
+    server,
+};
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main(worker_threads = 2)]
@@ -27,8 +32,17 @@ async fn main() -> Result<()> {
         .transpose()?;
     let pool = database::connect_and_migrate(&config).await?;
     let mut app = server::router(&config, pool.clone(), auth);
+    let mut events = None;
     if let Some(encoder) = encoder {
         search::model_record::verify(&pool, &config.search.encoder).await?;
+        // The consumer is isolated from the HTTP server: it shares only the
+        // pool and the bounded encoder, and its failures never reach a request.
+        if let Some(settings) = events_config()? {
+            events = Some(ingest::consumer::Consumer::start(
+                settings,
+                ingest::Ingest::new(pool.clone(), encoder.clone()),
+            ));
+        }
         app = app.layer(Extension(search::routes::SearchState {
             pool: pool.clone(),
             encoder,
@@ -42,8 +56,19 @@ async fn main() -> Result<()> {
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown())
         .await?;
+    if let Some(events) = events {
+        events.stop().await;
+    }
     pool.close().await;
     Ok(())
+}
+
+fn events_config() -> Result<Option<ingest::config::EventsConfig>> {
+    ingest::config::EventsConfig::from_lookup(&|key| match std::env::var(key) {
+        Ok(value) => Ok(Some(value)),
+        Err(std::env::VarError::NotPresent) => Ok(None),
+        Err(_) => anyhow::bail!("{key} must contain valid Unicode"),
+    })
 }
 
 async fn shutdown() {
