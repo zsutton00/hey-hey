@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import type { JevInput, JevResult } from '../../jev/client';
+import { describeError, type JevInput, type JevResult } from '../../jev/client';
 import type { JevEvaluator } from '../../jev/scenarios';
 
 /** One Jev round trip, exactly as sent and received. */
@@ -19,9 +19,26 @@ export const recordJevCalls = (
     calls,
     evaluator: {
       evaluate: async (input) => {
-        const result = await client.evaluate(input);
-        calls.push({ input, result });
-        return result;
+        try {
+          const result = await client.evaluate(input);
+          calls.push({ input, result });
+          return result;
+        } catch (error) {
+          // A rejected request is still a request; describeError omits messages that could carry
+          // the key or request content.
+          calls.push({
+            input,
+            result: {
+              ok: false,
+              failure: {
+                code: 'PROVIDER_ERROR',
+                message: 'Jev request rejected',
+                errorDetail: describeError(error),
+              },
+            },
+          });
+          throw error;
+        }
       },
     },
   };
