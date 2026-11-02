@@ -23,7 +23,11 @@ import {
   type AgentStartupPromptInputRequest,
 } from '../commands/agent-startup-prompt-input';
 import { LocalAgentApiError } from '../shared/agent-bridge-contract/errors';
-import { buildServiceContextNote, mentionFormatReminder } from '../agents/prompts/common';
+import {
+  buildServiceContextNote,
+  heyHeyContextReminder,
+  mentionFormatReminder,
+} from '../agents/prompts/common';
 import { renderReportChainBlock } from '../agents/prompts/report-chain';
 import { resolveAgentProviderId } from '../agents/providers/provider-config';
 import { renderMemoBlock } from '../agents/prompts/memo-block';
@@ -125,6 +129,8 @@ export interface ResolvePromptArgs {
   runState: ResolvePromptRunState;
   input: InternalRunPromptRequest;
   handlerDeps: PromptTypeHandlerDeps;
+  /** Saved machine-wide choice, read for each Turn. Missing means off. */
+  heyHeyContextReminderEnabled?: boolean;
   /** The Turn this prompt is for; handlers that record work done during `prepare` key it by this. */
   turnId: string;
   /** The Run's abort signal, read when `prepare` needs it. */
@@ -606,22 +612,25 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
     }
   }
 
-  // Re-state the entity-mention HARD STOP at the very tail of every per-turn
-  // prompt — after the report-chain/last-turn prepends and any transform — so
-  // it is the most recent instruction the agent reads before replying. The
-  // full rule is delivered once in the session system prompt; this keeps it
-  // from being forgotten as context fills, including in isolated children.
+  // Re-state the orientation and entity-mention reminders at the very tail of
+  // every per-turn prompt — after the report-chain/last-turn prepends and any
+  // transform — so they are the most recent instructions before the agent
+  // replies. The full rules remain in the session system prompt.
   if (resolvedPrompt) {
-    resolvedPrompt = `${resolvedPrompt}\n\n${mentionFormatReminder}`;
+    const turnReminders = [
+      ...(args.heyHeyContextReminderEnabled ? [heyHeyContextReminder] : []),
+      mentionFormatReminder,
+    ].join('\n\n');
+    resolvedPrompt = `${resolvedPrompt}\n\n${turnReminders}`;
     if (providerPromptState.segments) {
       providerPromptState.segments = providerPromptState.segments.userInput
         ? {
             ...providerPromptState.segments,
-            userInput: `${providerPromptState.segments.userInput}\n\n${mentionFormatReminder}`,
+            userInput: `${providerPromptState.segments.userInput}\n\n${turnReminders}`,
           }
         : {
             ...providerPromptState.segments,
-            dynamicContext: `${providerPromptState.segments.dynamicContext}\n\n${mentionFormatReminder}`,
+            dynamicContext: `${providerPromptState.segments.dynamicContext}\n\n${turnReminders}`,
           };
     }
   }

@@ -22,7 +22,7 @@ import { createPromptTypeHandlerTestDeps } from '../agents/prompt-type-handler.t
 import { PromptTypeRegistry } from '../agents/prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../agents/prompt-type-registry.test-support';
 import { WorkflowAboutReader } from '../agents/submission-tools/search-messages-proxy';
-import { mentionFormatReminder } from '../agents/prompts/common';
+import { heyHeyContextReminder, mentionFormatReminder } from '../agents/prompts/common';
 import type { InternalRunPromptRequest } from '../shared/agent-bridge-contract/contract';
 import type { RunEntityReference } from '../shared/agent-bridge-contract/contract';
 import {
@@ -168,14 +168,15 @@ const callResolve = (overrides: Partial<ResolvePromptArgs>) => {
     abortSignal: () => undefined,
     recentUserReplies: [],
     triggerParentMessageId: null,
+    heyHeyContextReminderEnabled: true,
     ...overrides,
   };
   return resolvePrompt(args);
 };
 
-const stripMentionReminder = (prompt: string | null): string | null => {
+const stripTurnReminders = (prompt: string | null): string | null => {
   if (prompt === null) return null;
-  const suffix = `\n\n${mentionFormatReminder}`;
+  const suffix = `\n\n${heyHeyContextReminder}\n\n${mentionFormatReminder}`;
   return prompt.endsWith(suffix) ? prompt.slice(0, -suffix.length) : prompt;
 };
 
@@ -183,8 +184,12 @@ const expectResolvedPromptBody = (
   result: Awaited<ReturnType<typeof resolvePrompt>>,
   expected: string,
 ): void => {
-  expect(stripMentionReminder(result.resolvedPrompt)).toBe(expected);
+  expect(stripTurnReminders(result.resolvedPrompt)).toBe(expected);
+  expect(result.resolvedPrompt).toContain(heyHeyContextReminder);
   expect(result.resolvedPrompt).toContain(mentionFormatReminder);
+  expect(
+    result.resolvedPrompt?.endsWith(`${heyHeyContextReminder}\n\n${mentionFormatReminder}`),
+  ).toBe(true);
 };
 
 const registeredPromptTypes: string[] = [];
@@ -208,6 +213,22 @@ const registerHandler = (
   registeredPromptTypes.push(promptType);
   return full;
 };
+
+it('omits only the Hey Hey reminder when its machine option is off', async () => {
+  const handler = registerHandler('reminder-gate-test', {
+    buildPrompt: () => 'User request',
+    addUserMessage: () => null,
+  });
+  const result = await callResolve({
+    handler,
+    input: makeInput({ promptType: handler.promptType, userMessage: 'User request' }),
+    heyHeyContextReminderEnabled: false,
+  });
+
+  expect(result.resolvedPrompt).not.toContain(heyHeyContextReminder);
+  expect(result.resolvedPrompt).toContain(mentionFormatReminder);
+  expect(result.resolvedPrompt?.endsWith(mentionFormatReminder)).toBe(true);
+});
 
 afterEach(() => {
   for (const promptType of registeredPromptTypes) {
@@ -1586,7 +1607,7 @@ describe('resolvePrompt — previousProviderSession prepend', () => {
     expect(resolved).toContain('## Previous phase (startup_session)');
     expect(resolved).toContain('## Prior Plan');
     expect(resolved).toContain('---');
-    expect(stripMentionReminder(resolved)?.endsWith('follow-up message')).toBe(true);
+    expect(stripTurnReminders(resolved)?.endsWith('follow-up message')).toBe(true);
   });
 
   it('returns consumedPreviousProviderSession=false for subagent-owned promptTypes even when a summary is recorded', async () => {
@@ -1745,7 +1766,7 @@ describe('resolvePrompt — reportChain prepend', () => {
     expect(resolved).toContain('SESSION_SUMMARY');
     expect(resolved).toContain('startup summary body');
     expect(resolved).toContain('- audience: EXTERNAL');
-    expect(stripMentionReminder(resolved)?.endsWith('follow-up')).toBe(true);
+    expect(stripTurnReminders(resolved)?.endsWith('follow-up')).toBe(true);
   });
 
   it('preserves insertion order for two entries from the same phase (A→A re-entry)', async () => {
