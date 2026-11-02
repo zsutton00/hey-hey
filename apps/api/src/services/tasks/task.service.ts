@@ -4676,6 +4676,7 @@ export class TaskService {
     userId?: UserId,
     materializationId?: string,
     effectiveParentId?: string | null,
+    requirementsReplacedLater = false,
   ): Promise<{ task: TaskEntity; postCommit: TaskUpdatePostCommit }> {
     const contextManager = EventContextManager.getInstance();
     const currentContext = contextManager.getCurrentContext();
@@ -4849,6 +4850,7 @@ export class TaskService {
       targetTaskType === WORK_ITEM_TYPE_KEYS.Feature &&
       isReparenting &&
       !hasRequirementsSectionUpdate &&
+      !requirementsReplacedLater &&
       typeof (
         tx.taskSection as unknown as {
           findFirst?: unknown;

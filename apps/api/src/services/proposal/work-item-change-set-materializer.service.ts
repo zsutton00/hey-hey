@@ -404,8 +404,14 @@ export class WorkItemChangeSetMaterializerService {
             error,
             failure,
           );
-          if (error instanceof HttpException && error.getStatus() === 409)
-            throw error;
+          if (error instanceof HttpException && error.getStatus() === 409) {
+            // A conflict that already explains itself (reconciliation) keeps
+            // its own typed body; otherwise attach the checkpoint diagnostic
+            // so grouped approval can still name the field and correlation.
+            const explainsItself =
+              toProposalApprovalFailureDiagnostic(error).issues.length > 0;
+            throw explainsItself ? error : new ConflictException(failure);
+          }
           throw error instanceof HttpException
             ? new HttpException(failure, error.getStatus())
             : new InternalServerErrorException(failure);
@@ -1713,6 +1719,10 @@ export class WorkItemChangeSetMaterializerService {
     const request =
       prepared.operationSet as unknown as WorkItemChangeSetValidationRequest;
     const effectiveParentIds = this.effectiveParentIds(request, prepared);
+    const requirementsReplacedIds = this.requirementsReplacedIds(
+      request,
+      prepared,
+    );
     request.operations.forEach((operation, operationIndex) => {
       this.logOperationInput(
         params.proposalId,
@@ -1791,6 +1801,7 @@ export class WorkItemChangeSetMaterializerService {
         mappings,
         claimToken,
         effectiveParentIds,
+        requirementsReplacedIds,
       );
       cursor += 1;
     }
@@ -2293,6 +2304,7 @@ export class WorkItemChangeSetMaterializerService {
     mappings: IdentityMappings,
     claimToken: string,
     effectiveParentIds?: ReadonlyMap<string, string | null>,
+    requirementsReplacedIds?: ReadonlySet<string>,
   ): Promise<void> {
     return withApiSpan(
       'proposal.change_set.checkpoint',
@@ -2305,6 +2317,7 @@ export class WorkItemChangeSetMaterializerService {
           mappings,
           claimToken,
           effectiveParentIds,
+          requirementsReplacedIds,
         ),
       {
         operationKind: operation.op,
@@ -2325,6 +2338,7 @@ export class WorkItemChangeSetMaterializerService {
     mappings: IdentityMappings,
     claimToken: string,
     effectiveParentIds?: ReadonlyMap<string, string | null>,
+    requirementsReplacedIds?: ReadonlySet<string>,
   ): Promise<void> {
     if (checkpoint.status === WorkItemChangeSetCheckpointStatus.COMPLETED) {
       return;
@@ -2391,6 +2405,7 @@ export class WorkItemChangeSetMaterializerService {
               checkpoint.operationIndex,
               claimToken,
               effectiveParentIds,
+              requirementsReplacedIds,
             ),
           );
           outcome = 'completed';
@@ -2417,6 +2432,7 @@ export class WorkItemChangeSetMaterializerService {
               checkpoint.operationIndex,
               claimToken,
               effectiveParentIds,
+              requirementsReplacedIds,
             ),
           );
         }
@@ -2734,6 +2750,7 @@ export class WorkItemChangeSetMaterializerService {
     operationIndex: number,
     claimToken: string,
     effectiveParentIds?: ReadonlyMap<string, string | null>,
+    requirementsReplacedIds?: ReadonlySet<string>,
   ): Promise<void> {
     switch (operation.op) {
       case 'workItem.create':
@@ -2826,6 +2843,8 @@ export class WorkItemChangeSetMaterializerService {
                 taskUpdates,
                 undefined,
                 materializationId,
+                undefined,
+                requirementsReplacedIds?.has(taskId) ?? false,
               );
               postCommit = result?.postCommit;
               if (serviceIds !== undefined) {
@@ -2997,6 +3016,29 @@ export class WorkItemChangeSetMaterializerService {
         return;
       }
     }
+  }
+
+  // A reparenting update re-validates the item's stored requirements against
+  // the new parent. When this same change set replaces or clears those
+  // requirements, the section operation validates the final content against
+  // the effective parent, so the stored (about to be replaced) content must
+  // not reject the update.
+  private requirementsReplacedIds(
+    request: WorkItemChangeSetValidationRequest,
+    materialization: MaterializationWithCheckpoints,
+  ): ReadonlySet<string> {
+    const mappings = this.readIdentityMappings(materialization);
+    const ids = new Set<string>();
+    for (const operation of request.operations) {
+      if (
+        (operation.op === 'section.replace' ||
+          operation.op === 'section.clear') &&
+        operation.key === 'requirements'
+      ) {
+        ids.add(this.resolveWorkItemId(operation.ref, mappings.workItems));
+      }
+    }
+    return ids;
   }
 
   private effectiveParentIds(
@@ -4598,22 +4640,17 @@ export class WorkItemChangeSetMaterializerService {
   ): UpdateTaskDto & { serviceIds?: string[] } {
     if (!payload || payload.action !== 'UPDATE') return base;
     const original = payload.updates as unknown as UpdateTaskDto;
+    // Sections are not merged here: every proposed section is its own
+    // section.replace operation, which owns the write and its reviewed-basis
+    // guard. Writing them here too would persist them twice and make the
+    // guard see this change set's own write as an outside edit.
     return {
       ...base,
-      ...(Object.prototype.hasOwnProperty.call(payload.updates, 'sections')
-        ? { sections: original.sections }
-        : {}),
       ...(Object.prototype.hasOwnProperty.call(payload.updates, 'initiativeId')
         ? { initiativeId: original.initiativeId }
         : {}),
       ...(Object.prototype.hasOwnProperty.call(payload.updates, 'type')
         ? { type: original.type }
-        : {}),
-      ...(Object.prototype.hasOwnProperty.call(
-        payload.updates,
-        'sectionUpdateSource',
-      )
-        ? { sectionUpdateSource: original.sectionUpdateSource }
         : {}),
       ...(Object.prototype.hasOwnProperty.call(payload.updates, 'reason')
         ? { reason: original.reason }
