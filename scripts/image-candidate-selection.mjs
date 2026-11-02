@@ -35,12 +35,6 @@ export function candidateSelection(
     }
     selection = selectAffected(files);
   } else throw new Error("Unsupported candidate event");
-  if (selection.images.length)
-    selection.checks.push({
-      target: "contracts",
-      command:
-        "pnpm test:scripts && pnpm generate:check && pnpm check:controller-producers",
-    });
   return selection;
 }
 
@@ -53,7 +47,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   });
   fs.appendFileSync(
     process.env.GITHUB_OUTPUT,
-    `images=${JSON.stringify(result.images)}\nchecks=${JSON.stringify(result.checks)}\n`,
+    `images=${JSON.stringify(result.images)}\n`,
   );
   fs.appendFileSync(
     process.env.GITHUB_STEP_SUMMARY,

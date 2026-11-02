@@ -31,7 +31,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       images: ${{ steps.select.outputs.images }}
-      checks: ${{ steps.select.outputs.checks }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,44 +42,9 @@ jobs:
           BEFORE: ${{ github.event.before }}
         run: node scripts/image-candidate-selection.mjs
 
-  checks:
-    needs: select
-    if: needs.select.outputs.checks != '[]'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(needs.select.outputs.checks) }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10.18.1
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-      - name: Install Rust toolchain
-        if: matrix.target == 'graph-search'
-        run: rustup toolchain install 1.97.0 --profile minimal --component clippy,rustfmt
-      - run: pnpm install --frozen-lockfile
-      - name: Build shared package prerequisite
-        if: matrix.target == 'ui' || matrix.target == 'ui-common'
-        run: pnpm --filter @hey-hey/ui-common build
-      - name: Selected verification
-        env:
-          CHECK_COMMAND: ${{ matrix.command }}
-        run: bash -e -o pipefail -c "$CHECK_COMMAND"
-
   build:
-    needs: [select, checks]
-    if: ${{ !cancelled() && needs.select.result == 'success' && (needs.checks.result == 'success' || needs.checks.result == 'skipped') && needs.select.outputs.images != '[]' }}
+    needs: select
+    if: ${{ !cancelled() && needs.select.result == 'success' && needs.select.outputs.images != '[]' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

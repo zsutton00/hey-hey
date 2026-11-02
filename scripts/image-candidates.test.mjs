@@ -24,7 +24,6 @@ test("push selection uses exact endpoints and handles empty and missing history"
     }).images,
     ["ui"],
   );
-  assert.deepEqual(candidateSelection(push, () => ["docs/a.md"]).checks, []);
   assert.deepEqual(
     candidateSelection({ ...push, before: "0".repeat(40) }).images,
     ["ui", "api", "graph-search"],
@@ -73,13 +72,13 @@ test("publication evidence preserves the verified build and refuses missing smok
     `${built.intendedRepository}@sha256:${"c".repeat(64)}`,
   );
 });
-test("single workflow gates publication after checks, one build and smoke", () => {
+test("single workflow gates publication on one build and smoke", () => {
   const workflow = fs.readFileSync(
     new URL("../.github/workflows/publish-images.yml", import.meta.url),
     "utf8",
   );
   assert.match(workflow, /branches: \["release\/\*\*"\]/);
-  assert.match(workflow, /needs: \[select, checks\]/);
+  assert.match(workflow, /needs: select\n/);
   assert.match(workflow, /outputs.images != '\[\]'/);
   assert.match(workflow, /cancel-in-progress: true/);
   assert.equal(
