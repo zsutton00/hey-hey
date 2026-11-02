@@ -16,6 +16,7 @@ import {
 } from "@hey-hey/ui-common/api";
 import { buildHelpDemoMap } from "../Project/help/helpDemoMap";
 import { ProjectHelpPage } from "./ProjectHelpPage";
+import { isProjectGuideOpened } from "../Project/help/projectGuideOpenedStorage";
 
 const mockUseHelpCapabilities = vi.hoisted(() => vi.fn());
 const mocks = vi.hoisted(() => ({
@@ -109,6 +110,7 @@ const renderPage = ({
 
 describe("ProjectHelpPage", () => {
   beforeEach(() => {
+    localStorage.clear();
     setCompactViewport(false);
     mockUseHelpCapabilities.mockReturnValue({});
     mocks.project = null;
@@ -255,6 +257,17 @@ describe("ProjectHelpPage", () => {
     );
     expect(screen.getByTestId("help-provider")).toContainElement(
       screen.getByTestId("deep-help-view"),
+    );
+  });
+
+  it("records the guide as opened only for the project whose guide is displayed", async () => {
+    renderPage({ searchParams: "?helpSubTab=first-project" });
+
+    await waitFor(() => expect(isProjectGuideOpened("project-1")).toBe(true));
+    expect(isProjectGuideOpened("project-2")).toBe(false);
+    expect(screen.getByTestId("deep-help-view")).toHaveAttribute(
+      "data-root-section",
+      "first-project",
     );
   });
 

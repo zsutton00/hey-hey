@@ -8,6 +8,8 @@ const noFeatureContent = { entries: new Map() };
 vi.mock("@hey-hey/ui-common/data", () => ({
   useFeatureHierarchy: (...args: unknown[]) => mockUseFeatureHierarchy(...args),
   useFeatureDocumentContent: () => noFeatureContent,
+  useConversations: () => ({ data: [] }),
+  useUserPairedMachines: () => ({ machines: [] }),
   useProject: () => ({ data: undefined }),
 }));
 
@@ -67,6 +69,7 @@ describe("useHelpCapabilities", () => {
         id: "feat-1",
         name: "Authentication",
         href: "/projects/project-1/features/feat-1?discuss=tasks",
+        done: false,
       },
     ]);
 

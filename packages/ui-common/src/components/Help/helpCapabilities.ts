@@ -10,6 +10,7 @@ export interface HelpFeatureRecord {
   id: string;
   name: string;
   href: string;
+  done?: boolean;
   /** Short plain-text overview taken from the Feature's description, when it has one. */
   overview?: string;
 }
@@ -31,6 +32,11 @@ export interface HelpFeatureNextStep {
  */
 export interface HelpDataCapability {
   features: readonly HelpFeatureRecord[];
+  welcomeStepCompletion?: {
+    installAgentBridge: boolean;
+    featuresReady: boolean;
+    readFirstProject: boolean;
+  };
   /**
    * Suggestions saved by feature-discovery onboarding, resolved to live
    * Features. Absent or empty when the project has none to show, which

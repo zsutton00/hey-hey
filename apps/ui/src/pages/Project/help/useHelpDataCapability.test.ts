@@ -1,8 +1,9 @@
 import { renderHook } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockUseFeatureHierarchy = vi.fn();
 const mockUseProject = vi.fn(() => ({ data: undefined }));
+const mockUseUserPairedMachines = vi.fn(() => ({ machines: [] }));
 const noFeatureContent = { entries: new Map<string, unknown>() };
 const mockUseFeatureDocumentContent = vi.fn(() => noFeatureContent);
 
@@ -11,6 +12,8 @@ vi.mock("@hey-hey/ui-common/data", () => ({
   useFeatureDocumentContent: (...args: unknown[]) =>
     mockUseFeatureDocumentContent(...(args as [])),
   useProject: (...args: unknown[]) => mockUseProject(...args),
+  useUserPairedMachines: (...args: unknown[]) =>
+    mockUseUserPairedMachines(...args),
 }));
 
 vi.mock("@hey-hey/ui-common/services", () => ({
@@ -26,8 +29,14 @@ vi.mock("@hey-hey/ui-common/services", () => ({
 }));
 
 import { useHelpDataCapability } from "./useHelpDataCapability";
+import { markProjectGuideOpened } from "./projectGuideOpenedStorage";
 
 describe("useHelpDataCapability", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mockUseUserPairedMachines.mockReturnValue({ machines: [] });
+  });
+
   it("maps every top-level feature to a HelpFeatureRecord with a feature href that deep-links to Discuss Tasks", () => {
     mockUseFeatureHierarchy.mockReturnValue({
       roots: [
@@ -54,6 +63,11 @@ describe("useHelpDataCapability", () => {
         href: "/projects/project-1/features/feat-2?discuss=tasks",
       },
     ]);
+    expect(result.current.welcomeStepCompletion).toEqual({
+      installAgentBridge: false,
+      featuresReady: false,
+      readFirstProject: false,
+    });
   });
 
   it("fills each feature's overview from the first sentence of its description", () => {
@@ -106,6 +120,57 @@ describe("useHelpDataCapability", () => {
     );
 
     expect(result.current.features).toEqual([]);
+  });
+
+  it("reads guide-open state from the current project's local storage", () => {
+    mockUseFeatureHierarchy.mockReturnValue({
+      roots: [],
+      isLoading: false,
+      error: null,
+    });
+    markProjectGuideOpened("project-1");
+
+    const projectOne = renderHook(() =>
+      useHelpDataCapability("org-1", "project-1"),
+    );
+    const projectTwo = renderHook(() =>
+      useHelpDataCapability("org-1", "project-2"),
+    );
+
+    expect(
+      projectOne.result.current.welcomeStepCompletion?.readFirstProject,
+    ).toBe(true);
+    expect(
+      projectTwo.result.current.welcomeStepCompletion?.readFirstProject,
+    ).toBe(false);
+  });
+
+  it("reports paired machines while leaving Feature completion unset", () => {
+    mockUseFeatureHierarchy.mockReturnValue({
+      roots: [
+        { feature: { id: "feat-1", name: "Authentication" }, children: [] },
+        { feature: { id: "feat-2", name: "Notifications" }, children: [] },
+      ],
+      isLoading: false,
+      error: null,
+    });
+    mockUseUserPairedMachines.mockReturnValue({
+      machines: [{ machineId: "m1" }],
+    } as never);
+
+    const { result } = renderHook(() =>
+      useHelpDataCapability("org-1", "project-1"),
+    );
+
+    expect(result.current.features.map(({ id, done }) => [id, done])).toEqual([
+      ["feat-1", undefined],
+      ["feat-2", undefined],
+    ]);
+    expect(result.current.welcomeStepCompletion).toEqual({
+      installAgentBridge: true,
+      featuresReady: false,
+      readFirstProject: false,
+    });
   });
 
   it("forwards organizationId and projectId to useFeatureHierarchy", () => {
