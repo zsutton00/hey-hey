@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { selectAffected } from "./affected-builds.mjs";
 
 export function candidateSelection(
-  { ref, event, target, before, revision },
+  { event, target, before, revision },
   diff = (base, head) =>
     execFileSync("git", ["diff", "--name-only", "--no-renames", base, head], {
       encoding: "utf8",
@@ -13,8 +13,6 @@ export function candidateSelection(
       .split("\n")
       .filter(Boolean),
 ) {
-  if (!/^refs\/heads\/release\/.+/.test(ref ?? ""))
-    throw new Error("Candidate publication requires a release branch");
   let selection;
   if (event === "workflow_dispatch") {
     const files = {
@@ -48,7 +46,6 @@ export function candidateSelection(
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const result = candidateSelection({
-    ref: process.env.GITHUB_REF,
     event: process.env.GITHUB_EVENT_NAME,
     target: process.env.TARGET,
     before: process.env.BEFORE,

@@ -4,22 +4,11 @@ import fs from "node:fs";
 import { candidateSelection } from "./image-candidate-selection.mjs";
 import { publicationEvidence } from "./image-publication-evidence.mjs";
 const push = {
-  ref: "refs/heads/release/2026-10-24",
   event: "push",
   before: "a".repeat(40),
   revision: "b".repeat(40),
 };
-test("only release branches permit image work, including manual retries", () => {
-  for (const branch of ["main", "dev", "feature/new", "release"])
-    for (const event of ["push", "workflow_dispatch"])
-      assert.throws(() =>
-        candidateSelection({
-          ...push,
-          ref: `refs/heads/${branch}`,
-          event,
-          target: "Both",
-        }),
-      );
+test("manual runs select images regardless of branch", () => {
   assert.deepEqual(
     candidateSelection({ ...push, event: "workflow_dispatch", target: "API" })
       .images,

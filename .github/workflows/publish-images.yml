@@ -1,7 +1,7 @@
 name: Build images
 run-name: Staging candidates — ${{ github.ref_name }}
 
-# Release pushes and release-only manual retries publish the same verified build.
+# Release pushes and manual runs from any branch publish the same verified build.
 on:
   push:
     branches: ["release/**"]
@@ -33,10 +33,6 @@ jobs:
       images: ${{ steps.select.outputs.images }}
       checks: ${{ steps.select.outputs.checks }}
     steps:
-      - name: Require a release branch
-        env:
-          REF: ${{ github.ref }}
-        run: '[[ "$REF" == refs/heads/release/?* ]]'
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
@@ -84,7 +80,7 @@ jobs:
 
   build:
     needs: [select, checks]
-    if: ${{ !cancelled() && needs.select.result == 'success' && (needs.checks.result == 'success' || needs.checks.result == 'skipped') && needs.select.outputs.images != '[]' && startsWith(github.ref, 'refs/heads/release/') }}
+    if: ${{ !cancelled() && needs.select.result == 'success' && (needs.checks.result == 'success' || needs.checks.result == 'skipped') && needs.select.outputs.images != '[]' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
