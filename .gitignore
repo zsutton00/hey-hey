@@ -86,3 +86,5 @@ jev-logs/
 # Tooling caches
 __pycache__/
 .boost/
+
+apps/cli/release-manifest.json

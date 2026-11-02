@@ -1,0 +1,276 @@
+name: Release CLI
+run-name: CLI release — ${{ github.ref_name }}
+
+# Publishes one CLI version together with the pinned, public, multi-arch image
+# set its manifest describes. Images first, then npm, then anonymous checks.
+# Separate from the staging candidate workflow: this one is the public release.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cli-release
+  cancel-in-progress: false
+
+env:
+  REGISTRY_OWNER: ghcr.io/zsutton00
+  # Upstream images are pinned by digest into the manifest, not republished.
+  POSTGRES_UPSTREAM: docker.io/pgvector/pgvector:0.8.7-pg17-trixie
+  REDIS_UPSTREAM: docker.io/library/redis:8-alpine
+
+jobs:
+  approve:
+    # The protected environment holds the required-reviewer approval.
+    runs-on: ubuntu-latest
+    environment: release
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Require a release branch
+        env:
+          REF: ${{ github.ref }}
+        run: '[[ "$REF" == refs/heads/release/?* ]]'
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - id: version
+        run: echo "version=$(node -p "require('./apps/cli/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Refuse to overwrite an existing release
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if npm view "@hey-hey/cli@$VERSION" version >/dev/null 2>&1; then
+            echo "@hey-hey/cli@$VERSION is already published" >&2
+            exit 1
+          fi
+
+  build:
+    needs: approve
+    name: Build ${{ matrix.image }} ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { image: api, platform: linux/amd64, runner: ubuntu-latest }
+          - { image: api, platform: linux/arm64, runner: ubuntu-24.04-arm }
+          - { image: ui, platform: linux/amd64, runner: ubuntu-latest }
+          - { image: ui, platform: linux/arm64, runner: ubuntu-24.04-arm }
+          - {
+              image: graph-search,
+              platform: linux/amd64,
+              runner: ubuntu-latest,
+            }
+          - {
+              image: graph-search,
+              platform: linux/arm64,
+              runner: ubuntu-24.04-arm,
+            }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/${{ matrix.image }}/Dockerfile
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=${{ env.REGISTRY_OWNER }}/${{ matrix.image }}-service,push-by-digest=true,name-canonical=true,push=true
+          build-args: |
+            APP_VERSION=${{ needs.approve.outputs.version }}
+            SOURCE_REVISION=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.image }}-${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}-${{ matrix.platform }}
+      - name: Record platform digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.image }}-${{ matrix.runner }}
+          path: ${{ runner.temp }}/digests/*
+          retention-days: 7
+
+  merge:
+    needs: [approve, build]
+    name: Merge ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        image: [api, ui, graph-search]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: digest-${{ matrix.image }}-*
+          path: ${{ runner.temp }}/digests
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create the multi-arch list and record its digest
+        env:
+          REPOSITORY: ${{ env.REGISTRY_OWNER }}/${{ matrix.image }}-service
+          VERSION: ${{ needs.approve.outputs.version }}
+          IMAGE: ${{ matrix.image }}
+        run: |
+          set -euo pipefail
+          SOURCES=()
+          for file in "$RUNNER_TEMP"/digests/*; do
+            SOURCES+=("$REPOSITORY@sha256:$(basename "$file")")
+          done
+          [ "${#SOURCES[@]}" -eq 2 ] || { echo "Expected one digest per platform" >&2; exit 1; }
+          docker buildx imagetools create -t "$REPOSITORY:$VERSION" "${SOURCES[@]}"
+          DIGEST="$(docker buildx imagetools inspect "$REPOSITORY:$VERSION" --format '{{.Manifest.Digest}}')"
+          echo "$REPOSITORY@$DIGEST" > "$RUNNER_TEMP/reference-$IMAGE.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reference-${{ matrix.image }}
+          path: ${{ runner.temp }}/reference-${{ matrix.image }}.txt
+
+  upstream:
+    needs: approve
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - name: Pin PostgreSQL and Redis by digest
+        run: |
+          set -euo pipefail
+          pin() {
+            local tagged="$1" repository="${1%%:*}"
+            local raw digest
+            raw="$(docker buildx imagetools inspect "$tagged" --raw)"
+            for platform in amd64 arm64; do
+              jq -e --arg a "$platform" '.manifests[] | select(.platform.os == "linux" and .platform.architecture == $a)' <<<"$raw" >/dev/null \
+                || { echo "$tagged has no linux/$platform variant" >&2; exit 1; }
+            done
+            digest="$(docker buildx imagetools inspect "$tagged" --format '{{.Manifest.Digest}}')"
+            echo "$repository@$digest"
+          }
+          echo "$(pin "$POSTGRES_UPSTREAM")" > "$RUNNER_TEMP/reference-postgres.txt"
+          echo "$(pin "$REDIS_UPSTREAM")" > "$RUNNER_TEMP/reference-redis.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reference-upstream
+          path: ${{ runner.temp }}/reference-*.txt
+
+  publish:
+    needs: [approve, merge, upstream]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: reference-*
+          path: ${{ runner.temp }}/references
+          merge-multiple: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile --filter @hey-hey/cli...
+      - name: Write the release manifest
+        working-directory: apps/cli
+        run: |
+          set -euo pipefail
+          refs="$RUNNER_TEMP/references"
+          jq -n \
+            --arg api "$(cat "$refs/reference-api.txt")" \
+            --arg ui "$(cat "$refs/reference-ui.txt")" \
+            --arg graphSearch "$(cat "$refs/reference-graph-search.txt")" \
+            --arg postgres "$(cat "$refs/reference-postgres.txt")" \
+            --arg redis "$(cat "$refs/reference-redis.txt")" \
+            '{api: $api, ui: $ui, graphSearch: $graphSearch, postgres: $postgres, redis: $redis}' \
+            > "$RUNNER_TEMP/digests.json"
+          pnpm exec tsx scripts/write-release-manifest.ts "$RUNNER_TEMP/digests.json"
+          cp release-manifest.json "$RUNNER_TEMP/release-manifest.json"
+      - name: Publish to npm
+        working-directory: apps/cli
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-manifest
+          path: ${{ runner.temp }}/release-manifest.json
+
+  verify-pull:
+    needs: publish
+    name: Anonymous pull on ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    permissions: {}
+    strategy:
+      matrix:
+        include:
+          - { platform: linux/amd64, runner: ubuntu-latest }
+          - { platform: linux/arm64, runner: ubuntu-24.04-arm }
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-manifest
+      - name: Pull every manifest image without registry credentials
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          # No login step runs in this job; make sure no credentials exist.
+          rm -f "$HOME/.docker/config.json"
+          for reference in $(jq -r '.images[].reference' release-manifest.json); do
+            docker pull --platform "$PLATFORM" "$reference"
+          done
+
+  verify-install:
+    needs: [approve, publish]
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-manifest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install the published package and compare its manifest
+        env:
+          VERSION: ${{ needs.approve.outputs.version }}
+        run: |
+          set -euo pipefail
+          scratch="$(mktemp -d)"
+          cd "$scratch"
+          for attempt in $(seq 1 12); do
+            npm install "@hey-hey/cli@$VERSION" && break
+            sleep 10
+          done
+          [ "$(npx --no-install heyhey --version)" = "$VERSION" ]
+          cmp node_modules/@hey-hey/cli/release-manifest.json "$GITHUB_WORKSPACE/release-manifest.json"
+          [ "$(jq -r .cliVersion node_modules/@hey-hey/cli/release-manifest.json)" = "$VERSION" ]
