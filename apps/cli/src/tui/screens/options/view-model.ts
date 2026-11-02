@@ -35,6 +35,22 @@ export const optionsViewModel = (state: PresentationState): ScreenModel => {
         indent: 3,
       }),
       line([]),
+      line([segment('Hey Hey context reminder', 'accent', true)], {
+        right: stateSegments(state.options?.heyHeyContextReminder ?? null),
+        selected: state.optionsRow === 'hey-hey-context-reminder',
+      }),
+      line(
+        [
+          segment(
+            'Remind agents to use this project context and Hey Hey tools on every turn',
+            'muted',
+          ),
+        ],
+        {
+          indent: 3,
+        },
+      ),
+      line([]),
       line([segment('Jev', 'accent', true)], {
         right: jevKeyMissing
           ? [segment('Unavailable', 'muted')]

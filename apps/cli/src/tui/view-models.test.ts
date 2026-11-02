@@ -39,6 +39,7 @@ describe('optionsViewModel', () => {
           intentFirst: false,
           remoteToolCallViewing: true,
           jevEnabled: true,
+          heyHeyContextReminder: false,
           jevKeyDefined: true,
         },
       }),
@@ -53,12 +54,32 @@ describe('optionsViewModel', () => {
       'Remote tool-call viewing  On   Enter to turn off',
       "Let your other devices see this machine's agents' tool calls",
       '',
+      'Hey Hey context reminder  Off   Enter to turn on',
+      'Remind agents to use this project context and Hey Hey tools on every turn',
+      '',
       'Jev  On   Enter to turn off',
       'Turn Jev on or off for this machine. Needs a Jev key.',
       '',
       'Applies to every project on this machine. New sessions pick up changes.',
     ]);
     expect(model.footer).toBe('Esc back  ↑↓ move  Enter switch  q quit');
+  });
+
+  it('shows the Hey Hey context reminder as on when enabled', () => {
+    const body = texts(
+      optionsViewModel(
+        state({
+          options: {
+            intentFirst: false,
+            remoteToolCallViewing: true,
+            jevEnabled: true,
+            heyHeyContextReminder: true,
+            jevKeyDefined: true,
+          },
+        }),
+      ).body,
+    );
+    expect(body).toContain('Hey Hey context reminder  On   Enter to turn off');
   });
 
   it('shows the Jev row as unavailable without a key, even when the saved choice is on', () => {
@@ -69,6 +90,7 @@ describe('optionsViewModel', () => {
             intentFirst: false,
             remoteToolCallViewing: true,
             jevEnabled: true,
+            heyHeyContextReminder: false,
             jevKeyDefined: false,
           },
         }),
@@ -89,6 +111,7 @@ describe('optionsViewModel', () => {
             intentFirst: true,
             remoteToolCallViewing: true,
             jevEnabled: true,
+            heyHeyContextReminder: false,
             jevKeyDefined: true,
           },
         }),
@@ -106,6 +129,7 @@ describe('optionsViewModel', () => {
               intentFirst: null,
               remoteToolCallViewing: null,
               jevEnabled: null,
+              heyHeyContextReminder: false,
               jevKeyDefined: true,
             },
           }),
@@ -127,6 +151,7 @@ describe('optionsViewModel', () => {
             intentFirst: false,
             remoteToolCallViewing: true,
             jevEnabled: true,
+            heyHeyContextReminder: false,
             jevKeyDefined: true,
           },
         }),

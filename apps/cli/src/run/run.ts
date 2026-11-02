@@ -18,6 +18,7 @@ import {
 } from '../browser/browser-tab-notices';
 import { ReportedFileChangeFailure, type ReportedFileChangeResolution } from './file-change-facts';
 import { DeterministicE2EEvidence } from './runners/deterministic-e2e-evidence';
+import { MachineOptionsStore } from '../options/machine-options-store';
 /**
  * Run — the in-memory, active representation of an `AgenticSession`.
  *
@@ -674,6 +675,7 @@ const readTriggerParentMessageId = (input: InternalRunPromptRequest): string | n
 
 export class Run {
   private readonly attachmentContentReader = new RunAttachmentContentReader();
+  private readonly machineOptionsStore = new MachineOptionsStore();
   // --- Run-owned state ---------------------------------------------------
   readonly runId: string;
   readonly organizationId: string;
@@ -5458,6 +5460,7 @@ export class Run {
       },
       input,
       handlerDeps: this.handlerDeps,
+      heyHeyContextReminderEnabled: await this.machineOptionsStore.isHeyHeyContextReminderEnabled(),
       turnId,
       abortSignal: () => this.abortSignal,
       recentUserReplies: readRecentUserReplies(input),

@@ -12,6 +12,7 @@ const persistedMachineOptionsSchema = z
     intentFirst: z.boolean(),
     // Files written before this option existed lack the field; they read as enabled.
     remoteToolCallViewing: z.boolean().default(true),
+    heyHeyContextReminder: z.boolean().default(false),
     jevEnabled: z.boolean().optional(),
     // The name this option was saved under while it only gated the parent feature filter.
     jevParentFeatureFilter: z.boolean().optional(),
@@ -21,12 +22,14 @@ const persistedMachineOptionsSchema = z
 export interface MachineOptions {
   intentFirst: boolean;
   remoteToolCallViewing: boolean;
+  heyHeyContextReminder: boolean;
   jevEnabled: boolean;
 }
 
 const DEFAULT_MACHINE_OPTIONS: MachineOptions = {
   intentFirst: false,
   remoteToolCallViewing: true,
+  heyHeyContextReminder: false,
   jevEnabled: true,
 };
 
@@ -54,6 +57,7 @@ export class MachineOptionsStore {
     return {
       intentFirst: parsed.intentFirst,
       remoteToolCallViewing: parsed.remoteToolCallViewing,
+      heyHeyContextReminder: parsed.heyHeyContextReminder,
       jevEnabled: parsed.jevEnabled ?? parsed.jevParentFeatureFilter ?? true,
     };
   }
@@ -87,5 +91,10 @@ export class MachineOptionsStore {
   /** Read on every Project Assistant prepare so a change applies to the next Turn. */
   public async isJevEnabled(): Promise<boolean> {
     return (await this.read()).jevEnabled;
+  }
+
+  /** Read for every turn so an Options change applies without restarting the CLI. */
+  public async isHeyHeyContextReminderEnabled(): Promise<boolean> {
+    return (await this.read()).heyHeyContextReminder;
   }
 }

@@ -88,7 +88,12 @@ export interface RuntimeTarget {
 }
 
 /** The rows on the Options screen, in display order. */
-export const OPTIONS_ROWS = ['intent-first', 'remote-tool-call-viewing', 'jev'] as const;
+export const OPTIONS_ROWS = [
+  'intent-first',
+  'remote-tool-call-viewing',
+  'hey-hey-context-reminder',
+  'jev',
+] as const;
 export type OptionsRow = (typeof OPTIONS_ROWS)[number];
 
 export interface PresentationState {

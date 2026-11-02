@@ -11,6 +11,8 @@ export interface OptionsSnapshot {
   readonly intentFirst: boolean | null;
   /** Null until the saved choice has been read. */
   readonly remoteToolCallViewing: boolean | null;
+  /** Null until the saved per-turn reminder choice has been read. */
+  readonly heyHeyContextReminder: boolean | null;
   /** Null until the saved choice has been read. */
   readonly jevEnabled: boolean | null;
   /** Whether the user's environment defines a Jev key; the saved choice is kept either way. */
@@ -55,6 +57,10 @@ export class OptionsSource {
     await this.save({ remoteToolCallViewing });
   }
 
+  public async setHeyHeyContextReminder(heyHeyContextReminder: boolean): Promise<void> {
+    await this.save({ heyHeyContextReminder });
+  }
+
   public async setJevEnabled(jevEnabled: boolean): Promise<void> {
     await this.save({ jevEnabled });
   }
@@ -85,6 +91,7 @@ export class OptionsSource {
     return Object.freeze({
       intentFirst: this.options?.intentFirst ?? null,
       remoteToolCallViewing: this.options?.remoteToolCallViewing ?? null,
+      heyHeyContextReminder: this.options?.heyHeyContextReminder ?? null,
       jevEnabled: this.options?.jevEnabled ?? null,
       jevKeyDefined: this.jevKeyDefined,
     });
