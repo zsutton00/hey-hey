@@ -61,7 +61,9 @@ describe("useHelpRoutingCapability", () => {
   it("resolves project-root to the project root", () => {
     const { result } = renderHook(() => useHelpRoutingCapability("project-1"));
 
-    expect(result.current.buildHref("project-root")).toBe("/projects/project-1");
+    expect(result.current.buildHref("project-root")).toBe(
+      "/projects/project-1",
+    );
   });
 
   it("falls back to the project root for unknown intents — never the # stub", () => {
@@ -92,6 +94,8 @@ describe("useHelpRoutingCapability", () => {
     const first = result.current;
     rerender({ projectId: "project-2" });
     expect(result.current).not.toBe(first);
-    expect(result.current.buildHref("project-root")).toBe("/projects/project-2");
+    expect(result.current.buildHref("project-root")).toBe(
+      "/projects/project-2",
+    );
   });
 });

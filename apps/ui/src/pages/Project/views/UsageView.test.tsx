@@ -46,7 +46,8 @@ const readyMachine = (machineId: string): MachineDto => ({
   active: true,
   authorizationProtocolVersion: AuthorizationProtocolVersion.NUMBER_2,
   executionReadiness: MachineExecutionReadinessState.Ready,
-  currentControllerEligibility: CurrentControllerMachineEligibilityState.Eligible,
+  currentControllerEligibility:
+    CurrentControllerMachineEligibilityState.Eligible,
   bindings: [],
 });
 
@@ -73,20 +74,31 @@ describe("UsageView", () => {
     setHookResults([], []);
 
     render(
-      <UsageView organizationId="org-1" projectId="project-1" userId="user-1" />,
+      <UsageView
+        organizationId="org-1"
+        projectId="project-1"
+        userId="user-1"
+      />,
     );
 
-    expect(screen.getByTestId("project-usage-host-unavailable")).toHaveTextContent(
-      "Provider usage is unavailable",
-    );
+    expect(
+      screen.getByTestId("project-usage-host-unavailable"),
+    ).toHaveTextContent("Provider usage is unavailable");
     expect(mockProviderUsageActivityView).not.toHaveBeenCalled();
   });
 
   it("routes the shared Usage view through a session bound to a ready CLI", () => {
-    setHookResults([session("session-1", "machine-1")], [readyMachine("machine-1")]);
+    setHookResults(
+      [session("session-1", "machine-1")],
+      [readyMachine("machine-1")],
+    );
 
     render(
-      <UsageView organizationId="org-1" projectId="project-1" userId="user-1" />,
+      <UsageView
+        organizationId="org-1"
+        projectId="project-1"
+        userId="user-1"
+      />,
     );
 
     expect(mockProviderUsageActivityView).toHaveBeenCalledWith({

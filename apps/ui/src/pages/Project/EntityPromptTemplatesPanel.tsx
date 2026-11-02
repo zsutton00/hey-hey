@@ -79,7 +79,7 @@ const EntityPromptTemplateCard: React.FC<TemplateCardOptions> = ({
   const handleProposalCreated = useCallback((proposal: ProposalResponseDto) => {
     setCreatedProposals((current) => {
       const existingIndex = current.findIndex(
-        (existing) => existing.id === proposal.id
+        (existing) => existing.id === proposal.id,
       );
       if (existingIndex < 0) {
         return [...current, proposal];
@@ -92,7 +92,7 @@ const EntityPromptTemplateCard: React.FC<TemplateCardOptions> = ({
   const handlePendingOperationChange = useCallback(
     (
       proposalId: string,
-      operation: EntityPromptTemplatePendingOperation | null
+      operation: EntityPromptTemplatePendingOperation | null,
     ): void => {
       setPendingOperations((current) => {
         if (operation === null) {
@@ -108,7 +108,7 @@ const EntityPromptTemplateCard: React.FC<TemplateCardOptions> = ({
           : { ...current, [proposalId]: operation };
       });
     },
-    []
+    [],
   );
   const hasPendingChange = Object.values(pendingOperations).includes("UPSERT");
   const hasPendingRetirement =
@@ -253,7 +253,7 @@ const renderPanelContent = ({
   }
 
   const selectedTemplate = query.templates.find(
-    (template) => template.templateKey === selectedTemplateKey
+    (template) => template.templateKey === selectedTemplateKey,
   );
 
   if (selectedTemplate) {
@@ -292,7 +292,7 @@ const renderPanelContent = ({
                 secondary={`Effective revision ${
                   template.effective.revisionNumber
                 } · ${formatScopeLabel(
-                  template.effective.ownershipSource.scope
+                  template.effective.ownershipSource.scope,
                 )}`}
               />
             </ListItemButton>
@@ -307,10 +307,10 @@ export const EntityPromptTemplatesPanel: React.FC<
   EntityPromptTemplatesPanelProps
 > = ({ organizationId, projectId }) => {
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<string | null>(
-    null
+    null,
   );
   const query = useEntityPromptTemplates(
-    organizationId && projectId ? { organizationId, projectId } : undefined
+    organizationId && projectId ? { organizationId, projectId } : undefined,
   );
   const panelQuery: PanelQuery = {
     templates: query.catalog?.templates ?? [],

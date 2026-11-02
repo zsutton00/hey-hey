@@ -73,7 +73,7 @@ describe("EntityPromptTemplatesPanel", () => {
       <EntityPromptTemplatesPanel
         organizationId="org-1"
         projectId="project-1"
-      />
+      />,
     );
 
     expect(mocks.templates).toHaveBeenCalledWith({
@@ -81,16 +81,16 @@ describe("EntityPromptTemplatesPanel", () => {
       projectId: "project-1",
     });
     expect(
-      screen.getByTestId("entity-prompt-templates-list")
+      screen.getByTestId("entity-prompt-templates-list"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByTestId("entity-prompt-template-card")
+      screen.queryByTestId("entity-prompt-template-card"),
     ).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Entity Context/ }));
 
     expect(
-      screen.getByTestId("entity-prompt-template-detail")
+      screen.getByTestId("entity-prompt-template-detail"),
     ).toBeInTheDocument();
     expect(mocks.proposals).toHaveBeenCalledWith("org-1", "project-1", {
       targetEntityType: "ENTITY_PROMPT_TEMPLATE",
@@ -101,25 +101,25 @@ describe("EntityPromptTemplatesPanel", () => {
     expect(effective).toHaveTextContent("Revision 1");
     expect(effective).toHaveTextContent("Published");
     expect(
-      screen.getByTestId("entity-prompt-template-heading")
+      screen.getByTestId("entity-prompt-template-heading"),
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Entity Context" })).toBe(
-      screen.getByTestId("entity-prompt-template-heading").firstElementChild
+      screen.getByTestId("entity-prompt-template-heading").firstElementChild,
     );
     expect(
-      screen.getByTestId("entity-prompt-template-help-trigger")
+      screen.getByTestId("entity-prompt-template-help-trigger"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("Agent Prompt Composition")
+      screen.queryByText("Agent Prompt Composition"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId("entity-prompt-template-editor-input")
+      screen.queryByTestId("entity-prompt-template-editor-input"),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByTestId("entity-prompt-template-edit")
+      screen.getByTestId("entity-prompt-template-edit"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByTestId("entity-prompt-template-standard")
+      screen.queryByTestId("entity-prompt-template-standard"),
     ).not.toBeInTheDocument();
     expect(screen.queryByText(/publish revision/i)).not.toBeInTheDocument();
 
@@ -127,30 +127,30 @@ describe("EntityPromptTemplatesPanel", () => {
     expect(
       screen.getByRole("dialog", {
         name: "How this template participates in the agent prompt",
-      })
+      }),
     ).toHaveTextContent("Agent Prompt Composition");
 
     await user.click(screen.getByTestId("entity-prompt-template-help-close"));
     await waitFor(() =>
       expect(
-        screen.queryByTestId("entity-prompt-template-help-dialog")
-      ).not.toBeInTheDocument()
+        screen.queryByTestId("entity-prompt-template-help-dialog"),
+      ).not.toBeInTheDocument(),
     );
 
     await user.click(screen.getByTestId("entity-prompt-template-help-trigger"));
     await user.keyboard("{Escape}");
     await waitFor(() =>
       expect(
-        screen.queryByTestId("entity-prompt-template-help-dialog")
-      ).not.toBeInTheDocument()
+        screen.queryByTestId("entity-prompt-template-help-dialog"),
+      ).not.toBeInTheDocument(),
     );
 
     await user.click(screen.getByTestId("entity-prompt-template-back"));
     expect(
-      screen.getByTestId("entity-prompt-templates-list")
+      screen.getByTestId("entity-prompt-templates-list"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByTestId("entity-prompt-template-card")
+      screen.queryByTestId("entity-prompt-template-card"),
     ).not.toBeInTheDocument();
   });
 
@@ -159,14 +159,14 @@ describe("EntityPromptTemplatesPanel", () => {
       <EntityPromptTemplatesPanel
         organizationId={undefined}
         projectId="project-1"
-      />
+      />,
     );
     expect(
-      screen.getByTestId("entity-prompt-templates-missing-scope")
+      screen.getByTestId("entity-prompt-templates-missing-scope"),
     ).toBeInTheDocument();
     expect(mocks.templates).toHaveBeenLastCalledWith(undefined);
     expect(
-      screen.queryByTestId("entity-prompt-templates-loading")
+      screen.queryByTestId("entity-prompt-templates-loading"),
     ).not.toBeInTheDocument();
 
     mocks.templates.mockReturnValue({
@@ -180,10 +180,10 @@ describe("EntityPromptTemplatesPanel", () => {
       <EntityPromptTemplatesPanel
         organizationId="org-1"
         projectId="project-1"
-      />
+      />,
     );
     expect(
-      screen.getByTestId("entity-prompt-templates-error")
+      screen.getByTestId("entity-prompt-templates-error"),
     ).toHaveTextContent("catalog unavailable");
   });
 
@@ -199,10 +199,10 @@ describe("EntityPromptTemplatesPanel", () => {
       <EntityPromptTemplatesPanel
         organizationId="org-1"
         projectId="project-1"
-      />
+      />,
     );
     expect(
-      screen.getByTestId("entity-prompt-templates-loading")
+      screen.getByTestId("entity-prompt-templates-loading"),
     ).toBeInTheDocument();
 
     mocks.templates.mockReturnValue({
@@ -216,10 +216,10 @@ describe("EntityPromptTemplatesPanel", () => {
       <EntityPromptTemplatesPanel
         organizationId="org-1"
         projectId="project-1"
-      />
+      />,
     );
     expect(
-      screen.getByTestId("entity-prompt-templates-empty")
+      screen.getByTestId("entity-prompt-templates-empty"),
     ).toBeInTheDocument();
   });
 
@@ -239,10 +239,10 @@ describe("EntityPromptTemplatesPanel", () => {
       <EntityPromptTemplatesPanel
         organizationId="org-1"
         projectId="project-1"
-      />
+      />,
     );
     expect(
-      screen.getAllByTestId("entity-prompt-template-list-item")
+      screen.getAllByTestId("entity-prompt-template-list-item"),
     ).toHaveLength(2);
   });
 
@@ -270,15 +270,15 @@ describe("EntityPromptTemplatesPanel", () => {
       <EntityPromptTemplatesPanel
         organizationId="org-1"
         projectId="project-1"
-      />
+      />,
     );
     await user.click(screen.getByRole("button", { name: /Entity Context/ }));
 
     expect(
-      screen.getByTestId("entity-prompt-template-current")
+      screen.getByTestId("entity-prompt-template-current"),
     ).toHaveTextContent("Project content");
     expect(
-      screen.getByTestId("entity-prompt-template-standard")
+      screen.getByTestId("entity-prompt-template-standard"),
     ).toHaveTextContent("Canonical content");
   });
 
@@ -297,34 +297,34 @@ describe("EntityPromptTemplatesPanel", () => {
       <EntityPromptTemplatesPanel
         organizationId="org-1"
         projectId="project-1"
-      />
+      />,
     );
 
     await user.click(screen.getByRole("button", { name: /Entity Context/ }));
 
     await waitFor(() =>
-      expect(screen.getByTestId("entity-prompt-template-edit")).toBeDisabled()
+      expect(screen.getByTestId("entity-prompt-template-edit")).toBeDisabled(),
     );
     const notice = screen.getByTestId(
-      "entity-prompt-template-pending-proposal-notice"
+      "entity-prompt-template-pending-proposal-notice",
     );
     const proposalLink = screen.getByTestId(
-      "entity-prompt-template-proposal-link"
+      "entity-prompt-template-proposal-link",
     );
     const metadata = screen.getByTestId(
-      "entity-prompt-template-current-metadata"
+      "entity-prompt-template-current-metadata",
     );
     expect(notice).toHaveTextContent(
-      "There is a current proposal. Either accept or reject it before making further edits."
+      "There is a current proposal. Either accept or reject it before making further edits.",
     );
     expect(notice.compareDocumentPosition(proposalLink)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING
+      Node.DOCUMENT_POSITION_FOLLOWING,
     );
     expect(proposalLink.compareDocumentPosition(metadata)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING
+      Node.DOCUMENT_POSITION_FOLLOWING,
     );
     expect(
-      screen.queryByTestId("entity-prompt-template-propose-change")
+      screen.queryByTestId("entity-prompt-template-propose-change"),
     ).not.toBeInTheDocument();
   });
 
@@ -343,14 +343,14 @@ describe("EntityPromptTemplatesPanel", () => {
       <EntityPromptTemplatesPanel
         organizationId="org-1"
         projectId="project-1"
-      />
+      />,
     );
     await user.click(screen.getByRole("button", { name: /Entity Context/ }));
     await user.click(
-      screen.getByTestId("entity-prompt-template-revise-rejected")
+      screen.getByTestId("entity-prompt-template-revise-rejected"),
     );
     expect(
-      screen.getByTestId("entity-prompt-template-editor-input")
+      screen.getByTestId("entity-prompt-template-editor-input"),
     ).toHaveTextContent("Rejected content");
 
     const approvedTemplate = {
@@ -373,16 +373,16 @@ describe("EntityPromptTemplatesPanel", () => {
       <EntityPromptTemplatesPanel
         organizationId="org-1"
         projectId="project-1"
-      />
+      />,
     );
 
     await waitFor(() =>
       expect(
-        screen.getByTestId("entity-prompt-template-current-content")
-      ).toHaveTextContent("New authoritative content")
+        screen.getByTestId("entity-prompt-template-current-content"),
+      ).toHaveTextContent("New authoritative content"),
     );
     expect(
-      screen.queryByTestId("entity-prompt-template-editor-input")
+      screen.queryByTestId("entity-prompt-template-editor-input"),
     ).not.toBeInTheDocument();
   });
 });

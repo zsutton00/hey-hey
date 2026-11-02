@@ -3,9 +3,7 @@ import userEvent from "@testing-library/user-event";
 import React from "react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  WorkItemTypeLifecycleStatus,
-} from "@hey-hey/ui-common/api";
+import { WorkItemTypeLifecycleStatus } from "@hey-hey/ui-common/api";
 import { WorkItemTypesList } from "./WorkItemTypesList";
 
 const mockUseWorkItemTypes = vi.fn();
@@ -105,20 +103,25 @@ describe("WorkItemTypesList", () => {
       "href",
       "/projects/proj-1/work-item-types/new",
     );
-    expect(screen.getByTestId("work-item-type-edit-CUSTOM TYPE"))
-      .toHaveAttribute(
-        "href",
-        "/projects/proj-1/work-item-types/CUSTOM%20TYPE/edit",
-      );
+    expect(
+      screen.getByTestId("work-item-type-edit-CUSTOM TYPE"),
+    ).toHaveAttribute(
+      "href",
+      "/projects/proj-1/work-item-types/CUSTOM%20TYPE/edit",
+    );
     expect(screen.getByText("Task")).toBeInTheDocument();
     expect(screen.getByText("Base")).toBeInTheDocument();
     expect(screen.getByText("Custom")).toBeInTheDocument();
     expect(screen.queryByText("Bug")).not.toBeInTheDocument();
     expect(screen.queryByText("Archived custom")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Active · Canonical-seeded/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Active · Canonical-seeded/),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/Archived · Custom/)).not.toBeInTheDocument();
     expect(screen.queryByText("Foreign project type")).not.toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: "Show Archived" })).not.toBeChecked();
+    expect(
+      screen.getByRole("switch", { name: "Show Archived" }),
+    ).not.toBeChecked();
     expect(mockUseWorkItemTypes).toHaveBeenCalledWith("org-1", {
       projectId: "proj-1",
     });
@@ -134,7 +137,9 @@ describe("WorkItemTypesList", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.queryByTestId("work-item-type-create")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("work-item-type-create"),
+    ).not.toBeInTheDocument();
     expect(screen.getByTestId("work-item-type-edit-CUSTOM TYPE")).toBeVisible();
   });
 

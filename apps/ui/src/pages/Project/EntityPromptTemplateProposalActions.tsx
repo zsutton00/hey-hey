@@ -19,7 +19,7 @@ export interface EntityPromptTemplateProposalActionsProps {
   onReviseRejected: (content: string) => void;
   onPendingOperationChange?: (
     proposalId: string,
-    operation: EntityPromptTemplatePendingOperation | null
+    operation: EntityPromptTemplatePendingOperation | null,
   ) => void;
 }
 
@@ -32,7 +32,7 @@ interface ProposalProjectionProps {
   onReviseRejected: (content: string) => void;
   onPendingOperationChange?: (
     proposalId: string,
-    operation: EntityPromptTemplatePendingOperation | null
+    operation: EntityPromptTemplatePendingOperation | null,
   ) => void;
 }
 

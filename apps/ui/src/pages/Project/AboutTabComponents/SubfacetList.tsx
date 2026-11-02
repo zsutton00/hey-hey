@@ -87,7 +87,7 @@ export const SubfacetList: React.FC<SubfacetListProps> = ({
                   >
                     {subfacet.lastSummarizedAt
                       ? `Summarized: ${new Date(
-                          subfacet.lastSummarizedAt
+                          subfacet.lastSummarizedAt,
                         ).toLocaleDateString()}`
                       : "Not summarized yet"}
                   </Typography>
