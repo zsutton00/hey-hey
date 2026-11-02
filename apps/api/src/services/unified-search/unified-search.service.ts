@@ -1069,11 +1069,14 @@ export class UnifiedSearchService {
       this.logger.debug('Graph search response (pre-processing)', { results });
       return this.mapGraphResponse(response, graphProjection);
     } catch (error) {
+      const graphResponse = (error as any)?.response;
       this.logger.error('Graph search failed', {
         error: errorToLoggable(error),
         query: request.query,
         organizationId,
         projectId,
+        responseStatus: graphResponse?.status,
+        responseData: graphResponse?.data,
       });
       throw this.mapServiceError(error, 'graph');
     }
@@ -3193,6 +3196,7 @@ export class UnifiedSearchService {
 
     switch (status) {
       case 400:
+      case 422:
         return new BadRequestException(`${service} service rejected the query`);
       case 401:
         return new UnauthorizedException(
