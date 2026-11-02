@@ -284,11 +284,11 @@ more than one candidate exists, rather than choosing a database snapshot
 silently.
 
 The remote helper validates this copy with `pg_restore --list` in a disposable
-`postgres:13` container, then installs the dump and its checksum metadata with
+`postgres:17` container, then installs the dump and its checksum metadata with
 owner-only permissions. The Linux host does not need PostgreSQL client binaries
 installed. This import is owned by the remote helper and does not invoke the
 selected API checkout's potentially older `bootstrap` command. Docker must be
-running and able to use or pull `postgres:13`; a validation failure stops launch
+running and able to use or pull `postgres:17`; a validation failure stops launch
 before installing the dump.
 
 Set `HEY_HEY_MIGRATION_REMOTE_TARGET` in the Mac's `~/.zshrc` to the Linux SSH

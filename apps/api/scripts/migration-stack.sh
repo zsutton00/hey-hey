@@ -253,7 +253,7 @@ validate_bootstrap_dump() {
   absolute_source="$(cd "$(dirname "$source_file")" && pwd)/$(basename "$source_file")"
   docker run --rm \
     --mount "type=bind,source=${absolute_source},target=/bootstrap.dump,readonly" \
-    postgres:13 pg_restore --list /bootstrap.dump >/dev/null
+    postgres:17 pg_restore --list /bootstrap.dump >/dev/null
 }
 
 create_empty_database_dump() {
@@ -267,7 +267,7 @@ create_empty_database_dump() {
   container_password="$(openssl rand -hex 32)"
   docker run --rm --detach --name "$container_name" \
     --env "POSTGRES_PASSWORD=${container_password}" \
-    postgres:13 >/dev/null
+    postgres:17 >/dev/null
 
   for ((attempt = 0; attempt < 60; attempt++)); do
     if docker exec "$container_name" pg_isready --username postgres --dbname postgres >/dev/null 2>&1; then
@@ -522,7 +522,7 @@ case "$command" in
       source_description="file:$(cd "$(dirname "$bootstrap_source")" && pwd)/$(basename "$bootstrap_source")"
     elif [[ "$empty_bootstrap" == true ]]; then
       create_empty_database_dump "$temporary_dump"
-      source_description='empty-postgres-13-docker'
+      source_description='empty-postgres-17-docker'
     else
       capture_current_database "$temporary_dump"
       source_description='current-api-database'

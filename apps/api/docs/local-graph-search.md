@@ -13,7 +13,7 @@ changes. Starting this through the CLI or an app is not covered here.
 | ------------------------ | ---------------------------------------------------------------------- |
 | Graph and search service | built from `apps/graph-search` by `docker-compose.graph-search.yml`    |
 | Its own database         | `pgvector/pgvector:0.8.7-pg17-trixie` (PostgreSQL 17, pgvector 0.8.7)  |
-| Application PostgreSQL   | `docker-compose.yml` (`postgres:13`, unchanged)                        |
+| Application PostgreSQL   | `docker-compose.yml` (`pgvector/pgvector:0.8.7-pg17-trixie`)           |
 | Redis                    | `docker-compose.yml` (the service reads the events the API publishes)  |
 | Temporal                 | `docker-compose.yml`, as for any local run                             |
 | Embedding model files    | fetched once with `apps/graph-search/scripts/fetch-model.sh`           |

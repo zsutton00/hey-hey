@@ -99,7 +99,7 @@ describe('remote migration stack bootstrap import', () => {
       '--rm',
       '--mount',
       `type=bind,source=${source},target=/bootstrap.dump,readonly`,
-      'postgres:13',
+      'postgres:17',
       'pg_restore',
       '--list',
       '/bootstrap.dump',
@@ -128,7 +128,9 @@ describe('remote migration stack bootstrap import', () => {
       encoding: 'utf8',
     });
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain('no existing Linux migration-stack bootstrap');
+    expect(result.stderr).toContain(
+      'no existing Linux migration-stack bootstrap',
+    );
     expect(fs.readdirSync(destination)).toEqual([]);
   });
 

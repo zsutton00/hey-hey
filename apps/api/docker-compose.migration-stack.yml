@@ -19,7 +19,7 @@ services:
       - cp /source/application.dump /bootstrap/application.dump && cp /source/10-restore-bootstrap.sh /bootstrap/10-restore-bootstrap.sh && chmod 0444 /bootstrap/application.dump && chmod 0555 /bootstrap/10-restore-bootstrap.sh
 
   postgres:
-    image: postgres:13
+    image: pgvector/pgvector:0.8.7-pg17-trixie
     restart: unless-stopped
     logging: *default-logging
     depends_on:
@@ -103,7 +103,7 @@ services:
     command: ["migrate"]
 
   postgres-data-import:
-    image: postgres:13
+    image: postgres:17
     restart: "no"
     logging: *default-logging
     depends_on:

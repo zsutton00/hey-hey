@@ -406,7 +406,7 @@ if [[ ! -s "\$remote_root/state/bootstrap/application.dump" ]]; then
   # Older source checkouts require a host pg_restore even on Docker-only hosts.
   docker run --rm \\
     --mount "type=bind,source=\$existing_bootstraps,target=/bootstrap.dump,readonly" \\
-    postgres:13 pg_restore --list /bootstrap.dump >/dev/null
+    postgres:17 pg_restore --list /bootstrap.dump >/dev/null
   bootstrap_dir="\$remote_root/state/bootstrap"
   umask 077
   cp "\$existing_bootstraps" "\$bootstrap_dir/application.dump.tmp"
