@@ -33175,6 +33175,12 @@ export interface EvalRunReportPayload {
      */
     'status': EvalRunStatus;
     /**
+     * User-chosen name of the run. Absent means the run is shown by a name generated from what it recorded. Blank is never stored.
+     * @type {string}
+     * @memberof EvalRunReportPayload
+     */
+    'name'?: string;
+    /**
      *
      * @type {EvalModelSetting}
      * @memberof EvalRunReportPayload
@@ -42798,6 +42804,49 @@ export interface GetProjectReportContextPage200Response {
 /**
  *
  * @export
+ * @interface GetProjectReportUsageTrends200Response
+ */
+export interface GetProjectReportUsageTrends200Response {
+    /**
+     * Indicates if the request was successful
+     * @type {boolean}
+     * @memberof GetProjectReportUsageTrends200Response
+     */
+    'success': boolean;
+    /**
+     * Human-readable message about the operation
+     * @type {string}
+     * @memberof GetProjectReportUsageTrends200Response
+     */
+    'message': string;
+    /**
+     *
+     * @type {ReportUsageTrends}
+     * @memberof GetProjectReportUsageTrends200Response
+     */
+    'data'?: ReportUsageTrends;
+    /**
+     * ISO timestamp of when the response was generated
+     * @type {string}
+     * @memberof GetProjectReportUsageTrends200Response
+     */
+    'timestamp': string;
+    /**
+     * HTTP status code
+     * @type {number}
+     * @memberof GetProjectReportUsageTrends200Response
+     */
+    'statusCode': number;
+    /**
+     * Request path
+     * @type {string}
+     * @memberof GetProjectReportUsageTrends200Response
+     */
+    'path'?: string;
+}
+/**
+ *
+ * @export
  * @interface GetProposalFuture200Response
  */
 export interface GetProposalFuture200Response {
@@ -50132,6 +50181,12 @@ export interface LaunchEvalRun201Response {
  */
 export interface LaunchEvalRunRequest {
     /**
+     * User-chosen name of the run. Absent means the run is shown by a name generated from what it recorded. Blank is never stored.
+     * @type {string}
+     * @memberof LaunchEvalRunRequest
+     */
+    'name'?: string;
+    /**
      *
      * @type {Array<string>}
      * @memberof LaunchEvalRunRequest
@@ -51274,6 +51329,49 @@ export interface ListProjectReadyFutures200Response {
      * Request path
      * @type {string}
      * @memberof ListProjectReadyFutures200Response
+     */
+    'path'?: string;
+}
+/**
+ *
+ * @export
+ * @interface ListProjectReportHistory200Response
+ */
+export interface ListProjectReportHistory200Response {
+    /**
+     * Indicates if the request was successful
+     * @type {boolean}
+     * @memberof ListProjectReportHistory200Response
+     */
+    'success': boolean;
+    /**
+     * Human-readable message about the operation
+     * @type {string}
+     * @memberof ListProjectReportHistory200Response
+     */
+    'message': string;
+    /**
+     *
+     * @type {ProjectReportHistoryPageDto}
+     * @memberof ListProjectReportHistory200Response
+     */
+    'data': ProjectReportHistoryPageDto;
+    /**
+     * ISO timestamp of when the response was generated
+     * @type {string}
+     * @memberof ListProjectReportHistory200Response
+     */
+    'timestamp': string;
+    /**
+     * HTTP status code
+     * @type {number}
+     * @memberof ListProjectReportHistory200Response
+     */
+    'statusCode': number;
+    /**
+     * Request path
+     * @type {string}
+     * @memberof ListProjectReportHistory200Response
      */
     'path'?: string;
 }
@@ -69614,6 +69712,125 @@ export const ProjectReportFailureStageEnum = {
 export type ProjectReportFailureStageEnum = typeof ProjectReportFailureStageEnum[keyof typeof ProjectReportFailureStageEnum];
 
 /**
+ * @type ProjectReportHistoryEntry
+ * @export
+ */
+export type ProjectReportHistoryEntry = { type: 'REQUEST' } & ProjectReportHistoryRequestEntry | { type: 'SAVED_REPORT' } & ProjectReportHistorySavedReportEntry;
+
+/**
+ * Newest-first durable project report history. A completed request and its saved report appear once, as the request entry. Absence of nextOffset ends the list.
+ * @export
+ * @interface ProjectReportHistoryPageDto
+ */
+export interface ProjectReportHistoryPageDto {
+    /**
+     *
+     * @type {Array<ProjectReportHistoryEntry>}
+     * @memberof ProjectReportHistoryPageDto
+     */
+    'entries': Array<ProjectReportHistoryEntry>;
+    /**
+     *
+     * @type {number}
+     * @memberof ProjectReportHistoryPageDto
+     */
+    'total': number;
+    /**
+     *
+     * @type {number}
+     * @memberof ProjectReportHistoryPageDto
+     */
+    'nextOffset'?: number;
+}
+/**
+ * The caller\'s accepted request with its latest attempt only. Retry uses latestAttempt.id as expectedAttemptId. reportId, agentSessionId and conversationId are present on the attempt only when persisted, and are distinct identities.
+ * @export
+ * @interface ProjectReportHistoryRequestEntry
+ */
+export interface ProjectReportHistoryRequestEntry {
+    /**
+     *
+     * @type {string}
+     * @memberof ProjectReportHistoryRequestEntry
+     */
+    'type': ProjectReportHistoryRequestEntryTypeEnum;
+    /**
+     *
+     * @type {string}
+     * @memberof ProjectReportHistoryRequestEntry
+     */
+    'requestId': string;
+    /**
+     *
+     * @type {ProjectReportKind}
+     * @memberof ProjectReportHistoryRequestEntry
+     */
+    'kind': ProjectReportKind;
+    /**
+     *
+     * @type {ProjectReportSubmission}
+     * @memberof ProjectReportHistoryRequestEntry
+     */
+    'submission': ProjectReportSubmission;
+    /**
+     *
+     * @type {ProjectReportStatus}
+     * @memberof ProjectReportHistoryRequestEntry
+     */
+    'status': ProjectReportStatus;
+    /**
+     *
+     * @type {ProjectReportAttempt}
+     * @memberof ProjectReportHistoryRequestEntry
+     */
+    'latestAttempt': ProjectReportAttempt;
+    /**
+     * Request acceptance time; the history ordering key.
+     * @type {string}
+     * @memberof ProjectReportHistoryRequestEntry
+     */
+    'createdAt': string;
+}
+
+export const ProjectReportHistoryRequestEntryTypeEnum = {
+    Request: 'REQUEST'
+} as const;
+
+export type ProjectReportHistoryRequestEntryTypeEnum = typeof ProjectReportHistoryRequestEntryTypeEnum[keyof typeof ProjectReportHistoryRequestEntryTypeEnum];
+
+/**
+ * A saved PROJECT_REPORT in the project that no request of the caller links to.
+ * @export
+ * @interface ProjectReportHistorySavedReportEntry
+ */
+export interface ProjectReportHistorySavedReportEntry {
+    /**
+     *
+     * @type {string}
+     * @memberof ProjectReportHistorySavedReportEntry
+     */
+    'type': ProjectReportHistorySavedReportEntryTypeEnum;
+    /**
+     *
+     * @type {string}
+     * @memberof ProjectReportHistorySavedReportEntry
+     */
+    'reportId': string;
+    /**
+     * Report creation time; the history ordering key.
+     * @type {string}
+     * @memberof ProjectReportHistorySavedReportEntry
+     */
+    'createdAt': string;
+}
+
+export const ProjectReportHistorySavedReportEntryTypeEnum = {
+    SavedReport: 'SAVED_REPORT'
+} as const;
+
+export type ProjectReportHistorySavedReportEntryTypeEnum = typeof ProjectReportHistorySavedReportEntryTypeEnum[keyof typeof ProjectReportHistorySavedReportEntryTypeEnum];
+
+/**
  * PROJECT_REPORT answers a question from the project graph only. RELEASE_NOTES reports what shipped: changes merged into selected project repositories, correlated with graph evidence. Only changes that have been merged into each project repository\'s default branch will be included. It is the only kind with repository access and launches through the release_notes prompt type.
  * @export
  * @enum {string}
@@ -75536,6 +75753,201 @@ export interface RelatedEntityViaDto {
 
 
 /**
+ *
+ * @export
+ * @interface RelationshipDecision
+ */
+export interface RelationshipDecision {
+    /**
+     *
+     * @type {ExistingRelationshipIdentity}
+     * @memberof RelationshipDecision
+     */
+    'relationship': ExistingRelationshipIdentity;
+    /**
+     *
+     * @type {RelationshipDecisionKind}
+     * @memberof RelationshipDecision
+     */
+    'decision': RelationshipDecisionKind;
+    /**
+     * Required and nonempty for a retain decision.
+     * @type {string}
+     * @memberof RelationshipDecision
+     */
+    'reason'?: string;
+    /**
+     *
+     * @type {RelationshipReplacement}
+     * @memberof RelationshipDecision
+     */
+    'replacement'?: RelationshipReplacement;
+    /**
+     *
+     * @type {RelationshipDecisionOriginal}
+     * @memberof RelationshipDecision
+     */
+    'original'?: RelationshipDecisionOriginal;
+    /**
+     * Names of the existing work items a replacement connects, recorded by the server so review can name them.
+     * @type {Array<RelationshipDecisionEndpoint>}
+     * @memberof RelationshipDecision
+     */
+    'replacementEndpoints'?: Array<RelationshipDecisionEndpoint>;
+}
+
+
+/**
+ *
+ * @export
+ * @interface RelationshipDecisionEndpoint
+ */
+export interface RelationshipDecisionEndpoint {
+    /**
+     *
+     * @type {string}
+     * @memberof RelationshipDecisionEndpoint
+     */
+    'id': string;
+    /**
+     *
+     * @type {string}
+     * @memberof RelationshipDecisionEndpoint
+     */
+    'name': string;
+    /**
+     *
+     * @type {AgentEdgeEndpointEntityType}
+     * @memberof RelationshipDecisionEndpoint
+     */
+    'entityType'?: AgentEdgeEndpointEntityType;
+}
+
+
+/**
+ *
+ * @export
+ * @enum {string}
+ */
+
+export const RelationshipDecisionKind = {
+    Retain: 'retain',
+    Remove: 'remove',
+    Replace: 'replace'
+} as const;
+
+export type RelationshipDecisionKind = typeof RelationshipDecisionKind[keyof typeof RelationshipDecisionKind];
+
+
+/**
+ * The relationship as it existed when the decision was authored, recorded by the server so review can explain the before and after.
+ * @export
+ * @interface RelationshipDecisionOriginal
+ */
+export interface RelationshipDecisionOriginal {
+    /**
+     *
+     * @type {AgentEdgeType}
+     * @memberof RelationshipDecisionOriginal
+     */
+    'edgeType': AgentEdgeType;
+    /**
+     *
+     * @type {string}
+     * @memberof RelationshipDecisionOriginal
+     */
+    'description'?: string | null;
+    /**
+     *
+     * @type {RelationshipDecisionEndpoint}
+     * @memberof RelationshipDecisionOriginal
+     */
+    'source': RelationshipDecisionEndpoint;
+    /**
+     *
+     * @type {RelationshipDecisionEndpoint}
+     * @memberof RelationshipDecisionOriginal
+     */
+    'target': RelationshipDecisionEndpoint;
+}
+
+
+/**
+ * Exact connection that replaces an existing relationship.
+ * @export
+ * @interface RelationshipReplacement
+ */
+export interface RelationshipReplacement {
+    /**
+     *
+     * @type {WorkItemChangeSetIdentity}
+     * @memberof RelationshipReplacement
+     */
+    'source': WorkItemChangeSetIdentity;
+    /**
+     *
+     * @type {AgentEdgeEndpointEntityType}
+     * @memberof RelationshipReplacement
+     */
+    'sourceEntityType'?: AgentEdgeEndpointEntityType;
+    /**
+     *
+     * @type {WorkItemChangeSetIdentity}
+     * @memberof RelationshipReplacement
+     */
+    'target': WorkItemChangeSetIdentity;
+    /**
+     *
+     * @type {AgentEdgeEndpointEntityType}
+     * @memberof RelationshipReplacement
+     */
+    'targetEntityType'?: AgentEdgeEndpointEntityType;
+    /**
+     *
+     * @type {AgentEdgeType}
+     * @memberof RelationshipReplacement
+     */
+    'edgeType': AgentEdgeType;
+    /**
+     *
+     * @type {AgentEdgeCategory}
+     * @memberof RelationshipReplacement
+     */
+    'category'?: AgentEdgeCategory;
+    /**
+     *
+     * @type {AgentEdgeDirection}
+     * @memberof RelationshipReplacement
+     */
+    'direction'?: AgentEdgeDirection;
+    /**
+     *
+     * @type {string}
+     * @memberof RelationshipReplacement
+     */
+    'predicate'?: string | null;
+    /**
+     * Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.
+     * @type {string}
+     * @memberof RelationshipReplacement
+     */
+    'actionLabel'?: string | null;
+    /**
+     *
+     * @type {string}
+     * @memberof RelationshipReplacement
+     */
+    'reasoning'?: string | null;
+    /**
+     *
+     * @type {{ [key: string]: any; }}
+     * @memberof RelationshipReplacement
+     */
+    'metadata'?: { [key: string]: any; } | null;
+}
+
+
+/**
  * Canonical relationship between the seed entity and a related entity. Direction is encoded in the value (e.g. supersedes vs superseded-by, mentions vs mentioned-by, blocks vs blocked-by) rather than carried in a separate field. Combines agent-authored edge types with system-graph semantic edges. sibling-via-parent is a structural pivot for tasks reached only through an excluded parent (a parent feature, or a non-FEATURE parent task); the path is recorded in via[]. parent marks the seed\'s direct structural parent when that parent is a non-FEATURE task — FEATURE parents live in featureHierarchy and are not duplicated here. proposed-together is a symmetric, system-emitted relationship between two entities created or modified by the same approved proposal; emitted by the Graph service from PROPOSED_TOGETHER edges and carried through relatedEntities so callers see co-authored siblings. Inbound-direction values: blocked-by (seed is blocked by the related entity), depended-on-by (seed is depended on by the related entity), derived-from-by (seed is the origin of the related entity\'s derivation), evolved-by (seed is the predecessor that the related entity evolves). For TRACKS, tracked-by means the seed tracks the related work item (outbound Goal-to-work edge), while tracks means the related Goal tracks the seed work item (inbound work-to-Goal edge).
  * @export
  * @enum {string}
@@ -77287,6 +77699,259 @@ export const ReportUsageMeasurementSchemaVersionEnum = {
 } as const;
 
 export type ReportUsageMeasurementSchemaVersionEnum = typeof ReportUsageMeasurementSchemaVersionEnum[keyof typeof ReportUsageMeasurementSchemaVersionEnum];
+
+/**
+ * Per-execution averages over complete executions only; null when no complete execution contributes.
+ * @export
+ * @interface ReportUsageTrendAverages
+ */
+export interface ReportUsageTrendAverages {
+    /**
+     *
+     * @type {number}
+     * @memberof ReportUsageTrendAverages
+     */
+    'inputTokens': number | null;
+    /**
+     *
+     * @type {number}
+     * @memberof ReportUsageTrendAverages
+     */
+    'outputTokens': number | null;
+    /**
+     *
+     * @type {number}
+     * @memberof ReportUsageTrendAverages
+     */
+    'toolCalls': number | null;
+}
+/**
+ *
+ * @export
+ * @interface ReportUsageTrendBucket
+ */
+export interface ReportUsageTrendBucket {
+    /**
+     * UTC start of the bucket.
+     * @type {string}
+     * @memberof ReportUsageTrendBucket
+     */
+    'start': string;
+    /**
+     *
+     * @type {number}
+     * @memberof ReportUsageTrendBucket
+     */
+    'executionCount': number;
+    /**
+     *
+     * @type {number}
+     * @memberof ReportUsageTrendBucket
+     */
+    'completeCount': number;
+    /**
+     *
+     * @type {number}
+     * @memberof ReportUsageTrendBucket
+     */
+    'partialCount': number;
+    /**
+     *
+     * @type {number}
+     * @memberof ReportUsageTrendBucket
+     */
+    'unavailableCount': number;
+    /**
+     *
+     * @type {ReportUsageTrendAverages}
+     * @memberof ReportUsageTrendBucket
+     */
+    'averages': ReportUsageTrendAverages;
+    /**
+     *
+     * @type {ReportUsageTrendTotals}
+     * @memberof ReportUsageTrendBucket
+     */
+    'totals': ReportUsageTrendTotals;
+}
+/**
+ *
+ * @export
+ * @enum {string}
+ */
+
+export const ReportUsageTrendGranularity = {
+    Day: 'day',
+    Week: 'week',
+    Month: 'month'
+} as const;
+
+export type ReportUsageTrendGranularity = typeof ReportUsageTrendGranularity[keyof typeof ReportUsageTrendGranularity];
+
+
+/**
+ * Execution kind a usage trend sample is attributed to. CHANGE_WALKTHROUGH reports count as REVIEW.
+ * @export
+ * @enum {string}
+ */
+
+export const ReportUsageTrendKind = {
+    Research: 'RESEARCH',
+    Implementation: 'IMPLEMENTATION',
+    Review: 'REVIEW'
+} as const;
+
+export type ReportUsageTrendKind = typeof ReportUsageTrendKind[keyof typeof ReportUsageTrendKind];
+
+
+/**
+ * Filter values present in the project\'s retained usage data. Unknown provider or effort is the literal value \"unknown\".
+ * @export
+ * @interface ReportUsageTrendOptions
+ */
+export interface ReportUsageTrendOptions {
+    /**
+     *
+     * @type {Array<ReportUsageTrendKind>}
+     * @memberof ReportUsageTrendOptions
+     */
+    'reportKinds': Array<ReportUsageTrendKind>;
+    /**
+     *
+     * @type {Array<string>}
+     * @memberof ReportUsageTrendOptions
+     */
+    'providers': Array<string>;
+    /**
+     *
+     * @type {Array<string>}
+     * @memberof ReportUsageTrendOptions
+     */
+    'models': Array<string>;
+    /**
+     *
+     * @type {Array<string>}
+     * @memberof ReportUsageTrendOptions
+     */
+    'efforts': Array<string>;
+}
+/**
+ * Sums of measured figures across matching executions. Nothing is sampled or extrapolated; unmeasured figures contribute nothing.
+ * @export
+ * @interface ReportUsageTrendTotals
+ */
+export interface ReportUsageTrendTotals {
+    /**
+     *
+     * @type {number}
+     * @memberof ReportUsageTrendTotals
+     */
+    'inputTokens': number;
+    /**
+     *
+     * @type {number}
+     * @memberof ReportUsageTrendTotals
+     */
+    'freshInputTokens': number;
+    /**
+     *
+     * @type {number}
+     * @memberof ReportUsageTrendTotals
+     */
+    'cacheReadInputTokens': number;
+    /**
+     *
+     * @type {number}
+     * @memberof ReportUsageTrendTotals
+     */
+    'cacheCreationInputTokens': number;
+    /**
+     *
+     * @type {number}
+     * @memberof ReportUsageTrendTotals
+     */
+    'outputTokens': number;
+    /**
+     *
+     * @type {number}
+     * @memberof ReportUsageTrendTotals
+     */
+    'toolCalls': number;
+}
+/**
+ * Approximate per-execution usage trend over retained report usage snapshots. Each execution counts once using its latest snapshot.
+ * @export
+ * @interface ReportUsageTrends
+ */
+export interface ReportUsageTrends {
+    /**
+     *
+     * @type {string}
+     * @memberof ReportUsageTrends
+     */
+    'from': string;
+    /**
+     *
+     * @type {string}
+     * @memberof ReportUsageTrends
+     */
+    'to': string;
+    /**
+     *
+     * @type {ReportUsageTrendGranularity}
+     * @memberof ReportUsageTrends
+     */
+    'granularity': ReportUsageTrendGranularity;
+    /**
+     * All matching executions.
+     * @type {number}
+     * @memberof ReportUsageTrends
+     */
+    'executionCount': number;
+    /**
+     * Matching executions with complete coverage; the denominator of the averages.
+     * @type {number}
+     * @memberof ReportUsageTrends
+     */
+    'completeCount': number;
+    /**
+     *
+     * @type {number}
+     * @memberof ReportUsageTrends
+     */
+    'partialCount': number;
+    /**
+     *
+     * @type {number}
+     * @memberof ReportUsageTrends
+     */
+    'unavailableCount': number;
+    /**
+     *
+     * @type {ReportUsageTrendAverages}
+     * @memberof ReportUsageTrends
+     */
+    'averages': ReportUsageTrendAverages;
+    /**
+     *
+     * @type {ReportUsageTrendTotals}
+     * @memberof ReportUsageTrends
+     */
+    'totals': ReportUsageTrendTotals;
+    /**
+     *
+     * @type {Array<ReportUsageTrendBucket>}
+     * @memberof ReportUsageTrends
+     */
+    'buckets': Array<ReportUsageTrendBucket>;
+    /**
+     *
+     * @type {ReportUsageTrendOptions}
+     * @memberof ReportUsageTrends
+     */
+    'options': ReportUsageTrendOptions;
+}
+
 
 /**
  *
@@ -99559,7 +100224,7 @@ export interface UnifiedEmbeddingsSearchOptions {
      */
     'similarityThreshold'?: number;
     /**
-     * Query behavior mode forwarded to embeddings as query_mode.
+     * Query behavior mode forwarded to embeddings as query_mode. exact returns only entities containing the query as a literal case-insensitive phrase, with no near matches; queries must be at least 3 characters.
      * @type {string}
      * @memberof UnifiedEmbeddingsSearchOptions
      */
@@ -99574,7 +100239,8 @@ export interface UnifiedEmbeddingsSearchOptions {
 
 export const UnifiedEmbeddingsSearchOptionsQueryModeEnum = {
     Default: 'default',
-    TitleFuzzy: 'title_fuzzy'
+    TitleFuzzy: 'title_fuzzy',
+    Exact: 'exact'
 } as const;
 
 export type UnifiedEmbeddingsSearchOptionsQueryModeEnum = typeof UnifiedEmbeddingsSearchOptionsQueryModeEnum[keyof typeof UnifiedEmbeddingsSearchOptionsQueryModeEnum];
@@ -101857,6 +102523,12 @@ export type UpdateReportDto = UpdateReportDtoFeatureSyncDecisionV1 | UpdateRepor
  */
 export interface UpdateReportDtoBase {
     /**
+     * The report version this update was based on. When given and the report has moved on since, the update is rejected with a conflict and nothing is written, so the caller can re-read and retry. Omitted means the update replaces whatever is stored.
+     * @type {number}
+     * @memberof UpdateReportDtoBase
+     */
+    'expectedVersion'?: number;
+    /**
      * Whether this report may be reused as project knowledge. Omitted means true on creation.
      * @type {boolean}
      * @memberof UpdateReportDtoBase
@@ -101913,6 +102585,12 @@ export interface UpdateReportDtoBase {
  * @interface UpdateReportDtoFeatureSyncDecisionV1
  */
 export interface UpdateReportDtoFeatureSyncDecisionV1 {
+    /**
+     * The report version this update was based on. When given and the report has moved on since, the update is rejected with a conflict and nothing is written, so the caller can re-read and retry. Omitted means the update replaces whatever is stored.
+     * @type {number}
+     * @memberof UpdateReportDtoFeatureSyncDecisionV1
+     */
+    'expectedVersion'?: number;
     /**
      * Whether this report may be reused as project knowledge. Omitted means true on creation.
      * @type {boolean}
@@ -101988,6 +102666,12 @@ export type UpdateReportDtoFeatureSyncDecisionV1SchemaVersionEnum = typeof Updat
  */
 export interface UpdateReportDtoFeatureSyncDecisionV2 {
     /**
+     * The report version this update was based on. When given and the report has moved on since, the update is rejected with a conflict and nothing is written, so the caller can re-read and retry. Omitted means the update replaces whatever is stored.
+     * @type {number}
+     * @memberof UpdateReportDtoFeatureSyncDecisionV2
+     */
+    'expectedVersion'?: number;
+    /**
      * Whether this report may be reused as project knowledge. Omitted means true on creation.
      * @type {boolean}
      * @memberof UpdateReportDtoFeatureSyncDecisionV2
@@ -102061,6 +102745,12 @@ export type UpdateReportDtoFeatureSyncDecisionV2SchemaVersionEnum = typeof Updat
  * @interface UpdateReportDtoOther
  */
 export interface UpdateReportDtoOther {
+    /**
+     * The report version this update was based on. When given and the report has moved on since, the update is rejected with a conflict and nothing is written, so the caller can re-read and retry. Omitted means the update replaces whatever is stored.
+     * @type {number}
+     * @memberof UpdateReportDtoOther
+     */
+    'expectedVersion'?: number;
     /**
      * Whether this report may be reused as project knowledge. Omitted means true on creation.
      * @type {boolean}
@@ -109989,6 +110679,12 @@ export interface WorkItemChangeSetValidationRequest {
      * @memberof WorkItemChangeSetValidationRequest
      */
     'layoutBoundary'?: Array<WorkItemChangeSetLayoutNodeIdentity>;
+    /**
+     * Reviewable decisions about existing relationships affected by this change, typically a supersession. Remove and replace decisions are normalized into the relationship.delete and relationship.update operations of this request; retain decisions are review evidence only and never produce an operation or graph write. An empty or omitted array declares no relationship for change; it does not mean the whole neighborhood was reconciled.
+     * @type {Array<RelationshipDecision>}
+     * @memberof WorkItemChangeSetValidationRequest
+     */
+    'relationshipDecisions'?: Array<RelationshipDecision>;
 }
 /**
  * Curated theme color token. Only PROJECT_CUSTOM definitions may author a color; canonical definitions and overrides retain platform colors. Omission restores the default presentation.
@@ -158968,6 +159664,57 @@ export const ProjectReportsApiAxiosParamCreator = function (configuration?: Conf
             };
         },
         /**
+         * Read the caller\'s durable project report history: their queued, running, failed and completed requests with the latest attempt, plus saved project reports no request of theirs links to. Newest first; a completed request and its report appear once.
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {number} [limit]
+         * @param {number} [offset]
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        listProjectReportHistory: async (organizationId: string, projectId: string, limit?: number, offset?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('listProjectReportHistory', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('listProjectReportHistory', 'projectId', projectId)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/project-report-history`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+            if (limit !== undefined) {
+                localVarQueryParameter['limit'] = limit;
+            }
+
+            if (offset !== undefined) {
+                localVarQueryParameter['offset'] = offset;
+            }
+
+
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Preview distinct authorized subjects using canonical activity evidence. Search affects displayed rows only.
          * @param {string} organizationId
          * @param {string} projectId
@@ -159154,6 +159901,21 @@ export const ProjectReportsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Read the caller\'s durable project report history: their queued, running, failed and completed requests with the latest attempt, plus saved project reports no request of theirs links to. Newest first; a completed request and its report appear once.
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {number} [limit]
+         * @param {number} [offset]
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async listProjectReportHistory(organizationId: string, projectId: string, limit?: number, offset?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ListProjectReportHistory200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.listProjectReportHistory(organizationId, projectId, limit, offset, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['ProjectReportsApi.listProjectReportHistory']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Preview distinct authorized subjects using canonical activity evidence. Search affects displayed rows only.
          * @param {string} organizationId
          * @param {string} projectId
@@ -159238,6 +160000,15 @@ export const ProjectReportsApiFactory = function (configuration?: Configuration,
             return localVarFp.getProjectReportRequest(requestParameters.organizationId, requestParameters.projectId, requestParameters.requestId, options).then((request) => request(axios, basePath));
         },
         /**
+         * Read the caller\'s durable project report history: their queued, running, failed and completed requests with the latest attempt, plus saved project reports no request of theirs links to. Newest first; a completed request and its report appear once.
+         * @param {ProjectReportsApiListProjectReportHistoryRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        listProjectReportHistory(requestParameters: ProjectReportsApiListProjectReportHistoryRequest, options?: RawAxiosRequestConfig): AxiosPromise<ListProjectReportHistory200Response> {
+            return localVarFp.listProjectReportHistory(requestParameters.organizationId, requestParameters.projectId, requestParameters.limit, requestParameters.offset, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Preview distinct authorized subjects using canonical activity evidence. Search affects displayed rows only.
          * @param {ProjectReportsApiPreviewProjectReportRequestRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
@@ -159308,6 +160079,15 @@ export interface ProjectReportsApiInterface {
      * @memberof ProjectReportsApiInterface
      */
     getProjectReportRequest(requestParameters: ProjectReportsApiGetProjectReportRequestRequest, options?: RawAxiosRequestConfig): AxiosPromise<CreateProjectReportRequest202Response>;
+
+    /**
+     * Read the caller\'s durable project report history: their queued, running, failed and completed requests with the latest attempt, plus saved project reports no request of theirs links to. Newest first; a completed request and its report appear once.
+     * @param {ProjectReportsApiListProjectReportHistoryRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ProjectReportsApiInterface
+     */
+    listProjectReportHistory(requestParameters: ProjectReportsApiListProjectReportHistoryRequest, options?: RawAxiosRequestConfig): AxiosPromise<ListProjectReportHistory200Response>;
 
     /**
      * Preview distinct authorized subjects using canonical activity evidence. Search affects displayed rows only.
@@ -159526,6 +160306,41 @@ export interface ProjectReportsApiGetProjectReportRequestRequest {
 }
 
 /**
+ * Request parameters for listProjectReportHistory operation in ProjectReportsApi.
+ * @export
+ * @interface ProjectReportsApiListProjectReportHistoryRequest
+ */
+export interface ProjectReportsApiListProjectReportHistoryRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof ProjectReportsApiListProjectReportHistory
+     */
+    readonly organizationId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof ProjectReportsApiListProjectReportHistory
+     */
+    readonly projectId: string
+
+    /**
+     *
+     * @type {number}
+     * @memberof ProjectReportsApiListProjectReportHistory
+     */
+    readonly limit?: number
+
+    /**
+     *
+     * @type {number}
+     * @memberof ProjectReportsApiListProjectReportHistory
+     */
+    readonly offset?: number
+}
+
+/**
  * Request parameters for previewProjectReportRequest operation in ProjectReportsApi.
  * @export
  * @interface ProjectReportsApiPreviewProjectReportRequestRequest
@@ -159648,6 +160463,17 @@ export class ProjectReportsApi extends BaseAPI implements ProjectReportsApiInter
      */
     public getProjectReportRequest(requestParameters: ProjectReportsApiGetProjectReportRequestRequest, options?: RawAxiosRequestConfig) {
         return ProjectReportsApiFp(this.configuration).getProjectReportRequest(requestParameters.organizationId, requestParameters.projectId, requestParameters.requestId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Read the caller\'s durable project report history: their queued, running, failed and completed requests with the latest attempt, plus saved project reports no request of theirs links to. Newest first; a completed request and its report appear once.
+     * @param {ProjectReportsApiListProjectReportHistoryRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ProjectReportsApi
+     */
+    public listProjectReportHistory(requestParameters: ProjectReportsApiListProjectReportHistoryRequest, options?: RawAxiosRequestConfig) {
+        return ProjectReportsApiFp(this.configuration).listProjectReportHistory(requestParameters.organizationId, requestParameters.projectId, requestParameters.limit, requestParameters.offset, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -164966,6 +165792,93 @@ export const ReportsApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
+         * Aggregates the usage snapshots stored on retained, user-visible project reports into per-execution trends. Each execution counts once using its latest snapshot; averages use complete executions only. A parent\'s snapshot already includes the research sub-agents it launched, so their separate reports are not counted again. Provider, model and effort filters select breakdown contributions: an execution matches when one contribution matches every selected filter, and only matching contributions\' figures count. Buckets use UTC boundaries.
+         * @summary Get approximate agent usage trends for a project
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {string} from Inclusive UTC start of the period.
+         * @param {string} to Exclusive UTC end of the period.
+         * @param {ReportUsageTrendGranularity} granularity
+         * @param {Array<ReportUsageTrendKind>} [reportKinds] Repeated filter on execution kind.
+         * @param {Array<string>} [providers] Repeated filter on provider; use \&#39;unknown\&#39; for executions with no provider.
+         * @param {Array<string>} [models] Repeated filter on model; matches executions where any breakdown entry used the model.
+         * @param {Array<string>} [efforts] Repeated filter on actual effort; use \&#39;unknown\&#39; for executions with no recorded effort.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getProjectReportUsageTrends: async (organizationId: string, projectId: string, from: string, to: string, granularity: ReportUsageTrendGranularity, reportKinds?: Array<ReportUsageTrendKind>, providers?: Array<string>, models?: Array<string>, efforts?: Array<string>, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('getProjectReportUsageTrends', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('getProjectReportUsageTrends', 'projectId', projectId)
+            // verify required parameter 'from' is not null or undefined
+            assertParamExists('getProjectReportUsageTrends', 'from', from)
+            // verify required parameter 'to' is not null or undefined
+            assertParamExists('getProjectReportUsageTrends', 'to', to)
+            // verify required parameter 'granularity' is not null or undefined
+            assertParamExists('getProjectReportUsageTrends', 'granularity', granularity)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/reports/usage-trends`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+            if (from !== undefined) {
+                localVarQueryParameter['from'] = (from as any instanceof Date) ?
+                    (from as any).toISOString() :
+                    from;
+            }
+
+            if (to !== undefined) {
+                localVarQueryParameter['to'] = (to as any instanceof Date) ?
+                    (to as any).toISOString() :
+                    to;
+            }
+
+            if (granularity !== undefined) {
+                localVarQueryParameter['granularity'] = granularity;
+            }
+
+            if (reportKinds) {
+                localVarQueryParameter['reportKinds'] = reportKinds;
+            }
+
+            if (providers) {
+                localVarQueryParameter['providers'] = providers;
+            }
+
+            if (models) {
+                localVarQueryParameter['models'] = models;
+            }
+
+            if (efforts) {
+                localVarQueryParameter['efforts'] = efforts;
+            }
+
+
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Retrieve a report by ID.
          * @summary Get a report
          * @param {string} organizationId Organization ID
@@ -165579,6 +166492,27 @@ export const ReportsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Aggregates the usage snapshots stored on retained, user-visible project reports into per-execution trends. Each execution counts once using its latest snapshot; averages use complete executions only. A parent\'s snapshot already includes the research sub-agents it launched, so their separate reports are not counted again. Provider, model and effort filters select breakdown contributions: an execution matches when one contribution matches every selected filter, and only matching contributions\' figures count. Buckets use UTC boundaries.
+         * @summary Get approximate agent usage trends for a project
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {string} from Inclusive UTC start of the period.
+         * @param {string} to Exclusive UTC end of the period.
+         * @param {ReportUsageTrendGranularity} granularity
+         * @param {Array<ReportUsageTrendKind>} [reportKinds] Repeated filter on execution kind.
+         * @param {Array<string>} [providers] Repeated filter on provider; use \&#39;unknown\&#39; for executions with no provider.
+         * @param {Array<string>} [models] Repeated filter on model; matches executions where any breakdown entry used the model.
+         * @param {Array<string>} [efforts] Repeated filter on actual effort; use \&#39;unknown\&#39; for executions with no recorded effort.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async getProjectReportUsageTrends(organizationId: string, projectId: string, from: string, to: string, granularity: ReportUsageTrendGranularity, reportKinds?: Array<ReportUsageTrendKind>, providers?: Array<string>, models?: Array<string>, efforts?: Array<string>, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetProjectReportUsageTrends200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getProjectReportUsageTrends(organizationId, projectId, from, to, granularity, reportKinds, providers, models, efforts, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['ReportsApi.getProjectReportUsageTrends']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Retrieve a report by ID.
          * @summary Get a report
          * @param {string} organizationId Organization ID
@@ -165772,6 +166706,16 @@ export const ReportsApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.deleteReport(requestParameters.organizationId, requestParameters.reportId, options).then((request) => request(axios, basePath));
         },
         /**
+         * Aggregates the usage snapshots stored on retained, user-visible project reports into per-execution trends. Each execution counts once using its latest snapshot; averages use complete executions only. A parent\'s snapshot already includes the research sub-agents it launched, so their separate reports are not counted again. Provider, model and effort filters select breakdown contributions: an execution matches when one contribution matches every selected filter, and only matching contributions\' figures count. Buckets use UTC boundaries.
+         * @summary Get approximate agent usage trends for a project
+         * @param {ReportsApiGetProjectReportUsageTrendsRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getProjectReportUsageTrends(requestParameters: ReportsApiGetProjectReportUsageTrendsRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetProjectReportUsageTrends200Response> {
+            return localVarFp.getProjectReportUsageTrends(requestParameters.organizationId, requestParameters.projectId, requestParameters.from, requestParameters.to, requestParameters.granularity, requestParameters.reportKinds, requestParameters.providers, requestParameters.models, requestParameters.efforts, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Retrieve a report by ID.
          * @summary Get a report
          * @param {ReportsApiGetReportRequest} requestParameters Request parameters.
@@ -165889,6 +166833,16 @@ export interface ReportsApiInterface {
      * @memberof ReportsApiInterface
      */
     deleteReport(requestParameters: ReportsApiDeleteReportRequest, options?: RawAxiosRequestConfig): AxiosPromise<void>;
+
+    /**
+     * Aggregates the usage snapshots stored on retained, user-visible project reports into per-execution trends. Each execution counts once using its latest snapshot; averages use complete executions only. A parent\'s snapshot already includes the research sub-agents it launched, so their separate reports are not counted again. Provider, model and effort filters select breakdown contributions: an execution matches when one contribution matches every selected filter, and only matching contributions\' figures count. Buckets use UTC boundaries.
+     * @summary Get approximate agent usage trends for a project
+     * @param {ReportsApiGetProjectReportUsageTrendsRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ReportsApiInterface
+     */
+    getProjectReportUsageTrends(requestParameters: ReportsApiGetProjectReportUsageTrendsRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetProjectReportUsageTrends200Response>;
 
     /**
      * Retrieve a report by ID.
@@ -166022,6 +166976,76 @@ export interface ReportsApiDeleteReportRequest {
      * @memberof ReportsApiDeleteReport
      */
     readonly reportId: string
+}
+
+/**
+ * Request parameters for getProjectReportUsageTrends operation in ReportsApi.
+ * @export
+ * @interface ReportsApiGetProjectReportUsageTrendsRequest
+ */
+export interface ReportsApiGetProjectReportUsageTrendsRequest {
+    /**
+     * Organization ID
+     * @type {string}
+     * @memberof ReportsApiGetProjectReportUsageTrends
+     */
+    readonly organizationId: string
+
+    /**
+     * Project ID
+     * @type {string}
+     * @memberof ReportsApiGetProjectReportUsageTrends
+     */
+    readonly projectId: string
+
+    /**
+     * Inclusive UTC start of the period.
+     * @type {string}
+     * @memberof ReportsApiGetProjectReportUsageTrends
+     */
+    readonly from: string
+
+    /**
+     * Exclusive UTC end of the period.
+     * @type {string}
+     * @memberof ReportsApiGetProjectReportUsageTrends
+     */
+    readonly to: string
+
+    /**
+     *
+     * @type {ReportUsageTrendGranularity}
+     * @memberof ReportsApiGetProjectReportUsageTrends
+     */
+    readonly granularity: ReportUsageTrendGranularity
+
+    /**
+     * Repeated filter on execution kind.
+     * @type {Array<ReportUsageTrendKind>}
+     * @memberof ReportsApiGetProjectReportUsageTrends
+     */
+    readonly reportKinds?: Array<ReportUsageTrendKind>
+
+    /**
+     * Repeated filter on provider; use \&#39;unknown\&#39; for executions with no provider.
+     * @type {Array<string>}
+     * @memberof ReportsApiGetProjectReportUsageTrends
+     */
+    readonly providers?: Array<string>
+
+    /**
+     * Repeated filter on model; matches executions where any breakdown entry used the model.
+     * @type {Array<string>}
+     * @memberof ReportsApiGetProjectReportUsageTrends
+     */
+    readonly models?: Array<string>
+
+    /**
+     * Repeated filter on actual effort; use \&#39;unknown\&#39; for executions with no recorded effort.
+     * @type {Array<string>}
+     * @memberof ReportsApiGetProjectReportUsageTrends
+     */
+    readonly efforts?: Array<string>
 }
 
 /**
@@ -166501,6 +167525,18 @@ export class ReportsApi extends BaseAPI implements ReportsApiInterface {
      */
     public deleteReport(requestParameters: ReportsApiDeleteReportRequest, options?: RawAxiosRequestConfig) {
         return ReportsApiFp(this.configuration).deleteReport(requestParameters.organizationId, requestParameters.reportId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Aggregates the usage snapshots stored on retained, user-visible project reports into per-execution trends. Each execution counts once using its latest snapshot; averages use complete executions only. A parent\'s snapshot already includes the research sub-agents it launched, so their separate reports are not counted again. Provider, model and effort filters select breakdown contributions: an execution matches when one contribution matches every selected filter, and only matching contributions\' figures count. Buckets use UTC boundaries.
+     * @summary Get approximate agent usage trends for a project
+     * @param {ReportsApiGetProjectReportUsageTrendsRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ReportsApi
+     */
+    public getProjectReportUsageTrends(requestParameters: ReportsApiGetProjectReportUsageTrendsRequest, options?: RawAxiosRequestConfig) {
+        return ReportsApiFp(this.configuration).getProjectReportUsageTrends(requestParameters.organizationId, requestParameters.projectId, requestParameters.from, requestParameters.to, requestParameters.granularity, requestParameters.reportKinds, requestParameters.providers, requestParameters.models, requestParameters.efforts, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

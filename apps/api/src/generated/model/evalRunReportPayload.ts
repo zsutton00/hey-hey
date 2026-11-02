@@ -27,6 +27,10 @@ export interface EvalRunReportPayload {
     reportType: EvalRunReportPayload.ReportTypeEnum;
     evalId: string;
     status: EvalRunStatus;
+    /**
+     * User-chosen name of the run. Absent means the run is shown by a name generated from what it recorded. Blank is never stored. 
+     */
+    name?: string;
     judgeSetup: EvalModelSetting;
     cases: Array<EvalRunCaseInput>;
     configurations: Array<EvalConfiguration>;

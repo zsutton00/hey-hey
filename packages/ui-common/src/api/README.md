@@ -362,6 +362,7 @@ Class | Method | HTTP request | Description
 *ProjectReportsApi* | [**getProjectReportActivityPage**](docs/ProjectReportsApi.md#getprojectreportactivitypage) | **GET** /organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId}/activity | 
 *ProjectReportsApi* | [**getProjectReportContextPage**](docs/ProjectReportsApi.md#getprojectreportcontextpage) | **GET** /organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId}/context | 
 *ProjectReportsApi* | [**getProjectReportRequest**](docs/ProjectReportsApi.md#getprojectreportrequest) | **GET** /organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId} | 
+*ProjectReportsApi* | [**listProjectReportHistory**](docs/ProjectReportsApi.md#listprojectreporthistory) | **GET** /organizations/{organizationId}/projects/{projectId}/project-report-history | 
 *ProjectReportsApi* | [**previewProjectReportRequest**](docs/ProjectReportsApi.md#previewprojectreportrequest) | **POST** /organizations/{organizationId}/projects/{projectId}/project-report-requests/preview | 
 *ProjectReportsApi* | [**retryProjectReportRequest**](docs/ProjectReportsApi.md#retryprojectreportrequest) | **POST** /organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId}/retry | 
 *ProjectsApi* | [**addProjectMember**](docs/ProjectsApi.md#addprojectmember) | **POST** /organizations/{organizationId}/projects/{projectId}/members | Add a user to a project
@@ -405,6 +406,7 @@ Class | Method | HTTP request | Description
 *ReportBugsApi* | [**reportBug**](docs/ReportBugsApi.md#reportbug) | **POST** /report-bug | Report a product problem
 *ReportsApi* | [**createReport**](docs/ReportsApi.md#createreport) | **POST** /organizations/{organizationId}/reports | Create a report
 *ReportsApi* | [**deleteReport**](docs/ReportsApi.md#deletereport) | **DELETE** /organizations/{organizationId}/reports/{reportId} | Delete a report
+*ReportsApi* | [**getProjectReportUsageTrends**](docs/ReportsApi.md#getprojectreportusagetrends) | **GET** /organizations/{organizationId}/projects/{projectId}/reports/usage-trends | Get approximate agent usage trends for a project
 *ReportsApi* | [**getReport**](docs/ReportsApi.md#getreport) | **GET** /organizations/{organizationId}/reports/{reportId} | Get a report
 *ReportsApi* | [**listProjectReports**](docs/ReportsApi.md#listprojectreports) | **GET** /organizations/{organizationId}/projects/{projectId}/reports | List reports for a project
 *ReportsApi* | [**listReportFileHistoryByFile**](docs/ReportsApi.md#listreportfilehistorybyfile) | **GET** /organizations/{organizationId}/projects/{projectId}/reports/file-history/by-file | List task history for a file
@@ -1328,12 +1330,14 @@ Class | Method | HTTP request | Description
  - [EntityConversationTaskSummary](docs/EntityConversationTaskSummary.md)
  - [EntityLookupItem](docs/EntityLookupItem.md)
  - [EntityNameDto](docs/EntityNameDto.md)
+ - [EntityPromptTemplateAuthoringBlockDto](docs/EntityPromptTemplateAuthoringBlockDto.md)
  - [EntityPromptTemplateAuthoringFamilyDto](docs/EntityPromptTemplateAuthoringFamilyDto.md)
  - [EntityPromptTemplateAuthoringMetadataDto](docs/EntityPromptTemplateAuthoringMetadataDto.md)
  - [EntityPromptTemplateAuthoringPathDto](docs/EntityPromptTemplateAuthoringPathDto.md)
  - [EntityPromptTemplateCanonicalOwnershipScopeDto](docs/EntityPromptTemplateCanonicalOwnershipScopeDto.md)
  - [EntityPromptTemplateCatalogDto](docs/EntityPromptTemplateCatalogDto.md)
  - [EntityPromptTemplateCatalogEntryDto](docs/EntityPromptTemplateCatalogEntryDto.md)
+ - [EntityPromptTemplateConditionalBlocksDto](docs/EntityPromptTemplateConditionalBlocksDto.md)
  - [EntityPromptTemplateDraftValidationRequestDto](docs/EntityPromptTemplateDraftValidationRequestDto.md)
  - [EntityPromptTemplateDraftValidationResultDto](docs/EntityPromptTemplateDraftValidationResultDto.md)
  - [EntityPromptTemplateEffectiveDto](docs/EntityPromptTemplateEffectiveDto.md)
@@ -1660,6 +1664,7 @@ Class | Method | HTTP request | Description
  - [GetProjectMetrics200Response](docs/GetProjectMetrics200Response.md)
  - [GetProjectReportActivityPage200Response](docs/GetProjectReportActivityPage200Response.md)
  - [GetProjectReportContextPage200Response](docs/GetProjectReportContextPage200Response.md)
+ - [GetProjectReportUsageTrends200Response](docs/GetProjectReportUsageTrends200Response.md)
  - [GetProposalFuture200Response](docs/GetProposalFuture200Response.md)
  - [GetProposalFutureApplicability200Response](docs/GetProposalFutureApplicability200Response.md)
  - [GetProposalGroup200Response](docs/GetProposalGroup200Response.md)
@@ -1901,6 +1906,7 @@ Class | Method | HTTP request | Description
  - [ListProjectHintsResponse](docs/ListProjectHintsResponse.md)
  - [ListProjectMembers200Response](docs/ListProjectMembers200Response.md)
  - [ListProjectReadyFutures200Response](docs/ListProjectReadyFutures200Response.md)
+ - [ListProjectReportHistory200Response](docs/ListProjectReportHistory200Response.md)
  - [ListProjectReports200Response](docs/ListProjectReports200Response.md)
  - [ListProposalFutureOffers200Response](docs/ListProposalFutureOffers200Response.md)
  - [ListProposals200Response](docs/ListProposals200Response.md)
@@ -2455,6 +2461,10 @@ Class | Method | HTTP request | Description
  - [ProjectReportCoverage](docs/ProjectReportCoverage.md)
  - [ProjectReportEvidenceReference](docs/ProjectReportEvidenceReference.md)
  - [ProjectReportFailure](docs/ProjectReportFailure.md)
+ - [ProjectReportHistoryEntry](docs/ProjectReportHistoryEntry.md)
+ - [ProjectReportHistoryPageDto](docs/ProjectReportHistoryPageDto.md)
+ - [ProjectReportHistoryRequestEntry](docs/ProjectReportHistoryRequestEntry.md)
+ - [ProjectReportHistorySavedReportEntry](docs/ProjectReportHistorySavedReportEntry.md)
  - [ProjectReportKind](docs/ProjectReportKind.md)
  - [ProjectReportLaunchConfig](docs/ProjectReportLaunchConfig.md)
  - [ProjectReportLaunchPayload](docs/ProjectReportLaunchPayload.md)
@@ -2620,6 +2630,11 @@ Class | Method | HTTP request | Description
  - [RelatedEntitiesPayload](docs/RelatedEntitiesPayload.md)
  - [RelatedEntityDto](docs/RelatedEntityDto.md)
  - [RelatedEntityViaDto](docs/RelatedEntityViaDto.md)
+ - [RelationshipDecision](docs/RelationshipDecision.md)
+ - [RelationshipDecisionEndpoint](docs/RelationshipDecisionEndpoint.md)
+ - [RelationshipDecisionKind](docs/RelationshipDecisionKind.md)
+ - [RelationshipDecisionOriginal](docs/RelationshipDecisionOriginal.md)
+ - [RelationshipReplacement](docs/RelationshipReplacement.md)
  - [RelationshipValue](docs/RelationshipValue.md)
  - [RemoveDesignDocLink200Response](docs/RemoveDesignDocLink200Response.md)
  - [RemoveOpenItemRequest](docs/RemoveOpenItemRequest.md)
@@ -2659,6 +2674,13 @@ Class | Method | HTTP request | Description
  - [ReportUsageCoverage](docs/ReportUsageCoverage.md)
  - [ReportUsageFigures](docs/ReportUsageFigures.md)
  - [ReportUsageMeasurement](docs/ReportUsageMeasurement.md)
+ - [ReportUsageTrendAverages](docs/ReportUsageTrendAverages.md)
+ - [ReportUsageTrendBucket](docs/ReportUsageTrendBucket.md)
+ - [ReportUsageTrendGranularity](docs/ReportUsageTrendGranularity.md)
+ - [ReportUsageTrendKind](docs/ReportUsageTrendKind.md)
+ - [ReportUsageTrendOptions](docs/ReportUsageTrendOptions.md)
+ - [ReportUsageTrendTotals](docs/ReportUsageTrendTotals.md)
+ - [ReportUsageTrends](docs/ReportUsageTrends.md)
  - [ReportVerificationTaskItem](docs/ReportVerificationTaskItem.md)
  - [RepositoryFeatureEnrichmentActionSchemas](docs/RepositoryFeatureEnrichmentActionSchemas.md)
  - [RepositoryFeatureEnrichmentActionSchemasQuestions](docs/RepositoryFeatureEnrichmentActionSchemasQuestions.md)

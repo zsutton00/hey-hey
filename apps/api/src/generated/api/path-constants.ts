@@ -36,6 +36,7 @@ export const MESSAGE_CONTROLLER_PATH = 'organizations/:organizationId/projects/:
 export const PROJECT_CONTROLLER_PATH = 'organizations/:organizationId/projects';
 
 // Individual endpoint paths
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROJECT_REPORT_HISTORY_PATH = '/organizations/{organizationId}/projects/{projectId}/project-report-history';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROJECT_REPORT_REQUESTS_PATH = '/organizations/{organizationId}/projects/{projectId}/project-report-requests';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROJECT_REPORT_REQUESTS_PREVIEW_PATH = '/organizations/{organizationId}/projects/{projectId}/project-report-requests/preview';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROJECT_REPORT_REQUESTS_REQUESTID_PATH = '/organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId}';
@@ -98,6 +99,7 @@ export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_FEATURES_PATH = '/o
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_FEATURES_SKELETON_PATH = '/organizations/{organizationId}/projects/{projectId}/features/skeleton';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_GOALS_ACTIVE_PATH = '/organizations/{organizationId}/projects/{projectId}/goals/active';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_REPORTS_PATH = '/organizations/{organizationId}/projects/{projectId}/reports';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_REPORTS_USAGE_TRENDS_PATH = '/organizations/{organizationId}/projects/{projectId}/reports/usage-trends';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_REPORTS_FILE_TOUCHES_BY_FILE_PATH = '/organizations/{organizationId}/projects/{projectId}/reports/file-touches/by-file';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_REPORTS_FILE_TOUCHES_BY_WORK_PATH = '/organizations/{organizationId}/projects/{projectId}/reports/file-touches/by-work';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_REPORTS_FILE_HISTORY_BY_FILE_PATH = '/organizations/{organizationId}/projects/{projectId}/reports/file-history/by-file';

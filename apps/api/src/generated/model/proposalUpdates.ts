@@ -15,6 +15,7 @@ import { TaskPriority } from './taskPriority';
 import { EntityPromptTemplateSelectorDto } from './entityPromptTemplateSelectorDto';
 import { EntityPromptTemplateSyntaxVersion } from './entityPromptTemplateSyntaxVersion';
 import { WorkItemConfigV1 } from './workItemConfigV1';
+import { RelationshipDecision } from './relationshipDecision';
 import { UpdateDesignDocDto } from './updateDesignDocDto';
 import { DesignDocParentEntityType } from './designDocParentEntityType';
 import { FutureRevisionBaseline } from './futureRevisionBaseline';

@@ -1338,6 +1338,12 @@ export const REPORT_SCHEMAS = {
               description: 'Lifecycle of an eval run as a whole.',
               enum: ['QUEUED', 'RUNNING', 'FINISHED', 'STOPPED'],
             },
+            name: {
+              type: 'string',
+              minLength: 1,
+              description:
+                'User-chosen name of the run. Absent means the run is shown by a name generated from what it recorded. Blank is never stored.\n',
+            },
             judgeSetup: {
               type: 'object',
               required: ['provider', 'model'],

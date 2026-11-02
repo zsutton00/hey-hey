@@ -12,6 +12,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { EntityPromptTemplatePathFamilyDto } from './entityPromptTemplatePathFamilyDto';
+import { EntityPromptTemplateConditionalBlocksDto } from './entityPromptTemplateConditionalBlocksDto';
 import { EntityPromptTemplateAuthoringMetadataDto } from './entityPromptTemplateAuthoringMetadataDto';
 import { EntityPromptTemplateSyntaxVersion } from './entityPromptTemplateSyntaxVersion';
 
@@ -20,6 +21,7 @@ import { EntityPromptTemplateSyntaxVersion } from './entityPromptTemplateSyntaxV
  * Generated V1 entity prompt-template language metadata shared by API validation and CLI rendering. The catalog describes substitution-only identifiers and fail-closed behavior; it does not add loops, arbitrary expressions, or executable template logic.
  */
 export interface EntityPromptTemplateLanguageDto { 
+    conditionalBlocks: EntityPromptTemplateConditionalBlocksDto;
     authoring: EntityPromptTemplateAuthoringMetadataDto;
     syntaxVersion: EntityPromptTemplateSyntaxVersion;
     /**

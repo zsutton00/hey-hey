@@ -4209,6 +4209,458 @@ export const futureRevisionMutationSchema = {
                   }
                 }
               }
+            },
+            "relationshipDecisions": {
+              "type": "array",
+              "maxItems": 100,
+              "description": "Reviewable decisions about existing relationships affected by this change, typically a supersession. Remove and replace decisions are normalized into the relationship.delete and relationship.update operations of this request; retain decisions are review evidence only and never produce an operation or graph write. An empty or omitted array declares no relationship for change; it does not mean the whole neighborhood was reconciled.",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "relationship",
+                  "decision"
+                ],
+                "properties": {
+                  "relationship": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "id"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "existing"
+                        ]
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      }
+                    }
+                  },
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "retain",
+                      "remove",
+                      "replace"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "description": "Required and nonempty for a retain decision."
+                  },
+                  "replacement": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Exact connection that replaces an existing relationship.",
+                    "required": [
+                      "source",
+                      "target",
+                      "edgeType"
+                    ],
+                    "properties": {
+                      "source": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "id"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "existing"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "tempId"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "temporary"
+                                ]
+                              },
+                              "tempId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                              }
+                            }
+                          }
+                        ],
+                        "discriminator": {
+                          "propertyName": "refType",
+                          "mapping": {
+                            "existing": "#/ExistingWorkItemIdentity",
+                            "temporary": "#/TemporaryWorkItemIdentity"
+                          }
+                        },
+                        "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                      },
+                      "sourceEntityType": {
+                        "type": "string",
+                        "enum": [
+                          "ARTIFACT",
+                          "INITIATIVE",
+                          "PROJECT",
+                          "TASK",
+                          "MESSAGE",
+                          "CONVERSATION",
+                          "DESIGN_DOC",
+                          "AGENT_SESSION",
+                          "VALIDATION_SESSION",
+                          "SERVICE",
+                          "REPORT",
+                          "PROPOSAL",
+                          "IMPLEMENTATION_HINT"
+                        ],
+                        "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
+                      },
+                      "target": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "id"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "existing"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "tempId"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "temporary"
+                                ]
+                              },
+                              "tempId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                              }
+                            }
+                          }
+                        ],
+                        "discriminator": {
+                          "propertyName": "refType",
+                          "mapping": {
+                            "existing": "#/ExistingWorkItemIdentity",
+                            "temporary": "#/TemporaryWorkItemIdentity"
+                          }
+                        },
+                        "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                      },
+                      "targetEntityType": {
+                        "type": "string",
+                        "enum": [
+                          "ARTIFACT",
+                          "INITIATIVE",
+                          "PROJECT",
+                          "TASK",
+                          "MESSAGE",
+                          "CONVERSATION",
+                          "DESIGN_DOC",
+                          "AGENT_SESSION",
+                          "VALIDATION_SESSION",
+                          "SERVICE",
+                          "REPORT",
+                          "PROPOSAL",
+                          "IMPLEMENTATION_HINT"
+                        ],
+                        "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
+                      },
+                      "edgeType": {
+                        "type": "string",
+                        "enum": [
+                          "RELATED_TO",
+                          "DEPENDS_ON",
+                          "DERIVES_FROM",
+                          "SUPERSEDES",
+                          "CONTRADICTS",
+                          "EVOLVES",
+                          "TRACKS",
+                          "PROPOSED_TOGETHER",
+                          "FULFILLED_BY",
+                          "GUARANTEES",
+                          "IMPLEMENTS",
+                          "CONSUMES",
+                          "STANDARD",
+                          "CONDITIONAL",
+                          "LOOP"
+                        ],
+                        "description": "Relationship type for agent-authored topology edges between two entities. Each value carries a distinct semantic:\n- RELATED_TO: source and target share context but have no directional\n  dependency, derivation, or replacement relationship.\n- DEPENDS_ON: source entity requires the target entity to be in place\n  (functionally or temporally) before it is meaningful or completable.\n- DERIVES_FROM: target entity is the origin or basis from which the\n  source entity was produced; the target remains canonical and the\n  source is a downstream artifact.\n- SUPERSEDES: source entity replaces the target entity; the target is\n  displaced and should no longer be treated as canonical.\n- CONTRADICTS: source entity disagrees with the target entity; both\n  remain visible so the conflict can be resolved by an authoring agent.\n- EVOLVES: source entity refines, extends, or iterates on the target\n  entity, which remains canonical. Distinct from SUPERSEDES (target is\n  displaced) and DERIVES_FROM (target is origin only and the source\n  stands apart).\n- TRACKS: source references the target as a tracked deliverable. The\n  meaning is composed with source and target type — the canonical\n  use is a GOAL-typed task referencing a FEATURE / STANDARD / BUG task\n  or a PLAN it expects to ship. DESIGN_DOC and other GOAL targets are\n  rejected at the attach boundary (track the parent feature or plan\n  instead). Validation lives in the boundary handler, not the edge\n  service.\n- PROPOSED_TOGETHER: source and target were created or modified by the\n  same proposal, making them co-authored siblings. Symmetric (the edge\n  carries no direction beyond the storage tuple) and system-emitted\n  (derived by the Graph service from a proposal-approved event rather\n  than authored by a user or agent). Carries no semantic claim about\n  dependency, derivation, or replacement — only that the two entities\n  share a proposal origin. Always paired with source `system`.\n- FULFILLED_BY: meta edge from a WORKFLOW_STEP work item to the work item\n  where that step's implementation lives. It remains visible in generic\n  meta-edge surfaces and is never categorized as flow.\n- STANDARD: flow edge from one WORKFLOW_STEP to the next ordinary step in\n  the same workflow graph. Carries category `flow`, requires direction,\n  and may carry an action label.\n- CONDITIONAL: flow edge from a WORKFLOW_STEP to the next branch selected\n  by a predicate. Carries category `flow` and requires both direction and\n  predicate. It may also carry an action label.\n- LOOP: flow edge representing a self-loop or return loop in a workflow\n  graph. Carries category `flow`, does not carry direction, and may carry\n  a predicate when the return is conditional. It may also carry an action\n  label.\n"
+                      },
+                      "category": {
+                        "type": "string",
+                        "enum": [
+                          "meta",
+                          "flow"
+                        ],
+                        "default": "meta",
+                        "description": "Rendering and traversal category for an edge. Existing edge records and callers that omit this field default to `meta`. Flow-category edges (`STANDARD`, `CONDITIONAL`, `LOOP`) are workflow structure and must stay out of generic related-entity, supersede/evolves, task-list, and link-discovery surfaces. Meta-category edges remain the regular topology and fulfillment surface.\n"
+                      },
+                      "direction": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "forward",
+                              "backward"
+                            ],
+                            "description": "Direction declared on workflow flow edges where the direction matters to rendering or validation. `STANDARD` and `CONDITIONAL` edges require this field. `LOOP` edges do not carry it because the source step is also the return point.\n"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "predicate": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "actionLabel": {
+                        "anyOf": [
+                          {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200,
+                                "pattern": ".*\\S.*",
+                                "description": "Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.\n"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "reasoning": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "metadata": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": true
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "original": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "The relationship as it existed when the decision was authored, recorded by the server so review can explain the before and after.",
+                    "required": [
+                      "edgeType",
+                      "source",
+                      "target"
+                    ],
+                    "properties": {
+                      "edgeType": {
+                        "type": "string",
+                        "enum": [
+                          "RELATED_TO",
+                          "DEPENDS_ON",
+                          "DERIVES_FROM",
+                          "SUPERSEDES",
+                          "CONTRADICTS",
+                          "EVOLVES",
+                          "TRACKS",
+                          "PROPOSED_TOGETHER",
+                          "FULFILLED_BY",
+                          "GUARANTEES",
+                          "IMPLEMENTS",
+                          "CONSUMES",
+                          "STANDARD",
+                          "CONDITIONAL",
+                          "LOOP"
+                        ],
+                        "description": "Relationship type for agent-authored topology edges between two entities. Each value carries a distinct semantic:\n- RELATED_TO: source and target share context but have no directional\n  dependency, derivation, or replacement relationship.\n- DEPENDS_ON: source entity requires the target entity to be in place\n  (functionally or temporally) before it is meaningful or completable.\n- DERIVES_FROM: target entity is the origin or basis from which the\n  source entity was produced; the target remains canonical and the\n  source is a downstream artifact.\n- SUPERSEDES: source entity replaces the target entity; the target is\n  displaced and should no longer be treated as canonical.\n- CONTRADICTS: source entity disagrees with the target entity; both\n  remain visible so the conflict can be resolved by an authoring agent.\n- EVOLVES: source entity refines, extends, or iterates on the target\n  entity, which remains canonical. Distinct from SUPERSEDES (target is\n  displaced) and DERIVES_FROM (target is origin only and the source\n  stands apart).\n- TRACKS: source references the target as a tracked deliverable. The\n  meaning is composed with source and target type — the canonical\n  use is a GOAL-typed task referencing a FEATURE / STANDARD / BUG task\n  or a PLAN it expects to ship. DESIGN_DOC and other GOAL targets are\n  rejected at the attach boundary (track the parent feature or plan\n  instead). Validation lives in the boundary handler, not the edge\n  service.\n- PROPOSED_TOGETHER: source and target were created or modified by the\n  same proposal, making them co-authored siblings. Symmetric (the edge\n  carries no direction beyond the storage tuple) and system-emitted\n  (derived by the Graph service from a proposal-approved event rather\n  than authored by a user or agent). Carries no semantic claim about\n  dependency, derivation, or replacement — only that the two entities\n  share a proposal origin. Always paired with source `system`.\n- FULFILLED_BY: meta edge from a WORKFLOW_STEP work item to the work item\n  where that step's implementation lives. It remains visible in generic\n  meta-edge surfaces and is never categorized as flow.\n- STANDARD: flow edge from one WORKFLOW_STEP to the next ordinary step in\n  the same workflow graph. Carries category `flow`, requires direction,\n  and may carry an action label.\n- CONDITIONAL: flow edge from a WORKFLOW_STEP to the next branch selected\n  by a predicate. Carries category `flow` and requires both direction and\n  predicate. It may also carry an action label.\n- LOOP: flow edge representing a self-loop or return loop in a workflow\n  graph. Carries category `flow`, does not carry direction, and may carry\n  a predicate when the return is conditional. It may also carry an action\n  label.\n"
+                      },
+                      "description": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "source": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "id",
+                          "name"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "entityType": {
+                            "type": "string",
+                            "enum": [
+                              "ARTIFACT",
+                              "INITIATIVE",
+                              "PROJECT",
+                              "TASK",
+                              "MESSAGE",
+                              "CONVERSATION",
+                              "DESIGN_DOC",
+                              "AGENT_SESSION",
+                              "VALIDATION_SESSION",
+                              "SERVICE",
+                              "REPORT",
+                              "PROPOSAL",
+                              "IMPLEMENTATION_HINT"
+                            ],
+                            "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
+                          }
+                        }
+                      },
+                      "target": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "id",
+                          "name"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "entityType": {
+                            "type": "string",
+                            "enum": [
+                              "ARTIFACT",
+                              "INITIATIVE",
+                              "PROJECT",
+                              "TASK",
+                              "MESSAGE",
+                              "CONVERSATION",
+                              "DESIGN_DOC",
+                              "AGENT_SESSION",
+                              "VALIDATION_SESSION",
+                              "SERVICE",
+                              "REPORT",
+                              "PROPOSAL",
+                              "IMPLEMENTATION_HINT"
+                            ],
+                            "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "replacementEndpoints": {
+                    "type": "array",
+                    "description": "Names of the existing work items a replacement connects, recorded by the server so review can name them.",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "id",
+                        "name"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "entityType": {
+                          "type": "string",
+                          "enum": [
+                            "ARTIFACT",
+                            "INITIATIVE",
+                            "PROJECT",
+                            "TASK",
+                            "MESSAGE",
+                            "CONVERSATION",
+                            "DESIGN_DOC",
+                            "AGENT_SESSION",
+                            "VALIDATION_SESSION",
+                            "SERVICE",
+                            "REPORT",
+                            "PROPOSAL",
+                            "IMPLEMENTATION_HINT"
+                          ],
+                          "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         },

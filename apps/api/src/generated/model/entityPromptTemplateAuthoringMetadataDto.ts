@@ -13,9 +13,14 @@
 
 import { EntityPromptTemplateAuthoringFamilyDto } from './entityPromptTemplateAuthoringFamilyDto';
 import { EntityPromptTemplateAuthoringPathDto } from './entityPromptTemplateAuthoringPathDto';
+import { EntityPromptTemplateAuthoringBlockDto } from './entityPromptTemplateAuthoringBlockDto';
 
 
 export interface EntityPromptTemplateAuthoringMetadataDto { 
+    /**
+     * Conditional block tags with editor help text.
+     */
+    conditionalBlocks: Array<EntityPromptTemplateAuthoringBlockDto>;
     openingDelimiter: string;
     closingDelimiter: string;
     inputPathPattern: string;

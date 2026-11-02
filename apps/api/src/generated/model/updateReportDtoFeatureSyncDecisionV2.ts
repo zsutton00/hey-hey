@@ -19,6 +19,10 @@ import { ReportAudience } from './reportAudience';
 
 export interface UpdateReportDtoFeatureSyncDecisionV2 { 
     /**
+     * The report version this update was based on. When given and the report has moved on since, the update is rejected with a conflict and nothing is written, so the caller can re-read and retry. Omitted means the update replaces whatever is stored. 
+     */
+    expectedVersion?: number;
+    /**
      * Whether this report may be reused as project knowledge. Omitted means true on creation.
      */
     ragEnabled?: boolean;
