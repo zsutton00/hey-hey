@@ -4,6 +4,7 @@ import { installLocalhostResolution } from './network/localhost-resolution';
 import { version } from '../package.json';
 import type { ServerCommandOptions } from './commands/server';
 import { StorageFailureError, validateKey } from './credentials/store';
+import { setTerminalTitle, type TerminalEnvironment } from './shared/terminal-title';
 
 const HELP_TEXT = `Usage: heyhey [command] [options]
 
@@ -142,6 +143,13 @@ if (profileFlagIndex !== -1) {
     process.exit(1);
   }
 }
+
+const terminalEnvironment: TerminalEnvironment = hasLocalFlag
+  ? 'local'
+  : hasStagingFlag
+    ? 'staging'
+    : 'production';
+setTerminalTitle(terminalEnvironment, process.env['HEYHEY_PROFILE']);
 
 const args = process.argv.slice(2).filter((arg, index) => {
   if (
