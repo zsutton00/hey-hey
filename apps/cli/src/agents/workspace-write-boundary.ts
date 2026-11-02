@@ -32,13 +32,13 @@ type ClaudeSandboxConfiguration = {
   readonly allowUnsandboxedCommands: false;
   readonly excludedCommands: readonly string[];
   readonly filesystem: ClaudeSandboxFilesystem;
-  readonly network: { readonly allowUnixSockets: readonly string[] };
+  readonly network: { readonly allowAllUnixSockets: true; readonly allowLocalBinding: true };
 };
 
-// Fail-closed on every platform: the turn fails if the sandbox cannot start,
-// Bash never runs unsandboxed, and no host Unix socket (Docker, ssh-agent) is
-// reachable. Write-capable sessions may reach remote hosts over ssh/scp/rsync
-// (e.g. running migrations on the Linux box).
+// The sandbox bounds writes only. It fails closed (the turn fails if it cannot
+// start, Bash never runs unsandboxed), and otherwise behaves like the user's
+// terminal: host sockets (Docker, ssh-agent) and local ports stay reachable.
+// Write-capable sessions may reach remote hosts over ssh/scp/rsync.
 const REMOTE_SHELL_COMMANDS = ['ssh', 'scp', 'rsync'] as const;
 
 // Sessions load the same settings a plain `claude` launch would. The --settings
@@ -54,7 +54,7 @@ const claudeSandboxConfiguration = (
   allowUnsandboxedCommands: false,
   excludedCommands,
   filesystem,
-  network: { allowUnixSockets: [] },
+  network: { allowAllUnixSockets: true, allowLocalBinding: true },
 });
 
 export interface ProviderProcessContainment {
@@ -124,7 +124,7 @@ const seedIfPresent = async (source: string, destination: string): Promise<void>
   }
 };
 
-const resolveSandboxRuntimeModuleUrl =(): string => {
+const resolveSandboxRuntimeModuleUrl = (): string => {
   const requireFromHere = createRequire(__filename);
   return pathToFileURL(requireFromHere.resolve('@anthropic-ai/sandbox-runtime')).href;
 };
@@ -311,10 +311,9 @@ export class RunWorkspaceWriteBoundary {
           allowedDomains: [],
           deniedDomains: [],
           allowLocalBinding: true,
-          allowUnixSockets: [providerTempDirectory],
+          allowAllUnixSockets: true,
         },
       };
-      debug('Allowing sandbox Unix sockets only beneath %s', providerTempDirectory);
       await fs.writeFile(sandboxSettingsPath, JSON.stringify(sandboxSettings), 'utf8');
       await fs.writeFile(
         readOnlySandboxSettingsPath,

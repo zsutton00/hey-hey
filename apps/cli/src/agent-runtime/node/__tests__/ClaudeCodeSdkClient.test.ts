@@ -215,7 +215,7 @@ createInterface({ input: process.stdin }).on("line", () => {
           allowWrite: ['/allowed/root', '/allowed/other'],
           allowRead: [],
         },
-        network: { allowUnixSockets: [] },
+        network: { allowAllUnixSockets: true, allowLocalBinding: true },
       } as const;
       const recordDirectory = mkdtempSync(join(tmpdir(), 'ui-common-claude-launch-'));
       tempDirs.push(recordDirectory);

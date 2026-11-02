@@ -74,7 +74,8 @@ type ClaudeCodeSandboxFilesystemSettings = {
 };
 
 type ClaudeCodeSandboxNetworkSettings = {
-  readonly allowUnixSockets: readonly string[];
+  readonly allowAllUnixSockets: true;
+  readonly allowLocalBinding: true;
 };
 
 /**

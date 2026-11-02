@@ -1700,7 +1700,7 @@ describe('session-runner-claude', () => {
         enabled: true,
         failIfUnavailable: true,
         allowUnsandboxedCommands: false,
-        network: { allowUnixSockets: [] },
+        network: { allowAllUnixSockets: true, allowLocalBinding: true },
       });
       expect(startConfig.workspaceContainment).not.toHaveProperty('processLaunch');
       expect(startConfig).toMatchObject({ permissionMode: 'default' });
