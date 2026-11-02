@@ -22,8 +22,11 @@ import type { NearestParentFeatureRequest } from './nearest-parent-feature';
 export interface ParentRequirementsFilter {
   jevClient: JevEvaluator;
   entityContextLoader: Pick<EntityContextLoader, 'load'>;
-  /** Where each attempt's full Jev input and output, and the loads before and after, are written. */
-  attemptLogDir: string;
+  /**
+   * Where each attempt's full Jev input and output, and the loads before and after, are written.
+   * Null when there is no development checkout to write into (an installed CLI); nothing is written.
+   */
+  attemptLogDir: string | null;
   model?: string;
 }
 
