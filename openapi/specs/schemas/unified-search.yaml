@@ -81,8 +81,9 @@ UnifiedEmbeddingsSearchOptions:
       enum:
         - default
         - title_fuzzy
+        - exact
       default: default
-      description: Query behavior mode forwarded to embeddings as query_mode.
+      description: Query behavior mode forwarded to embeddings as query_mode. exact returns only entities containing the query as a literal case-insensitive phrase, with no near matches; queries must be at least 3 characters.
     hybridResultStrategy:
       type: string
       default: merge

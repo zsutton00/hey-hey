@@ -1153,6 +1153,128 @@ describe('SearchToolsProvider', () => {
     });
   });
 
+  describe('unifiedSearch exact match mode', () => {
+    const callTool = (provider_: SearchToolsProvider, params: object) =>
+      provider_.unifiedSearch(
+        { limit: 10, offset: 0, ...params } as any,
+        dummyContext as any,
+        makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
+      );
+
+    it('sends every query as an embeddings-only exact request with the shared filters', async () => {
+      (mockSearchService.search as jest.Mock).mockResolvedValue(
+        makeSearchResponse([]),
+      );
+
+      await callTool(provider, {
+        queries: ['buildTurnInputs', 'ERR_INVALID_ARG'],
+        match: 'exact',
+        entityTypes: ['TASK'],
+        updatedAfter: '2026-06-01T00:00:00Z',
+        limit: 7,
+        offset: 14,
+      });
+
+      const calls = (mockSearchService.search as jest.Mock).mock.calls;
+      expect(calls).toHaveLength(2);
+      for (const call of calls) {
+        const searchRequest = call[2];
+        expect(searchRequest.intent).toBe('semantic');
+        expect(searchRequest).not.toHaveProperty('graph');
+        expect(searchRequest.embeddings).toEqual({
+          queryMode: 'exact',
+          similarityThreshold: 0,
+          maxResults: 8,
+          offset: 14,
+        });
+        expect(searchRequest.common.types).toEqual(['TASK']);
+        expect(searchRequest.common.updatedAtRange).toEqual({
+          from: '2026-06-01T00:00:00Z',
+          to: undefined,
+        });
+      }
+    });
+
+    it('reports more results when the verified set exceeds the page', async () => {
+      (mockSearchService.search as jest.Mock).mockResolvedValue(
+        makeSearchResponse([
+          makeResult({ entityId: 'a' }),
+          makeResult({ entityId: 'b' }),
+          makeResult({ entityId: 'c' }),
+        ]),
+      );
+
+      const result = (await callTool(provider, {
+        query: 'needle',
+        match: 'exact',
+        limit: 2,
+      })) as any;
+
+      expect(result.results.map((item: any) => item.id)).toHaveLength(2);
+      expect(result.hasMore).toBe(true);
+    });
+
+    it('does not share a cache entry between phrases that differ only by surrounding whitespace', async () => {
+      const realProvider = new SearchToolsProvider(
+        mockSearchService as unknown as UnifiedSearchService,
+        new SearchCacheService(),
+        mockHelpService as unknown as HelpService,
+      );
+      (mockSearchService.search as jest.Mock).mockResolvedValue(
+        makeSearchResponse([makeResult()]),
+      );
+
+      await callTool(realProvider, { query: 'foo', match: 'exact' });
+      await callTool(realProvider, { query: ' foo ', match: 'exact' });
+
+      expect(mockSearchService.search).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps the hybrid request when match is omitted or semantic', async () => {
+      (mockSearchService.search as jest.Mock).mockResolvedValue(
+        makeSearchResponse([]),
+      );
+
+      await callTool(provider, { query: 'auth' });
+      await callTool(provider, { query: 'billing', match: 'semantic' });
+
+      for (const call of (mockSearchService.search as jest.Mock).mock.calls) {
+        expect(call[2].intent).toBe('hybrid');
+        expect(call[2].embeddings.queryMode).toBe('default');
+        expect(call[2].graph).toBeDefined();
+      }
+    });
+
+    it('never shares cache entries between exact and semantic, nor reuses a similar query for exact', async () => {
+      const realProvider = new SearchToolsProvider(
+        mockSearchService as unknown as UnifiedSearchService,
+        new SearchCacheService(),
+        mockHelpService as unknown as HelpService,
+      );
+      (mockSearchService.search as jest.Mock).mockResolvedValue(
+        makeSearchResponse([makeResult()]),
+      );
+
+      await callTool(realProvider, { query: 'buildTurnInputs' });
+      await callTool(realProvider, {
+        query: 'buildTurnInputs',
+        match: 'exact',
+      });
+      expect(mockSearchService.search).toHaveBeenCalledTimes(2);
+
+      // A near-identical exact query is a different literal, so it is searched.
+      await callTool(realProvider, { query: 'buildTurnInput', match: 'exact' });
+      expect(mockSearchService.search).toHaveBeenCalledTimes(3);
+
+      // The identical exact query is served from its own cache entry.
+      await callTool(realProvider, {
+        query: 'buildTurnInputs',
+        match: 'exact',
+      });
+      expect(mockSearchService.search).toHaveBeenCalledTimes(3);
+    });
+  });
+
   describe('unifiedSearch updated-date filtering', () => {
     it('forwards update bounds separately from creation bounds', async () => {
       (mockSearchService.search as jest.Mock).mockResolvedValue(

@@ -119,6 +119,7 @@ mod tests {
             semantic_text: Some("q".into()),
             search_type,
             title_only: false,
+            exact: false,
             max_results,
             offset,
             threshold,

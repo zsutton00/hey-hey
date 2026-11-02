@@ -23,7 +23,7 @@ export interface UnifiedEmbeddingsSearchOptions {
     offset?: number;
     similarityThreshold?: number;
     /**
-     * Query behavior mode forwarded to embeddings as query_mode.
+     * Query behavior mode forwarded to embeddings as query_mode. exact returns only entities containing the query as a literal case-insensitive phrase, with no near matches; queries must be at least 3 characters.
      */
     queryMode?: UnifiedEmbeddingsSearchOptions.QueryModeEnum;
     /**
@@ -32,10 +32,11 @@ export interface UnifiedEmbeddingsSearchOptions {
     hybridResultStrategy?: string;
 }
 export namespace UnifiedEmbeddingsSearchOptions {
-    export type QueryModeEnum = 'default' | 'title_fuzzy';
+    export type QueryModeEnum = 'default' | 'title_fuzzy' | 'exact';
     export const QueryModeEnum = {
         Default: 'default' as QueryModeEnum,
-        TitleFuzzy: 'title_fuzzy' as QueryModeEnum
+        TitleFuzzy: 'title_fuzzy' as QueryModeEnum,
+        Exact: 'exact' as QueryModeEnum
     };
 }
 

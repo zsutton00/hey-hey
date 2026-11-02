@@ -12,6 +12,7 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 use super::{
     encoder::Encoder,
+    literal::literal_evidence,
     ranking::rank,
     store::{self, DeletionOutcome, Retrieval},
     wire::{
@@ -192,6 +193,7 @@ async fn run_search(
             filter: &search.filter,
             keyword_text: search.keyword_text.as_deref(),
             title_only: search.title_only,
+            exact: search.exact,
             vector: vector.as_deref(),
         },
     )
@@ -207,13 +209,20 @@ async fn run_search(
         .into_iter()
         .filter_map(|ranked| {
             let unit = content.remove(&ranked.id)?;
+            let (text, match_spans) = if search.exact {
+                let (text, spans) = literal_evidence(unit.text, &unit.metadata, &search.query);
+                (text, Some(spans).filter(|spans| !spans.is_empty()))
+            } else {
+                (unit.text, None)
+            };
             Some(SearchResult {
                 id: ranked.id,
-                text: unit.text,
+                text,
                 similarity: ranked.similarity,
                 metadata: unit.metadata,
                 chunk_index: ranked.chunk_index,
                 match_type: ranked.match_type,
+                match_spans,
             })
         })
         .collect();

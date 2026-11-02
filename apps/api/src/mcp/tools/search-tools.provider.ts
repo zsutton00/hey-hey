@@ -140,6 +140,17 @@ export const unifiedSearchParameters = z.object({
         'updatedAfter to scope results to an update-time window. Applies to ' +
         'every query in a batch.',
     ),
+  match: z
+    .enum(['semantic', 'exact'])
+    .optional()
+    .describe(
+      'Match mode, default "semantic" (ranked by meaning). Use "exact" to ' +
+        'find a literal string: only entities whose title or body contains ' +
+        'the query as a contiguous, case-insensitive phrase are returned ' +
+        '(no stemming, no near matches), title matches first. An empty ' +
+        'result means no entity contains the phrase. Queries must be at ' +
+        'least 3 characters. Applies to every query in a batch.',
+    ),
   ...paginationFields,
 });
 
@@ -606,13 +617,17 @@ export class SearchToolsProvider {
       '`queries` to fan out related orientation searches (e.g. after ' +
       'get_context) without multiple round-trips. Shared filters ' +
       '(`entityTypes`, `downrankUnreviewed`, `createdAfter`, `createdBefore`, ' +
-      '`updatedAfter`, `updatedBefore`) ' +
+      '`updatedAfter`, `updatedBefore`, `match`) ' +
       'and `limit` apply to every query. Pass `entityTypes` to scope to a ' +
       'subset (e.g. ["MESSAGE"] to search conversation history only). Pass ' +
       '`createdAfter` and/or `createdBefore` (ISO-8601 date-times) to scope ' +
       'results to an entity creation-time window. Pass `updatedAfter` and/or ' +
       "`updatedBefore` to scope results to each entity's own update-time " +
-      'window. Both time ranges can be combined. The response stays within ' +
+      'window. Both time ranges can be combined. Set `match: "exact"` to ' +
+      'look up identifiers, symbol names, error strings, file paths, or to ' +
+      'check whether a phrase exists: results are only entities containing ' +
+      'the literal query (no near matches), and an empty result means none ' +
+      'does; matched positions are returned in the result spans. The response stays within ' +
       'an 8,000-token estimated budget: when it would not fit, ranked ' +
       'results are cut from the end, hasMore is true, and omittedForSize ' +
       'says how many were cut — repeat the query with limit no larger than ' +
@@ -643,6 +658,7 @@ export class SearchToolsProvider {
       createdBefore,
       updatedAfter,
       updatedBefore,
+      match,
       limit,
       offset,
     } = params;
@@ -669,6 +685,7 @@ export class SearchToolsProvider {
       createdBefore,
       updatedAfter,
       updatedBefore,
+      match,
       limit,
       offset,
     };
@@ -727,6 +744,7 @@ export class SearchToolsProvider {
       createdBefore?: string;
       updatedAfter?: string;
       updatedBefore?: string;
+      match?: 'semantic' | 'exact';
       limit: number;
       offset: number;
     },
@@ -740,9 +758,11 @@ export class SearchToolsProvider {
       createdBefore,
       updatedAfter,
       updatedBefore,
+      match,
       limit,
       offset,
     } = shared;
+    const isExact = match === 'exact';
 
     const resolvedTypes: EntityType[] = entityTypes?.length
       ? (entityTypes as EntityType[])
@@ -763,19 +783,27 @@ export class SearchToolsProvider {
       createdBefore,
       updatedAfter,
       updatedBefore,
+      match,
+      // The shared key lowercases and trims `query`, but an exact phrase is
+      // literal (surrounding whitespace included), so key it untouched.
+      ...(isExact ? { exactPhrase: query } : {}),
       limit,
       offset,
     };
     const cacheKey = this.searchCache.generateKey(cacheParams);
     const filterFp = this.searchCache.buildFilterFingerprint(cacheParams);
 
+    // A "similar" query has a different literal result set, so exact mode
+    // only ever reuses an identical cached query.
     const cached =
       this.searchCache.get<SearchResultOutput>(cacheKey) ??
-      this.searchCache.findSimilar<SearchResultOutput>(
-        query,
-        scopeKey,
-        filterFp,
-      );
+      (isExact
+        ? undefined
+        : this.searchCache.findSimilar<SearchResultOutput>(
+            query,
+            scopeKey,
+            filterFp,
+          ));
     if (cached) {
       this.logger.debug('unified_search cache hit', {
         query,
@@ -798,26 +826,45 @@ export class SearchToolsProvider {
         ? { from: updatedAfter, to: updatedBefore }
         : undefined;
 
-    const searchRequest: UnifiedSearchRequest = {
-      intent: 'hybrid',
-      query,
-      excludeContentless: true,
-      downrankUnreviewed: downrankUnreviewed ?? false,
-      common: {
-        types: resolvedTypes,
-        ...(dateRange ? { dateRange } : {}),
-        ...(updatedAtRange ? { updatedAtRange } : {}),
-      },
-      embeddings: {
-        queryMode: 'default',
-        maxResults: limit,
-        offset,
-      },
-      graph: {
-        page: graphPage,
-        size: limit,
-      },
+    const common = {
+      types: resolvedTypes,
+      ...(dateRange ? { dateRange } : {}),
+      ...(updatedAtRange ? { updatedAtRange } : {}),
     };
+
+    // Exact mode is embeddings-only: graph traversal would add entities that
+    // do not contain the phrase, and a score cutoff would drop literal hits.
+    const searchRequest: UnifiedSearchRequest = isExact
+      ? {
+          intent: 'semantic',
+          query,
+          excludeContentless: true,
+          downrankUnreviewed: downrankUnreviewed ?? false,
+          common,
+          embeddings: {
+            queryMode: 'exact',
+            similarityThreshold: 0,
+            // One extra verified hit tells us whether another page exists.
+            maxResults: limit + 1,
+            offset,
+          },
+        }
+      : {
+          intent: 'hybrid',
+          query,
+          excludeContentless: true,
+          downrankUnreviewed: downrankUnreviewed ?? false,
+          common,
+          embeddings: {
+            queryMode: 'default',
+            maxResults: limit,
+            offset,
+          },
+          graph: {
+            page: graphPage,
+            size: limit,
+          },
+        };
 
     const response = await this.unifiedSearchService.search(
       auth.organizationId,

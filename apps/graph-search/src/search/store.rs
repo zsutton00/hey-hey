@@ -260,6 +260,7 @@ pub struct Retrieval<'a> {
     pub filter: &'a Filter,
     pub keyword_text: Option<&'a str>,
     pub title_only: bool,
+    pub exact: bool,
     pub vector: Option<&'a [f32]>,
 }
 
@@ -302,14 +303,18 @@ semantic AS (
 ),
 keyword AS (
     SELECT s.id,
-           CASE WHEN $19
+           CASE WHEN $21
+                THEN (CASE WHEN strpos(lower(s.title), lower($17)) > 0 THEN 10.0 ELSE 0.0 END) + 1.0
+                WHEN $19
                 THEN greatest(similarity(s.title, $17), word_similarity($17, s.title))
                 ELSE ts_rank_cd(s.search_text, l.query, 32)
                      + greatest(similarity(s.title, $17), word_similarity($17, s.text))
            END AS score
     FROM scoped s, lexical l
     WHERE $17::text IS NOT NULL
-      AND CASE WHEN $19
+      AND CASE WHEN $21
+               THEN strpos(lower(s.title), lower($17)) > 0 OR strpos(lower(s.text), lower($17)) > 0
+               WHEN $19
                THEN s.title % $17 OR $17 <% s.title
                ELSE s.search_text @@ l.query OR s.title % $17 OR $17 <% s.text
           END
@@ -347,6 +352,7 @@ pub async fn retrieve(pool: &PgPool, retrieval: Retrieval<'_>) -> Result<Vec<Can
         .bind(retrieval.vector.map(vector_literal))
         .bind(retrieval.title_only)
         .bind(GLOBAL_ORGANIZATION)
+        .bind(retrieval.exact)
         .fetch_all(pool)
         .await
         .context("Search query failed")?;

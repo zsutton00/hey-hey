@@ -517,6 +517,75 @@ describe('UnifiedSearchService', () => {
     );
   });
 
+  it('forwards exact query mode without a similarity cutoff and skips graph', async () => {
+    embeddingsClient.searchEmbeddingsWithUserTokenPost.mockResolvedValue({
+      success: true,
+      query: 'buildTurnInputs',
+      results: 0,
+      data: [],
+    } as any);
+
+    const result = await service.search(
+      organizationId,
+      projectId,
+      {
+        intent: 'semantic',
+        query: 'buildTurnInputs',
+        embeddings: { queryMode: 'exact', similarityThreshold: 0 },
+      },
+      userToken,
+    );
+
+    expect(
+      embeddingsClient.searchEmbeddingsWithUserTokenPost,
+    ).toHaveBeenCalledWith(
+      organizationId,
+      projectId,
+      expect.objectContaining({
+        query: 'buildTurnInputs',
+        query_mode: 'exact',
+        similarity_threshold: 0,
+      }),
+      userToken,
+    );
+    expect(result.graph).toBeUndefined();
+  });
+
+  it('keeps the embeddings order of exact hits, so title matches stay first', async () => {
+    const hit = (id: string, similarity: number) => ({
+      id,
+      text: 'needle',
+      similarity,
+      matchSpans: [{ start: 0, end: 6, strength: 1 }],
+      metadata: { id, type: 'task', name: id },
+    });
+    embeddingsClient.searchEmbeddingsWithUserTokenPost.mockResolvedValue({
+      success: true,
+      query: 'needle',
+      results: 2,
+      data: [hit('title-hit', 12), hit('body-hit', 11)],
+    } as any);
+
+    const result = await service.search(
+      organizationId,
+      projectId,
+      {
+        intent: 'semantic',
+        query: 'needle',
+        embeddings: { queryMode: 'exact', similarityThreshold: 0 },
+      },
+      userToken,
+    );
+
+    expect(result.results?.map((item) => item.entityId)).toEqual([
+      'title-hit',
+      'body-hit',
+    ]);
+    expect(result.results?.[0]?.embeddings?.matchSpans).toEqual([
+      { start: 0, end: 6, strength: 1 },
+    ]);
+  });
+
   it('routes hybrid intent to both services', async () => {
     graphsClient.searchGraph.mockResolvedValue({
       results: [],
@@ -772,6 +841,49 @@ describe('UnifiedSearchService', () => {
       status: HttpStatus.TOO_MANY_REQUESTS,
     });
   });
+
+  it.each(['embeddings', 'graph'] as const)(
+    'reports a 422 from %s as a request error and logs the response body',
+    async (upstream) => {
+      const detail = { detail: [{ msg: 'unsupported filter' }] };
+      const rejection = { response: { status: 422, data: detail } };
+      embeddingsClient.searchEmbeddingsWithUserTokenPost.mockRejectedValue(
+        rejection,
+      );
+      graphsClient.searchGraph.mockRejectedValue(rejection);
+      const errorLog = jest.spyOn(
+        (service as unknown as { logger: { error: jest.Mock } }).logger,
+        'error',
+      );
+
+      await expect(
+        service.search(
+          organizationId,
+          projectId,
+          { intent: 'semantic', query: 'test' },
+          userToken,
+        ),
+      ).rejects.toMatchObject({ status: HttpStatus.BAD_REQUEST });
+      if (upstream === 'graph') {
+        await expect(
+          service.search(
+            organizationId,
+            projectId,
+            {
+              intent: 'relationship',
+              query: 'test',
+              graph: { seedEntityIds: ['e1'] },
+            },
+            userToken,
+          ),
+        ).rejects.toMatchObject({ status: HttpStatus.BAD_REQUEST });
+      }
+      expect(errorLog).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ responseStatus: 422, responseData: detail }),
+      );
+    },
+  );
 
   it('fuses graph and embeddings results by entity id', async () => {
     graphsClient.searchGraph.mockResolvedValue({

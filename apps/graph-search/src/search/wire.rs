@@ -3,6 +3,8 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+
+use super::literal::MatchSpan;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 pub const MAX_TEXT_CHARS: usize = 50_000;
@@ -41,6 +43,7 @@ pub enum QueryMode {
     #[default]
     Default,
     TitleFuzzy,
+    Exact,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -313,6 +316,8 @@ pub struct Search {
     pub semantic_text: Option<String>,
     pub search_type: SearchType,
     pub title_only: bool,
+    /// Literal, case-insensitive substring match on title and text only.
+    pub exact: bool,
     pub max_results: u32,
     pub offset: u32,
     pub threshold: f64,
@@ -334,6 +339,10 @@ fn checked_limits(max_results: Option<u32>, threshold: Option<f64>) -> Result<(u
     Ok((max_results, threshold))
 }
 
+/// Exact search is defined for queries of at least this many characters, as in
+/// the deployed service.
+const MIN_EXACT_QUERY_CHARS: usize = 3;
+
 fn checked_query(query: Option<String>, field: &'static str) -> Result<String, Invalid> {
     let query = query.unwrap_or_default();
     let length = query.chars().count();
@@ -353,9 +362,18 @@ impl SearchRequest {
         let (max_results, threshold) = checked_limits(self.max_results, self.similarity_threshold)?;
         let filters = self.filters.unwrap_or_default();
         let title_only = self.query_mode == QueryMode::TitleFuzzy;
+        let exact = self.query_mode == QueryMode::Exact;
+        if exact && query.chars().count() < MIN_EXACT_QUERY_CHARS {
+            return Err(invalid(
+                "query",
+                "exact queries must be at least 3 characters",
+            ));
+        }
 
-        // Title-fuzzy matching is lexical only, as in the deployed service.
-        let search_type = if title_only {
+        // Title-fuzzy and exact matching are lexical only, as in the deployed
+        // service; a literal hit is never dropped by a score cutoff.
+        let threshold = if exact { 0.0 } else { threshold };
+        let search_type = if title_only || exact {
             SearchType::Keyword
         } else {
             self.search_type
@@ -367,6 +385,7 @@ impl SearchRequest {
             query,
             search_type,
             title_only,
+            exact,
             max_results,
             offset: self.offset.unwrap_or(0),
             threshold,
@@ -445,6 +464,7 @@ impl StructuredSearchRequest {
             semantic_text,
             search_type: self.search_type,
             title_only: false,
+            exact: false,
             max_results,
             offset: 0,
             threshold,
@@ -690,6 +710,9 @@ pub struct SearchResult {
     pub chunk_index: i32,
     #[serde(rename = "matchType")]
     pub match_type: MatchType,
+    /// Where an exact search matched; absent for every other mode.
+    #[serde(rename = "matchSpans", skip_serializing_if = "Option::is_none")]
+    pub match_spans: Option<Vec<MatchSpan>>,
 }
 
 #[derive(Serialize)]

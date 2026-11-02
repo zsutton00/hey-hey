@@ -249,7 +249,7 @@ without a reachable database. Convert them to checked macros and regenerate
   and a different blend of signals, so the same query can return the same items
   in another order, with other scores, and a threshold can keep a different set.
 - **No token-level match positions.** Each unit has one vector, not one per token,
-  so `matchSpans` is never returned and per-token max-sim ranking is gone.
+  so `matchSpans` is never returned (except in exact mode) and per-token max-sim ranking is gone.
 - **Long documents are judged by their opening.** The encoder reads at most 512
   tokens per unit. `level: "chunk"` splits text into 200-word units, but
   `level: "document"` units are matched by meaning on their beginning only (text
@@ -257,6 +257,11 @@ without a reachable database. Convert them to checked macros and regenerate
 - **Fuzzy matching is trigram-based.** Typo tolerance comes from trigram
   similarity on title and text, and `title_fuzzy` matches the title only.
   Results for misspelled or partial words will differ from the deployed path.
+- **Exact mode is a plain substring match.** `query_mode: "exact"` returns
+  units whose title or text contains the query as a case-insensitive substring
+  (at least 3 characters, surrounding whitespace included), title matches first,
+  with `matchSpans` over the returned text. Unlike the deployed path it is not
+  gram-indexed, and a hit matching only its title returns the title as `text`.
 - **No Vespa ranking profiles or phrase boosts.** Structured search requires every
   `must` term as a phrase and ranks `should` terms and `phrases` by full-text
   rank; there is no weak-AND or separate phrase-proximity boost.
