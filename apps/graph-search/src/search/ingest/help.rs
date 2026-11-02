@@ -309,6 +309,8 @@ mod tests {
 
     #[test]
     fn help_is_global_and_composed_like_the_deployed_projection() {
+        use crate::search::wire::{MatchType, SearchResult};
+
         let document = document(&node(), &revision(Some("3"), Some("abc")));
         assert_eq!(document.organization_id, GLOBAL_ORGANIZATION);
         assert_eq!(document.project_id, None);
@@ -324,7 +326,28 @@ mod tests {
             "demoCaptions": ["A short demo"], "contentVersion": "3", "contentHash": "abc",
             "ordering": 2
         });
-        assert_eq!(Value::Object(document.metadata), expected);
+        assert_eq!(Value::Object(document.metadata.clone()), expected);
+
+        let unit = store::units(&document).remove(0);
+        let result = SearchResult {
+            id: unit.id,
+            text: unit.text,
+            similarity: 0.89,
+            metadata: Value::Object(document.metadata),
+            chunk_index: unit.chunk_index,
+            match_type: MatchType::Keyword,
+            match_spans: None,
+        };
+        let response = serde_json::to_value(result).unwrap();
+        assert_eq!(response["id"], "help_node_chunk_0");
+        assert_eq!(response["chunkIndex"], 0);
+        assert_eq!(response["metadata"]["id"], "node");
+        assert_eq!(response["metadata"]["helpNodeId"], "node");
+        assert_eq!(response["metadata"]["type"], "help");
+        assert_eq!(response["metadata"]["contentType"], "help");
+        assert_eq!(response["metadata"]["scope"], "global");
+        assert!(response["metadata"].get("organizationId").is_none());
+        assert!(response["metadata"].get("projectId").is_none());
     }
 
     #[test]
