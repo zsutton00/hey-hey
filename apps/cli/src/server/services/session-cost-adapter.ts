@@ -327,12 +327,10 @@ export const createCcusageSessionJsonReader = (
         throw runtimeError;
       }
     };
-    if (usageOnly) {
-      return execute(env, false);
+    if (providerId === 'codex' && scope?.sessionIds.length) {
+      return codexInput.read(scope.sessionIds, env, execute, scope.logger);
     }
-    return providerId === 'codex' && scope?.sessionIds.length
-      ? codexInput.read(scope.sessionIds, env, execute, scope.logger)
-      : execute(env, false);
+    return execute(env, false);
   };
 };
 
