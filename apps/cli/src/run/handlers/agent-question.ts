@@ -7,7 +7,8 @@
  * to answer.
  */
 
-import { ExtendedUIFieldType } from '../../shared/api/generated/api';
+import { ExtendedUIFieldType } from '@hey-hey/contracts/api/models';
+import { toOpenApiProjectId } from '../../shared/api/identifierAdapters';
 import { MessageType, MessageStatus, SystemMessageDataTypeEnum } from '../../shared/api/index';
 import type { SystemMessageData } from '../../shared/api/index';
 import type { AgentQuestionEvent, HandlerDeps } from '../types';
@@ -47,7 +48,7 @@ export const handleAgentQuestion = async (
       dto: {
         type: MessageType.System,
         status: MessageStatus.Open,
-        projectId: ctx.projectId,
+        projectId: toOpenApiProjectId(ctx.projectId),
         data,
       },
       stamp: null,

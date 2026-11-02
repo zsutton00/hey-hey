@@ -25,6 +25,7 @@ import {
   SystemMessageDataTypeEnum,
 } from '../../shared/api/index';
 import type { AgentSystemMessageData, UpdateMessageDto } from '../../shared/api/index';
+import { toOpenApiProjectId } from '../../shared/api/identifierAdapters';
 import type { OnCompleteDeps } from '../../agents/prompt-type-handler';
 import {
   dispatchResponseType,
@@ -68,7 +69,7 @@ const buildCompletionTailDto = (
   return {
     type: MessageType.System,
     status: updateData.status ?? MessageStatus.Completed,
-    projectId,
+    projectId: toOpenApiProjectId(projectId),
     proposalIds: artifactIds.proposalIds,
     reportIds: artifactIds.reportIds,
     // Stamp the turn-completion marker. A streaming delta and the turn's

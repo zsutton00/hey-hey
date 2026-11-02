@@ -11,6 +11,10 @@ import type { ServerLogger } from '../../server/logger';
 import { MessagePoster } from '../../run/message-poster';
 import type { MessageStamp } from '../../run/types';
 import type { SubmissionToolAction } from './types';
+import {
+  toOpenApiConversationId,
+  toOpenApiMessageId,
+} from '../../shared/api/identifierAdapters';
 
 export interface PostSubmissionActionInput {
   /** Stable identity assigned by the Run when it records the terminal outcome. */
@@ -99,9 +103,9 @@ export class SubmissionActionPoster {
       agentSessionId: input.agentSessionId,
       effectId: input.effectId,
       request: {
-        conversationId: input.conversationId,
+        conversationId: toOpenApiConversationId(input.conversationId),
         workflowNodeId: input.externalAgentNodeId,
-        pendingTriggerMessageId: input.triggerMessageId,
+        pendingTriggerMessageId: toOpenApiMessageId(input.triggerMessageId),
         action: input.action.action,
         ...(input.action.payload !== undefined ? { payload: input.action.payload } : {}),
         ...(input.userFacingResponse !== undefined ? { response: input.userFacingResponse } : {}),

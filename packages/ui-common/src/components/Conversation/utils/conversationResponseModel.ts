@@ -13,13 +13,13 @@ import {
   type InteractiveReportAttachment,
 } from "../../Reports/reportConfig";
 import type {
-  CanonicalMessageId,
   ConversationFormResolution,
   ConversationFormResolver,
   ConversationResponseDeclaration,
   ConversationResponseTarget,
   ResponseBehavior,
 } from "../Components/conversationFormTypes";
+import { canonicalMessageIdFromCollection } from "../Components/conversationFormTypes";
 import {
   hasPersistedFormResponse,
   isFormSubmissionDisabled,
@@ -56,7 +56,7 @@ interface FormModelOptions {
 
 const declareResponse = (
   behavior: ResponseBehavior,
-  element: UIElement
+  element: UIElement,
 ): ConversationResponseDeclaration =>
   behavior.ownership === "display-only"
     ? behavior
@@ -64,7 +64,7 @@ const declareResponse = (
 
 const resolveReports = (
   message: MessageResponseDto,
-  uiElements: UIElement[]
+  uiElements: UIElement[],
 ) => {
   const inlineReports: ReportDto[] = [];
   const modalReports: ReportDto[] = [];
@@ -81,7 +81,7 @@ const resolveReports = (
   const mentioned = new Set(
     extractMentions(message.data.response ?? "", { allowMentionEscapes: true })
       .filter((mention) => mention.entityType.toLowerCase() === "report")
-      .map((mention) => mention.entityId)
+      .map((mention) => mention.entityId),
   );
   for (const report of message.reports ?? []) {
     const config = getReportConfig(report.reportType);
@@ -97,11 +97,11 @@ const resolveReports = (
       case "interactive": {
         const responseUiElement = resolveInteractiveReportResponseUiElement(
           config,
-          uiElements
+          uiElements,
         );
         interactiveReportAttachments.push({ report, responseUiElement });
         declarations.push(
-          declareResponse(config.responseBehavior, responseUiElement)
+          declareResponse(config.responseBehavior, responseUiElement),
         );
         break;
       }
@@ -119,30 +119,30 @@ const resolveReports = (
 export const resolveConversationForm = (
   entry: ConversationMessage,
   isCurrent: boolean,
-  options: FormModelOptions
+  options: FormModelOptions,
 ): ResolvedConversationForm => {
   const resolution = options.resolver?.(entry) ?? null;
   const uiElements = (
     resolution?.uiElements ??
     (entry.message.type === MessageType.System
-      ? entry.message.data.uiElements ?? []
+      ? (entry.message.data.uiElements ?? [])
       : [])
   ).filter(Boolean);
   const reports = resolveReports(entry.message, uiElements);
   const reportFieldIds = new Set(
     reports.interactiveReportAttachments.map(
-      ({ responseUiElement }) => responseUiElement.id
-    )
+      ({ responseUiElement }) => responseUiElement.id,
+    ),
   );
   const formUiElements = uiElements.filter(
-    (element) => !reportFieldIds.has(element.id)
+    (element) => !reportFieldIds.has(element.id),
   );
   const fieldDeclarations = formUiElements.map((element) => {
     return declareResponse(
       getFieldResponseBehavior(element) ?? {
         ownership: "display-only",
       },
-      element
+      element,
     );
   });
   const isSubmitted =
@@ -175,14 +175,14 @@ export const resolveConversationForm = (
         : isFormSubmissionDisabled(
             entry,
             options.workflowCanSubmit,
-            options.isSubmitting
+            options.isSubmitting,
           ) || options.isCliInputDisabled),
   };
 };
 
 const collectCanonicalIds = (
   messages: readonly MessageResponseDto[],
-  ids = new Set<string>()
+  ids = new Set<string>(),
 ): Set<string> => {
   for (const message of messages) {
     ids.add(message.id);
@@ -194,17 +194,21 @@ const collectCanonicalIds = (
 const deriveTarget = (
   entry: ConversationMessage | undefined,
   form: ResolvedConversationForm | undefined,
-  canonicalIds: Set<string>
+  canonicalIds: Set<string>,
 ): ConversationResponseTarget => {
   if (
     !entry ||
     !form ||
     entry.message.type !== MessageType.System ||
-    !canonicalIds.has(entry.message.id) ||
     form.isCompleted ||
     (!form.shouldRenderForm && form.interactiveReportAttachments.length === 0)
   )
     return NO_RESPONSE_TARGET;
+  const messageId = canonicalMessageIdFromCollection(
+    entry.message.id,
+    canonicalIds,
+  );
+  if (!messageId) return NO_RESPONSE_TARGET;
   const declaration =
     form.declarations.find((item) => item.ownership === "exclusive") ??
     form.declarations.find((item) => item.ownership === "contribution");
@@ -213,7 +217,7 @@ const deriveTarget = (
   // Membership above proves this identity came from persisted canonical Messages.
   return {
     ...declaration,
-    messageId: entry.message.id as CanonicalMessageId,
+    messageId,
     usable: !form.isFormReadOnly,
   };
 };
@@ -221,13 +225,13 @@ const deriveTarget = (
 export const resolveConversationResponseModel = (
   timeline: readonly ConversationMessage[],
   canonicalMessages: readonly MessageResponseDto[],
-  options: FormModelOptions
+  options: FormModelOptions,
 ) => {
   const forms = new Map(
     timeline.map((entry, index) => [
       entry.message.id,
       resolveConversationForm(entry, index === timeline.length - 1, options),
-    ])
+    ]),
   );
   // Never search backwards for an older unanswered field.
   const current = timeline[timeline.length - 1];
@@ -236,7 +240,7 @@ export const resolveConversationResponseModel = (
     target: deriveTarget(
       current,
       current ? forms.get(current.message.id) : undefined,
-      collectCanonicalIds(canonicalMessages)
+      collectCanonicalIds(canonicalMessages),
     ),
   };
 };

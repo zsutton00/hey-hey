@@ -10,8 +10,12 @@ import {
   type ProjectResponseDto,
   type TaskResponseDto,
   type WorkItemTypeDefinitionDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { type Stable } from "@hey-hey/ui-common";
+import {
+  toOpenApiOrganizationId,
+  toOpenApiProjectId,
+} from "@hey-hey/ui-common/clients";
 import type { UseTaskGenerationCapsuleActionResult } from "@hey-hey/ui-common/components";
 
 import type {
@@ -83,9 +87,9 @@ const syntheticProject = (
   organizationId: string,
   projectId: string,
 ): ProjectResponseDto => ({
-  id: projectId,
+  id: toOpenApiProjectId(projectId),
   name: "Demo Project",
-  organizationId,
+  organizationId: toOpenApiOrganizationId(organizationId),
   status: ProjectStatus.Active,
   currentUserRole: ProjectRole.Owner,
   hasEstablishedActivity: true,

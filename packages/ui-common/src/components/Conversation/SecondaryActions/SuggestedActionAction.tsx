@@ -7,6 +7,13 @@ import type {
 } from "../../../api";
 import { SuggestedActionNextAction } from "../../../api";
 import { unifiedApiClient } from "../../../clients/serviceClients";
+import {
+  toOpenApiConversationId,
+  toOpenApiInitiativeId,
+  toOpenApiMessageId,
+  toOpenApiProjectId,
+  toOpenApiTaskId,
+} from "../../../clients/contractIdentifierAdapters";
 import type { UITrackingData } from "../../../contexts";
 import { useModalService } from "../../../contexts/ModalService";
 import type { UIAction } from "../../../types/userTracking";
@@ -149,11 +156,15 @@ export const SuggestedActionAction: React.FC<SuggestedActionActionProps> = ({
             createSuggestedTaskRequestDto: {
               suggestionId,
               name: data.name,
-              projectId: context.projectId,
-              initiativeId: data.initiativeId,
-              parentTaskId: data.parentTaskId,
-              sourceConversationId: context.conversationId,
-              sourceMessageId: context.messageId,
+              projectId: toOpenApiProjectId(context.projectId),
+              initiativeId: toOpenApiInitiativeId(data.initiativeId),
+              parentTaskId: data.parentTaskId
+                ? toOpenApiTaskId(data.parentTaskId)
+                : undefined,
+              sourceConversationId: toOpenApiConversationId(
+                context.conversationId,
+              ),
+              sourceMessageId: toOpenApiMessageId(context.messageId),
               trigger: actionLabel,
             },
           })

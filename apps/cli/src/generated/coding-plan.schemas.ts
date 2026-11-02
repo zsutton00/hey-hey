@@ -1,10 +1,14 @@
 /* This file is generated from OpenAPI by scripts/generate-workflow-review-schemas.js. */
 import { z } from 'zod';
-import type { CodingPlanVersion, CodingPlanEmissionInput } from '../shared/api/generated/api';
+import type { CodingPlanVersion } from '@hey-hey/contracts/api/models';
 
 // Zod optional output includes undefined, which exactOptionalPropertyTypes rejects for the OpenAPI types.
-type OptionalKeys<T> = { [K in keyof T]-?: object extends Pick<T, K> ? K : never }[keyof T];
-type ZodShaped<T> = Omit<T, OptionalKeys<T>> & { [K in OptionalKeys<T>]?: T[K] | undefined };
+type OptionalKeys<T> = { [K in keyof T]-?: {} extends Pick<T, K> ? K : never }[keyof T];
+type ZodShaped<T> = T extends readonly (infer U)[]
+  ? ZodShaped<U>[]
+  : T extends object
+    ? Omit<T, OptionalKeys<T>> & { [K in OptionalKeys<T>]?: ZodShaped<T[K]> | undefined }
+    : T;
 
 const CodingPromptStartupSourceTypeSchema = z.enum([
   'evidenceItem',
@@ -37,6 +41,13 @@ export const CodingPlanDiscrepancySchema = z.intersection(
   z
     .object({
       sourceField: z.string().min(1),
+      suspectedImpact: z.string().optional(),
+      findingId: z.string().min(1).optional(),
+      category: z.enum(['implementation', 'project_context']).optional(),
+      userDirection: z.string().optional(),
+      disposition: z.enum(['open', 'accepted', 'repair_planned', 'withdrawn']).optional(),
+      implementationFollowThrough: z.string().optional(),
+      withdrawalEvidence: z.string().optional(),
     })
     .passthrough(),
 );
@@ -77,6 +88,17 @@ export const ImplementPromptPayloadSchema = z
     userMessage: z.string().optional(),
   })
   .strict();
+
+export const CodingPlanEmittedDiscrepancySchema = z.intersection(
+  CodingPlanDiscrepancySchema,
+  z
+    .object({
+      findingId: z.string().min(1),
+      category: z.enum(['implementation', 'project_context']),
+      disposition: z.enum(['open', 'accepted', 'repair_planned', 'withdrawn']),
+    })
+    .passthrough(),
+);
 
 const CodingPlanIssueResolutionSchema = z
   .object({
@@ -121,9 +143,9 @@ export const CodingPlanEmissionInputSchema = z
         (items) => new Set(items.map((item) => JSON.stringify(item))).size === items.length,
         'Array items must be unique',
       ),
-    discrepancies: z.array(CodingPlanDiscrepancySchema).optional(),
+    discrepancies: z.array(CodingPlanEmittedDiscrepancySchema),
   })
-  .strict() satisfies z.ZodType<ZodShaped<CodingPlanEmissionInput>>;
+  .strict();
 
 export const CodingPlanQuestionSchema = z
   .object({

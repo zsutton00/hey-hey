@@ -21,6 +21,7 @@ COPY apps/api/package.json apps/api/
 COPY apps/cli/package.json apps/cli/
 COPY apps/graph-search/package.json apps/graph-search/
 COPY packages/ui-common/package.json packages/ui-common/
+COPY packages/contracts/package.json packages/contracts/
 COPY openapi/package.json openapi/
 RUN pnpm install --frozen-lockfile --filter hey-hey... --filter hey-hey-openapi
 
@@ -32,6 +33,7 @@ ENV HEY_HEY_OPENAPI_ROOT=/workspace/openapi
 RUN pnpm generate:verify
 
 # Vite compiles UI Common from packages/ui-common/src.
+RUN pnpm --filter @hey-hey/contracts build
 RUN NODE_OPTIONS="--max-old-space-size=4096" pnpm --filter hey-hey build
 
 FROM node:24.16.0-bookworm-slim AS runtime

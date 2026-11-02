@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import {
+  asConversationId,
+  asProjectId,
+  asServiceId,
+  asWorkflowId,
+} from '../../test-utils/contract-ids';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import {
   buildRepositoryAnalysisPrompt,
   type RepositoryAnalysisPromptInput,
@@ -20,19 +26,19 @@ const bounds: RepositoryAnalysisBounds = {
 
 const request = {
   promptType: LocalPromptType.RepositoryGrounding,
-  projectId: '11111111-1111-4111-8111-111111111111',
-  conversationId: '22222222-2222-4222-8222-222222222222',
-  workflowId: '33333333-3333-4333-8333-333333333333',
+  projectId: asProjectId('11111111-1111-4111-8111-111111111111'),
+  conversationId: asConversationId('22222222-2222-4222-8222-222222222222'),
+  workflowId: asWorkflowId('33333333-3333-4333-8333-333333333333'),
   workflowNodeId: 'repository-grounding-node',
   entryMode: 'existing_project' as const,
-  serviceId: '44444444-4444-4444-8444-444444444444',
+  serviceId: asServiceId('44444444-4444-4444-8444-444444444444'),
   confirmedServiceBrief: 'Account management for project customers.',
   machineId: '55555555-5555-4555-8555-555555555555',
   scope: {
     scope: 'focused' as const,
     focus: 'Account settings and customer-facing account flows',
   },
-  provider: 'claude',
+  provider: 'claude' as const,
   resolvedFrontierModel: 'frontier-model',
   reasoningEffort: 'high' as const,
   bounds,

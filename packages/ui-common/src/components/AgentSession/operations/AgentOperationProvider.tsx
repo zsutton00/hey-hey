@@ -28,6 +28,10 @@ import {
   agentSessionsClient,
   unifiedApiClient,
 } from "../../../clients/serviceClients";
+import {
+  toOpenApiAgentSessionId,
+  toOpenApiMessageId,
+} from "../../../clients/contractIdentifierAdapters";
 import { executeControllerAuthorizedAction } from "../../../data/hooks/useControllerAuthorizedAction";
 import { fingerprintAgentOperation } from "./agentOperationFingerprint";
 import type {
@@ -404,7 +408,7 @@ export const defaultAgentOperationDependencies: AgentOperationDependencies = {
           conversationId: input.conversationId,
           conversationStartRunRequestDto: {
             ...input.intent,
-            agentSessionId: input.agentSessionId,
+            agentSessionId: toOpenApiAgentSessionId(input.agentSessionId),
             operationId,
             operationFingerprint: fingerprint,
             machineId: input.machineId,
@@ -459,7 +463,7 @@ export const defaultAgentOperationDependencies: AgentOperationDependencies = {
           postMessageRequest: {
             ...input.intent,
             type: MessageType.User,
-            agentSessionId: input.agentSessionId,
+            agentSessionId: toOpenApiAgentSessionId(input.agentSessionId),
             operationId,
             operationFingerprint: fingerprint,
             authorization,
@@ -539,8 +543,8 @@ export async function cancelQueuedInput(input: {
     projectId: input.projectId,
     operationId: input.operationId,
     inputCancellationRequest: {
-      agentSessionId: input.agentSessionId,
-      messageId: input.messageId,
+      agentSessionId: toOpenApiAgentSessionId(input.agentSessionId),
+      messageId: toOpenApiMessageId(input.messageId),
     },
   });
   if (!response.data.data)

@@ -82,11 +82,11 @@ export interface HardDeleteWorkItemTypeVariables {
 export type UseEditWorkItemTypeOptions = MutationOptions<ProposalResponseDto>;
 export type UseArchiveWorkItemTypeOptions =
   MutationOptions<ProposalResponseDto>;
-export type UseRestoreWorkItemTypeOptions = MutationOptions<ProposalResponseDto>;
+export type UseRestoreWorkItemTypeOptions =
+  MutationOptions<ProposalResponseDto>;
 export type UseRefreshWorkItemTypeOptions =
   MutationOptions<ProposalResponseDto>;
-export type UseResetWorkItemTypeOptions =
-  MutationOptions<ProposalResponseDto>;
+export type UseResetWorkItemTypeOptions = MutationOptions<ProposalResponseDto>;
 export type UseHardDeleteWorkItemTypeOptions =
   MutationOptions<ProposalResponseDto>;
 export type UseWorkItemTypeSectionContentImpactOptions =
@@ -133,12 +133,7 @@ const initialImpactState = {
 function unwrapWorkItemTypeReviewPayload(
   response: OrganizationsOrganizationIdProjectsProjectIdWorkItemTypesPost201Response,
   operation:
-    | "edit"
-    | "archive"
-    | "restore"
-    | "refresh"
-    | "reset"
-    | "hard-delete",
+    "edit" | "archive" | "restore" | "refresh" | "reset" | "hard-delete",
 ): ProposalResponseDto {
   const proposal = response.data;
 
@@ -379,9 +374,7 @@ export function useMarkHardDeletedWorkItemTypeDataStale() {
           const [, , keyProjectId, kind] = query.queryKey;
           if (kind !== "detail") return keyProjectId === projectId;
           const item = query.state.data as
-            | WorkItemResponseDto
-            | null
-            | undefined;
+            WorkItemResponseDto | null | undefined;
           return item
             ? item.projectId === projectId && item.type === typeKey
             : keyProjectId === projectId;
@@ -608,61 +601,62 @@ export function useWorkItemTypeCascadeImpact(
     enabled,
   ].join("\u0000");
 
-  const refetch = useCallback(async (): Promise<WorkItemTypeCascadeImpactDto | null> => {
-    if (!isEnabled || !organizationId || !projectId || !typeKey) {
-      return null;
-    }
-
-    abortControllerRef.current?.abort();
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
-    setState((current) => ({
-      ...current,
-      isLoading: !current.isFetched,
-      isFetching: true,
-      error: null,
-    }));
-
-    try {
-      const response =
-        await getWorkItemTypesApi().organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCascadeImpactGet(
-          { organizationId, projectId, typeKey },
-          { signal: abortController.signal },
-        );
-      const impact = response.data.data;
-
-      if (!impact) {
-        throw new Error(
-          "No cascade impact payload returned from work-item-type endpoint",
-        );
-      }
-
-      setState({
-        data: impact,
-        isLoading: false,
-        isFetching: false,
-        isFetched: true,
-        error: null,
-        isStale: false,
-      });
-      return impact;
-    } catch (error) {
-      if (abortController.signal.aborted) {
+  const refetch =
+    useCallback(async (): Promise<WorkItemTypeCascadeImpactDto | null> => {
+      if (!isEnabled || !organizationId || !projectId || !typeKey) {
         return null;
       }
 
-      const normalizedError =
-        error instanceof Error ? error : new Error(String(error));
+      abortControllerRef.current?.abort();
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
       setState((current) => ({
         ...current,
-        isLoading: false,
-        isFetching: false,
-        isFetched: true,
-        error: normalizedError,
+        isLoading: !current.isFetched,
+        isFetching: true,
+        error: null,
       }));
-      throw normalizedError;
-    }
-  }, [isEnabled, organizationId, projectId, typeKey]);
+
+      try {
+        const response =
+          await getWorkItemTypesApi().organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCascadeImpactGet(
+            { organizationId, projectId, typeKey },
+            { signal: abortController.signal },
+          );
+        const impact = response.data.data;
+
+        if (!impact) {
+          throw new Error(
+            "No cascade impact payload returned from work-item-type endpoint",
+          );
+        }
+
+        setState({
+          data: impact,
+          isLoading: false,
+          isFetching: false,
+          isFetched: true,
+          error: null,
+          isStale: false,
+        });
+        return impact;
+      } catch (error) {
+        if (abortController.signal.aborted) {
+          return null;
+        }
+
+        const normalizedError =
+          error instanceof Error ? error : new Error(String(error));
+        setState((current) => ({
+          ...current,
+          isLoading: false,
+          isFetching: false,
+          isFetched: true,
+          error: normalizedError,
+        }));
+        throw normalizedError;
+      }
+    }, [isEnabled, organizationId, projectId, typeKey]);
 
   const markStale = useCallback(() => {
     setState((current) => ({ ...current, isStale: true }));
@@ -714,10 +708,7 @@ export function useResetWorkItemType(
           },
         );
 
-      const proposal = unwrapWorkItemTypeReviewPayload(
-        response.data,
-        "reset",
-      );
+      const proposal = unwrapWorkItemTypeReviewPayload(response.data, "reset");
       markWorkItemTypeDataStale(organizationId, projectId, typeKey);
       return proposal;
     },
@@ -790,7 +781,7 @@ export function useWorkItemTypeSectionContentImpact(
             organizationId: fetchOrganizationId,
             projectId: fetchProjectId,
             typeKey: fetchTypeKey,
-            removedSectionKeys: fetchRemovedSectionKeys,
+            removedSectionKeys: Array.from(fetchRemovedSectionKeys),
           },
           { signal },
         );
@@ -848,7 +839,9 @@ export function useWorkItemTypeTrackingLinkRevocationImpact(
             organizationId: fetchOrganizationId,
             projectId: fetchProjectId,
             typeKey: fetchTypeKey,
-            revokedTrackingSourceTypeKeys: fetchRevokedTrackingSourceTypeKeys,
+            revokedTrackingSourceTypeKeys: Array.from(
+              fetchRevokedTrackingSourceTypeKeys,
+            ),
           },
           { signal },
         );

@@ -1,3 +1,4 @@
+import { TaskMonitorLaunchRecoverySystemMessageDataAllOfAgentIdentityEnum as TaskMonitorLaunchRecoverySystemMessageDataAgentIdentityEnum } from '@hey-hey/contracts/api/models';
 import {
   MessageStatus,
   MessageType,
@@ -6,11 +7,15 @@ import {
   TaskMonitorLaunchRecoveryCollision,
   TaskMonitorLaunchRecoveryCorrectionMode,
   TaskMonitorLaunchRecoveryLifecycle,
-  TaskMonitorLaunchRecoverySystemMessageDataAgentIdentityEnum,
   type CreateSystemMessage,
   type TaskMonitorLaunchRecoverySystemMessageData,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { ProjectTaskMonitorLaunchRecoveryEffect } from './state-machine/effects';
+import {
+  toOpenApiConversationId,
+  toOpenApiProjectId,
+  toOpenApiTaskId,
+} from '../../shared/api/identifierAdapters';
 
 export type TaskMonitorLaunchRecoveryMessage = Omit<
   CreateSystemMessage,
@@ -29,9 +34,9 @@ export const toTaskMonitorLaunchRecoveryData = (
     agentIdentity:
       TaskMonitorLaunchRecoverySystemMessageDataAgentIdentityEnum.TaskMonitorCoordinator,
     taskMonitorId: effect.taskMonitorId,
-    taskId: effect.taskId,
+    taskId: toOpenApiTaskId(effect.taskId),
     agentSessionId: effect.agentSessionId,
-    conversationId: effect.conversationId,
+    conversationId: toOpenApiConversationId(effect.conversationId),
     serviceId: effect.failure.serviceId,
     repositoryPath: effect.failure.repositoryPath,
     branch: effect.failure.branch,
@@ -55,7 +60,7 @@ export const toTaskMonitorLaunchRecoveryMessage = (
   effect: ProjectTaskMonitorLaunchRecoveryEffect,
 ): TaskMonitorLaunchRecoveryMessage =>
   ({
-    projectId,
+    projectId: toOpenApiProjectId(projectId),
     type: MessageType.System,
     status: MessageStatus.Completed,
     data: toTaskMonitorLaunchRecoveryData(conversationId, effect),

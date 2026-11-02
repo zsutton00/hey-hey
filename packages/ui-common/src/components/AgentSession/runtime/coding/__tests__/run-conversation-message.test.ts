@@ -158,9 +158,9 @@ describe("parseRunConversationMessageSubmission", () => {
       },
     });
     if (parsed?.kind === "startup_plan_review") {
-      expect(parsed.submission.review.originalPlan.requiredServiceIds).toBe(
-        requiredServiceIds,
-      );
+      expect(
+        parsed.submission.review.originalPlan.requiredServiceIds,
+      ).toStrictEqual(requiredServiceIds);
     }
   });
 

@@ -1,7 +1,7 @@
-import type { ReadRestriction, ReportDto } from '../shared/api/generated/api';
+import type { ReadRestriction, ReportDto } from '@hey-hey/contracts/api/models';
 import { z } from 'zod';
+import { EntityPromptTemplatesApiFactory } from '@hey-hey/contracts/api';
 import {
-  EntityPromptTemplatesApiFactory,
   EntityPromptTemplateFixedEntitySelectorDtoEntityTypeEnum,
   EntityPromptTemplateSelectorEntityType,
   EntityPromptTemplateSyntaxVersion,
@@ -12,17 +12,14 @@ import {
   EntityPromptTemplateProjectOwnershipScopeDtoScopeEnum,
   type EntityPromptTemplateEffectiveDtoOwnershipSource,
   type EntityPromptTemplateSelectorDto,
-} from '../shared/api/generated/api';
-import { Configuration } from '../shared/api/generated/configuration';
-import type {
-  LocalPromptStartupInput,
-  LocalPromptTaskType,
-} from '../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/api/models';
+import { Configuration } from '@hey-hey/contracts/api/configuration';
+import type { LocalPromptStartupInput, LocalPromptTaskType } from '@hey-hey/contracts/agent-bridge';
 import {
   LocalPromptTaskType as PromptTaskType,
   RunEntityReferenceEntityTypeEnum as RunEntityType,
   type RunEntityReference,
-} from '../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type { ServerLogger } from '../server/logger';
 import type { SubmissionToolAuth } from '../agents/submission-tools/submission-tool-auth';
 import { EntityContextLoader } from '../agents/entity-context/entity-context-loader';
@@ -44,6 +41,7 @@ import {
 import { EntityReportReader, type EntityReportReadScope } from './entity-report-reader';
 import { parseEntityPromptTemplate } from '../shared/api/generated/entity-prompt-template-language';
 import type { ReportChainEntry } from '../run/types';
+import { toOpenApiProjectId } from '../shared/api/identifierAdapters';
 
 export type EntityPromptTemplatesApiClient = Pick<
   ReturnType<typeof EntityPromptTemplatesApiFactory>,
@@ -652,7 +650,14 @@ export class AgentStartupPromptInput {
 
       const provenance: AgentStartupPromptTemplateProvenance = {
         templateKey,
-        ownershipSource: effectiveTemplate.ownershipSource,
+        ownershipSource:
+          effectiveTemplate.ownershipSource.scope ===
+          EntityPromptTemplateProjectOwnershipScopeDtoScopeEnum.Project
+            ? {
+                ...effectiveTemplate.ownershipSource,
+                projectId: toOpenApiProjectId(effectiveTemplate.ownershipSource.projectId),
+              }
+            : effectiveTemplate.ownershipSource,
         revisionId: effectiveTemplate.revisionId,
         revisionNumber: effectiveTemplate.revisionNumber,
       };

@@ -3,9 +3,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { transition } from 'xstate';
+import { asMessageId } from '../../../../test-utils/contract-ids';
 
 import { MachineRegistry, MachineRuntime, MachineStateStore } from '../../../../state-machine';
-import type { MonitorCommandBody1 as MonitorCommandBody } from '../../../../shared/agent-bridge-contract/generated/api';
+import type { MonitorCommandBody1 as MonitorCommandBody } from '@hey-hey/contracts/agent-bridge';
 import { RunWorktreeCollisionError } from '../../../run-scope';
 import type { TaskMonitorMachineContext } from '../context';
 import { haltTaskMonitorControlEffect } from '../effects';
@@ -789,7 +790,7 @@ describe('Task Monitor machine definition', () => {
 
   it('maps a generated resolved judgment into the durable machine event', () => {
     const judgment = {
-      requestMessageId: 'judgment-request-1',
+      requestMessageId: asMessageId('judgment-request-1'),
       label: 'Your judgment',
       conclusion: 'The completed work looks correct.',
     };
@@ -2142,7 +2143,7 @@ describe('Task Monitor machine definition', () => {
       failureReason: 'The previous Resume delivery was interrupted.',
     };
     const judgment = {
-      requestMessageId: 'b0000000-0000-4000-8000-00000000000b',
+      requestMessageId: asMessageId('b0000000-0000-4000-8000-00000000000b'),
       label: 'Resume judgment',
       conclusion: 'Reconcile the current run again.',
     };

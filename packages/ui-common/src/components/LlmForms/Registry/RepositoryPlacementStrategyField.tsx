@@ -16,6 +16,7 @@ import {
   type RepositoryPlacementStrategyPayload,
   type RepositoryPlacementStrategySubmission,
 } from "../../../api";
+import { toOpenApiTaskId } from "../../../clients/contractIdentifierAdapters";
 import { useFeatureHierarchy } from "../../../data/hooks/useFeatureHierarchy";
 import { FeaturePicker } from "../../Features/FeaturePicker";
 import type { FieldComponentProps } from "./types";
@@ -37,7 +38,7 @@ const StrategyLabel: React.FC<{
 );
 
 const isPayload = (
-  value: unknown
+  value: unknown,
 ): value is RepositoryPlacementStrategyPayload =>
   typeof value === "object" && value !== null && "roots" in value;
 
@@ -58,20 +59,20 @@ export const RepositoryPlacementStrategyField: React.FC<
     value?.action === "ADD_TO_EXISTING" &&
       value.parent.targetType === "PENDING_HOLDER"
       ? "holder"
-      : "existing"
+      : "existing",
   );
   const [featureId, setFeatureId] = useState<string | null>(
     value?.action === "ADD_TO_EXISTING" &&
       value.parent.targetType === "EXISTING_FEATURE"
       ? value.parent.featureId
-      : null
+      : null,
   );
   const [holderName, setHolderName] = useState("");
   const [holderDescription, setHolderDescription] = useState("");
   const [holderTag, setHolderTag] = useState<FeatureTag>(FeatureTag.Product);
   const featureHierarchy = useFeatureHierarchy(
     context.organizationId,
-    context.projectId
+    context.projectId,
   );
   const existingFeatureAvailability: ExistingFeatureAvailability =
     featureHierarchy.error
@@ -105,7 +106,10 @@ export const RepositoryPlacementStrategyField: React.FC<
       return featureId
         ? {
             action: strategy,
-            parent: { targetType: "EXISTING_FEATURE", featureId },
+            parent: {
+              targetType: "EXISTING_FEATURE",
+              featureId: toOpenApiTaskId(featureId),
+            },
           }
         : undefined;
     }

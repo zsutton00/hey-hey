@@ -1,3 +1,4 @@
+import { asUserId } from '../test-utils/contract-ids';
 import { controllerActionRuntimeSchema } from '../shared/api/generated/controller-action-contract';
 import { randomUUID } from 'node:crypto';
 import { directActionHarness } from './controller-authorization/direct-action.test-support';
@@ -14,12 +15,11 @@ import { parsePersistedRunFamilyManifest } from '../run-store/run-family';
 import { legacyRunFamilyMemberFileName, RUN_FAMILY_MEMBERS } from '../run-store/run-files';
 import {
   CliReadErrorCode,
-  CliReadChangedFileDetailStatusEnum,
-  CliReadChangedFileInventoryEntryStatusEnum,
+  CliReadChangedFileInventoryEntryAllOfStatusEnum,
   type CliReadChangedFileDetail,
   type CliReadProviderUsageResult,
   type CliReadRuntimeModelCatalogResult,
-} from '../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import { RepoMappingStore } from '../repo';
 import type { Run } from '../run/run';
 import type { RunChangedFilesDiagnosticEntry } from '../run-store/changed-files-diagnostics';
@@ -71,7 +71,7 @@ const verifiedRead = (
     frame,
     envelope: {
       machineId,
-      userId,
+      userId: asUserId(userId),
       nonce,
       timestampMs: 1,
       signature: 'signature',
@@ -236,7 +236,7 @@ const createSubject = (
         serviceId: changedServiceId,
         repoPath,
         filePath,
-        status: CliReadChangedFileInventoryEntryStatusEnum.Modify,
+        status: CliReadChangedFileInventoryEntryAllOfStatusEnum.Modify,
       })),
     );
   if (subjectOptions.changedFilesError) {
@@ -766,7 +766,7 @@ describe('CliReadHandler', () => {
       serviceId,
       repoPath: '/tmp/repository',
       filePath: 'src/example.ts',
-      status: CliReadChangedFileDetailStatusEnum.Modify,
+      status: CliReadChangedFileInventoryEntryAllOfStatusEnum.Modify,
       diff: '@@ -1 +1 @@\n-before\n+after',
       preContent: 'before',
       postContent: 'after',
@@ -806,7 +806,7 @@ describe('CliReadHandler', () => {
       serviceId,
       repoPath: '/tmp/repository',
       filePath: 'src/example.ts',
-      status: CliReadChangedFileDetailStatusEnum.Modify,
+      status: CliReadChangedFileInventoryEntryAllOfStatusEnum.Modify,
       diff: 'x'.repeat(1_048_577),
       preContent: null,
       postContent: null,
@@ -844,7 +844,7 @@ describe('CliReadHandler', () => {
       serviceId,
       repoPath: '/tmp/repository',
       filePath: 'src/example.ts',
-      status: CliReadChangedFileDetailStatusEnum.Modify,
+      status: CliReadChangedFileInventoryEntryAllOfStatusEnum.Modify,
       diff: 'diff',
       preContent: 'before',
       postContent: 'y'.repeat(1_048_577),

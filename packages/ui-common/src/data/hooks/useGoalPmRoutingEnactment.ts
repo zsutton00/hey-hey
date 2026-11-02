@@ -5,6 +5,10 @@ import type {
   RunCreatePayloadEntityConversation,
 } from "../../api";
 import { suggestionsClient } from "../../clients/serviceClients";
+import {
+  toOpenApiConversationId,
+  toOpenApiProjectId,
+} from "../../clients/contractIdentifierAdapters";
 import { invalidateConversationMessages } from "../collections/messages";
 import { useAgentSessionInteractionAccessResolver } from "../../components/AgentSession/operations/useAgentSessionInteractionAccess";
 import { useMutation } from "../core/useMutation";
@@ -77,7 +81,7 @@ export function useGoalPmRoutingEnactment() {
             ? await access.interactions.startSession({
                 ...identity,
                 intent: {
-              attachments: [],
+                  attachments: [],
                   handlerPromptType: "entity_conversation",
                   payload,
                   model: creation.config.model,
@@ -101,8 +105,8 @@ export function useGoalPmRoutingEnactment() {
             : await access.interactions.submitMessage({
                 ...identity,
                 intent: {
-                  projectId,
-                  conversationId: outcome.entityId,
+                  projectId: toOpenApiProjectId(projectId),
+                  conversationId: toOpenApiConversationId(outcome.entityId),
                   type: "USER",
                   data: {
                     agentInput:

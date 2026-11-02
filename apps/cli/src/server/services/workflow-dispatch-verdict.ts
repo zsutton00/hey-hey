@@ -6,9 +6,9 @@
  * sentinel arrives, and by the Run to read the current workflow node.
  */
 
-import type { WorkflowsApiGetConversationPromptTypeRequest } from '../../shared/api';
-import type { WorkflowsApiGetConversationWorkflowNodeRequest } from '../../shared/api/generated/api';
-import type { FeatureSyncDiscrepancy } from '../../shared/agent-bridge-contract/generated/api';
+import type { WorkflowsApiGetConversationPromptTypeRequest } from '@hey-hey/contracts/api/apis/workflows-api';
+import type { WorkflowsApiGetConversationWorkflowNodeRequest } from '@hey-hey/contracts/api';
+import type { FeatureSyncDiscrepancy } from '@hey-hey/contracts/agent-bridge';
 
 /**
  * The FEATURE_SYNC_REVIEW variant of the prompt-type response's `gate` union.

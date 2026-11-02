@@ -3891,6 +3891,9 @@ components:
       allOf:
         - "$ref": "#/components/schemas/EvalEventEnvelope"
         - type: object
+          required:
+            - type
+            - payload
           properties:
             type:
               type: string
@@ -3921,6 +3924,9 @@ components:
       allOf:
         - "$ref": "#/components/schemas/EvalEventEnvelope"
         - type: object
+          required:
+            - type
+            - payload
           properties:
             type:
               type: string

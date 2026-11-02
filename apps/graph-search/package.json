@@ -12,7 +12,8 @@
     "test:model": "cargo test --locked --test encoder -- --ignored",
     "check": "pnpm lint && pnpm type-check && pnpm test",
     "test:container": "bash scripts/test-container.sh",
-    "generate:graph-contracts": "node scripts/generate-graph-models.cjs"
+    "generate:graph-contracts": "node ../../scripts/generate-contracts.mjs --target=graph-search",
+    "generate:graph-contracts:unlocked": "node ../../scripts/require-openapi-staging.cjs && node scripts/generate-graph-models.cjs"
   },
   "devDependencies": {
     "yaml": "2.9.1"

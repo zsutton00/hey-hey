@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ProjectsApi } from '../../shared/api/index';
+import { ProjectsApi } from '../../shared/api/clients';
 import { readProjectMaturity } from './project-session-context';
 vi.mock('../../auth/index', () => ({
   extractOrganizationIdFromToken: vi.fn(() => 'organization'),

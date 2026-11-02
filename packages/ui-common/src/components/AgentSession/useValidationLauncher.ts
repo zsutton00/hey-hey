@@ -7,6 +7,7 @@ import {
   type ValidationLaunchContext,
 } from "../../api";
 import { useCreateAgentSession } from "../../data/hooks/useCreateAgentSession";
+import { toOpenApiProjectId } from "../../clients/contractIdentifierAdapters";
 
 export type ValidationScope = ValidationLaunchContextScopeEnum;
 
@@ -117,7 +118,7 @@ export const useValidationLauncher = ({
         const session = await mutate({
           organizationId,
           agentSession: {
-            projectId,
+            projectId: toOpenApiProjectId(projectId),
             sessionDate: new Date().toISOString(),
             title: input.title ?? buildDefaultTitle(input.scope),
             type: AgentSessionType.Validation,

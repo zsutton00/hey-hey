@@ -1,7 +1,7 @@
 import Ajv, { type ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
 import { z } from 'zod';
-import { repositoryFeatureEnrichmentRuntimeSchema } from 'src/contracts/repository-feature-enrichment-runtime-schema';
+import { repositoryFeatureEnrichmentRuntimeSchema } from '@hey-hey/contracts/agent-bridge/runtime-schema';
 
 export function createOpenApiRuntimeSchema<T>(
   definition: string,

@@ -208,7 +208,7 @@ const projectExplicitRelationships = (
     reservedEntityId: string;
   })[],
 ): ProjectedWorkItemRelationship[] => {
-  const selectedByProposalId = new Map(
+  const selectedByProposalId = new Map<string, (typeof members)[number]>(
     members.map((member) => [member.proposal.id, member] as const),
   );
 

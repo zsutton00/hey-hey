@@ -18,10 +18,8 @@
  */
 
 import type { PromptTypeRegistry } from '../../agents/prompt-type-registry';
-import type {
-  DefaultApiGetMessageRequest,
-  WorkflowsApiGetConversationPromptTypeRequest,
-} from '../../shared/api';
+import type { ConversationsApiGetMessageRequest } from '@hey-hey/contracts/api/apis/conversations-api';
+import type { WorkflowsApiGetConversationPromptTypeRequest } from '@hey-hey/contracts/api/apis/workflows-api';
 import type { AgenticSession } from '../../session/index';
 import type {
   LocalRunPromptRequest,
@@ -32,7 +30,7 @@ import {
   resolvePromptText,
   toInternalRunPromptRequest,
 } from '../../shared/agent-bridge-contract/contract';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { LocalAgentApiError } from '../../shared/agent-bridge-contract/errors';
 import type { ServerLogger } from '../logger';
 import { requestContext } from '../request-context';
@@ -84,7 +82,7 @@ export interface WorkflowsPromptTypeApiClient {
  * only needs the discriminator and the raw `triggersAgent` here.
  */
 export interface MessagesGetMessageApiClient {
-  getMessage(request: DefaultApiGetMessageRequest): Promise<{
+  getMessage(request: ConversationsApiGetMessageRequest): Promise<{
     data?: {
       data?: {
         id?: string;

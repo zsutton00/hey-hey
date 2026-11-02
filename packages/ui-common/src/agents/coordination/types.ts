@@ -209,7 +209,12 @@ export interface StartupClarificationQuestion {
   relatedSourceRefs?: StartupSourceRef[] | undefined;
 }
 
-export type StartupSessionPlanResponse = CodingPromptStartupPlanPayload;
+export type StartupSessionPlanResponse = Omit<
+  CodingPromptStartupPlanPayload,
+  "requiredServiceIds"
+> & {
+  requiredServiceIds: Set<string>;
+};
 
 export interface StartupQuestionAnswer {
   question: string;
@@ -246,7 +251,7 @@ export interface FinalAssessmentStartupDiscrepancyContextItem {
 
 export interface StartupPlanReviewResponse {
   responseType: "startup_plan_review_v1";
-  originalPlan: StartupSessionPlanResponse;
+  originalPlan: CodingPromptStartupPlanPayload;
   questionAnswers: StartupQuestionAnswer[];
   discrepancyDispositions: StartupDiscrepancyReview[];
 }

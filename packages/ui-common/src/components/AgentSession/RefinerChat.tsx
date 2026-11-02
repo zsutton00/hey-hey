@@ -11,6 +11,7 @@ import {
   type AgentSessionDto,
   type EntityType,
 } from "../../api";
+import { toOpenApiProjectId } from "../../clients/contractIdentifierAdapters";
 import { useAgentSessions } from "../../data/hooks/useAgentSessions";
 import { useCreateAgentSession } from "../../data/hooks/useCreateAgentSession";
 import { getErrorMessage } from "../../utils/errorUtils";
@@ -214,7 +215,7 @@ export const RefinerChat: React.FC<RefinerChatProps> = ({
       const promise = createSession({
         organizationId,
         agentSession: {
-          projectId,
+          projectId: toOpenApiProjectId(projectId),
           sessionDate: new Date().toISOString(),
           type: AgentSessionType.EntityConversation,
           entityType,

@@ -14,6 +14,7 @@ import {
   EntityType,
   type AgentSessionDto,
 } from "../../../api";
+import { toOpenApiProjectId } from "../../../clients/contractIdentifierAdapters";
 import { useCreateAgentSession } from "../../../data/hooks/useCreateAgentSession";
 
 export interface AlignmentCheckContentProps {
@@ -56,7 +57,7 @@ export const AlignmentCheckContent: React.FC<AlignmentCheckContentProps> = ({
     createSession({
       organizationId,
       agentSession: {
-        projectId,
+        projectId: toOpenApiProjectId(projectId),
         sessionDate: new Date().toISOString(),
         title: "Design Doc Alignment Check",
         entityType: EntityType.DesignDoc,

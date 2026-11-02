@@ -11,8 +11,8 @@ import type {
   LocalStartupSessionPromptPayload,
   LocalVerificationPlanPromptPayload,
 } from '../../shared/agent-bridge-contract/index';
-import type { LocalEntityConversationEntityEntityTypeEnum } from '../../shared/agent-bridge-contract/generated/api';
-import type { ImplementationReadinessSourceSnapshot } from '../../shared/api/generated/api';
+import type { RunEntityReferenceEntityTypeEnum } from '@hey-hey/contracts/agent-bridge';
+import type { ImplementationReadinessSourceSnapshot } from '@hey-hey/contracts/api/models';
 import { buildChildTaskUpdatesPrompt } from './child-task-updates';
 import {
   buildPlatformSystemPrompt,
@@ -1889,7 +1889,7 @@ describe('buildEntityConversationPrompt', () => {
         makeEntityPayload({
           entity: {
             entityId: 'task-1',
-            entityType: '' as LocalEntityConversationEntityEntityTypeEnum,
+            entityType: '' as RunEntityReferenceEntityTypeEnum,
           },
         }),
       ),

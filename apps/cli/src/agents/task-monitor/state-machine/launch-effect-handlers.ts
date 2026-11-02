@@ -11,8 +11,8 @@ import {
   EntityType,
   MachineEffectHttpMethod,
   type SubmitTaskMonitorRunEffectRequestDto,
-} from '../../../shared/api/generated/api';
-import type { TaskMonitorPlanGuidance } from '../../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/api/models';
+import type { TaskMonitorPlanGuidance } from '@hey-hey/contracts/agent-bridge';
 import {
   buildTaskMonitorRunEffectPayload,
   taskMonitorConversationWorkflow,
@@ -33,6 +33,7 @@ import type {
   StartTaskMonitorRunEffect,
 } from './effects';
 import type { TaskMonitorMachineEffectOutcome } from './events';
+import { toOpenApiProjectId } from '../../../shared/api/identifierAdapters';
 
 const runEffectResponseSchema = z
   .object({
@@ -87,12 +88,12 @@ export const taskMonitorLaunchInputFromDeclaration = (
     model: launch.model,
     reasoningEffort: launch.reasoningEffort,
     ...(launch.fastMode === undefined ? {} : { fastMode: launch.fastMode }),
-    ...(launch.worktree
+    ...(launch.worktree?.enabled
       ? {
           worktree: {
-            enabled: launch.worktree.enabled,
+            enabled: true,
             ...(launch.worktree.branch ? { branch: launch.worktree.branch } : {}),
-          },
+          } satisfies NonNullable<TaskMonitorCodingSessionLaunchInput['launchConfig']['worktree']>,
         }
       : {}),
   },
@@ -172,7 +173,7 @@ export class TaskMonitorAgentSessionEffectHandler implements EffectHandler<
         organizationId: input.organizationId,
         projectId: input.projectId,
         createAgentSessionDto: {
-          projectId: input.projectId,
+          projectId: toOpenApiProjectId(input.projectId),
           sessionDate: new Date().toISOString(),
           title: input.task.name,
           entityType: EntityType.Task,

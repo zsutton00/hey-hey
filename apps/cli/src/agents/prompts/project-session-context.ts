@@ -1,5 +1,6 @@
 import { extractOrganizationIdFromToken } from '../../auth/index';
-import { Configuration, ProjectMaturity, ProjectsApi } from '../../shared/api/index';
+import { ProjectMaturity } from '../../shared/api/index';
+import { Configuration, ProjectsApi } from '../../shared/api/index';
 
 /** Reads the project's maturity stage; throws when the response lacks a valid stage. */
 export const readProjectMaturity = async (

@@ -10,6 +10,7 @@
 // Run `node scripts/build.mjs` for a one-off build, or with `--watch` to
 // rebuild on change (used by the dev:build script).
 import * as esbuild from 'esbuild';
+import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { builtinModules } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -21,10 +22,7 @@ const outfile = path.join(cliRoot, 'dist/index.mjs');
 // Externalize every Node builtin in both bare and node:-prefixed form.
 // platform: 'node' covers most, but not bare subpath specifiers such as
 // "readline/promises" — listing builtinModules explicitly closes that gap.
-const nodeBuiltins = [
-  ...builtinModules,
-  ...builtinModules.map((name) => `node:${name}`),
-];
+const nodeBuiltins = [...builtinModules, ...builtinModules.map((name) => `node:${name}`)];
 
 // Ink loads react-devtools-core only when DEV=true. It is an optional peer
 // that is not installed, so the bundle gets an inert stand-in.
@@ -39,6 +37,44 @@ const omitReactDevtools = {
       contents: 'export default { initialize() {}, connectToDevTools() {} };',
       loader: 'js',
     }));
+  },
+};
+
+const sharedContracts = {
+  name: 'shared-contracts',
+  setup(build) {
+    build.onResolve({ filter: /^@hey-hey\/contracts(?:\/.*)?$/ }, (args) => {
+      const subpath = args.path.slice('@hey-hey/contracts'.length).replace(/^\//, '');
+      const generatedRoot = path.join(cliRoot, '../../packages/contracts/dist/esm/generated');
+
+      if (subpath === '') {
+        return { path: path.join(cliRoot, '../../packages/contracts/dist/esm/index.js') };
+      }
+      if (subpath === 'brands') {
+        return { path: path.join(cliRoot, '../../packages/contracts/dist/esm/brands.js') };
+      }
+      if (subpath === 'agent-bridge/runtime-schema') {
+        return {
+          path: path.join(
+            generatedRoot,
+            'agent-bridge/repository-feature-enrichment-runtime-schema.js',
+          ),
+        };
+      }
+
+      const generatedModule = path.join(generatedRoot, subpath);
+      const moduleFile = `${generatedModule}.js`;
+      if (existsSync(moduleFile)) {
+        return { path: moduleFile };
+      }
+
+      const indexFile = path.join(generatedModule, 'index.js');
+      if (existsSync(indexFile)) {
+        return { path: indexFile };
+      }
+
+      throw new Error(`Shared contract module not found: ${args.path}`);
+    });
   },
 };
 
@@ -75,7 +111,7 @@ const buildOptions = {
   // playwright-core resolves its own assets relative to its install directory
   // at runtime, so it stays external like the keyring addon.
   external: ['@napi-rs/keyring', 'playwright-core', ...nodeBuiltins],
-  plugins: [omitReactDevtools],
+  plugins: [omitReactDevtools, sharedContracts],
   logLevel: 'info',
 };
 

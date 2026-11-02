@@ -22,7 +22,40 @@
     "rootDir": "src",
     "baseUrl": ".",
     "paths": {
-      "@hey-hey/ui-common/*": ["src/*"]
+      "@hey-hey/ui-common/*": ["src/*"],
+      "@hey-hey/contracts/api": [
+        "../../packages/contracts/dist/cjs/generated/api/index.d.ts"
+      ],
+      "@hey-hey/contracts/api/models": [
+        "../../packages/contracts/dist/cjs/generated/api/models/index.d.ts"
+      ],
+      "@hey-hey/contracts/api/*": [
+        "../../packages/contracts/dist/cjs/generated/api/*.d.ts"
+      ],
+      "@hey-hey/contracts/agent-bridge": [
+        "../../packages/contracts/dist/cjs/generated/agent-bridge/index.d.ts"
+      ],
+      "@hey-hey/contracts/agent-bridge/models": [
+        "../../packages/contracts/dist/cjs/generated/agent-bridge/models/index.d.ts"
+      ],
+      "@hey-hey/contracts/agent-bridge/runtime-schema": [
+        "../../packages/contracts/dist/cjs/generated/agent-bridge/repository-feature-enrichment-runtime-schema.d.ts"
+      ],
+      "@hey-hey/contracts/agent-bridge/*": [
+        "../../packages/contracts/dist/cjs/generated/agent-bridge/*.d.ts"
+      ],
+      "@hey-hey/contracts/local": [
+        "../../packages/contracts/dist/cjs/generated/local/index.d.ts"
+      ],
+      "@hey-hey/contracts/local/models": [
+        "../../packages/contracts/dist/cjs/generated/local/models/index.d.ts"
+      ],
+      "@hey-hey/contracts/local/*": [
+        "../../packages/contracts/dist/cjs/generated/local/*.d.ts"
+      ],
+      "@hey-hey/contracts/brands": [
+        "../../packages/contracts/dist/cjs/brands.d.ts"
+      ]
     },
     "types": ["node", "vitest/globals", "@testing-library/jest-dom"]
   },
@@ -36,7 +69,5 @@
     "**/*.test.tsx",
     "**/*.stories.tsx"
   ],
-  "references": [
-    { "path": "./tsconfig.api.json" }
-  ]
+  "references": [{ "path": "./tsconfig.api.json" }]
 }

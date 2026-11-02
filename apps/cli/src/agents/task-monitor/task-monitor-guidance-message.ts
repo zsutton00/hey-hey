@@ -1,12 +1,13 @@
+import { UserMessageDataCodingFreeformAllOfPromptTypeEnum as UserMessageDataCodingFreeformPromptTypeEnum } from '@hey-hey/contracts/api/models';
 import {
   MessageStatus,
   MessageType,
   UserMessageAgentInputProvenance,
-  UserMessageDataCodingFreeformPromptTypeEnum,
   type UserMessageDataCodingFreeform,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { MessagePoster } from '../../run/message-poster';
 import type { CreateMessageBody } from '../../run/types';
+import { toOpenApiProjectId } from '../../shared/api/identifierAdapters';
 
 export interface PostTaskMonitorGuidanceMessageArgs {
   poster: MessagePoster;
@@ -30,7 +31,7 @@ export const postTaskMonitorGuidanceMessage = async (
     type: MessageType.User,
     userId: args.userId,
     status: MessageStatus.Completed,
-    projectId: args.projectId,
+    projectId: toOpenApiProjectId(args.projectId),
     data: { agentInput },
     createdAt: new Date().toISOString(),
   };

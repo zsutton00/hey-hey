@@ -1,7 +1,7 @@
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
-import { taskMonitorCoordinatorDecisionJsonSchema } from '../../generated/task-monitor-contract.schema';
-import type { LocalTaskMonitorCoordinatorDecision } from '../../shared/agent-bridge-contract/generated/api';
+import { taskMonitorCoordinatorDecisionJsonSchema } from '@hey-hey/contracts/agent-bridge/custom/task-monitor-contract.schema';
+import type { LocalTaskMonitorCoordinatorDecision } from '@hey-hey/contracts/agent-bridge';
 
 export type TaskMonitorDecisionParseResult =
   | { ok: true; value: LocalTaskMonitorCoordinatorDecision }

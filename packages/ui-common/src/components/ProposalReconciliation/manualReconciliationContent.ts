@@ -49,7 +49,7 @@ export function manualReconciliationContent(
       materializedMarkdown: string;
     }[];
     const before = new Map(
-      baseline.sections.map((section) => [
+      (baseline.sections ?? []).map((section) => [
         section.key,
         section.materializedMarkdown,
       ]),

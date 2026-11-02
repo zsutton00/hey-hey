@@ -16,6 +16,10 @@ import type { UITrackingData } from "../../contexts";
 import type { UIElement } from "../../api";
 import type { FormValue } from "../LlmForms/types";
 import { getSecondaryActionBehavior } from "../LlmForms/Registry";
+import {
+  toOpenApiConversationId,
+  toOpenApiMessageId,
+} from "../../clients/contractIdentifierAdapters";
 import type {
   SecondaryActionConfigWithHandler,
   SecondaryActionContext,
@@ -28,7 +32,7 @@ import {
 } from "./hooks/useSuggestionDecisions";
 
 const getSuggestionTypeForAction = (
-  handler: SecondaryActionHandlerKey
+  handler: SecondaryActionHandlerKey,
 ): SuggestionType | null => {
   switch (handler) {
     case SecondaryActionHandler.AdrContentApply:
@@ -64,7 +68,7 @@ export interface SecondaryActionRendererProps {
   handleNext: (
     data: Record<string, FormValue>,
     messageId: string,
-    options?: SecondaryActionSubmitOptions
+    options?: SecondaryActionSubmitOptions,
   ) => void;
   formValues: Record<string, FormValue>;
   /** True while the form's answer or another secondary action is in flight. */
@@ -110,7 +114,7 @@ export const SecondaryActionRenderer: React.FC<
     trackUI,
     messageId,
     handleNext,
-    uiElements
+    uiElements,
   );
 
   const suggestionId = getSecondaryActionSuggestionId(messageId, action);
@@ -119,7 +123,7 @@ export const SecondaryActionRenderer: React.FC<
 
   const upsertDecision = (
     decision: SuggestionDecisionStatus,
-    metadata?: SuggestionDecisionMetadata
+    metadata?: SuggestionDecisionMetadata,
   ) => {
     suggestionDecisions.upsertDecision({
       ...decision,
@@ -129,7 +133,7 @@ export const SecondaryActionRenderer: React.FC<
 
   const recordDecision = (
     accepted: boolean,
-    metadata?: SuggestionDecisionMetadata
+    metadata?: SuggestionDecisionMetadata,
   ) => {
     if (!suggestionId || !suggestionType) {
       return;
@@ -152,8 +156,8 @@ export const SecondaryActionRenderer: React.FC<
       accepted,
       decidedBy: null,
       createdAt: new Date().toISOString(),
-      sourceConversationId: context.conversationId,
-      sourceMessageId,
+      sourceConversationId: toOpenApiConversationId(context.conversationId),
+      sourceMessageId: toOpenApiMessageId(sourceMessageId),
       metadata,
     };
 
@@ -184,7 +188,7 @@ export const SecondaryActionRenderer: React.FC<
   if (handler === SecondaryActionHandler.VerifyFeature) {
     const field = uiElements.find(
       (element) =>
-        element.id === action.fieldId && element.type === "verify_feature"
+        element.id === action.fieldId && element.type === "verify_feature",
     );
     return field && isVerifyFeaturePayload(field.payload) ? (
       <VerifyFeatureAction check={field.payload} context={context} />

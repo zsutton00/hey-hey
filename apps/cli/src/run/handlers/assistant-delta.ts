@@ -33,6 +33,7 @@ import {
   ExtendedUIFieldType,
 } from '../../shared/api/index';
 import type { AgentSystemMessageData, SystemMessageData, UIElement } from '../../shared/api/index';
+import { toOpenApiProjectId } from '../../shared/api/identifierAdapters';
 import { dispatchResponseType } from '../../agents/response-dispatch';
 import { buildTurnMessageStamp } from './assistant-utils';
 import type { AssistantDeltaEvent, HandlerDeps, MessageStamp } from '../types';
@@ -117,7 +118,7 @@ export const handleAssistantDelta = async (
         dto: {
           type: MessageType.System,
           status: structured?.status ?? MessageStatus.Completed,
-          projectId: ctx.projectId,
+          projectId: toOpenApiProjectId(ctx.projectId),
           data,
         },
         stamp,
@@ -161,7 +162,7 @@ export const handleAssistantDelta = async (
         dto: {
           type: MessageType.System,
           status: MessageStatus.Completed,
-          projectId: ctx.projectId,
+          projectId: toOpenApiProjectId(ctx.projectId),
           data,
         },
         stamp,

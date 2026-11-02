@@ -5,14 +5,17 @@ import {
 import type { WorkItemType } from '@prisma/client';
 import { InMemoryMessageBus } from '../../src/core/events/in-memory-message-bus.service';
 import type { PrismaService } from '../../src/prisma/prisma.service';
-import { EntityType } from '../../src/generated/model/entityType';
-import { ReportType } from '../../src/generated/model/reportType';
-import { TaskSectionKey } from '../../src/generated/model/taskSectionKey';
-
-import { WorkStatus } from '../../src/generated/model/workStatus';
-import type { WorkItemTypeRole } from '../../src/generated/model/workItemTypeRole';
-import type { WorkItemConfigKind } from '../../src/generated/model/workItemConfigKind';
-import type { WorkItemTypeSectionDefinition } from '../../src/generated/model/workItemTypeSectionDefinition';
+import {
+  EntityType,
+  ReportType,
+  TaskSectionKey,
+  WorkStatus,
+} from '@hey-hey/contracts/api/models';
+import type {
+  WorkItemTypeRole,
+  WorkItemConfigKind,
+  WorkItemTypeSectionDefinition,
+} from '@hey-hey/contracts/api/models';
 import { WorkItemTypeRegistryService } from '../../src/services/tasks/work-item-type-registry.service';
 
 const ALL_ENTITY_TYPES = Object.values(EntityType);

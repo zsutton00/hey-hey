@@ -1,3 +1,4 @@
+import { asMessageId } from '../../../../test-utils/contract-ids';
 import { taskMonitorStateStoreCodec } from '../machine';
 import type { EvaluateTaskMonitorSettledRunEffect } from '../effects';
 import { transition } from 'xstate';
@@ -122,7 +123,7 @@ describe('Task Monitor settled Run supervision', () => {
       reason: 'Human judgment is required.',
     });
     const judgment = {
-      requestMessageId: 'judgment-request-1',
+      requestMessageId: asMessageId('judgment-request-1'),
       label: 'Your judgment',
       conclusion: 'The completed work looks correct.',
     };
@@ -286,7 +287,7 @@ describe('Task Monitor settled Run supervision', () => {
       type: 'JUDGMENT_RESOLVED',
       taskMonitorId: MONITOR_ID,
       judgment: {
-        requestMessageId: 'judgment-request-1',
+        requestMessageId: asMessageId('judgment-request-1'),
         label: 'Your judgment',
         conclusion: 'The Review succeeded.',
       },
@@ -470,7 +471,11 @@ describe('invalid coordinator recovery', () => {
     const [wrongReply, wrongActions] = transition(definition.machine, duplicate, {
       type: 'JUDGMENT_RESOLVED',
       taskMonitorId: MONITOR_ID,
-      judgment: { requestMessageId: 'other-request', label: 'Guidance', conclusion: 'Try again.' },
+      judgment: {
+        requestMessageId: asMessageId('other-request'),
+        label: 'Guidance',
+        conclusion: 'Try again.',
+      },
     });
     expect(wrongActions.flatMap((action) => definition.effectFromAction(action) ?? [])).toEqual([]);
     const [posted] = transition(definition.machine, wrongReply, {
@@ -484,7 +489,7 @@ describe('invalid coordinator recovery', () => {
       type: 'JUDGMENT_RESOLVED',
       taskMonitorId: MONITOR_ID,
       judgment: {
-        requestMessageId: 'canonical-request',
+        requestMessageId: asMessageId('canonical-request'),
         label: 'Guidance',
         conclusion: 'Reassess the completed work.',
       },

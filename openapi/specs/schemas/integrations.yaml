@@ -68,18 +68,12 @@ CreateIntegrationDto:
       description: Optional description of what this integration is used for
       example: "Integration for the main product repository"
     config:
-      discriminator:
-        propertyName: type
-        mapping:
-          GITHUB: "#/components/schemas/GitHubIntegrationConfig"
-          JIRA: "#/components/schemas/JiraIntegrationConfig"
-          WEBHOOK: "#/components/schemas/WebhookIntegrationConfig"
       oneOf:
         - $ref: "#/components/schemas/GitHubIntegrationConfig"
         - $ref: "#/components/schemas/JiraIntegrationConfig"
         - $ref: "#/components/schemas/WebhookIntegrationConfig"
       description: |
-        Integration-specific configuration. Structure depends on integration type:
+        Integration-specific configuration selected by the sibling `type` field. The config object does not repeat that discriminator. Structure depends on integration type:
         - GITHUB: GitHubIntegrationConfig with token, repositoryUrl, organization
         - JIRA: JiraIntegrationConfig with instanceUrl, apiToken, email, projectKeys, issueTypes
         - SLACK: { botToken, workspaceId, channels }
@@ -146,18 +140,12 @@ IntegrationResponseDto:
       nullable: true
       description: Optional description of the integration
     config:
-      discriminator:
-        propertyName: type
-        mapping:
-          GITHUB: "#/components/schemas/GitHubIntegrationConfig"
-          JIRA: "#/components/schemas/JiraIntegrationConfig"
-          WEBHOOK: "#/components/schemas/WebhookIntegrationConfig"
       oneOf:
         - $ref: "#/components/schemas/GitHubIntegrationConfig"
         - $ref: "#/components/schemas/JiraIntegrationConfig"
         - $ref: "#/components/schemas/WebhookIntegrationConfig"
       description: |
-        Integration configuration (sensitive fields may be redacted in responses).
+        Integration configuration (sensitive fields may be redacted in responses), selected by the sibling `type` field. The config object does not repeat that discriminator.
         Note: Actual secrets/tokens should be encrypted at rest and may be omitted or masked in API responses.
     targetType:
       $ref: "#/IntegrationTargetType"

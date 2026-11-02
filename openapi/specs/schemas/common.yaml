@@ -314,6 +314,7 @@ ApiResponse:
       example: "Request processed successfully"
     data:
       description: Response data (type varies by endpoint)
+      x-typescript-type: unknown
     timestamp:
       type: string
       format: date-time

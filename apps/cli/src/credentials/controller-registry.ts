@@ -12,6 +12,10 @@ import type {
 } from '../shared/api/index';
 import { KeyPairStore } from './keypair';
 import { canonicalizeJson, type CanonicalJsonValue } from '../shared/canonical-json';
+import {
+  toOpenApiOrganizationId,
+  toOpenApiUserId,
+} from '../shared/api/identifierAdapters';
 
 const REGISTRY_SCHEMA_VERSION = 1;
 const REGISTRY_FILE_ENV = 'HEYHEY_CONTROLLER_REGISTRY_DIR';
@@ -26,8 +30,8 @@ const controllerRegistryEntrySchema = z
     osFamily: z.enum(['macos', 'windows', 'linux']),
     cliVersion: z.string(),
     authorizationProtocolVersion: z.literal(2),
-    accountId: z.string(),
-    organizationId: z.string(),
+    accountId: z.string().transform(toOpenApiUserId),
+    organizationId: z.string().transform(toOpenApiOrganizationId),
     controllerLabel: z.string(),
     controllerCredentialId: z.string(),
     controllerCredentialPublicKey: z

@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { invalidateMembershipQueries } from "../query/projectOrganizationInvalidation";
 import type { ProjectMemberResponseDto, ProjectRole } from "../../api";
 import { unifiedApiClient } from "../../clients/serviceClients";
+import { toOpenApiUserId } from "../../clients/contractIdentifierAdapters";
 import { useMutation } from "../core/useMutation";
 
 export interface AddProjectMemberVariables {
@@ -38,7 +39,7 @@ export function useAddProjectMember(options: UseAddProjectMemberOptions = {}) {
       const response = await unifiedApiClient.addProjectMember({
         organizationId: organizationId,
         projectId: projectId,
-        addProjectMemberDto: { userId, role },
+        addProjectMemberDto: { userId: toOpenApiUserId(userId), role },
       });
 
       const member = response.data?.data;

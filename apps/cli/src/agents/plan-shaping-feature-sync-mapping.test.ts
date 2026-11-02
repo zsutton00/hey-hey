@@ -1,14 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { mapAgentOutputToSystemMessage, type MapAgentOutputInput } from './message-mapping';
-import { MessageType, MessageStatus, SystemMessageDataTypeEnum } from '../shared/api/generated';
+import {
+  MessageType,
+  MessageStatus,
+  SystemMessageDataTypeEnum,
+} from '@hey-hey/contracts/api/models';
+import type { ConversationId, MessageId, ProjectId } from '@hey-hey/contracts/brands';
+
+const PROJECT_ID = 'project-1' as ProjectId;
+const CONVERSATION_ID = 'conv-1' as ConversationId;
+const MESSAGE_ID = 'msg-1' as MessageId;
 
 describe('plan-shaping feature-sync iterate response mapping', () => {
   const createTestInput = (text: string): MapAgentOutputInput => ({
     text,
     timestamp: '2024-01-01T00:00:00Z',
-    projectId: 'project-1',
-    conversationId: 'conv-1',
-    parentMessageId: 'msg-1',
+    projectId: PROJECT_ID,
+    conversationId: CONVERSATION_ID,
+    parentMessageId: MESSAGE_ID,
   });
 
   const validIterateResponse = {
@@ -196,8 +205,8 @@ describe('legacy structured response allowlisting', () => {
   const createTestInput = (text: string): MapAgentOutputInput => ({
     text,
     timestamp: '2024-01-01T00:00:00Z',
-    projectId: 'project-1',
-    conversationId: 'conv-1',
+    projectId: PROJECT_ID,
+    conversationId: CONVERSATION_ID,
   });
 
   const startupPlan = {

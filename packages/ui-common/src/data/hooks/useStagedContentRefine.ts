@@ -6,6 +6,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { stagedContentClient } from "../../clients/serviceClients";
+import { toOpenApiPlanId } from "../../clients/contractIdentifierAdapters";
 import { logger } from "../../utils/logger";
 import type { StagedContentTypeId } from "../../api";
 
@@ -71,7 +72,9 @@ export const useStagedContentRefine = ({
           entityId: entityId,
           stagedContentRefineRequest: {
             message,
-            planId,
+            ...(planId === undefined
+              ? {}
+              : { planId: toOpenApiPlanId(planId) }),
           },
         });
 
@@ -85,7 +88,7 @@ export const useStagedContentRefine = ({
             entityId,
             conversationId: response.data.data?.conversationId,
             workflowId: response.data.data?.workflowId,
-          }
+          },
         );
 
         // Return the important fields from the response
@@ -106,7 +109,7 @@ export const useStagedContentRefine = ({
           "[useStagedContentRefine] Refinement failed",
           {
             error: err,
-          }
+          },
         );
         setRefineError(errorMessage);
         throw err;
@@ -115,7 +118,7 @@ export const useStagedContentRefine = ({
         setIsRefining(false);
       }
     },
-    [organizationId, projectId, contentType, entityId, planId]
+    [organizationId, projectId, contentType, entityId, planId],
   );
 
   return {

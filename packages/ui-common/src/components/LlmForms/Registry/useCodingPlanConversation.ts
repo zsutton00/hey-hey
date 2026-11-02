@@ -2,6 +2,11 @@ import { getErrorMessage } from "../../../utils/errorUtils";
 import { useState } from "react";
 import { LocalPromptType, MessageType, WorkflowName } from "../../../api";
 import { workflowsClient } from "../../../clients/serviceClients";
+import {
+  toOpenApiConversationId,
+  toOpenApiMessageId,
+  toOpenApiProjectId,
+} from "../../../clients/contractIdentifierAdapters";
 import { useAgentSession } from "../../../data/hooks/useAgentSession";
 import { submitControllerAuthorizedWorkflowAnswer } from "../../../data/hooks/submitControllerAuthorizedWorkflowAnswer";
 import { useAgentSessionInteractionAccess } from "../../AgentSession/operations/useAgentSessionInteractionAccess";
@@ -47,9 +52,9 @@ export function useCodingPlanConversation(context: FieldComponentContext) {
           agentSessionId: context.agentSessionId,
           intent: {
             type: MessageType.User,
-            projectId: context.projectId,
-            conversationId: context.conversationId,
-            parentMessageId: context.messageId,
+            projectId: toOpenApiProjectId(context.projectId),
+            conversationId: toOpenApiConversationId(context.conversationId),
+            parentMessageId: toOpenApiMessageId(context.messageId),
             data: {
               agentInput: buildFollowupAgentInput(
                 LocalPromptType.StartupSession,

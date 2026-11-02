@@ -13,6 +13,11 @@ import {
   WorkflowName,
 } from "../../api";
 import { conversationsClient } from "../../clients/serviceClients";
+import {
+  toOpenApiConversationId,
+  toOpenApiProjectId,
+  toOpenApiWorkflowId,
+} from "../../clients/contractIdentifierAdapters";
 import { fingerprintAgentOperation } from "../../components/AgentSession/operations/agentOperationFingerprint";
 import { useAgentSessionInteractionAccessResolver } from "../../components/AgentSession/operations/useAgentSessionInteractionAccess";
 import { projectRepositoryImportReviewAnswers } from "../../components/Conversation/utils/onboardingReviewSubmission";
@@ -144,7 +149,7 @@ export function useRepositoryGroundingAnalysisLaunch() {
         const session = await createAgentSession({
           organizationId: input.organizationId,
           agentSession: {
-            projectId: input.projectId,
+            projectId: toOpenApiProjectId(input.projectId),
             sessionDate: new Date().toISOString(),
             title: "Repository analysis",
             type: AgentSessionType.Coding,
@@ -153,8 +158,8 @@ export function useRepositoryGroundingAnalysisLaunch() {
             provider: configuration.provider,
             config: runtimeConfig,
             existingWorkflowBinding: {
-              conversationId: input.conversationId,
-              workflowId: input.workflowId,
+              conversationId: toOpenApiConversationId(input.conversationId),
+              workflowId: toOpenApiWorkflowId(input.workflowId),
             },
           },
         });

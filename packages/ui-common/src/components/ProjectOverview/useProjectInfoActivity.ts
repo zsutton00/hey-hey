@@ -12,12 +12,21 @@ import { useWorkItemTypes } from "../../data/hooks/useWorkItemTypes";
 import { useWorkItems } from "../../data/hooks/useWorkItems";
 import {
   readSettled,
-  isRecord,
   getProjectInfoProposalIconType,
   activityIdentity,
   useIdentitySnapshot,
 } from "./projectInfoActivityState";
 const PROJECT_INFO_PROPOSAL_PAGE_SIZE = 8;
+
+const hasExplicitTaskType = (
+  updates: ProposalResponseDto["updates"],
+): boolean => {
+  if (!("type" in updates)) {
+    return false;
+  }
+
+  return typeof updates.type === "string" && updates.type.trim().length > 0;
+};
 
 export type ProjectInfoActivityProposal = {
   proposal: ProposalResponseDto;
@@ -44,7 +53,7 @@ const usePaginatedProjectInfoProposals = (
   projectId: string,
   action: ProposalAction,
   windowStart: string | undefined,
-  windowEnd: string | undefined
+  windowEnd: string | undefined,
 ): PaginatedProjectInfoProposals => {
   const [selection, setSelection] = React.useState({ scope: "", page: 1 });
   const scope = activityIdentity([
@@ -81,7 +90,7 @@ const usePaginatedProjectInfoProposals = (
       }
       setSelection({ scope, page: nextPage });
     },
-    [page, query.isFetching, totalPages, scope]
+    [page, query.isFetching, totalPages, scope],
   );
 
   return {
@@ -104,7 +113,7 @@ export const useProjectInfoActivity = (
   projectId: string,
   activeTab: "created" | "updated",
   windowStart?: string,
-  windowEnd?: string
+  windowEnd?: string,
 ) => {
   const registryQuery = useWorkItemTypes(organizationId, { projectId });
   const createdQuery = usePaginatedProjectInfoProposals(
@@ -112,14 +121,14 @@ export const useProjectInfoActivity = (
     projectId,
     ProposalAction.Create,
     windowStart,
-    windowEnd
+    windowEnd,
   );
   const updatedQuery = usePaginatedProjectInfoProposals(
     organizationId,
     projectId,
     ProposalAction.Update,
     windowStart,
-    windowEnd
+    windowEnd,
   );
 
   const identity = activityIdentity([
@@ -138,14 +147,14 @@ export const useProjectInfoActivity = (
     identity,
     proposalsReady
       ? { created: createdQuery.data, updated: updatedQuery.data }
-      : undefined
+      : undefined,
   );
   const registryByKey = React.useMemo(() => {
     const entries = registryQuery.workItemTypes
       .filter(
         (summary) =>
           summary.projectId === projectId &&
-          summary.status === WorkItemTypeLifecycleStatus.Active
+          summary.status === WorkItemTypeLifecycleStatus.Active,
       )
       .map((summary) => [summary.definition.key, summary] as const);
     return new Map(entries);
@@ -157,10 +166,7 @@ export const useProjectInfoActivity = (
     return [...proposalSnapshot.created, ...proposalSnapshot.updated]
       .filter((proposal) => {
         if (proposal.targetEntityType !== TargetEntityType.Task) return false;
-        const updates = isRecord(proposal.updates) ? proposal.updates : null;
-        return (
-          typeof updates?.type !== "string" || updates.type.trim().length === 0
-        );
+        return !hasExplicitTaskType(proposal.updates);
       })
       .map((proposal) => proposal.targetEntityId)
       .filter((id) => id.length > 0)
@@ -176,13 +182,13 @@ export const useProjectInfoActivity = (
       taskIds: taskTargetIds,
       enabled: taskTargetIds.length > 0,
       websocketsEnabled: false,
-    }
+    },
   );
 
   const targetTypes = React.useMemo(
     () =>
       new Map(targetTasksQuery.workItems.map((item) => [item.id, item.type])),
-    [targetTasksQuery.workItems]
+    [targetTasksQuery.workItems],
   );
 
   const decorateProposals = React.useCallback(
@@ -191,16 +197,16 @@ export const useProjectInfoActivity = (
         proposal,
         ...getProjectInfoProposalIconType(proposal, registryByKey, targetTypes),
       })),
-    [registryByKey, targetTypes]
+    [registryByKey, targetTypes],
   );
 
   const created = React.useMemo(
     () => decorateProposals(createdQuery.data),
-    [decorateProposals, createdQuery.data]
+    [decorateProposals, createdQuery.data],
   );
   const updated = React.useMemo(
     () => decorateProposals(updatedQuery.data),
-    [decorateProposals, updatedQuery.data]
+    [decorateProposals, updatedQuery.data],
   );
 
   const reads = [
@@ -213,7 +219,7 @@ export const useProjectInfoActivity = (
   const settled = reads.every(readSettled);
   const pending = reads.some(
     (read) =>
-      read.isLoading || read.isFetching || (!read.isReady && !read.error)
+      read.isLoading || read.isFetching || (!read.isReady && !read.error),
   );
   const snapshot = useIdentitySnapshot(
     identity,
@@ -232,7 +238,7 @@ export const useProjectInfoActivity = (
             totalPages: updatedQuery.totalPages,
           },
         }
-      : undefined
+      : undefined,
   );
   const retryActivity = React.useCallback(() => {
     void Promise.all([

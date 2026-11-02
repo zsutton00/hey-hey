@@ -21,6 +21,7 @@
  */
 
 import type { AgenticSession } from '../../session/index';
+import { toOpenApiProjectId } from '../../shared/api/identifierAdapters';
 import type { RunStore } from '../../run-store/run-store';
 import {
   AgentSessionType,
@@ -38,7 +39,7 @@ import {
   type UpdateAgentSessionDto,
   type WorkflowName,
   type SessionMethod,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type {
   LocalReasoningEffort,
   LocalRunProvider,
@@ -46,10 +47,7 @@ import type {
   LocalWorktreeConfig,
   MonitorRunEnsuredResponse,
 } from '../../shared/agent-bridge-contract/contract';
-import type {
-  LocalPromptType,
-  RunContextMetadata,
-} from '../../shared/agent-bridge-contract/generated/api';
+import type { LocalPromptType, RunContextMetadata } from '@hey-hey/contracts/agent-bridge';
 import { LocalAgentApiError } from '../../shared/agent-bridge-contract/errors';
 import type { ServerLogger } from '../logger';
 import { requestContext } from '../request-context';
@@ -142,7 +140,7 @@ export class PlatformAgentSessionClient {
   }): Promise<{ agentSessionId: string }> {
     const url = `${this.baseUrl}/organizations/${encodeURIComponent(organizationId)}/projects/${encodeURIComponent(projectId)}/agent-sessions`;
     const payload: CreateAgentSessionDto = {
-      projectId,
+      projectId: toOpenApiProjectId(projectId),
       sessionDate: new Date().toISOString().slice(0, 10),
       type,
       ...(provider ? { provider } : {}),

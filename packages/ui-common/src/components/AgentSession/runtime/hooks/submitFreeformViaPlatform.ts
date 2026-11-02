@@ -10,6 +10,10 @@ import {
   buildUserMessageData,
 } from "./directTriggerInput";
 import type { AgentSessionInteractions } from "../../operations/AgentOperationCoordinator";
+import {
+  toOpenApiConversationId,
+  toOpenApiProjectId,
+} from "../../../../clients/contractIdentifierAdapters";
 import type {
   SubmitPromptResult,
   SubmitPromptTelemetrySummary,
@@ -28,7 +32,7 @@ const log = (action: string, data?: Record<string, unknown>) => {
 const logError = (
   action: string,
   error: unknown,
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>,
 ) => {
   console.error(`${LOG_PREFIX} ${action}`, { error, ...data });
 };
@@ -37,7 +41,7 @@ const toLatencyMs = (startedAtMs: number): number =>
   Math.max(0, Date.now() - startedAtMs);
 
 const toTelemetryProvider = (
-  provider: string
+  provider: string,
 ): AgentInvocationData["provider"] => {
   if (provider === "claude") return "claude";
   if (provider === "opencode") return "opencode";
@@ -128,12 +132,12 @@ export const submitFreeformViaPlatform = async ({
       localPromptType,
       promptText,
       undefined,
-      skillSelection
+      skillSelection,
     ),
   });
   const userMessage = {
-    projectId,
-    conversationId,
+    projectId: toOpenApiProjectId(projectId),
+    conversationId: toOpenApiConversationId(conversationId),
     type: MessageType.User,
     parentMessageId: null,
     data,
@@ -154,7 +158,7 @@ export const submitFreeformViaPlatform = async ({
       throw new Error(
         operation.state === "cancelled"
           ? "The operation was cancelled."
-          : operation.message
+          : operation.message,
       );
     }
     log("coordinator operation acknowledged", { conversationId });

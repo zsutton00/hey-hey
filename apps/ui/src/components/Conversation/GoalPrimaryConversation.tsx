@@ -8,7 +8,7 @@ import {
   type GoalPmRoutingEnactmentResponse,
   type LocalGoalPmConversationInventoryItem,
   type TaskResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   EntityConversationChat,
   ChatSessionPendingPlaceholder,
@@ -24,6 +24,7 @@ import {
 } from "@hey-hey/ui-common/components";
 import { TrackingProvider } from "@hey-hey/ui-common/context";
 import { WebPathService } from "@hey-hey/ui-common/services";
+import { toOpenApiProjectId } from "@hey-hey/ui-common/clients";
 import {
   useAgentSessions,
   useCreateAgentSession,
@@ -205,7 +206,7 @@ export const GoalPrimaryConversation: React.FC<
           (await createSession({
             organizationId,
             agentSession: {
-              projectId,
+              projectId: toOpenApiProjectId(projectId),
               sessionDate: new Date().toISOString(),
               type: AgentSessionType.EntityConversation,
               entityType: EntityType.Task,

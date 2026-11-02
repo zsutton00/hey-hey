@@ -1,0 +1,87 @@
+{
+  "name": "@hey-hey/contracts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/cjs/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js"
+    },
+    "./api": {
+      "types": "./dist/cjs/generated/api/index.d.ts",
+      "import": "./dist/esm/generated/api/index.js",
+      "require": "./dist/cjs/generated/api/index.js"
+    },
+    "./brands": {
+      "types": "./dist/cjs/brands.d.ts",
+      "import": "./dist/esm/brands.js",
+      "require": "./dist/cjs/brands.js"
+    },
+    "./api/models": {
+      "types": "./dist/cjs/generated/api/models/index.d.ts",
+      "import": "./dist/esm/generated/api/models/index.js",
+      "require": "./dist/cjs/generated/api/models/index.js"
+    },
+    "./api/*": {
+      "types": "./dist/cjs/generated/api/*.d.ts",
+      "import": "./dist/esm/generated/api/*.js",
+      "require": "./dist/cjs/generated/api/*.js"
+    },
+    "./agent-bridge": {
+      "types": "./dist/cjs/generated/agent-bridge/index.d.ts",
+      "import": "./dist/esm/generated/agent-bridge/index.js",
+      "require": "./dist/cjs/generated/agent-bridge/index.js"
+    },
+    "./agent-bridge/models": {
+      "types": "./dist/cjs/generated/agent-bridge/models/index.d.ts",
+      "import": "./dist/esm/generated/agent-bridge/models/index.js",
+      "require": "./dist/cjs/generated/agent-bridge/models/index.js"
+    },
+    "./agent-bridge/runtime-schema": {
+      "types": "./dist/cjs/generated/agent-bridge/repository-feature-enrichment-runtime-schema.d.ts",
+      "import": "./dist/esm/generated/agent-bridge/repository-feature-enrichment-runtime-schema.js",
+      "require": "./dist/cjs/generated/agent-bridge/repository-feature-enrichment-runtime-schema.js"
+    },
+    "./agent-bridge/*": {
+      "types": "./dist/cjs/generated/agent-bridge/*.d.ts",
+      "import": "./dist/esm/generated/agent-bridge/*.js",
+      "require": "./dist/cjs/generated/agent-bridge/*.js"
+    },
+    "./local": {
+      "types": "./dist/cjs/generated/local/index.d.ts",
+      "import": "./dist/esm/generated/local/index.js",
+      "require": "./dist/cjs/generated/local/index.js"
+    },
+    "./local/models": {
+      "types": "./dist/cjs/generated/local/models/index.d.ts",
+      "import": "./dist/esm/generated/local/models/index.js",
+      "require": "./dist/cjs/generated/local/models/index.js"
+    },
+    "./local/*": {
+      "types": "./dist/cjs/generated/local/*.d.ts",
+      "import": "./dist/esm/generated/local/*.js",
+      "require": "./dist/cjs/generated/local/*.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "axios": "1.16.1"
+  },
+  "scripts": {
+    "generate:all:unlocked": "node ../../scripts/require-openapi-staging.cjs && node scripts/generate.mjs",
+    "build": "pnpm run generate:all && node ../../scripts/generate-contracts.mjs --with-lock --target=contracts-api,contracts-agent-bridge,contracts-local -- pnpm --dir packages/contracts run build:unlocked",
+    "generate:api": "node ../../scripts/generate-contracts.mjs --target=contracts-api",
+    "generate:agent-bridge": "node ../../scripts/generate-contracts.mjs --target=contracts-agent-bridge",
+    "generate:local": "node ../../scripts/generate-contracts.mjs --target=contracts-local",
+    "generate:all": "node ../../scripts/generate-contracts.mjs --target=contracts-api,contracts-agent-bridge,contracts-local",
+    "build:unlocked": "tsc -p tsconfig.cjs.json && tsc -p tsconfig.esm.json && node scripts/write-cjs-package.cjs",
+    "generate:check": "node ../../scripts/generate-contracts.mjs --check --target=contracts-api,contracts-agent-bridge,contracts-local"
+  },
+  "devDependencies": {
+    "typescript": "~5.8.3"
+  }
+}

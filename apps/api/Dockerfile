@@ -25,6 +25,7 @@ COPY apps/api/package.json apps/api/
 COPY apps/cli/package.json apps/cli/
 COPY apps/graph-search/package.json apps/graph-search/
 COPY packages/ui-common/package.json packages/ui-common/
+COPY packages/contracts/package.json packages/contracts/
 COPY openapi/package.json openapi/
 
 FROM base AS build
@@ -37,6 +38,10 @@ COPY . .
 # in-checkout specifications. No .git in the context, so pin the source root.
 ENV HEY_HEY_OPENAPI_ROOT=/workspace/openapi
 RUN pnpm generate:verify
+
+# Build the workspace contract package before the API resolves its runtime
+# enum and schema exports from the package distribution.
+RUN pnpm --filter @hey-hey/contracts build
 
 # prebuild generates the Prisma client before nest build.
 RUN NODE_OPTIONS="--max-old-space-size=4096" pnpm --filter hey-hey-api build
@@ -76,6 +81,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl wget de
 # nested versions (/app/node_modules) first, exactly as in the workspace.
 COPY --from=production-dependencies /workspace/node_modules /node_modules
 COPY --from=production-dependencies /workspace/apps/api/node_modules ./node_modules
+COPY --from=build /workspace/packages/contracts/package.json /packages/contracts/package.json
+COPY --from=build /workspace/packages/contracts/dist /packages/contracts/dist
 COPY --from=build /workspace/apps/api/dist ./dist
 COPY apps/api/prisma ./prisma
 COPY apps/api/config ./config

@@ -3,8 +3,8 @@ import type {
   PassThroughSubmissionToolDeclaration,
   SubmissionToolExecuteContext,
 } from '../submission-tools/types';
-import type { ProposalReconciliationState } from '../../shared/api/generated/api';
-import { proposalReconciliationCandidateSchema } from '../../shared/api/generated/proposal-reconciliation.schema';
+import type { ProposalReconciliationState } from '@hey-hey/contracts/api/models';
+import { proposalReconciliationCandidateSchema } from '@hey-hey/contracts/api/custom/proposal-reconciliation.schema';
 import { parseCandidate, parseReconciliationResponse } from './reconciliation-boundary';
 
 interface ReconciliationScope {

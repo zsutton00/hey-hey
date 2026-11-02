@@ -14,6 +14,7 @@ import {
 } from "../../api";
 import { useCreateAgentSession } from "../../data/hooks/useCreateAgentSession";
 import { useCreateAgentSessionConversation } from "../../data/hooks/useCreateAgentSessionConversation";
+import { toOpenApiProjectId } from "../../clients/contractIdentifierAdapters";
 import { useAgentSessionInteractionAccessResolver } from "../AgentSession/operations/useAgentSessionInteractionAccess";
 import { usePathService } from "../../contexts";
 import { getErrorMessage } from "../../utils/errorUtils";
@@ -112,7 +113,7 @@ export function useFeatureSyncConversationLauncher({
         const session = await createSessionRef.current({
           organizationId,
           agentSession: {
-            projectId,
+            projectId: toOpenApiProjectId(projectId),
             sessionDate: new Date().toISOString(),
             title: "Verify Feature",
             type: AgentSessionType.EntityConversation,

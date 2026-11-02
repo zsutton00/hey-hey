@@ -1,8 +1,13 @@
 const fs = require("fs"),
   path = require("path"),
   YAML = require("yaml");
-process.chdir(path.resolve(__dirname, "../../.."));
-const source = path.resolve("openapi/specs/graphs/openapi.yaml");
+const checkoutRoot = path.resolve(__dirname, "../../..");
+process.chdir(checkoutRoot);
+const { resolveOpenapiRoot } = require("../../../scripts/openapi-source.cjs");
+const source = path.join(
+  resolveOpenapiRoot(),
+  "specs/graphs/openapi.yaml",
+);
 const cache = new Map();
 function doc(file) {
   if (!cache.has(file)) {

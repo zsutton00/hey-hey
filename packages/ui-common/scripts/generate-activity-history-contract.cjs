@@ -16,24 +16,25 @@ function resolve(schema, file) {
     const document = yaml.load(fs.readFileSync(target, "utf8"));
     return resolve(
       fragment.split("/").reduce((value, key) => value[key], document),
-      target
+      target,
     );
   }
   const result = Object.fromEntries(
     Object.entries(schema)
       .filter(([key]) => key !== "nullable")
-      .map(([key, value]) => [key, resolve(value, file)])
+      .map(([key, value]) => [key, resolve(value, file)]),
   );
   return schema.nullable ? { anyOf: [result, { type: "null" }] } : result;
 }
 const source = path.join(root, "specs/schemas/activity-correlation.yaml");
 const document = yaml.load(fs.readFileSync(source, "utf8"));
-fs.writeFileSync("src/generated/activity-history-contract.ts",
+fs.writeFileSync(
+  "src/generated/activity-history-contract.ts",
   "// Generated from OpenAPI by scripts/generate-activity-history-contract.cjs.\nexport const activityHistoryFilterSchema = " +
-  JSON.stringify(resolve(document.ActivityHistoryFilterDto, source), null, 2) + " as const;\n");
-const apiFile = "src/api/api.ts";
-const api = fs.readFileSync(apiFile, "utf8");
-fs.writeFileSync(apiFile, api.replace(
-  "localVarQueryParameter['historyFilter'] = historyFilter;",
-  "localVarQueryParameter['historyFilter'] = JSON.stringify(historyFilter);"
-));
+    JSON.stringify(
+      resolve(document.ActivityHistoryFilterDto, source),
+      null,
+      2,
+    ) +
+    " as const;\n",
+);

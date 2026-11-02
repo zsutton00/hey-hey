@@ -2,17 +2,21 @@ import type { CrossProjectActivityFeedQuery } from "./CrossProjectActivityFeed";
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
 import type { ActivityHistoryFilterDto } from "../../api";
+import {
+  toOpenApiProjectId,
+  toOpenApiUserId,
+} from "../../clients/contractIdentifierAdapters";
 import { activityHistoryFilterSchema } from "../../generated/activity-history-contract";
 
 const validateHistoryFilter = addFormats(
   new Ajv({
     strict: false,
     formats: { "branded-ProjectId": true, "branded-UserId": true },
-  })
+  }),
 ).compile<ActivityHistoryFilterDto>(activityHistoryFilterSchema);
 
 export function parseActivityHistoryFilter(
-  value: unknown
+  value: unknown,
 ): ActivityHistoryFilterDto {
   if (
     !validateHistoryFilter(value) ||
@@ -31,15 +35,17 @@ export interface ActivityHistoryEdit {
 
 export function editActivityHistoryQuery(
   query: CrossProjectActivityFeedQuery,
-  edit: ActivityHistoryEdit
+  edit: ActivityHistoryEdit,
 ): CrossProjectActivityFeedQuery {
   const metric = query.historyFilter ?? query.metricContinuation;
   if (metric) {
     return {
       historyFilter: {
         metric: metric.metric,
-        projectIds: [...metric.projectIds],
-        ...edit,
+        projectIds: [...metric.projectIds].map(toOpenApiProjectId),
+        windowStart: edit.windowStart,
+        windowEnd: edit.windowEnd,
+        ...(edit.userId ? { userId: toOpenApiUserId(edit.userId) } : {}),
       },
       limit: query.limit,
       offset: 0,
@@ -57,7 +63,7 @@ export function editActivityHistoryQuery(
 }
 
 export function getActivityHistorySelection(
-  query: CrossProjectActivityFeedQuery
+  query: CrossProjectActivityFeedQuery,
 ): Partial<ActivityHistoryEdit> {
   if (query.historyFilter) return query.historyFilter;
   if (query.metricContinuation) {

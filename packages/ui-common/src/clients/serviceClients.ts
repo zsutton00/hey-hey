@@ -895,7 +895,18 @@ export class UnifiedApiClient {
     options?: AxiosRequestConfig,
   ) {
     return this.clients.tasks.organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdGraphGet(
-      params,
+      {
+        organizationId: params.organizationId,
+        projectId: params.projectId,
+        workItemId: params.workItemId,
+        ...(params.incidentRelationshipTypes === undefined
+          ? {}
+          : {
+              incidentRelationshipTypes: Array.from(
+                params.incidentRelationshipTypes,
+              ),
+            }),
+      },
       options,
     );
   }
@@ -967,8 +978,9 @@ export class UnifiedApiClient {
           ? {}
           : { parentTaskId: parentTaskIdParam }),
         ...(params.parentTaskIds
-          ? { parentTaskIds: new Set(params.parentTaskIds) }
+          ? { parentTaskIds: Array.from(new Set(params.parentTaskIds)) }
           : {}),
+        ...(params.taskIds ? { taskIds: params.taskIds } : {}),
         ...(params.includeDescendants
           ? { includeDescendants: params.includeDescendants }
           : {}),
@@ -978,7 +990,6 @@ export class UnifiedApiClient {
         ...(params.includeTrackedWorkSummary === undefined
           ? {}
           : { includeTrackedWorkSummary: params.includeTrackedWorkSummary }),
-        ...(params.taskIds ? { taskIds: new Set(params.taskIds) } : {}),
         ...(statusParam === undefined ? {} : { status: statusParam }),
         ...(params.includeDesignDocCounts === undefined
           ? {}

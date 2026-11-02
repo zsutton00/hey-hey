@@ -68,12 +68,12 @@ export const useStepperCompletion = ({
 }): UseStepperCompletionReturn => {
   // Load initial state from localStorage
   const [state, setState] = useState<StepperState>(() =>
-    loadFromStorage(conversationId)
+    loadFromStorage(conversationId),
   );
 
   // Clean up stale data - remove IDs that don't exist in current initiatives
   useEffect(() => {
-    const validIds = new Set(initiatives.map((i) => i.id));
+    const validIds = new Set<string>(initiatives.map((i) => i.id));
     const cleanedReviewed = state.reviewed.filter((id) => validIds.has(id));
     const cleanedKept = state.kept.filter((id) => validIds.has(id));
 
@@ -99,7 +99,7 @@ export const useStepperCompletion = ({
   // Convert arrays to sets for efficient lookup
   const reviewedInitiatives = useMemo(
     () => new Set(state.reviewed),
-    [state.reviewed]
+    [state.reviewed],
   );
 
   const keptInitiatives = useMemo(() => new Set(state.kept), [state.kept]);
@@ -108,7 +108,7 @@ export const useStepperCompletion = ({
   const isComplete = useMemo(() => {
     if (initiatives.length === 0) return false;
     return initiatives.every((initiative) =>
-      reviewedInitiatives.has(initiative.id)
+      reviewedInitiatives.has(initiative.id),
     );
   }, [initiatives, reviewedInitiatives]);
 
@@ -129,7 +129,7 @@ export const useStepperCompletion = ({
         };
       });
     },
-    []
+    [],
   );
 
   // Clear all completion data

@@ -1,8 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
-import type { TaskMonitorExecutionDefinition } from '../../generated/model/taskMonitorExecutionDefinition';
-import { taskMonitorExecutionDefinitionJsonSchema } from '../../generated/task-monitor-execution-definition.schema';
+import type { TaskMonitorExecutionDefinition } from '@hey-hey/contracts/api/models';
+import { taskMonitorExecutionDefinitionJsonSchema } from '@hey-hey/contracts/agent-bridge/custom/task-monitor-contract.schema';
 
 export const TASK_MONITOR_TYPE_KEY = 'TASK_MONITOR';
 export const TASK_MONITOR_EXECUTION_DEFINITION_SECTION_KEY =

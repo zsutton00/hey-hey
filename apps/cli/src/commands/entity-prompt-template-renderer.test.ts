@@ -1,3 +1,10 @@
+import {
+  asOrganizationId,
+  asProjectId,
+  asProposalId,
+  asTaskId,
+  asUserId,
+} from '../test-utils/contract-ids';
 import { describe, expect, it } from 'vitest';
 import {
   EntityType,
@@ -6,7 +13,7 @@ import {
   WorkStatus,
   type FullEntityContextDto,
   type TaskResponseDto,
-} from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import { ENTITY_PROMPT_TEMPLATE_LANGUAGES } from '../shared/api/generated/entity-prompt-template-language';
 import {
   EntityPromptTemplateRenderError,
@@ -15,7 +22,7 @@ import {
 } from './entity-prompt-template-renderer';
 
 const entity = (): TaskResponseDto => ({
-  id: 'task-1',
+  id: asTaskId('task-1'),
   name: 'Task $& \\path',
   type: 'STANDARD',
   organizationId: 'organization-1',
@@ -28,7 +35,7 @@ const entity = (): TaskResponseDto => ({
       key: 'acceptanceCriteria',
       order: -1,
       materializedMarkdown: 'Acceptance $& \\{{literal}}',
-      materializedProposalId: '11111111-1111-4111-8111-111111111111',
+      materializedProposalId: asProposalId('11111111-1111-4111-8111-111111111111'),
       crdtSnapshotSeq: 7,
     },
     {
@@ -36,7 +43,7 @@ const entity = (): TaskResponseDto => ({
       key: 'description',
       order: 0,
       materializedMarkdown: 'Authoritative description {{literal}}',
-      materializedProposalId: '11111111-1111-4111-8111-111111111111',
+      materializedProposalId: asProposalId('11111111-1111-4111-8111-111111111111'),
     },
   ],
 });
@@ -94,16 +101,16 @@ const context = (): FullEntityContextDto => ({
   ],
   proposals: [
     {
-      id: 'proposal-early',
-      organizationId: 'organization-1',
-      projectId: 'project-1',
+      id: asProposalId('proposal-early'),
+      organizationId: asOrganizationId('organization-1'),
+      projectId: asProjectId('project-1'),
       type: 'SINGLE',
       action: 'UPDATE',
       status: 'DRAFT',
       targetEntityId: 'task-1',
       targetEntityType: 'TASK',
       updates: {},
-      requestorId: 'user-1',
+      requestorId: asUserId('user-1'),
       requiredApprovals: 1,
       approvals: [],
       outOfDateStatus: 'NOT_APPLICABLE',
@@ -112,9 +119,9 @@ const context = (): FullEntityContextDto => ({
       updatedAt: '2026-08-19T00:00:00.000Z',
     },
     {
-      id: 'proposal-late',
-      organizationId: 'organization-1',
-      projectId: 'project-1',
+      id: asProposalId('proposal-late'),
+      organizationId: asOrganizationId('organization-1'),
+      projectId: asProjectId('project-1'),
       type: 'SINGLE',
       action: 'UPDATE',
       status: 'DRAFT',
@@ -122,7 +129,7 @@ const context = (): FullEntityContextDto => ({
       targetEntityType: 'TASK',
       updates: { zeta: 'last', alpha: 'first' },
       eli5: 'Explains the proposed change.',
-      requestorId: 'user-1',
+      requestorId: asUserId('user-1'),
       requiredApprovals: 1,
       approvals: [],
       outOfDateStatus: 'NOT_APPLICABLE',

@@ -11,6 +11,10 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { EntityIcon } from "../../Entity/EntityIcon";
 import { parseFinalAssessmentResponseFromText } from "../../../agents/coordination/parser";
+import {
+  toOpenApiConversationId,
+  toOpenApiMessageId,
+} from "../../../clients/contractIdentifierAdapters";
 import type { FinalAssessmentResponse } from "../../../agents/coordination/types";
 import {
   CreateImplementationHintDtoSourceTypeEnum,
@@ -125,8 +129,7 @@ interface TaskDetailsArtifactSuggestion extends ArtifactSuggestionBase {
   };
 }
 
-interface TaskAcceptanceCriteriaArtifactSuggestion
-  extends ArtifactSuggestionBase {
+interface TaskAcceptanceCriteriaArtifactSuggestion extends ArtifactSuggestionBase {
   kind: "task_acceptance_criteria";
   target: SuggestionTarget<"task">;
   updatePayload: {
@@ -145,8 +148,7 @@ interface DesignDocRevisionArtifactSuggestion extends ArtifactSuggestionBase {
   };
 }
 
-interface ImplementationHintCreateArtifactSuggestion
-  extends ArtifactSuggestionBase {
+interface ImplementationHintCreateArtifactSuggestion extends ArtifactSuggestionBase {
   kind: "implementation_hint_create";
   target: SuggestionTarget<"implementationHint">;
   updatePayload: {
@@ -157,8 +159,7 @@ interface ImplementationHintCreateArtifactSuggestion
   };
 }
 
-interface ImplementationHintUpdateArtifactSuggestion
-  extends ArtifactSuggestionBase {
+interface ImplementationHintUpdateArtifactSuggestion extends ArtifactSuggestionBase {
   kind: "implementation_hint_update";
   target: SuggestionTarget<"implementationHint">;
   updatePayload: {
@@ -178,8 +179,7 @@ type ActionableArtifactSuggestion =
   | ImplementationHintUpdateArtifactSuggestion;
 
 type ParsedArtifactSuggestion =
-  | ActionableArtifactSuggestion
-  | UnsupportedArtifactSuggestion;
+  ActionableArtifactSuggestion | UnsupportedArtifactSuggestion;
 
 interface DiffReviewRow {
   key: string;
@@ -197,13 +197,13 @@ interface TaskContextValue {
 
 const WORK_STATUS_VALUES = new Set<string>(Object.values(WorkStatus));
 const IMPLEMENTATION_HINT_SOURCE_TYPES = new Set<string>(
-  Object.values(CreateImplementationHintDtoSourceTypeEnum)
+  Object.values(CreateImplementationHintDtoSourceTypeEnum),
 );
 const TASK_SECTION_UPDATE_SOURCE_TYPES = new Set<string>(
-  Object.values(TaskSectionUpdateSourceEnum)
+  Object.values(TaskSectionUpdateSourceEnum),
 );
 const DESIGN_DOC_SECTION_UPDATE_SOURCE_TYPES = new Set<string>(
-  Object.values(DesignDocSectionUpdateSourceEnum)
+  Object.values(DesignDocSectionUpdateSourceEnum),
 );
 const DIFF_DELETE_BLOCK_PATTERN =
   /<\s*(?:del|delete)\b[^>]*>[\s\S]*?<\/\s*(?:del|delete)\s*>/giu;
@@ -254,7 +254,7 @@ const readOptionalStringArray = (value: unknown): string[] | undefined => {
 };
 
 const readImplementationHintSourceType = (
-  value: unknown
+  value: unknown,
 ):
   | (typeof CreateImplementationHintDtoSourceTypeEnum)[keyof typeof CreateImplementationHintDtoSourceTypeEnum]
   | undefined => {
@@ -268,7 +268,7 @@ const readImplementationHintSourceType = (
 };
 
 const readTaskSectionUpdateSourceType = (
-  value: unknown
+  value: unknown,
 ):
   | (typeof TaskSectionUpdateSourceEnum)[keyof typeof TaskSectionUpdateSourceEnum]
   | undefined => {
@@ -282,7 +282,7 @@ const readTaskSectionUpdateSourceType = (
 };
 
 const readDesignDocSectionUpdateSourceType = (
-  value: unknown
+  value: unknown,
 ):
   | (typeof DesignDocSectionUpdateSourceEnum)[keyof typeof DesignDocSectionUpdateSourceEnum]
   | undefined => {
@@ -327,7 +327,7 @@ const summarizeArtifactUpdatePayload = (value: unknown): string | null => {
   }
 
   const acceptanceCriteria = readNonEmptyString(
-    updatePayload.acceptanceCriteria
+    updatePayload.acceptanceCriteria,
   );
   if (acceptanceCriteria) {
     return `Acceptance criteria: ${acceptanceCriteria}`;
@@ -383,7 +383,7 @@ const toArtifactUpdateKey = (value: unknown, index: number): string => {
 
 const readOpenQuestion = (
   value: unknown,
-  index: number
+  index: number,
 ): { question: string; reason?: string } => {
   if (!isRecord(value)) {
     return {
@@ -398,7 +398,7 @@ const readOpenQuestion = (
 };
 
 const isFinalAssessmentV2Response = (
-  value: unknown
+  value: unknown,
 ): value is FinalAssessmentResponse => {
   if (!isRecord(value)) {
     return false;
@@ -437,7 +437,7 @@ const isFinalAssessmentV2Response = (
 };
 
 const isFinalAssessmentV1Response = (
-  value: unknown
+  value: unknown,
 ): value is FinalAssessmentV1Response => {
   if (!isRecord(value)) {
     return false;
@@ -473,12 +473,12 @@ const isFinalAssessmentV1Response = (
 };
 
 const isFinalAssessmentStructuredResponse = (
-  value: unknown
+  value: unknown,
 ): value is FinalAssessmentStructuredResponse =>
   isFinalAssessmentV2Response(value) || isFinalAssessmentV1Response(value);
 
 const normalizeArrayFields = (
-  value: FinalAssessmentStructuredResponse
+  value: FinalAssessmentStructuredResponse,
 ): FinalAssessmentStructuredResponse => {
   if (value.responseType !== "final_assessment_v2") return value;
   const v2 = value as CodingPromptFinalAssessmentV2Payload;
@@ -496,7 +496,7 @@ const extractFinalAssessment = (
   value:
     | CodingPromptFinalAssessmentPayload
     | LegacyStructuredResponseContainer
-    | undefined
+    | undefined,
 ): FinalAssessmentStructuredResponse | null => {
   if (!isRecord(value)) {
     return null;
@@ -540,7 +540,7 @@ const extractFinalAssessment = (
 };
 
 const toVerdictChipColor = (
-  verdict: FinalAssessmentResponse["taskAssessment"]["verdict"]
+  verdict: FinalAssessmentResponse["taskAssessment"]["verdict"],
 ): "default" | "success" | "warning" | "error" => {
   switch (verdict) {
     case "completed":
@@ -557,7 +557,7 @@ const toVerdictChipColor = (
 };
 
 const toStatusChipColor = (
-  status: string
+  status: string,
 ): "default" | "success" | "warning" | "error" => {
   if (status === "COMPLETED") {
     return "success";
@@ -575,7 +575,7 @@ const toStatusChipColor = (
 };
 
 const toApplyStatusChipColor = (
-  status: ApplyStatus
+  status: ApplyStatus,
 ): "default" | "success" | "warning" | "error" | "info" => {
   switch (status) {
     case "applied":
@@ -618,7 +618,7 @@ const toSuggestionId = (input: {
       input.target.entityType,
       input.target.entityId,
       String(input.index),
-    ].join(":")
+    ].join(":"),
   ) ??
   [
     input.updateType,
@@ -628,7 +628,7 @@ const toSuggestionId = (input: {
   ].join(":");
 
 const parseDesignDocDraftSections = (
-  value: unknown
+  value: unknown,
 ): DesignDocDraftSection[] | undefined => {
   if (!Array.isArray(value)) {
     return undefined;
@@ -661,7 +661,7 @@ const parseDesignDocDraftSections = (
         ...(content !== undefined ? { content } : {}),
       } satisfies DesignDocDraftSection;
     })
-    .filter((entry): entry is DesignDocDraftSection => entry !== null);
+    .flatMap((entry) => (entry ? [entry] : []));
 
   return sections;
 };
@@ -669,7 +669,7 @@ const parseDesignDocDraftSections = (
 const toBaseSuggestion = (
   value: unknown,
   index: number,
-  messageId: string | undefined
+  messageId: string | undefined,
 ): ArtifactSuggestionBase => {
   const target = isRecord(value)
     ? toSuggestionTarget(value.target)
@@ -704,7 +704,7 @@ const toUnsupportedSuggestion = (
   value: unknown,
   index: number,
   messageId: string | undefined,
-  unsupportedReason: string
+  unsupportedReason: string,
 ): UnsupportedArtifactSuggestion => ({
   ...toBaseSuggestion(value, index, messageId),
   kind: "unsupported",
@@ -714,14 +714,14 @@ const toUnsupportedSuggestion = (
 const parseArtifactSuggestion = (
   value: unknown,
   index: number,
-  messageId: string | undefined
+  messageId: string | undefined,
 ): ParsedArtifactSuggestion => {
   if (!isRecord(value)) {
     return toUnsupportedSuggestion(
       value,
       index,
       messageId,
-      "Suggestion payload is not an object."
+      "Suggestion payload is not an object.",
     );
   }
 
@@ -734,7 +734,7 @@ const parseArtifactSuggestion = (
       value,
       index,
       messageId,
-      "Suggestion is missing updatePayload details."
+      "Suggestion is missing updatePayload details.",
     );
   }
 
@@ -745,7 +745,7 @@ const parseArtifactSuggestion = (
           value,
           index,
           messageId,
-          "task_status update must target a task."
+          "task_status update must target a task.",
         );
       }
 
@@ -754,7 +754,7 @@ const parseArtifactSuggestion = (
           value,
           index,
           messageId,
-          "task_status update is missing a target task id."
+          "task_status update is missing a target task id.",
         );
       }
 
@@ -764,7 +764,7 @@ const parseArtifactSuggestion = (
           value,
           index,
           messageId,
-          "task_status update is missing a valid task status."
+          "task_status update is missing a valid task status.",
         );
       }
 
@@ -791,7 +791,7 @@ const parseArtifactSuggestion = (
           value,
           index,
           messageId,
-          "task_details update must target a task."
+          "task_details update must target a task.",
         );
       }
 
@@ -800,13 +800,13 @@ const parseArtifactSuggestion = (
           value,
           index,
           messageId,
-          "task_details update is missing a target task id."
+          "task_details update is missing a target task id.",
         );
       }
 
       const description = readNonEmptyPersistedText(updatePayload.description);
       const acceptanceCriteria = readNonEmptyPersistedText(
-        updatePayload.acceptanceCriteria
+        updatePayload.acceptanceCriteria,
       );
       const legacyDetails = readNonEmptyPersistedText(updatePayload.details);
 
@@ -815,7 +815,7 @@ const parseArtifactSuggestion = (
           value,
           index,
           messageId,
-          "task_details update must include description or acceptance criteria."
+          "task_details update must include description or acceptance criteria.",
         );
       }
 
@@ -823,7 +823,7 @@ const parseArtifactSuggestion = (
         ? legacyDetails && legacyDetails !== description
           ? `${description}\n\n${legacyDetails}`
           : description
-        : legacyDetails ?? undefined;
+        : (legacyDetails ?? undefined);
 
       return {
         ...base,
@@ -846,7 +846,7 @@ const parseArtifactSuggestion = (
           value,
           index,
           messageId,
-          "task_acceptance_criteria update must target a task."
+          "task_acceptance_criteria update must target a task.",
         );
       }
 
@@ -855,19 +855,19 @@ const parseArtifactSuggestion = (
           value,
           index,
           messageId,
-          "task_acceptance_criteria update is missing a target task id."
+          "task_acceptance_criteria update is missing a target task id.",
         );
       }
 
       const acceptanceCriteria = readNonEmptyPersistedText(
-        updatePayload.acceptanceCriteria
+        updatePayload.acceptanceCriteria,
       );
       if (!acceptanceCriteria) {
         return toUnsupportedSuggestion(
           value,
           index,
           messageId,
-          "task_acceptance_criteria update is missing acceptance criteria."
+          "task_acceptance_criteria update is missing acceptance criteria.",
         );
       }
 
@@ -889,7 +889,7 @@ const parseArtifactSuggestion = (
           value,
           index,
           messageId,
-          "design_doc_revision update must target a design doc."
+          "design_doc_revision update must target a design doc.",
         );
       }
 
@@ -898,7 +898,7 @@ const parseArtifactSuggestion = (
           value,
           index,
           messageId,
-          "design_doc_revision update is missing a target design doc id."
+          "design_doc_revision update is missing a target design doc id.",
         );
       }
 
@@ -908,12 +908,12 @@ const parseArtifactSuggestion = (
         typeof summaryRaw === "string"
           ? stripDiffMarkupTags(summaryRaw)
           : summaryRaw === null
-          ? summaryRaw
-          : undefined;
+            ? summaryRaw
+            : undefined;
       const sections = parseDesignDocDraftSections(updatePayload.sections);
       const sectionUpdateSource =
         readDesignDocSectionUpdateSourceType(
-          updatePayload.sectionUpdateSource
+          updatePayload.sectionUpdateSource,
         ) ?? undefined;
 
       if (status === undefined && summary === undefined && !sections?.length) {
@@ -921,7 +921,7 @@ const parseArtifactSuggestion = (
           value,
           index,
           messageId,
-          "design_doc_revision update has no actionable fields."
+          "design_doc_revision update has no actionable fields.",
         );
       }
 
@@ -946,7 +946,7 @@ const parseArtifactSuggestion = (
           value,
           index,
           messageId,
-          "implementation_hint_create update must target an implementation hint."
+          "implementation_hint_create update must target an implementation hint.",
         );
       }
 
@@ -961,12 +961,12 @@ const parseArtifactSuggestion = (
           value,
           index,
           messageId,
-          "implementation_hint_create update is missing featureName or description."
+          "implementation_hint_create update is missing featureName or description.",
         );
       }
 
       const agentSessionIds = readOptionalStringArray(
-        updatePayload.agentSessionIds
+        updatePayload.agentSessionIds,
       );
       return {
         ...base,
@@ -989,7 +989,7 @@ const parseArtifactSuggestion = (
           value,
           index,
           messageId,
-          "implementation_hint_update update must target an implementation hint."
+          "implementation_hint_update update must target an implementation hint.",
         );
       }
 
@@ -998,7 +998,7 @@ const parseArtifactSuggestion = (
           value,
           index,
           messageId,
-          "implementation_hint_update update is missing a target hint id."
+          "implementation_hint_update update is missing a target hint id.",
         );
       }
 
@@ -1007,10 +1007,10 @@ const parseArtifactSuggestion = (
       const description =
         readNonEmptyPersistedText(updatePayload.description) ?? undefined;
       const sourceType = readImplementationHintSourceType(
-        updatePayload.sourceType
+        updatePayload.sourceType,
       );
       const agentSessionIds = readOptionalStringArray(
-        updatePayload.agentSessionIds
+        updatePayload.agentSessionIds,
       );
       if (
         featureName === undefined &&
@@ -1022,7 +1022,7 @@ const parseArtifactSuggestion = (
           value,
           index,
           messageId,
-          "implementation_hint_update update has no fields to apply."
+          "implementation_hint_update update has no fields to apply.",
         );
       }
 
@@ -1046,13 +1046,13 @@ const parseArtifactSuggestion = (
         value,
         index,
         messageId,
-        `Unsupported update type: ${updateType}.`
+        `Unsupported update type: ${updateType}.`,
       );
   }
 };
 
 const isActionableSuggestion = (
-  suggestion: ParsedArtifactSuggestion
+  suggestion: ParsedArtifactSuggestion,
 ): suggestion is ActionableArtifactSuggestion =>
   suggestion.kind !== "unsupported";
 
@@ -1075,7 +1075,7 @@ const toReviewRows = (input: {
                 label: "Description",
                 oldValue: getWorkItemSectionContent(
                   activeTask?.sections,
-                  "description"
+                  "description",
                 ),
                 newValue: suggestion.updatePayload.description,
               },
@@ -1088,7 +1088,7 @@ const toReviewRows = (input: {
                 label: "Acceptance Criteria",
                 oldValue: getWorkItemSectionContent(
                   activeTask?.sections,
-                  "acceptanceCriteria"
+                  "acceptanceCriteria",
                 ),
                 newValue: suggestion.updatePayload.acceptanceCriteria,
               },
@@ -1102,7 +1102,7 @@ const toReviewRows = (input: {
           label: "Acceptance Criteria",
           oldValue: getWorkItemSectionContent(
             activeTask?.sections,
-            "acceptanceCriteria"
+            "acceptanceCriteria",
           ),
           newValue: suggestion.updatePayload.acceptanceCriteria,
         },
@@ -1115,7 +1115,7 @@ const toReviewRows = (input: {
         .map((section) => {
           const currentSection = designDocSections.find(
             (designDocSection) =>
-              designDocSection.key.toLowerCase() === section.key.toLowerCase()
+              designDocSection.key.toLowerCase() === section.key.toLowerCase(),
           );
 
           return {
@@ -1239,7 +1239,7 @@ const toStatusDisplayRows = (input: {
 
 const toDiffOperationPrefix = (
   suggestionId: string,
-  rowKey: string
+  rowKey: string,
 ): string => {
   const safeSuggestionId = suggestionId.replace(/[^a-zA-Z0-9_-]/g, "-");
   const safeRowKey = rowKey.replace(/[^a-zA-Z0-9_-]/g, "-");
@@ -1249,7 +1249,7 @@ const toDiffOperationPrefix = (
 const toUpdateSourceType = (
   value:
     | (typeof CreateImplementationHintDtoSourceTypeEnum)[keyof typeof CreateImplementationHintDtoSourceTypeEnum]
-    | undefined
+    | undefined,
 ):
   | (typeof UpdateImplementationHintDtoSourceTypeEnum)[keyof typeof UpdateImplementationHintDtoSourceTypeEnum]
   | undefined => {
@@ -1265,7 +1265,7 @@ const toUpdateSourceType = (
 };
 
 const isTaskSection = (
-  value: unknown
+  value: unknown,
 ): value is NonNullable<TaskResponseDto["sections"]>[number] => {
   if (!isRecord(value)) {
     return false;
@@ -1346,7 +1346,7 @@ const ArtifactSuggestionCard: React.FC<ArtifactSuggestionCardProps> = ({
     {
       enabled: isDesignDocSuggestion,
       preferStale: true,
-    }
+    },
   );
 
   const [implementationHintBaseline, setImplementationHintBaseline] =
@@ -1373,7 +1373,7 @@ const ArtifactSuggestionCard: React.FC<ArtifactSuggestionCardProps> = ({
       if (!hintId) {
         setImplementationHintBaseline(null);
         setImplementationHintBaselineError(
-          "Cannot load current implementation hint content: missing target hint id."
+          "Cannot load current implementation hint content: missing target hint id.",
         );
         setIsImplementationHintBaselineLoading(false);
         return;
@@ -1464,7 +1464,7 @@ const ArtifactSuggestionCard: React.FC<ArtifactSuggestionCardProps> = ({
         p: 1.25,
       }}
       data-testid={`final-assessment-artifact-update-${String(
-        suggestion.index
+        suggestion.index,
       )}`}
     >
       <Stack spacing={1}>
@@ -1500,7 +1500,7 @@ const ArtifactSuggestionCard: React.FC<ArtifactSuggestionCardProps> = ({
           <Alert
             severity="warning"
             data-testid={`final-assessment-artifact-update-unsupported-${String(
-              suggestion.index
+              suggestion.index,
             )}`}
           >
             {(suggestion as UnsupportedArtifactSuggestion).unsupportedReason}
@@ -1558,7 +1558,7 @@ const ArtifactSuggestionCard: React.FC<ArtifactSuggestionCardProps> = ({
             key={`${suggestion.suggestionId}-${row.key}`}
             spacing={0.75}
             data-testid={`final-assessment-artifact-update-diff-${String(
-              suggestion.index
+              suggestion.index,
             )}-${row.key}`}
           >
             <Typography variant="caption" color="text.secondary">
@@ -1576,7 +1576,7 @@ const ArtifactSuggestionCard: React.FC<ArtifactSuggestionCardProps> = ({
               }
               operationTestIdPrefix={toDiffOperationPrefix(
                 suggestion.suggestionId,
-                row.key
+                row.key,
               )}
             />
           </Stack>
@@ -1586,7 +1586,7 @@ const ArtifactSuggestionCard: React.FC<ArtifactSuggestionCardProps> = ({
           <Box
             sx={{ pt: 0.5, display: "flex", justifyContent: "flex-start" }}
             data-testid={`final-assessment-artifact-update-controls-${String(
-              suggestion.index
+              suggestion.index,
             )}`}
           >
             <ButtonGroup size="small" variant="outlined">
@@ -1597,7 +1597,7 @@ const ArtifactSuggestionCard: React.FC<ArtifactSuggestionCardProps> = ({
                 disabled={isLocked}
                 onClick={() => onAcceptSuggestion(suggestion.suggestionId)}
                 data-testid={`final-assessment-artifact-update-select-${String(
-                  suggestion.index
+                  suggestion.index,
                 )}`}
               >
                 {selected ? "Accepted" : "Accept update"}
@@ -1609,7 +1609,7 @@ const ArtifactSuggestionCard: React.FC<ArtifactSuggestionCardProps> = ({
                 disabled={isLocked}
                 onClick={() => onRejectSuggestion(suggestion.suggestionId)}
                 data-testid={`final-assessment-artifact-update-reject-${String(
-                  suggestion.index
+                  suggestion.index,
                 )}`}
               >
                 Reject
@@ -1622,7 +1622,7 @@ const ArtifactSuggestionCard: React.FC<ArtifactSuggestionCardProps> = ({
           <Alert
             severity="error"
             data-testid={`final-assessment-artifact-update-error-${String(
-              suggestion.index
+              suggestion.index,
             )}`}
           >
             {applyError}
@@ -1655,11 +1655,11 @@ export const FinalAssessmentStructuredField: React.FC<
         typeof activeTaskId === "string" &&
         activeTaskId.length > 0,
       preferStale: true,
-    }
+    },
   );
   const activeTask = React.useMemo(
     () => toTaskWorkItem(rawActiveTask),
-    [rawActiveTask]
+    [rawActiveTask],
   );
 
   const { updateTask } = useWorkItemUpdateMethods(
@@ -1669,7 +1669,7 @@ export const FinalAssessmentStructuredField: React.FC<
     undefined,
     {
       initiativeId: activeTask?.initiativeId,
-    }
+    },
   );
 
   const { mutate: updateDesignDoc } = useUpdateDesignDoc();
@@ -1680,7 +1680,7 @@ export const FinalAssessmentStructuredField: React.FC<
     {
       enabled: typeof context.agentSessionId === "string",
       preferStale: true,
-    }
+    },
   );
   const decisionMutation = useSuggestionDecision();
 
@@ -1690,19 +1690,19 @@ export const FinalAssessmentStructuredField: React.FC<
     }
 
     return response.artifactUpdateSuggestions.map((suggestion, index) =>
-      parseArtifactSuggestion(suggestion, index, context.messageId)
+      parseArtifactSuggestion(suggestion, index, context.messageId),
     );
   }, [context.messageId, response]);
 
   const actionableSuggestions = React.useMemo(
     () => parsedSuggestions.filter(isActionableSuggestion),
-    [parsedSuggestions]
+    [parsedSuggestions],
   );
 
   const suggestionFingerprint = React.useMemo(
     () =>
       parsedSuggestions.map((suggestion) => suggestion.suggestionId).join("|"),
-    [parsedSuggestions]
+    [parsedSuggestions],
   );
 
   const [applyStatusBySuggestionId, setApplyStatusBySuggestionId] =
@@ -1736,8 +1736,8 @@ export const FinalAssessmentStructuredField: React.FC<
         accepted: true,
         decidedBy: null,
         createdAt: new Date().toISOString(),
-        sourceConversationId: context.conversationId,
-        sourceMessageId: context.messageId,
+        sourceConversationId: toOpenApiConversationId(context.conversationId),
+        sourceMessageId: toOpenApiMessageId(context.messageId),
       };
 
       suggestionDecisions.upsertDecision(optimisticDecision);
@@ -1755,7 +1755,7 @@ export const FinalAssessmentStructuredField: React.FC<
         })
         .catch(() => undefined);
     },
-    [context, decisionMutation, suggestionDecisions]
+    [context, decisionMutation, suggestionDecisions],
   );
 
   const handleRejectSuggestion = React.useCallback(
@@ -1770,8 +1770,8 @@ export const FinalAssessmentStructuredField: React.FC<
         accepted: false,
         decidedBy: null,
         createdAt: new Date().toISOString(),
-        sourceConversationId: context.conversationId,
-        sourceMessageId: context.messageId,
+        sourceConversationId: toOpenApiConversationId(context.conversationId),
+        sourceMessageId: toOpenApiMessageId(context.messageId),
       };
 
       suggestionDecisions.upsertDecision(optimisticDecision);
@@ -1789,7 +1789,7 @@ export const FinalAssessmentStructuredField: React.FC<
         })
         .catch(() => undefined);
     },
-    [context, decisionMutation, suggestionDecisions]
+    [context, decisionMutation, suggestionDecisions],
   );
 
   const resolveAgentSessionServiceId =
@@ -1800,7 +1800,7 @@ export const FinalAssessmentStructuredField: React.FC<
       }
 
       const currentServiceId = readNonEmptyString(
-        agentSessionQuery.agentSession?.launchServiceId
+        agentSessionQuery.agentSession?.launchServiceId,
       );
       if (currentServiceId) {
         return currentServiceId;
@@ -1808,7 +1808,7 @@ export const FinalAssessmentStructuredField: React.FC<
 
       const refreshedSession = await agentSessionQuery.refetch();
       const refreshedServiceId = readNonEmptyString(
-        refreshedSession?.launchServiceId
+        refreshedSession?.launchServiceId,
       );
       if (refreshedServiceId) {
         return refreshedServiceId;
@@ -1826,7 +1826,7 @@ export const FinalAssessmentStructuredField: React.FC<
       if (suggestion.kind === "task_status") {
         if (!activeTask || activeTask.id !== suggestion.target.entityId) {
           throw new Error(
-            "Task context is not available for this task_status update."
+            "Task context is not available for this task_status update.",
           );
         }
 
@@ -1842,7 +1842,7 @@ export const FinalAssessmentStructuredField: React.FC<
       if (suggestion.kind === "task_details") {
         if (!activeTask || activeTask.id !== suggestion.target.entityId) {
           throw new Error(
-            "Task context is not available for this task_details update."
+            "Task context is not available for this task_details update.",
           );
         }
 
@@ -1878,7 +1878,7 @@ export const FinalAssessmentStructuredField: React.FC<
       if (suggestion.kind === "task_acceptance_criteria") {
         if (!activeTask || activeTask.id !== suggestion.target.entityId) {
           throw new Error(
-            "Task context is not available for this task_acceptance_criteria update."
+            "Task context is not available for this task_acceptance_criteria update.",
           );
         }
 
@@ -1959,7 +1959,7 @@ export const FinalAssessmentStructuredField: React.FC<
         }
 
         const sourceType = toUpdateSourceType(
-          suggestion.updatePayload.sourceType
+          suggestion.updatePayload.sourceType,
         );
         const agentSessionId = readNonEmptyString(context.agentSessionId);
 
@@ -1989,7 +1989,7 @@ export const FinalAssessmentStructuredField: React.FC<
       resolveAgentSessionServiceId,
       updateDesignDoc,
       updateTask,
-    ]
+    ],
   );
 
   const handleApplyUpdates = React.useCallback(async (): Promise<void> => {
@@ -1997,11 +1997,11 @@ export const FinalAssessmentStructuredField: React.FC<
       .filter(
         (suggestion) =>
           suggestionDecisions.getDecision(suggestion.suggestionId)?.accepted ===
-          true
+          true,
       )
       .filter(
         (suggestion) =>
-          applyStatusBySuggestionId[suggestion.suggestionId] !== "applied"
+          applyStatusBySuggestionId[suggestion.suggestionId] !== "applied",
       );
 
     if (selectedSuggestions.length === 0) {
@@ -2060,7 +2060,7 @@ export const FinalAssessmentStructuredField: React.FC<
       (suggestion) =>
         suggestionDecisions.getDecision(suggestion.suggestionId)?.accepted ===
           true &&
-        applyStatusBySuggestionId[suggestion.suggestionId] !== "applied"
+        applyStatusBySuggestionId[suggestion.suggestionId] !== "applied",
     );
   }, [actionableSuggestions, applyStatusBySuggestionId, suggestionDecisions]);
 
@@ -2109,7 +2109,7 @@ export const FinalAssessmentStructuredField: React.FC<
           <Chip
             size="small"
             color={toStatusChipColor(
-              response.taskAssessment.statusRecommendation.status
+              response.taskAssessment.statusRecommendation.status,
             )}
             label={`Recommended status: ${response.taskAssessment.statusRecommendation.status}`}
           />
@@ -2131,7 +2131,7 @@ export const FinalAssessmentStructuredField: React.FC<
                 size="small"
                 variant="outlined"
                 label={`Artifact updates: ${String(
-                  response.artifactUpdateSuggestions.length
+                  response.artifactUpdateSuggestions.length,
                 )}`}
               />
             )}
@@ -2140,7 +2140,7 @@ export const FinalAssessmentStructuredField: React.FC<
                 size="small"
                 variant="outlined"
                 label={`Evidence corrections: ${String(
-                  response.evidenceCorrections.length
+                  response.evidenceCorrections.length,
                 )}`}
               />
             )}
@@ -2149,7 +2149,7 @@ export const FinalAssessmentStructuredField: React.FC<
                 size="small"
                 variant="outlined"
                 label={`Open questions: ${String(
-                  response.openQuestions.length
+                  response.openQuestions.length,
                 )}`}
               />
             )}
@@ -2171,12 +2171,12 @@ export const FinalAssessmentStructuredField: React.FC<
                         suggestion={suggestion}
                         selected={
                           suggestionDecisions.getDecision(
-                            suggestion.suggestionId
+                            suggestion.suggestionId,
                           )?.accepted === true
                         }
                         rejected={
                           suggestionDecisions.getDecision(
-                            suggestion.suggestionId
+                            suggestion.suggestionId,
                           )?.accepted === false
                         }
                         applyStatus={
@@ -2212,7 +2212,7 @@ export const FinalAssessmentStructuredField: React.FC<
                               p: 1.25,
                             }}
                             data-testid={`final-assessment-artifact-update-${String(
-                              index
+                              index,
                             )}`}
                           >
                             <Typography variant="body2" fontWeight={600}>
@@ -2234,7 +2234,7 @@ export const FinalAssessmentStructuredField: React.FC<
                             ) : null}
                           </Box>
                         );
-                      }
+                      },
                     )}
               </Stack>
             ) : (
@@ -2267,7 +2267,7 @@ export const FinalAssessmentStructuredField: React.FC<
                     data-testid="final-assessment-apply-updates-summary"
                   >
                     {`Applied ${String(applySummary.appliedCount)} of ${String(
-                      applySummary.attemptedCount
+                      applySummary.attemptedCount,
                     )} selected updates.`}
                   </Alert>
                 ) : null}
@@ -2295,7 +2295,7 @@ export const FinalAssessmentStructuredField: React.FC<
                       p: 1.25,
                     }}
                     data-testid={`final-assessment-open-question-${String(
-                      index
+                      index,
                     )}`}
                   >
                     <Typography variant="body2" fontWeight={600}>

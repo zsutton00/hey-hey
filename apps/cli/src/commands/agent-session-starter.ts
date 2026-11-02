@@ -20,13 +20,13 @@ import type {
 import {
   LocalPromptTaskType,
   LocalPromptType,
-  RunCreatePayloadFreeFormPromptTypeEnum,
-  RunCreatePayloadQuickPromptTypeEnum,
+  RunCreatePayloadFreeFormAllOfPromptTypeEnum,
+  RunCreatePayloadQuickAllOfPromptTypeEnum,
   RunCreatePayloadWorkflowKickoffPromptTypeEnum,
   RunEntityReferenceEntityTypeEnum,
   type TaskMonitorPlanGuidance,
   type TaskMonitorLaunchConfig,
-} from '../shared/agent-bridge-contract/generated';
+} from '@hey-hey/contracts/agent-bridge';
 import {
   AgentSessionConfigV2TypeEnum,
   AgentSessionConfigV2VersionEnum,
@@ -37,7 +37,7 @@ import {
   type AgentSessionConfigV2,
   type ConversationStartRunRequestDto,
   type TaskMonitorRunEffectPayload,
-} from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import { canonicalizeJson } from '../server/trigger-verification/jcs';
 
 export type AgentSessionStartResult =
@@ -257,7 +257,7 @@ const resolveTaskMonitorMethodDispatch = (
         attachments: [],
         handlerPromptType: LocalPromptType.FreeForm,
         payload: {
-          promptType: RunCreatePayloadFreeFormPromptTypeEnum.FreeForm,
+          promptType: RunCreatePayloadFreeFormAllOfPromptTypeEnum.FreeForm,
           entity,
           userMessage,
         },
@@ -267,7 +267,7 @@ const resolveTaskMonitorMethodDispatch = (
         attachments: [],
         handlerPromptType: LocalPromptType.Quick,
         payload: {
-          promptType: RunCreatePayloadQuickPromptTypeEnum.Quick,
+          promptType: RunCreatePayloadQuickAllOfPromptTypeEnum.Quick,
           entity,
           userMessage,
         },

@@ -15,6 +15,7 @@ import {
   type RunCreatePayloadHtmlCssMockupRevision,
 } from "../../api";
 import { useCreateAgentSession } from "../../data/hooks/useCreateAgentSession";
+import { toOpenApiProjectId } from "../../clients/contractIdentifierAdapters";
 import { useCreateAgentSessionConversation } from "../../data/hooks/useCreateAgentSessionConversation";
 import { usePathService } from "../../contexts";
 import { getErrorMessage } from "../../utils/errorUtils";
@@ -80,7 +81,7 @@ export const useHtmlCssMockupRevisionLauncher = ({
         const session = await createSessionRef.current({
           organizationId,
           agentSession: {
-            projectId,
+            projectId: toOpenApiProjectId(projectId),
             sessionDate: new Date().toISOString(),
             title: `Revise ${input.taskTitle}`,
             type: AgentSessionType.EntityConversation,

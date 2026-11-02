@@ -4,7 +4,8 @@ import type {
   CrossProjectActivityMetricParams,
   CrossProjectActivityHistoryParams,
 } from "@hey-hey/ui-common/data";
-import type { ActivityMetricContinuationDto } from "@hey-hey/ui-common/api";
+import type { ActivityMetricContinuationDto } from "@hey-hey/contracts/api";
+import { toOpenApiUserId } from "@hey-hey/ui-common/clients";
 import {
   ActivityCorrelationActivityType,
   ActivityActorScopeMode,
@@ -12,7 +13,7 @@ import {
   ActivityCorrelationSource,
   EntityType,
   ProjectMetricIdentity,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 
 type OrganizationActivityQuery =
   | Omit<CrossProjectActivityFilterParams, "organizationId">
@@ -258,7 +259,6 @@ export const parseOrganizationActivityQuery = (
       windowEnd.length === 0 ||
       (actorScope !== ActivityActorScopeMode.Organization &&
         actorScope !== ActivityActorScopeMode.Personal) ||
-      (actorScope === ActivityActorScopeMode.Personal && !actorUserId) ||
       (actorScope === ActivityActorScopeMode.Organization &&
         actorUserId !== undefined) ||
       (actorScope === ActivityActorScopeMode.Personal &&
@@ -271,15 +271,28 @@ export const parseOrganizationActivityQuery = (
       };
     }
 
+    let metricActorScope: ActivityMetricContinuationDto["actorScope"] = {
+      mode: "ORGANIZATION",
+    };
+    if (actorScope === ActivityActorScopeMode.Personal) {
+      if (actorUserId === undefined) {
+        return {
+          kind: "invalid",
+          message: "This metric evidence link is incomplete or invalid",
+        };
+      }
+      metricActorScope = {
+        mode: "PERSONAL",
+        userId: toOpenApiUserId(actorUserId),
+      };
+    }
+
     const metricContinuation: ActivityMetricContinuationDto = {
       metric: matchingMetric,
       projectIds,
       windowStart,
       windowEnd,
-      actorScope:
-        actorScope === ActivityActorScopeMode.Personal
-          ? { mode: "PERSONAL", userId: actorUserId as string }
-          : { mode: "ORGANIZATION" },
+      actorScope: metricActorScope,
     };
 
     return {

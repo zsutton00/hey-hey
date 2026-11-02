@@ -248,19 +248,22 @@ export const isWorkItemGraphProposal = (
 ): proposal is ProposalResponseDto & {
   updates: WorkItemChangeSetValidationRequest;
 } => {
+  const rawUpdates: unknown = proposal.updates;
   if (
     (proposal.action !== ProposalAction.Create &&
       proposal.action !== ProposalAction.Update) ||
     proposal.targetEntityType !== TargetEntityType.Task ||
-    !isRecord(proposal.updates)
+    !isRecord(rawUpdates)
   ) {
     return false;
   }
 
+  const root = rawUpdates["root"];
+  const operations = rawUpdates["operations"];
   return (
-    isChangeSetIdentity(proposal.updates.root) &&
-    Array.isArray(proposal.updates.operations) &&
-    proposal.updates.operations.every(isWorkItemChangeSetOperation)
+    isChangeSetIdentity(root) &&
+    Array.isArray(operations) &&
+    operations.every(isWorkItemChangeSetOperation)
   );
 };
 

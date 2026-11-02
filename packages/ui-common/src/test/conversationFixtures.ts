@@ -1,4 +1,8 @@
 import type { ConversationResponseDto, MessageResponseDto } from "../api";
+import {
+  toOpenApiMessageId,
+  toOpenApiOrganizationId,
+} from "../clients/contractIdentifierAdapters";
 
 const messagesByConversation = new WeakMap<
   ConversationResponseDto,
@@ -6,26 +10,29 @@ const messagesByConversation = new WeakMap<
 >();
 export function conversationFixture(
   metadata: ConversationResponseDto,
-  messages: MessageResponseDto[]
+  messages: MessageResponseDto[],
 ): ConversationResponseDto {
   const conversation = {
     ...metadata,
-    organizationId: metadata.organizationId ?? "test-org",
+    organizationId:
+      metadata.organizationId ?? toOpenApiOrganizationId("test-org"),
   };
   messagesByConversation.set(conversation, messages);
   return conversation;
 }
 export const fixtureMessages = (
-  conversation: ConversationResponseDto
+  conversation: ConversationResponseDto,
 ): MessageResponseDto[] => messagesByConversation.get(conversation) ?? [];
 export function flattenFixtureMessages(
   messages: MessageResponseDto[],
-  parentMessageId?: string
+  parentMessageId?: string,
 ): MessageResponseDto[] {
   return messages.flatMap((message) => [
     {
       ...message,
-      parentMessageId: message.parentMessageId ?? parentMessageId,
+      parentMessageId:
+        message.parentMessageId ??
+        (parentMessageId ? toOpenApiMessageId(parentMessageId) : undefined),
       responses: [],
     },
     ...flattenFixtureMessages(message.responses ?? [], message.id),

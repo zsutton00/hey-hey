@@ -1589,11 +1589,6 @@ FeatureSyncDecisionReportPayloadV1:
         - reconciliationOptions
       not:
         type: object
-        properties:
-          decisionGroups:
-            type: array
-          schemaVersion:
-            type: integer
         anyOf:
           - required: [decisionGroups]
           - required: [schemaVersion]
@@ -1683,13 +1678,6 @@ FeatureSyncDecisionReportPayloadV2:
       required: [reportType, decisionGroups]
       not:
         type: object
-        properties:
-          discrepancies:
-            type: array
-          reconciliationOptions:
-            type: array
-          schemaVersion:
-            type: integer
         anyOf:
           - required: [discrepancies]
           - required: [reconciliationOptions]
@@ -2931,22 +2919,22 @@ ChangeWalkthroughReportPayload:
   description: Guided behavioral changes in importance order with inspected literal excerpts and immediate explanations. Required Review output, not a repair-authority gate.
   allOf:
     - $ref: "#/BaseReportPayload"
-  type: object
-  required: [reportType, summary, targetRunId, groups]
-  properties:
-    reportType:
-      type: string
-      enum: [CHANGE_WALKTHROUGH]
-    summary:
-      type: string
-    targetRunId:
-      type: string
-      format: uuid
-      description: Host-stamped reviewed Run identity whose resolved Service workspaces supply source authority.
-    groups:
-      type: array
-      items:
-        $ref: "#/ChangeWalkthroughGroup"
+    - type: object
+      required: [reportType, summary, targetRunId, groups]
+      properties:
+        reportType:
+          type: string
+          enum: [CHANGE_WALKTHROUGH]
+        summary:
+          type: string
+        targetRunId:
+          type: string
+          format: uuid
+          description: Host-stamped reviewed Run identity whose resolved Service workspaces supply source authority.
+        groups:
+          type: array
+          items:
+            $ref: "#/ChangeWalkthroughGroup"
 
 ReportUsageTrendKind:
   description: Execution kind a usage trend sample is attributed to. CHANGE_WALKTHROUGH reports count as REVIEW.

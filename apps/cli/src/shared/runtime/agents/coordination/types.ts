@@ -8,9 +8,9 @@ import type {
   UpdateDesignDocDto,
   WorkStatus,
   ProjectModeSelection,
-} from '../../../api/generated/index';
+} from '@hey-hey/contracts/api/models';
 import type { WorkItemTypeKey } from '../../constants/taskTypes';
-import type { LocalPromptStartupInput } from '../../../api/generated/index';
+import type { LocalPromptStartupInput } from '@hey-hey/contracts/api/models';
 import type { AgentSessionId } from '../core/types';
 
 type Brand<T, B extends string> = T & { readonly __brand: B };

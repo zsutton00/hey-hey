@@ -1,12 +1,9 @@
-import type { ReadRestriction } from '../shared/api/generated/api';
-import type { FullEntityContextDto } from '../shared/api/generated';
+import type { ReadRestriction } from '@hey-hey/contracts/api/models';
+import type { FullEntityContextDto } from '@hey-hey/contracts/api/models';
 import type { EvalAttemptExecution } from './run-eval/eval-attempt-execution';
-import { projectModeSettingsJsonSchema } from '../generated/project-mode-contract.schema';
-import type {
-  ImplementRuntimeSelection,
-  SessionRole,
-} from '../shared/agent-bridge-contract/generated/api';
-import type { LocalPromptType } from '../shared/agent-bridge-contract/generated';
+import { projectModeSettingsJsonSchema } from '@hey-hey/contracts/agent-bridge/custom/project-mode-contract.schema';
+import type { ImplementRuntimeSelection, SessionRole } from '@hey-hey/contracts/agent-bridge';
+import type { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../session/types';
 import type { AgentProviderId } from './providers/provider-config';
 import type { RunStore } from '../run-store/run-store';
@@ -42,7 +39,7 @@ import type { LoadedEntityPromptContext } from './entity-context/types';
 import type {
   ImplementationReadinessFinding,
   ImplementationReadinessSourceSnapshot,
-} from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { ResponseTypeToken } from './response-dispatch';
 import type {
   AgentStartupPromptInput,
@@ -51,6 +48,7 @@ import type {
   AgentStartupPromptTemplateProvenance,
 } from '../commands/agent-startup-prompt-input';
 import type { RepositoryResearchCapability } from './providers/session-runner';
+import type { DecisionModel } from './context-trimming/context-trimmer';
 
 export type { RecentUserReply };
 
@@ -148,6 +146,10 @@ export interface PromptTypeHandlerDeps {
   sessionMonitorEvaluationStore: SessionMonitorEvaluationStore;
   /** Authoritative first-turn entity startup-input owner. */
   startupPromptInput: AgentStartupPromptInput;
+  /** Optional model used to narrow graph reads at the shared platform proxy boundary. */
+  decisionModel?: DecisionModel;
+  /** Existing CLI-wide model switch, read while preparing each eligible Turn. */
+  isDecisionModelEnabled?: () => Promise<boolean>;
   /** Shared launcher for handlers that fan work out to registered child handlers. */
   childAgentLauncher: Pick<ChildAgentLauncher, 'launchRegistered' | 'resolveChildHandler'>;
 }

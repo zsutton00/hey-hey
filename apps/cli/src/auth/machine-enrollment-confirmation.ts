@@ -19,6 +19,10 @@ import {
 import { KeyPairStore } from '../credentials/keypair';
 import { canonicalizeJson, type CanonicalJsonValue } from '../shared/canonical-json';
 import {
+  toOpenApiOrganizationId,
+  toOpenApiUserId,
+} from '../shared/api/identifierAdapters';
+import {
   attachDirectEnrollmentOutput,
   MachineEnrollmentCancelledError,
   MachineEnrollmentCeremony,
@@ -112,8 +116,8 @@ const storedReadyEnrollmentSchema = z
     osFamily: z.enum(['macos', 'windows', 'linux']),
     cliVersion: z.string().min(1),
     machineKeyFingerprint: z.string().min(1),
-    accountId: z.string().min(1),
-    organizationId: z.string().min(1),
+    accountId: z.string().min(1).transform(toOpenApiUserId),
+    organizationId: z.string().min(1).transform(toOpenApiOrganizationId),
     controllerLabel: z.string().min(1),
     controllerCredentialId: z.string().min(1),
     controllerCredentialFingerprint: z.string().min(1),
@@ -150,8 +154,8 @@ const storedActivationSchema = z
         machineName: z.string().min(1),
         osFamily: z.enum(['macos', 'windows', 'linux']),
         cliVersion: z.string().min(1),
-        accountId: z.string().min(1),
-        organizationId: z.string().min(1),
+        accountId: z.string().min(1).transform(toOpenApiUserId),
+        organizationId: z.string().min(1).transform(toOpenApiOrganizationId),
         controllerLabel: z.string().min(1),
         controllerCredentialId: z.string().min(1),
         controllerCredentialPublicKey: z

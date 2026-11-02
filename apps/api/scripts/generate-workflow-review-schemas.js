@@ -11,6 +11,7 @@ const schemas = yaml.load(fs.readFileSync(schemaPath, 'utf8'));
 const generatedSchemaNames = [
   'ImplementPromptPayload',
   'CodingPlanDiscrepancy',
+  'CodingPlanEmittedDiscrepancy',
   'CodingPlanContext',
   'CodingPlanVersion',
   'CodingPlanVersionApproval',
@@ -110,7 +111,7 @@ function schemaExpression(schema) {
   return 'z.unknown()';
 }
 
-const checkedSchemas = ['CodingPlanVersion', 'CodingPlanEmissionInput'];
+const checkedSchemas = ['CodingPlanVersion'];
 const emitted = new Set();
 const declarations = [];
 
@@ -135,11 +136,11 @@ for (const name of generatedSchemaNames) emitSchema(name, true);
 const output = [
   '/* This file is generated from OpenAPI by scripts/generate-workflow-review-schemas.js. */',
   "import { z } from 'zod';",
-  `import type { ${checkedSchemas.join(', ')} } from '${process.argv[2] ? '../shared/api/generated/api' : './model/models'}';`,
+  `import type { ${checkedSchemas.join(', ')} } from '@hey-hey/contracts/api/models';`,
   '',
   '// Zod optional output includes undefined, which exactOptionalPropertyTypes rejects for the OpenAPI types.',
-  'type OptionalKeys<T> = { [K in keyof T]-?: object extends Pick<T, K> ? K : never }[keyof T];',
-  'type ZodShaped<T> = Omit<T, OptionalKeys<T>> & { [K in OptionalKeys<T>]?: T[K] | undefined };',
+  'type OptionalKeys<T> = { [K in keyof T]-?: {} extends Pick<T, K> ? K : never }[keyof T];',
+  'type ZodShaped<T> = T extends readonly (infer U)[] ? ZodShaped<U>[] : T extends object ? Omit<T, OptionalKeys<T>> & { [K in OptionalKeys<T>]?: ZodShaped<T[K]> | undefined } : T;',
   '',
   ...declarations.flatMap((declaration) => [declaration, '']),
 ].join('\n');

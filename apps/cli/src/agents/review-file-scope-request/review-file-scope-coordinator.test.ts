@@ -8,7 +8,7 @@ import {
   createTestMessagePoster,
 } from '../../run/run.test-support';
 import { NOOP_LOGGER } from '../../server/logger';
-import type { AgentSessionReviewFileScopeRequest } from '../../shared/api/generated/api';
+import type { AgentSessionReviewFileScopeRequest } from '@hey-hey/contracts/api/models';
 import type { RunFollowUpAdmission } from '../../server/input-admission/input-admission-payload';
 import { ReviewFileScopeCoordinator } from './review-file-scope-coordinator';
 
@@ -49,9 +49,9 @@ async function fixture() {
     agentType: 'claude',
     timestamp: '2026-10-09T00:00:00.000Z',
     idempotencyToken: 'token-1',
-    files: new Set([
+    files: [
       { serviceId: 'service-1', filePath: 'not-yet-created.ts', reason: 'Required repair.' },
-    ]),
+    ],
   };
   run.refreshSessionFields({
     services: [{ id: 'service-1', path: root }],

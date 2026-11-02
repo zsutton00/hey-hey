@@ -11,11 +11,12 @@ import {
   type UIElement,
 } from "../../api";
 import type { FormValue } from "../LlmForms/types";
+import { toOpenApiMessageId } from "../../clients/contractIdentifierAdapters";
 
 export const TASK_MONITOR_JUDGMENT_FIELD_ID = "task-monitor-judgment-response";
 
 export const resolveTaskMonitorJudgmentTarget = (
-  taskMonitorId: string | undefined
+  taskMonitorId: string | undefined,
 ): string | null => {
   const normalizedTaskMonitorId = taskMonitorId?.trim();
   return normalizedTaskMonitorId ? normalizedTaskMonitorId : null;
@@ -32,7 +33,7 @@ const taskMonitorJudgmentField: UIElement = {
 };
 
 const isTaskMonitorSupervisionData = (
-  data: SystemMessageData
+  data: SystemMessageData,
 ): data is TaskMonitorSupervisionSystemMessageData =>
   data.type === SystemMessageDataTypeEnum.TaskMonitorSupervision &&
   "outcome" in data &&
@@ -40,7 +41,7 @@ const isTaskMonitorSupervisionData = (
     TaskMonitorJudgmentRequestedSystemMessageDataOutcomeEnum.JudgmentRequested;
 
 export const isAwaitingTaskMonitorJudgment = (
-  message: MessageResponseDto
+  message: MessageResponseDto,
 ): message is SystemMessage & {
   data: TaskMonitorSupervisionSystemMessageData;
 } =>
@@ -49,7 +50,7 @@ export const isAwaitingTaskMonitorJudgment = (
   isTaskMonitorSupervisionData(message.data);
 
 export const getTaskMonitorJudgmentFormUiElements = (
-  message: MessageResponseDto
+  message: MessageResponseDto,
 ): UIElement[] =>
   isAwaitingTaskMonitorJudgment(message) ? [taskMonitorJudgmentField] : [];
 
@@ -70,7 +71,7 @@ const getJudgmentText = (value: FormValue): string => {
 
 export const buildTaskMonitorJudgmentCommand = (
   requestMessageId: string,
-  data: Record<string, FormValue>
+  data: Record<string, FormValue>,
 ): TaskMonitorJudgmentResolvedCommand => {
   const conclusion = getJudgmentText(data[TASK_MONITOR_JUDGMENT_FIELD_ID]);
   if (!conclusion) {
@@ -79,7 +80,7 @@ export const buildTaskMonitorJudgmentCommand = (
   return {
     cause: "JUDGMENT_RESOLVED",
     judgment: {
-      requestMessageId,
+      requestMessageId: toOpenApiMessageId(requestMessageId),
       label: taskMonitorJudgmentField.label,
       conclusion,
     },

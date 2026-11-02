@@ -4,6 +4,7 @@ import { isAxiosError } from 'axios';
 import type { FailureReason } from './failure-message';
 import { isInertSubmissionToolAllowed } from './inert-execution-policy';
 import { SessionRoleGuidance } from '../agents/session-role-guidance/session-role-guidance';
+import { createContextTrimmer } from '../agents/context-trimming/create-trimmer';
 import { resolveHandlerSessionRole } from '../agents/prompt-type-handler';
 import { RunAttachmentNotFoundError } from '../server/run-attachment-store';
 import { RunAttachmentContentReader } from '../agents/providers/run-attachment-content-reader';
@@ -47,6 +48,7 @@ import { MachineOptionsStore } from '../options/machine-options-store';
  */
 
 import { randomUUID } from 'node:crypto';
+import { toOpenApiProjectId } from '../shared/api/identifierAdapters';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -58,7 +60,7 @@ import {
   RunWorktreeCollisionError,
   type ResolvedRunWorkspace,
 } from '../agents/run-scope';
-import type { UserMessageAdmittedServiceScope } from '../shared/api/generated/api';
+import type { UserMessageAdmittedServiceScope } from '@hey-hey/contracts/api/models';
 import {
   AgentSessionRunnerError,
   type AgentSessionRunner,
@@ -122,7 +124,7 @@ import type {
 import type {
   AgentSessionReviewFileScopeRequest,
   ImplementationReadinessDisposition,
-} from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import { MessageType, MessageStatus, SystemMessageDataTypeEnum } from '../shared/api/index';
 import type { AgentSystemMessageData, SystemMessageData } from '../shared/api/index';
 import type {
@@ -132,8 +134,8 @@ import type {
   ResolvedServiceBinding,
   SendMessageOptions,
 } from '../shared/agent-bridge-contract/contract';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated/api';
-import type { RunEntityReference } from '../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import type { RunEntityReference } from '@hey-hey/contracts/agent-bridge';
 import { resolvePromptText } from '../shared/agent-bridge-contract/contract';
 import { LocalAgentApiError } from '../shared/agent-bridge-contract/errors';
 import type { ServerLogger } from '../server/logger';
@@ -174,7 +176,7 @@ import { createReadinessSourceSnapshotFromStartupInput } from '../agents/impleme
 import { Turn, type Runner } from '../turn/turn';
 import { resolveTurnEffective } from '../turn/turn-effective';
 import { AgentSessionCurrentStateOwner } from './agent-session-current-state';
-import type { AgentSessionCurrentStateObservation } from '../shared/api/generated/api';
+import type { AgentSessionCurrentStateObservation } from '@hey-hey/contracts/api/models';
 import type { LoadedEntityPromptContext } from '../agents/entity-context/types';
 import { ConversationPhaseOwner } from './conversation-phase';
 import { RunCompaction } from './run-compaction';
@@ -5614,6 +5616,15 @@ export class Run {
       ...(handler.mcpToolUseCase ? { useCase: handler.mcpToolUseCase } : {}),
       additionalTools: platformMcpAdditionalAllowedTools,
     });
+    const graphResultNarrower = await createContextTrimmer({
+      promptType: handler.promptType,
+      decisionModel: this.handlerDeps.decisionModel,
+      isDecisionModelEnabled: this.handlerDeps.isDecisionModelEnabled,
+      loadedEntityContext: this.startupPromptInputResult?.loadedEntityContext ?? null,
+      payload: preparedPayload ?? input.payload,
+      deps: this.handlerDeps,
+      logger: this.logger,
+    });
     const platformMcpProxy = new TurnPlatformMcpProxy({
       runId: this.runId,
       turnId,
@@ -5621,6 +5632,7 @@ export class Run {
       catalog: platformMcpCatalog,
       activeHandlerPromptType: handler.promptType,
       logger: this.logger,
+      ...(graphResultNarrower ? { graphResultNarrower } : {}),
     });
     this.logger.debug('local.run.platform_mcp_proxy_registered', {
       turnId,
@@ -6426,8 +6438,8 @@ export class Run {
   }
 
   public async persistCodingPlanElement(
-    type: import('../shared/api/generated/api').ExtendedUIFieldType,
-    payload: import('../shared/api/generated/api').CodingPlanVersion,
+    type: import('@hey-hey/contracts/api').ExtendedUIFieldType,
+    payload: import('@hey-hey/contracts/api').CodingPlanVersion,
   ): Promise<string> {
     return this.persistCodingPlanMessage(type, '', [
       {
@@ -6458,12 +6470,12 @@ export class Run {
     const session = this.session;
     const messageId = await this.poster.createOutOfBand({
       organizationId: session.contextMetadata.organizationId,
-      projectId: session.contextMetadata.projectId,
+      projectId: toOpenApiProjectId(session.contextMetadata.projectId),
       conversationId: session.conversationId,
       dto: {
         type: MessageType.System,
         status: MessageStatus.Completed,
-        projectId: session.contextMetadata.projectId,
+        projectId: toOpenApiProjectId(session.contextMetadata.projectId),
         data: {
           type: SystemMessageDataTypeEnum.Agent,
           response,
@@ -6503,7 +6515,7 @@ export class Run {
     const dto = {
       type: MessageType.System,
       status: MessageStatus.Completed,
-      projectId: session.contextMetadata.projectId,
+      projectId: toOpenApiProjectId(session.contextMetadata.projectId),
       data: agentData,
       createdAt: new Date().toISOString(),
     } as const;

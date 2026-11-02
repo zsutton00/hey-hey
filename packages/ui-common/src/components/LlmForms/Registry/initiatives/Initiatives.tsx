@@ -19,6 +19,7 @@ import type {
   Priority,
   WorkStatus,
 } from "../../../../api";
+import { toOpenApiProjectId } from "../../../../clients/contractIdentifierAdapters";
 import type { MutationCallbacks } from "../../../../data/core/types";
 import { KEYS } from "../../../../i18n/keys";
 import { contentToSectionInputs } from "../../../../utils/workItemSections";
@@ -91,7 +92,7 @@ export const Initiatives: React.FC<InitiativesMessageProps> = ({
         await onInitiativeCreate(
           {
             name: formData.name.trim(),
-            projectId,
+            projectId: toOpenApiProjectId(projectId),
             sections: contentToSectionInputs(
               {
                 description: formData.description ?? "",

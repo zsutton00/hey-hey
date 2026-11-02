@@ -54,23 +54,39 @@ try {
     fs.mkdirSync(stagedGeneratedRoot, { recursive: true });
   }
 
-  run(process.execPath, [
-    'scripts/generate-openapi-models.js',
-    'api-models',
-    'api',
-    '--cache',
-  ]);
-  run(process.execPath, ['scripts/generate-task-monitor-schema.js']);
+  fs.rmSync(path.join(stagedGeneratedRoot, 'model'), {
+    recursive: true,
+    force: true,
+  });
+  fs.rmSync(path.join(stagedGeneratedRoot, 'local'), {
+    recursive: true,
+    force: true,
+  });
+  for (const obsoleteFile of ['index.ts', 'configuration.ts', 'variables.ts']) {
+    fs.rmSync(path.join(stagedGeneratedRoot, obsoleteFile), { force: true });
+  }
+  for (const obsoleteSchema of [
+    'project-mode-contract.schema.ts',
+    'proposal-reconciliation.schema.ts',
+    'task-monitor-execution-definition.schema.ts',
+  ]) {
+    fs.rmSync(path.join(stagedGeneratedRoot, obsoleteSchema), { force: true });
+  }
+  fs.rmSync(
+    path.join(
+      projectRoot,
+      'src/contracts/repository-feature-enrichment-runtime-schema.ts',
+    ),
+    { force: true },
+  );
   run(process.execPath, ['scripts/generate-activity-history-contract.js']);
   run(process.execPath, ['scripts/generate-project-report-schemas.js']);
   run(process.execPath, ['scripts/generate-goal-pm-decision-schema.js']);
-  run(process.execPath, ['scripts/generate-project-mode-schema.js']);
   run(process.execPath, ['scripts/generate-feature-requirements-schema.js']);
   run(process.execPath, ['scripts/generate-future-revision-schema.js']);
   run(process.execPath, ['scripts/generate-private-beta-access-schema.js']);
   run(process.execPath, ['scripts/generate-demo-sandbox-schema.js']);
   run(process.execPath, ['scripts/generate-open-items-schemas.js']);
-  run(process.execPath, ['scripts/generate-proposal-reconciliation-schema.js']);
   run(process.execPath, ['scripts/generate-workflow-review-schemas.js']);
   run(process.execPath, ['scripts/generate-diagram-schemas.js']);
   run(process.execPath, [
@@ -82,7 +98,7 @@ try {
       'scripts/generate-controller-action-contract.js',
     ),
     path.join(stagedGeneratedRoot, 'controller-action-contract.ts'),
-    './model/models',
+    '@hey-hey/contracts/api/models',
   ]);
   run(executable('prettier'), [
     '--write',
@@ -93,22 +109,8 @@ try {
     path.join(stagedGeneratedRoot, 'entity-prompt-template-language.ts'),
     path.join(stagedGeneratedRoot, 'controller-action-contract.ts'),
   ]);
-  run(process.execPath, ['scripts/post-process-message-events.js']);
-  run(process.execPath, ['scripts/generate-models-barrel.js']);
   run(executable('ts-node'), ['scripts/post-process-generated-types.ts']);
-  run(process.execPath, [
-    path.join(
-      resolveOpenapiRoot(),
-      'scripts/postprocess-project-report-models.js',
-    ),
-    path.join(stagedGeneratedRoot, 'model'),
-  ]);
   run(process.execPath, ['scripts/generate-path-constants.js']);
-  run(process.execPath, [
-    'scripts/finalize-openapi-generation-cache.js',
-    'api-models',
-    'api',
-  ]);
 
   if (
     fingerprintDirectory(liveGeneratedRoot) ===

@@ -6,7 +6,6 @@ import {
   AgentEdgeDirection,
   AgentEdgeEndpointEntityType,
   AgentEdgeType,
-  Configuration,
   DiagramElementRoleDefinitionNotationEnum,
   DiagramReferenceTargetRuleEntityTypeEnum,
   EntityType,
@@ -25,10 +24,11 @@ import {
   WorkItemTypeRole,
   WorkItemTypeScalarField,
   WorkItemTypeSectionDefinitionKindEnum,
-  WorkItemTypesApi,
   WorkStatus,
   WorkItemConfigKind,
 } from '../../shared/api/index';
+import { Configuration, WorkItemTypesApi } from '../../shared/api/index';
+import { toOpenApiProjectId } from '../../shared/api/identifierAdapters';
 import type {
   WorkItemTypeSessionRoleGuidance,
   WorkItemTypeCapabilities,
@@ -475,7 +475,7 @@ const summaryShape = {
   id: z.string(),
   definition: definitionSchema,
   status: z.nativeEnum(WorkItemTypeLifecycleStatus),
-  projectId: z.string(),
+  projectId: z.string().transform(toOpenApiProjectId),
   effectiveSource: z.nativeEnum(WorkItemTypeEffectiveSource),
 } satisfies ZodShapeFor<WorkItemTypeSummaryDto>;
 const summarySchema = z.object(summaryShape).strict();

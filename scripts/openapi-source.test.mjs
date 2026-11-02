@@ -5,11 +5,15 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 
 const resolver = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   "openapi-source.cjs",
 );
+const { digestSpecClosure, listSpecReferenceClosure } = createRequire(
+  import.meta.url,
+)(resolver);
 const git = (cwd, ...args) =>
   execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
 const canonical = (value) => fs.realpathSync(value);
@@ -119,4 +123,38 @@ test("a pin outside any Git checkout still reports a content identity", (t) => {
   assert.equal(pinnedIdentity.selection, "explicit_pin");
   assert.equal(pinnedIdentity.revision, null);
   assert.equal(pinnedIdentity.closureDigest, defaultIdentity.closureDigest);
+});
+
+test("a target fingerprint follows transitive refs without unrelated schemas", (t) => {
+  const { checkout } = createFixture(t);
+  const openapiRoot = path.join(checkout, "openapi");
+  const entry = path.join(openapiRoot, "specs/api/openapi.yaml");
+  const referenced = path.join(openapiRoot, "specs/schemas/shared.yaml");
+  fs.writeFileSync(
+    entry,
+    `openapi: 3.0.0\ninfo: {title: fixture, version: 1.0.0}\npaths: {}\ncomponents:\n  schemas:\n    Shared:\n      $ref: ../schemas/shared.yaml#/Shared\n`,
+  );
+  fs.mkdirSync(path.dirname(referenced), { recursive: true });
+  fs.writeFileSync(referenced, "Shared: { type: string, enum: [a, b] }\n");
+
+  const before = digestSpecClosure(openapiRoot, "specs/api/openapi.yaml");
+  assert.deepEqual(listSpecReferenceClosure(openapiRoot, "specs/api/openapi.yaml"), [
+    "specs/api/openapi.yaml",
+    "specs/schemas/shared.yaml",
+  ]);
+
+  fs.writeFileSync(
+    path.join(openapiRoot, "specs/schemas/unrelated.yaml"),
+    "Unrelated: { type: string }\n",
+  );
+  assert.equal(
+    digestSpecClosure(openapiRoot, "specs/api/openapi.yaml").closureDigest,
+    before.closureDigest,
+  );
+
+  fs.writeFileSync(referenced, "Shared: { type: string, enum: [a, b, c] }\n");
+  assert.notEqual(
+    digestSpecClosure(openapiRoot, "specs/api/openapi.yaml").closureDigest,
+    before.closureDigest,
+  );
 });

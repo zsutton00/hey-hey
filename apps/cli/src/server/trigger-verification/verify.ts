@@ -1,4 +1,4 @@
-import type { ConversationControlCancelInput } from '../../shared/api/generated/api';
+import type { ConversationControlCancelInput } from '@hey-hey/contracts/api/models';
 /**
  * Trigger-frame verification pipeline.
  *
@@ -9,6 +9,7 @@ import type { ConversationControlCancelInput } from '../../shared/api/generated/
  */
 
 import crypto from 'node:crypto';
+import { toOpenApiUserId } from '../../shared/api/identifierAdapters';
 
 import type {
   AgentTrigger,
@@ -21,7 +22,7 @@ import type {
   SignedConversationTriggerEnvelope,
   SignedMonitorCommandEnvelope,
   MonitorCommandBody1 as MonitorCommandBody,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type {
   CliReadEnvelopeBody,
   CliSettingsEnvelopeBody,
@@ -29,7 +30,7 @@ import type {
   MachineRevocationReductionBodyDto,
   SignedAuthorityReductionEnvelope,
   SignedControllerRevocationReductionEnvelope,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { ExecutableEnvelopeAuthorization } from '../controller-authorization/types';
 import {
   cliReadFrameV2Schema,
@@ -782,6 +783,7 @@ export class TriggerVerifier {
           } as MonitorCommandBody;
           const envelope: VerifiedMonitorEnvelope = {
             ...rawEnvelope,
+            userId: toOpenApiUserId(rawEnvelope.userId),
             event: normalizedEvent,
           };
           return {

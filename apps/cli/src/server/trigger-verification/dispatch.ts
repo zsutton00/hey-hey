@@ -5,7 +5,7 @@ import { DeterministicE2EEvidence } from '../../run/runners/deterministic-e2e-ev
 import { MissingServiceBindingError } from '../services/run-errors';
 import { startFailureOf } from '../input-admission/start-failure';
 import { InputAdmissionIdentityError } from '../input-admission/input-admission-identity-error';
-import type { ReadableInputRecord } from '../input-admission/input-admission-codec';
+import { storedInput, type ReadableInputRecord } from '../input-admission/input-admission-codec';
 import {
   storedSignedTriggerSchema,
   toStoredTriggerFrame,
@@ -43,13 +43,13 @@ import {
   LocalPromptType,
   type AgentTrigger,
   type MonitorCommandAcknowledgement,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type {
   AgentInputDisposition,
   AgentOperationDispatchAcknowledgement,
   AuthorityReductionAcknowledgement,
   UserMessagePromptPayload,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { MachineControllerAuthority } from '../../auth/machine-controller-authority';
 import { buildCodeReviewRequest } from '../../agents/review-subagent/review-request';
 import {
@@ -78,7 +78,7 @@ import type { HostActionAdmission } from '../controller-authorization/host-actio
 import type { HostActionAdmissionRequest } from '../controller-authorization/types';
 import type { AdmittedHostAction } from '../controller-authorization/types';
 import type { ApplicationEffectLaunchBodyV2, ExactActionDeliveryBodyV2 } from './protocol-v2';
-import type { AdmissionEnvelopeAuthorization } from '../../shared/api/generated/api';
+import type { AdmissionEnvelopeAuthorization } from '@hey-hey/contracts/api/models';
 import type { ExecutableEnvelopeAuthorization } from '../controller-authorization/types';
 import { ConversationRunResolver } from '../conversation-dispatch/conversation-run-resolver';
 import { TaskMonitorConversationInputAdmission } from '../task-monitor-conversation-input-admission';
@@ -205,7 +205,7 @@ const describeDroppedPayload = (body: { payload?: unknown }): Record<string, unk
   };
 };
 
-/** What `toCreateRunRequest` reads; the wire-validated and the stored start_run payloads both satisfy it. */
+/** What `toCreateRunRequest` reads; wire-validated and adapted saved start_run payloads both satisfy it. */
 export type StartRunRequestSource = Omit<
   StartRunTriggerPayload,
   'runId' | 'handlerPromptType' | 'workflowName' | 'agentSessionId'
@@ -1396,15 +1396,11 @@ export class TriggerFrameRouter {
         userId: verified.envelope.userId,
         messageId: operation ? (operation.sourceUserMessageId ?? operation.triggerMessageId) : null,
       },
-      {
-        kind: 'trigger_frame',
-        keyKind: operation ? 'operation' : 'trigger_message',
-        payload: toStoredTriggerFrame(
-          verified.frame.conversationId ?? null,
-          body,
-          validatedPayload,
-        ),
-      },
+      storedInput(
+        'trigger_frame',
+        operation ? 'operation' : 'trigger_message',
+        toStoredTriggerFrame(verified.frame.conversationId ?? null, body, validatedPayload),
+      ),
     );
     this.dependencies.operationTimeline?.mark(key, 'receiptCommitted');
     this.dependencies.operationTimeline?.updateMetadata(key, {

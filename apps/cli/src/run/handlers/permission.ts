@@ -13,7 +13,8 @@ import {
   MessageStatus,
   SystemMessageDataTypeEnum,
 } from '../../shared/api/index';
-import { PermissionRequestAgentType } from '../../shared/api/generated/api';
+import { PermissionRequestAgentType } from '@hey-hey/contracts/api/models';
+import { toOpenApiProjectId } from '../../shared/api/identifierAdapters';
 import type { SystemMessageData } from '../../shared/api/index';
 import type { PermissionEvent, HandlerDeps, DiffEvent } from '../types';
 import type { Run } from '../run';
@@ -164,7 +165,7 @@ export const handlePermission = async (
         dto: {
           type: MessageType.System,
           status: MessageStatus.Open,
-          projectId: ctx.projectId,
+          projectId: toOpenApiProjectId(ctx.projectId),
           data,
         },
         stamp: null,
@@ -203,7 +204,7 @@ export const handlePermission = async (
       dto: {
         type: MessageType.System,
         status: MessageStatus.Open,
-        projectId: ctx.projectId,
+        projectId: toOpenApiProjectId(ctx.projectId),
         data,
       },
       stamp: null,

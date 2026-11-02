@@ -1,4 +1,8 @@
 import { JourneyCanvas } from "../ProposalGroupReview/JourneyCanvas";
+import {
+  toOpenApiOrganizationId,
+  toOpenApiProjectId,
+} from "../../clients/contractIdentifierAdapters";
 import { SavedJourneyScreen } from "../ProposalGroupReview/SavedJourneyScreen";
 import { useModalState } from "../Modals/useModalState";
 import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
@@ -7312,8 +7316,10 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
     getDiagramMetadata(hydratedGraphData.workflow)?.kind === "UX_FLOW"
   ) {
     const scope = {
-      organizationId: hydratedGraphData.workflow.organizationId,
-      projectId: hydratedGraphData.workflow.projectId,
+      organizationId: toOpenApiOrganizationId(
+        hydratedGraphData.workflow.organizationId,
+      ),
+      projectId: toOpenApiProjectId(hydratedGraphData.workflow.projectId),
     };
     const positions = projection
       ? projection.effectiveLayout.nodes.map(

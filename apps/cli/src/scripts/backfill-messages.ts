@@ -30,6 +30,12 @@ import {
   type UserMessageData,
 } from '../shared/api/index';
 import { extractStructuredJsonPayload } from '../agents/response-parser';
+import {
+  toOpenApiConversationId,
+  toOpenApiMessageId,
+  toOpenApiProjectId,
+  toOpenApiUserId,
+} from '../shared/api/identifierAdapters';
 import type { AgenticSessionEvent, AgenticSession } from '../session/types';
 
 type BackfillSystemMessage = Omit<CreateSystemMessage, 'data' | 'status' | 'createdAt'> & {
@@ -73,13 +79,13 @@ const buildBackfillAgentMessage = (
             ragEnabled: false,
           } satisfies BackfillSystemMessage['data'];
           return {
-            projectId,
+            projectId: toOpenApiProjectId(projectId),
             type: MessageType.System,
             status: MessageStatus.Completed,
-            conversationId,
+            conversationId: toOpenApiConversationId(conversationId),
             data: systemData,
             createdAt: timestamp,
-            ...(parentMessageId ? { parentMessageId } : {}),
+            ...(parentMessageId ? { parentMessageId: toOpenApiMessageId(parentMessageId) } : {}),
           };
         }
       }
@@ -97,13 +103,13 @@ const buildBackfillAgentMessage = (
     ragEnabled: false,
   } satisfies BackfillSystemMessage['data'];
   return {
-    projectId,
+    projectId: toOpenApiProjectId(projectId),
     type: MessageType.System,
     status: MessageStatus.Completed,
-    conversationId,
+    conversationId: toOpenApiConversationId(conversationId),
     data: systemData,
     createdAt: timestamp,
-    ...(parentMessageId ? { parentMessageId } : {}),
+    ...(parentMessageId ? { parentMessageId: toOpenApiMessageId(parentMessageId) } : {}),
   };
 };
 
@@ -119,14 +125,14 @@ const buildBackfillUserMessage = (
   if (trimmed.length === 0) return null;
   const userData: UserMessageData = { comment: trimmed };
   return {
-    projectId,
+    projectId: toOpenApiProjectId(projectId),
     type: MessageType.User,
-    userId,
+    userId: toOpenApiUserId(userId),
     status: MessageStatus.Completed,
-    conversationId,
+    conversationId: toOpenApiConversationId(conversationId),
     data: userData,
     createdAt: timestamp,
-    ...(parentMessageId ? { parentMessageId } : {}),
+    ...(parentMessageId ? { parentMessageId: toOpenApiMessageId(parentMessageId) } : {}),
   };
 };
 

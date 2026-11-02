@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createTestRun } from '../../run/run.test-support';
 import type { AssistantCompleteEvent } from '../../run/types';
 import type { AgenticSession } from '../../session/types';
 import type { PromptTypeHandlerDeps } from '../prompt-type-handler';
@@ -6,11 +7,13 @@ import { resolveMcpToolNames } from '../mcp-server-config';
 import { repositoryFeatureEnrichmentHandler as handler } from './repository-feature-enrichment.handler';
 import { request } from './repository-feature-enrichment.test-fixture';
 
-const run = {
+const baseRun = createTestRun();
+const run: AgenticSession = {
+  ...baseRun.session,
   agentic_session_id: '77777777-7777-4777-8777-777777777777',
   launchServiceId: request.serviceId,
-  services: [{ id: request.serviceId }],
-} as AgenticSession;
+  services: baseRun.session.services.map((service) => ({ ...service, id: request.serviceId })),
+};
 const deps = { logger: { info: vi.fn() } } as unknown as PromptTypeHandlerDeps;
 
 describe('Feature intent conversation handler', () => {

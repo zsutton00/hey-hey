@@ -20,7 +20,7 @@ import {
   AgentSessionConfigV2TypeEnum,
   AgentSessionConfigV2VersionEnum,
   LocalPromptType,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type { CanonicalFileChangeFact } from '../../run/file-change-facts';
 import type { RunChangedFilesDiagnosticEntry } from '../changed-files-diagnostics';
 
@@ -2059,11 +2059,7 @@ describe('RunStore', () => {
             filePath: 'src/additional.ts',
             reason: 'Required repair.',
           },
-        ] as unknown as Set<{
-          serviceId: string;
-          filePath: string;
-          reason: string;
-        }>,
+        ],
       };
       await store.updateRunReviewFileScopeRequestPresentations(run.agentic_session_id, [
         { request, messageId: 'message-1' },
@@ -2114,7 +2110,7 @@ describe('RunStore', () => {
         agentType: 'claude' as const,
         timestamp: '2026-10-09T00:00:00.000Z',
         idempotencyToken: 'token-1',
-        files: new Set([{ serviceId: 'svc-1', filePath: 'new.ts', reason: 'Required repair.' }]),
+        files: [{ serviceId: 'svc-1', filePath: 'new.ts', reason: 'Required repair.' }],
       };
       await store.updateRunReviewFileScopeRequestPresentations(run.agentic_session_id, [
         { request, messageId: 'message-1', closed: true },

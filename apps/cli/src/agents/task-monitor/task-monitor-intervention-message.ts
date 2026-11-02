@@ -1,12 +1,13 @@
+import { TaskMonitorInterventionSystemMessageDataAllOfAgentIdentityEnum as TaskMonitorInterventionSystemMessageDataAgentIdentityEnum } from '@hey-hey/contracts/api/models';
 import {
   MessageStatus,
   MessageType,
   SystemMessageDataTypeEnum,
   TaskMonitorInterventionChoice,
-  TaskMonitorInterventionSystemMessageDataAgentIdentityEnum,
   type CreateSystemMessage,
   type TaskMonitorInterventionSystemMessageData,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
+import { toOpenApiProjectId } from '../../shared/api/identifierAdapters';
 
 export interface TaskMonitorInterventionProjection {
   readonly interventionId: string;
@@ -49,7 +50,7 @@ export const toTaskMonitorInterventionMessage = (
   intervention: TaskMonitorInterventionProjection,
 ): TaskMonitorInterventionMessage =>
   ({
-    projectId,
+    projectId: toOpenApiProjectId(projectId),
     type: MessageType.System,
     status: MessageStatus.Open,
     data: toTaskMonitorInterventionData(intervention),

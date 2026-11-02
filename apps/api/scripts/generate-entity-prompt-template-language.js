@@ -68,13 +68,12 @@ if (new Set(fixture.supportedPaths).size !== fixture.supportedPaths.length) {
 
 const generated =
   `// Generated from specs/fixtures/entity-prompt-template-language-v1.json. Do not edit.\n` +
-  `import { EntityPromptTemplateSyntaxVersion } from './model/entityPromptTemplateSyntaxVersion';\n\n` +
+  `import { EntityPromptTemplateSyntaxVersion } from '@hey-hey/contracts/api/models';\n\n` +
   `export interface EntityPromptTemplatePathFamily {\n` +
   `  readonly template: string;\n` +
   `  readonly pattern: string;\n` +
   `}\n\n` +
-  `import type { EntityPromptTemplateAuthoringMetadataDto } from './model/entityPromptTemplateAuthoringMetadataDto';\n` +
-  `import type { EntityPromptTemplateConditionalBlocksDto } from './model/entityPromptTemplateConditionalBlocksDto';\n` +
+  `import type { EntityPromptTemplateAuthoringMetadataDto, EntityPromptTemplateConditionalBlocksDto } from '@hey-hey/contracts/api/models';\n` +
   `export interface EntityPromptTemplateLanguage {\n` +
   `  readonly authoring: EntityPromptTemplateAuthoringMetadataDto;\n` +
   `  readonly syntaxVersion: EntityPromptTemplateSyntaxVersion;\n` +

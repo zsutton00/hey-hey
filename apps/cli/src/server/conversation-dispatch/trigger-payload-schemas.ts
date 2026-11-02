@@ -1,3 +1,7 @@
+import {
+  taskMonitorLaunchConfigSchema,
+  startRunWorktreePayloadSchema,
+} from '../trigger-verification/task-monitor-launch-config';
 import { ImplementPromptPayloadSchema } from '../../generated/coding-plan.schemas';
 /**
  * Zod schemas mirroring the `triggersAgent.payload` wire shapes the platform
@@ -30,6 +34,7 @@ import { ImplementPromptPayloadSchema } from '../../generated/coding-plan.schema
  */
 
 import { z } from 'zod';
+import { toOpenApiMessageId } from '../../shared/api/identifierAdapters';
 import type { PromptTypeRegistry } from '../../agents/prompt-type-registry';
 import {
   AgentSkillCatalogScope,
@@ -49,9 +54,6 @@ import {
   SessionMonitorSettledTurnEvidenceTerminalOutcomeEnum,
   SessionMonitorSettledTurnReport,
   TaskMonitorLifecycleCause,
-  TaskMonitorLaunchMethod,
-  TaskMonitorLaunchProvider,
-  TaskMonitorReasoningEffort,
   type RepositoryGroundingRequest,
   type RepositoryFeatureEnrichmentRequest,
   type RepositoryFirstWorkRequest,
@@ -59,14 +61,12 @@ import {
   type RunCreatePayloadProjectReport,
   type RunCreatePayloadReleaseNotes,
   type TaskMonitorJudgmentResponse,
-  type TaskMonitorLaunchConfig,
   type TaskMonitorPromptPayload,
   type AgentSkillSelection,
   type FeatureSyncDiscrepancy,
   type PlanShapingFeatureSyncItemDecision,
   type PlanShapingFeatureSyncIteratePromptPayload,
-  type StartRunWorktree,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import {
   LocalReasoningEffort,
   LocalRunProvider,
@@ -82,7 +82,7 @@ import {
   StartRunPromptPayload,
   UserMessagePromptPayload,
   WorkflowName,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import { isAgentSessionConfig } from '../../shared/agent-bridge-contract/config-validation';
 import {
   journeyStepSchema,
@@ -160,19 +160,6 @@ const planShapingProposedStagesPayloadSchema = z.object({
   planId: z.string().uuid({ message: 'planId must be a UUID' }),
   userMessage: z.string().optional(),
 });
-
-const isStartRunWorktreePayload = (
-  value: unknown,
-): value is NonNullable<StartRunPromptPayload['worktree']> => {
-  if (!value || typeof value !== 'object') {
-    return false;
-  }
-  const record = value as { enabled?: unknown; branch?: unknown };
-  return (
-    typeof record.enabled === 'boolean' &&
-    (record.branch === undefined || (typeof record.branch === 'string' && record.branch.length > 0))
-  );
-};
 
 // Mirror of the plan-shaping refine-stage wire payload. The agent is
 // anchored on a single stage of an existing plan and expands its theme
@@ -286,6 +273,12 @@ const repositoryFeatureEnrichmentPayloadSchema = z
       });
     }
   });
+
+/** Revalidate the stored request where its branded identifiers cross into a generated contract. */
+export const parseRepositoryFeatureEnrichmentRequest = (value: unknown) => ({
+  ...repositoryFeatureEnrichmentPayloadSchema.parse(value),
+  promptType: LocalPromptType.RepositoryFeatureEnrichment,
+});
 
 const repositoryFirstWorkPayloadShape = {
   promptType: z.literal(LocalPromptType.RepositoryFirstWork).optional(),
@@ -506,25 +499,8 @@ export const USER_MESSAGE_TRIGGER_SENTINEL = 'user_message' as const;
 // `payload.handlerPromptType`, mirroring the user-message sentinel pattern.
 export const START_RUN_TRIGGER_SENTINEL = 'start_run' as const;
 
-const taskMonitorWorktreeShape = {
-  enabled: z.boolean(),
-  branch: z.string().min(1).optional(),
-} satisfies Record<keyof StartRunWorktree, z.ZodTypeAny>;
-
-const taskMonitorLaunchConfigShape = {
-  taskId: z.string().uuid(),
-  method: z.nativeEnum(TaskMonitorLaunchMethod),
-  provider: z.nativeEnum(TaskMonitorLaunchProvider),
-  model: z.string().min(1),
-  reasoningEffort: z.nativeEnum(TaskMonitorReasoningEffort),
-  fastMode: z.boolean().optional(),
-  worktree: z.object(taskMonitorWorktreeShape).strict().optional(),
-} satisfies Record<keyof TaskMonitorLaunchConfig, z.ZodTypeAny>;
-
-const taskMonitorLaunchConfigSchema = z.object(taskMonitorLaunchConfigShape).strict();
-
 const taskMonitorJudgmentResponseShape = {
-  requestMessageId: z.string().uuid(),
+  requestMessageId: z.string().uuid().transform(toOpenApiMessageId),
   label: z.string().min(1).max(240),
   conclusion: z.string().min(1).max(500),
 } satisfies Record<keyof TaskMonitorJudgmentResponse, z.ZodTypeAny>;
@@ -781,11 +757,7 @@ const startRunPayloadSchema = z
       .string()
       .min(1, { message: 'launchServiceId must be a non-empty string' })
       .optional(),
-    worktree: z
-      .custom<NonNullable<StartRunPromptPayload['worktree']>>(isStartRunWorktreePayload, {
-        message: 'worktree must include enabled:boolean and optional non-empty branch',
-      })
-      .optional(),
+    worktree: startRunWorktreePayloadSchema,
     agentSessionId: z.string().min(1, { message: 'agentSessionId must be a non-empty string' }),
   })
   .superRefine((data, ctx) => {

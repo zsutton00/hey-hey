@@ -9,11 +9,16 @@ import {
   WorkflowAnswerInputKindEnum,
 } from "../../api";
 import { machinesClient, unifiedApiClient } from "../../clients/serviceClients";
+import {
+  toOpenApiAgentSessionId,
+  toOpenApiConversationId,
+  toOpenApiMessageId,
+} from "../../clients/contractIdentifierAdapters";
 import { fingerprintAgentOperation } from "../../components/AgentSession/operations/agentOperationFingerprint";
 import { executeControllerAuthorizedAction } from "./useControllerAuthorizedAction";
 
 const createWorkflowAnswerAction = (
-  agentSessionId: string
+  agentSessionId: string,
 ): HostActionPreparation => ({
   requestId: crypto.randomUUID(),
   actionCategory: HostActionCategory.Conversation,
@@ -24,7 +29,7 @@ const createWorkflowAnswerAction = (
 
 export interface WorkflowAnswerPoster {
   submitWorkflowAnswer: (
-    request: AgentSessionsApiSubmitWorkflowAnswerRequest
+    request: AgentSessionsApiSubmitWorkflowAnswerRequest,
   ) => Promise<unknown>;
 }
 
@@ -47,13 +52,13 @@ export const fingerprintWorkflowAnswer = (
   input: Omit<
     SubmitControllerAuthorizedWorkflowAnswerInput,
     "apiClient" | "evidence"
-  > & { evidence?: WorkflowAnswerInput["evidence"] }
+  > & { evidence?: WorkflowAnswerInput["evidence"] },
 ): Promise<string> => {
   const workflowInput: WorkflowAnswerInput = {
     kind: WorkflowAnswerInputKindEnum.WorkflowAnswer,
     workflowName: input.workflowName,
     nodeId: input.nodeId,
-    parentMessageId: input.parentMessageId,
+    parentMessageId: toOpenApiMessageId(input.parentMessageId),
     action: input.action,
     payload: input.payload,
     ...(input.evidence ? { evidence: input.evidence } : {}),
@@ -70,13 +75,13 @@ export const fingerprintWorkflowAnswer = (
 };
 
 export async function submitControllerAuthorizedWorkflowAnswer(
-  input: SubmitControllerAuthorizedWorkflowAnswerInput
+  input: SubmitControllerAuthorizedWorkflowAnswerInput,
 ): Promise<void> {
   const workflowInput: WorkflowAnswerInput = {
     kind: WorkflowAnswerInputKindEnum.WorkflowAnswer,
     workflowName: input.workflowName,
     nodeId: input.nodeId,
-    parentMessageId: input.parentMessageId,
+    parentMessageId: toOpenApiMessageId(input.parentMessageId),
     action: input.action,
     payload: input.payload,
     ...(input.evidence ? { evidence: input.evidence } : {}),
@@ -95,7 +100,7 @@ export async function submitControllerAuthorizedWorkflowAnswer(
     throw new Error("The conversation does not have a selected machine.");
   }
   const machine = machinesResponse.data?.data?.machines.find(
-    (candidate) => candidate.machineId === status.selectedMachineId
+    (candidate) => candidate.machineId === status.selectedMachineId,
   );
   if (!machine) throw new Error("The selected machine is no longer available.");
 
@@ -108,8 +113,8 @@ export async function submitControllerAuthorizedWorkflowAnswer(
       const request: SubmitWorkflowAnswerRequestDto = {
         operationId: input.operationId,
         operationFingerprint,
-        agentSessionId: input.agentSessionId,
-        conversationId: input.conversationId,
+        agentSessionId: toOpenApiAgentSessionId(input.agentSessionId),
+        conversationId: toOpenApiConversationId(input.conversationId),
         authorization,
         input: workflowInput,
       };

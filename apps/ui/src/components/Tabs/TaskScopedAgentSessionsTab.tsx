@@ -1,8 +1,8 @@
 import type {
   ContextRelatedEntityDto,
   WorkStatus,
-} from "@hey-hey/ui-common/api";
-import { AgentSessionType, EntityType } from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
+import { AgentSessionType, EntityType } from "@hey-hey/contracts/api";
 import {
   useAgentSessions,
   useCreateAgentSession,
@@ -11,6 +11,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { TaskScopedAgentSessionsTabView } from "./TaskScopedAgentSessionsTabView";
+import { toOpenApiProjectId } from "@hey-hey/ui-common/clients";
 import {
   cancelTaskSessionLaunch,
   continueTaskSessionLaunch,
@@ -158,7 +159,7 @@ export const TaskScopedAgentSessionsTab: React.FC<
       const session = await createAgentSessionMutation.mutate({
         organizationId,
         agentSession: {
-          projectId,
+          projectId: toOpenApiProjectId(projectId),
           sessionDate: new Date().toISOString(),
           title: taskName || undefined,
           entityType: EntityType.Task,

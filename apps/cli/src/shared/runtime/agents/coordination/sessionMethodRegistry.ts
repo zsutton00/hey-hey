@@ -1,4 +1,4 @@
-import { WorkflowName } from '../../../api/generated/index';
+import { WorkflowName } from '@hey-hey/contracts/api/models';
 import {
   LocalPromptType,
   RunEntityReferenceEntityTypeEnum,
@@ -12,7 +12,7 @@ import {
   type RunCreatePayloadResearch,
   type RunCreatePayloadSetSplitting,
   type RunCreatePayloadStartupSession,
-} from '../../../api/generated/index';
+} from '@hey-hey/contracts/agent-bridge/models';
 import type { SessionMethod, SessionMethodSelection } from './types';
 
 /**

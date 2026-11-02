@@ -6,23 +6,22 @@ import {
   supportsFastMode,
 } from '../../../shared/runtime/components/AgentSession/capabilityCatalog';
 import type { ApiRuntime } from '../../../shared/runtime/clients/shared';
-
 import type {
   EffectExecutionIdentity,
   EffectHandler,
   EffectSettlement,
 } from '../../../state-machine';
+import { TaskMonitorTaskActivitySystemMessageDataAllOfAgentIdentityEnum as TaskMonitorTaskActivitySystemMessageDataAgentIdentityEnum } from '@hey-hey/contracts/api/models';
 import {
   MessageStatus,
   MessageType,
   AgentSessionStatus,
   SystemMessageDataTypeEnum,
   TaskMonitorTaskActivityState,
-  TaskMonitorTaskActivitySystemMessageDataAgentIdentityEnum,
   WorkStatus,
   type CreateSystemMessage,
   type TaskMonitorTaskActivitySystemMessageData,
-} from '../../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { ServerLogger } from '../../../server/logger';
 import type { TaskMonitorCoordinatorConversation } from '../../../server/task-monitor-coordinator-conversation';
 import type { TaskMonitorCoordinatorRunner } from '../../../server/monitors/runner';
@@ -51,6 +50,11 @@ import type {
 } from './effects';
 import type { TaskMonitorConversationInputEffectHandler } from './conversation-input-effect-handlers';
 import type { TaskMonitorMachineEffectOutcome } from './events';
+import {
+  toOpenApiConversationId,
+  toOpenApiProjectId,
+  toOpenApiTaskId,
+} from '../../../shared/api/identifierAdapters';
 import type {
   TaskMonitorAgentSessionEffectHandler,
   TaskMonitorConversationEffectHandler,
@@ -135,7 +139,7 @@ const validationFailure = (
 ): EffectSettlement<TaskMonitorMachineEffectOutcome> => {
   logger.error('task_monitor.machine.launch_validation.failed', {
     monitorId: effect.taskMonitorId,
-    taskId: effect.taskId,
+    taskId: toOpenApiTaskId(effect.taskId),
     cursor: effect.cursor,
     reason,
   });
@@ -159,7 +163,7 @@ const validationUncertain = (
 ): EffectSettlement<TaskMonitorMachineEffectOutcome> => {
   logger.error('task_monitor.machine.launch_validation.uncertain', {
     monitorId: effect.taskMonitorId,
-    taskId: effect.taskId,
+    taskId: toOpenApiTaskId(effect.taskId),
     cursor: effect.cursor,
     operation,
     reason,
@@ -1113,12 +1117,12 @@ const buildTaskStartedMessage = (
     response: `Started ${effect.taskTitle}.`,
     agentIdentity: TaskMonitorTaskActivitySystemMessageDataAgentIdentityEnum.TaskMonitorCoordinator,
     activity: TaskMonitorTaskActivityState.Started,
-    taskId: effect.taskId,
+    taskId: toOpenApiTaskId(effect.taskId),
     taskTitle: effect.taskTitle,
   } satisfies TaskMonitorTaskActivitySystemMessageData;
   return {
-    projectId: effect.projectId,
-    conversationId,
+    projectId: toOpenApiProjectId(effect.projectId),
+    conversationId: toOpenApiConversationId(conversationId),
     type: MessageType.System,
     status: MessageStatus.Completed,
     createdAt: new Date().toISOString(),

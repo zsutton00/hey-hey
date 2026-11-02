@@ -6,7 +6,7 @@ import {
   CodingPlanEmissionInputSchema,
   CodingPlanQuestionSchema,
 } from '../../generated/coding-plan.schemas';
-import { ExtendedUIFieldType } from '../../shared/api/generated/api';
+import { ExtendedUIFieldType } from '@hey-hey/contracts/api/models';
 import type { PassThroughSubmissionToolDeclaration } from '../submission-tools/types';
 
 export const codingPlanConversationTools: readonly PassThroughSubmissionToolDeclaration[] = [
@@ -31,12 +31,45 @@ export const codingPlanConversationTools: readonly PassThroughSubmissionToolDecl
     inputSchema: CodingPlanEmissionInputToolSchema,
     async execute({ args, run }) {
       if (!run) throw new Error('A planning Run is required.');
-      const { discrepancies, ...input } = CodingPlanEmissionInputSchema.parse(args);
+      const input = CodingPlanEmissionInputSchema.parse(args);
       const payload = {
         responseType: 'coding_plan_version_v1',
-        ...input,
-        ...(discrepancies ? { discrepancies } : {}),
-      } satisfies import('../../shared/api/generated/api').CodingPlanVersion;
+        markdown: input.markdown,
+        requiredServiceIds: input.requiredServiceIds,
+        discrepancies: input.discrepancies.map(
+          ({
+            sourceRef,
+            sourceField,
+            sourceExcerpt,
+            reasoning,
+            discrepancyText,
+            severity,
+            suspectedImpact,
+            findingId,
+            category,
+            userDirection,
+            disposition,
+            implementationFollowThrough,
+            withdrawalEvidence,
+          }) => ({
+            sourceRef,
+            sourceField,
+            sourceExcerpt,
+            reasoning,
+            discrepancyText,
+            severity,
+            ...(suspectedImpact === undefined ? {} : { suspectedImpact }),
+            ...(findingId === undefined ? {} : { findingId }),
+            ...(category === undefined ? {} : { category }),
+            ...(userDirection === undefined ? {} : { userDirection }),
+            ...(disposition === undefined ? {} : { disposition }),
+            ...(implementationFollowThrough === undefined
+              ? {}
+              : { implementationFollowThrough }),
+            ...(withdrawalEvidence === undefined ? {} : { withdrawalEvidence }),
+          }),
+        ),
+      } satisfies import('@hey-hey/contracts/api').CodingPlanVersion;
       const messageId = await run.persistCodingPlanElement(
         ExtendedUIFieldType.CodingPlanVersion,
         payload,

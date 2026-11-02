@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import type { MachineEffectHttpMethod, MachineEffectProofDto } from '../shared/api';
 import type { KeyPairStore } from '../credentials';
 import { canonicalizeJson, canonicalizeJsonObject } from '../shared/canonical-json';
+import { toOpenApiOrganizationId } from '../shared/api/identifierAdapters';
 
 export interface MachineEffectProofInput {
   operationId: string;
@@ -43,7 +44,7 @@ export class MachineEffectProofSigner {
         .createHash('sha256')
         .update(canonicalizeJsonObject(input.payload), 'utf8')
         .digest('hex'),
-      organizationId: input.organizationId,
+      organizationId: toOpenApiOrganizationId(input.organizationId),
       effectId: input.effectId,
       nonce: crypto.randomUUID(),
       timestampMs: Date.now(),

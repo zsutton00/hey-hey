@@ -20,17 +20,14 @@ import { renderCodingResearchMemo } from '../prompts/coding-research-memo';
 
 import { z } from 'zod';
 import type { Run } from '../../run/run';
-import { CodingResearchReportPayloadReportTypeEnum } from '../../shared/api/generated/api';
+import { CodingResearchReportPayloadAllOfReportTypeEnum as CodingResearchReportPayloadReportTypeEnum } from '@hey-hey/contracts/api/models';
 import type {
   CodingResearchReadinessEvidence,
   CodingResearchProvenance,
   CodingResearchReportPayload,
   CodingResearchUpdate,
-} from '../../shared/api/generated/api';
-import {
-  LocalAgentSearchEntityType,
-  type LocalPromptType,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/api/models';
+import { LocalAgentSearchEntityType, type LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type {
   LocalResearchUpdate,
   LocalResearchUpdateTarget,

@@ -1,11 +1,10 @@
+import { Configuration, TasksApi } from '@hey-hey/contracts/api';
 import {
   AgentEdgeEndpointEntityType,
   AgentEdgeType,
-  Configuration,
-  TasksApi,
   WorkStatus,
   type TaskResponseDto,
-} from '../../shared/api/generated';
+} from '@hey-hey/contracts/api/models';
 import type { AgenticSession } from '../../session/types';
 import type { SubmissionToolAuth } from '../submission-tools/submission-tool-auth';
 import type { ServerLogger } from '../../server/logger';
@@ -156,7 +155,7 @@ export class ReviewIntegrationContextResolver {
       const response = await client.organizationsOrganizationIdProjectsProjectIdTasksGet({
         organizationId,
         projectId,
-        taskIds: new Set(dependencyTaskIds),
+        taskIds: unique(dependencyTaskIds),
         includeServiceRelations: true,
         limit: dependencyTaskIds.length,
       });

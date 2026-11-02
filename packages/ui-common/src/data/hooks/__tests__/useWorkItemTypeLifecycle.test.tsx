@@ -514,7 +514,7 @@ describe("useWorkItemTypeSectionContentImpact", () => {
         organizationId: "org-1",
         projectId: "project-1",
         typeKey: "MARKETING",
-        removedSectionKeys: new Set(["audience", "constraints"]),
+        removedSectionKeys: ["audience", "constraints"],
       }),
       { signal: expect.any(AbortSignal) },
     );
@@ -649,7 +649,7 @@ describe("useWorkItemTypeTrackingLinkRevocationImpact", () => {
         organizationId: "org-1",
         projectId: "project-1",
         typeKey: "MARKETING",
-        revokedTrackingSourceTypeKeys: new Set(["BUG"]),
+        revokedTrackingSourceTypeKeys: ["BUG"],
       }),
       { signal: expect.any(AbortSignal) },
     );

@@ -31,7 +31,7 @@ const toInitialAnswers = (plan: StartupPlan): string[] =>
   plan.clarificationQuestions.map(() => "");
 
 const toReviewDisposition = (
-  choice: Exclude<DiscrepancyDispositionChoice, null>
+  choice: Exclude<DiscrepancyDispositionChoice, null>,
 ) => (choice === "accept" ? "acknowledged" : "blocker");
 
 export const StartupPlanReview = ({
@@ -42,10 +42,10 @@ export const StartupPlanReview = ({
   showBackButton = true,
 }: StartupPlanReviewProps) => {
   const [answers, setAnswers] = useState<string[]>(() =>
-    toInitialAnswers(plan)
+    toInitialAnswers(plan),
   );
   const [notes, setNotes] = useState<string[]>(() =>
-    plan.discrepancies.map(() => "")
+    plan.discrepancies.map(() => ""),
   );
   const [dispositions, setDispositions] = useState<
     DiscrepancyDispositionChoice[]
@@ -58,12 +58,12 @@ export const StartupPlanReview = ({
   const hasEmptyAnswer = useMemo(
     () =>
       plan.clarificationQuestions.some((_, index) => !answers[index]?.trim()),
-    [answers, plan.clarificationQuestions]
+    [answers, plan.clarificationQuestions],
   );
 
   const hasUndecidedDiscrepancies = useMemo(
     () => plan.discrepancies.some((_, index) => dispositions[index] == null),
-    [dispositions, plan.discrepancies]
+    [dispositions, plan.discrepancies],
   );
 
   const handleSubmit = (decision: StartupPlanDecision) => {
@@ -74,7 +74,10 @@ export const StartupPlanReview = ({
 
     const review: StartupPlanReviewPayload = {
       responseType: "startup_plan_review_v1",
-      originalPlan: plan,
+      originalPlan: {
+        ...plan,
+        requiredServiceIds: [...plan.requiredServiceIds],
+      },
       questionAnswers: plan.clarificationQuestions.map((question, index) => ({
         question: question.question,
         answer: answers[index]?.trim() ?? "",
@@ -94,12 +97,12 @@ export const StartupPlanReview = ({
         })
         .filter(
           (
-            entry
+            entry,
           ): entry is {
             discrepancyIndex: number;
             disposition: "acknowledged" | "blocker";
             note?: string;
-          } => entry !== null
+          } => entry !== null,
         ),
     };
 

@@ -53,9 +53,6 @@ export const isImplementationReadinessPayload = (
 type ImplementationReadinessDispositionAction =
   typeof SecondaryActionHandler.ImplementationReadinessDismiss;
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
 /**
  * Converts an API secondary-action payload into the workflow submission shape
  * expected by the conversation form dispatcher. The API payload's
@@ -69,14 +66,12 @@ export const buildImplementationReadinessDispositionValue = (
   formValues: Record<string, FormValue>,
 ): Record<string, FormValue> | null => {
   const payload = config.payload;
-  if (
-    !isRecord(payload) ||
-    payload.handlerType !== action ||
-    typeof payload.runId !== "string" ||
-    payload.runId.length === 0 ||
-    typeof payload.sourceRevision !== "string" ||
-    payload.sourceRevision.length === 0
-  ) {
+  if (!payload || payload.handlerType !== action) {
+    return null;
+  }
+
+  const { runId, sourceRevision } = payload;
+  if (runId.length === 0 || sourceRevision.length === 0) {
     return null;
   }
 
@@ -85,8 +80,8 @@ export const buildImplementationReadinessDispositionValue = (
     [config.fieldId]: {
       action,
       payload: {
-        runId: payload.runId,
-        sourceRevision: payload.sourceRevision,
+        runId,
+        sourceRevision,
         confirmed: true,
       },
     },

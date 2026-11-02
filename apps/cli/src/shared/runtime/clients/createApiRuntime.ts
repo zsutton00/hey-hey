@@ -59,7 +59,7 @@ import {
   WorkItemRefinementApi,
   WorkItemTypesApi,
   WorkflowsApi,
-} from '../../api/generated/index';
+} from '@hey-hey/contracts/api';
 
 export interface ApiTransport {
   axios: AxiosInstance;

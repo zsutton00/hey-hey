@@ -76,7 +76,7 @@ export const ProjectMembersPanel: React.FC<ProjectMembersPanelProps> = ({
   } = useProjectMembers(organizationId, projectId);
 
   const projectMemberIds = useMemo(
-    () => new Set(projectMembers.map((m) => m.userId)),
+    () => new Set<string>(projectMembers.map((m) => m.userId)),
     [projectMembers],
   );
 

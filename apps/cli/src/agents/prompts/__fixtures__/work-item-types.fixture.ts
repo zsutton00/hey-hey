@@ -1,4 +1,5 @@
 import type { WorkItemTypeSummaryDto } from '../../../shared/api/index';
+import { toOpenApiProjectId } from '../../../shared/api/identifierAdapters';
 
 const workItemTypesFixture = [
   {
@@ -127,7 +128,7 @@ const workItemTypesFixture = [
     },
     id: 'canonical-type',
     status: 'ACTIVE',
-    projectId: '0fbfaeca-a381-4ff0-82ba-0bd772095e77',
+    projectId: toOpenApiProjectId('0fbfaeca-a381-4ff0-82ba-0bd772095e77'),
     effectiveSource: 'CANONICAL',
   },
   {
@@ -262,7 +263,7 @@ const workItemTypesFixture = [
     },
     id: 'canonical-type',
     status: 'ACTIVE',
-    projectId: '0fbfaeca-a381-4ff0-82ba-0bd772095e77',
+    projectId: toOpenApiProjectId('0fbfaeca-a381-4ff0-82ba-0bd772095e77'),
     effectiveSource: 'CANONICAL',
   },
   {
@@ -391,7 +392,7 @@ const workItemTypesFixture = [
     },
     id: 'canonical-type',
     status: 'ACTIVE',
-    projectId: '0fbfaeca-a381-4ff0-82ba-0bd772095e77',
+    projectId: toOpenApiProjectId('0fbfaeca-a381-4ff0-82ba-0bd772095e77'),
     effectiveSource: 'CANONICAL',
   },
   {
@@ -526,7 +527,7 @@ const workItemTypesFixture = [
     },
     id: 'canonical-type',
     status: 'ACTIVE',
-    projectId: '0fbfaeca-a381-4ff0-82ba-0bd772095e77',
+    projectId: toOpenApiProjectId('0fbfaeca-a381-4ff0-82ba-0bd772095e77'),
     effectiveSource: 'CANONICAL',
   },
   {
@@ -640,7 +641,7 @@ const workItemTypesFixture = [
     },
     id: 'canonical-type',
     status: 'ACTIVE',
-    projectId: '0fbfaeca-a381-4ff0-82ba-0bd772095e77',
+    projectId: toOpenApiProjectId('0fbfaeca-a381-4ff0-82ba-0bd772095e77'),
     effectiveSource: 'CANONICAL',
   },
   {
@@ -767,7 +768,7 @@ const workItemTypesFixture = [
     },
     id: 'canonical-type',
     status: 'ACTIVE',
-    projectId: '0fbfaeca-a381-4ff0-82ba-0bd772095e77',
+    projectId: toOpenApiProjectId('0fbfaeca-a381-4ff0-82ba-0bd772095e77'),
     effectiveSource: 'CANONICAL',
   },
   {
@@ -817,7 +818,7 @@ const workItemTypesFixture = [
     },
     id: 'project-custom-type',
     status: 'ACTIVE',
-    projectId: '0fbfaeca-a381-4ff0-82ba-0bd772095e77',
+    projectId: toOpenApiProjectId('0fbfaeca-a381-4ff0-82ba-0bd772095e77'),
     effectiveSource: 'PROJECT_CUSTOM',
   },
 ] satisfies WorkItemTypeSummaryDto[];

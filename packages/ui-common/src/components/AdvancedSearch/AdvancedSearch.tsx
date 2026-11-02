@@ -37,6 +37,7 @@ import {
   type AgentSessionDto,
 } from "../../api";
 import { useCreateAgentSession } from "../../data/hooks/useCreateAgentSession";
+import { toOpenApiProjectId } from "../../clients/contractIdentifierAdapters";
 import { useWorkItemTypes } from "../../data/hooks/useWorkItemTypes";
 import { EntitySearchChat } from "../AgentSession/EntitySearchChat";
 import { RuntimeModelSelector } from "../AgentSession/RuntimeModelSelector";
@@ -480,7 +481,7 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
     createAgentSession({
       organizationId,
       agentSession: {
-        projectId,
+        projectId: toOpenApiProjectId(projectId),
         type: AgentSessionType.AgentSearch,
         sessionDate: new Date().toISOString(),
         title: trimmed,

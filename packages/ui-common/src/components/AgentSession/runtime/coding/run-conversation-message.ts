@@ -471,7 +471,7 @@ const toStartupPlanSubmission = (
         originalPlan: {
           responseType: startupPlanValue.responseType,
           sessionTitle: startupPlanValue.sessionTitle,
-          requiredServiceIds: startupPlanValue.requiredServiceIds,
+          requiredServiceIds: Array.from(startupPlanValue.requiredServiceIds),
           primaryImplementations: startupPlanValue.primaryImplementations,
           executionPlan: startupPlanValue.executionPlan,
           discrepancies: startupPlanValue.discrepancies,

@@ -5,12 +5,12 @@ import {
   type ProjectModeFiles,
   type ProjectModeSelection,
   ProjectModeSnapshot,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   projectModeFilesJsonSchema,
   projectModeSelectionJsonSchema,
   projectModeSnapshotJsonSchema,
-} from '../../generated/project-mode-contract.schema';
+} from '@hey-hey/contracts/agent-bridge/custom/project-mode-contract.schema';
 
 export const PROJECT_MODE_TYPE_KEY = 'MODE';
 export const PROJECT_MODE_DESCRIPTION_SECTION_KEY = 'description';

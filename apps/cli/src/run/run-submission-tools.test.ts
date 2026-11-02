@@ -22,7 +22,8 @@ import type {
   ActionSubmissionToolDeclaration,
   PassThroughSubmissionToolDeclaration,
 } from '../agents/submission-tools/types';
-import { TriggerFrameRouter, toRunPromptRequest } from '../server/trigger-verification/dispatch';
+import { TriggerFrameRouter } from '../server/trigger-verification/dispatch';
+import { toRunPromptRequestFromStoredEvent } from '../test-utils/stored-prompt-request';
 import { RunReadRestoreCoordinator } from '../server/restore-persisted-runs';
 import type { StoredInput } from '../server/input-admission/input-admission-codec';
 import { TriggerVerifier, type VerifiedTriggerFrame } from '../server/trigger-verification/verify';
@@ -674,7 +675,7 @@ describe('verified trigger envelope → Run → submission-tool registry', () =>
           await sendMessage(
             TEST_CONVERSATION_CAPABILITY,
             runId,
-            toRunPromptRequest(stored.payload.event),
+            toRunPromptRequestFromStoredEvent(stored.payload.event),
           );
     };
     Object.defineProperty(agentService, 'inputAdmission', {

@@ -3,9 +3,9 @@ import {
   MessageStatus,
   MessageType,
   SystemMessageDataTypeEnum,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { UpdateMessageDto } from '../../shared/api';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type {
   AssistantCompleteEvent,
   CreateMessageBody as RunCreateMessageBody,
@@ -32,6 +32,7 @@ import {
 import type { RepositoryAnalysisPromptPayload, RepositoryAnalysisSuccess } from './types';
 import { runtimeFromHandoff } from '../handoff-runtime';
 import { AgentSessionRunnerError } from '../providers/session-runner';
+import { toOpenApiProjectId } from '../../shared/api/identifierAdapters';
 
 type RepositoryAnalysisHandlerPayload = RepositoryAnalysisPromptPayload;
 
@@ -181,7 +182,7 @@ const buildInvalidCompletionDto = (
 ): RunCreateMessageBody => ({
   type: MessageType.System,
   status: MessageStatus.Completed,
-  projectId,
+  projectId: toOpenApiProjectId(projectId),
   data: {
     type: SystemMessageDataTypeEnum.Agent,
     response: `Repository analysis could not be completed: ${failureMessage}`,

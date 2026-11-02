@@ -1,9 +1,6 @@
 import type { AgenticSession } from '../../session/types';
 import { z } from 'zod';
-import {
-  LocalPromptType,
-  type SessionMonitorPromptPayload,
-} from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType, type SessionMonitorPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import {
   ReportAudience,
   ReportEntityRelation,
@@ -14,7 +11,7 @@ import {
 import {
   MachineEffectHttpMethod,
   type SubmitSessionMonitorDecisionRequestDto,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { AssistantCompleteEvent } from '../../run/types';
 import type {
   OnCompleteContext,
@@ -26,6 +23,12 @@ import type {
 import type { CreateReportProxy } from '../submission-tools/create-report-proxy';
 import { buildSessionMonitorPrompt } from './session-monitor-prompt';
 import { parseSessionMonitorDecision } from './session-monitor-response';
+import {
+  toOpenApiAgentSessionId,
+  toOpenApiConversationId,
+  toOpenApiMessageId,
+  toOpenApiReportId,
+} from '../../shared/api/identifierAdapters';
 
 const decisionResponseSchema = z
   .object({
@@ -158,17 +161,20 @@ export class SessionMonitorHandler implements PromptTypeHandler<SessionMonitorPr
         decision.disposition === 'DEFER'
           ? {}
           : workflowNodeId && pendingTriggerMessageId
-            ? { workflowNodeId, pendingTriggerMessageId }
+            ? {
+                workflowNodeId,
+                pendingTriggerMessageId: toOpenApiMessageId(pendingTriggerMessageId),
+              }
             : (() => {
                 throw new Error(
                   'Session Monitor continuation requires an active pending workflow trigger.',
                 );
               })();
       const semanticRequest = {
-        decisionId: ctx.messageId,
-        parentAgentSessionId: evaluation.targetSessionId,
-        reportId: sourceReport.reportId,
-        conversationId: evaluation.targetConversationId,
+        decisionId: toOpenApiMessageId(ctx.messageId),
+        parentAgentSessionId: toOpenApiAgentSessionId(evaluation.targetSessionId),
+        reportId: toOpenApiReportId(sourceReport.reportId),
+        conversationId: toOpenApiConversationId(evaluation.targetConversationId),
         ...workflowBinding,
         content: decision.content,
         decision:

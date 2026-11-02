@@ -11,7 +11,6 @@ const fixturePath = path.join(
 );
 const outputDirectory = path.join(process.cwd(), 'src', 'shared', 'api', 'generated');
 const outputPath = path.join(outputDirectory, 'entity-prompt-template-language.ts');
-const indexPath = path.join(outputDirectory, 'index.ts');
 
 const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
 // The fixture also carries editor authoring metadata. Only runtime language
@@ -57,7 +56,7 @@ if (new Set(fixture.supportedPaths).size !== fixture.supportedPaths.length) {
 
 const generated =
   `// Generated from specs/fixtures/entity-prompt-template-language-v1.json. Do not edit.\n` +
-  `import { EntityPromptTemplateSyntaxVersion } from './api.js';\n\n` +
+  `import { EntityPromptTemplateSyntaxVersion } from '@hey-hey/contracts/api/models';\n\n` +
   `export interface EntityPromptTemplatePathFamily {\n` +
   `  readonly template: string;\n` +
   `  readonly pattern: string;\n` +
@@ -83,9 +82,3 @@ const generated =
 
 fs.mkdirSync(outputDirectory, { recursive: true });
 fs.writeFileSync(outputPath, generated);
-
-const exportLine = 'export * from "./entity-prompt-template-language.js";';
-const index = fs.readFileSync(indexPath, 'utf8');
-const exportPattern = /^export \* from ['"]\.\/entity-prompt-template-language\.js['"];\n?/gmu;
-const indexWithoutGeneratedExport = index.replace(exportPattern, '').trimEnd();
-fs.writeFileSync(indexPath, `${indexWithoutGeneratedExport}\n${exportLine}\n`);

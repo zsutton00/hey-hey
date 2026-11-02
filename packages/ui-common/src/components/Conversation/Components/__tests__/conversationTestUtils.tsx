@@ -20,6 +20,11 @@ import {
   type ProjectResponseDto,
   type MessageResponseDto,
 } from "../../../../api";
+import {
+  toOpenApiConversationId,
+  toOpenApiOrganizationId,
+  toOpenApiProjectId,
+} from "../../../../clients/contractIdentifierAdapters";
 import type { ConversationMessage } from "../../../../types/conversation";
 import type { WorkflowState } from "../../../../types/WorkflowState";
 import type { ConversationFormResolver } from "../conversationFormTypes";
@@ -272,8 +277,8 @@ export const createMockProject = (
   overrides: Partial<ProjectResponseDto> = {},
 ): ProjectResponseDto => ({
   maturity: ProjectMaturity.Established,
-  id: "test-project-id",
-  organizationId: "test-org-id",
+  id: toOpenApiProjectId("test-project-id"),
+  organizationId: toOpenApiOrganizationId("test-org-id"),
   name: "Test Project",
   description: "Test Description",
   status: "ACTIVE" as ProjectResponseDto["status"],
@@ -288,10 +293,10 @@ export const createMockConversation = (
   overrides: Partial<ConversationResponseDto> = {},
 ): ConversationResponseDto => ({
   restricted: true,
-  id: "test-conversation-id",
+  id: toOpenApiConversationId("test-conversation-id"),
   createdBy: null,
-  projectId: "test-project-id",
-  organizationId: "test-org-id",
+  projectId: toOpenApiProjectId("test-project-id"),
+  organizationId: toOpenApiOrganizationId("test-org-id"),
   title: "Test Conversation",
   status: ConversationStatus.Started,
   initiatedBy: InitiationType.User,

@@ -110,6 +110,83 @@ const digestClosure = (openapiRoot) => {
   };
 };
 
+const parsedSpecDocuments = new Map();
+
+const listSpecReferenceClosure = (openapiRoot, entrySpec) => {
+  let yaml;
+  try {
+    yaml = require(require.resolve("js-yaml", { paths: [openapiRoot] }));
+  } catch {
+    yaml = require("js-yaml");
+  }
+  const pending = [path.resolve(openapiRoot, entrySpec)];
+  const visited = new Set();
+
+  while (pending.length > 0) {
+    const file = pending.pop();
+    if (visited.has(file)) continue;
+    const relative = path.relative(openapiRoot, file);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) {
+      throw new Error(`OpenAPI reference escapes its source root: ${file}`);
+    }
+    if (!fs.existsSync(file)) {
+      throw new Error(`OpenAPI reference does not exist: ${file}`);
+    }
+    visited.add(file);
+
+    const sourceText = fs.readFileSync(file, "utf8");
+    const cached = parsedSpecDocuments.get(file);
+    const document =
+      cached?.sourceText === sourceText
+        ? cached.document
+        : yaml.load(sourceText);
+    parsedSpecDocuments.set(file, { sourceText, document });
+    const visit = (value) => {
+      if (!value || typeof value !== "object") return;
+      if (Array.isArray(value)) {
+        for (const child of value) visit(child);
+        return;
+      }
+      for (const [key, child] of Object.entries(value)) {
+        if (key === "$ref" && typeof child === "string") {
+          if (/^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(child)) continue;
+          const referenceFile = decodeURIComponent(child.split("#", 1)[0]);
+          if (referenceFile) {
+            pending.push(path.resolve(path.dirname(file), referenceFile));
+          }
+          continue;
+        }
+        visit(child);
+      }
+    };
+    visit(document);
+  }
+
+  return [...visited]
+    .map((file) => path.relative(openapiRoot, file).split(path.sep).join("/"))
+    .sort();
+};
+
+const digestSpecClosure = (openapiRoot, entrySpec) => {
+  const hash = createHash("sha256");
+  const files = listSpecReferenceClosure(openapiRoot, entrySpec);
+  for (const file of files) {
+    hash.update(file);
+    hash.update("\0");
+    hash.update(
+      createHash("sha256")
+        .update(fs.readFileSync(path.join(openapiRoot, file)))
+        .digest("hex"),
+    );
+    hash.update("\n");
+  }
+  return {
+    closureDigest: `sha256:${hash.digest("hex")}`,
+    closureFileCount: files.length,
+    files,
+  };
+};
+
 const describeOpenapiSource = (options) => {
   const source = resolveOpenapiSource(options);
   const { openapiRoot } = source;
@@ -159,6 +236,8 @@ if (require.main === module) {
 module.exports = {
   describeOpenapiSource,
   digestClosure,
+  digestSpecClosure,
+  listSpecReferenceClosure,
   resolveOpenapiRoot,
   resolveOpenapiSource,
 };
