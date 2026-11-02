@@ -73,6 +73,9 @@ vi.mock("@hey-hey/ui-common/components", () => ({
 }));
 
 vi.mock("@hey-hey/ui-common/data", () => ({
+  evalRunName: (run: { payload: { name?: string } }) =>
+    run.payload.name ?? "generated name",
+  useRenameEvalRun: () => ({ mutate: vi.fn(), isPending: false }),
   useWorkItem: () => ({
     workItem: { id: "eval-1", name: "Refiner eval", type: "EVAL" },
     isLoading: false,

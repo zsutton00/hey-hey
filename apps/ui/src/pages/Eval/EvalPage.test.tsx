@@ -33,6 +33,8 @@ vi.mock("@hey-hey/ui-common/components", () => ({
 }));
 
 vi.mock("@hey-hey/ui-common/data", () => ({
+  evalRunName: (run: { payload: { name?: string } }) =>
+    run.payload.name ?? "generated name",
   usePlatformAdminAccess: () => ({ isPlatformAdmin: false, isResolved: true }),
   useEvalRuns: (...args: unknown[]) => mockUseEvalRuns(...args),
   useWorkItems: (...args: unknown[]) => mockUseWorkItems(...args),

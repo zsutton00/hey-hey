@@ -14,6 +14,58 @@ import { KEYS } from "../keys";
 import { compose, patterns } from "../compose";
 
 export const en = {
+  "usageTrends.title": "Usage Trends",
+  "usageTrends.from": "From",
+  "usageTrends.to": "To",
+  "usageTrends.groupBy": "Group by",
+  "usageTrends.granularity.day": "Day",
+  "usageTrends.granularity.week": "Week",
+  "usageTrends.granularity.month": "Month",
+  "usageTrends.reportKind": "Report kind",
+  "usageTrends.kind.RESEARCH": "Research",
+  "usageTrends.kind.IMPLEMENTATION": "Implementation",
+  "usageTrends.kind.REVIEW": "Review",
+  "usageTrends.provider": "Provider",
+  "usageTrends.model": "Model",
+  "usageTrends.effort": "Effort",
+  "usageTrends.unknown": "Unknown",
+  "usageTrends.weekOf": "Week of {{date}}",
+  "usageTrends.scope":
+    "{{count}} unique executions \u00b7 all matching \u00b7 no sampling \u00b7 UTC",
+  "usageTrends.approximate":
+    "Figures are approximate. Each execution is measured when its last report was written, so they are meant for comparing periods, not as exact usage.",
+  "usageTrends.noCompleteMeasurements":
+    "No matching execution has a complete measurement yet, so averages are not available. Counts and totals below show what was measured.",
+  "usageTrends.avgTokens": "Average tokens per execution",
+  "usageTrends.inputShort": "input",
+  "usageTrends.outputShort": "output",
+  "usageTrends.avgToolCalls": "Average tool calls per execution",
+  "usageTrends.measuredTotals": "Measured totals",
+  "usageTrends.totalInput": "Input tokens: {{value}}",
+  "usageTrends.totalCache":
+    "incl. cache read {{read}}, cache creation {{creation}}",
+  "usageTrends.totalOutput": "Output tokens: {{value}}",
+  "usageTrends.totalToolCalls": "Tool calls: {{value}}",
+  "usageTrends.coverage": "Complete measurements",
+  "usageTrends.completeOf": "{{complete}} of {{total}}",
+  "usageTrends.partialUnavailable":
+    "{{partial}} partial \u00b7 {{unavailable}} unavailable",
+  "usageTrends.tokenChart": "Average tokens per execution",
+  "usageTrends.toolChart": "Average tool calls per execution",
+  "usageTrends.input": "Input",
+  "usageTrends.output": "Output",
+  "usageTrends.toolCallsLabel": "Tool calls",
+  "usageTrends.bucket": "Period",
+  "usageTrends.completeMatching": "Complete / matching",
+  "usageTrends.avgInput": "Avg input",
+  "usageTrends.avgOutput": "Avg output",
+  "usageTrends.avgToolCallsShort": "Avg tool calls",
+  "usageTrends.footnote":
+    "Averages use the {{count}} executions with complete measurements. Partial and unavailable executions are counted above but excluded from averages. Input includes cached tokens.",
+  "usageTrends.invalidPeriod": "Choose a start date on or before the end date.",
+  "usageTrends.error": "Usage trends could not be loaded.",
+  "usageTrends.empty":
+    "No agent executions with usage measurements match this period and these filters.",
   "demo.start.checking": "Checking for your demo…",
   "demo.start.resumeError":
     "We couldn't check for your demo. Please try again.",
@@ -1290,6 +1342,16 @@ export const en = {
   "eval.run.evalLoadError": "Couldn't load this Eval.",
   "eval.run.setup.crumb": "New run",
   "eval.run.setup.title": "New run",
+  "eval.run.setup.name": "Name (optional)",
+  "eval.run.setup.nameHint":
+    "Left blank, this run is shown as “{{generated}}”. You can rename it later from its page.",
+  "eval.run.name.projectAssistantPrepares": "Project Assistant prepares",
+  "eval.run.name.projectAssistantOff": "Project Assistant off",
+  "eval.run.rename.action": "Rename",
+  "eval.run.rename.label": "Run name",
+  "eval.run.rename.save": "Save",
+  "eval.run.rename.cancel": "Cancel",
+  "eval.run.rename.error": "Could not rename the run: {{message}}",
   "eval.run.setup.configurations": "Configurations",
   "eval.run.setup.noConfigurations":
     "Add the model and reasoning setups you want to compare.",

@@ -15,6 +15,7 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  TextField,
   Typography,
 } from "@mui/material";
 import React, { useCallback, useMemo, useState } from "react";
@@ -36,6 +37,7 @@ import {
   type RuntimeModelCatalogSource,
 } from "@hey-hey/ui-common/components";
 import {
+  generateEvalRunName,
   useEvalRunSession,
   useLaunchEvalRun,
   useWorkItems,
@@ -224,6 +226,7 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
   const [judgeDraft, setJudgeDraft] =
     useState<DraftSelection>(DEFAULT_JUDGE_SETUP);
   const [launchError, setLaunchError] = useState<string | null>(null);
+  const [name, setName] = useState("");
 
   // Approval is the only runnable marker, as on the Eval page.
   const {
@@ -253,6 +256,16 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
     [setups],
   );
   const launchSettings = toLaunchSettings(settings);
+  const generatedName = generateEvalRunName(
+    selectedSetups.map((setup) =>
+      toConfiguration(
+        setup.setting,
+        settings.projectAssistantEnabled,
+        settings.handler,
+      ),
+    ),
+    t,
+  );
   const attemptCount = approvedCases.length * selectedSetups.length;
   const canRun =
     !isSubmitting &&
@@ -294,6 +307,7 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
         projectId,
         evalId,
         request: {
+          ...(name.trim() ? { name: name.trim() } : {}),
           evalCaseIds: approvedCases.map((evalCase) => evalCase.id),
           configurations: selectedSetups.map((setup) =>
             toConfiguration(
@@ -331,6 +345,7 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
     launch,
     launchSettings,
     machine.machineId,
+    name,
     navigate,
     organizationId,
     projectId,
@@ -351,6 +366,23 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
       <Typography variant="h5" component="h1" sx={{ mb: 3 }}>
         {t("eval.run.setup.title")}
       </Typography>
+
+      <Box sx={{ mb: 3 }}>
+        <TextField
+          fullWidth
+          size="small"
+          label={t("eval.run.setup.name")}
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          disabled={isSubmitting}
+          helperText={
+            name.trim() || !generatedName
+              ? undefined
+              : t("eval.run.setup.nameHint", { generated: generatedName })
+          }
+          slotProps={{ htmlInput: { "data-testid": "eval-run-name-input" } }}
+        />
+      </Box>
 
       <Box data-testid="eval-run-config-picker">
         <Typography variant="subtitle1" component="h2" sx={{ mb: 1 }}>

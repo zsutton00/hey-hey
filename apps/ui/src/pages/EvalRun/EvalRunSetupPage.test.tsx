@@ -93,6 +93,7 @@ vi.mock("@hey-hey/ui-common/components", () => ({
 }));
 
 vi.mock("@hey-hey/ui-common/data", () => ({
+  generateEvalRunName: () => "generated name",
   useWorkItem: () => ({
     workItem: { id: "eval-1", name: "Refiner eval", type: "EVAL" },
     isLoading: false,

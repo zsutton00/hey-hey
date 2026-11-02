@@ -3,7 +3,11 @@ import {
   ReadPolicyContext,
   readPolicyFor,
 } from 'src/read-restriction/read-policy';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
   CreateReportDto,
@@ -2316,6 +2320,37 @@ describe('ReportService', () => {
       }),
     );
     expect(result.version).toBe(2);
+  });
+
+  it('writes only against the version the caller read and reports a conflict otherwise', async () => {
+    (prisma.db.report.findFirst as jest.Mock).mockResolvedValue({
+      id: 'report-1',
+      reportType: 'CODING_RESEARCH',
+    });
+    const dto = {
+      expectedVersion: 3,
+      payload: {
+        reportType: 'CODING_RESEARCH',
+        summary: 'updated',
+        analysis: 'analysis',
+        frame: {},
+        provenance: { discoveryCalls: [], edgesTraversed: [] },
+        updates: [],
+      },
+    } as any;
+    (prisma.db.report.update as jest.Mock).mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('not found', {
+        code: 'P2025',
+        clientVersion: 'test',
+      }),
+    );
+
+    await expect(
+      service.update('org-1' as any, 'report-1', dto),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.db.report.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'report-1', version: 3 } }),
+    );
   });
 
   it('keeps PHASE_GROUNDING reports workflow-only across updates', async () => {

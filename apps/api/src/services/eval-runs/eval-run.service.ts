@@ -168,8 +168,10 @@ export class EvalRunService {
     const preparedSessionIds: AgentSessionId[] = [agentSessionId];
 
     const runId = randomUUID();
+    const name = request.name?.trim();
     const runPayload = {
       reportType: ReportType.EvalRun,
+      ...(name ? { name } : {}),
       summary: `Eval run of ${caseInputs.length} case(s) across ${request.configurations.length} setup(s) on ${evalItem.name}`,
       evalId,
       status: 'QUEUED',

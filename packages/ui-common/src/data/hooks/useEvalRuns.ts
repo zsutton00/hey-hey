@@ -9,6 +9,7 @@ import {
   evalRunQueryOptions,
   evalRunsQueryOptions,
   launchEvalRun,
+  renameEvalRun,
   saveEvalHumanReview,
   storeEvalRun,
   toEvalAttemptOutput,
@@ -191,6 +192,39 @@ export function useLaunchEvalRun(options: MutationOptions<EvalRunReport> = {}) {
         exact: true,
       });
       return run;
+    },
+    options,
+  );
+}
+
+export interface RenameEvalRunVariables {
+  organizationId: string;
+  projectId: string;
+  run: EvalRunReport;
+  name: string;
+}
+
+/** Renames a run while it is going or after it ended; only the name changes. */
+export function useRenameEvalRun(options: MutationOptions<EvalRunReport> = {}) {
+  const queryClient = useQueryClient();
+  return useMutation(
+    async ({
+      organizationId,
+      projectId,
+      run,
+      name,
+    }: RenameEvalRunVariables): Promise<EvalRunReport> => {
+      const renamed = await renameEvalRun(organizationId, run, name);
+      storeEvalRun(queryClient, organizationId, renamed);
+      await invalidateWithFollowUpRead(queryClient, {
+        queryKey: evalRunKeys.runs(
+          organizationId,
+          projectId,
+          renamed.payload.evalId,
+        ),
+        exact: true,
+      });
+      return renamed;
     },
     options,
   );

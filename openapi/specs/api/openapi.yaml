@@ -3319,6 +3319,120 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
 
+  /organizations/{organizationId}/projects/{projectId}/reports/usage-trends:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Organization ID
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+    get:
+      summary: Get approximate agent usage trends for a project
+      description: >
+        Aggregates the usage snapshots stored on retained, user-visible
+        project reports into per-execution trends. Each execution counts once
+        using its latest snapshot; averages use complete executions only.
+        A parent's snapshot already includes the research sub-agents it
+        launched, so their separate reports are not counted again. Provider,
+        model and effort filters select breakdown contributions: an execution
+        matches when one contribution matches every selected filter, and only
+        matching contributions' figures count. Buckets use UTC boundaries.
+      operationId: getProjectReportUsageTrends
+      tags: [Reports]
+      parameters:
+        - name: from
+          in: query
+          required: true
+          description: Inclusive UTC start of the period.
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: true
+          description: Exclusive UTC end of the period.
+          schema:
+            type: string
+            format: date-time
+        - name: granularity
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/ReportUsageTrendGranularity"
+        - name: reportKinds
+          in: query
+          required: false
+          description: Repeated filter on execution kind.
+          schema:
+            type: array
+            items:
+              $ref: "#/components/schemas/ReportUsageTrendKind"
+          style: form
+          explode: true
+        - name: providers
+          in: query
+          required: false
+          description: Repeated filter on provider; use 'unknown' for executions with no provider.
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - name: models
+          in: query
+          required: false
+          description: Repeated filter on model; matches executions where any breakdown entry used the model.
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - name: efforts
+          in: query
+          required: false
+          description: Repeated filter on actual effort; use 'unknown' for executions with no recorded effort.
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+      responses:
+        "200":
+          description: Usage trends returned successfully.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReportUsageTrends"
+        "400":
+          description: Invalid query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "401":
+          description: Authentication required.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
   /organizations/{organizationId}/projects/{projectId}/reports/file-touches/by-file:
     parameters:
       - name: organizationId
@@ -20739,6 +20853,8 @@ paths:
           description: Not found
         "401":
           description: Unauthorized
+        "409":
+          description: expectedVersion no longer matches the report; nothing was written.
     delete:
       operationId: deleteReport
       summary: Delete a report
@@ -24914,6 +25030,20 @@ components:
       $ref: "../schemas/reports.yaml#/ReportSortBy"
     ReportSortOrder:
       $ref: "../schemas/reports.yaml#/ReportSortOrder"
+    ReportUsageTrendKind:
+      $ref: "../schemas/reports.yaml#/ReportUsageTrendKind"
+    ReportUsageTrendGranularity:
+      $ref: "../schemas/reports.yaml#/ReportUsageTrendGranularity"
+    ReportUsageTrendAverages:
+      $ref: "../schemas/reports.yaml#/ReportUsageTrendAverages"
+    ReportUsageTrendTotals:
+      $ref: "../schemas/reports.yaml#/ReportUsageTrendTotals"
+    ReportUsageTrendBucket:
+      $ref: "../schemas/reports.yaml#/ReportUsageTrendBucket"
+    ReportUsageTrendOptions:
+      $ref: "../schemas/reports.yaml#/ReportUsageTrendOptions"
+    ReportUsageTrends:
+      $ref: "../schemas/reports.yaml#/ReportUsageTrends"
     FileTouchIndexEntryDto:
       $ref: "../schemas/reports.yaml#/FileTouchIndexEntryDto"
     FileTouchIndexEntriesDto:

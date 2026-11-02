@@ -1,4 +1,5 @@
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
+import { isAxiosError } from "axios";
 import {
   ReportAudience,
   ReportEntityRelation,
@@ -263,6 +264,60 @@ export async function launchEvalRun(
     throw new Error("Launching the eval run returned no run report");
   }
   return report;
+}
+
+/** How many times a rename re-reads the run after the runner moved it on. */
+const RENAME_ATTEMPTS = 5;
+
+const isVersionConflict = (error: unknown): boolean =>
+  isAxiosError(error) && error.response?.status === 409;
+
+/**
+ * Renames a run through the ordinary report update. The update names the
+ * version it was based on, so it never lands on top of progress the runner
+ * recorded in the meantime: on a conflict the run is read again and only the
+ * name is applied to what is now stored. A blank name removes it, returning
+ * the run to its generated name.
+ */
+export async function renameEvalRun(
+  organizationId: string,
+  run: EvalRunReport,
+  name: string,
+): Promise<EvalRunReport> {
+  const trimmed = name.trim();
+  let current = run;
+  for (let attempt = 1; attempt <= RENAME_ATTEMPTS; attempt += 1) {
+    const { name: _previous, ...rest } = current.payload;
+    try {
+      const response = await unifiedApiClient.updateReport({
+        organizationId,
+        reportId: current.id,
+        updateReportDto: {
+          expectedVersion: current.version,
+          payload: trimmed ? { ...rest, name: trimmed } : rest,
+        },
+      });
+      const report = response.data.data;
+      if (!report || !isEvalRunReport(report)) {
+        throw new Error("Renaming the eval run returned no run report");
+      }
+      return report;
+    } catch (error) {
+      if (!isVersionConflict(error) || attempt === RENAME_ATTEMPTS) {
+        throw error;
+      }
+      const latest = await unifiedApiClient.getReport({
+        organizationId,
+        reportId: current.id,
+      });
+      const report = latest.data.data;
+      if (!report || !isEvalRunReport(report)) {
+        throw new Error("Reading the eval run before renaming returned no run");
+      }
+      current = report;
+    }
+  }
+  throw new Error("Renaming the eval run did not complete");
 }
 
 export interface SaveEvalHumanReviewInput {

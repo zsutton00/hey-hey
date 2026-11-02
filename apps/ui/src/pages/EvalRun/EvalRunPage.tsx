@@ -13,6 +13,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { EvalRunStatus, EvalTargetHandlerKey } from "@hey-hey/ui-common/api";
 import {
+  evalRunName,
   useEvalRun,
   useEvalRunSession,
   type EvalAttemptReport,
@@ -29,6 +30,7 @@ import {
 } from "./EvalRunMachinePicker";
 import type { EvalRunNavigationState } from "./EvalRunSetupPage";
 import { ProgressList } from "./ProgressList";
+import { RunNameHeading } from "./RunNameHeading";
 import {
   formatTimeLimit,
   formatTokenCount,
@@ -251,6 +253,11 @@ const EvalRunView: React.FC<EvalRunViewProps> = ({
 
   return (
     <>
+      <RunNameHeading
+        organizationId={organizationId}
+        projectId={projectId}
+        run={run}
+      />
       <Box
         sx={{
           display: "flex",
@@ -259,7 +266,7 @@ const EvalRunView: React.FC<EvalRunViewProps> = ({
           alignItems: "baseline",
         }}
       >
-        <Typography variant="h5" component="h1">
+        <Typography variant="h5" component="h2">
           {t("eval.run.page.attempts")}
         </Typography>
         <Typography
@@ -359,6 +366,7 @@ export const EvalRunPage: React.FC = () => {
     runId = "",
   } = useParams<{ projectId?: string; evalId?: string; runId?: string }>();
   const organizationId = identity?.currentOrgId?.trim() ?? "";
+  const { data: run } = useEvalRun(organizationId, runId);
 
   if (!organizationId || !projectId || !evalId || !runId) {
     return (
@@ -373,7 +381,7 @@ export const EvalRunPage: React.FC = () => {
       organizationId={organizationId}
       projectId={projectId}
       evalId={evalId}
-      crumbLabel={t("eval.page.runs.columns.run")}
+      crumbLabel={run ? evalRunName(run, t) : t("eval.page.runs.columns.run")}
       testId="eval-run-page"
     >
       {() => (

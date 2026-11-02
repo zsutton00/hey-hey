@@ -16,12 +16,17 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { EvalRunStatus } from "@hey-hey/ui-common/api";
-import { useEvalRun, type EvalRunReport } from "@hey-hey/ui-common/data";
+import {
+  evalRunName,
+  useEvalRun,
+  type EvalRunReport,
+} from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import { WebPathService } from "@hey-hey/ui-common/services";
 
 import { EvalCaseRows } from "./EvalCaseRows";
 import { EvalRunLayout } from "./EvalRunLayout";
+import { RunNameHeading } from "./RunNameHeading";
 import {
   compareSetups,
   runOverhead,
@@ -236,7 +241,12 @@ const EvalResultsView: React.FC<EvalResultsViewProps> = ({
 
   return (
     <>
-      <Typography variant="h5" component="h1" sx={{ mb: 1 }}>
+      <RunNameHeading
+        organizationId={organizationId}
+        projectId={projectId}
+        run={run}
+      />
+      <Typography variant="h5" component="h2" sx={{ mb: 1 }}>
         {t("eval.results.title")}
       </Typography>
       <Table size="small" data-testid="eval-results-comparison">
@@ -295,6 +305,7 @@ export const EvalResultsPage: React.FC = () => {
     runId = "",
   } = useParams<{ projectId?: string; evalId?: string; runId?: string }>();
   const organizationId = identity?.currentOrgId?.trim() ?? "";
+  const { data: run } = useEvalRun(organizationId, runId);
 
   if (!organizationId || !projectId || !evalId || !runId) {
     return (
@@ -309,7 +320,7 @@ export const EvalResultsPage: React.FC = () => {
       organizationId={organizationId}
       projectId={projectId}
       evalId={evalId}
-      crumbLabel={t("eval.results.crumb")}
+      crumbLabel={run ? evalRunName(run, t) : t("eval.results.crumb")}
       testId="eval-results-page"
     >
       {() => (

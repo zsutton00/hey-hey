@@ -308,6 +308,8 @@ export { useIntegrations } from "./useIntegrations";
 // Service hooks
 export { useCreateService } from "./useCreateService";
 export { useProjectReports } from "./useProjectReports";
+export { useProjectReportUsageTrends } from "./useProjectReportUsageTrends";
+export type { UseProjectReportUsageTrendsReturn } from "./useProjectReportUsageTrends";
 export { useProjectReportPreview } from "./useProjectReportPreview";
 export {
   useCreateProjectReportRequest,
@@ -325,6 +327,7 @@ export {
   useEvalRun,
   useEvalRuns,
   useLaunchEvalRun,
+  useRenameEvalRun,
   useSaveEvalHumanReview,
 } from "./useEvalRuns";
 export type {

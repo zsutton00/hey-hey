@@ -415,6 +415,12 @@ LaunchEvalRunRequest:
   type: object
   required: [evalCaseIds, configurations, judgeSetup]
   properties:
+    name:
+      type: string
+      minLength: 1
+      description: >
+        User-chosen name of the run. Absent means the run is shown by a name
+        generated from what it recorded. Blank is never stored.
     evalCaseIds:
       type: array
       minItems: 1
@@ -475,6 +481,12 @@ EvalRunReportPayload:
           format: uuid
         status:
           $ref: "#/EvalRunStatus"
+        name:
+          type: string
+          minLength: 1
+          description: >
+            User-chosen name of the run. Absent means the run is shown by a name
+            generated from what it recorded. Blank is never stored.
         judgeSetup:
           $ref: "#/EvalModelSetting"
         cases:

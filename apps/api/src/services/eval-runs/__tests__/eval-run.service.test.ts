@@ -364,6 +364,28 @@ describe('EvalRunService.launch', () => {
     });
   });
 
+  it('records the trimmed name a run is launched with and none otherwise', async () => {
+    const { service, reports } = build();
+
+    await service.launch(ORG, PROJECT, USER, EVAL_ID, {
+      ...request,
+      name: '  Baseline  ',
+    } as never);
+    await service.launch(ORG, PROJECT, USER, EVAL_ID, {
+      ...request,
+      name: '   ',
+    } as never);
+    await service.launch(ORG, PROJECT, USER, EVAL_ID, request as never);
+
+    const runPayloads = reports.createWithIdInTransaction.mock.calls
+      .map(([, , , dto]) => dto)
+      .filter((dto) => dto.reportType === 'EVAL_RUN')
+      .map((dto) => dto.payload);
+    expect(runPayloads[0].name).toBe('Baseline');
+    expect(runPayloads[1]).not.toHaveProperty('name');
+    expect(runPayloads[2]).not.toHaveProperty('name');
+  });
+
   it('removes every prepared session when the run cannot be recorded', async () => {
     const { service, reports, sessions } = build();
     reports.createWithIdInTransaction.mockRejectedValueOnce(new Error('boom'));

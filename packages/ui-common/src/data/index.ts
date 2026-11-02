@@ -64,6 +64,7 @@ export type {
   EvalHumanReviewReport,
   EvalRunReport,
 } from "./collections/evalRuns";
+export { evalRunName, generateEvalRunName } from "./collections/evalRunName";
 export * from "./collections/organizationsDirectory";
 export * from "./collections/adminOrganizationDetail";
 export * from "./collections/adminOrganizationMembers";

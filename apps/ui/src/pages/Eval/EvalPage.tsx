@@ -26,6 +26,7 @@ import {
 } from "@hey-hey/ui-common/api";
 import { CapsuleAction, WorkItemReadView } from "@hey-hey/ui-common/components";
 import {
+  evalRunName,
   useEvalRuns,
   useWorkItemTypeByKey,
   useWorkItems,
@@ -176,7 +177,7 @@ export const EvalPage: React.FC<EvalPageProps> = ({
             onClick={handleLinkClick(runHref)}
             data-testid={`eval-run-link-${run.id}`}
           >
-            {run.title}
+            {evalRunName(run, t)}
           </Link>
         </TableCell>
         <TableCell>{t(`eval.page.runs.status.${status}`)}</TableCell>
