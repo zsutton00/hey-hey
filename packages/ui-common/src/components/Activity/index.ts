@@ -79,6 +79,7 @@ export { WorksWithStrip } from "./WorksWithStrip";
 export { mapActivityRecordToGraphData } from "./mapActivityRecordToGraphData";
 
 export * from "./Costs";
+export * from "./UsageTrends";
 export * from "./ProviderUsage";
 
 export {

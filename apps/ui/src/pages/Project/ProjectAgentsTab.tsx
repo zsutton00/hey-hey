@@ -15,7 +15,7 @@ import {
 import { buildPlanTaskMonitorPath } from "../Plan/planSessionRoutes";
 import { ProjectWorkItemsTab } from "../../components/Tabs/ProjectWorkItemsTab";
 import { selectProjectEvalType } from "./projectEvalDiscovery";
-import { CostsView, UsageView } from "./views";
+import { CostsView, UsageTrendsView, UsageView } from "./views";
 
 const projectAgentsViews = [
   "agent-sessions",
@@ -24,6 +24,7 @@ const projectAgentsViews = [
   "evals",
   "costs",
   "usage",
+  "usage-trends",
 ] as const;
 type ProjectAgentsView = (typeof projectAgentsViews)[number];
 
@@ -33,6 +34,7 @@ const projectAgentsSegments: readonly Segment<ProjectAgentsView>[] = [
   { value: "automation", label: "Automation" },
   { value: "costs", label: "Costs" },
   { value: "usage", label: "Usage" },
+  { value: "usage-trends", label: "Usage Trends" },
 ];
 
 export interface ProjectAgentsTabProps {
@@ -157,6 +159,12 @@ export const ProjectAgentsTab: React.FC<ProjectAgentsTabProps> = ({
           organizationId={organizationId}
           projectId={projectId}
           userId={userId}
+        />
+      )}
+      {displayedView === "usage-trends" && (
+        <UsageTrendsView
+          organizationId={organizationId}
+          projectId={projectId}
         />
       )}
     </Box>

@@ -1230,6 +1230,12 @@ export class UnifiedApiClient {
     return this.clients.reports.listProjectReports(...args);
   }
 
+  getProjectReportUsageTrends(
+    ...args: Parameters<ReportsApi["getProjectReportUsageTrends"]>
+  ) {
+    return this.clients.reports.getProjectReportUsageTrends(...args);
+  }
+
   deleteReport(...args: Parameters<ReportsApi["deleteReport"]>) {
     return this.clients.reports.deleteReport(...args);
   }
