@@ -13,7 +13,6 @@ import { createTestOAuthClient as createProviderTestOAuthClient } from '../auth/
 import { SubmissionToolAuth } from './submission-tools/submission-tool-auth';
 import { TaskMonitorDecisionStore } from './task-monitor/task-monitor-decision-store';
 import { SessionMonitorEvaluationStore } from './session-monitor';
-import { createRunStorePreparationRecords } from './preparation-records';
 import type { OnCompleteDeps, PromptTypeHandlerDeps } from './prompt-type-handler';
 import type { MachineEffectProofSigner } from '../auth/machine-effect-proof';
 import { AgentStartupPromptInput } from '../commands/agent-startup-prompt-input';
@@ -123,7 +122,6 @@ export const createPromptTypeHandlerTestDeps = ({
     }));
   }
   return {
-    preparationRecords: createRunStorePreparationRecords(runStore),
     fetchImpl: unusedFetch,
     auth,
     apiBaseUrl,
@@ -135,7 +133,6 @@ export const createPromptTypeHandlerTestDeps = ({
       launchRegistered: () => Promise.reject(new Error('No child launcher in this test')),
       resolveChildHandler: () => undefined,
     },
-    promptOnce: () => Promise.reject(new Error('No promptOnce in this test')),
     ...overrides,
   };
 };

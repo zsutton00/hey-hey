@@ -176,7 +176,6 @@ const defaultAgentRunResult = (): AgentRunResult => ({
 const createTestAgentSessionRunner = (): AgentSessionRunner => ({
   runPrompt: vi.fn(async () => defaultAgentRunResult()),
   resumeSession: vi.fn(async () => defaultAgentRunResult()),
-  promptOnce: vi.fn(),
   getContextUsage: vi.fn(async () => ({ totalTokens: 0 }) as unknown as LocalContextData),
 });
 

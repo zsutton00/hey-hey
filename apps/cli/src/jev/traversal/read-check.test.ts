@@ -106,43 +106,6 @@ describe('readCheck', () => {
     expect(result.usage).toEqual({ requests: 1, inputTokens: 10, outputTokens: 2 });
   });
 
-  it('judges only selected paragraphs while canonical reads keep omitted text', async () => {
-    const text = 'Opening context.\n\nSelected governing requirement.\n\nLater details.';
-    const snapshotReader = createSnapshotReader(
-      { id: F, kind: 'task' },
-      { entities: { [F]: source(F, 'Focal'), [A]: source(A, text) } },
-      [{ id: A, kind: 'task' }],
-    );
-    const jev = fakeJev([A]);
-    const result = await readCheck({
-      client: jev.client,
-      model: 'm',
-      wording: DEFAULT_WORDING,
-      focal,
-      ask: '',
-      ids: [A],
-      reader: snapshotReader,
-      hits: new Map([
-        [
-          A,
-          {
-            id: A,
-            kind: 'task',
-            title: 'A',
-            indexedText: text,
-            matchSpans: [
-              { start: text.indexOf('Selected'), end: text.indexOf('Selected') + 8, strength: 1 },
-            ],
-          },
-        ],
-      ]),
-    });
-    expect(JSON.stringify(jev.requests)).toContain('Selected governing requirement.');
-    expect(JSON.stringify(jev.requests)).not.toContain('Later details.');
-    expect(result.kept[0]?.text).toBe('Selected governing requirement.');
-    expect((await snapshotReader.read(A)).text).toBe(text);
-  });
-
   it('sends Jev no Implementation section and the focal and ask once in state', async () => {
     const jev = fakeJev([A]);
     await check(jev, [A, B]);

@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { createFirstTurnPromptRunState, resolvePrompt } from './resolve-prompt';
 import { SessionRoleGuidance } from '../agents/session-role-guidance/session-role-guidance';
 import { readSessionStartContext } from '../agents/prompts/session-start-context';
-import type { PromptTypeHandlerBaseDeps, RecentUserReply } from '../agents/prompt-type-handler';
+import type { RecentUserReply } from '../agents/prompt-type-handler';
 import type { InternalRunPromptRequest } from '../shared/agent-bridge-contract/contract';
 import type { OAuthClient } from '../auth';
 import type { RepoMappingStore } from '../repo';
@@ -67,7 +67,7 @@ export type RegisteredChildLaunchRequest = Omit<ChildLaunchRequest, 'handler'>;
 export interface ChildAgentLauncherDependencies {
   runStore?: RunStore;
   reportProxy?: CreateReportProxy;
-  handlerDeps: Omit<PromptTypeHandlerBaseDeps, 'childAgentLauncher'>;
+  handlerDeps: Omit<PromptTypeHandlerDeps, 'childAgentLauncher'>;
   promptTypeRegistry: PromptTypeRegistry;
   repoStore: RepoMappingStore;
   oauthClient: OAuthClient;
@@ -210,20 +210,6 @@ export class ChildAgentLauncher {
     const handlerDeps: PromptTypeHandlerDeps = {
       ...(request.handlerDeps ?? this.deps.handlerDeps),
       childAgentLauncher: this,
-      // Preparation uses the shared tool-free child handler.
-      promptOnce: async ({ prompt }) => {
-        const result = await this.launchRegistered('eval_preparation', {
-          parentSession: session,
-          payload: { prompt },
-          signal: request.signal,
-          serviceIds: [],
-          ...(request.tokenBudget !== undefined ? { tokenBudget: request.tokenBudget } : {}),
-        });
-        if (!result.assistantCompleted || !result.outputText) {
-          throw new Error('Child preparation ended without a result.');
-        }
-        return result.outputText;
-      },
     };
     const resolved = await resolvePrompt({
       handler: request.handler,

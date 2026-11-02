@@ -343,26 +343,6 @@ describe('eval attempts through ordinary Runs', () => {
     it.each([true, false])('preserves research before handoff (reported=%s)', async (reported) => {
       const { runPrompt, runStore, execution } = await makeHarness();
       runPrompt.mockImplementationOnce(async () => {
-        const turn = (await runStore.getRunMetadata(AGENT_SESSION_ID))!.latestTurn!;
-        await runStore.appendRunGatherTrace(AGENT_SESSION_ID, {
-          runId: AGENT_SESSION_ID,
-          turnId: turn.turnId,
-          focal: { id: ENTITY.entityId, type: 'TASK', title: 'Review' },
-          ask: 'Review',
-          caps: { maxSearches: 1, maxResultsPerSearch: 1, hops: [] },
-          steps: [
-            {
-              kind: 'search-keep',
-              read: [],
-              judged: [],
-              failures: [],
-              usage: { requests: 1, inputTokens: 10, outputTokens: 2 },
-              ms: 1,
-            },
-          ],
-          expansionFailures: [],
-          returned: [],
-        });
         if (reported) {
           await recordProviderUsage(runStore, AGENT_SESSION_ID, {
             inputTokens: 100,
@@ -648,29 +628,6 @@ describe('settled eval usage evidence', () => {
   it('reads standalone research usage after its active provider identity is discarded', async () => {
     const h = await makeHarness();
     h.runPrompt.mockImplementationOnce(async () => {
-      const turn = (await h.runStore.getRunMetadata(AGENT_SESSION_ID))?.latestTurn;
-      if (!turn) {
-        throw new Error('The research turn must be running.');
-      }
-      await h.runStore.appendRunGatherTrace(AGENT_SESSION_ID, {
-        runId: AGENT_SESSION_ID,
-        turnId: turn.turnId,
-        focal: { id: ENTITY.entityId, type: 'TASK', title: 'Review' },
-        ask: 'Review',
-        caps: { maxSearches: 1, maxResultsPerSearch: 1, hops: [] },
-        steps: [
-          {
-            kind: 'search-keep',
-            read: [],
-            judged: [],
-            failures: [],
-            usage: { requests: 20, inputTokens: 350704, outputTokens: 39774 },
-            ms: 33000,
-          },
-        ],
-        expansionFailures: [],
-        returned: [],
-      });
       await recordProviderUsage(h.runStore, AGENT_SESSION_ID, {
         inputTokens: 120,
         outputTokens: 8,

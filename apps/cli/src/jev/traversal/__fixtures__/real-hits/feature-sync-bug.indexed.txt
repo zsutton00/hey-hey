@@ -1,8 +1,0 @@
-Feature Sync missed the eval design document's conflicting execution model
-
-description:
-During reconciliation for @[task:d99242e3-12e9-4889-9b89-23d97a02b0ee|Run each eval attempt as a full inert session], @[feature:092edaf8-6aaf-4296-b175-9499d402a1da|Feature Sync] corrected the feature and diagram but did not surface the conflicting execution model throughout @[design_doc:8a7aed78-e688-4d4e-8fc4-8b58c36df034|In-App Agent Evaluations]. Planning caught it afterward. The design specified child attempts in its journey, execution, limits, stages, acceptance criteria, assumptions and integration responsibilities; the approved task required ordinary inert Runs. Expected: discover and read governing related design docs and expose consequential disagreements for review before planning.
-
-The earlier @[report:36303cde-7573-4b9c-b8be-258f8dead0cb|Feature Sync] verifies selected feature and diagram corrections only, not design-doc review. Later discussion allowed implementation to proceed with the document corrected separately. Preserve that resolution and the once-per-Run readiness disposition. Existing Feature Sync content includes related design-doc proposals, and @[task:53e7afaf-d9e5-4aec-89ba-b5e6ff71bd77|Give coding and general agents the design-doc proposal tools] records prior tool-surface work; missing tools are not an established cause.
-
-Trace actual analyze inputs, discovery, content handoff and effective handler capabilities to establish why the doc was missed. Review pre-plan and completion coverage. Verify the correction behaviorally using this ordinary-Run-versus-child-agent conflict, including a governing document reached through its owning feature. No repository investigation has established the cause or complete Service scope.

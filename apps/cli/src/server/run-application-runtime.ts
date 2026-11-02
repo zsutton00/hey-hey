@@ -79,7 +79,6 @@ import { ProjectModeBundleMaterializer, ProjectModeBundleRestorer } from '../age
 import type { HostActionAdmission } from './controller-authorization/host-action-admission';
 import type { ControllerRegistryReader } from './controller-authorization/types';
 import type { CatalogAvailability } from './runtime-capability-catalog';
-import { createRunStorePreparationRecords } from '../agents/preparation-records';
 
 const isSystemMessage = (
   dto: CreateSystemMessage | CreateUserMessage | SubmitExecutableUserMessageRequestDto,
@@ -391,7 +390,6 @@ export class RunApplicationRuntime {
     const evalAttemptExecution = new EvalAttemptExecution(runLogger);
     const baseHandlerDeps = {
       evalAttemptExecution,
-      preparationRecords: createRunStorePreparationRecords(dependencies.runStore),
       fetchImpl,
       auth: dependencies.agentRuntime.auth,
       apiBaseUrl: dependencies.apiBaseUrl,

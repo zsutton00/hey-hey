@@ -9,8 +9,6 @@ import {
   type TaskResponseDto,
 } from '../../shared/api/generated';
 import type { LoadedEntityPromptContext } from '../entity-context/types';
-import type { Tier } from '../../jev/scenarios';
-import { firstSentence } from '../context-trimming/get-context-result';
 import type { PromptTypeHandlerDeps } from '../prompt-type-handler';
 import {
   recordJevCalls,
@@ -155,28 +153,6 @@ const renderSections = (
 const parentFeatureHeading = (feature: Pick<TaskResponseDto, 'id' | 'name'>): string =>
   `## Nearest parent feature\n\n@[feature:${feature.id}|${feature.name}]`;
 
-/**
- * The parent as Jev judged it with the rest of the neighbourhood: in full, as a short excerpt of
- * its description, or as a title line the agent can open on demand.
- */
-export const renderParentFeatureSection = (
-  feature: TaskResponseDto & { sections: MaterializedWorkItemSection[] },
-  tier: Tier,
-): string => {
-  const heading = parentFeatureHeading(feature);
-  if (tier === 'full') {
-    return `${heading}, in full.\n\n${renderSections(feature.sections)}`;
-  }
-
-  if (tier === 'index') {
-    return `${heading}, title only. Open it with get_full_entity if its requirements bear on this work.`;
-  }
-
-  const description = feature.sections.find((section) => section.key === 'description');
-  const excerpt = description ? firstSentence(description.materializedMarkdown.trim()) : '';
-  return `${heading}, excerpt only. Open it with get_full_entity before relying on its requirements.${excerpt ? `\n\n${excerpt}` : ''}`;
-};
-
 /** With a filter, Jev picks which requirements load in full; anything that stops it keeps the full load. */
 export interface ParentFeatureFilterInput {
   settings: ParentRequirementsFilter;
@@ -196,7 +172,7 @@ export const loadNearestParentFeatureSection = async (
     sectionCount: feature.sections.length,
   });
   const heading = parentFeatureHeading(feature);
-  const fullSection = renderParentFeatureSection(feature, 'full');
+  const fullSection = `${heading}, in full.\n\n${renderSections(feature.sections)}`;
   if (!filter) return fullSection;
 
   const recorder = recordJevCalls(filter.settings.jevClient);
@@ -208,8 +184,13 @@ export const loadNearestParentFeatureSection = async (
     fullLoad: fullSection,
   } satisfies Omit<ParentRequirementsAttemptRecord, 'outcome'>;
   const writeAttempt = async (record: ParentRequirementsAttemptRecord): Promise<void> => {
+    const attemptLogDir = filter.settings.attemptLogDir;
+    if (!attemptLogDir) {
+      return;
+    }
+
     try {
-      const file = await writeAttemptRecord(filter.settings.attemptLogDir, record);
+      const file = await writeAttemptRecord(attemptLogDir, record);
       deps.logger.info('project_assistant.prepare.parent_feature.attempt_logged', { file });
     } catch (error) {
       deps.logger.warn('project_assistant.prepare.parent_feature.attempt_log_failed', {

@@ -89,7 +89,6 @@ const baseDeps = (overrides?: Partial<RunnerPickerDependencies>): RunnerPickerDe
   const runner = {
     runPrompt: vi.fn(),
     resumeSession: vi.fn(),
-    promptOnce: vi.fn(),
     getContextUsage: vi.fn(),
   } as AgentSessionRunner;
   return {

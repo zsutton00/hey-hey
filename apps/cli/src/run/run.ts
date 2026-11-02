@@ -71,7 +71,6 @@ import type {
   AgentStartupPromptInputResult,
   AgentStartupPromptTemplate,
   PromptTypeHandlerContext,
-  PromptTypeHandlerBaseDeps,
   PromptTypeHandlerDeps,
   PromptTypeHandler,
   RecentUserReply,
@@ -172,7 +171,6 @@ import {
 } from '../agents/implementation-readiness/readiness-disposition';
 import { createReadinessSourceSnapshotFromStartupInput } from '../agents/implementation-readiness/source-snapshot';
 import { Turn, type Runner } from '../turn/turn';
-import { bindPromptOnce } from './bind-prompt-once';
 import { resolveTurnEffective } from '../turn/turn-effective';
 import { AgentSessionCurrentStateOwner } from './agent-session-current-state';
 import type { AgentSessionCurrentStateObservation } from '../shared/api/generated/api';
@@ -209,6 +207,7 @@ import {
 import type { ReportedChangedFile } from '../agents/completion-reconciliation/schemas';
 import type {
   ProviderPhase,
+  ObservedConversationPhase,
   HandlerDeps,
   LocalAgentOutputEvent,
   PendingDiff,
@@ -353,7 +352,7 @@ export interface RunCollaborators {
   /** Persisted machine identity used by controller-authorized Agent Session mutations. */
   keyPairStore?: KeyPairStore;
   /** Shared prompt-handler deps — used by `resolvePrompt` and by handler onComplete hooks. */
-  handlerDeps: PromptTypeHandlerBaseDeps;
+  handlerDeps: PromptTypeHandlerDeps;
   promptTypeRegistry: PromptTypeRegistry;
   submissionToolRegistry: SubmissionToolRegistry;
   /** Select the per-Turn runner after prompt resolution. */
@@ -877,7 +876,7 @@ export class Run {
   private readonly submissionActionPoster: SubmissionActionPoster;
   private readonly broadcaster: RunEventPublisher;
   readonly sessionRoleGuidance: SessionRoleGuidance;
-  private readonly handlerDeps: PromptTypeHandlerBaseDeps;
+  private readonly handlerDeps: PromptTypeHandlerDeps;
   /** Latest authoritative entity startup projection for the current Turn. */
   private startupPromptInputResult: AgentStartupPromptInputResult | null = null;
   /** Effective template configuration reused while entity Context is refreshed. */
@@ -1978,26 +1977,7 @@ export class Run {
     this.conversationPhase.observeProviderPhase(phase);
   }
 
-  /**
-   * A phase reported by the provider session. Its launch-time `starting` would
-   * otherwise briefly replace the handler-requested gathering state, which must
-   * hold until the session's first real activity.
-   */
-  observeProviderSessionPhase(phase: ProviderPhase): void {
-    if (
-      phase === 'starting' &&
-      this.agentSessionCurrentState.currentProviderPhase === 'gathering_context'
-    ) {
-      this.logger.debug('local.run.current_state.provider_starting_kept_gathering_context', {
-        runId: this.runId,
-        conversationId: this.conversationId,
-      });
-      return;
-    }
-    this.observeProviderPhase(phase);
-  }
-
-  observeConversationPhase(phase: import('../shared/api/generated/api').ConversationPhase): void {
+  observeConversationPhase(phase: ObservedConversationPhase): void {
     if (phase === 'reviewing') {
       this.conversationPhase.observeReviewing();
       return;
@@ -5483,14 +5463,7 @@ export class Run {
         startedPromptTypes: new Set(this._startedPromptTypes),
       },
       input,
-      handlerDeps: bindPromptOnce(this.handlerDeps, {
-        handler,
-        session,
-        input,
-        abortSignal: () => this.abortSignal,
-        runner: () => this.runnerPicker.runnerFor(this),
-        observeProviderPhase: (phase) => this.observeProviderPhase(phase),
-      }),
+      handlerDeps: this.handlerDeps,
       turnId,
       abortSignal: () => this.abortSignal,
       recentUserReplies: readRecentUserReplies(input),
@@ -5871,14 +5844,7 @@ export class Run {
         ...(browserMcpMount ? { browserMcpMount } : {}),
         platformMcpProxyMount: platformMcpProxy.mount,
         platformMcpAdditionalAllowedTools,
-        handlerDeps: bindPromptOnce(this.handlerDeps, {
-          handler,
-          session,
-          input,
-          abortSignal: () => this.abortSignal,
-          runner: () => this.runnerPicker.runnerFor(this),
-          observeProviderPhase: (phase) => this.observeProviderPhase(phase),
-        }),
+        handlerDeps: this.handlerDeps,
       },
       platformMcpProxy,
       browserAnnotationIds: browserAnnotations.map((annotation) => annotation.id),

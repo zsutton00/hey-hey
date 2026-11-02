@@ -119,7 +119,6 @@ const makeSessionRunner = (
 ): AgentSessionRunner => ({
   runPrompt: vi.fn(),
   resumeSession: vi.fn(),
-  promptOnce: vi.fn(),
   getContextUsage: vi.fn(),
   ...(discardSession ? { discardSession } : {}),
 });

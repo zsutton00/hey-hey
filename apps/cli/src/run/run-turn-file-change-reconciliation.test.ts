@@ -349,7 +349,6 @@ describe('same-Turn changed-file reporting recovery', () => {
         throw new Error('Must resume existing provider');
       },
       resumeSession,
-      promptOnce: vi.fn(),
       getContextUsage: async () => {
         throw new Error('Not used');
       },

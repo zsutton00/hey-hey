@@ -5,7 +5,6 @@ import { normalizeProviderEventPayload } from '../../agents/providers/provider-e
 import { normalizeEvent } from '../../run/normalize';
 import { handleToolUse } from '../../run/handlers/tool-use';
 import { makeTestRun, makeDeps, makeTestTurn } from '../../run/handlers/__test-utils';
-import type { GatherTrace } from '../../jev/trace';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -2356,40 +2355,6 @@ describe('RunStore', () => {
           content: 'x',
           writtenAt: '2026-04-26T12:00:00.000Z',
         }),
-      ).rejects.toThrow(/Unknown agentic session/);
-    });
-  });
-
-  describe('appendRunGatherTrace', () => {
-    const traceFor = (runId: string, turnId: string): Omit<GatherTrace, 'round'> => ({
-      runId,
-      turnId,
-      focal: { id: 'f', type: 'task', title: 'Focal' },
-      ask: 'Do it',
-      caps: { maxSearches: 8, maxResultsPerSearch: 25, hops: [{ max: 8, minScore: 0 }] },
-      steps: [],
-      expansionFailures: [],
-      returned: [],
-    });
-
-    it('numbers rounds per turn and survives a fresh store load', async () => {
-      const run = await store.createRun(createTaskInput());
-      const id = run.agentic_session_id;
-
-      const first = await store.appendRunGatherTrace(id, traceFor(id, 'turn-1'));
-      const second = await store.appendRunGatherTrace(id, traceFor(id, 'turn-1'));
-      const other = await store.appendRunGatherTrace(id, traceFor(id, 'turn-2'));
-      expect([first.round, second.round, other.round]).toEqual([1, 2, 1]);
-
-      const freshStore = new RunStore({ paths: createTempPaths(tempRoot) });
-      await freshStore.initialize();
-      const reloaded = await freshStore.getRun(id);
-      expect(reloaded!.gatherTraces).toEqual([first, second, other]);
-    });
-
-    it('throws for an unknown run id', async () => {
-      await expect(
-        store.appendRunGatherTrace('does-not-exist', traceFor('does-not-exist', 'turn-1')),
       ).rejects.toThrow(/Unknown agentic session/);
     });
   });

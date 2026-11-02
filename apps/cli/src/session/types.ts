@@ -18,7 +18,6 @@ import type {
   ReviewFileScopeReconciliation,
   ReviewFileScopeRequestPresentation,
 } from '../agents/review-file-scope-request/review-file-scope-types';
-import type { GatherTrace } from '../jev/trace';
 import type { CanonicalFileChangeFact } from '../run/file-change-facts';
 
 export type TaskSessionProviderPreference = 'claude' | 'codex' | 'opencode';
@@ -216,11 +215,6 @@ interface AgenticSessionBase {
    * survives CLI restarts.
    */
   memos?: RunMemo[];
-  /**
-   * One step-by-step trace per context gathering, stored by Project Assistant's preparation as
-   * gathering finishes and persisted with the Run so it survives restarts.
-   */
-  gatherTraces?: GatherTrace[];
   /** Permission presentations that are still actionable in the conversation. */
   permissionRequestPresentations?: PermissionRequestPresentation[];
   /** Service-scope review requests that remain actionable after a restart. */

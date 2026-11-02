@@ -10,7 +10,6 @@ import type { LocalPromptType } from '../shared/agent-bridge-contract/generated'
 import type { AgenticSession } from '../session/types';
 import type { AgentProviderId } from './providers/provider-config';
 import type { RunStore } from '../run-store/run-store';
-import type { PreparationRecords } from './preparation-records';
 import type { ReportAudience, ReportType, UpdateMessageDto } from '../shared/api/index';
 import type {
   AssistantDeltaEvent,
@@ -65,15 +64,6 @@ export type { RecentUserReply };
  * resolver. Always present on the resolver-built context — empty when no
  * user messages fall in the trigger's window.
  */
-/** The input a runner hands to the provider; `parts` keep the boundaries of separate segments. */
-export interface ProviderInputRecord {
-  runId: string;
-  turnId: string;
-  payload: unknown;
-  logger: ServerLogger;
-  parts: { name: string; text: string }[];
-}
-
 export interface PromptTypeHandlerContext {
   /** Agentic Run identity used to correlate handler diagnostics across a Turn. */
   runId?: string;
@@ -143,8 +133,6 @@ export interface PromptTypeHandlerContext {
 
 export interface PromptTypeHandlerDeps {
   evalAttemptExecution?: EvalAttemptExecution;
-  /** Where `prepare` records its work; handlers never touch the run store directly. */
-  preparationRecords: PreparationRecords;
   fetchImpl: typeof fetch;
   auth: SubmissionToolAuth;
   apiBaseUrl: string;
@@ -162,21 +150,7 @@ export interface PromptTypeHandlerDeps {
   startupPromptInput: AgentStartupPromptInput;
   /** Shared launcher for handlers that fan work out to registered child handlers. */
   childAgentLauncher: Pick<ChildAgentLauncher, 'launchRegistered' | 'resolveChildHandler'>;
-  /**
-   * One-off, tool-free model call on the Run's own provider, model and effort.
-   * Cancelled by the Turn's abort signal; rejects on failure. The Run sets
-   * `startPhase` when the call begins and `endPhase` when it settles; an
-   * omitted phase leaves the Run's state unchanged.
-   */
-  promptOnce(args: {
-    prompt: string;
-    startPhase?: ProviderPhase;
-    endPhase?: ProviderPhase;
-  }): Promise<string>;
 }
-
-/** Handler deps the application owns; the Run binds `promptOnce` to itself. */
-export type PromptTypeHandlerBaseDeps = Omit<PromptTypeHandlerDeps, 'promptOnce'>;
 
 export type { AgentStartupPromptInputResult, AgentStartupPromptTemplate };
 
@@ -254,12 +228,6 @@ export interface OnCompleteDeps {
 export interface PrepareResult<TPayload> {
   payload: TPayload;
   sessionContext?: Record<string, unknown>;
-  /**
-   * A relevance-narrowed copy of the loaded entity Context. The resolver re-renders it with the
-   * template already selected for the Run and delivers that block to this Turn's provider instead
-   * of the original one. The canonical loaded Context itself is never changed.
-   */
-  startupContextReplacement?: FullEntityContextDto;
 }
 
 export interface ResolveAdditionalAllowedToolsArgs<TPayload> {
@@ -646,7 +614,7 @@ export interface PromptTypeHandler<TPayload> {
   /** Persist an actionable, terminal result when this handler cannot start its Turn. */
   onStartupFailure?(
     payload: TPayload,
-    context: { session: AgenticSession; deps: PromptTypeHandlerBaseDeps },
+    context: { session: AgenticSession; deps: PromptTypeHandlerDeps },
     message: string,
   ): Promise<void>;
 
@@ -813,14 +781,6 @@ export interface PromptTypeHandler<TPayload> {
    * isn't a recognized shape — the raw message passes through unchanged.
    */
   transformInput?(userMessage: string): string | null;
-
-  /**
-   * Called by the provider-session runners with the exact input handed to the
-   * provider, after all prompt assembly, and before the provider call. Lets a
-   * handler keep a verbatim copy of what its agent received. A failure here
-   * fails the Turn, so implementations must only throw on a real write error.
-   */
-  recordProviderInput?(record: ProviderInputRecord): Promise<void>;
 
   /**
    * Async post-completion hook. Called after the message update has been

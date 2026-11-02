@@ -2882,10 +2882,7 @@ describe('session-runner-codex', () => {
       }),
     ).rejects.toMatchObject({ code: 'RUN_FAILED', message: 'Provider transport failed.' });
 
-    expect(error).toHaveBeenCalledWith(
-      'local.runner.codex.run_prompt.failed',
-      expect.anything(),
-    );
+    expect(error).toHaveBeenCalledWith('local.runner.codex.run_prompt.failed', expect.anything());
     expect(
       vi
         .mocked(runStore.appendEvent)
@@ -4121,83 +4118,5 @@ describe('session-runner-codex', () => {
       name: 'AgentSessionRunnerError',
       code: 'RUN_FAILED',
     });
-  });
-});
-
-describe('CodexAgentSessionRunner.promptOnce', () => {
-  const makeRunner = (runStore: RunStore = makeRunStore()) =>
-    new CodexAgentSessionRunner({
-      localAgentEndpoint,
-      submissionToolRegistry,
-      runStore,
-      repoStore: makeRepoStore(),
-      oauthClient: createProviderTestOAuthClient({ success: true, data: 'test-token' }),
-    });
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    sdkEventHandler = null;
-    sdkDisconnectMock.mockResolvedValue(undefined);
-    sdkStartSessionMock.mockImplementation(async () => {
-      sdkEventHandler?.({
-        method: 'item/completed',
-        params: { item: { type: 'agentMessage', text: 'search for jev' } },
-      });
-    });
-  });
-
-  it('returns the agent message from a read-only thread in an empty directory', async () => {
-    const runStore = makeRunStore();
-    const { signal } = new AbortController();
-
-    const answer = await makeRunner(runStore).promptOnce({
-      session: makeSession(),
-      prompt: 'plan searches',
-      model: 'turn-model',
-      reasoningEffort: 'high',
-      signal,
-    });
-
-    expect(answer).toBe('search for jev');
-    const [config, options] = sdkStartSessionMock.mock.calls[0] as [
-      Record<string, unknown>,
-      unknown,
-    ];
-    expect(config).toMatchObject({
-      prompt: 'plan searches',
-      sandbox: 'read-only',
-      model: 'turn-model',
-      effort: 'high',
-    });
-    expect(config).not.toHaveProperty('config');
-    expect(config['cwd']).not.toBe('/tmp/repo');
-    expect(options).toEqual({ signal });
-    expect(sdkDisconnectMock).toHaveBeenCalledTimes(1);
-    expect(runStore.appendEvent).not.toHaveBeenCalled();
-  });
-
-  it('throws the provider error when the turn fails', async () => {
-    sdkStartSessionMock.mockRejectedValue(new Error('model unavailable'));
-
-    await expect(
-      makeRunner().promptOnce({
-        session: makeSession(),
-        prompt: 'plan',
-        signal: new AbortController().signal,
-      }),
-    ).rejects.toThrow('model unavailable');
-    expect(sdkDisconnectMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('throws when the turn produces no agent message', async () => {
-    sdkStartSessionMock.mockResolvedValue(undefined);
-
-    await expect(
-      makeRunner().promptOnce({
-        session: makeSession(),
-        prompt: 'plan',
-        signal: new AbortController().signal,
-      }),
-    ).rejects.toMatchObject({ code: 'RUN_FAILED' });
   });
 });

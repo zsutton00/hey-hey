@@ -31,7 +31,6 @@ import {
   type AgentSessionRunner,
   type PermissionDecisionDispatchArgs,
   type PermissionDecisionDispatchResult,
-  type PromptOnceArgs,
   type ResumeArgs,
   type RunPromptArgs,
 } from '../session-runner';
@@ -1522,101 +1521,6 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
       reader.releaseLock();
     }
   };
-
-  public async promptOnce(args: PromptOnceArgs): Promise<string> {
-    const { session, prompt, model, reasoningEffort, signal } = args;
-    const modelRef = resolveOpencodeModelRef(model ?? session.model);
-    const isolatedDirectory = await IsolatedProviderWorkingDirectory.create();
-    // A dedicated server: the Run's own server, session and event stream are never touched,
-    // and no MCP server is ever registered on it.
-    let server: OpenCodeServerProcess | null = null;
-    try {
-      server = await OpenCodeServerProcess.launch({ directory: isolatedDirectory.path, signal });
-      const handle = server;
-      const sessionId = await this.createSession(handle, signal);
-      try {
-        const response = await fetch(buildApiUrl(handle, `/session/${sessionId}/message`), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            parts: [{ type: 'text', text: prompt }],
-            ...(modelRef ? { model: modelRef } : {}),
-            ...((reasoningEffort ?? session.reasoningEffort)
-              ? { variant: reasoningEffort ?? session.reasoningEffort }
-              : {}),
-            tools: { '*': false },
-          } satisfies OpencodePromptRequest),
-          signal,
-        });
-        if (!response.ok) {
-          const text = await response.text().catch(() => 'Unknown error');
-          throw new AgentSessionRunnerError(
-            'RUN_FAILED',
-            `OpenCode prompt failed: ${response.status} ${text}`,
-          );
-        }
-        const parsed = opencodeSessionMessage.safeParse(await response.json());
-        if (!parsed.success) {
-          throw new AgentSessionRunnerError(
-            'RUN_FAILED',
-            `OpenCode prompt response was invalid: ${parsed.error.message}`,
-            parsed.error,
-          );
-        }
-        const { info, parts } = parsed.data;
-        if (info.error) {
-          throw new AgentSessionRunnerError(
-            'RUN_FAILED',
-            info.error.data?.message ?? `OpenCode prompt failed: ${info.error.name}`,
-          );
-        }
-        const text = parts
-          .flatMap((part) =>
-            part.type === 'text' && typeof part['text'] === 'string' ? [part['text']] : [],
-          )
-          .join('');
-        if (text.length === 0) {
-          throw new AgentSessionRunnerError(
-            'RUN_FAILED',
-            'OpenCode returned no text for the prompt.',
-          );
-        }
-        return text;
-      } finally {
-        await fetch(buildApiUrl(handle, `/session/${sessionId}`), { method: 'DELETE' }).catch(
-          (error: unknown) => {
-            requestContext.log(
-              this.logger,
-              'warn',
-              'local.runner.opencode.prompt_once.delete_failed',
-              {
-                sessionId: session.agentic_session_id,
-                error,
-              },
-            );
-          },
-        );
-      }
-    } finally {
-      await server?.stop().catch((error: unknown) => {
-        requestContext.log(this.logger, 'warn', 'local.runner.opencode.prompt_once.stop_failed', {
-          sessionId: session.agentic_session_id,
-          error,
-        });
-      });
-      await isolatedDirectory.cleanup().catch((error: unknown) => {
-        requestContext.log(
-          this.logger,
-          'warn',
-          'local.runner.opencode.isolated_cwd.cleanup_failed',
-          {
-            sessionId: session.agentic_session_id,
-            error,
-          },
-        );
-      });
-    }
-  }
 
   public async runPrompt(args: RunPromptArgs): Promise<AgentRunResult> {
     if (args.mcpToolUseCase !== 'project_report') {

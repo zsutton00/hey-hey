@@ -49,7 +49,6 @@ import {
   type AgentSessionRunner,
   type PermissionDecisionDispatchArgs,
   type PermissionDecisionDispatchResult,
-  type PromptOnceArgs,
   type QuestionAnswerDispatchArgs,
   type QuestionAnswerDispatchResult,
   type ResumeArgs,
@@ -930,50 +929,6 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       requestId: args.requestId,
     });
     return { delivered: true, answeredAt };
-  }
-
-  public async promptOnce(args: PromptOnceArgs): Promise<string> {
-    const { session, prompt, model, reasoningEffort, signal } = args;
-    const isolatedDirectory = await IsolatedProviderWorkingDirectory.create();
-    // A transient client: the Run's own client, session and event log are never touched.
-    const client = new ClaudeCodeSdkClient();
-    let answer: string | null = null;
-    client.onEvent((event) => {
-      if (event.type !== 'assistant') return;
-      const text = extractAssistantText(event);
-      if (text) answer = text;
-    });
-    try {
-      const result = await client.startSession(
-        {
-          prompt,
-          cwd: isolatedDirectory.path,
-          fastMode: session.fastMode === true,
-          permissionMode: 'default',
-          builtinTools: [],
-          ...((model ?? session.model) ? { model: (model ?? session.model) as string } : {}),
-          ...((reasoningEffort ?? session.reasoningEffort)
-            ? { reasoningEffort: (reasoningEffort ?? session.reasoningEffort) as string }
-            : {}),
-        },
-        { signal },
-      );
-      if (!result.ok) {
-        throw new AgentSessionRunnerError('RUN_FAILED', result.errorText);
-      }
-      if (answer === null) {
-        throw new AgentSessionRunnerError('RUN_FAILED', 'Claude returned no text for the prompt.');
-      }
-      return answer;
-    } finally {
-      await client.disconnect();
-      await isolatedDirectory.cleanup().catch((error: unknown) => {
-        requestContext.log(this.logger, 'warn', 'local.runner.claude.isolated_cwd.cleanup_failed', {
-          sessionId: session.agentic_session_id,
-          error,
-        });
-      });
-    }
   }
 
   public async runPrompt(args: RunPromptArgs): Promise<AgentRunResult> {

@@ -35,7 +35,6 @@ import {
   planShapingFeatureSyncIterateHandler,
 } from './plan-shaping-feature-sync';
 import { planShapingFeatureSyncDiscussHandler } from './plan-shaping-feature-sync/discuss.handler';
-import type { ContextGatheringDeps } from './project-assistant/context-gathering';
 import type { ParentRequirementsFilter } from './project-assistant/parent-requirements';
 import { ProjectAssistantHandler } from './project-assistant/project-assistant.handler';
 import type { RunSubagentsTool } from './submission-tools/run-subagents-tool';
@@ -60,7 +59,6 @@ import { reviewHandler } from './review-subagent/review.handler';
 import { rollupProposalHandler } from './rollup-proposal/rollup-proposal.handler';
 import { runEvalHandler } from './run-eval';
 import { evalJudgeHandler } from './run-eval/eval-judge.handler';
-import { evalPreparationHandler } from './run-eval/eval-preparation.handler';
 import { EVAL_CONSUMER_HANDLER_IDS, EVAL_TARGET_HANDLER_IDS } from './run-eval/eval-targets';
 import { SessionMonitorHandler } from './session-monitor';
 import { setSplittingHandler } from './set-splitting/set-splitting.handler';
@@ -84,9 +82,7 @@ export interface PromptTypeRegistryDependencies {
   runSubagentsTool?: RunSubagentsTool | null;
   /** Defined only with a Jev key; Project Assistant then filters its parent feature load. */
   parentRequirements?: ParentRequirementsFilter;
-  /** Defined only with a Jev key; Project Assistant then gathers context into its prompt before its session starts. */
-  contextGathering?: ContextGatheringDeps;
-  /** The machine's Jev switch, read on every Project Assistant prepare; off disables both Jev uses above. */
+  /** The machine's Jev switch, read on every Project Assistant prepare; off disables the filter. */
   isJevEnabled?: () => Promise<boolean>;
 }
 
@@ -106,7 +102,6 @@ const createHandlerBuilders = (
   admissionClient: PlanSubmissionAdmissionClient,
   runSubagentsTool: RunSubagentsTool | null | undefined,
   parentRequirements: ParentRequirementsFilter | undefined,
-  contextGathering: ContextGatheringDeps | undefined,
   isJevEnabled: (() => Promise<boolean>) | undefined,
 ): readonly BuilderSpec[] => [
   staticHandler(LocalPromptType.StartupSession, codingPlanHandler),
@@ -199,7 +194,6 @@ const createHandlerBuilders = (
         createReportProxy,
         runSubagentsTool,
         parentRequirements,
-        contextGathering,
         isJevEnabled,
       ),
   },
@@ -213,7 +207,6 @@ const createHandlerBuilders = (
  * declare a child configuration and are never dispatched by prompt type.
  */
 const CHILD_ONLY_HANDLERS: readonly PromptTypeHandler<unknown>[] = [
-  evalPreparationHandler,
   projectReportSectionHandler,
   evalJudgeHandler,
 ];
@@ -231,7 +224,6 @@ export class PromptTypeRegistry {
       dependencies.planSubmissionAdmissionClient,
       dependencies.runSubagentsTool,
       dependencies.parentRequirements,
-      dependencies.contextGathering,
       dependencies.isJevEnabled,
     );
 

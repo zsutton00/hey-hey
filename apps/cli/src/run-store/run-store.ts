@@ -25,7 +25,6 @@ import type {
   TaskSessionProviderPreference,
   TokenUsage,
 } from '../session/types';
-import type { GatherTrace } from '../jev/trace';
 import {
   parseDurableRunEvent,
   DURABLE_RUN_EVENT_SCHEMA_VERSION,
@@ -1520,26 +1519,6 @@ export class RunStore {
       run.updatedAt = this.now().toISOString();
       await writeRunMetadata(this.runFamilies, run);
       return run;
-    });
-  }
-
-  /** Appends a hand-in's trace, numbering it as the next round of its turn. */
-  public appendRunGatherTrace(
-    runId: string,
-    trace: Omit<GatherTrace, 'round'>,
-  ): Promise<GatherTrace> {
-    return this.withMetadataLock(runId, async () => {
-      const run = await readRunMetadata(this.runFamilies, runId);
-      if (!run) {
-        throw new SessionValidationError(`Unknown agentic session: ${runId}`);
-      }
-
-      const earlier = (run.gatherTraces ?? []).filter(({ turnId }) => turnId === trace.turnId);
-      const stored: GatherTrace = { ...trace, round: earlier.length + 1 };
-      run.gatherTraces = [...(run.gatherTraces ?? []), stored];
-      run.updatedAt = this.now().toISOString();
-      await writeRunMetadata(this.runFamilies, run);
-      return stored;
     });
   }
 

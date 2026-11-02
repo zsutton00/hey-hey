@@ -116,7 +116,6 @@ it.each(['claude', 'codex', 'opencode'] as const)(
     const facade = createTestSessionRunnerFacade({
       runPrompt: send,
       resumeSession: send,
-      promptOnce: vi.fn(),
       getContextUsage: vi.fn(),
     } satisfies AgentSessionRunner);
     const runnerPicker = createTestRunnerPicker((ctx) =>

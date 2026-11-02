@@ -49,7 +49,6 @@ import {
   type ListSkillsArgs,
   type PermissionDecisionDispatchArgs,
   type PermissionDecisionDispatchResult,
-  type PromptOnceArgs,
   type ResumeArgs,
   type RunPromptArgs,
 } from '../session-runner';
@@ -635,47 +634,6 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
   ): void => {
     this.client.submitClientResponse(rawRequestId, response);
   };
-
-  public async promptOnce(args: PromptOnceArgs): Promise<string> {
-    const { session, prompt, model, reasoningEffort, signal } = args;
-    const selectedModel = model ?? session.model ?? null;
-    const selectedReasoningEffort = reasoningEffort ?? session.reasoningEffort ?? null;
-    const isolatedDirectory = await IsolatedProviderWorkingDirectory.create();
-    // A transient client: the Run's own client, thread and event log are never touched.
-    const client = new CodexSdkClient();
-    let answer: string | null = null;
-    client.onEvent((event) => {
-      if (event.method !== 'item/completed') return;
-      const item = event.params?.['item'];
-      if (!isRecord(item) || item['type'] !== 'agentMessage') return;
-      const text = item['text'];
-      if (typeof text === 'string' && text.length > 0) answer = text;
-    });
-    try {
-      await client.startSession(
-        {
-          prompt,
-          cwd: isolatedDirectory.path,
-          sandbox: 'read-only',
-          ...(selectedModel ? { model: selectedModel } : {}),
-          ...(selectedReasoningEffort ? { effort: selectedReasoningEffort } : {}),
-        },
-        { signal },
-      );
-      if (answer === null) {
-        throw new AgentSessionRunnerError('RUN_FAILED', 'Codex returned no text for the prompt.');
-      }
-      return answer;
-    } finally {
-      await client.disconnect();
-      await isolatedDirectory.cleanup().catch((error: unknown) => {
-        requestContext.log(this.logger, 'warn', 'local.runner.codex.isolated_cwd.cleanup_failed', {
-          sessionId: session.agentic_session_id,
-          error,
-        });
-      });
-    }
-  }
 
   public async runPrompt(args: RunPromptArgs): Promise<AgentRunResult> {
     if (args.mcpToolUseCase !== 'project_report') {

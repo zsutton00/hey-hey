@@ -196,14 +196,6 @@ export interface ResumeArgs {
   workspaceWriteBoundary?: RunWorkspaceWriteBoundary;
 }
 
-export interface PromptOnceArgs {
-  session: AgenticSession;
-  prompt: string;
-  model?: string;
-  reasoningEffort?: LocalReasoningEffort;
-  signal: AbortSignal;
-}
-
 export interface ListSkillsArgs {
   session: AgenticSession;
   workspace?: ResolvedRunWorkspace;
@@ -249,12 +241,6 @@ export type QuestionAnswerDispatchResult =
 
 export interface AgentSessionRunner {
   runPrompt(args: RunPromptArgs): Promise<AgentRunResult>;
-  /**
-   * Send one prompt with no tools, no MCP servers and no conversation, outside
-   * the Run's provider session and event log, and resolve with the model's text.
-   * Throws on failure; never resolves with an invented result.
-   */
-  promptOnce(args: PromptOnceArgs): Promise<string>;
   listSkills?(args: ListSkillsArgs): Promise<AgentSkillCatalog>;
   resumeSession(args: ResumeArgs): Promise<AgentRunResult>;
   /**

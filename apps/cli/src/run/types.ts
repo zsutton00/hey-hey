@@ -99,7 +99,6 @@ export interface AssistantCompleteEvent extends NormalizedEventBase {
  * the generated Agent Session current-state contract. */
 const PROVIDER_PHASE_VALUES = [
   'starting',
-  'gathering_context',
   'thinking',
   'writing',
   'idle',
@@ -116,7 +115,6 @@ export const PROVIDER_PHASE_TO_AGENT_SESSION_CURRENT_STATE: Record<
   AgentSessionCurrentStateType
 > = {
   starting: AgentSessionCurrentState.Starting,
-  gathering_context: AgentSessionCurrentState.GatheringContext,
   thinking: AgentSessionCurrentState.Thinking,
   writing: AgentSessionCurrentState.Writing,
   idle: AgentSessionCurrentState.Idle,
@@ -134,19 +132,21 @@ export interface ProcessingStatusEvent extends NormalizedEventBase {
 const CONVERSATION_PHASE_VALUES = [
   'idle',
   'starting',
-  'gathering_context',
   'thinking',
   'writing',
   'awaiting_approval',
   'reviewing',
 ] as const satisfies readonly ConversationPhase[];
 
-export const isConversationPhase = (value: unknown): value is ConversationPhase =>
+/** The conversation phases the CLI itself produces: provider phases, plus review. */
+export type ObservedConversationPhase = (typeof CONVERSATION_PHASE_VALUES)[number];
+
+export const isConversationPhase = (value: unknown): value is ObservedConversationPhase =>
   typeof value === 'string' && (CONVERSATION_PHASE_VALUES as readonly string[]).includes(value);
 
 export interface ConversationPhaseEvent extends NormalizedEventBase {
   kind: 'conversation_phase';
-  phase: ConversationPhase;
+  phase: ObservedConversationPhase;
 }
 
 export interface DiffEvent extends NormalizedEventBase {

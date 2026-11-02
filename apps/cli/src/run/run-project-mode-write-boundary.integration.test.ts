@@ -369,7 +369,6 @@ const makeHarness = async (options: {
     runPrompt: vi.fn(runTurn),
     resumeSession: vi.fn(runTurn),
     discardSession: vi.fn().mockResolvedValue(undefined),
-    promptOnce: vi.fn(),
     getContextUsage: vi.fn().mockResolvedValue({ totalTokens: 0, maxTokens: 0 }),
   });
 
