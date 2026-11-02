@@ -52,6 +52,7 @@ const createContextGathering = (
   client: JevClient,
   auth: SubmissionToolAuth,
   apiBaseUrl: string,
+  jevLogsDir: string | null,
 ): ContextGatheringDeps => ({
   jev: { client, model: DEFAULT_JEV_MODEL, wording: DEFAULT_WORDING },
   limits: CONTEXT_SEARCH_HOP_LIMITS,
@@ -59,7 +60,7 @@ const createContextGathering = (
   executorFor: (project) => createLiveSearchExecutor({ auth, apiBaseUrl, ...project }),
   readerFor: (project, focal, known) =>
     createLiveReader(focal, { auth, apiBaseUrl, ...project }, known),
-  traceLogDir: path.join(resolveJevLogsDir(), 'gather'),
+  traceLogDir: jevLogsDir ? path.join(jevLogsDir, 'gather') : null,
 });
 
 /** Owns prompt handlers, submission tools, and their shared agent-side state. */
@@ -113,6 +114,7 @@ export class AgentApplicationRuntime {
       logger: dependencies.logger.child({ component: 'startup-prompt-input' }),
       entityContextLoader: this.entityContextLoader,
     });
+    const jevLogsDir = resolveJevLogsDir();
     this.promptTypeRegistry = new PromptTypeRegistry({
       createReportProxy: this.createReportProxy,
       runSubagentsTool: this.runSubagentsTool,
@@ -122,11 +124,12 @@ export class AgentApplicationRuntime {
               this.jevClient,
               this.auth,
               dependencies.apiBaseUrl,
+              jevLogsDir,
             ),
             parentRequirements: {
               jevClient: this.jevClient,
               entityContextLoader: this.entityContextLoader,
-              attemptLogDir: path.join(resolveJevLogsDir(), 'parent-requirements'),
+              attemptLogDir: jevLogsDir ? path.join(jevLogsDir, 'parent-requirements') : null,
             },
             isJevEnabled: dependencies.isJevEnabled,
           }

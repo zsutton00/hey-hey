@@ -23,7 +23,7 @@ export interface ParentRequirementsFilter {
   jevClient: JevEvaluator;
   entityContextLoader: Pick<EntityContextLoader, 'load'>;
   /** Where each attempt's full Jev input and output, and the loads before and after, are written. */
-  attemptLogDir: string;
+  attemptLogDir: string | null;
   model?: string;
 }
 

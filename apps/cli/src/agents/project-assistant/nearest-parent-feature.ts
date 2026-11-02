@@ -208,8 +208,13 @@ export const loadNearestParentFeatureSection = async (
     fullLoad: fullSection,
   } satisfies Omit<ParentRequirementsAttemptRecord, 'outcome'>;
   const writeAttempt = async (record: ParentRequirementsAttemptRecord): Promise<void> => {
+    const attemptLogDir = filter.settings.attemptLogDir;
+    if (!attemptLogDir) {
+      return;
+    }
+
     try {
-      const file = await writeAttemptRecord(filter.settings.attemptLogDir, record);
+      const file = await writeAttemptRecord(attemptLogDir, record);
       deps.logger.info('project_assistant.prepare.parent_feature.attempt_logged', { file });
     } catch (error) {
       deps.logger.warn('project_assistant.prepare.parent_feature.attempt_log_failed', {

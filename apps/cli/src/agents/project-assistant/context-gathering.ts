@@ -61,8 +61,11 @@ export interface ContextGatheringDeps {
     focal: EntityRef,
     known: readonly EntityRef[],
   ) => GraphReader;
-  /** Directory of per-run trace files, one `<runId>.json`. */
-  traceLogDir: string;
+  /**
+   * Directory of per-run trace files, one `<runId>.json`. Null when there is no development
+   * checkout to write into (an installed CLI); no trace files are written then.
+   */
+  traceLogDir: string | null;
 }
 
 export interface GatherProjectContextArgs {
@@ -161,13 +164,11 @@ export const gatherProjectContext = async (args: GatherProjectContextArgs): Prom
       deps: { ...args.deps, jev: { ...args.deps.jev, client: recorder.evaluator } },
     });
   } finally {
-    if (recorder.calls.length > 0) {
+    const traceLogDir = args.deps.traceLogDir;
+    if (traceLogDir && recorder.calls.length > 0) {
       // Local file only: request content must never reach the structured logger.
-      const file = path.join(
-        args.deps.traceLogDir,
-        `${args.runId}.${args.turnId}.jev-requests.json`,
-      );
-      await mkdir(args.deps.traceLogDir, { recursive: true });
+      const file = path.join(traceLogDir, `${args.runId}.${args.turnId}.jev-requests.json`);
+      await mkdir(traceLogDir, { recursive: true });
       await writeFile(file, `${JSON.stringify(recorder.calls, null, 2)}\n`, 'utf8');
       args.handlerDeps.logger.info('project_assistant.context_gathering.jev_requests_saved', {
         runId: args.runId,
@@ -275,12 +276,16 @@ const gatherWithJev = async (args: GatherProjectContextArgs): Promise<string> =>
     },
     ...result.trace,
   });
-  const file = await appendGatherTraceFile(deps.traceLogDir, stored);
+  const file = deps.traceLogDir ? await appendGatherTraceFile(deps.traceLogDir, stored) : null;
   const fullIds = new Set([focalRef.id, ...(args.fullEntityIds ?? [])]);
   const text = formatEntities(result.entities.filter(({ id }) => !fullIds.has(id)));
   // Written before the size check, so a run that fails on size still leaves what was gathered to read.
-  const entitiesFile = path.join(deps.traceLogDir, `${runId}.${turnId}.entities.txt`);
-  await writeFile(entitiesFile, text, 'utf8');
+  const entitiesFile = deps.traceLogDir
+    ? path.join(deps.traceLogDir, `${runId}.${turnId}.entities.txt`)
+    : null;
+  if (entitiesFile) {
+    await writeFile(entitiesFile, text, 'utf8');
+  }
   handlerDeps.logger.info('project_assistant.context_gathered', {
     runId,
     turnId,

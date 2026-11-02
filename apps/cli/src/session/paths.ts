@@ -80,13 +80,15 @@ export const resolveBaseDir = (): string => {
 /**
  * `jev-logs/` at the repo root (the directory holding `pnpm-workspace.yaml`), found from this
  * module so it is the same folder whatever the caller's cwd. Works from `src/` and from the bundled `dist/`.
+ * Returns null when there is no repo root, as in an installed CLI; Jev traces are a development
+ * aid and are simply not written then.
  */
-export const resolveJevLogsDir = (): string => {
+export const resolveJevLogsDir = (): string | null => {
   let directory = __dirname;
   while (!existsSync(path.join(directory, 'pnpm-workspace.yaml'))) {
     const parent = path.dirname(directory);
     if (parent === directory) {
-      throw new Error('Cannot locate the repo root (pnpm-workspace.yaml) for jev-logs.');
+      return null;
     }
     directory = parent;
   }
