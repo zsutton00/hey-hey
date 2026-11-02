@@ -121,10 +121,7 @@ export class ProjectReportLaunchService {
           await this.requests.fail(request.id, attempt.id, {
             stage: 'LAUNCH',
             code: 'SERVICE_REPOSITORIES_UNAVAILABLE',
-            message:
-              error instanceof Error
-                ? error.message
-                : 'Selected repositories are unavailable',
+            message: error.message,
             retryable: false,
           });
           return;
@@ -172,13 +169,15 @@ export class ProjectReportLaunchService {
         conversationId: conversation.id,
       };
     } catch (error) {
+      this.logger.error('Project report launch preparation failed', {
+        requestId: request.id,
+        attemptId: attempt.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
       await this.requests.fail(request.id, attempt.id, {
         stage: 'LAUNCH',
         code: 'LAUNCH_PREPARATION_FAILED',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Report launch preparation failed',
+        message: 'The project report run could not be prepared',
         retryable: true,
       });
       return;

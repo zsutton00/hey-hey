@@ -126,6 +126,7 @@ import { ActivitySleepService } from 'src/services/activity-correlation/activity
 import { ActivityQueryService } from 'src/services/activity-correlation/activity-query.service';
 import { ProjectReportActivityService } from 'src/services/project-reports/project-report-activity.service';
 import { ProjectReportContextService } from 'src/services/project-reports/project-report-context.service';
+import { ProjectReportHistoryService } from 'src/services/project-reports/project-report-history.service';
 import { ProjectReportPlacementService } from 'src/services/project-reports/project-report-placement.service';
 import { ProjectReportRequestService } from 'src/services/project-reports/project-report-request.service';
 import { ProjectReportSessionOutcomeListener } from 'src/services/project-reports/project-report-session-outcome.listener';
@@ -165,6 +166,7 @@ export const DOMAIN_SERVICES: Provider[] = [
   ActivityQueryService,
   ProjectReportActivityService,
   ProjectReportContextService,
+  ProjectReportHistoryService,
   ProjectReportPlacementService,
   ProjectReportRequestService,
   ProjectReportSessionOutcomeListener,
@@ -317,6 +319,7 @@ export const DOMAIN_EXPORTS = [
   ActivityQueryService,
   ProjectReportActivityService,
   ProjectReportContextService,
+  ProjectReportHistoryService,
   ProjectReportPlacementService,
   ProjectReportRequestService,
   ProjectReportSessionOutcomeListener,

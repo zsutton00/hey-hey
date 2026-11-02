@@ -120,6 +120,56 @@ tags:
     description: MCP operations
 
 paths:
+  /organizations/{organizationId}/projects/{projectId}/project-report-history:
+    get:
+      operationId: listProjectReportHistory
+      tags:
+        - ProjectReports
+      description: >-
+        Read the caller's durable project report history: their queued, running, failed and completed
+        requests with the latest attempt, plus saved project reports no request of theirs links to.
+        Newest first; a completed request and its report appear once.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Authorized result
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ProjectReportHistoryPageDto"
+        "403":
+          description: Project access has been revoked
   /organizations/{organizationId}/projects/{projectId}/project-report-requests:
     post:
       operationId: createProjectReportRequest
@@ -24260,6 +24310,14 @@ components:
       $ref: "../schemas/project-reports.yaml#/ProjectReportAttempt"
     ProjectReportRequestDto:
       $ref: "../schemas/project-reports.yaml#/ProjectReportRequestDto"
+    ProjectReportHistoryRequestEntry:
+      $ref: "../schemas/project-reports.yaml#/ProjectReportHistoryRequestEntry"
+    ProjectReportHistorySavedReportEntry:
+      $ref: "../schemas/project-reports.yaml#/ProjectReportHistorySavedReportEntry"
+    ProjectReportHistoryEntry:
+      $ref: "../schemas/project-reports.yaml#/ProjectReportHistoryEntry"
+    ProjectReportHistoryPageDto:
+      $ref: "../schemas/project-reports.yaml#/ProjectReportHistoryPageDto"
     RetryProjectReportRequestDto:
       $ref: "../schemas/project-reports.yaml#/RetryProjectReportRequestDto"
     ProjectReportPreviewRequestDto:

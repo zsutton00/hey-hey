@@ -527,7 +527,7 @@ export class ProjectReportRequestService {
     return stored;
   }
 
-  private toDto(row: RequestWithAttempts): ProjectReportRequestDto {
+  toDto(row: RequestWithAttempts): ProjectReportRequestDto {
     const submission = {
       kind: row.kind,
       ...(row.serviceIds == null
