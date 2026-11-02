@@ -1,5 +1,5 @@
 import { ReportType as PrismaReportType } from '@prisma/client';
-import { ReadRestriction } from '../../generated';
+import { ReadRestriction } from '@hey-hey/contracts/api/models';
 import type {
   EntityNeighborhoodResponse,
   IncidentEdgesResponse,
@@ -190,6 +190,45 @@ describe('graph reads under a read restriction', () => {
         scopeOver().scopeIncidentEdges(response),
       ),
     ).resolves.toBe(response);
+  });
+
+  it('passes a derived-only single-seed incident group through the caller read scope', async () => {
+    const neighbor = 'co-created-task';
+    const response = {
+      groups: [
+        {
+          seedEntityId: SEED,
+          neighborTotal: 1,
+          endpoints: [
+            {
+              entityId: SEED,
+              entityType: 'TASK',
+              displayName: 'Seed feature',
+              taskType: 'FEATURE',
+            },
+            {
+              entityId: neighbor,
+              entityType: 'TASK',
+              displayName: 'Co-created task',
+              taskType: 'STANDARD',
+            },
+          ],
+          relationships: [
+            {
+              id: 'derived:PROPOSED_TOGETHER:seed:neighbor',
+              type: 'PROPOSED_TOGETHER',
+              sourceNodeId: SEED,
+              targetNodeId: neighbor,
+              properties: { source: 'system' },
+            },
+          ],
+        },
+      ],
+    } as unknown as IncidentEdgesResponse;
+
+    await expect(scopeOver().scopeIncidentEdges(response)).resolves.toBe(
+      response,
+    );
   });
 
   it('removes protected entities from neighborhoods, including pivot hops that pass through them', async () => {
