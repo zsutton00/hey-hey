@@ -199,7 +199,8 @@ describe('buildResearchPrompt', () => {
     expect(prompt).toContain('Do not reload that same focal entity by default');
     expect(prompt).toContain('different referenced entity');
     expect(prompt).toContain('supplied neighborhood is insufficient');
-    expect(prompt).toContain('use `get_context` for a known entity');
+    expect(prompt).toContain('`get_context` for hierarchy, relationships or proposal history');
+    expect(prompt).toContain('`unified_search` for discovery');
     expect(prompt).not.toContain('entityId: "task-1"');
   });
 });

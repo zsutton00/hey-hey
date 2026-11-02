@@ -35,6 +35,7 @@ type EnrichedCodeReviewPromptPayload = LocalCodeReviewPromptPayload & {
 export const REVIEW_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
   // Context / read
   'get_context',
+  'get_edges',
   'get_full_entity',
   'get_agent_sessions',
   'get_report_body',

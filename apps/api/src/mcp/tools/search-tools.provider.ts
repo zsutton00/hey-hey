@@ -614,8 +614,8 @@ export class SearchToolsProvider {
       'up to 5 searches run in one call, returning { groups } — one ordered ' +
       'group per input query so you can correlate results back to the query ' +
       'that produced them). Exactly one of `query`/`queries` is required. Use ' +
-      '`queries` to fan out related orientation searches (e.g. after ' +
-      'get_context) without multiple round-trips. Shared filters ' +
+      '`queries` to fan out related discovery searches without multiple ' +
+      'round-trips. Shared filters ' +
       '(`entityTypes`, `downrankUnreviewed`, `createdAfter`, `createdBefore`, ' +
       '`updatedAfter`, `updatedBefore`, `match`) ' +
       'and `limit` apply to every query. Pass `entityTypes` to scope to a ' +

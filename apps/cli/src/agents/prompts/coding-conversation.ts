@@ -136,7 +136,7 @@ const buildFollowUpFraming = (payload: CodingConversationPreparedPayload): strin
 
 ${buildPriorContextLine(payload)}
 
-You have full access to this session's tooling: code search and reads, entity context retrieval (\`get_context\`, \`unified_search\`), proposal and edge creation, and any other tools available in this run. Use them as the user's question requires — read code before answering questions about it, fetch entity context before reasoning about project structure, and propose mutations through the normal proposal flow when the user asks for changes.`;
+You have full access to this session's tooling: code search and reads, entity reads and search (\`get_full_entity\`, \`get_context\`, \`unified_search\`), proposal and edge creation, and any other tools available in this run. Use them as the user's question requires — read code before answering questions about it, fetch entity context before reasoning about project structure, and propose mutations through the normal proposal flow when the user asks for changes.`;
 };
 
 const CONVERSATION_GUIDELINES = `## Behavioral Guidelines
@@ -152,7 +152,7 @@ const CONVERSATION_GUIDELINES = `## Behavioral Guidelines
 
 Before responding, resolve every reference the user provides:
 - **File paths and code locations** (e.g. \`src/foo/bar.ts\`, \`path/to/file.ts:42\`) — read the file.
-- **@-mentions** in the task context or user messages (\`@[task:...|...]\`, \`@[design_doc:...|...]\`, etc.) — fetch them via \`get_context\` or the appropriate tool so you understand what the user is pointing at.
+- **@-mentions** in the task context or user messages (\`@[task:...|...]\`, \`@[design_doc:...|...]\`, etc.) — read what the user is pointing at with the smallest read that answers it: \`get_full_entity\` for content, \`get_entity_identities\` when you only need the title or item type, \`get_context\` when you also need hierarchy or relationships.
 - **URLs, issue numbers, or external references** — fetch or look them up when you have a tool that can.
 
 Do not guess at the contents of a referenced file or entity. Read it first, then respond.`;
@@ -165,7 +165,7 @@ Answer the user's question conversationally and direct them back to the pending 
 
 const buildTaskScopeBlock = (taskId: string): string => `## Task scope
 
-The active entity for this session is the TASK \`${taskId}\`. This is fixed — do not search for the task or guess its identity. Pass this id directly to \`get_context\` and other tools that take a task id.`;
+The active entity for this session is the TASK \`${taskId}\`. This is fixed — do not search for the task or guess its identity. Pass this id directly to the tools that take a task id.`;
 
 const buildReadinessClarification = (
   finding: ImplementationReadinessFinding | null,

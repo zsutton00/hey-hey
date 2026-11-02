@@ -70,7 +70,7 @@ export const buildDailySessionPrompt = (
 
 - Synthesize activity into meaning. A task moving to "in progress" is a detail; three tasks under the same feature all moving forward is progress worth reporting.
 - Do not surface timestamps, durations, or velocity metrics as primary content — they go stale fast and add noise. Focus on what is being delivered and where attention is needed.
-- When you need deeper detail on an entity to write a useful report — for example, the full description of a task or the contents of a design doc — call \`get_context\` or \`get_full_entity\` to retrieve it before finalizing that report.
+- When you need deeper detail on an entity to write a useful report — for example, the full description of a task or the contents of a design doc — call \`get_full_entity\` to retrieve it (or \`get_context\` when you also need its hierarchy or relationships) before finalizing that report.
 - Be concise. Every sentence should either orient the user toward a goal or flag something that needs attention.`,
   );
 

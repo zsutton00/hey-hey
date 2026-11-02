@@ -118,6 +118,21 @@ export const GENERAL_MCP_TOOLS: readonly string[] = MCP_TOOL_LIST.filter((t) =>
 ).map((t) => t.name);
 
 /**
+ * The read tools the shared platform prompt tells every agent to choose between
+ * ("Choosing the Smallest Read"). Every surface with a graph read surface must
+ * admit all of them, so no session is advised to call a tool it cannot reach.
+ * Surfaces that are structurally tool-free (monitors, repository grounding, work
+ * tracker import, eval judging) stay empty by contract and are the only exception.
+ */
+export const SHARED_READ_MCP_TOOLS: readonly string[] = [
+  'get_entity_identities',
+  'get_full_entity',
+  'get_context',
+  'get_edges',
+  'unified_search',
+];
+
+/**
  * Tools the planner must not reach: it surfaces a reviewable plan, it does
  * not mutate the graph. Every entity-mutating proposal tool and every edge
  * tool is stripped from the coding base list. Read/search/report tools
@@ -156,7 +171,8 @@ export const PLANNING_MCP_TOOLS: readonly string[] = CODING_MCP_TOOLS.filter(
  *
  * Deliberately a curated read-only list rather than a filter of the coding
  * base: the plan-shaping family must NOT inherit the coding toolkit
- * (`create_work_item`, `edit_work_item`, `create_edge`, the searches, …).
+ * (`create_work_item`, `edit_work_item`, `create_edge`, the task/feature/design-doc
+ * searches, …); it keeps only the shared read tools every agent is told to use.
  * `create_report` is not listed here — plan-shaping agents reach it via
  * the run-scoped `create_report` submission tool wrapper, which publishes the
  * report-emission lifecycle event and appends to the report chain. The platform
@@ -169,8 +185,7 @@ export const PLANNING_MCP_TOOLS: readonly string[] = CODING_MCP_TOOLS.filter(
  */
 export const PLAN_SHAPING_MCP_TOOLS: readonly string[] = [
   'get_authoring_guidance',
-  'get_full_entity',
-  'get_context',
+  ...SHARED_READ_MCP_TOOLS,
   'get_diagram',
   'get_work_item_type_guidance_batch',
   'get_tool_guidance',
@@ -206,11 +221,7 @@ export const RESEARCH_MCP_TOOLS: readonly string[] = [
  */
 const REPOSITORY_GROUNDING_MCP_TOOLS: readonly string[] = [];
 
-export const REPOSITORY_PLACEMENT_MCP_TOOLS: readonly string[] = [
-  'unified_search',
-  'get_entity_identities',
-  'get_context',
-];
+export const REPOSITORY_PLACEMENT_MCP_TOOLS: readonly string[] = [...SHARED_READ_MCP_TOOLS];
 
 export const PROJECT_ASSISTANT_EDGE_MCP_TOOLS: readonly string[] = ['create_edge', 'delete_edge'];
 

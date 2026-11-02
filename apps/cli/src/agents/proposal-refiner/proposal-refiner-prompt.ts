@@ -84,9 +84,10 @@ const formatProposalHistory = (proposals: ProposalResponseDto[]): string => {
 };
 
 export const buildProposalRefinerPrompt = (input: ProposalRefinerPromptInput): string => {
-  const reconciling = input.proposal.reconciliation !== undefined
-    && input.proposal.reconciliation.status !== 'CURRENT'
-    && input.proposal.reconciliation.status !== 'NOT_APPLICABLE';
+  const reconciling =
+    input.proposal.reconciliation !== undefined &&
+    input.proposal.reconciliation.status !== 'CURRENT' &&
+    input.proposal.reconciliation.status !== 'NOT_APPLICABLE';
   const sections: string[] = [];
 
   sections.push(
@@ -109,7 +110,7 @@ The proposal's influences are your primary source of context for *why* the propo
 
 When you need to understand the proposal's rationale or the user asks about it:
 1. Start with the influences listed in the proposal — they tell you what entities informed the proposed changes and why.
-2. Use \`get_full_entity\` (pass an \`entities\` array of \`{ entityType, entityId }\` pairs — the response is a map keyed by \`entityId\`, \`null\` on not-found, max 10) or \`get_context\` to fetch the full content of influenced entities when you need more detail.
+2. Use \`get_full_entity\` (pass an \`entities\` array of \`{ entityType, entityId }\` pairs — the response is a map keyed by \`entityId\`, \`null\` on not-found, max 10) to fetch the full content of influenced entities when you need more detail.
 3. When the user asks you to incorporate a new reference or drop an existing one, fetch the entity first so you can understand how it should (or should not) shape the proposal content.
 
 ## Decision-Making Loop
@@ -121,7 +122,8 @@ On each user message:
 3. **Answer questions directly** — not every message is a refinement request. Answer questions concisely.`,
   );
 
-  if (!reconciling) sections.push(`## Using \`update_proposal\`
+  if (!reconciling)
+    sections.push(`## Using \`update_proposal\`
 
 Call \`update_proposal\` with:
 - \`proposalId\`: ${input.proposal.id}

@@ -32,7 +32,7 @@ const payload = {
 describe('repository placement prompt', () => {
   it('keeps discovery bounded and project state immutable', () => {
     const prompt = buildRepositoryPlacementPrompt(payload);
-    expect(prompt).toContain('unified_search and get_context');
+    expect(prompt).toContain('Use only the read tools');
     expect(prompt).toContain('immutable');
     expect(prompt).toContain('Never target a proposed child');
   });

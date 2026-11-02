@@ -204,6 +204,28 @@ describe('focalContextOrientation', () => {
 });
 
 describe('buildPlatformSystemPrompt', () => {
+  it('tells agents which read answers which question without dropping graph research', () => {
+    const prompt = buildPlatformSystemPrompt(sampleDefs);
+
+    const readChoices = prompt.slice(prompt.indexOf('## Choosing the Smallest Read'));
+    const bullets = readChoices.split('\n').filter((line) => line.startsWith('- '));
+    const advice = (tool: string): string | undefined =>
+      bullets.find((line) => line.includes(`\`${tool}\``));
+
+    expect(advice('get_entity_identities')).toMatch(/title/);
+    expect(advice('get_entity_identities')).toContain('entityType: "TASK"');
+    expect(advice('get_full_entity')).toMatch(/content/);
+    expect(advice('get_context')).toMatch(/hierarchy.*relationships.*proposal history/);
+    expect(advice('get_edges')).toMatch(/direct links/);
+    expect(advice('unified_search')).toMatch(/do not yet know/);
+
+    expect(prompt).not.toContain('is your primary orientation tool');
+    expect(prompt).toContain(consultGraphBeforeAsking);
+    expect(prompt).toMatch(/governing requirements and design decisions/);
+    expect(prompt).toContain('Identity lookup never replaces reading');
+    expect(prompt).toContain('Every pair needs an `entityType`');
+  });
+
   it('tells only Claude sessions that deferred MCP tools load through ToolSearch', () => {
     const build = (provider: 'claude' | 'codex' | 'opencode') =>
       buildPlatformSystemPrompt(sampleDefs, undefined, {
@@ -601,9 +623,7 @@ Good: "Turning Shared Browser off now stays off after you restart the CLI."`;
 
   it('bundles the ambient platform-context block', () => {
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain('## Platform Context');
-    expect(buildPlatformSystemPrompt(sampleDefs)).toContain(
-      'Situating Yourself with `get_context`',
-    );
+    expect(buildPlatformSystemPrompt(sampleDefs)).toContain('## Choosing the Smallest Read');
   });
 
   it('bundles the mention-format block', () => {

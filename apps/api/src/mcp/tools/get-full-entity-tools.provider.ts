@@ -135,6 +135,8 @@ export class GetFullEntityToolsProvider {
       'Any registered project work-item type key is accepted as an alias of TASK. ' +
       'Search tools (unified_search, task_search, plan_search, etc.) return truncated snippets — ' +
       'use them to find entities first, then call get_full_entity to read complete content ' +
+      '(for only a title or item type use get_entity_identities; for hierarchy, relationships ' +
+      'or proposal history use get_context) ' +
       'including all sections and replacement metadata. Every full record preserves the ' +
       'requested entity and reports whether lifecycle state and direct successor topology agree. ' +
       'Returns a JSON object keyed by entityId. Unknown or not-found IDs produce a null value ' +

@@ -696,10 +696,13 @@ export class GetContextToolsProvider {
       'e.g. UI → Web UI → Design → Colors — enumerating ancestor features ' +
       '(above it), sibling features (at the same level), and descendant ' +
       'features (below it), each with a distance indicating how many hops away. ' +
-      'Call this proactively to orient yourself: when starting work on an ' +
-      'unfamiliar entity, when checking upstream or downstream consequences ' +
-      'of a change before making edits, and when answering questions about ' +
-      'how an entity relates to the broader project. Provide either one ' +
+      'Use this when you need hierarchy, relationships, proposal history, or ' +
+      'the upstream and downstream consequences of a change before making ' +
+      'edits, and when answering how an entity relates to the broader ' +
+      'project. For a missing title or item type use get_entity_identities, ' +
+      "for an item's own content use get_full_entity, for direct links " +
+      'around several known items use get_edges, and to discover relevant ' +
+      'items use unified_search. Provide either one ' +
       'entityId/entityType seed for the unchanged singular response, or ' +
       '`seeds` with up to five known entities for ordered, independently ' +
       'successful or failing Context results. Batch results are returned ' +

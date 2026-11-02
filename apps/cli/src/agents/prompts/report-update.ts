@@ -29,7 +29,7 @@ export const buildReportUpdatePrompt = (input: ReportUpdatePromptInput): string 
 
 - Keep the report's voice, scope, and structure. Rewrite only what the changes make stale.
 - Favor small, surgical edits. If most of the report is still accurate, keep it.
-- If you need deeper detail on a changed entity, call \`get_context\` or \`get_full_entity\` before finalizing the update.
+- If you need deeper detail on a changed entity, call \`get_full_entity\` for its content (or \`get_context\` when you also need its hierarchy or relationships) before finalizing the update.
 - If the changes make the report's framing itself obsolete, say so plainly in the new text — do not paper over a shift by leaving old claims intact.`);
 
   sections.push(`## Current Report

@@ -14,6 +14,7 @@ import {
   type SubagentConfig,
   type UserLaunchablePromptTypeHandler,
 } from '../prompt-type-handler';
+import { SHARED_READ_MCP_TOOLS } from '../mcp-server-config';
 import type { SubmissionToolDeclaration } from '../submission-tools/types';
 import { CommitReportTool } from '../submission-tools/create-commit-report-tool';
 import type { CreateReportProxy } from '../submission-tools/create-report-proxy';
@@ -21,9 +22,8 @@ import { executeCanonicalCommit } from './commit-executor';
 import { CommitMessageResultStore } from './commit-message-result';
 import { buildCommitPrompt } from './commit-prompt';
 
-const COMMIT_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
-  'get_context',
-  'get_full_entity',
+export const COMMIT_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
+  ...SHARED_READ_MCP_TOOLS,
   'get_hints_for_items',
 ];
 

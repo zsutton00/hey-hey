@@ -9,9 +9,10 @@ import { buildStartingMessage as buildStartingMessageForPromptType } from '../pr
  * artifact updates. No filesystem tools — the subagent never touches source
  * code.
  */
-const FINAL_ASSESSMENT_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
+export const FINAL_ASSESSMENT_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
   // Context / read
   'get_context',
+  'get_edges',
   'get_feature_sync_context',
   'get_full_entity',
   'get_agent_sessions',

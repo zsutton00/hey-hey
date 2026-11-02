@@ -227,7 +227,9 @@ describe('buildProjectAssistantPrompt', () => {
     expect(on).toMatch(
       /Seed: carry the governing requirements and contracts of the nearest parent feature, given in full under "Nearest parent feature", into your analysis/,
     );
-    expect(off).not.toContain('get_full_entity');
+    expect(off).not.toMatch(
+      /get_full_entity[^\n]*parent feature|parent feature[^\n]*get_full_entity/i,
+    );
   });
 
   it('omits the parent feature wording when the focal entity has no parent feature', () => {
