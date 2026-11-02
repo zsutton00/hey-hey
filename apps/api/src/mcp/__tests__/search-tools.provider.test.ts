@@ -13,7 +13,7 @@ import {
 import { UnifiedSearchService } from '../../services/unified-search/unified-search.service';
 import { HelpService } from '../../services/help.service';
 import { SearchCacheService } from '../tools/search-cache.service';
-import { UnifiedSearchResult } from '../../generated';
+import { UnifiedSearchResult } from '@hey-hey/contracts/api/models';
 
 type SearchResult = z.infer<typeof searchResultOutput>;
 
@@ -34,6 +34,14 @@ const mockHelpService = {
   searchHelpNodes: jest.fn(),
   findByIdOrSlugPath: jest.fn(),
 } as unknown as jest.Mocked<HelpService>;
+
+const mockSearchReceipts = {
+  resolveScope: jest.fn(),
+  issue: jest.fn(),
+  missingSessionError: jest
+    .fn()
+    .mockReturnValue({ isError: true, content: [] }),
+};
 
 const ORG_ID = '00000000-0000-4000-8000-000000000001';
 const PROJECT_ID = '00000000-0000-4000-8000-000000000002';
@@ -113,10 +121,18 @@ describe('SearchToolsProvider', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSearchReceipts.resolveScope.mockReturnValue({
+      agentSessionId: '00000000-0000-4000-8000-000000000005',
+      projectId: PROJECT_ID,
+    });
+    mockSearchReceipts.issue.mockResolvedValue(
+      '00000000-0000-4000-8000-000000000006',
+    );
     provider = new SearchToolsProvider(
       mockSearchService as unknown as UnifiedSearchService,
       mockCacheService as unknown as SearchCacheService,
       mockHelpService as unknown as HelpService,
+      mockSearchReceipts as any,
     );
   });
 
@@ -812,6 +828,12 @@ describe('SearchToolsProvider', () => {
         )) as { groups: Array<{ query: string } & SearchResult> };
 
         expect(mockSearchService.search).toHaveBeenCalledTimes(2);
+        expect(result.searchReceiptId).toMatch(/^[0-9a-f-]{36}$/i);
+        expect(mockSearchReceipts.issue).toHaveBeenCalledWith(
+          expect.objectContaining({ projectId: PROJECT_ID }),
+          'unified_search',
+          expect.objectContaining({ queries: ['auth', 'billing'] }),
+        );
         expect(result.groups).toHaveLength(2);
         expect(
           (mockSearchService.search as jest.Mock).mock.calls.map(
@@ -1114,6 +1136,7 @@ describe('SearchToolsProvider', () => {
         mockSearchService as unknown as UnifiedSearchService,
         realCache,
         mockHelpService as unknown as HelpService,
+        mockSearchReceipts as any,
       );
 
       (mockSearchService.search as jest.Mock).mockResolvedValue(
@@ -1219,6 +1242,7 @@ describe('SearchToolsProvider', () => {
         mockSearchService as unknown as UnifiedSearchService,
         new SearchCacheService(),
         mockHelpService as unknown as HelpService,
+        mockSearchReceipts as any,
       );
       (mockSearchService.search as jest.Mock).mockResolvedValue(
         makeSearchResponse([makeResult()]),
@@ -1250,6 +1274,7 @@ describe('SearchToolsProvider', () => {
         mockSearchService as unknown as UnifiedSearchService,
         new SearchCacheService(),
         mockHelpService as unknown as HelpService,
+        mockSearchReceipts as any,
       );
       (mockSearchService.search as jest.Mock).mockResolvedValue(
         makeSearchResponse([makeResult()]),
@@ -1346,6 +1371,7 @@ describe('SearchToolsProvider', () => {
         mockSearchService as unknown as UnifiedSearchService,
         realCache,
         mockHelpService as unknown as HelpService,
+        mockSearchReceipts as any,
       );
       (mockSearchService.search as jest.Mock).mockResolvedValue(
         makeSearchResponse([makeResult()]),
@@ -2576,7 +2602,10 @@ describe('SearchToolsProvider', () => {
         makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
       );
 
-      expect(result).toBe(cachedResult);
+      expect(result).toMatchObject({
+        ...cachedResult,
+        searchReceiptId: expect.any(String),
+      });
       expect(mockSearchService.search).not.toHaveBeenCalled();
     });
 
@@ -2610,7 +2639,10 @@ describe('SearchToolsProvider', () => {
         makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
       );
 
-      expect(result).toBe(similarResult);
+      expect(result).toMatchObject({
+        ...similarResult,
+        searchReceiptId: expect.any(String),
+      });
       expect(mockSearchService.search).not.toHaveBeenCalled();
     });
 

@@ -27,10 +27,10 @@ import type {
   WorkItemChangeSetValidationRequest,
   WorkItemTypeGraphCapability,
   WorkItemUpdateOperation,
-} from '../../generated';
-import type { TaskSectionKey } from '../../generated/model/taskSectionKey';
-import { ProposalEdgeEndpointMode } from '../../generated/model/proposalEdgeEndpointMode';
-import { ProposalEdgeType } from '../../generated/model/proposalEdgeType';
+} from '@hey-hey/contracts/api/models';
+import type { TaskSectionKey } from '@hey-hey/contracts/api/models';
+import { ProposalEdgeEndpointMode } from '@hey-hey/contracts/api/models';
+import { ProposalEdgeType } from '@hey-hey/contracts/api/models';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { ProposalService } from '../../services/proposal/proposal.service';
@@ -109,6 +109,7 @@ import {
   workItemChangeSetValidationRequestSchema,
 } from '../../services/proposal/work-item-change-set.schema';
 import { LIFECYCLE_AWARE_TASK_EDIT_SAFETY_SUMMARY } from './tool-guidance';
+import { SearchReceiptStore } from './search-receipt.store';
 
 const NIL_UUID = '00000000-0000-0000-0000-000000000000';
 const eli5Schema = z
@@ -122,7 +123,7 @@ const PLAN_CREATE_ROUTING_MESSAGE =
   'PLAN work items must be created through create_plan. Use create_plan for Plan intake; do not use create_work_item for Plan creation.';
 
 export const CREATE_WORK_ITEM_TOOL_DESCRIPTION =
-  'Propose a CREATE proposal for a work item of any type (STANDARD, FEATURE, GOAL, BUG, CONTRACT, DIAGRAM, DIAGRAM_ELEMENT, TASK_MONITOR, or project-defined custom types). Per-type rules — allowed sections, required fields, parentage, the feature-only tag, and Diagram graph payloads — are enforced from the central work-item type config. See get_tool_guidance({ toolName: "create_work_item", workItemType }) for the authoring conventions of the type you are creating. serviceIds is accepted when the project-effective type has registry role "work-item" and represents the complete known service scope.';
+  'Before creating a work item, inspect the project graph with unified_search, task_search, search_features, search_goals, search_design_docs, plan_search, or get_context. A successful result includes a searchReceiptId; pass it here to show the graph was checked in this same project and agent session. The receipt expires after a few minutes, but you can reuse it for several related creations until then. This is separate from guidanceToken, which proves you read the work-item writing rules. Missing, expired, or mismatched receipts are rejected with instructions to search again. Propose a CREATE proposal for a work item of any type (STANDARD, FEATURE, GOAL, BUG, CONTRACT, DIAGRAM, DIAGRAM_ELEMENT, TASK_MONITOR, or project-defined custom types). Per-type rules — allowed sections, required fields, parentage, the feature-only tag, and Diagram graph payloads — are enforced from the central work-item type config. See get_tool_guidance({ toolName: "create_work_item", workItemType }) for the authoring conventions of the type you are creating. serviceIds is accepted when the project-effective type has registry role "work-item" and represents the complete known service scope.';
 
 export const EDIT_WORK_ITEM_TOOL_DESCRIPTION =
   'Propose an UPDATE proposal for a work item of any type. The target\'s type is resolved server-side and that type\'s update rules — allowed sections, settable fields — are applied from the central work-item type config. See get_tool_guidance({ toolName: "edit_work_item", workItemType }) for the authoring conventions. ' +
@@ -769,6 +770,13 @@ const relationshipDecisionsField = z
   );
 
 export const createWorkItemParameters = z.object({
+  searchReceiptId: z
+    .string()
+    .uuid()
+    .optional()
+    .describe(
+      'Pass the searchReceiptId returned by a successful unified_search, task_search, search_features, search_goals, search_design_docs, plan_search, or get_context call. It proves this agent session inspected this project graph, can be reused for several creations, and expires after a few minutes. Optional in the input schema so omission gets an actionable error; accepted creation requires a valid receipt.',
+    ),
   ragEnabled: z.boolean().optional(),
   applicationEligible: z.boolean().optional(),
   groupContext: proposalGroupContextSchema.optional(),
@@ -1694,6 +1702,8 @@ export class ProposalToolsProvider {
     private readonly proposalGroupAuthoringService?: ProposalGroupAuthoringService,
     @Optional()
     private readonly featureRequirementAuthoringService?: FeatureRequirementAuthoringService,
+    @Optional()
+    private readonly searchReceipts?: SearchReceiptStore,
   ) {}
 
   private featureRequirementAuthoring(): FeatureRequirementAuthoringService {
@@ -2637,6 +2647,16 @@ export class ProposalToolsProvider {
       return mcpError(
         'Missing project context. Ensure X-Project-ID header is set.',
       );
+    }
+
+    if (this.searchReceipts) {
+      const receiptScope = this.searchReceipts.resolveScope(request, projectId);
+      if (!receiptScope) return this.searchReceipts.missingSessionError();
+      const receiptError = await this.searchReceipts.validate(
+        params.searchReceiptId,
+        receiptScope,
+      );
+      if (receiptError) return mcpError(receiptError);
     }
 
     if (type === WORK_ITEM_TYPE_KEYS.Plan) {

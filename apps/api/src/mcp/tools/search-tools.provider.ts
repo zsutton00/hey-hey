@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Tool, Context } from '@rekog/mcp-nest';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
@@ -14,7 +14,7 @@ import {
   UnifiedSearchRequest,
   UnifiedSearchResult,
   WorkStatus,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { SearchProjection } from '../../generated/graphs';
 import { HelpService } from '../../services/help.service';
 import { ProjectId } from '../../types';
@@ -33,6 +33,10 @@ import {
   RESPONSE_CHARACTER_BUDGET,
 } from './response-budget';
 import { SearchCacheService } from './search-cache.service';
+import {
+  SearchReceiptStore,
+  type SearchReceiptScope,
+} from './search-receipt.store';
 
 const MAX_SNIPPET_LENGTH = 300;
 const MAX_HELP_SEARCH_RESULTS = 50;
@@ -323,6 +327,13 @@ export const searchResultOutput = z.object({
   hasMore: z
     .boolean()
     .describe('Whether more results may exist beyond this page'),
+  searchReceiptId: z
+    .string()
+    .uuid()
+    .optional()
+    .describe(
+      'Fresh short-lived receipt proving this project graph search ran in the current agent session. Pass it to create_work_item in this project; it can be reused for several creations until it expires.',
+    ),
 });
 
 type SearchResultOutput = z.infer<typeof searchResultOutput>;
@@ -353,6 +364,13 @@ const unifiedSearchGroup = z.object({
 });
 
 export const unifiedSearchResultOutput = z.object({
+  searchReceiptId: z
+    .string()
+    .uuid()
+    .optional()
+    .describe(
+      'Fresh short-lived receipt proving this project graph search ran in the current agent session. Pass it to create_work_item in this project; it can be reused for several creations until it expires.',
+    ),
   results: z
     .array(searchResultItem)
     .optional()
@@ -393,6 +411,12 @@ export const unifiedSearchResultOutput = z.object({
 });
 
 type UnifiedSearchResultOutput = z.infer<typeof unifiedSearchResultOutput>;
+
+function isSearchReceiptError(
+  value: SearchReceiptScope | CallToolResult,
+): value is CallToolResult {
+  return 'content' in value && 'isError' in value;
+}
 
 type SearchPage = {
   results: z.infer<typeof searchResultItem>[];
@@ -537,7 +561,44 @@ export class SearchToolsProvider {
     private readonly unifiedSearchService: UnifiedSearchService,
     private readonly searchCache: SearchCacheService,
     private readonly helpService: HelpService,
+    @Optional() private readonly searchReceipts?: SearchReceiptStore,
   ) {}
+
+  private async addSearchReceipt<T extends object>(
+    result: T,
+    scope: SearchReceiptScope,
+    tool: string,
+    input: unknown,
+  ): Promise<(T & { searchReceiptId: string }) | CallToolResult> {
+    if (!this.searchReceipts) {
+      return mcpError('Search receipt storage is unavailable.');
+    }
+    try {
+      const searchReceiptId = await this.searchReceipts.issue(
+        scope,
+        tool,
+        input,
+      );
+      return { ...result, searchReceiptId };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return mcpError(
+        `Unable to issue project-graph search receipt: ${message}`,
+      );
+    }
+  }
+
+  private resolveSearchReceiptScope(
+    request: Request,
+    projectId: string,
+  ): SearchReceiptScope | CallToolResult {
+    const scope = this.searchReceipts?.resolveScope(request, projectId);
+    return (
+      scope ??
+      this.searchReceipts?.missingSessionError() ??
+      mcpError('Search receipt storage is unavailable.')
+    );
+  }
 
   @Tool({
     name: 'search_help',
@@ -648,6 +709,8 @@ export class SearchToolsProvider {
     const resolved = resolveProjectId({}, request);
     if (!isProjectId(resolved)) return resolved;
     const projectId = resolved;
+    const receiptScope = this.resolveSearchReceiptScope(request, projectId);
+    if (isSearchReceiptError(receiptScope)) return receiptScope;
 
     const {
       query,
@@ -711,7 +774,12 @@ export class SearchToolsProvider {
           queryCount: groups.length,
           totalsByQuery: groups.map((group) => group.total),
         });
-        return { groups: fitSearchPagesToBudget(groups) };
+        return this.addSearchReceipt(
+          { groups: fitSearchPagesToBudget(groups) },
+          receiptScope,
+          'unified_search',
+          params,
+        );
       }
 
       // `hasSingle` (mutually exclusive with `hasMulti`, checked above)
@@ -719,7 +787,12 @@ export class SearchToolsProvider {
       const [page] = fitSearchPagesToBudget([
         await this.runUnifiedQuery(query as string, shared, auth, projectId),
       ]);
-      return page!;
+      return this.addSearchReceipt(
+        page!,
+        receiptScope,
+        'unified_search',
+        params,
+      );
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       const stack = error instanceof Error ? error.stack : undefined;
@@ -924,6 +997,8 @@ export class SearchToolsProvider {
     const resolved = resolveProjectId({}, request);
     if (!isProjectId(resolved)) return resolved;
     const projectId = resolved;
+    const receiptScope = this.resolveSearchReceiptScope(request, projectId);
+    if (isSearchReceiptError(receiptScope)) return receiptScope;
 
     const {
       query,
@@ -968,7 +1043,7 @@ export class SearchToolsProvider {
         query,
         total: cached.total,
       });
-      return cached;
+      return this.addSearchReceipt(cached, receiptScope, toolName, params);
     }
 
     const hasPostFetchFilters = !!(status || priority || initiativeId);
@@ -1119,7 +1194,7 @@ export class SearchToolsProvider {
       };
 
       this.searchCache.set(cacheKey, query, scopeKey, filterFp, result);
-      return result;
+      return this.addSearchReceipt(result, receiptScope, toolName, params);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       const stack = error instanceof Error ? error.stack : undefined;
@@ -1220,6 +1295,8 @@ export class SearchToolsProvider {
     const resolved = resolveProjectId({}, request);
     if (!isProjectId(resolved)) return resolved;
     const projectId = resolved;
+    const receiptScope = this.resolveSearchReceiptScope(request, projectId);
+    if (isSearchReceiptError(receiptScope)) return receiptScope;
 
     const { query, template, status, tags, limit, offset } = params;
 
@@ -1253,7 +1330,12 @@ export class SearchToolsProvider {
         query,
         total: cached.total,
       });
-      return cached;
+      return this.addSearchReceipt(
+        cached,
+        receiptScope,
+        'search_design_docs',
+        params,
+      );
     }
 
     const mappedStatuses = status
@@ -1342,7 +1424,12 @@ export class SearchToolsProvider {
       });
 
       this.searchCache.set(cacheKey, query, scopeKey, filterFp, result);
-      return result;
+      return this.addSearchReceipt(
+        result,
+        receiptScope,
+        'search_design_docs',
+        params,
+      );
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       const stack = error instanceof Error ? error.stack : undefined;

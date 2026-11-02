@@ -44,7 +44,11 @@ function makeUser() {
 
 function makeRequest() {
   return {
-    headers: { authorization: 'Bearer tok', 'x-project-id': PROJECT_ID },
+    headers: {
+      authorization: 'Bearer tok',
+      'x-project-id': PROJECT_ID,
+      'x-agent-session-id': '00000000-0000-4000-8000-000000000099',
+    },
     cookies: {},
     user: makeUser(),
     ip: '127.0.0.1',
@@ -74,6 +78,11 @@ function createProvider(
     taskFindOne?: jest.Mock;
     markNeedsRevision?: jest.Mock;
     consumeRecovery?: jest.Mock;
+    searchReceipts?: {
+      resolveScope: jest.Mock;
+      validate: jest.Mock;
+      missingSessionError: jest.Mock;
+    };
   } = {},
 ) {
   const proposalCreate = opts.proposalCreate ?? jest.fn();
@@ -116,6 +125,10 @@ function createProvider(
     lintRecovery,
     workItemTypeRegistry,
     prisma,
+    undefined,
+    undefined,
+    undefined,
+    opts.searchReceipts as any,
   );
   return {
     provider,
@@ -332,6 +345,47 @@ describe('proposal-tool lint v1 — clean path returns status:"proposed"', () =>
       proposalId: PROPOSAL_ID,
     });
     expect(proposalCreate).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('project-graph search receipt gate', () => {
+  it('rejects missing receipts and keeps the guidance-token gate independent', async () => {
+    const searchReceipts = {
+      resolveScope: jest.fn().mockReturnValue({
+        agentSessionId: '00000000-0000-4000-8000-000000000099',
+        projectId: PROJECT_ID,
+      }),
+      validate: jest
+        .fn()
+        .mockResolvedValueOnce(
+          'Run a project-graph search and pass its searchReceiptId.',
+        )
+        .mockResolvedValueOnce(null),
+      missingSessionError: jest.fn(),
+    };
+    const { provider } = createProvider({ searchReceipts });
+    const missing = await provider.createWorkItem(
+      { eli5: 'A task.', type: 'STANDARD', name: 'A task' } as any,
+      {} as any,
+      makeRequest(),
+    );
+    expect((missing as any).isError).toBe(true);
+    expect((missing as any).content[0].text).toContain('searchReceiptId');
+
+    const acceptedReceipt = await provider.createWorkItem(
+      {
+        eli5: 'A task.',
+        type: 'STANDARD',
+        name: 'A task',
+        searchReceiptId: '00000000-0000-4000-8000-000000000098',
+        sections: [{ key: 'description', content: SHORT_CONTENT }],
+      } as any,
+      {} as any,
+      makeRequest(),
+    );
+    expect((acceptedReceipt as any).isError).toBe(true);
+    expect((acceptedReceipt as any).content[0].text).toContain('guidanceToken');
+    expect(searchReceipts.validate).toHaveBeenCalledTimes(2);
   });
 });
 

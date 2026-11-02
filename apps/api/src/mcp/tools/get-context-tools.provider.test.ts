@@ -11,7 +11,7 @@ import {
 } from './get-context-tools.provider';
 import { EntityContextService } from '../../services/entity-context/entity-context.service';
 import * as TestUtils from '../../utils/testUtils';
-import type { FullEntityContextDto } from '../../generated/model/fullEntityContextDto';
+import type { FullEntityContextDto } from '@hey-hey/contracts/api/models';
 
 const { testIds } = TestUtils;
 
@@ -30,7 +30,11 @@ function makeRequest(token: string | null = TEST_TOKEN): Request {
   };
   return {
     user,
-    headers: token ? { authorization: `Bearer ${token}` } : {},
+    headers: {
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+      'x-project-id': testIds.project,
+      'x-agent-session-id': '123e4567-e89b-42d3-a456-426614174098',
+    },
   } as unknown as Request;
 }
 
@@ -219,6 +223,15 @@ describe('GetContextToolsProvider', () => {
       agentEdgeClient as any,
       proposalApprovalService as any,
       workItemTypeRegistry as unknown as WorkItemTypeRegistryService,
+      {
+        resolveScope: jest.fn().mockReturnValue({
+          agentSessionId: '123e4567-e89b-42d3-a456-426614174098',
+          projectId: testIds.project,
+        }),
+        issue: jest
+          .fn()
+          .mockResolvedValue('123e4567-e89b-42d3-a456-426614174097'),
+      } as any,
     );
   });
 
@@ -247,6 +260,7 @@ describe('GetContextToolsProvider', () => {
           taskType: 'STANDARD',
           createdAt: '2026-02-15T08:00:00.000Z',
           creatingProposalId: proposalIdA,
+          searchReceiptId: expect.any(String),
         }),
       );
     });
@@ -535,7 +549,11 @@ describe('GetContextToolsProvider', () => {
         'TASK',
         entityId,
         TEST_TOKEN,
-        { relatedEntityDepth: 2, proposalDetail: 'summary' },
+        {
+          relatedEntityDepth: 2,
+          relatedEntitySelection: { maxEntities: 100 },
+          proposalDetail: 'summary',
+        },
       );
     });
 
@@ -592,7 +610,11 @@ describe('GetContextToolsProvider', () => {
         'TASK',
         entityId,
         TEST_TOKEN,
-        { relatedEntityDepth: 2, proposalDetail: 'summary' },
+        {
+          relatedEntityDepth: 2,
+          relatedEntitySelection: { maxEntities: 100 },
+          proposalDetail: 'summary',
+        },
       );
     });
 
@@ -827,7 +849,11 @@ describe('GetContextToolsProvider', () => {
           'TASK',
           entityId,
           TEST_TOKEN,
-          { relatedEntityDepth: 2, proposalDetail: 'summary' },
+          {
+            relatedEntityDepth: 2,
+            relatedEntitySelection: { maxEntities: 100 },
+            proposalDetail: 'summary',
+          },
         );
         expect(result).toMatchObject({
           entityId,
@@ -1162,6 +1188,7 @@ describe('GetContextToolsProvider', () => {
       for (const call of entityContextService.getFullEntityContext.mock.calls) {
         expect(call[5]).toEqual({
           relatedEntityDepth: 2,
+          relatedEntitySelection: { maxEntities: 100 },
           proposalDetail: 'summary',
         });
       }
@@ -1192,6 +1219,8 @@ describe('GetContextToolsProvider', () => {
         {} as any,
         makeRequest(),
       )) as any;
+
+      expect(response.searchReceiptId).toMatch(/^[0-9a-f-]{36}$/i);
 
       expect(log).toHaveBeenCalledWith('get_context batch completed', {
         mode: 'batch',
@@ -1293,7 +1322,11 @@ describe('GetContextToolsProvider', () => {
         'TASK',
         entityId,
         TEST_TOKEN,
-        { relatedEntityDepth: 2, proposalDetail: 'summary' },
+        {
+          relatedEntityDepth: 2,
+          relatedEntitySelection: { maxEntities: 100 },
+          proposalDetail: 'summary',
+        },
       );
     });
 
@@ -1314,7 +1347,11 @@ describe('GetContextToolsProvider', () => {
         'DESIGN_DOC',
         entityId,
         TEST_TOKEN,
-        { relatedEntityDepth: 2, proposalDetail: 'summary' },
+        {
+          relatedEntityDepth: 2,
+          relatedEntitySelection: { maxEntities: 100 },
+          proposalDetail: 'summary',
+        },
       );
     });
 
@@ -1338,7 +1375,11 @@ describe('GetContextToolsProvider', () => {
         'TASK',
         entityId,
         null,
-        { relatedEntityDepth: 2, proposalDetail: 'summary' },
+        {
+          relatedEntityDepth: 2,
+          relatedEntitySelection: { maxEntities: 100 },
+          proposalDetail: 'summary',
+        },
       );
 
       expect(result.relatedEntities).toEqual([]);

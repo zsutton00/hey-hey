@@ -14,6 +14,7 @@ import { McpHealthService } from './mcp-health.service';
 import { McpHealthController } from './mcp-health.controller';
 import { McpCatalogController } from './mcp-catalog.controller';
 import { SearchCacheService } from './tools/search-cache.service';
+import { SearchReceiptStore } from './tools/search-receipt.store';
 import { SearchToolsProvider } from './tools/search-tools.provider';
 import { LintRecoveryStore } from './tools/lint-recovery.store';
 import { ProposalToolsProvider } from './tools/proposal-tools.provider';
@@ -59,6 +60,7 @@ import {
   providers: [
     McpHealthService,
     SearchCacheService,
+    SearchReceiptStore,
     HelpService,
     SearchToolsProvider,
     LintRecoveryStore,
