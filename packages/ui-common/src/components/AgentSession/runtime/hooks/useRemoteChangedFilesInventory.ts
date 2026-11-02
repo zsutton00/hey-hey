@@ -149,7 +149,7 @@ export const useRemoteChangedFilesInventory = (params: {
           cause: {
             operation:
               "read the changed-file inventory from the connected computer",
-            purpose: "List files changed by this coding session.",
+            purpose: "List files changed by this session.",
           },
           organizationId: params.organizationId,
           projectId: params.projectId,

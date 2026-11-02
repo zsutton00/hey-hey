@@ -220,7 +220,7 @@ export const useRemoteChangedFilesCount = (params: {
       cause: {
         operation:
           "read the current changed-file count from the connected computer",
-        purpose: "Show the current changed files for this coding session.",
+        purpose: "Show the current changed files for this session.",
       },
       organizationId: params.organizationId,
       projectId: params.projectId,

@@ -5,6 +5,7 @@ import {
   EntityConversationChat,
   OpenBrowserCapsuleAction,
   RunBrowserProvider,
+  SessionChangedFilesCapsuleAction,
   type ConversationScrollPolicy,
 } from "@hey-hey/ui-common/components";
 import {
@@ -207,6 +208,7 @@ export const EntityConversationPage: React.FC = () => {
     projectId && aboutId ? entityPathFor(projectId, aboutId, aboutType) : null;
   const canonicalConversationId =
     routeConversationId ?? agentSession.conversationId ?? "";
+  const hasServiceInScope = (agentSession.serviceIds ?? []).length > 0;
   const pageComposition = buildEntityConversationPageComposition({
     preview: false,
     agentSessionId: agentSession.id,
@@ -261,6 +263,15 @@ export const EntityConversationPage: React.FC = () => {
             runId={runBrowserContext.runId}
             sessionMachineId={runBrowserContext.sessionMachineId}
             order={35}
+          />
+          <SessionChangedFilesCapsuleAction
+            organizationId={organizationId}
+            projectId={projectId ?? ""}
+            agentSessionId={agentSession.id}
+            runId={agentSession.id}
+            enabled={hasServiceInScope && Boolean(canonicalConversationId)}
+            canonicalCurrentState={agentSession.currentState}
+            order={100}
           />
           <Box data-testid="entity-conversation-page">
             <PageBreadcrumbs

@@ -1233,6 +1233,43 @@ describe('AgentSessionController', () => {
       );
     });
 
+    it('routes an authorized changed-file count read for an entity-conversation session', async () => {
+      mockService.findOne.mockResolvedValue({
+        id: agentSessionId,
+        type: 'ENTITY_CONVERSATION',
+        userId: 'user-1',
+        conversationId: '55555555-5555-4555-8555-555555555555',
+        projectId,
+        machineId: '66666666-6666-4666-8666-666666666666',
+      });
+      mockCliReadEmitter.read.mockResolvedValue({
+        requestId: '77777777-7777-4777-8777-777777777777',
+        operation: 'run.changed_files.count',
+        status: 'success',
+        result: { runId: agentSessionId, changedFilesCount: 2 },
+      });
+
+      const result = await controller.readCliState(
+        agentSessionId,
+        projectId as any,
+        {
+          operation: 'run.changed_files.count',
+          runId: agentSessionId,
+          authorization: grantAuthorization,
+        },
+        'org-1' as any,
+        'user-1' as any,
+      );
+
+      expect(result.status).toBe('success');
+      expect(mockCliReadEmitter.read).toHaveBeenCalledWith(
+        expect.objectContaining({
+          machineId: '66666666-6666-4666-8666-666666666666',
+          conversationId: '55555555-5555-4555-8555-555555555555',
+        }),
+      );
+    });
+
     it('routes an authorized selected-session context read through the same protected boundary', async () => {
       mockService.findOne.mockResolvedValue({
         id: agentSessionId,

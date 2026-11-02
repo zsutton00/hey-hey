@@ -1,16 +1,14 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  AgentSessionStatus,
-  AgentSessionType,
-} from "@hey-hey/ui-common/api";
+import { AgentSessionStatus, AgentSessionType } from "@hey-hey/ui-common/api";
 
 const useAgentSessionMock = vi.hoisted(() => vi.fn());
 const routeParams = vi.hoisted(() => ({
   current: {} as Record<string, string | undefined>,
 }));
 const openBrowserPropsMock = vi.hoisted(() => vi.fn());
+const changedFilesPropsMock = vi.hoisted(() => vi.fn());
 const runBrowserProviderValueMock = vi.hoisted(() => vi.fn());
 const useFullEntityContextMock = vi.hoisted(() => vi.fn());
 const useTaskHierarchyMock = vi.hoisted(() => vi.fn());
@@ -19,7 +17,10 @@ const cachedFeatures = vi.hoisted(
   () =>
     new Map<string, { name: string; parentTaskId: string | null }>([
       ["feature-root", { name: "Root Feature", parentTaskId: null }],
-      ["feature-parent", { name: "Parent Feature", parentTaskId: "feature-root" }],
+      [
+        "feature-parent",
+        { name: "Parent Feature", parentTaskId: "feature-root" },
+      ],
     ]),
 );
 const useAcknowledgeOnOpenMock = vi.hoisted(() => vi.fn());
@@ -112,6 +113,10 @@ vi.mock("@hey-hey/ui-common/components", () => ({
     openBrowserPropsMock(props);
     return <div data-testid="open-browser-action" />;
   },
+  SessionChangedFilesCapsuleAction: (props: Record<string, unknown>) => {
+    changedFilesPropsMock(props);
+    return props.enabled ? <div data-testid="changed-files-action" /> : null;
+  },
   RunBrowserProvider: ({
     value,
     children,
@@ -129,7 +134,7 @@ vi.mock("@hey-hey/ui-common/components", () => ({
       provider: "claude";
       model: string;
       reasoningEffort: "medium";
-    }
+    },
   ) => selection,
 }));
 
@@ -257,10 +262,10 @@ describe("EntityConversationPage", () => {
     render(<EntityConversationPage />);
 
     expect(
-      screen.getByTestId("entity-conversation-loading")
+      screen.getByTestId("entity-conversation-loading"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByTestId("agent-session-discuss")
+      screen.queryByTestId("agent-session-discuss"),
     ).not.toBeInTheDocument();
     expect(useAcknowledgeOnOpenMock).toHaveBeenLastCalledWith({
       organizationId: "org-1",
@@ -286,11 +291,11 @@ describe("EntityConversationPage", () => {
 
     expect(screen.getByTestId("agent-session-discuss")).toHaveAttribute(
       "data-session-id",
-      "session-1"
+      "session-1",
     );
     expect(screen.getByTestId("agent-session-discuss")).toHaveAttribute(
       "data-organization-id",
-      "org-1"
+      "org-1",
     );
   });
 
@@ -309,6 +314,35 @@ describe("EntityConversationPage", () => {
     });
   });
 
+  it("keeps the changed-files entry out of a graph-only conversation", () => {
+    render(<EntityConversationPage />);
+
+    expect(changedFilesPropsMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled: false, runId: "session-1" }),
+    );
+    expect(screen.queryByTestId("changed-files-action")).toBeNull();
+  });
+
+  it("offers the changed-files entry once a Service is in scope", () => {
+    useAgentSessionMock.mockReturnValue({
+      agentSession: { ...(agentSession as object), serviceIds: ["service-1"] },
+      isFetched: true,
+      isLoading: false,
+      error: null,
+    });
+
+    render(<EntityConversationPage />);
+
+    expect(screen.getByTestId("changed-files-action")).toBeInTheDocument();
+    expect(changedFilesPropsMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        enabled: true,
+        agentSessionId: "session-1",
+        order: 100,
+      }),
+    );
+  });
+
   it("hands Open browser the owning machine so another computer's CLI is refused", () => {
     useAgentSessionMock.mockReturnValue({
       agentSession: { ...(agentSession as object), machineId: "machine-2" },
@@ -320,12 +354,15 @@ describe("EntityConversationPage", () => {
     render(<EntityConversationPage />);
 
     expect(openBrowserPropsMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({ sessionMachineId: "machine-2" })
+      expect.objectContaining({ sessionMachineId: "machine-2" }),
     );
   });
 
   it("withholds the Run from Open browser before the conversation exists", () => {
-    routeParams.current = { projectId: "project-1", agentSessionId: "session-1" };
+    routeParams.current = {
+      projectId: "project-1",
+      agentSessionId: "session-1",
+    };
     useAgentSessionMock.mockReturnValue({
       agentSession: {
         ...(agentSession as object),
@@ -368,21 +405,20 @@ describe("EntityConversationPage", () => {
   it("passes the layout main scroll owner without creating a bounded conversation scrollport", () => {
     render(<EntityConversationPage />);
 
-    expect(suppressLayoutMainBottomSpacingMock).toHaveBeenLastCalledWith(
-      true,
-      { suppressMainScroll: false }
-    );
+    expect(suppressLayoutMainBottomSpacingMock).toHaveBeenLastCalledWith(true, {
+      suppressMainScroll: false,
+    });
     expect(entityConversationChatPropsMock).toHaveBeenLastCalledWith(
       expect.objectContaining({
         scrollPolicy: {
           mode: "owned",
           ownerRef: layoutMainScrollOwnerMock.mainContentRef,
         },
-      })
+      }),
     );
-    expect(entityConversationChatPropsMock.mock.lastCall?.[0]).not.toHaveProperty(
-      "scrollable"
-    );
+    expect(
+      entityConversationChatPropsMock.mock.lastCall?.[0],
+    ).not.toHaveProperty("scrollable");
 
     const page = screen.getByTestId("entity-conversation-page");
     expect(window.getComputedStyle(page).height).not.toBe("100dvh");
