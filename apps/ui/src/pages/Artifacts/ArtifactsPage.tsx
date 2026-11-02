@@ -1,7 +1,6 @@
 import { apiClient } from "@hey-hey/ui-common/clients";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import SearchIcon from "@mui/icons-material/Search";
 import {
   Alert,
   Box,
@@ -36,7 +35,6 @@ export const ArtifactsPage: React.FC = () => {
   const [totalCount, setTotalCount] = useState(0);
 
   // Filter states
-  const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState<ArtifactType | "">("");
   const [statusFilter, setStatusFilter] = useState<ArtifactStatus | "">("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -77,58 +75,12 @@ export const ArtifactsPage: React.FC = () => {
     }
   }, [projectId, currentOrgId, page, typeFilter, statusFilter, categoryFilter]);
 
-  // Search is handled separately to avoid too many API calls
-  const handleSearch = useCallback(async () => {
-    if (!projectId || !currentOrgId) {
-      setError("Project ID and Organization context are required");
-      return;
-    }
-
-    if (!searchTerm.trim()) {
-      loadArtifacts();
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await apiClient.simpleSearchArtifacts({
-        organizationId: currentOrgId,
-        q: searchTerm,
-        projectId,
-      });
-
-      const results = response.data.data?.results || [];
-      // Handle results structure - they might be direct artifacts or wrapped
-      const artifacts = results.map((result: any) => result.artifact || result);
-      setArtifacts(artifacts);
-      setTotalCount(artifacts.length);
-      setTotalPages(1); // Search results are not paginated the same way
-    } catch (err: any) {
-      console.error("Failed to search artifacts:", err);
-      setError(err?.response?.data?.message || "Failed to search artifacts");
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId, currentOrgId, searchTerm, loadArtifacts]);
-
   useEffect(() => {
-    if (!searchTerm.trim()) {
-      loadArtifacts();
-    }
-  }, [loadArtifacts, searchTerm]);
+    loadArtifacts();
+  }, [loadArtifacts]);
 
   const handlePageChange = (_: React.ChangeEvent<unknown>, newPage: number) => {
     setPage(newPage);
-  };
-
-  const handleRefresh = () => {
-    if (searchTerm.trim()) {
-      handleSearch();
-    } else {
-      loadArtifacts();
-    }
   };
 
   return (
@@ -146,16 +98,16 @@ export const ArtifactsPage: React.FC = () => {
               Artifacts
             </Typography>
             <Typography variant="h6">
-              Browse and search through stored artifacts ({totalCount} total)
+              Browse stored artifacts ({totalCount} total)
             </Typography>
           </div>
-          <IconButton onClick={handleRefresh} title="Refresh">
+          <IconButton onClick={loadArtifacts} title="Refresh">
             <RefreshIcon />
           </IconButton>
         </Box>
       </Paper>
 
-      {/* Filters and Search */}
+      {/* Filters */}
       <Paper sx={{ p: 3, mb: 3 }}>
         <Box
           sx={{
@@ -165,29 +117,6 @@ export const ArtifactsPage: React.FC = () => {
             alignItems: "center",
           }}
         >
-          <Box
-            sx={{ flex: { md: "1 1 33%" }, width: { xs: "100%", md: "auto" } }}
-          >
-            <TextField
-              label="Search artifacts"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              fullWidth
-              InputProps={{
-                endAdornment: (
-                  <IconButton onClick={handleSearch}>
-                    <SearchIcon />
-                  </IconButton>
-                ),
-              }}
-              onKeyPress={(e) => {
-                if (e.key === "Enter") {
-                  handleSearch();
-                }
-              }}
-            />
-          </Box>
-
           <Box
             sx={{
               flex: { md: "0 0 150px" },
@@ -276,15 +205,13 @@ export const ArtifactsPage: React.FC = () => {
                 No artifacts found
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                {searchTerm
-                  ? "Try adjusting your search terms"
-                  : "No artifacts have been created yet"}
+                No artifacts have been created yet
               </Typography>
             </Box>
           )}
 
           {/* Pagination */}
-          {totalPages > 1 && !searchTerm && (
+          {totalPages > 1 && (
             <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
               <Pagination
                 count={totalPages}

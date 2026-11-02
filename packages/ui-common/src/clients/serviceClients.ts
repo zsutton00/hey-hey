@@ -530,18 +530,6 @@ export class UnifiedApiClient {
     return this.clients.artifacts.deleteArtifact(...args);
   }
 
-  semanticSearchArtifacts(
-    ...args: Parameters<SearchApi["semanticSearchArtifacts"]>
-  ) {
-    return this.clients.search.semanticSearchArtifacts(...args);
-  }
-
-  simpleSearchArtifacts(
-    ...args: Parameters<SearchApi["simpleSearchArtifacts"]>
-  ) {
-    return this.clients.search.simpleSearchArtifacts(...args);
-  }
-
   semanticSearch(...args: Parameters<EntitiesApi["semanticSearch"]>) {
     return this.clients.entities.semanticSearch(...args);
   }
@@ -554,12 +542,6 @@ export class UnifiedApiClient {
     ...args: Parameters<ArtifactsApi["getProjectArtifactSummary"]>
   ) {
     return this.clients.artifacts.getProjectArtifactSummary(...args);
-  }
-
-  findSimilarArtifacts(
-    ...args: Parameters<ArtifactsApi["findSimilarArtifacts"]>
-  ) {
-    return this.clients.artifacts.findSimilarArtifacts(...args);
   }
 
   // Design Docs methods

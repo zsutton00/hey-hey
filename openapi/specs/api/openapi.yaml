@@ -12912,102 +12912,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
 
-  /organizations/{organizationId}/artifacts/search:
-    parameters:
-      - name: organizationId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-        description: Organization ID
-    post:
-      summary: Semantic Search
-      description: Search artifact objects using semantic similarity
-      operationId: semanticSearchArtifacts
-      tags: [Search]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SemanticSearchDto"
-      responses:
-        "200":
-          description: Search completed successfully
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/ApiResponse"
-                  - type: object
-                    properties:
-                      data:
-                        $ref: "#/components/schemas/SemanticSearchResponseDto"
-        "400":
-          description: Invalid search parameters
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
-
-  /organizations/{organizationId}/artifacts/search/simple:
-    parameters:
-      - name: organizationId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-        description: Organization ID
-    get:
-      summary: Simple Search
-      description: Simple search using query parameters
-      operationId: simpleSearchArtifacts
-      tags: [Search]
-      parameters:
-        - name: q
-          in: query
-          required: true
-          schema:
-            type: string
-          description: Search query
-          example: "JWT authentication"
-        - name: projectId
-          in: query
-          schema:
-            type: string
-            format: uuid
-          description: Filter by project ID
-        - name: maxResults
-          in: query
-          schema:
-            type: integer
-            default: 10
-            minimum: 1
-            maximum: 100
-          description: Maximum results to return
-        - name: threshold
-          in: query
-          schema:
-            type: number
-            default: 0.15
-            minimum: 0.0
-            maximum: 1.0
-          description: Similarity threshold (0.0-1.0)
-      responses:
-        "200":
-          description: Search completed successfully
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/ApiResponse"
-                  - type: object
-                    properties:
-                      data:
-                        $ref: "#/components/schemas/SemanticSearchResponseDto"
-
   /organizations/{organizationId}/artifacts/project/{projectId}/summary:
     parameters:
       - name: organizationId
@@ -13042,64 +12946,6 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/ProjectArtifactSummaryDto"
-
-  /organizations/{organizationId}/artifacts/{id}/similar:
-    parameters:
-      - name: organizationId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-        description: Organization ID
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-        description: Artifact ID
-
-    get:
-      summary: Find Similar Artifacts
-      description: Find artifact objects similar to the given one using embeddings
-      operationId: findSimilarArtifacts
-      tags: [Artifacts]
-      parameters:
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 5
-            minimum: 1
-            maximum: 20
-          description: Maximum number of similar objects to return
-        - name: threshold
-          in: query
-          schema:
-            type: number
-            default: 0.3
-            minimum: 0.0
-            maximum: 1.0
-          description: Similarity threshold (0.0-1.0)
-      responses:
-        "200":
-          description: Similar objects retrieved successfully
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/ApiResponse"
-                  - type: object
-                    properties:
-                      data:
-                        $ref: "#/components/schemas/SemanticSearchResponseDto"
-        "404":
-          description: Artifact not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
 
   # =============================================
   # Tag Management Routes
@@ -27963,13 +27809,6 @@ components:
       $ref: "../schemas/artifacts.yaml#/ArtifactResponseDto"
     PaginatedArtifactsDto:
       $ref: "../schemas/artifacts.yaml#/PaginatedArtifactsDto"
-
-    SemanticSearchDto:
-      $ref: "../schemas/artifacts.yaml#/SemanticSearchDto"
-    SearchResultDto:
-      $ref: "../schemas/artifacts.yaml#/SearchResultDto"
-    SemanticSearchResponseDto:
-      $ref: "../schemas/artifacts.yaml#/SemanticSearchResponseDto"
 
     QueryArtifactsDto:
       $ref: "../schemas/artifacts.yaml#/QueryArtifactsDto"

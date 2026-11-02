@@ -85,16 +85,10 @@ paths:
     $ref: "./paths/artifacts.yaml#/~1artifacts"
   /artifacts/{id}:
     $ref: "./paths/artifacts.yaml#/~1artifacts~1{id}"
-  /artifacts/search:
-    $ref: "./paths/artifacts.yaml#/~1artifacts~1search"
-  /artifacts/search/simple:
-    $ref: "./paths/artifacts.yaml#/~1artifacts~1search~1simple"
   /artifacts/project/{projectId}/summary:
     $ref: "./paths/artifacts.yaml#/~1artifacts~1project~1{projectId}~1summary"
   /artifacts/{id}/hierarchy:
     $ref: "./paths/artifacts.yaml#/~1artifacts~1{id}~1hierarchy"
-  /artifacts/{id}/similar:
-    $ref: "./paths/artifacts.yaml#/~1artifacts~1{id}~1similar"
 
   # Tag Routes
   /tags:

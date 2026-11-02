@@ -207,7 +207,7 @@ describe('EmbeddingsClientService', () => {
   describe('searchWithUserToken', () => {
     it('should pass parsed entity types to generated GET entityType parameter', async () => {
       const response: AxiosResponse<SearchResponse> = {
-        data: { data: [] },
+        data: { success: true, query: 'test', results: 0, data: [] },
         status: 200,
         statusText: 'OK',
         headers: {},
@@ -215,7 +215,7 @@ describe('EmbeddingsClientService', () => {
       };
       searchService.searchEmbeddingsOrgGet.mockReturnValue(of(response));
 
-      await service.searchWithUserToken(
+      const result = await service.searchWithUserToken(
         {
           q: 'test',
           organizationId: 'org-123' as OrganizationId,
@@ -225,6 +225,8 @@ describe('EmbeddingsClientService', () => {
         },
         'user-token',
       );
+
+      expect(result).toEqual(response.data);
 
       expect(searchService.searchEmbeddingsOrgGet).toHaveBeenCalledWith(
         'org-123',
@@ -250,7 +252,7 @@ describe('EmbeddingsClientService', () => {
 
     it('should forward searchType and boostRecent through generated GET', async () => {
       const response: AxiosResponse<SearchResponse> = {
-        data: { data: [] },
+        data: { success: true, query: 'test', results: 0, data: [] },
         status: 200,
         statusText: 'OK',
         headers: {},

@@ -14548,7 +14548,7 @@ export interface CodingPlanContextElement extends UIElement {
 
 
 /**
- * One evidence-bearing, individually replyable planning issue.
+ * One evidence-bearing planning issue.
  * @export
  * @interface CodingPlanDiscrepancy
  */
@@ -14589,6 +14589,48 @@ export interface CodingPlanDiscrepancy {
      * @memberof CodingPlanDiscrepancy
      */
     'severity': CodingPlanDiscrepancySeverityEnum;
+    /**
+     * A material inference that is not established by observation.
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'suspectedImpact'?: string;
+    /**
+     * Stable identity that a finding keeps across replacement plan versions.
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'findingId'?: string;
+    /**
+     * Kind of concern, independent of severity. project_context marks a conflict with recorded requirements, Contracts, designs or other governing context.
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'category'?: CodingPlanDiscrepancyCategoryEnum;
+    /**
+     * The direction or assent the user gave about this finding.
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'userDirection'?: string;
+    /**
+     * Current state of the finding. Assent changes the disposition and never removes the finding.
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'disposition'?: CodingPlanDiscrepancyDispositionEnum;
+    /**
+     * What implementation must address or verify for this finding.
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'implementationFollowThrough'?: string;
+    /**
+     * Evidence that a withdrawn finding was mistaken or moot.
+     * @type {string}
+     * @memberof CodingPlanDiscrepancy
+     */
+    'withdrawalEvidence'?: string;
 }
 
 export const CodingPlanDiscrepancySeverityEnum = {
@@ -14598,6 +14640,20 @@ export const CodingPlanDiscrepancySeverityEnum = {
 } as const;
 
 export type CodingPlanDiscrepancySeverityEnum = typeof CodingPlanDiscrepancySeverityEnum[keyof typeof CodingPlanDiscrepancySeverityEnum];
+export const CodingPlanDiscrepancyCategoryEnum = {
+    Implementation: 'implementation',
+    ProjectContext: 'project_context'
+} as const;
+
+export type CodingPlanDiscrepancyCategoryEnum = typeof CodingPlanDiscrepancyCategoryEnum[keyof typeof CodingPlanDiscrepancyCategoryEnum];
+export const CodingPlanDiscrepancyDispositionEnum = {
+    Open: 'open',
+    Accepted: 'accepted',
+    RepairPlanned: 'repair_planned',
+    Withdrawn: 'withdrawn'
+} as const;
+
+export type CodingPlanDiscrepancyDispositionEnum = typeof CodingPlanDiscrepancyDispositionEnum[keyof typeof CodingPlanDiscrepancyDispositionEnum];
 
 /**
  *
@@ -14633,12 +14689,120 @@ export interface CodingPlanEmissionInput {
      */
     'requiredServiceIds': Array<string>;
     /**
-     * Complete discrepancy list for this plan version. A replacement plan re-lists the discrepancies that still hold.
-     * @type {Array<CodingPlanDiscrepancy>}
+     * Complete finding list for this plan version; use an empty array when there are none. A replacement plan re-lists the findings that still apply with their current direction, disposition and follow-through.
+     * @type {Array<CodingPlanEmittedDiscrepancy>}
      * @memberof CodingPlanEmissionInput
      */
-    'discrepancies'?: Array<CodingPlanDiscrepancy>;
+    'discrepancies': Array<CodingPlanEmittedDiscrepancy>;
 }
+/**
+ * A finding as emitted with a new plan version; carries the required finding metadata.
+ * @export
+ * @interface CodingPlanEmittedDiscrepancy
+ */
+export interface CodingPlanEmittedDiscrepancy {
+    /**
+     *
+     * @type {CodingPromptStartupSourceRef}
+     * @memberof CodingPlanEmittedDiscrepancy
+     */
+    'sourceRef': CodingPromptStartupSourceRef;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanEmittedDiscrepancy
+     */
+    'sourceField': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanEmittedDiscrepancy
+     */
+    'sourceExcerpt': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanEmittedDiscrepancy
+     */
+    'reasoning': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanEmittedDiscrepancy
+     */
+    'discrepancyText': string;
+    /**
+     *
+     * @type {string}
+     * @memberof CodingPlanEmittedDiscrepancy
+     */
+    'severity': CodingPlanEmittedDiscrepancySeverityEnum;
+    /**
+     * A material inference that is not established by observation.
+     * @type {string}
+     * @memberof CodingPlanEmittedDiscrepancy
+     */
+    'suspectedImpact'?: string;
+    /**
+     * Stable identity that a finding keeps across replacement plan versions.
+     * @type {string}
+     * @memberof CodingPlanEmittedDiscrepancy
+     */
+    'findingId': string;
+    /**
+     * Kind of concern, independent of severity. project_context marks a conflict with recorded requirements, Contracts, designs or other governing context.
+     * @type {string}
+     * @memberof CodingPlanEmittedDiscrepancy
+     */
+    'category': CodingPlanEmittedDiscrepancyCategoryEnum;
+    /**
+     * The direction or assent the user gave about this finding.
+     * @type {string}
+     * @memberof CodingPlanEmittedDiscrepancy
+     */
+    'userDirection'?: string;
+    /**
+     * Current state of the finding. Assent changes the disposition and never removes the finding.
+     * @type {string}
+     * @memberof CodingPlanEmittedDiscrepancy
+     */
+    'disposition': CodingPlanEmittedDiscrepancyDispositionEnum;
+    /**
+     * What implementation must address or verify for this finding.
+     * @type {string}
+     * @memberof CodingPlanEmittedDiscrepancy
+     */
+    'implementationFollowThrough'?: string;
+    /**
+     * Evidence that a withdrawn finding was mistaken or moot.
+     * @type {string}
+     * @memberof CodingPlanEmittedDiscrepancy
+     */
+    'withdrawalEvidence'?: string;
+}
+
+export const CodingPlanEmittedDiscrepancySeverityEnum = {
+    Low: 'low',
+    Medium: 'medium',
+    High: 'high'
+} as const;
+
+export type CodingPlanEmittedDiscrepancySeverityEnum = typeof CodingPlanEmittedDiscrepancySeverityEnum[keyof typeof CodingPlanEmittedDiscrepancySeverityEnum];
+export const CodingPlanEmittedDiscrepancyCategoryEnum = {
+    Implementation: 'implementation',
+    ProjectContext: 'project_context'
+} as const;
+
+export type CodingPlanEmittedDiscrepancyCategoryEnum = typeof CodingPlanEmittedDiscrepancyCategoryEnum[keyof typeof CodingPlanEmittedDiscrepancyCategoryEnum];
+export const CodingPlanEmittedDiscrepancyDispositionEnum = {
+    Open: 'open',
+    Accepted: 'accepted',
+    RepairPlanned: 'repair_planned',
+    Withdrawn: 'withdrawn'
+} as const;
+
+export type CodingPlanEmittedDiscrepancyDispositionEnum = typeof CodingPlanEmittedDiscrepancyDispositionEnum[keyof typeof CodingPlanEmittedDiscrepancyDispositionEnum];
+
 /**
  *
  * @export
@@ -14890,7 +15054,7 @@ export interface CodingPlanVersion {
      */
     'requiredServiceIds': Array<string>;
     /**
-     * Complete discrepancy list for this plan version. A replacement plan re-lists the discrepancies that still hold.
+     * Findings persisted with this plan version. Historical versions may omit the finding metadata.
      * @type {Array<CodingPlanDiscrepancy>}
      * @memberof CodingPlanVersion
      */
@@ -84545,112 +84709,6 @@ export interface SearchHelp200Response {
     'path'?: string;
 }
 /**
- *
- * @export
- * @interface SearchResultDto
- */
-export interface SearchResultDto {
-    /**
-     * Artifact ID
-     * @type {string}
-     * @memberof SearchResultDto
-     */
-    'id': string;
-    /**
-     * Artifact title
-     * @type {string}
-     * @memberof SearchResultDto
-     */
-    'title'?: string;
-    /**
-     *
-     * @type {ArtifactData}
-     * @memberof SearchResultDto
-     */
-    'data': ArtifactData;
-    /**
-     * Artifact type
-     * @type {string}
-     * @memberof SearchResultDto
-     */
-    'type': string;
-    /**
-     * Similarity score (0.0 - 1.0)
-     * @type {number}
-     * @memberof SearchResultDto
-     */
-    'score': number;
-    /**
-     * Unique identifier for a project (branded type)
-     * @type {string}
-     * @memberof SearchResultDto
-     */
-    'projectId': string;
-    /**
-     * Tags array
-     * @type {Array<string>}
-     * @memberof SearchResultDto
-     */
-    'tags': Array<string>;
-    /**
-     * Category
-     * @type {string}
-     * @memberof SearchResultDto
-     */
-    'category'?: string;
-    /**
-     * Created timestamp
-     * @type {string}
-     * @memberof SearchResultDto
-     */
-    'createdAt': string;
-    /**
-     * Updated timestamp
-     * @type {string}
-     * @memberof SearchResultDto
-     */
-    'updatedAt'?: string;
-    /**
-     *
-     * @type {ArtifactSourceType}
-     * @memberof SearchResultDto
-     */
-    'sourceType'?: ArtifactSourceType;
-    /**
-     * Source ID
-     * @type {string}
-     * @memberof SearchResultDto
-     */
-    'sourceId'?: string;
-    /**
-     * Match type for search results
-     * @type {string}
-     * @memberof SearchResultDto
-     */
-    'matchType'?: SearchResultDtoMatchTypeEnum;
-    /**
-     * Similarity score (legacy field)
-     * @type {number}
-     * @memberof SearchResultDto
-     */
-    'similarity'?: number;
-    /**
-     * Highlighted content snippets
-     * @type {Array<string>}
-     * @memberof SearchResultDto
-     */
-    'highlights'?: Array<string>;
-}
-
-export const SearchResultDtoMatchTypeEnum = {
-    Semantic: 'semantic',
-    Keyword: 'keyword',
-    Hybrid: 'hybrid'
-} as const;
-
-export type SearchResultDtoMatchTypeEnum = typeof SearchResultDtoMatchTypeEnum[keyof typeof SearchResultDtoMatchTypeEnum];
-
-/**
  * Configuration for a secondary action button
  * @export
  * @interface SecondaryActionConfig
@@ -84937,187 +84995,6 @@ export const SemanticSearch200ResponseDataInnerMatchTypeEnum = {
 
 export type SemanticSearch200ResponseDataInnerMatchTypeEnum = typeof SemanticSearch200ResponseDataInnerMatchTypeEnum[keyof typeof SemanticSearch200ResponseDataInnerMatchTypeEnum];
 
-/**
- *
- * @export
- * @interface SemanticSearchArtifacts200Response
- */
-export interface SemanticSearchArtifacts200Response {
-    /**
-     * Indicates if the request was successful
-     * @type {boolean}
-     * @memberof SemanticSearchArtifacts200Response
-     */
-    'success': boolean;
-    /**
-     * Human-readable message about the operation
-     * @type {string}
-     * @memberof SemanticSearchArtifacts200Response
-     */
-    'message': string;
-    /**
-     *
-     * @type {SemanticSearchResponseDto}
-     * @memberof SemanticSearchArtifacts200Response
-     */
-    'data'?: SemanticSearchResponseDto;
-    /**
-     * ISO timestamp of when the response was generated
-     * @type {string}
-     * @memberof SemanticSearchArtifacts200Response
-     */
-    'timestamp': string;
-    /**
-     * HTTP status code
-     * @type {number}
-     * @memberof SemanticSearchArtifacts200Response
-     */
-    'statusCode': number;
-    /**
-     * Request path
-     * @type {string}
-     * @memberof SemanticSearchArtifacts200Response
-     */
-    'path'?: string;
-}
-/**
- *
- * @export
- * @interface SemanticSearchDto
- */
-export interface SemanticSearchDto {
-    /**
-     * Search query text
-     * @type {string}
-     * @memberof SemanticSearchDto
-     */
-    'query': string;
-    /**
-     * Unique identifier for a project (branded type)
-     * @type {string}
-     * @memberof SemanticSearchDto
-     */
-    'projectId'?: string;
-    /**
-     * Number of results to return
-     * @type {number}
-     * @memberof SemanticSearchDto
-     */
-    'limit'?: number;
-    /**
-     * Minimum similarity threshold (0.0 - 1.0)
-     * @type {number}
-     * @memberof SemanticSearchDto
-     */
-    'threshold'?: number;
-    /**
-     * Filter by artifact types
-     * @type {Array<string>}
-     * @memberof SemanticSearchDto
-     */
-    'types'?: Array<string>;
-    /**
-     * Filter by tags
-     * @type {Array<string>}
-     * @memberof SemanticSearchDto
-     */
-    'tags'?: Array<string>;
-    /**
-     * Filter by category
-     * @type {string}
-     * @memberof SemanticSearchDto
-     */
-    'category'?: string;
-    /**
-     * Include only public artifacts
-     * @type {boolean}
-     * @memberof SemanticSearchDto
-     */
-    'publicOnly'?: boolean;
-    /**
-     * Search mode
-     * @type {string}
-     * @memberof SemanticSearchDto
-     */
-    'mode'?: SemanticSearchDtoModeEnum;
-    /**
-     * Additional metadata filters
-     * @type {object}
-     * @memberof SemanticSearchDto
-     */
-    'filters'?: object;
-}
-
-export const SemanticSearchDtoModeEnum = {
-    Semantic: 'semantic',
-    Keyword: 'keyword',
-    Hybrid: 'hybrid'
-} as const;
-
-export type SemanticSearchDtoModeEnum = typeof SemanticSearchDtoModeEnum[keyof typeof SemanticSearchDtoModeEnum];
-
-/**
- *
- * @export
- * @interface SemanticSearchResponseDto
- */
-export interface SemanticSearchResponseDto {
-    /**
-     * Original search query
-     * @type {string}
-     * @memberof SemanticSearchResponseDto
-     */
-    'query': string;
-    /**
-     * Number of results returned
-     * @type {number}
-     * @memberof SemanticSearchResponseDto
-     */
-    'resultsCount': number;
-    /**
-     * Search results
-     * @type {Array<SearchResultDto>}
-     * @memberof SemanticSearchResponseDto
-     */
-    'results': Array<SearchResultDto>;
-    /**
-     * Search execution time in milliseconds
-     * @type {number}
-     * @memberof SemanticSearchResponseDto
-     */
-    'executionTimeMs': number;
-    /**
-     *
-     * @type {SemanticSearchResponseDtoSearchMetadata}
-     * @memberof SemanticSearchResponseDto
-     */
-    'searchMetadata'?: SemanticSearchResponseDtoSearchMetadata;
-}
-/**
- * Search metadata
- * @export
- * @interface SemanticSearchResponseDtoSearchMetadata
- */
-export interface SemanticSearchResponseDtoSearchMetadata {
-    /**
-     * Embedding model used
-     * @type {string}
-     * @memberof SemanticSearchResponseDtoSearchMetadata
-     */
-    'embeddingModel'?: string;
-    /**
-     * Type of search performed
-     * @type {string}
-     * @memberof SemanticSearchResponseDtoSearchMetadata
-     */
-    'searchType'?: string;
-    /**
-     * Filters that were applied
-     * @type {object}
-     * @memberof SemanticSearchResponseDtoSearchMetadata
-     */
-    'appliedFilters'?: object;
-}
 /**
  *
  * @export
@@ -127939,58 +127816,6 @@ export const ArtifactsApiAxiosParamCreator = function (configuration?: Configura
             };
         },
         /**
-         * Find artifact objects similar to the given one using embeddings
-         * @summary Find Similar Artifacts
-         * @param {string} organizationId Organization ID
-         * @param {string} id Artifact ID
-         * @param {number} [limit] Maximum number of similar objects to return
-         * @param {number} [threshold] Similarity threshold (0.0-1.0)
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        findSimilarArtifacts: async (organizationId: string, id: string, limit?: number, threshold?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
-            // verify required parameter 'organizationId' is not null or undefined
-            assertParamExists('findSimilarArtifacts', 'organizationId', organizationId)
-            // verify required parameter 'id' is not null or undefined
-            assertParamExists('findSimilarArtifacts', 'id', id)
-            const localVarPath = `/organizations/{organizationId}/artifacts/{id}/similar`
-                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
-                .replace(`{${"id"}}`, encodeURIComponent(String(id)));
-            // use dummy base URL string because the URL constructor only accepts absolute URLs.
-            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
-            let baseOptions;
-            if (configuration) {
-                baseOptions = configuration.baseOptions;
-            }
-
-            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
-            const localVarHeaderParameter = {} as any;
-            const localVarQueryParameter = {} as any;
-
-            // authentication BearerAuth required
-            // http bearer authentication required
-            await setBearerAuthToObject(localVarHeaderParameter, configuration)
-
-            if (limit !== undefined) {
-                localVarQueryParameter['limit'] = limit;
-            }
-
-            if (threshold !== undefined) {
-                localVarQueryParameter['threshold'] = threshold;
-            }
-
-
-
-            setSearchParams(localVarUrlObj, localVarQueryParameter);
-            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
-            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
-
-            return {
-                url: toPathString(localVarUrlObj),
-                options: localVarRequestOptions,
-            };
-        },
-        /**
          * Get a specific artifact object by ID
          * @summary Get Artifact
          * @param {string} organizationId Organization ID
@@ -128370,22 +128195,6 @@ export const ArtifactsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Find artifact objects similar to the given one using embeddings
-         * @summary Find Similar Artifacts
-         * @param {string} organizationId Organization ID
-         * @param {string} id Artifact ID
-         * @param {number} [limit] Maximum number of similar objects to return
-         * @param {number} [threshold] Similarity threshold (0.0-1.0)
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        async findSimilarArtifacts(organizationId: string, id: string, limit?: number, threshold?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SemanticSearchArtifacts200Response>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.findSimilarArtifacts(organizationId, id, limit, threshold, options);
-            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
-            const localVarOperationServerBasePath = operationServerMap['ArtifactsApi.findSimilarArtifacts']?.[localVarOperationServerIndex]?.url;
-            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
-        },
-        /**
          * Get a specific artifact object by ID
          * @summary Get Artifact
          * @param {string} organizationId Organization ID
@@ -128535,16 +128344,6 @@ export const ArtifactsApiFactory = function (configuration?: Configuration, base
             return localVarFp.findManyArtifacts(requestParameters.organizationId, requestParameters.projectId, requestParameters.type, requestParameters.status, requestParameters.sourceType, requestParameters.sourceId, requestParameters.tags, requestParameters.category, requestParameters.parentId, requestParameters.publicOnly, requestParameters.page, requestParameters.limit, requestParameters.orderBy, requestParameters.orderDirection, options).then((request) => request(axios, basePath));
         },
         /**
-         * Find artifact objects similar to the given one using embeddings
-         * @summary Find Similar Artifacts
-         * @param {ArtifactsApiFindSimilarArtifactsRequest} requestParameters Request parameters.
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        findSimilarArtifacts(requestParameters: ArtifactsApiFindSimilarArtifactsRequest, options?: RawAxiosRequestConfig): AxiosPromise<SemanticSearchArtifacts200Response> {
-            return localVarFp.findSimilarArtifacts(requestParameters.organizationId, requestParameters.id, requestParameters.limit, requestParameters.threshold, options).then((request) => request(axios, basePath));
-        },
-        /**
          * Get a specific artifact object by ID
          * @summary Get Artifact
          * @param {ArtifactsApiGetArtifactRequest} requestParameters Request parameters.
@@ -128662,16 +128461,6 @@ export interface ArtifactsApiInterface {
      * @memberof ArtifactsApiInterface
      */
     findManyArtifacts(requestParameters: ArtifactsApiFindManyArtifactsRequest, options?: RawAxiosRequestConfig): AxiosPromise<PaginatedArtifactsDto>;
-
-    /**
-     * Find artifact objects similar to the given one using embeddings
-     * @summary Find Similar Artifacts
-     * @param {ArtifactsApiFindSimilarArtifactsRequest} requestParameters Request parameters.
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof ArtifactsApiInterface
-     */
-    findSimilarArtifacts(requestParameters: ArtifactsApiFindSimilarArtifactsRequest, options?: RawAxiosRequestConfig): AxiosPromise<SemanticSearchArtifacts200Response>;
 
     /**
      * Get a specific artifact object by ID
@@ -128921,41 +128710,6 @@ export interface ArtifactsApiFindManyArtifactsRequest {
 }
 
 /**
- * Request parameters for findSimilarArtifacts operation in ArtifactsApi.
- * @export
- * @interface ArtifactsApiFindSimilarArtifactsRequest
- */
-export interface ArtifactsApiFindSimilarArtifactsRequest {
-    /**
-     * Organization ID
-     * @type {string}
-     * @memberof ArtifactsApiFindSimilarArtifacts
-     */
-    readonly organizationId: string
-
-    /**
-     * Artifact ID
-     * @type {string}
-     * @memberof ArtifactsApiFindSimilarArtifacts
-     */
-    readonly id: string
-
-    /**
-     * Maximum number of similar objects to return
-     * @type {number}
-     * @memberof ArtifactsApiFindSimilarArtifacts
-     */
-    readonly limit?: number
-
-    /**
-     * Similarity threshold (0.0-1.0)
-     * @type {number}
-     * @memberof ArtifactsApiFindSimilarArtifacts
-     */
-    readonly threshold?: number
-}
-
-/**
  * Request parameters for getArtifact operation in ArtifactsApi.
  * @export
  * @interface ArtifactsApiGetArtifactRequest
@@ -129162,18 +128916,6 @@ export class ArtifactsApi extends BaseAPI implements ArtifactsApiInterface {
      */
     public findManyArtifacts(requestParameters: ArtifactsApiFindManyArtifactsRequest, options?: RawAxiosRequestConfig) {
         return ArtifactsApiFp(this.configuration).findManyArtifacts(requestParameters.organizationId, requestParameters.projectId, requestParameters.type, requestParameters.status, requestParameters.sourceType, requestParameters.sourceId, requestParameters.tags, requestParameters.category, requestParameters.parentId, requestParameters.publicOnly, requestParameters.page, requestParameters.limit, requestParameters.orderBy, requestParameters.orderDirection, options).then((request) => request(this.axios, this.basePath));
-    }
-
-    /**
-     * Find artifact objects similar to the given one using embeddings
-     * @summary Find Similar Artifacts
-     * @param {ArtifactsApiFindSimilarArtifactsRequest} requestParameters Request parameters.
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof ArtifactsApi
-     */
-    public findSimilarArtifacts(requestParameters: ArtifactsApiFindSimilarArtifactsRequest, options?: RawAxiosRequestConfig) {
-        return ArtifactsApiFp(this.configuration).findSimilarArtifacts(requestParameters.organizationId, requestParameters.id, requestParameters.limit, requestParameters.threshold, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -167877,110 +167619,6 @@ export const SearchApiAxiosParamCreator = function (configuration?: Configuratio
             };
         },
         /**
-         * Search artifact objects using semantic similarity
-         * @summary Semantic Search
-         * @param {string} organizationId Organization ID
-         * @param {SemanticSearchDto} semanticSearchDto
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        semanticSearchArtifacts: async (organizationId: string, semanticSearchDto: SemanticSearchDto, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
-            // verify required parameter 'organizationId' is not null or undefined
-            assertParamExists('semanticSearchArtifacts', 'organizationId', organizationId)
-            // verify required parameter 'semanticSearchDto' is not null or undefined
-            assertParamExists('semanticSearchArtifacts', 'semanticSearchDto', semanticSearchDto)
-            const localVarPath = `/organizations/{organizationId}/artifacts/search`
-                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)));
-            // use dummy base URL string because the URL constructor only accepts absolute URLs.
-            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
-            let baseOptions;
-            if (configuration) {
-                baseOptions = configuration.baseOptions;
-            }
-
-            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
-            const localVarHeaderParameter = {} as any;
-            const localVarQueryParameter = {} as any;
-
-            // authentication BearerAuth required
-            // http bearer authentication required
-            await setBearerAuthToObject(localVarHeaderParameter, configuration)
-
-
-
-            localVarHeaderParameter['Content-Type'] = 'application/json';
-
-            setSearchParams(localVarUrlObj, localVarQueryParameter);
-            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
-            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
-            localVarRequestOptions.data = serializeDataIfNeeded(semanticSearchDto, localVarRequestOptions, configuration)
-
-            return {
-                url: toPathString(localVarUrlObj),
-                options: localVarRequestOptions,
-            };
-        },
-        /**
-         * Simple search using query parameters
-         * @summary Simple Search
-         * @param {string} organizationId Organization ID
-         * @param {string} q Search query
-         * @param {string} [projectId] Filter by project ID
-         * @param {number} [maxResults] Maximum results to return
-         * @param {number} [threshold] Similarity threshold (0.0-1.0)
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        simpleSearchArtifacts: async (organizationId: string, q: string, projectId?: string, maxResults?: number, threshold?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
-            // verify required parameter 'organizationId' is not null or undefined
-            assertParamExists('simpleSearchArtifacts', 'organizationId', organizationId)
-            // verify required parameter 'q' is not null or undefined
-            assertParamExists('simpleSearchArtifacts', 'q', q)
-            const localVarPath = `/organizations/{organizationId}/artifacts/search/simple`
-                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)));
-            // use dummy base URL string because the URL constructor only accepts absolute URLs.
-            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
-            let baseOptions;
-            if (configuration) {
-                baseOptions = configuration.baseOptions;
-            }
-
-            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
-            const localVarHeaderParameter = {} as any;
-            const localVarQueryParameter = {} as any;
-
-            // authentication BearerAuth required
-            // http bearer authentication required
-            await setBearerAuthToObject(localVarHeaderParameter, configuration)
-
-            if (q !== undefined) {
-                localVarQueryParameter['q'] = q;
-            }
-
-            if (projectId !== undefined) {
-                localVarQueryParameter['projectId'] = projectId;
-            }
-
-            if (maxResults !== undefined) {
-                localVarQueryParameter['maxResults'] = maxResults;
-            }
-
-            if (threshold !== undefined) {
-                localVarQueryParameter['threshold'] = threshold;
-            }
-
-
-
-            setSearchParams(localVarUrlObj, localVarQueryParameter);
-            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
-            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
-
-            return {
-                url: toPathString(localVarUrlObj),
-                options: localVarRequestOptions,
-            };
-        },
-        /**
          * Routes relationship, semantic, or hybrid searches to the appropriate backend services. Common filters apply across graph and embeddings requests with common values taking precedence over backend-specific filters.
          * @summary Unified search across graph and embeddings
          * @param {string} organizationId Organization ID
@@ -168122,37 +167760,6 @@ export const SearchApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Search artifact objects using semantic similarity
-         * @summary Semantic Search
-         * @param {string} organizationId Organization ID
-         * @param {SemanticSearchDto} semanticSearchDto
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        async semanticSearchArtifacts(organizationId: string, semanticSearchDto: SemanticSearchDto, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SemanticSearchArtifacts200Response>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.semanticSearchArtifacts(organizationId, semanticSearchDto, options);
-            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
-            const localVarOperationServerBasePath = operationServerMap['SearchApi.semanticSearchArtifacts']?.[localVarOperationServerIndex]?.url;
-            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
-        },
-        /**
-         * Simple search using query parameters
-         * @summary Simple Search
-         * @param {string} organizationId Organization ID
-         * @param {string} q Search query
-         * @param {string} [projectId] Filter by project ID
-         * @param {number} [maxResults] Maximum results to return
-         * @param {number} [threshold] Similarity threshold (0.0-1.0)
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        async simpleSearchArtifacts(organizationId: string, q: string, projectId?: string, maxResults?: number, threshold?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SemanticSearchArtifacts200Response>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.simpleSearchArtifacts(organizationId, q, projectId, maxResults, threshold, options);
-            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
-            const localVarOperationServerBasePath = operationServerMap['SearchApi.simpleSearchArtifacts']?.[localVarOperationServerIndex]?.url;
-            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
-        },
-        /**
          * Routes relationship, semantic, or hybrid searches to the appropriate backend services. Common filters apply across graph and embeddings requests with common values taking precedence over backend-specific filters.
          * @summary Unified search across graph and embeddings
          * @param {string} organizationId Organization ID
@@ -168213,26 +167820,6 @@ export const SearchApiFactory = function (configuration?: Configuration, basePat
             return localVarFp.searchEntities(requestParameters.organizationId, requestParameters.query, requestParameters.limit, requestParameters.offset, requestParameters.entityTypes, options).then((request) => request(axios, basePath));
         },
         /**
-         * Search artifact objects using semantic similarity
-         * @summary Semantic Search
-         * @param {SearchApiSemanticSearchArtifactsRequest} requestParameters Request parameters.
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        semanticSearchArtifacts(requestParameters: SearchApiSemanticSearchArtifactsRequest, options?: RawAxiosRequestConfig): AxiosPromise<SemanticSearchArtifacts200Response> {
-            return localVarFp.semanticSearchArtifacts(requestParameters.organizationId, requestParameters.semanticSearchDto, options).then((request) => request(axios, basePath));
-        },
-        /**
-         * Simple search using query parameters
-         * @summary Simple Search
-         * @param {SearchApiSimpleSearchArtifactsRequest} requestParameters Request parameters.
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        simpleSearchArtifacts(requestParameters: SearchApiSimpleSearchArtifactsRequest, options?: RawAxiosRequestConfig): AxiosPromise<SemanticSearchArtifacts200Response> {
-            return localVarFp.simpleSearchArtifacts(requestParameters.organizationId, requestParameters.q, requestParameters.projectId, requestParameters.maxResults, requestParameters.threshold, options).then((request) => request(axios, basePath));
-        },
-        /**
          * Routes relationship, semantic, or hybrid searches to the appropriate backend services. Common filters apply across graph and embeddings requests with common values taking precedence over backend-specific filters.
          * @summary Unified search across graph and embeddings
          * @param {SearchApiUnifiedSearchRequest} requestParameters Request parameters.
@@ -168280,26 +167867,6 @@ export interface SearchApiInterface {
      * @memberof SearchApiInterface
      */
     searchEntities(requestParameters: SearchApiSearchEntitiesRequest, options?: RawAxiosRequestConfig): AxiosPromise<SearchEntities200Response>;
-
-    /**
-     * Search artifact objects using semantic similarity
-     * @summary Semantic Search
-     * @param {SearchApiSemanticSearchArtifactsRequest} requestParameters Request parameters.
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof SearchApiInterface
-     */
-    semanticSearchArtifacts(requestParameters: SearchApiSemanticSearchArtifactsRequest, options?: RawAxiosRequestConfig): AxiosPromise<SemanticSearchArtifacts200Response>;
-
-    /**
-     * Simple search using query parameters
-     * @summary Simple Search
-     * @param {SearchApiSimpleSearchArtifactsRequest} requestParameters Request parameters.
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof SearchApiInterface
-     */
-    simpleSearchArtifacts(requestParameters: SearchApiSimpleSearchArtifactsRequest, options?: RawAxiosRequestConfig): AxiosPromise<SemanticSearchArtifacts200Response>;
 
     /**
      * Routes relationship, semantic, or hybrid searches to the appropriate backend services. Common filters apply across graph and embeddings requests with common values taking precedence over backend-specific filters.
@@ -168415,69 +167982,6 @@ export interface SearchApiSearchEntitiesRequest {
 }
 
 /**
- * Request parameters for semanticSearchArtifacts operation in SearchApi.
- * @export
- * @interface SearchApiSemanticSearchArtifactsRequest
- */
-export interface SearchApiSemanticSearchArtifactsRequest {
-    /**
-     * Organization ID
-     * @type {string}
-     * @memberof SearchApiSemanticSearchArtifacts
-     */
-    readonly organizationId: string
-
-    /**
-     *
-     * @type {SemanticSearchDto}
-     * @memberof SearchApiSemanticSearchArtifacts
-     */
-    readonly semanticSearchDto: SemanticSearchDto
-}
-
-/**
- * Request parameters for simpleSearchArtifacts operation in SearchApi.
- * @export
- * @interface SearchApiSimpleSearchArtifactsRequest
- */
-export interface SearchApiSimpleSearchArtifactsRequest {
-    /**
-     * Organization ID
-     * @type {string}
-     * @memberof SearchApiSimpleSearchArtifacts
-     */
-    readonly organizationId: string
-
-    /**
-     * Search query
-     * @type {string}
-     * @memberof SearchApiSimpleSearchArtifacts
-     */
-    readonly q: string
-
-    /**
-     * Filter by project ID
-     * @type {string}
-     * @memberof SearchApiSimpleSearchArtifacts
-     */
-    readonly projectId?: string
-
-    /**
-     * Maximum results to return
-     * @type {number}
-     * @memberof SearchApiSimpleSearchArtifacts
-     */
-    readonly maxResults?: number
-
-    /**
-     * Similarity threshold (0.0-1.0)
-     * @type {number}
-     * @memberof SearchApiSimpleSearchArtifacts
-     */
-    readonly threshold?: number
-}
-
-/**
  * Request parameters for unifiedSearch operation in SearchApi.
  * @export
  * @interface SearchApiUnifiedSearchRequest
@@ -168562,30 +168066,6 @@ export class SearchApi extends BaseAPI implements SearchApiInterface {
      */
     public searchEntities(requestParameters: SearchApiSearchEntitiesRequest, options?: RawAxiosRequestConfig) {
         return SearchApiFp(this.configuration).searchEntities(requestParameters.organizationId, requestParameters.query, requestParameters.limit, requestParameters.offset, requestParameters.entityTypes, options).then((request) => request(this.axios, this.basePath));
-    }
-
-    /**
-     * Search artifact objects using semantic similarity
-     * @summary Semantic Search
-     * @param {SearchApiSemanticSearchArtifactsRequest} requestParameters Request parameters.
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof SearchApi
-     */
-    public semanticSearchArtifacts(requestParameters: SearchApiSemanticSearchArtifactsRequest, options?: RawAxiosRequestConfig) {
-        return SearchApiFp(this.configuration).semanticSearchArtifacts(requestParameters.organizationId, requestParameters.semanticSearchDto, options).then((request) => request(this.axios, this.basePath));
-    }
-
-    /**
-     * Simple search using query parameters
-     * @summary Simple Search
-     * @param {SearchApiSimpleSearchArtifactsRequest} requestParameters Request parameters.
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof SearchApi
-     */
-    public simpleSearchArtifacts(requestParameters: SearchApiSimpleSearchArtifactsRequest, options?: RawAxiosRequestConfig) {
-        return SearchApiFp(this.configuration).simpleSearchArtifacts(requestParameters.organizationId, requestParameters.q, requestParameters.projectId, requestParameters.maxResults, requestParameters.threshold, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

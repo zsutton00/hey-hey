@@ -26,7 +26,8 @@ import {
 } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OrganizationGuard } from '../auth/guards/organization.guard';
-import { SearchResult } from '../generated/embeddings';
+import { SkipTransform } from '../common/decorators/skip-transform.decorator';
+import { SearchResponse } from '../generated/embeddings';
 import { EmbeddingsClientService } from '../services/embeddings-client.service';
 import { EntityRegistryService } from '../services/entity-registry/entity-registry.service';
 import { OrganizationId, ProjectId } from '../types';
@@ -111,6 +112,7 @@ export class EntitySearchController {
   }
 
   @Get('semantic-search')
+  @SkipTransform()
   @ApiOperation({
     summary: 'Semantic search using embeddings service',
     description:
@@ -208,7 +210,7 @@ export class EntitySearchController {
     @Query('entityType') entityType: string | undefined,
     @CurrentOrganization() organizationId: OrganizationId,
     @AuthToken() userToken: string | null,
-  ): Promise<SearchResult[]> {
+  ): Promise<SearchResponse> {
     if (!userToken) {
       throw new UnauthorizedException('Authentication token not found');
     }
