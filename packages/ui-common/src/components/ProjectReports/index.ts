@@ -8,3 +8,5 @@ export { ProjectReportQuestionFields } from "./ProjectReportQuestionFields";
 export { ProjectReportScopePanel } from "./ProjectReportScopePanel";
 export { ProjectReportSubjectPreview } from "./ProjectReportSubjectPreview";
 export * from "./projectReportRequestState";
+export { ProjectReportHistory } from "./ProjectReportHistory";
+export type { ProjectReportHistoryProps } from "./ProjectReportHistory";

@@ -319,6 +319,7 @@ export interface PathService {
   service(params: ServiceParams): string;
   organizationService(params: OrganizationServiceParams): string;
   createProjectReport(projectId: string): string;
+  projectReportHistory(projectId: string): string;
   report(params: ReportParams): string;
   organizationReport(params: OrganizationReportParams): string;
   artifact(params: ArtifactParams): string;
@@ -503,6 +504,10 @@ const defaultPathService: PathService = {
 
   createProjectReport(projectId: string): string {
     return `/projects/${projectId}/reports/new`;
+  },
+
+  projectReportHistory(projectId: string): string {
+    return `/projects/${projectId}/reports`;
   },
 
   report(params: ReportParams): string {
@@ -910,6 +915,10 @@ export class WebPathService {
    */
   static createProjectReport(projectId: string): string {
     return getPathService().createProjectReport(projectId);
+  }
+
+  static projectReportHistory(projectId: string): string {
+    return getPathService().projectReportHistory(projectId);
   }
 
   static report(params: ReportParams): string {

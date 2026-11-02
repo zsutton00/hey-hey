@@ -305,6 +305,10 @@ const ProjectReportRequestPage = lazyNamed(
   () => import("./pages/Reports/ProjectReportRequestPage"),
   "ProjectReportRequestPage",
 );
+const ProjectReportHistoryPage = lazyNamed(
+  () => import("./pages/Reports/ProjectReportHistoryPage"),
+  "ProjectReportHistoryPage",
+);
 const ProjectReportPage = lazyNamed(
   () => import("./pages/Reports/ProjectReportPage"),
   "ProjectReportPage",
@@ -549,6 +553,10 @@ export const router = createBrowserRouter(
         <Route
           path="projects/:projectId/reports/new"
           element={withProtectedRoute(<ProjectReportRequestPage />)}
+        />
+        <Route
+          path="projects/:projectId/reports"
+          element={withProtectedRoute(<ProjectReportHistoryPage />)}
         />
         <Route
           path="projects/:projectId/reports/:reportId"

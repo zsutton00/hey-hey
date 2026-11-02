@@ -10,6 +10,7 @@ import type {
   ReportUsageTrendKind,
   ProjectReportPreviewRequestDto,
   ProjectReportRequestDto,
+  ProjectReportHistoryPageDto,
 } from "../../api";
 import { ProjectReportStatus } from "../../api";
 import {
@@ -68,7 +69,39 @@ export const reportKeys = {
   ) => [...reportKeys.all(org), "projectPreview", project, request] as const,
   projectRequest: (org: string, project: string, id: string) =>
     [...reportKeys.all(org), "projectRequest", project, id] as const,
+  projectHistory: (
+    org: string,
+    project: string,
+    offset: number,
+    limit: number,
+  ) =>
+    [...reportKeys.all(org), "projectHistory", project, offset, limit] as const,
 };
+
+export function projectReportHistoryQueryOptions(
+  organizationId: string,
+  projectId: string,
+  offset: number,
+  limit: number,
+) {
+  const requestOptions = captureRequestOptions();
+  return queryOptions({
+    ...dataLayerQueryPolicy,
+    queryKey: reportKeys.projectHistory(
+      organizationId,
+      projectId,
+      offset,
+      limit,
+    ),
+    queryFn: async ({ signal }): Promise<ProjectReportHistoryPageDto> => {
+      const response = await projectReportsClient.listProjectReportHistory(
+        { organizationId, projectId, offset, limit },
+        { ...requestOptions, signal },
+      );
+      return response.data.data;
+    },
+  });
+}
 export function reportQueryOptions(organizationId: string, reportId: string) {
   const requestOptions = captureRequestOptions();
   return queryOptions({
