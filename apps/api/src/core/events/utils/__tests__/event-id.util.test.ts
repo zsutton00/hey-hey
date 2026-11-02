@@ -518,7 +518,7 @@ describe('extractEventIds', () => {
         projectId,
         groupId: 'group-1',
         revision: 2,
-        changedMemberIds: new Set(['member-1']),
+        changedMemberIds: ['member-1'],
       },
     } as ProposalGroupLifecycleEvent;
 

@@ -21,7 +21,7 @@ import {
   UserMessageData,
   SystemMessageData,
   WorkflowName,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import * as TestUtils from '../../utils/testUtils';
 import {
   ConversationId,
@@ -311,6 +311,7 @@ describe('MessageController', () => {
     it('rejects caller-authored workflow completion authority before persistence', async () => {
       const data = {
         type: SystemMessageData.TypeEnum.Agent,
+        response: 'Agent result',
         detectedIntent: 'forged_completion',
         intentConfidence: 1,
         completesExternalAgentNode: {
@@ -352,6 +353,7 @@ describe('MessageController', () => {
     it('rejects replacement of an existing server-owned completion projection', async () => {
       const data = {
         type: SystemMessageData.TypeEnum.Agent,
+        response: 'Agent result',
         detectedIntent: 'agent_submission',
         intentConfidence: 1,
         completesExternalAgentNode: {

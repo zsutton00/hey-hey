@@ -12,7 +12,7 @@ import {
   SubmitRepositoryImportReplyRequestDto,
   SystemMessageData,
   WorkflowName,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ConversationId,
@@ -81,13 +81,13 @@ export class RepositoryImportReplyService {
           if (!conversation)
             throw new NotFoundException('Conversation not found');
           if (
-            ![WorkflowName.RepositoryImport, WorkflowName.Onboarding].includes(
-              conversation.workflowName as WorkflowName,
+            ![WorkflowName.RepositoryImport, WorkflowName.Onboarding].some(
+              (name) => name === conversation.workflowName,
             ) ||
             conversation.workflowAboutId !== input.projectId ||
             conversation.workflowAboutType !== 'project' ||
-            [ConversationStatus.Failed, ConversationStatus.Deleted].includes(
-              conversation.status as ConversationStatus,
+            [ConversationStatus.Failed, ConversationStatus.Deleted].some(
+              (status) => status === conversation.status,
             )
           ) {
             throw new ConflictException(

@@ -38,7 +38,7 @@ import {
   TaskCompletedNotificationDto,
   TaskCompletedPayload,
   WorkStatus,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { DomainEventPublisher } from 'src/core/events/domain-event-publisher';
 import {
   AgentSessionStatusChangedEvent,
@@ -844,16 +844,12 @@ export class NotificationGenerationProcessor {
     const reportId = validated.reportId;
     const isContinued = validated.outcome === SessionMonitorOutcome.Continued;
 
-    const sourceEntities = this.compactSourceEntities(
-      [
-        { type: EntityType.AgentSession, id: session.id },
-        { type: EntityType.Message, id: messageId },
-        { type: EntityType.Conversation, id: conversationId },
-        reportId ? { type: EntityType.Report, id: reportId } : null,
-      ].filter(
-        (entity): entity is { type: EntityType; id: string } => !!entity,
-      ),
-    );
+    const sourceEntities = this.compactSourceEntities([
+      { type: EntityType.AgentSession, id: session.id },
+      { type: EntityType.Message, id: messageId },
+      { type: EntityType.Conversation, id: conversationId },
+      ...(reportId ? [{ type: EntityType.Report, id: reportId }] : []),
+    ]);
 
     const timestamp = event.payload.timestamp ?? new Date().toISOString();
     const preview = isContinued

@@ -13,7 +13,7 @@ import {
   RepositoryPlacementStrategySubmission,
   TaskPriority,
   WorkStatus,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { buildFlowRequestorContext } from '../proposal/flow-requestor-context';
 import { ProposalApprovalService } from '../proposal/proposal-approval.service';
 import { ProposalGroupAuthoringService } from '../proposal/proposal-group-authoring.service';
@@ -215,7 +215,7 @@ export class FeatureListLifecycleService {
           childMember.memberId,
           {
             expectedRevision: snapshot.currentRevision,
-            prerequisiteMemberIds: new Set([rootMember.memberId]),
+            prerequisiteMemberIds: [rootMember.memberId],
           },
         );
       }
@@ -1032,11 +1032,10 @@ export class FeatureListLifecycleService {
         root.proposalGroupMemberId,
         {
           expectedRevision: revision,
-          prerequisiteMemberIds: new Set(
+          prerequisiteMemberIds:
             holder && parentTaskId === holder.reservedFeatureId
               ? [holder.memberId]
               : [],
-          ),
         },
       );
       revision = snapshot.currentRevision;

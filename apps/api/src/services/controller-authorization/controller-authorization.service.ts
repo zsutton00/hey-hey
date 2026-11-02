@@ -33,7 +33,7 @@ import {
   ResolveControllerAuthorizationResponseDto,
   SubmitControllerAuthorizedActionRequestDto,
   SubmitControllerAuthorizedActionResponseDto,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   hashControllerAction,
   hostActionPreparationFailures,
@@ -503,7 +503,7 @@ export class ControllerAuthorizationService {
           {
             type: 'public-key',
             id: controllerCredential.credentialId,
-            transports: credentialTransports,
+            transports: [...credentialTransports],
           },
         ],
       },
@@ -1575,7 +1575,7 @@ export class ControllerAuthorizationService {
         ControllerAuthorizationDenialReason.AuthorizationExpired,
         ControllerAuthorizationDenialReason.MachineNotReady,
         ControllerAuthorizationDenialReason.ControllerNotActive,
-      ].includes(reason),
+      ].some((candidate) => candidate === reason),
     } satisfies SubmitControllerAuthorizedActionResponseDto;
   }
 

@@ -17,7 +17,7 @@ import {
   AgentSessionOutputAttentionBatchResponseDto,
   AgentSessionOutputAttentionSetReadyRequestDto,
   AgentSessionOutputAttentionState,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { OrganizationGuard } from 'src/auth/guards/organization.guard';
 import {
@@ -49,9 +49,7 @@ export class AgentSessionOutputAttentionController {
   ): Promise<AgentSessionOutputAttentionBatchResponseDto> {
     const agentSessionIds = Array.isArray(request?.agentSessionIds)
       ? request.agentSessionIds
-      : request?.agentSessionIds instanceof Set
-        ? Array.from(request.agentSessionIds)
-        : [];
+      : [];
     const uniqueIds = new Set(agentSessionIds);
     if (
       agentSessionIds.length < 1 ||

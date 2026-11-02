@@ -295,7 +295,9 @@ describe('GetToolGuidanceToolsProvider', () => {
 
   it('tells edits to revise a pending proposal via update_proposal, not creates', async () => {
     const ctx = { headers: { 'x-project-id': PROJECT_ID } } as any;
-    const workItem = (toolName: string) =>
+    const workItem = (
+      toolName: Parameters<typeof provider.getToolGuidance>[0]['toolName'],
+    ) =>
       provider.getToolGuidance(
         {
           toolName,

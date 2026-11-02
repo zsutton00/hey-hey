@@ -12,7 +12,7 @@ import type { OrganizationId, ProjectId, ConversationId } from 'src/types';
 import type {
   ProposalUpdates,
   WorkItemChangeSetValidationRequest,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type { StampedCreateProposalDto } from './proposal.types';
 import type {
   ReconciliationProvenance,
@@ -344,7 +344,7 @@ export class ProposalReconciliationGroupService {
           memberIds.get(member.id)!,
           {
             expectedRevision: replacement.currentRevision,
-            prerequisiteMemberIds: new Set(prerequisites),
+            prerequisiteMemberIds: [...new Set(prerequisites)],
           },
         );
     }

@@ -7,7 +7,7 @@ import {
   EntityType,
   RecentActivityCorrelationMode,
   RecentActivityCorrelationSort,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { OrganizationId, ProjectId, UserId } from 'src/types';
 import { ActivitySleepService } from './activity-sleep.service';
@@ -103,7 +103,7 @@ export class ActivityCorrelationSeedSelectorService {
         RecentActivityCorrelationSort.MostRecent,
         RecentActivityCorrelationSort.MostActive,
         RecentActivityCorrelationSort.Mixed,
-      ].includes(resolvedSort)
+      ].some((candidate) => candidate === resolvedSort)
     ) {
       throw new BadRequestException(
         `Unsupported sort for recent activity mode ${mode}: ${resolvedSort}`,
@@ -117,7 +117,7 @@ export class ActivityCorrelationSeedSelectorService {
       ![
         RecentActivityCorrelationSort.LastUpdated,
         RecentActivityCorrelationSort.LastMessage,
-      ].includes(resolvedSort)
+      ].some((candidate) => candidate === resolvedSort)
     ) {
       throw new BadRequestException(
         `Unsupported sort for recent activity mode ${mode}: ${resolvedSort}`,

@@ -297,7 +297,7 @@ describe('FeatureListLifecycleService placement', () => {
       expect.anything(),
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       expect.objectContaining({
-        prerequisiteMemberIds: new Set([holderMemberId]),
+        prerequisiteMemberIds: [holderMemberId],
       }),
     );
     expect(

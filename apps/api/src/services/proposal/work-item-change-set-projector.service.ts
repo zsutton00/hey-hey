@@ -1,6 +1,6 @@
 import type { GroupReservedEntity } from './proposal-group-authoring.service';
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { ProposalEdgeEndpointMode } from 'src/generated/model/proposalEdgeEndpointMode';
+import { ProposalEdgeEndpointMode } from '@hey-hey/contracts/api/models';
 import {
   withDiagramDefaults,
   canonicalDiagramType,
@@ -29,7 +29,7 @@ import type {
   WorkItemSectionClearOperation,
   WorkItemSectionReplaceOperation,
   WorkItemUpdateOperation,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type { AgentEdge as GraphAgentEdge } from 'src/generated/graphs';
 import { AgentEdgeEndpointEntityType } from 'src/generated/graphs/model/agentEdgeEndpointEntityType';
 import {
@@ -1597,9 +1597,11 @@ export class WorkItemChangeSetProjectorService {
       dueDate: task.dueDate?.toISOString() ?? null,
       assigneeId: task.assigneeId ?? null,
       tag: (task.tag ?? undefined) as ProjectedNode['tag'],
-      serviceIds: new Set(
-        task.serviceRelations.map((relation) => relation.serviceId).sort(),
-      ),
+      serviceIds: [
+        ...new Set(
+          task.serviceRelations.map((relation) => relation.serviceId).sort(),
+        ),
+      ],
       sections: task.sections
         .filter((section) => section.materializedMarkdown !== null)
         .map((section) => ({
@@ -1763,7 +1765,7 @@ export class WorkItemChangeSetProjectorService {
       dueDate: operation.dueDate ?? null,
       assigneeId: operation.assigneeId ?? null,
       tag: operation.tag,
-      serviceIds: new Set(operation.serviceIds ?? []),
+      serviceIds: [...new Set(operation.serviceIds ?? [])],
       sections: withDiagramDefaults(operation.type ?? 'STANDARD').map(
         (section) => ({ key: section.key, content: section.content }),
       ),
@@ -1803,7 +1805,7 @@ export class WorkItemChangeSetProjectorService {
     }
     if (operation.tag !== undefined) node.tag = operation.tag;
     if (operation.serviceIds !== undefined) {
-      node.serviceIds = new Set([...operation.serviceIds].sort());
+      node.serviceIds = [...new Set(operation.serviceIds)].sort();
     }
   }
 

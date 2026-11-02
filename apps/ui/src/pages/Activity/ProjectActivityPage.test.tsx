@@ -1,5 +1,5 @@
 import { parseOrganizationActivityQuery } from "./activityHistoryRoute";
-import { EntityType, ProjectMetricIdentity } from "@hey-hey/ui-common/api";
+import { EntityType, ProjectMetricIdentity } from "@hey-hey/contracts/api";
 import type { ActivityExpandPayload } from "@hey-hey/ui-common/components";
 import {
   useAgentSessions,
@@ -13,9 +13,7 @@ import React from "react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { OrganizationHomePage } from "../OrganizationHome/OrganizationHomePage";
-import {
-  ProjectActivityPage,
-} from "./ProjectActivityPage";
+import { ProjectActivityPage } from "./ProjectActivityPage";
 
 const paginatedCodingSessionsFeedMock = vi.fn();
 const crossProjectActivityFeedMock = vi.fn();
@@ -24,7 +22,8 @@ vi.mock("@tanstack/react-query", () => ({
   useQueries: vi.fn(() => []),
 }));
 
-vi.mock("@hey-hey/ui-common/clients", () => ({
+vi.mock("@hey-hey/ui-common/clients", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@hey-hey/ui-common/clients")>()),
   unifiedApiClient: {
     getReport: vi.fn(),
     getTask: vi.fn(),
@@ -33,12 +32,28 @@ vi.mock("@hey-hey/ui-common/clients", () => ({
 
 vi.mock("@hey-hey/ui-common/components", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@hey-hey/ui-common/components")>()),
-  CorrelatedActivityFeed: ({ onExpandActivity }: { onExpandActivity?: (payload: ActivityExpandPayload) => void }) =>
+  CorrelatedActivityFeed: ({
+    onExpandActivity,
+  }: {
+    onExpandActivity?: (payload: ActivityExpandPayload) => void;
+  }) =>
     onExpandActivity ? (
-      <button data-testid="project-activity-open-entity" onClick={() => onExpandActivity({
-        activity: { entityId: "task-1", entityType: EntityType.Task, kind: "entity", projectId: "project-2" } as ActivityExpandPayload["activity"],
-        href: "/projects/project-2/tasks/task-1",
-      })}>Open project row</button>
+      <button
+        data-testid="project-activity-open-entity"
+        onClick={() =>
+          onExpandActivity({
+            activity: {
+              entityId: "task-1",
+              entityType: EntityType.Task,
+              kind: "entity",
+              projectId: "project-2",
+            } as ActivityExpandPayload["activity"],
+            href: "/projects/project-2/tasks/task-1",
+          })
+        }
+      >
+        Open project row
+      </button>
     ) : null,
   OrganizationHome: ({
     onMetricActivate,
@@ -383,10 +398,18 @@ describe("ProjectActivityPage", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("Project Activity · Tasks Completed")).toBeInTheDocument();
-    expect(screen.queryByText(/Metric evidence|Metric identity|TASK_COMPLETED/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Server-effective window/)).not.toBeInTheDocument();
-    expect(crossProjectActivityFeedMock.mock.calls.at(-1)?.[0].query).not.toHaveProperty("viewScope");
+    expect(
+      screen.getByText("Project Activity · Tasks Completed"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Metric evidence|Metric identity|TASK_COMPLETED/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Server-effective window/),
+    ).not.toBeInTheDocument();
+    expect(
+      crossProjectActivityFeedMock.mock.calls.at(-1)?.[0].query,
+    ).not.toHaveProperty("viewScope");
     expect(useCorrelatedActivityMock).toHaveBeenCalledWith(
       "org-1",
       expect.objectContaining({
@@ -404,27 +427,48 @@ describe("ProjectActivityPage", () => {
 
   it("names an organization-wide metric without narrowing its query", () => {
     render(
-      <MemoryRouter initialEntries={["/organizations/org-1/activity?metric=AGENT_SESSION_CREATED&projectIds=project-1&projectIds=project-2&windowStart=2026-03-01T00%3A00%3A00.000Z&windowEnd=2026-03-02T00%3A00%3A00.000Z&actorScope=PERSONAL&actorUserId=user-1"]}>
+      <MemoryRouter
+        initialEntries={[
+          "/organizations/org-1/activity?metric=AGENT_SESSION_CREATED&projectIds=project-1&projectIds=project-2&windowStart=2026-03-01T00%3A00%3A00.000Z&windowEnd=2026-03-02T00%3A00%3A00.000Z&actorScope=PERSONAL&actorUserId=user-1",
+        ]}
+      >
         <Routes>
-          <Route element={<ProjectActivityPage />} path="/organizations/:organizationId/activity" />
+          <Route
+            element={<ProjectActivityPage />}
+            path="/organizations/:organizationId/activity"
+          />
         </Routes>
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("Organization Activity · Agent Sessions Created")).toBeInTheDocument();
-    expect(crossProjectActivityFeedMock.mock.calls.at(-1)?.[0].query.metricContinuation.projectIds).toEqual(["project-1", "project-2"]);
+    expect(
+      screen.getByText("Organization Activity · Agent Sessions Created"),
+    ).toBeInTheDocument();
+    expect(
+      crossProjectActivityFeedMock.mock.calls.at(-1)?.[0].query
+        .metricContinuation.projectIds,
+    ).toEqual(["project-1", "project-2"]);
   });
 
   it("keeps organization scope when its continuation has one authorized project", () => {
     render(
-      <MemoryRouter initialEntries={["/organizations/org-1/activity?metric=TASK_CREATED&projectIds=project-1&windowStart=2026-03-01T00%3A00%3A00.000Z&windowEnd=2026-03-02T00%3A00%3A00.000Z&actorScope=ORGANIZATION"]}>
+      <MemoryRouter
+        initialEntries={[
+          "/organizations/org-1/activity?metric=TASK_CREATED&projectIds=project-1&windowStart=2026-03-01T00%3A00%3A00.000Z&windowEnd=2026-03-02T00%3A00%3A00.000Z&actorScope=ORGANIZATION",
+        ]}
+      >
         <Routes>
-          <Route element={<ProjectActivityPage />} path="/organizations/:organizationId/activity" />
+          <Route
+            element={<ProjectActivityPage />}
+            path="/organizations/:organizationId/activity"
+          />
         </Routes>
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("Organization Activity · Tasks Created")).toBeInTheDocument();
+    expect(
+      screen.getByText("Organization Activity · Tasks Created"),
+    ).toBeInTheDocument();
   });
 
   it("opens the source entity from organization history while retaining its metric page", () => {
@@ -447,7 +491,10 @@ describe("ProjectActivityPage", () => {
             element={<ProjectActivityPage />}
             path="/projects/:projectId/activity"
           />
-          <Route element={<div>Task destination</div>} path="/projects/:projectId/tasks/:taskId" />
+          <Route
+            element={<div>Task destination</div>}
+            path="/projects/:projectId/tasks/:taskId"
+          />
         </Routes>
         <LocationProbe />
       </MemoryRouter>,
@@ -456,12 +503,16 @@ describe("ProjectActivityPage", () => {
     fireEvent.click(screen.getByTestId("organization-home-metric"));
     fireEvent.click(screen.getByTestId("cross-project-activity-next-page"));
 
-    expect(screen.getByText("Organization Activity · Tasks Completed")).toBeInTheDocument();
+    expect(
+      screen.getByText("Organization Activity · Tasks Completed"),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("location")).toHaveTextContent(originPath);
 
     fireEvent.click(screen.getByTestId("cross-project-activity-open-entity"));
 
-    expect(screen.getByTestId("location")).toHaveTextContent("/projects/project-2/tasks/task-1");
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/projects/project-2/tasks/task-1",
+    );
     expect(useCorrelatedActivityMock).toHaveBeenCalledWith(
       "org-1",
       expect.objectContaining({
@@ -478,15 +529,25 @@ describe("ProjectActivityPage", () => {
   });
 
   it("opens a project history row at its source href", () => {
-    render(<MemoryRouter initialEntries={["/projects/project-1/activity"]}>
-      <Routes>
-        <Route element={<ProjectActivityPage />} path="/projects/:projectId/activity" />
-        <Route element={<div>Task destination</div>} path="/projects/:projectId/tasks/:taskId" />
-      </Routes>
-      <LocationProbe />
-    </MemoryRouter>);
+    render(
+      <MemoryRouter initialEntries={["/projects/project-1/activity"]}>
+        <Routes>
+          <Route
+            element={<ProjectActivityPage />}
+            path="/projects/:projectId/activity"
+          />
+          <Route
+            element={<div>Task destination</div>}
+            path="/projects/:projectId/tasks/:taskId"
+          />
+        </Routes>
+        <LocationProbe />
+      </MemoryRouter>,
+    );
     fireEvent.click(screen.getByTestId("project-activity-open-entity"));
-    expect(screen.getByTestId("location")).toHaveTextContent("/projects/project-2/tasks/task-1");
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/projects/project-2/tasks/task-1",
+    );
   });
 
   it("keeps the existing project Activity fallback for direct detail entry", () => {
@@ -566,7 +627,9 @@ describe("ProjectActivityPage", () => {
       crossProjectActivityFeedMock.mock.calls.at(-1)?.[0].query
         .metricContinuation.projectIds,
     ).toEqual([projectId]);
-    expect(screen.getByText("Project Activity · Tasks Completed")).toBeInTheDocument();
+    expect(
+      screen.getByText("Project Activity · Tasks Completed"),
+    ).toBeInTheDocument();
     fireEvent.change(screen.getByTestId("activity-history-end"), {
       target: { value: "2026-03-04T12:00" },
     });
@@ -584,8 +647,12 @@ describe("ProjectActivityPage", () => {
       }),
     );
     expect(query.metricContinuation).toBeUndefined();
-    expect(screen.getByText("Project Activity · Tasks Completed")).toBeInTheDocument();
-    expect(screen.getByTestId("location")).toHaveTextContent("viewScope=project");
+    expect(
+      screen.getByText("Project Activity · Tasks Completed"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "viewScope=project",
+    );
     expect(
       screen.queryByTestId("organization-activity-metric-summary"),
     ).not.toBeInTheDocument();

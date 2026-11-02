@@ -41,7 +41,7 @@ import {
   WorkItemSectionInput,
   WorkStatus,
   WorkflowName,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../prisma/prisma.service';
 import { AgentCostData } from '../services/agents/agent-cost-tracking.service';
 import {
@@ -2298,20 +2298,21 @@ export const createMockIntegrationConfig = (
   type: IntegrationType,
   overrides: Record<string, string | boolean | number> = {},
 ) => {
-  const baseConfigs = {
-    [IntegrationType.Github]: {
-      token: 'github_token_123',
-      webhookSecret: 'webhook_secret_123',
-    },
-    [IntegrationType.Slack]: {
-      botToken: 'slack_bot_token_123',
-      signingSecret: 'slack_signing_secret_123',
-    },
-    [IntegrationType.Jira]: {
-      apiToken: 'jira_api_token_123',
-      domain: 'test.atlassian.net',
-    },
-  };
+  const baseConfigs: Partial<Record<IntegrationType, Record<string, string>>> =
+    {
+      [IntegrationType.Github]: {
+        token: 'github_token_123',
+        webhookSecret: 'webhook_secret_123',
+      },
+      [IntegrationType.Slack]: {
+        botToken: 'slack_bot_token_123',
+        signingSecret: 'slack_signing_secret_123',
+      },
+      [IntegrationType.Jira]: {
+        apiToken: 'jira_api_token_123',
+        domain: 'test.atlassian.net',
+      },
+    };
 
   return {
     ...baseConfigs[type],

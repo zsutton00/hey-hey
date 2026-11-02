@@ -12,7 +12,7 @@ import {
   SubmitOnboardingReplyRequestDto,
   SystemMessageData,
   WorkflowName,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ConversationId,
@@ -85,8 +85,8 @@ export class OnboardingReplyService {
         conversation.workflowName !== WorkflowName.Onboarding ||
         conversation.workflowAboutId !== input.projectId ||
         conversation.workflowAboutType !== 'project' ||
-        [ConversationStatus.Failed, ConversationStatus.Deleted].includes(
-          conversation.status as ConversationStatus,
+        [ConversationStatus.Failed, ConversationStatus.Deleted].some(
+          (status) => status === conversation.status,
         )
       ) {
         throw new ConflictException(

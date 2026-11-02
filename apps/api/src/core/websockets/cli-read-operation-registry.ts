@@ -2,8 +2,8 @@ import type {
   CliReadRequestDto,
   CliReadEnvelopeBody,
   ExecutableEnvelopeAuthorization,
-} from '../../generated';
-import { CliReadRequestDtoClass } from '../../generated/local/models/CliReadRequestDto';
+} from '@hey-hey/contracts/api/models';
+import { CliReadRequestDtoDiscriminatorValues } from '@hey-hey/contracts/agent-bridge/models';
 
 export interface AdmittedCliReadAuthorization {
   authorizationId: string;
@@ -12,9 +12,7 @@ export interface AdmittedCliReadAuthorization {
 }
 
 export const SESSION_CLI_READ_OPERATIONS = Object.freeze(
-  Object.keys(CliReadRequestDtoClass.mapping ?? {}) as Array<
-    CliReadRequestDto['operation']
-  >,
+  CliReadRequestDtoDiscriminatorValues satisfies readonly CliReadRequestDto['operation'][],
 );
 
 // The machine-addressed operations are deliberately admitted without widening the session endpoint.

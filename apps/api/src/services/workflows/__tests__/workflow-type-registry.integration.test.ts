@@ -1,7 +1,7 @@
 import { WorkflowTypeRegistryService } from '../workflow-type-registry.service';
 import { Client } from '@temporalio/client';
 import { TEMPORAL_CLIENT } from '../../../prisma/temporal.module';
-import { WorkflowName } from '../../../generated';
+import { WorkflowName } from '@hey-hey/contracts/api/models';
 import { UnsupportedWorkflowTypeError } from '../../../core/exceptions/workflow.exceptions';
 import * as TestUtils from '../../../utils/testUtils';
 import { createServiceTestingModule } from '../../../../test/setup/testing-module.factory';
@@ -45,9 +45,9 @@ describe('WorkflowTypeRegistryService Integration', () => {
       expect(
         service.isWorkflowTypeSupported(WorkflowName.InitiativeRefinement),
       ).toBe(true);
-      expect(service.isWorkflowTypeSupported(WorkflowName.PlanFromDesignDoc)).toBe(
-        true,
-      );
+      expect(
+        service.isWorkflowTypeSupported(WorkflowName.PlanFromDesignDoc),
+      ).toBe(true);
     });
 
     it('should return false for unsupported workflow types', () => {
@@ -258,6 +258,8 @@ describe('WorkflowTypeRegistryService Integration', () => {
     it('passes additionalContext through to workflow input', async () => {
       const additionalContext = {
         stageId: TestUtils.testIds.planStage,
+        designDocMarkdown: '# Delivery design',
+        planTitle: 'Delivery plan',
       };
 
       await service.startWorkflowByType(

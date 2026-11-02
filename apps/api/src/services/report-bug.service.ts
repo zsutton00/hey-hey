@@ -7,10 +7,9 @@ import { ConfigService } from '@nestjs/config';
 import type { Prisma } from '@prisma/client';
 import {
   type CreateTaskDto,
-  type ReportBugRequestDto,
   type ReportBugResponseDto,
   TaskSource,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId, TaskId, UserId } from 'src/types';
 import { WORK_ITEM_TYPE_KEYS } from './tasks/work-item-type-keys';
@@ -29,6 +28,10 @@ const ALLOWED_REQUEST_FIELDS = new Set([
   'diagnosticConsent',
 ]);
 
+function isReportRequestBody(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 type ReportBugDestination = {
   organizationId: OrganizationId;
   projectId: ProjectId;
@@ -44,7 +47,7 @@ export class ReportBugService {
   ) {}
 
   async reportBug(
-    input: ReportBugRequestDto,
+    input: unknown,
     userId: UserId,
   ): Promise<ReportBugResponseDto> {
     const request = this.validateRequest(input);
@@ -83,18 +86,18 @@ export class ReportBugService {
     });
   }
 
-  private validateRequest(input: ReportBugRequestDto): {
+  private validateRequest(input: unknown): {
     description: string;
     productLocation: string;
     correlationId: string | null;
   } {
-    if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+    if (!isReportRequestBody(input)) {
       throw new BadRequestException('A report request body is required.');
     }
 
-    const unknownField = Object.keys(
-      input as unknown as Record<string, unknown>,
-    ).find((field) => !ALLOWED_REQUEST_FIELDS.has(field));
+    const unknownField = Object.keys(input).find(
+      (field) => !ALLOWED_REQUEST_FIELDS.has(field),
+    );
     if (unknownField) {
       throw new BadRequestException(`Unexpected report field: ${unknownField}`);
     }
