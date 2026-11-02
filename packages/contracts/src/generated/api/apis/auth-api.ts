@@ -29,11 +29,17 @@ import type { ChangeCurrentPasswordDto } from '../models.js';
 // @ts-ignore
 import type { ChangePasswordDto } from '../models.js';
 // @ts-ignore
+import type { CompleteLocalHandoff200Response } from '../models.js';
+// @ts-ignore
 import type { GetAccountDefaultOrganization200Response } from '../models.js';
 // @ts-ignore
 import type { GetJwks200Response } from '../models.js';
 // @ts-ignore
 import type { InitiatePasswordRecovery200Response } from '../models.js';
+// @ts-ignore
+import type { LocalHandoffRequestDto } from '../models.js';
+// @ts-ignore
+import type { LocalNameRequestDto } from '../models.js';
 // @ts-ignore
 import type { Login200Response } from '../models.js';
 // @ts-ignore
@@ -49,7 +55,11 @@ import type { Register201Response } from '../models.js';
 // @ts-ignore
 import type { RegisterDto } from '../models.js';
 // @ts-ignore
+import type { SaveLocalDisplayName200Response } from '../models.js';
+// @ts-ignore
 import type { SetAccountDefaultOrganizationDto } from '../models.js';
+// @ts-ignore
+import type { StartLocalBootstrap200Response } from '../models.js';
 // @ts-ignore
 import type { ValidateToken200Response } from '../models.js';
 // @ts-ignore
@@ -137,6 +147,42 @@ export const AuthApiAxiosParamCreator = function (configuration?: Configuration)
             };
         },
         /**
+         * Exchanges a short-lived token issued to the local CLI for the existing server-owned browser session. The token can be consumed once, and the request must come from the local application\'s approved UI origin.
+         * @summary Exchange one-use local browser handoff
+         * @param {LocalHandoffRequestDto} localHandoffRequestDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        completeLocalHandoff: async (localHandoffRequestDto: LocalHandoffRequestDto, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'localHandoffRequestDto' is not null or undefined
+            assertParamExists('completeLocalHandoff', 'localHandoffRequestDto', localHandoffRequestDto)
+            const localVarPath = `/auth/local/handoff`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(localHandoffRequestDto, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Requires a valid browser access session. Saving requires the exact confirmed organization, current membership and entitlement. Switching and renewal never modify this preference.
          * @summary Read the explicit account organization default
          * @param {*} [options] Override http request option.
@@ -188,6 +234,40 @@ export const AuthApiAxiosParamCreator = function (configuration?: Configuration)
             const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
+
+
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Returns separate observed facts for display-name completion, browser session, live machine connection and controller-ready execution. A connected machine alone does not authorize host actions.
+         * @summary Read local account and machine status
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getLocalSetupStatus: async (options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/auth/local/status`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
 
 
 
@@ -377,6 +457,46 @@ export const AuthApiAxiosParamCreator = function (configuration?: Configuration)
             };
         },
         /**
+         * Saves the display name on the automatically created local user. This is personalization only and does not authenticate or authorize the caller.
+         * @summary Save local account display name
+         * @param {LocalNameRequestDto} localNameRequestDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        saveLocalDisplayName: async (localNameRequestDto: LocalNameRequestDto, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'localNameRequestDto' is not null or undefined
+            assertParamExists('saveLocalDisplayName', 'localNameRequestDto', localNameRequestDto)
+            const localVarPath = `/auth/local/name`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'PATCH', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(localNameRequestDto, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Requires a valid browser access session. Saving requires the exact confirmed organization, current membership and entitlement. Switching and renewal never modify this preference.
          * @summary Save the explicit account organization default
          * @param {SetAccountDefaultOrganizationDto} setAccountDefaultOrganizationDto
@@ -410,6 +530,42 @@ export const AuthApiAxiosParamCreator = function (configuration?: Configuration)
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
             localVarRequestOptions.data = serializeDataIfNeeded(setAccountDefaultOrganizationDto, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Local-deployment-only machine operation. The CLI proves authority with its installation secret. The server idempotently creates the ordinary local user and organization in existing identity storage and returns a short-lived, one-use browser handoff token. The token is exchanged from the approved local UI origin and is never persisted by the UI.
+         * @summary Prepare local account access
+         * @param {string} xHeyHeyLocalSecret Installation secret held by the local CLI.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        startLocalBootstrap: async (xHeyHeyLocalSecret: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'xHeyHeyLocalSecret' is not null or undefined
+            assertParamExists('startLocalBootstrap', 'xHeyHeyLocalSecret', xHeyHeyLocalSecret)
+            const localVarPath = `/auth/local/bootstrap`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+
+            if (xHeyHeyLocalSecret != null) {
+                localVarHeaderParameter['X-HeyHey-Local-Secret'] = String(xHeyHeyLocalSecret);
+            }
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -489,6 +645,19 @@ export const AuthApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Exchanges a short-lived token issued to the local CLI for the existing server-owned browser session. The token can be consumed once, and the request must come from the local application\'s approved UI origin.
+         * @summary Exchange one-use local browser handoff
+         * @param {LocalHandoffRequestDto} localHandoffRequestDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async completeLocalHandoff(localHandoffRequestDto: LocalHandoffRequestDto, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<CompleteLocalHandoff200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.completeLocalHandoff(localHandoffRequestDto, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AuthApi.completeLocalHandoff']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Requires a valid browser access session. Saving requires the exact confirmed organization, current membership and entitlement. Switching and renewal never modify this preference.
          * @summary Read the explicit account organization default
          * @param {*} [options] Override http request option.
@@ -510,6 +679,18 @@ export const AuthApiFp = function(configuration?: Configuration) {
             const localVarAxiosArgs = await localVarAxiosParamCreator.getJwks(options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['AuthApi.getJwks']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Returns separate observed facts for display-name completion, browser session, live machine connection and controller-ready execution. A connected machine alone does not authorize host actions.
+         * @summary Read local account and machine status
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async getLocalSetupStatus(options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SaveLocalDisplayName200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getLocalSetupStatus(options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AuthApi.getLocalSetupStatus']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
@@ -577,6 +758,19 @@ export const AuthApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Saves the display name on the automatically created local user. This is personalization only and does not authenticate or authorize the caller.
+         * @summary Save local account display name
+         * @param {LocalNameRequestDto} localNameRequestDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async saveLocalDisplayName(localNameRequestDto: LocalNameRequestDto, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SaveLocalDisplayName200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.saveLocalDisplayName(localNameRequestDto, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AuthApi.saveLocalDisplayName']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Requires a valid browser access session. Saving requires the exact confirmed organization, current membership and entitlement. Switching and renewal never modify this preference.
          * @summary Save the explicit account organization default
          * @param {SetAccountDefaultOrganizationDto} setAccountDefaultOrganizationDto
@@ -587,6 +781,19 @@ export const AuthApiFp = function(configuration?: Configuration) {
             const localVarAxiosArgs = await localVarAxiosParamCreator.setAccountDefaultOrganization(setAccountDefaultOrganizationDto, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['AuthApi.setAccountDefaultOrganization']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Local-deployment-only machine operation. The CLI proves authority with its installation secret. The server idempotently creates the ordinary local user and organization in existing identity storage and returns a short-lived, one-use browser handoff token. The token is exchanged from the approved local UI origin and is never persisted by the UI.
+         * @summary Prepare local account access
+         * @param {string} xHeyHeyLocalSecret Installation secret held by the local CLI.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async startLocalBootstrap(xHeyHeyLocalSecret: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<StartLocalBootstrap200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.startLocalBootstrap(xHeyHeyLocalSecret, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AuthApi.startLocalBootstrap']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
@@ -633,6 +840,16 @@ export const AuthApiFactory = function (configuration?: Configuration, basePath?
             return localVarFp.changePassword(requestParameters.changePasswordDto, options).then((request) => request(axios, basePath));
         },
         /**
+         * Exchanges a short-lived token issued to the local CLI for the existing server-owned browser session. The token can be consumed once, and the request must come from the local application\'s approved UI origin.
+         * @summary Exchange one-use local browser handoff
+         * @param {AuthApiCompleteLocalHandoffRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        completeLocalHandoff(requestParameters: AuthApiCompleteLocalHandoffRequest, options?: RawAxiosRequestConfig): AxiosPromise<CompleteLocalHandoff200Response> {
+            return localVarFp.completeLocalHandoff(requestParameters.localHandoffRequestDto, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Requires a valid browser access session. Saving requires the exact confirmed organization, current membership and entitlement. Switching and renewal never modify this preference.
          * @summary Read the explicit account organization default
          * @param {*} [options] Override http request option.
@@ -649,6 +866,15 @@ export const AuthApiFactory = function (configuration?: Configuration, basePath?
          */
         getJwks(options?: RawAxiosRequestConfig): AxiosPromise<GetJwks200Response> {
             return localVarFp.getJwks(options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Returns separate observed facts for display-name completion, browser session, live machine connection and controller-ready execution. A connected machine alone does not authorize host actions.
+         * @summary Read local account and machine status
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getLocalSetupStatus(options?: RawAxiosRequestConfig): AxiosPromise<SaveLocalDisplayName200Response> {
+            return localVarFp.getLocalSetupStatus(options).then((request) => request(axios, basePath));
         },
         /**
          * Accepts a syntactically valid email and always returns the same acknowledgement without disclosing account eligibility, throttling state, or email-adapter outcome.
@@ -700,6 +926,16 @@ export const AuthApiFactory = function (configuration?: Configuration, basePath?
             return localVarFp.register(requestParameters.registerDto, options).then((request) => request(axios, basePath));
         },
         /**
+         * Saves the display name on the automatically created local user. This is personalization only and does not authenticate or authorize the caller.
+         * @summary Save local account display name
+         * @param {AuthApiSaveLocalDisplayNameRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        saveLocalDisplayName(requestParameters: AuthApiSaveLocalDisplayNameRequest, options?: RawAxiosRequestConfig): AxiosPromise<SaveLocalDisplayName200Response> {
+            return localVarFp.saveLocalDisplayName(requestParameters.localNameRequestDto, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Requires a valid browser access session. Saving requires the exact confirmed organization, current membership and entitlement. Switching and renewal never modify this preference.
          * @summary Save the explicit account organization default
          * @param {AuthApiSetAccountDefaultOrganizationRequest} requestParameters Request parameters.
@@ -708,6 +944,16 @@ export const AuthApiFactory = function (configuration?: Configuration, basePath?
          */
         setAccountDefaultOrganization(requestParameters: AuthApiSetAccountDefaultOrganizationRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetAccountDefaultOrganization200Response> {
             return localVarFp.setAccountDefaultOrganization(requestParameters.setAccountDefaultOrganizationDto, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Local-deployment-only machine operation. The CLI proves authority with its installation secret. The server idempotently creates the ordinary local user and organization in existing identity storage and returns a short-lived, one-use browser handoff token. The token is exchanged from the approved local UI origin and is never persisted by the UI.
+         * @summary Prepare local account access
+         * @param {AuthApiStartLocalBootstrapRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        startLocalBootstrap(requestParameters: AuthApiStartLocalBootstrapRequest, options?: RawAxiosRequestConfig): AxiosPromise<StartLocalBootstrap200Response> {
+            return localVarFp.startLocalBootstrap(requestParameters.xHeyHeyLocalSecret, options).then((request) => request(axios, basePath));
         },
         /**
          * Validate JWT token and return payload information
@@ -749,6 +995,16 @@ export interface AuthApiInterface {
     changePassword(requestParameters: AuthApiChangePasswordRequest, options?: RawAxiosRequestConfig): AxiosPromise<Register201Response>;
 
     /**
+     * Exchanges a short-lived token issued to the local CLI for the existing server-owned browser session. The token can be consumed once, and the request must come from the local application\'s approved UI origin.
+     * @summary Exchange one-use local browser handoff
+     * @param {AuthApiCompleteLocalHandoffRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApiInterface
+     */
+    completeLocalHandoff(requestParameters: AuthApiCompleteLocalHandoffRequest, options?: RawAxiosRequestConfig): AxiosPromise<CompleteLocalHandoff200Response>;
+
+    /**
      * Requires a valid browser access session. Saving requires the exact confirmed organization, current membership and entitlement. Switching and renewal never modify this preference.
      * @summary Read the explicit account organization default
      * @param {*} [options] Override http request option.
@@ -765,6 +1021,15 @@ export interface AuthApiInterface {
      * @memberof AuthApiInterface
      */
     getJwks(options?: RawAxiosRequestConfig): AxiosPromise<GetJwks200Response>;
+
+    /**
+     * Returns separate observed facts for display-name completion, browser session, live machine connection and controller-ready execution. A connected machine alone does not authorize host actions.
+     * @summary Read local account and machine status
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApiInterface
+     */
+    getLocalSetupStatus(options?: RawAxiosRequestConfig): AxiosPromise<SaveLocalDisplayName200Response>;
 
     /**
      * Accepts a syntactically valid email and always returns the same acknowledgement without disclosing account eligibility, throttling state, or email-adapter outcome.
@@ -816,6 +1081,16 @@ export interface AuthApiInterface {
     register(requestParameters: AuthApiRegisterRequest, options?: RawAxiosRequestConfig): AxiosPromise<Register201Response>;
 
     /**
+     * Saves the display name on the automatically created local user. This is personalization only and does not authenticate or authorize the caller.
+     * @summary Save local account display name
+     * @param {AuthApiSaveLocalDisplayNameRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApiInterface
+     */
+    saveLocalDisplayName(requestParameters: AuthApiSaveLocalDisplayNameRequest, options?: RawAxiosRequestConfig): AxiosPromise<SaveLocalDisplayName200Response>;
+
+    /**
      * Requires a valid browser access session. Saving requires the exact confirmed organization, current membership and entitlement. Switching and renewal never modify this preference.
      * @summary Save the explicit account organization default
      * @param {AuthApiSetAccountDefaultOrganizationRequest} requestParameters Request parameters.
@@ -824,6 +1099,16 @@ export interface AuthApiInterface {
      * @memberof AuthApiInterface
      */
     setAccountDefaultOrganization(requestParameters: AuthApiSetAccountDefaultOrganizationRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetAccountDefaultOrganization200Response>;
+
+    /**
+     * Local-deployment-only machine operation. The CLI proves authority with its installation secret. The server idempotently creates the ordinary local user and organization in existing identity storage and returns a short-lived, one-use browser handoff token. The token is exchanged from the approved local UI origin and is never persisted by the UI.
+     * @summary Prepare local account access
+     * @param {AuthApiStartLocalBootstrapRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApiInterface
+     */
+    startLocalBootstrap(requestParameters: AuthApiStartLocalBootstrapRequest, options?: RawAxiosRequestConfig): AxiosPromise<StartLocalBootstrap200Response>;
 
     /**
      * Validate JWT token and return payload information
@@ -863,6 +1148,20 @@ export interface AuthApiChangePasswordRequest {
      * @memberof AuthApiChangePassword
      */
     readonly changePasswordDto: ChangePasswordDto
+}
+
+/**
+ * Request parameters for completeLocalHandoff operation in AuthApi.
+ * @export
+ * @interface AuthApiCompleteLocalHandoffRequest
+ */
+export interface AuthApiCompleteLocalHandoffRequest {
+    /**
+     *
+     * @type {LocalHandoffRequestDto}
+     * @memberof AuthApiCompleteLocalHandoff
+     */
+    readonly localHandoffRequestDto: LocalHandoffRequestDto
 }
 
 /**
@@ -922,6 +1221,20 @@ export interface AuthApiRegisterRequest {
 }
 
 /**
+ * Request parameters for saveLocalDisplayName operation in AuthApi.
+ * @export
+ * @interface AuthApiSaveLocalDisplayNameRequest
+ */
+export interface AuthApiSaveLocalDisplayNameRequest {
+    /**
+     *
+     * @type {LocalNameRequestDto}
+     * @memberof AuthApiSaveLocalDisplayName
+     */
+    readonly localNameRequestDto: LocalNameRequestDto
+}
+
+/**
  * Request parameters for setAccountDefaultOrganization operation in AuthApi.
  * @export
  * @interface AuthApiSetAccountDefaultOrganizationRequest
@@ -933,6 +1246,20 @@ export interface AuthApiSetAccountDefaultOrganizationRequest {
      * @memberof AuthApiSetAccountDefaultOrganization
      */
     readonly setAccountDefaultOrganizationDto: SetAccountDefaultOrganizationDto
+}
+
+/**
+ * Request parameters for startLocalBootstrap operation in AuthApi.
+ * @export
+ * @interface AuthApiStartLocalBootstrapRequest
+ */
+export interface AuthApiStartLocalBootstrapRequest {
+    /**
+     * Installation secret held by the local CLI.
+     * @type {string}
+     * @memberof AuthApiStartLocalBootstrap
+     */
+    readonly xHeyHeyLocalSecret: string
 }
 
 /**
@@ -981,6 +1308,18 @@ export class AuthApi extends BaseAPI implements AuthApiInterface {
     }
 
     /**
+     * Exchanges a short-lived token issued to the local CLI for the existing server-owned browser session. The token can be consumed once, and the request must come from the local application\'s approved UI origin.
+     * @summary Exchange one-use local browser handoff
+     * @param {AuthApiCompleteLocalHandoffRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApi
+     */
+    public completeLocalHandoff(requestParameters: AuthApiCompleteLocalHandoffRequest, options?: RawAxiosRequestConfig) {
+        return AuthApiFp(this.configuration).completeLocalHandoff(requestParameters.localHandoffRequestDto, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
      * Requires a valid browser access session. Saving requires the exact confirmed organization, current membership and entitlement. Switching and renewal never modify this preference.
      * @summary Read the explicit account organization default
      * @param {*} [options] Override http request option.
@@ -1000,6 +1339,17 @@ export class AuthApi extends BaseAPI implements AuthApiInterface {
      */
     public getJwks(options?: RawAxiosRequestConfig) {
         return AuthApiFp(this.configuration).getJwks(options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Returns separate observed facts for display-name completion, browser session, live machine connection and controller-ready execution. A connected machine alone does not authorize host actions.
+     * @summary Read local account and machine status
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApi
+     */
+    public getLocalSetupStatus(options?: RawAxiosRequestConfig) {
+        return AuthApiFp(this.configuration).getLocalSetupStatus(options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -1062,6 +1412,18 @@ export class AuthApi extends BaseAPI implements AuthApiInterface {
     }
 
     /**
+     * Saves the display name on the automatically created local user. This is personalization only and does not authenticate or authorize the caller.
+     * @summary Save local account display name
+     * @param {AuthApiSaveLocalDisplayNameRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApi
+     */
+    public saveLocalDisplayName(requestParameters: AuthApiSaveLocalDisplayNameRequest, options?: RawAxiosRequestConfig) {
+        return AuthApiFp(this.configuration).saveLocalDisplayName(requestParameters.localNameRequestDto, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
      * Requires a valid browser access session. Saving requires the exact confirmed organization, current membership and entitlement. Switching and renewal never modify this preference.
      * @summary Save the explicit account organization default
      * @param {AuthApiSetAccountDefaultOrganizationRequest} requestParameters Request parameters.
@@ -1071,6 +1433,18 @@ export class AuthApi extends BaseAPI implements AuthApiInterface {
      */
     public setAccountDefaultOrganization(requestParameters: AuthApiSetAccountDefaultOrganizationRequest, options?: RawAxiosRequestConfig) {
         return AuthApiFp(this.configuration).setAccountDefaultOrganization(requestParameters.setAccountDefaultOrganizationDto, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Local-deployment-only machine operation. The CLI proves authority with its installation secret. The server idempotently creates the ordinary local user and organization in existing identity storage and returns a short-lived, one-use browser handoff token. The token is exchanged from the approved local UI origin and is never persisted by the UI.
+     * @summary Prepare local account access
+     * @param {AuthApiStartLocalBootstrapRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApi
+     */
+    public startLocalBootstrap(requestParameters: AuthApiStartLocalBootstrapRequest, options?: RawAxiosRequestConfig) {
+        return AuthApiFp(this.configuration).startLocalBootstrap(requestParameters.xHeyHeyLocalSecret, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

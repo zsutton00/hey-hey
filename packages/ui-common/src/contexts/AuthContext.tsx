@@ -29,6 +29,7 @@ interface User {
   isDevAdmin?: boolean;
   devAdminMode?: boolean;
   currentOrganizationId?: string | null;
+  isLocalAccount?: boolean;
 }
 
 interface AuthContextType {

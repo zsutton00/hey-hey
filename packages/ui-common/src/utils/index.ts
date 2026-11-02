@@ -68,6 +68,7 @@ export type {
 export { buildEntityHref } from "./buildEntityHref";
 export type { EntityHrefTarget } from "./buildEntityHref";
 export { resolvePrismLanguage } from "./prismLanguage";
+export { isLocalAccountEmail } from "./userIdentity";
 export { tokenizeLine } from "./highlightLine";
 export type { HighlightedToken } from "./highlightLine";
 

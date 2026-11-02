@@ -16,6 +16,8 @@ export const PairingPage = ({
 }: PairingPageProps) => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const localSetupReturn =
+    journey === "first-machine" && searchParams.get("returnTo") === "local";
   const authorizationTarget =
     journey === "first-machine" &&
     searchParams.get("intent") === "authorize-browser" &&
@@ -44,11 +46,15 @@ export const PairingPage = ({
         />
         <Box sx={{ px: 1.5, pb: 3 }}>
           <ClaimMachine
-            initialCode={searchParams.get("code")}
+            initialCode={localSetupReturn ? null : searchParams.get("code")}
             journey={journey}
             authorizationTarget={authorizationTarget}
-            completionActionLabel="Go to projects"
-            onCompletionAction={() => navigate("/projects")}
+            completionActionLabel={
+              localSetupReturn ? "Continue to Hey Hey" : "Go to projects"
+            }
+            onCompletionAction={() =>
+              navigate(localSetupReturn ? "/local" : "/projects")
+            }
           />
         </Box>
       </DetailPageContainer>

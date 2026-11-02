@@ -2,6 +2,7 @@ import { CapsuleAction } from "@hey-hey/ui-common/components";
 import { TrackingProvider } from "@hey-hey/ui-common/context";
 import { useProject, useUsers } from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
+import { isLocalAccountEmail } from "@hey-hey/ui-common/utils";
 import { compose, TERMS } from "@hey-hey/ui-common/i18n";
 import { WebPathService } from "@hey-hey/ui-common/services";
 import type { OrganizationMemberResponseDto } from "@hey-hey/contracts/api";
@@ -107,6 +108,8 @@ export const UserDetailPage: React.FC = () => {
   );
 
   const user = member?.user;
+  const isLocalAccount = isLocalAccountEmail(user?.email ?? "");
+  const accountLabel = isLocalAccount ? "Local account" : user?.email;
 
   const handleBack = useCallback((): void => {
     navigate(projectId ? `/projects/${projectId}` : "/organizations");
@@ -230,9 +233,11 @@ export const UserDetailPage: React.FC = () => {
         <Typography variant="h5" component="span">
           {user.name}
         </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {user.email}
-        </Typography>
+        {accountLabel && (
+          <Typography variant="body2" color="text.secondary">
+            {accountLabel}
+          </Typography>
+        )}
       </Box>
     </Stack>
   );
@@ -344,9 +349,9 @@ export const UserDetailPage: React.FC = () => {
                       </Box>
                       <Box>
                         <Typography variant="subtitle2" color="text.secondary">
-                          Email
+                          {isLocalAccount ? "Account" : "Email"}
                         </Typography>
-                        <Typography variant="body1">{user.email}</Typography>
+                        <Typography variant="body1">{accountLabel}</Typography>
                       </Box>
                       <Box>
                         <Typography variant="subtitle2" color="text.secondary">

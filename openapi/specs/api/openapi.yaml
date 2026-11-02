@@ -642,6 +642,128 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
 
+  /auth/local/bootstrap:
+    post:
+      summary: Prepare local account access
+      description: >-
+        Local-deployment-only machine operation. The CLI proves authority with
+        its installation secret. The server idempotently creates the ordinary
+        local user and organization in existing identity storage and returns a
+        short-lived, one-use browser handoff token. The token is exchanged from
+        the approved local UI origin and is never persisted by the UI.
+      operationId: startLocalBootstrap
+      tags: [Auth]
+      security: []
+      parameters:
+        - in: header
+          name: X-HeyHey-Local-Secret
+          required: true
+          description: Installation secret held by the local CLI.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Local account is ready for a one-use browser handoff.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LocalBootstrapResponseDto"
+        "401":
+          description: Local installation authority is invalid or unavailable.
+
+  /auth/local/handoff:
+    post:
+      summary: Exchange one-use local browser handoff
+      description: >-
+        Exchanges a short-lived token issued to the local CLI for the existing
+        server-owned browser session. The token can be consumed once, and the
+        request must come from the local application's approved UI origin.
+      operationId: completeLocalHandoff
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocalHandoffRequestDto"
+      responses:
+        "200":
+          description: Browser session established with HttpOnly refresh continuity.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BrowserSessionResponseDto"
+        "401":
+          description: Handoff expired, already consumed, or from an untrusted origin.
+
+  /auth/local/name:
+    patch:
+      summary: Save local account display name
+      description: >-
+        Saves the display name on the automatically created local user. This is
+        personalization only and does not authenticate or authorize the caller.
+      operationId: saveLocalDisplayName
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocalNameRequestDto"
+      responses:
+        "200":
+          description: Local display name saved.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LocalSetupStatusDto"
+        "401":
+          description: Local browser session or same-origin authority is unavailable.
+
+  /auth/local/status:
+    get:
+      summary: Read local account and machine status
+      description: >-
+        Returns separate observed facts for display-name completion, browser
+        session, live machine connection and controller-ready execution. A
+        connected machine alone does not authorize host actions.
+      operationId: getLocalSetupStatus
+      tags: [Auth]
+      responses:
+        "200":
+          description: Current local setup and machine state.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LocalSetupStatusDto"
+        "401":
+          description: Local browser session is unavailable.
+
   /auth/password-recovery:
     post:
       operationId: initiatePasswordRecovery
@@ -25130,6 +25252,14 @@ components:
     # Auth schemas
     AccountDefaultOrganizationDto:
       $ref: ../schemas/auth.yaml#/AccountDefaultOrganizationDto
+    LocalBootstrapResponseDto:
+      $ref: ../schemas/auth.yaml#/LocalBootstrapResponseDto
+    LocalHandoffRequestDto:
+      $ref: ../schemas/auth.yaml#/LocalHandoffRequestDto
+    LocalNameRequestDto:
+      $ref: ../schemas/auth.yaml#/LocalNameRequestDto
+    LocalSetupStatusDto:
+      $ref: ../schemas/auth.yaml#/LocalSetupStatusDto
     SetAccountDefaultOrganizationDto:
       $ref: ../schemas/auth.yaml#/SetAccountDefaultOrganizationDto
     LoginDto:

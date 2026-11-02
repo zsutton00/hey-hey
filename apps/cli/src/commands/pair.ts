@@ -60,6 +60,7 @@ export interface PairCommandDependencies {
   existingMachineClient?: MachineControllerManagementClient;
   confirmation?: MachineEnrollmentConfirmation;
   prompter?: Pick<CredentialPrompter, 'confirm'>;
+  onBrowserHandoff?: (userCode: string) => void;
   log: (message: string) => void;
   logError: (message: string) => void;
 }
@@ -219,6 +220,7 @@ export const resolvePairDependencies = (
     : {}),
   ...(dependencies.confirmation ? { confirmation: dependencies.confirmation } : {}),
   ...(dependencies.prompter ? { prompter: dependencies.prompter } : {}),
+  ...(dependencies.onBrowserHandoff ? { onBrowserHandoff: dependencies.onBrowserHandoff } : {}),
   log: dependencies.log ?? console.log,
   logError: dependencies.logError ?? console.error,
 });
@@ -241,6 +243,7 @@ export const runPairCommand = async (
     logError: deps.logError,
     prompter: deps.prompter ?? createInteractivePrompter(),
     describeHandoff: (userCode) => describeEnrollment({ userCode }, deps.getPairingUrl(userCode)),
+    ...(deps.onBrowserHandoff ? { onBrowserHandoff: deps.onBrowserHandoff } : {}),
   });
   const result = await ceremony.run(
     (ports) => pairMachine(deps, ports),

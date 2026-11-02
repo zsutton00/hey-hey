@@ -53,12 +53,15 @@ export class MachineEnrollmentClaimController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<BeginMachineEnrollmentClaimResponseDto> {
+    const localAccountName = user.name?.trim() || 'Local Hey Hey';
     const result = await this.machineEnrollmentClaimService.beginClaim(
       body,
       user.userId,
       user.orgMemberships,
       request.ip,
-      { email: user.email, name: user.name },
+      user.isLocalAccount
+        ? { email: localAccountName, name: localAccountName }
+        : { email: user.email, name: user.name },
     );
     const context =
       await this.machineEnrollmentClaimService.ensureBrowserContext(

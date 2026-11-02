@@ -363,8 +363,10 @@ describe('runPairCommand', () => {
 
   it('opens a fresh attempt when protected saved-state lookup is unavailable', async () => {
     const logger = { ...NOOP_LOGGER, debug: vi.fn() };
+    const onBrowserHandoff = vi.fn();
     const deps = makeDeps({
       logger,
+      onBrowserHandoff,
       keyPairStore: Object.assign(createTestKeyPairStore(), {
         loadPendingEnrollmentId: vi.fn().mockRejectedValue(new Error('keychain unavailable')),
       }),
@@ -372,6 +374,7 @@ describe('runPairCommand', () => {
 
     await expect(runPairCommand(deps)).resolves.toBe(true);
     expect(deps.machinesApi.createMachineEnrollment).toHaveBeenCalledTimes(1);
+    expect(onBrowserHandoff).toHaveBeenCalledWith('BCDFG-HJKLM');
     expect(logger.debug).toHaveBeenCalledWith('pair.saved_enrollment.detach_failed', {
       error: 'keychain unavailable',
     });

@@ -74,6 +74,10 @@ const ActionsCapsule = lazy(() =>
 );
 
 const Home = lazy(() => import("./pages/Home"));
+const LocalSetupPage = lazyNamed(
+  () => import("./pages/LocalSetup/LocalSetupPage"),
+  "LocalSetupPage",
+);
 const OrganizationHomePage = lazyNamed(
   () => import("./pages/OrganizationHome/OrganizationHomePage"),
   "OrganizationHomePage",
@@ -456,6 +460,11 @@ export const AppRouteShell = () => {
 export const router = createBrowserRouter(
   createRoutesFromElements(
     <>
+      <Route
+        path="/local"
+        element={withRouteSuspense(<LocalSetupPage />)}
+        errorElement={<RouteErrorBoundary />}
+      />
       <Route
         path="/"
         element={<AppRouteShell />}

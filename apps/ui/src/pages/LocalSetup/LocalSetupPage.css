@@ -1,0 +1,168 @@
+.local-setup {
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: clamp(2rem, 6vw, 5rem) 1.5rem;
+  background: #333;
+  color: #fff;
+  font-family: "Atkinson Hyperlegible", Arial, sans-serif;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.local-setup__wordmark {
+  margin: 0 0 1.5rem;
+  color: #3fa7b5;
+  font-family: Monoton, "Arial Black", Arial, sans-serif;
+  font-size: 2.2rem;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+}
+
+.local-setup__eyebrow {
+  margin: 0 0 1rem;
+  color: #ccc;
+  font-size: 0.8rem;
+  letter-spacing: 0.14em;
+}
+
+.local-setup h1 {
+  margin: 0 auto 2rem;
+  font-family: "Work Sans", "Arial Black", Arial, sans-serif;
+  font-size: clamp(1.8rem, 4.6vw, 2.9rem);
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.local-setup__intro {
+  max-width: 32rem;
+  margin: 0 auto 2rem;
+  color: #ddd;
+}
+
+.local-setup__card {
+  box-sizing: border-box;
+  max-width: 31rem;
+  margin: 0 auto;
+  padding: clamp(1.25rem, 4vw, 2rem);
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 10px;
+  background: rgb(255 255 255 / 8%);
+  text-align: left;
+}
+
+.local-setup__card h2 {
+  margin: 0 0 0.6rem;
+  font-size: 1.15rem;
+}
+
+.local-setup__card label {
+  display: block;
+  margin: 0 0 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.local-setup__card input {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0 0 1.25rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid rgb(255 255 255 / 35%);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 5%);
+  color: inherit;
+  font: inherit;
+}
+
+.local-setup__card button,
+.local-setup__steps button {
+  box-sizing: border-box;
+  min-height: 2.8rem;
+  padding: 0.65rem 1.4rem;
+  border: 0;
+  border-radius: 4px;
+  background: #fff;
+  color: #333;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+.local-setup__card button {
+  width: 100%;
+}
+
+.local-setup__card button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.local-setup__card ol {
+  margin: 1.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.local-setup__card li {
+  margin-bottom: 1.1rem;
+  padding-left: 0.35rem;
+}
+
+.local-setup__card li::marker {
+  color: #71c9d5;
+  font-weight: 700;
+}
+
+.local-setup__card li span {
+  display: block;
+  margin-top: 0.2rem;
+  color: #ccc;
+  font-size: 0.9rem;
+}
+
+.local-setup__status {
+  margin: 1rem 0 0;
+  color: #ccc;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.local-setup__steps {
+  display: grid;
+  max-width: 40rem;
+  gap: 0.9rem;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.local-setup__steps li {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 10px;
+  opacity: 0.65;
+}
+
+.local-setup__steps li.is-current {
+  border-color: rgb(255 255 255 / 60%);
+  background: rgb(255 255 255 / 12%);
+  opacity: 1;
+}
+
+.local-setup__steps li > span {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 55%);
+  border-radius: 50%;
+  font-weight: 700;
+}
+
+.local-setup__steps strong {
+  flex: 1;
+}

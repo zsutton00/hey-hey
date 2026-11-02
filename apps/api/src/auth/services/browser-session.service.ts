@@ -42,6 +42,8 @@ import {
 import { JwtPayload } from '../strategies/jwt.strategy';
 import { JwtKeysService } from './jwt-keys.service';
 import { AccountEntitlementService } from '../../services/account-entitlement.service';
+import { isLocalAccountEmail } from '../local-account';
+import { isLocalApplication } from '../../deployment-environment';
 
 const REQUIRED_ACCESS_TTL_SECONDS = 900;
 const REQUIRED_INACTIVITY_TTL_SECONDS = 7 * 24 * 60 * 60;
@@ -55,7 +57,12 @@ export interface BrowserSessionPrincipal {
   user: BrowserAuthResponseDto['user'];
   claims: Pick<
     JwtPayload,
-    'email' | 'name' | 'orgMemberships' | 'isDevAdmin' | 'devAdminMode'
+    | 'email'
+    | 'name'
+    | 'orgMemberships'
+    | 'isDevAdmin'
+    | 'devAdminMode'
+    | 'isLocalAccount'
   >;
 }
 
@@ -751,6 +758,8 @@ export class BrowserSessionService {
       decisionAt,
       false,
     );
+    const isLocalAccount =
+      isLocalApplication() && isLocalAccountEmail(user.email);
     const userResponse = {
       id: user.id as UserId,
       email: user.email,
@@ -760,6 +769,7 @@ export class BrowserSessionService {
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
       currentOrganizationId: authorizedClaims.currentOrganizationId ?? null,
+      ...(isLocalAccount ? { isLocalAccount: true } : {}),
     } satisfies BrowserAuthResponseDto['user'];
 
     await tx.refreshGeneration.update({
@@ -821,6 +831,7 @@ export class BrowserSessionService {
         orgMemberships: authorizedClaims.memberships,
         isDevAdmin: user.isDevAdmin,
         devAdminMode: user.devAdminMode,
+        ...(isLocalAccount ? { isLocalAccount: true } : {}),
       } satisfies JwtPayload,
       {
         expiresIn: this.accessTtlSeconds,

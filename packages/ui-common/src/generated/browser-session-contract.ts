@@ -89,6 +89,11 @@ export const browserSessionSchema = {
                 },
               ],
             },
+            isLocalAccount: {
+              type: "boolean",
+              description:
+                "True only for the single-person identity bootstrapped by the local application. Its internal placeholder email must not be shown or sent to email flows.",
+            },
           },
         },
         accessToken: {
@@ -192,6 +197,11 @@ export const browserSessionSchema = {
                   type: "null",
                 },
               ],
+            },
+            isLocalAccount: {
+              type: "boolean",
+              description:
+                "True only for the single-person identity bootstrapped by the local application. Its internal placeholder email must not be shown or sent to email flows.",
             },
           },
         },

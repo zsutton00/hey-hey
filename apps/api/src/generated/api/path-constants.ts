@@ -46,6 +46,10 @@ export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROJECT_REPORT_REQU
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROJECT_REPORT_REQUESTS_REQUESTID_CONTEXT_BATCH_PATH = '/organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId}/context:batch';
 export const AUTH_ACCOUNT_DEFAULT_ORGANIZATION_PATH = '/auth/account-default-organization';
 export const AUTH_LOGIN_PATH = '/auth/login';
+export const AUTH_LOCAL_BOOTSTRAP_PATH = '/auth/local/bootstrap';
+export const AUTH_LOCAL_HANDOFF_PATH = '/auth/local/handoff';
+export const AUTH_LOCAL_NAME_PATH = '/auth/local/name';
+export const AUTH_LOCAL_STATUS_PATH = '/auth/local/status';
 export const AUTH_PASSWORD_RECOVERY_PATH = '/auth/password-recovery';
 export const AUTH_REGISTER_PATH = '/auth/register';
 export const AUTH_REFRESH_PATH = '/auth/refresh';

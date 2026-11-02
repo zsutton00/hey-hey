@@ -17,7 +17,7 @@ import {
   useUserPairedMachines,
   MachineEnrollmentClaimError,
 } from "@hey-hey/ui-common/data";
-import { useUserIdentity } from "@hey-hey/ui-common/hooks";
+import { formatUserIdentity, useUserIdentity } from "@hey-hey/ui-common/hooks";
 import {
   Alert,
   Box,
@@ -772,7 +772,7 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
           <Stack spacing={0.75}>
             {renderDetail(
               "Account",
-              `${validatedClaimContext.identity.name} (${validatedClaimContext.identity.email})`,
+              formatUserIdentity(validatedClaimContext.identity),
             )}
             {renderDetail(
               "Organization",
@@ -872,7 +872,7 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
             {renderDetail("Key fingerprint", claim.machineKeyFingerprint)}
             {renderDetail(
               "Account",
-              `${validatedClaimContext.identity.name} (${validatedClaimContext.identity.email})`,
+              formatUserIdentity(validatedClaimContext.identity),
             )}
             {renderDetail(
               "Organization",

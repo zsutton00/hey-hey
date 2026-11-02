@@ -3,7 +3,7 @@ export { useProjectDeletion } from "./useProjectDeletion";
 export { useProjectFilter } from "./useProjectFilter";
 
 // User hooks
-export { useUserIdentity } from "./useUserIdentity";
+export { formatUserIdentity, useUserIdentity } from "./useUserIdentity";
 
 // Editor context hooks
 export { useProjectIds } from "./useEditorContext";

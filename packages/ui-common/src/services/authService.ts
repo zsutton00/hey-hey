@@ -47,6 +47,7 @@ type JwtPayload = {
   name?: string;
   isDevAdmin?: boolean;
   devAdminMode?: boolean;
+  isLocalAccount?: boolean;
   exp?: number;
   [key: string]: unknown;
 };
@@ -324,6 +325,12 @@ const setBrowserAuthState = (response: BrowserSessionResponseDto): void => {
   }
   if (!("accessToken" in response) || previousToken === authToken)
     notifyAuthChange(true, authToken);
+};
+
+export const acceptBrowserAuthSession = (
+  response: BrowserSessionResponseDto,
+): void => {
+  setBrowserAuthState(response);
 };
 
 const receiveBrowserRenewal = (value: unknown): void => {
@@ -646,7 +653,8 @@ export const getCurrentUser = () => {
   const payload = decodeJwtPayload(authToken);
   if (!payload) return null;
 
-  const { sub, email, name, isDevAdmin, devAdminMode, exp } = payload;
+  const { sub, email, name, isDevAdmin, devAdminMode, isLocalAccount, exp } =
+    payload;
 
   if (typeof exp === "number" && Date.now() >= exp * 1000) {
     console.warn("Auth token is expired");
@@ -664,6 +672,7 @@ export const getCurrentUser = () => {
     name: typeof name === "string" ? name : undefined,
     isDevAdmin: Boolean(isDevAdmin),
     devAdminMode: Boolean(devAdminMode),
+    isLocalAccount: Boolean(isLocalAccount),
   };
 };
 

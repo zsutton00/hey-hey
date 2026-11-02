@@ -22,6 +22,68 @@ SetAccountDefaultOrganizationDto:
       format: uuid
       description: Must match the valid browser session's confirmed organization and current authorized membership.
 
+LocalBootstrapResponseDto:
+  type: object
+  additionalProperties: false
+  required: [handoffToken, expiresInSeconds]
+  properties:
+    handoffToken:
+      type: string
+      minLength: 40
+      description: >-
+        One-use local browser handoff capability. Keep only in process memory
+        and an ephemeral URL fragment; never persist or log it.
+    expiresInSeconds:
+      type: integer
+      enum: [120]
+      description: Handoff validity in seconds.
+
+LocalHandoffRequestDto:
+  type: object
+  additionalProperties: false
+  required: [handoffToken]
+  properties:
+    handoffToken:
+      type: string
+      minLength: 40
+
+LocalNameRequestDto:
+  type: object
+  additionalProperties: false
+  required: [name]
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 100
+      description: Display name only; not a login identifier or authentication factor.
+
+LocalSetupStatusDto:
+  type: object
+  additionalProperties: false
+  required:
+    [
+      nameComplete,
+      browserSession,
+      machineConnected,
+      executionReady,
+      hasProjects,
+    ]
+  properties:
+    nameComplete:
+      type: boolean
+    browserSession:
+      type: boolean
+    machineConnected:
+      type: boolean
+      description: True only while an authorized CLI machine has live Redis presence.
+    executionReady:
+      type: boolean
+      description: True only while a connected protocol-2 machine has an active controller credential; each host action still requires its existing assertion or grant.
+    hasProjects:
+      type: boolean
+      description: True when the local organization already contains a project, for automatic workspace return.
+
 LoginDto:
   type: object
   required:
@@ -215,6 +277,9 @@ UserResponseDto:
       allOf:
         - $ref: "./common.yaml#/OrganizationId"
       nullable: true
+    isLocalAccount:
+      type: boolean
+      description: True only for the single-person identity bootstrapped by the local application. Its internal placeholder email must not be shown or sent to email flows.
 
 # =============================================
 # Password Change Schemas

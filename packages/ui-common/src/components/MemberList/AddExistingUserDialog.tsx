@@ -20,6 +20,7 @@ import {
 } from "@mui/material";
 import type { SelectChangeEvent } from "@mui/material/Select";
 import { ProjectRole, type OrganizationMemberResponseDto } from "../../api";
+import { isLocalAccountEmail } from "../../utils";
 
 const ROLE_OPTIONS: { value: ProjectRole; label: string }[] = [
   { value: ProjectRole.Owner, label: "Owner" },
@@ -55,8 +56,15 @@ const getInitials = (
   return source.slice(0, 2).toUpperCase();
 };
 
-const getOptionLabel = (option: OrganizationMemberResponseDto): string =>
-  option.user?.name || option.user?.email || option.userId;
+const getOptionLabel = (option: OrganizationMemberResponseDto): string => {
+  if (option.user?.name) {
+    return option.user.name;
+  }
+  if (option.user?.email && isLocalAccountEmail(option.user.email)) {
+    return "Local account";
+  }
+  return option.user?.email || option.userId;
+};
 
 export const AddExistingUserDialog: React.FC<AddExistingUserDialogProps> = ({
   open,
@@ -169,6 +177,7 @@ export const AddExistingUserDialog: React.FC<AddExistingUserDialogProps> = ({
               const user = option.user;
               const name = user?.name || "Unknown user";
               const email = user?.email ?? "";
+              const displayedEmail = isLocalAccountEmail(email) ? "" : email;
               return (
                 <li
                   key={key ?? option.userId}
@@ -184,20 +193,20 @@ export const AddExistingUserDialog: React.FC<AddExistingUserDialogProps> = ({
                     }}
                   >
                     <Avatar sx={{ width: 28, height: 28, fontSize: 12 }}>
-                      {getInitials(user?.name, email)}
+                      {getInitials(user?.name, displayedEmail)}
                     </Avatar>
                     <Box sx={{ minWidth: 0 }}>
                       <Typography variant="body2" noWrap>
                         {name}
                       </Typography>
-                      {email && (
+                      {displayedEmail && (
                         <Typography
                           variant="caption"
                           color="text.secondary"
                           noWrap
                           component="div"
                         >
-                          {email}
+                          {displayedEmail}
                         </Typography>
                       )}
                     </Box>

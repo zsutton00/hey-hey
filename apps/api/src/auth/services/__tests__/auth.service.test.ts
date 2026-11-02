@@ -64,6 +64,7 @@ describe('AuthService browser sign-in', () => {
       findByEmail: jest.fn().mockResolvedValue(user),
       findById: jest.fn().mockResolvedValue(user),
       create: jest.fn().mockResolvedValue(user),
+      createLocalBootstrapUser: jest.fn().mockResolvedValue(user),
       validatePassword: jest.fn().mockResolvedValue(true),
       updateLastLogin: jest.fn().mockResolvedValue(undefined),
       getUserWithOrganizations: jest.fn().mockResolvedValue(userResponse),
@@ -120,6 +121,7 @@ describe('AuthService browser sign-in', () => {
       }) as unknown as PrismaService,
       emailService as never,
       passwordRecoveryThrottleService as never,
+      { getClient: jest.fn() } as never,
     );
   });
 
@@ -144,6 +146,69 @@ describe('AuthService browser sign-in', () => {
     });
   });
 
+  it('does not issue local handoffs to hosted deployments', async () => {
+    const previousDeployment = process.env.DEPLOYMENT_ENVIRONMENT;
+    const previousLocalFlag = process.env.HEYHEY_LOCAL_APPLICATION;
+    const previousSecret = process.env.LOCAL_INSTALLATION_SECRET;
+    process.env.DEPLOYMENT_ENVIRONMENT = 'production';
+    process.env.HEYHEY_LOCAL_APPLICATION = 'true';
+    process.env.LOCAL_INSTALLATION_SECRET = 'installation-secret';
+
+    try {
+      await expect(
+        service.createLocalHandoff('installation-secret'),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+    } finally {
+      if (previousDeployment === undefined) {
+        delete process.env.DEPLOYMENT_ENVIRONMENT;
+      } else {
+        process.env.DEPLOYMENT_ENVIRONMENT = previousDeployment;
+      }
+      if (previousLocalFlag === undefined) {
+        delete process.env.HEYHEY_LOCAL_APPLICATION;
+      } else {
+        process.env.HEYHEY_LOCAL_APPLICATION = previousLocalFlag;
+      }
+      if (previousSecret === undefined) {
+        delete process.env.LOCAL_INSTALLATION_SECRET;
+      } else {
+        process.env.LOCAL_INSTALLATION_SECRET = previousSecret;
+      }
+    }
+  });
+
+  it('rejects local bootstrap without the installation secret', async () => {
+    const previousDeployment = process.env.DEPLOYMENT_ENVIRONMENT;
+    const previousLocalFlag = process.env.HEYHEY_LOCAL_APPLICATION;
+    const previousSecret = process.env.LOCAL_INSTALLATION_SECRET;
+    process.env.DEPLOYMENT_ENVIRONMENT = 'local';
+    process.env.HEYHEY_LOCAL_APPLICATION = 'true';
+    process.env.LOCAL_INSTALLATION_SECRET = 'installation-secret';
+
+    try {
+      await expect(
+        service.createLocalHandoff('unrelated-secret'),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(userService.createLocalBootstrapUser).not.toHaveBeenCalled();
+    } finally {
+      if (previousDeployment === undefined) {
+        delete process.env.DEPLOYMENT_ENVIRONMENT;
+      } else {
+        process.env.DEPLOYMENT_ENVIRONMENT = previousDeployment;
+      }
+      if (previousLocalFlag === undefined) {
+        delete process.env.HEYHEY_LOCAL_APPLICATION;
+      } else {
+        process.env.HEYHEY_LOCAL_APPLICATION = previousLocalFlag;
+      }
+      if (previousSecret === undefined) {
+        delete process.env.LOCAL_INSTALLATION_SECRET;
+      } else {
+        process.env.LOCAL_INSTALLATION_SECRET = previousSecret;
+      }
+    }
+  });
+
   it('keeps unknown and delivery-failure outcomes indistinguishable', async () => {
     userService.findByEmail.mockResolvedValueOnce(null);
     const unknown = await service.initiatePasswordRecovery(
@@ -163,6 +228,76 @@ describe('AuthService browser sign-in', () => {
     expect(
       passwordRecoveryThrottleService.performEquivalentCostWork,
     ).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not send password recovery for a local placeholder identity', async () => {
+    const previousDeployment = process.env.DEPLOYMENT_ENVIRONMENT;
+    const previousLocalApplication = process.env.HEYHEY_LOCAL_APPLICATION;
+    process.env.DEPLOYMENT_ENVIRONMENT = 'local';
+    process.env.HEYHEY_LOCAL_APPLICATION = 'true';
+    userService.findByEmail.mockResolvedValueOnce({
+      ...user,
+      email: `local-${'a'.repeat(64)}@local.invalid`,
+    } as never);
+
+    try {
+      await expect(
+        service.initiatePasswordRecovery(
+          { email: `local-${'a'.repeat(64)}@local.invalid` },
+          {},
+        ),
+      ).resolves.toEqual({
+        message:
+          'If an eligible account exists, recovery instructions will be sent.',
+      });
+
+      expect(passwordChangeCredentialService.issue).not.toHaveBeenCalled();
+      expect(emailService.sendPasswordRecoveryEmail).not.toHaveBeenCalled();
+      expect(
+        passwordRecoveryThrottleService.performEquivalentCostWork,
+      ).toHaveBeenCalledWith(user.passwordHash);
+    } finally {
+      if (previousDeployment === undefined) {
+        delete process.env.DEPLOYMENT_ENVIRONMENT;
+      } else {
+        process.env.DEPLOYMENT_ENVIRONMENT = previousDeployment;
+      }
+      if (previousLocalApplication === undefined) {
+        delete process.env.HEYHEY_LOCAL_APPLICATION;
+      } else {
+        process.env.HEYHEY_LOCAL_APPLICATION = previousLocalApplication;
+      }
+    }
+  });
+
+  it('keeps hosted recovery behavior for the same address shape', async () => {
+    const previousDeployment = process.env.DEPLOYMENT_ENVIRONMENT;
+    const previousLocalApplication = process.env.HEYHEY_LOCAL_APPLICATION;
+    process.env.DEPLOYMENT_ENVIRONMENT = 'production';
+    process.env.HEYHEY_LOCAL_APPLICATION = 'true';
+    userService.findByEmail.mockResolvedValueOnce({
+      ...user,
+      email: `local-${'a'.repeat(64)}@local.invalid`,
+    } as never);
+
+    try {
+      await service.initiatePasswordRecovery(
+        { email: `local-${'a'.repeat(64)}@local.invalid` },
+        {},
+      );
+      expect(passwordChangeCredentialService.issue).toHaveBeenCalled();
+    } finally {
+      if (previousDeployment === undefined) {
+        delete process.env.DEPLOYMENT_ENVIRONMENT;
+      } else {
+        process.env.DEPLOYMENT_ENVIRONMENT = previousDeployment;
+      }
+      if (previousLocalApplication === undefined) {
+        delete process.env.HEYHEY_LOCAL_APPLICATION;
+      } else {
+        process.env.HEYHEY_LOCAL_APPLICATION = previousLocalApplication;
+      }
+    }
   });
 
   it('establishes a persisted browser session only after normal login succeeds', async () => {

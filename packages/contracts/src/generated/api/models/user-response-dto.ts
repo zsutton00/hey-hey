@@ -70,4 +70,10 @@ export interface UserResponseDto {
      * @memberof UserResponseDto
      */
     'currentOrganizationId'?: OrganizationId | null;
+    /**
+     * True only for the single-person identity bootstrapped by the local application. Its internal placeholder email must not be shown or sent to email flows.
+     * @type {boolean}
+     * @memberof UserResponseDto
+     */
+    'isLocalAccount'?: boolean;
 }

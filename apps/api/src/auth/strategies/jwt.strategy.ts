@@ -23,6 +23,7 @@ export interface JwtPayload {
   // Developer admin capabilities
   isDevAdmin?: boolean;
   devAdminMode?: boolean; // Whether user is currently in dev-admin mode
+  isLocalAccount?: boolean;
   sid?: string; // Browser session binding, added by the browser-session cutover
   authz_version?: number; // Current authorization revision binding
   jti?: string;
@@ -43,6 +44,7 @@ export interface AuthenticatedUser {
   // Developer admin capabilities
   isDevAdmin: boolean;
   devAdminMode: boolean;
+  isLocalAccount?: boolean;
   isSystemUser?: boolean;
   systemSubject?: string;
 }

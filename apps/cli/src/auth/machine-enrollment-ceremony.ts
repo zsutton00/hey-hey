@@ -194,6 +194,7 @@ export interface DirectEnrollmentOutput {
   prompter: Pick<CredentialPrompter, 'confirm'>;
   /** Renders the browser handoff; omit when the caller already printed it. */
   describeHandoff?: (userCode: string) => string;
+  onBrowserHandoff?: (userCode: string) => void;
 }
 
 /**
@@ -208,6 +209,7 @@ export const attachDirectEnrollmentOutput = (
   ceremony.observe((step) => {
     switch (step.kind) {
       case 'browser-handoff':
+        output.onBrowserHandoff?.(step.userCode);
         if (output.describeHandoff) output.log(output.describeHandoff(step.userCode));
         return;
       case 'local-review':

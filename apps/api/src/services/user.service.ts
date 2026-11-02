@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
@@ -23,6 +24,7 @@ import {
 } from '../auth/password-change-credential.types';
 import { OrganizationService } from './organization.service';
 import { AccountEntitlementService } from './account-entitlement.service';
+import { isLocalAccountEmail } from '../auth/local-account';
 import { toPrivateBetaProvisioningError } from './private-beta-provisioning-error';
 
 export interface BetaOnboardingRequestState {
@@ -161,6 +163,69 @@ export class UserService {
     });
 
     return result;
+  }
+
+  async createLocalBootstrapUser(installationSecret: string): Promise<User> {
+    const localIdentity = crypto
+      .createHmac('sha256', installationSecret)
+      .update('heyhey-local-identity-v1')
+      .digest('hex');
+    const email = `local-${localIdentity}@local.invalid`;
+    const existingUser = await this.prisma.db.user.findUnique({
+      where: { email },
+    });
+    if (existingUser) {
+      return existingUser;
+    }
+
+    const passwordHash = await bcrypt.hash(
+      crypto.randomBytes(32).toString('base64url'),
+      12,
+    );
+
+    return this.prisma.db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${email}))`;
+      const existing = await tx.user.findUnique({ where: { email } });
+      if (existing) {
+        return existing;
+      }
+
+      const user = await tx.user.create({
+        data: { email, name: '', passwordHash },
+      });
+      await this.organizationService.createOrganizationWithTransaction(
+        tx,
+        {
+          name: 'My Hey Hey',
+          description: 'Local Hey Hey workspace',
+          slug: `heyhey-local-${localIdentity.slice(0, 24)}`,
+        },
+        user.id as UserId,
+      );
+
+      this.logger.log('Local account bootstrap completed', {
+        userId: user.id,
+      });
+      return user;
+    });
+  }
+
+  async updateLocalDisplayName(userId: UserId, name: string): Promise<User> {
+    const displayName = name.trim();
+    if (displayName.length === 0 || displayName.length > 100) {
+      throw new BadRequestException('Name must contain 1 to 100 characters');
+    }
+    const user = await this.prisma.db.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+    if (!user || !isLocalAccountEmail(user.email)) {
+      throw new NotFoundException('Local account not found');
+    }
+    return this.prisma.db.user.update({
+      where: { id: userId },
+      data: { name: displayName },
+    });
   }
 
   async validatePassword(user: User, password: string): Promise<boolean> {

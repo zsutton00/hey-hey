@@ -112,6 +112,7 @@ export class UserAccessTokenValidatorService {
         })),
       isDevAdmin: payload.isDevAdmin ?? user.isDevAdmin ?? false,
       devAdminMode: payload.devAdminMode ?? user.devAdminMode ?? false,
+      ...(payload.isLocalAccount === true ? { isLocalAccount: true } : {}),
     };
   }
 
