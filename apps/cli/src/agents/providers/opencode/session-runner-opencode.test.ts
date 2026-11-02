@@ -66,6 +66,7 @@ const PROJECT_REPORT_PLATFORM_TOOLS = {
   'heyhey-platform_get_context': true,
   'heyhey-platform_get_edges': true,
   'heyhey-platform_unified_search': true,
+  'heyhey-platform_get_entity_identities': true,
   'heyhey-platform_task_search': true,
   'heyhey-platform_search_features': true,
   'heyhey-platform_list_reports_by_entity': true,

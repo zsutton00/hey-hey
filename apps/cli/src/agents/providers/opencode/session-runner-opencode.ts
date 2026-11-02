@@ -244,6 +244,7 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
   private readonly alwaysAllowedTools = new Set<string>([
     // search
     'unified_search',
+    'get_entity_identities',
     'task_search',
     'search_features',
     'plan_search',

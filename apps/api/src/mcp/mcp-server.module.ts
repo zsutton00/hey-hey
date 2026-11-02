@@ -30,6 +30,7 @@ import { ListGoalsToolsProvider } from './tools/list-goals-tools.provider';
 import { GoalTracksToolsProvider } from './tools/goal-tracks-tools.provider';
 import { EdgeToolsProvider } from './tools/edge-tools.provider';
 import { GetFullEntityToolsProvider } from './tools/get-full-entity-tools.provider';
+import { GetEntityIdentitiesToolsProvider } from './tools/get-entity-identities-tools.provider';
 import { GetReportSchemaToolsProvider } from './tools/get-report-schema-tools.provider';
 import { GetToolGuidanceToolsProvider } from './tools/get-tool-guidance-tools.provider';
 import { GetReportBodyToolsProvider } from './tools/get-report-body-tools.provider';
@@ -75,6 +76,7 @@ import {
     GoalTracksToolsProvider,
     EdgeToolsProvider,
     GetFullEntityToolsProvider,
+    GetEntityIdentitiesToolsProvider,
     GetReportSchemaToolsProvider,
     GetToolGuidanceToolsProvider,
     GetReportBodyToolsProvider,

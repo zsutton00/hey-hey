@@ -253,6 +253,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
     'Grep',
     // search
     'unified_search',
+    'get_entity_identities',
     'task_search',
     'search_features',
     'plan_search',

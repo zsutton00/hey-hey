@@ -41024,6 +41024,84 @@ export interface GetEntityContext200Response {
 /**
  *
  * @export
+ * @interface GetEntityIdentitiesRequest
+ */
+export interface GetEntityIdentitiesRequest {
+    /**
+     * 1-50 known entity references to resolve in one call.
+     * @type {Array<GetEntityIdentitiesRequestEntitiesInner>}
+     * @memberof GetEntityIdentitiesRequest
+     */
+    'entities': Array<GetEntityIdentitiesRequestEntitiesInner>;
+}
+/**
+ *
+ * @export
+ * @interface GetEntityIdentitiesRequestEntitiesInner
+ */
+export interface GetEntityIdentitiesRequestEntitiesInner {
+    /**
+     * TASK, DESIGN_DOC or SERVICE. Any registered project work-item type key (such as FEATURE, BUG or PLAN) aliases TASK.
+     * @type {string}
+     * @memberof GetEntityIdentitiesRequestEntitiesInner
+     */
+    'entityType': string;
+    /**
+     * Identity of the entity to resolve.
+     * @type {string}
+     * @memberof GetEntityIdentitiesRequestEntitiesInner
+     */
+    'entityId': string;
+}
+/**
+ *
+ * @export
+ * @interface GetEntityIdentity
+ */
+export interface GetEntityIdentity {
+    /**
+     * Canonical entity type; every work-item type key is reported as TASK.
+     * @type {string}
+     * @memberof GetEntityIdentity
+     */
+    'entityType': GetEntityIdentityEntityTypeEnum;
+    /**
+     *
+     * @type {string}
+     * @memberof GetEntityIdentity
+     */
+    'entityId': string;
+    /**
+     *
+     * @type {string}
+     * @memberof GetEntityIdentity
+     */
+    'title': string;
+    /**
+     *
+     * @type {string}
+     * @memberof GetEntityIdentity
+     */
+    'status': string;
+    /**
+     * Work-item type key for TASK entities other than plans, the document template for design docs, and null for plans and services.
+     * @type {string}
+     * @memberof GetEntityIdentity
+     */
+    'itemType': string | null;
+}
+
+export const GetEntityIdentityEntityTypeEnum = {
+    Task: 'TASK',
+    DesignDoc: 'DESIGN_DOC',
+    Service: 'SERVICE'
+} as const;
+
+export type GetEntityIdentityEntityTypeEnum = typeof GetEntityIdentityEntityTypeEnum[keyof typeof GetEntityIdentityEntityTypeEnum];
+
+/**
+ *
+ * @export
  * @interface GetEntityNamesDto
  */
 export interface GetEntityNamesDto {

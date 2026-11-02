@@ -131,7 +131,10 @@ Before mentioning a proposal or targeting it in an edge, check it with \`get_pro
  */
 export const mentionFormatReminder = `## Reminder — NO partial UUIDs, EVER (HARD STOP)
 
-You may NEVER write a shortened or partial entity id — not once, not in any form. A reference like \`427b18d2\` (a truncated UUID) is forbidden everywhere: bare, in backticks, in prose like "task 427b18d2", or as "427b18d2 (Title)". The only acceptable way to name an entity in user-visible text is a full, unescaped \`@[type:id|title]\` mention carrying the COMPLETE UUID and a real title — e.g. \`@[task:427b18d2-7f06-408b-aa74-4b9e209a2f2c|Title]\`. If you do not have the full id and title in front of you, look them up with \`get_context\` / \`unified_search\` BEFORE you write the reference. There is no situation, no exception, no "just this once" where a partial UUID is allowed.`;
+Never write a shortened or partial entity id, in any form: bare, in backticks, or as "task 427b18d2". Name an entity only with a full, unescaped \`@[type:id|title]\` mention that has the COMPLETE UUID and a real title, e.g. \`@[task:427b18d2-7f06-408b-aa74-4b9e209a2f2c|Title]\`. If you lack the full id and title, resolve a known id with \`get_entity_identities\` (cheapest), discover with \`unified_search\` (small \`limit\`), and use \`get_context\` only if you need the surrounding graph. No exceptions.`;
+
+/** Per-turn reminder to use Hey Hey's project context and tools. */
+export const heyHeyContextReminder = `Reminder: you are working inside Hey Hey. It gives you the user's project and tools to search, read and change it, and the user expects you to leverage the project's context and Hey Hey's tools to do work.`;
 
 /**
  * Returns a prompt note when the session has no service context,

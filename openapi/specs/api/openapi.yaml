@@ -26063,6 +26063,12 @@ components:
       $ref: "../schemas/mcp.yaml#/GetAgentSessionErrorCode"
     GetAgentSessionError:
       $ref: "../schemas/mcp.yaml#/GetAgentSessionError"
+    GetEntityIdentitiesRequest:
+      $ref: "../schemas/mcp.yaml#/GetEntityIdentitiesRequest"
+    GetEntityIdentity:
+      $ref: "../schemas/mcp.yaml#/GetEntityIdentity"
+    GetEntityIdentitiesResponse:
+      $ref: "../schemas/mcp.yaml#/GetEntityIdentitiesResponse"
     McpToolEntry:
       $ref: "../schemas/mcp.yaml#/McpToolEntry"
     McpToolCatalogResponse:

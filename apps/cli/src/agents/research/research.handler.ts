@@ -52,6 +52,7 @@ export const researchHandler: UserLaunchablePromptTypeHandler<LocalResearchPromp
       'get_diagram',
       'get_work_item_type_guidance_batch',
       'unified_search',
+      'get_entity_identities',
       'list_services',
     ],
     builtinAllowedTools: ['Read', 'Glob', 'Grep', 'WebSearch', 'WebFetch'],

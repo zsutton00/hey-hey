@@ -104,6 +104,7 @@ const MCP_TOOL_LIST: readonly McpTool[] = [
   { name: 'search_features', useCases: ['coding', 'general'] },
   { name: 'task_search', useCases: ['coding', 'general'] },
   { name: 'unified_search', useCases: ['coding', 'general'] },
+  { name: 'get_entity_identities', useCases: ['coding', 'general'] },
   { name: 'update_edge', useCases: ['coding', 'general'] },
   { name: 'update_proposal', useCases: ['coding', 'general'] },
 ];
@@ -192,6 +193,7 @@ export const RESEARCH_MCP_TOOLS: readonly string[] = [
   'get_diagram',
   'get_work_item_type_guidance_batch',
   'unified_search',
+  'get_entity_identities',
   'search_features',
   'task_search',
   'search_design_docs',
@@ -204,7 +206,11 @@ export const RESEARCH_MCP_TOOLS: readonly string[] = [
  */
 const REPOSITORY_GROUNDING_MCP_TOOLS: readonly string[] = [];
 
-export const REPOSITORY_PLACEMENT_MCP_TOOLS: readonly string[] = ['unified_search', 'get_context'];
+export const REPOSITORY_PLACEMENT_MCP_TOOLS: readonly string[] = [
+  'unified_search',
+  'get_entity_identities',
+  'get_context',
+];
 
 export const PROJECT_ASSISTANT_EDGE_MCP_TOOLS: readonly string[] = ['create_edge', 'delete_edge'];
 
@@ -248,6 +254,7 @@ export const PROJECT_REPORT_MCP_TOOLS: readonly string[] = [
   'get_context',
   'get_edges',
   'unified_search',
+  'get_entity_identities',
   'task_search',
   'search_features',
   'list_reports_by_entity',

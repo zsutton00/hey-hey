@@ -187,6 +187,80 @@ GetAgentSessionError:
     scope so the boundary does not disclose cross-project existence.
 
 # =============================================
+# Entity Identity Lookup Tool Schemas
+# =============================================
+
+GetEntityIdentitiesRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - entities
+  properties:
+    entities:
+      type: array
+      minItems: 1
+      maxItems: 50
+      items:
+        type: object
+        additionalProperties: false
+        required:
+          - entityType
+          - entityId
+        properties:
+          entityType:
+            type: string
+            description: >-
+              TASK, DESIGN_DOC or SERVICE. Any registered project work-item
+              type key (such as FEATURE, BUG or PLAN) aliases TASK.
+          entityId:
+            type: string
+            format: uuid
+            description: Identity of the entity to resolve.
+      description: 1-50 known entity references to resolve in one call.
+
+GetEntityIdentity:
+  type: object
+  additionalProperties: false
+  required:
+    - entityType
+    - entityId
+    - title
+    - status
+    - itemType
+  properties:
+    entityType:
+      type: string
+      enum:
+        - TASK
+        - DESIGN_DOC
+        - SERVICE
+      description: Canonical entity type; every work-item type key is reported as TASK.
+    entityId:
+      type: string
+      format: uuid
+    title:
+      type: string
+    status:
+      type: string
+    itemType:
+      type: string
+      nullable: true
+      description: >-
+        Work-item type key for TASK entities other than plans, the document
+        template for design docs, and null for plans and services.
+
+GetEntityIdentitiesResponse:
+  type: object
+  description: >-
+    Identities keyed by the requested entityId. A key is null when the entity
+    is unknown, archived, deleted, or outside the caller's organization or
+    active project.
+  additionalProperties:
+    nullable: true
+    allOf:
+      - $ref: "#/GetEntityIdentity"
+
+# =============================================
 # MCP Propose-Phase Response Schemas
 # =============================================
 

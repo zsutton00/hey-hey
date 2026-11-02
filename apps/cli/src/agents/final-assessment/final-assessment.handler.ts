@@ -20,6 +20,7 @@ const FINAL_ASSESSMENT_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
   'get_recently_viewed',
   // Search
   'unified_search',
+  'get_entity_identities',
   'task_search',
   'plan_search',
   'search_features',

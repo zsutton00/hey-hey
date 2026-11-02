@@ -19,6 +19,7 @@ const INERT_SAFE_TOOLS: ReadonlySet<string> = new Set([
   'get_future_revision',
   'get_proposal_group_authoring_snapshot',
   'unified_search',
+  'get_entity_identities',
   'unified_search_batch',
   'plan_search',
   'search_design_docs',

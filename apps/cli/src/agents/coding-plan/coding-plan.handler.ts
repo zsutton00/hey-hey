@@ -45,6 +45,7 @@ export const CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
   'list_services',
   // Search
   'unified_search',
+  'get_entity_identities',
   'task_search',
   'plan_search',
   'search_features',
