@@ -20,7 +20,7 @@ afterEach(async () => {
   );
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
-it('returns the target worktree location for stale excerpts, rejects foreign sources, and isolates subsequent requests', async () => {
+it('opens the current worktree file even when its excerpt changed, rejects foreign sources, and isolates subsequent requests', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'walkthrough-route-'));
   roots.push(root);
   await writeFile(path.join(root, 'policy.ts'), 'deny();\n');
@@ -69,9 +69,7 @@ it('returns the target worktree location for stale excerpts, rejects foreign sou
   expect(restore).not.toHaveBeenCalled();
   expect((await post({ file: '../policy.ts' })).status).toBe(422);
   expect((await post({ serviceId: machineId })).status).toBe(422);
-  const staleExcerpt = await post({ code: 'invented();' });
-  expect(staleExcerpt.status).toBe(200);
-  expect(await staleExcerpt.json()).toMatchObject({ path: path.join(root, 'policy.ts') });
+  expect((await post({ code: 'invented();' })).status).toBe(200);
   const valid = await post();
   expect(valid.status).toBe(200);
   expect(await valid.json()).toEqual({
@@ -84,4 +82,6 @@ it('returns the target worktree location for stale excerpts, rejects foreign sou
   });
   await writeFile(path.join(root, 'policy.ts'), 'changed();\n');
   expect((await post()).status).toBe(200);
+  await rm(path.join(root, 'policy.ts'));
+  expect((await post()).status).toBe(422);
 });
