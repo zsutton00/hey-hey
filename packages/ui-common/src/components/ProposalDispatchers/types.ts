@@ -20,6 +20,7 @@ import type {
   WorkItemChangeSetValidationRequest,
   WorkItemChangeSetOperation,
   ProposalApprovalFailureDiagnostic,
+  RelationshipDecision,
   UpdateProposalDto,
 } from "../../api";
 import type { DiffViewMode } from "../SuggestedContent";
@@ -63,11 +64,22 @@ interface TaskServiceAssignmentUpdates {
   serviceIds?: string[];
 }
 
+/**
+ * Reviewed decisions about existing relationships, stored in the proposal's
+ * update payload as review evidence and as the source of its relationship
+ * operations. Absent on proposals that declare none.
+ */
+interface RelationshipDecisionUpdates {
+  relationshipDecisions?: RelationshipDecision[];
+}
+
 export type CreateTaskProposalUpdates = CreateTaskDto &
-  TaskServiceAssignmentUpdates;
+  TaskServiceAssignmentUpdates &
+  RelationshipDecisionUpdates;
 
 export type UpdateTaskProposalUpdates = UpdateTaskDto &
-  TaskServiceAssignmentUpdates;
+  TaskServiceAssignmentUpdates &
+  RelationshipDecisionUpdates;
 
 /**
  * Callback invoked when the user applies a proposal item.

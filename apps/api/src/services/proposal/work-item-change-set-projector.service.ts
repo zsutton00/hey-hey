@@ -14,6 +14,7 @@ import type {
   ProjectedWorkItemChangeSetResponse,
   ProjectedWorkItemRelationship,
   ProjectedWorkItemSection,
+  RelationshipDecision,
   WorkItemChangeSetIdentity,
   WorkItemChangeSetOperation,
   WorkItemChangeSetRelationshipIdentity,
@@ -143,6 +144,166 @@ export class WorkItemChangeSetProjectorService {
     db?: AnyTransactionClient;
   }): Promise<ProjectedWorkItemChangeSetResponse> {
     return (await this.projectSnapshots(params)).target;
+  }
+
+  /**
+   * Resolve each decided relationship against Graph, recording the original
+   * description and endpoint names the reviewer needs to understand the
+   * change. A relationship that is missing, belongs to another project, or is
+   * a platform-emitted type is reported instead of recorded, so a decision can
+   * only address something an agent may legitimately reason about.
+   */
+  async resolveRelationshipDecisions(params: {
+    organizationId: OrganizationId;
+    projectId: ProjectId;
+    decisions: readonly RelationshipDecision[];
+  }): Promise<{
+    decisions: RelationshipDecision[];
+    issues: ProjectedWorkItemChangeSetIssue[];
+  }> {
+    const token = this.tokenFactory(params.organizationId, params.projectId);
+    const issues: ProjectedWorkItemChangeSetIssue[] = [];
+    const edges = new Map<string, GraphAgentEdge>();
+
+    for (const [index, decision] of params.decisions.entries()) {
+      const id = decision.relationship.id;
+      const edge = await this.agentEdgeClient
+        .get(params.organizationId, params.projectId, id, token)
+        .catch((error: unknown) => {
+          if (
+            (error as { response?: { status?: number } }).response?.status ===
+            404
+          ) {
+            return null;
+          }
+          throw error;
+        });
+      const field = `relationshipDecisions[${index}].relationship`;
+
+      if (!edge) {
+        issues.push(
+          this.toFinding(
+            field,
+            'relationship_not_found',
+            `Relationship ${id} was not found in this project.`,
+            'referential',
+          ),
+        );
+        continue;
+      }
+      if (
+        SYSTEM_EMITTED_GRAPH_EDGE_TYPES.has(
+          edge.type as GraphAgentEdgeTypeValue,
+        )
+      ) {
+        issues.push(
+          this.toFinding(
+            field,
+            'system_relationship_protected',
+            `Relationship ${id} is ${edge.type}, which the platform manages. It cannot be decided on by an agent.`,
+            'referential',
+          ),
+        );
+        continue;
+      }
+      edges.set(id, edge);
+    }
+
+    const replacementIds = (decision: RelationshipDecision): string[] =>
+      [decision.replacement?.source, decision.replacement?.target].flatMap(
+        (identity) => (identity?.refType === 'existing' ? [identity.id] : []),
+      );
+    const endpointIds = [
+      ...new Set([
+        ...[...edges.values()].flatMap((edge) => [
+          edge.sourceNodeId,
+          edge.targetNodeId,
+        ]),
+        ...params.decisions.flatMap(replacementIds),
+      ]),
+    ];
+    const [tasks, designDocs] =
+      endpointIds.length === 0
+        ? [[], []]
+        : await Promise.all([
+            this.prisma.db.task.findMany({
+              where: {
+                id: { in: endpointIds },
+                organizationId: params.organizationId,
+                projectId: params.projectId,
+              },
+              select: { id: true, name: true },
+            }),
+            this.prisma.db.designDoc.findMany({
+              where: {
+                id: { in: endpointIds },
+                organizationId: params.organizationId,
+              },
+              select: { id: true, name: true },
+            }),
+          ]);
+    const names = new Map<string, string>(
+      [...tasks, ...designDocs].map((row) => [row.id, row.name]),
+    );
+
+    const resolved = params.decisions.flatMap((decision, index) => {
+      const edge = edges.get(decision.relationship.id);
+      if (!edge) {
+        return [];
+      }
+      const endpoint = (
+        id: string,
+        entityType?: AgentEdgeEndpointEntityType,
+      ) => {
+        const name = names.get(id);
+        if (name === undefined) {
+          issues.push(
+            this.toFinding(
+              `relationshipDecisions[${index}].relationship`,
+              'relationship_endpoint_unavailable',
+              `An endpoint of relationship ${decision.relationship.id} is not available in this project.`,
+              'referential',
+            ),
+          );
+          return null;
+        }
+        return { id, name, ...(entityType ? { entityType } : {}) };
+      };
+      const source = endpoint(edge.sourceNodeId, edge.sourceEntityType);
+      const target = endpoint(edge.targetNodeId, edge.targetEntityType);
+      if (!source || !target) {
+        return [];
+      }
+      const replacementEndpoints = replacementIds(decision).flatMap((id) => {
+        const name = names.get(id);
+        if (name === undefined) {
+          issues.push(
+            this.toFinding(
+              `relationshipDecisions[${index}].replacement`,
+              'replacement_endpoint_unavailable',
+              `Replacement endpoint ${id} is not available in this project.`,
+              'referential',
+            ),
+          );
+          return [];
+        }
+        return [{ id, name }];
+      });
+      return [
+        {
+          ...decision,
+          ...(replacementEndpoints.length > 0 ? { replacementEndpoints } : {}),
+          original: {
+            edgeType: edge.type as AgentEdgeType,
+            description: edge.reasoning ?? null,
+            source,
+            target,
+          },
+        } satisfies RelationshipDecision,
+      ];
+    });
+
+    return { decisions: resolved, issues };
   }
 
   /**

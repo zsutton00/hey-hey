@@ -40,6 +40,10 @@ import type { ProposalItemStatus } from "./types";
 import { isPlaceholderEntityId } from "./types";
 import { ProposalStateIndicator } from "./ProposalStateIndicator";
 import { ProposalEdges } from "./ProposalEdges";
+import {
+  RelationshipDecisionsReview,
+  supersededIds,
+} from "./RelationshipDecisionsReview";
 import type { ApprovalProgress } from "../../permissions";
 import type { ProposalRenderOverrides } from "./proposalRenderOverrides";
 import { getEntry, setNewEntityId } from "./proposalSelectedStateCache";
@@ -553,6 +557,13 @@ export const TaskCreateRenderer: React.FC<{
         organizationId={proposal.organizationId}
         projectId={proposal.projectId}
       />
+      {proposal.updates.relationshipDecisions && (
+        <RelationshipDecisionsReview
+          decisions={proposal.updates.relationshipDecisions}
+          supersededIds={supersededIds(proposal.edges)}
+          newItemName={proposal.updates.name}
+        />
+      )}
       {siblingProposals && (
         <ProposalEdges
           edges={proposal.edges}

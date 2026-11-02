@@ -13,6 +13,7 @@
 
 import { WorkItemChangeSetLayoutNodeIdentity } from './workItemChangeSetLayoutNodeIdentity';
 import { WorkItemChangeSetIdentity } from './workItemChangeSetIdentity';
+import { RelationshipDecision } from './relationshipDecision';
 import { WorkItemChangeSetOperation } from './workItemChangeSetOperation';
 
 
@@ -23,5 +24,9 @@ export interface WorkItemChangeSetValidationRequest {
      * Complete set of work-item identities expected in the root graph layout boundary.
      */
     layoutBoundary?: Array<WorkItemChangeSetLayoutNodeIdentity>;
+    /**
+     * Reviewable decisions about existing relationships affected by this change, typically a supersession. Remove and replace decisions are normalized into the relationship.delete and relationship.update operations of this request; retain decisions are review evidence only and never produce an operation or graph write. An empty or omitted array declares no relationship for change; it does not mean the whole neighborhood was reconciled.
+     */
+    relationshipDecisions?: Array<RelationshipDecision>;
 }
 

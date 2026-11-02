@@ -1935,6 +1935,127 @@ WorkItemChangeSetValidationRequest:
       description: Complete set of work-item identities expected in the root graph layout boundary.
       items:
         $ref: "#/WorkItemChangeSetLayoutNodeIdentity"
+    relationshipDecisions:
+      type: array
+      maxItems: 100
+      description: >-
+        Reviewable decisions about existing relationships affected by this
+        change, typically a supersession. Remove and replace decisions are
+        normalized into the relationship.delete and relationship.update
+        operations of this request; retain decisions are review evidence only
+        and never produce an operation or graph write. An empty or omitted array
+        declares no relationship for change; it does not mean the whole
+        neighborhood was reconciled.
+      items:
+        $ref: "#/RelationshipDecision"
+
+RelationshipDecisionKind:
+  type: string
+  enum:
+    - retain
+    - remove
+    - replace
+
+RelationshipDecisionEndpoint:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - name
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+    entityType:
+      $ref: "./agent-edges.yaml#/AgentEdgeEndpointEntityType"
+
+RelationshipDecisionOriginal:
+  type: object
+  additionalProperties: false
+  description: >-
+    The relationship as it existed when the decision was authored, recorded by
+    the server so review can explain the before and after.
+  required:
+    - edgeType
+    - source
+    - target
+  properties:
+    edgeType:
+      $ref: "./agent-edges.yaml#/AgentEdgeType"
+    description:
+      type: string
+      nullable: true
+    source:
+      $ref: "#/RelationshipDecisionEndpoint"
+    target:
+      $ref: "#/RelationshipDecisionEndpoint"
+
+RelationshipReplacement:
+  type: object
+  additionalProperties: false
+  description: Exact connection that replaces an existing relationship.
+  required:
+    - source
+    - target
+    - edgeType
+  properties:
+    source:
+      $ref: "#/WorkItemChangeSetIdentity"
+    sourceEntityType:
+      $ref: "./agent-edges.yaml#/AgentEdgeEndpointEntityType"
+    target:
+      $ref: "#/WorkItemChangeSetIdentity"
+    targetEntityType:
+      $ref: "./agent-edges.yaml#/AgentEdgeEndpointEntityType"
+    edgeType:
+      $ref: "./agent-edges.yaml#/AgentEdgeType"
+    category:
+      $ref: "./agent-edges.yaml#/AgentEdgeCategory"
+    direction:
+      nullable: true
+      $ref: "./agent-edges.yaml#/AgentEdgeDirection"
+    predicate:
+      type: string
+      nullable: true
+    actionLabel:
+      allOf:
+        - $ref: "./agent-edges.yaml#/WorkflowEdgeActionLabel"
+      nullable: true
+    reasoning:
+      type: string
+      nullable: true
+    metadata:
+      type: object
+      additionalProperties: true
+      nullable: true
+
+RelationshipDecision:
+  type: object
+  additionalProperties: false
+  required:
+    - relationship
+    - decision
+  properties:
+    relationship:
+      $ref: "#/ExistingRelationshipIdentity"
+    decision:
+      $ref: "#/RelationshipDecisionKind"
+    reason:
+      type: string
+      description: Required and nonempty for a retain decision.
+    replacement:
+      $ref: "#/RelationshipReplacement"
+    original:
+      $ref: "#/RelationshipDecisionOriginal"
+    replacementEndpoints:
+      type: array
+      description: >-
+        Names of the existing work items a replacement connects, recorded by
+        the server so review can name them.
+      items:
+        $ref: "#/RelationshipDecisionEndpoint"
 
 ProjectedWorkItemSection:
   type: object

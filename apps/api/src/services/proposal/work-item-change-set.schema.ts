@@ -6,6 +6,7 @@ import {
   AgentMetaEdgeType,
   AgentEdgeType,
   FeatureTag,
+  RelationshipDecisionKind,
   TaskPriority,
   WorkItemConditionalRelationshipCreateOperation,
   WorkItemCreateOperation,
@@ -23,6 +24,9 @@ import {
   WorkStatus,
 } from '../../generated';
 import type {
+  RelationshipDecision,
+  RelationshipDecisionOriginal,
+  RelationshipReplacement,
   ExistingRelationshipIdentity,
   ExistingWorkItemIdentity,
   TemporaryRelationshipIdentity,
@@ -353,11 +357,67 @@ export const workItemChangeSetOperationSchema = z
     return result.data;
   });
 
+const relationshipDecisionEndpointSchema = z
+  .object({
+    id: z.string().uuid(),
+    name: z.string(),
+    entityType: agentEdgeEndpointEntityTypeSchema.optional(),
+  })
+  .strict();
+
+const relationshipDecisionOriginalSchema = z
+  .object({
+    edgeType: agentEdgeTypeSchema,
+    description: z.string().nullable().optional(),
+    source: relationshipDecisionEndpointSchema,
+    target: relationshipDecisionEndpointSchema,
+  })
+  .strict();
+
+const relationshipReplacementSchema = z
+  .object({
+    source: workItemChangeSetIdentitySchema,
+    sourceEntityType: agentEdgeEndpointEntityTypeSchema.optional(),
+    target: workItemChangeSetIdentitySchema,
+    targetEntityType: agentEdgeEndpointEntityTypeSchema.optional(),
+    edgeType: agentEdgeTypeSchema,
+    category: agentEdgeCategorySchema.optional(),
+    direction: agentEdgeDirectionSchema.optional(),
+    predicate: z.string().nullable().optional(),
+    actionLabel: workflowEdgeActionLabelSchema.nullable().optional(),
+    reasoning: z.string().nullable().optional(),
+    metadata: z.record(z.string(), z.unknown()).nullable().optional(),
+  })
+  .strict();
+
+// Structural decision rules (retain needs a reason, replace needs a
+// replacement, no duplicates, no conflicts with operations) are reported as
+// field-addressable issues by relationshipDecisionIssues so an agent gets a
+// precise, actionable error rather than a generic parse failure.
+export const relationshipDecisionSchema = z
+  .object({
+    relationship: existingRelationshipIdentitySchema,
+    decision: z.nativeEnum(RelationshipDecisionKind),
+    reason: z.string().optional(),
+    replacement: relationshipReplacementSchema.optional(),
+    original: relationshipDecisionOriginalSchema.optional(),
+    replacementEndpoints: z
+      .array(relationshipDecisionEndpointSchema)
+      .optional(),
+  })
+  .strict();
+
+export const MAX_RELATIONSHIP_DECISIONS = 100;
+
 export const workItemChangeSetValidationRequestSchema = z
   .object({
     root: workItemChangeSetIdentitySchema,
     operations: z.array(workItemChangeSetOperationSchema),
     layoutBoundary: z.array(workItemChangeSetIdentitySchema).optional(),
+    relationshipDecisions: z
+      .array(relationshipDecisionSchema)
+      .max(MAX_RELATIONSHIP_DECISIONS)
+      .optional(),
   })
   .strict();
 
@@ -386,6 +446,9 @@ export const workItemChangeSetSchemasAlignWithGeneratedTypes = {
   workItemLayoutClearOperationSchema,
   workItemChangeSetOperationSchema,
   workItemChangeSetValidationRequestSchema,
+  relationshipDecisionSchema,
+  relationshipReplacementSchema,
+  relationshipDecisionOriginalSchema,
 } satisfies {
   existingWorkItemIdentitySchema: z.ZodType<ExistingWorkItemIdentity>;
   temporaryWorkItemIdentitySchema: z.ZodType<TemporaryWorkItemIdentity>;
@@ -425,4 +488,7 @@ export const workItemChangeSetSchemasAlignWithGeneratedTypes = {
     z.ZodTypeDef,
     unknown
   >;
+  relationshipDecisionSchema: z.ZodType<RelationshipDecision>;
+  relationshipReplacementSchema: z.ZodType<RelationshipReplacement>;
+  relationshipDecisionOriginalSchema: z.ZodType<RelationshipDecisionOriginal>;
 };

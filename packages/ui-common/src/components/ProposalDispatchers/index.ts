@@ -4,6 +4,7 @@ export { EdgeOnlyUpdateRenderer } from "./EdgeOnlyUpdateRenderer";
 export { DeleteProposal } from "./DeleteProposal";
 export { CodeChangeReviewSurface } from "./CodeChangeReviewSurface";
 export { ProposalEdges, edgeTypeLabel } from "./ProposalEdges";
+export { RelationshipDecisionsReview } from "./RelationshipDecisionsReview";
 export { SaveReasonModal } from "./SaveReasonModal";
 export type {
   SaveReasonModalProps,

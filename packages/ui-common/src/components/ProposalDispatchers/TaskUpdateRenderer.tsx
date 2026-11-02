@@ -37,6 +37,10 @@ import type { DiffViewMode } from "../SuggestedContent";
 import type { ProposalItemStatus } from "./types";
 import { ProposalStateIndicator } from "./ProposalStateIndicator";
 import { ProposalEdges } from "./ProposalEdges";
+import {
+  RelationshipDecisionsReview,
+  supersededIds,
+} from "./RelationshipDecisionsReview";
 import { buildTaskDiff } from "./diffBuilders";
 import type { ApprovalProgress } from "../../permissions";
 import {
@@ -722,6 +726,13 @@ export const TaskUpdateRenderer: React.FC<{
                     renderImageSection(section, true),
                   )}
                 </Stack>
+              )}
+              {proposal.updates.relationshipDecisions && (
+                <RelationshipDecisionsReview
+                  decisions={proposal.updates.relationshipDecisions}
+                  supersededIds={supersededIds(proposal.edges)}
+                  newItemName={proposal.updates.name ?? existing.name}
+                />
               )}
               {siblingProposals && (
                 <ProposalEdges

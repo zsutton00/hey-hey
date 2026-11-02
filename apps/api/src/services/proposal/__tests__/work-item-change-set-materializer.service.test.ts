@@ -1321,6 +1321,86 @@ describe('WorkItemChangeSetMaterializerService', () => {
     });
   });
 
+  describe('relationship decisions on ordinary task proposals', () => {
+    const targetId = '123e4567-e89b-42d3-a456-426614174301';
+    const predecessorId = '123e4567-e89b-42d3-a456-426614174302';
+    const consumerEdgeId = '123e4567-e89b-42d3-a456-426614174303';
+    const retainedEdgeId = '123e4567-e89b-42d3-a456-426614174304';
+    const decisions = [
+      {
+        relationship: { refType: 'existing', id: consumerEdgeId },
+        decision: 'remove',
+      },
+      {
+        relationship: { refType: 'existing', id: retainedEdgeId },
+        decision: 'retain',
+        reason: 'Consumer B has not migrated yet.',
+      },
+    ];
+    const supersedes = {
+      edgeType: 'SUPERSEDES',
+      targetEntityType: 'TASK',
+      targetEntityId: predecessorId,
+    };
+
+    it('carries decisions and their operations on the generic path next to a SUPERSEDES declaration', () => {
+      const { service } = createService();
+
+      const request = service.taskProposalChangeSet({
+        id: '123e4567-e89b-42d3-a456-426614174305',
+        action: 'UPDATE',
+        targetEntityType: 'TASK',
+        targetEntityId: targetId,
+        updates: { relationshipDecisions: decisions },
+        edges: [supersedes],
+      } as any);
+
+      expect(request).not.toBeNull();
+      expect(request?.relationshipDecisions).toHaveLength(2);
+      expect(request?.operations).toContainEqual({
+        op: 'relationship.delete',
+        ref: { refType: 'existing', id: consumerEdgeId },
+      });
+      expect(request?.operations).not.toContainEqual(
+        expect.objectContaining({
+          ref: { refType: 'existing', id: retainedEdgeId },
+        }),
+      );
+      // The replacement itself is never written as a raw relationship.
+      expect(JSON.stringify(request?.operations)).not.toContain('SUPERSEDES');
+    });
+
+    it('keeps a SUPERSEDES-only proposal on the proposal-edge protocol as before', () => {
+      const { service } = createService();
+
+      expect(
+        service.taskProposalChangeSet({
+          id: '123e4567-e89b-42d3-a456-426614174306',
+          action: 'UPDATE',
+          targetEntityType: 'TASK',
+          targetEntityId: targetId,
+          updates: { name: 'Successor' },
+          edges: [supersedes],
+        } as any),
+      ).toBeNull();
+    });
+
+    it('refuses to drop decisions when another edge needs the proposal-edge protocol', () => {
+      const { service } = createService();
+
+      expect(() =>
+        service.taskProposalChangeSet({
+          id: '123e4567-e89b-42d3-a456-426614174307',
+          action: 'UPDATE',
+          targetEntityType: 'TASK',
+          targetEntityId: targetId,
+          updates: { relationshipDecisions: decisions },
+          edges: [{ ...supersedes, edgeType: 'BLOCKS' }],
+        } as any),
+      ).toThrow(/proposal-edge protocol/);
+    });
+  });
+
   it('preserves an admitted legacy LOOP predicate during canonical change-set normalization', () => {
     const { service } = createService();
 

@@ -48,6 +48,14 @@ export function namedExistingIds(
   };
   visit(request.root);
   for (const boundary of request.layoutBoundary ?? []) visit(boundary);
+  // Hydrating a decided relationship's recorded endpoints loads the incident
+  // relationships the decision's operation needs to resolve against.
+  for (const decision of request.relationshipDecisions ?? []) {
+    if (decision.original) {
+      ids.add(decision.original.source.id);
+      ids.add(decision.original.target.id);
+    }
+  }
   for (const operation of request.operations) {
     switch (operation.op) {
       case 'workItem.create':
