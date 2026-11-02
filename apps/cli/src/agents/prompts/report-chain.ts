@@ -21,6 +21,13 @@ export const CODING_AGENT_REPORT_TYPES: ReadonlySet<string> = new Set([
   'CODING_RESEARCH',
 ]);
 
+/**
+ * Reports shown in the appended handoff block. CODING_RESEARCH is excluded
+ * because its frame already reaches the prompt as a Run memo.
+ */
+export const isLegacyHandoffReport = (entry: Readonly<ReportChainEntry>): boolean =>
+  CODING_AGENT_REPORT_TYPES.has(entry.reportType) && entry.reportType !== 'CODING_RESEARCH';
+
 const HEADER = `## Prior reports on this task
 
 The entries below are reports that prior turns or runs persisted on this task. Each shows the report's \`summary\` field — a 50–100 word handoff to the next phase. To read the full structured payload (file lists, decisions, discrepancies, plan steps, etc.) call the \`get_report_body\` MCP tool with the listed \`reportId\`.`;

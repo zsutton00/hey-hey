@@ -19,6 +19,10 @@ import {
   type EntityPromptTemplateNode,
 } from '../shared/api/generated/entity-prompt-template-language';
 import type { CurrentEntityDto } from '../agents/entity-context/types';
+import {
+  parseReportPath,
+  type EntityPromptTemplateReports,
+} from './entity-prompt-template-reports';
 
 /** Values which the entity prompt-template validator permits in a substitution. */
 export type EntityPromptTemplateValue = string | number | boolean;
@@ -26,6 +30,8 @@ export type EntityPromptTemplateValue = string | number | boolean;
 export interface EntityPromptTemplateRenderInput {
   entity: CurrentEntityDto;
   context: FullEntityContextDto;
+  /** Newest saved report of each report type the template references. */
+  reports: EntityPromptTemplateReports;
 }
 
 export class EntityPromptTemplateRenderError extends Error {
@@ -527,16 +533,29 @@ const readContextPath = (
   }
 };
 
+const readReportPath = (
+  reports: EntityPromptTemplateReports,
+  path: string,
+): EntityPromptTemplateValue | null => {
+  const reference = parseReportPath(path);
+  if (!reference) {
+    return null;
+  }
+
+  return reports[reference.reportType]?.[reference.field] ?? null;
+};
+
 const readPath = (
   path: string,
   input: EntityPromptTemplateRenderInput,
 ): EntityPromptTemplateValue | null => {
   if (path.startsWith('entity.')) return readEntityPath(input.entity, path);
   if (path.startsWith('context.')) return readContextPath(input.context, path);
+  if (path.startsWith('reports.')) return readReportPath(input.reports, path);
   return null;
 };
 
-const languageFor = (
+export const entityPromptTemplateLanguageFor = (
   syntaxVersion: EntityPromptTemplateSyntaxVersion,
 ): EntityPromptTemplateLanguage => {
   const languages: Readonly<Record<string, EntityPromptTemplateLanguage>> =
@@ -646,7 +665,7 @@ export const renderEntityPromptTemplate = (
   syntaxVersion: EntityPromptTemplateSyntaxVersion,
   input: EntityPromptTemplateRenderInput,
 ): string => {
-  const language = languageFor(syntaxVersion);
+  const language = entityPromptTemplateLanguageFor(syntaxVersion);
   if (template.length === 0) {
     throw new EntityPromptTemplateRenderError(
       'Entity prompt template content must not be empty.',

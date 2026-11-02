@@ -87,6 +87,12 @@ export interface ResolvePromptRunState {
    */
   reportChain: ReadonlyArray<Readonly<ReportChainEntry>>;
   /**
+   * Every report in the Run's chain, of any type, at the same instant as
+   * `reportChain`. Entity templates read saved reports from it; unlike
+   * `reportChain` it is never shown as the appended handoff block.
+   */
+  reportHistory?: ReadonlyArray<Readonly<ReportChainEntry>>;
+  /**
    * The Run's accumulating, never-consumed memo list at Turn-construction
    * time. Prepended on provider-session mint for `provider_session` handlers
    * (after `previousProviderSession`, before the report chain) so each newly
@@ -302,6 +308,7 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
         organizationId,
         projectId,
         readRestriction: handlerDeps.readRestriction,
+        ...(runState.reportHistory?.length ? { reportChain: runState.reportHistory } : {}),
       };
       loadedStartupPromptInputThisTurn = true;
       startupPromptInput = runState.startupPromptTemplate

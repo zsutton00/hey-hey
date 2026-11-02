@@ -57,6 +57,14 @@ export const ENTITY_PROMPT_TEMPLATE_LANGUAGES = {
         template: 'context.content.sections.<key>',
         pattern: '^context\\.content\\.sections\\.[a-z][A-Za-z0-9_]*$',
       },
+      {
+        template: 'reports.<TYPE>.latest',
+        pattern: '^reports\\.[A-Z][A-Z0-9_]*\\.latest$',
+      },
+      {
+        template: 'reports.<TYPE>.latest.summary',
+        pattern: '^reports\\.[A-Z][A-Z0-9_]*\\.latest\\.summary$',
+      },
     ],
     missingPathBehavior: 'ERROR',
     malformedSubstitutionBehavior: 'ERROR',

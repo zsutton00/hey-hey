@@ -47,6 +47,18 @@ describe("template source fidelity", () => {
       parts.filter((part) => part.substitution).map((part) => part.source),
     ).toEqual(["{{entity.sections.custom_key}}"]);
   });
+  it("recognizes both saved-report families for concrete types only", () => {
+    const parts = splitTemplateSource(
+      "{{reports.CODING_RESEARCH.latest}} {{reports.PLAN.latest.summary}} {{reports.<TYPE>.latest}} {{reports.CODING_RESEARCH}}",
+      "V1",
+    );
+    expect(
+      parts.filter((part) => part.substitution).map((part) => part.source),
+    ).toEqual([
+      "{{reports.CODING_RESEARCH.latest}}",
+      "{{reports.PLAN.latest.summary}}",
+    ]);
+  });
   it("describes all identifiers and deterministically regenerates the catalog", () => {
     const language = ENTITY_PROMPT_TEMPLATE_LANGUAGES.V1;
     expect(language.authoring.paths.map((entry) => entry.path)).toEqual(

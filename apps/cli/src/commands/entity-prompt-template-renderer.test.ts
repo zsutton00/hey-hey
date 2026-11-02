@@ -149,6 +149,7 @@ const context = (): FullEntityContextDto => ({
 const input = (): EntityPromptTemplateRenderInput => ({
   entity: entity(),
   context: context(),
+  reports: {},
 });
 
 describe('renderEntityPromptTemplate', () => {
@@ -674,5 +675,41 @@ describe('renderEntityPromptTemplate', () => {
     ])('rejects unbalanced block syntax %j', (template) => {
       expect(() => render(template)).toThrow(EntityPromptTemplateRenderError);
     });
+  });
+});
+
+describe('saved report values', () => {
+  const withReports = (): EntityPromptTemplateRenderInput => ({
+    ...input(),
+    reports: { CODING_RESEARCH: { latest: 'DATED RESEARCH BODY', summary: 'SHORT SUMMARY' } },
+  });
+
+  it('renders the dated body, the summary, and the branch for a saved report', () => {
+    expect(
+      renderEntityPromptTemplate(
+        '{{#if reports.CODING_RESEARCH.latest}}{{reports.CODING_RESEARCH.latest}}|{{reports.CODING_RESEARCH.latest.summary}}{{else}}FULL{{/if}}',
+        'V1',
+        withReports(),
+      ),
+    ).toBe('DATED RESEARCH BODY|SHORT SUMMARY');
+  });
+
+  it('takes the else branch for a missing report but rejects it as a plain substitution', () => {
+    expect(
+      renderEntityPromptTemplate(
+        '{{#if reports.CODING_RESEARCH.latest}}RESEARCH{{else}}FULL{{/if}}',
+        'V1',
+        input(),
+      ),
+    ).toBe('FULL');
+    expect(() =>
+      renderEntityPromptTemplate('{{reports.CODING_RESEARCH.latest}}', 'V1', input()),
+    ).toThrow(/missing from the loaded input/);
+  });
+
+  it('rejects a malformed report path', () => {
+    expect(() =>
+      renderEntityPromptTemplate('{{reports.CODING_RESEARCH.latest.body}}', 'V1', withReports()),
+    ).toThrow(/not supported/);
   });
 });

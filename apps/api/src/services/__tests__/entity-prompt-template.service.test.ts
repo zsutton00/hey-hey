@@ -1318,3 +1318,33 @@ describe('conditional block validation', () => {
     expect(codes(content)).toContain(code);
   });
 });
+
+describe('saved report path validation', () => {
+  const codes = (content: string): string[] =>
+    validateEntityPromptTemplateContent(content, 'V1').map(
+      (issue) => issue.code,
+    );
+
+  it('accepts both report path families for any report type, in values and conditions', () => {
+    expect(
+      codes(
+        '{{reports.CODING_RESEARCH.latest}}{{reports.PLAN.latest.summary}}' +
+          '{{#if reports.FEATURE_SYNC_HANDOFF.latest}}x{{/if}}',
+      ),
+    ).toEqual([]);
+  });
+
+  it.each([
+    '{{reports.latest}}',
+    '{{reports..latest}}',
+    '{{reports.CODING_RESEARCH}}',
+    '{{reports.CODING_RESEARCH.latest.body}}',
+    '{{reports.CODING_RESEARCH.latest.summary.extra}}',
+    '{{reports.CODING_RESEARCH.oldest}}',
+    '{{reports.coding_research.latest}}',
+    '{{reports.<TYPE>.latest}}',
+    '{{#if reports.<TYPE>.latest.summary}}x{{/if}}',
+  ])('rejects malformed report path %j', (content) => {
+    expect(codes(content)).not.toEqual([]);
+  });
+});

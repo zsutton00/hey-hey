@@ -148,7 +148,7 @@ import { validateResolvedPromptReferences } from '../server/services/run.service
 import { EventDispatcher } from './event-dispatcher';
 import type { MessagePoster } from './message-poster';
 import { normalizeEvent } from './normalize';
-import { CODING_AGENT_REPORT_TYPES } from '../agents/prompts/report-chain';
+import { isLegacyHandoffReport } from '../agents/prompts/report-chain';
 import { evaluateDeclaredReports } from './report-enforcement';
 import { emitOpenImplementReportIfNeeded } from './open-implement-report';
 import { resolvePrompt } from './resolve-prompt';
@@ -5426,19 +5426,12 @@ export class Run {
     // Handlers whose canonical runtime state is their sole authority can
     // opt out before the chain is read, preventing reports from becoming
     // either prompt context or an implicit execution dependency.
-    // Filter to the four agent-facing types produced by coding agents; non-coding
-    // reports (GOAL_PROGRESS, SESSION_SUMMARY, etc.) carry no implementation
-    // context that coding-agent prompts need, and CODING_RESEARCH is excluded
-    // here because its Frame is injected via the memo mechanism — the
-    // `create_coding_research` tool appends it directly — instead.
-    const priorReports =
-      handler.subagentConfig?.includePriorReports === false
-        ? []
-        : this.readReportChain().filter(
-            (entry) =>
-              CODING_AGENT_REPORT_TYPES.has(entry.reportType) &&
-              entry.reportType !== 'CODING_RESEARCH',
-          );
+    // Entity templates can read any report type, so template resolution gets the
+    // whole snapshot. Runners and the appended handoff block keep the types
+    // coding agents have always been shown.
+    const reportHistory =
+      handler.subagentConfig?.includePriorReports === false ? [] : this.readReportChain();
+    const priorReports = reportHistory.filter(isLegacyHandoffReport);
 
     // A handler with a run evidence directory starts children in `prepare`, and
     // those children read their evidence through Run-registered tools, so the
@@ -5456,6 +5449,7 @@ export class Run {
         isFirstTurn,
         previousProviderSession: session.previousProviderSession ?? null,
         reportChain: priorReports,
+        reportHistory,
         memos: session.memos ?? [],
         startupPromptInput: this.startupPromptInputResult,
         startupPromptTemplate: this.startupPromptTemplate,

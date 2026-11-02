@@ -151,6 +151,16 @@ export const ENTITY_PROMPT_TEMPLATE_LANGUAGES =
           "template": "context.content.sections.<key>",
           "pattern": "^context\\.content\\.sections\\.[a-z][A-Za-z0-9_]*$",
           "description": "A named section in the context content. Replace <key> with a concrete section key; the family itself is not insertable."
+        },
+        {
+          "template": "reports.<TYPE>.latest",
+          "pattern": "^reports\\.[A-Z][A-Z0-9_]*\\.latest$",
+          "description": "The newest saved report of one type on the focal entity, from this Run or an earlier one, as readable content with its date. Replace <TYPE> with a concrete report type such as CODING_RESEARCH; the family itself is not insertable. Absent when no report of that type exists."
+        },
+        {
+          "template": "reports.<TYPE>.latest.summary",
+          "pattern": "^reports\\.[A-Z][A-Z0-9_]*\\.latest\\.summary$",
+          "description": "Only the short handoff summary of the newest saved report of one type on the focal entity. Replace <TYPE> with a concrete report type; the family itself is not insertable. Absent when no report of that type exists."
         }
       ],
       "conditionalBlocks": [
@@ -182,6 +192,14 @@ export const ENTITY_PROMPT_TEMPLATE_LANGUAGES =
       {
         "template": "context.content.sections.<key>",
         "pattern": "^context\\.content\\.sections\\.[a-z][A-Za-z0-9_]*$"
+      },
+      {
+        "template": "reports.<TYPE>.latest",
+        "pattern": "^reports\\.[A-Z][A-Z0-9_]*\\.latest$"
+      },
+      {
+        "template": "reports.<TYPE>.latest.summary",
+        "pattern": "^reports\\.[A-Z][A-Z0-9_]*\\.latest\\.summary$"
       }
     ]
   }

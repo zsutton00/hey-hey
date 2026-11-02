@@ -413,6 +413,37 @@ describe('resolvePrompt — first turn with handler and payload', () => {
     });
   });
 
+  it('gives startup input every report in the Run history while the handoff block keeps its own selection', async () => {
+    const resolveStartupPromptInput = vi.fn().mockResolvedValue(authoritativeStartupResult());
+    const handler = registerHandler('resolve_prompt_test_report_history', {
+      buildPrompt: () => 'HANDLER CONTEXT',
+      addUserMessage: defaultAddUserMessage,
+    });
+    const deps = makeHandlerDeps();
+    deps.startupPromptInput = {
+      resolve: resolveStartupPromptInput,
+    } as unknown as PromptTypeHandlerDeps['startupPromptInput'];
+    const research = makeChainEntry({ reportId: 'rep-research', reportType: 'CODING_RESEARCH' });
+    const plan = makeChainEntry({ reportId: 'rep-plan', reportType: 'PLAN' });
+
+    const result = await callResolve({
+      handler,
+      run: makeSession({ entity: { entityType: RunEntityType.Task, entityId: 'task-1' } }),
+      handlerDeps: deps,
+      runState: makeRunState({ reportChain: [plan], reportHistory: [research, plan] }),
+      input: makeInput({
+        promptType: 'resolve_prompt_test_report_history',
+        payload: { userMessage: 'Start now.' },
+      }),
+    });
+
+    expect(resolveStartupPromptInput).toHaveBeenCalledWith(
+      expect.objectContaining({ reportChain: [research, plan] }),
+    );
+    expect(result.resolvedPrompt).toContain('rep-plan');
+    expect(result.resolvedPrompt).not.toContain('rep-research');
+  });
+
   it('passes the same rendered startup input to an isolated first turn without resolving a second time', async () => {
     const startupResult = authoritativeStartupResult();
     const resolveStartupPromptInput = vi.fn().mockResolvedValue(startupResult);
