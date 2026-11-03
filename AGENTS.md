@@ -19,6 +19,13 @@ This file is pruned periodically. Add a rule only when its absence has demonstra
 - Don't re-declare a shape the spec already defines. Import the generated type.
 - Use `satisfies` to check literals against generated types. Do not use `as` to silence a type error. If the type is wrong, fix the spec or the type.
 
+## Generation benchmarks
+
+- Compare isolated baseline and candidate checkouts whose complete generation inputs match the intended revisions. Record the OpenAPI closure and generator-input identities (specs, scripts, manifests, and tool versions); a matching OpenAPI digest alone does not make cached outputs comparable.
+- Start each scenario from the same recorded source and cache state. Do not carry edits or generated outputs from one scenario into another unless that carry-over is the scenario being measured.
+- Run all generation requests through the host-wide coordinator. Measure lock wait separately from useful generation time, and count expensive invocations at the generator boundary; don't trust an invocation counter unless its instrumentation is present in that checkout.
+- Mark a before/after result noncomparable when inputs, tool versions, cache state, or completion differ, and identify the mismatch instead of inferring a speedup.
+
 ## Types
 
 - Trust the types. Don't re-check at runtime what the compiler already guarantees: no `typeof x === "object"` ladders or property-by-property probing of typed values.
