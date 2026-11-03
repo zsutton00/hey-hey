@@ -20832,13 +20832,14 @@
               "type": "string",
               "const": "CODING_RESEARCH"
             },
+            "format": {
+              "$ref": "#/definitions/CodingResearchStructuredReportPayloadFormatEnum"
+            },
             "summary": {
-              "not": {},
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "type": "string"
             },
             "analysis": {
-              "type": "string",
-              "description": "User-facing markdown synthesis of what the graph implies for the focal task."
+              "type": "string"
             },
             "frame": {
               "type": "object",
@@ -20860,16 +20861,46 @@
                 "$ref": "#/definitions/CodingResearchReadinessEvidence"
               },
               "description": "Bounded evidence for consequential implementation-readiness decisions."
+            },
+            "uncertainties": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/CodingResearchUncertainty"
+              },
+              "description": "Evidence uncertainties; an empty array means none were found."
             }
           },
           "required": [
             "analysis",
+            "format",
             "frame",
             "provenance",
             "reportType",
             "summary",
+            "uncertainties",
             "updates"
           ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "reportType": {
+              "type": "string",
+              "const": "CODING_RESEARCH"
+            },
+            "format": {
+              "$ref": "#/definitions/CodingResearchWrittenReportPayloadFormatEnum"
+            },
+            "summary": {
+              "type": "string",
+              "description": "50–100 word handoff derived from the opening paragraph of analysis."
+            },
+            "analysis": {
+              "type": "string",
+              "description": "Markdown handoff authored by the Project Assistant parent. Any uncertainty section is headed `Uncertainties` and uses the shared entry convention; child handoffs remain source evidence and are not copied into the visible report as child-authored sections."
+            }
+          },
+          "required": ["analysis", "format", "reportType", "summary"]
         },
         {
           "type": "object",
@@ -21918,6 +21949,15 @@
         {}
       ]
     },
+    "CodingResearchStructuredReportPayloadFormatEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "STRUCTURED"
+        },
+        {}
+      ]
+    },
     "CodingResearchProvenance": {
       "type": "object",
       "properties": {
@@ -22077,6 +22117,91 @@
         {
           "type": "string",
           "const": "integration"
+        },
+        {}
+      ]
+    },
+    "CodingResearchUncertainty": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "$ref": "#/definitions/CodingResearchUncertaintyCategoryEnum",
+          "description": "lack_of_evidence means relevant project sources do not establish the point; conflict means relevant sources make incompatible claims; ambiguity means one source reasonably supports more than one reading; not_implemented means evidence shows the expected behavior is absent."
+        },
+        "severity": {
+          "$ref": "#/definitions/CodingResearchUncertaintySeverityEnum",
+          "description": "Evidence impact: low is peripheral and needs little qualification; medium weakens a material detail and requires a qualified answer; high prevents a reliable answer to a central part of the ask."
+        },
+        "statement": {
+          "type": "string"
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CodingResearchUncertaintyReference"
+          }
+        }
+      },
+      "required": ["category", "severity", "statement", "references"]
+    },
+    "CodingResearchUncertaintyCategoryEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "lack_of_evidence"
+        },
+        {
+          "type": "string",
+          "const": "conflict"
+        },
+        {
+          "type": "string",
+          "const": "ambiguity"
+        },
+        {
+          "type": "string",
+          "const": "not_implemented"
+        },
+        {}
+      ]
+    },
+    "CodingResearchUncertaintySeverityEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "low"
+        },
+        {
+          "type": "string",
+          "const": "medium"
+        },
+        {
+          "type": "string",
+          "const": "high"
+        },
+        {}
+      ]
+    },
+    "CodingResearchUncertaintyReference": {
+      "type": "object",
+      "properties": {
+        "entityType": {
+          "$ref": "#/definitions/EntityType"
+        },
+        "entityId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": ["entityType", "entityId", "title"]
+    },
+    "CodingResearchWrittenReportPayloadFormatEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "WRITTEN"
         },
         {}
       ]

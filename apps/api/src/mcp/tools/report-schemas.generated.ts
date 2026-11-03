@@ -214,33 +214,23 @@ export const REPORT_SCHEMAS = {
   },
   CODING_RESEARCH: {
     description:
-      'Payload for CODING_RESEARCH reports emitted by the Project Assistant subagent. `summary` (from BaseReportPayload) is the 50–100 word handoff for the coding agent. `analysis` is the user-facing markdown synthesis of what the graph implies for the task. `frame` is the ResearchOutput adjacency-list object. `provenance` records every discovery call and edge traversal made during the investigation.',
+      'Payload for CODING_RESEARCH reports. The `format` discriminator selects structured output or the strict written summary/analysis handoff.',
     schema: {
       description:
-        'Payload for CODING_RESEARCH reports emitted by the Project Assistant subagent. `summary` (from BaseReportPayload) is the 50–100 word handoff for the coding agent. `analysis` is the user-facing markdown synthesis of what the graph implies for the task. `frame` is the ResearchOutput adjacency-list object. `provenance` records every discovery call and edge traversal made during the investigation.\n',
-      allOf: [
+        'Payload for CODING_RESEARCH reports. The `format` discriminator selects structured output or the strict written summary/analysis handoff.\n',
+      oneOf: [
         {
           type: 'object',
-          description:
-            'Common base shape every ReportPayload variant inherits via `allOf`. Defines the `summary` field that every report carries: a 50-100 word phase handoff capturing what the next agent needs to know to pick up — not a transcript of what happened this turn. Variants compose this base with their own type-specific shape and contribute their own discriminator + required fields; the `summary` requirement flows in from this base.\n',
-          required: ['summary'],
-          properties: {
-            summary: {
-              type: 'string',
-              minLength: 1,
-              description:
-                '50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run.\n',
-            },
-          },
-        },
-        {
-          type: 'object',
+          description: 'Structured Project Assistant research result.',
           required: [
             'reportType',
+            'format',
+            'summary',
             'analysis',
             'frame',
             'provenance',
             'updates',
+            'uncertainties',
           ],
           additionalProperties: false,
           properties: {
@@ -248,12 +238,17 @@ export const REPORT_SCHEMAS = {
               type: 'string',
               enum: ['CODING_RESEARCH'],
             },
-            summary: {},
+            format: {
+              type: 'string',
+              enum: ['STRUCTURED'],
+            },
+            summary: {
+              type: 'string',
+              minLength: 1,
+            },
             analysis: {
               type: 'string',
               minLength: 1,
-              description:
-                'User-facing markdown synthesis of what the graph implies for the focal task.',
             },
             frame: {
               type: 'object',
@@ -432,6 +427,107 @@ export const REPORT_SCHEMAS = {
                   },
                 },
               },
+            },
+            uncertainties: {
+              type: 'array',
+              description:
+                'Evidence uncertainties; an empty array means none were found.',
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                required: ['category', 'severity', 'statement', 'references'],
+                properties: {
+                  category: {
+                    type: 'string',
+                    enum: [
+                      'lack_of_evidence',
+                      'conflict',
+                      'ambiguity',
+                      'not_implemented',
+                    ],
+                    description:
+                      'lack_of_evidence means relevant project sources do not establish the point; conflict means relevant sources make incompatible claims; ambiguity means one source reasonably supports more than one reading; not_implemented means evidence shows the expected behavior is absent.\n',
+                  },
+                  severity: {
+                    type: 'string',
+                    enum: ['low', 'medium', 'high'],
+                    description:
+                      'Evidence impact: low is peripheral and needs little qualification; medium weakens a material detail and requires a qualified answer; high prevents a reliable answer to a central part of the ask.\n',
+                  },
+                  statement: {
+                    type: 'string',
+                    minLength: 1,
+                  },
+                  references: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      additionalProperties: false,
+                      required: ['entityType', 'entityId', 'title'],
+                      properties: {
+                        entityType: {
+                          type: 'string',
+                          enum: [
+                            'ARTIFACT',
+                            'INITIATIVE',
+                            'PROJECT',
+                            'TASK',
+                            'MESSAGE',
+                            'CONVERSATION',
+                            'DESIGN_DOC',
+                            'AGENT_SESSION',
+                            'VALIDATION_SESSION',
+                            'SERVICE',
+                            'REPORT',
+                            'PROPOSAL',
+                            'IMPLEMENTATION_HINT',
+                            'USER',
+                          ],
+                          description:
+                            "Entity type for canonical entities. `USER` is used in proposal influence rows to attribute a change to the human who authored it (resolved to the user's display name on snapshot); users are not stored in the entity registry.",
+                        },
+                        entityId: {
+                          type: 'string',
+                          minLength: 1,
+                        },
+                        title: {
+                          type: 'string',
+                          minLength: 1,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        {
+          type: 'object',
+          description:
+            'Written Project Assistant research result. The parent authors the visible summary and analysis, including its headed uncertainty section; children provide evidence to the parent and do not author the report.',
+          required: ['reportType', 'format', 'summary', 'analysis'],
+          additionalProperties: false,
+          properties: {
+            reportType: {
+              type: 'string',
+              enum: ['CODING_RESEARCH'],
+            },
+            format: {
+              type: 'string',
+              enum: ['WRITTEN'],
+            },
+            summary: {
+              type: 'string',
+              minLength: 1,
+              description:
+                '50–100 word handoff derived from the opening paragraph of analysis.',
+            },
+            analysis: {
+              type: 'string',
+              minLength: 1,
+              description:
+                'Markdown handoff authored by the Project Assistant parent. Any uncertainty section is headed `Uncertainties` and uses the shared entry convention; child handoffs remain source evidence and are not copied into the visible report as child-authored sections.',
             },
           },
         },

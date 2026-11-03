@@ -1,5 +1,4 @@
 // @ts-nocheck
-import { CodingResearchReportPayloadAllOfReportTypeEnum } from './coding-research-report-payload-all-of.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -17,30 +16,26 @@ import { CodingResearchReportPayloadAllOfReportTypeEnum } from './coding-researc
 
 // May contain unused imports in some cases
 // @ts-ignore
-import type { BaseReportPayload } from './base-report-payload.js';
-// May contain unused imports in some cases
-// @ts-ignore
 import type { CodingResearchProvenance } from './coding-research-provenance.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { CodingResearchReadinessEvidence } from './coding-research-readiness-evidence.js';
 // May contain unused imports in some cases
 // @ts-ignore
-import type { CodingResearchReportPayloadAllOf } from './coding-research-report-payload-all-of.js';
+import type { CodingResearchStructuredReportPayload } from './coding-research-structured-report-payload.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { CodingResearchUncertainty } from './coding-research-uncertainty.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { CodingResearchUpdate } from './coding-research-update.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { CodingResearchWrittenReportPayload } from './coding-research-written-report-payload.js';
 
 /**
  * @type CodingResearchReportPayload
- * Payload for CODING_RESEARCH reports emitted by the Project Assistant subagent. `summary` (from BaseReportPayload) is the 50–100 word handoff for the coding agent. `analysis` is the user-facing markdown synthesis of what the graph implies for the task. `frame` is the ResearchOutput adjacency-list object. `provenance` records every discovery call and edge traversal made during the investigation.
+ * Payload for CODING_RESEARCH reports. The `format` discriminator selects structured output or the strict written summary/analysis handoff.
  * @export
  */
-export interface CodingResearchReportPayload extends BaseReportPayload, CodingResearchReportPayloadAllOf {
-    'summary': Exclude<CodingResearchReportPayloadAllOf['summary'], undefined>;
-}
-
-export namespace CodingResearchReportPayload {
-    export const ReportTypeEnum = CodingResearchReportPayloadAllOfReportTypeEnum;
-    export type ReportTypeEnum = CodingResearchReportPayloadAllOfReportTypeEnum;
-}
+export type CodingResearchReportPayload = CodingResearchStructuredReportPayload | CodingResearchWrittenReportPayload;
