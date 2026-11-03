@@ -17,3 +17,4 @@ mod hints;
 mod native;
 
 pub mod ingest;
+pub mod proposed_together;

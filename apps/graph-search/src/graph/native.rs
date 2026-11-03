@@ -35,6 +35,21 @@ pub async fn begin(
     }
     Ok(tx)
 }
+
+/// Serializes proposal cohort reads and pair writes within one project.
+/// Keep the organization barrier from `begin` first so all graph writers use
+/// the same lock order as organization closure.
+pub async fn lock_project_cohort(
+    tx: &mut Transaction<'_, Postgres>,
+    scope: &Scope,
+) -> anyhow::Result<()> {
+    let lock_key = format!("{}:{}", scope.organization, scope.project);
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 2))")
+        .bind(lock_key)
+        .execute(&mut **tx)
+        .await?;
+    Ok(())
+}
 pub async fn uuid(tx: &mut Transaction<'_, Postgres>) -> Result<String, Failure> {
     Ok(sqlx::query_scalar("SELECT gen_random_uuid()::text")
         .fetch_one(&mut **tx)

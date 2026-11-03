@@ -529,7 +529,43 @@ creating duplicates. Atomic local event receipts prevent a duplicate older event
 from overwriting newer state, with the deployed Graph's 24-hour retention. These
 receipts hold identities only, not replayable payloads. Organization closure deletes
 the graph and receipts and fences subsequent writes through the shared store.
-PROPOSED_TOGETHER rules remain separately owned.
+Approved CREATE proposals in one conversation also persist one system-owned
+`PROPOSED_TOGETHER` edge per unordered pair of live, project-scoped targets.
+Approval edits do not add creation-history edges. The stored edges use the same
+adjacency read paths as other graph relationships, so incident reads and traversal
+can reach them from either endpoint. Proposal cohort reads and writes are serialized
+by project inside the transaction; tenant and project scope remain part of every
+lookup and edge key.
+
+Existing creation history can be populated with the explicit project-scoped
+maintenance command:
+
+```sh
+cd apps/graph-search
+GRAPH_SEARCH_DATABASE_URL=postgres://.../heyhey_graph_search \\
+  cargo run --locked --bin backfill_proposed_together -- \\
+  --organization-id <organization-uuid> --project-id <project-uuid> \\
+  --batch-size 100
+```
+
+The command prints JSON progress by completed conversation batch, including
+cohorts, distinct subjects examined, pairs ensured/inserted, invalid records,
+and bounded diagnostics. Save the last `afterConversationId` and pass it as
+`--after-conversation-id` to resume after interruption. Re-running from the
+beginning is safe: ingestion and backfill share canonical endpoint ordering and
+the unique pair deduplication key. Missing conversation IDs are reported before
+processing; proposals without a usable subject or live canonical endpoint are
+reported and skipped. Deleted or missing endpoints never produce new pairs.
+An existing stub can receive its stored pair during approval, while read paths
+continue hiding that endpoint; normal task hydration then exposes the pair
+without replaying the already-consumed approval event.
+
+For a conversation with *n* distinct valid targets, the stored clique contains
+at most *n(n−1)/2* edges; adding one target requires at most *n−1* new edges.
+Database work is scoped to the explicit organization/project and indexed
+conversation cohorts. Pair storage grows quadratically for a large conversation,
+while each ordinary context read now follows stored adjacency instead of joining
+the proposal cohort.
 
 The workers use bounded lanes and apply an aggregate's events in receive order.
 A rejected, failed or panicking event is logged by identity and does not stop the
