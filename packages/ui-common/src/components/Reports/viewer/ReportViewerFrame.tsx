@@ -20,6 +20,9 @@ const USAGE_REPORT_TYPES: ReadonlySet<ReportType> = new Set([
   ReportType.Implement,
   ReportType.ChangeWalkthrough,
   ReportType.Review,
+  ReportType.FeatureSync,
+  ReportType.FeatureSyncHandoff,
+  ReportType.FeatureSyncDecision,
 ]);
 
 export interface ReportViewerTitleLink {

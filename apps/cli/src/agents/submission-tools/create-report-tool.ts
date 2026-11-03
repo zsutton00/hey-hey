@@ -538,9 +538,15 @@ export class CreateReportTool implements PassThroughSubmissionToolDeclaration {
     const reportArgs = withRunAgent(args, run);
     delete reportArgs['usage'];
     if (
-      ['CODING_RESEARCH', 'IMPLEMENT', 'REVIEW', 'CHANGE_WALKTHROUGH'].includes(
-        String(args['reportType']),
-      )
+      [
+        'CODING_RESEARCH',
+        'IMPLEMENT',
+        'REVIEW',
+        'CHANGE_WALKTHROUGH',
+        'FEATURE_SYNC',
+        'FEATURE_SYNC_HANDOFF',
+        'FEATURE_SYNC_DECISION',
+      ].includes(String(args['reportType']))
     ) {
       try {
         reportArgs['usage'] = await this.usageSnapshotter.capture(

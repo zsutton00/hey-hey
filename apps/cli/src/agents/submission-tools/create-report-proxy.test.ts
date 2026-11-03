@@ -1328,6 +1328,27 @@ describe('creation-time report usage', () => {
     expect(registry.get(parent.token)).not.toBeNull();
   });
 
+  it.each([
+    ['FEATURE_SYNC', { reportType: 'FEATURE_SYNC', summary: 'Drift' }],
+    ['FEATURE_SYNC_HANDOFF', { reportType: 'FEATURE_SYNC_HANDOFF', summary: 'Handoff' }],
+  ])(
+    'snapshots usage in the same write for %s, and still saves when unmeasurable',
+    async (reportType, payload) => {
+      const { tool, run, body, read } = setup();
+      const submitSync = () =>
+        tool.execute({
+          runId: run.runId,
+          run,
+          args: { reportType, audience: 'PROJECT_VISIBLE', payload },
+        });
+      await submitSync();
+      expect(body(0).usage).toMatchObject({ inputTokens: 33, coverage: 'complete' });
+      read.mockRejectedValue(new Error('Unreadable native session'));
+      await submitSync();
+      expect(body(1)).not.toHaveProperty('usage');
+    },
+  );
+
   it('creates the report without usage when collection fails, and never collects for a skipped IMPLEMENT', async () => {
     const { submit, body, read, tool, run, fetchImpl } = setup();
     read.mockRejectedValue(new Error('Unreadable native session'));
