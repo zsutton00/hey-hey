@@ -27,12 +27,9 @@ RUN pnpm install --frozen-lockfile --filter hey-hey... --filter hey-hey-openapi
 
 COPY . .
 
-# No .git in the context, so pin the OpenAPI source root.
-ENV HEY_HEY_OPENAPI_ROOT=/workspace/openapi
-
 # Vite compiles UI Common from packages/ui-common/src.
-RUN pnpm --filter @hey-hey/contracts build
-RUN NODE_OPTIONS="--max-old-space-size=4096" pnpm --filter hey-hey build
+RUN pnpm --filter @hey-hey/contracts build:unlocked
+RUN NODE_OPTIONS="--max-old-space-size=4096" pnpm --filter hey-hey build:unlocked
 
 FROM node:24.16.0-bookworm-slim AS runtime
 
