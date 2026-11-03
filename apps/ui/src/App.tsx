@@ -26,7 +26,7 @@ import {
 import { GlobalStyles } from "@mui/material";
 import { QueryClient } from "@tanstack/react-query";
 import { QueryClientAtomProvider } from "jotai-tanstack-query/react";
-import { LazyAnimatePresence } from "./components/LazyAnimatePresence";
+import { AnimatePresence } from "motion/react";
 import { NuqsAdapter } from "nuqs/adapters/react-router";
 import {
   Navigate,
@@ -401,7 +401,7 @@ export const AppRouteShell = () => {
   const showActionsCapsule = isActionsCapsuleRoute;
   const projectId =
     location.pathname.match(/^\/projects\/([^/]+)/)?.[1] ?? null;
-  // Hosted modals outlive the project-keyed open-items tree, so their page
+  // Hosted modals outlive the project-scoped open-items state, so their page
   // activations forward to whichever open-items sink is currently mounted.
   const hostedSinkRef = useRef<EntityActivationSink | null>(null);
   const hostedSink = useMemo<EntityActivationSink>(
@@ -420,8 +420,8 @@ export const AppRouteShell = () => {
           </NuqsAdapter>
         </CanonicalPageProvider>
       </EntityActivationProvider>
+      {/* The provider isolates its canonical state by scope without remounting Layout. */}
       <OpenItemsProvider
-        key={`${user?.id}:${currentOrganization?.id}:${projectId}`}
         projectId={projectId}
         organizationId={currentOrganization?.id ?? null}
         userId={user?.id ?? null}
@@ -434,14 +434,16 @@ export const AppRouteShell = () => {
                 organizationId={currentOrganization?.id ?? ""}
                 projectId={projectId}
               >
-                <LazyAnimatePresence mode="wait">
-                  <Layout />
-                  {showActionsCapsule && (
-                    <Suspense fallback={null}>
-                      <ActionsCapsule />
-                    </Suspense>
-                  )}
-                </LazyAnimatePresence>
+                <AnimatePresence mode="wait">
+                  <>
+                    <Layout />
+                    {showActionsCapsule && (
+                      <Suspense fallback={null}>
+                        <ActionsCapsule />
+                      </Suspense>
+                    )}
+                  </>
+                </AnimatePresence>
               </OpenItemsPreviewHost>
             </NuqsAdapter>
           </CanonicalPageProvider>

@@ -1,13 +1,14 @@
 import { useOrganization } from "@hey-hey/ui-common/context";
 import { render, screen, within } from "@testing-library/react";
-import { isValidElement, type ReactNode } from "react";
+import { isValidElement, useEffect, type ReactNode } from "react";
 import { AppProtectedRoute } from "./components/AppProtectedRoute";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App, { AppRouteShell, router } from "./App";
 import { useOrganizationProjectShellVisibility } from "./hooks/useOrganizationProjectShellVisibility";
 
-const { openItemsScopeMock } = vi.hoisted(() => ({
+const { openItemsScopeMock, layoutUnmount } = vi.hoisted(() => ({
+  layoutUnmount: vi.fn(),
   openItemsScopeMock: vi.fn(),
 }));
 
@@ -108,18 +109,18 @@ vi.mock("./components/OpenItemsPreviewHost", () => ({
   ),
 }));
 
-vi.mock("./components/LazyAnimatePresence", () => ({
-  LazyAnimatePresence: ({ children }: { children: ReactNode }) => (
-    <>{children}</>
-  ),
-}));
-
 vi.mock("./components/HeyHeyModal", () => ({
   HeyHeyModal: () => null,
 }));
 
 vi.mock("./components/Layout", () => ({
   Layout: () => {
+    useEffect(
+      () => () => {
+        layoutUnmount();
+      },
+      [],
+    );
     const { shouldShowProjectShell } = useOrganizationProjectShellVisibility();
     return shouldShowProjectShell ? <div data-testid="project-chrome" /> : null;
   },
@@ -143,6 +144,39 @@ describe("AppRouteShell", () => {
       currentOrganization: { id: "org-1" },
       loading: false,
     } as ReturnType<typeof useOrganization>);
+  });
+
+  it("keeps layout consumers mounted while organization initialization settles", async () => {
+    useOrganizationProjectShellVisibilityMock.mockReturnValue({
+      isProjectCollectionReady: true,
+      shouldShowProjectShell: true,
+    });
+    useOrganizationMock.mockReturnValue({
+      currentOrganization: null,
+      loading: true,
+    } as ReturnType<typeof useOrganization>);
+    layoutUnmount.mockClear();
+    const view = renderShell();
+    await screen.findByTestId("actions-capsule");
+    expect(layoutUnmount).not.toHaveBeenCalled();
+    const chrome = screen.getByTestId("project-chrome");
+
+    useOrganizationMock.mockReturnValue({
+      currentOrganization: { id: "org-1" },
+      loading: false,
+    } as ReturnType<typeof useOrganization>);
+    view.rerender(
+      <MemoryRouter initialEntries={["/projects/project-1/activity"]}>
+        <AppRouteShell />
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId("project-chrome")).toBe(chrome);
+    expect(layoutUnmount).not.toHaveBeenCalled();
+    expect(openItemsScopeMock).toHaveBeenLastCalledWith({
+      organizationId: "org-1",
+      userId: "user-1",
+      projectId: "project-1",
+    });
   });
 
   it.each([

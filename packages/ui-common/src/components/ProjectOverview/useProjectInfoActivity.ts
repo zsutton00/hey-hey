@@ -70,7 +70,7 @@ const usePaginatedProjectInfoProposals = (
     workItemRole: WorkItemTypeRole.ProjectInfo,
     windowStart,
     windowEnd,
-    enabled: projectId.length > 0,
+    enabled: Boolean(projectId && windowStart && windowEnd),
     limit: PROJECT_INFO_PROPOSAL_PAGE_SIZE,
     offset: (page - 1) * PROJECT_INFO_PROPOSAL_PAGE_SIZE,
   });
