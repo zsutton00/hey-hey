@@ -34,6 +34,9 @@ RUN pnpm install --frozen-lockfile --filter hey-hey-api --filter hey-hey-openapi
 
 COPY . .
 
+# No .git in the context, so pin the OpenAPI source root.
+ENV HEY_HEY_OPENAPI_ROOT=/workspace/openapi
+
 # Build the workspace contract package before the API resolves its runtime
 # enum and schema exports from the package distribution.
 RUN pnpm --filter @hey-hey/contracts build
