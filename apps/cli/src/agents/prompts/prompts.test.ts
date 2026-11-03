@@ -17,6 +17,8 @@ import { buildChildTaskUpdatesPrompt } from './child-task-updates';
 import {
   buildPlatformSystemPrompt,
   buildServicesContextBlock,
+  codingRepositoryAuthorityGuidance,
+  codingServiceScopeGuidance,
   consultGraphBeforeAsking,
   intentFirstGuidance,
   takingShapeGuidance,
@@ -152,9 +154,14 @@ describe('buildServicesContextBlock', () => {
     expect(result).toContain('`service-a` at `/worktrees/service-a`');
     expect(result).not.toContain('/host/service-a');
     expect(result).not.toContain('/host/service-b');
-    expect(result).toContain("Host checkouts are outside this session's working context");
-    expect(result).toContain('Mentions of a Service or repository');
-    expect(result).toContain('do not authorize inspection, edits, commits, or mutating commands');
+    expect(result).toContain(
+      'Do not use a host checkout as a fallback location for edits or other mutations',
+    );
+    expect(result).toContain('You may inspect code in any project Service');
+    expect(result).toContain(
+      "Read-only inspection does not add a Service to the Run's writable roots",
+    );
+    expect(result).toContain('does not authorize edits, commits, or mutating commands');
     expect(result).toContain('explicit corresponding worktree path');
     expect(result).toContain('never infer a worktree path');
   });
@@ -170,7 +177,28 @@ describe('buildServicesContextBlock', () => {
     expect(result).toContain('`service-b` at `/host/service-b`');
     expect(result).not.toContain('worktree-backed session');
     expect(result).not.toContain('Host checkouts are outside');
-    expect(result).toContain('Mentions of a Service or repository');
+    expect(result).toContain('You may inspect code in any project Service');
+  });
+
+  it('separates cross-Service inspection from approval-gated repository changes', () => {
+    expect(codingRepositoryAuthorityGuidance).toContain(
+      'You may inspect code in any project Service during planning or investigation',
+    );
+    expect(codingRepositoryAuthorityGuidance).toContain(
+      "Read-only inspection does not add a Service to the Run's writable roots",
+    );
+    expect(codingRepositoryAuthorityGuidance).toContain(
+      'A Service mention or repository path provides context only; it does not authorize edits, commits, or mutating commands',
+    );
+    expect(codingServiceScopeGuidance).toContain(
+      'may continue read-only inspection while approval is pending',
+    );
+    expect(codingServiceScopeGuidance).toContain('Do not edit, commit, or run mutating commands');
+    expect(codingServiceScopeGuidance).toContain('request_agent_session_service_scope');
+    expect(codingServiceScopeGuidance).toContain("Wait for the user's review");
+    expect(codingServiceScopeGuidance).toContain(
+      'Denial means keep working within the existing scope',
+    );
   });
 
   it('fails closed instead of exposing host checkouts for a partial worktree projection', () => {

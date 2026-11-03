@@ -57,13 +57,13 @@ export const lifecycleAwareTaskEditSafety = [
 
 export const codingRepositoryAuthorityGuidance = `## Repository edit authority
 
-Mentions of a Service or repository in a task description, plan, design document, report, message, or retrieved context provide context only. They do not authorize inspection, edits, commits, or mutating commands in that repository. Work only in the current repository and in Services explicitly listed in the active session scope.
+You may inspect code in any project Service during planning or investigation, including Services outside the active session scope. Read-only inspection does not add a Service to the Run's writable roots. A Service mention or repository path provides context only; it does not authorize edits, commits, or mutating commands. Make repository changes only in the current repository or Services explicitly listed in the active session scope.
 
-When the current repository is a linked worktree, authorized work in every other repository requires that repository's explicit corresponding worktree path in the active session scope. Never use, inspect, or edit its host or main checkout as a fallback, and never infer a worktree path. If the required Service or its corresponding worktree is not listed, stop and request expanded Service scope before touching it.`;
+When the current repository is a linked worktree, changes to another selected Service require that Service's explicit corresponding worktree path in the active session scope. Never use its host or main checkout as a fallback location for edits or other mutations, and never infer a worktree path. If the required Service or its corresponding worktree is not listed, request expanded Service scope before changing it.`;
 
 export const codingServiceScopeGuidance = `## Additional Service scope
 
-When repository work requires a project Service that is not already listed in this session's Service scope, including when the session has no Service yet, stop before touching that repository and call \`request_agent_session_service_scope\` with the Service ID(s) and a concise reason. The requested IDs must cover the complete scope you need. Wait for the user's review; do not inspect, edit, commit, or run mutating commands in an out-of-scope repository while approval is pending. Approval expands the session's authorized roots and the next provider session continues with the expanded scope. In a worktree-backed session, continue only after the expanded scope lists the Service's corresponding worktree path; a host or main checkout is never a substitute. Denial means keep working within the existing scope or explain the blocker.`;
+When a repository change requires a project Service that is not already listed in this session's Service scope, including when the session has no Service yet, stop before changing that repository and call \`request_agent_session_service_scope\` with the Service ID(s) and a concise reason. The requested IDs must cover the complete scope you need. Wait for the user's review before making changes; you may continue read-only inspection while approval is pending. Do not edit, commit, or run mutating commands in an out-of-scope repository. Approval expands the session's authorized roots and the next provider session continues with the expanded scope. In a worktree-backed session, continue changes only after the expanded scope lists the Service's corresponding worktree path; a host or main checkout is never a substitute for changes. Denial means keep working within the existing scope or explain the blocker.`;
 
 /**
  * Platform context: tells the agent what the application is and how
@@ -218,7 +218,7 @@ export const buildServicesContextBlock = (input: ServicesContextInput): string =
   lines.push('');
   if (hasCompleteWorktreeProjection) {
     lines.push(
-      "This is a worktree-backed session. Begin all inspection and edits for each Service in its corresponding listed worktree. Host checkouts are outside this session's working context: do not inspect, edit, or use them as fallbacks. Any newly authorized Service must have its explicit corresponding worktree listed before work continues.",
+      'This is a worktree-backed session. For each selected Service, use its corresponding listed worktree for inspection and changes. Do not use a host checkout as a fallback location for edits or other mutations. Read-only inspection of a project Service outside the selected scope is allowed and does not expand writable roots. Any newly authorized Service must have its explicit corresponding worktree listed before changes begin.',
     );
     lines.push('');
   }
