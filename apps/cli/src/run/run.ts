@@ -6335,22 +6335,18 @@ export class Run {
         hasConversationId: Boolean(session.conversationId),
         awaitingUserReview,
       });
-      // A turn awaiting a user review may end up with no tools to mount (the
-      // routed handlers — coding_freeform and the feature-sync review
-      // persona — declare none) yet a prior turn's registration on the same
-      // Run could still hold action tools. Replace the prior tool list so the
-      // registry cannot advertise an action tool while the workflow is parked
-      // on a user review.
-      if (awaitingUserReview) {
-        const stale = this.submissionToolRegistry.getByRunId(session.agentic_session_id);
-        if (stale && stale.tools.some((t) => !isPassThroughTool(t))) {
-          this.submissionToolRegistry.update(session.agentic_session_id, {
-            tools,
-            activeToolNames,
-            externalAgentNodeId,
-            triggerMessageId,
-          });
-        }
+      // A turn with no active tools must replace a prior registration. This
+      // applies to user-review turns and to handler changes that exclude all
+      // base tools; otherwise an earlier provider session can keep exposing
+      // stale tools through its cached MCP endpoint.
+      const stale = this.submissionToolRegistry.getByRunId(session.agentic_session_id);
+      if (stale && (stale.tools.length > 0 || (stale.activeToolNames?.length ?? 0) > 0)) {
+        this.submissionToolRegistry.update(session.agentic_session_id, {
+          tools,
+          activeToolNames,
+          externalAgentNodeId,
+          triggerMessageId,
+        });
       }
       return;
     }

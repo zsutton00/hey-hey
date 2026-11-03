@@ -1,4 +1,8 @@
-import type { CodingResearchUncertainty, EntityType } from "../../../api";
+import type {
+  CodingResearchReportPayload,
+  CodingResearchUncertainty,
+  EntityType,
+} from "../../../api";
 
 export interface CodingResearchWrittenAnalysis {
   analysis: string;
@@ -136,4 +140,14 @@ export const parseCodingResearchWrittenAnalysis = (
       .trim(),
     uncertainties,
   };
+};
+
+export const getCodingResearchUncertainties = (
+  payload: CodingResearchReportPayload,
+): CodingResearchUncertainty[] => {
+  if (payload.format === "WRITTEN") {
+    return parseCodingResearchWrittenAnalysis(payload.analysis).uncertainties;
+  }
+
+  return payload.uncertainties ?? [];
 };

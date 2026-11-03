@@ -155,6 +155,11 @@ const jevJudging = (relevance: number | 'fail') =>
   });
 
 describe('projectAssistantHandler — read-only by construction', () => {
+  it('excludes shared uncertainty reporting while preserving its own research tools', () => {
+    expect(handler.excludedBaseSubmissionTools).toContain('raise_uncertainty');
+    expect(handler.submissionTools.map((tool) => tool.name)).toContain('create_coding_research');
+  });
+
   it('runs under the research MCP use case (no mutation/edge/proposal tools in the base)', () => {
     expect(handler.mcpToolUseCase).toBe('research');
   });

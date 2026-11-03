@@ -88,7 +88,7 @@ const buildEvalJudgePrompt = (payload: EvalJudgePayload): string => {
   ].join('\n');
 };
 
-/** Child-only judge for eval attempts: no tools, returns one JSON assessment. */
+/** Child-only judge for eval attempts: may record uncertainty, returns one JSON assessment. */
 export const evalJudgeHandler: PromptTypeHandler<EvalJudgePayload> = {
   id: EVAL_JUDGE_HANDLER_ID,
   promptType: LocalPromptType.RunEval,
@@ -104,9 +104,10 @@ export const evalJudgeHandler: PromptTypeHandler<EvalJudgePayload> = {
   readRestriction: ReadRestriction.EvalJudge,
   childConfig: {
     adapterId: 'eval-judge-subagent',
+    submissionTools: 'run-registered',
+    submissionToolNames: ['raise_uncertainty'],
     mcpAllowedTools: [],
     builtinAllowedTools: [],
-    submissionTools: 'none',
     codexSandboxMode: 'read-only',
     includePriorReports: false,
     emitNormalizedEvents: false,

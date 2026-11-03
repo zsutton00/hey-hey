@@ -43,6 +43,24 @@ export interface SystemMessageData {
      */
     'type': SystemMessageDataTypeEnum;
     /**
+     * Severity for AGENT_UNCERTAINTY messages.
+     * @type {string}
+     * @memberof SystemMessageData
+     */
+    'severity'?: SystemMessageDataSeverityEnum;
+    /**
+     * Single category for AGENT_UNCERTAINTY messages.
+     * @type {string}
+     * @memberof SystemMessageData
+     */
+    'category'?: SystemMessageDataCategoryEnum;
+    /**
+     * Structured uncertainty statement, separate from assistant response text.
+     * @type {string}
+     * @memberof SystemMessageData
+     */
+    'statement'?: string;
+    /**
      *
      * @type {ProposalReconciliationSuggestion}
      * @memberof SystemMessageData
@@ -176,6 +194,7 @@ export const SystemMessageDataTypeEnum = {
     TaskMonitorLaunchRecovery: 'TASK_MONITOR_LAUNCH_RECOVERY',
     TaskMonitorSupervision: 'TASK_MONITOR_SUPERVISION',
     Carrier: 'CARRIER',
+    AgentUncertainty: 'AGENT_UNCERTAINTY',
     "QUESTIONS": "QUESTIONS",
     "ANALYSIS": "ANALYSIS",
     "NOOP": "NOOP",
@@ -197,6 +216,7 @@ export const SystemMessageDataTypeEnum = {
     "TASK_MONITOR_LAUNCH_RECOVERY": "TASK_MONITOR_LAUNCH_RECOVERY",
     "TASK_MONITOR_SUPERVISION": "TASK_MONITOR_SUPERVISION",
     "CARRIER": "CARRIER",
+    "AGENT_UNCERTAINTY": "AGENT_UNCERTAINTY",
 } as const;
 Object.defineProperty(SystemMessageDataTypeEnum, "QUESTIONS", { enumerable: false, value: SystemMessageDataTypeEnum["Questions"] });
 Object.defineProperty(SystemMessageDataTypeEnum, "ANALYSIS", { enumerable: false, value: SystemMessageDataTypeEnum["Analysis"] });
@@ -219,8 +239,41 @@ Object.defineProperty(SystemMessageDataTypeEnum, "TASK_MONITOR_INTERVENTION", { 
 Object.defineProperty(SystemMessageDataTypeEnum, "TASK_MONITOR_LAUNCH_RECOVERY", { enumerable: false, value: SystemMessageDataTypeEnum["TaskMonitorLaunchRecovery"] });
 Object.defineProperty(SystemMessageDataTypeEnum, "TASK_MONITOR_SUPERVISION", { enumerable: false, value: SystemMessageDataTypeEnum["TaskMonitorSupervision"] });
 Object.defineProperty(SystemMessageDataTypeEnum, "CARRIER", { enumerable: false, value: SystemMessageDataTypeEnum["Carrier"] });
+Object.defineProperty(SystemMessageDataTypeEnum, "AGENT_UNCERTAINTY", { enumerable: false, value: SystemMessageDataTypeEnum["AgentUncertainty"] });
 
 export type SystemMessageDataTypeEnum = typeof SystemMessageDataTypeEnum[keyof typeof SystemMessageDataTypeEnum];
+export const SystemMessageDataSeverityEnum = {
+    Low: 'low',
+    Medium: 'medium',
+    High: 'high',
+    "low": "low",
+    "medium": "medium",
+    "high": "high",
+} as const;
+Object.defineProperty(SystemMessageDataSeverityEnum, "low", { enumerable: false, value: SystemMessageDataSeverityEnum["Low"] });
+Object.defineProperty(SystemMessageDataSeverityEnum, "medium", { enumerable: false, value: SystemMessageDataSeverityEnum["Medium"] });
+Object.defineProperty(SystemMessageDataSeverityEnum, "high", { enumerable: false, value: SystemMessageDataSeverityEnum["High"] });
+
+export type SystemMessageDataSeverityEnum = typeof SystemMessageDataSeverityEnum[keyof typeof SystemMessageDataSeverityEnum];
+export const SystemMessageDataCategoryEnum = {
+    LackOfEvidence: 'lack_of_evidence',
+    Conflict: 'conflict',
+    Ambiguity: 'ambiguity',
+    NotImplemented: 'not_implemented',
+    Question: 'question',
+    "lack_of_evidence": "lack_of_evidence",
+    "conflict": "conflict",
+    "ambiguity": "ambiguity",
+    "not_implemented": "not_implemented",
+    "question": "question",
+} as const;
+Object.defineProperty(SystemMessageDataCategoryEnum, "lack_of_evidence", { enumerable: false, value: SystemMessageDataCategoryEnum["LackOfEvidence"] });
+Object.defineProperty(SystemMessageDataCategoryEnum, "conflict", { enumerable: false, value: SystemMessageDataCategoryEnum["Conflict"] });
+Object.defineProperty(SystemMessageDataCategoryEnum, "ambiguity", { enumerable: false, value: SystemMessageDataCategoryEnum["Ambiguity"] });
+Object.defineProperty(SystemMessageDataCategoryEnum, "not_implemented", { enumerable: false, value: SystemMessageDataCategoryEnum["NotImplemented"] });
+Object.defineProperty(SystemMessageDataCategoryEnum, "question", { enumerable: false, value: SystemMessageDataCategoryEnum["Question"] });
+
+export type SystemMessageDataCategoryEnum = typeof SystemMessageDataCategoryEnum[keyof typeof SystemMessageDataCategoryEnum];
 export const SystemMessageDataActionHintEnum = {
     TaskComplete: 'task_complete',
     PermissionRequested: 'permission_requested',
@@ -241,8 +294,12 @@ export type SystemMessageDataActionHintEnum = typeof SystemMessageDataActionHint
 export namespace SystemMessageData {
     export const TypeEnum = SystemMessageDataTypeEnum;
     export type TypeEnum = SystemMessageDataTypeEnum;
+    export const SeverityEnum = SystemMessageDataSeverityEnum;
+    export type SeverityEnum = SystemMessageDataSeverityEnum;
+    export const CategoryEnum = SystemMessageDataCategoryEnum;
+    export type CategoryEnum = SystemMessageDataCategoryEnum;
     export const ActionHintEnum = SystemMessageDataActionHintEnum;
     export type ActionHintEnum = SystemMessageDataActionHintEnum;
 }
 
-export const SystemMessageDataDiscriminatorValues = ["QUESTIONS","ANALYSIS","NOOP","INITIATIVES","ARTIFACTS_GENERATION","TASKS","FEATURE_LIST","TASK_STUBS","TASK_PRIORITY","ERROR","INTEGRATIONS","CODING_PROMPTS","AGENT","ROUTING","DAILY_SESSION","SESSION_MONITOR","TASK_MONITOR_TASK_ACTIVITY","TASK_MONITOR_INTERVENTION","TASK_MONITOR_LAUNCH_RECOVERY","TASK_MONITOR_SUPERVISION","CARRIER"] as const;
+export const SystemMessageDataDiscriminatorValues = ["QUESTIONS","ANALYSIS","NOOP","INITIATIVES","ARTIFACTS_GENERATION","TASKS","FEATURE_LIST","TASK_STUBS","TASK_PRIORITY","ERROR","INTEGRATIONS","CODING_PROMPTS","AGENT","ROUTING","DAILY_SESSION","SESSION_MONITOR","TASK_MONITOR_TASK_ACTIVITY","TASK_MONITOR_INTERVENTION","TASK_MONITOR_LAUNCH_RECOVERY","TASK_MONITOR_SUPERVISION","CARRIER","AGENT_UNCERTAINTY"] as const;

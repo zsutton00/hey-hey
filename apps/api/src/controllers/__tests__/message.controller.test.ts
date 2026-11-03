@@ -12,6 +12,7 @@ import {
   CreateSystemMessage,
   ConversationMessageHistoryPageDto,
   AgentSystemMessageData,
+  AgentUncertaintySystemMessageData,
   SubmitExecutableUserMessageRequestDto,
   GetMessagesQueryDto,
   MessageResponseDto,
@@ -323,6 +324,46 @@ describe('MessageController', () => {
       await expect(post(data)).rejects.toBeInstanceOf(BadRequestException);
       expect(messageService.addMessageFromAdapter).not.toHaveBeenCalled();
     });
+
+    it('accepts and persists a valid structured agent uncertainty', async () => {
+      const data = {
+        type: 'AGENT_UNCERTAINTY',
+        severity: 'medium',
+        category: 'question',
+        statement: 'Which service owns this boundary?',
+      } satisfies AgentUncertaintySystemMessageData;
+
+      await post(data);
+
+      expect(messageService.addMessageFromAdapter).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'SYSTEM', data }),
+        testIds.organization,
+      );
+    });
+
+    it.each([
+      {
+        type: 'AGENT_UNCERTAINTY',
+        severity: 'urgent',
+        category: 'question',
+        statement: 'Need answer.',
+      },
+      {
+        type: 'AGENT_UNCERTAINTY',
+        severity: 'low',
+        category: 'question',
+        statement: '   ',
+      },
+      { type: 'AGENT_UNCERTAINTY', severity: 'low', category: 'question' },
+    ])(
+      'rejects malformed uncertainty data before persistence',
+      async (data) => {
+        await expect(
+          post(data as unknown as SystemMessageData),
+        ).rejects.toBeInstanceOf(BadRequestException);
+        expect(messageService.addMessageFromAdapter).not.toHaveBeenCalled();
+      },
+    );
 
     it('rejects caller-authored Session Monitor authority before persistence', async () => {
       await expect(

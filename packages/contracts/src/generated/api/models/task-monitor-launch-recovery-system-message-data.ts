@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { SystemMessageDataActionHintEnum, SystemMessageDataTypeEnum } from './system-message-data.js';
+import { SystemMessageDataActionHintEnum, SystemMessageDataCategoryEnum, SystemMessageDataSeverityEnum, SystemMessageDataTypeEnum } from './system-message-data.js';
 import { TaskMonitorLaunchRecoverySystemMessageDataAllOfAgentIdentityEnum } from './task-monitor-launch-recovery-system-message-data-all-of.js';
 import { TaskMonitorLaunchRecoveryCollision } from './task-monitor-launch-recovery-collision.js';
 import { TaskMonitorLaunchRecoveryAuthority } from './task-monitor-launch-recovery-authority.js';
@@ -67,6 +67,10 @@ export interface TaskMonitorLaunchRecoverySystemMessageData extends SystemMessag
 export namespace TaskMonitorLaunchRecoverySystemMessageData {
     export const TypeEnum = SystemMessageDataTypeEnum;
     export type TypeEnum = SystemMessageDataTypeEnum;
+    export const SeverityEnum = SystemMessageDataSeverityEnum;
+    export type SeverityEnum = SystemMessageDataSeverityEnum;
+    export const CategoryEnum = SystemMessageDataCategoryEnum;
+    export type CategoryEnum = SystemMessageDataCategoryEnum;
     export const ActionHintEnum = SystemMessageDataActionHintEnum;
     export type ActionHintEnum = SystemMessageDataActionHintEnum;
     export const AgentIdentityEnum = TaskMonitorLaunchRecoverySystemMessageDataAllOfAgentIdentityEnum;

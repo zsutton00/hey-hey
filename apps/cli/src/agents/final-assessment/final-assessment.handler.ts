@@ -56,6 +56,8 @@ export const finalAssessmentHandler: PromptTypeHandler<LocalFinalAssessmentPromp
   providerSessionCountsForContext: false,
   reports: [],
   subagentConfig: {
+    submissionTools: 'run-registered',
+    submissionToolNames: ['raise_uncertainty'],
     mcpAllowedTools: FINAL_ASSESSMENT_SUBAGENT_MCP_ALLOWED_TOOLS,
     builtinAllowedTools: [],
     adapterId: 'claude-sdk-final-assessment-subagent',

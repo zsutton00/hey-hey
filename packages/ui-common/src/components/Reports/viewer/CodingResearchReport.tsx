@@ -20,6 +20,8 @@ export interface CodingResearchReportProps {
   reportTestId: string;
   /** Saved eval output is display only: no action may start new work. */
   evaluationOutput?: boolean;
+  /** Render the open-questions block inside this report body. */
+  renderOpenQuestions?: boolean;
 }
 
 export const CodingResearchReport: React.FC<CodingResearchReportProps> = ({
@@ -27,6 +29,7 @@ export const CodingResearchReport: React.FC<CodingResearchReportProps> = ({
   report,
   reportTestId,
   evaluationOutput = false,
+  renderOpenQuestions = true,
 }) => {
   const [isAnalysisExpanded, setIsAnalysisExpanded] = useState(false);
   const reportData =
@@ -74,10 +77,12 @@ export const CodingResearchReport: React.FC<CodingResearchReportProps> = ({
           {reportData.analysis}
         </MarkdownRenderer>
       </ReportDisclosure>
-      <CodingResearchUncertaintiesSection
-        reportTestId={reportTestId}
-        uncertainties={reportData.uncertainties}
-      />
+      {renderOpenQuestions ? (
+        <CodingResearchUncertaintiesSection
+          reportTestId={reportTestId}
+          uncertainties={reportData.uncertainties}
+        />
+      ) : null}
       {isAnalysisExpanded ? (
         <ReportDisclosure
           testId={`${reportTestId}-coding-research-details`}

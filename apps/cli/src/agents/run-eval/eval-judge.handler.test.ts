@@ -25,11 +25,12 @@ const valid = {
 };
 
 describe('evalJudgeHandler', () => {
-  it('has no tools and gives the judge the checks, rubric and output', () => {
+  it('limits the judge to uncertainty reporting and gives it the checks, rubric and output', () => {
     expect(evalJudgeHandler.childConfig).toMatchObject({
       mcpAllowedTools: [],
       builtinAllowedTools: [],
-      submissionTools: 'none',
+      submissionTools: 'run-registered',
+      submissionToolNames: ['raise_uncertainty'],
     });
     const prompt = evalJudgeHandler.buildPrompt({ caseInput, outputText: 'THE-OUTPUT' });
     expect(prompt).toContain('finds-mockup: Finds the existing mockup');

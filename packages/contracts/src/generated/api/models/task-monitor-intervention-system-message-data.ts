@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { SystemMessageDataActionHintEnum, SystemMessageDataTypeEnum } from './system-message-data.js';
+import { SystemMessageDataActionHintEnum, SystemMessageDataCategoryEnum, SystemMessageDataSeverityEnum, SystemMessageDataTypeEnum } from './system-message-data.js';
 import { TaskMonitorInterventionSystemMessageDataAllOfAgentIdentityEnum } from './task-monitor-intervention-system-message-data-all-of.js';
 import { TaskMonitorInterventionChoice } from './task-monitor-intervention-choice.js';
 /* tslint:disable */
@@ -55,6 +55,10 @@ export interface TaskMonitorInterventionSystemMessageData extends SystemMessageD
 export namespace TaskMonitorInterventionSystemMessageData {
     export const TypeEnum = SystemMessageDataTypeEnum;
     export type TypeEnum = SystemMessageDataTypeEnum;
+    export const SeverityEnum = SystemMessageDataSeverityEnum;
+    export type SeverityEnum = SystemMessageDataSeverityEnum;
+    export const CategoryEnum = SystemMessageDataCategoryEnum;
+    export type CategoryEnum = SystemMessageDataCategoryEnum;
     export const ActionHintEnum = SystemMessageDataActionHintEnum;
     export type ActionHintEnum = SystemMessageDataActionHintEnum;
     export const AgentIdentityEnum = TaskMonitorInterventionSystemMessageDataAllOfAgentIdentityEnum;

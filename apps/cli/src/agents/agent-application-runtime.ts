@@ -18,6 +18,7 @@ import { SessionMonitorEvaluationStore } from './session-monitor';
 import { EntityContextLoader } from './entity-context/entity-context-loader';
 import { AgentStartupPromptInput } from '../commands/agent-startup-prompt-input';
 import { PlanSubmissionAdmissionClient } from './plan-shaping/plan-submission-admission.client';
+import { raiseUncertaintyTool } from './submission-tools/raise-uncertainty-tool';
 import { createJevClient, type JevClient } from '../jev/client';
 import type { DecisionModel } from './context-trimming/context-trimmer';
 
@@ -124,6 +125,7 @@ export class AgentApplicationRuntime {
     this.baseSubmissionTools = [
       new CreateReportTool(this.createReportProxy, undefined, dependencies.logger),
       suggestFeatureVerificationTool,
+      raiseUncertaintyTool,
     ];
   }
 }

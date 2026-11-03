@@ -38,6 +38,7 @@ import { MessagePoster } from '../../run/message-poster';
 import { RunRegistry } from '../../run/run-registry';
 import type { ServerLogger } from '../../server/logger';
 import type { MessageStamp } from '../../run/types';
+import { toOpenApiProjectId } from '../../shared/api/identifierAdapters';
 import { warnOnExternalAgentNodeIdMismatch } from './action-poster';
 import { SubmissionToolRegistry, type SubmissionToolRegistration } from './registry';
 import { isPassThroughTool, SubmissionToolCorrectableError } from './types';
@@ -294,7 +295,7 @@ export class SubmissionToolsHttpController {
   public constructor(
     private readonly registry: SubmissionToolRegistry,
     private readonly runRegistry: RunRegistry,
-    poster: MessagePoster,
+    private readonly poster: MessagePoster,
     private readonly logger: ServerLogger,
   ) {}
 
@@ -829,6 +830,24 @@ export class SubmissionToolsHttpController {
       toolName: tool.name,
       contentBlocks: result.content.length,
     });
+
+    if (tool.outOfBandSystemMessage) {
+      const activeTurn = run.activeTurn;
+      await this.poster.createOutOfBand({
+        organizationId: run.organizationId,
+        projectId: run.projectId,
+        conversationId: run.conversationId,
+        dto: {
+          type: 'SYSTEM',
+          projectId: toOpenApiProjectId(run.projectId),
+          data: tool.outOfBandSystemMessage({ runId: registration.runId, args, run }),
+        },
+        stamp: {
+          providerSessionId: run.providerSessionId,
+          promptHandler: activeTurn?.handler.promptType ?? null,
+        },
+      });
+    }
 
     res.json(
       success(id, {

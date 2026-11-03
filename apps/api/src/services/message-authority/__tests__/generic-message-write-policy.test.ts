@@ -7,6 +7,7 @@ import {
 import {
   AgentTrigger,
   AgentSystemMessageData,
+  AgentUncertaintySystemMessageData,
   SystemMessageData,
   UserMessageAgentInputProvenance,
   UserMessageData,
@@ -70,6 +71,13 @@ describe('generic message write policy', () => {
         response: 'Visible output',
       }),
     ).toBeNull();
+    const uncertainty = {
+      type: 'AGENT_UNCERTAINTY',
+      severity: 'low',
+      category: 'lack_of_evidence',
+      statement: 'This record preserves original uncertainty data.',
+    } satisfies AgentUncertaintySystemMessageData;
+    expect(genericSystemMessageViolation(uncertainty)).toBeNull();
     const data = {
       agentInput: {
         promptType: 'coding_freeform',

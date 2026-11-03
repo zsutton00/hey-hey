@@ -32,6 +32,7 @@ import {
 import { OrganizationGuard } from 'src/auth/guards/organization.guard';
 import { v4 as uuidv4 } from 'uuid';
 import * as crypto from 'node:crypto';
+import { z } from 'zod';
 import {
   AgentOperation as PersistedAgentOperation,
   AgentOperationKind as PrismaAgentOperationKind,
@@ -58,6 +59,19 @@ import {
   MessageStatus,
   SystemMessageData,
 } from '@hey-hey/contracts/api/models';
+
+const agentUncertaintySystemMessageDataSchema = z.object({
+  type: z.literal('AGENT_UNCERTAINTY'),
+  severity: z.enum(['low', 'medium', 'high']),
+  category: z.enum([
+    'lack_of_evidence',
+    'conflict',
+    'ambiguity',
+    'not_implemented',
+    'question',
+  ]),
+  statement: z.string().trim().min(1),
+});
 import { InjectTemporalClient } from '../prisma/temporal.module';
 import { ConversationService } from '../services/conversation.service';
 import { MessageService } from '../services/message.service';
@@ -742,6 +756,14 @@ export class MessageController {
   }
 
   private assertValidInboundSystemMessageData(data: SystemMessageData): void {
+    if (data.type === SystemMessageData.TypeEnum.AgentUncertainty) {
+      const parsed = agentUncertaintySystemMessageDataSchema.safeParse(data);
+      if (!parsed.success) {
+        throw new BadRequestException(
+          'AGENT_UNCERTAINTY data does not match its contract.',
+        );
+      }
+    }
     const violation = genericSystemMessageViolation(data);
     if (violation) throw new BadRequestException(violation);
   }

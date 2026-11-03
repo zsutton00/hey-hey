@@ -79,6 +79,7 @@ describe('AgentApplicationRuntime', () => {
     expect(runtime.baseSubmissionTools.map((tool) => tool.name)).toEqual([
       CREATE_REPORT_TOOL_NAME,
       'suggest_feature_verification',
+      'raise_uncertainty',
     ]);
     expect(runtime.submissionToolRegistry).toBeDefined();
     expect(runtime.reportEmissionEvents).toBeDefined();

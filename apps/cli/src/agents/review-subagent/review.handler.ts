@@ -88,6 +88,8 @@ export const reviewHandler: UserLaunchablePromptTypeHandler<LocalCodeReviewPromp
   ],
   submissionTools: [],
   subagentConfig: {
+    submissionTools: 'run-registered',
+    submissionToolNames: ['raise_uncertainty'],
     mcpAllowedTools: REVIEW_SUBAGENT_MCP_ALLOWED_TOOLS,
     builtinAllowedTools: REVIEW_SUBAGENT_BUILTIN_ALLOWED_TOOLS,
     adapterId: 'review-subagent',

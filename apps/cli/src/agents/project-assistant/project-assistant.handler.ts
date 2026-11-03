@@ -91,6 +91,7 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
     },
   ];
   public readonly submissionTools: (CodingResearchTool | RunSubagentsTool)[];
+  public readonly excludedBaseSubmissionTools = ['raise_uncertainty'];
   private readonly parallelResearchSubagents: boolean;
 
   /**

@@ -4298,7 +4298,20 @@ SystemMessageData:
         - TASK_MONITOR_LAUNCH_RECOVERY
         - TASK_MONITOR_SUPERVISION
         - CARRIER
+        - AGENT_UNCERTAINTY
       description: Type identifier for system message data
+    severity:
+      type: string
+      enum: [low, medium, high]
+      description: Severity for AGENT_UNCERTAINTY messages.
+    category:
+      type: string
+      enum: [lack_of_evidence, conflict, ambiguity, not_implemented, question]
+      description: Single category for AGENT_UNCERTAINTY messages.
+    statement:
+      type: string
+      minLength: 1
+      description: Structured uncertainty statement, separate from assistant response text.
     proposalSuggestion:
       $ref: "./proposals.yaml#/ProposalReconciliationSuggestion"
     flowId:
@@ -4411,6 +4424,47 @@ SystemMessageData:
       TASK_MONITOR_LAUNCH_RECOVERY: "#/TaskMonitorLaunchRecoverySystemMessageData"
       TASK_MONITOR_SUPERVISION: "#/TaskMonitorSupervisionSystemMessageData"
       CARRIER: "#/CarrierSystemMessageData"
+      AGENT_UNCERTAINTY: "#/AgentUncertaintySystemMessageData"
+
+AgentUncertaintyToolInput:
+  type: object
+  additionalProperties: false
+  required: [severity, category, statement]
+  properties:
+    severity:
+      type: string
+      enum: [low, medium, high]
+    category:
+      type: string
+      enum: [lack_of_evidence, conflict, ambiguity, not_implemented, question]
+    statement:
+      type: string
+      minLength: 1
+      pattern: ".*\\S.*"
+
+AgentUncertaintySystemMessageData:
+  type: object
+  additionalProperties: true
+  required: [type, severity, category, statement]
+  properties:
+    type:
+      type: string
+      enum: [AGENT_UNCERTAINTY]
+    severity:
+      type: string
+      enum: [low, medium, high]
+    category:
+      type: string
+      enum: [lack_of_evidence, conflict, ambiguity, not_implemented, question]
+    statement:
+      type: string
+      minLength: 1
+      pattern: ".*\\S.*"
+    providerSessionId:
+      type: string
+    promptHandler:
+      type: string
+  x-discriminator-value: AGENT_UNCERTAINTY
 
 UIHint:
   type: object

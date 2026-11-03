@@ -44,6 +44,15 @@ export const stringifyContext = (context: AgentWorkflowContext): string =>
 
 export const jsonOnlyInstructions = `Return JSON only. Do not include markdown fences.\nDo not include additional commentary outside JSON.`;
 
+/** Shared uncertainty guidance; delivered once with the session-level prompt. */
+export const agentUncertaintyGuidance = `## Raising uncertainties
+
+When raise_uncertainty is available, use it to record a material doubt separately from your reply. Supply exactly one category — lack_of_evidence, conflict, ambiguity, not_implemented, or question — a severity (low, medium, or high), and a concise statement. Distinguish what you observed from what you infer. A question means you need the user's answer to proceed correctly; use the session's existing interaction behavior to get that answer. The tool records information only; it does not finish work or pause the session.
+
+Use low for a peripheral qualification or an expected, design-consistent dependency; medium for a material qualification or missing delivery scope that needs the user's choice; high for a central reliability concern or conflict with authoritative intended behavior. Map review P0/P1 to high, P2 to medium, and P3/P4 to low; use equivalent high/medium/low review ratings directly. Category and severity are independent.
+
+Do not raise routine design-consistent implementation, regeneration, or migration work. If the tool is not available, follow the existing interaction behavior without inventing a tool call.`;
+
 /** Shared status policy for section edits on effective work-item types. */
 export const lifecycleAwareTaskEditSafety = [
   '## Work-item section edit safety',
@@ -581,6 +590,7 @@ export function buildPlatformSystemPrompt(
   return [
     primer,
     platformContext,
+    agentUncertaintyGuidance,
     mentionFormat,
     staleEntityReferences,
     calibration,

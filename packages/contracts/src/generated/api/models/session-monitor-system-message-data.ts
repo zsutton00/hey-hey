@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { SessionMonitorMessageState } from './session-monitor-message-state.js';
 import { SessionMonitorOutcome } from './session-monitor-outcome.js';
-import { SystemMessageDataActionHintEnum, SystemMessageDataTypeEnum } from './system-message-data.js';
+import { SystemMessageDataActionHintEnum, SystemMessageDataCategoryEnum, SystemMessageDataSeverityEnum, SystemMessageDataTypeEnum } from './system-message-data.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -64,6 +64,10 @@ export namespace SessionMonitorSystemMessageData {
     export type OutcomeEnum = SessionMonitorOutcome;
     export const TypeEnum = SystemMessageDataTypeEnum;
     export type TypeEnum = SystemMessageDataTypeEnum;
+    export const SeverityEnum = SystemMessageDataSeverityEnum;
+    export type SeverityEnum = SystemMessageDataSeverityEnum;
+    export const CategoryEnum = SystemMessageDataCategoryEnum;
+    export type CategoryEnum = SystemMessageDataCategoryEnum;
     export const ActionHintEnum = SystemMessageDataActionHintEnum;
     export type ActionHintEnum = SystemMessageDataActionHintEnum;
 }

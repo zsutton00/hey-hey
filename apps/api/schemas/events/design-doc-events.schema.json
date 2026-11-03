@@ -11682,6 +11682,18 @@
           "$ref": "#/definitions/SystemMessageDataTypeEnum",
           "description": "Type identifier for system message data"
         },
+        "severity": {
+          "$ref": "#/definitions/SystemMessageDataSeverityEnum",
+          "description": "Severity for AGENT_UNCERTAINTY messages."
+        },
+        "category": {
+          "$ref": "#/definitions/SystemMessageDataCategoryEnum",
+          "description": "Single category for AGENT_UNCERTAINTY messages."
+        },
+        "statement": {
+          "type": "string",
+          "description": "Structured uncertainty statement, separate from assistant response text."
+        },
         "proposalSuggestion": {
           "$ref": "#/definitions/ProposalReconciliationSuggestion"
         },
@@ -11845,6 +11857,52 @@
         {
           "type": "string",
           "const": "CARRIER"
+        },
+        {
+          "type": "string",
+          "const": "AGENT_UNCERTAINTY"
+        },
+        {}
+      ]
+    },
+    "SystemMessageDataSeverityEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "low"
+        },
+        {
+          "type": "string",
+          "const": "medium"
+        },
+        {
+          "type": "string",
+          "const": "high"
+        },
+        {}
+      ]
+    },
+    "SystemMessageDataCategoryEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "lack_of_evidence"
+        },
+        {
+          "type": "string",
+          "const": "conflict"
+        },
+        {
+          "type": "string",
+          "const": "ambiguity"
+        },
+        {
+          "type": "string",
+          "const": "not_implemented"
+        },
+        {
+          "type": "string",
+          "const": "question"
         },
         {}
       ]

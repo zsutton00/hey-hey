@@ -21,9 +21,10 @@ export const agentSearchHandler: UserLaunchablePromptTypeHandler<LocalAgentSearc
   /** Eval-launchable child with the same graph-only surface. */
   childConfig: {
     adapterId: 'eval-agent-search',
+    submissionTools: 'run-registered',
+    submissionToolNames: ['raise_uncertainty'],
     mcpAllowedTools: resolveMcpToolNames({ useCase: 'research' }),
     builtinAllowedTools: [],
-    submissionTools: 'none',
     codexSandboxMode: 'read-only',
     includePriorReports: false,
   },

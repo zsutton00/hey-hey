@@ -22,6 +22,7 @@
 // `Run` itself imports from this file. `import type` is erased at compile time
 // so no module resolution actually happens at runtime.
 import type { Run } from '../../run/run';
+import type { SystemMessageData } from '@hey-hey/contracts/api/models';
 
 /**
  * A JSON-schema-compatible object describing a submission tool's input.
@@ -228,6 +229,13 @@ export type ActionSubmissionToolDeclaration = SubmissionToolDeclarationBase & {
  */
 export interface PassThroughSubmissionToolDeclaration extends SubmissionToolDeclarationBase {
   kind: 'pass_through';
+  /**
+   * Optional passive SYSTEM projection persisted by the registered-tool HTTP
+   * boundary before the pass-through result is returned to the provider.
+   */
+  outOfBandSystemMessage?: (
+    ctx: SubmissionToolExecuteContext,
+  ) => SystemMessageData & Record<string, unknown>;
   execute(
     ctx: SubmissionToolExecuteContext,
   ): Promise<SubmissionToolPassThroughResult> | SubmissionToolPassThroughResult;

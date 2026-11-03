@@ -95,6 +95,7 @@ describe('codingPlanHandler', () => {
 
   it('requires no reports and mounts only conversation tools', () => {
     expect(codingPlanHandler.reports).toEqual([]);
+    expect(codingPlanHandler.excludedBaseSubmissionTools).toContain('raise_uncertainty');
     expect(codingPlanHandler.submissionTools).toEqual([...codingPlanSubmissionTools]);
     expect(codingPlanHandler.submissionTools?.every((tool) => tool.kind === 'pass_through')).toBe(
       true,

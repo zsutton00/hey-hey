@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { AgentSystemMessageDataAllOfDeliveryModeEnum, AgentSystemMessageDataAllOfOutcomeEnum } from './agent-system-message-data-all-of.js';
-import { SystemMessageDataActionHintEnum, SystemMessageDataTypeEnum } from './system-message-data.js';
+import { SystemMessageDataActionHintEnum, SystemMessageDataCategoryEnum, SystemMessageDataSeverityEnum, SystemMessageDataTypeEnum } from './system-message-data.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -62,6 +62,10 @@ export namespace AgentSystemMessageData {
     export type DeliveryModeEnum = AgentSystemMessageDataAllOfDeliveryModeEnum;
     export const TypeEnum = SystemMessageDataTypeEnum;
     export type TypeEnum = SystemMessageDataTypeEnum;
+    export const SeverityEnum = SystemMessageDataSeverityEnum;
+    export type SeverityEnum = SystemMessageDataSeverityEnum;
+    export const CategoryEnum = SystemMessageDataCategoryEnum;
+    export type CategoryEnum = SystemMessageDataCategoryEnum;
     export const ActionHintEnum = SystemMessageDataActionHintEnum;
     export type ActionHintEnum = SystemMessageDataActionHintEnum;
 }

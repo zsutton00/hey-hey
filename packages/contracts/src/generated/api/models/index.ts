@@ -210,6 +210,7 @@ export * from './agent-trigger-startup-session.js';
 export * from './agent-trigger-user-message.js';
 export * from './agent-trigger-work-tracker-connect.js';
 export * from './agent-trigger-work-tracker-import.js';
+export * from './agent-uncertainty-system-message-data.js';
 export * from './analysis-llmresponse.js';
 export * from './analysis-llmresponse-all-of.js';
 export * from './analysis-system-message-data.js';

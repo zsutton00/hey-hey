@@ -47,7 +47,7 @@ export const projectReportSectionHandler: PromptTypeHandler<ProjectReportSection
     mcpAllowedTools: PROJECT_REPORT_SECTION_MCP_TOOLS,
     builtinAllowedTools: [],
     submissionTools: 'run-registered',
-    submissionToolNames: [READ_EVIDENCE_SHARD_TOOL_NAME],
+    submissionToolNames: [READ_EVIDENCE_SHARD_TOOL_NAME, 'raise_uncertainty'],
     codexSandboxMode: 'read-only',
     includePriorReports: false,
   },

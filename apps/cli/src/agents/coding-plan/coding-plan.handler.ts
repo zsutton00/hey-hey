@@ -117,7 +117,7 @@ export const codingPlanHandler: CodingPlanHandler = {
   // the new subagent prompt instead of forwarding only the raw user message.
   rebuildPromptOnUserMessage: true,
   reports: [],
-  excludedBaseSubmissionTools: ['create_report'],
+  excludedBaseSubmissionTools: ['create_report', 'raise_uncertainty'],
   submissionTools: [...codingPlanSubmissionTools],
   subagentConfig: {
     mcpAllowedTools: CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS,

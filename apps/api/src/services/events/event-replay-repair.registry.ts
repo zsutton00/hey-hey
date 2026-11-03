@@ -476,6 +476,21 @@ const ArtifactsGenerationSystemMessageDataSchema = z
   })
   .passthrough();
 
+const AgentUncertaintySystemMessageDataSchema = z
+  .object({
+    type: z.literal('AGENT_UNCERTAINTY'),
+    severity: z.enum(['low', 'medium', 'high']),
+    category: z.enum([
+      'lack_of_evidence',
+      'conflict',
+      'ambiguity',
+      'not_implemented',
+      'question',
+    ]),
+    statement: z.string().trim().min(1),
+  })
+  .passthrough();
+
 // Discriminated union for all system message data types
 const SystemMessageDataSchema = z.discriminatedUnion('type', [
   QuestionsSystemMessageDataSchema,
@@ -494,6 +509,7 @@ const SystemMessageDataSchema = z.discriminatedUnion('type', [
   RoutingSystemMessageDataSchema,
   InitiativesSystemMessageDataSchema,
   ArtifactsGenerationSystemMessageDataSchema,
+  AgentUncertaintySystemMessageDataSchema,
 ]);
 
 const MessageClassificationResultMetadataSchema = z

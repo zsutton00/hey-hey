@@ -232,6 +232,15 @@ describe('focalContextOrientation', () => {
 });
 
 describe('buildPlatformSystemPrompt', () => {
+  it('delivers the shared uncertainty rubric once with severity and review calibration', () => {
+    const prompt = buildPlatformSystemPrompt(sampleDefs);
+
+    expect(prompt.match(/## Raising uncertainties/g)).toHaveLength(1);
+    expect(prompt).toContain('Map review P0/P1 to high, P2 to medium, and P3/P4 to low');
+    expect(prompt).toContain('The tool records information only');
+    expect(prompt).toContain('If the tool is not available');
+  });
+
   it('tells agents which read answers which question without dropping graph research', () => {
     const prompt = buildPlatformSystemPrompt(sampleDefs);
 

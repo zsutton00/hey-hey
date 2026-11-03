@@ -259,12 +259,13 @@ export class EntityConversationHandler implements UserLaunchablePromptTypeHandle
   /** Eval-launchable child: the production platform surface, read-only files. */
   public readonly childConfig = {
     adapterId: 'eval-entity-conversation',
+    submissionTools: 'run-registered',
+    submissionToolNames: ['raise_uncertainty'],
     mcpAllowedTools: resolveMcpToolNames({
       useCase: 'general',
       additionalTools: ENTITY_CONVERSATION_ALLOWED_TOOLS,
     }),
     builtinAllowedTools: ['Read', 'Glob', 'Grep'],
-    submissionTools: 'none',
     codexSandboxMode: 'read-only',
     includePriorReports: false,
   } as const;
