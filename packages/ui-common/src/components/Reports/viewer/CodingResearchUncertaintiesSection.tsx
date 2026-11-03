@@ -36,7 +36,7 @@ export const CodingResearchUncertaintiesSection: React.FC<
       variant="outlined"
     >
       <Stack spacing={1.25}>
-        <Typography variant="subtitle2">Uncertainties</Typography>
+        <Typography variant="subtitle2">Open questions</Typography>
         {categories.map((category) => (
           <ReportPanel
             key={category}

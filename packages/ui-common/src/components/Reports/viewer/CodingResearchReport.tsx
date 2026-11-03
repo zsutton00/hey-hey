@@ -59,10 +59,6 @@ export const CodingResearchReport: React.FC<CodingResearchReportProps> = ({
         testId={`${reportTestId}-coding-research-summary`}
         value={payload.summary}
       />
-      <CodingResearchUncertaintiesSection
-        reportTestId={reportTestId}
-        uncertainties={reportData.uncertainties}
-      />
       <CodingResearchUpdatesSection
         frameModel={reportData.frameModel}
         report={evaluationOutput ? undefined : report}
@@ -78,6 +74,10 @@ export const CodingResearchReport: React.FC<CodingResearchReportProps> = ({
           {reportData.analysis}
         </MarkdownRenderer>
       </ReportDisclosure>
+      <CodingResearchUncertaintiesSection
+        reportTestId={reportTestId}
+        uncertainties={reportData.uncertainties}
+      />
       {isAnalysisExpanded ? (
         <ReportDisclosure
           testId={`${reportTestId}-coding-research-details`}

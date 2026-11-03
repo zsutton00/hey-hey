@@ -217,7 +217,7 @@ const renderReport = (
   );
 
 describe("CodingResearchReport", () => {
-  it("shows structured uncertainties apart from analysis with severity and canonical references", () => {
+  it("shows structured open questions below analysis with severity and canonical references", () => {
     renderReport(fullPayload, "research");
 
     const section = screen.getByTestId(
@@ -237,9 +237,14 @@ describe("CodingResearchReport", () => {
     expect(
       screen.getByTestId("research-coding-research-analysis-toggle"),
     ).toHaveAttribute("aria-expanded", "false");
+    expect(section).toHaveTextContent("Open questions");
+    expect(
+      screen.getByTestId("research-coding-research-analysis")
+        .nextElementSibling,
+    ).toBe(section);
   });
 
-  it("renders written uncertainties in the shared section and removes only recognized entries from analysis", () => {
+  it("renders written open questions below analysis and removes recognized entries from analysis", () => {
     const writtenPayload: CodingResearchReportPayload = {
       reportType: "CODING_RESEARCH",
       format: "WRITTEN",
@@ -262,9 +267,16 @@ describe("CodingResearchReport", () => {
     expect(
       screen.getByTestId("written-coding-research-uncertainties"),
     ).toHaveTextContent("high");
+    const analysis = screen.getByTestId("written-coding-research-analysis");
+    const openQuestions = screen.getByTestId(
+      "written-coding-research-uncertainties",
+    );
     expect(
-      screen.getByTestId("written-coding-research-analysis"),
-    ).toBeInTheDocument();
+      screen.getByTestId("written-coding-research-analysis-toggle"),
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(analysis.nextElementSibling).toBe(openQuestions);
+    expect(openQuestions).toHaveTextContent("Open questions");
+    expect(screen.getByTestId("written-coding-research-summary")).toBeVisible();
   });
 
   beforeEach(() => {
@@ -291,14 +303,14 @@ describe("CodingResearchReport", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.getByTestId("research-coding-research-summary").nextElementSibling,
-    ).toBe(screen.getByTestId("research-coding-research-uncertainties"));
-    expect(
-      screen.getByTestId("research-coding-research-uncertainties")
-        .nextElementSibling,
     ).toBe(screen.getByTestId("research-coding-research-updates"));
     expect(
       screen.getByTestId("research-coding-research-updates").nextElementSibling,
     ).toBe(screen.getByTestId("research-coding-research-analysis"));
+    expect(
+      screen.getByTestId("research-coding-research-analysis")
+        .nextElementSibling,
+    ).toBe(screen.getByTestId("research-coding-research-uncertainties"));
     expect(
       screen.getByTestId("research-coding-research-updates-card-0"),
     ).toBeInTheDocument();
