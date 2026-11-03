@@ -16,10 +16,9 @@ use super::{
     ranking::rank,
     store::{self, DeletionOutcome, Retrieval},
     wire::{
-        BatchSearchRequest, BatchSearchResponse, BatchSearchResult, EmbeddingData,
-        EmbeddingRequest, EmbeddingResponse, Invalid, MAX_BATCH_QUERIES, ProjectionDeletionCommand,
-        Search, SearchFilters, SearchRequest, SearchResponse, SearchResult,
-        StructuredSearchRequest, invalid, parse_get_search,
+        BatchSearchRequest, BatchSearchResponse, BatchSearchResult, Invalid, MAX_BATCH_QUERIES,
+        ProjectionDeletionCommand, Search, SearchFilters, SearchRequest, SearchResponse,
+        SearchResult, StructuredSearchRequest, invalid, parse_get_search,
     },
 };
 use crate::auth::{AuthenticatedRouter, Authenticator, Policy, Principal, Surface};
@@ -46,11 +45,6 @@ pub fn router(enabled: bool, auth: Authenticator) -> Router {
             "/orgs/{organizationId}/projection-deletion",
             post(delete_projection),
             Policy::Deletion(Surface::Search),
-        )
-        .route(
-            "/embeddings",
-            post(create_embedding),
-            Policy::EmbeddingWrite,
         )
         .route("/embeddings/search", get(search_get), Policy::Read)
         .route("/embeddings/search", post(search_post), Policy::Read)
@@ -90,7 +84,6 @@ async fn not_implemented() -> StatusCode {
 enum Failure {
     Invalid(Invalid),
     Forbidden,
-    Conflict(&'static str),
     Internal(anyhow::Error),
 }
 
@@ -121,7 +114,6 @@ impl IntoResponse for Failure {
                 "The requested organization or project is not accessible".into(),
                 None,
             ),
-            Self::Conflict(message) => (StatusCode::CONFLICT, "conflict", message.into(), None),
             Self::Internal(error) => {
                 tracing::error!(error = format!("{error:#}"), "search request failed");
                 (
@@ -372,37 +364,6 @@ async fn batch_search(
         success: true,
         results,
     }))
-}
-
-async fn create_embedding(
-    Extension(state): Extension<SearchState>,
-    bytes: axum::body::Bytes,
-) -> Result<(StatusCode, Json<EmbeddingResponse>), Failure> {
-    let request: EmbeddingRequest = body(&bytes)?;
-    // Authentication already authorized the metadata's organization and project.
-    let document = request.validate()?;
-    let units = store::units(&document);
-
-    let texts: Vec<&str> = units.iter().map(|unit| unit.text.as_str()).collect();
-    let vectors = state.encoder.encode_batch(&texts).await?;
-
-    store::replace_document(&state.pool, &document, &units, &vectors)
-        .await?
-        .map_err(|_| {
-            Failure::Conflict("The organization has been closed and accepts no content")
-        })?;
-
-    let response = EmbeddingResponse {
-        success: true,
-        data: EmbeddingData {
-            success: true,
-            embedding_id: document.id.clone(),
-            chunks_created: units.len(),
-            chunk_ids: units.iter().map(|unit| unit.id.clone()).collect(),
-            total_word_count: document.text.split_whitespace().count(),
-        },
-    };
-    Ok((StatusCode::CREATED, Json(response)))
 }
 
 async fn stats(

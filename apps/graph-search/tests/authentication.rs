@@ -421,7 +421,7 @@ async fn jwks_fetch_rotation_overlap_and_configured_issuer_are_enforced() {
 }
 
 #[tokio::test]
-async fn read_only_membership_cannot_write_and_cross_org_roles_do_not_grant_write() {
+async fn cross_org_roles_do_not_grant_access_to_another_organizations_search() {
     let mut claims = user();
     claims["orgMemberships"][0]["role"] = json!("VIEWER");
     claims["orgMemberships"]
@@ -435,26 +435,6 @@ async fn read_only_membership_cannot_write_and_cross_org_roles_do_not_grant_writ
     assert_eq!(
         request(
             "POST",
-            "/embeddings",
-            Some(&token),
-            json!({"organizationId":"28f52f56-080e-40b6-a81b-2d98bc6e5f30","projectId":"7693af38-9441-45c5-932e-c7dcbd509b82"})
-        )
-        .await,
-        StatusCode::FORBIDDEN
-    );
-    assert_eq!(
-        request(
-            "POST",
-            "/embeddings?organizationId=fc97bf36-99e8-427e-99ab-6d24ea2c2410",
-            Some(&token),
-            json!({"organizationId":"28f52f56-080e-40b6-a81b-2d98bc6e5f30"})
-        )
-        .await,
-        StatusCode::FORBIDDEN
-    );
-    assert_eq!(
-        request(
-            "POST",
             "/orgs/28f52f56-080e-40b6-a81b-2d98bc6e5f30/projects/7693af38-9441-45c5-932e-c7dcbd509b82/embeddings/search",
             Some(&token),
             json!({"organizationId":"fc97bf36-99e8-427e-99ab-6d24ea2c2410"})
@@ -462,32 +442,6 @@ async fn read_only_membership_cannot_write_and_cross_org_roles_do_not_grant_writ
         .await,
         StatusCode::FORBIDDEN
     );
-}
-
-#[tokio::test]
-async fn review_embedding_writes_authorize_the_metadata_tenant() {
-    let token = token(&user());
-    let body = json!({
-        "text":"A canonical task",
-        "metadata":{
-            "id":"d41c551b-a1fd-4ae2-a279-5462fae33f22",
-            "type":"task", "taskType":"STANDARD", "name":"A canonical task",
-            "organizationId":"28f52f56-080e-40b6-a81b-2d98bc6e5f30",
-            "projectId":"7693af38-9441-45c5-932e-c7dcbd509b82"
-        }
-    });
-    assert!(authorized(
-        request("POST", "/embeddings", Some(&token), body.clone()).await
-    ));
-    for field in ["organizationId", "projectId"] {
-        let mut forbidden = body.clone();
-        forbidden["metadata"][field] = json!("fc97bf36-99e8-427e-99ab-6d24ea2c2410");
-        assert_eq!(
-            request("POST", "/embeddings", Some(&token), forbidden).await,
-            StatusCode::FORBIDDEN,
-            "metadata.{field}"
-        );
-    }
 }
 
 #[tokio::test]

@@ -685,21 +685,6 @@ impl EmbeddingRequest {
     }
 }
 
-#[derive(Serialize)]
-pub struct EmbeddingResponse {
-    pub success: bool,
-    pub data: EmbeddingData,
-}
-
-#[derive(Serialize)]
-pub struct EmbeddingData {
-    pub success: bool,
-    pub embedding_id: String,
-    pub chunks_created: usize,
-    pub chunk_ids: Vec<String>,
-    pub total_word_count: usize,
-}
-
 #[derive(Clone, Debug, Serialize)]
 pub struct SearchResult {
     pub id: String,

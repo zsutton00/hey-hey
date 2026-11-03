@@ -452,41 +452,6 @@ async fn knowledge_lifecycles_replace_preserve_remove_and_restore() -> anyhow::R
         ingest.handle(&make("created", snapshot.clone())).await?;
         ingest.handle(&make("created", snapshot.clone())).await?;
         assert_eq!(search.find("quasar").await, [TASK]);
-        if family != "design_doc" {
-            let hits = search
-                .hits(
-                    json!({"query": "quasar", "search_type": "keyword", "similarity_threshold": 0}),
-                )
-                .await;
-            let metadata = hits[0]["metadata"].clone();
-            for valid in [false, true] {
-                let mut metadata = metadata.clone();
-                if !valid {
-                    metadata
-                        .as_object_mut()
-                        .unwrap()
-                        .remove(if family == "service" {
-                            "name"
-                        } else {
-                            "serviceId"
-                        });
-                }
-                let request = Request::builder().method("POST").uri("/embeddings")
-                    .header("Authorization", format!("Bearer {}", search.token))
-                    .header("Content-Type", "application/json")
-                    .body(Body::from(json!({"text": "quasar sectiononlynebula", "metadata": metadata, "level": "document"}).to_string()))?;
-                let response = search.router.clone().oneshot(request).await?;
-                assert_eq!(
-                    response.status(),
-                    if valid {
-                        StatusCode::CREATED
-                    } else {
-                        StatusCode::BAD_REQUEST
-                    }
-                );
-                assert_eq!(search.find("quasar").await, [TASK]);
-            }
-        }
         let mut invalid = snapshot.clone();
         invalid["id"] = json!(CHILD);
         assert!(ingest.handle(&make("updated", invalid)).await.is_err());

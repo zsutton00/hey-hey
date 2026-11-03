@@ -102,63 +102,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProjectionDeletionRetryableFailureResponse"
 
-  /embeddings:
-    post:
-      tags:
-        - Embeddings
-      summary: Create Text Embeddings
-      description:
-        Generate and store embeddings for the provided text content. Supports
-        automatic chunking for large documents.
-      operationId: createEmbedding
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        description: Text content and metadata for embedding creation
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/EmbeddingRequest"
-            example:
-              text:
-                Machine learning is a subset of artificial intelligence that focuses
-                on algorithms that can learn from data.
-              metadata:
-                id: ml_intro_001
-                category: education
-                title: Introduction to Machine Learning
-              level: chunk
-      responses:
-        "201":
-          description: Embeddings created successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/EmbeddingResponse"
-              example:
-                success: true
-                data:
-                  success: true
-                  embedding_id: ml_intro_001
-                  chunks_created: 3
-                  chunk_ids:
-                    - ml_intro_001_chunk_0
-                    - ml_intro_001_chunk_1
-                    - ml_intro_001_chunk_2
-                  total_word_count: 25
-        "400":
-          description: Invalid request data
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
   /embeddings/search:
     get:
       tags:
@@ -1178,63 +1121,6 @@ components:
           format: date-time
           description: Last update timestamp.
 
-    EmbeddingRequest:
-      type: object
-      required:
-        - text
-      properties:
-        text:
-          type: string
-          minLength: 1
-          maxLength: 50000
-          description: Text content to embed
-          example: Machine learning is a subset of artificial intelligence...
-        metadata:
-          $ref: "#/components/schemas/EmbeddingMetadata"
-        level:
-          type: string
-          enum:
-            - chunk
-            - document
-          default: chunk
-          description:
-            "Processing level: 'chunk' for automatic chunking or 'document'
-            for whole document"
-          example: chunk
-    EmbeddingResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          description: Whether the operation succeeded
-          example: true
-        data:
-          type: object
-          properties:
-            success:
-              type: boolean
-              description: Whether the embedding creation succeeded
-              example: true
-            embedding_id:
-              type: string
-              description: ID of the created embedding
-              example: ml_intro_001
-            chunks_created:
-              type: integer
-              description: Number of chunks created
-              example: 3
-            chunk_ids:
-              type: array
-              items:
-                type: string
-              description: IDs of the created chunks
-              example:
-                - ml_intro_001_chunk_0
-                - ml_intro_001_chunk_1
-            total_word_count:
-              type: integer
-              description: Total word count of the processed text
-              example: 25
     SearchRequest:
       type: object
       properties:

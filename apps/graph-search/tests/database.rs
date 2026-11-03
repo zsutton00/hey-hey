@@ -24,10 +24,15 @@ async fn startup_migrates_restarts_and_refuses_flyway() -> anyhow::Result<()> {
     .fetch_one(&pool)
     .await?;
     assert_eq!(schemas, 2);
-    let migrations: i64 = sqlx::query_scalar("SELECT count(*) FROM _sqlx_migrations WHERE success")
-        .fetch_one(&pool)
-        .await?;
-    assert_eq!(migrations, 3);
+    let migrations: Vec<i64> =
+        sqlx::query_scalar("SELECT version FROM _sqlx_migrations WHERE success ORDER BY version")
+            .fetch_all(&pool)
+            .await?;
+    let expected: Vec<i64> = sqlx::migrate!()
+        .iter()
+        .map(|migration| migration.version)
+        .collect();
+    assert_eq!(migrations, expected);
     let response = server::router(&config, pool.clone(), common::auth())
         .oneshot(Request::builder().uri("/healthz").body(Body::empty())?)
         .await?;
@@ -35,9 +40,10 @@ async fn startup_migrates_restarts_and_refuses_flyway() -> anyhow::Result<()> {
     pool.close().await;
 
     let restarted = connect_and_migrate(&config).await?;
-    let repeated: i64 = sqlx::query_scalar("SELECT count(*) FROM _sqlx_migrations WHERE success")
-        .fetch_one(&restarted)
-        .await?;
+    let repeated: Vec<i64> =
+        sqlx::query_scalar("SELECT version FROM _sqlx_migrations WHERE success ORDER BY version")
+            .fetch_all(&restarted)
+            .await?;
     assert_eq!(migrations, repeated);
 
     // This database is disposable and dedicated to this test, never the API's.

@@ -25,8 +25,6 @@ pub enum Surface {
 pub enum Policy {
     User,
     Read,
-    Write,
-    EmbeddingWrite,
     Deletion(Surface),
     Template,
     Debug,
@@ -363,26 +361,9 @@ fn rejection(requirement: &Requirement, status: StatusCode, path: &str) -> Respo
     response
 }
 
-// Only POST /embeddings declares this policy: other operations' arbitrary
-// metadata must not be interpreted as authentication context.
-#[derive(Deserialize)]
-struct EmbeddingWriteScope {
-    #[serde(flatten)]
-    scope: Scope,
-    metadata: Option<Scope>,
-}
-fn body_scopes(bytes: &[u8], policy: Policy) -> Result<Vec<Scope>, StatusCode> {
+fn body_scopes(bytes: &[u8]) -> Result<Vec<Scope>, StatusCode> {
     if bytes.is_empty() {
         return Ok(vec![Scope::default()]);
-    }
-    if matches!(policy, Policy::EmbeddingWrite) {
-        let body: EmbeddingWriteScope =
-            serde_json::from_slice(bytes).map_err(|_| StatusCode::BAD_REQUEST)?;
-        let mut scopes = vec![body.scope];
-        if let Some(metadata) = body.metadata {
-            scopes.push(metadata);
-        }
-        return Ok(scopes);
     }
     let scope = serde_json::from_slice(bytes).map_err(|_| StatusCode::BAD_REQUEST)?;
     Ok(vec![scope])
@@ -416,7 +397,7 @@ async fn authorize(requirement: &Requirement, request: Request) -> Result<Reques
     let bytes = to_bytes(body, 2 * 1024 * 1024)
         .await
         .map_err(|_| StatusCode::PAYLOAD_TOO_LARGE)?;
-    let body_scopes = body_scopes(&bytes, requirement.policy)?;
+    let body_scopes = body_scopes(&bytes)?;
     let body = &body_scopes[0];
     let mut scopes = vec![&path, &query];
     scopes.extend(body_scopes.iter());
@@ -511,7 +492,6 @@ async fn authorize(requirement: &Requirement, request: Request) -> Result<Reques
             }
             let permission = match policy {
                 Policy::Read => Some("read"),
-                Policy::Write | Policy::EmbeddingWrite => Some("write"),
                 _ => None,
             };
             if let Some(permission) = permission {
