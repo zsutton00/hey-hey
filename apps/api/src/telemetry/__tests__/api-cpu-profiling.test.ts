@@ -9,6 +9,55 @@ import {
 } from '../api-cpu-profiling';
 
 describe('bounded CPU profile evidence', () => {
+  it.each([
+    [
+      '/node_modules/@prisma/client/runtime/library.js',
+      'node_modules/@prisma/client/runtime/library.js',
+    ],
+    [
+      'file:///node_modules/rxjs/dist/cjs/index.js',
+      'node_modules/rxjs/dist/cjs/index.js',
+    ],
+    [
+      '/app/node_modules/winston/lib/winston.js',
+      'node_modules/winston/lib/winston.js',
+    ],
+    ['/home/private/source.js', ''],
+    ['https://private/node_modules/source.js', ''],
+  ])(
+    'preserves deployed code locations without exposing arbitrary paths: %s',
+    (url, expected) => {
+      const profile: Profiler.Profile = {
+        startTime: 0,
+        endTime: 10000,
+        samples: [1],
+        timeDeltas: [10000],
+        nodes: [
+          {
+            id: 1,
+            callFrame: {
+              functionName: 'private function',
+              scriptId: '1',
+              url,
+              lineNumber: 4,
+              columnNumber: 0,
+            },
+          },
+        ],
+      };
+      expect(sanitizeCpuProfile(profile).nodes[0]!.callFrame.url).toBe(
+        expected,
+      );
+      expect(summarizeCpuProfile(profile).topFrames).toContainEqual({
+        location: expected ? `${expected}:5` : '[unattributed]',
+        samples: 1,
+      });
+      expect(JSON.stringify(sanitizeCpuProfile(profile))).not.toContain(
+        'private',
+      );
+    },
+  );
+
   it('counts code locations but removes arbitrary URLs, function names and payloads', () => {
     const profile: Profiler.Profile = {
       startTime: 0,

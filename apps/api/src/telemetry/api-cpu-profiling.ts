@@ -10,6 +10,15 @@ const WINDOW_MS = 30_000;
 export const API_CPU_PROFILE_DIRECTORY = '/tmp/heyhey-api-cpu-profiles';
 const RETAINED_WINDOWS = 40;
 
+function safeCodeLocation(url: string): string | undefined {
+  // Production installs dependencies at /node_modules; local images also use
+  // /app/node_modules. Both normalize to the same code-only artifact location.
+  const match = url.match(
+    /^(?:file:\/\/)?\/(?:app\/(dist|node_modules)|(node_modules))\/([A-Za-z0-9_./@+-]+)$/,
+  );
+  return match ? `${match[1] ?? match[2]}/${match[3]}` : undefined;
+}
+
 export function sanitizeCpuProfile(
   profile: Profiler.Profile,
 ): Profiler.Profile {
@@ -20,9 +29,7 @@ export function sanitizeCpuProfile(
     timeDeltas: profile.timeDeltas,
     nodes: profile.nodes.map((node) => {
       const frame = node.callFrame;
-      const match = frame.url.match(
-        /^(?:file:\/\/)?\/app\/(dist|node_modules)\/([A-Za-z0-9_./@+-]+)$/,
-      );
+      const location = safeCodeLocation(frame.url);
       const builtin = [
         '(idle)',
         '(garbage collector)',
@@ -36,9 +43,9 @@ export function sanitizeCpuProfile(
         callFrame: {
           functionName: builtin ? frame.functionName : '[code]',
           scriptId: '0',
-          url: match ? `${match[1]}/${match[2]}` : '',
-          lineNumber: match ? frame.lineNumber : -1,
-          columnNumber: match ? frame.columnNumber : -1,
+          url: location ?? '',
+          lineNumber: location ? frame.lineNumber : -1,
+          columnNumber: location ? frame.columnNumber : -1,
         },
       };
     }),
@@ -92,9 +99,7 @@ export function summarizeCpuProfile(profile: Profiler.Profile) {
     counts.set(id, (counts.get(id) ?? 0) + 1);
   const frames = profile.nodes.map((node) => {
     const frame = node.callFrame;
-    const match = frame.url.match(
-      /^(?:file:\/\/)?\/app\/(dist|node_modules)\/([A-Za-z0-9_./@+-]+)$/,
-    );
+    const location = safeCodeLocation(frame.url);
     const builtin = [
       '(idle)',
       '(garbage collector)',
@@ -102,8 +107,8 @@ export function summarizeCpuProfile(profile: Profiler.Profile) {
       '(root)',
     ].includes(frame.functionName);
     return {
-      location: match
-        ? `${match[1]}/${match[2]}:${frame.lineNumber + 1}`
+      location: location
+        ? `${location}:${frame.lineNumber + 1}`
         : builtin
           ? frame.functionName
           : '[unattributed]',
