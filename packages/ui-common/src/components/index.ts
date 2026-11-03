@@ -49,6 +49,7 @@ export * from "./Tasks";
 export * from "./Topology";
 export * from "./ThinkingIndicator";
 export * from "./Toast";
+export * from "./Uncertainties";
 export * from "./Walkthrough/InitiativeEditorWalkthrough";
 export * from "./WorkItem";
 export * from "./WorkItem";

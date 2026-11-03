@@ -5,14 +5,25 @@ import type { ComponentProps } from "react";
 import { ConversationMessage as ResolvedConversationMessage } from "../ConversationMessage";
 import { resolveConversationForm } from "../../utils/conversationResponseModel";
 
-const ConversationMessage = (props: ComponentProps<typeof ResolvedConversationMessage>) => {
+const ConversationMessage = (
+  props: ComponentProps<typeof ResolvedConversationMessage>,
+) => {
   const context = useConversationContext();
-  context.resolvedForms = new Map([[props.conversationMessage.message.id, resolveConversationForm(
-    props.conversationMessage, props.messageIndex === props.totalMessages - 1, {
-      workflowCanSubmit: context.workflowStatus.canSubmit, isSubmitting: context.isSubmitting,
-      readOnly: context.isReadOnly, isCliInputDisabled: false,
-    },
-  )]]);
+  context.resolvedForms = new Map([
+    [
+      props.conversationMessage.message.id,
+      resolveConversationForm(
+        props.conversationMessage,
+        props.messageIndex === props.totalMessages - 1,
+        {
+          workflowCanSubmit: context.workflowStatus.canSubmit,
+          isSubmitting: context.isSubmitting,
+          readOnly: context.isReadOnly,
+          isCliInputDisabled: false,
+        },
+      ),
+    ],
+  ]);
   return <ResolvedConversationMessage {...props} />;
 };
 import { useConversationContext } from "../ConversationContext";
@@ -21,6 +32,7 @@ import { getReportConfig } from "../../../Reports/reportConfig";
 import type { ConversationMessage as ConversationMessageType } from "../../../../types/conversation";
 import type {
   AgentSystemMessageData,
+  AgentUncertaintySystemMessageData,
   ConversationResponseDto,
   ProjectResponseDto,
   ProposalResponseDto,
@@ -122,9 +134,8 @@ vi.mock("../MessageProposals", () => ({
 }));
 
 vi.mock("../../../LlmForms/Registry", async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import("../../../LlmForms/Registry")
-  >();
+  const actual =
+    await importOriginal<typeof import("../../../LlmForms/Registry")>();
   return {
     ...actual,
     getProposalsRenderConfig: vi.fn(actual.getProposalsRenderConfig),
@@ -132,9 +143,8 @@ vi.mock("../../../LlmForms/Registry", async (importOriginal) => {
 });
 
 vi.mock("../../../Reports/reportConfig", async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import("../../../Reports/reportConfig")
-  >();
+  const actual =
+    await importOriginal<typeof import("../../../Reports/reportConfig")>();
   return {
     ...actual,
     getReportConfig: vi.fn(actual.getReportConfig),
@@ -174,7 +184,7 @@ describe("ConversationMessage", () => {
   let mockConversationContext: ReturnType<typeof useConversationContext>;
 
   const createMockConversationMessage = (
-    overrides: Partial<ConversationMessageType> = {}
+    overrides: Partial<ConversationMessageType> = {},
   ): ConversationMessageType => ({
     message: {
       id: "msg-1",
@@ -200,7 +210,7 @@ describe("ConversationMessage", () => {
   });
 
   const renderSupervisionDecision = (
-    data: TaskMonitorSupervisionSystemMessageData
+    data: TaskMonitorSupervisionSystemMessageData,
   ) => {
     const conversationMessage = createMockConversationMessage({
       message: {
@@ -216,7 +226,7 @@ describe("ConversationMessage", () => {
           messageIndex={0}
           totalMessages={1}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
   };
 
@@ -248,7 +258,7 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     const container = screen.getByTestId("msg-1");
@@ -265,7 +275,7 @@ describe("ConversationMessage", () => {
         data-testid="custom-message"
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(screen.getByTestId("custom-message")).toBeInTheDocument();
@@ -288,7 +298,7 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(screen.getByTestId("system-message-retry")).toBeInTheDocument();
@@ -311,10 +321,44 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(screen.getByTestId("system-message-retry")).toBeInTheDocument();
+  });
+
+  it("renders an uncertainty as a separate block without a system response", () => {
+    const data: AgentUncertaintySystemMessageData = {
+      type: SystemMessageDataTypeEnum.AgentUncertainty,
+      severity: "high",
+      category: "question",
+      statement: "Which project should receive this change?",
+    };
+    const conversationMessage = createMockConversationMessage({
+      message: {
+        ...createMockConversationMessage().message,
+        data,
+      },
+    });
+
+    render(
+      <ConversationMessage
+        conversationMessage={conversationMessage}
+        messageIndex={0}
+        totalMessages={1}
+      />,
+    );
+
+    const uncertainty = screen.getByTestId("conversation-agent-uncertainty");
+    expect(uncertainty).toHaveTextContent("high");
+    expect(uncertainty).toHaveTextContent("Question");
+    expect(uncertainty).toHaveTextContent(
+      "Which project should receive this change?",
+    );
+    expect(uncertainty).toHaveTextContent("Needs your answer");
+    expect(
+      screen.queryByTestId("system-message-retry"),
+    ).not.toBeInTheDocument();
   });
 
   it("routes a Task Monitor intervention through its typed renderer", () => {
@@ -346,17 +390,17 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("task-monitor-intervention-message")
+      screen.getByTestId("task-monitor-intervention-message"),
     ).toHaveAttribute(
       "data-intervention-id",
-      "22222222-2222-4222-8222-222222222222"
+      "22222222-2222-4222-8222-222222222222",
     );
     expect(
-      screen.queryByTestId("system-message-retry")
+      screen.queryByTestId("system-message-retry"),
     ).not.toBeInTheDocument();
   });
 
@@ -372,21 +416,21 @@ describe("ConversationMessage", () => {
 
     expect(screen.getByTestId("supervision-decision-message")).toBeVisible();
     expect(
-      screen.getByTestId("supervision-decision-outcome")
+      screen.getByTestId("supervision-decision-outcome"),
     ).toHaveTextContent("Accepted");
     expect(
-      screen.getByTestId("supervision-decision-rationale")
+      screen.getByTestId("supervision-decision-rationale"),
     ).toHaveTextContent(
-      "The implementation **satisfies** the acceptance criteria."
+      "The implementation **satisfies** the acceptance criteria.",
     );
     expect(
-      screen.queryByTestId("supervision-decision-guidance")
+      screen.queryByTestId("supervision-decision-guidance"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId("system-message-retry")
+      screen.queryByTestId("system-message-retry"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByText("The task was accepted.")
+      screen.queryByText("The task was accepted."),
     ).not.toBeInTheDocument();
   });
 
@@ -404,23 +448,23 @@ describe("ConversationMessage", () => {
 
     expect(screen.getByTestId("supervision-decision-message")).toBeVisible();
     expect(
-      screen.getByTestId("supervision-decision-outcome")
+      screen.getByTestId("supervision-decision-outcome"),
     ).toHaveTextContent("Changes requested");
     expect(
-      screen.getByTestId("supervision-decision-rationale")
+      screen.getByTestId("supervision-decision-rationale"),
     ).toHaveTextContent("The focused test does not cover the failure path.");
     expect(
-      screen.getByTestId("supervision-decision-guidance")
+      screen.getByTestId("supervision-decision-guidance"),
     ).toHaveTextContent("Add **coverage** for @ Mention Nodes.");
     expect(screen.getByTestId("mention-badge")).toHaveAttribute(
       "data-mention-token",
-      "@[feature:8be2f12f-4313-427a-a279-70f94136f0c6|@ Mention Nodes]"
+      "@[feature:8be2f12f-4313-427a-a279-70f94136f0c6|@ Mention Nodes]",
     );
     expect(
-      screen.queryByTestId("system-message-retry")
+      screen.queryByTestId("system-message-retry"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByText("Changes were requested.")
+      screen.queryByText("Changes were requested."),
     ).not.toBeInTheDocument();
   });
 
@@ -502,18 +546,18 @@ describe("ConversationMessage", () => {
       renderSupervisionDecision(data);
 
       expect(
-        screen.getByTestId("supervision-decision-outcome")
+        screen.getByTestId("supervision-decision-outcome"),
       ).toHaveTextContent(expectedLabel);
       expect(
-        screen.getByTestId("supervision-decision-rationale")
+        screen.getByTestId("supervision-decision-rationale"),
       ).toHaveTextContent(data.rationale);
       if (detailTestId && expectedDetail) {
         expect(screen.getByTestId(detailTestId)).toHaveTextContent(
-          expectedDetail
+          expectedDetail,
         );
       }
       expect(screen.queryByText(data.requestId)).not.toBeInTheDocument();
-    }
+    },
   );
 
   it("renders a waiting Task Monitor supervision decision", () => {
@@ -526,10 +570,10 @@ describe("ConversationMessage", () => {
     });
 
     expect(
-      screen.getByTestId("supervision-decision-outcome")
+      screen.getByTestId("supervision-decision-outcome"),
     ).toHaveTextContent("Waiting");
     expect(
-      screen.getByTestId("supervision-decision-rationale")
+      screen.getByTestId("supervision-decision-rationale"),
     ).toHaveTextContent("Canonical completion evidence has not arrived yet.");
   });
 
@@ -544,17 +588,17 @@ describe("ConversationMessage", () => {
     });
 
     expect(
-      screen.getByTestId("supervision-decision-outcome")
+      screen.getByTestId("supervision-decision-outcome"),
     ).toHaveTextContent("Judgment requested");
     expect(
-      screen.getByTestId("supervision-decision-rationale")
+      screen.getByTestId("supervision-decision-rationale"),
     ).toHaveTextContent(
-      "The available evidence does not resolve the product choice."
+      "The available evidence does not resolve the product choice.",
     );
     expect(
-      screen.getByTestId("supervision-decision-guidance")
+      screen.getByTestId("supervision-decision-guidance"),
     ).toHaveTextContent(
-      "Choose whether compatibility or strict validation wins."
+      "Choose whether compatibility or strict validation wins.",
     );
   });
 
@@ -569,15 +613,15 @@ describe("ConversationMessage", () => {
     });
 
     expect(
-      screen.getByTestId("supervision-decision-outcome")
+      screen.getByTestId("supervision-decision-outcome"),
     ).toHaveTextContent("Halted");
     expect(
-      screen.getByTestId("supervision-decision-rationale")
+      screen.getByTestId("supervision-decision-rationale"),
     ).toHaveTextContent("The released Turn cannot be evaluated safely.");
     expect(
-      screen.getByTestId("supervision-decision-failure-context")
+      screen.getByTestId("supervision-decision-failure-context"),
     ).toHaveTextContent(
-      "The **canonical** Agent Session could not be resolved."
+      "The **canonical** Agent Session could not be resolved.",
     );
   });
 
@@ -600,7 +644,7 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(screen.getByTestId("analysis-message")).toBeInTheDocument();
@@ -625,7 +669,7 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(screen.queryByTestId("analysis-message")).not.toBeInTheDocument();
@@ -681,20 +725,20 @@ describe("ConversationMessage", () => {
         messageIndex={0}
         totalMessages={1}
         data-testid="carrier-message"
-      />
+      />,
     );
 
     expect(screen.getByTestId("carrier-message")).toHaveAttribute(
       "data-message-id",
-      "carrier-message-id"
+      "carrier-message-id",
     );
     expect(screen.getByTestId("message-proposals")).toBeInTheDocument();
     expect(
-      screen.getByTestId("system-message-retry-inline-reports")
+      screen.getByTestId("system-message-retry-inline-reports"),
     ).toHaveTextContent("SNAPSHOT");
     expect(screen.getByTestId("report-actions")).toHaveTextContent("IMPLEMENT");
     expect(screen.getByTestId("carrier-message")).not.toHaveTextContent(
-      "A fabricated response"
+      "A fabricated response",
     );
     expect(screen.queryByTestId("completion-message")).not.toBeInTheDocument();
   });
@@ -738,18 +782,18 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(screen.getByTestId("report-actions")).toBeEmptyDOMElement();
     expect(
-      screen.getByTestId("form-renderer-interactive-reports")
+      screen.getByTestId("form-renderer-interactive-reports"),
     ).toHaveTextContent("PLAN");
     expect(
-      screen.getByTestId("form-renderer-interactive-reports")
+      screen.getByTestId("form-renderer-interactive-reports"),
     ).toHaveAttribute("data-source-ui-element-id", "startup-plan-field");
     expect(
-      screen.queryByTestId("system-message-retry")
+      screen.queryByTestId("system-message-retry"),
     ).not.toBeInTheDocument();
   });
 
@@ -786,20 +830,20 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("form-renderer-interactive-reports")
+      screen.getByTestId("form-renderer-interactive-reports"),
     ).toHaveTextContent("PLAN");
     expect(
-      screen.getByTestId("form-renderer-interactive-reports")
+      screen.getByTestId("form-renderer-interactive-reports"),
     ).toHaveAttribute(
       "data-source-ui-element-id",
-      "coding_prompt_startup_plan"
+      "coding_prompt_startup_plan",
     );
     expect(
-      screen.getByTestId("form-renderer-inline-reports")
+      screen.getByTestId("form-renderer-inline-reports"),
     ).toBeEmptyDOMElement();
   });
 
@@ -836,17 +880,15 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
-    expect(screen.getByTestId("report-actions")).toHaveTextContent(
-      "SNAPSHOT"
-    );
+    expect(screen.getByTestId("report-actions")).toHaveTextContent("SNAPSHOT");
     expect(
-      screen.getByTestId("form-renderer-inline-reports")
+      screen.getByTestId("form-renderer-inline-reports"),
     ).toBeEmptyDOMElement();
     expect(
-      screen.getByTestId("system-message-retry-inline-reports")
+      screen.getByTestId("system-message-retry-inline-reports"),
     ).toBeEmptyDOMElement();
   });
 
@@ -883,11 +925,11 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("system-message-retry-inline-reports")
+      screen.getByTestId("system-message-retry-inline-reports"),
     ).toBeEmptyDOMElement();
     expect(screen.getByTestId("report-actions")).toBeEmptyDOMElement();
   });
@@ -924,11 +966,11 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("system-message-retry-inline-reports")
+      screen.getByTestId("system-message-retry-inline-reports"),
     ).toHaveTextContent("SNAPSHOT");
   });
 
@@ -940,7 +982,7 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(screen.getByTestId("form-renderer")).toBeInTheDocument();
@@ -983,17 +1025,17 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("form-renderer-inline-reports")
+      screen.getByTestId("form-renderer-inline-reports"),
     ).toBeEmptyDOMElement();
     expect(
-      screen.getByTestId("form-renderer-interactive-reports")
+      screen.getByTestId("form-renderer-interactive-reports"),
     ).toHaveTextContent("FEATURE_SYNC_DECISION");
     expect(
-      screen.queryByTestId("system-message-retry-inline-reports")
+      screen.queryByTestId("system-message-retry-inline-reports"),
     ).not.toBeInTheDocument();
   });
 
@@ -1034,14 +1076,14 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("form-renderer-interactive-reports")
+      screen.getByTestId("form-renderer-interactive-reports"),
     ).toHaveTextContent("FEATURE_SYNC_DECISION");
     expect(
-      screen.getByTestId("system-message-retry-inline-reports")
+      screen.getByTestId("system-message-retry-inline-reports"),
     ).toBeEmptyDOMElement();
   });
 
@@ -1063,7 +1105,7 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(screen.getByTestId("user-message-msg-1")).toBeInTheDocument();
@@ -1110,7 +1152,7 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(screen.getByTestId("user-message-msg-1")).toBeInTheDocument();
@@ -1141,7 +1183,7 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(screen.getByTestId("user-message-msg-1")).toBeInTheDocument();
@@ -1176,15 +1218,15 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(screen.getByTestId("user-message-msg-1")).toHaveAttribute(
       "data-user-message-provenance",
-      UserMessageAgentInputProvenance.SessionMonitor
+      UserMessageAgentInputProvenance.SessionMonitor,
     );
     expect(screen.getByTestId("agent-caption-msg-1")).toHaveTextContent(
-      "Auto-run Agent"
+      "Auto-run Agent",
     );
     expect(screen.queryByText("Alice Smith")).not.toBeInTheDocument();
     expect(screen.getByText("monitor-authored reply")).toBeInTheDocument();
@@ -1217,15 +1259,15 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(screen.getByTestId("user-message-msg-1")).toHaveAttribute(
       "data-user-message-provenance",
-      UserMessageAgentInputProvenance.TaskMonitor
+      UserMessageAgentInputProvenance.TaskMonitor,
     );
     expect(screen.getByTestId("agent-caption-msg-1")).toHaveTextContent(
-      "Auto-run Agent"
+      "Auto-run Agent",
     );
     expect(screen.queryByText("Alice Smith")).not.toBeInTheDocument();
     expect(screen.getByText("task-monitor guidance")).toBeInTheDocument();
@@ -1239,11 +1281,11 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(
-      screen.queryByTestId("message-timestamp-msg-1")
+      screen.queryByTestId("message-timestamp-msg-1"),
     ).not.toBeInTheDocument();
   });
 
@@ -1256,7 +1298,7 @@ describe("ConversationMessage", () => {
         messageIndex={0}
         totalMessages={1}
         renderTimestamp={true}
-      />
+      />,
     );
 
     expect(screen.getByTestId("message-timestamp-msg-1")).toBeInTheDocument();
@@ -1279,7 +1321,7 @@ describe("ConversationMessage", () => {
         messageIndex={0}
         totalMessages={1}
         renderTimestamp={true}
-      />
+      />,
     );
 
     expect(screen.getByTestId("message-timestamp-msg-1")).toBeInTheDocument();
@@ -1322,14 +1364,14 @@ describe("ConversationMessage", () => {
         messageIndex={0}
         totalMessages={2}
         renderTimestamp
-      />
+      />,
     );
 
     expect(screen.getByTestId("agent-caption-msg-1")).toHaveTextContent(
-      "thought for 5s"
+      "thought for 5s",
     );
     expect(screen.getByTestId("agent-caption-msg-1")).not.toHaveTextContent(
-      "thinking"
+      "thinking",
     );
     vi.useRealTimers();
   });
@@ -1357,11 +1399,11 @@ describe("ConversationMessage", () => {
         messageIndex={1}
         totalMessages={2}
         renderTimestamp
-      />
+      />,
     );
 
     expect(screen.getByTestId("agent-caption-msg-1")).toHaveTextContent(
-      "thinking for 5s"
+      "thinking for 5s",
     );
     vi.useRealTimers();
   });
@@ -1404,11 +1446,11 @@ describe("ConversationMessage", () => {
           messageIndex={0}
           totalMessages={1}
           renderTimestamp
-        />
+        />,
       );
 
       expect(screen.getByTestId("agent-caption-msg-1")).toHaveTextContent(
-        "thought for 7s"
+        "thought for 7s",
       );
 
       vi.mocked(useConversationContext).mockReturnValue({
@@ -1423,14 +1465,14 @@ describe("ConversationMessage", () => {
           messageIndex={0}
           totalMessages={1}
           renderTimestamp
-        />
+        />,
       );
 
       expect(screen.getByTestId("agent-caption-msg-1")).toHaveTextContent(
-        "thinking for 14s"
+        "thinking for 14s",
       );
       vi.useRealTimers();
-    }
+    },
   );
 
   it("uses the requested MUI spacing for the interstitial agent caption", () => {
@@ -1451,11 +1493,11 @@ describe("ConversationMessage", () => {
         messageIndex={0}
         totalMessages={1}
         renderTimestamp
-      />
+      />,
     );
 
     const caption = window.getComputedStyle(
-      screen.getByTestId("agent-caption-msg-1")
+      screen.getByTestId("agent-caption-msg-1"),
     );
     expect(caption.marginLeft).toBe("40px");
     expect(caption.marginTop).toBe("4px");
@@ -1478,11 +1520,11 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(
-      screen.queryByTestId("system-message-retry")
+      screen.queryByTestId("system-message-retry"),
     ).not.toBeInTheDocument();
     expect(screen.queryByTestId("form-renderer")).not.toBeInTheDocument();
   });
@@ -1505,7 +1547,7 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(screen.getByText(feedbackText)).toBeInTheDocument();
@@ -1544,19 +1586,19 @@ describe("ConversationMessage", () => {
           conversationMessage={conversationMessage}
           messageIndex={0}
           totalMessages={1}
-        />
+        />,
       );
 
       expect(
-        screen.queryByTestId("user-message-msg-1")
+        screen.queryByTestId("user-message-msg-1"),
       ).not.toBeInTheDocument();
       expect(
-        screen.queryByText(/plan_shaping_feature_sync_review_done/)
+        screen.queryByText(/plan_shaping_feature_sync_review_done/),
       ).not.toBeInTheDocument();
       expect(
-        screen.queryByText(/workflowAnswerOperationId/)
+        screen.queryByText(/workflowAnswerOperationId/),
       ).not.toBeInTheDocument();
-    }
+    },
   );
 
   it("renders workflow-answer feedback verbatim without exposing its action envelope", () => {
@@ -1580,15 +1622,15 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(screen.getByTestId("user-message-msg-1")).toHaveTextContent(
-      feedbackText
+      feedbackText,
     );
     expect(screen.queryByText(/approve_all/)).not.toBeInTheDocument();
     expect(
-      screen.queryByText(/workflowAnswerOperationId/)
+      screen.queryByText(/workflowAnswerOperationId/),
     ).not.toBeInTheDocument();
   });
 
@@ -1608,7 +1650,7 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(screen.getByText("just say hi!")).toBeInTheDocument();
@@ -1640,14 +1682,14 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(screen.getByTestId("user-message-msg-1")).toHaveTextContent(
-      "Review the changes made during this session"
+      "Review the changes made during this session",
     );
     expect(screen.getByTestId("user-message-msg-1")).toHaveTextContent(
-      "Focus on error handling."
+      "Focus on error handling.",
     );
     expect(screen.queryByText(/claude-sonnet-4-6/)).not.toBeInTheDocument();
     expect(screen.queryByText(/```json/)).not.toBeInTheDocument();
@@ -1674,7 +1716,7 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(screen.getByText("Alice Smith")).toBeInTheDocument();
@@ -1694,11 +1736,11 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(
-      screen.queryByTestId(`message-timestamp-msg-1`)
+      screen.queryByTestId(`message-timestamp-msg-1`),
     ).not.toBeInTheDocument();
   });
 
@@ -1710,7 +1752,7 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     const container = screen.getByTestId("msg-1");
@@ -1734,7 +1776,7 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={2}
         totalMessages={5}
-      />
+      />,
     );
 
     // All child components should be rendered
@@ -1767,7 +1809,7 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(screen.getByTestId("agent-caption-msg-1")).toBeInTheDocument();
@@ -1796,14 +1838,14 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     const caption = screen.getByTestId("agent-caption-msg-1");
     expect(caption).toBeInTheDocument();
     expect(caption).toHaveTextContent("Agent");
     expect(
-      screen.queryByTestId("agent-caption-tooltip-msg-1")
+      screen.queryByTestId("agent-caption-tooltip-msg-1"),
     ).not.toBeInTheDocument();
   });
 
@@ -1823,7 +1865,7 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(screen.queryByTestId("agent-caption-msg-1")).not.toBeInTheDocument();
@@ -1854,7 +1896,7 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     const form = screen.getByTestId("form-renderer");
@@ -1862,7 +1904,8 @@ describe("ConversationMessage", () => {
     expect(form).toBeInTheDocument();
     expect(proposals).toBeInTheDocument();
     expect(
-      form.compareDocumentPosition(proposals) & Node.DOCUMENT_POSITION_FOLLOWING
+      form.compareDocumentPosition(proposals) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
@@ -1890,7 +1933,7 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     const systemMessage = screen.getByTestId("system-message-retry");
@@ -1898,10 +1941,11 @@ describe("ConversationMessage", () => {
     const form = screen.getByTestId("form-renderer");
     expect(
       systemMessage.compareDocumentPosition(proposals) &
-        Node.DOCUMENT_POSITION_FOLLOWING
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      proposals.compareDocumentPosition(form) & Node.DOCUMENT_POSITION_FOLLOWING
+      proposals.compareDocumentPosition(form) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
@@ -1934,7 +1978,7 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     expect(screen.getByTestId("form-renderer")).toBeInTheDocument();
@@ -1958,12 +2002,12 @@ describe("ConversationMessage", () => {
         conversationMessage={conversationMessage}
         messageIndex={0}
         totalMessages={1}
-      />
+      />,
     );
 
     // Should not render SystemMessageWithRetry for processing state without response
     expect(
-      screen.queryByTestId("system-message-retry")
+      screen.queryByTestId("system-message-retry"),
     ).not.toBeInTheDocument();
 
     // Should still render form renderer
