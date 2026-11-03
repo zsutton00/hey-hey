@@ -6,7 +6,7 @@
   "targets": {
     "ui-common": {
       "status": "generated",
-      "inputDigest": "sha256:6ff47e18bd94b0ed6e8a6ce76980b0fc1a3cf9f3544982d580ab819493d30943",
+      "inputDigest": "sha256:0175862a98e9d7e53c9645c2f89c234799cd6b6c5afcc4a75fb4153374ea2b66",
       "outputDigest": "sha256:c01d6f5b5301ba637bc0d2051b6ce6c0a6d7f1fed110bc0806677bf40cbeb76a",
       "dependencyDigests": {
         "contracts-api": "sha256:06352cff37ed23c71568629aafd2c52197b15befec53ab9c3fbfb022ddee7207",
@@ -30,19 +30,19 @@
     },
     "contracts-api": {
       "status": "generated",
-      "inputDigest": "sha256:da245c5ba042fa2de8fe744ac61286f467a5eab13fbe84ef8e05eabbb1e6589e",
+      "inputDigest": "sha256:3622ab8aaef3cbeda8383a96751f7482a3f5e24045fca49ec58ab672067b92d0",
       "outputDigest": "sha256:06352cff37ed23c71568629aafd2c52197b15befec53ab9c3fbfb022ddee7207",
       "dependencyDigests": {}
     },
     "contracts-agent-bridge": {
       "status": "generated",
-      "inputDigest": "sha256:4fb7a5088faf24385361f02e9d5f3ccb3058494f52cc93822355c56be73ddd93",
+      "inputDigest": "sha256:ce3add44de6cd2ac7fad537c02e0c3729224c6d15356f59f7064167e777a6210",
       "outputDigest": "sha256:20fdccb443ed6b0b36cd743ed0ad42ba4c80bab627a96dae42dce57a77ba9537",
       "dependencyDigests": {}
     },
     "contracts-local": {
       "status": "generated",
-      "inputDigest": "sha256:92aa9e78966d7c6edfeab809b5eb93c5cc7d20457e19dcea34dfa8008666902c",
+      "inputDigest": "sha256:49985d2ce468bba07b62dcbcbc8050dff7aedd940c0569814f122cfb0042f151",
       "outputDigest": "sha256:f8980ba9d7dcf4682624df82dfa4b0c662611ae9d36e0151a0556415fb5fe7fd",
       "dependencyDigests": {}
     },
@@ -75,7 +75,7 @@
     },
     "api-event-schemas": {
       "status": "generated",
-      "inputDigest": "sha256:1c50534f7958720011280cd173292d1d6ea3b2f293cb907510df9a845f267f93",
+      "inputDigest": "sha256:9444aae03a438d77768e57f3dafef85acb58d71155d4547ecf5e0462793e72b9",
       "outputDigest": "sha256:47bced5589ab81192397ad8372aeeb864dd977c55c6088db82b85403cc8804d8",
       "dependencyDigests": {
         "contracts-api": "sha256:06352cff37ed23c71568629aafd2c52197b15befec53ab9c3fbfb022ddee7207"

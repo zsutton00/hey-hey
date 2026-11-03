@@ -25,7 +25,7 @@
     "email:preview-welcome": "ts-node -r tsconfig-paths/register scripts/preview-welcome-email.ts",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "typecheck": "node ../../scripts/generate-contracts.mjs --with-lock --build-contracts --target=api-custom,api-agents,api-embeddings,api-graphs,api-event-schemas -- pnpm --dir apps/api exec tsc --noEmit",
-    "test": "node ../../scripts/generate-contracts.mjs --with-lock --build-contracts --target=api-custom,api-agents,api-embeddings,api-graphs,api-event-schemas -- pnpm --dir apps/api run test:unlocked",
+    "test": "jest",
     "test:changed": "jest --changedSince=HEAD --passWithNoTests",
     "test:changed:branch": "jest --changedSince=origin/main --passWithNoTests",
     "test:file": "jest --runTestsByPath",
@@ -89,7 +89,6 @@
     "typesafe:jev:smoke": "ts-node -r tsconfig-paths/register scripts/typesafe-jev-smoke.ts",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
     "build:unlocked": "pnpm run clean && pnpm prisma generate && nest build",
-    "test:unlocked": "jest",
     "generate:check": "node ../../scripts/generate-contracts.mjs --check --target=api-custom,api-agents,api-embeddings,api-graphs,api-event-schemas"
   },
   "dependencies": {
