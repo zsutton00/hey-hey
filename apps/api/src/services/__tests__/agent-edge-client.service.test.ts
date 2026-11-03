@@ -6,7 +6,11 @@ import { AgentEdgeEndpointEntityType } from 'src/generated/graphs/model/agentEdg
 import type { CreateAgentEdgeDto } from 'src/generated/graphs/model/createAgentEdgeDto';
 import type { AgentEdgesService } from 'src/generated/graphs/api/agentEdges.service';
 import type { PrismaService } from 'src/prisma/prisma.service';
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  HttpException,
+} from '@nestjs/common';
 import { OrganizationId, ProjectId } from 'src/types';
 import {
   AGENT_EDGE_BATCH_SIZE,
@@ -67,6 +71,47 @@ describe('AgentEdgeClientService', () => {
           : generatedService.deleteAgentEdge.mock.calls[0];
       expect(call[2]).toBe('edge-1');
       expect(call[operation === 'update' ? 4 : 3]).toBe(reviewedVersion);
+    },
+  );
+
+  it.each(['update', 'delete'] as const)(
+    'answers a Graph %s of an unknown agent edge with the matching 404',
+    async (operation) => {
+      const body = { message: 'Agent edge not found' };
+      const notFound = {
+        isAxiosError: true,
+        response: { status: 404, data: body },
+      };
+      const service = new AgentEdgeClientService(
+        {
+          updateAgentEdge: jest
+            .fn()
+            .mockReturnValue(throwError(() => notFound)),
+          deleteAgentEdge: jest
+            .fn()
+            .mockReturnValue(throwError(() => notFound)),
+        } as unknown as AgentEdgesService,
+        createPrisma() as unknown as PrismaService,
+      );
+      const result =
+        operation === 'update'
+          ? service.update(
+              'org-1' as OrganizationId,
+              'project-1' as ProjectId,
+              'edge-1',
+              { reasoning: 'x', lastModifiedBySessionId: 'session-1' },
+              'token-1',
+            )
+          : service.delete(
+              'org-1' as OrganizationId,
+              'project-1' as ProjectId,
+              'edge-1',
+              'token-1',
+            );
+      const error = await result.catch((error: unknown) => error);
+      expect(error).toBeInstanceOf(HttpException);
+      expect((error as HttpException).getStatus()).toBe(404);
+      expect((error as HttpException).getResponse()).toEqual(body);
     },
   );
 
