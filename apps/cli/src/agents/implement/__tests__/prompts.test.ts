@@ -25,6 +25,20 @@ describe('buildImplementPrompt', () => {
     expect(result).toContain('do not attach a `location` to every decision');
   });
 
+  it('carries approved project-context findings into completion reconciliation', () => {
+    const result = buildImplementPrompt({
+      approvedPlan:
+        '## Supporting planning discussion\n{"category":"project_context","findingId":"doc-update","disposition":"repair_planned"}',
+    });
+    expect(result).toContain('"findingId":"doc-update","disposition":"repair_planned"');
+    expect(result).toContain('each project-context finding and its current disposition');
+    expect(result).toContain('Check each relevant finding against its cited governing context');
+    expect(result).toContain('suggest_feature_verification');
+    expect(result).toContain('affected Feature, and impacted entities');
+    expect(result).toContain('state the evidence for that conclusion');
+    expect(result).toContain('never reopens implementation readiness');
+  });
+
   it('reads graph Hints at session start and records relevant implementation learning before the report', () => {
     const result = buildImplementPrompt();
     expect(result).toContain('At the start of this session');

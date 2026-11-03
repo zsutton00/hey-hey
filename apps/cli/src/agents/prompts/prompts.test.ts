@@ -878,6 +878,15 @@ describe('buildCodingPlanPrompt', () => {
   it('describes conversational review with explicit approval', () => {
     expect(buildCodingPlanPrompt({})).toMatchSnapshot();
   });
+  it('keeps project-document updates reviewable after implementation', () => {
+    const prompt = buildCodingPlanPrompt({});
+    expect(prompt).toContain('do not promise that implementation will edit it');
+    expect(prompt).toContain(
+      'the reviewer will have a chance to update project documents after implementation',
+    );
+    expect(prompt).toContain('preserve the finding and its disposition');
+    expect(prompt).toContain('or make the document change a condition of completing the code work');
+  });
   it('preserves current feedback, research, scope and the complete durable discussion', () => {
     expect(
       buildCodingPlanPrompt(
