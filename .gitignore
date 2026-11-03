@@ -82,3 +82,7 @@ Thumbs.db
 
 # Jev gathering run logs
 jev-logs/
+
+# Tooling caches
+__pycache__/
+.boost/
