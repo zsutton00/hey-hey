@@ -6,6 +6,12 @@ import subprocess
 import time
 
 
+ENVIRONMENT = os.environ.get('API_DIAGNOSTIC_ENVIRONMENT', 'staging')
+if ENVIRONMENT not in ('staging', 'production'):
+    raise RuntimeError('Invalid diagnostic environment')
+PROJECT = 'hey-hey' if ENVIRONMENT == 'production' else 'hey-hey-staging'
+
+
 def counters(path):
     return {key: int(value) for key, value in
             (line.split() for line in path.read_text().splitlines())}
@@ -36,7 +42,7 @@ def snapshot(path):
 
 def main():
     ids = subprocess.check_output(['docker', 'ps', '--filter',
-                                  'label=com.docker.compose.project=hey-hey-staging',
+                                  'label=com.docker.compose.project=' + PROJECT,
                                   '--format', '{{.ID}}']).decode().split()
     records = json.loads(subprocess.check_output(['docker', 'inspect', *ids]))
     result = {'containers': {}, 'gaps': []}
@@ -50,6 +56,8 @@ def main():
         except (OSError, StopIteration):
             result['gaps'].append(f'{name}: cgroup/process counters unavailable')
     try:
+        if ENVIRONMENT != 'staging':
+            raise OSError('Production has no dedicated resource slice')
         group = subprocess.check_output(['systemctl', 'show', 'hey-hey-staging.slice',
                                          '--property=ControlGroup', '--value']).decode().strip()
         if not group or not group.endswith('/hey-hey-staging.slice'):

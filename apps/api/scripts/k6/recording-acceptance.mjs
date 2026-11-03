@@ -218,17 +218,22 @@ export function diagnosticStatus(workloadSucceeded, recordingAcceptance) {
 
 export function acceptResourceCounters(cpu) {
   const failures = [];
+  const production = cpu?.environment === 'production';
+  const project = production ? 'hey-hey' : 'hey-hey-staging';
   if (!cpu?.measuredSamples || cpu.errors?.length)
     failures.push('Six-service resource sampling incomplete');
   for (const name of services) {
-    const counter =
-      cpu?.measuredCounters?.containers?.[`hey-hey-staging-${name}-1`];
+    const counter = cpu?.measuredCounters?.containers?.[`${project}-${name}-1`];
     if (!counter?.samples || !counter.intervals?.length || counter.gaps?.length)
       failures.push(`${name}: cumulative resource/process counters incomplete`);
   }
   const slice = cpu?.measuredCounters?.slice;
-  if (!slice?.samples || !slice.intervals?.length || slice.gaps?.length)
+  if (
+    !production &&
+    (!slice?.samples || !slice.intervals?.length || slice.gaps?.length)
+  ) {
     failures.push('Shared staging slice CPU/throttling counters incomplete');
+  }
   return { complete: failures.length === 0, failures };
 }
 

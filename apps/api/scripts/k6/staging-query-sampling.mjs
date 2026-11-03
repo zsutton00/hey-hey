@@ -1,3 +1,4 @@
+import { recordingScope } from './recording-scope.mjs';
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
@@ -41,7 +42,14 @@ export function startQuerySampling(sshTarget) {
     new URL('./staging-query-worker.py', import.meta.url),
     'utf8',
   );
-  const port = Number(process.env.STAGING_NEO4J_HTTP_PORT || 17474);
+  const scope = recordingScope();
+  const port = Number(
+    process.env.API_DIAGNOSTIC_NEO4J_HTTP_PORT ||
+      (scope.environment === 'staging'
+        ? process.env.STAGING_NEO4J_HTTP_PORT
+        : undefined) ||
+      scope.neo4jPort,
+  );
   if (!Number.isInteger(port) || port < 1 || port > 65535)
     throw new Error('Invalid Neo4j HTTP port');
   const quote = (value) => "'" + value.replaceAll("'", "'\\''") + "'";
@@ -53,7 +61,7 @@ export function startQuerySampling(sshTarget) {
       '-o',
       'ConnectTimeout=10',
       sshTarget,
-      `python3 -u -c ${quote(source)} ${port}`,
+      `${scope.remoteEnvironment} python3 -u -c ${quote(source)} ${port}`,
     ],
     { stdio: ['pipe', 'pipe', 'pipe'] },
   );

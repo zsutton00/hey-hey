@@ -139,11 +139,40 @@ export async function startApiCpuProfiling(
     environment.API_DIAGNOSTIC_CPU_PROFILE_ENABLED !== 'true'
   )
     return async () => {};
+  return recordCpuProfiles(emit, artifactDirectory);
+}
+
+export async function startBoundedApiCpuProfiling(
+  emit: (record: Record<string, unknown>) => void,
+  seconds: number,
+  artifactDirectory = API_CPU_PROFILE_DIRECTORY,
+): Promise<() => Promise<void>> {
+  if (!Number.isInteger(seconds) || seconds < 1 || seconds > 900) {
+    throw new Error('Capture duration must be 1..900 seconds');
+  }
+  return recordCpuProfiles(emit, artifactDirectory, seconds * 1000);
+}
+
+async function recordCpuProfiles(
+  emit: (record: Record<string, unknown>) => void,
+  artifactDirectory: string,
+  durationMs?: number,
+): Promise<() => Promise<void>> {
   const session = new Session();
   session.connect(); // In-process inspector; no listening debug port.
   let timer: NodeJS.Timeout | undefined;
   let stopped = false;
+  let disconnected = false;
+  let recording = false;
   let pending = Promise.resolve();
+  const deadline =
+    durationMs === undefined ? Infinity : Date.now() + durationMs;
+  const disconnect = () => {
+    if (!disconnected) {
+      disconnected = true;
+      session.disconnect();
+    }
+  };
   const send = (record: Record<string, unknown>) => {
     try {
       emit(record);
@@ -157,50 +186,65 @@ export async function startApiCpuProfiling(
       interval: SAMPLE_INTERVAL_US,
     });
     await session.post('Profiler.start');
+    recording = true;
   } catch (error) {
-    session.disconnect();
+    disconnect();
     throw error;
   }
   let start = new Date().toISOString();
+  const finishWindow = async () => {
+    if (!recording) {
+      return;
+    }
+    recording = false;
+    const { profile } = await session.post('Profiler.stop');
+    const end = new Date().toISOString();
+    const artifact = await persistCpuProfile(
+      profile,
+      start,
+      end,
+      artifactDirectory,
+    );
+    send({
+      message: 'API diagnostic CPU profile interval',
+      artifact,
+      pid: process.pid,
+      intervalStartUtc: start,
+      intervalEndUtc: end,
+      profilingEnabled: true,
+      samplingIntervalUs: SAMPLE_INTERVAL_US,
+      ...summarizeCpuProfile(profile),
+      coverage:
+        'Main V8 isolate sampled stacks; includes idle and GC. Not per-request CPU, native worker CPU or an isolated profiler-overhead measurement.',
+    });
+  };
   const schedule = () => {
-    timer = setTimeout(() => {
-      pending = (async () => {
-        try {
-          const { profile } = await session.post('Profiler.stop');
-          const end = new Date().toISOString();
-          const artifact = await persistCpuProfile(
-            profile,
-            start,
-            end,
-            artifactDirectory,
-          );
-          send({
-            message: 'API diagnostic CPU profile interval',
-            artifact,
-            pid: process.pid,
-            intervalStartUtc: start,
-            intervalEndUtc: end,
-            profilingEnabled: true,
-            samplingIntervalUs: SAMPLE_INTERVAL_US,
-            ...summarizeCpuProfile(profile),
-            coverage:
-              'Main V8 isolate sampled stacks; includes idle and GC. Not per-request CPU, native worker CPU or an isolated profiler-overhead measurement.',
-          });
-          if (!stopped) {
-            await session.post('Profiler.start');
-            start = new Date().toISOString();
-            schedule();
+    timer = setTimeout(
+      () => {
+        pending = (async () => {
+          try {
+            await finishWindow();
+            if (!stopped && Date.now() < deadline) {
+              await session.post('Profiler.start');
+              recording = true;
+              start = new Date().toISOString();
+              schedule();
+            } else {
+              stopped = true;
+              disconnect();
+            }
+          } catch {
+            stopped = true;
+            disconnect();
+            send({
+              message: 'API diagnostic CPU profile unavailable',
+              profilingEnabled: false,
+            });
           }
-        } catch {
-          stopped = true;
-          session.disconnect();
-          send({
-            message: 'API diagnostic CPU profile unavailable',
-            profilingEnabled: true,
-          });
-        }
-      })();
-    }, WINDOW_MS);
+        })();
+      },
+      Math.min(WINDOW_MS, Math.max(1, deadline - Date.now())),
+    );
     timer.unref();
   };
   schedule();
@@ -208,6 +252,11 @@ export async function startApiCpuProfiling(
     stopped = true;
     clearTimeout(timer);
     await pending;
-    session.disconnect();
+    clearTimeout(timer);
+    try {
+      await finishWindow();
+    } finally {
+      disconnect();
+    }
   };
 }

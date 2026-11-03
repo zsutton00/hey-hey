@@ -1,3 +1,5 @@
+import { serializeProductionLogEnvelope } from '../common/logger/production-log-envelope';
+import { startApiCpuProfileControl } from './api-cpu-profile-control';
 import {
   context,
   SpanKind,
@@ -21,7 +23,7 @@ import {
 } from '@opentelemetry/sdk-trace-base';
 import type { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-base';
 import type { Span } from '@opentelemetry/api';
-import type { WorkItemChangeSetOperation } from '../generated';
+import type { WorkItemChangeSetOperation } from '@hey-hey/contracts/api/models';
 import { startApiProcessSampling } from './api-process-sampling';
 import { startApiCpuProfiling } from './api-cpu-profiling';
 
@@ -111,7 +113,7 @@ type ApiSpanDetails = {
 };
 
 export interface ApiTracingConfig {
-  deploymentEnvironment: 'development' | 'local' | 'staging';
+  deploymentEnvironment: 'development' | 'local' | 'staging' | 'production';
   endpoint: string;
   sampleRate: number;
   maxQueueSize: number;
@@ -125,7 +127,9 @@ export function resolveApiTracingConfig(
   const deploymentEnvironment =
     environment.DEPLOYMENT_ENVIRONMENT?.trim().toLowerCase();
   if (
-    !['development', 'local', 'staging'].includes(deploymentEnvironment ?? '')
+    !['development', 'local', 'staging', 'production'].includes(
+      deploymentEnvironment ?? '',
+    )
   ) {
     return undefined;
   }
@@ -139,7 +143,9 @@ export function resolveApiTracingConfig(
     : normalizeOtlpTraceEndpoint(environment.OTEL_EXPORTER_OTLP_ENDPOINT, true);
   if (!endpoint) return undefined;
 
-  const defaultSampleRate = deploymentEnvironment === 'staging' ? 0.05 : 0.1;
+  const isProduction = deploymentEnvironment === 'production';
+  const defaultSampleRate =
+    isProduction || deploymentEnvironment === 'staging' ? 0.05 : 0.1;
   const rawSampleRate = environment.API_TRACING_SAMPLE_RATE;
   const sampleRate =
     rawSampleRate === undefined
@@ -151,6 +157,7 @@ export function resolveApiTracingConfig(
     return undefined;
   }
   if (sampleRate === 1 && !diagnosticMode) return undefined;
+  if (isProduction && sampleRate > 0.05) return undefined;
 
   const rawQueueSize = environment.API_TRACING_MAX_QUEUE_SIZE;
   const maxQueueSize =
@@ -412,7 +419,34 @@ export function createApiTracingSampler(
 let tracingSdk: NodeSDK | undefined;
 let stopProcessSampling: (() => void) | undefined;
 let cpuProfiling: Promise<() => Promise<void>> | undefined;
+let cpuProfileControl: Promise<() => Promise<void>> | undefined;
 export function startApiTracing(): void {
+  // Operator capture must work without enabling distributed tracing.
+  if (
+    process.env.DEPLOYMENT_ENVIRONMENT === 'production' &&
+    !cpuProfileControl
+  ) {
+    cpuProfileControl = startApiCpuProfileControl(
+      ({ message, ...attributes }) =>
+        console.log(
+          serializeProductionLogEnvelope({
+            level: 'info',
+            message,
+            source: 'api-cpu-profiler',
+            attributes,
+          }),
+        ),
+    ).catch(() => {
+      console.warn(
+        serializeProductionLogEnvelope({
+          level: 'warn',
+          message: 'API diagnostic profile control unavailable',
+          source: 'api-cpu-profiler',
+        }),
+      );
+      return async () => {};
+    });
+  }
   if (tracingSdk) return;
   const config = resolveApiTracingConfig();
   if (!config) {
@@ -451,6 +485,10 @@ export function startApiTracing(): void {
 }
 
 export async function shutdownApiTracing(): Promise<void> {
+  await (
+    await cpuProfileControl
+  )?.();
+  cpuProfileControl = undefined;
   await (
     await cpuProfiling
   )?.();

@@ -11,6 +11,11 @@ const required = (name) => {
   if (!value) throw new Error(`${name} is required`);
   return value;
 };
+const environment = process.env.API_DIAGNOSTIC_ENVIRONMENT || 'staging';
+if (!['staging', 'production'].includes(environment)) {
+  throw new Error('API_DIAGNOSTIC_ENVIRONMENT must be staging or production');
+}
+const selector = `{environment="${environment}",service_name="api"}`;
 const mode = process.argv[2] || 'api';
 if (!['api', 'tempo', 'preflight'].includes(mode))
   throw new Error('Expected api, tempo, or preflight');
@@ -36,18 +41,25 @@ const runId = mode === 'preflight' ? 'preflight' : required('K6_RUN_ID');
 if (!/^[A-Za-z0-9_.-]{1,64}$/.test(runId))
   throw new Error('Invalid diagnostic run ID');
 const token = readFileSync(
-  process.env.STAGING_GRAFANA_TOKEN_FILE ||
-    join(homedir(), '.config/hey-hey/grafana-mcp/staging-token'),
+  (environment === 'staging'
+    ? process.env.STAGING_GRAFANA_TOKEN_FILE
+    : process.env.PRODUCTION_GRAFANA_TOKEN_FILE) ||
+    join(homedir(), `.config/hey-hey/grafana-mcp/${environment}-token`),
   'utf8',
 ).trim();
-const origin = 'https://staging.heyhey.dev/grafana/';
+const origin =
+  environment === 'staging'
+    ? 'https://staging.heyhey.dev/grafana/'
+    : required('PRODUCTION_GRAFANA_URL');
 async function get(path) {
   const response = await fetch(new URL(path, origin), {
     headers: { Authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(20000),
   });
   if (!response.ok) {
-    const error = new Error(`Staging Grafana evidence HTTP ${response.status}`);
+    const error = new Error(
+      `${environment} Grafana evidence HTTP ${response.status}`,
+    );
     error.status = response.status;
     throw error;
   }
@@ -55,10 +67,13 @@ async function get(path) {
 }
 const sources = await get('api/datasources');
 const loki = sources.find((source) => source.type === 'loki');
-if (!loki) throw new Error('Staging Loki datasource missing');
+if (!loki) throw new Error(`${environment} Loki datasource missing`);
 const tempo = sources.find((source) => source.type === 'tempo');
-if (mode !== 'api' && !tempo)
-  throw new Error('Staging Tempo datasource missing');
+if (
+  (mode === 'tempo' || (mode === 'preflight' && environment === 'staging')) &&
+  !tempo
+)
+  throw new Error(`${environment} Tempo datasource missing`);
 const prefix = `api/datasources/proxy/uid/${encodeURIComponent(loki.uid)}/loki/api/v1/`;
 // Two-minute partitions retain the end of a five-minute process timeline
 // without increasing the per-call privacy bound. Full partitions are explicit
@@ -103,32 +118,35 @@ const range = {
 const labels = await get(`${prefix}labels?${new URLSearchParams(range)}`);
 for (const name of ['environment', 'service_name']) {
   if (!labels.data.includes(name))
-    throw new Error(`Missing staging Loki label ${name}`);
+    throw new Error(`Missing ${environment} Loki label ${name}`);
 }
 for (const [name, expected] of [
-  ['environment', 'staging'],
+  ['environment', environment],
   ['service_name', 'api'],
 ]) {
   const values = await get(
     `${prefix}label/${name}/values?${new URLSearchParams(range)}`,
   );
   if (!values.data.includes(expected))
-    throw new Error(`Missing staging Loki ${name}=${expected}`);
+    throw new Error(`Missing ${environment} Loki ${name}=${expected}`);
 }
 // Login/setup precede measured activity and can otherwise fill the entire sample.
-const query = `{environment="staging",service_name="api"} |= "${runId}" != "${runId}-login-" != "${runId}-setup-"`;
+const query = `${selector} |= "${runId}" != "${runId}-login-" != "${runId}-setup-"`;
 if (mode === 'preflight') {
   await get(
-    `${prefix}query_range?${new URLSearchParams({ ...range, query: '{environment="staging",service_name="api"}', limit: '1' })}`,
+    `${prefix}query_range?${new URLSearchParams({ ...range, query: selector, limit: '1' })}`,
   );
-  await get(
-    `api/datasources/proxy/uid/${encodeURIComponent(tempo.uid)}/api/search?${new URLSearchParams({ tags: 'service.name=hey-hey-api', start: String(Math.floor(start / 1000)), end: String(Math.ceil(end / 1000)), limit: '1' })}`,
-  );
+  if (tempo) {
+    await get(
+      `api/datasources/proxy/uid/${encodeURIComponent(tempo.uid)}/api/search?${new URLSearchParams({ tags: 'service.name=hey-hey-api', start: String(Math.floor(start / 1000)), end: String(Math.ceil(end / 1000)), limit: '1' })}`,
+    );
+  }
   console.log(
     JSON.stringify({
       kind: 'read-only-evidence-preflight',
       loki: loki.uid,
-      tempo: tempo.uid,
+      tempo: tempo?.uid ?? null,
+      environment,
       accessVerified: true,
     }),
   );
@@ -209,7 +227,7 @@ const requestSelection = process.env.API_DIAGNOSTIC_RAW_METRICS
   : { selected: [], gap: 'Raw request mapping unavailable' };
 const targetedRequests = [];
 for (const request of requestSelection.selected) {
-  const targetedQuery = `{environment="staging",service_name="api"} |= "${request.requestId}"`;
+  const targetedQuery = `${selector} |= "${request.requestId}"`;
   const targeted = await get(
     `${prefix}query_range?${new URLSearchParams({
       start: String(
@@ -377,10 +395,8 @@ if (mode === 'tempo') {
 }
 if (mode === 'api') {
   const checkpointQuery = `${query} |= "Generic checkpoint timing"`;
-  const processQuery =
-    '{environment="staging",service_name="api"} |= "API diagnostic process interval"';
-  const profileQuery =
-    '{environment="staging",service_name="api"} |= "API diagnostic CPU profile"';
+  const processQuery = `${selector} |= "API diagnostic process interval"`;
+  const profileQuery = `${selector} |= "API diagnostic CPU profile"`;
   const [checkpointLogs, processLogs, profileLogs] = await Promise.all(
     [checkpointQuery, processQuery, profileQuery].map((q) =>
       windowedLogs(q, measuredStart, end),
