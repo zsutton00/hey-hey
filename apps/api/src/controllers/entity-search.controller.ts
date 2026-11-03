@@ -23,14 +23,16 @@ import { EntityType } from '@prisma/client';
 import {
   AuthToken,
   CurrentOrganization,
+  CurrentUser,
 } from '../auth/decorators/current-user.decorator';
+import { ProjectAccessService } from '../auth/services/project-access.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OrganizationGuard } from '../auth/guards/organization.guard';
 import { SkipTransform } from '../common/decorators/skip-transform.decorator';
 import { SearchResponse } from '../generated/embeddings';
 import { EmbeddingsClientService } from '../services/embeddings-client.service';
 import { EntityRegistryService } from '../services/entity-registry/entity-registry.service';
-import { OrganizationId, ProjectId } from '../types';
+import { OrganizationId, ProjectId, UserId } from '../types';
 import { EntitySearchResultDto } from './dto/entity-search-result.dto';
 import { EntityNameDto, GetEntityNamesDto } from './dto/get-entity-names.dto';
 
@@ -49,6 +51,7 @@ export class EntitySearchController {
   constructor(
     private readonly entityRegistryService: EntityRegistryService,
     private readonly embeddingsClientService: EmbeddingsClientService,
+    private readonly projectAccess: ProjectAccessService,
   ) {}
 
   @Get('search')
@@ -209,6 +212,7 @@ export class EntitySearchController {
     @Query('parentTaskId') parentTaskId: string | undefined,
     @Query('entityType') entityType: string | undefined,
     @CurrentOrganization() organizationId: OrganizationId,
+    @CurrentUser('userId') userId: UserId,
     @AuthToken() userToken: string | null,
   ): Promise<SearchResponse> {
     if (!userToken) {
@@ -219,6 +223,8 @@ export class EntitySearchController {
         'projectId is required for semantic search',
       );
     }
+
+    await this.projectAccess.assertProject(userId, organizationId, projectId);
 
     return this.embeddingsClientService.searchWithUserToken(
       {

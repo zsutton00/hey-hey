@@ -2,7 +2,7 @@ import { SKIP_TRANSFORM_KEY } from '../../common/decorators/skip-transform.decor
 import { SearchResponse } from '../../generated/embeddings';
 import { EmbeddingsClientService } from '../../services/embeddings-client.service';
 import { EntityRegistryService } from '../../services/entity-registry/entity-registry.service';
-import { OrganizationId, ProjectId } from '../../types';
+import { OrganizationId, ProjectId, UserId } from '../../types';
 import { EntitySearchController } from '../entity-search.controller';
 
 describe('EntitySearchController', () => {
@@ -19,6 +19,7 @@ describe('EntitySearchController', () => {
     const controller = new EntitySearchController(
       {} as EntityRegistryService,
       embeddingsClient as unknown as EmbeddingsClientService,
+      { assertProject: jest.fn().mockResolvedValue(undefined) } as never,
     );
 
     const result = await controller.semanticSearch(
@@ -33,6 +34,7 @@ describe('EntitySearchController', () => {
       undefined,
       undefined,
       'organization-id' as OrganizationId,
+      'user-id' as UserId,
       'user-token',
     );
 
