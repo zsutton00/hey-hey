@@ -1,7 +1,9 @@
 import type { Focal, FocalParent } from '../../jev/scenarios';
-import type { MaterializedWorkItemSection } from '../../shared/api/generated';
+import type { MaterializedWorkItemSection } from '@hey-hey/contracts/api/models';
 import type { PromptTypeHandlerDeps } from '../prompt-type-handler';
 import { readDiagramElements } from './diagram-elements';
+
+export type WorkItemFocal = Exclude<Focal, { kind: 'question' }>;
 
 export interface FocalWorkItem {
   id: string;
@@ -31,7 +33,7 @@ export const workItemFocal = async (
   entity: FocalWorkItem,
   readParent: () => Promise<FocalParent | undefined>,
   deps: Pick<PromptTypeHandlerDeps, 'auth' | 'apiBaseUrl' | 'logger' | 'readRestriction'>,
-): Promise<Focal> => {
+): Promise<WorkItemFocal> => {
   const sections = entity.sections ?? [];
   const description = sectionText(sections, 'description');
   if (entity.type === 'FEATURE') {

@@ -4,6 +4,7 @@ import { PlatformMcpForwarder } from './forwarder';
 import { PlatformMcpProxySession, type JsonRpcRequest } from './session';
 import { createTestOAuthClient } from '../../auth/oauth-client.test-support';
 import type { ServerLogger } from '../../server/logger';
+import type { DecisionModelResultNarrower } from '../context-trimming/context-trimmer';
 
 const makeLogger = (): { logger: ServerLogger; warn: ReturnType<typeof vi.fn> } => {
   const warn = vi.fn();
@@ -33,6 +34,7 @@ const makeSession = (
   forward: PlatformMcpForwarder['forward'],
   logger?: ServerLogger,
   inert = false,
+  graphResultNarrower?: DecisionModelResultNarrower,
 ) =>
   new PlatformMcpProxySession(
     {
@@ -41,10 +43,11 @@ const makeSession = (
       context: { projectId: 'project-1', ...(inert ? { inert: true } : {}) },
       catalog: new ActivePlatformToolCatalog({
         useCase: 'general',
-        additionalTools: ['create_design_doc'],
+        additionalTools: ['create_design_doc', 'get_context', 'get_edges'],
       }),
       activeHandlerPromptType: 'entity_conversation',
       active: true,
+      ...(graphResultNarrower ? { graphResultNarrower } : {}),
       ...(logger ? { logger } : {}),
     },
     makeForwarder(forward),
@@ -66,6 +69,61 @@ const snapshotResult = (members: Array<{ memberId: string; prerequisiteMemberIds
 });
 
 describe('PlatformMcpProxySession', () => {
+  it.each(['get_context', 'get_edges'])(
+    'narrows successful %s results after forwarding',
+    async (name) => {
+      const upstream = { content: [{ type: 'text', text: '{"full":true}' }] };
+      const forward = vi.fn<PlatformMcpForwarder['forward']>().mockResolvedValue({
+        jsonrpc: '2.0',
+        id: 1,
+        result: upstream,
+      });
+      const graphResultNarrower: DecisionModelResultNarrower = {
+        narrowContextResult: vi.fn(async (result) => ({ result, narrowed: true })),
+        narrowEdgesResult: vi.fn(async (result) => ({ result, narrowed: true })),
+      };
+      const proxy = makeSession(forward, undefined, false, graphResultNarrower);
+
+      const response = await proxy.handle({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name, arguments: {} },
+      });
+
+      expect(response.body).toMatchObject({ result: { narrowed: true } });
+      expect(
+        name === 'get_context'
+          ? graphResultNarrower.narrowContextResult
+          : graphResultNarrower.narrowEdgesResult,
+      ).toHaveBeenCalledWith(upstream);
+    },
+  );
+
+  it('passes upstream MCP errors through without asking the Decision Model', async () => {
+    const upstream = { isError: true, content: [{ type: 'text', text: 'failure' }] };
+    const forward = vi.fn<PlatformMcpForwarder['forward']>().mockResolvedValue({
+      jsonrpc: '2.0',
+      id: 1,
+      result: upstream,
+    });
+    const graphResultNarrower: DecisionModelResultNarrower = {
+      narrowContextResult: vi.fn(async (result) => result),
+      narrowEdgesResult: vi.fn(async (result) => result),
+    };
+    const proxy = makeSession(forward, undefined, false, graphResultNarrower);
+
+    const response = await proxy.handle({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'get_edges', arguments: {} },
+    });
+
+    expect(response.body).toMatchObject({ result: upstream });
+    expect(graphResultNarrower.narrowEdgesResult).not.toHaveBeenCalled();
+  });
+
   it.each(['create_work_item', 'edit_work_item', 'create_design_doc'])(
     'overrides supplied output eligibility for inert %s calls',
     async (name) => {

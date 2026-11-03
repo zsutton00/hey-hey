@@ -3,6 +3,7 @@ import type { McpSessionContext } from '../mcp-server-config';
 import type { ServerLogger } from '../../server/logger';
 import type { ActivePlatformToolCatalog } from './catalog';
 import type { PlatformMcpForwarder } from './forwarder';
+import type { DecisionModelResultNarrower } from '../context-trimming/context-trimmer';
 import {
   ProposalGroupFinalizationGuard,
   readMcpPayload,
@@ -46,6 +47,7 @@ export interface PlatformMcpProxyRuntime {
   activeHandlerPromptType: string;
   active: boolean;
   logger?: ServerLogger;
+  graphResultNarrower?: DecisionModelResultNarrower;
 }
 
 const INERT_PROPOSAL_TOOLS = new Set([
@@ -487,9 +489,27 @@ export class PlatformMcpProxySession {
       status: 'error' in forwarded ? 'error' : 'success',
       durationMs: Date.now() - startedAt,
     });
+    let response = forwarded;
+    if (
+      'result' in forwarded &&
+      this.runtime.graphResultNarrower &&
+      !(isJsonObject(forwarded.result) && forwarded.result['isError'] === true)
+    ) {
+      if (normalizedName === 'get_context') {
+        response = {
+          ...forwarded,
+          result: await this.runtime.graphResultNarrower.narrowContextResult(forwarded.result),
+        };
+      } else if (normalizedName === 'get_edges') {
+        response = {
+          ...forwarded,
+          result: await this.runtime.graphResultNarrower.narrowEdgesResult(forwarded.result),
+        };
+      }
+    }
     return {
       statusCode: 200,
-      body: forwarded,
+      body: response,
     };
   }
 }

@@ -1,7 +1,6 @@
 import { z } from 'zod';
-import type { JevClient } from '../../jev/client';
 import type { Focal, FocalParent } from '../../jev/scenarios';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { ServerLogger } from '../../server/logger';
 import type { LoadedEntityPromptContext } from '../entity-context/types';
 import type { PromptTypeHandlerDeps } from '../prompt-type-handler';
@@ -11,7 +10,7 @@ import {
   type NearestParentFeatureRequest,
 } from '../project-assistant/nearest-parent-feature';
 import { allSectionsText, workItemFocal } from './entity-focal';
-import { GetContextTrimmer, type JevResponseCache } from './context-trimmer';
+import { GetContextTrimmer, type DecisionModel } from './context-trimmer';
 
 /** The handlers whose `get_context` results are trimmed: Project Assistant and Feature Sync. */
 const TRIMMED_PROMPT_TYPES: ReadonlySet<string> = new Set([
@@ -57,7 +56,7 @@ export const resolveFocal = async (
 ): Promise<Focal | null> => {
   if (loaded?.kind === 'entity' && 'type' in loaded.entity && 'sections' in loaded.entity) {
     const { entity } = loaded;
-    return workItemFocal(
+    const focal = await workItemFocal(
       entity,
       () =>
         resolveParent(
@@ -72,15 +71,15 @@ export const resolveFocal = async (
         ),
       deps,
     );
+    return userMessage ? { ...focal, ask: userMessage } : focal;
   }
   return userMessage ? { kind: 'question', text: userMessage } : null;
 };
 
 export interface CreateContextTrimmerInput {
   promptType: string;
-  /** Null without a TypeSafe key: results are then never trimmed. */
-  jevClient: JevClient | undefined;
-  cache: JevResponseCache;
+  decisionModel: DecisionModel | undefined;
+  isDecisionModelEnabled: (() => Promise<boolean>) | undefined;
   loadedEntityContext: LoadedEntityPromptContext | null;
   payload: unknown;
   deps: TrimmingDeps;
@@ -94,7 +93,24 @@ export interface CreateContextTrimmerInput {
 export const createContextTrimmer = async (
   input: CreateContextTrimmerInput,
 ): Promise<GetContextTrimmer | undefined> => {
-  if (!input.jevClient || !TRIMMED_PROMPT_TYPES.has(input.promptType)) return undefined;
+  if (
+    !input.decisionModel ||
+    !input.isDecisionModelEnabled ||
+    !TRIMMED_PROMPT_TYPES.has(input.promptType)
+  ) {
+    return undefined;
+  }
+  let decisionModelEnabled = false;
+  try {
+    decisionModelEnabled = await input.isDecisionModelEnabled();
+  } catch (error) {
+    input.logger.warn('local.platform_mcp_proxy.context_selection.disabled', {
+      reason: 'option_unavailable',
+      errorName: error instanceof Error ? error.name : 'unknown',
+    });
+    return undefined;
+  }
+  if (!decisionModelEnabled) return undefined;
   const loaded = input.loadedEntityContext;
   if (!loaded) {
     input.logger.warn('local.platform_mcp_proxy.get_context_trim.disabled', {
@@ -109,7 +125,7 @@ export const createContextTrimmer = async (
   } catch (error) {
     input.logger.warn('local.platform_mcp_proxy.get_context_trim.disabled', {
       reason: 'focal_unavailable',
-      error: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : 'unknown',
     });
     return undefined;
   }
@@ -120,10 +136,14 @@ export const createContextTrimmer = async (
     return undefined;
   }
   return new GetContextTrimmer({
-    client: input.jevClient,
+    decisionModel: input.decisionModel,
     focal,
     focalEntityId: loaded.focalEntity.entityId,
-    cache: input.cache,
+    ancestorEntityIds: new Set(
+      (loaded.context.featureHierarchy ?? [])
+        .filter((entry) => entry.relationship === 'ancestor')
+        .map((entry) => entry.id),
+    ),
     logger: input.logger,
   });
 };

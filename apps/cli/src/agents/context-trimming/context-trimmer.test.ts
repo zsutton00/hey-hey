@@ -3,7 +3,7 @@ import type { JevInput, JevResult } from '../../jev/client';
 import type { Focal } from '../../jev/scenarios';
 import type { ServerLogger } from '../../server/logger';
 import type { JsonValue } from '../platform-mcp-proxy/session';
-import { GetContextTrimmer, type JevResponseCache } from './context-trimmer';
+import { GetContextTrimmer } from './context-trimmer';
 
 const FOCAL_ID = 'focal-task';
 const focal: Focal = {
@@ -137,20 +137,134 @@ const textOf = (result: JsonValue): string => {
 
 const makeTrimmer = (
   evaluate: ReturnType<typeof answerFrom>,
-  overrides: { cache?: JevResponseCache; focalEntityId?: string } = {},
+  overrides: { focalEntityId?: string; ancestorEntityIds?: ReadonlySet<string> } = {},
 ) => {
   const log = makeLogger();
   const trimmer = new GetContextTrimmer({
-    client: { evaluate },
+    decisionModel: { evaluate },
     focal,
     focalEntityId: overrides.focalEntityId ?? FOCAL_ID,
-    cache: overrides.cache ?? new Map<string, Extract<JevResult, { ok: true }>>(),
+    ...(overrides.ancestorEntityIds ? { ancestorEntityIds: overrides.ancestorEntityIds } : {}),
     logger: log.logger,
   });
   return { trimmer, ...log };
 };
 
 describe('GetContextTrimmer', () => {
+  it('narrows get_edges with the shared relevance judgment and keeps focal/ancestor seeds whole', async () => {
+    const edge = {
+      createdAt: '2026-01-01T00:00:00.000Z',
+      direction: 'out',
+      edgeType: 'RELATED_TO',
+      otherEndpoint: {
+        displayName: 'Long title retained for discovery',
+        entityId: 'other-entity',
+        entityType: 'TASK',
+        taskType: 'STANDARD',
+      },
+      reasoning: 'The complete link rationale.',
+    };
+    const evaluate = answerFrom({
+      'edge:other-seed:0': { implements: 0.02, informs: 0.03, conflict: 0 },
+    });
+    const { trimmer, debug } = makeTrimmer(evaluate, {
+      ancestorEntityIds: new Set(['ancestor-seed']),
+    });
+    const upstream: JsonValue = {
+      structuredContent: {
+        edgesByEntity: {
+          [FOCAL_ID]: [edge],
+          'ancestor-seed': [edge],
+          'other-seed': [edge],
+        },
+        omittedEntities: [],
+      },
+      content: [],
+    };
+
+    const narrowed = await trimmer.trimEdgesResult(upstream);
+    const structured = (
+      narrowed as { structuredContent: { edgesByEntity: Record<string, unknown[]> } }
+    ).structuredContent;
+
+    expect(structured.edgesByEntity[FOCAL_ID]).toEqual([edge]);
+    expect(structured.edgesByEntity['ancestor-seed']).toEqual([edge]);
+    expect(structured.edgesByEntity['other-seed']).toEqual([
+      expect.objectContaining({
+        otherEndpoint: expect.objectContaining({
+          entityId: 'other-entity',
+          displayName: 'Long title retained for discovery',
+        }),
+      }),
+    ]);
+    expect(evaluate).toHaveBeenCalledOnce();
+    expect(evaluate.mock.calls[0]?.[0]).toMatchObject({
+      state: {
+        edges: {
+          'edge:other-seed:0': expect.stringContaining(
+            'Long title retained for discovery (TASK STANDARD; RELATED_TO; out): The complete link rationale.',
+          ),
+        },
+      },
+    });
+    expect(debug).toHaveBeenCalledWith(
+      'local.platform_mcp_proxy.get_edges_trim.trimmed',
+      expect.objectContaining({
+        candidateCount: 1,
+        decisionModelDurationMs: 30,
+        inputTokens: 100,
+        outputTokens: 20,
+      }),
+    );
+  });
+
+  it('returns an unrecognized get_edges result unchanged without judging it', async () => {
+    const evaluate = answerFrom({});
+    const { trimmer, warn } = makeTrimmer(evaluate);
+    const upstream: JsonValue = {
+      structuredContent: { edgesByEntity: { seed: [{ wrong: true }] } },
+    };
+
+    expect(await trimmer.trimEdgesResult(upstream)).toBe(upstream);
+    expect(evaluate).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      'local.platform_mcp_proxy.get_edges_trim.untrimmed',
+      expect.objectContaining({ reason: 'unrecognized_edges_shape' }),
+    );
+  });
+
+  it('returns the original get_edges result when the Decision Model fails', async () => {
+    const evaluate = vi.fn(
+      (): Promise<JevResult> =>
+        Promise.resolve({ ok: false, failure: { code: 'TIMEOUT', message: 'Timed out.' } }),
+    );
+    const { trimmer, warn } = makeTrimmer(evaluate);
+    const upstream = {
+      structuredContent: {
+        edgesByEntity: {
+          seed: [
+            {
+              createdAt: '2026-01-01T00:00:00.000Z',
+              direction: 'out',
+              edgeType: 'RELATED_TO',
+              otherEndpoint: {
+                displayName: 'Related item',
+                entityId: 'related-item',
+                entityType: 'TASK',
+              },
+            },
+          ],
+        },
+      },
+    } satisfies JsonValue;
+
+    expect(await trimmer.trimEdgesResult(upstream)).toBe(upstream);
+    expect(warn).toHaveBeenCalledWith(
+      'local.platform_mcp_proxy.get_edges_trim.untrimmed',
+      expect.objectContaining({ reason: 'decision_model_failed', failureCode: 'TIMEOUT' }),
+    );
+  });
+
   it('abbreviates entries by tier, forces conflicts to full, orders by relevance, and keeps the rest', async () => {
     const { trimmer, debug } = makeTrimmer(answerFrom(scores));
 
@@ -192,9 +306,9 @@ describe('GetContextTrimmer', () => {
       expect.objectContaining({
         candidateCount: 6,
         tierCounts: { full: 2, short: 2, index: 2 },
+        decisionModelDurationMs: 30,
         inputTokens: 100,
         outputTokens: 20,
-        cacheHit: false,
       }),
     );
   });
@@ -253,25 +367,21 @@ describe('GetContextTrimmer', () => {
     expect(evaluate).not.toHaveBeenCalled();
   });
 
-  it('reuses earlier answers for an identical call and asks again when an entry changes', async () => {
+  it('evaluates each call directly, including repeated and changed results', async () => {
     const evaluate = answerFrom(scores);
-    const cache: JevResponseCache = new Map();
-    const first = makeTrimmer(evaluate, { cache });
-    await first.trimmer.trimResult(toolResult(contextBody));
-    const second = makeTrimmer(evaluate, { cache });
-
-    await second.trimmer.trimResult(toolResult(contextBody));
-
-    expect(evaluate).toHaveBeenCalledTimes(1);
-    expect(second.debug).toHaveBeenCalledWith(
+    const { trimmer, debug } = makeTrimmer(evaluate);
+    await trimmer.trimResult(toolResult(contextBody));
+    await trimmer.trimResult(toolResult(contextBody));
+    expect(evaluate).toHaveBeenCalledTimes(2);
+    expect(debug).toHaveBeenLastCalledWith(
       'local.platform_mcp_proxy.get_context_trim.trimmed',
-      expect.objectContaining({ cacheHit: true, inputTokens: 0, outputTokens: 0 }),
+      expect.objectContaining({ inputTokens: 100, outputTokens: 20 }),
     );
 
-    await second.trimmer.trimResult(
+    await trimmer.trimResult(
       toolResult({ ...contextBody, relatedEntities: [related('High', 'depends-on', 'Edited.')] }),
     );
-    expect(evaluate).toHaveBeenCalledTimes(2);
+    expect(evaluate).toHaveBeenCalledTimes(3);
   });
 
   it('returns the upstream result and logs the cause when Jev fails', async () => {
@@ -287,12 +397,12 @@ describe('GetContextTrimmer', () => {
 
     expect(await trimmer.trimResult(upstream)).toBe(upstream);
     expect(warn).toHaveBeenCalledWith('local.platform_mcp_proxy.get_context_trim.untrimmed', {
-      reason: 'jev_failed',
+      reason: 'decision_model_failed',
       failureCode: 'TIMEOUT',
     });
   });
 
-  it('does not cache a failure', async () => {
+  it('evaluates again after a failure', async () => {
     const evaluate = vi
       .fn<(input: JevInput) => Promise<JevResult>>()
       .mockResolvedValueOnce({ ok: false, failure: { code: 'PROVIDER_ERROR', message: 'x' } })
