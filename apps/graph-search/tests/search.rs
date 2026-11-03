@@ -10,7 +10,11 @@ use axum::{
 use hey_hey_graph_search::{
     config::Config,
     database::connect_and_migrate,
-    search::{encoder::Encoder, routes::SearchState},
+    search::{
+        encoder::Encoder,
+        ingest::{Ingest, error::IngestError},
+        routes::SearchState,
+    },
     server,
 };
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
@@ -28,6 +32,7 @@ const OTHER_MARKER: &str = "5b0f4d5e-6c1a-4b7e-9a51-3f2b8f1d0a07";
 
 struct App {
     router: axum::Router,
+    ingest: Ingest,
 }
 
 impl App {
@@ -56,25 +61,54 @@ impl App {
         (status, value)
     }
 
-    async fn index(&self, token: &str, id: &str, project: &str, metadata: Value, text: &str) {
+    /// Seeds a document the way production does: through its lifecycle event.
+    async fn index(&self, id: &str, project: &str, metadata: Value, text: &str) {
+        self.try_index(id, project, metadata, text).await.unwrap();
+    }
+
+    async fn try_index(
+        &self,
+        id: &str,
+        project: &str,
+        metadata: Value,
+        text: &str,
+    ) -> Result<(), IngestError> {
         let org = if project == OTHER_ORG_PROJECT {
             OTHER_ORG
         } else {
             ORG
         };
-        let mut metadata = metadata;
-        metadata["id"] = json!(id);
-        metadata["organizationId"] = json!(org);
-        metadata["projectId"] = json!(project);
-        let (status, body) = self
-            .call(
-                "POST",
-                "/embeddings",
-                token,
-                json!({"text": text, "metadata": metadata, "level": "document"}),
+        let name = metadata["name"].as_str().unwrap();
+        let (kind, mut payload) = if metadata["type"] == "design_doc" {
+            (
+                "design_doc.created",
+                json!({"designDoc": {
+                    "id": id, "organizationId": org, "name": name, "summary": text,
+                    "description": text, "status": "READY", "sourceType": "USER",
+                    "sections": [{"key": "details", "order": 0, "materializedMarkdown": text}],
+                    "createdAt": "2026-11-01T09:00:00Z", "updatedAt": "2026-11-01T10:00:00Z"
+                }}),
             )
-            .await;
-        assert_eq!(status, StatusCode::CREATED, "{body}");
+        } else {
+            (
+                "task.created",
+                json!({"task": {
+                    "id": id, "name": name, "description": "", "type": metadata["taskType"],
+                    "sections": [{"key": "details", "order": 0, "materializedMarkdown": text}],
+                    "status": "ACTIVE", "priority": "HIGH", "organizationId": org,
+                    "projectId": project,
+                    "createdAt": "2026-11-01T09:00:00.000Z", "updatedAt": "2026-11-01T09:00:00.000Z"
+                }}),
+            )
+        };
+        payload["payloadType"] = json!(kind);
+        payload["organizationId"] = json!(org);
+        payload["projectId"] = json!(project);
+        payload["timestamp"] = json!("2026-11-01T10:00:00.000Z");
+        let envelope = json!({"event": {
+            "id": format!("evt-{kind}-{id}"), "type": kind, "aggregateId": id, "payload": payload
+        }});
+        self.ingest.handle(&envelope).await
     }
 
     async fn search(&self, token: &str, request: Value) -> Vec<String> {
@@ -144,19 +178,19 @@ async fn search_finds_text_and_meaning_within_the_callers_tenant_and_deletion_re
             .execute(&pool)
             .await?;
     }
+    let encoder = Encoder::load(&config.search.encoder)?;
     let state = SearchState {
         pool: pool.clone(),
-        encoder: Encoder::load(&config.search.encoder)?,
+        encoder: encoder.clone(),
         model: config.search.encoder.model.clone(),
     };
     let app = App {
         router: server::router(&config, pool.clone(), common::auth()).layer(Extension(state)),
+        ingest: Ingest::new(pool.clone(), encoder),
     };
     let alice = user(ORG);
-    let bob = user(OTHER_ORG);
 
     app.index(
-        &alice,
         "billing",
         PROJECT,
         task("Monthly invoices", "STANDARD"),
@@ -164,7 +198,6 @@ async fn search_finds_text_and_meaning_within_the_callers_tenant_and_deletion_re
     )
     .await;
     app.index(
-        &alice,
         "password",
         PROJECT,
         task("Password reset", "STANDARD"),
@@ -172,7 +205,6 @@ async fn search_finds_text_and_meaning_within_the_callers_tenant_and_deletion_re
     )
     .await;
     app.index(
-        &alice,
         "roadmap",
         PROJECT,
         task("Roadmap planning", "FEATURE"),
@@ -180,7 +212,6 @@ async fn search_finds_text_and_meaning_within_the_callers_tenant_and_deletion_re
     )
     .await;
     app.index(
-        &alice,
         "onboarding",
         PROJECT,
         json!({"type": "design_doc", "name": "Onboarding checklist"}),
@@ -188,7 +219,6 @@ async fn search_finds_text_and_meaning_within_the_callers_tenant_and_deletion_re
     )
     .await;
     app.index(
-        &alice,
         "other-project-invoices",
         OTHER_PROJECT,
         task("Invoice archive", "STANDARD"),
@@ -196,7 +226,6 @@ async fn search_finds_text_and_meaning_within_the_callers_tenant_and_deletion_re
     )
     .await;
     app.index(
-        &bob,
         "other-org-invoices",
         OTHER_ORG_PROJECT,
         task("Invoice reminders", "STANDARD"),
@@ -365,7 +394,6 @@ async fn search_finds_text_and_meaning_within_the_callers_tenant_and_deletion_re
 
     // Rewriting a document replaces its text; the old words no longer find it.
     app.index(
-        &alice,
         "billing",
         PROJECT,
         task("Monthly invoices", "STANDARD"),
@@ -419,18 +447,11 @@ async fn search_finds_text_and_meaning_within_the_callers_tenant_and_deletion_re
     assert_eq!(body["retainedIdentity"]["markerId"], MARKER);
 
     // A closed organization accepts no new content.
-    let (status, _) = app
-        .call(
-            "POST",
-            "/embeddings",
-            &alice,
-            json!({"text": "late write", "metadata": {
-                "id": "late", "organizationId": ORG, "projectId": PROJECT,
-                "type": "task", "taskType": "STANDARD", "name": "Late"
-            }}),
-        )
-        .await;
-    assert_eq!(status, StatusCode::CONFLICT);
+    assert!(
+        app.try_index("late", PROJECT, task("Late", "STANDARD"), "late write")
+            .await
+            .is_err()
+    );
 
     pool.close().await;
     Ok(())
