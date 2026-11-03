@@ -1,7 +1,7 @@
-import type { ContextRelatedEntityDto } from 'src/generated/model/contextRelatedEntityDto';
-import type { EntityContextDto } from 'src/generated/model/entityContextDto';
-import type { ContextProposalSummaryDto } from 'src/generated/model/contextProposalSummaryDto';
-import type { ProposalResponseDto } from 'src/generated/model/proposalResponseDto';
+import type { ContextRelatedEntityDto } from '@hey-hey/contracts/api/models';
+import type { EntityContextDto } from '@hey-hey/contracts/api/models';
+import type { ContextProposalSummaryDto } from '@hey-hey/contracts/api/models';
+import type { ProposalResponseDto } from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId, ProposalId } from 'src/types';
 
 // Wire-shape contract: taskType is optional on ContextRelatedEntityDto and

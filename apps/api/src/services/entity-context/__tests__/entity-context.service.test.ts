@@ -13,7 +13,7 @@ import { WorkItemTypeRegistryService } from '../../tasks/work-item-type-registry
 import { TaskService } from '../../tasks/task.service';
 import { createWarmWorkItemTypeRegistry } from '../../../../test/setup/work-item-type-registry.fixture';
 import * as TestUtils from '../../../utils/testUtils';
-import type { EntityType } from '../../../generated/model/entityType';
+import type { EntityType } from '@hey-hey/contracts/api/models';
 import type { ProposalId, ConversationId } from '../../../types';
 import type { AnyTransactionClient } from '../../../prisma/prisma.service';
 import type { ProposalWithApprovals } from '../../proposal/proposal.types';

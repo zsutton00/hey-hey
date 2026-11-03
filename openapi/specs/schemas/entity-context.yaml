@@ -254,6 +254,28 @@ EntityContextDto:
         entity being viewed (e.g., create_task targets TASK but
         appears when viewing an INITIATIVE).
 
+RelatedEntitySelectionDto:
+  type: object
+  description: >
+    Boundary of the `relatedEntities` list for this seed. Counts cover
+    distinct entities reached within the requested traversal depth that the
+    caller may traverse; they do not claim global project completeness.
+  required:
+    - candidateEntityCount
+    - omittedEntityCount
+  additionalProperties: false
+  properties:
+    candidateEntityCount:
+      type: integer
+      minimum: 0
+      description: Distinct related-entity candidates within the traversal.
+    omittedEntityCount:
+      type: integer
+      minimum: 0
+      description: >
+        Candidates not present in `relatedEntities` because the consumer's
+        selection limit or the graph read limit left them out.
+
 FullEntityContextDto:
   allOf:
     - $ref: "#/EntityContextDto"
@@ -270,6 +292,8 @@ FullEntityContextDto:
             never a free-floating endpoint. Features are excluded
             (they live in featureHierarchy) and agent sessions are
             excluded (they live in agentSessions).
+        relatedEntitySelection:
+          $ref: "#/RelatedEntitySelectionDto"
         agentSessions:
           type: array
           items:

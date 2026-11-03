@@ -24810,6 +24810,8 @@ components:
       $ref: "../schemas/entity-context.yaml#/PlanContextEntryDto"
     ContextRelatedEntityDto:
       $ref: "../schemas/entity-context.yaml#/ContextRelatedEntityDto"
+    RelatedEntitySelectionDto:
+      $ref: "../schemas/entity-context.yaml#/RelatedEntitySelectionDto"
     RelatedEntityViaDto:
       $ref: "../schemas/entity-context.yaml#/RelatedEntityViaDto"
     RelationshipValue:

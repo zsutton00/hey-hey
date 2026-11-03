@@ -1,5 +1,5 @@
 import { RelationshipType } from '../../generated/graphs/model/relationshipType';
-import type { RelationshipValue } from '../../generated/model/relationshipValue';
+import type { RelationshipValue } from '@hey-hey/contracts/api/models';
 
 export type EdgeDirection = 'outbound' | 'inbound';
 

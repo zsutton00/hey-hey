@@ -26,7 +26,7 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { withApiSpan } from '../../telemetry/api-tracing';
 import type { OrganizationId, ProjectId, TaskId } from 'src/types';
-import type { EntityType } from 'src/generated/model/entityType';
+import type { EntityType } from '@hey-hey/contracts/api/models';
 import { ProjectApprovalPolicyService } from 'src/services/proposal/project-approval-policy.service';
 import {
   mapProposalResponses,
@@ -43,8 +43,12 @@ import {
   GOAL_TRACKS_TOOL_NAMES,
   PROPOSAL_TOOL_NAMES,
 } from 'src/mcp/tools/proposal-tool-names';
-import { EntityType as EntityTypeEnum } from 'src/generated/model/entityType';
+import { EntityType as EntityTypeEnum } from '@hey-hey/contracts/api/models';
 import { GraphsClientService } from 'src/services/graphs-client.service';
+import {
+  selectRelatedEntities,
+  type RelatedEntitySelectionPolicy,
+} from './related-entity-selection';
 import {
   AGENT_EDGE_LABELS,
   graphRelationshipToAgentEdge,
@@ -55,26 +59,26 @@ import type {
   EntityNeighborhoodResponse,
   IncidentEdgesRequest,
 } from 'src/generated/graphs';
-import type { AvailableMcpToolDto } from 'src/generated/model/availableMcpToolDto';
-import type { EntityContextDto } from 'src/generated/model/entityContextDto';
-import type { FullEntityContextDto } from 'src/generated/model/fullEntityContextDto';
-import type { EntityContentDto } from 'src/generated/model/entityContentDto';
-import type { ContextRelatedEntityDto } from 'src/generated/model/contextRelatedEntityDto';
-import type { RelatedEntityViaDto } from 'src/generated/model/relatedEntityViaDto';
-import type { PlanContextDto } from 'src/generated/model/planContextDto';
-import type { PlanContextEntryDto } from 'src/generated/model/planContextEntryDto';
-import type { AgentSessionEntryDto } from 'src/generated/model/agentSessionEntryDto';
-import type { FeatureHierarchyEntryDto } from 'src/generated/model/featureHierarchyEntryDto';
-import type { FeatureTag } from 'src/generated/model/featureTag';
-import type { AncestorFeatureDto } from 'src/generated/model/ancestorFeatureDto';
-import type { FeatureSyncContextDto } from 'src/generated/model/featureSyncContextDto';
-import type { FeatureListItemDto } from 'src/generated/model/featureListItemDto';
-import type { FeatureSkeletonNode } from 'src/generated/model/featureSkeletonNode';
-import type { ListFeaturesResponseDto } from 'src/generated/model/listFeaturesResponseDto';
-import type { ActiveGoalDto } from 'src/generated/model/activeGoalDto';
-import type { ActiveGoalsResponseDto } from 'src/generated/model/activeGoalsResponseDto';
-import type { ProposalDetail } from 'src/generated/model/proposalDetail';
-import { GoalAudience } from 'src/generated/model/goalAudience';
+import type { AvailableMcpToolDto } from '@hey-hey/contracts/api/models';
+import type { EntityContextDto } from '@hey-hey/contracts/api/models';
+import type { FullEntityContextDto } from '@hey-hey/contracts/api/models';
+import type { EntityContentDto } from '@hey-hey/contracts/api/models';
+import type { ContextRelatedEntityDto } from '@hey-hey/contracts/api/models';
+import type { RelatedEntityViaDto } from '@hey-hey/contracts/api/models';
+import type { PlanContextDto } from '@hey-hey/contracts/api/models';
+import type { PlanContextEntryDto } from '@hey-hey/contracts/api/models';
+import type { AgentSessionEntryDto } from '@hey-hey/contracts/api/models';
+import type { FeatureHierarchyEntryDto } from '@hey-hey/contracts/api/models';
+import type { FeatureTag } from '@hey-hey/contracts/api/models';
+import type { AncestorFeatureDto } from '@hey-hey/contracts/api/models';
+import type { FeatureSyncContextDto } from '@hey-hey/contracts/api/models';
+import type { FeatureListItemDto } from '@hey-hey/contracts/api/models';
+import type { FeatureSkeletonNode } from '@hey-hey/contracts/api/models';
+import type { ListFeaturesResponseDto } from '@hey-hey/contracts/api/models';
+import type { ActiveGoalDto } from '@hey-hey/contracts/api/models';
+import type { ActiveGoalsResponseDto } from '@hey-hey/contracts/api/models';
+import type { ProposalDetail } from '@hey-hey/contracts/api/models';
+import { GoalAudience } from '@hey-hey/contracts/api/models';
 import type { AgentEdge } from 'src/generated/graphs/model/agentEdge';
 import {
   type EdgeDirection,
@@ -131,6 +135,7 @@ export interface EntityContextIncludeFlags {
   includeProposals?: boolean;
   includeAvailableMcpTools?: boolean;
   relatedEntityDepth?: RelatedEntityDepth;
+  relatedEntitySelection?: RelatedEntitySelectionPolicy;
   proposalDetail?: ProposalDetail;
 }
 
@@ -703,13 +708,23 @@ export class EntityContextService {
       result.planContext = planContext;
     }
     if (wantRelatedEntities) {
-      result.relatedEntities = await this.visibility.filterVisible(
+      const visibleRelated = await this.visibility.filterVisible(
         auxiliary.relatedEntities ?? [],
         (related) => ({
           entityType: related.entityType,
           entityId: related.entityId,
         }),
       );
+      const selection = selectRelatedEntities(
+        visibleRelated,
+        includeFlags?.relatedEntitySelection,
+        auxiliary.graphOmittedCandidateCount ?? 0,
+      );
+      result.relatedEntities = selection.relatedEntities;
+      result.relatedEntitySelection = {
+        candidateEntityCount: selection.candidateEntityCount,
+        omittedEntityCount: selection.omittedEntityCount,
+      };
       result.agentSessions = auxiliary.agentSessions ?? [];
     }
     if (wantHierarchy) {
@@ -911,6 +926,7 @@ export class EntityContextService {
   ): Promise<{
     relatedEntities?: ContextRelatedEntityDto[];
     agentSessions?: AgentSessionEntryDto[];
+    graphOmittedCandidateCount?: number;
   }> {
     if (!wantRelatedEntities) {
       return {};
@@ -939,7 +955,11 @@ export class EntityContextService {
       planPivotEntityIds,
     );
 
-    return { relatedEntities, agentSessions };
+    return {
+      relatedEntities,
+      agentSessions,
+      graphOmittedCandidateCount: neighborhood?.omittedCandidateCount ?? 0,
+    };
   }
 
   /**

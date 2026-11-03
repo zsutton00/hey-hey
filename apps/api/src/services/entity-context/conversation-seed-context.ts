@@ -1,7 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import type { ExtendedPrismaClient } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId } from 'src/types';
-import type { ConversationContextDto } from 'src/generated/model/conversationContextDto';
+import type { ConversationContextDto } from '@hey-hey/contracts/api/models';
 import { ORDINARY_PROPOSAL_VISIBILITY_WHERE } from 'src/services/proposal/proposal-visibility';
 import {
   getContentFromMessageData,
