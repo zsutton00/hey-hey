@@ -1462,6 +1462,152 @@ describe('session-runner-claude', () => {
     rmSync(base, { recursive: true, force: true });
   });
 
+  it('shares permission decisions only across structurally identical calls', async () => {
+    const onAgentOutput = vi.fn();
+    const runner = new ClaudeAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry,
+      toolRuleStore,
+      runStore: makeRunStore(),
+      repoStore: makeRepoStore(),
+      agentOutputOwner: createProviderTestAgentOutputOwner(onAgentOutput),
+    });
+    const session = makeSession();
+    const runPromise = runner.runPrompt({ session, prompt: 'Check permission decisions.' });
+    await waitForPermissionHandler();
+
+    const permissionRequests = () =>
+      onAgentOutput.mock.calls.flatMap((call) => {
+        const event = call[0]?.event as
+          | {
+              eventType?: string;
+              payload?: {
+                permission_request?: { id?: string; session_id?: string };
+                tool_name?: string;
+              };
+            }
+          | undefined;
+        if (event?.eventType !== 'permission_request') {
+          return [];
+        }
+        const request = event.payload?.permission_request;
+        if (!request?.id || !request.session_id || !event.payload?.tool_name) {
+          return [];
+        }
+        return [
+          { id: request.id, sessionId: request.session_id, toolName: event.payload.tool_name },
+        ];
+      });
+    const submitDecision = async (
+      request: ReturnType<typeof permissionRequests>[number],
+      decision: 'approve' | 'deny',
+    ) =>
+      runner.submitPermissionDecision?.({
+        session,
+        dispatch: translatePermissionDecisionToDispatch({
+          runId: session.agentic_session_id,
+          sessionId: request.sessionId,
+          requestId: request.id,
+          agentType: 'claude',
+          decision,
+          reason: decision === 'deny' ? 'Denied for this call.' : null,
+          idempotencyToken: request.id,
+          deciderUserId: 'user-1',
+        }),
+      });
+
+    const structurallyEqualFirst = {
+      pattern: 'TODO',
+      options: { glob: '*.ts', nested: { mode: 'strict', values: [1, { enabled: true }] } },
+    };
+    const structurallyEqualSecond = {
+      options: { nested: { values: [1, { enabled: true }], mode: 'strict' }, glob: '*.ts' },
+      pattern: 'TODO',
+    };
+    const identicalPromises = [
+      permissionRequestHandler!('Bash', structurallyEqualFirst),
+      permissionRequestHandler!('Bash', structurallyEqualSecond),
+    ];
+    await vi.waitFor(() => expect(permissionRequests()).toHaveLength(1));
+    const [identicalRequest] = permissionRequests();
+    expect(await submitDecision(identicalRequest!, 'approve')).toMatchObject({ delivered: true });
+    await expect(Promise.all(identicalPromises)).resolves.toEqual([
+      { behavior: 'allow', updatedInput: structurallyEqualFirst },
+      { behavior: 'allow', updatedInput: structurallyEqualSecond },
+    ]);
+
+    const firstInput = { command: 'alpha', path: 'src' };
+    const secondInput = { command: 'beta', path: 'src' };
+    let firstSettled = false;
+    let secondSettled = false;
+    const firstPromise = permissionRequestHandler!('Bash', firstInput).then((result) => {
+      firstSettled = true;
+      return result;
+    });
+    const secondPromise = permissionRequestHandler!('Bash', secondInput).then((result) => {
+      secondSettled = true;
+      return result;
+    });
+    await vi.waitFor(() => expect(permissionRequests()).toHaveLength(3));
+    const [firstRequest, secondRequest] = permissionRequests().slice(1);
+    await submitDecision(firstRequest!, 'approve');
+    await expect(firstPromise).resolves.toEqual({ behavior: 'allow', updatedInput: firstInput });
+    expect(secondSettled).toBe(false);
+    await submitDecision(secondRequest!, 'deny');
+    await expect(secondPromise).resolves.toEqual({
+      behavior: 'deny',
+      message: 'Denied for this call.',
+    });
+
+    const thirdInput = { command: 'gamma', path: 'src' };
+    const fourthInput = { command: 'delta', path: 'src' };
+    let thirdSettled = false;
+    let fourthSettled = false;
+    const thirdPromise = permissionRequestHandler!('Bash', thirdInput).then((result) => {
+      thirdSettled = true;
+      return result;
+    });
+    const fourthPromise = permissionRequestHandler!('Bash', fourthInput).then((result) => {
+      fourthSettled = true;
+      return result;
+    });
+    await vi.waitFor(() => expect(permissionRequests()).toHaveLength(5));
+    const [thirdRequest, fourthRequest] = permissionRequests().slice(3);
+    await submitDecision(fourthRequest!, 'deny');
+    await expect(fourthPromise).resolves.toMatchObject({ behavior: 'deny' });
+    expect(thirdRequest).toBeDefined();
+    expect(thirdSettled).toBe(false);
+    expect(fourthSettled).toBe(true);
+    await submitDecision(thirdRequest!, 'approve');
+    await expect(thirdPromise).resolves.toEqual({ behavior: 'allow', updatedInput: thirdInput });
+
+    const arrayForward = { command: 'run', args: ['one', 'two'] };
+    const arrayReverse = { command: 'run', args: ['two', 'one'] };
+    const duplicateInput = { command: 'shared' };
+    const mixedPromises = [
+      permissionRequestHandler!('Bash', duplicateInput),
+      permissionRequestHandler!('Bash', { command: 'shared' }),
+      permissionRequestHandler!('Bash', arrayForward),
+      permissionRequestHandler!('Bash', arrayReverse),
+      permissionRequestHandler!('WebFetch', duplicateInput),
+    ];
+    await vi.waitFor(() => expect(permissionRequests()).toHaveLength(9));
+    const mixedRequests = permissionRequests().slice(5);
+    expect(mixedRequests.map(({ toolName }) => toolName)).toEqual([
+      'Bash',
+      'Bash',
+      'Bash',
+      'WebFetch',
+    ]);
+    for (const request of mixedRequests) {
+      await submitDecision(request, 'approve');
+    }
+    await expect(Promise.all(mixedPromises)).resolves.toHaveLength(5);
+    await waitForEventHandler();
+    emitClaudeEvent({ type: 'result' });
+    await runPromise;
+  });
+
   describe('AskUserQuestion', () => {
     const askInput = {
       questions: [

@@ -4,6 +4,7 @@ import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { buildBrowserToolsMcpConfig, BROWSER_ALLOWED_TOOLS } from '../../browser-tools/mcp-config';
 import { researchHandler } from '../../research/research.handler';
 import crypto from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod';
 import {
   loadClaudeUserMcpConfig,
@@ -613,13 +614,13 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
         return { behavior: 'allow', updatedInput: toolInputRecord ?? {} };
       }
 
-      // Coalesce parallel permission requests for the same tool. When Claude
-      // makes N parallel calls to the same tool (e.g. 4 Grep calls), the SDK
+      // Coalesce parallel permission requests for the same call. When Claude
+      // makes N parallel calls to the same tool and input, the SDK
       // fires onPermissionRequest N times. Only the first should emit events
       // and create a UI-visible permission request; the rest piggyback on its
       // resolution so the user sees a single approval prompt.
       const existingPending = Array.from(this.pendingPermissionRequests.values()).find(
-        (p) => p.toolName === toolName,
+        (p) => p.toolName === toolName && isDeepStrictEqual(p.toolInputRecord, toolInputRecord),
       );
       if (existingPending) {
         requestContext.log(
@@ -630,6 +631,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
             toolName,
             existingRequestId: existingPending.requestId,
             agenticSessionId: this.activeAgenticSessionId,
+            matchingBasis: 'tool_name_and_structural_input',
           },
         );
         // Wait for the existing request to resolve and mirror its result.
@@ -748,6 +750,18 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
         expires_at: null,
       };
 
+      const permissionPromise = new Promise<ClaudeCodePermissionResult>((resolve, reject) => {
+        this.pendingPermissionRequests.set(requestId, {
+          requestId,
+          sessionId,
+          createdAt: timestamp,
+          toolName,
+          toolInputRecord,
+          resolve,
+          reject,
+        });
+      });
+
       if (!agenticSessionId) {
         requestContext.log(
           this.logger,
@@ -804,17 +818,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
         },
       });
 
-      const result = await new Promise<ClaudeCodePermissionResult>((resolve, reject) => {
-        this.pendingPermissionRequests.set(requestId, {
-          requestId,
-          sessionId,
-          createdAt: timestamp,
-          toolName,
-          toolInputRecord,
-          resolve,
-          reject,
-        });
-      });
+      const result = await permissionPromise;
 
       requestContext.log(this.logger, 'debug', 'local.runner.claude.permission.resolved', {
         requestId,
@@ -2422,11 +2426,14 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
         connected: this.connected,
       },
     );
-    // Collect all pending requests for the same tool (the primary request
-    // plus any coalesced duplicates from parallel SDK callbacks).
+    // Collect the primary request and only its structurally identical calls.
     const coalescedRequests: PendingClaudePermissionRequest[] = [];
     for (const [id, pending] of this.pendingPermissionRequests) {
-      if (id === dispatch.routing.requestId || pending.toolName === pendingPermission.toolName) {
+      if (
+        id === dispatch.routing.requestId ||
+        (pending.toolName === pendingPermission.toolName &&
+          isDeepStrictEqual(pending.toolInputRecord, pendingPermission.toolInputRecord))
+      ) {
         coalescedRequests.push(pending);
       }
     }
