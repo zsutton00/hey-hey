@@ -1,4 +1,4 @@
-import type { RepositoryGroundingSuccess } from 'src/generated';
+import type { RepositoryGroundingSuccess } from '@hey-hey/contracts/api/models';
 import type { RepositoryImportFlowContext } from 'src/types/flow-internal.types';
 import { createMutableContextHandle } from '../../../utils/mutable-context';
 import { REPOSITORY_IMPORT_NODES } from '../../constants/node-ids';

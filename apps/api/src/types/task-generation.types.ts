@@ -1,4 +1,4 @@
-import type { TaskStub } from 'src/generated';
+import type { TaskStub } from '@hey-hey/contracts/api/models';
 
 export type TaskStubSourceType = TaskStub.SourceTypeEnum;
 

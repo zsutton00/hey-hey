@@ -18,7 +18,7 @@ import {
   type SubmissionToolInputSchema,
 } from '../submission-tools/types';
 import { implementationReadinessDispositionSchema } from '../implementation-readiness/session-context';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 
 export const FEATURE_SYNC_ACTIONS = {
   NO_DISCREPANCY: 'NO_DISCREPANCY',
@@ -199,7 +199,8 @@ const FRESH_RESOLUTION_CORRECTION =
 export const correctReadinessArgumentFinding: NonNullable<
   SubmissionToolDeclaration['correctArgumentFinding']
 > = (finding) =>
-  finding.field === '/disposition/resolution' || finding.field.startsWith('/disposition/resolution/')
+  finding.field === '/disposition/resolution' ||
+  finding.field.startsWith('/disposition/resolution/')
     ? { ...finding, correction: FRESH_RESOLUTION_CORRECTION }
     : finding;
 

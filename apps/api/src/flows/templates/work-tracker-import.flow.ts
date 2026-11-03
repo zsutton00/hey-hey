@@ -1,4 +1,4 @@
-import { LocalPromptType } from 'src/generated/local';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
 import { WORK_TRACKER_IMPORT_NODES } from '../constants';
 import { createFlow } from './utils';
 

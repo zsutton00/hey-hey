@@ -1,4 +1,4 @@
-import { AgentSessionType } from "@hey-hey/ui-common/api";
+import { AgentSessionType } from "@hey-hey/contracts/api";
 import {
   useAgentSessions,
   usePlatformAdminAccess,

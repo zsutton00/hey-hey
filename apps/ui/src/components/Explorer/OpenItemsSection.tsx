@@ -28,7 +28,7 @@ import {
   TargetEntityType,
   type WorkItemTypeDefinitionDto,
   type WorkItemTypeEffectiveSource,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   ConversationPhaseIndicator,
   AgentSessionCurrentStateIndicator,

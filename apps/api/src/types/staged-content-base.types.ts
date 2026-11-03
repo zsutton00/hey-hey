@@ -6,7 +6,7 @@
  * rest of the codebase stays aligned with the contract exposed by the API.
  */
 
-import { StagedContentEntity } from '../generated';
+import { StagedContentEntity } from '@hey-hey/contracts/api/models';
 
 export type StagedContentBase = StagedContentEntity;
 

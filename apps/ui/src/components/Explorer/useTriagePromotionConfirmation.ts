@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   OpenItemsTriagePromoteGroupSuggestion,
   PromoteGroupToGoalRequest,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import type { TriagePromotionIntent } from "@hey-hey/ui-common/data";
 
 export function useTriagePromotionConfirmation() {

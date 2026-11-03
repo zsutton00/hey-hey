@@ -1,5 +1,5 @@
-import { LocalPromptType } from 'src/generated/local';
-import { AgentSessionType, WorkflowName } from 'src/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
+import { AgentSessionType, WorkflowName } from '@hey-hey/contracts/api/models';
 import { AgentSessionService } from 'src/services/agent-session.service';
 import { deriveAgentSessionTitle } from 'src/services/agent-session-title';
 import { ProjectService } from 'src/services/project.service';

@@ -47,7 +47,7 @@ import {
   TopologySubfacetDto,
   TopologySubfacetSummarizationRunDto,
   UnifiedGraphSearchResponse,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { TopologyGraphResponse } from '../generated/graphs';
 import {
   OrganizationId,

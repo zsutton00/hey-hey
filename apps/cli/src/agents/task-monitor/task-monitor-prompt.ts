@@ -1,4 +1,4 @@
-import type { TaskMonitorPromptPayload } from '../../shared/agent-bridge-contract/generated/api';
+import type { TaskMonitorPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import type { TaskMonitorCanonicalEvidence } from './task-monitor-evidence';
 
 export const buildTaskMonitorPrompt = (

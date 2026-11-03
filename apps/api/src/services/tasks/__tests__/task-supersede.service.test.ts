@@ -9,7 +9,10 @@ import { TaskSupersedeService } from '../task-supersede.service';
 import { TaskService } from '../task.service';
 import { ProposalService } from '../../proposal/proposal.service';
 import type { RequestorContext } from '../../../mcp/tools/requestor-context';
-import type { CreateProposalDto, TaskResponseDto } from '../../../generated';
+import type {
+  CreateProposalDto,
+  TaskResponseDto,
+} from '@hey-hey/contracts/api/models';
 import type { TypedProposalResponse } from '../../proposal/proposal.types';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { WorkItemTypeRegistryService } from '../work-item-type-registry.service';

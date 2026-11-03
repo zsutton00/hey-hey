@@ -7,7 +7,7 @@ import {
   TaskContentApplyPayload,
   TaskContentApplyPayloadAllOfFields,
   UIElement,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { ArtifactService } from 'src/services/artifacts/artifact.service';
 import { InitiativeService } from 'src/services/initiatives/initiative.service';
 import { TaskService } from 'src/services/tasks/task.service';

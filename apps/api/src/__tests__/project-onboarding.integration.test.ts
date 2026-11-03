@@ -7,7 +7,7 @@ import { ProjectAccessGuard } from '../auth/guards/project-access.guard';
 import { ProjectAccessService } from '../auth/services/project-access.service';
 import { ProjectMembershipRevocationService } from '../core/websockets/project-membership-revocation.service';
 import { ProjectController } from '../controllers/project.controller';
-import { CreateProjectDto, ProjectStatus } from '../generated';
+import { CreateProjectDto, ProjectStatus } from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../prisma/prisma.service';
 import { TEMPORAL_CLIENT } from '../prisma/temporal.module';
 import { ProjectService } from '../services/project.service';

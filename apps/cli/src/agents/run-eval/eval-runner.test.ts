@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { EvalRecordedAttempt } from '../../shared/api/generated/api';
+import type { EvalRecordedAttempt } from '@hey-hey/contracts/api/models';
 import {
   EvalTargetFailure,
   runEvalAttempts,

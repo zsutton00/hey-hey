@@ -12,7 +12,7 @@ import {
   CreateConversationDto,
   InitiationType,
   WorkflowName,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import * as TestUtils from '../../../utils/testUtils';
 import { NodeType } from '../../../types/flow-internal.types';
 import { ConversationWorkflowError } from '../../../core/exceptions/workflow.exceptions';

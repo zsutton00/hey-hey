@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { ExtendedUIFieldType } from '../../../generated';
-import type { SystemMessageData } from '../../../generated';
+import { ExtendedUIFieldType } from '@hey-hey/contracts/api/models';
+import type { SystemMessageData } from '@hey-hey/contracts/api/models';
 import type {
   IntermediateSystemMessageData,
   NodeResult,

@@ -12,7 +12,7 @@ import {
   type TaskMonitorMachineRuntime,
   type TaskMonitorStateStore,
 } from '../agents/task-monitor/state-machine/machine';
-import type { MonitorCommandBody1 as MonitorCommandBody } from '../shared/agent-bridge-contract/generated/api';
+import type { MonitorCommandBody1 as MonitorCommandBody } from '@hey-hey/contracts/agent-bridge';
 import {
   defineMachine,
   MachineRegistry,

@@ -33,7 +33,7 @@ import {
   NotificationPreferencesDto,
   NotificationStatus,
   UpdateNotificationPreferencesDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { NotificationService } from 'src/services/notifications/notification.service';
 import { OrganizationId, UserId } from 'src/types';
 

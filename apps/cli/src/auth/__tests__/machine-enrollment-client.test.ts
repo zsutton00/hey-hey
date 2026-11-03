@@ -1,3 +1,4 @@
+import { asOrganizationId, asUserId } from '../../test-utils/contract-ids';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -27,8 +28,8 @@ const readyResponse: PollMachineEnrollmentResponseDto = {
   osFamily: 'macos',
   cliVersion: '2.2.2',
   machineKeyFingerprint: 'machine-key-fingerprint',
-  accountId: 'account-1',
-  organizationId: 'organization-1',
+  accountId: asUserId('account-1'),
+  organizationId: asOrganizationId('organization-1'),
   controllerLabel: 'Alice passkey',
   controllerCredentialId: 'credential-1',
   controllerCredentialFingerprint: 'controller-fingerprint',
@@ -48,8 +49,8 @@ const activationResponse: ConfirmMachineEnrollmentResponseDto = {
     machineName: 'Alice laptop',
     osFamily: 'macos',
     cliVersion: '2.2.2',
-    accountId: 'account-1',
-    organizationId: 'organization-1',
+    accountId: asUserId('account-1'),
+    organizationId: asOrganizationId('organization-1'),
     controllerLabel: 'Alice passkey',
     controllerCredentialId: 'credential-1',
     controllerCredentialPublicKey: {
@@ -169,8 +170,8 @@ describe('createDefaultMachineEnrollmentClient', () => {
         confirmation: {
           enrollmentId: ENROLLMENT_ID,
           machineId: MACHINE_ID,
-          accountId: 'account-1',
-          organizationId: 'organization-1',
+          accountId: asUserId('account-1'),
+          organizationId: asOrganizationId('organization-1'),
           controllerCredentialId: 'credential-1',
           confirmationNonce: 'confirmation-nonce',
         },

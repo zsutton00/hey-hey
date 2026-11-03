@@ -11,7 +11,7 @@ import type {
   WorkItemTypeRegistryService,
   WorkItemTypeRules,
 } from '../../services/tasks/work-item-type-registry.service';
-import { WorkStatus } from '../../generated/model/workStatus';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { AGENT_EDGE_TYPES } from './agent-edge-vocabulary';
 import {
   CREATE_WORK_ITEM_TYPE_AUTHORING_AXES,

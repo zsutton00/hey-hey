@@ -1,5 +1,8 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
-import { EntityType, type CreateProjectReportRequestDto } from 'src/generated';
+import {
+  EntityType,
+  type CreateProjectReportRequestDto,
+} from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId, UserId } from 'src/types';
 import { ProjectReportActivityService } from '../project-report-activity.service';
 import { ProjectReportContextService } from '../project-report-context.service';

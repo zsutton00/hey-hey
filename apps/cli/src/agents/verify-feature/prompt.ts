@@ -1,4 +1,4 @@
-import type { VerifyFeaturePromptPayload } from '../../shared/agent-bridge-contract/generated';
+import type { VerifyFeaturePromptPayload } from '@hey-hey/contracts/agent-bridge';
 import { verifyFeatureCompletionPrompt } from '../completion-reconciliation/prompts/common';
 import type { LoadedEntityPromptContext } from '../entity-context/types';
 import { graphResearchGuidance } from '../prompts/graph-research';

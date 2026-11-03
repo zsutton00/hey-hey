@@ -8,7 +8,7 @@ import type {
   SubagentInteractionAdmissionRequest,
   SubagentSettledAttempt,
   SessionMessageInteractionAdmissionRequest,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 
 const id = z.string().uuid();
 const instant = z.string().datetime({ offset: true });

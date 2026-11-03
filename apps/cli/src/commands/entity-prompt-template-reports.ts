@@ -2,7 +2,7 @@ import type {
   CodingResearchReportPayload,
   ReportPayload,
   ReportType,
-} from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { EntityPromptTemplateNode } from '../shared/api/generated/entity-prompt-template-language';
 import { renderCodingResearchMemo } from '../agents/prompts/coding-research-memo';
 

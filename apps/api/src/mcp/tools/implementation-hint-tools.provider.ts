@@ -11,7 +11,7 @@ import {
   EntityType,
   ImplementationHintExtractedFrom,
   UnifiedSearchRequest,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { ProjectId } from '../../types';
 import {
   extractAuthContext,

@@ -1,6 +1,6 @@
 import type { LocalAgentService } from '../../../server/local-agent-service';
 import type { ServerLogger } from '../../../server/logger';
-import { LocalPromptType } from '../../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { TaskMonitorConversationPromptPayload } from '../../../shared/agent-bridge-contract/contract';
 import type {
   EffectExecutionIdentity,

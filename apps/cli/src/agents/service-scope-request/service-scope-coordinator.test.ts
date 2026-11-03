@@ -11,8 +11,8 @@ import {
   LOCAL_RUN_MODE,
   type InternalRunPromptRequest,
 } from '../../shared/agent-bridge-contract/contract';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated';
-import type { AgentSessionServiceScopeRequest } from '../../shared/api/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import type { AgentSessionServiceScopeRequest } from '@hey-hey/contracts/api/models';
 import type { AgenticSession } from '../../session/types';
 import { toRepositoryPath, toServiceId } from '../../repo';
 import { createTestKeyPairStore } from '../../credentials/keypair.test-support';
@@ -73,9 +73,7 @@ const makeSession = (input?: {
     serviceScopeRequestPresentations: input?.withoutPendingRequest
       ? []
       : [{ request, messageId: 'scope-message-1' }],
-    ...(input?.missingContinuation
-      ? {}
-      : { serviceScopeContinuationInput: continuation }),
+    ...(input?.missingContinuation ? {} : { serviceScopeContinuationInput: continuation }),
     ...(input?.invalidWorkspace
       ? { scope: { mode: LOCAL_RUN_MODE.default, allowedRepositoryRoots: ['/elsewhere'] } }
       : {}),
@@ -570,8 +568,8 @@ describe('AgentSessionServiceScopeCoordinator settlement', () => {
   });
 
   it('keeps the approval retryable when local persistence fails after the platform grant', async () => {
-    const fetchImpl = vi.fn(
-      () => Promise.resolve(new Response(null, { status: 200 })),
+    const fetchImpl = vi.fn(() =>
+      Promise.resolve(new Response(null, { status: 200 })),
     ) as unknown as typeof fetch;
     const { run } = makeHarness({
       fetchImpl,

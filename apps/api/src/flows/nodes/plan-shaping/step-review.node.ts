@@ -1,13 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
-import { ExtendedUIFieldType, UIElement } from 'src/generated';
+import { ExtendedUIFieldType, UIElement } from '@hey-hey/contracts/api/models';
 import {
   LocalPromptType,
   PhaseBreakdownPlan,
   PhaseBreakdownStep,
   PhaseBreakdownStepType,
   PlanShapingStepReviewPromptPayload,
-} from 'src/generated/local';
+} from '@hey-hey/contracts/agent-bridge/models';
 import {
   ExternalAgentActionSchemas,
   ExternalAgentNodeBase,

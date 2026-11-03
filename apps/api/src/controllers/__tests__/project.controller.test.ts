@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { CreateProjectDto, ProjectStatus } from '../../generated';
+import { CreateProjectDto, ProjectStatus } from '@hey-hey/contracts/api/models';
 import { OrganizationId, ProjectId, UserId } from '../../types';
 import { ProjectController } from '../project.controller';
 

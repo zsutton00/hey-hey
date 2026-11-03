@@ -1,4 +1,4 @@
-import type { UIHints } from '../../generated';
+import type { UIHints } from '@hey-hey/contracts/api/models';
 import type { ConversationNode, Flow } from '../../types/flow-internal.types';
 
 export function getWorkflowEntryUiHints(

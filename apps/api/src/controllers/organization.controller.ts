@@ -31,17 +31,17 @@ import { OrganizationGuard } from '../auth/guards/organization.guard';
 import { extractBrowserSessionRequestMetadata } from '../auth/browser-session-request-metadata';
 import { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import { AdminGuard } from '../auth/guards/admin.guard';
-import { BulkInviteResponse } from '../generated';
-import { BulkInviteToOrganizationDto } from '../generated';
-import { CreateOrganizationDto } from '../generated';
-import { InviteToOrganizationDto } from '../generated';
-import { OrganizationMemberResponseDto } from '../generated';
+import { BulkInviteResponse } from '@hey-hey/contracts/api/models';
+import { BulkInviteToOrganizationDto } from '@hey-hey/contracts/api/models';
+import { CreateOrganizationDto } from '@hey-hey/contracts/api/models';
+import { InviteToOrganizationDto } from '@hey-hey/contracts/api/models';
+import { OrganizationMemberResponseDto } from '@hey-hey/contracts/api/models';
 import {
   OrganizationAccountLifecycleDto,
   OrganizationReactivationSuccess,
-} from '../generated';
-import { OrganizationResponseDto } from '../generated';
-import { UpdateOrganizationDto } from '../generated';
+} from '@hey-hey/contracts/api/models';
+import { OrganizationResponseDto } from '@hey-hey/contracts/api/models';
+import { UpdateOrganizationDto } from '@hey-hey/contracts/api/models';
 import {
   AccountEntitlementDto,
   AdminOrganizationDetailDto,
@@ -50,11 +50,11 @@ import {
   OrganizationDirectorySortBy,
   OrganizationDirectorySortOrder,
   MakeBetaAccessOpenEndedRequestDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   OrganizationProjectEntitlementDto,
   UpdateOrganizationProjectEntitlementDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { OrganizationService } from '../services/organization.service';
 import { OrganizationAccountLifecycleOwner } from '../services/organization-account-lifecycle.owner';
 import { OrganizationProjectEntitlementService } from '../services/organization-project-entitlement.service';

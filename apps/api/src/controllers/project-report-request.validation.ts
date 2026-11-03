@@ -6,7 +6,7 @@ import type {
   ProjectReportContextBatchRequestDto,
   ProjectReportPreviewRequestDto,
   RetryProjectReportRequestDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { projectReportSchemas } from 'src/generated/project-report.schemas';
 
 const ajv = addFormats(new Ajv({ allErrors: true, strict: false }));

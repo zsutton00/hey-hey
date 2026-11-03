@@ -12,7 +12,7 @@ import {
   EntityType,
   OpenItemGoalTrackedWorkFilter,
   type TrackedEntitySnapshot,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { useOpenItemGoalWork } from "@hey-hey/ui-common/data";
 import { useOpenItems } from "../../contexts/OpenItemsContext";
 import type { OpenItem } from "../../contexts/openItemsModel";

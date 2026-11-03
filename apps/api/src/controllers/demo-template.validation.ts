@@ -1,7 +1,7 @@
 import { BadRequestException, PipeTransform } from '@nestjs/common';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
-import type { SetDemoTemplateDto } from '../generated';
+import type { SetDemoTemplateDto } from '@hey-hey/contracts/api/models';
 import { setDemoTemplateJsonSchema } from '../generated/demo-sandbox.schema';
 
 const validate = addFormats(

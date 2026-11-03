@@ -1,5 +1,5 @@
-import type { CreateProposalDto } from 'src/generated';
-import { ProposalEdgeEndpointMode } from 'src/generated/model/proposalEdgeEndpointMode';
+import type { CreateProposalDto } from '@hey-hey/contracts/api/models';
+import { ProposalEdgeEndpointMode } from '@hey-hey/contracts/api/models';
 
 /**
  * A proposal that violates the supersede invariant, with the directive

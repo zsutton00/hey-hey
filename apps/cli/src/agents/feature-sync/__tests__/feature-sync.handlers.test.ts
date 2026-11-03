@@ -6,7 +6,7 @@ import {
   FeatureSyncDiscrepancyEntityTypeEnum,
   LocalPromptType,
   type FeatureSyncDiscrepancy,
-} from '../../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type {
   LocalFeatureSyncAnalyzePromptPayload,
   LocalFeatureSyncIteratePromptPayload,

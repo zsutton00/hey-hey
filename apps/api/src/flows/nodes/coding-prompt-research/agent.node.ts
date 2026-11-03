@@ -5,7 +5,7 @@ import {
   type WorkItemTypeKey,
 } from 'src/services/tasks/work-item-type-keys';
 import { Injectable } from '@nestjs/common';
-import { SystemMessageData, UIElement } from 'src/generated';
+import { SystemMessageData, UIElement } from '@hey-hey/contracts/api/models';
 import {
   CodingPromptPlanningMessage,
   CodingPromptPlanningMessageRoleEnum,

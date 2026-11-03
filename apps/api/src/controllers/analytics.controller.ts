@@ -32,7 +32,7 @@ import {
   EventBatch,
   TrackAttentionEvents201Response,
   TrackEventBatch201Response,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { AnalyticsService } from '../services/analytics/analytics.service';
 import {
   AttentionEventService,

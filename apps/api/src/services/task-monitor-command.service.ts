@@ -14,7 +14,7 @@ import {
   ExecutableEnvelopeAuthorization,
   SubmitTaskMonitorCommandRequestDto,
   SubmitTaskMonitorCommandResponseDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../prisma/prisma.service';
 import { TriggerEmitter } from '../core/websockets/trigger-emitter.service';
 import { MachineId, OrganizationId, ProjectId, TaskId, UserId } from '../types';

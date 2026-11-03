@@ -8,10 +8,8 @@ import { NOOP_LOGGER } from '../../../../server/logger';
 import type { TaskMonitorLaunchFailureRuntime } from '../../../../server/task-monitor-launch-failure-runtime';
 import { RunWorktreeCollisionError } from '../../../run-scope';
 import { canonicalizeJsonObject } from '../../../../shared/canonical-json';
-import type {
-  AgentSessionsApiCreateAgentSessionRequest,
-  SubmitTaskMonitorRunEffectRequestDto,
-} from '../../../../shared/api/generated/api';
+import type { AgentSessionsApiCreateAgentSessionRequest } from '@hey-hey/contracts/api';
+import type { SubmitTaskMonitorRunEffectRequestDto } from '@hey-hey/contracts/api/models';
 import type { TaskMonitorLaunchDeclaration } from '../context';
 import {
   TaskMonitorAgentSessionEffectHandler,

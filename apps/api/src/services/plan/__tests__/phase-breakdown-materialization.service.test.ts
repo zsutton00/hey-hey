@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { buildProductionLogEnvelope } from 'src/common/logger/production-log-envelope';
-import { PhaseBreakdownStepType } from 'src/generated/local';
+import { PhaseBreakdownStepType } from '@hey-hey/contracts/agent-bridge/models';
 import type { PrismaService } from 'src/prisma/prisma.service';
 import type {
   ConversationId,

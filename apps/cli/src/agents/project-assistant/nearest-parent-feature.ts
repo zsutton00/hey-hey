@@ -1,13 +1,12 @@
-import type { ReadRestriction } from '../../shared/api/generated/api';
+import type { ReadRestriction } from '@hey-hey/contracts/api/models';
 import { restrictedConfiguration } from '../../shared/api/read-restriction';
 import { isAxiosError } from 'axios';
-
+import { TasksApi } from '@hey-hey/contracts/api';
 import {
-  TasksApi,
   type FullEntityContextDto,
   type MaterializedWorkItemSection,
   type TaskResponseDto,
-} from '../../shared/api/generated';
+} from '@hey-hey/contracts/api/models';
 import type { LoadedEntityPromptContext } from '../entity-context/types';
 import type { PromptTypeHandlerDeps } from '../prompt-type-handler';
 import {

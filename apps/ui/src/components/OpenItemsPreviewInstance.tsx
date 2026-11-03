@@ -2,7 +2,7 @@ import {
   isProjectCollectionPreviewRequest,
   type PreviewRequest,
 } from "@hey-hey/ui-common/context";
-import { EntityType } from "@hey-hey/ui-common/api";
+import { EntityType } from "@hey-hey/contracts/api";
 import {
   entityNameKey,
   useEntityNames,

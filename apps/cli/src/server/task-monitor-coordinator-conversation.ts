@@ -1,7 +1,7 @@
 import type { ApiRuntime } from '../shared/runtime/clients/shared';
 import { isAxiosError } from 'axios';
 
-import { AgentSessionType, WorkflowName } from '../shared/api/generated/api';
+import { AgentSessionType, WorkflowName } from '@hey-hey/contracts/api/models';
 import type { ServerLogger } from './logger';
 
 export interface TaskMonitorCoordinatorConversationInput {

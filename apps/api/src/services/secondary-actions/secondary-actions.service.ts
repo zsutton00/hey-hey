@@ -4,7 +4,7 @@ import {
   SecondaryActionHandler,
   SuggestedAgentActionMethod,
   SuggestedAgentActionPayload,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   SecondaryActionContext,
   SecondaryActionDefinition,

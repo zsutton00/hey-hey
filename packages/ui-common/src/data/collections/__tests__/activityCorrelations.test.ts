@@ -21,7 +21,7 @@ import {
   mapCorrelatedActivityRecord,
   mapCorrelatedActivityRecords,
 } from "../activityCorrelations";
-import { setSearchParams } from "../../../api/common";
+import { setSearchParams } from "@hey-hey/contracts/api/common";
 
 const {
   getCorrelatedActivityMock,
@@ -42,7 +42,7 @@ vi.mock("../../../clients/serviceClients", () => ({
 }));
 
 const buildRecord = (
-  overrides: Partial<ActivityCorrelationRecordDto> = {}
+  overrides: Partial<ActivityCorrelationRecordDto> = {},
 ): ActivityCorrelationRecordDto => ({
   entityId: "task-1",
   entityType: EntityType.Task,
@@ -57,7 +57,7 @@ const buildRecord = (
 });
 
 const buildRecentRecord = (
-  overrides: Partial<RecentActivityCorrelationRecordDto> = {}
+  overrides: Partial<RecentActivityCorrelationRecordDto> = {},
 ): RecentActivityCorrelationRecordDto => ({
   entityId: "task-1",
   entityType: EntityType.Task,
@@ -206,7 +206,7 @@ describe("activity correlations collection", () => {
         },
         limit: 25,
         offset: 0,
-      })
+      }),
     );
     expect(queryActivityMock).toHaveBeenCalledWith(request, {});
   });
@@ -237,7 +237,7 @@ describe("activity correlations collection", () => {
           actorScope: "ORGANIZATION",
         },
         25,
-        0
+        0,
       );
 
     const query = new URL(request.url, "https://heyhey.test").searchParams;
@@ -266,7 +266,7 @@ describe("activity correlations collection", () => {
         },
         limit: 25,
         offset: 0,
-      })
+      }),
     ).resolves.toEqual({
       items: [],
       records: [],
@@ -297,7 +297,7 @@ describe("activity correlations collection", () => {
       });
 
       expect(url.searchParams.getAll("projectIds")).toEqual(expected);
-    }
+    },
   );
 
   it("builds query keys with normalized entity filters", () => {
@@ -370,7 +370,7 @@ describe("activity correlations collection", () => {
     const mapped = mapCorrelatedActivityRecord(buildRecord());
 
     expect(mapped.activityId).toBe(
-      "TASK:task-1:VIEWED:2026-03-02T00:00:00Z:ATTENTION_EVENT"
+      "TASK:task-1:VIEWED:2026-03-02T00:00:00Z:ATTENTION_EVENT",
     );
     expect(mapped.activityType).toBe(ActivityCorrelationActivityType.Viewed);
     expect(mapped.preview.dropdown).toBe("Viewed from Attention");
@@ -390,7 +390,7 @@ describe("activity correlations collection", () => {
           planStepId: "step-1",
           planStepTitle: "Step 1",
         },
-      })
+      }),
     );
 
     expect(mapped.conversationId).toBe("conversation-1");
@@ -425,7 +425,7 @@ describe("activity correlations collection", () => {
         entityType: EntityType.AgentSession,
         conversationId: "conversation-1",
         lastMessage,
-      })
+      }),
     );
 
     expect(mapped.lastMessage).toEqual(lastMessage);
@@ -448,10 +448,10 @@ describe("activity correlations collection", () => {
 
     expect(mapped).toHaveLength(2);
     expect(mapped[0]?.activityId).toBe(
-      "TASK:task-1:NOTIFICATION:2026-03-03T00:00:00Z:SYSTEM"
+      "TASK:task-1:NOTIFICATION:2026-03-03T00:00:00Z:SYSTEM",
     );
     expect(mapped[1]?.activityId).toBe(
-      "TASK:task-1:VIEWED:2026-03-02T00:00:00Z:ATTENTION_EVENT"
+      "TASK:task-1:VIEWED:2026-03-02T00:00:00Z:ATTENTION_EVENT",
     );
   });
 
@@ -479,7 +479,7 @@ describe("activity correlations collection", () => {
         maxRetries: 2,
         baseDelayMs: 0,
         maxDelayMs: 0,
-      }
+      },
     );
 
     expect(getCorrelatedActivityMock).toHaveBeenCalledTimes(2);
@@ -493,7 +493,7 @@ describe("activity correlations collection", () => {
         limit: 25,
         offset: 0,
       }),
-      {}
+      {},
     );
     expect(result.items).toHaveLength(1);
     expect(result.records).toHaveLength(1);
@@ -570,7 +570,7 @@ describe("activity correlations collection", () => {
         limit: 25,
         offset: 0,
       }),
-      {}
+      {},
     );
     expect(getCorrelatedActivityMock).not.toHaveBeenCalled();
     expect(result.items).toHaveLength(1);
@@ -617,12 +617,12 @@ describe("activity correlations collection", () => {
           maxRetries: 2,
           baseDelayMs: 0,
           maxDelayMs: 0,
-        }
-      )
+        },
+      ),
     ).rejects.toEqual(
       expect.objectContaining({
         code: "ERR_CANCELED",
-      })
+      }),
     );
 
     expect(getCorrelatedActivityMock).toHaveBeenCalledTimes(1);

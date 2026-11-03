@@ -6,11 +6,11 @@ import {
   SecondaryActionConfig,
   SecondaryActionHandler,
   UIElement,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   PlanShapingApprovedVisualEntityTypeEnum,
   type PlanShapingApprovedVisual,
-} from 'src/generated/local';
+} from '@hey-hey/contracts/agent-bridge/models';
 import {
   FlowUserMessage,
   NodeResult,

@@ -1,3 +1,4 @@
+import { asOrganizationId, asUserId } from '../test-utils/contract-ids';
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs/promises';
@@ -31,8 +32,8 @@ const registry: ControllerRegistryContents = {
       machineName: 'test machine',
       osFamily: 'linux',
       cliVersion: '2.2.2',
-      accountId: 'account-1',
-      organizationId: 'organization-1',
+      accountId: asUserId('account-1'),
+      organizationId: asOrganizationId('organization-1'),
       controllerLabel: 'test passkey',
       controllerCredentialId: 'controller-1',
       controllerCredentialPublicKey: { kty: 'EC', crv: 'P-256', x: 'A'.repeat(43), y: 'B'.repeat(43) },

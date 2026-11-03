@@ -37,7 +37,7 @@ import {
   IntegrationJobData,
   IntegrationTestJobData,
 } from './interfaces/job-enqueuer.interface';
-import { PayloadType } from 'src/generated';
+import { PayloadType } from '@hey-hey/contracts/api/models';
 
 const enqueueingServiceSet = new Set();
 

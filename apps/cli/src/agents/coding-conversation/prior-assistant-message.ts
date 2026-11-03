@@ -1,5 +1,5 @@
 import type { AgenticSession } from '../../session/types';
-import type { GetMessage200Response } from '../../shared/api/generated/api';
+import type { GetMessage200Response } from '@hey-hey/contracts/api/models';
 import type { PromptTypeHandlerDeps } from '../prompt-type-handler';
 
 /**

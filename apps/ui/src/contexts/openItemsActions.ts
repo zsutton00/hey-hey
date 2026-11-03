@@ -1,5 +1,5 @@
 import type { useOpenItems as useCanonicalOpenItems } from "@hey-hey/ui-common/data";
-import { EntityType } from "@hey-hey/ui-common/api";
+import { EntityType } from "@hey-hey/contracts/api";
 import type { OpenItemsContextValue } from "./openItemsContextValue";
 import {
   matchesOpenItemIdentity,

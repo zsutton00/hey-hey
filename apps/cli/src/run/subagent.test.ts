@@ -1,5 +1,5 @@
 import { evalJudgeHandler, parseEvalJudgeOutput } from '../agents/run-eval/eval-judge.handler';
-import type { EvalRunCaseInput } from '../shared/api/generated/api';
+import type { EvalRunCaseInput } from '@hey-hey/contracts/api/models';
 import {
   childPlatformMcpProxies,
   type ChildPlatformMcpProxy,
@@ -10,9 +10,9 @@ import {
   createPromptTypeHandlerTestDeps,
   createPromptTypeHandlerTestRunStore,
 } from '../agents/prompt-type-handler.test-support';
-import { EntityContextApi, WorkItemTypesApi } from '../shared/api/generated/api';
+import { EntityContextApi, WorkItemTypesApi } from '@hey-hey/contracts/api';
 import { researchHandler } from '../agents/research/research.handler';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 /**
  * Unified `SubAgent` regression test.
  *
@@ -38,7 +38,7 @@ import {
 import { intentFirstGuidance, takingShapeGuidance } from '../agents/prompts/common';
 import { renderWorkItemTypeOntologyEntry } from '../agents/prompts/render-type-ontology';
 import type { ProjectMaturity, WorkItemTypeDefinitionDto } from '../shared/api/index';
-import type { LocalStartupSessionPromptPayload } from '../shared/agent-bridge-contract/generated/api';
+import type { LocalStartupSessionPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../session/types';
 import { SubmissionToolRegistry } from '../agents/submission-tools/registry';
 import { PromptTypeRegistry } from '../agents/prompt-type-registry';

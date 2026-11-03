@@ -13,7 +13,7 @@ import {
   MachineEnrollmentPollReadyDto,
   PollMachineEnrollmentRequestDto,
   PollMachineEnrollmentResponseDto,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   MACHINE_ENROLLMENT_ORIGIN_ACCOUNT_MISMATCH,
   MACHINE_ENROLLMENT_ORIGIN_ACCOUNT_MISMATCH_MESSAGE,

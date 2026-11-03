@@ -11,7 +11,7 @@
 import {
   LocalPromptType,
   type PlanShapingFinalizePromptPayload,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import { ReportAudience, ReportType } from '../../shared/api/index';
 import { turnUserMessageBlock, type UserLaunchablePromptTypeHandler } from '../prompt-type-handler';
 import { buildFinalizePrompt } from './prompts';

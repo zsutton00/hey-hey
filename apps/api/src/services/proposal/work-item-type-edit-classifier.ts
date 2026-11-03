@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { isDeepStrictEqual } from 'node:util';
-import type { WorkItemTypeDefinitionDto } from '../../generated/model/workItemTypeDefinitionDto';
-import type { WorkItemTypeSummaryDto } from '../../generated/model/workItemTypeSummaryDto';
+import type { WorkItemTypeDefinitionDto } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeSummaryDto } from '@hey-hey/contracts/api/models';
 
 export type WorkItemTypeEditClassificationKind =
   | 'unchanged'

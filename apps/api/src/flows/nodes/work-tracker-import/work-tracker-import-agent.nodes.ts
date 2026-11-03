@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { LocalPromptType } from 'src/generated/local';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
 import type {
   WorkTrackerConnectionCompletion,
   WorkTrackerImportSuccess,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ExternalAgentActionSchemas,
   ExternalAgentFlowData,

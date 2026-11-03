@@ -12,7 +12,7 @@ import {
   CompleteMachineEnrollmentClaimRequestDto,
   CompleteMachineEnrollmentClaimResponseDto,
   MachineEnrollmentWebAuthnRegistrationCredentialDto,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   MACHINE_ENROLLMENT_CLAIM_EXPIRED,
   MACHINE_ENROLLMENT_CLAIM_TERMINAL,

@@ -57,7 +57,7 @@ import {
   HostAffectingActionType,
   MessageStatus,
   SystemMessageData,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { InjectTemporalClient } from '../prisma/temporal.module';
 import { ConversationService } from '../services/conversation.service';
 import { MessageService } from '../services/message.service';

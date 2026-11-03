@@ -17,8 +17,8 @@ import {
   useTopologyEntitySummaries,
   useArtifacts,
 } from "@hey-hey/ui-common/data";
-import { ArtifactType } from "@hey-hey/ui-common/api";
-import type { TopologySummaryCategory } from "@hey-hey/ui-common/api";
+import { ArtifactType } from "@hey-hey/contracts/api";
+import type { TopologySummaryCategory } from "@hey-hey/contracts/api";
 import {
   CategoryList,
   EntityList,

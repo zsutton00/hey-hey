@@ -1,8 +1,5 @@
 import type { AssistantCompleteEvent } from '../../run/types';
-import {
-  LocalPromptType,
-  type TaskMonitorPromptPayload,
-} from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType, type TaskMonitorPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../../session/types';
 import type { TaskMonitorConversationPromptPayload } from '../../shared/agent-bridge-contract/contract';
 import type {

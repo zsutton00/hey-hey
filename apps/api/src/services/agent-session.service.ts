@@ -76,7 +76,7 @@ import {
   UserResponseDto,
   WorkflowName,
   WorkItemTypeLifecycleStatus,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { ConversationWorkflowService } from './workflows/conversation-workflow.service';
 import { ConversationService } from './conversation.service';
 import { DEFAULT_AGENT_SESSION_TITLE } from './agent-session-title';
@@ -121,7 +121,7 @@ import { TaskSectionSchemaValidatorRegistry } from './tasks/task-section-schema-
 import { WorkItemTypeRegistryService } from './tasks/work-item-type-registry.service';
 import { ProjectModeEligibilityService } from './tasks/project-mode-eligibility.service';
 import { resolveProjectModeEligibleWorkItemTypeKeys } from './tasks/project-mode-eligible-types';
-import type { WorkItemTypeSectionDefinition } from '../generated/model/workItemTypeSectionDefinition';
+import type { WorkItemTypeSectionDefinition } from '@hey-hey/contracts/api/models';
 import { isQualifyingLegacyRepositoryImportExecution } from '../workflows/repository-import-legacy-compatibility';
 
 type AgentSessionWithDates = AgentSession & {

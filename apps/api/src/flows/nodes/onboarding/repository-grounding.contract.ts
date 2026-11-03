@@ -34,7 +34,7 @@ import {
   RepositoryPlacementSuccess,
   RepositoryPlacementRetryableFailure,
   RepositoryPlacementTerminalFailure,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type {
   ExternalAgentActionSchemas,
   FlowUserMessage,

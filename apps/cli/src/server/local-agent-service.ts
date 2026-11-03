@@ -4,7 +4,7 @@ import { WorkspaceSkillsReadHandler } from './workspace-skills-read-handler';
 import type {
   CliReadWorkspaceSkillsListEnvelopeBody,
   CliReadResponseDto,
-} from '../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type { PromptTypeRegistry } from '../agents/prompt-type-registry';
 import type { RepoMappingStore } from '../repo/index';
 import type { RunRegistry } from '../run/run-registry';
@@ -23,7 +23,7 @@ import type {
 import type {
   CliReadProviderUsageResult,
   CliReadRuntimeModelCatalogResult,
-} from '../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import { readRuntimeModelCatalogResult } from './model-catalog/runtime-model-catalog-result';
 import type { CatalogAvailability } from './runtime-capability-catalog';
 import type { ServerLogger } from './logger';
@@ -56,7 +56,7 @@ import type {
 import type { AdmittedHostAction } from './controller-authorization/types';
 import { ProjectModeBundleMaterializer } from '../agents/project-mode';
 import type { RunTabs } from '../browser/run-tabs';
-import type { StagedBrowserTabReference } from '../shared/agent-bridge-contract/generated/api';
+import type { StagedBrowserTabReference } from '@hey-hey/contracts/agent-bridge';
 import { ProviderUsageStore } from '../provider-usage/provider-usage-store';
 import { providers } from '../provider-usage/provider-usage';
 import { readClaudeUsage } from '../provider-usage/claude-usage';

@@ -1,5 +1,5 @@
 import { ConflictException } from '@nestjs/common';
-import type { ConversationStartRunRequestDto } from 'src/generated';
+import type { ConversationStartRunRequestDto } from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId, UserId } from 'src/types';
 import { ProposalAgentFixService } from '../proposal-agent-fix.service';
 

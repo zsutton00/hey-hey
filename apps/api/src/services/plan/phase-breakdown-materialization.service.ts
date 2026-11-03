@@ -10,7 +10,7 @@ import type { Proposal } from '@prisma/client';
 import type {
   PhaseBreakdownPlan,
   PhaseBreakdownStep,
-} from 'src/generated/local';
+} from '@hey-hey/contracts/agent-bridge/models';
 import { AnyTransactionClient, PrismaService } from 'src/prisma/prisma.service';
 import {
   ConversationId,

@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NOOP_LOGGER } from '../../../../server/logger';
 import { createTestPlatformAuthContext } from '../../../../server/monitors/test-owners.test-support';
-import type { TaskMonitorPlanGuidance } from '../../../../shared/agent-bridge-contract/generated/api';
+import type { TaskMonitorPlanGuidance } from '@hey-hey/contracts/agent-bridge';
 import { TaskMonitorStartRuntime } from '../../../../server/task-monitor-start';
 import type { TaskMonitorStartMonitor } from '../../../../server/task-monitor-start';
 import { TaskMonitorCoordinatorConversation } from '../../../../server/task-monitor-coordinator-conversation';

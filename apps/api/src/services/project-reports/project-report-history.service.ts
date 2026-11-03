@@ -4,7 +4,7 @@ import type {
   ProjectReportAttempt,
   ProjectReportHistoryEntry,
   ProjectReportHistoryPageDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { restrictReportWhere } from 'src/read-restriction/read-policy';
 import { ProjectAccessService } from 'src/auth/services/project-access.service';

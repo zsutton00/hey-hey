@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
-import { EntityType } from '../../generated/model/entityType';
-import type { WorkItemTypeDefinitionDto } from '../../generated/model/workItemTypeDefinitionDto';
+import { EntityType } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeDefinitionDto } from '@hey-hey/contracts/api/models';
 import type { RequestorContext } from '../../mcp/tools/requestor-context';
 import {
   buildWorkItemTypeCreateProposal,

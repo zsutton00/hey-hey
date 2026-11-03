@@ -4,7 +4,7 @@ import {
   ProjectMetricIdentity,
   WorkItemTypeLifecycleStatus,
   WorkItemTypeRole,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { WorkItemTypeRegistryService } from 'src/services/tasks/work-item-type-registry.service';
 import { AcceptedEvidenceSelectorService } from '../accepted-evidence-selector.service';

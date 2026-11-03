@@ -1,9 +1,9 @@
-import type { LocalPromptProposalInput } from '../../shared/agent-bridge-contract/generated/api';
+import type { LocalPromptProposalInput } from '@hey-hey/contracts/agent-bridge';
 import type {
   ContextRelatedEntityDto,
   AgentSessionEntryDto,
   ProposalResponseDto,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 
 export interface ProposalRefinerPromptInput {
   proposal: LocalPromptProposalInput;

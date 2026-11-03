@@ -3,7 +3,7 @@ import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { ConversationValidation } from '../conversation.validation';
 import { ConversationService } from '../../services/conversation.service';
 import { ConversationId, ProjectId } from '../../types';
-import { ConversationResponseDto } from 'src/generated';
+import { ConversationResponseDto } from '@hey-hey/contracts/api/models';
 
 describe('ConversationValidation', () => {
   let validation: ConversationValidation;

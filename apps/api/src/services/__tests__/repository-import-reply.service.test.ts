@@ -4,7 +4,7 @@ import {
   ConversationStatus,
   SystemMessageResponseType,
   WorkflowName,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { NodeType } from '../../types/flow-internal.types';
 import { RepositoryImportReplyFormValidator } from '../repository-import-reply-form-validator';
 import { RepositoryImportReplyService } from '../repository-import-reply.service';

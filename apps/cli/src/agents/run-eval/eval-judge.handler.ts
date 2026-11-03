@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import {
   ReadRestriction,
   type EvalAutomatedAssessment,
   type EvalRunCaseInput,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { PromptTypeHandler } from '../prompt-type-handler';
 
 export const EVAL_JUDGE_HANDLER_ID = 'eval_judge';

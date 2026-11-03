@@ -1,9 +1,9 @@
-import type { SessionRole } from '../../generated/model/sessionRole';
-import type { WorkItemTypeRoleGuidanceDto } from '../../generated/model/workItemTypeRoleGuidanceDto';
-import type { WorkItemTypeGuidanceBatchDto } from '../../generated/model/workItemTypeGuidanceBatchDto';
-import type { WorkItemTypeGuidanceBatchRequestDto } from '../../generated/model/workItemTypeGuidanceBatchRequestDto';
-import type { WorkItemTypeMaintenanceGuidanceDto } from '../../generated/model/workItemTypeMaintenanceGuidanceDto';
-import { WorkItemTypeGuidancePurpose } from '../../generated/model/workItemTypeGuidancePurpose';
+import type { SessionRole } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeRoleGuidanceDto } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeGuidanceBatchDto } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeGuidanceBatchRequestDto } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeMaintenanceGuidanceDto } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeGuidancePurpose } from '@hey-hey/contracts/api/models';
 import {
   diagramElementPolicySchema,
   DIAGRAM_ELEMENT_METADATA_SCHEMA_REF,
@@ -33,27 +33,27 @@ import {
   WorkItemTypeConfigChangedEvent,
   isWorkItemTypeConfigChangedEvent,
 } from 'src/core/events/types/domain-events';
-import { EntityType } from '../../generated/model/entityType';
-import { ReportType } from '../../generated/model/reportType';
-import type { WorkItemConfigKind } from '../../generated/model/workItemConfigKind';
+import { EntityType } from '@hey-hey/contracts/api/models';
+import { ReportType } from '@hey-hey/contracts/api/models';
+import type { WorkItemConfigKind } from '@hey-hey/contracts/api/models';
 
-import { WorkStatus } from '../../generated/model/workStatus';
-import type { WorkItemTypeDefinitionDto } from '../../generated/model/workItemTypeDefinitionDto';
-import type { WorkItemTypeRole } from '../../generated/model/workItemTypeRole';
-import type { WorkItemTypeEdgeTarget } from '../../generated/model/workItemTypeEdgeTarget';
-import type { WorkItemTypeGraphCapability } from '../../generated/model/workItemTypeGraphCapability';
-import { WorkItemTypeGraphReadExpansionHop } from '../../generated/model/workItemTypeGraphReadExpansionHop';
-import { WorkItemColorKey } from '../../generated/model/workItemColorKey';
-import { WorkItemIconKey } from '../../generated/model/workItemIconKey';
-import type { WorkItemTypeScalarField } from '../../generated/model/workItemTypeScalarField';
-import type { WorkItemTypeSectionDefinition } from '../../generated/model/workItemTypeSectionDefinition';
-import type { WorkItemTypeTracking } from '../../generated/model/workItemTypeTracking';
-import type { WorkItemTypeWritingStandards } from '../../generated/model/workItemTypeWritingStandards';
-import type { ProjectedWorkItem } from '../../generated/model/projectedWorkItem';
-import type { ProjectedWorkItemRelationship } from '../../generated/model/projectedWorkItemRelationship';
-import { WorkItemTypeLifecycleStatus } from '../../generated/model/workItemTypeLifecycleStatus';
-import type { WorkItemTypeSummaryDto } from '../../generated/model/workItemTypeSummaryDto';
-import { WorkItemTypeEffectiveSource } from '../../generated/model/workItemTypeEffectiveSource';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeDefinitionDto } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeRole } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeEdgeTarget } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeGraphCapability } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeGraphReadExpansionHop } from '@hey-hey/contracts/api/models';
+import { WorkItemColorKey } from '@hey-hey/contracts/api/models';
+import { WorkItemIconKey } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeScalarField } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeSectionDefinition } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeTracking } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeWritingStandards } from '@hey-hey/contracts/api/models';
+import type { ProjectedWorkItem } from '@hey-hey/contracts/api/models';
+import type { ProjectedWorkItemRelationship } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeLifecycleStatus } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeSummaryDto } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeEffectiveSource } from '@hey-hey/contracts/api/models';
 import { OrganizationId, ProjectId } from 'src/types';
 import {
   CANONICAL_REFINEMENT_LEVELS,

@@ -1,5 +1,5 @@
-import { DesignDocTemplate } from "@hey-hey/ui-common/api";
-import type { DesignDocResponseDto } from "@hey-hey/ui-common/api";
+import { DesignDocTemplate } from "@hey-hey/contracts/api";
+import type { DesignDocResponseDto } from "@hey-hey/contracts/api";
 import { render, screen } from "@testing-library/react";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";

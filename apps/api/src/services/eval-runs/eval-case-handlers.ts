@@ -8,7 +8,7 @@ import {
   type EvalHandlerConfig,
   type EvalResolvedExecution,
   type ProjectedWorkItem,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 
 const TARGET_HANDLER_KEYS: readonly string[] =
   Object.values(EvalTargetHandlerKey);

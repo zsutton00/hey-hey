@@ -22,7 +22,7 @@ import {
   ProjectStatus,
   AgentSessionType,
   type MessageResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   useAgentSessions,
   useConversation,
@@ -170,7 +170,7 @@ const OnboardingPageContent = () => {
     ? isLoadingRequestedConversation || isLoadingRequestedMessages
     : isLoadingConversation;
   const resolvedConversationError = requestedConversationId
-    ? requestedConversationError ?? requestedMessagesError
+    ? (requestedConversationError ?? requestedMessagesError)
     : conversationError;
   const resolvedOnboardingMessages = requestedConversationId
     ? requestedOnboardingMessages

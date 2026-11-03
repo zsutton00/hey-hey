@@ -2,7 +2,7 @@ import {
   EntityType,
   ReportRelatedEntityType,
   ReportType,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 /**
  * API-owned event payload registry and repair routines.
  *
@@ -31,7 +31,7 @@ import type {
   MaterializedWorkItemSection,
   TaskEventTaskSnapshot,
   UpdateInitiativeDto,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import type { DesignDocWithSectionsRecord } from '../../types/design-doc.types';
 // Regex to detect JSON-like content (used for shouldProcess logic)
 const IS_PROBABLY_JSON = /^(\[.*\]|\{.*\})$/;

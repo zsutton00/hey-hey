@@ -26,6 +26,8 @@ import { ProvenanceLineageResponse } from '../model/provenanceLineageResponse';
 import { SearchRequest } from '../model/searchRequest';
 import { SearchResponse } from '../model/searchResponse';
 import { TopologyGraphResponse } from '../model/topologyGraphResponse';
+import { WorkItemProjectReadinessRequest } from '../model/workItemProjectReadinessRequest';
+import { WorkItemProjectReadinessResponse } from '../model/workItemProjectReadinessResponse';
 import { Configuration } from '../configuration';
 import { COLLECTION_FORMATS } from '../variables';
 
@@ -141,6 +143,99 @@ export class QueriesService {
             headers: {
               ...headers,
               ...checkFeatureProjectConnectionOpts?.config?.headers,
+            },
+          },
+        );
+      }),
+    );
+  }
+  /**
+   * Count listed work items matching their copied graph identity
+   * Counts listed task nodes that match their exact identity, type, destination project scope and expected structural parent (including no parent for roots). This narrow read does not validate other graph projections or content.
+   * @param organizationId Organization identifier
+   * @param projectId Project identifier
+   * @param workItemProjectReadinessRequest
+   * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
+   * @param reportProgress flag to report request and response progress.
+   * @param {*} [checkWorkItemProjectReadinessOpts.config] Override http request option.
+   */
+  public checkWorkItemProjectReadiness(
+    organizationId: string,
+    projectId: string,
+    workItemProjectReadinessRequest: WorkItemProjectReadinessRequest,
+    checkWorkItemProjectReadinessOpts?: { config?: AxiosRequestConfig },
+  ): Observable<AxiosResponse<WorkItemProjectReadinessResponse>>;
+  public checkWorkItemProjectReadiness(
+    organizationId: string,
+    projectId: string,
+    workItemProjectReadinessRequest: WorkItemProjectReadinessRequest,
+    checkWorkItemProjectReadinessOpts?: { config?: AxiosRequestConfig },
+  ): Observable<any> {
+    if (organizationId === null || organizationId === undefined) {
+      throw new Error(
+        'Required parameter organizationId was null or undefined when calling checkWorkItemProjectReadiness.',
+      );
+    }
+
+    if (projectId === null || projectId === undefined) {
+      throw new Error(
+        'Required parameter projectId was null or undefined when calling checkWorkItemProjectReadiness.',
+      );
+    }
+
+    if (
+      workItemProjectReadinessRequest === null ||
+      workItemProjectReadinessRequest === undefined
+    ) {
+      throw new Error(
+        'Required parameter workItemProjectReadinessRequest was null or undefined when calling checkWorkItemProjectReadiness.',
+      );
+    }
+
+    let headers = { ...this.defaultHeaders };
+
+    let accessTokenObservable: Observable<any> = of(null);
+
+    // authentication (BearerAuth) required
+    if (typeof this.configuration.accessToken === 'function') {
+      accessTokenObservable = from(
+        Promise.resolve(this.configuration.accessToken()),
+      );
+    } else if (this.configuration.accessToken) {
+      accessTokenObservable = from(
+        Promise.resolve(this.configuration.accessToken),
+      );
+    }
+    // to determine the Accept header
+    let httpHeaderAccepts: string[] = ['application/json'];
+    const httpHeaderAcceptSelected: string | undefined =
+      this.configuration.selectHeaderAccept(httpHeaderAccepts);
+    if (httpHeaderAcceptSelected != undefined) {
+      headers['Accept'] = httpHeaderAcceptSelected;
+    }
+
+    // to determine the Content-Type header
+    const consumes: string[] = ['application/json'];
+    const httpContentTypeSelected: string | undefined =
+      this.configuration.selectHeaderContentType(consumes);
+    if (httpContentTypeSelected != undefined) {
+      headers['Content-Type'] = httpContentTypeSelected;
+    }
+    return accessTokenObservable.pipe(
+      switchMap((accessToken) => {
+        if (accessToken) {
+          headers['Authorization'] = `Bearer ${accessToken}`;
+        }
+
+        return this.httpClient.post<WorkItemProjectReadinessResponse>(
+          `${this.basePath}/organizations/${encodeURIComponent(String(organizationId))}/projects/${encodeURIComponent(String(projectId))}/work-item-project-readiness`,
+          workItemProjectReadinessRequest,
+          {
+            withCredentials: this.configuration.withCredentials,
+            ...checkWorkItemProjectReadinessOpts?.config,
+            headers: {
+              ...headers,
+              ...checkWorkItemProjectReadinessOpts?.config?.headers,
             },
           },
         );

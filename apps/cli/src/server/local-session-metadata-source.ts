@@ -19,9 +19,9 @@
 import type {
   FeatureHierarchyEntryDto,
   FeatureHierarchyEntryDtoRelationshipEnum,
-} from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { CurrentEntityDto } from '../agents/entity-context/types';
-import type { RunEntityReference } from '../shared/agent-bridge-contract/generated/api';
+import type { RunEntityReference } from '@hey-hey/contracts/agent-bridge';
 import type {
   LocalSessionReadSource,
   LocalSessionSnapshot,

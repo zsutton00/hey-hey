@@ -1,4 +1,4 @@
-import { EntityType } from 'src/generated';
+import { EntityType } from '@hey-hey/contracts/api/models';
 import { createWarmWorkItemTypeRegistryWithCustomTypes } from '../../../../test/setup/work-item-type-registry.fixture';
 import {
   assertCreateWorkItemTracksAttachmentValid,

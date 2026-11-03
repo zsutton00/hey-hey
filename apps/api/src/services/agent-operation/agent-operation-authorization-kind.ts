@@ -3,7 +3,7 @@ import {
   AdmissionEnvelopeAuthorization,
   BoundedGrantReference,
   ControllerAssertionEvidence,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 
 export type AdmittedAuthorizationKind = AdmissionEnvelopeAuthorization['kind'];
 

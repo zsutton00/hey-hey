@@ -2,4 +2,4 @@ export type {
   AgentSkillCatalog,
   AgentSkillCatalogEntry,
   AgentSkillSelection,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';

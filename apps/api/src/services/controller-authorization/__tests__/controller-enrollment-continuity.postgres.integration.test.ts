@@ -5,7 +5,7 @@ import { ExecutionGrantService } from '../execution-grant.service';
 import {
   ControllerAuthorizationCadence,
   type HostActionPreparation,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import type { ProjectId, MachineId } from '../../../types';
 import { MACHINE_ENROLLMENT_CODE_ALPHABET } from '../../machine-pairing/machine-pairing.service';
 import { ConfigService } from '@nestjs/config';

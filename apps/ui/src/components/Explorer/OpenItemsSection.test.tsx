@@ -14,7 +14,7 @@ import {
   EntityType,
   TargetEntityType,
   type WorkItemTypeDefinitionDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   useAgentSession,
   useAgentSessionCurrentStates,

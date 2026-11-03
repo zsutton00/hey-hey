@@ -10,7 +10,7 @@ import {
   SuggestedActionPayload,
   SuggestedActionUserMessage,
   UIElement,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ProjectConversationRequest,
   ProjectConversationResponseHandledByEnum,

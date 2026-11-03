@@ -8,7 +8,7 @@ import {
   NodeType,
   TaskRefinementFlowContext,
 } from '../../../../types/flow-internal.types';
-import { SystemMessageResponseType } from '../../../../generated';
+import { SystemMessageResponseType } from '@hey-hey/contracts/api/models';
 import { createServiceTestingModule } from '../../../../../test/setup/testing-module.factory';
 import { createMutableContextHandle } from '../../../../utils/mutable-context';
 import { WORK_ITEM_TYPE_KEYS } from '../../../../services/tasks/work-item-type-keys';

@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-  LocalPromptType,
-  type LocalRunEvalPromptPayload,
-} from '../../shared/agent-bridge-contract/generated';
+import { LocalPromptType, type LocalRunEvalPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import type { ProceduralRunContext } from '../prompt-type-handler';
 import { runEvalHandler } from './run-eval.handler';
 
@@ -91,14 +88,14 @@ describe('runEvalHandler', () => {
       ]);
       const fetchSpy = vi.spyOn(globalThis, 'fetch');
       const saved: Record<string, unknown>[] = [];
-      const { ConversationsApi } = await import('../../shared/api/generated');
+      const { ConversationsApi } = await import('@hey-hey/contracts/api');
       vi.spyOn(ConversationsApi.prototype, 'postMessage').mockImplementation(
         async (request, options) => {
           saved.push({ ...request.postMessageRequest, headers: options?.headers });
           return { data: { data: { id: `message-${saved.length}` } } } as never;
         },
       );
-      const { ReportsApi } = await import('../../shared/api/generated');
+      const { ReportsApi } = await import('@hey-hey/contracts/api');
       vi.spyOn(ReportsApi.prototype, 'getReport').mockImplementation(
         async (request) =>
           ({

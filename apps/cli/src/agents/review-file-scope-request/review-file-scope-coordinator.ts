@@ -1,14 +1,14 @@
 import fs from 'node:fs/promises';
 import { z } from 'zod';
-import type { AgentSessionReviewFileScopeRequest } from '../../shared/api/generated/api';
-import { MessageStatus, SystemMessageDataTypeEnum } from '../../shared/api/generated/api';
+import type { AgentSessionReviewFileScopeRequest } from '@hey-hey/contracts/api/models';
+import { MessageStatus, SystemMessageDataTypeEnum } from '@hey-hey/contracts/api/models';
 import type { RunStore } from '../../run-store/run-store';
 import type { MessagePoster } from '../../run/message-poster';
 import type { Run } from '../../run/run';
 import type { ServerLogger } from '../../server/logger';
 import type { RunFollowUpAdmission } from '../../server/input-admission/input-admission-payload';
 import { resolveRunServiceRoots } from '../../run/file-change-facts';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type {
   ReviewFileScopeDecisionInput,
   ReviewFileScopeReconciliation,

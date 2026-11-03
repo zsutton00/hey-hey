@@ -1,11 +1,11 @@
 import type {
   ChangedFileReportFinding,
   ChangedFileReportResult,
-} from '../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type { AssistantCompleteEvent } from '../run/types';
 import type { ServerLogger } from '../server/logger';
 import type { Run } from '../run/run';
-import type { ChangedFileClaim } from '../shared/agent-bridge-contract/generated/api';
+import type { ChangedFileClaim } from '@hey-hey/contracts/agent-bridge';
 import { ReportedFileChangeFailure } from '../run/file-change-facts';
 
 export interface ChangedFileReportingEvidence {

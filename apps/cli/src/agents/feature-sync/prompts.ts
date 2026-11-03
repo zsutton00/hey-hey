@@ -32,8 +32,8 @@ import { buildDecisionReportInstructions } from './prompts/decision-report';
  *     section scopes `edit_work_item` proposals to task-scope edits.
  */
 
-import type { FeatureSyncDiscrepancy } from '../../shared/agent-bridge-contract/generated/api';
-import type { ImplementationReadinessSourceSnapshot } from '../../shared/api/generated/api';
+import type { FeatureSyncDiscrepancy } from '@hey-hey/contracts/agent-bridge';
+import type { ImplementationReadinessSourceSnapshot } from '@hey-hey/contracts/api/models';
 import type { AgentProviderId } from '../providers/provider-config';
 import { withSubmissionToolTerminationSuffix } from '../submission-tools/prompt-suffix';
 import { implementationReadinessDecisionGuidance } from '../prompts/implementation-readiness';

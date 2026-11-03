@@ -9,7 +9,7 @@ import { WORK_ITEM_TYPE_KEYS } from '../../services/tasks/work-item-type-keys';
 import type {
   GetEntityIdentitiesRequest,
   GetEntityIdentity,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId } from '../../types';
 import {
   extractAuthContext,

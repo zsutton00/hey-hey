@@ -3,7 +3,7 @@ import { Alert, Box, CircularProgress } from "@mui/material";
 import axios from "axios";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
-import { WorkItemTypeLifecycleStatus } from "@hey-hey/ui-common/api";
+import { WorkItemTypeLifecycleStatus } from "@hey-hey/contracts/api";
 import { EntityCollectionPage } from "@hey-hey/ui-common/components";
 import { useProject, useWorkItemTypeByKey } from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";

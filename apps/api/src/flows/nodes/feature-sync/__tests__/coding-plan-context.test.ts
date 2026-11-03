@@ -73,6 +73,35 @@ describe('reviewed conversational planning context', () => {
       'reviewed planning context',
     );
   });
+  it('hands the approved version complete project-context findings and the ordered discussion to implementation', () => {
+    const finding = {
+      sourceRef: { sourceType: 'task', sourceId: 'task-1' },
+      sourceField: 'description',
+      sourceExcerpt: 'The recorded promise.',
+      discrepancyText: 'The plan departs from the recorded requirement.',
+      reasoning: 'Reconcile the requirement.',
+      severity: 'medium',
+      findingId: 'finding-1',
+      category: 'project_context',
+      disposition: 'accepted',
+      userDirection: 'Proceed this way.',
+      implementationFollowThrough: 'Verify the requirement is reconciled.',
+    };
+    const version = { ...context, discrepancies: [finding] };
+    const rows = [
+      row('u1', { comment: 'That is okay, do it this way.' }, 'USER'),
+      row('v1', {
+        uiElements: [{ type: 'coding_plan_version', payload: version }],
+      }),
+    ];
+    const result = resolveReviewedCodingPlan(rows, 'v1');
+    expect(result.approvedVersion.discrepancies).toEqual([finding]);
+    expect(result.planningDiscussion).toContain('Proceed this way.');
+    expect(result.planningDiscussion.indexOf('That is okay')).toBeLessThan(
+      result.planningDiscussion.indexOf('Plan (v1)'),
+    );
+  });
+
   it('hands over the approved version with only its own discrepancies, keeping older versions and standalone issues in the discussion', () => {
     const issue = (text: string) => ({
       sourceRef: {

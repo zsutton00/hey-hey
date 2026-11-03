@@ -1,7 +1,13 @@
-import { Box, Button, CircularProgress, Stack, Typography } from "@mui/material";
+import {
+  Box,
+  Button,
+  CircularProgress,
+  Stack,
+  Typography,
+} from "@mui/material";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ReportType } from "@hey-hey/ui-common/api";
+import { ReportType } from "@hey-hey/contracts/api";
 import { ReportCard } from "@hey-hey/ui-common/components";
 import { useProjectReports } from "@hey-hey/ui-common/data";
 
@@ -36,7 +42,10 @@ export const FeatureReportsTab: React.FC<FeatureReportsTabProps> = ({
     },
   );
 
-  const visibleReports = useMemo(() => reports.slice(0, limit), [reports, limit]);
+  const visibleReports = useMemo(
+    () => reports.slice(0, limit),
+    [reports, limit],
+  );
 
   const canLoadMore = reports.length >= limit;
 

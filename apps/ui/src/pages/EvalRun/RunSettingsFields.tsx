@@ -13,7 +13,7 @@ import {
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { EvalTargetHandlerKey } from "@hey-hey/ui-common/api";
+import { EvalTargetHandlerKey } from "@hey-hey/contracts/api";
 
 import {
   RUN_HANDLER_OPTIONS,

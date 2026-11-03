@@ -4,7 +4,7 @@ import {
   type BeginMachineEnrollmentClaimableDto,
   type CompleteMachineEnrollmentClaimResponseDto,
   type MachineEnrollmentWebAuthnRegistrationCredentialDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   HeyheyPairTerminalDemo,
   TerminalScene,

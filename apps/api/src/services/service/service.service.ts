@@ -22,7 +22,7 @@ import {
   ServiceLinkDto,
   ServiceTaskRelation,
   UpdateServiceDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { DomainEventPublisher } from '../../core/events/domain-event-publisher';
 import { DOMAIN_EVENT_PUBLISHER_TOKEN } from '../../core/events/tokens';
 import { EVENT_TYPES } from '../../core/events/types/event.types';

@@ -1,4 +1,4 @@
-import { PlanType } from '../../../generated/model/planType';
+import { PlanType } from '@hey-hey/contracts/api/models';
 import {
   canonicalizePlanConfigurationContent,
   PLAN_CONFIGURATION_SCHEMA_VERSION,

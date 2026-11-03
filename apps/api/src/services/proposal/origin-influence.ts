@@ -1,5 +1,5 @@
-import { EntityType } from 'src/generated';
-import type { Influence } from 'src/generated';
+import { EntityType } from '@hey-hey/contracts/api/models';
+import type { Influence } from '@hey-hey/contracts/api/models';
 import { AnyTransactionClient } from 'src/prisma/prisma.service';
 
 /**

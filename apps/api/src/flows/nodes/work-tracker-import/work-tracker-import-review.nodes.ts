@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   RepositoryGroundingEntryMode,
   RepositoryPlacementIntelligentlyIntegrateSubmission,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { FeatureListLifecycleService } from '../../../services/feature-list/feature-list-lifecycle.service';
 import {
   FlowUserMessage,

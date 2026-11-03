@@ -24,7 +24,7 @@ import type {
   OpenItemsMutationResult,
   OpenItemsPresentCollection,
   PromoteGroupToGoalResult,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   parseOpenItemGroupId,
   parseOpenItemRef,

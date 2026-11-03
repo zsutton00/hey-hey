@@ -1,7 +1,7 @@
 import {
   LocalPromptType,
   type PlanShapingVisualPreviewPromptPayload,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import {
   turnUserMessageBlock,
   type PromptTypeHandlerDeps,

@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { Server, Socket } from 'socket.io';
 import { UserAccessTokenValidatorService } from '../../../auth/services/user-access-token-validator.service';
-import { WebSocketAuthRequest } from '../../../generated';
+import { WebSocketAuthRequest } from '@hey-hey/contracts/api/models';
 import {
   ConversationId,
   MachineId,

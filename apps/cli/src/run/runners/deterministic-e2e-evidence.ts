@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
-import type { AgentOperationDispatchAcknowledgement } from '../../shared/api/generated/api';
+import type { AgentOperationDispatchAcknowledgement } from '@hey-hey/contracts/api/models';
 import {
   configurationSchema,
   type DeterministicE2EConfiguration,

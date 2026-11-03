@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 // Generated from OpenAPI by scripts/generate-project-report-schemas.js. Do not edit.
 export const projectReportSchemas = {
   "AgentSessionConfigProjectReportV1": {

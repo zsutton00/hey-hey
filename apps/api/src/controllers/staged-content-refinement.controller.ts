@@ -26,7 +26,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { OrganizationGuard } from '../auth/guards/organization.guard';
-import { StageOperationResult } from '../generated';
+import { StageOperationResult } from '@hey-hey/contracts/api/models';
 import { ContentTypeRegistryService } from '../services/staged-content/content-type-registry.service';
 import { StagedContentService } from '../services/staged-content/staged-content.service';
 import { OrganizationId, ProjectId } from '../types';

@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import {
   Box,
   Typography,
@@ -29,7 +35,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { KEYS } from "@hey-hey/ui-common/i18n";
 import { apiClient } from "@hey-hey/ui-common/clients";
-import type { LLMPromptResponseDto } from "@hey-hey/ui-common/api";
+import type { LLMPromptResponseDto } from "@hey-hey/contracts/api";
 
 const ANALYTICS_PAGE_LIMIT = 200;
 const ANALYTICS_MAX_PAGES = 10;
@@ -173,9 +179,9 @@ export const LLMTrackingListPage: React.FC = (): React.ReactElement => {
   const navigate = useNavigate();
 
   const [records, setRecords] = useState<LLMPromptResponseDto[]>([]);
-  const [analyticsRecords, setAnalyticsRecords] = useState<LLMPromptResponseDto[]>(
-    [],
-  );
+  const [analyticsRecords, setAnalyticsRecords] = useState<
+    LLMPromptResponseDto[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -390,7 +396,10 @@ export const LLMTrackingListPage: React.FC = (): React.ReactElement => {
   }, [analyticsRecords]);
 
   useEffect(() => {
-    if (organizationFilter && !organizationOptions.includes(organizationFilter)) {
+    if (
+      organizationFilter &&
+      !organizationOptions.includes(organizationFilter)
+    ) {
       setOrganizationFilter("");
     }
   }, [organizationFilter, organizationOptions]);
@@ -501,7 +510,11 @@ export const LLMTrackingListPage: React.FC = (): React.ReactElement => {
 
     const startMs = new Date(startIso).getTime();
     const endMs = new Date(endIso).getTime();
-    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    if (
+      !Number.isFinite(startMs) ||
+      !Number.isFinite(endMs) ||
+      endMs <= startMs
+    ) {
       return "day";
     }
 
@@ -538,7 +551,9 @@ export const LLMTrackingListPage: React.FC = (): React.ReactElement => {
   const buildBreakdown = useCallback(
     (
       items: LLMPromptResponseDto[],
-      labelForRecord: (record: LLMPromptResponseDto) => string | null | undefined,
+      labelForRecord: (
+        record: LLMPromptResponseDto,
+      ) => string | null | undefined,
     ): BreakdownRow[] => {
       const grouped = new Map<string, BreakdownRow>();
       items.forEach((record) => {
@@ -569,7 +584,10 @@ export const LLMTrackingListPage: React.FC = (): React.ReactElement => {
 
   const organizationBreakdown = useMemo(
     () =>
-      buildBreakdown(analyticsVisibleRecords, (record) => record.organizationId),
+      buildBreakdown(
+        analyticsVisibleRecords,
+        (record) => record.organizationId,
+      ),
     [analyticsVisibleRecords, buildBreakdown],
   );
 
@@ -815,10 +833,18 @@ export const LLMTrackingListPage: React.FC = (): React.ReactElement => {
         </Box>
 
         <Box sx={{ display: "flex", gap: 1, mt: 2, flexWrap: "wrap" }}>
-          <Button size="small" variant="outlined" onClick={() => applyDatePreset(1)}>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => applyDatePreset(1)}
+          >
             1D
           </Button>
-          <Button size="small" variant="outlined" onClick={() => applyDatePreset(7)}>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => applyDatePreset(7)}
+          >
             Last 7d
           </Button>
           <Button
@@ -933,7 +959,10 @@ export const LLMTrackingListPage: React.FC = (): React.ReactElement => {
                   ? "Hourly cost and call trend"
                   : "Daily cost and call trend"}
               </Typography>
-              <DailyTrendChart data={dailyTrend} granularity={trendGranularity} />
+              <DailyTrendChart
+                data={dailyTrend}
+                granularity={trendGranularity}
+              />
             </Paper>
 
             <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
@@ -957,7 +986,10 @@ export const LLMTrackingListPage: React.FC = (): React.ReactElement => {
                         gap: 2,
                       }}
                     >
-                      <Typography variant="body2" sx={{ wordBreak: "break-all" }}>
+                      <Typography
+                        variant="body2"
+                        sx={{ wordBreak: "break-all" }}
+                      >
                         {entry.label}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
@@ -988,7 +1020,10 @@ export const LLMTrackingListPage: React.FC = (): React.ReactElement => {
                         gap: 2,
                       }}
                     >
-                      <Typography variant="body2" sx={{ wordBreak: "break-all" }}>
+                      <Typography
+                        variant="body2"
+                        sx={{ wordBreak: "break-all" }}
+                      >
                         {entry.label}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
@@ -1019,7 +1054,10 @@ export const LLMTrackingListPage: React.FC = (): React.ReactElement => {
                         gap: 2,
                       }}
                     >
-                      <Typography variant="body2" sx={{ wordBreak: "break-all" }}>
+                      <Typography
+                        variant="body2"
+                        sx={{ wordBreak: "break-all" }}
+                      >
                         {entry.label}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
@@ -1050,7 +1088,10 @@ export const LLMTrackingListPage: React.FC = (): React.ReactElement => {
                         gap: 2,
                       }}
                     >
-                      <Typography variant="body2" sx={{ wordBreak: "break-word" }}>
+                      <Typography
+                        variant="body2"
+                        sx={{ wordBreak: "break-word" }}
+                      >
                         {entry.label}
                       </Typography>
                       <Typography
@@ -1058,7 +1099,8 @@ export const LLMTrackingListPage: React.FC = (): React.ReactElement => {
                         color="text.secondary"
                         sx={{ textAlign: "right", whiteSpace: "nowrap" }}
                       >
-                        {entry.calls} calls • avg ${formatMoney(entry.averageCost)}
+                        {entry.calls} calls • avg $
+                        {formatMoney(entry.averageCost)}
                       </Typography>
                     </Box>
                   ))
@@ -1152,14 +1194,23 @@ export const LLMTrackingListPage: React.FC = (): React.ReactElement => {
                             Duration: {formatDuration(record.durationMs)}
                           </Typography>
                           {toNumericValue(record.totalTokens) !== null && (
-                            <Typography variant="caption" color="text.secondary">
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                            >
                               Tokens:{" "}
-                              {(toNumericValue(record.totalTokens) ?? 0).toLocaleString()}
+                              {(
+                                toNumericValue(record.totalTokens) ?? 0
+                              ).toLocaleString()}
                             </Typography>
                           )}
                           {toNumericValue(record.totalCost) !== null && (
-                            <Typography variant="caption" color="text.secondary">
-                              Total Cost: ${formatCost(toNumericValue(record.totalCost))}
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                            >
+                              Total Cost: $
+                              {formatCost(toNumericValue(record.totalCost))}
                             </Typography>
                           )}
                         </Box>

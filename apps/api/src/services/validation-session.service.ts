@@ -24,7 +24,7 @@ import {
   UpdateValidationSessionDto,
   ValidationSessionDto,
   ValidationSessionStatus,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { ConversationService } from './conversation.service';
 
 type ValidationSessionWithDates = ValidationSession & {

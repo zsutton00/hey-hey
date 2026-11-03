@@ -2,7 +2,7 @@ import {
   AgentSessionListSort,
   AgentSessionStatus,
   AgentSessionType,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   AgentSessionListItem,
   AgentSessionUserFilter,

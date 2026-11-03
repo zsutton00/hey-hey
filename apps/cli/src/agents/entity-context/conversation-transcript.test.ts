@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { MessageResponseDto } from '../../shared/api/generated/api';
+import type { MessageResponseDto } from '@hey-hey/contracts/api/models';
 import {
   formatAgentSessionTranscript,
   projectAgentSessionTranscript,

@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import type {
   ConversationResponseDto,
   WorkStatus,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import type { WorkItemResponseDto } from "@hey-hey/ui-common/data";
 import { CardHeader } from "../CardHeader";
 import {

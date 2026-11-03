@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
-import { TaskSource, WorkStatus } from "@hey-hey/ui-common/api";
+import { TaskSource, WorkStatus } from "@hey-hey/contracts/api";
 import { PlanMetadataControls } from "./PlanMetadataControls";
 const updatePlan = vi.hoisted(() => vi.fn());
 vi.mock("@hey-hey/ui-common/data", () => ({
@@ -39,7 +39,7 @@ it("shows pending approval instead of claiming a status change was applied", asy
   await userEvent.click(screen.getByRole("button", { name: "Activate" }));
   expect(updatePlan).toHaveBeenCalledWith("plan-1", { status: "ACTIVE" });
   expect(await screen.findByRole("alert")).toHaveTextContent(
-    "awaiting proposal approval"
+    "awaiting proposal approval",
   );
 });
 it("shows failed mutations and allows another attempt", async () => {

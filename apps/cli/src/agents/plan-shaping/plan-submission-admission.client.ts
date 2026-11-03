@@ -1,9 +1,9 @@
+import { PlansApi } from '@hey-hey/contracts/api';
 import {
-  PlansApi,
   type PlanSubmissionAdmissionRequest,
   type PlanSubmissionAdmissionResponse,
-} from '../../shared/api/generated/api';
-import { Configuration } from '../../shared/api/generated/configuration';
+} from '@hey-hey/contracts/api/models';
+import { Configuration } from '@hey-hey/contracts/api/configuration';
 import type { Run } from '../../run/run';
 import { NOOP_LOGGER, type ServerLogger } from '../../server/logger';
 import type { SubmissionToolAuth } from '../submission-tools/submission-tool-auth';

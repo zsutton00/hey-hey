@@ -3,7 +3,7 @@ import {
   CreateUserMessage,
   MessageCreatedUserMessage,
   SystemMessageData,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   buildMessageCreatedEventPayload,
   buildMessageUpdatedEventPayload,

@@ -13,7 +13,7 @@ import {
   CurrentUser,
 } from '../auth/decorators/current-user.decorator';
 import { OrganizationGuard } from '../auth/guards/organization.guard';
-import type { GoalPmRoutingSelectionPayload } from '../generated';
+import type { GoalPmRoutingSelectionPayload } from '@hey-hey/contracts/api/models';
 import { GoalPmRoutingDecisionService } from '../services/goal-pm-routing-decision.service';
 import type { ConversationId, OrganizationId, UserId } from '../types';
 

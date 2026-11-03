@@ -1,4 +1,4 @@
-import { LocalPromptType } from 'src/generated/local';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
 import { DesignDocService } from 'src/services/design-doc/design-doc.service';
 import { InitiativeService } from 'src/services/initiatives/initiative.service';
 import { TaskService } from 'src/services/tasks/task.service';

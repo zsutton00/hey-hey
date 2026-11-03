@@ -9,7 +9,7 @@ import {
   type LocalStagedRunAttachmentErrorResponse,
   type CliReadRunChangedFileDetailErrorResponseDto,
   type CliReadRunChangedFilesInventoryErrorResponseDto,
-} from '../../shared/local-agent-api/generated/api';
+} from '@hey-hey/contracts/local';
 import type { ServerLogger } from '../logger';
 type LocalRunFailure =
   | CliReadRunToolCallsLatestTurnErrorResponseDto

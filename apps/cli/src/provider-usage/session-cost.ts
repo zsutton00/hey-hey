@@ -1,4 +1,4 @@
-import type { EvalCost } from '../shared/api/generated/api';
+import type { EvalCost } from '@hey-hey/contracts/api/models';
 import type { ServerLogger } from '../server/logger';
 import {
   SessionCostAdapter,

@@ -14,7 +14,7 @@ import { MachineCredentialGuard } from '../auth/guards/machine-credential.guard'
 import {
   SubmitSessionMonitorDecisionRequestDto,
   SubmitSessionMonitorDecisionResponseDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import type { AuthenticatedMachine } from '../services/machine-pairing/machine-pairing.service';
 import { SessionMonitorDecisionService } from '../services/session-monitor-decision/session-monitor-decision.service';
 import { AgentSessionId, OrganizationId, ProjectId } from '../types';

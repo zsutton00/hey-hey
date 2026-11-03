@@ -7,7 +7,7 @@ import {
 } from './session-evidence';
 import { extractUserIdFromToken } from '../../auth';
 import type { CanonicalJsonValue } from '../../shared/canonical-json';
-import type { LocalOpenItemsTriageItem } from '../../shared/agent-bridge-contract/generated';
+import type { LocalOpenItemsTriageItem } from '@hey-hey/contracts/agent-bridge';
 import type { PromptTypeHandlerDeps } from '../prompt-type-handler';
 import {
   attentionSessionSchema,

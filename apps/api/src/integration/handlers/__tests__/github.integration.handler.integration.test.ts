@@ -4,7 +4,7 @@ import { ConfigEncryptionService } from '../../../services/config-encryption.ser
 import { ArtifactService } from '../../../services/artifacts/artifact.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { EmbeddingsClientService } from '../../../services/embeddings-client.service';
-import { IntegrationType } from '../../../generated';
+import { IntegrationType } from '@hey-hey/contracts/api/models';
 import { DomainEventPublisher } from '../../../core/events/domain-event-publisher';
 
 describe('GitHubIntegrationHandler - Integration Tests', () => {

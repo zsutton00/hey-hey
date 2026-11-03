@@ -1,7 +1,7 @@
 import { resolveMcpToolNames } from '../mcp-server-config';
 import type { AgenticSession } from '../../session/types';
-import { LocalPromptType, SessionRole } from '../../shared/agent-bridge-contract/generated/api';
-import type { RunCreatePayloadResearch } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType, SessionRole } from '@hey-hey/contracts/agent-bridge';
+import type { RunCreatePayloadResearch } from '@hey-hey/contracts/agent-bridge';
 import { ReportAudience, ReportType } from '../../shared/api/index';
 import type {
   LocalWorktreeStateByService,

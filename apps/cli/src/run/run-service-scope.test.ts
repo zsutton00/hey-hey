@@ -4,7 +4,7 @@ import type { RunStore } from '../run-store/run-store';
 import { NOOP_LOGGER } from '../server/logger';
 import type { AgenticSession, ServiceScopeContinuation } from '../session/types';
 import type { InternalRunPromptRequest } from '../shared/agent-bridge-contract/contract';
-import type { AgentSessionServiceScopeRequest } from '../shared/api/generated/api';
+import type { AgentSessionServiceScopeRequest } from '@hey-hey/contracts/api/models';
 import type { SystemMessageData } from '../shared/api/index';
 import {
   RunServiceScope,

@@ -19,7 +19,7 @@ import {
   UnifiedBatchSearchResponse,
   UnifiedSearchRequest,
   UnifiedSearchResponse,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { UnifiedSearchService } from '../services/unified-search/unified-search.service';
 import { OrganizationId, ProjectId } from '../types';
 

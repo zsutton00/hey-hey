@@ -68,13 +68,13 @@ import {
 import { MachineEffectProofSigner } from '../auth/machine-effect-proof';
 import { SessionRunnerFacade } from './runtime/providers/select';
 import { MessageType } from '../shared/api/index';
-import { MachineEffectHttpMethod } from '../shared/api/generated/api';
+import { MachineEffectHttpMethod } from '@hey-hey/contracts/api/models';
 import type {
   CreateSystemMessage,
   CreateUserMessage,
   PostMessageRequest,
   SubmitExecutableUserMessageRequestDto,
-} from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import { ProjectModeBundleMaterializer, ProjectModeBundleRestorer } from '../agents/project-mode';
 import type { HostActionAdmission } from './controller-authorization/host-action-admission';
 import type { ControllerRegistryReader } from './controller-authorization/types';
@@ -397,6 +397,12 @@ export class RunApplicationRuntime {
       taskMonitorDecisionStore: dependencies.agentRuntime.taskMonitorDecisionStore,
       sessionMonitorEvaluationStore: dependencies.agentRuntime.sessionMonitorEvaluationStore,
       startupPromptInput: dependencies.agentRuntime.startupPromptInput,
+      ...(dependencies.agentRuntime.decisionModel
+        ? {
+            decisionModel: dependencies.agentRuntime.decisionModel,
+            isDecisionModelEnabled: dependencies.agentRuntime.isDecisionModelEnabled,
+          }
+        : {}),
     };
     this.childAgentLauncher = new ChildAgentLauncher({
       runStore: dependencies.runStore,

@@ -2,7 +2,7 @@ import type {
   PrivateBetaDisclosureActionType,
   PrivateBetaDisclosureDocumentKind,
   PrivateBetaDisclosureRequirementDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 
 export const PRIVATE_BETA_DISCLOSURE_REQUIREMENTS = [
   {

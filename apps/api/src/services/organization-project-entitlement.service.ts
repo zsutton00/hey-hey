@@ -1,9 +1,13 @@
-import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import { OrganizationRole } from '@prisma/client';
 import {
   OrganizationProjectEntitlementDto,
   UpdateOrganizationProjectEntitlementDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { AnyTransactionClient, PrismaService } from '../prisma/prisma.service';
 import { OrganizationId, UserId } from '../types';
 
@@ -44,8 +48,7 @@ export class OrganizationProjectEntitlementService {
       }),
     ]);
 
-    const projectLimit =
-      policy?.projectLimitOverride ?? DEFAULT_PROJECT_LIMIT;
+    const projectLimit = policy?.projectLimitOverride ?? DEFAULT_PROJECT_LIMIT;
     const canCreateProject = projectCount < projectLimit;
     const observedAt = new Date();
 

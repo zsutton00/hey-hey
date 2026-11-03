@@ -1,4 +1,4 @@
-import type { WorkItemTypeDefinitionDto } from "@hey-hey/ui-common/api";
+import type { WorkItemTypeDefinitionDto } from "@hey-hey/contracts/api";
 
 export interface FieldPresentation {
   label: string;

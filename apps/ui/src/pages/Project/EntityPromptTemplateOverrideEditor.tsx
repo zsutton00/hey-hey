@@ -24,7 +24,7 @@ import type {
   EntityPromptTemplateSelectorDto,
   EntityPromptTemplateSyntaxVersion,
   ProposalResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import React, { useEffect, useRef, useState } from "react";
 import { CardHeader } from "../../components/CardHeader";
 import {

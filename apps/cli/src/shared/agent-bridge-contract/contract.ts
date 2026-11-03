@@ -1,4 +1,7 @@
-import type { ImplementRuntimeSelection, RunAttachmentReference } from './generated/api';
+import type {
+  ImplementRuntimeSelection,
+  RunAttachmentReference,
+} from '@hey-hey/contracts/agent-bridge/models';
 import type {
   RunCreatePayload as GeneratedLocalCreateRunPayload,
   LocalPromptType,
@@ -24,8 +27,8 @@ import type {
   CliReadProviderSessionUsageCost,
   CliReadRunContextUsageResult,
   AgentSkillSelection,
-} from './generated/api';
-import type { UserMessageAdmittedServiceScope } from '../api/generated/api';
+} from '@hey-hey/contracts/agent-bridge/models';
+import type { UserMessageAdmittedServiceScope } from '@hey-hey/contracts/api/models';
 import type {
   LocalCodeReviewPromptPayload as RuntimeLocalCodeReviewPromptPayload,
   LocalCreateRunRequest as RuntimeLocalCreateRunRequest,
@@ -43,15 +46,15 @@ import {
   StartRunPromptPayloadProviderEnum as GENERATED_LOCAL_RUN_PROVIDER,
   LocalRunMode as GENERATED_LOCAL_RUN_MODE,
   LocalRunWorkspaceLayout as GENERATED_LOCAL_RUN_WORKSPACE_LAYOUT,
-} from './generated/api';
+} from '@hey-hey/contracts/agent-bridge/models';
 
 export type {
   RunReferences as LocalRunReferences,
   RunContextMetadata as LocalRunContextMetadata,
   LocalTokenUsage,
   TaskResponseDto,
-} from './generated/api';
-export { LocalPromptType } from './generated/api';
+} from '@hey-hey/contracts/agent-bridge/models';
+export { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
 
 export const LocalRunProvider = GENERATED_LOCAL_RUN_PROVIDER;
 export type LocalRunProvider = (typeof LocalRunProvider)[keyof typeof LocalRunProvider];
@@ -107,7 +110,7 @@ export type LocalRunDiffFilePatch = RuntimeLocalRunDiffFilePatch;
 export type LocalAnyPromptPayload =
   | LocalCreateRunPayload
   | LocalRunPromptPayload
-  | import('../api/generated/api').SessionMessageInput
+  | import('@hey-hey/contracts/api/models').SessionMessageInput
   | RuntimeLocalFeatureSyncIteratePromptPayload
   | RuntimeLocalPlanShapingFeatureSyncIteratePromptPayload
   | RuntimeLocalCodeReviewPromptPayload

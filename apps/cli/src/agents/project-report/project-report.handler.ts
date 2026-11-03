@@ -5,13 +5,13 @@ import {
   LocalPromptType,
   type AgentSessionConfigProjectReportV1,
   type RunCreatePayloadProjectReport,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import {
   ProjectReportKind,
   ProjectReportStatus,
   ReportAudience,
   ReportType,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import { extractOrganizationIdFromToken } from '../../auth';
 import { resolveAgentProviderId } from '../providers/provider-config';
 import {

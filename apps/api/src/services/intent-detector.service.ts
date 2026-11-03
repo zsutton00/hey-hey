@@ -4,7 +4,7 @@ import {
   MessageResponseDto,
   QuestionsSystemMessageData,
   UserMessageData,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { FlowContext, Intent } from '../types/flow-internal.types';
 
 @Injectable()

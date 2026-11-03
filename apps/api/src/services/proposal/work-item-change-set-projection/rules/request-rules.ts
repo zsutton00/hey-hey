@@ -2,7 +2,7 @@ import type {
   WorkItemChangeSetOperation,
   WorkItemCreateOperation,
   WorkItemUpdateOperation,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   isWorkItemServiceScopeEligible,
   WORK_ITEM_SERVICE_SCOPE_INVALID_REASON,
@@ -21,7 +21,7 @@ import {
   missingDecisionOperations,
   relationshipDecisionIssues,
 } from '../../relationship-decisions';
-import type { RelationshipDecision } from 'src/generated';
+import type { RelationshipDecision } from '@hey-hey/contracts/api/models';
 
 const STRUCTURAL: IssueLayer = 'structural';
 const REFERENTIAL: IssueLayer = 'referential';

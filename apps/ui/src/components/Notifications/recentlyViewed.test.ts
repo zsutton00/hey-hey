@@ -1,7 +1,7 @@
 import {
   EntityType,
   type AttentionEventResponse,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { describe, expect, it } from "vitest";
 import { getRecentlyViewedEntityIconType } from "./recentlyViewed";
 

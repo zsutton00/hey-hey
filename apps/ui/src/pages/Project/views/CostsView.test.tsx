@@ -3,7 +3,7 @@ import {
   CurrentControllerMachineEligibilityState,
   MachineExecutionReadinessState,
   type MachineDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   useAgentSessionRouting,
   useUserPairedMachines,

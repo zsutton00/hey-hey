@@ -1,4 +1,4 @@
-import { DebugEventReplayRequestDto } from '../../generated';
+import { DebugEventReplayRequestDto } from '@hey-hey/contracts/api/models';
 
 export interface EventReplayCaller {
   userId: string;

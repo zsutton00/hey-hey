@@ -29,7 +29,7 @@ import {
   SystemMessageResponseType,
   UserMessage,
   UserMessageData,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { InjectTemporalClient } from '../../prisma/temporal.module';
 import { MessageService } from '../../services/message.service';
 import {

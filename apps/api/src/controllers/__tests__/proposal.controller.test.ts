@@ -13,7 +13,10 @@ import {
   QueryProposalsDto,
   resolveProposalWindow,
 } from '../../services/proposal/proposal.dto';
-import { ProposalAction, WorkItemTypeRole } from '../../generated';
+import {
+  ProposalAction,
+  WorkItemTypeRole,
+} from '@hey-hey/contracts/api/models';
 import { validate } from 'class-validator';
 
 describe('ProposalController.create — requestor context boundary', () => {
@@ -46,8 +49,14 @@ describe('ProposalController.create — requestor context boundary', () => {
       controllers: [ProposalController],
       providers: [
         { provide: ProposalAgentFixService, useValue: { record: jest.fn() } },
-        { provide: ProjectAccessService, useValue: { assertOrganization: jest.fn(), assertProject: jest.fn() } },
-        { provide: ProjectResourceAccessService, useValue: { assertResource: jest.fn() } },
+        {
+          provide: ProjectAccessService,
+          useValue: { assertOrganization: jest.fn(), assertProject: jest.fn() },
+        },
+        {
+          provide: ProjectResourceAccessService,
+          useValue: { assertResource: jest.fn() },
+        },
         {
           provide: ProposalService,
           useValue: {

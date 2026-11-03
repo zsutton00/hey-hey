@@ -13,8 +13,8 @@
  */
 
 import type { ReportChainEntry } from '../../run/types';
-import type { CreateReportDto } from '../../shared/api/generated/api';
-import type { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import type { CreateReportDto } from '@hey-hey/contracts/api/models';
+import type { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { CreateReportProxy } from './create-report-proxy';
 import type { PassThroughSubmissionToolDeclaration, SubmissionToolExecuteContext } from './types';
 

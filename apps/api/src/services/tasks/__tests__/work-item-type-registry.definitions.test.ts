@@ -1,11 +1,11 @@
-import { SessionRole } from '../../../generated/model/sessionRole';
+import { SessionRole } from '@hey-hey/contracts/api/models';
 import type { WorkItemType } from '@prisma/client';
 import { InMemoryMessageBus } from '../../../core/events/in-memory-message-bus.service';
 import type { PrismaService } from '../../../prisma/prisma.service';
-import { WorkItemTypeLifecycleStatus } from '../../../generated/model/workItemTypeLifecycleStatus';
-import { WorkItemTypeRole } from '../../../generated/model/workItemTypeRole';
-import { WorkItemTypeGuidancePurpose } from '../../../generated/model/workItemTypeGuidancePurpose';
-import { WorkStatus } from '../../../generated/model/workStatus';
+import { WorkItemTypeLifecycleStatus } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeRole } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeGuidancePurpose } from '@hey-hey/contracts/api/models';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { WorkItemTypeRegistryService } from '../work-item-type-registry.service';
 
 /**

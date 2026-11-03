@@ -24,7 +24,7 @@ import {
   type TaskResponseDto,
   type WorkItemTypeDefinitionDto,
   type WorkItemTypeGraphCapability,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   useFullEntityContext,
   useProject,

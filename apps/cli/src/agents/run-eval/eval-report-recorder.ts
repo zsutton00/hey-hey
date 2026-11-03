@@ -1,10 +1,10 @@
 import { isAxiosError } from 'axios';
-import { Configuration, ReportsApi } from '../../shared/api/generated';
+import { Configuration, ReportsApi } from '@hey-hey/contracts/api';
 import type {
   EvalAttemptReportPayload,
   EvalRunReportPayload,
   ReportDto,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { EvalAttemptPatch, EvalRunRecorder } from './eval-runner';
 
 const RUN_WRITE_ATTEMPTS = 5;

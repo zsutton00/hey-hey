@@ -16,7 +16,10 @@ import {
 import { StartConversationFlowWorkflowInput } from '../../workflows/conversation-flow.workflow';
 import { errorToLoggable } from 'src/utils/logging.util';
 import { v4 as uuidv4 } from 'uuid';
-import { CreateConversationDto, WorkflowName } from 'src/generated';
+import {
+  CreateConversationDto,
+  WorkflowName,
+} from '@hey-hey/contracts/api/models';
 
 export interface WorkflowConfig {
   // Local string-literal subset rather than the canonical WorkflowAboutType

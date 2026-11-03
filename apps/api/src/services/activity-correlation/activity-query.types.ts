@@ -6,7 +6,7 @@ import type {
   ActivityMetricContinuationDto,
   ActivityHistoryFilterDto,
   EntityType,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId, UserId } from 'src/types';
 
 type OrdinaryActivityQuery = {

@@ -11,8 +11,8 @@ import {
   CreateDesignDocDto,
   DesignDocSectionUpdateSource,
   UpdateDesignDocDto,
-} from '../../../generated';
-import { CreateDesignDocLinkDto } from '../../../generated/model/createDesignDocLinkDto';
+} from '@hey-hey/contracts/api/models';
+import { CreateDesignDocLinkDto } from '@hey-hey/contracts/api/models';
 import {
   DesignDocSectionRecord,
   DesignDocWithSectionsRecord,
@@ -95,11 +95,13 @@ describe('DesignDocService (template sections)', () => {
         ArchiveOrchestrationService,
         RedisService,
       ],
-      overrides: [[PrismaService, prismaService],
-[PlanDesignDocLinksService, planDesignDocLinks],
-[DOMAIN_EVENT_PUBLISHER_TOKEN, eventPublisher],
-[ArchiveOrchestrationService, archiveOrchestrationService],
-[RedisService, redisProvider.useValue]],
+      overrides: [
+        [PrismaService, prismaService],
+        [PlanDesignDocLinksService, planDesignDocLinks],
+        [DOMAIN_EVENT_PUBLISHER_TOKEN, eventPublisher],
+        [ArchiveOrchestrationService, archiveOrchestrationService],
+        [RedisService, redisProvider.useValue],
+      ],
     });
 
     service = setup.module.get(DesignDocService);

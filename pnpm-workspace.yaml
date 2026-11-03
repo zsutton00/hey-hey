@@ -4,6 +4,7 @@ packages:
   - apps/cli
   - apps/graph-search
   - packages/ui-common
+  - packages/contracts
   - openapi
 
 # Running a script should not mutate node_modules. pnpm 11 otherwise verifies

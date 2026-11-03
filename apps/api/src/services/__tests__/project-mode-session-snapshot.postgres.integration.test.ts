@@ -5,7 +5,7 @@ import {
   AgentSessionType,
   SessionRole,
   type ProjectModeSnapshot,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { InMemoryMessageBus } from '../../core/events/in-memory-message-bus.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { OrganizationId, ProjectId, TaskId, UserId } from '../../types';

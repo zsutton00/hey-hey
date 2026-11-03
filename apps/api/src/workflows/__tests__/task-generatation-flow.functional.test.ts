@@ -51,7 +51,7 @@ import {
   SystemMessageResponseType,
   UIElement,
   WorkflowName,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MastraClientService } from '../../services/agents/mastra-client.service';
 import { ArtifactDataService } from '../../services/artifacts/artifact-data.service';

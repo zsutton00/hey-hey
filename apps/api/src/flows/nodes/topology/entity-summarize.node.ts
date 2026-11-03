@@ -19,7 +19,7 @@ import { TaskService } from 'src/services/tasks/task.service';
 import { DesignDocService } from 'src/services/design-doc/design-doc.service';
 import { workflowAboutTypeToEntityType } from 'src/utils/workflow-about-type.util';
 import { LLMProviderName, SyntheticModel } from 'src/services/llm/llm-shared';
-import { SystemMessageData } from 'src/generated';
+import { SystemMessageData } from '@hey-hey/contracts/api/models';
 import { PlanId } from 'src/types';
 import { SubfacetService } from 'src/services/entity-summary/subfacet.service';
 import { SubfacetLifecycleService } from 'src/services/entity-summary/subfacet-lifecycle.service';

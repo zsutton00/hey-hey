@@ -1,4 +1,4 @@
-import { OrganizationRole } from '../../../generated';
+import { OrganizationRole } from '@hey-hey/contracts/api/models';
 import { UserService } from '../../../services/user.service';
 import { JwtPayload } from '../../strategies/jwt.strategy';
 import { JwtKeysService } from '../jwt-keys.service';

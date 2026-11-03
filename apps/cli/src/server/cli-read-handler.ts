@@ -1,5 +1,5 @@
 import { hashControllerAction } from '../shared/api/generated/controller-action-contract';
-import type { HostActionPreparation } from '../shared/api/generated/api';
+import type { HostActionPreparation } from '@hey-hey/contracts/api/models';
 import { createHash } from 'node:crypto';
 import { canonicalizeJson } from '../shared/canonical-json';
 import {
@@ -25,7 +25,7 @@ import {
   type CliReadRunToolCallsLatestTurnSuccessResponseDto,
   type CliReadRuntimeModelCatalogGetErrorResponseDto,
   type CliReadRuntimeModelCatalogGetSuccessResponseDto,
-} from '../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type { RunRegistry } from '../run/run-registry';
 import type { CanonicalFileChangeFact } from '../run/file-change-facts';
 import type { RunStore } from '../run-store/run-store';

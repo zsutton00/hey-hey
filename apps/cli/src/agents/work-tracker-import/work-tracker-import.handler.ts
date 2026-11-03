@@ -4,13 +4,13 @@ import {
   LocalPromptType,
   type WorkTrackerImportCompletion,
   type WorkTrackerImportRequest,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import {
   MessageStatus,
   SystemMessageDataTypeEnum,
   type UpdateMessageDto,
   type WorkTrackerImportCompletion as WorkTrackerConversationCompletion,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type {
   CompletionAction,
   CompletionValidationResult,

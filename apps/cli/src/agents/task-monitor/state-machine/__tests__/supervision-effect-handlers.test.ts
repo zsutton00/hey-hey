@@ -25,9 +25,9 @@ import {
   TaskMonitorSettledRunEvaluationEffectHandler,
   type TaskMonitorSettledRunEvaluationEffectHandlerDependencies,
 } from '../supervision-effect-handlers';
-import { LocalPromptType } from '../../../../shared/agent-bridge-contract/generated/api';
-import { TaskMonitorReviewMode, WorkStatus } from '../../../../shared/api/generated/api';
-import type { LocalTaskMonitorCoordinatorDecision } from '../../../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import { TaskMonitorReviewMode, WorkStatus } from '@hey-hey/contracts/api/models';
+import type { LocalTaskMonitorCoordinatorDecision } from '@hey-hey/contracts/agent-bridge';
 
 const effect: EvaluateTaskMonitorSettledRunEffect = {
   type: 'EVALUATE_TASK_MONITOR_SETTLED_RUN',

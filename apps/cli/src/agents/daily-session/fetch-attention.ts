@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { EntityType } from '../../shared/api/generated/api';
+import { EntityType } from '@hey-hey/contracts/api/models';
 import type { ServerLogger } from '../../server/logger';
 import type { ActivityRecord, DailySessionAttentionEvidence } from './types';
 

@@ -14,7 +14,7 @@ import {
   ConfirmMachineEnrollmentResponseDto,
   PollMachineEnrollmentRequestDto,
   PollMachineEnrollmentResponseDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { MachineEnrollmentConfirmationService } from '../services/machine-pairing/machine-enrollment-confirmation.service';
 
 @ApiTags('Machines')

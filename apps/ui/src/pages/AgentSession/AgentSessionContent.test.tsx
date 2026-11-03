@@ -2,7 +2,7 @@ import {
   AgentSessionStatus,
   AgentSessionType,
   type AgentSessionDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   AgentConversationView,
   ExistingEntityConversationSession,

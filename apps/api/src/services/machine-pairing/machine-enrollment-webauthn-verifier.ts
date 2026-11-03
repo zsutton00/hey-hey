@@ -11,7 +11,7 @@ import {
   cose,
 } from '@simplewebauthn/server/helpers';
 import * as crypto from 'node:crypto';
-import { MachineEnrollmentWebAuthnRegistrationCredentialDto } from '../../generated';
+import { MachineEnrollmentWebAuthnRegistrationCredentialDto } from '@hey-hey/contracts/api/models';
 
 export interface VerifiedMachineEnrollmentCredential {
   credentialId: string;

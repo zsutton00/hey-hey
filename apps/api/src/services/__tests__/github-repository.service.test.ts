@@ -5,7 +5,7 @@ import {
   IntegrationResponseDto,
   IntegrationState,
   IntegrationType,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { GitHubRepositoryService } from '../integrations/github-repository.service';
 import { IntegrationService } from '../integrations/integration.service';
 import { createRedisServiceMock } from '../../../test/mocks/redis-service.mock';

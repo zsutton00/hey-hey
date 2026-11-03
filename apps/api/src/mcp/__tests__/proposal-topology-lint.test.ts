@@ -1,7 +1,7 @@
 import type {
   ProjectedWorkItem,
   ProjectedWorkItemRelationship,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   lintProjectedTopology,
   TOPOLOGY_LINT_CODES,

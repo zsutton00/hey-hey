@@ -46,7 +46,7 @@ import {
   SuggestionDecisionRequestDto,
   SuggestionDecisionResponseDto,
   SuggestionType,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { createSuggestedTaskWorkflow } from '../workflows/create-suggested-task.workflow';
 import { CreateSuggestedTaskWorkflowInput } from '../workflows/create-suggested-task.types';
 import { createSuggestedDesignDocWorkflow } from '../workflows/create-suggested-design-doc.workflow';

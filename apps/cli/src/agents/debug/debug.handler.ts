@@ -4,7 +4,7 @@ import type {
   LocalWorktreeStateByService,
   ResolvedServiceBinding,
 } from '../../shared/agent-bridge-contract/contract';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import {
   defaultAddUserMessage,
   type PrepareResult,

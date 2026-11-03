@@ -30,7 +30,7 @@ import {
   UpdateArtifactDto,
   ArtifactSourceType,
   ArtifactType,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ArtifactId,
   ConversationId,

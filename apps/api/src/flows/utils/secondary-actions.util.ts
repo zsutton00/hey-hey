@@ -3,7 +3,7 @@ import {
   RelatedEntityDto,
   SecondaryActionConfig,
   SecondaryActionHandler,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { v4 as uuidv4 } from 'uuid';
 
 type RelatedEntitiesSecondaryActionInput = {

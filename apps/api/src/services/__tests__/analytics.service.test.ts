@@ -1,7 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { createMockPrismaService } from '../../utils/testUtils';
-import { NavigationAction, OrganizationRole } from '../../generated';
+import {
+  NavigationAction,
+  OrganizationRole,
+} from '@hey-hey/contracts/api/models';
 import { AuthenticatedUser } from '../../auth/strategies/jwt.strategy';
 
 describe('AnalyticsService', () => {

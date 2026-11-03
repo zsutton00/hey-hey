@@ -6,7 +6,7 @@ import {
   TaskList,
   type FilterConfig,
 } from "@hey-hey/ui-common/components";
-import { WorkStatus } from "@hey-hey/ui-common/api";
+import { WorkStatus } from "@hey-hey/contracts/api";
 import { useWorkItems } from "@hey-hey/ui-common/data";
 import { useTranslation } from "react-i18next";
 import { parseAsBoolean, parseAsString, useQueryState } from "nuqs";
@@ -27,9 +27,7 @@ const getProjectWorkItemQueryKeyPrefix = (taskType: string): string => {
   if (taskType === WORK_ITEM_TYPE_KEYS.Bug) return "bugs";
 
   const encodedTypeKey = Array.from(taskType)
-    .map((character) =>
-      character.codePointAt(0)!.toString(16).padStart(6, "0"),
-    )
+    .map((character) => character.codePointAt(0)!.toString(16).padStart(6, "0"))
     .join("");
   return `workItems_${encodedTypeKey}`;
 };
@@ -127,13 +125,31 @@ export const ProjectWorkItemsTab: React.FC<ProjectWorkItemsTabProps> = ({
       key: "status",
       label: t("tasks.filters.status", "Status"),
       options: [
-        { value: WorkStatus.Backlog, label: t("tasks.status.backlog", "Backlog") },
+        {
+          value: WorkStatus.Backlog,
+          label: t("tasks.status.backlog", "Backlog"),
+        },
         { value: WorkStatus.Active, label: t("tasks.status.active", "Active") },
-        { value: WorkStatus.OnHold, label: t("tasks.status.onHold", "On Hold") },
-        { value: WorkStatus.Verifying, label: t("tasks.status.verifying", "Verifying") },
-        { value: WorkStatus.Completed, label: t("tasks.status.completed", "Completed") },
-        { value: WorkStatus.Cancelled, label: t("tasks.status.cancelled", "Cancelled") },
-        { value: WorkStatus.RefiningAcceptanceCriteria, label: t("tasks.status.refining", "Refining") },
+        {
+          value: WorkStatus.OnHold,
+          label: t("tasks.status.onHold", "On Hold"),
+        },
+        {
+          value: WorkStatus.Verifying,
+          label: t("tasks.status.verifying", "Verifying"),
+        },
+        {
+          value: WorkStatus.Completed,
+          label: t("tasks.status.completed", "Completed"),
+        },
+        {
+          value: WorkStatus.Cancelled,
+          label: t("tasks.status.cancelled", "Cancelled"),
+        },
+        {
+          value: WorkStatus.RefiningAcceptanceCriteria,
+          label: t("tasks.status.refining", "Refining"),
+        },
       ],
     },
     {
@@ -163,8 +179,18 @@ export const ProjectWorkItemsTab: React.FC<ProjectWorkItemsTabProps> = ({
                   size="small"
                 />
               }
-              label={t("tasks.filters.includeDescendants", "Include descendants")}
-              sx={{ position: "absolute", top: "100%", left: 0, mt: 0.5, ml: 0, whiteSpace: "nowrap" }}
+              label={t(
+                "tasks.filters.includeDescendants",
+                "Include descendants",
+              )}
+              sx={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                mt: 0.5,
+                ml: 0,
+                whiteSpace: "nowrap",
+              }}
             />
           )}
         </Box>
@@ -174,8 +200,14 @@ export const ProjectWorkItemsTab: React.FC<ProjectWorkItemsTabProps> = ({
 
   const sortOptions = [
     { value: "createdAt:desc", label: t("common.sortCreatedDesc", "Newest") },
-    { value: "createdAt:asc", label: t("common.sortCreatedAsc", "Oldest first") },
-    { value: "updatedAt:desc", label: t("tasks.sortLastUpdated", "Last Updated") },
+    {
+      value: "createdAt:asc",
+      label: t("common.sortCreatedAsc", "Oldest first"),
+    },
+    {
+      value: "updatedAt:desc",
+      label: t("tasks.sortLastUpdated", "Last Updated"),
+    },
     { value: "title:asc", label: t("common.sortNameAsc", "Name (A-Z)") },
     { value: "title:desc", label: t("common.sortNameDesc", "Name (Z-A)") },
     { value: "status:asc", label: t("tasks.sortStatus", "Status") },
@@ -207,7 +239,11 @@ export const ProjectWorkItemsTab: React.FC<ProjectWorkItemsTabProps> = ({
 
         <EntityFilters
           filters={filters}
-          values={{ search, status: statusFilter, parentTaskId: parentTaskId ?? "" }}
+          values={{
+            search,
+            status: statusFilter,
+            parentTaskId: parentTaskId ?? "",
+          }}
           onChange={handleFilterChange}
           sortOptions={sortOptions}
           sortBy={sortKey}

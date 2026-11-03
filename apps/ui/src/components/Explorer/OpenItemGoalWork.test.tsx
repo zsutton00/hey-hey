@@ -1,4 +1,4 @@
-import { EntityType } from "@hey-hey/ui-common/api";
+import { EntityType } from "@hey-hey/contracts/api";
 import { useOpenItemGoalWork } from "@hey-hey/ui-common/data";
 import { render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";

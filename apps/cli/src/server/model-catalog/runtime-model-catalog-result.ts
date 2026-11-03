@@ -7,7 +7,7 @@ import {
   CliReadRuntimeModelCatalogProviderProviderEnum,
   type CliReadRuntimeModelCatalogProvider,
   type CliReadRuntimeModelCatalogResult,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type { ServerLogger } from '../logger';
 
 const EFFORT_IDS: readonly string[] = Object.values(CliReadRuntimeModelCatalogModelEffortsEnum);

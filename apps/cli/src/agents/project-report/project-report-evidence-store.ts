@@ -12,7 +12,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
-import { ProjectReportEvidenceReferenceKindEnum } from '../../shared/api/generated/api';
+import { ProjectReportEvidenceReferenceKindEnum } from '@hey-hey/contracts/api/models';
 import type { ProjectReportGroupKind } from './project-report-grouping';
 
 /** Largest shard the writer cuts; a subject is never split, so one oversized subject may exceed it. */

@@ -19,7 +19,7 @@ import {
   ConversationResponseDto,
   ConversationStatus,
   MessageType,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { ConversationService } from '../../services/conversation.service';
 import { DesignDocService } from '../../services/design-doc/design-doc.service';
 import { LLMClientService } from '../../services/llm/llm-client.service';

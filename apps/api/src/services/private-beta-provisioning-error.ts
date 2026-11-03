@@ -1,5 +1,5 @@
 import { ConflictException } from '@nestjs/common';
-import { PrivateBetaAccessProvisioningFailureCode } from '../generated';
+import { PrivateBetaAccessProvisioningFailureCode } from '@hey-hey/contracts/api/models';
 
 export const PRIVATE_BETA_PROVISIONING_FAILURE_MESSAGE =
   'Private-beta provisioning could not be completed.';

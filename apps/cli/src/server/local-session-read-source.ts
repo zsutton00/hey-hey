@@ -16,8 +16,8 @@
  * others or reaches the Run that raised the change.
  */
 
-import type { RunEntityReference } from '../shared/agent-bridge-contract/generated/api';
-import type { AgentSessionCurrentState } from '../shared/api/generated/api';
+import type { RunEntityReference } from '@hey-hey/contracts/agent-bridge';
+import type { AgentSessionCurrentState } from '@hey-hey/contracts/api/models';
 import type { LoadedEntityPromptContext } from '../agents/entity-context/types';
 import type { Run, RunEntityContextLoadStatus } from '../run/run';
 import type { RunRegistry } from '../run/run-registry';

@@ -1,7 +1,7 @@
 import { ProposalReconciliationService } from '../proposal-reconciliation.service';
 import { Test, TestingModule } from '@nestjs/testing';
-import type { CreateProposalDto } from '../../../generated';
-import { WorkStatus } from '../../../generated/model/workStatus';
+import type { CreateProposalDto } from '@hey-hey/contracts/api/models';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../../prisma/prisma.service';
 import * as TestUtils from '../../../utils/testUtils';
 import { WorkItemParentageValidator } from '../../tasks/work-item-parentage-validator.service';

@@ -13,7 +13,7 @@ import {
   CurrentUser,
 } from '../auth/decorators/current-user.decorator';
 import { HintService } from '../services/hints/hint.service';
-import type { ListProjectHintsResponse } from '../generated';
+import type { ListProjectHintsResponse } from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId } from '../types';
 
 @ApiTags('DebugAdmin')

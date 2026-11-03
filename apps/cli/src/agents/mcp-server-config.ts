@@ -1,6 +1,6 @@
 import type { OAuthClient } from '../auth/index';
 import { extractOrganizationIdFromToken } from '../auth/index';
-import type { ReadRestriction } from '../shared/api/generated/api';
+import type { ReadRestriction } from '@hey-hey/contracts/api/models';
 import { readRestrictionFor, readRestrictionHeaders } from '../shared/api/read-restriction';
 
 export interface McpSessionContext {

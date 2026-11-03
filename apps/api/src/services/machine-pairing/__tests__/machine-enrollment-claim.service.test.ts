@@ -15,7 +15,7 @@ import {
   AbandonMachineEnrollmentClaimRequestDto,
   BeginMachineEnrollmentClaimRequestDto,
   CompleteMachineEnrollmentClaimRequestDto,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { OrganizationId, UserId } from '../../../types';
 import {
   MACHINE_ENROLLMENT_ACCOUNT_FAILURE_LIMIT,

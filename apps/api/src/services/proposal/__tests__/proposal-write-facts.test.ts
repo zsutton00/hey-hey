@@ -2,7 +2,7 @@ import type {
   CreateTaskDto,
   UpdateTaskDto,
   WorkItemChangeSetValidationRequest,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 import {
   deriveChangedFields,

@@ -17,7 +17,7 @@ import {
   type GoalPmRoutingSelectionPayload,
   type GoalPmRoutingOutcome,
   type GoalPmRoutingCreation,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   GoalPmRoutingAnswerSchema,
   GoalPmRoutingEnactmentRequestSchema,
@@ -49,7 +49,7 @@ import {
   timelineCreatedAt,
 } from 'src/utils/message-timeline.util';
 import { UserMessageExtractor } from '../utils/user-message-extractor';
-import type { UserMessageData } from '../generated';
+import type { UserMessageData } from '@hey-hey/contracts/api/models';
 
 const ajv = new Ajv({ strict: false });
 addFormats(ajv);

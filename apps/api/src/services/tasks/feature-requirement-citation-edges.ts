@@ -2,7 +2,7 @@ import { v5 as uuidv5 } from 'uuid';
 import { AgentEdgeCategory } from '../../generated/graphs/model/agentEdgeCategory';
 import type { CreateAgentEdgeDto } from '../../generated/graphs/model/createAgentEdgeDto';
 import { AgentEdgeEndpointEntityType } from '../../generated/graphs/model/agentEdgeEndpointEntityType';
-import type { FeatureRequirementStoredCitation } from '../../generated';
+import type { FeatureRequirementStoredCitation } from '@hey-hey/contracts/api/models';
 import { inspectFeatureRequirementsSection } from './feature-requirements-reader';
 
 /**

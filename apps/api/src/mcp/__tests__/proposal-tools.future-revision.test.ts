@@ -16,7 +16,7 @@ import {
   type FutureRevisionMaterializerPorts,
   type FutureTarget,
 } from '../../services/proposal/future-revision-materializer';
-import type { FutureRevisionAuthoring } from '../../generated';
+import type { FutureRevisionAuthoring } from '@hey-hey/contracts/api/models';
 
 const ORGANIZATION_ID = '10000000-0000-4000-8000-000000000001';
 const PROJECT_ID = '10000000-0000-4000-8000-000000000002';

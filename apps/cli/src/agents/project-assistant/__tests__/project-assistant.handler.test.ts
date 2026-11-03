@@ -3,7 +3,7 @@ import path from 'node:path';
 import { AxiosError } from 'axios';
 import { describe, expect, it, vi } from 'vitest';
 
-import { TasksApi } from '../../../shared/api/generated';
+import { TasksApi } from '@hey-hey/contracts/api';
 import { ProjectAssistantPreparationError } from '../nearest-parent-feature';
 import {
   ProjectAssistantHandler,
@@ -16,7 +16,7 @@ import {
   RunEntityReferenceEntityTypeEnum,
   LocalPromptTaskType,
   LocalPromptType,
-} from '../../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import { makeCreateReportProxy } from '../../submission-tools/create-report-proxy.test-support';
 import type { JevInput, JevResult } from '../../../jev/client';
 import { createTestSessionRunnerFacade } from '../../../run/run.test-support';

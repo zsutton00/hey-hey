@@ -1,7 +1,7 @@
 import { AxiosError } from 'axios';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-
-import { TasksApi, type TaskResponseDto } from '../../../shared/api/generated';
+import { TasksApi } from '@hey-hey/contracts/api';
+import { type TaskResponseDto } from '@hey-hey/contracts/api/models';
 import type { AgenticSession } from '../../../session/types';
 import type { LocalRollupProposalPromptPayload } from '../../../shared/agent-bridge-contract/runtime-types';
 import type { PromptTypeHandlerDeps } from '../../prompt-type-handler';

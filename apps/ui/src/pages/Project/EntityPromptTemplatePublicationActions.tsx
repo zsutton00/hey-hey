@@ -18,7 +18,7 @@ import type {
   EntityPromptTemplateCatalogEntryDto,
   EntityPromptTemplateSelectorDto,
   ProposalResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import React, { useRef, useState } from "react";
 
 export interface EntityPromptTemplatePublicationActionsProps {

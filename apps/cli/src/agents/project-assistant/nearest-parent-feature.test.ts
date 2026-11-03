@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { TasksApi } from '../../shared/api/generated';
+import { TasksApi } from '@hey-hey/contracts/api';
 import type { JevAnswer, JevResult } from '../../jev/client';
 import type { LoadedEntityPromptContext } from '../entity-context/types';
 import type { PromptTypeHandlerDeps } from '../prompt-type-handler';

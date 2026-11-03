@@ -3,7 +3,7 @@ import {
   ExtendedUIFieldType,
   SystemMessageData,
   SystemMessageResponseType,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { NodeResult, NodeType } from 'src/types/flow-internal.types';
 
 function getResponseTypeForNode(nodeType: string): SystemMessageResponseType {

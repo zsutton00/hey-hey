@@ -6,7 +6,7 @@ import {
   SecondaryActionPayload,
   UIElement,
   WorkflowReviewAction,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   FlowUserMessage,
   NodeResult,

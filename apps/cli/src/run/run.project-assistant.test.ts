@@ -17,8 +17,8 @@ import type { PromptTypeHandler, PromptTypeHandlerDeps } from '../agents/prompt-
 import { freeFormHandler } from '../agents/coding-conversation';
 import { projectModeHandler } from '../agents/project-mode';
 import type { ProjectAssistantPromptPayload } from '../agents/project-assistant/project-assistant.handler';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated';
-import type { ProjectModeSnapshot } from '../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import type { ProjectModeSnapshot } from '@hey-hey/contracts/agent-bridge';
 
 const MODE_ID = '11111111-1111-4111-8111-111111111111';
 

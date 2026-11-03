@@ -3,7 +3,7 @@ import { EventRouter } from '../../core/events/event-router';
 import { EventEnvelope } from '../../core/events/types/event-envelope';
 import { isMachineRevokedEvent } from '../../core/events/types/domain-events';
 import { EVENT_TYPES } from '../../core/events/types/event.types';
-import { MachineSecurityEventType } from '../../generated';
+import { MachineSecurityEventType } from '@hey-hey/contracts/api/models';
 import { MachineId, UserId } from '../../types';
 import { MachineSecurityEventService } from './machine-security-event.service';
 

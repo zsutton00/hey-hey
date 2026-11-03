@@ -1,10 +1,11 @@
+import { asConversationId, asProjectId, asServiceId, asWorkflowId } from '../../test-utils/contract-ids';
 import { describe, expect, it } from 'vitest';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import {
   ExtendedUIFieldType,
   MessageStatus,
   SystemMessageDataTypeEnum,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { AssistantCompleteEvent } from '../../run/types';
 import { AgentSessionRunnerError } from '../providers/session-runner';
 import { repositoryPlacementHandler } from './repository-placement.handler';
@@ -13,11 +14,11 @@ import type { RepositoryPlacementPromptPayload } from './types';
 const rootKey = '11111111-1111-4111-8111-111111111111';
 const childKey = '22222222-2222-4222-8222-222222222222';
 const payload = {
-  projectId: '33333333-3333-4333-8333-333333333333',
-  conversationId: '44444444-4444-4444-8444-444444444444',
-  workflowId: '55555555-5555-4555-8555-555555555555',
+  projectId: asProjectId('33333333-3333-4333-8333-333333333333'),
+  conversationId: asConversationId('44444444-4444-4444-8444-444444444444'),
+  workflowId: asWorkflowId('55555555-5555-4555-8555-555555555555'),
   workflowNodeId: 'placement',
-  serviceId: '66666666-6666-4666-8666-666666666666',
+  serviceId: asServiceId('66666666-6666-4666-8666-666666666666'),
   machineId: '77777777-7777-4777-8777-777777777777',
   provider: 'codex',
   resolvedFrontierModel: 'gpt-5.6-sol',

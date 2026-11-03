@@ -4,7 +4,7 @@ import {
   ConversationStatus,
   MessageStatus,
   WorkflowName,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { NodeType } from '../../types/flow-internal.types';
 import { ONBOARDING_NODES } from '../../flows/constants/node-ids';
 import { REPOSITORY_GROUNDING_FIELDS } from '../../flows/nodes/onboarding/repository-grounding.contract';

@@ -1,4 +1,4 @@
-import type { ImplementRuntimeSelection } from '../shared/agent-bridge-contract/generated/api';
+import type { ImplementRuntimeSelection } from '@hey-hey/contracts/agent-bridge';
 
 /** The accepted runtime every repository-import handoff request carries. */
 interface HandoffRuntimeFields {

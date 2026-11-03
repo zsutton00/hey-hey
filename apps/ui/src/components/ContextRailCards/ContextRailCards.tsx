@@ -1,7 +1,7 @@
 import type {
   ContextRelatedEntityDto,
   EntityContextDtoProposalsInner,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   MOCKUP_TYPE_KEY,
   type StructuralChild,
@@ -38,7 +38,7 @@ export interface ContextRailCardsProps {
 const useStructuralVisualChildren = (
   organizationId: string,
   projectId: string,
-  parentWorkItemId: string | undefined
+  parentWorkItemId: string | undefined,
 ): StructuralChild[] => {
   const options = (taskType: string) => ({
     parentTaskId: parentWorkItemId,
@@ -50,21 +50,21 @@ const useStructuralVisualChildren = (
     "task",
     projectId,
     undefined,
-    options(MOCKUP_TYPE_KEY)
+    options(MOCKUP_TYPE_KEY),
   );
   const diagrams = useWorkItems(
     organizationId,
     "task",
     projectId,
     undefined,
-    options(WORK_ITEM_TYPE_KEYS.Diagram)
+    options(WORK_ITEM_TYPE_KEYS.Diagram),
   );
   return useMemo(
     () =>
       [...mockups.workItems, ...diagrams.workItems]
         .filter((item) => item.parentTaskId === parentWorkItemId)
         .map((item) => ({ id: item.id, type: item.type, name: item.name })),
-    [mockups.workItems, diagrams.workItems, parentWorkItemId]
+    [mockups.workItems, diagrams.workItems, parentWorkItemId],
   );
 };
 
@@ -86,11 +86,11 @@ export const ContextRailCards: React.FC<ContextRailCardsProps> = ({
   const structuralChildren = useStructuralVisualChildren(
     organizationId,
     projectId,
-    parentWorkItemId
+    parentWorkItemId,
   );
   const artifacts = useMemo(
     () => selectVisualArtifacts(structuralChildren, relatedEntities),
-    [structuralChildren, relatedEntities]
+    [structuralChildren, relatedEntities],
   );
 
   return (

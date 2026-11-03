@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { ReportType } from 'src/generated';
+import { ReportType } from '@hey-hey/contracts/api/models';
 import { validateCodingResearchPayload } from '../coding-research-payload.validation';
 
 const validPayload = {

@@ -3,7 +3,7 @@ import { PrivateBetaAccessRequestId, UserId } from 'src/types';
 import type {
   OnboardBetaUserResponseDto,
   PrivateBetaAccessProvisioningFailureCode,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { BrowserSessionRequestMetadata } from '../auth/browser-session.types';
 import { ApiKeyService } from './api-key.service';
 import { UserService } from './user.service';

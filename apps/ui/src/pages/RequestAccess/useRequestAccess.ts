@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import axios from "axios";
-import type { PrivateBetaAccessRequestSubmissionDto } from "@hey-hey/ui-common/api";
+import type { PrivateBetaAccessRequestSubmissionDto } from "@hey-hey/contracts/api";
 import {
   privateBetaAccessRequestFieldConstraints,
   unifiedApiClient,

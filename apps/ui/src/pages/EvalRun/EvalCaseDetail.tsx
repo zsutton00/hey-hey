@@ -24,7 +24,7 @@ import {
   ProposalAction,
   TargetEntityType,
   type ProposalResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   CreateProposal,
   DeleteProposal,

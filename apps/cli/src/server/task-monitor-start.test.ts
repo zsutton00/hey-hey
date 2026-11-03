@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { TaskMonitorLoadEffectHandler } from '../agents/task-monitor/state-machine/monitor-effect-handlers';
-import type { TaskMonitorExecutionDefinition } from '../shared/api/generated/api';
+import type { TaskMonitorExecutionDefinition } from '@hey-hey/contracts/api/models';
 import { NOOP_LOGGER, type ServerLogger } from './logger';
 import { createTestPlatformAuthContext } from './monitors/test-owners.test-support';
 import { TaskMonitorStartRuntime, type TaskMonitorStartMonitor } from './task-monitor-start';

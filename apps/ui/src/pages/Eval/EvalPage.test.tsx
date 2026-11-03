@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { TaskResponseDto } from "@hey-hey/ui-common/api";
+import type { TaskResponseDto } from "@hey-hey/contracts/api";
 
 const mockNavigate = vi.fn();
 const mockUseWorkItems = vi.fn();
@@ -20,7 +20,7 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock("@hey-hey/ui-common/api", () => ({
+vi.mock("@hey-hey/contracts/api", () => ({
   WorkStatus: { Active: "ACTIVE" },
   EvalRunStatus: { Finished: "FINISHED", Stopped: "STOPPED" },
 }));

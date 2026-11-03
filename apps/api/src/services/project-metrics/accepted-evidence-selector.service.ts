@@ -12,7 +12,7 @@ import {
   WorkItemTypeLifecycleStatus,
   WorkItemTypeRole,
   WorkStatus,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { EVENT_TYPES } from 'src/core/events/types/event.types';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { OrganizationId, ProjectId, UserId } from 'src/types';

@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { PrivateBetaAccessService } from '../private-beta-access.service';
-import type { PrivateBetaAccessRequestSubmissionDto } from '../../generated';
+import type { PrivateBetaAccessRequestSubmissionDto } from '@hey-hey/contracts/api/models';
 import * as deploymentEnvironment from '../../deployment-environment';
 
 const submission = {

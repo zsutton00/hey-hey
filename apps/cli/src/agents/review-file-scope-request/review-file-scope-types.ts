@@ -1,7 +1,7 @@
 import type {
   AgentSessionReviewFileScopeRequest,
   PermissionRequestAgentType,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { LocalCodeReviewPromptPayload } from '../../shared/agent-bridge-contract/runtime-types';
 import type { InternalRunPromptRequest } from '../../shared/agent-bridge-contract/contract';
 

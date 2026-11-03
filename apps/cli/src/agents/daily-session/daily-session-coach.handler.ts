@@ -1,5 +1,5 @@
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated';
-import type { LocalDailySessionPromptPayload } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import type { LocalDailySessionPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import type {
   PrepareResult,
   PromptTypeHandlerDeps,

@@ -1,8 +1,8 @@
-import { ReportUsageTrendGranularity as Granularity } from 'src/generated';
+import { ReportUsageTrendGranularity as Granularity } from '@hey-hey/contracts/api/models';
 import type {
   ReportUsageBreakdownEntry,
   ReportUsageMeasurement,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { OrganizationId } from 'src/types';
 import {
   createMockDomainEventPublisher,

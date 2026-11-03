@@ -11,7 +11,7 @@ import {
   ReportSortBy,
   ReportSortOrder,
   ReportType,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ProjectReportsController,
   ReportController,

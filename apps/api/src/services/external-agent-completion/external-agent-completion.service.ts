@@ -13,7 +13,7 @@ import {
   SubmitExternalAgentCompletionRequestDto,
   SubmitExternalAgentCompletionResponseDto,
   SystemMessageData,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { canonicalizeJcs } from '../../core/websockets/trigger-canonicalization';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -244,7 +244,8 @@ export class ExternalAgentCompletionService {
       (input.hidden !== undefined && typeof input.hidden !== 'boolean') ||
       (input.providerSessionId !== undefined &&
         typeof input.providerSessionId !== 'string') ||
-      (input.promptHandler !== undefined && typeof input.promptHandler !== 'string')
+      (input.promptHandler !== undefined &&
+        typeof input.promptHandler !== 'string')
     ) {
       throw new BadRequestException('Request does not match the OpenAPI shape');
     }

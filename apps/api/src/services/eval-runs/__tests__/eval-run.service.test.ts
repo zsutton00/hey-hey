@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { ConversationWorkflowService } from '../../workflows/conversation-workflow.service';
 import { WorkflowTypeRegistryService } from '../../workflows/workflow-type-registry.service';
-import type { CreateAgentSessionConversationDto } from 'src/generated';
+import type { CreateAgentSessionConversationDto } from '@hey-hey/contracts/api/models';
 import { AgentSessionService } from '../../agent-session.service';
 import { EvalRunService } from '../eval-run.service';
 import { EvalRunController } from 'src/controllers/eval-run.controller';

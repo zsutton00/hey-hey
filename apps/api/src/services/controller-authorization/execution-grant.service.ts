@@ -28,7 +28,7 @@ import {
   HostAffectingActionType,
   MonitorCommandBody,
   TaskMonitorExternalCommand,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { hashControllerAction } from '../../generated/controller-action-contract';
 import { canonicalizeJcs } from '../../core/websockets/trigger-canonicalization';
 import {

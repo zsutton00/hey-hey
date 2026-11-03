@@ -6,7 +6,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { InitiativeId, OrganizationId } from '../../types';
 import { InitiativeArtifactService } from './initiative-artifact.service';
-import { MaterializedWorkItemSection } from '../../generated';
+import { MaterializedWorkItemSection } from '@hey-hey/contracts/api/models';
 import { materializedSectionsToContentMap } from '../../utils/work-item-section.util';
 
 /**

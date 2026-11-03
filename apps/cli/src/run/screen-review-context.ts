@@ -1,7 +1,10 @@
-import { MessageReadMode } from '../shared/api/generated/api';
+import { MessageReadMode } from '@hey-hey/contracts/api/models';
 import type { AgenticSession } from '../session/types';
 import type { PromptTypeHandlerDeps } from '../agents/prompt-type-handler';
-import type { GetMessages200Response, ProposalReviewNoteRecord } from '../shared/api/generated/api';
+import type {
+  GetMessages200Response,
+  ProposalReviewNoteRecord,
+} from '@hey-hey/contracts/api/models';
 
 /** Passive annotations are read when a user comments; they never launch work themselves. */
 export async function loadScreenReviewContext(

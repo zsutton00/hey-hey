@@ -29,11 +29,11 @@ import type {
   StageOperationOptions as StageOperationOptionsModel,
   StagedContentTypeId as StagedContentTypeIdModel,
   StageOperationType as StageOperationTypeModel,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   StagedContentTypeId as StagedContentTypeIdEnum,
   StageOperationType as StageOperationTypeEnum,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 
 // Content type identifiers
 export type ContentTypeId = StagedContentTypeIdModel;

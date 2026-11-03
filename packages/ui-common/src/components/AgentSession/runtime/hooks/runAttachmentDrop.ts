@@ -67,9 +67,7 @@ export type RunAttachmentEntry =
       fileName: string;
       status: "error";
       message: string;
-      code:
-        | import("../../../../local-agent-api/generated/api").CliReadErrorCode
-        | null;
+      code: import("@hey-hey/contracts/local").CliReadErrorCode | null;
     };
 
 export const attachmentReferences = (

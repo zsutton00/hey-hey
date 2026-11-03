@@ -1,4 +1,4 @@
-import { ProjectStatus, type ProjectResponseDto } from "@hey-hey/ui-common/api";
+import { ProjectStatus, type ProjectResponseDto } from "@hey-hey/contracts/api";
 import { ProjectOverview } from "@hey-hey/ui-common/components";
 import { Alert, Box, Button, Skeleton, Stack } from "@mui/material";
 import React from "react";

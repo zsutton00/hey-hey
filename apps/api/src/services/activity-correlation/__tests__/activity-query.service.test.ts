@@ -5,7 +5,7 @@ import {
   ActivityCorrelationSource,
   EntityType,
   ProjectMetricIdentity,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { ReportService } from 'src/services/reports/report.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { OrganizationId, ProjectId, UserId } from 'src/types';

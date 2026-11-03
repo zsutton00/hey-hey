@@ -5,7 +5,7 @@ import {
 } from "@hey-hey/ui-common/data";
 import { compose } from "@hey-hey/ui-common/i18n";
 import { WebPathService } from "@hey-hey/ui-common/services";
-import { EntityType, type TaskResponseDto } from "@hey-hey/ui-common/api";
+import { EntityType, type TaskResponseDto } from "@hey-hey/contracts/api";
 import type { BreadcrumbItem } from "@hey-hey/ui-common/utils";
 
 import { PageBreadcrumbs } from "../../../components/Layout";
@@ -64,7 +64,7 @@ export const AgenticAgentSessionBreadcrumbs = ({
 }: AgenticAgentSessionBreadcrumbsProps) => {
   const embeddedServiceName = agentSession.service?.name?.trim();
   const shouldFetchService = Boolean(
-    organizationId && serviceId?.trim() && !embeddedServiceName
+    organizationId && serviceId?.trim() && !embeddedServiceName,
   );
   const serviceQuery = useService(organizationId, serviceId ?? undefined, {
     enabled: shouldFetchService,
@@ -80,7 +80,7 @@ export const AgenticAgentSessionBreadcrumbs = ({
       enabled: shouldFetchHierarchy,
       includeAgentSessionCounts: false,
       includeDesignDocCounts: false,
-    }
+    },
   );
 
   const cachedAncestry = useFeatureAncestors({
@@ -109,14 +109,14 @@ export const AgenticAgentSessionBreadcrumbs = ({
   const serviceName = embeddedServiceName || serviceQuery.data?.name?.trim();
   const parentLabel =
     routeFamily === "task"
-      ? hierarchy?.task?.name ?? taskData?.name ?? undefined
+      ? (hierarchy?.task?.name ?? taskData?.name ?? undefined)
       : routeFamily === "plan"
-      ? stepCrumbTitle
-      : undefined;
+        ? stepCrumbTitle
+        : undefined;
   const sessionLabel = buildAgentSessionLabel(
     agentSession,
     serviceName,
-    parentLabel
+    parentLabel,
   );
 
   // Task route family — use shared TaskBreadcrumbs items

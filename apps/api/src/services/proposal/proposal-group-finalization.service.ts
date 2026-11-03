@@ -17,8 +17,8 @@ import type {
   ProposalGroupFinalizationResult,
   ProposalGroupSnapshot,
   ProposalGroupValidationIssue,
-} from 'src/generated';
-import { ProposalEdgeType } from 'src/generated';
+} from '@hey-hey/contracts/api/models';
+import { ProposalEdgeType } from '@hey-hey/contracts/api/models';
 import {
   type AnyTransactionClient,
   PrismaService,

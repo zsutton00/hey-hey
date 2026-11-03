@@ -3,7 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Context, Tool } from '@rekog/mcp-nest';
 import type { Request } from 'express';
 import { z } from 'zod';
-import { WorkflowName } from '../../generated';
+import { WorkflowName } from '@hey-hey/contracts/api/models';
 import { ProposalService } from '../../services/proposal/proposal.service';
 import type { StampedCreateProposalDto } from '../../services/proposal/proposal.types';
 import type { ProjectId, TaskId } from '../../types';

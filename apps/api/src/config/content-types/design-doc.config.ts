@@ -9,7 +9,11 @@
 
 import { ADR_REFINEMENT_NODES } from 'src/flows/constants';
 import { ContentTypeDefinition } from '../../types/staged-content.types';
-import { AdrStatus, BrainstormStatus, DecisionStatus } from 'src/generated';
+import {
+  AdrStatus,
+  BrainstormStatus,
+  DecisionStatus,
+} from '@hey-hey/contracts/api/models';
 
 export const ADR_DESIGN_DOC_CONTENT_TYPE: ContentTypeDefinition = {
   id: 'adr',

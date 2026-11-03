@@ -5,13 +5,13 @@ import type {
   TaskResponseDto,
   WorkItemTypeDefinitionDto,
   WorkItemTypeSummaryDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   TaskPriority,
   TargetEntityType,
   WorkItemTypeRole,
   WorkStatus,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   act,
   fireEvent,

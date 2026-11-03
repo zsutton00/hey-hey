@@ -1,5 +1,5 @@
-import type { RunCreatePayloadProjectReport } from '../../shared/agent-bridge-contract/generated/api';
-import type { ProjectReportPayload } from '../../shared/api/generated/api';
+import type { RunCreatePayloadProjectReport } from '@hey-hey/contracts/agent-bridge';
+import type { ProjectReportPayload } from '@hey-hey/contracts/api/models';
 import type { ProjectReportEvidenceResult } from './project-report-evidence-reader';
 import type { ProjectReportRequestProjection } from './project-report-request-reader';
 import { PROJECT_REPORT_FINDINGS_DOCUMENT_ID } from './project-report-evidence-store';

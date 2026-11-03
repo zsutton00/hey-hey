@@ -6,7 +6,7 @@ import {
   ProjectId,
   TaskId,
 } from 'src/types';
-import type { DesignDocTemplate } from 'src/generated';
+import type { DesignDocTemplate } from '@hey-hey/contracts/api/models';
 
 export type CreateSuggestedDesignDocWorkflowInput = {
   organizationId: OrganizationId;

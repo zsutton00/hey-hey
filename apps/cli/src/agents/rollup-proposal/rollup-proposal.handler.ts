@@ -13,7 +13,8 @@ import type {
   RollupProposalPromptInput,
 } from './rollup-proposal-prompt';
 import { buildRollupProposalPrompt } from './rollup-proposal-prompt';
-import { Configuration, TasksApi, type TaskResponseDto } from '../../shared/api/generated';
+import { Configuration, TasksApi } from '@hey-hey/contracts/api';
+import { type TaskResponseDto } from '@hey-hey/contracts/api/models';
 
 type EnrichedPayload = LocalRollupProposalPromptPayload & {
   _enriched?: RollupProposalPromptInput;

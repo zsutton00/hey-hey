@@ -16,7 +16,7 @@ import {
   BrowserOrganizationSelectionDto,
   OrganizationRole,
   AccountDefaultOrganizationDto,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   AnyTransactionClient,
   PrismaService,

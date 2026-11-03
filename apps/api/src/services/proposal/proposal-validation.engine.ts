@@ -8,7 +8,7 @@ import {
   futureGraph,
   graphChangeSet,
 } from './future-graph';
-import type { ProjectModeSettings } from '../../generated';
+import type { ProjectModeSettings } from '@hey-hey/contracts/api/models';
 import {
   findIneligibleProjectModeTypeKeys,
   PROJECT_MODE_SETTINGS_SCHEMA_REF,
@@ -50,7 +50,7 @@ import type {
   ProposalEdgeDeclaration,
   ProjectedWorkItem,
   WorkItemChangeSetIdentity,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId, TaskId } from 'src/types';
 import { featureTagSchema } from 'src/types/feature-tag.types';
 import type {
@@ -63,24 +63,24 @@ import type {
 } from './proposal-validation.types';
 import { evaluateSupersedeInvariant } from './supersede-invariant';
 
-import { WorkStatus } from '../../generated/model/workStatus';
-import { AgentEdgeType } from '../../generated/model/agentEdgeType';
-import { WorkItemTypeScalarField } from '../../generated/model/workItemTypeScalarField';
-import { WorkItemTypeLifecycleStatus } from '../../generated/model/workItemTypeLifecycleStatus';
-import { WorkItemColorKey } from '../../generated/model/workItemColorKey';
-import { WorkItemIconKey } from '../../generated/model/workItemIconKey';
-import { WorkItemConfigKind } from '../../generated/model/workItemConfigKind';
-import type { WorkItemTypeDefinitionDto } from '../../generated/model/workItemTypeDefinitionDto';
-import { WorkItemTypeRole } from '../../generated/model/workItemTypeRole';
-import { WorkItemTypeCascadeDeleteUpdatesPayload } from '../../generated/model/workItemTypeCascadeDeleteUpdatesPayload';
-import { WorkItemTypeSectionDefinition } from '../../generated/model/workItemTypeSectionDefinition';
-import type { WorkItemTypeEdgeTarget } from '../../generated/model/workItemTypeEdgeTarget';
-import { EntityType } from '../../generated/model/entityType';
-import { ReportType } from '../../generated/model/reportType';
-import { ProposalEdgeTargetType } from '../../generated/model/proposalEdgeTargetType';
-import { ProposalEdgeEndpointMode } from '../../generated/model/proposalEdgeEndpointMode';
-import { ProposalEdgeType } from '../../generated/model/proposalEdgeType';
-import { WorkflowName } from '../../generated/model/workflowName';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
+import { AgentEdgeType } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeScalarField } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeLifecycleStatus } from '@hey-hey/contracts/api/models';
+import { WorkItemColorKey } from '@hey-hey/contracts/api/models';
+import { WorkItemIconKey } from '@hey-hey/contracts/api/models';
+import { WorkItemConfigKind } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeDefinitionDto } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeRole } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeCascadeDeleteUpdatesPayload } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeSectionDefinition } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeEdgeTarget } from '@hey-hey/contracts/api/models';
+import { EntityType } from '@hey-hey/contracts/api/models';
+import { ReportType } from '@hey-hey/contracts/api/models';
+import { ProposalEdgeTargetType } from '@hey-hey/contracts/api/models';
+import { ProposalEdgeEndpointMode } from '@hey-hey/contracts/api/models';
+import { ProposalEdgeType } from '@hey-hey/contracts/api/models';
+import { WorkflowName } from '@hey-hey/contracts/api/models';
 import { WorkItemTypeRegistryService } from '../tasks/work-item-type-registry.service';
 import {
   isWorkItemServiceScopeEligible,

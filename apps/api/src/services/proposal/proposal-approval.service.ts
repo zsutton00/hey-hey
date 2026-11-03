@@ -64,7 +64,7 @@ import type {
   WorkItemTypeSummaryDto,
   WorkItemTypeCascadeDeleteUpdatesPayload,
   EntityPromptTemplateProposalUpdatesPayload,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   InitiativeSourceType,
   MentionCreatedEventPayload,
@@ -72,8 +72,8 @@ import {
   WorkItemTypeEffectiveSource,
   WorkItemTypeLifecycleStatus,
   WorkStatus,
-} from 'src/generated';
-import { PayloadType } from 'src/generated/model/payloadType';
+} from '@hey-hey/contracts/api/models';
+import { PayloadType } from '@hey-hey/contracts/api/models';
 import { AgentEdgeEndpointEntityType } from 'src/generated/graphs/model/agentEdgeEndpointEntityType';
 import { AnyTransactionClient, PrismaService } from 'src/prisma/prisma.service';
 import {

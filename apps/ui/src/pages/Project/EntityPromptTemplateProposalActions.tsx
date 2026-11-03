@@ -3,7 +3,7 @@ import { useEntityPromptTemplateProposal } from "@hey-hey/ui-common/data";
 import type {
   EntityPromptTemplateSelectorDto,
   ProposalResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import React, { useEffect } from "react";
 import { proposalReviewPath } from "../Proposals/proposalReviewPath";
 

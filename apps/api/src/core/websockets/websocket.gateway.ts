@@ -97,7 +97,7 @@ import {
   MonitorCommandRejectionStage,
   ServiceRepoBinding,
   WebSocketCliSettingsRequestEvent,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import type {
   EvalAttemptUpdatedEvent,
   EvalRunUpdatedEvent,

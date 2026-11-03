@@ -1,10 +1,10 @@
-import type { SessionMethod } from '../../shared/agent-bridge-contract/generated';
+import type { SessionMethod } from '@hey-hey/contracts/agent-bridge';
 import {
   LocalPromptType,
   LocalReasoningEffort,
   LocalRunProvider,
 } from '../../shared/agent-bridge-contract/contract';
-import { AgentSessionType, WorkflowName } from '../../shared/api/generated/api';
+import { AgentSessionType, WorkflowName } from '@hey-hey/contracts/api/models';
 import type {
   SessionMonitorEvaluationStore,
   SessionMonitorEvaluationContext,

@@ -1,5 +1,5 @@
-import { SessionRole } from '../generated/model/sessionRole';
-import type { WorkItemTypeRoleGuidanceDto } from '../generated/model/workItemTypeRoleGuidanceDto';
+import { SessionRole } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeRoleGuidanceDto } from '@hey-hey/contracts/api/models';
 import { ProjectAccessGuard } from '../auth/guards/project-access.guard';
 import {
   BadRequestException,
@@ -48,13 +48,13 @@ import {
   ValidateIf,
 } from 'class-validator';
 import type { Request } from 'express';
-import { WorkItemTypeLifecycleStatus } from '../generated/model/workItemTypeLifecycleStatus';
-import type { WorkItemTypeDefinitionDto } from '../generated/model/workItemTypeDefinitionDto';
-import type { WorkItemTypeCascadeImpactDto } from '../generated/model/workItemTypeCascadeImpactDto';
-import type { WorkItemTypeCascadeImpactConflictDto } from '../generated/model/workItemTypeCascadeImpactConflictDto';
-import type { WorkItemTypeArchiveRequestDto } from '../generated/model/workItemTypeArchiveRequestDto';
-import type { WorkItemTypeEditRequestDto } from '../generated/model/workItemTypeEditRequestDto';
-import type { WorkItemTypeSummaryDto } from '../generated/model/workItemTypeSummaryDto';
+import { WorkItemTypeLifecycleStatus } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeDefinitionDto } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeCascadeImpactDto } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeCascadeImpactConflictDto } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeArchiveRequestDto } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeEditRequestDto } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeSummaryDto } from '@hey-hey/contracts/api/models';
 import { OrganizationId, ProjectId } from 'src/types';
 import {
   AuthToken,
@@ -67,7 +67,7 @@ import { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import { ProposalService } from '../services/proposal/proposal.service';
 import type { TypedProposalResponse } from '../services/proposal/proposal.types';
 import { buildUserRequestorContext } from '../services/proposal/user-requestor-context';
-import { WorkItemTypeEffectiveSource } from '../generated/model/workItemTypeEffectiveSource';
+import { WorkItemTypeEffectiveSource } from '@hey-hey/contracts/api/models';
 import {
   buildWorkItemTypeArchiveProposal,
   buildWorkItemTypeCascadeDeleteProposal,
@@ -80,10 +80,10 @@ import { assertWorkItemTypeEditSupported } from '../services/proposal/work-item-
 import { WorkItemTypeImpactService } from '../services/tasks/work-item-type-impact.service';
 import { WorkItemTypeRegistryService } from '../services/tasks/work-item-type-registry.service';
 import { ProjectService } from '../services/project.service';
-import type { WorkItemTypeMaintenanceGuidanceDto } from '../generated/model/workItemTypeMaintenanceGuidanceDto';
-import type { WorkItemTypeGuidanceBatchDto } from '../generated/model/workItemTypeGuidanceBatchDto';
-import type { WorkItemTypeGuidanceBatchRequestDto as WorkItemTypeGuidanceBatchRequest } from '../generated/model/workItemTypeGuidanceBatchRequestDto';
-import { WorkItemTypeGuidancePurpose } from '../generated/model/workItemTypeGuidancePurpose';
+import type { WorkItemTypeMaintenanceGuidanceDto } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeGuidanceBatchDto } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeGuidanceBatchRequestDto as WorkItemTypeGuidanceBatchRequest } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeGuidancePurpose } from '@hey-hey/contracts/api/models';
 
 export class WorkItemTypeGuidanceQueryDto {
   @ApiProperty({ enum: WorkItemTypeGuidancePurpose })

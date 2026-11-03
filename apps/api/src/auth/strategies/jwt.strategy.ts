@@ -3,7 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { JwtKeysService } from '../services/jwt-keys.service';
-import { OrganizationRole } from '../../generated';
+import { OrganizationRole } from '@hey-hey/contracts/api/models';
 import { Request } from 'express';
 import { OrganizationId, UserId } from 'src/types';
 import { UserAccessTokenValidatorService } from '../services/user-access-token-validator.service';

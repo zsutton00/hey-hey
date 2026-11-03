@@ -11,7 +11,7 @@ import {
   createTestRunnerPicker,
   createTestSessionRunnerFacade,
 } from '../run/run.test-support';
-import type { AgentSessionCurrentState } from '../shared/api/generated/api';
+import type { AgentSessionCurrentState } from '@hey-hey/contracts/api/models';
 import { NOOP_LOGGER } from './logger';
 import { LocalSessionReadSource, type LocalSessionUpdate } from './local-session-read-source';
 import { RunLifecycleEvents } from './run-lifecycle-events';

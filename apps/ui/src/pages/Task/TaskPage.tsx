@@ -24,7 +24,7 @@ import {
   type EntityContextDtoProposalsInner,
   type PlanContextEntryDto,
   type TaskResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { unifiedApiClient } from "@hey-hey/ui-common/clients";
 import { useTaskGenerationCapsuleAction } from "@hey-hey/ui-common/components";
 import {

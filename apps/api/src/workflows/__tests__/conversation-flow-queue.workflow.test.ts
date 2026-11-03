@@ -18,7 +18,7 @@ import {
   QuestionsSystemMessageData,
   SystemMessageData,
   SystemMessageResponseType,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import * as TestUtils from '../../utils/testUtils';
 
 const { testIds } = TestUtils;

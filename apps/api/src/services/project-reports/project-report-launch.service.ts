@@ -19,7 +19,7 @@ import {
   type RunCreatePayloadProjectReport,
   type RunCreatePayloadReleaseNotes,
   WorkflowName,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { MachinePresenceService } from 'src/core/websockets/machine-presence.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AgentSessionService } from '../agent-session.service';

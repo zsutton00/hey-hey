@@ -4,7 +4,7 @@ import {
   MultipleChoiceAction,
   MultipleChoicePayload,
   UIElement,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   FlowUserMessage,
   NodeResult,

@@ -9,8 +9,8 @@ import type {
   GetAgentSessionError,
   GetAgentSessionRequest,
   GetAgentSessionResponse,
-} from '../../generated';
-import { GetAgentSessionErrorCode } from '../../generated';
+} from '@hey-hey/contracts/api/models';
+import { GetAgentSessionErrorCode } from '@hey-hey/contracts/api/models';
 import { AgentSessionService } from '../../services/agent-session.service';
 import {
   AgentSessionHistoryCursorError,

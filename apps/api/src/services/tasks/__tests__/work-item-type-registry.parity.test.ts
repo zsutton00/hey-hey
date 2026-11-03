@@ -4,14 +4,14 @@ import {
 } from 'src/services/tasks/work-item-type-keys';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { EntityType } from '../../../generated/model/entityType';
-import { ReportType } from '../../../generated/model/reportType';
-import { TaskSectionKey } from '../../../generated/model/taskSectionKey';
+import { EntityType } from '@hey-hey/contracts/api/models';
+import { ReportType } from '@hey-hey/contracts/api/models';
+import { TaskSectionKey } from '@hey-hey/contracts/api/models';
 
-import { WorkStatus } from '../../../generated/model/workStatus';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { AGENT_EDGE_TYPES } from '../../../mcp/tools/agent-edge-vocabulary';
 import { deriveRules } from '../work-item-type-registry.service';
-import type { WorkItemTypeDefinitionDto } from '../../../generated/model/workItemTypeDefinitionDto';
+import type { WorkItemTypeDefinitionDto } from '@hey-hey/contracts/api/models';
 
 /**
  * Parity guard: the seeded work_item_type system rows must stay field-equal

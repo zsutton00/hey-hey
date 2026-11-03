@@ -2,12 +2,10 @@
  * Auto-generated from specs/agent-bridge/openapi.yaml.
  * Do not edit manually; regenerate from the OpenAPI source.
  */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-
 import type {
   HostActionPreparation,
   ControllerActionInputs,
-} from './model/models';
+} from '@hey-hey/contracts/api/models';
 export type ControllerActionRuntimeSchemaTypes = {
   HostActionPreparation: HostActionPreparation;
   ControllerActionInputs: ControllerActionInputs;
@@ -9578,7 +9576,7 @@ import type {
   ControllerStartInputs,
   ControllerMessageInputs,
   UserMessageData,
-} from './model/models';
+} from '@hey-hey/contracts/api/models';
 /** Build the delivered start payload before approval. Keep this mapping shared
  * with the API producer, so newly introduced execution inputs have one owner. */
 export function startControllerInputs(

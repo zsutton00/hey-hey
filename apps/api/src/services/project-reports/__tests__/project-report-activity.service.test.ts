@@ -6,7 +6,7 @@ import {
   EntityType,
   type ActivityCorrelationRecordDto,
   type ProjectReportScope,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId, UserId } from 'src/types';
 import { ActivityQueryService } from 'src/services/activity-correlation/activity-query.service';
 import type { ActivityCorrelationRecordDraft } from 'src/services/activity-correlation/activity-correlation.types';

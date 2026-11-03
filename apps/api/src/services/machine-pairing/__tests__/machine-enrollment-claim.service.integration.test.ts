@@ -8,7 +8,7 @@ import {
   MachineEnrollmentClaimFailedException,
   MachineEnrollmentClaimRateLimitException,
 } from '../../../common/exceptions/pairing.exceptions';
-import { CompleteMachineEnrollmentClaimRequestDto } from '../../../generated';
+import { CompleteMachineEnrollmentClaimRequestDto } from '@hey-hey/contracts/api/models';
 import {
   MACHINE_ENROLLMENT_ACCOUNT_FAILURE_LIMIT,
   MachineEnrollmentClaimService,

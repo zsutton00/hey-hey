@@ -11,8 +11,8 @@ import {
   Stack,
 } from "@mui/material";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import { TopologySubfacetStatus } from "@hey-hey/ui-common/api";
-import type { TopologySubfacetDto } from "@hey-hey/ui-common/api";
+import { TopologySubfacetStatus } from "@hey-hey/contracts/api";
+import type { TopologySubfacetDto } from "@hey-hey/contracts/api";
 
 export interface SubfacetListProps {
   subfacets: TopologySubfacetDto[];

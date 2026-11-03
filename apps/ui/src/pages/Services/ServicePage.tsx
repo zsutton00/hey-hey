@@ -19,7 +19,7 @@ import { dataClient } from "@hey-hey/ui-common/clients";
 import {
   type CreateService201Response,
   type UpdateServiceDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import EditIcon from "@mui/icons-material/Edit";
 import {

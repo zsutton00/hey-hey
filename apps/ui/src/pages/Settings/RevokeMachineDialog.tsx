@@ -1,5 +1,5 @@
 import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
-import type { MachineDto } from "@hey-hey/ui-common/api";
+import type { MachineDto } from "@hey-hey/contracts/api";
 import {
   Button,
   CircularProgress,

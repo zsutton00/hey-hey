@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { CanonicalJsonValue } from '../../shared/canonical-json';
-import { EntityType, RelationshipValue } from '../../shared/api/generated/api';
+import { EntityType, RelationshipValue } from '@hey-hey/contracts/api/models';
 
 // JSON is narrowed at the HTTP boundary; each list member is then validated independently.
 const jsonSchema: z.ZodType<CanonicalJsonValue> = z.lazy(() =>

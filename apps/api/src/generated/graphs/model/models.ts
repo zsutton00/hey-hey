@@ -149,4 +149,7 @@ export * from './updateNodeRequest';
 export * from './validationSessionStatus';
 export * from './validationSessionTraversalNode';
 export * from './validationSessionTraversalNodeProperties';
+export * from './workItemProjectReadinessExpectation';
+export * from './workItemProjectReadinessRequest';
+export * from './workItemProjectReadinessResponse';
 export * from './workStatus';

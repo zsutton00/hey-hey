@@ -1,7 +1,7 @@
 import {
   WorkStatus,
   type WorkItemTypeDefinitionDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   useFeatureHierarchy,
   useFeatureDocumentContent,
@@ -28,7 +28,7 @@ const renderQuery = (typeKey: string) =>
       definition={{ key: typeKey } as WorkItemTypeDefinitionDto}
       enabled
       onStateChange={vi.fn()}
-    />
+    />,
   );
 
 describe("ExplorerWorkItemQuery", () => {
@@ -65,7 +65,7 @@ describe("ExplorerWorkItemQuery", () => {
         includeTrackedEntities: false,
         status: WorkStatus.Active,
         taskType: WORK_ITEM_TYPE_KEYS.Goal,
-      })
+      }),
     );
   });
 
@@ -74,14 +74,14 @@ describe("ExplorerWorkItemQuery", () => {
     expect(useWorkItemsMock).not.toHaveBeenCalled();
     expect(useFeatureHierarchy).toHaveBeenCalledWith(
       "organization-1",
-      "project-1"
+      "project-1",
     );
     expect(useFeatureDocumentContent).toHaveBeenCalledWith(
       "organization-1",
       "project-1",
       [],
       undefined,
-      "metadata"
+      "metadata",
     );
   });
 
@@ -96,7 +96,7 @@ describe("ExplorerWorkItemQuery", () => {
       expect.objectContaining({
         status: [WorkStatus.Active, WorkStatus.Ready, WorkStatus.Backlog],
         taskType: "PLAN",
-      })
+      }),
     );
   });
 
@@ -108,7 +108,7 @@ describe("ExplorerWorkItemQuery", () => {
       expect.objectContaining({
         parentTaskId: null,
         taskType: "CUSTOM_DELIVERABLE",
-      })
+      }),
     );
     expect(options).not.toHaveProperty("status");
     expect(options).not.toHaveProperty("includeTrackedEntities");

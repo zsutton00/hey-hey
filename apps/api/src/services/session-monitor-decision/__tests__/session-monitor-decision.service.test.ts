@@ -10,7 +10,7 @@ import {
   SessionMonitorDecisionDeferral,
   SessionMonitorDecisionResponse,
   SubmitSessionMonitorDecisionRequestDto,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import type {
   AgentSessionId,

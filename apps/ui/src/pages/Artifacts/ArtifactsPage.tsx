@@ -21,7 +21,7 @@ import type {
   ArtifactResponseDto,
   ArtifactStatus,
   ArtifactType,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { Artifact } from "../../components/Artifact";
 
 export const ArtifactsPage: React.FC = () => {

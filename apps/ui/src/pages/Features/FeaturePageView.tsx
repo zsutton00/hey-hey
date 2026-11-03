@@ -39,7 +39,7 @@ import {
   type ProjectResponseDto,
   type TaskResponseDto,
   type WorkItemTypeDefinitionDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   CapsuleAction,
   Card,

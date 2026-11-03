@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { RedisService } from '../redis/redis.service';
-import { ServiceRepoBinding } from '../../generated';
+import { ServiceRepoBinding } from '@hey-hey/contracts/api/models';
 import { MachineId, UserId } from '../../types';
 
 @Injectable()

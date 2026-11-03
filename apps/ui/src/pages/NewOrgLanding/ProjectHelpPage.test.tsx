@@ -13,7 +13,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ProjectConfigVersionEnum,
   ProjectExistingWorkIntent,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { buildHelpDemoMap } from "../Project/help/helpDemoMap";
 import { ProjectHelpPage } from "./ProjectHelpPage";
 import { isProjectGuideOpened } from "../Project/help/projectGuideOpenedStorage";

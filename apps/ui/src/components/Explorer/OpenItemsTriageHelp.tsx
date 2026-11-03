@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Box, Button, Stack, TextField, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
-import { OpenItemsTriageMode } from "@hey-hey/ui-common/api";
+import { OpenItemsTriageMode } from "@hey-hey/contracts/api";
 
 export const TRIAGE_HELP_DESCRIPTION_ID = "open-items-triage-help-description";
 

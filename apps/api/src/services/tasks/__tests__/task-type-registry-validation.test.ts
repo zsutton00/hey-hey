@@ -31,7 +31,7 @@ import { BadRequestException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { PrismaService } from '../../../prisma/prisma.service';
 
-import { WorkStatus } from '../../../generated/model/workStatus';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { TaskService } from '../task.service';
 import { WorkItemTypeRegistryService } from '../work-item-type-registry.service';
 import { WorkItemParentageValidator } from '../work-item-parentage-validator.service';
@@ -48,7 +48,7 @@ import { TaskArtifactService } from '../task-artifact.service';
 import { RedisService } from '../../../core/redis/redis.service';
 import { createRedisServiceMock } from '../../../../test/mocks/redis-service.mock';
 import { GraphsClientService } from '../../graphs-client.service';
-import type { CreateProposalDto } from '../../../generated';
+import type { CreateProposalDto } from '@hey-hey/contracts/api/models';
 
 const { testIds } = TestUtils;
 

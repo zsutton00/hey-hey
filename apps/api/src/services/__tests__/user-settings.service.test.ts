@@ -1,5 +1,5 @@
 import { HttpException } from '@nestjs/common';
-import { AgentSessionType } from '../../generated';
+import { AgentSessionType } from '@hey-hey/contracts/api/models';
 import { UserSettingsService } from '../user-settings.service';
 import { OrganizationId, ProjectId, UserId } from '../../types';
 

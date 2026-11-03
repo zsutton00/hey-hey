@@ -4,13 +4,13 @@ import {
   PhaseBreakdownStepType,
   PlanShapingApprovedVisualEntityTypeEnum,
   type PlanShapingApprovedVisual,
-} from 'src/generated/local';
+} from '@hey-hey/contracts/agent-bridge/models';
 import {
   ExtendedUIFieldType,
   PlanGenerationFinalizePayload,
   SecondaryActionConfig,
   SecondaryActionHandler,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ExternalAgentValidationError,
   FlowUserMessage,
@@ -45,7 +45,7 @@ import {
   planShapingProposedStagesActions,
   planShapingStepReviewActions,
 } from '../schemas';
-import type { JourneyStep } from 'src/generated/local';
+import type { JourneyStep } from '@hey-hey/contracts/agent-bridge/models';
 import type { Client } from '@temporalio/client';
 import type {
   PlanFromDesignDocSeed,

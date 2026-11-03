@@ -11,7 +11,7 @@ import {
   DebugEventReplayResponseDto,
   DebugEventReplayResultDto,
   DebugEventReplayMode,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { DomainEventPublisher } from '../../core/events/domain-event-publisher';
 import { PrismaService } from '../../prisma/prisma.service';
 import {

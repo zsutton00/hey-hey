@@ -5,11 +5,11 @@
  * These functions are pure and can be easily unit tested.
  */
 
-import { MessageStatus, MessageType } from "@hey-hey/ui-common/api";
+import { MessageStatus, MessageType } from "@hey-hey/contracts/api";
 import type {
   ConversationResponseDto,
   CreateUserMessage,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import type {
   VersionedConversationResponseDto,
   VersionedCreateUserMessage,

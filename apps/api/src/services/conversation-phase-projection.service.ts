@@ -4,7 +4,7 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
-import { ConversationPhase } from 'src/generated/model/conversationPhase';
+import { ConversationPhase } from '@hey-hey/contracts/api/models';
 import { RedisService } from 'src/core/redis/redis.service';
 
 export interface ConversationPhaseObservationContext {
@@ -174,7 +174,9 @@ return cjson.encode({ outcome = 'transition', entry = entry })
 `;
 
 @Injectable()
-export class ConversationPhaseProjection implements OnModuleInit, OnModuleDestroy {
+export class ConversationPhaseProjection
+  implements OnModuleInit, OnModuleDestroy
+{
   static readonly KEY_PREFIX = 'heyhey:conversation:phase:v1';
   static readonly LEASE_INDEX_KEY = `${ConversationPhaseProjection.KEY_PREFIX}:lease-expiry-index`;
   static readonly LEASE_TTL_MS = 25_000;
@@ -183,7 +185,9 @@ export class ConversationPhaseProjection implements OnModuleInit, OnModuleDestro
   static readonly SWEEP_BATCH_SIZE = 100;
 
   private readonly logger = new Logger(ConversationPhaseProjection.name);
-  private transitionSink?: (transition: ConversationPhaseTransition) => Promise<void> | void;
+  private transitionSink?: (
+    transition: ConversationPhaseTransition,
+  ) => Promise<void> | void;
   private sweepTimer?: ReturnType<typeof setInterval>;
 
   constructor(private readonly redisService: RedisService) {}
@@ -208,9 +212,15 @@ export class ConversationPhaseProjection implements OnModuleInit, OnModuleDestro
     this.transitionSink = sink;
   }
 
-  async read(conversationId: string): Promise<ConversationPhaseProjectionEntry | null> {
-    const raw = await this.redisService.getClient().get(this.key(conversationId));
-    return raw === null ? null : (JSON.parse(raw) as ConversationPhaseProjectionEntry);
+  async read(
+    conversationId: string,
+  ): Promise<ConversationPhaseProjectionEntry | null> {
+    const raw = await this.redisService
+      .getClient()
+      .get(this.key(conversationId));
+    return raw === null
+      ? null
+      : (JSON.parse(raw) as ConversationPhaseProjectionEntry);
   }
 
   async observe(
@@ -228,7 +238,10 @@ export class ConversationPhaseProjection implements OnModuleInit, OnModuleDestro
     );
     const result = await this.eval<ConversationPhaseProjectionResult>(
       OBSERVE_SCRIPT,
-      [this.key(context.conversationId), ConversationPhaseProjection.LEASE_INDEX_KEY],
+      [
+        this.key(context.conversationId),
+        ConversationPhaseProjection.LEASE_INDEX_KEY,
+      ],
       [
         phase,
         observedAt,
@@ -246,7 +259,10 @@ export class ConversationPhaseProjection implements OnModuleInit, OnModuleDestro
       ],
     );
     if (result.outcome === 'transition' && result.entry) {
-      await this.publishTransition({ entry: result.entry, reason: 'observation' });
+      await this.publishTransition({
+        entry: result.entry,
+        reason: 'observation',
+      });
     }
     return result;
   }
@@ -255,7 +271,9 @@ export class ConversationPhaseProjection implements OnModuleInit, OnModuleDestro
     context: Pick<ConversationPhaseObservationContext, 'connectionId'>,
   ): Promise<number> {
     const redis = this.redisService.getClient();
-    const keys = await redis.keys(`${ConversationPhaseProjection.KEY_PREFIX}:*`);
+    const keys = await redis.keys(
+      `${ConversationPhaseProjection.KEY_PREFIX}:*`,
+    );
     let transitioned = 0;
     for (const key of keys) {
       if (key === ConversationPhaseProjection.LEASE_INDEX_KEY) continue;
@@ -271,7 +289,10 @@ export class ConversationPhaseProjection implements OnModuleInit, OnModuleDestro
       );
       if (result.outcome === 'transition' && result.entry) {
         transitioned += 1;
-        await this.publishTransition({ entry: result.entry, reason: 'disconnect' });
+        await this.publishTransition({
+          entry: result.entry,
+          reason: 'disconnect',
+        });
       }
     }
     return transitioned;
@@ -281,7 +302,10 @@ export class ConversationPhaseProjection implements OnModuleInit, OnModuleDestro
     const conversationIds = await this.eval<string[]>(
       CLAIM_DUE_SCRIPT,
       [ConversationPhaseProjection.LEASE_INDEX_KEY],
-      [String(now.getTime()), String(ConversationPhaseProjection.SWEEP_BATCH_SIZE)],
+      [
+        String(now.getTime()),
+        String(ConversationPhaseProjection.SWEEP_BATCH_SIZE),
+      ],
     );
     let transitioned = 0;
     for (const conversationId of conversationIds) {
@@ -292,7 +316,10 @@ export class ConversationPhaseProjection implements OnModuleInit, OnModuleDestro
       );
       if (result.outcome === 'transition' && result.entry) {
         transitioned += 1;
-        await this.publishTransition({ entry: result.entry, reason: 'lease_expiry' });
+        await this.publishTransition({
+          entry: result.entry,
+          reason: 'lease_expiry',
+        });
       }
     }
     return transitioned;
@@ -302,7 +329,9 @@ export class ConversationPhaseProjection implements OnModuleInit, OnModuleDestro
     return `${ConversationPhaseProjection.KEY_PREFIX}:${conversationId}`;
   }
 
-  private async publishTransition(transition: ConversationPhaseTransition): Promise<void> {
+  private async publishTransition(
+    transition: ConversationPhaseTransition,
+  ): Promise<void> {
     if (!this.transitionSink) {
       this.logger.warn('[conversation-phase] transition has no fan-out sink', {
         conversationId: transition.entry.conversationId,
@@ -314,8 +343,14 @@ export class ConversationPhaseProjection implements OnModuleInit, OnModuleDestro
     await this.transitionSink(transition);
   }
 
-  private async eval<T>(script: string, keys: string[], args: string[]): Promise<T> {
-    const raw = await this.redisService.getClient().eval(script, keys.length, ...keys, ...args);
+  private async eval<T>(
+    script: string,
+    keys: string[],
+    args: string[],
+  ): Promise<T> {
+    const raw = await this.redisService
+      .getClient()
+      .eval(script, keys.length, ...keys, ...args);
     return JSON.parse(String(raw)) as T;
   }
 }

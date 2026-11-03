@@ -1,4 +1,4 @@
-import { AgentSessionType, type AgentSessionDto } from "@hey-hey/ui-common/api";
+import { AgentSessionType, type AgentSessionDto } from "@hey-hey/contracts/api";
 import { describe, expect, it } from "vitest";
 import { buildAgentSessionLabel } from "./agentic/agentSessionLabel";
 import { buildAgentSessionPresentation } from "./agentSessionPresentation";

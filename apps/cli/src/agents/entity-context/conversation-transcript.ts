@@ -2,7 +2,7 @@ import type {
   MessageResponseDto,
   SystemMessageData,
   UserMessageData,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { AgentSessionTranscriptEntry } from './types';
 
 const compareCanonicalMessageOrder = (

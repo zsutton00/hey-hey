@@ -10,7 +10,7 @@ import {
   Influence,
   Priority,
   InsightData,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   OrganizationId,
   InitiativeId,

@@ -55,9 +55,9 @@ import type {
   LocalWorktreeStateByService,
   ResolvedServiceBinding,
 } from '../shared/agent-bridge-contract/contract';
-import type { ImplementationReadinessDisposition } from '../shared/api/generated/api';
+import type { ImplementationReadinessDisposition } from '@hey-hey/contracts/api/models';
 import { parseImplementationReadinessFromSessionContext } from '../agents/implementation-readiness/session-context';
-import type { LocalTokenUsage } from '../shared/agent-bridge-contract/generated/api';
+import type { LocalTokenUsage } from '@hey-hey/contracts/agent-bridge';
 import {
   parsePersistedFileChangeFacts,
   projectFileChanges,
@@ -1442,7 +1442,7 @@ export class RunStore {
   /** Saves the complete runtime a trigger selected; later Turns without one use it. */
   public updateRunRuntime(
     runId: string,
-    runtime: import('../shared/api/generated/api').ImplementRuntimeSelection,
+    runtime: import('@hey-hey/contracts/api').ImplementRuntimeSelection,
   ): Promise<AgenticSession> {
     return this.withMetadataLock(runId, async () => {
       const run = await readRunMetadata(this.runFamilies, runId);

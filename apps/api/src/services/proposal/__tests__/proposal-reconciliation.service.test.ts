@@ -1,7 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 import { ProposalReconciliationService } from '../proposal-reconciliation.service';
-import type { ProposalReconciliationBasis } from 'src/generated';
+import type { ProposalReconciliationBasis } from '@hey-hey/contracts/api/models';
 
 const basis = (
   content: ProposalReconciliationBasis['content'],

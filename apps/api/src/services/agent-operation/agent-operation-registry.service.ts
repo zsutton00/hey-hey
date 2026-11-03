@@ -14,7 +14,7 @@ import {
   AgentOperationKind,
   AgentOperationSnapshot,
   AgentOperationState,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AnyTransactionClient } from '../../prisma/prisma.service';
 import { failProjectReportStartRunInTransaction } from '../project-reports/project-report-attempt-transitions';

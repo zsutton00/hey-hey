@@ -2,7 +2,7 @@ import { Typography } from "@mui/material";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { EvalTargetHandlerKey } from "@hey-hey/ui-common/api";
+import { EvalTargetHandlerKey } from "@hey-hey/contracts/api";
 import type { EvalAttemptReport } from "@hey-hey/ui-common/data";
 
 /**

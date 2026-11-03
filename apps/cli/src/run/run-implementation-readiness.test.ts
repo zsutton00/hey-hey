@@ -5,8 +5,8 @@ import {
   createReadinessSourceSnapshotFromStartupInput,
   type ReadinessSourceSnapshotFromStartupInput,
 } from '../agents/implementation-readiness/source-snapshot';
-import type { ImplementationReadinessDisposition } from '../shared/api/generated/api';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated/api';
+import type { ImplementationReadinessDisposition } from '@hey-hey/contracts/api/models';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { InternalRunPromptRequest } from '../shared/agent-bridge-contract/contract';
 import type { AgenticSession } from '../session/types';
 import type { RunStore } from '../run-store/run-store';

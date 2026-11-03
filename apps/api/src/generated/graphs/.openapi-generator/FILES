@@ -166,6 +166,9 @@ model/updateNodeRequest.ts
 model/validationSessionStatus.ts
 model/validationSessionTraversalNode.ts
 model/validationSessionTraversalNodeProperties.ts
+model/workItemProjectReadinessExpectation.ts
+model/workItemProjectReadinessRequest.ts
+model/workItemProjectReadinessResponse.ts
 model/workStatus.ts
 package.json
 tsconfig.build.json

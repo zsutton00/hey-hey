@@ -1,7 +1,4 @@
-import {
-  BrainstormStatus,
-  DesignDocTemplate,
-} from "@hey-hey/ui-common/api";
+import { BrainstormStatus, DesignDocTemplate } from "@hey-hey/contracts/api";
 import { describe, expect, it } from "vitest";
 import { isDesignDocRefining } from "./statusUtils";
 

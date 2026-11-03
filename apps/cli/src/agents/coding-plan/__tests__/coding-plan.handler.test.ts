@@ -4,7 +4,7 @@ import {
   LocalPromptType,
   type LocalPromptStartupInput,
   type LocalStartupSessionPromptPayload,
-} from '../../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import { PromptTypeRegistry } from '../../prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../../prompt-type-registry.test-support';
 import type { PromptTypeHandlerContext, PromptTypeHandlerDeps } from '../../prompt-type-handler';
@@ -586,7 +586,10 @@ describe('codingPlanHandler', () => {
       expect(prompt).not.toContain('emit_coding_plan_discrepancy');
       expect(prompt).toContain("emit_coding_plan's discrepancies list");
       expect(prompt).toContain('It contains no gates of any kind');
-      expect(prompt).toContain('Every replacement re-lists the discrepancies that still apply');
+      expect(prompt).toContain('Every replacement re-lists every finding that still applies');
+      expect(prompt).toContain('project_context');
+      expect(prompt).toContain('ask the user for direction');
+      expect(prompt).toContain('their assent does not erase it');
       expect(prompt).toContain(
         'Only the explicit Approve control on the current complete emitted plan authorizes implementation',
       );

@@ -23,7 +23,7 @@ import {
   toRunPromptRequest,
   validateConversationTrigger,
 } from '../server/trigger-verification/dispatch';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { ChildAgentLauncher } from './child-agent-launcher';
 import { MessagePoster } from './message-poster';
 import { Run, type RunCollaborators } from './run';

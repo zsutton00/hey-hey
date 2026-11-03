@@ -1,7 +1,7 @@
 import React from "react";
 import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { TargetEntityType } from "@hey-hey/ui-common/api";
+import { TargetEntityType } from "@hey-hey/contracts/api";
 
 const discussCapsuleActionMock = vi.fn();
 

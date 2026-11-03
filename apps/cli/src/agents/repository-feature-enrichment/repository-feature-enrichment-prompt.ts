@@ -1,4 +1,4 @@
-import type { RepositoryFeatureEnrichmentRequest } from '../../shared/agent-bridge-contract/generated/api';
+import type { RepositoryFeatureEnrichmentRequest } from '@hey-hey/contracts/agent-bridge';
 
 export function buildRepositoryFeatureEnrichmentPrompt(
   input: RepositoryFeatureEnrichmentRequest,

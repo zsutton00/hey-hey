@@ -2,7 +2,7 @@ import { planShapingFeatureSyncAnalyzeHandler } from '../plan-shaping-feature-sy
 import { planShapingFeatureSyncIterateHandler } from '../plan-shaping-feature-sync/iterate.handler';
 import { planShapingFeatureSyncDiscussHandler } from '../plan-shaping-feature-sync/discuss.handler';
 import { describe, expect, it } from 'vitest';
-import { PlanShapingValidationMode } from '../../shared/agent-bridge-contract/generated/api';
+import { PlanShapingValidationMode } from '@hey-hey/contracts/agent-bridge';
 import {
   CODING_MCP_TOOLS,
   resolveMcpToolNames,
@@ -170,7 +170,9 @@ describe('future-revision defaults by delivering work', () => {
     expect(freeTask).toContain('Draft a future revision instead only when the user asks for one.');
     for (const prompt of taskFeatureSync) {
       expect(prompt).toContain('in a live edit, unless the user asks for a future revision.');
-      expect(prompt).toContain('in a live edit, unless the user asks for a future revision, and include');
+      expect(prompt).toContain(
+        'in a live edit, unless the user asks for a future revision, and include',
+      );
       expect(prompt).not.toContain('drafted as a future revision that depends on the active task');
       expect(prompt).not.toContain(futureRevisionTimingQuestion);
     }

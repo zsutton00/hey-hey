@@ -3,7 +3,7 @@ import type {
   ActivityActorScopeDto,
   ProjectMetricDto,
   ProjectMetricsResponseDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { OrganizationId, ProjectId, UserId } from 'src/types';
 import { AcceptedEvidenceSelectorService } from './accepted-evidence-selector.service';
 import {
@@ -48,19 +48,17 @@ export class ProjectMetricsService {
             (metric) => !metric.startsWith('PROJECT_INFO_'),
           )
         : PROJECT_METRIC_IDENTITIES;
-    const metrics: ProjectMetricDto[] = identities.map(
-      (metric) => ({
+    const metrics: ProjectMetricDto[] = identities.map((metric) => ({
+      metric,
+      value: counts.get(metric) ?? 0,
+      activityContinuation: {
         metric,
-        value: counts.get(metric) ?? 0,
-        activityContinuation: {
-          metric,
-          projectIds: [...effectiveProjectIds],
-          windowStart,
-          windowEnd,
-          actorScope,
-        },
-      }),
-    );
+        projectIds: [...effectiveProjectIds],
+        windowStart,
+        windowEnd,
+        actorScope,
+      },
+    }));
 
     this.logger.debug('[project-metrics] assembled response', {
       effectiveProjectCount: effectiveProjectIds.length,

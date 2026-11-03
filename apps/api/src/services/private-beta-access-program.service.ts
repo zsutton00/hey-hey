@@ -4,7 +4,7 @@ import type {
   PrivateBetaSelfServiceAdmissionMode,
   PrivateBetaSelfServiceAdmissionModeDto,
   PrivateBetaSelfServiceAdmissionModeUpdateResultDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   type AnyTransactionClient,
   PrismaService,

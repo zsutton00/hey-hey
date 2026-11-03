@@ -24,7 +24,7 @@ import path from 'node:path';
 import { NOOP_LOGGER, type ServerLogger } from '../../server/logger';
 
 import { ReportAudience, ReportRelatedEntityType, ReportType } from '../../shared/api/index';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import {
   isCreateReportPersistedFailure,
   type CreateReportProxy,

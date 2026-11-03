@@ -7,7 +7,7 @@ import type {
   AgentSessionContextSizeObservation,
   AgentSessionCurrentStateObservation,
   ConversationPhaseObservation,
-} from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { ServerLogger } from './logger';
 
 export interface RunEventPublisherDependencies {

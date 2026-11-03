@@ -5,7 +5,7 @@ import {
   NodeResult,
   NodeType,
 } from '../../../types/flow-internal.types';
-import { SecondaryActionHandler } from '../../../generated';
+import { SecondaryActionHandler } from '@hey-hey/contracts/api/models';
 import { TASK_GENERATION_NODES } from '../../constants/node-ids';
 import { OpenerNodeBase } from '../base/';
 

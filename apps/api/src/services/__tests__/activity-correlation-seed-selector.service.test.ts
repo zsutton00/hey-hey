@@ -3,7 +3,7 @@ import {
   EntityType,
   RecentActivityCorrelationMode,
   RecentActivityCorrelationSort,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { createMockPrismaService } from 'src/utils/testUtils';
 import { ActivitySleepService } from '../activity-correlation/activity-sleep.service';
 import { ActivityCorrelationSeedSelectorService } from '../activity-correlation/activity-correlation-seed-selector.service';

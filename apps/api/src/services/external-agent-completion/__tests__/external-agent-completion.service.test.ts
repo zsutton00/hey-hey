@@ -1,4 +1,4 @@
-import { MachineEffectHttpMethod } from '../../../generated';
+import { MachineEffectHttpMethod } from '@hey-hey/contracts/api/models';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import type {
   AgentSessionId,
@@ -204,8 +204,12 @@ describe(ExternalAgentCompletionService.name, () => {
     });
 
     await expect(submit()).resolves.toEqual(first);
-    expect(flowExecutionService.findActiveByConversation).not.toHaveBeenCalled();
-    expect(pendingTriggerService.resolvePendingTriggerForNode).not.toHaveBeenCalled();
+    expect(
+      flowExecutionService.findActiveByConversation,
+    ).not.toHaveBeenCalled();
+    expect(
+      pendingTriggerService.resolvePendingTriggerForNode,
+    ).not.toHaveBeenCalled();
     expect(messageService.addMessage).not.toHaveBeenCalled();
   });
 });

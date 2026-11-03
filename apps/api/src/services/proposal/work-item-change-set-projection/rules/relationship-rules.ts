@@ -1,4 +1,4 @@
-import type { FeatureRequirementsSection } from 'src/generated';
+import type { FeatureRequirementsSection } from '@hey-hey/contracts/api/models';
 import { FeatureRequirementAuthoringService } from '../../../tasks/feature-requirement-authoring.service';
 import { validateFeatureRequirementsSection } from '../../../tasks/feature-requirements-section.validator';
 import type { Load, ProjectionRule, RuleContext } from '../projection-rule';

@@ -1,6 +1,6 @@
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
-import { repositoryFeatureEnrichmentRuntimeSchema } from './generated/repository-feature-enrichment-runtime-schema';
+import { repositoryFeatureEnrichmentRuntimeSchema } from '@hey-hey/contracts/agent-bridge/runtime-schema';
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 addFormats(ajv);

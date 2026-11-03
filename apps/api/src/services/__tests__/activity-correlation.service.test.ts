@@ -9,7 +9,7 @@ import {
   EntityType,
   RecentActivityCorrelationMode,
   RecentActivityCorrelationSort,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { ActivityCorrelationSeedSelectorService } from '../activity-correlation/activity-correlation-seed-selector.service';
 import { ActivityCorrelationTraversalService } from '../activity-correlation/activity-correlation-traversal.service';
 import { ActivityCorrelationRecordAssemblerService } from '../activity-correlation/activity-correlation-record-assembler.service';

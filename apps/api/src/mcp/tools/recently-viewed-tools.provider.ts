@@ -11,7 +11,7 @@ import {
   EntityContextService,
   type FullEntityContextDto,
 } from '../../services/entity-context/entity-context.service';
-import { EntityType as EntityTypeEnum } from '../../generated/model/entityType';
+import { EntityType as EntityTypeEnum } from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId } from '../../types';
 import {
   extractAuthContext,

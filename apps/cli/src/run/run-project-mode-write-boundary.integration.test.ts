@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { SubmissionToolsHttpController } from '../agents/submission-tools/http-mcp';
-import { WorkItemTypesApi } from '../shared/api/generated/api';
+import { WorkItemTypesApi } from '@hey-hey/contracts/api';
 import { readActiveWorkItemTypeDefinitions } from '../agents/prompts/work-item-type-registry';
 import { reportChangedFilesTool } from '../agents/submission-tools/report-changed-files-tool';
 import { execFileSync } from 'node:child_process';
@@ -25,7 +25,7 @@ import type { AgentRunResult, RunPromptArgs } from '../agents/providers/session-
 import type { RunWorkspaceWriteBoundary } from '../agents/workspace-write-boundary';
 import { RunStore } from '../run-store/run-store';
 import { LocalAgentEndpoint } from '../server/local-base-url';
-import { LocalPromptType, SessionRole } from '../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType, SessionRole } from '@hey-hey/contracts/agent-bridge';
 import type { InternalRunPromptRequest } from '../shared/agent-bridge-contract/contract';
 import { Run, type RunCollaborators } from './run';
 import { RunnerPicker } from './runners/pick-runner';

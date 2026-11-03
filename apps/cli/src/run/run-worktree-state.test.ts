@@ -88,7 +88,7 @@ vi.mock('./resolve-prompt', () => ({
       const inputPayload = args.input.payload as
         | {
             userMessage?: string;
-            approvedVersion?: import('../shared/api/generated/api').CodingPlanVersion;
+            approvedVersion?: import('@hey-hey/contracts/api').CodingPlanVersion;
           }
         | undefined;
       if (args.input.promptType === 'implement') {

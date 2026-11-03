@@ -2,12 +2,12 @@ import type {
   MachineEnrollmentWebAuthnAttestationResponseDtoTransportsEnum,
   MachineEnrollmentWebAuthnRegistrationCredentialDto,
   MachineEnrollmentWebAuthnRegistrationOptionsDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   MachineEnrollmentWebAuthnAttestationResponseDtoTransportsEnum as Transport,
   MachineEnrollmentWebAuthnRegistrationCredentialDtoAuthenticatorAttachmentEnum as Attachment,
   MachineEnrollmentWebAuthnRegistrationCredentialDtoTypeEnum as CredentialType,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 
 export class WebAuthnUnsupportedError extends Error {
   constructor() {
@@ -108,7 +108,8 @@ const isTransport = (
 
 export const createMachineEnrollmentCredential = async (
   options: MachineEnrollmentWebAuthnRegistrationOptionsDto,
-  credentials: WebAuthnCredentialsContainer | undefined = getBrowserCredentials(),
+  credentials:
+    WebAuthnCredentialsContainer | undefined = getBrowserCredentials(),
 ): Promise<MachineEnrollmentWebAuthnRegistrationCredentialDto> => {
   if (!credentials) {
     throw new WebAuthnUnsupportedError();
@@ -155,9 +156,7 @@ export const createMachineEnrollmentCredential = async (
     type: CredentialType.PublicKey,
     response: {
       clientDataJSON: encodeBase64Url(credential.response.clientDataJSON),
-      attestationObject: encodeBase64Url(
-        credential.response.attestationObject,
-      ),
+      attestationObject: encodeBase64Url(credential.response.attestationObject),
       transports: reportedTransports.filter(isTransport),
     },
     authenticatorAttachment: toAttachment(credential.authenticatorAttachment),

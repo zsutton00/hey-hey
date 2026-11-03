@@ -1,5 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
-import { LocalPromptType } from '../../generated/local';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
 import { WorkflowController } from '../workflow.controller';
 import type {
   ConversationId,
@@ -7,7 +7,10 @@ import type {
   ProjectId,
   WorkflowId,
 } from '../../types';
-import { PromptTypeResponseDto, WorkflowName } from '../../generated';
+import {
+  PromptTypeResponseDto,
+  WorkflowName,
+} from '@hey-hey/contracts/api/models';
 
 const WorkflowState = PromptTypeResponseDto.WorkflowStateEnum;
 

@@ -6,7 +6,7 @@ import {
   AttentionEvent,
   AttentionEventEntity,
   OrganizationRole,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { AuthenticatedUser } from 'src/auth/strategies/jwt.strategy';
 import { AgentSessionService } from 'src/services/agent-session.service';
 import { ConversationService } from 'src/services/conversation.service';

@@ -6,7 +6,7 @@ import {
   type LocalGoalPmConversationInventoryItem,
   type LocalGoalPmGoal,
   type LocalGoalPmPromptPayload,
-} from '../../shared/agent-bridge-contract/generated';
+} from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../../session/types';
 import type { AssistantCompleteEvent } from '../../run/types';
 import {

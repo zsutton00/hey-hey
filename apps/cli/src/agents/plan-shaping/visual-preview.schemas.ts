@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { PlanShapingVisualPreviewCompletionPayload } from '../../shared/agent-bridge-contract/generated/api';
+import type { PlanShapingVisualPreviewCompletionPayload } from '@hey-hey/contracts/agent-bridge';
 
 const visualPreviewRelationshipSchema = z
   .object({

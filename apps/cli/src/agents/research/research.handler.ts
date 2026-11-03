@@ -1,5 +1,5 @@
 import type { AgenticSession } from '../../session/types';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { LocalResearchPromptPayload } from '../../shared/agent-bridge-contract/index';
 import type {
   LocalWorktreeStateByService,

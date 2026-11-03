@@ -8,7 +8,7 @@ import {
   UnifiedBatchSearchRequest,
   UnifiedSearchPlanLineageMode,
   UnifiedSearchRequest,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   EntityType as GraphEntityType,
   SearchProjection,

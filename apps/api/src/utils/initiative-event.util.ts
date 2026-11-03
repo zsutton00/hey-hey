@@ -5,7 +5,7 @@ import type {
   InitiativeCreatedEventPayload,
   InitiativeEventUpdateSnapshot,
   UpdateInitiativeDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import type { InitiativeId, OrganizationId, ProjectId } from '../types';
 import type { MaterializedWorkItemSection } from '../types/work-item-section.types';
 

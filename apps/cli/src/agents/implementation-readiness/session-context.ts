@@ -5,7 +5,7 @@ import type {
   ImplementationReadinessFinding,
   ImplementationReadinessResolution,
   ImplementationReadinessSourceSnapshot,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 
 const evidenceCategories = [
   'behavior',

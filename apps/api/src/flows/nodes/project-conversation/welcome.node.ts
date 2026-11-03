@@ -1,5 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { SystemMessageResponseType, UIElement } from 'src/generated';
+import {
+  SystemMessageResponseType,
+  UIElement,
+} from '@hey-hey/contracts/api/models';
 import { ProjectService } from 'src/services/project.service';
 import {
   NodeResult,

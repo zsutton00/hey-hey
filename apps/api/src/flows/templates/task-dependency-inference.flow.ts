@@ -1,4 +1,4 @@
-import { LocalPromptType } from 'src/generated/local';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
 import { TASK_DEPENDENCY_INFERENCE_NODES } from '../constants';
 import { createFlow } from './utils';
 

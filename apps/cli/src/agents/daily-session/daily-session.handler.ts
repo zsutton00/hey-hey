@@ -1,5 +1,5 @@
 import type { AssistantCompleteEvent } from '../../run/types';
-import type { OtherReportPayload } from '../../shared/api/generated';
+import type { OtherReportPayload } from '@hey-hey/contracts/api/models';
 import type { CreateReportDto, CreateReportEntityDto } from '../../shared/api/index';
 import {
   ReportAudience,
@@ -8,7 +8,7 @@ import {
   ReportType,
   SystemMessageDataTypeEnum,
 } from '../../shared/api/index';
-import type { LocalDailySessionPromptPayload } from '../../shared/agent-bridge-contract/generated/api';
+import type { LocalDailySessionPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import type {
   LocalDailySessionResponse,
   LocalReportEntityRef,

@@ -1,5 +1,5 @@
-import { LocalPromptType } from 'src/generated/local';
-import { AgentSessionType } from 'src/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
+import { AgentSessionType } from '@hey-hey/contracts/api/models';
 import {
   TaskRefinementFlowContext,
   FlowContext,

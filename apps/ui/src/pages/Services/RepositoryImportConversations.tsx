@@ -2,7 +2,7 @@ import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals
 import {
   ConversationStatus,
   type ConversationResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   useConversations,
   useDeleteConversation,

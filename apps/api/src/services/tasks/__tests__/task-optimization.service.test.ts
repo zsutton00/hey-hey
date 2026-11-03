@@ -2,7 +2,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { TaskOptimizationService } from '../task-optimization.service';
 import { TaskService } from '../task.service';
 import { TaskArtifactService } from '../task-artifact.service';
-import { TaskResponseDto, TaskPriority, WorkStatus } from '../../../generated';
+import {
+  TaskResponseDto,
+  TaskPriority,
+  WorkStatus,
+} from '@hey-hey/contracts/api/models';
 import { OrganizationId, TaskId } from '../../../types';
 import {
   ChangeDetectionResult,

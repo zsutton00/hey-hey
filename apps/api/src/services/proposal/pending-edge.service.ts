@@ -21,16 +21,16 @@ import type {
   TaskId,
   UserId,
 } from 'src/types';
-import type { ProposalEdgeDeclaration } from 'src/generated/model/proposalEdgeDeclaration';
-import { ProposalEdgeTargetType } from 'src/generated/model/proposalEdgeTargetType';
-import { ProposalEdgeEndpointMode } from 'src/generated/model/proposalEdgeEndpointMode';
+import type { ProposalEdgeDeclaration } from '@hey-hey/contracts/api/models';
+import { ProposalEdgeTargetType } from '@hey-hey/contracts/api/models';
+import { ProposalEdgeEndpointMode } from '@hey-hey/contracts/api/models';
 import type { AgentEdgeType } from 'src/generated/graphs/model/agentEdgeType';
 import type { AgentEdgeCategory } from 'src/generated/graphs/model/agentEdgeCategory';
 import type { AgentEdgeDirection } from 'src/generated/graphs/model/agentEdgeDirection';
 import type { CreateAgentEdgeDto } from 'src/generated/graphs/model/createAgentEdgeDto';
 import { AgentEdgeEndpointEntityType } from 'src/generated/graphs/model/agentEdgeEndpointEntityType';
 import { normalizeMentionTypeAlias } from 'src/services/mentions/mention-type-aliases';
-import { WorkStatus } from 'src/generated';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import {
   TaskService,
   type TaskUpdatePostCommit,

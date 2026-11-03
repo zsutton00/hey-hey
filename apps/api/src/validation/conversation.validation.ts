@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ConversationResponseDto } from 'src/generated';
+import { ConversationResponseDto } from '@hey-hey/contracts/api/models';
 import { ProjectId } from '../types';
 
 @Injectable()

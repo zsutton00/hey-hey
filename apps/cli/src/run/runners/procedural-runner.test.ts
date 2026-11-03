@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { PromptTypeHandler, PromptTypeHandlerDeps } from '../../agents/prompt-type-handler';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { RunnerPicker } from './pick-runner';
 import { ProceduralRunner } from './procedural-runner';
 import type { RunnerContext, RunnerPickerDependencies } from './types';

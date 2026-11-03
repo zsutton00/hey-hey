@@ -17,7 +17,7 @@ import {
   type LocalSetRepoBindingRequest,
   type LocalSetRepoBindingResponse,
   type LocalServiceRepoBinding,
-} from '../../shared/local-agent-api/generated/api';
+} from '@hey-hey/contracts/local';
 import {
   DirectoryPickerUnavailableError,
   pickServiceDirectory,

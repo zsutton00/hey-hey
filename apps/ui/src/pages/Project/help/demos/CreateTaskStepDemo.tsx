@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { Box, Stack } from "@mui/material";
 
-import { EntityType, type TaskResponseDto } from "@hey-hey/ui-common/api";
+import { EntityType, type TaskResponseDto } from "@hey-hey/contracts/api";
 import {
   DiscussModal,
   MINI_DEMO_TARGETS,

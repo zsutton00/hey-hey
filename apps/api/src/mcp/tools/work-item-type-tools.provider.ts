@@ -1,12 +1,12 @@
-import { SessionRole } from '../../generated/model/sessionRole';
+import { SessionRole } from '@hey-hey/contracts/api/models';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Context, Tool } from '@rekog/mcp-nest';
 import type { Request } from 'express';
 import { z } from 'zod';
-import { WorkItemTypeEffectiveSource } from '../../generated/model/workItemTypeEffectiveSource';
-import { WorkItemTypeLifecycleStatus } from '../../generated/model/workItemTypeLifecycleStatus';
-import type { WorkItemTypeSummaryDto } from '../../generated/model/workItemTypeSummaryDto';
+import { WorkItemTypeEffectiveSource } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeLifecycleStatus } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeSummaryDto } from '@hey-hey/contracts/api/models';
 import { ProjectService } from '../../services/project.service';
 import { WorkItemTypeRegistryService } from '../../services/tasks/work-item-type-registry.service';
 import {
@@ -17,9 +17,9 @@ import {
   resolveProjectId,
 } from './mcp-tool.utils';
 import { createWorkItemTypeParameters } from './work-item-type-proposal-tools.provider';
-import type { WorkItemTypeGuidanceBatchDto } from '../../generated/model/workItemTypeGuidanceBatchDto';
-import type { WorkItemTypeGuidanceBatchRequestDto } from '../../generated/model/workItemTypeGuidanceBatchRequestDto';
-import { WorkItemTypeGuidancePurpose } from '../../generated/model/workItemTypeGuidancePurpose';
+import type { WorkItemTypeGuidanceBatchDto } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeGuidanceBatchRequestDto } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeGuidancePurpose } from '@hey-hey/contracts/api/models';
 import { workItemTypeGuidanceResponseSchema } from '../../services/tasks/work-item-type-agent-guidance.schema';
 
 // MCP schema generation requires a plain ZodObject; the handler enforces

@@ -3,7 +3,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { GitHubIntegrationHandler } from '../handlers/github.integration.handler';
 import { JiraIntegrationHandler } from '../handlers/jira.integration.handler';
 import { BaseIntegrationHandler } from '../handlers/base-integration.handler';
-import { IntegrationType, IntegrationConnectionStatus } from '../../generated';
+import {
+  IntegrationType,
+  IntegrationConnectionStatus,
+} from '@hey-hey/contracts/api/models';
 import { QUEUE_SERVICE_TOKEN } from '../../core/queue/queue.module';
 import { IntegrationService } from '../../services/integrations/integration.service';
 import {

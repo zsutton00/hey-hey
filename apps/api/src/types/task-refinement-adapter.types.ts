@@ -15,7 +15,7 @@ import {
   TaskResponseDto,
   TaskSource,
   WorkStatus,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { materializedSectionsToContentMap } from '../utils/work-item-section.util';
 import { RefinableEntity } from './refinable-entity.types';
 /**

@@ -3,7 +3,7 @@ import type {
   OpenItemGoalTrackedWorkFilter,
   PromoteGroupToGoalRequest,
   PromoteGroupToGoalResult,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { createContext } from "react";
 import type {
   OpenItem,

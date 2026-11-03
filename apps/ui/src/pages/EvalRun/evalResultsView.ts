@@ -5,7 +5,7 @@ import {
   type EvalCheckDefinition,
   type EvalConfiguration,
   type EvalMeasurement,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import type { EvalAttemptReport, EvalRunReport } from "@hey-hey/ui-common/data";
 import { WebPathService } from "@hey-hey/ui-common/services";
 

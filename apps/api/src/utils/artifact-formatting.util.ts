@@ -7,7 +7,7 @@ import {
   InitiativeArtifactData,
   InsightData,
   QAPairData,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 
 /**
  * Formats an artifact for inclusion in LLM prompts as JSON array

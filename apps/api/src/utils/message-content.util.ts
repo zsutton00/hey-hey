@@ -1,4 +1,7 @@
-import { SystemMessageData, UserMessageData } from '../generated';
+import {
+  SystemMessageData,
+  UserMessageData,
+} from '@hey-hey/contracts/api/models';
 import { UserMessageExtractor } from './user-message-extractor';
 
 /**

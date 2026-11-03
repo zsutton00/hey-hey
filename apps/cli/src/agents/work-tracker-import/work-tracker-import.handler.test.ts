@@ -1,9 +1,10 @@
+import { asConversationId, asProjectId, asWorkflowId } from '../../test-utils/contract-ids';
 import { describe, expect, it, vi } from 'vitest';
 import {
   LocalPromptType,
   type WorkTrackerImportRequest,
   type WorkTrackerImportSuccess,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type { AssistantCompleteEvent } from '../../run/types';
 import type { AgenticSession } from '../../session/types';
 import type {
@@ -16,9 +17,9 @@ import { parseWorkTrackerCompletion, workTrackerRequestSchema } from './schemas'
 import { buildWorkTrackerConnectionInstructions } from './connection-instructions';
 
 const payload = {
-  projectId: '11111111-1111-4111-8111-111111111111',
-  conversationId: '22222222-2222-4222-8222-222222222222',
-  workflowId: '33333333-3333-4333-8333-333333333333',
+  projectId: asProjectId('11111111-1111-4111-8111-111111111111'),
+  conversationId: asConversationId('22222222-2222-4222-8222-222222222222'),
+  workflowId: asWorkflowId('33333333-3333-4333-8333-333333333333'),
   workflowNodeId: 'tracker-connect',
   machineId: '44444444-4444-4444-8444-444444444444',
   source: 'linear',

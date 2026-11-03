@@ -33,7 +33,7 @@ import {
   AgentQuestionPayloadResponseTypeEnum,
   type AgentQuestion,
   type AgentQuestionPayload,
-} from '../../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { Run } from '../../../run/run';
 import { NOOP_LOGGER, type ServerLogger } from '../../../server/logger';
 import { requestContext } from '../../../server/request-context';

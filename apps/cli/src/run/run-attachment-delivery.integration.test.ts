@@ -14,7 +14,7 @@ import type {
   AgentSessionRunner,
 } from '../agents/providers/session-runner';
 import type { PromptTypeHandler } from '../agents/prompt-type-handler';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { toInternalRunPromptRequest } from '../shared/agent-bridge-contract/contract';
 import { NOOP_LOGGER } from '../server/logger';
 import { NewSessionRunner } from './runners/new-session-runner';
@@ -30,7 +30,7 @@ import type { Run } from './run';
 import { InputAdmissionOwner } from '../server/input-admission/input-admission-owner';
 import { InputAdmissionLifecycle } from '../server/input-admission/admission-lifecycle';
 import { storedInput } from '../server/input-admission/input-admission-codec';
-import { ProjectsApi } from '../shared/api/generated/api';
+import { ProjectsApi } from '@hey-hey/contracts/api';
 import type {
   LocalRunPromptRequest,
   SendMessageOptions,

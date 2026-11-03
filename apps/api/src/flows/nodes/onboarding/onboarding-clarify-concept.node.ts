@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { QuestionsSystemMessageData } from '../../../generated';
+import { QuestionsSystemMessageData } from '@hey-hey/contracts/api/models';
 import { ClaudeModel, LLMProviderName } from '../../../services/llm/llm-shared';
 import { StandardPlaceholders as P } from '../../../services/llm/placeholders';
 import {

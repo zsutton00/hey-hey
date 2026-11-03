@@ -3,7 +3,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type {
   JevChoiceEvaluationRequestDto,
   JevChoiceEvaluationResponseDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { TypeSafeJevService } from '../services/typesafe-jev/typesafe-jev.service';
 
 @ApiTags('Jev')

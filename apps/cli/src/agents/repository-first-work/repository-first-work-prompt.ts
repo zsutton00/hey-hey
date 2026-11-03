@@ -1,4 +1,4 @@
-import type { RepositoryFirstWorkRequest } from '../../shared/agent-bridge-contract/generated/api';
+import type { RepositoryFirstWorkRequest } from '@hey-hey/contracts/agent-bridge';
 
 export function buildRepositoryFirstWorkPrompt(input: RepositoryFirstWorkRequest): string {
   return [

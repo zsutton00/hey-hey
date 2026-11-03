@@ -1,8 +1,8 @@
 import type {
   TaskResponseDto,
   WorkItemTypeDefinitionDto,
-} from "@hey-hey/ui-common/api";
-import { WorkStatus } from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
+import { WorkStatus } from "@hey-hey/contracts/api";
 import { useWorkItems } from "@hey-hey/ui-common/data";
 import React, { useEffect } from "react";
 import { ExplorerFeatureQuery } from "./ExplorerFeatureQuery";
@@ -68,7 +68,7 @@ const OtherWorkItemQuery: React.FC<ExplorerWorkItemQueryProps> = ({
       enabled,
       taskType: definition.key,
       websocketsEnabled: false,
-    }
+    },
   );
 
   useEffect(() => {
@@ -83,7 +83,7 @@ const OtherWorkItemQuery: React.FC<ExplorerWorkItemQueryProps> = ({
 };
 
 export const ExplorerWorkItemQuery: React.FC<ExplorerWorkItemQueryProps> = (
-  props
+  props,
 ) =>
   props.definition.key === WORK_ITEM_TYPE_KEYS.Feature ? (
     <ExplorerFeatureQuery {...props} />

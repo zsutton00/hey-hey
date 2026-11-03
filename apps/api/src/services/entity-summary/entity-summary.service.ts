@@ -19,7 +19,7 @@ import {
   SummaryCreatedEventPayload,
   SummaryDeletedEventPayload,
   SummaryPayload,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { OrganizationId, ProjectId } from 'src/types';
 import { SubfacetService } from './subfacet.service';

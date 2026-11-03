@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-import { LocalPromptType } from 'src/generated/local';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
 import { Test, TestingModule } from '@nestjs/testing';
 import { FlowNodeProcessor, flowNodeSet } from '../flow-node-processor.service';
 import {
@@ -36,7 +36,7 @@ import {
   MessageStatus,
   QuestionsSystemMessageData,
   SystemMessageResponseType,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { EVENT_TYPES } from '../../events/types/event.types';
 import { createRedisServiceMock } from '../../../../test/mocks/redis-service.mock';
 import { FlowExecutionService } from 'src/services/workflows/flow-execution.service';

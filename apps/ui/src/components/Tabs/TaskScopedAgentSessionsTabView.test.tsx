@@ -3,7 +3,7 @@ import {
   AgentSessionStatus,
   AgentSessionType,
   type AgentSessionDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";

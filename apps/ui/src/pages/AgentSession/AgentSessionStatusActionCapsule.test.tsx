@@ -5,7 +5,7 @@ import {
   AgentSessionStatus,
   AgentSessionType,
   WorkStatus,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 
 const mocks = vi.hoisted(() => ({
   capsuleAction: vi.fn(),
@@ -20,11 +20,7 @@ vi.mock("@hey-hey/ui-common/components", () => ({
     [key: string]: unknown;
   }) => {
     mocks.capsuleAction(props);
-    return (
-      <div data-testid="capsule-action">
-        {props.renderContent?.()}
-      </div>
-    );
+    return <div data-testid="capsule-action">{props.renderContent?.()}</div>;
   },
   CompleteSessionPanel: (props: Record<string, unknown>) => {
     mocks.completeSessionPanel(props);
@@ -45,7 +41,7 @@ vi.mock("@hey-hey/ui-common/data", () => ({
 import { AgentSessionStatusActionCapsule } from "./AgentSessionStatusActionCapsule";
 
 const buildAgentSession = (
-  status: AgentSessionStatus = AgentSessionStatus.InProgress
+  status: AgentSessionStatus = AgentSessionStatus.InProgress,
 ) =>
   ({
     id: "session-1",
@@ -69,7 +65,7 @@ describe("AgentSessionStatusActionCapsule", () => {
         projectId="project-1"
         agentSession={buildAgentSession()}
         taskData={{ ...activeTask, status: WorkStatus.Verifying }}
-      />
+      />,
     );
 
     const panelProps = mocks.completeSessionPanel.mock.lastCall?.[0] as Record<
@@ -92,7 +88,7 @@ describe("AgentSessionStatusActionCapsule", () => {
         organizationId="org-1"
         projectId="project-1"
         agentSession={buildAgentSession()}
-      />
+      />,
     );
 
     expect(mocks.capsuleAction.mock.lastCall?.[0]).toMatchObject({
@@ -105,7 +101,7 @@ describe("AgentSessionStatusActionCapsule", () => {
         organizationId="org-1"
         projectId="project-1"
         agentSession={buildAgentSession(AgentSessionStatus.Completed)}
-      />
+      />,
     );
 
     expect(mocks.capsuleAction.mock.lastCall?.[0]).toMatchObject({

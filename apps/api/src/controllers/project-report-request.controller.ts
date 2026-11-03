@@ -33,7 +33,7 @@ import {
   type ProjectReportPreviewRequestDto,
   type ProjectReportRequestDto,
   type RetryProjectReportRequestDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId, UserId } from 'src/types';
 import { ProjectReportActivityService } from 'src/services/project-reports/project-report-activity.service';
 import { ProjectReportContextService } from 'src/services/project-reports/project-report-context.service';

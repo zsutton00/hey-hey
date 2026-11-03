@@ -26,7 +26,7 @@ import type { DiscussModalProps } from "@hey-hey/ui-common/components/Interactio
 import {
   EntityType,
   ConversationStartRunRequestDtoProviderEnum,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { createOpenItemEntity } from "@hey-hey/ui-common/context";
 import { HeyHeyModal } from "./HeyHeyModal";
 import { OpenItemsPreviewHost } from "./OpenItemsPreviewHost";

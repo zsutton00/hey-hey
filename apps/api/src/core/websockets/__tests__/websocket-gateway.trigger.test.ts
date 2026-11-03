@@ -2,7 +2,7 @@ import { Logger } from '@nestjs/common';
 import {
   WebSocketConversationTriggerEvent,
   WebSocketMonitorCommandEvent,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { UserId } from '../../../types';
 import { WebsocketGateway } from '../websocket.gateway';
 

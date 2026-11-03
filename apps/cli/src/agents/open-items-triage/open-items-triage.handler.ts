@@ -3,7 +3,7 @@ import {
   LocalPromptType,
   OpenItemsTriageMode,
   type OpenItemsTriagePromptPayload,
-} from '../../shared/agent-bridge-contract/generated';
+} from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../../session/types';
 import type { AssistantCompleteEvent } from '../../run/types';
 import {

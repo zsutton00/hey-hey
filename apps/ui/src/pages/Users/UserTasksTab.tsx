@@ -1,4 +1,4 @@
-import type { WorkStatus } from "@hey-hey/ui-common/api";
+import type { WorkStatus } from "@hey-hey/contracts/api";
 import {
   TaskList,
   useFilteredWorkItems,
@@ -73,10 +73,7 @@ export const UserTasksTab: React.FC<UserTasksTabProps> = ({
                   "userPage.tasks.noResults",
                   "No tasks match the current filters.",
                 )
-              : t(
-                  "userPage.tasks.empty",
-                  "No tasks assigned to this user.",
-                )}
+              : t("userPage.tasks.empty", "No tasks assigned to this user.")}
           </Typography>
         </Box>
       ) : (

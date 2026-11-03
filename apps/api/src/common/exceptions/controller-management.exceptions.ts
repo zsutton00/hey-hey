@@ -1,5 +1,5 @@
 import { ConflictException, HttpException, HttpStatus } from '@nestjs/common';
-import { ControllerManagementOutcomeCode } from '../../generated';
+import { ControllerManagementOutcomeCode } from '@hey-hey/contracts/api/models';
 
 const CONTROLLER_MANAGEMENT_MESSAGE =
   'Unable to complete controller management operation.' as const;
@@ -32,10 +32,7 @@ export class ControllerManagementWrongOwnerException extends ControllerManagemen
 
 export class ControllerManagementMachineRevokedException extends ControllerManagementException {
   constructor() {
-    super(
-      ControllerManagementOutcomeCode.MachineRevoked,
-      HttpStatus.GONE,
-    );
+    super(ControllerManagementOutcomeCode.MachineRevoked, HttpStatus.GONE);
   }
 }
 
@@ -47,10 +44,7 @@ export class ControllerManagementInvalidStateException extends ControllerManagem
 
 export class ControllerManagementAlreadyRevokedException extends ControllerManagementException {
   constructor() {
-    super(
-      ControllerManagementOutcomeCode.AlreadyRevoked,
-      HttpStatus.CONFLICT,
-    );
+    super(ControllerManagementOutcomeCode.AlreadyRevoked, HttpStatus.CONFLICT);
   }
 }
 

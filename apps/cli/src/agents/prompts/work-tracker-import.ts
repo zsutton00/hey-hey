@@ -1,4 +1,4 @@
-import type { WorkTrackerImportRequest } from '../../shared/agent-bridge-contract/generated/api';
+import type { WorkTrackerImportRequest } from '@hey-hey/contracts/agent-bridge';
 
 export function buildWorkTrackerImportPrompt(payload: WorkTrackerImportRequest): string {
   return [

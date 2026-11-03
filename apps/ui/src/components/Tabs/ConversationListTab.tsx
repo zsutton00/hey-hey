@@ -5,11 +5,11 @@ import {
 import type {
   ConversationResponseDto,
   ConversationStatus,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   ConversationStatus as ConversationStatusEnum,
   EntityType,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   DiscussModal,
   EntityActionButton,

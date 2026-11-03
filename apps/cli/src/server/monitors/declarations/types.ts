@@ -1,4 +1,4 @@
-import type { LocalPromptType } from '../../../shared/agent-bridge-contract/generated';
+import type { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { CanonicalMonitorEvent } from '../normalizer';
 
 interface MonitorGateAcceptResult {

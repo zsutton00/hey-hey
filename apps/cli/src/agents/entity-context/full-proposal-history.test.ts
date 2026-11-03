@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { EntityContextDtoProposalsInner } from '../../shared/api/generated/api';
+import type { EntityContextDtoProposalsInner } from '@hey-hey/contracts/api/models';
 import { assertFullProposalHistory } from './full-proposal-history';
 
 describe('assertFullProposalHistory', () => {

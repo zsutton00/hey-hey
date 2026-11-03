@@ -1,4 +1,4 @@
-import type { MachineEnrollmentWebAuthnRegistrationOptionsDto } from "@hey-hey/ui-common/api";
+import type { MachineEnrollmentWebAuthnRegistrationOptionsDto } from "@hey-hey/contracts/api";
 import { describe, expect, it, vi } from "vitest";
 import {
   createMachineEnrollmentCredential,

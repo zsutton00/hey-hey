@@ -5,9 +5,9 @@ import {
   ExtendedUIFieldType,
   UIElement,
   WorkflowReviewAction,
-} from 'src/generated';
-import { PlanShapingFeatureSyncIteratePromptPayload } from 'src/generated';
-import { LocalPromptType } from 'src/generated/local';
+} from '@hey-hey/contracts/api/models';
+import { PlanShapingFeatureSyncIteratePromptPayload } from '@hey-hey/contracts/api/models';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
 import {
   ExternalAgentActionSchemas,
   ExternalAgentFlowData,

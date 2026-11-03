@@ -5,7 +5,7 @@ import {
   ArtifactResponseDto,
   ArtifactSourceType,
   ArtifactType,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { ProjectId } from 'src/types';
 
 @Injectable()

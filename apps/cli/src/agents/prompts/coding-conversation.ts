@@ -8,7 +8,7 @@ import type {
 import type {
   ImplementationReadinessFinding,
   ImplementationReadinessSourceSnapshot,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import {
   buildServicesContextBlock,
   codingServiceScopeGuidance,

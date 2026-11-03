@@ -3,7 +3,7 @@ import {
   InitiativeSelector,
   TaskSelector,
 } from "@hey-hey/ui-common/components";
-import { EntityType } from "@hey-hey/ui-common/api";
+import { EntityType } from "@hey-hey/contracts/api";
 import { useProject } from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import { compose } from "@hey-hey/ui-common/i18n";
@@ -27,11 +27,11 @@ export const AgentSessionsPage: React.FC = () => {
   // Filter state managed via URL query parameters
   const [selectedInitiativeId, setSelectedInitiativeId] = useQueryState(
     "initiative",
-    parseAsString
+    parseAsString,
   );
   const [selectedTaskId, setSelectedTaskId] = useQueryState(
     "task",
-    parseAsString
+    parseAsString,
   );
 
   // Handle initiative change - clear task when initiative changes
@@ -109,8 +109,8 @@ export const AgentSessionsPage: React.FC = () => {
           selectedTaskId
             ? EntityType.Task
             : selectedInitiativeId
-            ? EntityType.Initiative
-            : undefined
+              ? EntityType.Initiative
+              : undefined
         }
         entityId={selectedTaskId ?? selectedInitiativeId ?? undefined}
       />

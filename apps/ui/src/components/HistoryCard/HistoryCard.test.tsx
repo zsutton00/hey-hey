@@ -6,7 +6,7 @@ import {
   type EntityContextDtoProposalsInner,
   type Influence,
   type ProposalResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { TERMS } from "@hey-hey/ui-common/i18n";
 import { render, screen, within } from "@testing-library/react";
 import React from "react";

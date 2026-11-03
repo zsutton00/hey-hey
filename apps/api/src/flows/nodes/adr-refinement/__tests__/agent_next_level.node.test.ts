@@ -3,7 +3,7 @@ import * as TestUtils from '../../../../utils/testUtils';
 import { AdrRefinementAgentNextLevelNode } from '../agent_next_level.node';
 import { DesignDocService } from '../../../../services/design-doc/design-doc.service';
 import { AdrRefinementFlowContext } from '../../../../types/flow-internal.types';
-import { AdrStatus } from '../../../../generated';
+import { AdrStatus } from '@hey-hey/contracts/api/models';
 import { MastraAgentResponse } from '../../../../services/agents/mastra-client.service';
 import { createServiceTestingModule } from '../../../../../test/setup/testing-module.factory';
 import { ADR_REFINEMENT_NODES } from '../../../constants/node-ids';

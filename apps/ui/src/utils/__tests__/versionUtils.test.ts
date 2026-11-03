@@ -9,7 +9,7 @@ import type {
   VersionConflictError,
   VersionedConversationResponseDto,
 } from "../../types/conversation";
-import type { ConversationResponseDto } from "@hey-hey/ui-common/api";
+import type { ConversationResponseDto } from "@hey-hey/contracts/api";
 
 describe("versionUtils", () => {
   describe("isVersionNewer", () => {

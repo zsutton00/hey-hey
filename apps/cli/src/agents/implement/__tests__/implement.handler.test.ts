@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { LocalPromptType } from '../../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../../../session/types';
-import type { MessageResponseDto } from '../../../shared/api/generated/api';
+import type { MessageResponseDto } from '@hey-hey/contracts/api/models';
 import type { PromptTypeHandlerDeps } from '../../prompt-type-handler';
 import {
   createPromptTypeHandlerTestAuth,

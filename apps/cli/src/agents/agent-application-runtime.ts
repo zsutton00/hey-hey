@@ -19,6 +19,7 @@ import { EntityContextLoader } from './entity-context/entity-context-loader';
 import { AgentStartupPromptInput } from '../commands/agent-startup-prompt-input';
 import { PlanSubmissionAdmissionClient } from './plan-shaping/plan-submission-admission.client';
 import { createJevClient, type JevClient } from '../jev/client';
+import type { DecisionModel } from './context-trimming/context-trimmer';
 
 export interface AgentApplicationRuntimeDependencies {
   runStore?: RunStore;
@@ -42,6 +43,8 @@ const readRunSubagentsSwitch = (): boolean => {
 /** Owns prompt handlers, submission tools, and their shared agent-side state. */
 export class AgentApplicationRuntime {
   public readonly jevClient: JevClient | undefined;
+  public readonly decisionModel: DecisionModel | undefined;
+  public readonly isDecisionModelEnabled: () => Promise<boolean>;
   public readonly auth: SubmissionToolAuth;
   public readonly reportEmissionEvents = new ReportEmissionEvents();
   public readonly submissionToolRegistry = new SubmissionToolRegistry();
@@ -61,6 +64,8 @@ export class AgentApplicationRuntime {
 
   public constructor(dependencies: AgentApplicationRuntimeDependencies) {
     this.jevClient = createJevClient(process.env, dependencies.logger.child({ component: 'jev' }));
+    this.decisionModel = this.jevClient;
+    this.isDecisionModelEnabled = dependencies.isJevEnabled;
     const fetchImpl = dependencies.fetchImpl ?? fetch;
     this.runSubagentsTool = readRunSubagentsSwitch() ? new RunSubagentsTool() : null;
     this.auth = new SubmissionToolAuth(dependencies.oauthClient);

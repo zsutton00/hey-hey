@@ -3,7 +3,7 @@ import {
   WorkTrackerImportAction,
   WorkTrackerImportConfiguration,
   type UIElement,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { MachinePairingService } from '../../../services/machine-pairing/machine-pairing.service';
 import {
   FlowUserMessage,

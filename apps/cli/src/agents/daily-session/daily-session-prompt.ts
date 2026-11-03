@@ -1,5 +1,5 @@
 import type { ServerLogger } from '../../server/logger';
-import type { ActiveGoalDto } from '../../shared/api/generated/api';
+import type { ActiveGoalDto } from '@hey-hey/contracts/api/models';
 import type { ActivityRecord, DailySessionPromptInput } from './types';
 import { jsonOnlyInstructions } from '../prompts/common';
 import { composeTriggerPromptSection, triggerMissionStatement } from './trigger-prompt-composer';

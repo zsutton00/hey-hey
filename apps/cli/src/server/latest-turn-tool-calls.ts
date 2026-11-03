@@ -8,7 +8,7 @@ import type {
   CliReadToolCall,
   CliReadToolCallText,
   CliReadToolCallsLatestTurnAvailable,
-} from '../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type {
   BoundedText,
   RunActivitySnapshot,

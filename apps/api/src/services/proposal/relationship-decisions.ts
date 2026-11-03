@@ -1,14 +1,14 @@
 import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod';
 import { relationshipDecisionSchema } from './work-item-change-set.schema';
-import { WorkStatus } from '../../generated';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import type {
   ProposalEdgeDeclaration,
   RelationshipDecision,
   WorkItemChangeSetOperation,
   WorkItemRelationshipDeleteOperation,
   WorkItemRelationshipUpdateOperation,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 
 export interface RelationshipDecisionIssue {
   field: string;

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { WebSocketLeaveRoomRequest } from 'src/generated';
+import type { WebSocketLeaveRoomRequest } from '@hey-hey/contracts/api/models';
 import { Socket } from 'socket.io';
 import {
   ConversationId,

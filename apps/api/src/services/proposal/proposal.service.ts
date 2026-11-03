@@ -3,7 +3,7 @@ import type {
   ProposalReviewNoteDto,
   ProposalReviewNoteRecord,
   ProposalReviewNoteResult,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { MessageService } from '../message.service';
 import { ProposalReconciliationCandidatePipe } from '../../pipes/proposal-reconciliation-candidate.pipe';
 import { futureGraph, graphChangeSet } from './future-graph';
@@ -24,7 +24,7 @@ import {
 import type {
   FutureRevisionAuthoring,
   FutureRevisionMutation,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { ProposalReconciliationGroupService } from './proposal-reconciliation-group.service';
 import {
   ProposalReconciliationService,
@@ -70,16 +70,16 @@ import {
   UpdateProposalDto,
 } from './proposal.dto';
 import type { StampedCreateProposalDto } from './proposal.types';
-import type { Influence } from 'src/generated';
+import type { Influence } from '@hey-hey/contracts/api/models';
 import type {
   ProjectedWorkItemChangeSetResponse,
   WorkItemChangeSetValidationRequest,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   EntityType as GeneratedEntityType,
   WorkItemTypeLifecycleStatus,
   WorkItemTypeRole,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { EvalOutputAdmissionService } from '../eval/eval-output-admission.service';
 import { ProposalValidationEngine } from './proposal-validation.engine';
 import {

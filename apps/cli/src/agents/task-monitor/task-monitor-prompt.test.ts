@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   TaskMonitorLifecycleCause,
   type TaskMonitorPromptPayload,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type { TaskMonitorCanonicalEvidence } from './task-monitor-evidence';
 import { buildTaskMonitorPrompt } from './task-monitor-prompt';
 import { buildTaskMonitorConversationPrompt } from './task-monitor-conversation-prompt';

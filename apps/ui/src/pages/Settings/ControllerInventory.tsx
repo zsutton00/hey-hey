@@ -1,8 +1,8 @@
 import type {
   ControllerCredentialSummaryDto,
   MachineDto,
-} from "@hey-hey/ui-common/api";
-import { MachineExecutionReadinessState } from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
+import { MachineExecutionReadinessState } from "@hey-hey/contracts/api";
 import {
   ControllerManagementDenialError as ControllerManagementDenialErrorClass,
   useControllerInventory,

@@ -1,5 +1,5 @@
 import { InternalServerErrorException } from '@nestjs/common';
-import { HelpNode } from 'src/generated';
+import { HelpNode } from '@hey-hey/contracts/api/models';
 
 export type HelpNodeTreeRow = HelpNode;
 
@@ -44,7 +44,10 @@ function flattenHelpNodeRows(
     visited.add(row.id);
     const node = toHelpNode(row);
     const children = sortSiblingRows(childrenByParentId.get(row.id) ?? []);
-    return [node, ...flattenHelpNodeRows(children, childrenByParentId, visited)];
+    return [
+      node,
+      ...flattenHelpNodeRows(children, childrenByParentId, visited),
+    ];
   });
 }
 

@@ -11,8 +11,8 @@ import {
   type Focal,
   type JevEvaluator,
 } from '../../jev/scenarios';
-import { RunEntityReferenceEntityTypeEnum as RunEntityType } from '../../shared/agent-bridge-contract/generated/api';
-import type { MaterializedWorkItemSection } from '../../shared/api/generated';
+import { RunEntityReferenceEntityTypeEnum as RunEntityType } from '@hey-hey/contracts/agent-bridge';
+import type { MaterializedWorkItemSection } from '@hey-hey/contracts/api/models';
 import { firstSentence } from '../context-trimming/get-context-result';
 import type { EntityContextLoader } from '../entity-context/entity-context-loader';
 import type { LoadedEntityPromptContext } from '../entity-context/types';

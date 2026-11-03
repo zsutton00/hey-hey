@@ -1,9 +1,6 @@
 import { request } from '../../agents/repository-feature-enrichment/repository-feature-enrichment.test-fixture';
 import { describe, expect, it } from 'vitest';
-import {
-  LocalPromptType,
-  type AgentTrigger,
-} from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType, type AgentTrigger } from '@hey-hey/contracts/agent-bridge';
 import { validateTriggerPayload } from '../conversation-dispatch/trigger-payload-schemas';
 import { toStoredTriggerFrame } from './input-admission-payload';
 

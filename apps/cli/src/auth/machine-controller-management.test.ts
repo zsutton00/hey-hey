@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createTestKeyPairStore } from '../credentials/keypair.test-support';
 import { createTestOAuthClient } from '../server/__tests__/helpers/test-oauth-client';
-import { MachinesApiAxiosParamCreator } from '../shared/api/generated/api';
+import { MachinesApiAxiosParamCreator } from '@hey-hey/contracts/api';
 import {
   buildMachineControllerReconciliationRequest,
   GatewayMachineAuthenticationError,

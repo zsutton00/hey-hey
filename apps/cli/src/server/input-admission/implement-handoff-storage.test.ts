@@ -5,7 +5,7 @@ import { ImplementPromptPayloadSchema } from '../../generated/coding-plan.schema
 import type {
   AgentTriggerImplement,
   ImplementPromptPayload,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 
 const id = '11111111-1111-4111-8111-111111111111';
 const payload = {

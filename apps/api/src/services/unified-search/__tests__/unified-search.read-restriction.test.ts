@@ -1,4 +1,7 @@
-import { ReadRestriction, type UnifiedSearchRequest } from 'src/generated';
+import {
+  ReadRestriction,
+  type UnifiedSearchRequest,
+} from '@hey-hey/contracts/api/models';
 import type {
   SearchRequest as GraphSearchRequest,
   SearchResponse as GraphSearchResponse,

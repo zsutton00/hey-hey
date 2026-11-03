@@ -20,7 +20,7 @@ import {
   ReportType,
   SystemMessageData,
   WorkStatus,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { buildMessageCreatedEventPayload } from 'src/utils/message-event.util';
 import {
   createMockDomainEventPublisher,

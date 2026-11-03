@@ -1,4 +1,4 @@
-import type { ReportDto } from "@hey-hey/ui-common/api";
+import type { ReportDto } from "@hey-hey/contracts/api";
 import {
   Alert,
   Box,

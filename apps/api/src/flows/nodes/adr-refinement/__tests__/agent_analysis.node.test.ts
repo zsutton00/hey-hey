@@ -6,7 +6,7 @@ import { DesignDocService } from '../../../../services/design-doc/design-doc.ser
 import { InitiativeService } from '../../../../services/initiatives/initiative.service';
 import { TaskService } from '../../../../services/tasks/task.service';
 import { AdrRefinementFlowContext } from '../../../../types/flow-internal.types';
-import { AdrStatus } from '../../../../generated';
+import { AdrStatus } from '@hey-hey/contracts/api/models';
 import { MastraAgentResponse } from '../../../../services/agents/mastra-client.service';
 import { createMutableContextHandle } from '../../../../utils/mutable-context';
 import { AdrAgentResponse } from '../adr-agent.schemas';

@@ -5,7 +5,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { AgentSessionCurrentState } from 'src/generated/model/agentSessionCurrentState';
+import { AgentSessionCurrentState } from '@hey-hey/contracts/api/models';
 import { RedisService } from 'src/core/redis/redis.service';
 
 const TRANSIENT_STATES = new Set<AgentSessionCurrentState>([

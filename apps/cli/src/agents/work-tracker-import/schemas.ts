@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type {
   WorkTrackerImportCompletion,
   WorkTrackerImportRequest,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import { createAgentBridgeRuntimeValidator } from '../../shared/agent-bridge-contract/runtime-schema-validator';
 
 const requestValidator = createAgentBridgeRuntimeValidator<WorkTrackerImportRequest>(

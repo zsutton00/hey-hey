@@ -7,7 +7,7 @@ import type {
   FeatureSyncDecisionReportPayload,
   FeatureSyncDecisionReportPayloadV1,
   FeatureSyncDecisionReportPayloadV2,
-} from '../../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import {
   jointDecision,
   overlappingDecisions,

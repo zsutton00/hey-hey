@@ -24,7 +24,7 @@ import { extractBrowserSessionRequestMetadata } from '../auth/browser-session-re
 import type {
   PrivateBetaAccessRequestDecisionInputDto,
   PrivateBetaAccessRequestDecisionResultDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import type { PrivateBetaAccessRequestId } from '../types';
 import { PrivateBetaAccessDecisionService } from '../services/private-beta-access-decision.service';

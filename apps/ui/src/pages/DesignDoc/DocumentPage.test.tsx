@@ -2,7 +2,7 @@ import {
   DesignDocTemplate,
   TargetEntityType,
   type DesignDocResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
@@ -17,8 +17,8 @@ const { mockCreateCanonicalPageDescriptor } = vi.hoisted(() => ({
       entityType: string,
       entityId: string,
       lineage: unknown,
-      presentation?: unknown
-    ) => ({ entityType, entityId, lineage, presentation })
+      presentation?: unknown,
+    ) => ({ entityType, entityId, lineage, presentation }),
   ),
 }));
 let mockActiveTab = "document";
@@ -260,7 +260,7 @@ vi.mock("../../utils/statusUtils", () => ({
 }));
 
 const createDesignDoc = (
-  overrides: Partial<DesignDocResponseDto> = {}
+  overrides: Partial<DesignDocResponseDto> = {},
 ): DesignDocResponseDto =>
   ({
     id: "design-doc-1",
@@ -273,10 +273,10 @@ const createDesignDoc = (
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-02T00:00:00.000Z",
     ...overrides,
-  } as unknown as DesignDocResponseDto);
+  }) as unknown as DesignDocResponseDto;
 
 const renderDocumentPage = (
-  initialEntry = "/projects/project-1/design-docs/design-doc-1"
+  initialEntry = "/projects/project-1/design-docs/design-doc-1",
 ): void => {
   render(
     <MemoryRouter initialEntries={[initialEntry]}>
@@ -287,7 +287,7 @@ const renderDocumentPage = (
           element={<DocumentPage />}
         />
       </Routes>
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 };
 
@@ -322,17 +322,17 @@ describe("DocumentPage interaction component", () => {
       "design_doc",
       "design-doc-1",
       null,
-      { kind: "design_doc", label: "Request retry policy" }
+      { kind: "design_doc", label: "Request retry policy" },
     );
   });
 
   it("initializes the canonical editor from the editing query parameter", async () => {
     renderDocumentPage(
-      "/projects/project-1/design-docs/design-doc-1?editing=true"
+      "/projects/project-1/design-docs/design-doc-1?editing=true",
     );
 
     expect(
-      await screen.findByTestId("canonical-document-editor")
+      await screen.findByTestId("canonical-document-editor"),
     ).toBeInTheDocument();
     expect(mockDocumentEditor).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -340,21 +340,21 @@ describe("DocumentPage interaction component", () => {
         currentOrgId: "org-1",
         projectId: "project-1",
         status: "READY",
-      })
+      }),
     );
   });
 
   it("returns clean canonical editing to the same read page and preserves URL context", async () => {
     const historyBack = vi.spyOn(window.history, "back");
     renderDocumentPage(
-      "/projects/project-1/design-docs/design-doc-1?editing=true&tab=admin&planId=plan-1"
+      "/projects/project-1/design-docs/design-doc-1?editing=true&tab=admin&planId=plan-1",
     );
 
     await userEvent.click(screen.getByTestId("canonical-document-editor-done"));
 
     expect(screen.getByTestId("design-doc-read-view")).toBeInTheDocument();
     expect(screen.getByTestId("location")).toHaveTextContent(
-      "/projects/project-1/design-docs/design-doc-1?tab=admin&planId=plan-1"
+      "/projects/project-1/design-docs/design-doc-1?tab=admin&planId=plan-1",
     );
     expect(historyBack).not.toHaveBeenCalled();
     historyBack.mockRestore();
@@ -365,7 +365,7 @@ describe("DocumentPage interaction component", () => {
 
     const interaction = screen.getByTestId("design-doc-interaction");
     expect(
-      within(interaction).getByTestId("design-doc-read-view")
+      within(interaction).getByTestId("design-doc-read-view"),
     ).toBeInTheDocument();
 
     expect(mockInteractionComponent).toHaveBeenCalledWith(
@@ -378,7 +378,7 @@ describe("DocumentPage interaction component", () => {
         hasProposalSupport: true,
         organizationId: "org-1",
         projectId: "project-1",
-      })
+      }),
     );
   });
 
@@ -390,10 +390,10 @@ describe("DocumentPage interaction component", () => {
     expect(body).toHaveAttribute("data-sidebar-side", "right");
     expect(body).toHaveAttribute("data-gap", "0");
     expect(
-      within(body).getByTestId("design-doc-history-card")
+      within(body).getByTestId("design-doc-history-card"),
     ).toBeInTheDocument();
     expect(
-      within(body).getByTestId("design-doc-related-card")
+      within(body).getByTestId("design-doc-related-card"),
     ).toBeInTheDocument();
 
     const props = mockRelatedCard.mock.calls[0][0];
@@ -402,7 +402,7 @@ describe("DocumentPage interaction component", () => {
     expect(props.organizationId).toBe("org-1");
     expect(props.projectId).toBe("project-1");
     expect(props.conversationPathForId("conversation-1")).toBe(
-      "/projects/project-1/resolve-agent-session/conversation-1"
+      "/projects/project-1/resolve-agent-session/conversation-1",
     );
   });
 
@@ -413,7 +413,7 @@ describe("DocumentPage interaction component", () => {
     await user.click(screen.getByRole("button", { name: "Edit" }));
 
     expect(
-      screen.queryByTestId("design-doc-related-card")
+      screen.queryByTestId("design-doc-related-card"),
     ).not.toBeInTheDocument();
   });
 
@@ -423,7 +423,7 @@ describe("DocumentPage interaction component", () => {
     renderDocumentPage();
 
     expect(
-      screen.queryByTestId("design-doc-related-card")
+      screen.queryByTestId("design-doc-related-card"),
     ).not.toBeInTheDocument();
     expect(mockRelatedCard).not.toHaveBeenCalled();
   });

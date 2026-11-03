@@ -1,9 +1,6 @@
-import {
-  LocalPromptType,
-  type LocalRunEvalPromptPayload,
-} from '../../shared/agent-bridge-contract/generated';
+import { LocalPromptType, type LocalRunEvalPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import { LocalReasoningEffort } from '../../shared/agent-bridge-contract/contract';
-import type { EvalModelSetting } from '../../shared/api/generated/api';
+import type { EvalModelSetting } from '@hey-hey/contracts/api/models';
 import type { RegisteredChildLaunchRequest } from '../../run/child-agent-launcher';
 import {
   defaultAddUserMessage,

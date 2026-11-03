@@ -1,4 +1,4 @@
-import type { ProjectModeSettings } from '../../generated';
+import type { ProjectModeSettings } from '@hey-hey/contracts/api/models';
 import { WORK_ITEM_TYPE_KEYS } from './work-item-type-keys';
 
 export type ProjectModeEligibleTypeSource = 'mode-settings' | 'default';

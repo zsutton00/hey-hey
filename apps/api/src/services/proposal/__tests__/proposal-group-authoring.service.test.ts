@@ -3,7 +3,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
-import { EntityType } from 'src/generated/model/entityType';
+import { EntityType } from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId, UserId } from 'src/types';
 import { NIL_UUID } from '../work-item-type-proposal.builder';
 import { ProposalGroupAuthoringService } from '../proposal-group-authoring.service';

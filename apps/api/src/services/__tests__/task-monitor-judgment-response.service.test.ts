@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import type { TaskMonitorJudgmentResolvedCommand } from '../../generated';
+import type { TaskMonitorJudgmentResolvedCommand } from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../prisma/prisma.service';
 import type {
   ConversationId,
@@ -18,10 +18,8 @@ const ids = {
   monitorId: '30000000-0000-4000-8000-000000000003' as TaskId,
   userId: '40000000-0000-4000-8000-000000000004' as UserId,
   commandId: '50000000-0000-4000-8000-000000000005',
-  requestMessageId:
-    '60000000-0000-4000-8000-000000000006' as MessageId,
-  conversationId:
-    '70000000-0000-4000-8000-000000000007' as ConversationId,
+  requestMessageId: '60000000-0000-4000-8000-000000000006' as MessageId,
+  conversationId: '70000000-0000-4000-8000-000000000007' as ConversationId,
 };
 
 const command = (): TaskMonitorJudgmentResolvedCommand => ({
@@ -167,7 +165,9 @@ describe('TaskMonitorJudgmentResponseService', () => {
 
     await expect(
       harness.service.validateRequest(validationParams()),
-    ).rejects.toThrow('The judgment request has more than one canonical response');
+    ).rejects.toThrow(
+      'The judgment request has more than one canonical response',
+    );
   });
 
   it('rejects a mismatched canonical response', async () => {

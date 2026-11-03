@@ -2,7 +2,7 @@ import {
   SystemMessageData,
   UserMessageAgentInputProvenance,
   UserMessageData,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { isAgentSystemMessageData } from '../../utils/type-checks';
 
 export type GenericMessageConsequence =

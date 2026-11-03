@@ -22,7 +22,7 @@ import type {
   ProposalGroupAuthoringSnapshot,
   ProposalGroupApproveAllResult,
   ProposalGroupSnapshot,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { OrganizationId, ProjectId } from 'src/types';
 import {
   CurrentOrganization,

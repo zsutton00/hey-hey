@@ -1,8 +1,14 @@
 import React, { useMemo, useState } from "react";
-import { Box, Button, CircularProgress, Stack, Typography } from "@mui/material";
+import {
+  Box,
+  Button,
+  CircularProgress,
+  Stack,
+  Typography,
+} from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { AgentSessionType } from "@hey-hey/ui-common/api";
+import { AgentSessionType } from "@hey-hey/contracts/api";
 import { useAgentSessions } from "@hey-hey/ui-common/data";
 
 const PAGE_SIZE = 20;
@@ -12,10 +18,9 @@ export interface FeatureConversationsTabProps {
   projectId: string;
 }
 
-export const FeatureConversationsTab: React.FC<FeatureConversationsTabProps> = ({
-  organizationId,
-  projectId,
-}) => {
+export const FeatureConversationsTab: React.FC<
+  FeatureConversationsTabProps
+> = ({ organizationId, projectId }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
@@ -42,7 +47,12 @@ export const FeatureConversationsTab: React.FC<FeatureConversationsTabProps> = (
   if (isLoading) {
     return (
       <Box
-        sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 6 }}
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          py: 6,
+        }}
         data-testid="feature-conversations-loading"
       >
         <CircularProgress size={32} />
@@ -100,7 +110,11 @@ export const FeatureConversationsTab: React.FC<FeatureConversationsTabProps> = (
               {session.title ||
                 t("features.conversations.untitledSession", "Conversation")}
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ ml: 2, flexShrink: 0 }}>
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{ ml: 2, flexShrink: 0 }}
+            >
               {new Date(timestamp).toLocaleDateString(undefined, {
                 year: "numeric",
                 month: "short",

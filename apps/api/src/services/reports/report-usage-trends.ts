@@ -8,8 +8,11 @@ import type {
   ReportUsageTrendOptions,
   ReportUsageTrendTotals,
   ReportUsageTrends,
-} from 'src/generated';
-import { ReportUsageCoverage, ReportUsageTrendKind } from 'src/generated';
+} from '@hey-hey/contracts/api/models';
+import {
+  ReportUsageCoverage,
+  ReportUsageTrendKind,
+} from '@hey-hey/contracts/api/models';
 
 /** Filter value standing for a provider or effort that was not recorded. */
 export const UNKNOWN_USAGE_VALUE = 'unknown';

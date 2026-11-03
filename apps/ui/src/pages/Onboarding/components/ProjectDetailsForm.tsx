@@ -3,7 +3,7 @@ import { Box, TextField, Typography, Chip, IconButton } from "@mui/material";
 import CheckIcon from "@mui/icons-material/Check";
 import ErrorIcon from "@mui/icons-material/Error";
 import EditIcon from "@mui/icons-material/Edit";
-import type { ProjectResponseDto } from "@hey-hey/ui-common/api";
+import type { ProjectResponseDto } from "@hey-hey/contracts/api";
 import { useProjectAutosave } from "@hey-hey/ui-common/data";
 import { projectCapabilitiesForRole } from "@hey-hey/ui-common/hooks";
 
@@ -105,7 +105,9 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
     return null;
   };
 
-  const renderSectionHeader = (actionSlot: React.ReactNode): React.ReactNode => (
+  const renderSectionHeader = (
+    actionSlot: React.ReactNode,
+  ): React.ReactNode => (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
       <Typography
         variant="overline"

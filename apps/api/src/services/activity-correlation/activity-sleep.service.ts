@@ -9,7 +9,7 @@ import {
   ActivitySleepDto,
   ActivitySleepDuration,
   CreateActivitySleepDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { RedisService } from 'src/core/redis/redis.service';
 import { OrganizationId, UserId } from 'src/types';
 import { isRecentAllowedEntityType } from './activity-correlation.graph-mappers';

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   NotificationDto,
   WebSocketSystemNotificationEvent,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   createSessionReportDismissalChannel,
   hasShownRecord,
@@ -109,32 +109,33 @@ const buildSessionReportReadyNotification = (
 
 const buildPullRequestMergedNotification = (
   overrides: { id?: string; projectId?: string; taskId?: string | null } = {},
-): NotificationDto => ({
-  id: overrides.id ?? "notif-pr-1",
-  entityId: overrides.projectId ?? "project-1",
-  entityType: "PROJECT",
-  entityTitle: "Hey Hey",
-  affectedEntities: [
-    { type: "PROJECT", id: overrides.projectId ?? "project-1" },
-  ],
-  payload: {
-    repositoryName: "hey-hey/ui",
-    pullRequestNumber: 314,
-    pullRequestTitle: "Render merge activity",
-    pullRequestUrl: "https://github.com/hey-hey/ui/pull/314",
-    mergedAt: "2026-08-19T05:30:00.000Z",
-    actorLogin: "octocat",
-    ...(overrides.taskId === null
-      ? {}
-      : { taskId: overrides.taskId ?? "task-314" }),
-  },
-  createdAt: "2026-08-19T05:30:00.000Z",
-  status: "unread",
-  readAt: null,
-  acknowledgedAt: null,
-  dismissedAt: null,
-  eventType: "pull_request.merged",
-} as NotificationDto);
+): NotificationDto =>
+  ({
+    id: overrides.id ?? "notif-pr-1",
+    entityId: overrides.projectId ?? "project-1",
+    entityType: "PROJECT",
+    entityTitle: "Hey Hey",
+    affectedEntities: [
+      { type: "PROJECT", id: overrides.projectId ?? "project-1" },
+    ],
+    payload: {
+      repositoryName: "hey-hey/ui",
+      pullRequestNumber: 314,
+      pullRequestTitle: "Render merge activity",
+      pullRequestUrl: "https://github.com/hey-hey/ui/pull/314",
+      mergedAt: "2026-08-19T05:30:00.000Z",
+      actorLogin: "octocat",
+      ...(overrides.taskId === null
+        ? {}
+        : { taskId: overrides.taskId ?? "task-314" }),
+    },
+    createdAt: "2026-08-19T05:30:00.000Z",
+    status: "unread",
+    readAt: null,
+    acknowledgedAt: null,
+    dismissedAt: null,
+    eventType: "pull_request.merged",
+  }) as NotificationDto;
 
 const emit = (notification: NotificationDto): void => {
   act(() => {
@@ -147,7 +148,11 @@ const emit = (notification: NotificationDto): void => {
 const renderActivityHook = (
   options: { path?: string; coordinate?: boolean } = {},
 ) => {
-  const wrapper = ({ children }: { children: ReactNode }): React.JSX.Element => (
+  const wrapper = ({
+    children,
+  }: {
+    children: ReactNode;
+  }): React.JSX.Element => (
     <MemoryRouter initialEntries={[options.path ?? "/projects/project-1"]}>
       {children}
     </MemoryRouter>
@@ -199,9 +204,9 @@ describe("useProjectNotificationActivity — session_report_ready coordination",
       }),
     );
 
-    expect(
-      result.current.currentDailySessionReportReadyToast?.reportId,
-    ).toBe("daily-report");
+    expect(result.current.currentDailySessionReportReadyToast?.reportId).toBe(
+      "daily-report",
+    );
     expect(result.current.hasUnseenDailySessionReportReady).toBe(true);
     expect(result.current.currentSessionReportReadyToast).toBeNull();
     expect(result.current.hasUnseenSessionReportReady).toBe(false);
@@ -213,9 +218,7 @@ describe("useProjectNotificationActivity — session_report_ready coordination",
   });
 
   it("defers the toast while unfocused and shows it when the tab regains focus", () => {
-    const hasFocusSpy = vi
-      .spyOn(document, "hasFocus")
-      .mockReturnValue(false);
+    const hasFocusSpy = vi.spyOn(document, "hasFocus").mockReturnValue(false);
     const { result } = renderActivityHook();
 
     emit(buildSessionReportReadyNotification());
@@ -312,9 +315,9 @@ describe("useProjectNotificationActivity — session_report_ready coordination",
       }),
     );
 
-    expect(
-      result.current.currentDailySessionReportReadyToast?.reportId,
-    ).toBe("daily-report");
+    expect(result.current.currentDailySessionReportReadyToast?.reportId).toBe(
+      "daily-report",
+    );
     expect(result.current.hasUnseenDailySessionReportReady).toBe(true);
   });
 
@@ -347,9 +350,9 @@ describe("useProjectNotificationActivity — session_report_ready coordination",
         reportType: "DAILY_SESSION",
       }),
     );
-    expect(
-      result.current.currentDailySessionReportReadyToast?.reportId,
-    ).toBe("daily-report");
+    expect(result.current.currentDailySessionReportReadyToast?.reportId).toBe(
+      "daily-report",
+    );
 
     const siblingTab = createSessionReportDismissalChannel("project-1");
     await act(async () => {
@@ -424,7 +427,11 @@ describe("useProjectNotificationActivity — session_report_ready coordination",
   });
 
   it("clears merge attention when the hook scope changes to another project", () => {
-    const wrapper = ({ children }: { children: ReactNode }): React.JSX.Element => (
+    const wrapper = ({
+      children,
+    }: {
+      children: ReactNode;
+    }): React.JSX.Element => (
       <MemoryRouter initialEntries={["/projects/project-1"]}>
         {children}
       </MemoryRouter>

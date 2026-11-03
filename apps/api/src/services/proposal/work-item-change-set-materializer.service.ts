@@ -15,7 +15,7 @@ import {
 } from './task-proposal-change-set-conversion';
 import { ProposalReconciliationService } from './proposal-reconciliation.service';
 import { canonicalDiagramType } from '../tasks/diagram-metadata';
-import { ProposalEdgeEndpointMode } from 'src/generated/model/proposalEdgeEndpointMode';
+import { ProposalEdgeEndpointMode } from '@hey-hey/contracts/api/models';
 import { normalizeDiagramChangeSet } from './diagram-change-set-compatibility';
 import {
   BadRequestException,
@@ -55,8 +55,8 @@ import type {
   WorkItemChangeSetValidationRequest,
   WorkItemGraphLayoutValue,
   WorkItemRelationshipCreateOperation,
-} from 'src/generated';
-import { PayloadType } from 'src/generated/model/payloadType';
+} from '@hey-hey/contracts/api/models';
+import { PayloadType } from '@hey-hey/contracts/api/models';
 import { AgentEdgeEndpointEntityType } from 'src/generated/graphs/model/agentEdgeEndpointEntityType';
 import { AgentEdgeCategory } from 'src/generated/graphs/model/agentEdgeCategory';
 import type { AgentEdgeType } from 'src/generated/graphs/model/agentEdgeType';
@@ -108,8 +108,8 @@ import {
 import {
   MentionCreatedEventPayload,
   type ProjectModeSettings,
-} from '../../generated';
-import type { WorkItemTypeSectionDefinition } from '../../generated/model/workItemTypeSectionDefinition';
+} from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeSectionDefinition } from '@hey-hey/contracts/api/models';
 import { validateFeatureRequirementsSection } from '../tasks/feature-requirements-section.validator';
 import { FeatureRequirementsReadError } from '../tasks/feature-requirements-reader';
 import {

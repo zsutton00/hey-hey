@@ -20,9 +20,9 @@ import {
  * trigger and the next user reply resumes.
  */
 
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { LocalImplementPromptPayload } from '../../shared/agent-bridge-contract/runtime-types';
-import { ExtendedUIFieldType, ReportAudience, ReportType } from '../../shared/api/generated/api';
+import { ExtendedUIFieldType, ReportAudience, ReportType } from '@hey-hey/contracts/api/models';
 import { renderStartupPlanMarkdown, type StartupPlanRenderable } from '../../agent-runtime/index';
 import {
   defaultAddUserMessage,

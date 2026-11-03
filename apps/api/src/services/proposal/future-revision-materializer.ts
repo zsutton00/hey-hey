@@ -23,7 +23,7 @@ import type {
   ProjectedWorkItemChangeSetResponse,
   WorkItemChangeSetValidationRequest,
   UpdateTaskDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   futureDesignDocChangesSchema,
   futureRevisionAuthoringSchema,

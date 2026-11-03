@@ -10,7 +10,7 @@ import { useTranslation } from "react-i18next";
 import {
   WorkItemTypeLifecycleStatus,
   type CreateFeatureDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { FeatureList, NewFeatureModal } from "@hey-hey/ui-common/components";
 import { useWorkItems, useWorkItemTypeByKey } from "@hey-hey/ui-common/data";
 import { CardHeader } from "../CardHeader";

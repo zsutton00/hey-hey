@@ -3,7 +3,7 @@ import {
   BaseRefinementService,
   WorkItemRefinementService,
 } from '../base-refinement.service';
-import { ConversationResponseDto } from '../../../generated';
+import { ConversationResponseDto } from '@hey-hey/contracts/api/models';
 import {
   RefinableEntity,
   EntityType,

@@ -3,7 +3,7 @@ import {
   PlanShapingProposedStagesCompletionPayload,
   PlanShapingVisualPreviewCompletionPayload,
   WorkflowReviewAction,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   PlanShapingFeatureSyncReviewDismissedAnswerPayloadSchema,
   PlanShapingFeatureSyncReviewRefineAnswerPayloadSchema,
@@ -16,8 +16,8 @@ import {
   discrepancyListPayloadSchema,
   featureSyncDiscrepancySchema,
 } from '../shared/feature-sync-discrepancy';
-import { PhaseBreakdownStepType } from 'src/generated/local';
-import type { PlanSubmissionAdmissionRequest } from 'src/generated';
+import { PhaseBreakdownStepType } from '@hey-hey/contracts/agent-bridge/models';
+import type { PlanSubmissionAdmissionRequest } from '@hey-hey/contracts/api/models';
 
 /**
  * Completion-message actions emitted by the CLI for the plan-shaping

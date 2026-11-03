@@ -7,7 +7,7 @@ import {
   validateDiagramSections,
   withDiagramDefaults,
 } from '../diagram-metadata';
-import type { WorkItemTypeSectionDefinition } from '../../../generated/model/workItemTypeSectionDefinition';
+import type { WorkItemTypeSectionDefinition } from '@hey-hey/contracts/api/models';
 
 const targetId = '11111111-1111-4111-8111-111111111111';
 const definitions: WorkItemTypeSectionDefinition[] = [

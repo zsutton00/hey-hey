@@ -1,7 +1,7 @@
 import type { GroupReservedEntity } from '../proposal-group-authoring.service';
 import type { Logger } from '@nestjs/common';
 import { isAxiosError } from 'axios';
-import type { WorkItemChangeSetValidationRequest } from 'src/generated';
+import type { WorkItemChangeSetValidationRequest } from '@hey-hey/contracts/api/models';
 import type { AgentEdge } from 'src/generated/graphs';
 import { AgentEdgeEndpointEntityType } from 'src/generated/graphs/model/agentEdgeEndpointEntityType';
 import {

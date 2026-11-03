@@ -3,7 +3,7 @@ import {
   type WorkItemTypeKey,
 } from 'src/services/tasks/work-item-type-keys';
 import { BadRequestException } from '@nestjs/common';
-import type { FeatureTag } from '../../generated';
+import type { FeatureTag } from '@hey-hey/contracts/api/models';
 import type {
   MaterializedWorkItemSection,
   WorkItemSectionKey,

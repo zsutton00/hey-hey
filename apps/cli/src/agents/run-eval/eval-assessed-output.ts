@@ -1,5 +1,5 @@
 import { LocalPromptType } from '../../shared/agent-bridge-contract/contract';
-import { EvalAssessedOutput, type EvalResolvedExecution } from '../../shared/api/generated/api';
+import { EvalAssessedOutput, type EvalResolvedExecution } from '@hey-hey/contracts/api/models';
 import type { RunMemo } from '../../session/types';
 
 /**

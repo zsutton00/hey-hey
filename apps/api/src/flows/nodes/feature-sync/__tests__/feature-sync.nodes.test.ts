@@ -1,5 +1,5 @@
-import { LocalPromptType } from 'src/generated/local';
-import { WorkflowReviewAction } from 'src/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
+import { WorkflowReviewAction } from '@hey-hey/contracts/api/models';
 import {
   ExternalAgentValidationError,
   FeatureSyncFlowContext,

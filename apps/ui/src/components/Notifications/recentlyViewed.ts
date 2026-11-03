@@ -2,7 +2,7 @@ import { WebPathService } from "@hey-hey/ui-common";
 import {
   EntityType,
   type AttentionEventResponse,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);

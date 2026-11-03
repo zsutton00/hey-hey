@@ -15,7 +15,7 @@ import {
   useProject,
   useTaskHierarchy,
 } from "@hey-hey/ui-common/data";
-import { EntityType } from "@hey-hey/ui-common/api";
+import { EntityType } from "@hey-hey/contracts/api";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import { compose } from "@hey-hey/ui-common/i18n";
 import {

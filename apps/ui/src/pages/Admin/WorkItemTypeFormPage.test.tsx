@@ -19,7 +19,7 @@ import {
   WorkItemTypeLifecycleStatus,
   WorkItemTypeScalarField,
   WorkStatus,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import type {
   UseCreateWorkItemTypeOptions,
   CreateWorkItemTypeVariables,
@@ -28,7 +28,7 @@ import { buildWorkItemTypeRelationshipIndex } from "@hey-hey/ui-common/data";
 import type {
   ProposalResponseDto,
   WorkItemTypeSummaryDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { WorkItemTypeFormPage } from "./WorkItemTypeFormPage";
 
 const mockNavigate = vi.fn();

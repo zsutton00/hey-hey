@@ -1,5 +1,5 @@
-import { RunToolCallsLatestTurnApi } from "../../../../local-agent-api/generated/api";
-import { Configuration } from "../../../../local-agent-api/generated/configuration";
+import { RunToolCallsLatestTurnApi } from "@hey-hey/contracts/local";
+import { Configuration } from "@hey-hey/contracts/local/configuration";
 import { resolveLocalDirectoryRuntimeBaseUrl } from "../directoryBindingApi";
 import { useLocalCliForSession } from "./useLocalCliForSession";
 import {

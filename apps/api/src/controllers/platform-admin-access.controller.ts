@@ -4,7 +4,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
-import type { PlatformAdminAccessDto } from '../generated';
+import type { PlatformAdminAccessDto } from '@hey-hey/contracts/api/models';
 
 /**
  * Tells the signed-in browser whether its user is a platform admin, using the

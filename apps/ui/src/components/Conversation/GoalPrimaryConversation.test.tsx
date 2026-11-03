@@ -1,5 +1,5 @@
-import type { AgentSessionDto, TaskResponseDto } from "@hey-hey/ui-common/api";
-import { EntityType, WorkStatus } from "@hey-hey/ui-common/api";
+import type { AgentSessionDto, TaskResponseDto } from "@hey-hey/contracts/api";
+import { EntityType, WorkStatus } from "@hey-hey/contracts/api";
 import {
   act,
   fireEvent,

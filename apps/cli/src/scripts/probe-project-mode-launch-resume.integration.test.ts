@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AgenticSessionEvent } from '../session';
-import type { AgentSessionConfig } from '../shared/agent-bridge-contract/generated/api';
+import type { AgentSessionConfig } from '@hey-hey/contracts/agent-bridge';
 import {
   runProjectModeLaunchResumeProbe,
   serializeProjectModeLaunchResumeOutcome,

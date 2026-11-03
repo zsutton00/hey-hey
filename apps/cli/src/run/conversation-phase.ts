@@ -1,7 +1,7 @@
 import type {
   ConversationPhase,
   ConversationPhaseObservation,
-} from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { RunEventPublisher } from '../server/run-event-publisher';
 import type { ServerLogger } from '../server/logger';
 import type { ProviderPhase } from './types';

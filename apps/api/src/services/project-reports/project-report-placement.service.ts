@@ -5,7 +5,7 @@ import {
   type ProjectReportPlacementEntry,
   type ProjectReportSubject,
   type ProjectReportSubjectPlacement,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId } from 'src/types';
 import { WorkItemTypeRegistryService } from '../tasks/work-item-type-registry.service';

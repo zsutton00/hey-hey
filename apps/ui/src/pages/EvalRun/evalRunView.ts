@@ -9,7 +9,7 @@ import {
   type EvalModelSetting,
   type EvalRunSettings,
   type LaunchEvalRunRequestSettings,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import type { EvalAttemptReport } from "@hey-hey/ui-common/data";
 
 /** The judge a new run starts with; the person starting the run can change it. */

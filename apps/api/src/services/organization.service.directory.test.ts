@@ -3,7 +3,7 @@ import { OrganizationService } from './organization.service';
 import {
   OrganizationDirectorySortBy,
   OrganizationDirectorySortOrder,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { AccountAccessStatus, AccountSubscriptionType } from '@prisma/client';
 
 describe('OrganizationService.listOrganizationDirectory', () => {

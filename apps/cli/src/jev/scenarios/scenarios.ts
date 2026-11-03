@@ -101,7 +101,12 @@ interface ScenarioBase {
 }
 
 export interface RelevanceScenario extends ScenarioBase {
-  id: 'parent_requirements' | 'neighbourhood' | 'hint_selection' | 'decision_selection';
+  id:
+    | 'parent_requirements'
+    | 'neighbourhood'
+    | 'context_selection'
+    | 'hint_selection'
+    | 'decision_selection';
   decision: 'relevance';
 }
 
@@ -141,7 +146,8 @@ export const EDGES: ReadMoreScenario = {
  * the harness measures as its baseline and context trimming runs.
  */
 export const CONTEXT_SELECTION: RelevanceScenario = {
-  ...NEIGHBOURHOOD,
+  id: 'context_selection',
+  decision: 'relevance',
   candidateKinds: ['requirement', 'ancestor', 'ancestor_sibling', 'sibling', 'child', 'linked'],
 };
 
@@ -174,6 +180,7 @@ export const READ_CHECK: ReadCheckScenario = {
 export const SCENARIOS = [
   PARENT_REQUIREMENTS,
   NEIGHBOURHOOD,
+  CONTEXT_SELECTION,
   EDGES,
   HINT_SELECTION,
   DECISION_SELECTION,

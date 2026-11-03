@@ -20,7 +20,7 @@ import {
   HelpNodeWithBody,
   HelpSearchResponse,
   HelpTreeResponse,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { HelpService } from '../services/help.service';
 import {
   HelpAssetNotFoundError,

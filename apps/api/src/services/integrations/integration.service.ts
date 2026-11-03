@@ -12,7 +12,7 @@ import {
   IntegrationType,
   IntegrationState,
   IntegrationConnectionStatus,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { IntegrationId, ProjectId, OrganizationId, UserId } from '../../types';
 import { GitHubWebhookService } from './github-webhook.service';
 import { GitHubOAuthService } from './github-oauth.service';

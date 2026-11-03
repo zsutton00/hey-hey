@@ -17,7 +17,7 @@ import {
 import { CurrentOrganization } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OrganizationGuard } from '../auth/guards/organization.guard';
-import { WorkflowExecutionDto } from '../generated';
+import { WorkflowExecutionDto } from '@hey-hey/contracts/api/models';
 import {
   ExecutionResultDto,
   WorkflowExecutionService,

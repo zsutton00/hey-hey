@@ -4,7 +4,7 @@ import {
   HostActionCategory,
   HostActionTargetKind,
   HostAffectingActionType,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ControllerAuthorizationCadence as PrismaControllerAuthorizationCadence,
   HostAffectingActionType as PrismaHostAffectingActionType,

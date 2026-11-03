@@ -3,7 +3,7 @@ import {
   EvalAttemptStatus,
   EvalAttemptStopReason,
   type EvalRunSettings,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import type { EvalAttemptReport } from "@hey-hey/ui-common/data";
 
 import {

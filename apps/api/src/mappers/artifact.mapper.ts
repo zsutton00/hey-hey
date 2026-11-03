@@ -6,7 +6,7 @@ import {
   QAPairData,
   ArtifactSourceType,
   Influence,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { ConversationId, MessageId, OrganizationId } from '../types';
 import { QuestionAnswerPair } from '../utils/response-question-matcher.util';
 import { generateQAPairTitle } from '../utils/sanitization.util';

@@ -1,4 +1,4 @@
-import { ReadRestriction } from 'src/generated';
+import { ReadRestriction } from '@hey-hey/contracts/api/models';
 import {
   ReadPolicyContext,
   readPolicyFor,
@@ -23,7 +23,7 @@ import {
   ReportUsageCacheAvailability,
   ReportUsageCoverage,
   type ReportUsageMeasurement,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   createMockDomainEventPublisher,
   createMockPrismaService,

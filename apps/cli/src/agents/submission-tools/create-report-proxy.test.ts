@@ -20,11 +20,11 @@ import { SubmissionToolAuth } from './submission-tool-auth';
 import { createTestOAuthClient as createProviderTestOAuthClient } from '../../auth/oauth-client.test-support';
 import { jointDecision } from '../feature-sync/__tests__/feature-sync-decision.fixtures';
 import type { Run } from '../../run/run';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type {
   ProjectReportCoverage,
   ProjectReportEvidenceReference,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import { serializeProjectReportPreparedEvidence } from '../project-report/project-report-submission';
 import type { ProjectReportEvidenceResult } from '../project-report/project-report-evidence-reader';
 import {

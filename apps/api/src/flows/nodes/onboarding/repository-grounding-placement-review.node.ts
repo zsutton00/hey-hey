@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   ExtendedUIFieldType,
   type RepositoryPlacementReviewElement,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { FeatureListLifecycleService } from '../../../services/feature-list/feature-list-lifecycle.service';
 import {
   FlowUserMessage,

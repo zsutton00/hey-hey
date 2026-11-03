@@ -1,4 +1,4 @@
-import { AgentSessionType } from 'src/generated';
+import { AgentSessionType } from '@hey-hey/contracts/api/models';
 
 export const DEFAULT_AGENT_SESSION_TITLE = 'Agent Session';
 

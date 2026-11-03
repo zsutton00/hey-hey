@@ -6,7 +6,7 @@ import { UnifiedSearchService } from '../../services/unified-search/unified-sear
 import { SearchCacheService } from '../tools/search-cache.service';
 import { ImplementationHintService } from '../../services/service/implementation-hint.service';
 import { AgentSessionService } from '../../services/agent-session.service';
-import { EntityType, UnifiedSearchResult } from '../../generated';
+import { EntityType, UnifiedSearchResult } from '@hey-hey/contracts/api/models';
 
 const ORG_ID = '00000000-0000-4000-8000-000000000001';
 const SERVICE_ID = '00000000-0000-4000-8000-000000000002';

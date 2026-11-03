@@ -12,7 +12,7 @@ import type {
   ResolvedServiceBinding,
   TaskResponseDto,
 } from '../shared/agent-bridge-contract/contract';
-import type { AgentSessionServiceScopeRequest } from '../shared/api/generated/api';
+import type { AgentSessionServiceScopeRequest } from '@hey-hey/contracts/api/models';
 import type {
   ReviewFileScopeContinuation,
   ReviewFileScopeReconciliation,

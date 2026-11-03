@@ -17,7 +17,7 @@
  * to gather what it needs.
  */
 
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { LocalFeatureSyncAnalyzePromptPayload } from '../../shared/agent-bridge-contract/runtime-types';
 import { ReportAudience, ReportType } from '../../shared/api/index';
 import {

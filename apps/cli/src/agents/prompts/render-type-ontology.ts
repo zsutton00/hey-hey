@@ -1,6 +1,6 @@
 export type { WorkItemTypeDefinitionDto } from '../../shared/api/index';
 import type { WorkItemTypeDefinitionDto } from '../../shared/api/index';
-import { FeatureTag } from '../../shared/agent-bridge-contract/generated/api';
+import { FeatureTag } from '@hey-hey/contracts/agent-bridge';
 
 /** The platform-owned work-item key that participates in product Feature hierarchy. */
 const PLATFORM_FEATURE_TYPE_KEY = 'FEATURE';

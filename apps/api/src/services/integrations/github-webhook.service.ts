@@ -4,7 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { Integration } from '@prisma/client';
 import { OrganizationId } from '../../types';
 import { GitHubConfig } from '../../integration/types/github.types';
-import { IntegrationType } from '../../generated';
+import { IntegrationType } from '@hey-hey/contracts/api/models';
 import { ConfigEncryptionService } from '../config-encryption.service';
 
 export interface WebhookInfo {

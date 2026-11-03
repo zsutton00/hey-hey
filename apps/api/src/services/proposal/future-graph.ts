@@ -9,7 +9,7 @@ import type {
   WorkItemChangeSetOperation,
   WorkItemChangeSetValidationRequest,
   WorkItemGraphLayoutValue,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 
 export const graphIdentityKey = (ref: WorkItemChangeSetIdentity) =>
   ref.refType === 'existing' ? `existing:${ref.id}` : `temporary:${ref.tempId}`;

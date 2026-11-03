@@ -5,7 +5,7 @@ import {
   diagramMetadataSchema,
   parseDiagramJson,
 } from '../../../tasks/diagram-metadata';
-import { DiagramKind } from '../../../../generated/model/diagramKind';
+import { DiagramKind } from '@hey-hey/contracts/api/models';
 import {
   parseDiagramGroupsContent,
   reconcileDiagramGroups,

@@ -1,4 +1,4 @@
-import type { RunAttachmentReference } from '../../shared/agent-bridge-contract/generated/api';
+import type { RunAttachmentReference } from '@hey-hey/contracts/agent-bridge';
 import type { BrowserMcpMount } from '../browser-tools/browser-mcp-access';
 import type { AgenticSession } from '../../session/index';
 import type {

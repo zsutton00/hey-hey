@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ApiRuntime } from '../../../shared/runtime/clients/shared';
-import { MessageType } from '../../../shared/api/generated/api';
+import { MessageType } from '@hey-hey/contracts/api/models';
 import type { MessagePoster } from '../../../run/message-poster';
 import type { ServerLogger } from '../../../server/logger';
 import type { TaskMonitorCoordinatorConversation } from '../../../server/task-monitor-coordinator-conversation';

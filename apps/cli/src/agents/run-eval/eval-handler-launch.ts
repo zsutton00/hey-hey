@@ -2,8 +2,8 @@ import {
   LocalPromptType,
   type LocalCreateRunRequest,
 } from '../../shared/agent-bridge-contract/contract';
-import type { RunEntityReference } from '../../shared/agent-bridge-contract/generated/api';
-import { EvalTargetHandlerKey, type EvalResolvedExecution } from '../../shared/api/generated/api';
+import type { RunEntityReference } from '@hey-hey/contracts/agent-bridge';
+import { EvalTargetHandlerKey, type EvalResolvedExecution } from '@hey-hey/contracts/api/models';
 
 /** The first turn an attempt's Run starts with, built from the attempt's recorded execution. */
 export interface EvalFirstTurn {

@@ -21,8 +21,8 @@ import type { AgentRunResult, RunPromptArgs } from '../agents/providers/session-
 import { SubmissionToolsHttpController } from '../agents/submission-tools/http-mcp';
 import { RunStore } from '../run-store/run-store';
 import { LocalAgentEndpoint } from '../server/local-base-url';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated/api';
-import type { ImplementationReadinessDisposition } from '../shared/api/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import type { ImplementationReadinessDisposition } from '@hey-hey/contracts/api/models';
 import { createReadinessSourceSnapshotFromStartupInput } from '../agents/implementation-readiness/source-snapshot';
 import { Run, type RunCollaborators } from './run';
 import { RunnerPicker } from './runners/pick-runner';

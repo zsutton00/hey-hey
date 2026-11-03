@@ -27,7 +27,7 @@ import { GitHubIntegrationHandler } from '../integration/handlers/github.integra
 import {
   GitHubIntegrationConfig,
   GitHubWebhookAcceptedResponseDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { IntegrationId } from '../types';
 import { GitHubWebhookPayload } from '../types/webhook.types';
 

@@ -11,7 +11,7 @@ import type { Run } from '../../run/run';
 import { createTestRun } from '../../run/run.test-support';
 import { NOOP_LOGGER, type ServerLogger } from '../../server/logger';
 import type { CreateSystemMessage } from '../../shared/api/index';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { Turn } from '../../turn/turn';
 import type { PromptTypeHandler } from '../prompt-type-handler';
 import {

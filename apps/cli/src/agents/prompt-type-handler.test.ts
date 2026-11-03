@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { resolveHandlerSessionRole } from './prompt-type-handler';
 import { freeFormHandler } from './coding-conversation';
-import { SessionRole } from '../shared/agent-bridge-contract/generated/api';
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../session/types';
 
 // Static/default handlers do not read selected mode settings.

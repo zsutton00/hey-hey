@@ -8,7 +8,7 @@ import type {
   PlanSubmissionAdmissionResponse,
   StepReviewCompletionPayload,
   WorkItemChangeSetValidationRequest,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import type { OrganizationId, PlanId, ProjectId, UserId } from 'src/types';
 import { WorkItemChangeSetProjectorService } from '../proposal/work-item-change-set-projector.service';

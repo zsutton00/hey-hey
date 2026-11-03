@@ -22,7 +22,7 @@ import {
   WorkItemStandardRelationshipCreateOperation,
   WorkItemUpdateOperation,
   WorkStatus,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import type {
   RelationshipDecision,
   RelationshipDecisionOriginal,
@@ -36,7 +36,7 @@ import type {
   WorkItemChangeSetRelationshipIdentity,
   WorkItemChangeSetValidationRequest,
   WorkItemRelationshipCreateOperation,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   workflowEdgeActionLabelSchema,
   workflowEdgePredicateSchema,

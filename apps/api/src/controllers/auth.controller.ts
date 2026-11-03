@@ -31,7 +31,7 @@ import {
   PasswordRecoveryRequestDto,
   RefreshBrowserSessionDto,
   RegisterDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../auth/strategies/jwt.strategy';

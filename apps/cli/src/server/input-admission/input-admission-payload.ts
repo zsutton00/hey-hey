@@ -1,9 +1,6 @@
 import { z } from 'zod';
 import { z as durable } from 'zod/v4';
-import {
-  LocalPromptType,
-  type AgentTrigger,
-} from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType, type AgentTrigger } from '@hey-hey/contracts/agent-bridge';
 import {
   storedReviewEntryV13Schema,
   storedTriggerFrameV13Schema,

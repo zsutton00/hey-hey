@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { EntitySearchResult } from '../../generated/model/entitySearchResult';
-import { EntityType } from '../../generated/model/entityType';
+import { EntitySearchResult } from '@hey-hey/contracts/api/models';
+import { EntityType } from '@hey-hey/contracts/api/models';
 
 export class EntitySearchResultDto implements EntitySearchResult {
   @ApiProperty({

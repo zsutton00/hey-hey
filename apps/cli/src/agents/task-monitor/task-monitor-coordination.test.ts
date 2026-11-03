@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { LocalTaskMonitorCoordinatorDecision } from '../../shared/agent-bridge-contract/generated/api';
+import type { LocalTaskMonitorCoordinatorDecision } from '@hey-hey/contracts/agent-bridge';
 import type { TaskMonitorCanonicalEvidence } from './task-monitor-evidence';
 import {
   parseTaskMonitorCoordinationLocalState,

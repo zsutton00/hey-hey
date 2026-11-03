@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { VerifyFeaturePromptPayload } from '../../shared/agent-bridge-contract/generated';
+import type { VerifyFeaturePromptPayload } from '@hey-hey/contracts/agent-bridge';
 import { VerifyFeatureHandler } from './verify-feature.handler';
 import type { PromptTypeHandlerContext } from '../prompt-type-handler';
 

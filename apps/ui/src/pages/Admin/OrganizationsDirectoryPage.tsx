@@ -1,7 +1,7 @@
 import {
   OrganizationDirectorySortBy,
   OrganizationDirectorySortOrder,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { useOrganizationsDirectory } from "@hey-hey/ui-common/data";
 import {
   Alert,
@@ -63,14 +63,14 @@ export const OrganizationsDirectoryPage: React.FC = () => {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [sortBy, setSortBy] = useState<OrganizationDirectorySortBy>(
-    OrganizationDirectorySortBy.CreatedAt
+    OrganizationDirectorySortBy.CreatedAt,
   );
   const [sortOrder, setSortOrder] = useState<OrganizationDirectorySortOrder>(
-    OrganizationDirectorySortOrder.Desc
+    OrganizationDirectorySortOrder.Desc,
   );
   const [cursor, setCursor] = useState<string | undefined>();
   const [cursorHistory, setCursorHistory] = useState<Array<string | undefined>>(
-    []
+    [],
   );
 
   const resetPagination = useCallback(() => {
@@ -91,7 +91,7 @@ export const OrganizationsDirectoryPage: React.FC = () => {
       setName(value);
       resetPagination();
     },
-    [resetPagination]
+    [resetPagination],
   );
 
   const handleSortByChange = useCallback(
@@ -99,7 +99,7 @@ export const OrganizationsDirectoryPage: React.FC = () => {
       setSortBy(event.target.value as OrganizationDirectorySortBy);
       resetPagination();
     },
-    [resetPagination]
+    [resetPagination],
   );
 
   const handleSortOrderChange = useCallback(
@@ -107,7 +107,7 @@ export const OrganizationsDirectoryPage: React.FC = () => {
       setSortOrder(event.target.value as OrganizationDirectorySortOrder);
       resetPagination();
     },
-    [resetPagination]
+    [resetPagination],
   );
 
   const handleNextPage = useCallback(() => {
@@ -282,7 +282,7 @@ export const OrganizationsDirectoryPage: React.FC = () => {
                             key={organization.id}
                             onClick={() =>
                               navigate(
-                                `/admin/organizations/${organization.id}`
+                                `/admin/organizations/${organization.id}`,
                               )
                             }
                             sx={{ cursor: "pointer" }}

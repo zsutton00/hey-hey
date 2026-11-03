@@ -2,7 +2,7 @@ import { z } from 'zod/v4';
 import type {
   ChangedFileReportFinding,
   ChangedFileReportResult,
-} from '../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 
 /** The version of the canonical Run event representation on disk. */
 export const DURABLE_RUN_EVENT_SCHEMA_VERSION = 1 as const;

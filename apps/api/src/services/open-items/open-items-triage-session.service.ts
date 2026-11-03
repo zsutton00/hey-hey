@@ -3,7 +3,7 @@ import {
   AgentSessionStatus as PrismaAgentSessionStatus,
   AgentSessionType as PrismaAgentSessionType,
 } from '@prisma/client';
-import { WorkflowName } from '../../generated';
+import { WorkflowName } from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AgentSessionId, ConversationId } from '../../types';
 import { AgentSessionService } from '../agent-session.service';

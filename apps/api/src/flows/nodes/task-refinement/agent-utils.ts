@@ -9,7 +9,7 @@ import {
   MaterializedWorkItemSection,
   QAPairData,
   TaskResponseDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { ArtifactService } from 'src/services/artifacts/artifact.service';
 import { InitiativeService } from 'src/services/initiatives/initiative.service';
 import { WorkItemTypeRegistryService } from 'src/services/tasks/work-item-type-registry.service';

@@ -5,7 +5,7 @@ import type {
   ProjectedWorkItemRelationship,
   WorkItemChangeSetIdentity,
   WorkItemChangeSetRelationshipIdentity,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 
 export type IssueLayer = ProjectedWorkItemChangeSetIssue.LayerEnum;
 export type ProjectedNode = ProjectedWorkItem & {

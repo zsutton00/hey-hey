@@ -20,7 +20,7 @@ import type {
   AgentSkillSelection,
   ContextData,
   CliReadProviderSessionUsageCost,
-} from './generated/api';
+} from '@hey-hey/contracts/agent-bridge/models';
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
@@ -187,7 +187,8 @@ export interface LocalCodeReviewPromptPayload {
   userMessage?: string;
 }
 
-export type LocalImplementPromptPayload = import('./generated/api').ImplementPromptPayload;
+export type LocalImplementPromptPayload =
+  import('@hey-hey/contracts/agent-bridge/models').ImplementPromptPayload;
 
 export interface LocalFeatureTreeConversationPromptPayload {
   projectId: string;

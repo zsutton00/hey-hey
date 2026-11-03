@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { runAttachmentFormat } from '../agent-runtime/index';
-import type { LocalRunAttachmentOpenAction } from '../shared/local-agent-api/generated/api';
+import type { LocalRunAttachmentOpenAction } from '@hey-hey/contracts/local';
 
 export class AttachmentOpenerUnavailableError extends Error {
   public constructor(command: string, options?: ErrorOptions) {

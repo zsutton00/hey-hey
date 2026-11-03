@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { WorkItemHtmlCssAnnotationElementTarget } from '../../generated/model/workItemHtmlCssAnnotationElementTarget';
-import { WorkItemHtmlCssAnnotationPositionTarget } from '../../generated/model/workItemHtmlCssAnnotationPositionTarget';
-import { WorkItemStructuredMockupAnnotationAgentAuthor } from '../../generated/model/workItemStructuredMockupAnnotationAgentAuthor';
-import { WorkItemStructuredMockupAnnotationCategory } from '../../generated/model/workItemStructuredMockupAnnotationCategory';
-import { WorkItemStructuredMockupAnnotationHumanAuthor } from '../../generated/model/workItemStructuredMockupAnnotationHumanAuthor';
-import { WorkItemStructuredMockupAnnotationLifecycle } from '../../generated/model/workItemStructuredMockupAnnotationLifecycle';
+import { WorkItemHtmlCssAnnotationElementTarget } from '@hey-hey/contracts/api/models';
+import { WorkItemHtmlCssAnnotationPositionTarget } from '@hey-hey/contracts/api/models';
+import { WorkItemStructuredMockupAnnotationAgentAuthor } from '@hey-hey/contracts/api/models';
+import { WorkItemStructuredMockupAnnotationCategory } from '@hey-hey/contracts/api/models';
+import { WorkItemStructuredMockupAnnotationHumanAuthor } from '@hey-hey/contracts/api/models';
+import { WorkItemStructuredMockupAnnotationLifecycle } from '@hey-hey/contracts/api/models';
 
 type HtmlCssValidationResult =
   | { success: true; canonicalContent: string }

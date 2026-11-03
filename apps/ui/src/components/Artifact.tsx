@@ -3,7 +3,7 @@ import React from "react";
 import type {
   ArtifactResponseDto,
   ArtifactStatus,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 
 // Helper function to extract content from ArtifactData union type
 const extractArtifactContent = (data: any): React.ReactNode => {

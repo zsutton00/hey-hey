@@ -1,4 +1,4 @@
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import {
   resolvePromptText,
   type InternalRunPromptRequest,

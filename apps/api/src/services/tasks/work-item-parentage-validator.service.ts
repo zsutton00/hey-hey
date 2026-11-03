@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { EntityType } from '../../generated/model/entityType';
+import { EntityType } from '@hey-hey/contracts/api/models';
 import { WorkItemTypeRegistryService } from './work-item-type-registry.service';
 
 export interface WorkItemParentageCandidate {

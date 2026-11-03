@@ -4,7 +4,7 @@ import type { Logger } from '@nestjs/common';
 import type {
   WorkItemChangeSetOperation,
   WorkItemChangeSetValidationRequest,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type { AgentEdge } from 'src/generated/graphs';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId } from 'src/types';

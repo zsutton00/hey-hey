@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EntityType } from "@hey-hey/ui-common/api";
+import { EntityType } from "@hey-hey/contracts/api";
 import { isTask } from "@hey-hey/ui-common/data";
 import {
   captureSetupLaunchContext,
@@ -38,9 +38,9 @@ describe("resolveAgentSessionTaskId", () => {
         resolveAgentSessionTaskId({
           agentSessionEntityType: EntityType.Task,
           agentSessionEntityId: parent.id,
-        })
+        }),
       ).toBe(parent.id);
-    }
+    },
   );
   it("uses the direct Task route as the setup identity", () => {
     expect(

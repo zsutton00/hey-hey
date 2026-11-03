@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { DAILY_SESSION_MONITOR_LOG_EVENT } from '../../shared/logging/daily-session';
 import { NOOP_LOGGER } from '../logger';
 import { MonitorPipeline, type MonitorPipelineDependencies } from './index';

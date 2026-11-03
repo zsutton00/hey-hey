@@ -1,4 +1,4 @@
-import type { LocalOpenItemsTriageItem } from '../../shared/agent-bridge-contract/generated';
+import type { LocalOpenItemsTriageItem } from '@hey-hey/contracts/agent-bridge';
 import { itemKey, TRIAGE_CAPS } from './attention';
 
 export interface Connection {

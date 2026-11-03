@@ -16,7 +16,7 @@ import { FUTURE_REVISION_MCP_TOOLS } from '../mcp-server-config';
 import {
   LocalPromptType,
   type PlanShapingRefineStagePromptPayload,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import { turnUserMessageBlock, type UserLaunchablePromptTypeHandler } from '../prompt-type-handler';
 import { buildRefineStagePrompt } from './prompts';
 import { preparePlanShapingPayload } from './prepare-payload';

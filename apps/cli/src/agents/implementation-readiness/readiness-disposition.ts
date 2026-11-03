@@ -2,7 +2,7 @@ import type {
   ImplementationReadinessDisposition,
   ImplementationReadinessFinding,
   ImplementationReadinessResolution,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { AgenticSession } from '../../session/types';
 import type { ServerLogger } from '../../server/logger';
 import type { RunStore } from '../../run-store/run-store';

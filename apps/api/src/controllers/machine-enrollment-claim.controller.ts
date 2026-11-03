@@ -25,7 +25,7 @@ import {
   BeginMachineEnrollmentClaimResponseDto,
   CompleteMachineEnrollmentClaimRequestDto,
   CompleteMachineEnrollmentClaimResponseDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { MachineEnrollmentClaimService } from '../services/machine-pairing/machine-enrollment-claim.service';
 import {
   readControllerBindingSecret,

@@ -12,7 +12,7 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import type {
   TopologySummaryCategory,
   TopologyCategorySummaryDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 
 export interface CategoryListProps {
   categorySummaries: TopologyCategorySummaryDto[];

@@ -6,7 +6,7 @@ import type { Request } from 'express';
 import { AgentEdgeType } from '../../generated/graphs/model/agentEdgeType';
 import type { AgentEdgeType as AgentEdgeTypeValue } from '../../generated/graphs/model/agentEdgeType';
 import { DiagramGroupsValueSchema } from '../../generated/diagram.schemas';
-import type { WorkItemGraphLayoutNodeRef } from '../../generated/model/workItemGraphLayoutNodeRef';
+import type { WorkItemGraphLayoutNodeRef } from '@hey-hey/contracts/api/models';
 import { AgentEdgeClientService } from '../../services/agent-edge-client.service';
 import {
   TaskService,

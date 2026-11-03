@@ -6,7 +6,7 @@ import { ExecutionRecorder } from '../execution-recorder/execution-recorder';
 import { ExecutionCaptureSession } from '../execution-recorder/capture-session';
 import { NOOP_LOGGER } from '../../../server/logger';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { WorkStatus } from '../../../shared/api/generated/api';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import type { ProjectMaturity, WorkItemTypeDefinitionDto } from '../../../shared/api/index';
 import { intentFirstGuidance, takingShapeGuidance } from '../../prompts/common';
 import { renderWorkItemTypeOntologyEntry } from '../../prompts/render-type-ontology';

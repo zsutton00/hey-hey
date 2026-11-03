@@ -1,9 +1,9 @@
-import type { RunEntityReference } from '../../shared/agent-bridge-contract/generated/api';
+import type { RunEntityReference } from '@hey-hey/contracts/agent-bridge';
 import {
   EvalConsumerHandlerKey,
   EvalTargetHandlerKey,
   type EvalCaseTarget,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import { runEntityReferenceSchema } from '../../run/run-entity';
 /** Resolve the canonical focal identity once for both prompt preparation and launch. */
 export const resolveEvalTargetEntity = (target: EvalCaseTarget): RunEntityReference | null => {

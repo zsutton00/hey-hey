@@ -1,5 +1,5 @@
 import { ConflictException } from '@nestjs/common';
-import { WorkStatus } from '../../../generated';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { PlanFromDesignDocLauncherService } from '../plan-from-design-doc-launcher.service';
 import {
   ConversationId,

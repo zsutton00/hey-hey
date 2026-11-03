@@ -27,8 +27,8 @@ import type {
   ReplaceProposalGroupPrerequisitesRequest,
   StartProposalGroupRequest,
   UpdateProposalGroupMemberRequest,
-} from 'src/generated';
-import type { WorkItemTypeDefinitionDto } from 'src/generated/model/workItemTypeDefinitionDto';
+} from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeDefinitionDto } from '@hey-hey/contracts/api/models';
 import {
   type AnyTransactionClient,
   PrismaService,

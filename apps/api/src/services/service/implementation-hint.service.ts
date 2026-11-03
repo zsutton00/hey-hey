@@ -21,7 +21,7 @@ import {
   ImplementationHintUpdatedEventPayload,
   PayloadType,
   UpdateImplementationHintDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { DomainEventPublisher } from 'src/core/events/domain-event-publisher';
 import { EVENT_TYPES } from 'src/core/events/types/event.types';
 import {

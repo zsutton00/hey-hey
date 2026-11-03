@@ -1,5 +1,5 @@
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
-import type { SessionMessageInput } from '../../shared/api/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import type { SessionMessageInput } from '@hey-hey/contracts/api/models';
 import { completionResponseHooks } from '../completion-reconciliation/message-mapper';
 import type { PromptTypeHandler } from '../prompt-type-handler';
 

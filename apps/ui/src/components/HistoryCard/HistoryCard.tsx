@@ -2,7 +2,7 @@ import {
   type ContextRelatedEntityDto,
   type EntityContextDtoProposalsInner,
   type WorkItemTypeDefinitionDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { Card } from "@hey-hey/ui-common/components";
 import { useWorkItemTypes } from "@hey-hey/ui-common/data";
 import { Box, List, Stack, Typography } from "@mui/material";
@@ -43,14 +43,14 @@ export const HistoryCard: React.FC<HistoryCardProps> = ({
   const { workItemTypes } = useWorkItemTypes(organizationId, { projectId });
   const { proposedTogetherRows } = useMergedRelatedRows(
     proposals ?? [],
-    relatedEntities
+    relatedEntities,
   );
 
   // Earliest CREATE is the origin; the latest UPDATE is shown only when it
   // came from a different conversation than the origin.
   const originProposal = useMemo(
     () => findOriginProposal(proposals ?? []),
-    [proposals]
+    [proposals],
   );
   const lastUpdateProposal = useMemo(() => {
     const latest = findLastUpdateProposal(proposals ?? []);
@@ -69,9 +69,9 @@ export const HistoryCard: React.FC<HistoryCardProps> = ({
   >(
     () =>
       new Map(
-        workItemTypes.map(({ definition }) => [definition.key, definition])
+        workItemTypes.map(({ definition }) => [definition.key, definition]),
       ),
-    [workItemTypes]
+    [workItemTypes],
   );
 
   const isEmpty =
@@ -80,7 +80,7 @@ export const HistoryCard: React.FC<HistoryCardProps> = ({
   const renderConversationRow = (
     proposal: EntityContextDtoProposalsInner,
     verb: "Created" | "Updated",
-    testId: string
+    testId: string,
   ) => {
     const conversationId = proposal.conversationId ?? "";
     const path = conversationId ? conversationPathForId(conversationId) : "#";
@@ -90,7 +90,7 @@ export const HistoryCard: React.FC<HistoryCardProps> = ({
       path,
       testId,
       timeAgo ? `${verb} ${timeAgo}` : verb,
-      findAboutFromProposal(proposal)
+      findAboutFromProposal(proposal),
     );
   };
 
@@ -110,7 +110,7 @@ export const HistoryCard: React.FC<HistoryCardProps> = ({
                   {renderConversationRow(
                     originProposal,
                     "Created",
-                    `${dataTestId}-origin`
+                    `${dataTestId}-origin`,
                   )}
                 </List>
               </Box>
@@ -122,7 +122,7 @@ export const HistoryCard: React.FC<HistoryCardProps> = ({
                   {renderConversationRow(
                     lastUpdateProposal,
                     "Updated",
-                    `${dataTestId}-last-updated`
+                    `${dataTestId}-last-updated`,
                   )}
                 </List>
               </Box>
@@ -137,8 +137,8 @@ export const HistoryCard: React.FC<HistoryCardProps> = ({
                       projectId,
                       `${dataTestId}-row`,
                       workItemTypeDefinitions,
-                      workItemTypes
-                    )
+                      workItemTypes,
+                    ),
                   )}
                 </List>
               </Box>

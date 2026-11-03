@@ -2,7 +2,10 @@ import {
   BadRequestException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { EntityType, ActivitySleepDuration } from 'src/generated';
+import {
+  EntityType,
+  ActivitySleepDuration,
+} from '@hey-hey/contracts/api/models';
 import { RedisService } from 'src/core/redis/redis.service';
 import { ActivitySleepService } from '../activity-sleep.service';
 

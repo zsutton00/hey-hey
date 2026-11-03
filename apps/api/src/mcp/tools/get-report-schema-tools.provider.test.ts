@@ -1,5 +1,5 @@
 import Ajv from 'ajv';
-import { CommitReportPayload } from 'src/generated/model/commitReportPayload';
+import { CommitReportPayload } from '@hey-hey/contracts/api/models';
 import { projectReportPayload } from 'src/services/reports/__tests__/project-report.fixture';
 import { GetReportSchemaToolsProvider } from './get-report-schema-tools.provider';
 import {

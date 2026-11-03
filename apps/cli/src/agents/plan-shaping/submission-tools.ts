@@ -23,11 +23,11 @@ import type {
   SubmissionToolInputSchema,
 } from '../submission-tools/types';
 import { SubmissionToolCorrectableError } from '../submission-tools/types';
-import type { PlanShapingProposedStagesCompletionPayload } from '../../shared/agent-bridge-contract/generated/api';
+import type { PlanShapingProposedStagesCompletionPayload } from '@hey-hey/contracts/agent-bridge';
 import type {
   PhaseBreakdownCompletionPayload as ApiPhaseBreakdownCompletionPayload,
   StepReviewCompletionPayload as ApiStepReviewCompletionPayload,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import {
   PHASE_STEP_CEILING,
   STAGE_REVIEW_STEP_CEILING,

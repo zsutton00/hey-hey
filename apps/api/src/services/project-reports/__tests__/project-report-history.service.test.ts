@@ -1,5 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
-import type { CreateProjectReportRequestDto } from 'src/generated';
+import type { CreateProjectReportRequestDto } from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ProjectAccessService } from 'src/auth/services/project-access.service';
 import type { OrganizationId, ProjectId, UserId } from 'src/types';

@@ -4,7 +4,7 @@ import {
   EntityContextService,
   type ListGoalsResponseDto,
 } from '../../services/entity-context/entity-context.service';
-import { WorkStatus } from '../../generated';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import * as TestUtils from '../../utils/testUtils';
 
 const { testIds } = TestUtils;

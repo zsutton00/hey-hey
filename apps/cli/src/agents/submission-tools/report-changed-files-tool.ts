@@ -3,7 +3,7 @@ import type {
   ChangedFileReportInput,
   ChangedFileReportFinding,
   ChangedFileReportResult,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import { reportedChangedFileSchema } from '../completion-reconciliation/schemas';
 import type { PassThroughSubmissionToolDeclaration } from './types';
 

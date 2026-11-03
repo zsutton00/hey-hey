@@ -28,7 +28,7 @@ import {
   ResolveControllerAuthorizationResponseDto,
   SubmitControllerAuthorizedActionRequestDto,
   SubmitControllerAuthorizedActionResponseDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { ControllerAuthorizationService } from '../services/controller-authorization/controller-authorization.service';
 import {
   ControllerBindingCookieService,

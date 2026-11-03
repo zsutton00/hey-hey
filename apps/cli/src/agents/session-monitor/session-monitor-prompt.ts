@@ -1,4 +1,4 @@
-import type { SessionMonitorPromptPayload } from '../../shared/agent-bridge-contract/generated';
+import type { SessionMonitorPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import type { SessionMonitorEvaluationContext } from './session-monitor-evaluation-store';
 
 export type SessionMonitorPromptInput =
@@ -9,26 +9,27 @@ const json = (value: object): string => JSON.stringify(value, null, 2);
 
 /** Deterministic one-shot settled-Turn evaluation prompt. */
 export const buildSessionMonitorPrompt = (input: SessionMonitorPromptInput): string => {
-  const view = 'evaluation' in input
-    ? {
-        reports: input.evaluation.reports,
-        actions: input.evaluation.availableActions,
-        turnId: input.evaluation.turnId,
-        completedAssistantContent: input.evaluation.completedAssistantContent,
-        workflow: input.evaluation.workflow,
-      }
-    : {
-        reports: input.settledTurn.reports,
-        actions: input.workflowContext.actions,
-        turnId: input.settledTurn.turnId,
-        completedAssistantContent: input.settledTurn.completedAssistantMessage?.content ?? null,
-        workflow: {
-          state: input.workflowContext.state,
-          promptType: input.workflowContext.promptType,
-          nodeId: input.workflowContext.nodeId,
-          triggerMessageId: input.workflowContext.triggerMessageId,
-        },
-      };
+  const view =
+    'evaluation' in input
+      ? {
+          reports: input.evaluation.reports,
+          actions: input.evaluation.availableActions,
+          turnId: input.evaluation.turnId,
+          completedAssistantContent: input.evaluation.completedAssistantContent,
+          workflow: input.evaluation.workflow,
+        }
+      : {
+          reports: input.settledTurn.reports,
+          actions: input.workflowContext.actions,
+          turnId: input.settledTurn.turnId,
+          completedAssistantContent: input.settledTurn.completedAssistantMessage?.content ?? null,
+          workflow: {
+            state: input.workflowContext.state,
+            promptType: input.workflowContext.promptType,
+            nodeId: input.workflowContext.nodeId,
+            triggerMessageId: input.workflowContext.triggerMessageId,
+          },
+        };
   const { reports, actions, turnId, completedAssistantContent, workflow } = view;
   const reportReads = reports
     .map(

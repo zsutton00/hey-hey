@@ -1,6 +1,6 @@
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
-import type { ReportUsageMeasurement } from 'src/generated';
+import type { ReportUsageMeasurement } from '@hey-hey/contracts/api/models';
 import { REPORT_USAGE_SCHEMA } from 'src/mcp/tools/report-schemas.generated';
 
 const validate = addFormats(

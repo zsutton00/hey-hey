@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { TurnAdmission } from '../shared/api/generated/api';
+import type { TurnAdmission } from '@hey-hey/contracts/api/models';
 import type { DispatchSource } from './dispatch-source';
 import type { LocalAgentService } from './local-agent-service';
 import type { RunStore } from '../run-store/run-store';

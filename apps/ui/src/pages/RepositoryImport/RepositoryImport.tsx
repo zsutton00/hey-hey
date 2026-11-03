@@ -9,7 +9,7 @@ import {
   useOrganization,
   usePageTracking,
 } from "@hey-hey/ui-common/context";
-import { AgentSessionType, ConversationStatus } from "@hey-hey/ui-common/api";
+import { AgentSessionType, ConversationStatus } from "@hey-hey/contracts/api";
 import {
   useAgentSessions,
   useConversation,

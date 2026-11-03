@@ -1,4 +1,4 @@
-import type { LocalTaskRefinerPromptPayload } from '../../shared/agent-bridge-contract/generated/api';
+import type { LocalTaskRefinerPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import {
   defaultAddUserMessage,
   type UserLaunchablePromptTypeHandler,

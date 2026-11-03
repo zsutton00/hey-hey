@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ReportType } from '../shared/api/generated/api';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated/api';
+import { ReportType } from '@hey-hey/contracts/api/models';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { NOOP_LOGGER } from '../server/logger';
 import {
   TaskMonitorManagedTurnRuntime,
@@ -67,7 +67,7 @@ describe('settled Turn monitor publication', () => {
       buildPrompt: () => '',
     } as PromptTypeHandler<unknown>;
     const turn = new Turn({
-    effectiveRole: 'implementation',
+      effectiveRole: 'implementation',
       turnId: TURN_ID,
       runId: SESSION_ID,
       resolvedPrompt: '',

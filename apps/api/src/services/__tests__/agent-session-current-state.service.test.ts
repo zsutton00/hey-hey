@@ -1,7 +1,7 @@
 import {
   AgentSessionCurrentState,
   AgentSessionCurrentStateObservation,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { AgentSessionService } from '../agent-session.service';
 
 describe('AgentSessionService current-state boundary', () => {

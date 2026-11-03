@@ -39,7 +39,7 @@ import {
   type UIElement,
   type UpdateMessageDto,
 } from '../../shared/api/index';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 
 type AffordanceChoice =
   | {

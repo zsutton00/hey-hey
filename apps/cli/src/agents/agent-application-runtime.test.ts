@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { NOOP_LOGGER } from '../server/logger';
 import { TaskMonitorManagedTurnRuntime } from '../server/task-monitor-managed-turn-runtime';
 import { AgentApplicationRuntime } from './agent-application-runtime';

@@ -8,7 +8,7 @@ import {
   ArtifactSourceType,
   ConversationStatus,
   WorkflowName,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { ConversationId, DesignDocId, OrganizationId } from '../../types';
 
 type ConversationRecord = {

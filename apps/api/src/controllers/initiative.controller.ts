@@ -23,7 +23,7 @@ import {
   Priority,
   UpdateInitiativeDto,
   WorkStatus,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { InitiativeLifecycleService } from '../services/initiatives/initiative-lifecycle.service';
 import { InitiativeService } from '../services/initiatives/initiative.service';
 

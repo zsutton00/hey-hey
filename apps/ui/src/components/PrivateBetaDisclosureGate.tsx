@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { Alert, Box, Button, CircularProgress } from "@mui/material";
-import type { PrivateBetaDisclosureRequirementDto } from "@hey-hey/ui-common/api";
+import type { PrivateBetaDisclosureRequirementDto } from "@hey-hey/contracts/api";
 import {
   useDemoSandbox,
   usePrivateBetaDisclosure,

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { PrismaService } from '../../../prisma/prisma.service';
-import type { WorkItemTypeGraphCapability } from '../../../generated';
+import type { WorkItemTypeGraphCapability } from '@hey-hey/contracts/api/models';
 import { workItemTypeGraphCapabilitySchema } from '../work-item-type-capabilities.schema';
 
 const describeDatabase =
@@ -20,7 +20,8 @@ describeDatabase('Diagram transition traversal SQL', () => {
       'utf8',
     );
     const [definition, updates] = statements.split('$function$;');
-    if (!definition || !updates) throw new Error('Migration SQL structure changed');
+    if (!definition || !updates)
+      throw new Error('Migration SQL structure changed');
     const original: WorkItemTypeGraphCapability = {
       nodeChildType: 'workflow_step',
       layout: {

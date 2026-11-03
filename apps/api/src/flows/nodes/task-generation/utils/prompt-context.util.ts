@@ -3,7 +3,7 @@ import {
   SuggestedActionsFlowContext,
   TaskGenerationFlowContext,
 } from '../../../../types/flow-internal.types';
-import type { TaskStub } from '../../../../generated';
+import type { TaskStub } from '@hey-hey/contracts/api/models';
 
 type ContextSectionOptions = {
   includeInitiativeArtifacts?: boolean;

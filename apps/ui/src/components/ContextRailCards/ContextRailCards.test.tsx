@@ -1,4 +1,4 @@
-import type { ContextRelatedEntityDto } from "@hey-hey/ui-common/api";
+import type { ContextRelatedEntityDto } from "@hey-hey/contracts/api";
 import { render, screen } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter } from "react-router-dom";
@@ -46,7 +46,7 @@ const related = (
   entityId: string,
   taskType: string,
   relationship = "related-to",
-  entityType = "TASK"
+  entityType = "TASK",
 ): ContextRelatedEntityDto =>
   ({
     entityId,
@@ -54,7 +54,7 @@ const related = (
     displayName: entityId,
     relationship,
     taskType,
-  } as ContextRelatedEntityDto);
+  }) as ContextRelatedEntityDto;
 
 describe("ContextRailCards", () => {
   beforeEach(() => {
@@ -65,7 +65,7 @@ describe("ContextRailCards", () => {
         _kind: string,
         _project: string,
         _initiative: undefined,
-        options: { taskType: string; parentTaskId?: string }
+        options: { taskType: string; parentTaskId?: string },
       ) => ({
         workItems:
           options.taskType === "DIAGRAM" && options.parentTaskId
@@ -79,7 +79,7 @@ describe("ContextRailCards", () => {
               ]
             : [],
         isLoading: false,
-      })
+      }),
     );
   });
 
@@ -96,14 +96,14 @@ describe("ContextRailCards", () => {
           dataTestIdPrefix="rail"
           relatedLoading={relatedLoading}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
   it("renders History, then visual cards, then Related", () => {
     const { container } = renderCards();
 
     const order = Array.from(container.querySelectorAll("[data-testid]")).map(
-      (element) => element.getAttribute("data-testid")
+      (element) => element.getAttribute("data-testid"),
     );
     expect(order).toEqual([
       "rail-history-card",
@@ -116,7 +116,7 @@ describe("ContextRailCards", () => {
   it("lists the page's children by parent for Mockup and Diagram types", () => {
     renderCards();
     const requestedTypes = mockUseWorkItems.mock.calls.map(
-      (call) => call[4] as { taskType: string; parentTaskId: string }
+      (call) => call[4] as { taskType: string; parentTaskId: string },
     );
     expect(requestedTypes).toEqual(
       expect.arrayContaining([
@@ -125,7 +125,7 @@ describe("ContextRailCards", () => {
           taskType: "DIAGRAM",
           parentTaskId: "task-1",
         }),
-      ])
+      ]),
     );
   });
 
@@ -134,10 +134,10 @@ describe("ContextRailCards", () => {
     expect(screen.getByTestId("rail-history-card")).toBeInTheDocument();
     expect(screen.getByTestId("rail-related-card")).toHaveAttribute(
       "data-loading",
-      "true"
+      "true",
     );
     expect(
-      screen.getByTestId("visual-artifact-card-linked-mockup")
+      screen.getByTestId("visual-artifact-card-linked-mockup"),
     ).toBeInTheDocument();
   });
 });

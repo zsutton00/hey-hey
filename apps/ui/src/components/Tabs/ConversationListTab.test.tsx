@@ -5,7 +5,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import type { ConversationResponseDto } from "@hey-hey/ui-common/api";
+import type { ConversationResponseDto } from "@hey-hey/contracts/api";
 import React from "react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

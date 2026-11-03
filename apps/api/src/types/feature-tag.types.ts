@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FeatureTag } from 'src/generated/model/featureTag';
+import { FeatureTag } from '@hey-hey/contracts/api/models';
 
 export const FEATURE_TAGS = [
   'product',

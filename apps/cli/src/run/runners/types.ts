@@ -43,7 +43,7 @@ import type {
   PromptTypeHandlerDeps,
 } from '../../agents/prompt-type-handler';
 import type { InternalRunPromptRequest } from '../../shared/agent-bridge-contract/contract';
-import type { ImplementRuntimeSelection } from '../../shared/agent-bridge-contract/generated/api';
+import type { ImplementRuntimeSelection } from '@hey-hey/contracts/agent-bridge';
 import type { LocalReasoningEffort } from '../../shared/agent-bridge-contract/index';
 import type { ServerLogger } from '../../server/logger';
 import type { RunChangedFilesReader } from '../../server/run-changed-files';

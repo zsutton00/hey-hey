@@ -44,7 +44,7 @@ import {
   WorkflowName,
   WorkItemSectionInput,
   WorkStatus,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   ConversationId,
@@ -499,7 +499,6 @@ export class InitiativeService {
 
     return countsMap;
   }
-
 
   /**
    * Validates that sourceConversationId belongs to the organization
@@ -2180,9 +2179,7 @@ export class InitiativeService {
 
     const incomingSections = (
       'sections' in updateInitiativeDto &&
-      Array.isArray(
-        (updateInitiativeDto as InitiativeUpdateInput).sections,
-      )
+      Array.isArray((updateInitiativeDto as InitiativeUpdateInput).sections)
         ? (updateInitiativeDto as InitiativeUpdateInput).sections
         : []
     ) as Array<{ key: string; content: string }>;

@@ -19,7 +19,7 @@ import {
   PasswordRecoveryAcknowledgementDto,
   PasswordRecoveryRequestDto,
   RegisterDto,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { OrganizationService } from '../../services/organization.service';
 import { UserService } from '../../services/user.service';
 import { ApiKeyService } from '../../services/api-key.service';

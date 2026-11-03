@@ -8,7 +8,7 @@ import {
   EntityType,
   type LocalEntityConversationPromptPayload,
   type LocalEntityConversationEntity,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../../session/types';
 import { resolveMcpToolNames } from '../mcp-server-config';
 import type { ServerLogger } from '../../server/logger';

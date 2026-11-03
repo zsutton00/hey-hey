@@ -1,7 +1,7 @@
 import {
   WorkflowName,
   type ConversationResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -26,7 +26,7 @@ vi.mock("@hey-hey/ui-common/hooks", () => ({
 const createConversation = (
   id: string,
   title: string | undefined,
-  updatedAt: string
+  updatedAt: string,
 ): ConversationResponseDto =>
   ({
     id,
@@ -56,19 +56,19 @@ describe("GoalConversationToc", () => {
           createConversation(
             "conversation-older",
             undefined,
-            "2026-08-01T12:00:00.000Z"
+            "2026-08-01T12:00:00.000Z",
           ),
           createConversation(
             "conversation-active",
             "Launch coordination",
-            "2026-09-01T12:00:00.000Z"
+            "2026-09-01T12:00:00.000Z",
           ),
         ]}
         activeConversationId="conversation-active"
         isLoading={false}
         onConversationSelect={onConversationSelect}
         onConversationArchived={vi.fn()}
-      />
+      />,
     );
 
     const rows = screen
@@ -76,7 +76,7 @@ describe("GoalConversationToc", () => {
       .filter((row) => row.hasAttribute("data-testid"));
     expect(rows[0]).toHaveTextContent("Launch coordination");
     expect(
-      screen.getByTestId("goal-conversation-toc-row-conversation-active")
+      screen.getByTestId("goal-conversation-toc-row-conversation-active"),
     ).toHaveAttribute("aria-current", "true");
     expect(screen.getByTestId("goal-conversation-toc")).toHaveStyle({
       maxHeight: "50%",
@@ -86,7 +86,7 @@ describe("GoalConversationToc", () => {
     });
 
     fireEvent.click(
-      screen.getByTestId("goal-conversation-toc-row-conversation-older")
+      screen.getByTestId("goal-conversation-toc-row-conversation-older"),
     );
     expect(onConversationSelect).toHaveBeenCalledWith("conversation-older");
   });
@@ -101,10 +101,10 @@ describe("GoalConversationToc", () => {
         isLoading
         onConversationSelect={vi.fn()}
         onConversationArchived={vi.fn()}
-      />
+      />,
     );
     expect(
-      screen.getByTestId("goal-conversation-toc-loading")
+      screen.getByTestId("goal-conversation-toc-loading"),
     ).toBeInTheDocument();
 
     rerender(
@@ -116,10 +116,10 @@ describe("GoalConversationToc", () => {
         isLoading={false}
         onConversationSelect={vi.fn()}
         onConversationArchived={vi.fn()}
-      />
+      />,
     );
     expect(screen.getByTestId("goal-conversation-toc-empty")).toHaveTextContent(
-      "No conversations yet."
+      "No conversations yet.",
     );
   });
 
@@ -140,17 +140,17 @@ describe("GoalConversationToc", () => {
         isLoading={false}
         onConversationSelect={onConversationSelect}
         onConversationArchived={vi.fn()}
-      />
+      />,
     );
     const rows = screen.getAllByRole("button");
     expect(rows).toHaveLength(2);
     expect(rows[0]).toHaveAttribute(
       "data-testid",
-      "goal-conversation-toc-row-root"
+      "goal-conversation-toc-row-root",
     );
     expect(rows[0]).toHaveTextContent("Goal PM Conversation");
     expect(
-      screen.queryByTestId("goal-conversation-toc-new")
+      screen.queryByTestId("goal-conversation-toc-new"),
     ).not.toBeInTheDocument();
     fireEvent.click(rows[1]);
     expect(onConversationSelect).toHaveBeenCalledExactlyOnceWith("child");
@@ -208,11 +208,7 @@ describe("GoalConversationToc", () => {
         projectId="project-1"
         conversations={[
           {
-            ...createConversation(
-              "owned",
-              "Owned launch thread",
-              "2026-09-04",
-            ),
+            ...createConversation("owned", "Owned launch thread", "2026-09-04"),
             createdBy: "creator-1",
           },
         ]}
@@ -226,9 +222,7 @@ describe("GoalConversationToc", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Archive Owned launch thread" }),
     );
-    expect(screen.getByRole("dialog")).toHaveTextContent(
-      "Owned launch thread",
-    );
+    expect(screen.getByRole("dialog")).toHaveTextContent("Owned launch thread");
     expect(screen.getByRole("dialog")).toHaveTextContent(
       "removed from this goal’s conversation list",
     );
@@ -246,9 +240,7 @@ describe("GoalConversationToc", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Archive Owned launch thread" }),
     );
-    expect(screen.getByRole("dialog")).toHaveTextContent(
-      "Owned launch thread",
-    );
+    expect(screen.getByRole("dialog")).toHaveTextContent("Owned launch thread");
     fireEvent.click(
       screen.getByRole("button", { name: "Archive", exact: true }),
     );

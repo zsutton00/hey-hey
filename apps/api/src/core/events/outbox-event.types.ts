@@ -26,7 +26,7 @@ import {
   GitHubWebhookAcceptedEvent,
   HelpContentChangedEvent,
   TaskContentChangedEventPayload,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { ExecutionContext } from 'src/types/execution-context';
 
 // ---------------------------------------------------------------------------

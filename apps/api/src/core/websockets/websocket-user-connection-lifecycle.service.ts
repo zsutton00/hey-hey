@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Socket } from 'socket.io';
-import { WebSocketTerminalAuthenticationErrorResponse } from '../../generated';
+import { WebSocketTerminalAuthenticationErrorResponse } from '@hey-hey/contracts/api/models';
 import { UserId } from '../../types';
 
 export interface WebsocketUserConnectionRegistration {

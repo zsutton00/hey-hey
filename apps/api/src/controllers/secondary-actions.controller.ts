@@ -1,7 +1,7 @@
 import { ProjectAccessGuard } from '../auth/guards/project-access.guard';
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { SecondaryActionConfig } from 'src/generated';
+import { SecondaryActionConfig } from '@hey-hey/contracts/api/models';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { OrganizationGuard } from 'src/auth/guards/organization.guard';
 import { CurrentOrganization } from 'src/auth/decorators/current-user.decorator';

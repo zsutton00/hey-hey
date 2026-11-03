@@ -16,7 +16,10 @@ import { ApiTags, ApiOperation, ApiQuery, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { extractBrowserSessionRequestMetadata } from '../auth/browser-session-request-metadata';
-import { OnboardBetaUserDto, OnboardBetaUserResponseDto } from '../generated';
+import {
+  OnboardBetaUserDto,
+  OnboardBetaUserResponseDto,
+} from '@hey-hey/contracts/api/models';
 import { BetaOnboardingService } from '../services/beta-onboarding.service';
 import { OrganizationService } from '../services/organization.service';
 import { OrganizationId } from '../types';

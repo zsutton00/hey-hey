@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { LocalPromptDesignDocInput } from '../../shared/agent-bridge-contract/generated/api';
+import type { LocalPromptDesignDocInput } from '@hey-hey/contracts/agent-bridge';
 import type { PromptTypeHandlerDeps } from '../prompt-type-handler';
 
 export interface FetchPlanDesignDocReferenceInput {

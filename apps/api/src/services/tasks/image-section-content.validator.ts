@@ -1,4 +1,4 @@
-import type { ImageSectionContent } from '../../generated/model/imageSectionContent';
+import type { ImageSectionContent } from '@hey-hey/contracts/api/models';
 
 export const IMAGE_SECTION_CONTENT_SCHEMA_REF =
   '#/components/schemas/ImageSectionContent';

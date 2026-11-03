@@ -8,7 +8,7 @@ import type { Prisma, Proposal } from '@prisma/client';
 import type {
   FutureRevisionContent,
   ProposalReconciliationBasis,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 import { WorkItemTypeRegistryService } from '../tasks/work-item-type-registry.service';
 import { resolveWorkItemSectionContentKind } from '../tasks/task-section-schema-validator.registry';
@@ -18,13 +18,16 @@ import { TaskService } from '../tasks/task.service';
 import { DesignDocService } from '../design-doc/design-doc.service';
 import { EntityPromptTemplateService } from '../entity-prompt-template.service';
 import { projectReconciliationContent } from './proposal-reconciliation-content';
-import type { FeatureRequirementsSection, UpdateTaskDto } from 'src/generated';
+import type {
+  FeatureRequirementsSection,
+  UpdateTaskDto,
+} from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId, TaskId } from 'src/types';
 import { WorkItemChangeSetProjectorService } from './work-item-change-set-projector.service';
 import type {
   ProjectedWorkItemChangeSetResponse,
   WorkItemChangeSetValidationRequest,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 
 const sections = {
   orderBy: [{ order: 'asc' }, { key: 'asc' }],

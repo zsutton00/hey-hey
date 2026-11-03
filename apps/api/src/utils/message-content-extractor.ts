@@ -5,7 +5,7 @@ import {
   MessageResponseDto,
   SystemMessageData,
   SystemMessageResponseType,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { hasUiElements } from './type-checks';
 
 /**

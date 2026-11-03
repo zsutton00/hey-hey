@@ -21,7 +21,7 @@ import {
   ConversationResponseDto,
   MessageRetryResponse,
   WorkflowName,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ConversationId,
   OrganizationId,

@@ -1,4 +1,4 @@
-import { AdrStatus } from 'src/generated/model/adrStatus';
+import { AdrStatus } from '@hey-hey/contracts/api/models';
 import {
   getAllowedProposalUpdateStatuses,
   validateProposalUpdateStatus,

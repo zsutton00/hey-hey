@@ -11,7 +11,7 @@ import {
   InitiativeArtifactData,
   InsightData,
   UpdateArtifactDto,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   EventContextManager,
   WithEventContext,

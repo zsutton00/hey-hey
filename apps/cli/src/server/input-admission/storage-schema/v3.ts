@@ -20,7 +20,7 @@ import type {
   RepositoryFeatureEnrichmentRequest,
   RepositoryGroundingSuccess,
   WorkTrackerImportRequest,
-} from '../../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type { LocalCreateRunPayload } from '../../../shared/agent-bridge-contract/contract';
 import type { LocalRunContextMetadata } from '../../../shared/agent-bridge-contract/run-context';
 

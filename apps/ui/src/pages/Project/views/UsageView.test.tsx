@@ -4,7 +4,7 @@ import {
   MachineExecutionReadinessState,
   type AgentSessionDto,
   type MachineDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   useAgentSessions,
   useUserPairedMachines,

@@ -1,9 +1,9 @@
 import type {
   ProjectModeSettings,
   ProjectedWorkItemSection,
-} from 'src/generated';
-import { EntityType } from 'src/generated/model/entityType';
-import type { WorkItemTypeSectionDefinition } from 'src/generated/model/workItemTypeSectionDefinition';
+} from '@hey-hey/contracts/api/models';
+import { EntityType } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeSectionDefinition } from '@hey-hey/contracts/api/models';
 import {
   findIneligibleProjectModeTypeKeys,
   PROJECT_MODE_SETTINGS_SCHEMA_REF,

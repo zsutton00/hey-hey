@@ -5,7 +5,7 @@ import {
   type ProjectAssistantReportEntityRef,
   type RecentProjectAssistantReportDeps,
 } from '../recent-report-context';
-import { ReadRestriction, type CodingResearchUpdate } from '../../../shared/api/generated/api';
+import { ReadRestriction, type CodingResearchUpdate } from '@hey-hey/contracts/api/models';
 
 const NOW = new Date('2026-06-30T12:00:00.000Z');
 

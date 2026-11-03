@@ -3,12 +3,12 @@ import {
   ExtendedUIFieldType,
   MachineExecutionReadinessState,
   UIElement,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type {
   RepositoryGroundingAnalysisConfiguration,
   RepositoryGroundingPrerequisites,
-} from 'src/generated';
-import { RepositoryGroundingEntryMode } from 'src/generated';
+} from '@hey-hey/contracts/api/models';
+import { RepositoryGroundingEntryMode } from '@hey-hey/contracts/api/models';
 import {
   FlowUserMessage,
   MutableContextHandle,

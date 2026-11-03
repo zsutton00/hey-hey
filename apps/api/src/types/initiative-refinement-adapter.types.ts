@@ -5,7 +5,7 @@
  * and RefinableEntity (domain types) to enable unified refinement processing.
  */
 
-import { InitiativeResponseDto } from '../generated';
+import { InitiativeResponseDto } from '@hey-hey/contracts/api/models';
 import { materializedSectionsToContentMap } from '../utils/work-item-section.util';
 import { RefinableEntity } from './refinable-entity.types';
 

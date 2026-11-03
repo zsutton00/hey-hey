@@ -11,7 +11,7 @@ import {
   Priority,
   RefinementLevel,
   WorkStatus,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { ConversationService } from '../../services/conversation.service';
 import { InitiativeRefinementService } from '../../services/initiatives/initiative-refinement.service';
 import { InitiativeService } from '../../services/initiatives/initiative.service';

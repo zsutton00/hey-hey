@@ -15,7 +15,7 @@ import {
   type TaskResponseDto,
   type WorkItemTypeDefinitionDto,
   type WorkItemTypeSummaryDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   hasDemoSandboxSession,
   useProjects,

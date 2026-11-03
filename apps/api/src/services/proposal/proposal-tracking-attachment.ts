@@ -3,8 +3,8 @@ import type {
   CreateProposalDto,
   CreateProposalRequestDto,
   ProposalEdgeDeclaration,
-} from 'src/generated';
-import { EntityType, ProposalEdgeType } from 'src/generated';
+} from '@hey-hey/contracts/api/models';
+import { EntityType, ProposalEdgeType } from '@hey-hey/contracts/api/models';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 import { WORK_ITEM_TYPE_KEYS } from 'src/services/tasks/work-item-type-keys';
 import type { WorkItemTypeRegistryService } from 'src/services/tasks/work-item-type-registry.service';

@@ -5,7 +5,7 @@ import {
   categoryConsolidationSchema,
   topologyCategories,
 } from 'src/flows/utils/topology-schemas';
-import { SystemMessageData } from 'src/generated';
+import { SystemMessageData } from '@hey-hey/contracts/api/models';
 import { TopologyAuditService } from 'src/services/audit/topology-audit.service';
 import { EntitySummaryService } from 'src/services/entity-summary/entity-summary.service';
 import { SubfacetService } from 'src/services/entity-summary/subfacet.service';

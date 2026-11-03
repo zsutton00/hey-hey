@@ -27,7 +27,7 @@ import {
   InsightData,
   MessageRealtimeEvent,
   SystemMessageData,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { MessageService } from '../../services/message.service';
 import {
   ConversationId,

@@ -1,7 +1,7 @@
 import type { AgenticSession } from '../../session/types';
-import type { AgentEdgeResponseDto, FeatureSkeletonNode } from '../../shared/api/generated/api';
-import { AgentEdgeType } from '../../shared/api/generated/api';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import type { AgentEdgeResponseDto, FeatureSkeletonNode } from '@hey-hey/contracts/api/models';
+import { AgentEdgeType } from '@hey-hey/contracts/api/models';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { LocalFeatureTreeConversationPromptPayload } from '../../shared/agent-bridge-contract/runtime-types';
 import type {
   PrepareResult,

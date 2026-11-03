@@ -13,9 +13,9 @@ import {
   DesignDocResponseDto,
   ProposalStatus,
   UpdateDesignDocDto,
-} from '../../generated';
-import { CreateDesignDocLinkDto } from '../../generated/model/createDesignDocLinkDto';
-import { DesignDocLinkResponseDto } from '../../generated/model/designDocLinkResponseDto';
+} from '@hey-hey/contracts/api/models';
+import { CreateDesignDocLinkDto } from '@hey-hey/contracts/api/models';
+import { DesignDocLinkResponseDto } from '@hey-hey/contracts/api/models';
 import { DesignDocId } from '../../types/design-doc.types';
 import type { TypedProposalResponse } from '../../services/proposal/proposal.types';
 import * as TestUtils from '../../utils/testUtils';

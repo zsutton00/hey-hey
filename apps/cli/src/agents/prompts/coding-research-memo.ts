@@ -1,4 +1,4 @@
-import type { CodingResearchReportPayload } from '../../shared/api/generated/api';
+import type { CodingResearchReportPayload } from '@hey-hey/contracts/api/models';
 
 /** The run-local handoff shared by real bootstrap and isolated eval preparation. */
 export const renderCodingResearchMemo = (report: CodingResearchReportPayload): string =>

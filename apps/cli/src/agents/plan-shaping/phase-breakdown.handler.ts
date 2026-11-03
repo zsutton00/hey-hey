@@ -48,7 +48,7 @@ import type { AgenticSession } from '../../session/types';
 import {
   LocalPromptType,
   type PlanShapingPhaseBreakdownPromptPayload,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import {
   turnUserMessageBlock,
   type PrepareResult,

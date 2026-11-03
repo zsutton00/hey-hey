@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { SessionMonitorEvaluationStore } from '../../agents/session-monitor';
-import { ReportType } from '../../shared/api/generated/api';
+import { ReportType } from '@hey-hey/contracts/api/models';
 import {
   LocalReasoningEffort,
   LocalRunProvider,
 } from '../../shared/agent-bridge-contract/contract';
-import { SessionMethod } from '../../shared/agent-bridge-contract/generated';
+import { SessionMethod } from '@hey-hey/contracts/agent-bridge';
 import type { LocalAgentService } from '../local-agent-service';
 import { NOOP_LOGGER } from '../logger';
 import type { PlatformAuth } from '../platform-auth-context';

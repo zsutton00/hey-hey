@@ -10,7 +10,7 @@ import {
 import { guidanceTokenForType } from '../tools/work-item-guidance-token';
 import { AUTHORING_ROOT_PROOF } from '../tools/authoring-guidance';
 import { workItemChangeSetValidationRequestSchema } from '../../services/proposal/work-item-change-set.schema';
-import { WorkStatus } from '../../generated/model/workStatus';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { BadRequestException } from '@nestjs/common';
 import { rootChildrenView } from '../../services/proposal/work-item-change-set-projector.service';
 

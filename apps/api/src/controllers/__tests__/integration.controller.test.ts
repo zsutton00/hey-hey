@@ -10,7 +10,7 @@ import {
   PaginatedGitHubRepositoryResponse,
   UpdateGitHubPrimaryRepositoryDto,
   UpdateIntegrationDto,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ConnectionTestResult,
   ConnectionTestService,

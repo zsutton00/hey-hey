@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { AgentSessionDto } from '../../../shared/api/generated/api';
+import type { AgentSessionDto } from '@hey-hey/contracts/api/models';
 import {
   REPORT_EMISSION_KIND,
   type CanonicalMonitorEvent,

@@ -12,7 +12,7 @@ import {
 import {
   ProjectExistingWorkIntent,
   ProjectFeatureNextStep,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../prisma/prisma.service';
 import { ArtifactService } from './artifacts/artifact.service';
 import { LLMClientService } from './llm/llm-client.service';

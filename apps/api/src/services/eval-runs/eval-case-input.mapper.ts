@@ -5,8 +5,8 @@ import type {
   EvalCheckDefinition,
   EvalRubricDimension,
   EvalRunCaseInput,
-} from 'src/generated';
-import { RunEntityReference } from 'src/generated';
+} from '@hey-hey/contracts/api/models';
+import { RunEntityReference } from '@hey-hey/contracts/api/models';
 import { normalizeMentionTypeAlias } from '../mentions/mention-type-aliases';
 import { resolveEvalCaseHandlers } from './eval-case-handlers';
 

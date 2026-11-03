@@ -53,7 +53,7 @@ import {
   MessageRealtimeEvent,
   SystemMessageData,
   SystemMessageResponseType,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { FlowNodeErrorRecoveryService } from '../../services/workflows/flow-node-error-recovery.service';
 import { addToServiceChain, enrichEventContext } from '../events/context-utils';
 import { DomainEventPublisher } from '../events/domain-event-publisher';

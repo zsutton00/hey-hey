@@ -9,7 +9,7 @@ import {
   type LocalRunToolCallsLatestTurnRequest,
   type CliReadRunToolCallsLatestTurnErrorResponseDto,
   type CliReadRunToolCallsLatestTurnSuccessResponseDto,
-} from '../../shared/local-agent-api/generated/api';
+} from '@hey-hey/contracts/local';
 import type { SessionActivitySource } from '../session-activity-source';
 import { projectLatestTurnToolCalls } from '../latest-turn-tool-calls';
 import { NOOP_LOGGER, type ServerLogger } from '../logger';

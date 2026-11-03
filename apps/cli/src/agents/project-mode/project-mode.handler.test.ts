@@ -1,5 +1,5 @@
 import { resolveHandlerSessionRole } from '../prompt-type-handler';
-import { SessionRole } from '../../shared/agent-bridge-contract/generated/api';
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import { PromptTypeRegistry } from '../prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../prompt-type-registry.test-support';
 import { describe, expect, it } from 'vitest';
@@ -10,8 +10,8 @@ import type {
   AgentSessionConfig,
   ProjectModeSnapshot,
   RunCreatePayloadProjectMode,
-} from '../../shared/agent-bridge-contract/generated/api';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { createPromptTypeHandlerTestDeps } from '../prompt-type-handler.test-support';
 import { buildProjectModePrompt, projectModeHandler, validateProjectModeConfig } from './index';
 

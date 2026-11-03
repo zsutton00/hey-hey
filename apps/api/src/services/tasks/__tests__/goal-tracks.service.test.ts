@@ -22,7 +22,7 @@ import {
   createWarmWorkItemTypeRegistry,
   createWarmWorkItemTypeRegistryWithCustomTypes,
 } from '../../../../test/setup/work-item-type-registry.fixture';
-import { EntityType } from '../../../generated/model/entityType';
+import { EntityType } from '@hey-hey/contracts/api/models';
 import {
   AgentSessionId,
   OrganizationId,

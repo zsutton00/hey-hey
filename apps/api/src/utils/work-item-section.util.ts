@@ -1,7 +1,7 @@
 import {
   MaterializedWorkItemSection,
   WorkItemSectionInput,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { WorkItemSectionKey } from 'src/types/work-item-section.types';
 
 export const WORK_ITEM_SECTION_KEYS: WorkItemSectionKey[] = [

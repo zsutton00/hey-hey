@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { Prisma, ReportType as PrismaReportType } from '@prisma/client';
 import { WORK_ITEM_TYPE_KEYS } from '../services/tasks/work-item-type-keys';
-import { ReadRestriction } from '../generated';
+import { ReadRestriction } from '@hey-hey/contracts/api/models';
 
 /** Header a trusted CLI Run sets on its platform requests; the model never controls it. */
 export const READ_RESTRICTION_HEADER = 'x-read-restriction';

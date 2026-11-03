@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { WorkflowReviewAction } from 'src/generated';
-import type { ImplementationReadinessDisposition } from 'src/generated';
+import { WorkflowReviewAction } from '@hey-hey/contracts/api/models';
+import type { ImplementationReadinessDisposition } from '@hey-hey/contracts/api/models';
 import {
   CodingPlanApprovalPayloadSchema,
   CodingPlanReviewAnswerPayloadSchema,

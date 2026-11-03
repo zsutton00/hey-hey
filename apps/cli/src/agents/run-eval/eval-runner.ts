@@ -5,7 +5,7 @@ import type {
   EvalMeasurement,
   EvalRecordedAttempt,
   EvalRunSettings,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { SubAgentUsage } from '../../run/subagent';
 
 /** What one target child produced. */

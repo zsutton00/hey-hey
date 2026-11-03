@@ -1,4 +1,4 @@
-import type { ProjectReportFailure } from 'src/generated';
+import type { ProjectReportFailure } from '@hey-hey/contracts/api/models';
 
 const PUBLIC_MESSAGES: Record<string, string> = {
   LAUNCH_PREPARATION_FAILED: 'The project report run could not be prepared',

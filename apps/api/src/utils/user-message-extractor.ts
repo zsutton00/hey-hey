@@ -1,4 +1,4 @@
-import { UserMessageData } from '../generated';
+import { UserMessageData } from '@hey-hey/contracts/api/models';
 import { FlowUserMessage } from '../types/flow-internal.types';
 
 /**

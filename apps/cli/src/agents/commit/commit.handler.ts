@@ -1,7 +1,7 @@
 import path from 'node:path';
 
 import { ReportAudience, ReportType } from '../../shared/api/index';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { LocalCommitPromptPayload } from '../../shared/agent-bridge-contract/runtime-types';
 import type { Prepared } from '../../shared/agent-bridge-contract/contract';
 import type { AgenticSession } from '../../session/types';

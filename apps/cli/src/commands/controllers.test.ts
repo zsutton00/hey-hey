@@ -1,3 +1,4 @@
+import { asOrganizationId, asUserId } from '../test-utils/contract-ids';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -25,8 +26,8 @@ const makeActivation = (): ConfirmMachineEnrollmentResponseDto => ({
     machineName: 'test machine',
     osFamily: 'linux',
     cliVersion: '2.2.2',
-    accountId: 'account-1',
-    organizationId: 'organization-1',
+    accountId: asUserId('account-1'),
+    organizationId: asOrganizationId('organization-1'),
     controllerLabel: 'test passkey',
     controllerCredentialId: 'controller-1',
     controllerCredentialPublicKey: {

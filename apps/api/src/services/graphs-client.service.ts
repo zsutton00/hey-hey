@@ -6,6 +6,8 @@ import {
   EntityNeighborhoodRequest,
   FeatureProjectConnectionRequest,
   FeatureProjectConnectionResponse,
+  WorkItemProjectReadinessRequest,
+  WorkItemProjectReadinessResponse,
   FindHintsByConnectedItemsRequest,
   FindHintsByConnectedItemsResponse,
   Hint,
@@ -263,6 +265,33 @@ export class GraphsClientService {
       AxiosResponse<FeatureProjectConnectionResponse>
     >(
       this.queriesService.checkFeatureProjectConnection(
+        organizationId,
+        projectId,
+        request,
+        {
+          config: {
+            headers: {
+              Authorization: `Bearer ${systemToken}`,
+              'X-API-Auth': `Bearer ${systemToken}`,
+              'Content-Type': 'application/json',
+            },
+          },
+        },
+      ),
+    );
+    return response.data;
+  }
+
+  async checkWorkItemProjectReadiness(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    request: WorkItemProjectReadinessRequest,
+    systemToken: string,
+  ): Promise<WorkItemProjectReadinessResponse> {
+    const response = await firstValueFrom<
+      AxiosResponse<WorkItemProjectReadinessResponse>
+    >(
+      this.queriesService.checkWorkItemProjectReadiness(
         organizationId,
         projectId,
         request,

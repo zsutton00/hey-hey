@@ -14,15 +14,15 @@ import type {
   UpdateMessageDto,
   ReportType,
 } from '../shared/api/index';
-import type { AgentQuestionPayload } from '../shared/api/generated/api';
+import type { AgentQuestionPayload } from '@hey-hey/contracts/api/models';
 import {
   AgentSessionCurrentState,
   type AgentSessionCurrentState as AgentSessionCurrentStateType,
   type ConversationPhase,
   type SubmitExecutableUserMessageRequestDto,
   type SubmitExternalAgentCompletionRequestDto,
-} from '../shared/api/generated/api';
-import type { LocalPromptType } from '../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/api/models';
+import type { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { SubmissionToolAction } from '../agents/submission-tools/types';
 import type { OnCompleteDeps } from '../agents/prompt-type-handler';
 import type { ServerLogger } from '../server/logger';

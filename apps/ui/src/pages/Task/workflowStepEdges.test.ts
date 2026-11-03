@@ -4,7 +4,7 @@ import {
   type AgentEdgeResponseDto,
   type TaskResponseDto,
   type WorkItemGraphAggregateResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -17,7 +17,7 @@ import {
 } from "./workflowStepEdges";
 
 const edge = (
-  overrides: Partial<AgentEdgeResponseDto> & { type: string }
+  overrides: Partial<AgentEdgeResponseDto> & { type: string },
 ): AgentEdgeResponseDto =>
   ({
     id: "edge-1",
@@ -27,14 +27,14 @@ const edge = (
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
-  } as AgentEdgeResponseDto);
+  }) as AgentEdgeResponseDto;
 
 const step = (id: string, name: string): TaskResponseDto =>
   ({
     id,
     name,
     type: "workflow_step",
-  } as TaskResponseDto);
+  }) as TaskResponseDto;
 
 const workflow = (overrides: Partial<TaskResponseDto> = {}): TaskResponseDto =>
   ({
@@ -42,7 +42,7 @@ const workflow = (overrides: Partial<TaskResponseDto> = {}): TaskResponseDto =>
     name: "Workflow",
     type: "workflow",
     ...overrides,
-  } as TaskResponseDto);
+  }) as TaskResponseDto;
 
 describe("normalizeWorkflowStepEdges", () => {
   it("splits workflow flow links from fulfillment metadata", () => {
@@ -62,7 +62,7 @@ describe("normalizeWorkflowStepEdges", () => {
         }),
         edge({ id: "related", type: "RELATED_TO", targetNodeId: "task-2" }),
       ],
-      [step("step-2", "Second Step"), step("step-3", "Decision Step")]
+      [step("step-2", "Second Step"), step("step-3", "Decision Step")],
     );
 
     expect(result.flowLinks.map((item) => item.id)).toEqual([
@@ -140,10 +140,10 @@ describe("workflow work-item helpers", () => {
   it("detects workflow containers and workflow_step leaves", () => {
     expect(isWorkflowType({ type: "workflow" } as TaskResponseDto)).toBe(true);
     expect(isWorkflowType({ type: "workflow_step" } as TaskResponseDto)).toBe(
-      false
+      false,
     );
     expect(
-      isWorkflowStepType({ type: "workflow_step" } as TaskResponseDto)
+      isWorkflowStepType({ type: "workflow_step" } as TaskResponseDto),
     ).toBe(true);
   });
 
@@ -198,7 +198,7 @@ describe("workflow work-item helpers", () => {
           ...step("task-1", "Ordinary Task"),
           type: "STANDARD",
         } as TaskResponseDto,
-      ]
+      ],
     );
 
     expect(result?.workflow.id).toBe("workflow-1");

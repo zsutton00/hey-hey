@@ -14,7 +14,7 @@ import { MachineExecutionReadinessService } from '../../services/machine-pairing
 import { CurrentControllerMachineEligibilityService } from '../../services/machine-pairing/current-controller-machine-eligibility.service';
 import { ControllerBrowserBindingService } from '../../services/controller-authorization/controller-browser-binding.service';
 import { MachineId, UserId } from '../../types';
-import { MachineSecurityEventType } from '../../generated';
+import { MachineSecurityEventType } from '@hey-hey/contracts/api/models';
 import { Request } from 'express';
 import * as TestUtils from '../../utils/testUtils';
 import {

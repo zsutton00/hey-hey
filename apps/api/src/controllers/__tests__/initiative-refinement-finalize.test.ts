@@ -7,7 +7,7 @@ import { InitiativeOptimizationService } from '../../services/initiatives/initia
 import { InitiativeService } from '../../services/initiatives/initiative.service';
 import { MessageClassificationService } from '../../services/message-classification/message-classification.service';
 import { WorkflowRouterService } from '../../services/workflows/workflow-router.service';
-import { WorkStatus } from '../../generated';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import * as TestUtils from '../../utils/testUtils';
 import { InitiativeRefinementController } from '../initiative-refinement.controller';
 

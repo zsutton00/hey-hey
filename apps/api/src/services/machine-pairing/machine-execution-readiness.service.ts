@@ -3,7 +3,7 @@ import { MachinePresenceService } from '../../core/websockets/machine-presence.s
 import {
   AuthorizationProtocolVersion,
   MachineExecutionReadinessState,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MachineId, OrganizationId, UserId } from '../../types';
 

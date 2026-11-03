@@ -6,7 +6,7 @@ import type {
 import {
   LocalPromptTaskType,
   RunEntityReferenceEntityTypeEnum,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import {
   buildServicesContextBlock,
   focalContextOrientation,

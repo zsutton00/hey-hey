@@ -1,4 +1,4 @@
-import type { RunContextMetadata as LocalRunContextMetadata } from './generated/api';
+import type { RunContextMetadata as LocalRunContextMetadata } from '@hey-hey/contracts/agent-bridge/models';
 
 export type { LocalRunContextMetadata };
 

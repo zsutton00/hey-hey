@@ -3,7 +3,7 @@ import {
   EntityFilters,
 } from "@hey-hey/ui-common/components";
 import type { FilterConfig } from "@hey-hey/ui-common/components";
-import { EntityType } from "@hey-hey/ui-common/api";
+import { EntityType } from "@hey-hey/contracts/api";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PaginatedCodingSessionsFeed } from "../Activity/PaginatedCodingSessionsFeed";
@@ -43,17 +43,17 @@ export const AgentSessionsTab: React.FC<AgentSessionsTabProps> = ({
   const defaultEmptyMessage = taskId
     ? t(
         "codingSessions.emptyTask",
-        "No coding sessions found for this task yet."
+        "No coding sessions found for this task yet.",
       )
     : initiativeId
       ? t(
           "codingSessions.emptyInitiative",
-          "No coding sessions found for this initiative yet."
+          "No coding sessions found for this initiative yet.",
         )
       : designDocId
         ? t(
             "codingSessions.emptyDesignDoc",
-            "No coding sessions found for this design document yet."
+            "No coding sessions found for this design document yet.",
           )
         : t("codingSessions.empty", "No coding sessions found yet.");
 
@@ -64,11 +64,11 @@ export const AgentSessionsTab: React.FC<AgentSessionsTabProps> = ({
       key: "search",
       label: t(
         "codingSessions.filters.searchPlaceholder",
-        "Search coding sessions..."
+        "Search coding sessions...",
       ),
       placeholder: t(
         "codingSessions.filters.searchPlaceholder",
-        "Search coding sessions..."
+        "Search coding sessions...",
       ),
     },
   ];

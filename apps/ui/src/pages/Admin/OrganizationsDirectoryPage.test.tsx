@@ -1,7 +1,7 @@
 import {
   OrganizationDirectorySortBy,
   OrganizationDirectorySortOrder,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { useOrganizationsDirectory } from "@hey-hey/ui-common/data";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -11,7 +11,7 @@ import { OrganizationsDirectoryPage } from "./OrganizationsDirectoryPage";
 const navigateMock = vi.fn();
 vi.mock("react-router-dom", async () => ({
   ...(await vi.importActual<typeof import("react-router-dom")>(
-    "react-router-dom"
+    "react-router-dom",
   )),
   useNavigate: () => navigateMock,
 }));
@@ -71,7 +71,7 @@ describe("OrganizationsDirectoryPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useOrganizationsDirectoryMock.mockReturnValue(
-      createDirectoryState() as never
+      createDirectoryState() as never,
     );
   });
 
@@ -79,13 +79,13 @@ describe("OrganizationsDirectoryPage", () => {
     render(<OrganizationsDirectoryPage />);
 
     expect(
-      screen.getByTestId("organizations-directory-desktop")
+      screen.getByTestId("organizations-directory-desktop"),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId("organizations-directory-mobile")
+      screen.getByTestId("organizations-directory-mobile"),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("columnheader", { name: "Organization" })
+      screen.getByRole("columnheader", { name: "Organization" }),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Acme")).toHaveLength(2);
     expect(screen.getAllByText("Beta")).toHaveLength(2);
@@ -108,12 +108,12 @@ describe("OrganizationsDirectoryPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Next page" }));
     expect(useOrganizationsDirectoryMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({ cursor: "next-page" })
+      expect.objectContaining({ cursor: "next-page" }),
     );
 
     await user.type(screen.getByLabelText("Search organizations"), "New");
     expect(useOrganizationsDirectoryMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({ name: "New", cursor: undefined })
+      expect.objectContaining({ name: "New", cursor: undefined }),
     );
 
     await user.click(screen.getByRole("combobox", { name: "Sort by" }));
@@ -125,7 +125,7 @@ describe("OrganizationsDirectoryPage", () => {
         sortBy: OrganizationDirectorySortBy.MemberCount,
         sortOrder: OrganizationDirectorySortOrder.Asc,
         cursor: undefined,
-      })
+      }),
     );
   });
 
@@ -142,11 +142,11 @@ describe("OrganizationsDirectoryPage", () => {
         isLoading: true,
         isFetched: false,
         isReady: false,
-      }) as never
+      }) as never,
     );
     const loadingView = render(<OrganizationsDirectoryPage />);
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Loading organizations"
+      "Loading organizations",
     );
     loadingView.unmount();
 
@@ -157,7 +157,7 @@ describe("OrganizationsDirectoryPage", () => {
         page: null,
         totalCount: 0,
         nextCursor: null,
-      }) as never
+      }) as never,
     );
     const emptyView = render(<OrganizationsDirectoryPage />);
     expect(screen.getByText("No organizations found")).toBeInTheDocument();
@@ -165,11 +165,11 @@ describe("OrganizationsDirectoryPage", () => {
 
     const refetch = vi.fn().mockResolvedValue([]);
     useOrganizationsDirectoryMock.mockReturnValue(
-      createDirectoryState({ error: new Error("network"), refetch }) as never
+      createDirectoryState({ error: new Error("network"), refetch }) as never,
     );
     const errorView = render(<OrganizationsDirectoryPage />);
     expect(
-      screen.getByText("The Organizations directory could not be loaded.")
+      screen.getByText("The Organizations directory could not be loaded."),
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Retry" }));
     expect(refetch).toHaveBeenCalledOnce();
@@ -187,13 +187,13 @@ describe("OrganizationsDirectoryPage", () => {
         error: Object.assign(new Error("Forbidden"), {
           response: { status: 403 },
         }),
-      }) as never
+      }) as never,
     );
     render(<OrganizationsDirectoryPage />);
     expect(
       screen.getByText(
-        "You are not authorized to view the Organizations directory."
-      )
+        "You are not authorized to view the Organizations directory.",
+      ),
     ).toBeInTheDocument();
     expect(screen.queryByText("Acme")).not.toBeInTheDocument();
   });

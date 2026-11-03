@@ -3,7 +3,7 @@ import type {
   FeatureRequirementCitation,
   FeatureRequirementInput,
   FeatureRequirementOperation,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   type FeatureRequirementDraftRecord,
   validateFeatureRequirementsDraft,

@@ -2,7 +2,7 @@ import { reportChangedFilesTool } from '../submission-tools/report-changed-files
 import type { AgenticSession } from '../../session/types';
 import type { LocalFreeFormPromptPayload } from '../../shared/agent-bridge-contract/index';
 import type { Prepared } from '../../shared/agent-bridge-contract/contract';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import {
   completionResponseHooks,
   changedFileReportingDuty,

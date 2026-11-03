@@ -14,7 +14,7 @@ import {
   FlowContext,
   FlowUserMessage,
 } from '../types/flow-internal.types';
-import { SystemMessageData, WorkflowName } from '../generated';
+import { SystemMessageData, WorkflowName } from '@hey-hey/contracts/api/models';
 import { WorkflowDurationOptions } from '@temporalio/workflow';
 import { ContextPatch } from '../utils/mutable-context';
 

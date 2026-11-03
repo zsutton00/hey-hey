@@ -13,8 +13,8 @@ import {
   createSystemMessage,
 } from '../phases/shared';
 import { loadNodeConfiguration } from '../phases/initialization';
-import { SystemMessageResponseType } from '../../generated';
-import { ExtendedUIFieldType } from '../../generated';
+import { SystemMessageResponseType } from '@hey-hey/contracts/api/models';
+import { ExtendedUIFieldType } from '@hey-hey/contracts/api/models';
 import { determineNextStep } from '../conversation-workflow-utils';
 
 jest.mock('@temporalio/workflow', () => ({

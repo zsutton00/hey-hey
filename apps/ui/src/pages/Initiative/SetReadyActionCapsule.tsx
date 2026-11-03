@@ -1,9 +1,6 @@
 import { CapsuleAction } from "@hey-hey/ui-common/components";
 import ReadyIcon from "@mui/icons-material/CheckCircleOutline";
-import {
-  WorkStatus,
-  type InitiativeResponseDto,
-} from "@hey-hey/ui-common/api";
+import { WorkStatus, type InitiativeResponseDto } from "@hey-hey/contracts/api";
 import { useCallback, useState } from "react";
 
 const SET_READY_LABELS = {

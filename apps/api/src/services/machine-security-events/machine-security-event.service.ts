@@ -7,7 +7,7 @@ import {
   MachineSecurityEventDto,
   MachineSecurityEventType,
   WebSocketMachineSecurityEventEvent,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 
 const DEFAULT_FEED_LIMIT = 100;
 const MAX_FEED_LIMIT = 200;

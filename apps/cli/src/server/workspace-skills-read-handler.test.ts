@@ -7,7 +7,7 @@ import { CodexSkillCatalog } from '../agents/providers/codex/codex-skill-catalog
 import { WorkspaceSkillsReadHandler } from './workspace-skills-read-handler';
 import { NOOP_LOGGER } from './logger';
 import { guardCliReadResponse, MAX_CLI_READ_ACK_BYTES } from './cli-read-response-size-guard';
-import type { CliReadWorkspaceSkillsListEnvelopeBody } from '../shared/agent-bridge-contract/generated/api';
+import type { CliReadWorkspaceSkillsListEnvelopeBody } from '@hey-hey/contracts/agent-bridge';
 const body: CliReadWorkspaceSkillsListEnvelopeBody = {
   requestId: '11111111-1111-4111-8111-111111111111',
   operation: 'workspace.skills.list',
@@ -23,13 +23,11 @@ describe('WorkspaceSkillsReadHandler', () => {
   it('reads without a Service binding or session and preserves provider errors', async () => {
     const repositories = new RepoMappingStore();
     const binding = vi.spyOn(repositories, 'resolvePathForService');
-    const list = vi
-      .spyOn(CodexSkillCatalog.prototype, 'list')
-      .mockResolvedValue({
-        provider: 'codex',
-        skills: [],
-        errors: [{ provider: 'codex', message: 'Unreadable Skill' }],
-      });
+    const list = vi.spyOn(CodexSkillCatalog.prototype, 'list').mockResolvedValue({
+      provider: 'codex',
+      skills: [],
+      errors: [{ provider: 'codex', message: 'Unreadable Skill' }],
+    });
     const result = await new WorkspaceSkillsReadHandler(repositories, NOOP_LOGGER).read(
       body,
       'user',

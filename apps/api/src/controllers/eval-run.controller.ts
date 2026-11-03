@@ -15,7 +15,10 @@ import {
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { OrganizationGuard } from 'src/auth/guards/organization.guard';
 import { ProjectAccessGuard } from 'src/auth/guards/project-access.guard';
-import type { LaunchEvalRunRequest, ReportDto } from 'src/generated';
+import type {
+  LaunchEvalRunRequest,
+  ReportDto,
+} from '@hey-hey/contracts/api/models';
 import { EvalRunService } from 'src/services/eval-runs/eval-run.service';
 import type { OrganizationId, ProjectId, UserId } from 'src/types';
 

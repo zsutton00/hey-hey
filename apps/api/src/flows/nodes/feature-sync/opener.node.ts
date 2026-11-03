@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
-import { ExtendedUIFieldType, UIElement } from 'src/generated';
+import { ExtendedUIFieldType, UIElement } from '@hey-hey/contracts/api/models';
 import {
   FeatureSyncFlowContext,
   FlowUserMessage,

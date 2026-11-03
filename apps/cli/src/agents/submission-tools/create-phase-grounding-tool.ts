@@ -24,7 +24,7 @@
 
 import type { Run } from '../../run/run';
 import type { ReportChainEntry } from '../../run/types';
-import type { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import type { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { CreateReportProxy } from './create-report-proxy';
 import type { PassThroughSubmissionToolDeclaration, SubmissionToolExecuteContext } from './types';
 

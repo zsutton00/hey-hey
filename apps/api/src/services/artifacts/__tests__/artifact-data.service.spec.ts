@@ -5,7 +5,7 @@ import {
   DecisionData,
   DocumentData,
   QAPairData,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { ArtifactDataService } from '../artifact-data.service';
 
 describe('ArtifactDataService', () => {

@@ -19,14 +19,14 @@ import {
 } from "@hey-hey/ui-common/components";
 import type { ActivityExpandPayload } from "@hey-hey/ui-common/components";
 import { unifiedApiClient } from "@hey-hey/ui-common/clients";
-import type { ReportDto, TaskResponseDto } from "@hey-hey/ui-common/api";
+import type { ReportDto, TaskResponseDto } from "@hey-hey/contracts/api";
 import {
   ActivityCorrelationLinkType,
   EntityType,
   ProjectMetricIdentity,
   RecentActivityCorrelationMode,
   ReportType,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { WebPathService } from "@hey-hey/ui-common/services";
 import { useQueries } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
@@ -42,11 +42,7 @@ import {
   Typography,
 } from "@mui/material";
 import React, { useCallback, useMemo, useState } from "react";
-import {
-  useNavigate,
-  useParams,
-  useSearchParams,
-} from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   DetailPageContainer,
   DetailPageHeader,
@@ -342,8 +338,8 @@ export const ProjectActivityPage: React.FC = () => {
     selectedActivityQuery?.historyFilter?.metric;
   const isProjectActivity = Boolean(
     organizationActivityQuery.kind === "valid" &&
-      (organizationActivityQuery.viewScope === "project" ||
-        selectedActivityQuery?.projectId),
+    (organizationActivityQuery.viewScope === "project" ||
+      selectedActivityQuery?.projectId),
   );
   const activityTitle = `${isProjectActivity ? "Project" : "Organization"} Activity${
     selectedMetric ? ` · ${getMetricIdentityLabel(selectedMetric)}` : ""

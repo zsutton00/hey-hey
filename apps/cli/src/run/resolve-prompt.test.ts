@@ -29,7 +29,7 @@ import {
   LocalPromptType,
   LocalPromptTaskType,
   RunEntityReferenceEntityTypeEnum as RunEntityType,
-} from '../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 
 // Test promptTypes are unique strings that don't match the generated
 // `LocalPromptType` literal union. The registry lookup is keyed on `string`

@@ -1,7 +1,7 @@
 import type {
   ContextRelatedEntityDto,
   EntityContextDtoProposalsInner,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { Card } from "@hey-hey/ui-common/components";
 import { Box, CircularProgress, Stack, Typography } from "@mui/material";
 import React, { Suspense, lazy, useCallback } from "react";
@@ -12,7 +12,7 @@ import { ContextRailCards } from "../../components/ContextRailCards";
 import type { BreadcrumbFeatureAncestor } from "../../components/TaskBreadcrumbs";
 
 const FeatureTreeVisualization = lazy(
-  () => import("@hey-hey/ui-common/feature-tree-visualization")
+  () => import("@hey-hey/ui-common/feature-tree-visualization"),
 );
 
 interface TaskDetailSidebarProps {
@@ -41,7 +41,7 @@ export const TaskDetailSidebar: React.FC<TaskDetailSidebarProps> = ({
   const conversationPathForId = useCallback(
     (conversationId: string) =>
       `/projects/${projectId}/resolve-agent-session/${conversationId}`,
-    [projectId]
+    [projectId],
   );
 
   const featureTreeCard = (

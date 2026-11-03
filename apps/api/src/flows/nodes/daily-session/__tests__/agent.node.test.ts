@@ -1,4 +1,7 @@
-import { EntityType, RecentActivityCorrelationRecordDto } from 'src/generated';
+import {
+  EntityType,
+  RecentActivityCorrelationRecordDto,
+} from '@hey-hey/contracts/api/models';
 import {
   ConversationId,
   OrganizationId,

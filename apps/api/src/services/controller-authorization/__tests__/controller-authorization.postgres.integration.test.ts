@@ -12,7 +12,7 @@ import {
   HostActionTargetKind,
   HostAffectingActionType,
   TaskMonitorExternalCommand,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { canonicalizeJcs } from '../../../core/websockets/trigger-canonicalization';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ControllerAssertionVerifierService } from '../controller-assertion-verifier.service';

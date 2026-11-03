@@ -16,7 +16,7 @@
 import {
   LocalPromptType,
   type LocalValidationWalkthroughPromptPayload,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import { ReportAudience, ReportType } from '../../shared/api/index';
 import type { PromptTypeHandler } from '../prompt-type-handler';
 import { buildValidationWalkthroughPrompt } from './prompts';

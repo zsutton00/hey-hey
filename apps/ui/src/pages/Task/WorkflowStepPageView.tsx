@@ -27,7 +27,7 @@ import {
   type EntityContextDtoProposalsInner,
   type PlanContextEntryDto,
   TargetEntityType,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   DiscussCapsuleAction,
   WorkItemReadView,

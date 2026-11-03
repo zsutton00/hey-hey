@@ -3,7 +3,7 @@ import { DesignDocList, EntityFilters } from "@hey-hey/ui-common/components";
 import { useModalService } from "@hey-hey/ui-common/context";
 import { useDesignDocs } from "@hey-hey/ui-common/data";
 import { WebPathService } from "@hey-hey/ui-common/services";
-import { DesignDocParentEntityType } from "@hey-hey/ui-common/api";
+import { DesignDocParentEntityType } from "@hey-hey/contracts/api";
 import AddIcon from "@mui/icons-material/Add";
 import { Alert, Box, Button, Stack } from "@mui/material";
 import React, { useCallback, useMemo, useState } from "react";
@@ -90,12 +90,7 @@ export const DesignDocsTab: React.FC<DesignDocsTabProps> = ({
     }
 
     return Array.from(merged.values());
-  }, [
-    designDocIds,
-    designDocs,
-    directlyLinkedPlanDocs,
-    hasScopedDesignDocIds,
-  ]);
+  }, [designDocIds, designDocs, directlyLinkedPlanDocs, hasScopedDesignDocIds]);
 
   const error = primaryError ?? planLinkError;
 

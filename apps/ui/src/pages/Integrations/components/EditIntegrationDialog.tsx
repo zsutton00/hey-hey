@@ -3,7 +3,7 @@ import { Box, Typography, Divider } from "@mui/material";
 import {
   type IntegrationResponseDto,
   type UpdateIntegrationDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { useIntegrationService } from "@hey-hey/ui-common/hooks";
 import { IntegrationTestService } from "@hey-hey/ui-common/services";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";

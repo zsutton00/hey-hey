@@ -13,7 +13,7 @@ import type {
   CanonicalEntityReference,
   WorkItemGraphParticipationResponseDto,
   WorkItemGraphParticipationType,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { AgentEdgeType } from 'src/generated/graphs/model/agentEdgeType';
 import { AgentEdgeEndpointEntityType } from 'src/generated/graphs/model/agentEdgeEndpointEntityType';
 import type { AgentEdge } from 'src/generated/graphs/model/agentEdge';

@@ -19,7 +19,7 @@ import {
   MessageExecutionStatus,
   InputCancellationRequest,
   InputExecutionProjection,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { InputExecutionProjectionService } from '../services/agent-operation/input-execution-projection.service';
 import type { AuthenticatedMachine } from '../services/machine-pairing/machine-pairing.service';
 import type { OrganizationId, ProjectId, UserId } from '../types';

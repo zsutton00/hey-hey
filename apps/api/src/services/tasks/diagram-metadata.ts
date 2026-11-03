@@ -6,13 +6,13 @@ import {
   DiagramElementPolicySchema,
 } from '../../generated/diagram.schemas';
 import type { Prisma } from '@prisma/client';
-import { DiagramKind } from '../../generated/model/diagramKind';
-import { DiagramLevel } from '../../generated/model/diagramLevel';
-import type { DiagramMetadata } from '../../generated/model/diagramMetadata';
-import type { DiagramElementMetadata } from '../../generated/model/diagramElementMetadata';
-import type { WorkItemSectionInput } from '../../generated/model/workItemSectionInput';
-import type { WorkItemTypeSectionDefinition } from '../../generated/model/workItemTypeSectionDefinition';
-import type { DiagramElementPolicy } from '../../generated/model/diagramElementPolicy';
+import { DiagramKind } from '@hey-hey/contracts/api/models';
+import { DiagramLevel } from '@hey-hey/contracts/api/models';
+import type { DiagramMetadata } from '@hey-hey/contracts/api/models';
+import type { DiagramElementMetadata } from '@hey-hey/contracts/api/models';
+import type { WorkItemSectionInput } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeSectionDefinition } from '@hey-hey/contracts/api/models';
+import type { DiagramElementPolicy } from '@hey-hey/contracts/api/models';
 
 export const DIAGRAM_METADATA_SCHEMA_REF =
   '#/components/schemas/DiagramMetadata';

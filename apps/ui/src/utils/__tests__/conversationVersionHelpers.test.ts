@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { MessageStatus, MessageType } from "@hey-hey/ui-common/api";
-import type { ConversationResponseDto } from "@hey-hey/ui-common/api";
+import { MessageStatus, MessageType } from "@hey-hey/contracts/api";
+import type { ConversationResponseDto } from "@hey-hey/contracts/api";
 import {
   calculateVersionDifference,
   createConversationReference,
@@ -50,7 +50,12 @@ describe("conversationVersionHelpers", () => {
       ...versionedConversation,
       version: undefined,
     } as unknown as ConversationResponseDto;
-    const message = createVersionAwareUserMessage({}, "parent-1", conversation, "project-1");
+    const message = createVersionAwareUserMessage(
+      {},
+      "parent-1",
+      conversation,
+      "project-1",
+    );
 
     expect(message).not.toHaveProperty("expectedConversationVersion");
     expect(message.data).toEqual({});
@@ -69,7 +74,11 @@ describe("conversationVersionHelpers", () => {
   it("creates optimistic state with and without a version", () => {
     vi.spyOn(Date, "now").mockReturnValueOnce(123);
     expect(
-      createOptimisticMessageState("parent", { message: "hello" }, versionedConversation),
+      createOptimisticMessageState(
+        "parent",
+        { message: "hello" },
+        versionedConversation,
+      ),
     ).toEqual({
       parentMessageId: "parent",
       formData: { message: "hello" },
@@ -78,25 +87,49 @@ describe("conversationVersionHelpers", () => {
       expectedVersion: 5,
     });
 
-    const legacy = { ...versionedConversation, version: undefined } as unknown as ConversationResponseDto;
-    expect(createOptimisticMessageState("parent", {}, legacy).expectedVersion).toBeUndefined();
+    const legacy = {
+      ...versionedConversation,
+      version: undefined,
+    } as unknown as ConversationResponseDto;
+    expect(
+      createOptimisticMessageState("parent", {}, legacy).expectedVersion,
+    ).toBeUndefined();
   });
 
   it("decides when version conflicts require a dialog", () => {
-    const error = { currentVersion: 6, expectedVersion: 5 } as VersionConflictError;
+    const error = {
+      currentVersion: 6,
+      expectedVersion: 5,
+    } as VersionConflictError;
     expect(shouldShowVersionConflictDialog(error, 2, 2)).toBe(true);
     expect(shouldShowVersionConflictDialog(error, 0, 2)).toBe(false);
-    expect(shouldShowVersionConflictDialog({ ...error, currentVersion: 10 }, 0, 2)).toBe(true);
+    expect(
+      shouldShowVersionConflictDialog({ ...error, currentVersion: 10 }, 0, 2),
+    ).toBe(true);
   });
 
   it("calculates non-negative version differences", () => {
-    expect(calculateVersionDifference(6, 5)).toEqual({ difference: 1, description: "single" });
-    expect(calculateVersionDifference(9, 5)).toEqual({ difference: 4, description: "multiple" });
-    expect(calculateVersionDifference(4, 5)).toEqual({ difference: 0, description: "none" });
+    expect(calculateVersionDifference(6, 5)).toEqual({
+      difference: 1,
+      description: "single",
+    });
+    expect(calculateVersionDifference(9, 5)).toEqual({
+      difference: 4,
+      description: "multiple",
+    });
+    expect(calculateVersionDifference(4, 5)).toEqual({
+      difference: 0,
+      description: "none",
+    });
   });
 
   it("updates the expected conversation version immutably", () => {
-    const original = createVersionAwareUserMessage({}, "parent", versionedConversation, "project-1");
+    const original = createVersionAwareUserMessage(
+      {},
+      "parent",
+      versionedConversation,
+      "project-1",
+    );
     const updated = updateUserMessageVersion(original, 8);
     expect(updated.expectedConversationVersion).toBe(8);
     expect(original.expectedConversationVersion).toBe(5);

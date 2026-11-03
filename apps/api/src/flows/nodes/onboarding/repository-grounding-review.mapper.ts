@@ -1,5 +1,5 @@
 import type { RepositoryImportFlowContext } from '../../../types/flow-internal.types';
-import type { RepositoryGroundingSuccess } from '../../../generated';
+import type { RepositoryGroundingSuccess } from '@hey-hey/contracts/api/models';
 import { type FeatureGenerationResponse } from '../../utils/shared-schemas';
 
 /**

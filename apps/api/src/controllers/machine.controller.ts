@@ -67,7 +67,7 @@ import {
   ReportMachineSecurityEventsRequestDto as GeneratedReportMachineSecurityEventsRequestDto,
   RotateMachineKeyRequestDto as GeneratedRotateMachineKeyRequestDto,
   RotateMachineKeyResponseDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 
 export class RegisterMachineRequestDto
   implements GeneratedRegisterMachineRequestDto

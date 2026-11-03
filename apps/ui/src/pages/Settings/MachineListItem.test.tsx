@@ -2,7 +2,7 @@ import {
   AuthorizationProtocolVersion,
   MachineExecutionReadinessState,
   type MachineDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -40,9 +40,9 @@ describe("MachineListItem", () => {
   it("renders the machine name", () => {
     const machine = buildMachine();
     render(<MachineListItem machine={machine} onRevoke={vi.fn()} />);
-    expect(
-      screen.getByTestId("settings-agent-bridge-name"),
-    ).toHaveTextContent("Zac's MacBook");
+    expect(screen.getByTestId("settings-agent-bridge-name")).toHaveTextContent(
+      "Zac's MacBook",
+    );
   });
 
   it("keeps enrollment-required machines visible, directs enrollment locally, and allows revocation", () => {
@@ -56,14 +56,10 @@ describe("MachineListItem", () => {
 
     expect(
       screen.getByTestId("settings-agent-bridge-readiness"),
-    ).toHaveTextContent(
-      "Needs a Passkey",
-    );
+    ).toHaveTextContent("Needs a Passkey");
     expect(
       screen.getByTestId("settings-agent-bridge-readiness"),
-    ).toHaveTextContent(
-      "heyhey controllers add",
-    );
+    ).toHaveTextContent("heyhey controllers add");
     expect(screen.getByTestId("settings-remove-agent-bridge")).toBeEnabled();
   });
 
@@ -95,9 +91,7 @@ describe("MachineListItem", () => {
     const machine = buildMachine();
     const handleRevoke = vi.fn();
     render(<MachineListItem machine={machine} onRevoke={handleRevoke} />);
-    fireEvent.click(
-      screen.getByTestId("settings-remove-agent-bridge"),
-    );
+    fireEvent.click(screen.getByTestId("settings-remove-agent-bridge"));
     expect(handleRevoke).toHaveBeenCalledTimes(1);
     expect(handleRevoke).toHaveBeenCalledWith(machine);
   });

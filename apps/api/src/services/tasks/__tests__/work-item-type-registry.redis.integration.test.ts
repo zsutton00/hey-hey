@@ -4,7 +4,7 @@ import { EVENT_TYPES } from '../../../core/events/types/event.types';
 import type { EventEnvelope } from '../../../core/events/types/event-envelope';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import { buildBuiltInWorkItemTypeRows } from '../../../../test/setup/work-item-type-registry.fixture';
-import { WorkItemTypeGuidancePurpose } from '../../../generated/model/workItemTypeGuidancePurpose';
+import { WorkItemTypeGuidancePurpose } from '@hey-hey/contracts/api/models';
 import { WorkItemTypeRegistryService } from '../work-item-type-registry.service';
 
 // Redis is real; database reads use an explicitly committed in-memory view.

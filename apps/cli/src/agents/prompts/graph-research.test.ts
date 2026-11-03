@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { PromptTypeRegistry } from '../prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../prompt-type-registry.test-support';
 import { graphResearchGuidance, selectGraphResearchGuidance } from './graph-research';

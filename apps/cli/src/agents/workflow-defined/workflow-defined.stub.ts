@@ -1,5 +1,5 @@
 import type { PromptTypeHandler } from '../prompt-type-handler';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 
 /**
  * Sentinel handler for `workflow-defined`. This promptType is never

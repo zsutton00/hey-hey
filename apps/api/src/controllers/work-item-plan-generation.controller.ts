@@ -9,7 +9,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import type { PlanSubmissionAdmissionRequest } from '../generated';
+import type { PlanSubmissionAdmissionRequest } from '@hey-hey/contracts/api/models';
 import {
   CurrentOrganization,
   CurrentUser,

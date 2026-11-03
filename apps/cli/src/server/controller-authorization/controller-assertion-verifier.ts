@@ -10,7 +10,7 @@ import {
   hasExactCurrentAgentOperations,
   isCurrentAgentOperation,
 } from './types';
-import type { ControllerCredentialPublicKey } from '../../shared/api/generated/api';
+import type { ControllerCredentialPublicKey } from '@hey-hey/contracts/api/models';
 import type {
   ControllerAssertionVerificationResult,
   ControllerAuthorizationAdmissionContext,

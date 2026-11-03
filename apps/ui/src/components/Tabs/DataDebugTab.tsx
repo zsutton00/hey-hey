@@ -2,7 +2,7 @@ import {
   entityContextClient,
   unifiedApiClient,
 } from "@hey-hey/ui-common/clients";
-import { EntityType } from "@hey-hey/ui-common/api";
+import { EntityType } from "@hey-hey/contracts/api";
 import { useProjectCapabilities } from "@hey-hey/ui-common/hooks";
 import { OutboxEvents } from "@hey-hey/ui-common/components";
 import {
@@ -19,11 +19,7 @@ import { DebugEventReplayPanel } from "./DebugEventReplayPanel";
 import { TabContainer } from "./TabContainer";
 
 type DebugSection =
-  | "context"
-  | "relationships"
-  | "outbox"
-  | "embeddings"
-  | "replay";
+  "context" | "relationships" | "outbox" | "embeddings" | "replay";
 
 export interface DataDebugTabProps {
   organizationId: string;

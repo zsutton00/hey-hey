@@ -1,5 +1,5 @@
 import type { Prisma } from '@prisma/client';
-import type { BrowserSessionResponseDto } from '../generated';
+import type { BrowserSessionResponseDto } from '@hey-hey/contracts/api/models';
 
 import type {
   BrowserSessionFamilyId,

@@ -17,7 +17,7 @@ import { z } from 'zod';
 import {
   ProjectReportCoverageStatusEnum,
   type ProjectReportCoverage,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import {
   SubmissionToolCorrectableError,
   type SubmissionToolCorrectableFinding,

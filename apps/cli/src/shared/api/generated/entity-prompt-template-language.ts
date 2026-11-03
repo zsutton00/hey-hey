@@ -1,5 +1,5 @@
 // Generated from specs/fixtures/entity-prompt-template-language-v1.json. Do not edit.
-import { EntityPromptTemplateSyntaxVersion } from './api.js';
+import { EntityPromptTemplateSyntaxVersion } from '@hey-hey/contracts/api/models';
 
 export interface EntityPromptTemplatePathFamily {
   readonly template: string;

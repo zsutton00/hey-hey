@@ -1,6 +1,7 @@
+import { asConversationId, asProjectId, asServiceId, asWorkflowId } from '../../test-utils/contract-ids';
 import { describe, expect, it } from 'vitest';
 import type { AssistantCompleteEvent } from '../../run/types';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { validateTriggerPayload } from '../../server/conversation-dispatch/trigger-payload-schemas';
 import { resolveMcpToolNames } from '../mcp-server-config';
 import { repositoryFirstWorkHandler } from './repository-first-work.handler';
@@ -8,18 +9,18 @@ import type { RepositoryFirstWorkPromptPayload } from './types';
 
 const payload: RepositoryFirstWorkPromptPayload = {
   promptType: 'repository_first_work',
-  projectId: '66666666-6666-4666-8666-666666666666',
-  conversationId: '88888888-8888-4888-8888-888888888888',
-  workflowId: '99999999-9999-4999-8999-999999999999',
+  projectId: asProjectId('66666666-6666-4666-8666-666666666666'),
+  conversationId: asConversationId('88888888-8888-4888-8888-888888888888'),
+  workflowId: asWorkflowId('99999999-9999-4999-8999-999999999999'),
   workflowNodeId: 'repository-import-first-work',
-  serviceId: '44444444-4444-4444-8444-444444444444',
+  serviceId: asServiceId('44444444-4444-4444-8444-444444444444'),
   machineId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   provider: 'codex',
   resolvedFrontierModel: 'gpt-6-astra',
   reasoningEffort: 'high',
   analysis: {
     outcome: 'success',
-    serviceId: '44444444-4444-4444-8444-444444444444',
+    serviceId: asServiceId('44444444-4444-4444-8444-444444444444'),
     provider: 'codex',
     resolvedFrontierModel: 'gpt-6-astra',
     narrative: 'Repository discovery.',

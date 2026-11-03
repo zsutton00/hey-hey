@@ -18,7 +18,7 @@ import { SubmissionToolRegistry } from '../agents/submission-tools/registry';
 import { RepoMappingStore } from '../repo/index';
 import { RunStore } from '../run-store/run-store';
 import { SessionTokenUsageReader } from '../provider-usage/session-token-usage';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { LocalContextData } from '../shared/agent-bridge-contract/runtime-types';
 import type { AgenticSession } from '../session/types';
 import { ToolRuleStore } from '../session/tool-rules';

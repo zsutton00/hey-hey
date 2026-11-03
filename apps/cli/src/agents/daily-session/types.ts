@@ -2,9 +2,9 @@ import type {
   ActiveGoalDto,
   AttentionEventResponse,
   RecentActivityCorrelationRecordDto,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { ServerLogger } from '../../server/logger';
-import type { LocalDailySessionPromptPayload } from '../../shared/agent-bridge-contract/generated/api';
+import type { LocalDailySessionPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import type { DeltaResult } from './delta-calculator';
 
 /**

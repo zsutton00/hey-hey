@@ -1,6 +1,6 @@
 import { AxiosError } from 'axios';
 import { describe, expect, it } from 'vitest';
-import type { EvalRunReportPayload } from '../../shared/api/generated/api';
+import type { EvalRunReportPayload } from '@hey-hey/contracts/api/models';
 import { EvalReportRecorder } from './eval-report-recorder';
 
 const RUN_ID = 'run-1';

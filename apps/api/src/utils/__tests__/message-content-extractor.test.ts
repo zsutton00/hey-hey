@@ -1,6 +1,9 @@
 import { MessageContentExtractor } from '../message-content-extractor';
 import { FlowUserMessage } from '../../types/flow-internal.types';
-import { SystemMessageData, type MessageResponseDto } from '../../generated';
+import {
+  SystemMessageData,
+  type MessageResponseDto,
+} from '@hey-hey/contracts/api/models';
 import * as TestUtils from '../testUtils';
 
 describe('MessageContentExtractor', () => {

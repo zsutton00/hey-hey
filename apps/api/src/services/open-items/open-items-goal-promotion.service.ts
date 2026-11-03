@@ -6,7 +6,7 @@ import type {
   OpenItemRef,
   PromoteGroupToGoalRequest,
   PromoteGroupToGoalResult,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import type { TaskId } from '../../types';
 import { TaskService } from '../tasks/task.service';
 import { GoalTracksService } from '../tasks/goal-tracks.service';

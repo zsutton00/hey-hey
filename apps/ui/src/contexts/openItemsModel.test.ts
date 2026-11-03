@@ -1,4 +1,4 @@
-import { AgentSessionType } from "@hey-hey/ui-common/api";
+import { AgentSessionType } from "@hey-hey/contracts/api";
 import { createNavigationLineageEntry } from "@hey-hey/ui-common";
 import { createEntityActivation } from "@hey-hey/ui-common/context";
 import { describe, expect, it } from "vitest";
@@ -11,11 +11,8 @@ import {
 describe("upsertOpenItem", () => {
   it("refreshes presentation in place without losing Open Item metadata", () => {
     const existing: OpenItem = {
-      entityId: createEntityActivation(
-        "agent_session",
-        "session-1",
-        null,
-      ).entityId,
+      entityId: createEntityActivation("agent_session", "session-1", null)
+        .entityId,
       entityType: "agent_session",
       whyOpen: "Check the result",
       pinned: true,

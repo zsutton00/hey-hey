@@ -1,5 +1,5 @@
 import { parseProposalReviewNote } from '../services/proposal/proposal-review-note';
-import type { ProposalReviewNoteResult } from '../generated';
+import type { ProposalReviewNoteResult } from '@hey-hey/contracts/api/models';
 import {
   ProjectAccessGuard,
   ProjectResourceId,
@@ -60,8 +60,8 @@ import { parseFutureApplyRequest } from '../services/proposal/future-application
 import type {
   ProjectedWorkItemChangeSetResponse,
   WorkItemChangeSetValidationRequest,
-} from '../generated';
-import { WorkItemTypeRole } from '../generated';
+} from '@hey-hey/contracts/api/models';
+import { WorkItemTypeRole } from '@hey-hey/contracts/api/models';
 import type {
   StampedCreateProposalDto,
   TypedProposalResponse,
@@ -72,7 +72,7 @@ import type {
   CreateProposalReconciliationCandidate,
   ProposalAgentFixRequest,
   ProposalReconciliationState,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { ProposalAgentFixService } from '../services/proposal/proposal-agent-fix.service';
 
 @ApiTags('Proposals')

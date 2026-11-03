@@ -14,7 +14,7 @@ import {
   MachinePairingService,
   MACHINE_ENROLLMENT_ATTEMPT_LIMIT,
 } from '../machine-pairing.service';
-import { CreateMachineEnrollmentRequestDto } from '../../../generated';
+import { CreateMachineEnrollmentRequestDto } from '@hey-hey/contracts/api/models';
 
 const describeDatabase =
   process.env.RUN_MACHINE_ENROLLMENT_DB_TESTS === '1' &&

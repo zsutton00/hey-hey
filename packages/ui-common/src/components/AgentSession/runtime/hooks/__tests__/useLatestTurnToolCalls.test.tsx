@@ -28,7 +28,7 @@ const { authorize, localRead, localState } = vi.hoisted(() => ({
 vi.mock("../useLocalCliForSession", () => ({
   useLocalCliForSession: () => localState.current,
 }));
-vi.mock("../../../../../local-agent-api/generated/api", () => ({
+vi.mock("@hey-hey/contracts/local", () => ({
   RunToolCallsLatestTurnApi: class {
     readLocalRunToolCallsLatestTurn = localRead;
   },

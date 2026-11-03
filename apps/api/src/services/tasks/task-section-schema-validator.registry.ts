@@ -12,7 +12,7 @@ import {
   parseDiagramGroupsContent,
   validateDiagramGroups,
 } from './diagram-groups';
-import type { WorkItemTypeSectionDefinition } from '../../generated/model/workItemTypeSectionDefinition';
+import type { WorkItemTypeSectionDefinition } from '@hey-hey/contracts/api/models';
 import {
   TASK_MONITOR_EXECUTION_DEFINITION_SCHEMA_REF,
   validateTaskMonitorExecutionDefinitionContent,

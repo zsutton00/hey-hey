@@ -41,8 +41,8 @@ import {
   OnboardingReplyDelivery,
   RepositoryImportReplyDelivery,
 } from '../core/events/types/event.types';
-import { MentionCreatedEvent } from '../generated/model/mentionCreatedEvent';
-import { MentionRemovedEvent } from '../generated/model/mentionRemovedEvent';
+import { MentionCreatedEvent } from '@hey-hey/contracts/api/models';
+import { MentionRemovedEvent } from '@hey-hey/contracts/api/models';
 import {
   EventContextManager,
   WithEventContext,
@@ -68,7 +68,7 @@ import {
   SecondaryActionHandler,
   SystemMessageData,
   UserMessageData,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { AnyTransactionClient, PrismaService } from '../prisma/prisma.service';
 
 import { ContextAwareLogger } from 'src/core/logging/context-aware-logger.service';

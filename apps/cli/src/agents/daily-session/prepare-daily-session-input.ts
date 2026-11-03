@@ -7,7 +7,7 @@ import { fetchRecentActivity } from './fetch-activity';
 import { fetchUserFocusMessage } from './fetch-user-focus';
 import { DAILY_SESSION_MONITOR_LOG_EVENT } from '../../shared/logging/daily-session';
 import type { DailySessionEnrichedPayload, DailySessionPromptInput } from './types';
-import type { LocalDailySessionPromptPayload } from '../../shared/agent-bridge-contract/generated/api';
+import type { LocalDailySessionPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import type { PrepareResult, PromptTypeHandlerDeps } from '../prompt-type-handler';
 
 interface DailySessionInputEnrichmentContext {

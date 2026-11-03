@@ -3,7 +3,7 @@ import {
   SignedConversationControlEnvelope,
   SignedConversationTriggerEnvelope,
   SignedMonitorCommandEnvelope,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 
 interface LegacyMachineEvent<TType extends string, TEnvelope> {
   type: TType;

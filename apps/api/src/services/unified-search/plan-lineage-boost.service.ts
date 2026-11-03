@@ -3,7 +3,7 @@ import { OrganizationId, ProjectId } from 'src/types';
 import {
   UnifiedSearchPlanLineageBoost,
   UnifiedSearchPlanLineageMode,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 const DEPENDENCY_BOOST_DELTA = 0.3;

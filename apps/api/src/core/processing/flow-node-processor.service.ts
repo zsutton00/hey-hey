@@ -12,7 +12,7 @@ import {
   QuestionsSystemMessageData,
   SystemMessageData,
   SystemMessageResponseType,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { InjectTemporalClient } from 'src/prisma/temporal.module';
 import { IntentDetectorService } from 'src/services/intent-detector.service';
 import {

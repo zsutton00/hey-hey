@@ -1,7 +1,7 @@
 import {
   type ContextRelatedEntityDto,
   EntityType,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   EntityIcon,
   EntityNodeStatusChip,

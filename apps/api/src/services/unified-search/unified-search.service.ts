@@ -17,7 +17,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { ReadPolicyContext } from 'src/read-restriction/read-policy';
-import type { ReportType } from 'src/generated/model/reportType';
+import type { ReportType } from '@hey-hey/contracts/api/models';
 import { AxiosError } from 'axios';
 import {
   EmbeddingMetadata,
@@ -43,7 +43,7 @@ import {
   UnifiedSearchResponse,
   UnifiedSearchResult,
   WorkStatus,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   MatchSpan,
   SearchRequest as EmbeddingsSearchRequest,

@@ -15,7 +15,7 @@ import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { EvalRunStatus } from "@hey-hey/ui-common/api";
+import { EvalRunStatus } from "@hey-hey/contracts/api";
 import {
   evalRunName,
   useEvalRun,

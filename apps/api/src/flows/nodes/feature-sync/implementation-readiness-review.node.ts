@@ -9,7 +9,7 @@ import {
   SecondaryActionHandler,
   SecondaryActionPayload,
   UIElement,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   FlowUserMessage,
   NodeResult,
@@ -19,7 +19,7 @@ import {
   FeatureSyncFlowContext,
   validateQuestionsAction,
 } from 'src/types/flow-internal.types';
-import type { ImplementationReadinessDisposition } from 'src/generated';
+import type { ImplementationReadinessDisposition } from '@hey-hey/contracts/api/models';
 import { MutableContextHandle } from 'src/utils/mutable-context';
 import { UserMessageExtractor } from 'src/utils/user-message-extractor';
 import { FEATURE_SYNC_NODES } from '../../constants/node-ids';

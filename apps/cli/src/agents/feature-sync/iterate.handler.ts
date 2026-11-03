@@ -9,7 +9,7 @@
  * (`featureSyncIterateActions`) re-validate the payload.
  */
 
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { LocalFeatureSyncIteratePromptPayload } from '../../shared/agent-bridge-contract/runtime-types';
 import { turnUserMessageBlock, type UserLaunchablePromptTypeHandler } from '../prompt-type-handler';
 import { buildIteratePrompt } from './prompts';

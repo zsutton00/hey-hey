@@ -5,7 +5,7 @@ import { reportErrorSchemas } from '../../shared/api/generated/report-error-sche
 import type {
   LocalWalkthroughSourceRequest,
   LocalWalkthroughSourceLocation,
-} from '../../shared/local-agent-api/generated/api';
+} from '@hey-hey/contracts/local';
 import {
   resolveWalkthroughWorkspaceFile,
   walkthroughServiceRoot,

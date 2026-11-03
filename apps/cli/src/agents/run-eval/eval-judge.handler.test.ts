@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { EvalRunCaseInput } from '../../shared/api/generated/api';
+import type { EvalRunCaseInput } from '@hey-hey/contracts/api/models';
 import { evalJudgeHandler, parseEvalJudgeOutput } from './eval-judge.handler';
 
 const caseInput: EvalRunCaseInput = {

@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
-
+import { ProjectReportsApiAxiosParamCreator } from '@hey-hey/contracts/api';
 import {
-  ProjectReportsApiAxiosParamCreator,
   type CreateProjectReportRequestDto,
   type RunCreatePayloadProjectReport as ApiLaunch,
-} from './generated/api';
-import type { RunCreatePayloadProjectReport as BridgeLaunch } from '../agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/api/models';
+import type { RunCreatePayloadProjectReport as BridgeLaunch } from '@hey-hey/contracts/agent-bridge';
 
 const organizationId = '11111111-1111-4111-8111-111111111111';
 const projectId = '22222222-2222-4222-8222-222222222222';

@@ -21,7 +21,7 @@ import { FUTURE_REVISION_MCP_TOOLS } from '../mcp-server-config';
  * mints iterate's own provider session and tool surface.
  */
 
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { LocalPlanShapingFeatureSyncAnalyzePromptPayload } from '../../shared/agent-bridge-contract/runtime-types';
 import { ReportAudience, ReportType } from '../../shared/api/index';
 import { turnUserMessageBlock, type UserLaunchablePromptTypeHandler } from '../prompt-type-handler';

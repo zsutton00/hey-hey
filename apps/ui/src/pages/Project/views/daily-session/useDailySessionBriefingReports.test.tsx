@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { ReportType, type ReportDto } from "@hey-hey/ui-common/api";
+import { ReportType, type ReportDto } from "@hey-hey/contracts/api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDailySessionBriefingReports } from "./useDailySessionBriefingReports";
 

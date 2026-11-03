@@ -1,4 +1,4 @@
-import { AgentSessionCurrentState } from 'src/generated';
+import { AgentSessionCurrentState } from '@hey-hey/contracts/api/models';
 import { AgentSessionCurrentStateReadService } from '../agent-session-current-state-read.service';
 
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';

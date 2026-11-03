@@ -1,5 +1,5 @@
 import { ConflictException } from '@nestjs/common';
-import type { PrivateBetaDisclosureAcceptanceInputDto } from '../../generated';
+import type { PrivateBetaDisclosureAcceptanceInputDto } from '@hey-hey/contracts/api/models';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../auth/strategies/jwt.strategy';
 import { PrivateBetaDisclosureService } from '../private-beta-disclosure.service';

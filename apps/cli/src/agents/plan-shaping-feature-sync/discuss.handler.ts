@@ -20,7 +20,7 @@ import { FUTURE_REVISION_MCP_TOOLS } from '../mcp-server-config';
  * proposal card that is never auto-accepted.
  */
 
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { LocalPlanShapingFeatureSyncDiscussPromptPayload } from '../../shared/agent-bridge-contract/runtime-types';
 import { turnUserMessageBlock, type UserLaunchablePromptTypeHandler } from '../prompt-type-handler';
 import { buildPlanShapingDiscussPrompt } from './prompts';

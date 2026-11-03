@@ -1,7 +1,7 @@
 import type {
   TaskMonitorCoordinatorCorrection,
   TaskMonitorCoordinatorValidationFailure,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 
 const MAX_COORDINATOR_CORRECTIONS = 2;
 export const coordinatorValidationRecovery = (

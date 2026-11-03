@@ -3,7 +3,7 @@ import { SessionValidationError } from '../../../session/errors';
 import type { LocalAgentService } from '../../../server/local-agent-service';
 import type { ServerLogger } from '../../../server/logger';
 import type { TaskMonitorStartRuntime } from '../../../server/task-monitor-start';
-import { WorkStatus } from '../../../shared/api/generated/api';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import type { EffectHandler, EffectSettlement } from '../../../state-machine';
 import type {
   HaltTaskMonitorControlEffect,

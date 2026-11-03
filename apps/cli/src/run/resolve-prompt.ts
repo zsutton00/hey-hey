@@ -35,8 +35,8 @@ import { createReadinessSourceSnapshotFromStartupInput } from '../agents/impleme
 import { resolvePromptString } from '../agents/prompts/resolve';
 import { buildStartingMessage } from '../agents/prompts/starting-message';
 import type { SessionRoleGuidance } from '../agents/session-role-guidance/session-role-guidance';
-import type { WorkItemTypeDefinitionDto } from '../shared/api/generated/api';
-import type { FullEntityContextDto } from '../shared/api/generated';
+import type { WorkItemTypeDefinitionDto } from '@hey-hey/contracts/api/models';
+import type { FullEntityContextDto } from '@hey-hey/contracts/api/models';
 import type { ReportChainEntry } from './types';
 import type { RecoverableTurnCheckpoint } from '../session/types';
 import type {

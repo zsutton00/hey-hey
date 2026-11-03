@@ -11,7 +11,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { EntityType } from 'src/generated';
+import { EntityType } from '@hey-hey/contracts/api/models';
 import { ProjectReportContextBatchPipe } from '../project-report-request.validation';
 
 describe('ProjectReportRequestController', () => {

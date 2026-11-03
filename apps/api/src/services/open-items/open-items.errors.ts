@@ -9,7 +9,7 @@ import type { Response } from 'express';
 import type {
   OpenItemsConflictError,
   OpenItemsValidationError,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 
 type Violation = OpenItemsValidationError['violations'][number];
 

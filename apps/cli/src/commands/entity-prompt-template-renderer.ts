@@ -11,7 +11,7 @@ import type {
   ProposalEdgeDeclaration,
   ProposalResponseDto,
   RelatedEntityViaDto,
-} from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import {
   ENTITY_PROMPT_TEMPLATE_LANGUAGES,
   parseEntityPromptTemplate,

@@ -12,7 +12,7 @@ import {
   SuggestedActionPayload,
   SuggestedActionUserMessage,
   UIElement,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   EntityConversationDesignDocRequest,
   EntityConversationRequest,
@@ -26,7 +26,10 @@ import {
   type EntityConversationResponse,
   EntityConversationTaskSummaryTaskTypeEnum,
 } from 'src/generated/agents/models';
-import type { DesignDocResponseDto, ProjectResponseDto } from 'src/generated';
+import type {
+  DesignDocResponseDto,
+  ProjectResponseDto,
+} from '@hey-hey/contracts/api/models';
 import { ArtifactService } from 'src/services/artifacts/artifact.service';
 import {
   AgentResponseShape,

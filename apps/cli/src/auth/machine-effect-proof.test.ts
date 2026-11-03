@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestKeyPairStore } from '../credentials/keypair.test-support';
-import { MachineEffectHttpMethod } from '../shared/api/generated/api';
+import { MachineEffectHttpMethod } from '@hey-hey/contracts/api/models';
 import { canonicalizeJson } from '../shared/canonical-json';
 import { MachineEffectProofSigner } from './machine-effect-proof';
 

@@ -11,7 +11,7 @@ import {
   WorkStatus,
   Priority,
   InitiativeCreatorType,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { UserId } from '../../../types';
 import { Initiative } from '@prisma/client';
 import * as TestUtils from '../../../utils/testUtils';

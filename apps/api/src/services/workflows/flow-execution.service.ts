@@ -34,8 +34,8 @@ import {
   PromptTypeResponseDto,
   SystemMessageData,
   WorkflowName,
-} from 'src/generated';
-import { LocalPromptType } from 'src/generated/local';
+} from '@hey-hey/contracts/api/models';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
 
 type WorkflowState = PromptTypeResponseDto.WorkflowStateEnum;
 const WorkflowState = PromptTypeResponseDto.WorkflowStateEnum;

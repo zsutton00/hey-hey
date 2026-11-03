@@ -40,7 +40,7 @@ import {
   QueryActivity200Response,
   RecentActivityCorrelationMode,
   RecentActivityCorrelationSort,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   AuthToken,
   CurrentOrganization,

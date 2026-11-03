@@ -4,7 +4,7 @@ import * as bcrypt from 'bcrypt';
 import { UserService } from '../user.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OrganizationService } from '../organization.service';
-import { RegisterDto } from '../../generated';
+import { RegisterDto } from '@hey-hey/contracts/api/models';
 import * as TestUtils from '../../utils/testUtils';
 import {
   PASSWORD_CHANGE_CREDENTIAL_ISSUER,

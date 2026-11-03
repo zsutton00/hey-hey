@@ -1,4 +1,4 @@
-import type { WorkflowProposalLinkInput } from 'src/generated';
+import type { WorkflowProposalLinkInput } from '@hey-hey/contracts/api/models';
 import { z } from 'zod';
 
 export const WORKFLOW_EDGE_PREDICATE_MAX_LENGTH = 200;

@@ -4,7 +4,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import type {
   WorkItemChangeSetOperation,
   WorkItemChangeSetValidationRequest,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId } from '../../../types';
 import {
   rootChildrenView,
@@ -12,7 +12,7 @@ import {
 } from '../work-item-change-set-projector.service';
 import { createWarmWorkItemTypeRegistryWithCustomTypes } from '../../../../test/setup/work-item-type-registry.fixture';
 import { WorkItemParentageValidator } from '../../tasks/work-item-parentage-validator.service';
-import { EntityType } from '../../../generated/model/entityType';
+import { EntityType } from '@hey-hey/contracts/api/models';
 
 const organizationId = '11111111-1111-4111-8111-111111111111' as OrganizationId;
 const projectId = '22222222-2222-4222-8222-222222222222' as ProjectId;

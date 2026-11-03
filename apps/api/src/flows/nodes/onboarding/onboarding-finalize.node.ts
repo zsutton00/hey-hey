@@ -6,7 +6,7 @@ import {
   NodeResult,
   NodeType,
 } from '../../../types/flow-internal.types';
-import { ExtendedUIFieldType } from 'src/generated';
+import { ExtendedUIFieldType } from '@hey-hey/contracts/api/models';
 import { MutableContext } from 'src/utils/mutable-context';
 import { OnboardingNextStepsService } from '../../../services/onboarding-next-steps.service';
 

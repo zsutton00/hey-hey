@@ -5,7 +5,7 @@ import {
   type InitiativeResponseDto,
   type ProjectResponseDto,
   type TaskResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { TrackingProvider } from "@hey-hey/ui-common/context";
 import {
   useAgentSession,

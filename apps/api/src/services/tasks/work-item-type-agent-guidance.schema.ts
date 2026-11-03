@@ -1,8 +1,8 @@
-import { SessionRole } from '../../generated/model/sessionRole';
-import type { WorkItemTypeSessionRoleGuidance } from '../../generated/model/workItemTypeSessionRoleGuidance';
-import type { WorkItemTypeRoleGuidanceDto } from '../../generated/model/workItemTypeRoleGuidanceDto';
+import { SessionRole } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeSessionRoleGuidance } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeRoleGuidanceDto } from '@hey-hey/contracts/api/models';
 import { z } from 'zod';
-import type { WorkItemTypeMaintenanceGuidanceDto } from '../../generated/model/workItemTypeMaintenanceGuidanceDto';
+import type { WorkItemTypeMaintenanceGuidanceDto } from '@hey-hey/contracts/api/models';
 
 export const workItemTypeMaintenanceGuidanceSchema = z
   .object({

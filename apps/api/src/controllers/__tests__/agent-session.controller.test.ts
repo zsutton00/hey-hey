@@ -11,7 +11,7 @@ import { AgentSessionService } from '../../services/agent-session.service';
 import { TriggerEmitter } from '../../core/websockets/trigger-emitter.service';
 import { WorkItemPlanGenerationService } from '../../services/plan/work-item-plan-generation.service';
 import { CliReadEmitter } from '../../core/websockets/cli-read-emitter.service';
-import { CliReadErrorCode } from '../../generated';
+import { CliReadErrorCode } from '@hey-hey/contracts/api/models';
 import { ExecutionGrantService } from '../../services/controller-authorization/execution-grant.service';
 import { SESSION_CLI_READ_OPERATIONS } from '../../core/websockets/cli-read-operation-registry';
 import { MachinePresenceService } from '../../core/websockets/machine-presence.service';

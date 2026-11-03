@@ -1,7 +1,7 @@
 import type {
   WorkItemChangeSetIdentity,
   WorkItemChangeSetValidationRequest,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   nodeKey,
   relKey,

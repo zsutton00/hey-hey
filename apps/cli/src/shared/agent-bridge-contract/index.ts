@@ -27,7 +27,7 @@ export type {
   LocalProposalRefinerPromptPayload,
   LocalValidationWalkthroughPromptPayload,
   LocalPromptStartupInput,
-} from './generated/api';
+} from '@hey-hey/contracts/agent-bridge/models';
 export type {
   LocalFinalAssessmentPromptPayload,
   LocalVerificationPlanPromptPayload,
@@ -53,7 +53,7 @@ export type {
   LocalReportUpdateResponse,
   LocalReportEntityRef,
   LocalAgentSearchResultsResponse,
-} from './generated/api';
+} from '@hey-hey/contracts/agent-bridge/models';
 
 // Response enum const objects (used by Zod nativeEnum)
 export {
@@ -67,4 +67,4 @@ export {
   LocalResponseStartupMissedStepResolutionType,
   LocalReportEntityRelation,
   LocalAgentSearchEntityType,
-} from './generated/api';
+} from '@hey-hey/contracts/agent-bridge/models';

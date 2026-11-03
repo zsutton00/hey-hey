@@ -11,22 +11,22 @@ import {
 import { Context, Tool } from '@rekog/mcp-nest';
 import type { Request } from 'express';
 import { z } from 'zod';
-import { AgentEdgeCategory } from '../../generated/model/agentEdgeCategory';
-import { AgentEdgeDirection } from '../../generated/model/agentEdgeDirection';
-import { AgentEdgeEndpointEntityType } from '../../generated/model/agentEdgeEndpointEntityType';
-import { AgentEdgeType } from '../../generated/model/agentEdgeType';
-import { EntityType } from '../../generated/model/entityType';
-import { ReportType } from '../../generated/model/reportType';
-import { WorkItemColorKey } from '../../generated/model/workItemColorKey';
-import { WorkItemIconKey } from '../../generated/model/workItemIconKey';
-import type { WorkItemTypeDefinitionDto } from '../../generated/model/workItemTypeDefinitionDto';
-import { WorkItemTypeRole } from '../../generated/model/workItemTypeRole';
-import type { WorkItemTypeEdgeTarget } from '../../generated/model/workItemTypeEdgeTarget';
-import { WorkItemTypeEffectiveSource } from '../../generated/model/workItemTypeEffectiveSource';
-import { WorkItemTypeScalarField } from '../../generated/model/workItemTypeScalarField';
-import { WorkItemTypeSectionDefinition } from '../../generated/model/workItemTypeSectionDefinition';
-import { WorkStatus } from '../../generated/model/workStatus';
-import { WorkItemConfigKind } from '../../generated/model/workItemConfigKind';
+import { AgentEdgeCategory } from '@hey-hey/contracts/api/models';
+import { AgentEdgeDirection } from '@hey-hey/contracts/api/models';
+import { AgentEdgeEndpointEntityType } from '@hey-hey/contracts/api/models';
+import { AgentEdgeType } from '@hey-hey/contracts/api/models';
+import { EntityType } from '@hey-hey/contracts/api/models';
+import { ReportType } from '@hey-hey/contracts/api/models';
+import { WorkItemColorKey } from '@hey-hey/contracts/api/models';
+import { WorkItemIconKey } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeDefinitionDto } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeRole } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeEdgeTarget } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeEffectiveSource } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeScalarField } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeSectionDefinition } from '@hey-hey/contracts/api/models';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
+import { WorkItemConfigKind } from '@hey-hey/contracts/api/models';
 import { ProposalService } from '../../services/proposal/proposal.service';
 import { AdminGuard } from '../../auth/guards/admin.guard';
 import {
@@ -35,7 +35,7 @@ import {
   buildWorkItemTypeRestoreProposal,
 } from '../../services/proposal/work-item-type-proposal.builder';
 import { assertWorkItemTypeEditSupported } from '../../services/proposal/work-item-type-edit-classifier';
-import { WorkItemTypeLifecycleStatus } from '../../generated/model/workItemTypeLifecycleStatus';
+import { WorkItemTypeLifecycleStatus } from '@hey-hey/contracts/api/models';
 import { WorkItemTypeRegistryService } from '../../services/tasks/work-item-type-registry.service';
 import { IMAGE_SECTION_CONTENT_SCHEMA_REF } from '../../services/tasks/image-section-content.validator';
 import type { ProjectId } from '../../types';

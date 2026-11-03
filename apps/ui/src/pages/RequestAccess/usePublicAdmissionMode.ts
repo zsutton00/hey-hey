@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { PrivateBetaSelfServiceAdmissionMode } from "@hey-hey/ui-common/api";
+import type { PrivateBetaSelfServiceAdmissionMode } from "@hey-hey/contracts/api";
 import { unifiedApiClient } from "@hey-hey/ui-common/clients";
 
 type AdmissionState =

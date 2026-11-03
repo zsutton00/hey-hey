@@ -33,7 +33,7 @@ import {
   type EvalRunSettings,
   type LaunchEvalRunRequest,
   type ReportDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import type {
   AgentSessionId,

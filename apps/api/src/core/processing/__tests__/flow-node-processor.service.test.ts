@@ -22,7 +22,7 @@ import {
   AnalysisSystemMessageData,
   SystemMessageData,
   SystemMessageResponseType,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { NodeRegistry } from 'src/flows/nodes/node-registry.service';
 import { ConversationService } from '../../../services/conversation.service';
 import { NodeExecutionService } from '../../../services/workflows/node-execution.service';

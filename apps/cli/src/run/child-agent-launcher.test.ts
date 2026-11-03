@@ -7,7 +7,7 @@ import { ChildAgentLauncher, type ChildAgentLauncherDependencies } from './child
 import { researchHandler } from '../agents/research/research.handler';
 import { agentSearchHandler } from '../agents/agent-search/agent-search.handler';
 import type { AgenticSession } from '../session/types';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 
 const harness = vi.hoisted(() => ({
   construct: vi.fn(),

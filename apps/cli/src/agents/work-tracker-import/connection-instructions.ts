@@ -1,4 +1,4 @@
-import type { WorkTrackerImportRequest } from '../../shared/agent-bridge-contract/generated/api';
+import type { WorkTrackerImportRequest } from '@hey-hey/contracts/agent-bridge';
 
 // Official provider endpoints: https://linear.app/docs/mcp and
 // https://atlassian.github.io/atlassian-mcp-server/

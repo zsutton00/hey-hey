@@ -1,3 +1,4 @@
+import { asOrganizationId, asProjectId, asUserId } from '../test-utils/contract-ids';
 import { createPromptTypeHandlerTestDeps } from '../agents/prompt-type-handler.test-support';
 import axios, { type AxiosAdapter } from 'axios';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -10,7 +11,7 @@ import {
   type SubagentInteractionRuntimeDependencies,
 } from './subagent-interaction-runtime';
 import type { DispatchSource } from './dispatch-source';
-import { AgentSessionsApi } from '../shared/api/generated/api';
+import { AgentSessionsApi } from '@hey-hey/contracts/api';
 import { ChildAgentLauncher } from '../run/child-agent-launcher';
 import { researchHandler } from '../agents/research/research.handler';
 import type { ChildAgentLauncherDependencies } from '../run/child-agent-launcher';
@@ -22,7 +23,7 @@ import type {
   GrantAdmissionInput,
 } from './controller-authorization/types';
 import { CURRENT_AGENT_OPERATIONS } from './controller-authorization/types';
-import type { SubagentDispatch } from '../shared/api/generated/api';
+import type { SubagentDispatch } from '@hey-hey/contracts/api/models';
 
 /**
  * Real HostActionAdmission over in-memory grant and replay stores, with a
@@ -138,9 +139,9 @@ const assertionFor = (actionPayloadHash: string): ExecutableEnvelopeAuthorizatio
     controllerCredentialId: 'credential-1',
     controllerInstallationId: 'installation-1',
     machineId: 'machine',
-    userId: 'user',
-    organizationId: 'org',
-    projectId: 'project',
+    userId: asUserId('user'),
+    organizationId: asOrganizationId('org'),
+    projectId: asProjectId('project'),
     cadence: 'ONE_DAY',
     policyRevision: 1,
     effectiveGrantExpiresAtMs: Date.now() + 60_000,
@@ -148,8 +149,8 @@ const assertionFor = (actionPayloadHash: string): ExecutableEnvelopeAuthorizatio
     actionCategory: 'CONVERSATION',
     actionType: 'CONVERSATION_TRIGGER',
     actionPayloadHash,
-    allowedActionTypes: new Set(CURRENT_AGENT_OPERATIONS),
-    allowedActionCategories: new Set(['CONVERSATION' as const]),
+    allowedActionTypes: [...CURRENT_AGENT_OPERATIONS],
+    allowedActionCategories: ['CONVERSATION'],
     target: { kind: 'AGENT_SESSION', id: 'session', revision: null },
     agentSessionId: 'session',
     taskMonitorId: null,
@@ -167,12 +168,12 @@ const assertionFor = (actionPayloadHash: string): ExecutableEnvelopeAuthorizatio
     controllerCredentialId: 'credential-1',
     controllerInstallationId: 'installation-1',
     machineId: 'machine',
-    userId: 'user',
-    organizationId: 'org',
+    userId: asUserId('user'),
+    organizationId: asOrganizationId('org'),
     cadence: 'ONE_DAY',
     policyRevision: 1,
-    allowedActionTypes: new Set(CURRENT_AGENT_OPERATIONS),
-    allowedActionCategories: new Set(['CONVERSATION' as const]),
+    allowedActionTypes: [...CURRENT_AGENT_OPERATIONS],
+    allowedActionCategories: ['CONVERSATION'],
     issuedAtMs: Date.now(),
     effectiveExpiresAtMs: Date.now() + 60_000,
   },

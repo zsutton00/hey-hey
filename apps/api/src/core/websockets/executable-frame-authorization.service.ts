@@ -8,7 +8,7 @@ import {
   BoundedGrantReference,
   CurrentAgentOperation,
   ExecutableEnvelopeAuthorization,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ExecutionGrantScope as PrismaExecutionGrantScope,
   HostActionTargetKind as PrismaHostActionTargetKind,

@@ -1,8 +1,5 @@
 import { z } from 'zod';
-import {
-  EntityType,
-  type LocalOpenItemsTriageResponse,
-} from '../../shared/agent-bridge-contract/generated';
+import { EntityType, type LocalOpenItemsTriageResponse } from '@hey-hey/contracts/agent-bridge';
 import { extractStructuredJsonPayload } from '../response-parser';
 
 const text = z.string().trim().min(1);

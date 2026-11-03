@@ -1,7 +1,7 @@
 import { validateProjectModeConfig } from '../agents/project-mode';
 import type { AgentProviderId } from '../agents/providers/provider-config';
 import type { AgenticSessionEvent } from '../session';
-import type { AgentSessionConfig } from '../shared/agent-bridge-contract/generated/api';
+import type { AgentSessionConfig } from '@hey-hey/contracts/agent-bridge';
 import {
   parseProjectModeLaunchResumeProbeArgs,
   type ProjectModeLaunchResumeProbeArgs,

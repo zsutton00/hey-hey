@@ -3,7 +3,7 @@ import {
   McpOperationCatalogEntry,
   McpProposeValidationErrorEnvelope,
   ProposalValidationIssue,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   McpOperationInputPayload,
   McpScopeRequirement,

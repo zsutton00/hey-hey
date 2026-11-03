@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EntityType, type ProjectReportSubjectPlacement } from '../../shared/api/generated/api';
+import { EntityType, type ProjectReportSubjectPlacement } from '@hey-hey/contracts/api/models';
 import {
   planProjectReportGroups,
   type ProjectReportSubjectSummary,

@@ -1,5 +1,5 @@
 import { DeterministicE2EEvidence } from '../run/runners/deterministic-e2e-evidence';
-import type { TaskMonitorStateObservation } from '../shared/api/generated/api';
+import type { TaskMonitorStateObservation } from '@hey-hey/contracts/api/models';
 import { io, type ManagerOptions, type Socket, type SocketOptions } from 'socket.io-client';
 import type { ServerLogger } from './logger';
 import type { OAuthClient } from '../auth/oauth-client';
@@ -20,8 +20,8 @@ import type {
   ConversationPhaseObservation,
   AuthorityReductionAcknowledgement,
   MonitorCommandAcknowledgement,
-} from '../shared/api/generated/api';
-import type { CliSettingsResponseDto } from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
+import type { CliSettingsResponseDto } from '@hey-hey/contracts/api/models';
 import type { CliReadHandler } from './cli-read-handler';
 import type { MachineControllerAuthority } from '../auth/machine-controller-authority';
 

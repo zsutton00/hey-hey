@@ -11,7 +11,7 @@ import {
   TagSource,
   AssignTagDto,
   TagQueryDto,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { EntityType, TagSource as PrismaTagSource } from '@prisma/client';
 import * as TestUtils from '../../utils/testUtils';
 const { testIds } = TestUtils;

@@ -17,7 +17,7 @@ import {
 import type { MachineEnrollmentActivationResponse } from '../auth/machine-enrollment-confirmation';
 import type { Run } from '../run/run';
 import type { LocalAgentOutputEvent } from '../run/types';
-import type { AgentSessionCurrentState } from '../shared/api/generated/api';
+import type { AgentSessionCurrentState } from '@hey-hey/contracts/api/models';
 import { DiagnosticFeed } from '../server/diagnostic-feed';
 import {
   ConversationTitleReadError,

@@ -6,7 +6,7 @@ import type {
   RunCreatePayloadRunEval,
   StartRunPromptPayload,
   AgentSessionConfig,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 
 /**
  * Compile-time contract test for the start-run wire envelope.

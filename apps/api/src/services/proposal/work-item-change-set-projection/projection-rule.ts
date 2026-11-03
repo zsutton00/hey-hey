@@ -1,4 +1,4 @@
-import type { FeatureRequirementsSection } from 'src/generated';
+import type { FeatureRequirementsSection } from '@hey-hey/contracts/api/models';
 import type { GraphAgentEdge } from './projection-loader';
 import type { Logger } from '@nestjs/common';
 import type { TaskSectionSchemaValidatorRegistry } from '../../tasks/task-section-schema-validator.registry';

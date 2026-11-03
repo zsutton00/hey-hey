@@ -6,7 +6,7 @@ import {
   type EvalRecordedAttempt,
   type EvalMeasurement,
   type EvalCost,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import { SessionCostReader } from '../../provider-usage/session-cost';
 import type { AgenticSession } from '../../session/types';
 import type { LocalAgentService } from '../../server/local-agent-service';

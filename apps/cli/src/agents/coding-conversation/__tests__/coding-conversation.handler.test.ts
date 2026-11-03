@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AgenticSession } from '../../../session/types';
 import type { LocalFreeFormPromptPayload } from '../../../shared/agent-bridge-contract/index';
-import type { LocalPromptStartupInput } from '../../../shared/agent-bridge-contract/generated/api';
-import type { ImplementationReadinessSourceSnapshot } from '../../../shared/api/generated/api';
+import type { LocalPromptStartupInput } from '@hey-hey/contracts/agent-bridge';
+import type { ImplementationReadinessSourceSnapshot } from '@hey-hey/contracts/api/models';
 import type { AssistantCompleteEvent } from '../../../run/types';
 import { NOOP_LOGGER } from '../../../server/logger';
 import { buildCompletionReconciliationPromptFor } from '../../completion-reconciliation/prompts/common';

@@ -12,8 +12,8 @@ import { Prisma, User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { OrganizationId, PrivateBetaAccessRequestId, UserId } from 'src/types';
-import { RegisterDto, UserResponseDto } from '../generated';
-import type { PrivateBetaAccessProvisioningFailureCode } from '../generated';
+import { RegisterDto, UserResponseDto } from '@hey-hey/contracts/api/models';
+import type { PrivateBetaAccessProvisioningFailureCode } from '@hey-hey/contracts/api/models';
 import { AnyTransactionClient, PrismaService } from '../prisma/prisma.service';
 import { BrowserSessionRequestMetadata } from '../auth/browser-session.types';
 import {

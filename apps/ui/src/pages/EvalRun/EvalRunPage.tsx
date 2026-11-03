@@ -11,7 +11,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
-import { EvalRunStatus, EvalTargetHandlerKey } from "@hey-hey/ui-common/api";
+import { EvalRunStatus, EvalTargetHandlerKey } from "@hey-hey/contracts/api";
 import {
   evalRunName,
   useEvalRun,

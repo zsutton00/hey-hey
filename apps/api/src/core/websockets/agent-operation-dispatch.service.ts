@@ -18,7 +18,7 @@ import {
   BoundedGrantReference,
   ControllerAssertionEvidence,
   ExecutableEnvelopeAuthorization,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   AnyTransactionClient,
   PrismaService,

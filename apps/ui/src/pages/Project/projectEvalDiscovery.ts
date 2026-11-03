@@ -2,7 +2,7 @@ import {
   WorkItemTypeLifecycleStatus,
   WorkItemTypeRole,
   type WorkItemTypeSummaryDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { WORK_ITEM_TYPE_KEYS } from "../../types/workItemTypes";
 
 export function selectProjectEvalType(

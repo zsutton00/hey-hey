@@ -1,5 +1,5 @@
 import { EntityType } from '@prisma/client';
-import { ArtifactResponseDto } from 'src/generated';
+import { ArtifactResponseDto } from '@hey-hey/contracts/api/models';
 import { createMockPlaceholderContext } from '../../../../../utils/testUtils';
 import type { PlaceholderContext } from '../../base/placeholder-types';
 import { PlaceholderResolver } from '../../resolver.service';

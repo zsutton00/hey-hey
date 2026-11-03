@@ -18,8 +18,8 @@ import {
   MessageCreatedUserMessage,
   SystemMessage,
   UserMessage,
-} from '../../../generated';
-import { MessageUpdatedEventPayloadAllOfUpdate } from '../../../generated/model/messageUpdatedEventPayloadAllOfUpdate';
+} from '@hey-hey/contracts/api/models';
+import { MessageUpdatedEventPayloadAllOfUpdate } from '@hey-hey/contracts/api/models';
 import { buildMessageCreatedEventPayload } from '../../../utils/message-event.util';
 import {
   ConversationId,

@@ -4,7 +4,7 @@ import {
   InitiativeResponseDto,
   MaterializedWorkItemSection,
   QAPairData,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { ArtifactService } from 'src/services/artifacts/artifact.service';
 import { InitiativeRefinementFlowContext } from 'src/types/flow-internal.types';
 import { formatArtifactForPrompt } from 'src/utils/artifact-formatting.util';

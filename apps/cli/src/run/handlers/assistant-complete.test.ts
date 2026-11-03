@@ -10,7 +10,7 @@ import {
   createOnCompleteTestDeps,
   createPromptTypeHandlerTestRunStore,
 } from '../../agents/prompt-type-handler.test-support';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { FEATURE_SYNC_ACTIONS } from '../../agents/feature-sync/submission-tools';
 import { codingPlanHandler } from '../../agents/coding-plan/coding-plan.handler';
 import { dailySessionCoachHandler } from '../../agents/daily-session/daily-session-coach.handler';

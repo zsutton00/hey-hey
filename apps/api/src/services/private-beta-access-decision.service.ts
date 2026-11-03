@@ -9,7 +9,7 @@ import type {
   PrivateBetaAccessRequestDecisionInputDto,
   PrivateBetaAccessRequestDecisionResultDto,
   PrivateBetaAccessRequestStatus,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import type { BrowserSessionRequestMetadata } from '../auth/browser-session.types';
 import {
   type AnyTransactionClient,

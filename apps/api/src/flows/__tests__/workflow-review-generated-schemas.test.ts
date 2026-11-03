@@ -7,7 +7,7 @@ import {
   QuestionsApprovedPayloadSchema,
   QuestionsFeedbackPayloadSchema,
 } from 'src/generated/workflow-review.schemas';
-import type { PlanShapingProposedStagesCompletionPayload } from 'src/generated';
+import type { PlanShapingProposedStagesCompletionPayload } from '@hey-hey/contracts/api/models';
 import { z } from 'zod';
 import {
   planShapingProposedStagesCompletionPayloadSchema,

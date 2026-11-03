@@ -2,7 +2,7 @@ import {
   LocalPromptType,
   type LocalPromptDesignDocInput,
   type LocalStartupSessionPromptPayload,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type {
   LocalWorktreeStateByService,
   ResolvedServiceBinding,

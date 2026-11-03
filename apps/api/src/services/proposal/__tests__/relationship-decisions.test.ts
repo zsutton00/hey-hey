@@ -1,7 +1,7 @@
 import type {
   RelationshipDecision,
   WorkItemChangeSetOperation,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   declaredSupersedesEdges,
   missingDecisionOperations,

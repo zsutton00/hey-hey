@@ -1,5 +1,5 @@
-import type { AgentEdgeResponseDto, FeatureSkeletonNode } from '../../shared/api/generated/api';
-import { AgentEdgeType } from '../../shared/api/generated/api';
+import type { AgentEdgeResponseDto, FeatureSkeletonNode } from '@hey-hey/contracts/api/models';
+import { AgentEdgeType } from '@hey-hey/contracts/api/models';
 import {
   customTypeDrafting,
   futureRevisionAuthoring,

@@ -8,7 +8,7 @@ import type { RepoMappingStore } from '../../../repo/index';
 import type { RunStore } from '../../../run-store/run-store';
 import type { ServerLogger } from '../../../server/logger';
 import type { AgenticSession } from '../../../session/index';
-import { WorkStatus } from '../../../shared/api/generated/api';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import type { ProjectMaturity, WorkItemTypeDefinitionDto } from '../../../shared/api/index';
 import { LocalPromptType } from '../../../shared/agent-bridge-contract/contract';
 import { intentFirstGuidance, takingShapeGuidance } from '../../prompts/common';

@@ -3,7 +3,7 @@ import { validationWalkthroughHandler } from '../validation.handler';
 import {
   LocalPromptType,
   LocalValidationWalkthroughPromptPayloadScopeEnum,
-} from '../../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import { ReportAudience, ReportType } from '../../../shared/api/index';
 import { PromptTypeRegistry } from '../../prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../../prompt-type-registry.test-support';

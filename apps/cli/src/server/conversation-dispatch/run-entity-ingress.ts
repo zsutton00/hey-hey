@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { LocalCreateRunRequest } from '../../shared/agent-bridge-contract/contract';
-import type { RunEntityReference } from '../../shared/agent-bridge-contract/generated/api';
+import type { RunEntityReference } from '@hey-hey/contracts/agent-bridge';
 import { LocalAgentApiError } from '../../shared/agent-bridge-contract/errors';
 import { runEntityReferenceSchema } from '../../run/run-entity';
 import type { PromptTypeRegistry } from '../../agents/prompt-type-registry';

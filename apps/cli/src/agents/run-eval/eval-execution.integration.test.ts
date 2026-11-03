@@ -201,7 +201,7 @@ import type {
   EvalRecordedAttempt,
   EvalResolvedExecution,
   EvalTargetHandlerKey,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { AgenticSession } from '../../session/types';
 
 const executionOf = (

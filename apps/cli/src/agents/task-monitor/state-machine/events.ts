@@ -1,4 +1,4 @@
-import type { TaskMonitorCoordinatorValidationFailure } from '../../../shared/agent-bridge-contract/generated/api';
+import type { TaskMonitorCoordinatorValidationFailure } from '@hey-hey/contracts/agent-bridge';
 import type {
   CoordinateTaskMonitorWorkEffect,
   EvaluateTaskMonitorSettledRunEffect,
@@ -7,8 +7,8 @@ import type {
   MonitorCommandBody1 as MonitorCommandBody,
   TaskMonitorJudgmentResponse,
   TaskMonitorLaunchConfig,
-} from '../../../shared/agent-bridge-contract/generated/api';
-import type { WorkStatus } from '../../../shared/api/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
+import type { WorkStatus } from '@hey-hey/contracts/api/models';
 import type {
   TaskMonitorExecutionNode,
   TaskMonitorHumanDecisionEvidence,
@@ -18,7 +18,7 @@ import type {
   TaskMonitorWorktree,
   TaskMonitorTerminalPolicy,
 } from './context';
-import type { ReportType } from '../../../shared/api/generated/api';
+import type { ReportType } from '@hey-hey/contracts/api/models';
 import type { PermissionDecision } from '../../permission-response-routing';
 
 export type VerifiedTaskMonitorCommand = MonitorCommandBody;

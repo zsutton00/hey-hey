@@ -14,7 +14,7 @@ import {
   type AgentSessionDto,
   type OpenItemsTriageItem,
   type OpenItemsTriageRequestKind,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   OpenItemsTriageResults,
   MachinePicker,

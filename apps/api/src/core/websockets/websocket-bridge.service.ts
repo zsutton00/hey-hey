@@ -47,7 +47,7 @@ import {
   WebSocketTaskCreatedEvent,
   WebSocketTaskStatusChangedEvent,
   WebSocketTaskUpdatedEvent,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { EventRouter } from '../events/event-router';
 import { EventEnvelope } from '../events/types/event-envelope';
 import { EVENT_TYPES, ServiceEventType } from '../events/types/event.types';

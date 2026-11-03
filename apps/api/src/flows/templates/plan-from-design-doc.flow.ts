@@ -1,5 +1,8 @@
-import { LocalPromptType } from 'src/generated/local';
-import { WorkflowName, WorkflowReviewAction } from 'src/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
+import {
+  WorkflowName,
+  WorkflowReviewAction,
+} from '@hey-hey/contracts/api/models';
 import { PlanFromDesignDocFlowContext } from 'src/types/flow-internal.types';
 import { PLAN_SHAPING_NODES } from '../constants';
 import { FEATURE_SYNC_ACTIONS } from '../nodes/feature-sync/schemas';

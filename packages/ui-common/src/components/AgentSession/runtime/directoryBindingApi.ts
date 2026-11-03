@@ -19,14 +19,14 @@ import type {
   LocalStagedBrowserTabOpenSuccessResponse,
   LocalServiceRepoBinding,
   LocalSetRepoBindingResponse,
-} from "../../../local-agent-api/generated/api";
+} from "@hey-hey/contracts/local";
 import {
   CliReadErrorCode as LocalCliReadErrorCode,
   LocalRunAttachmentOpenAction,
   LocalRunAttachmentOpenErrorCode,
   LocalRunBrowserOpenErrorCode,
   LocalStagedBrowserTabOpenErrorCode,
-} from "../../../local-agent-api/generated/api";
+} from "@hey-hey/contracts/local";
 
 const DEFAULT_LOCAL_CLI_PORT = 3847;
 const STAGING_LOCAL_CLI_PORT = 3849;
@@ -796,13 +796,11 @@ export async function resolveWalkthroughSource(
   runId: string,
   machineId: string,
   excerpt: import("../../../api").ChangeWalkthroughExcerpt,
-): Promise<
-  import("../../../local-agent-api/generated/api").LocalWalkthroughSourceLocation
-> {
+): Promise<import("@hey-hey/contracts/local").LocalWalkthroughSourceLocation> {
   const body = {
     machineId,
     excerpt,
-  } satisfies import("../../../local-agent-api/generated/api").LocalWalkthroughSourceRequest;
+  } satisfies import("@hey-hey/contracts/local").LocalWalkthroughSourceRequest;
   const response = await fetch(
     baseUrl +
       "/api/local/runs/" +

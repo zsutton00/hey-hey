@@ -4,7 +4,7 @@ import {
   featureSyncRan,
   verifyFeatureCompletionPrompt,
 } from '../prompts/common';
-import { LocalPromptType } from '../../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { buildImplementPrompt } from '../../implement/prompts';
 import { buildCodingConversationPrompt } from '../../prompts/coding-conversation';
 import { buildEntityConversationPrompt } from '../../prompts/entity-conversation';

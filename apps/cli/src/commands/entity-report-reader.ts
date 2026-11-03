@@ -1,15 +1,15 @@
+import { ReportsApi } from '@hey-hey/contracts/api';
 import {
   ReportRelatedEntityType,
-  ReportsApi,
   ReportType,
   ReportSortBy,
   ReportSortOrder,
   type ReadRestriction,
   type ReportDto,
-} from '../shared/api/generated/api';
-import { RunEntityReferenceEntityTypeEnum as RunEntityType } from '../shared/agent-bridge-contract/generated/api';
-import type { RunEntityReference } from '../shared/agent-bridge-contract/generated/api';
-import { Configuration } from '../shared/api/generated/configuration';
+} from '@hey-hey/contracts/api/models';
+import { RunEntityReferenceEntityTypeEnum as RunEntityType } from '@hey-hey/contracts/agent-bridge';
+import type { RunEntityReference } from '@hey-hey/contracts/agent-bridge';
+import { Configuration } from '@hey-hey/contracts/api/configuration';
 import { restrictedConfiguration } from '../shared/api/read-restriction';
 import type { ServerLogger } from '../server/logger';
 import type { SelectableReport } from './entity-prompt-template-reports';

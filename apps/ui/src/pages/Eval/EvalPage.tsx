@@ -23,7 +23,7 @@ import {
   WorkStatus,
   type MaterializedWorkItemSection,
   type TaskResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { CapsuleAction, WorkItemReadView } from "@hey-hey/ui-common/components";
 import {
   evalRunName,

@@ -37,7 +37,7 @@ import {
   CreateValidationSessionDto,
   UpdateValidationSessionDto,
   ValidationSessionDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { ValidationSessionService } from '../services/validation-session.service';
 
 @ApiTags('ValidationSessions')

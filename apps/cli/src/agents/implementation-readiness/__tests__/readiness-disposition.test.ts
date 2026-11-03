@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ImplementationReadinessDisposition } from '../../../shared/api/generated/api';
+import type { ImplementationReadinessDisposition } from '@hey-hey/contracts/api/models';
 import {
   allowsImplementation,
   parseImplementationReadinessDisposition,

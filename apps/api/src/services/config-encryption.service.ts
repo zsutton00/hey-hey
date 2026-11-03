@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as crypto from 'crypto';
-import { IntegrationType } from '../generated';
+import { IntegrationType } from '@hey-hey/contracts/api/models';
 import { OrganizationId } from '../types';
 import { KeyProviderFactory } from './encryption/key-provider.factory';
 import {

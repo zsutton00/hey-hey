@@ -1,10 +1,10 @@
-import { ReportAudience } from "@hey-hey/ui-common/api";
+import { ReportAudience } from "@hey-hey/contracts/api";
 import { ReportsList } from "@hey-hey/ui-common/components";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import { Alert, Box, Typography } from "@mui/material";
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import type { ReportDto } from "@hey-hey/ui-common/api";
+import type { ReportDto } from "@hey-hey/contracts/api";
 
 export const InternalReportsListPage: React.FC = () => {
   const navigate = useNavigate();

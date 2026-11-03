@@ -11,7 +11,7 @@ import {
   ConversationStatus,
   InitiationType,
   type ConversationResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { RepositoryImportConversations } from "./RepositoryImportConversations";
 
 const mocks = vi.hoisted(() => ({
@@ -97,11 +97,15 @@ describe("RepositoryImportConversations", () => {
 
   it("protects completed imports and opens them from the title by conversation identity", async () => {
     const onOpen = vi.fn();
-    mocks.conversations = [conversation("completed", ConversationStatus.Completed)];
+    mocks.conversations = [
+      conversation("completed", ConversationStatus.Completed),
+    ];
     renderList(onOpen);
     const user = userEvent.setup();
 
-    expect(screen.queryByRole("button", { name: /Delete/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Delete/ }),
+    ).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Import completed" }));
     expect(onOpen).toHaveBeenCalledWith("completed");
     expect(
@@ -111,15 +115,21 @@ describe("RepositoryImportConversations", () => {
 
   it("confirms deletion of unfinished imports by conversation identity", async () => {
     const onOpen = vi.fn();
-    mocks.conversations = [conversation("unfinished", ConversationStatus.InProgress)];
+    mocks.conversations = [
+      conversation("unfinished", ConversationStatus.InProgress),
+    ];
     renderList(onOpen);
     const user = userEvent.setup();
 
     await user.click(screen.getByRole("button", { name: "Import unfinished" }));
     expect(onOpen).toHaveBeenCalledWith("unfinished");
-    expect(screen.queryByRole("button", { name: "Resume" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Resume" }),
+    ).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Delete Import unfinished" }));
+    await user.click(
+      screen.getByRole("button", { name: "Delete Import unfinished" }),
+    );
     expect(screen.getByRole("dialog")).toHaveTextContent("Import unfinished");
     expect(mocks.deleteConversation).not.toHaveBeenCalled();
 
@@ -127,7 +137,9 @@ describe("RepositoryImportConversations", () => {
     await waitForElementToBeRemoved(() => screen.queryByRole("dialog"));
     expect(mocks.deleteConversation).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("button", { name: "Delete Import unfinished" }));
+    await user.click(
+      screen.getByRole("button", { name: "Delete Import unfinished" }),
+    );
     await user.click(
       screen.getByRole("button", { name: "Delete", exact: true }),
     );
@@ -139,7 +151,9 @@ describe("RepositoryImportConversations", () => {
   });
 
   it("does not delete an import that completes while confirmation is open", async () => {
-    mocks.conversations = [conversation("finishing", ConversationStatus.InProgress)];
+    mocks.conversations = [
+      conversation("finishing", ConversationStatus.InProgress),
+    ];
     const { rerender } = render(
       <RepositoryImportConversations
         organizationId="organization-1"
@@ -163,12 +177,13 @@ describe("RepositoryImportConversations", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Delete", exact: true }));
+    await user.click(
+      screen.getByRole("button", { name: "Delete", exact: true }),
+    );
 
     expect(mocks.deleteConversation).not.toHaveBeenCalled();
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
   });
-
 });

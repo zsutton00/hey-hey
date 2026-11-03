@@ -20,7 +20,7 @@ import {
   TargetEntityType,
   type EntityPromptTemplateCatalogEntryDto,
   type ProposalResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { EntityPromptTemplateCompositionGuidance } from "./EntityPromptTemplateCompositionGuidance";
 import { EntityPromptTemplateOverrideEditor } from "./EntityPromptTemplateOverrideEditor";

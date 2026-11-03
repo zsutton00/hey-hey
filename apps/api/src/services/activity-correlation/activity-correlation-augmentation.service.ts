@@ -10,7 +10,7 @@ import {
   MessageResponseDto,
   RecentActivityCorrelationRecordDto,
   ReportDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { prismaMessageResultToResponseDto } from 'src/mappers/message.mapper';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DEFAULT_AGENT_SESSION_TITLE } from 'src/services/agent-session-title';

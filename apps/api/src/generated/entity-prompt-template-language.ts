@@ -1,13 +1,15 @@
 // Generated from specs/fixtures/entity-prompt-template-language-v1.json. Do not edit.
-import { EntityPromptTemplateSyntaxVersion } from './model/entityPromptTemplateSyntaxVersion';
+import { EntityPromptTemplateSyntaxVersion } from '@hey-hey/contracts/api/models';
 
 export interface EntityPromptTemplatePathFamily {
   readonly template: string;
   readonly pattern: string;
 }
 
-import type { EntityPromptTemplateAuthoringMetadataDto } from './model/entityPromptTemplateAuthoringMetadataDto';
-import type { EntityPromptTemplateConditionalBlocksDto } from './model/entityPromptTemplateConditionalBlocksDto';
+import type {
+  EntityPromptTemplateAuthoringMetadataDto,
+  EntityPromptTemplateConditionalBlocksDto,
+} from '@hey-hey/contracts/api/models';
 export interface EntityPromptTemplateLanguage {
   readonly authoring: EntityPromptTemplateAuthoringMetadataDto;
   readonly syntaxVersion: EntityPromptTemplateSyntaxVersion;
@@ -251,8 +253,6 @@ export type EntityPromptTemplateIssueCode =
 export interface EntityPromptTemplateParseIssue {
   readonly code: EntityPromptTemplateIssueCode;
   /** Offset in the source where the offending tag or delimiter starts. */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-
   readonly offset: number;
   readonly message: string;
 }

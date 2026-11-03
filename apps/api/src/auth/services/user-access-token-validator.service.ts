@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { OrganizationRole } from '../../generated';
+import { OrganizationRole } from '@hey-hey/contracts/api/models';
 import { UserService } from '../../services/user.service';
 import { OrganizationId, UserId } from '../../types';
 import type { AuthenticatedUser, JwtPayload } from '../strategies/jwt.strategy';

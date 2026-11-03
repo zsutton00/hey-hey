@@ -8,7 +8,7 @@ import {
   SecondaryActionHandler,
   SuggestedActionPayload,
   UIElement,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ActivityDelta as AgentsActivityDelta,
   ActivityRecord,

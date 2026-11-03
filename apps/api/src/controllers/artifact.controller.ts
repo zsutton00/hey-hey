@@ -40,7 +40,7 @@ import {
   PaginatedArtifactsDto,
   QueryArtifactsDto,
   UpdateArtifactDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 
 @ApiTags('Artifacts')
 @ApiBearerAuth()

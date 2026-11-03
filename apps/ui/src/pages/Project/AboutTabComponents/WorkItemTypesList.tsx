@@ -23,8 +23,8 @@ import {
 import {
   WorkItemTypeEffectiveSource,
   WorkItemTypeLifecycleStatus,
-} from "@hey-hey/ui-common/api";
-import type { WorkItemTypeSummaryDto } from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
+import type { WorkItemTypeSummaryDto } from "@hey-hey/contracts/api";
 
 export interface WorkItemTypesListProps {
   projectId: string;

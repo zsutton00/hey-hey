@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EntityPromptTemplateSyntaxVersion } from '../shared/api/generated/api';
+import { EntityPromptTemplateSyntaxVersion } from '@hey-hey/contracts/api/models';
 import { parseEntityPromptTemplate } from '../shared/api/generated/entity-prompt-template-language';
 import {
   buildReportValue,

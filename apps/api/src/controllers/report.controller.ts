@@ -48,7 +48,7 @@ import {
   ReportUsageTrendKind,
   ReportUsageTrends,
   UpdateReportDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ListReportsFilters,
   ReportService,

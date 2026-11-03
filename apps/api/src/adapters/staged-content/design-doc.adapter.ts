@@ -6,7 +6,10 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common';
-import { DesignDocResponseDto, UpdateDesignDocDto } from '../../generated';
+import {
+  DesignDocResponseDto,
+  UpdateDesignDocDto,
+} from '@hey-hey/contracts/api/models';
 import { StagedContentAdapter } from '../../interfaces/staged-content-adapter.interface';
 import { ConversationService } from '../../services/conversation.service';
 import { DesignDocService } from '../../services/design-doc/design-doc.service';

@@ -3,8 +3,8 @@ import type {
   ContextRelatedEntityDto,
   AgentSessionEntryDto,
   ProposalResponseDto,
-} from '../../shared/api/generated/api';
-import type { LocalPromptProposalInput } from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/api/models';
+import type { LocalPromptProposalInput } from '@hey-hey/contracts/agent-bridge';
 import { jsonOnlyInstructions } from '../prompts/common';
 
 const formatProposal = (proposal: LocalPromptProposalInput): string => {

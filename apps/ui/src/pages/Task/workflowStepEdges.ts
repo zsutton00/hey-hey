@@ -5,8 +5,8 @@ import type {
   TaskResponseDto,
   WorkItemGraphAggregateResponseDto,
   WorkItemTypeDefinitionDto,
-} from "@hey-hey/ui-common/api";
-import { AgentEdgeType } from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
+import { AgentEdgeType } from "@hey-hey/contracts/api";
 import type { WorkflowGraphSurfaceData } from "@hey-hey/ui-common/components/shared/WorkflowMentionInlineRenderer";
 
 const WORKFLOW_TYPE = WORK_ITEM_TYPE_KEYS.Diagram;

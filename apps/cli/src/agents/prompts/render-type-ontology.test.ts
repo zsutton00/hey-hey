@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { WorkStatus } from '../../shared/api/generated/api';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import type { WorkItemTypeDefinitionDto } from '../../shared/api/index';
-import { FeatureTag } from '../../shared/agent-bridge-contract/generated/api';
+import { FeatureTag } from '@hey-hey/contracts/agent-bridge';
 import {
   renderFeatureTagList,
   renderFeatureTagVocabulary,

@@ -1,11 +1,11 @@
+import { AgentSessionsApi } from '@hey-hey/contracts/api';
 import {
-  AgentSessionsApi,
   SubagentCapability,
   type SubagentDispatch,
   type SubagentDispatchClaimResponse,
   type SubagentSettledAttempt,
-} from '../shared/api/generated/api';
-import { Configuration } from '../shared/api/generated/configuration';
+} from '@hey-hey/contracts/api/models';
+import { Configuration } from '@hey-hey/contracts/api/configuration';
 import type { KeyPairStore } from '../credentials/keypair';
 import type { ChildAgentLauncher } from '../run/child-agent-launcher';
 import type { LocalResearchPromptPayload } from '../shared/agent-bridge-contract/index';

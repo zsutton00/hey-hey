@@ -1,4 +1,4 @@
-import type { WorkItemChangeSetOperation } from '../../../generated';
+import type { WorkItemChangeSetOperation } from '@hey-hey/contracts/api/models';
 import { workItemChangeSetValidationRequestSchema } from '../work-item-change-set.schema';
 
 const root = {

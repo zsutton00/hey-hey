@@ -1,12 +1,12 @@
-import { AgentEdgeType } from '../../generated/model/agentEdgeType';
-import { EntityType } from '../../generated/model/entityType';
-import { ReportType } from '../../generated/model/reportType';
-import type { WorkItemTypeDefinitionDto } from '../../generated/model/workItemTypeDefinitionDto';
-import { WorkItemTypeEffectiveSource } from '../../generated/model/workItemTypeEffectiveSource';
-import { WorkItemTypeLifecycleStatus } from '../../generated/model/workItemTypeLifecycleStatus';
-import { WorkItemTypeScalarField } from '../../generated/model/workItemTypeScalarField';
-import type { WorkItemTypeSummaryDto } from '../../generated/model/workItemTypeSummaryDto';
-import { WorkStatus } from '../../generated/model/workStatus';
+import { AgentEdgeType } from '@hey-hey/contracts/api/models';
+import { EntityType } from '@hey-hey/contracts/api/models';
+import { ReportType } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeDefinitionDto } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeEffectiveSource } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeLifecycleStatus } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeScalarField } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeSummaryDto } from '@hey-hey/contracts/api/models';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import type { ProjectId } from '../../types';
 import {
   assertWorkItemTypeEditSupported,

@@ -1,4 +1,4 @@
-import { AgentSessionCurrentState } from '../../generated';
+import { AgentSessionCurrentState } from '@hey-hey/contracts/api/models';
 import {
   AgentSessionCurrentStateProjection,
   AgentSessionCurrentStateProjectionEntry,

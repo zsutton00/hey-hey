@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
   CurrentControllerMachineEligibilityState,
   MachineEnrollmentClaimFailureCode,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { MachineEnrollmentClaimError } from "@hey-hey/ui-common/data";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ClaimMachine } from "./ClaimMachine";
@@ -18,7 +18,6 @@ const mocks = vi.hoisted(() => ({
   createCredential: vi.fn(),
   refetchMachines: vi.fn(),
 }));
-
 
 type IdentityFixture = {
   userId: string;
@@ -49,7 +48,7 @@ vi.mock("@hey-hey/ui-common/data", () => ({
 
     constructor(
       message = "Unable to claim this enrollment.",
-      serverError: { code?: string } | null = null
+      serverError: { code?: string } | null = null,
     ) {
       super(message);
       this.name = "MachineEnrollmentClaimError";
@@ -168,11 +167,11 @@ describe("ClaimMachine", () => {
       screen.getByTestId("settings-machine-claim-machine-name"),
       {
         target: { value: "  Zac's MacBook  " },
-      }
+      },
     );
     fireEvent.change(
       screen.getByTestId("settings-machine-claim-controller-label"),
-      { target: { value: "  Safari on Zac's MacBook  " } }
+      { target: { value: "  Safari on Zac's MacBook  " } },
     );
   };
 
@@ -238,31 +237,33 @@ describe("ClaimMachine", () => {
     render(<ClaimMachine initialCode={null} />);
 
     expect(
-      screen.getByText("Run the Agent Bridge command")
+      screen.getByText("Run the Agent Bridge command"),
     ).toBeInTheDocument();
     expect(screen.getByText("Enter the pairing code")).toBeInTheDocument();
     expect(screen.getByText("Create a passkey")).toBeInTheDocument();
     expect(screen.getByText("Confirm in the Agent Bridge")).toBeInTheDocument();
     expect(screen.getByText("Complete")).toBeInTheDocument();
     expect(
-      screen.getByTestId("heyhey-pair-terminal-command")
+      screen.getByTestId("heyhey-pair-terminal-command"),
     ).toHaveTextContent("heyhey pair");
 
     fireEvent.click(screen.getByTestId("heyhey-pair-terminal-copy"));
     await waitFor(() =>
-      expect(navigator.clipboard.writeText).toHaveBeenCalledWith("heyhey pair")
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith("heyhey pair"),
     );
     expect(
-      screen.queryByTestId("settings-machine-claim-code-entry")
+      screen.queryByTestId("settings-machine-claim-code-entry"),
     ).not.toBeInTheDocument();
 
     advancePastCliStep();
 
     expect(
-      screen.getByTestId("settings-machine-claim-code-entry")
+      screen.getByTestId("settings-machine-claim-code-entry"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Run the Agent Bridge command").closest(".Mui-completed")
+      screen
+        .getByText("Run the Agent Bridge command")
+        .closest(".Mui-completed"),
     ).not.toBeNull();
   });
 
@@ -274,57 +275,50 @@ describe("ClaimMachine", () => {
           machineId: "machine-1",
           machineName: "Zac's MacBook",
         }}
-      />
+      />,
     );
 
     expect(
-      screen.getByText("Authorize this browser for Zac's MacBook")
+      screen.getByText("Authorize this browser for Zac's MacBook"),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId("authorize-browser-terminal-command")
+      screen.getByTestId("authorize-browser-terminal-command"),
     ).toHaveTextContent("heyhey controllers add");
     fireEvent.click(screen.getByTestId("settings-machine-claim-cli-done"));
     expect(
-      screen.queryByTestId("settings-machine-claim-machine-name")
+      screen.queryByTestId("settings-machine-claim-machine-name"),
     ).not.toBeInTheDocument();
   });
 
   it("opens the explicit existing-machine controller journey without a machine name", () => {
-    render(
-      <ClaimMachine initialCode={null} journey="existing-machine" />
-    );
+    render(<ClaimMachine initialCode={null} journey="existing-machine" />);
 
+    expect(screen.getByText("Add a controller")).toBeInTheDocument();
     expect(
-      screen.getByText("Add a controller")
-    ).toBeInTheDocument();
-    expect(
-      screen.getByTestId("add-controller-terminal-command")
+      screen.getByTestId("add-controller-terminal-command"),
     ).toHaveTextContent("heyhey controllers add");
 
     fireEvent.click(screen.getByTestId("settings-machine-claim-cli-done"));
 
     expect(
-      screen.queryByTestId("settings-machine-claim-machine-name")
+      screen.queryByTestId("settings-machine-claim-machine-name"),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByTestId("settings-machine-claim-controller-label")
+      screen.getByTestId("settings-machine-claim-controller-label"),
     ).toBeInTheDocument();
   });
 
   it("uses authenticated claim details as the existing machine evidence", async () => {
     render(
-      <ClaimMachine
-        initialCode="BCDFG-HJKLM"
-        journey="existing-machine"
-      />
+      <ClaimMachine initialCode="BCDFG-HJKLM" journey="existing-machine" />,
     );
 
     expect(
-      screen.queryByTestId("settings-machine-claim-machine-name")
+      screen.queryByTestId("settings-machine-claim-machine-name"),
     ).not.toBeInTheDocument();
     fireEvent.change(
       screen.getByTestId("settings-machine-claim-controller-label"),
-      { target: { value: "This browser" } }
+      { target: { value: "This browser" } },
     );
     fireEvent.click(screen.getByTestId("settings-machine-claim-begin"));
 
@@ -333,10 +327,10 @@ describe("ClaimMachine", () => {
         organizationId: "org-1",
         userCode: "BCDFGHJKLM",
         controllerLabel: "This browser",
-      })
+      }),
     );
     expect(
-      await screen.findByTestId("settings-machine-claim-review")
+      await screen.findByTestId("settings-machine-claim-review"),
     ).toBeInTheDocument();
     expect(screen.getByText("Zac's MacBook")).toBeInTheDocument();
     expect(screen.getByText("macOS")).toBeInTheDocument();
@@ -354,11 +348,11 @@ describe("ClaimMachine", () => {
           machineId: "machine-1",
           machineName: "Zac's MacBook",
         }}
-      />
+      />,
     );
     fireEvent.change(
       screen.getByTestId("settings-machine-claim-controller-label"),
-      { target: { value: "This browser" } }
+      { target: { value: "This browser" } },
     );
     fireEvent.click(screen.getByTestId("settings-machine-claim-begin"));
 
@@ -366,13 +360,13 @@ describe("ClaimMachine", () => {
       expect(mocks.abandonMutate).toHaveBeenCalledWith({
         enrollmentId: "enrollment-1",
         organizationId: "org-1",
-      })
+      }),
     );
     expect(
-      screen.getByText(/belongs to another Agent Bridge/)
+      screen.getByText(/belongs to another Agent Bridge/),
     ).toBeInTheDocument();
     expect(
-      screen.queryByTestId("settings-machine-claim-review")
+      screen.queryByTestId("settings-machine-claim-review"),
     ).not.toBeInTheDocument();
   });
 
@@ -380,37 +374,37 @@ describe("ClaimMachine", () => {
     render(<ClaimMachine initialCode="BCDFG-HJKLM" />);
 
     expect(
-      screen.getByTestId("settings-machine-claim-machine-name")
+      screen.getByTestId("settings-machine-claim-machine-name"),
     ).toHaveValue("");
     expect(
-      screen.getByTestId("settings-machine-claim-machine-name")
+      screen.getByTestId("settings-machine-claim-machine-name"),
     ).toHaveAttribute("placeholder", "My laptop");
     expect(
-      screen.getByTestId("settings-machine-claim-controller-label")
+      screen.getByTestId("settings-machine-claim-controller-label"),
     ).toHaveValue("");
     expect(
-      screen.getByTestId("settings-machine-claim-controller-label")
+      screen.getByTestId("settings-machine-claim-controller-label"),
     ).toHaveAttribute("placeholder", "Chrome on my laptop");
 
     fireEvent.click(screen.getByTestId("settings-machine-claim-begin"));
     expect(
-      screen.getByText("Enter a name for this Agent Bridge.")
+      screen.getByText("Enter a name for this Agent Bridge."),
     ).toBeInTheDocument();
 
     fireEvent.change(
       screen.getByTestId("settings-machine-claim-machine-name"),
       {
         target: { value: "Zac's MacBook" },
-      }
+      },
     );
     fireEvent.change(
       screen.getByTestId("settings-machine-claim-controller-label"),
-      { target: { value: "   " } }
+      { target: { value: "   " } },
     );
     fireEvent.click(screen.getByTestId("settings-machine-claim-begin"));
 
     expect(
-      screen.getByText("Enter a label for this browser passkey.")
+      screen.getByText("Enter a label for this browser passkey."),
     ).toBeInTheDocument();
     expect(mocks.beginMutate).not.toHaveBeenCalled();
   });
@@ -429,11 +423,11 @@ describe("ClaimMachine", () => {
         organizationId: "org-1",
         userCode: "BCDFGHJKLM",
         controllerLabel: "Safari on Zac's MacBook",
-      })
+      }),
     );
     expect(mocks.createCredential).not.toHaveBeenCalled();
     expect(
-      screen.getByTestId("settings-machine-claim-review")
+      screen.getByTestId("settings-machine-claim-review"),
     ).toBeInTheDocument();
     expect(screen.getByText("Zac's MacBook")).toBeInTheDocument();
     expect(screen.getByText("Safari on Zac's MacBook")).toBeInTheDocument();
@@ -441,18 +435,18 @@ describe("ClaimMachine", () => {
     expect(screen.getByText("Hey Hey (org-1)")).toBeInTheDocument();
 
     fireEvent.click(
-      screen.getByTestId("settings-machine-claim-create-passkey")
+      screen.getByTestId("settings-machine-claim-create-passkey"),
     );
 
     await waitFor(() =>
-      expect(mocks.createCredential).toHaveBeenCalledTimes(1)
+      expect(mocks.createCredential).toHaveBeenCalledTimes(1),
     );
     await waitFor(() =>
       expect(mocks.completeMutate).toHaveBeenCalledWith({
         enrollmentId: "enrollment-1",
         organizationId: "org-1",
         credential: expect.objectContaining({ id: "credential-id" }),
-      })
+      }),
     );
   });
 
@@ -460,13 +454,15 @@ describe("ClaimMachine", () => {
     render(<ClaimMachine initialCode="BCDFG-HJKLM" />);
 
     expect(
-      screen.getByTestId("settings-machine-claim-code-entry")
+      screen.getByTestId("settings-machine-claim-code-entry"),
     ).toBeInTheDocument();
     expect(screen.getByTestId("settings-machine-claim-code")).toHaveValue(
-      "BCDFG-HJKLM"
+      "BCDFG-HJKLM",
     );
     expect(
-      screen.getByText("Run the Agent Bridge command").closest(".Mui-completed")
+      screen
+        .getByText("Run the Agent Bridge command")
+        .closest(".Mui-completed"),
     ).not.toBeNull();
 
     submitClaim();
@@ -476,10 +472,10 @@ describe("ClaimMachine", () => {
         organizationId: "org-1",
         userCode: "BCDFGHJKLM",
         controllerLabel: "Safari on Zac's MacBook",
-      })
+      }),
     );
     expect(
-      screen.getByTestId("settings-machine-claim-review")
+      screen.getByTestId("settings-machine-claim-review"),
     ).toBeInTheDocument();
     expect(mocks.createCredential).not.toHaveBeenCalled();
   });
@@ -491,12 +487,12 @@ describe("ClaimMachine", () => {
     render(<ClaimMachine initialCode={initialCode} />);
 
     expect(
-      screen.getByTestId("settings-machine-claim-code-entry")
+      screen.getByTestId("settings-machine-claim-code-entry"),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("settings-machine-claim-begin"));
 
     expect(
-      screen.getByText("Enter the 10-character code from your CLI.")
+      screen.getByText("Enter the 10-character code from your CLI."),
     ).toBeInTheDocument();
     expect(mocks.beginMutate).not.toHaveBeenCalled();
     expect(mocks.createCredential).not.toHaveBeenCalled();
@@ -511,10 +507,10 @@ describe("ClaimMachine", () => {
     render(<ClaimMachine initialCode="BCDFG-HJKLM" />);
 
     expect(
-      screen.getByTestId("settings-machine-claim-unsupported")
+      screen.getByTestId("settings-machine-claim-unsupported"),
     ).toHaveTextContent("Your current CLI enrollment remains valid");
     expect(
-      screen.queryByText(/start a fresh cli enrollment/i)
+      screen.queryByText(/start a fresh cli enrollment/i),
     ).not.toBeInTheDocument();
     expect(mocks.beginMutate).not.toHaveBeenCalled();
   });
@@ -533,16 +529,16 @@ describe("ClaimMachine", () => {
 
     await waitFor(() => expect(mocks.beginMutate).toHaveBeenCalledTimes(1));
     expect(
-      screen.getByText("Unable to claim this enrollment.")
+      screen.getByText("Unable to claim this enrollment."),
     ).toBeInTheDocument();
     expect(screen.getByTestId("settings-machine-claim-code")).toHaveValue(
-      "BCDFG-HJKLM"
+      "BCDFG-HJKLM",
     );
 
     submitClaim();
 
     expect(
-      await screen.findByTestId("settings-machine-claim-review")
+      await screen.findByTestId("settings-machine-claim-review"),
     ).toBeInTheDocument();
     expect(mocks.beginMutate).toHaveBeenCalledTimes(2);
   });
@@ -558,7 +554,7 @@ describe("ClaimMachine", () => {
         timestamp: "2099-01-01T00:00:00.000Z",
         statusCode: 400,
         path: "/api/v1/machines/enrollments/claim/begin",
-      })
+      }),
     );
     render(<ClaimMachine initialCode="BCDFG-HJKLM" />);
 
@@ -566,10 +562,10 @@ describe("ClaimMachine", () => {
 
     expect(await screen.findByText(message)).toBeInTheDocument();
     expect(screen.getByTestId("settings-machine-claim-code")).toHaveValue(
-      "BCDFG-HJKLM"
+      "BCDFG-HJKLM",
     );
     expect(
-      screen.queryByRole("button", { name: "Try a new code" })
+      screen.queryByRole("button", { name: "Try a new code" }),
     ).not.toBeInTheDocument();
   });
 
@@ -594,19 +590,19 @@ describe("ClaimMachine", () => {
           timestamp: "2099-01-01T00:00:00.000Z",
           statusCode: 400,
           path: "/api/v1/machines/enrollments/claim/begin",
-        })
+        }),
       );
       render(<ClaimMachine initialCode="BCDFG-HJKLM" />);
 
       submitClaim();
 
       expect(
-        await screen.findByTestId("settings-machine-claim-expired")
+        await screen.findByTestId("settings-machine-claim-expired"),
       ).toHaveTextContent(message);
       expect(
-        screen.getByRole("button", { name: "Try a new code" })
+        screen.getByRole("button", { name: "Try a new code" }),
       ).toBeInTheDocument();
-    }
+    },
   );
 
   it("blocks passkey creation when the claim expiration is invalid", async () => {
@@ -621,8 +617,8 @@ describe("ClaimMachine", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByTestId("settings-machine-claim-expired")
-      ).toBeInTheDocument()
+        screen.getByTestId("settings-machine-claim-expired"),
+      ).toBeInTheDocument(),
     );
     expect(mocks.createCredential).not.toHaveBeenCalled();
     expect(mocks.completeMutate).not.toHaveBeenCalled();
@@ -637,30 +633,30 @@ describe("ClaimMachine", () => {
     fireEvent.click(screen.getByTestId("settings-machine-claim-begin"));
     await waitFor(() =>
       expect(
-        screen.getByTestId("settings-machine-claim-review")
-      ).toBeInTheDocument()
+        screen.getByTestId("settings-machine-claim-review"),
+      ).toBeInTheDocument(),
     );
     fireEvent.click(
-      screen.getByTestId("settings-machine-claim-create-passkey")
+      screen.getByTestId("settings-machine-claim-create-passkey"),
     );
 
     await waitFor(() =>
       expect(
-        screen.getByTestId("settings-machine-claim-success")
-      ).toBeInTheDocument()
+        screen.getByTestId("settings-machine-claim-success"),
+      ).toBeInTheDocument(),
     );
     expect(screen.getByText("Awaiting local confirmation")).toBeInTheDocument();
     expect(
-      screen.getByText(/not active until the CLI confirms locally/i)
+      screen.getByText(/not active until the CLI confirms locally/i),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/return to the terminal where you ran/i)
+      screen.getByText(/return to the terminal where you ran/i),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId("controller-authorization-terminal-command")
+      screen.getByTestId("controller-authorization-terminal-command"),
     ).toHaveTextContent("Authorize this controller on this machine? [y/N]");
     expect(
-      screen.getByText("Confirm in the Agent Bridge").closest(".Mui-active")
+      screen.getByText("Confirm in the Agent Bridge").closest(".Mui-active"),
     ).not.toBeNull();
   });
 
@@ -671,17 +667,17 @@ describe("ClaimMachine", () => {
         initialCode="BCDFG-HJKLM"
         completionActionLabel="Go somewhere"
         onCompletionAction={onCompletionAction}
-      />
+      />,
     );
     submitClaim();
     await screen.findByTestId("settings-machine-claim-review");
     fireEvent.click(
-      screen.getByTestId("settings-machine-claim-create-passkey")
+      screen.getByTestId("settings-machine-claim-create-passkey"),
     );
     await screen.findByTestId("settings-machine-claim-success");
 
     expect(
-      screen.queryByTestId("settings-machine-claim-complete")
+      screen.queryByTestId("settings-machine-claim-complete"),
     ).not.toBeInTheDocument();
 
     fixtures.machines = [
@@ -697,11 +693,11 @@ describe("ClaimMachine", () => {
         initialCode="BCDFG-HJKLM"
         completionActionLabel="Go somewhere"
         onCompletionAction={onCompletionAction}
-      />
+      />,
     );
 
     expect(
-      screen.queryByTestId("settings-machine-claim-complete")
+      screen.queryByTestId("settings-machine-claim-complete"),
     ).not.toBeInTheDocument();
 
     fixtures.machines = [
@@ -717,15 +713,15 @@ describe("ClaimMachine", () => {
         initialCode="BCDFG-HJKLM"
         completionActionLabel="Go somewhere"
         onCompletionAction={onCompletionAction}
-      />
+      />,
     );
 
     expect(
-      await screen.findByTestId("settings-machine-claim-complete")
+      await screen.findByTestId("settings-machine-claim-complete"),
     ).toBeInTheDocument();
     expect(screen.getByText("Complete").closest(".Mui-active")).not.toBeNull();
     fireEvent.click(
-      screen.getByTestId("settings-machine-claim-completion-action")
+      screen.getByTestId("settings-machine-claim-completion-action"),
     );
     expect(onCompletionAction).toHaveBeenCalledTimes(1);
   });
@@ -766,31 +762,31 @@ describe("ClaimMachine", () => {
       submitClaim();
       await waitFor(() =>
         expect(
-          screen.getByTestId("settings-machine-claim-review")
-        ).toBeInTheDocument()
+          screen.getByTestId("settings-machine-claim-review"),
+        ).toBeInTheDocument(),
       );
 
       fireEvent.click(
-        screen.getByTestId("settings-machine-claim-create-passkey")
+        screen.getByTestId("settings-machine-claim-create-passkey"),
       );
 
       expect(
-        await screen.findByTestId("settings-machine-claim-passkey-retry")
+        await screen.findByTestId("settings-machine-claim-passkey-retry"),
       ).toHaveTextContent(expectedMessage);
       expect(mocks.abandonMutate).not.toHaveBeenCalled();
       expect(
-        screen.getByTestId("settings-machine-claim-review")
+        screen.getByTestId("settings-machine-claim-review"),
       ).toBeInTheDocument();
 
       fireEvent.click(
-        screen.getByRole("button", { name: "Try creating passkey again" })
+        screen.getByRole("button", { name: "Try creating passkey again" }),
       );
 
       expect(
-        await screen.findByTestId("settings-machine-claim-success")
+        await screen.findByTestId("settings-machine-claim-success"),
       ).toBeInTheDocument();
       expect(mocks.createCredential).toHaveBeenCalledTimes(2);
-    }
+    },
   );
 
   it("terminalizes the browser claim when review is cancelled", async () => {
@@ -798,8 +794,8 @@ describe("ClaimMachine", () => {
     submitClaim();
     await waitFor(() =>
       expect(
-        screen.getByTestId("settings-machine-claim-review")
-      ).toBeInTheDocument()
+        screen.getByTestId("settings-machine-claim-review"),
+      ).toBeInTheDocument(),
     );
 
     fireEvent.click(screen.getByTestId("settings-machine-claim-cancel"));
@@ -808,10 +804,10 @@ describe("ClaimMachine", () => {
       expect(mocks.abandonMutate).toHaveBeenCalledWith({
         enrollmentId: "enrollment-1",
         organizationId: "org-1",
-      })
+      }),
     );
     expect(
-      await screen.findByTestId("settings-machine-claim-cancelled")
+      await screen.findByTestId("settings-machine-claim-cancelled"),
     ).toBeInTheDocument();
   });
 
@@ -823,29 +819,29 @@ describe("ClaimMachine", () => {
     submitClaim();
     await waitFor(() =>
       expect(
-        screen.getByTestId("settings-machine-claim-review")
-      ).toBeInTheDocument()
+        screen.getByTestId("settings-machine-claim-review"),
+      ).toBeInTheDocument(),
     );
 
     fireEvent.click(
-      screen.getByTestId("settings-machine-claim-create-passkey")
+      screen.getByTestId("settings-machine-claim-create-passkey"),
     );
 
     await waitFor(() => expect(mocks.completeMutate).toHaveBeenCalledTimes(1));
     expect(
-      await screen.findByTestId("settings-machine-claim-passkey-retry")
+      await screen.findByTestId("settings-machine-claim-passkey-retry"),
     ).toHaveTextContent("Unable to claim this enrollment.");
     expect(
-      screen.getByText("Unable to claim this enrollment.")
+      screen.getByText("Unable to claim this enrollment."),
     ).toBeInTheDocument();
     expect(mocks.abandonMutate).not.toHaveBeenCalled();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Try creating passkey again" })
+      screen.getByRole("button", { name: "Try creating passkey again" }),
     );
 
     expect(
-      await screen.findByTestId("settings-machine-claim-success")
+      await screen.findByTestId("settings-machine-claim-success"),
     ).toBeInTheDocument();
     expect(mocks.completeMutate).toHaveBeenCalledTimes(2);
   });
@@ -856,19 +852,19 @@ describe("ClaimMachine", () => {
     submitClaim();
     await waitFor(() =>
       expect(
-        screen.getByTestId("settings-machine-claim-review")
-      ).toBeInTheDocument()
+        screen.getByTestId("settings-machine-claim-review"),
+      ).toBeInTheDocument(),
     );
     fireEvent.click(screen.getByTestId("settings-machine-claim-cancel"));
 
     expect(
-      await screen.findByTestId("settings-machine-claim-cancelled")
+      await screen.findByTestId("settings-machine-claim-cancelled"),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Start over" })
+      screen.getByRole("button", { name: "Start over" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText(/do not start a fresh cli enrollment/i)
+      screen.queryByText(/do not start a fresh cli enrollment/i),
     ).not.toBeInTheDocument();
     expect(mocks.abandonMutate).toHaveBeenCalledTimes(1);
   });
@@ -889,10 +885,10 @@ describe("ClaimMachine", () => {
     fireEvent.click(screen.getByTestId("settings-machine-claim-cancel"));
 
     expect(
-      await screen.findByTestId("settings-machine-claim-expired")
+      await screen.findByTestId("settings-machine-claim-expired"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByTestId("settings-machine-claim-abandon-failed")
+      screen.queryByTestId("settings-machine-claim-abandon-failed"),
     ).not.toBeInTheDocument();
     now.mockRestore();
   });
@@ -906,10 +902,10 @@ describe("ClaimMachine", () => {
     rerender(<ClaimMachine initialCode="BCDFG-HJKLM" />);
 
     expect(
-      screen.getByTestId("settings-machine-claim-identity-blocked")
+      screen.getByTestId("settings-machine-claim-identity-blocked"),
     ).toHaveTextContent("The previous browser claim is still open");
     expect(
-      screen.queryByRole("button", { name: "Start a fresh enrollment" })
+      screen.queryByRole("button", { name: "Start a fresh enrollment" }),
     ).not.toBeInTheDocument();
 
     fixtures.identity = { ...fixtures.identity!, isTokenExpired: false };
@@ -917,7 +913,7 @@ describe("ClaimMachine", () => {
     fireEvent.click(screen.getByTestId("settings-machine-claim-cancel"));
 
     expect(
-      await screen.findByTestId("settings-machine-claim-cancelled")
+      await screen.findByTestId("settings-machine-claim-cancelled"),
     ).toBeInTheDocument();
     expect(mocks.abandonMutate).toHaveBeenCalledWith({
       enrollmentId: "enrollment-1",
@@ -943,7 +939,7 @@ describe("ClaimMachine", () => {
     submitClaim();
 
     expect(
-      await screen.findByTestId("settings-machine-claim-success")
+      await screen.findByTestId("settings-machine-claim-success"),
     ).toBeInTheDocument();
     expect(mocks.createCredential).not.toHaveBeenCalled();
   });
@@ -956,10 +952,10 @@ describe("ClaimMachine", () => {
     rerender(<ClaimMachine initialCode="NPQRS-TVWXZ" />);
 
     expect(
-      screen.getByTestId("settings-machine-claim-code-entry")
+      screen.getByTestId("settings-machine-claim-code-entry"),
     ).toBeInTheDocument();
     expect(screen.getByTestId("settings-machine-claim-code")).toHaveValue(
-      "NPQRS-TVWXZ"
+      "NPQRS-TVWXZ",
     );
     expect(mocks.abandonMutate).not.toHaveBeenCalled();
   });
@@ -969,7 +965,7 @@ describe("ClaimMachine", () => {
     mocks.beginMutate.mockReturnValueOnce(
       new Promise<typeof beginResult>((resolve) => {
         resolveOlderBegin = resolve;
-      })
+      }),
     );
     const { rerender } = render(<ClaimMachine initialCode="BCDFG-HJKLM" />);
     submitClaim();
@@ -980,14 +976,14 @@ describe("ClaimMachine", () => {
 
     await waitFor(() =>
       expect(screen.getByTestId("settings-machine-claim-code")).toHaveValue(
-        "NPQRS-TVWXZ"
-      )
+        "NPQRS-TVWXZ",
+      ),
     );
     expect(
-      screen.getByTestId("settings-machine-claim-code-entry")
+      screen.getByTestId("settings-machine-claim-code-entry"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByTestId("settings-machine-claim-review")
+      screen.queryByTestId("settings-machine-claim-review"),
     ).not.toBeInTheDocument();
   });
 
@@ -997,10 +993,10 @@ describe("ClaimMachine", () => {
     render(<ClaimMachine initialCode={null} />);
 
     expect(
-      screen.getByTestId("settings-machine-claim-identity-blocked")
+      screen.getByTestId("settings-machine-claim-identity-blocked"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByTestId("settings-machine-claim-code-entry")
+      screen.queryByTestId("settings-machine-claim-code-entry"),
     ).not.toBeInTheDocument();
     expect(mocks.beginMutate).not.toHaveBeenCalled();
     expect(mocks.createCredential).not.toHaveBeenCalled();
@@ -1012,10 +1008,10 @@ describe("ClaimMachine", () => {
     render(<ClaimMachine initialCode={null} />);
 
     expect(
-      screen.getByTestId("settings-machine-claim-identity-blocked")
+      screen.getByTestId("settings-machine-claim-identity-blocked"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByTestId("settings-machine-claim-code-entry")
+      screen.queryByTestId("settings-machine-claim-code-entry"),
     ).not.toBeInTheDocument();
   });
 
@@ -1028,10 +1024,10 @@ describe("ClaimMachine", () => {
     render(<ClaimMachine initialCode={null} />);
 
     expect(
-      screen.getByTestId("settings-machine-claim-identity-blocked")
+      screen.getByTestId("settings-machine-claim-identity-blocked"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByTestId("settings-machine-claim-code-entry")
+      screen.queryByTestId("settings-machine-claim-code-entry"),
     ).not.toBeInTheDocument();
     expect(mocks.beginMutate).not.toHaveBeenCalled();
   });
@@ -1056,16 +1052,16 @@ describe("ClaimMachine", () => {
           organizationId: "org-1",
           userCode: "BCDFGHJKLM",
           controllerLabel: "Safari on Zac's MacBook",
-        })
+        }),
       );
       expect(
-        screen.getByTestId("settings-machine-claim-identity-blocked")
+        screen.getByTestId("settings-machine-claim-identity-blocked"),
       ).toBeInTheDocument();
       expect(
-        screen.queryByTestId("settings-machine-claim-review")
+        screen.queryByTestId("settings-machine-claim-review"),
       ).not.toBeInTheDocument();
       expect(mocks.createCredential).not.toHaveBeenCalled();
       expect(mocks.completeMutate).not.toHaveBeenCalled();
-    }
+    },
   );
 });

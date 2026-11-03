@@ -2,7 +2,7 @@ import type { ProposalReconciliationService } from './proposal-reconciliation.se
 import { readProposalDependencyPresentation } from './future-dependency-presentation';
 import { Logger, NotFoundException } from '@nestjs/common';
 import type { Proposal, ProposalFuture } from '@prisma/client';
-import type { ProposalOutOfDateStatus } from 'src/generated';
+import type { ProposalOutOfDateStatus } from '@hey-hey/contracts/api/models';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId } from 'src/types';
 import { evaluatePermissions } from './permission-evaluation';

@@ -1,7 +1,10 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Client, WorkflowHandle } from '@temporalio/client';
 import { MessageStatus } from '../../constants/message-status.constants';
-import { MessageResponseDto, WorkflowName } from '../../generated';
+import {
+  MessageResponseDto,
+  WorkflowName,
+} from '@hey-hey/contracts/api/models';
 import { InjectTemporalClient } from '../../prisma/temporal.module';
 import {
   ConversationId,

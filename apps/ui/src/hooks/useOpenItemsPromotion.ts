@@ -1,6 +1,6 @@
 import { useRef, useState, type MutableRefObject } from "react";
 import { isAxiosError } from "axios";
-import type { PromoteGroupToGoalRequest } from "@hey-hey/ui-common/api";
+import type { PromoteGroupToGoalRequest } from "@hey-hey/contracts/api";
 import { useOpenItems } from "../contexts/OpenItemsContext";
 
 export function useOpenItemsPromotion(

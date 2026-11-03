@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   AgentSessionOutputAttentionState,
   AgentSessionOutputAttentionBatchItemDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { RedisService } from 'src/core/redis/redis.service';
 
 const TRANSITION_SCRIPT = `
@@ -104,7 +104,10 @@ export class AgentSessionOutputAttentionProjection {
           this.key(agentSessionId, userId),
         ),
       );
-    const entries = new Map<string, AgentSessionOutputAttentionProjectionEntry>();
+    const entries = new Map<
+      string,
+      AgentSessionOutputAttentionProjectionEntry
+    >();
     values.forEach((raw, index) => {
       const identity = identities[index];
       if (raw === null || identity === undefined) return;
@@ -131,17 +134,19 @@ export class AgentSessionOutputAttentionProjection {
     state: AgentSessionOutputAttentionState;
   }): Promise<AgentSessionOutputAttentionProjectionResult> {
     const changedAt = new Date().toISOString();
-    const raw = await this.redisService.getClient().eval(
-      TRANSITION_SCRIPT,
-      1,
-      this.key(input.agentSessionId, input.userId),
-      input.state,
-      input.agentSessionId,
-      input.organizationId,
-      input.projectId,
-      input.userId,
-      changedAt,
-    );
+    const raw = await this.redisService
+      .getClient()
+      .eval(
+        TRANSITION_SCRIPT,
+        1,
+        this.key(input.agentSessionId, input.userId),
+        input.state,
+        input.agentSessionId,
+        input.organizationId,
+        input.projectId,
+        input.userId,
+        changedAt,
+      );
     const result = JSON.parse(String(raw)) as ScriptResult;
     this.logger.debug('[output-attention] redis transition', {
       agentSessionId: input.agentSessionId,
@@ -190,7 +195,9 @@ export class AgentSessionOutputAttentionProjection {
       entry.revision < 0 ||
       Number.isNaN(Date.parse(entry.changedAt))
     ) {
-      throw new Error('Invalid Agent Session output-attention projection entry');
+      throw new Error(
+        'Invalid Agent Session output-attention projection entry',
+      );
     }
     return entry;
   }

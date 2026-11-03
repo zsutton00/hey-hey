@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import React from "react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { WorkItemTypeLifecycleStatus } from "@hey-hey/ui-common/api";
+import { WorkItemTypeLifecycleStatus } from "@hey-hey/contracts/api";
 import { WorkItemTypesList } from "./WorkItemTypesList";
 
 const mockUseWorkItemTypes = vi.fn();

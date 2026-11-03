@@ -1,7 +1,7 @@
 import type {
   EntityContextDtoProposalsInner,
   ProposalResponseDto,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 
 export function assertFullProposalHistory(
   proposals: EntityContextDtoProposalsInner[],

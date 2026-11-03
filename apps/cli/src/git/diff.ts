@@ -6,7 +6,7 @@ import type { LocalDiffFilePatch } from '../shared/agent-bridge-contract/runtime
 import type {
   CliReadChangedFileDetail,
   CliReadChangedFileInventoryEntry,
-} from '../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 
 const execFileAsync = promisify(execFile);
 

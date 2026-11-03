@@ -5,7 +5,7 @@ import { FUTURE_REVISION_MCP_TOOLS } from '../mcp-server-config';
 // Exposes `submit_revised` as the sole legal turn-completion path; resolution
 // is not claimable here, the user's review gate decides what advances.
 
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { LocalPlanShapingFeatureSyncIteratePromptPayload } from '../../shared/agent-bridge-contract/runtime-types';
 import { turnUserMessageBlock, type UserLaunchablePromptTypeHandler } from '../prompt-type-handler';
 import { buildPlanShapingIteratePrompt } from './prompts';

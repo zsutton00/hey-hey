@@ -7,7 +7,7 @@ import type {
   DemoSandboxProgramDto,
   DemoTemplateDto,
   SetDemoTemplateDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { DemoTemplateService } from '../services/demo-sandbox/demo-template.service';
 import { DemoSandboxProgramService } from '../services/demo-sandbox/demo-sandbox-program.service';
 import { DemoSandboxProgramPipe } from './demo-sandbox.validation';

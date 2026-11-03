@@ -18,8 +18,8 @@ import { z } from 'zod';
 import {
   AgentQuestionPayloadAgentTypeEnum,
   AgentQuestionPayloadResponseTypeEnum,
-} from '../shared/api/generated/api';
-import type { AgentQuestionPayload } from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
+import type { AgentQuestionPayload } from '@hey-hey/contracts/api/models';
 import type {
   AgentQuestionEvent,
   QuestionAnsweredEvent,
@@ -94,8 +94,7 @@ const readRoutingString = (
 ): string | null => {
   const factsRouting = readFactsRouting(payload);
   if (factsRouting) {
-    const factValue =
-      readString(factsRouting[camelKey]) ?? readString(factsRouting[snakeKey]);
+    const factValue = readString(factsRouting[camelKey]) ?? readString(factsRouting[snakeKey]);
     if (factValue) return factValue;
   }
   const routing = isRecord(payload['routing']) ? payload['routing'] : null;
@@ -227,9 +226,8 @@ const extractFilesFromCanonicalDiff = (diff: Record<string, unknown>): string[] 
 const extractFilesFromCanonicalPermission = (payload: Record<string, unknown>): string[] => {
   const files: string[] = [];
   const facts = readNormalizedFacts(payload);
-  const permissionRequest = facts && isRecord(facts['permissionRequest'])
-    ? facts['permissionRequest']
-    : null;
+  const permissionRequest =
+    facts && isRecord(facts['permissionRequest']) ? facts['permissionRequest'] : null;
   if (permissionRequest && Array.isArray(permissionRequest['referencedFiles'])) {
     for (const ref of permissionRequest['referencedFiles']) {
       if (typeof ref === 'string') files.push(ref);
@@ -462,7 +460,7 @@ export const normalizeEvent = (
       : (readString(payload['diff_blob']) ?? readString(payload['diffContent']));
     const providerEventType = readString(payload['eventType']);
     const declaredAuthority = diff
-      ? readString(diff['attribution_authority']) ?? readString(diff['authority'])
+      ? (readString(diff['attribution_authority']) ?? readString(diff['authority']))
       : null;
     const toolUses = extractToolUseBlocks(payload);
     const authority =

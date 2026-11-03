@@ -6,7 +6,7 @@ import type {
   SystemMessageData,
   TaskResponseDto,
   TasksSystemMessageData,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { TaskService } from '../../../services/tasks/task.service';
 import { TaskDraft } from '../../../services/tasks/types';
 import { z } from 'zod';

@@ -5,14 +5,14 @@ import {
   LocalPromptType,
   type AgentSessionConfigProjectReportV1,
   type RunCreatePayloadReleaseNotes,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import {
   ProjectReportCoverageStatusEnum,
   ProjectReportKind,
   ProjectReportStatus,
   ReportAudience,
   ReportType,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import { extractOrganizationIdFromToken } from '../../auth';
 import type {
   PrepareResult,

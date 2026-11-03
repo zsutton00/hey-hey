@@ -5,7 +5,7 @@ import type {
   FutureRevisionContent,
   FutureRevisionContentOneOf,
   FutureRevisionMutation,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 import type { WorkItemTypeRegistryService } from '../tasks/work-item-type-registry.service';
 import { sectionContent } from './future-application';

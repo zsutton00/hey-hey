@@ -1,3 +1,4 @@
+import { asUserId } from '../../test-utils/contract-ids';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -12,7 +13,7 @@ import { CURRENT_AGENT_OPERATIONS } from '../controller-authorization/types';
 import type {
   AgentTriggerStartRun,
   ControllerAuthorizedSignedConversationTriggerEnvelope,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 
 const issuedAtMs = 1_700_000_000_000;
 const activation = {
@@ -395,7 +396,7 @@ describe('protocol-2 generated conversation trigger contract', () => {
 
   const envelope = {
     machineId: '00000000-0000-4000-8000-000000000003',
-    userId: '00000000-0000-4000-8000-000000000004',
+    userId: asUserId('00000000-0000-4000-8000-000000000004'),
     nonce: '00000000-0000-4000-8000-000000000012',
     timestampMs: issuedAtMs,
     signature: 'signature',

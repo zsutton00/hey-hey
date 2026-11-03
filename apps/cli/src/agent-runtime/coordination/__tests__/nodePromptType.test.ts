@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { WorkflowName } from '../../../shared/api/generated/index';
-import { LocalPromptType } from '../../../shared/api/generated/index';
+import { WorkflowName } from '@hey-hey/contracts/api/models';
+import { LocalPromptType } from '@hey-hey/contracts/api/models';
 import { resolveNodePromptType } from '../nodePromptType';
 
 describe('resolveNodePromptType', () => {

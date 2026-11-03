@@ -1,7 +1,7 @@
 import { OrganizationGuard } from '../../auth/guards/organization.guard';
 import { ProjectAccessGuard } from '../../auth/guards/project-access.guard';
 import { Test, type TestingModule } from '@nestjs/testing';
-import type { TaskResponseDto } from '../../generated';
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
 import { TaskController } from '../task.controller';
 import { GoalTracksService } from '../../services/tasks/goal-tracks.service';
 import { TaskSupersedeService } from '../../services/tasks/task-supersede.service';

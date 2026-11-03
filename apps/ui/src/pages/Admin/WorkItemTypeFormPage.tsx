@@ -35,7 +35,7 @@ import {
   WorkItemTypeLifecycleStatus,
   WorkItemTypeRole,
   WorkStatus,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import type {
   ProposalApprovalFailureDiagnostic,
   ProposalResponseDto,
@@ -49,7 +49,7 @@ import type {
   WorkItemTypeTracking,
   WorkItemTypeWritingStandards,
   WorkItemTypeSessionRoleGuidance,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import {

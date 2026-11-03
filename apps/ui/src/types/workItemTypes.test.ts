@@ -1,8 +1,8 @@
 import type {
   WorkItemTypeDefinitionDto,
   WorkItemTypeSummaryDto,
-} from "@hey-hey/ui-common/api";
-import { WorkItemTypeRole } from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
+import { WorkItemTypeRole } from "@hey-hey/contracts/api";
 import { describe, expect, it } from "vitest";
 import {
   canWorkItemTypeOwnAgentSessions,
@@ -57,9 +57,9 @@ describe("work-item type definition selectors", () => {
       summary("ACTIVE_CUSTOM", "ACTIVE", "project-1"),
     ];
 
-    expect([
-      ...selectActiveWorkItemTypeDefinitions(summaries).keys(),
-    ]).toEqual([]);
+    expect([...selectActiveWorkItemTypeDefinitions(summaries).keys()]).toEqual(
+      [],
+    );
     expect([
       ...selectActiveWorkItemTypeDefinitions(summaries, "").keys(),
     ]).toEqual([]);
@@ -68,9 +68,9 @@ describe("work-item type definition selectors", () => {
   it("keeps archived definitions available in the all-definition index", () => {
     const archived = summary("ARCHIVED_CUSTOM", "ARCHIVED", "project-1");
 
-    expect(indexWorkItemTypeDefinitions([archived]).get("ARCHIVED_CUSTOM")).toBe(
-      archived.definition,
-    );
+    expect(
+      indexWorkItemTypeDefinitions([archived]).get("ARCHIVED_CUSTOM"),
+    ).toBe(archived.definition);
     expect(
       selectActiveWorkItemTypeDefinitions([archived], "project-1").has(
         "ARCHIVED_CUSTOM",

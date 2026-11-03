@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { EntityRegistry, EntityType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OrganizationId } from 'src/types';
-import { EntitySearchResult } from 'src/generated';
+import { EntitySearchResult } from '@hey-hey/contracts/api/models';
 import { NON_ARTIFACT_ENTITY_TYPES } from './entity-registry.constants';
 
 interface EntityRegistryErrorDetails {

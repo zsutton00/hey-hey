@@ -25,7 +25,7 @@ import {
   ProposalStatus,
   UpdateTaskDto,
   WorkStatus,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import type { TypedProposalResponse } from '../../services/proposal/proposal.types';
 import { ProjectId, TaskId } from '../../types';
 import * as TestUtils from '../../utils/testUtils';

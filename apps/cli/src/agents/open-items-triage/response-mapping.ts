@@ -1,5 +1,5 @@
-import type { LocalOpenItemsTriageResponse } from '../../shared/agent-bridge-contract/generated';
-import type { OpenItemsTriagePayload } from '../../shared/api/generated/api';
+import type { LocalOpenItemsTriageResponse } from '@hey-hey/contracts/agent-bridge';
+import type { OpenItemsTriagePayload } from '@hey-hey/contracts/api/models';
 
 export const mapTriageResponse = (response: LocalOpenItemsTriageResponse): OpenItemsTriagePayload =>
   ({

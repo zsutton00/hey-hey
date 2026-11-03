@@ -3,7 +3,7 @@ import * as crypto from 'node:crypto';
 import {
   ControllerAssertionEvidence,
   ControllerAuthorizationDenialReason,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { ControllerAuthorizationWebAuthnConfigService } from './controller-authorization-webauthn-config.service';
 import { verifyMachineEnrollmentEs256Signature } from '../machine-pairing/machine-enrollment-webauthn-verifier';
 

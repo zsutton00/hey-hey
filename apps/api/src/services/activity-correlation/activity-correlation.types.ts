@@ -10,7 +10,7 @@ import {
   RecentActivityCorrelationRecordDto,
   RecentActivityCorrelationSort,
   ReportDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { ProjectId, UserId } from 'src/types';
 
 export type EntityRef = {

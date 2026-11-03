@@ -9,7 +9,7 @@ import AddIcon from "@mui/icons-material/Add";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
-import { type CreateGoalDto } from "@hey-hey/ui-common/api";
+import { type CreateGoalDto } from "@hey-hey/contracts/api";
 import {
   EntityCollectionPage,
   GoalProgressChip,

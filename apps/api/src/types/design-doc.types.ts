@@ -10,7 +10,7 @@ import {
   CreateDesignDocDto,
   DesignDocResponseDto,
   MaterializedDesignDocSection,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 
 /**
  * Design Document entity (branded type for type safety)

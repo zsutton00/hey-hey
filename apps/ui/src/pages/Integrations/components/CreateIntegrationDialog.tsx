@@ -7,7 +7,7 @@ import {
   IntegrationTargetType,
   IntegrationType,
   type CreateIntegrationDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { useIntegrationService } from "@hey-hey/ui-common/hooks";
 import { IntegrationTestService } from "@hey-hey/ui-common/services";
 

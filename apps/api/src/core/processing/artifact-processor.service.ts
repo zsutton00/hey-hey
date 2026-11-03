@@ -15,7 +15,7 @@ import {
   MessageResponseDto,
   QuestionsSystemMessage,
   QuestionsSystemMessageData,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ArtifactMappingContext,
   mapQuestionAnswerPairsToArtifactDtos,

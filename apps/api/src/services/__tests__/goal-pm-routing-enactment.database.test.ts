@@ -8,7 +8,7 @@ import { ConversationService } from '../conversation.service';
 import { AgentSessionService } from '../agent-session.service';
 import { GoalTracksService } from '../tasks/goal-tracks.service';
 import { ProposalService } from '../proposal/proposal.service';
-import type { GoalPmRoutingEnactmentRequest } from '../../generated';
+import type { GoalPmRoutingEnactmentRequest } from '@hey-hey/contracts/api/models';
 
 // Explicit opt-in and local host only; every write belongs to isolated fixtures.
 const database = process.env.PROJECT_DATABASE_URL;

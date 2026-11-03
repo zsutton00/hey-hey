@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 // Generated from OpenAPI. Do not edit.
 export const futureRevisionMutationSchema = {
   "description": "VERSIONED_UPDATE payload for TASK or DESIGN_DOC. Ordinary approval stores or cancels a non-live future. Refinements reference the same futureId; pending or rejected proposals leave its approved content, baseline, dependencies, and approval intact. Ordinary refinement approval accepts the result without an additional acceptance step. Live-target edges and tracks are not accepted on this action; declare completion dependencies in this payload. Baseline and result must match the proposal target and scope. A FUTURE baseline names an existing reviewed parent revision with identical content.",

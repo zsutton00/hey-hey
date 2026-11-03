@@ -24,7 +24,7 @@ import { freeFormHandler } from '../agents/coding-conversation';
 import type { RepoMappingStore } from '../repo/index';
 import type { RunnerContext } from './runners/types';
 import type { Runner } from '../turn/turn';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { ProjectAssistantPromptPayload } from '../agents/project-assistant/project-assistant.handler';
 import { OpenItemsTriageHandler } from '../agents/open-items-triage/open-items-triage.handler';
 

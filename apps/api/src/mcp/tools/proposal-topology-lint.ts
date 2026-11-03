@@ -3,8 +3,8 @@ import type {
   ProjectedWorkItemRelationship,
   WorkItemChangeSetIdentity,
   WorkItemChangeSetRelationshipIdentity,
-} from 'src/generated';
-import { DiagramKind } from 'src/generated/model/diagramKind';
+} from '@hey-hey/contracts/api/models';
+import { DiagramKind } from '@hey-hey/contracts/api/models';
 import type { ProjectedTopologySemantics } from 'src/services/tasks/work-item-type-registry.service';
 import {
   diagramMetadataSchema,

@@ -1,7 +1,4 @@
-import {
-  TargetEntityType,
-  type AgentSessionDto,
-} from "@hey-hey/ui-common/api";
+import { TargetEntityType, type AgentSessionDto } from "@hey-hey/contracts/api";
 import { DiscussCapsuleAction } from "@hey-hey/ui-common/components";
 
 export interface AgentSessionDiscussActionCapsuleProps {

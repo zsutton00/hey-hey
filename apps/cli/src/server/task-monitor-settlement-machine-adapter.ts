@@ -1,7 +1,7 @@
 import type { RunStore } from '../run-store';
 import type { TaskMonitorStateStore } from '../agents/task-monitor/state-machine/machine';
 import type { TaskMonitorExecutionPhase } from '../agents/task-monitor/state-machine/events';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { ServerLogger } from './logger';
 import type { PlatformAuth } from './platform-auth-context';
 import type { AgentSessionReader } from './monitors/agent-session-reader';

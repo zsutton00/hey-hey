@@ -10,7 +10,7 @@ import {
   GetMessagesQueryDto,
   MessageReadMode,
   SystemMessageData,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConversationId, MessageId, OrganizationId } from '../../types';
 import * as TestUtils from '../../utils/testUtils';

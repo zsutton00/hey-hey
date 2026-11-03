@@ -9,7 +9,7 @@ import {
   QAPairData,
   RequirementData,
   TaskOriginalArtifactData,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ArtifactDataValidationError,
   ArtifactDataValidators,

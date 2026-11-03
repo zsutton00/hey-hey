@@ -12,7 +12,7 @@ import {
   SystemMessageResponseType,
   UserMessageAgentInput,
   UserMessageDataTaskMonitor,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 
 export const isQuestionSystemMessageData = (
   s: SystemMessageData,

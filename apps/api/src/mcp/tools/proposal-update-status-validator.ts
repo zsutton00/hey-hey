@@ -1,4 +1,4 @@
-import { AdrStatus } from 'src/generated/model/adrStatus';
+import { AdrStatus } from '@hey-hey/contracts/api/models';
 import { formatWorkItemStatusNotAllowedMessage } from '../../services/tasks/work-item-status-policy';
 
 // Subset of WorkStatus that an agent can set on a TASK/FEATURE proposal via the

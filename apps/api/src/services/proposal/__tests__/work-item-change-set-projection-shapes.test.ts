@@ -1,13 +1,13 @@
 import type {
   WorkItemChangeSetOperation,
   WorkItemChangeSetValidationRequest,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import type { OrganizationId, ProjectId } from '../../../types';
 import { createWarmWorkItemTypeRegistry } from '../../../../test/setup/work-item-type-registry.fixture';
 import { WorkItemParentageValidator } from '../../tasks/work-item-parentage-validator.service';
 import type { WorkItemTypeRegistryService } from '../../tasks/work-item-type-registry.service';
-import type { WorkItemTypeGraphCapability } from '../../../generated/model/workItemTypeGraphCapability';
+import type { WorkItemTypeGraphCapability } from '@hey-hey/contracts/api/models';
 import {
   loadIdentity,
   planProjection,

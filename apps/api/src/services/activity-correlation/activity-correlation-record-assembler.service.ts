@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AgentSessionType, EntityType } from 'src/generated';
+import { AgentSessionType, EntityType } from '@hey-hey/contracts/api/models';
 import { SearchResult } from 'src/generated/graphs';
 import {
   buildConversationIdsByEntityId,

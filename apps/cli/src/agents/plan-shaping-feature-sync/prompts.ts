@@ -27,7 +27,7 @@ import { futureRevisionAuthoring } from '../prompts/common';
 import type {
   FeatureSyncDiscrepancy,
   PlanShapingFeatureSyncItemDecision,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type { AgentProviderId } from '../providers/provider-config';
 import { withSubmissionToolTerminationSuffix } from '../submission-tools/prompt-suffix';
 

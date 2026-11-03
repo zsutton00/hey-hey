@@ -1,4 +1,4 @@
-import { SecondaryActionConfig } from 'src/generated';
+import { SecondaryActionConfig } from '@hey-hey/contracts/api/models';
 
 /**
  * Context for filtering which secondary actions are relevant

@@ -2,7 +2,10 @@ import { ProjectAccessService } from 'src/auth/services/project-access.service';
 import { ProjectResourceAccessService } from 'src/auth/services/project-resource-access.service';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { ServiceLinkDto, ServiceTaskRelation } from '../../generated';
+import {
+  ServiceLinkDto,
+  ServiceTaskRelation,
+} from '@hey-hey/contracts/api/models';
 import { ServiceService } from '../../services/service/service.service';
 import { testIds } from '../../utils/testUtils';
 import { ServiceController } from '../service.controller';

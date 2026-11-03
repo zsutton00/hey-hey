@@ -7,7 +7,10 @@ import { MessageService } from '../../../services/message.service';
 import { MessageProcessor } from '../message-processor.service';
 import { DomainEventPublisher } from '../../events/domain-event-publisher';
 import { DOMAIN_EVENT_PUBLISHER_TOKEN } from '../../events/tokens';
-import { MessageCreatedUserMessage, UserMessage } from '../../../generated';
+import {
+  MessageCreatedUserMessage,
+  UserMessage,
+} from '@hey-hey/contracts/api/models';
 import * as TestUtils from '../../../utils/testUtils';
 import { EventRouter } from '../../events/event-router';
 import { ConversationService } from '../../../services/conversation.service';

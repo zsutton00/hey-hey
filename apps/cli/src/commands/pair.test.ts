@@ -1,3 +1,4 @@
+import { asOrganizationId, asUserId } from '../test-utils/contract-ids';
 import { generateKeyPairSync } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -65,8 +66,8 @@ const makePollResponse = (): PollMachineEnrollmentResponseDto => ({
   osFamily: 'linux',
   cliVersion: '2.2.2',
   machineKeyFingerprint: 'machine-fingerprint',
-  accountId: 'account-1',
-  organizationId: 'organization-1',
+  accountId: asUserId('account-1'),
+  organizationId: asOrganizationId('organization-1'),
   controllerLabel: 'Test controller',
   controllerCredentialId: 'controller-1',
   controllerCredentialFingerprint: 'controller-fingerprint',
@@ -86,8 +87,8 @@ const makeActivationResponse = (): ConfirmMachineEnrollmentResponseDto => ({
     machineName: 'test-machine',
     osFamily: 'linux',
     cliVersion: '2.2.2',
-    accountId: 'account-1',
-    organizationId: 'organization-1',
+    accountId: asUserId('account-1'),
+    organizationId: asOrganizationId('organization-1'),
     controllerLabel: 'Test controller',
     controllerCredentialId: 'controller-1',
     controllerCredentialPublicKey: {

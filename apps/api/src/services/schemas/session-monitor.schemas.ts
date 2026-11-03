@@ -6,7 +6,7 @@ import {
   SessionMonitorMessageState,
   SessionMonitorOutcome,
   SessionMonitorSystemMessageData,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 
 const sessionMonitorMessageStateSchema = z.enum(['EVALUATING', 'DECISION']);
 const sessionMonitorOutcomeSchema = z.enum(['CONTINUED', 'DEFERRED']);

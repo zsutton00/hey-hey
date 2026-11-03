@@ -15,7 +15,7 @@ import {
   HostActionCategory,
   HostActionTargetKind,
   HostAffectingActionType,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../../prisma/prisma.service';
 import type {
   AgentSessionId,

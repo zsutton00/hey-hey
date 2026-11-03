@@ -28,7 +28,7 @@ import {
   TestIntegrationConnection200ResponseAllOfData,
   UpdateGitHubPrimaryRepositoryDto,
   UpdateIntegrationDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { ConnectionTestService } from '../services/connection-test.service';
 import { IntegrationService } from '../services/integrations/integration.service';
 import { GitHubOAuthService } from '../services/integrations/github-oauth.service';

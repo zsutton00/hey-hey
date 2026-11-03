@@ -2,12 +2,12 @@ import type {
   CoordinateTaskMonitorWorkEffect,
   EvaluateTaskMonitorSettledRunEffect,
 } from './effects';
-import type { TaskMonitorCoordinatorValidationFailure } from '../../../shared/agent-bridge-contract/generated/api';
+import type { TaskMonitorCoordinatorValidationFailure } from '@hey-hey/contracts/agent-bridge';
 import type {
   TaskMonitorLaunchConfig,
   TaskMonitorPlanGuidance,
-} from '../../../shared/agent-bridge-contract/generated/api';
-import type { ReportType } from '../../../shared/api/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
+import type { ReportType } from '@hey-hey/contracts/api/models';
 import type { RunWorktreeCollision } from '../../run-scope';
 import type { TaskMonitorCoordinationCause } from '../task-monitor-coordination';
 

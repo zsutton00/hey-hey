@@ -1,6 +1,6 @@
-import type { ChangedFileClaim } from '../../shared/agent-bridge-contract/generated/api';
+import type { ChangedFileClaim } from '@hey-hey/contracts/agent-bridge';
 import { z } from 'zod';
-import type { VerifyFeaturePayload } from '../../shared/api/generated/api';
+import type { VerifyFeaturePayload } from '@hey-hey/contracts/api/models';
 
 export const featureVerificationSuggestionSchema = z
   .object({

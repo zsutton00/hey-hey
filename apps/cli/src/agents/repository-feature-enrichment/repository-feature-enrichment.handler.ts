@@ -1,8 +1,8 @@
 import {
   LocalPromptType,
   type RepositoryFeatureEnrichmentRequest,
-} from '../../shared/agent-bridge-contract/generated/api';
-import { ExtendedUIFieldType, SystemMessageDataTypeEnum } from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
+import { ExtendedUIFieldType, SystemMessageDataTypeEnum } from '@hey-hey/contracts/api/models';
 import type { UpdateMessageDto } from '../../shared/api';
 import type { AssistantCompleteEvent } from '../../run/types';
 import { createAgentBridgeRuntimeValidator } from '../../shared/agent-bridge-contract/runtime-schema-validator';

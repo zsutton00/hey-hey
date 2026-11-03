@@ -1,3 +1,4 @@
+import { asProjectId } from '../test-utils/contract-ids';
 import { describe, expect, it, vi } from 'vitest';
 import {
   AgentSessionCurrentState,
@@ -14,13 +15,13 @@ import {
   type EntityPromptTemplateSelectorDto,
   type FullEntityContextDto,
   type TaskResponseDto,
-} from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import {
   LocalPromptTaskType,
   LocalPromptType,
   RunEntityReferenceEntityTypeEnum,
   type RunEntityReference,
-} from '../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import { createTestOAuthClient } from '../auth/oauth-client.test-support';
 import { NOOP_LOGGER } from '../server/logger';
 import { SubmissionToolAuth } from '../agents/submission-tools/submission-tool-auth';
@@ -30,7 +31,7 @@ import type {
   LoadedEntityPromptContext,
 } from '../agents/entity-context/types';
 import type { ReportChainEntry } from '../run/types';
-import type { ReportDto, ReportPayload } from '../shared/api/generated/api';
+import type { ReportDto, ReportPayload } from '@hey-hey/contracts/api/models';
 import { EntityReportReader } from './entity-report-reader';
 import type { EntityPromptTemplatesApiClient } from './agent-startup-prompt-input';
 import {
@@ -88,7 +89,7 @@ const loadedWorkItem = (type = 'CUSTOM_REVIEW'): ExistingLoadedEntityPromptConte
 const agentSession = (): AgentSessionDto => ({
   id: 'entity-1',
   organizationId: 'organization-1',
-  projectId: 'project-1',
+  projectId: asProjectId('project-1'),
   userId: 'user-1',
   status: AgentSessionStatus.InProgress,
   currentState: AgentSessionCurrentState.Idle,

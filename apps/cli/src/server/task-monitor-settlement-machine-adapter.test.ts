@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ReportType } from '../shared/api/generated/api';
+import { ReportType } from '@hey-hey/contracts/api/models';
 import { NOOP_LOGGER } from './logger';
 import type { CanonicalSettledTurnMonitorEvent } from './monitors/normalizer';
 import type { PlatformAuth } from './platform-auth-context';

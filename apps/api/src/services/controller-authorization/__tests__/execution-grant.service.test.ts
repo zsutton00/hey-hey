@@ -12,7 +12,7 @@ import {
   HostActionPreparation,
   HostActionTargetKind,
   HostAffectingActionType,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { canonicalizeJcs } from '../../../core/websockets/trigger-canonicalization';
 import { PrismaService } from '../../../prisma/prisma.service';
 import {

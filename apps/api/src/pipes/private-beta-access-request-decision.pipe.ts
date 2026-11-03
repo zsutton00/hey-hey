@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, PipeTransform } from '@nestjs/common';
 import Ajv, { type ValidateFunction } from 'ajv';
-import type { PrivateBetaAccessRequestDecisionInputDto } from '../generated';
+import type { PrivateBetaAccessRequestDecisionInputDto } from '@hey-hey/contracts/api/models';
 import { privateBetaAccessRequestDecisionInputJsonSchema } from '../generated/private-beta-access-request-decision.schema';
 
 const ajv = new Ajv({

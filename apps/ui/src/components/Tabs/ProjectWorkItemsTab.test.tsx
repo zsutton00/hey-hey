@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import LayersIcon from "@mui/icons-material/Layers";
-import { WorkStatus } from "@hey-hey/ui-common/api";
+import { WorkStatus } from "@hey-hey/contracts/api";
 import { useWorkItems } from "@hey-hey/ui-common/data";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -62,7 +62,9 @@ vi.mock("../CardHeader", () => ({
 }));
 
 vi.mock("./TabContainer", () => ({
-  TabContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  TabContainer: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
 }));
 
 const mockUseWorkItems = vi.mocked(useWorkItems);

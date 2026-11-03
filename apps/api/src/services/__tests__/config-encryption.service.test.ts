@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigEncryptionService } from '../config-encryption.service';
 import { KeyProviderFactory } from '../encryption/key-provider.factory';
 import { HkdfKeyProvider } from '../encryption/hkdf-key-provider';
-import { IntegrationType } from '../../generated';
+import { IntegrationType } from '@hey-hey/contracts/api/models';
 import { OrganizationId } from '../../types';
 
 describe('ConfigEncryptionService', () => {

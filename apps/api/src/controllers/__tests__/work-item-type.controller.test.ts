@@ -1,4 +1,4 @@
-import { SessionRole } from '../../generated/model/sessionRole';
+import { SessionRole } from '@hey-hey/contracts/api/models';
 import { ProjectAccessGuard } from '../../auth/guards/project-access.guard';
 import { ProjectService } from '../../services/project.service';
 import {
@@ -24,12 +24,12 @@ import {
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { OrganizationGuard } from '../../auth/guards/organization.guard';
-import { WorkItemTypeLifecycleStatus } from '../../generated/model/workItemTypeLifecycleStatus';
-import type { WorkItemTypeDefinitionDto } from '../../generated/model/workItemTypeDefinitionDto';
-import { WorkItemTypeGuidancePurpose } from '../../generated/model/workItemTypeGuidancePurpose';
-import type { WorkItemTypeSummaryDto } from '../../generated/model/workItemTypeSummaryDto';
-import { WorkItemTypeEffectiveSource } from '../../generated/model/workItemTypeEffectiveSource';
-import { WorkStatus } from '../../generated/model/workStatus';
+import { WorkItemTypeLifecycleStatus } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeDefinitionDto } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeGuidancePurpose } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeSummaryDto } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeEffectiveSource } from '@hey-hey/contracts/api/models';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import type { AuthenticatedUser } from '../../auth/strategies/jwt.strategy';
 import { ProposalService } from '../../services/proposal/proposal.service';
 import {

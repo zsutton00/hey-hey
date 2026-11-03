@@ -21,7 +21,7 @@ import type {
   FutureRevisionContent,
   FutureRevisionUpdate,
   WorkItemGraphLayoutValue,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId } from 'src/types';
 
 describe('future Diagram graph round trip through the generic projector', () => {

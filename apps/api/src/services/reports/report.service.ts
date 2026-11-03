@@ -89,7 +89,7 @@ import {
   ReportType,
   SessionMonitorReportGuidance,
   UpdateReportDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { REPORT_SCHEMAS } from 'src/mcp/tools/report-schemas.generated';

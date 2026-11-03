@@ -5,7 +5,7 @@ import {
   CurrentUser,
 } from '../auth/decorators/current-user.decorator';
 import { OrganizationGuard } from '../auth/guards/organization.guard';
-import { AgentOperationSnapshot } from '../generated';
+import { AgentOperationSnapshot } from '@hey-hey/contracts/api/models';
 import { AgentOperationRegistryService } from '../services/agent-operation/agent-operation-registry.service';
 import { OrganizationId, ProjectId, UserId } from '../types';
 

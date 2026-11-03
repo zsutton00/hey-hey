@@ -54,7 +54,7 @@ import {
   FlowNodeQueueJob,
   NonInteractiveFlowNodeQueueJob,
 } from 'src/services/interfaces/job-enqueuer.interface';
-import { ConversationStatus } from 'src/generated/model/conversationStatus';
+import { ConversationStatus } from '@hey-hey/contracts/api/models';
 import { OrganizationId, PlanId } from 'src/types';
 import { errorToLoggable } from 'src/utils/logging.util';
 import { DomainEventPublisher } from '../events/domain-event-publisher';
@@ -92,7 +92,7 @@ import { NotificationService } from 'src/services/notifications/notification.ser
 import { AgentSessionService } from 'src/services/agent-session.service';
 import { ReportService } from 'src/services/reports/report.service';
 import { ProjectReportSessionOutcomeListener } from 'src/services/project-reports/project-report-session-outcome.listener';
-import { SystemMessageData, UIElement } from 'src/generated';
+import { SystemMessageData, UIElement } from '@hey-hey/contracts/api/models';
 
 /**
  * Job Processor handles the actual processing of jobs and related events.

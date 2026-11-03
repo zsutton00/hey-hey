@@ -16,7 +16,7 @@ import {
   CreateServiceDto,
   ServiceLinkDto,
   UpdateServiceDto,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { OrganizationId, ProjectId, ServiceId } from '../../../types';
 import * as TestUtils from '../../../utils/testUtils';
 import { DomainEventPublisher } from '../../../core/events/domain-event-publisher';

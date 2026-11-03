@@ -25,10 +25,10 @@ import {
   DesignDocResponseDto,
   MaterializedDesignDocSection,
   UpdateDesignDocDto,
-} from 'src/generated';
-import { CreateDesignDocLinkDto } from 'src/generated/model/createDesignDocLinkDto';
-import { DesignDocLinkEntityType } from 'src/generated/model/designDocLinkEntityType';
-import { DesignDocLinkResponseDto } from 'src/generated/model/designDocLinkResponseDto';
+} from '@hey-hey/contracts/api/models';
+import { CreateDesignDocLinkDto } from '@hey-hey/contracts/api/models';
+import { DesignDocLinkEntityType } from '@hey-hey/contracts/api/models';
+import { DesignDocLinkResponseDto } from '@hey-hey/contracts/api/models';
 import {
   DesignDocSectionRecord,
   DesignDocTemplateType,

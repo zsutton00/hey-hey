@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { z } from 'zod';
-import { ExtendedUIFieldType } from 'src/generated';
+import { ExtendedUIFieldType } from '@hey-hey/contracts/api/models';
 import {
   FlowUserMessage,
   MutableContextHandle,

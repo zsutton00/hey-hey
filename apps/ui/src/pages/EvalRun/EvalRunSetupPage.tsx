@@ -27,7 +27,7 @@ import {
   type ConversationStartRunRequestDtoProviderEnum,
   type ConversationStartRunRequestDtoReasoningEffortEnum,
   type EvalModelSetting,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   RuntimeModelSelector,
   listEfforts,

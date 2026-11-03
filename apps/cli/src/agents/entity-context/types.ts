@@ -4,7 +4,7 @@ import type {
   FullEntityContextDto,
   ProjectResponseDto,
   TaskResponseDto,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { RunEntityReference } from '../../shared/agent-bridge-contract/contract';
 
 export type CurrentEntityDto =

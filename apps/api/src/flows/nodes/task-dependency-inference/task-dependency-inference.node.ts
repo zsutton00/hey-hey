@@ -12,7 +12,7 @@ import {
   ProcessLlmResult,
   TaskDependencyInferenceFlowContext,
 } from 'src/types/flow-internal.types';
-import { SystemMessageData } from 'src/generated';
+import { SystemMessageData } from '@hey-hey/contracts/api/models';
 import { ClaudeModel, LLMProviderName } from 'src/services/llm/llm-shared';
 import { TaskId } from 'src/types';
 import { materializedSectionsToContentMap } from 'src/utils/work-item-section.util';

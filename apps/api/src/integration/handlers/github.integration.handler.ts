@@ -14,7 +14,7 @@ import {
   Priority,
   IssueData,
   GitHubWebhookAcceptedEvent,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { DomainEventPublisher } from '../../core/events/domain-event-publisher';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ArtifactService } from '../../services/artifacts/artifact.service';
@@ -835,9 +835,7 @@ export class GitHubIntegrationHandler extends BaseIntegrationHandler<
         ? (mergedBy as Record<string, unknown>).login
         : undefined;
     const mergedByLogin =
-      typeof mergedByLoginValue === 'string'
-        ? mergedByLoginValue
-        : null;
+      typeof mergedByLoginValue === 'string' ? mergedByLoginValue : null;
     if (
       !Number.isInteger(pullRequest.id) ||
       !Number.isInteger(pullRequest.number) ||

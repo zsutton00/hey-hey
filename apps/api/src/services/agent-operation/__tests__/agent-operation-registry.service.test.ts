@@ -17,7 +17,7 @@ import type {
 import {
   BoundedGrantReference,
   ControllerAssertionEvidence,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 
 describe('AgentOperationRegistryService', () => {
   it.each([

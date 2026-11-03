@@ -1,5 +1,5 @@
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
-import type { ProjectReportScope, ProjectReportSubject } from '../../shared/api/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import type { ProjectReportScope, ProjectReportSubject } from '@hey-hey/contracts/api/models';
 import { PROJECT_REPORT_SECTION_MCP_TOOLS } from '../mcp-server-config';
 import type { PromptTypeHandler } from '../prompt-type-handler';
 import { READ_EVIDENCE_SHARD_TOOL_NAME } from '../submission-tools/read-evidence-shard-tool';

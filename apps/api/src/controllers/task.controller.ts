@@ -51,7 +51,7 @@ import {
   WorkItemGraphAggregateResponseDto,
   WorkItemGraphParticipationType,
   WorkStatus,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { RelationshipType } from 'src/generated/graphs/model/relationshipType';
 import { TaskService } from '../services/tasks/task.service';
 import { GoalTracksService } from '../services/tasks/goal-tracks.service';

@@ -1,4 +1,4 @@
-import { EntityType } from 'src/generated';
+import { EntityType } from '@hey-hey/contracts/api/models';
 import type { PrismaService } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId } from 'src/types';
 import type { WorkItemTypeRegistryService } from '../../tasks/work-item-type-registry.service';

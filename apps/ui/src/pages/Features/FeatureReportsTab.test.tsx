@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ReportType, type ReportDto } from "@hey-hey/ui-common/api";
+import { ReportType, type ReportDto } from "@hey-hey/contracts/api";
 
 const mockUseProjectReports = vi.fn();
 
@@ -16,7 +16,10 @@ interface ReportCardMockProps {
 
 vi.mock("@hey-hey/ui-common/components", () => ({
   ReportCard: ({ report }: ReportCardMockProps) => (
-    <div data-testid={`report-card-${report.id}`} data-report-type={report.reportType}>
+    <div
+      data-testid={`report-card-${report.id}`}
+      data-report-type={report.reportType}
+    >
       <span data-testid={`report-title-${report.id}`}>{report.title}</span>
       <span data-testid={`report-text-${report.id}`}>
         {(report.payload as { text?: string }).text ?? ""}
@@ -101,16 +104,22 @@ describe("FeatureReportsTab", () => {
     renderComponent();
 
     const treeCard = screen.getByTestId("report-card-report-tree-1");
-    expect(treeCard).toHaveAttribute("data-report-type", "FEATURE_TREE_ANALYSIS");
-    expect(
-      screen.getByTestId("report-text-report-tree-1"),
-    ).toHaveTextContent("@[feature:abc|Plans]");
+    expect(treeCard).toHaveAttribute(
+      "data-report-type",
+      "FEATURE_TREE_ANALYSIS",
+    );
+    expect(screen.getByTestId("report-text-report-tree-1")).toHaveTextContent(
+      "@[feature:abc|Plans]",
+    );
 
     const compCard = screen.getByTestId("report-card-report-comp-1");
-    expect(compCard).toHaveAttribute("data-report-type", "COMPETITIVE_ANALYSIS");
-    expect(
-      screen.getByTestId("report-text-report-comp-1"),
-    ).toHaveTextContent("@[feature:xyz|Onboarding]");
+    expect(compCard).toHaveAttribute(
+      "data-report-type",
+      "COMPETITIVE_ANALYSIS",
+    );
+    expect(screen.getByTestId("report-text-report-comp-1")).toHaveTextContent(
+      "@[feature:xyz|Onboarding]",
+    );
   });
 
   it("renders the empty state when no reports are returned", () => {
@@ -130,10 +139,7 @@ describe("FeatureReportsTab", () => {
       "org-1",
       "project-1",
       expect.objectContaining({
-        types: [
-          ReportType.FeatureTreeAnalysis,
-          ReportType.CompetitiveAnalysis,
-        ],
+        types: [ReportType.FeatureTreeAnalysis, ReportType.CompetitiveAnalysis],
         sortBy: "createdAt",
         sortOrder: "DESC",
       }),

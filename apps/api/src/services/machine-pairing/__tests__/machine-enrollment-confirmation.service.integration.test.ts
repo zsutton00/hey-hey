@@ -14,7 +14,7 @@ import {
   ConfirmMachineEnrollmentRequestDto,
   MachineEnrollmentConfirmationPayloadDto,
   PollMachineEnrollmentRequestDto,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { OrganizationId, UserId } from '../../../types';
 import { MachineEnrollmentConfirmationService } from '../machine-enrollment-confirmation.service';

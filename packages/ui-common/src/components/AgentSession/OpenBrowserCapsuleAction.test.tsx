@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ActionsCapsuleProvider } from "../ActionsCapsule/ActionsCapsuleProvider";
 import { useActionsCapsule } from "../ActionsCapsule/ActionsCapsuleContext";
-import { LocalRunBrowserOpenErrorCode } from "../../local-agent-api/generated/api";
+import { LocalRunBrowserOpenErrorCode } from "@hey-hey/contracts/local";
 import { OpenBrowserCapsuleAction } from "./OpenBrowserCapsuleAction";
 import { LocalRunBrowserOpenError } from "./runtime/directoryBindingApi";
 
@@ -12,9 +12,8 @@ const listRepos = vi.fn();
 const openRunBrowserTab = vi.fn();
 
 vi.mock("./runtime/directoryBindingApi", async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import("./runtime/directoryBindingApi")
-  >();
+  const actual =
+    await importOriginal<typeof import("./runtime/directoryBindingApi")>();
   return {
     ...actual,
     resolveLocalDirectoryRuntimeBaseUrl: () => "http://localhost:3847",
@@ -34,7 +33,7 @@ let latest: RegisteredAction | undefined;
 const ActionsHarness: React.FC = () => {
   const ctx = useActionsCapsule();
   latest = (ctx.actions as unknown as RegisteredAction[]).find(
-    (action) => action.id === "open-browser"
+    (action) => action.id === "open-browser",
   );
   return null;
 };
@@ -47,7 +46,7 @@ const renderAction = (props: {
     <ActionsCapsuleProvider>
       <OpenBrowserCapsuleAction {...props} order={35} />
       <ActionsHarness />
-    </ActionsCapsuleProvider>
+    </ActionsCapsuleProvider>,
   );
 
 beforeEach(() => {
@@ -97,8 +96,8 @@ describe("OpenBrowserCapsuleAction", () => {
     openRunBrowserTab.mockRejectedValue(
       new LocalRunBrowserOpenError(
         "off",
-        LocalRunBrowserOpenErrorCode.SharedBrowserDisabled
-      )
+        LocalRunBrowserOpenErrorCode.SharedBrowserDisabled,
+      ),
     );
     renderAction({ runId: "run-1", sessionMachineId: "machine-1" });
 
@@ -109,8 +108,8 @@ describe("OpenBrowserCapsuleAction", () => {
 
     await waitFor(() =>
       expect(latest?.feedback?.reason).toBe(
-        "The shared browser is turned off on this computer."
-      )
+        "The shared browser is turned off on this computer.",
+      ),
     );
     expect(latest?.feedback?.retryable).toBe(true);
     expect(latest?.disabled).toBe(false);

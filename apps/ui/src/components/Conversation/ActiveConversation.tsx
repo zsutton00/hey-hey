@@ -3,8 +3,8 @@ import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals
 import {
   ConversationStatus as ConversationStatusEnum,
   InitiationType,
-} from "@hey-hey/ui-common/api";
-import type { CreateConversationDto } from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
+import type { CreateConversationDto } from "@hey-hey/contracts/api";
 import {
   ConversationViewer,
   DISABLED_CONVERSATION_SCROLL_POLICY,

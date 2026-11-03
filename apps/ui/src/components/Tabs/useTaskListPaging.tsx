@@ -1,5 +1,5 @@
 import { Box, Pagination, type PaginationProps } from "@mui/material";
-import type { TaskSortBy, TaskSortDir } from "@hey-hey/ui-common/api";
+import type { TaskSortBy, TaskSortDir } from "@hey-hey/contracts/api";
 import {
   parseAsInteger,
   parseAsString,

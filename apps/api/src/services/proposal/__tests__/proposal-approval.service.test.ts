@@ -4,7 +4,7 @@ import { WorkItemParentageValidator } from '../../tasks/work-item-parentage-vali
 import { WorkItemChangeSetProjectorService } from '../work-item-change-set-projector.service';
 import { ProposalValidationEngine } from '../proposal-validation.engine';
 import { AgentEdgeClientService } from '../../agent-edge-client.service';
-import type { CreateProposalDto } from 'src/generated';
+import type { CreateProposalDto } from '@hey-hey/contracts/api/models';
 import { ProposalReconciliationService } from '../proposal-reconciliation.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as futureRevisions from '../future-revision';
@@ -29,8 +29,8 @@ import { InitiativeService } from '../../initiatives/initiative.service';
 import { InfluenceService } from '../../influence/influence.service';
 import { DOMAIN_EVENT_PUBLISHER_TOKEN } from '../../../core/events/tokens';
 import { EVENT_TYPES } from '../../../core/events/types/event.types';
-import { ProposalApprovedEventPayload } from '../../../generated/model/proposalApprovedEventPayload';
-import { WorkStatus } from '../../../generated/model/workStatus';
+import { ProposalApprovedEventPayload } from '@hey-hey/contracts/api/models';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import {
   PendingEdgeService,
   SERVICE_TOKEN_FACTORY,
@@ -39,8 +39,8 @@ import { ConversationWorkflowService } from '../../workflows/conversation-workfl
 import { PlanFromDesignDocLauncherService } from '../../plan/plan-from-design-doc-launcher.service';
 import { MentionProcessingService } from '../../mentions/mention-processing.service';
 import { TEMPORAL_CLIENT } from '../../../prisma/temporal.module';
-import { MentionCreatedEventPayload } from '../../../generated/model/mentionCreatedEventPayload';
-import { MentionRemovedEventPayload } from '../../../generated/model/mentionRemovedEventPayload';
+import { MentionCreatedEventPayload } from '@hey-hey/contracts/api/models';
+import { MentionRemovedEventPayload } from '@hey-hey/contracts/api/models';
 import * as TestUtils from '../../../utils/testUtils';
 import * as permissionEvaluation from '../permission-evaluation';
 import type { AnyTransactionClient } from '../../../prisma/prisma.service';

@@ -31,175 +31,177 @@ export const REPORT_SCHEMAS = {
             },
           },
         },
-      ],
-      type: 'object',
-      required: ['reportType', 'summary', 'targetRunId', 'groups'],
-      properties: {
-        reportType: {
-          type: 'string',
-          enum: ['CHANGE_WALKTHROUGH'],
-        },
-        summary: {
-          type: 'string',
-        },
-        targetRunId: {
-          type: 'string',
-          format: 'uuid',
-          description:
-            'Host-stamped reviewed Run identity whose resolved Service workspaces supply source authority.',
-        },
-        groups: {
-          type: 'array',
-          items: {
-            type: 'object',
-            required: ['title', 'changes'],
-            properties: {
-              title: {
-                type: 'string',
-              },
-              changes: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  required: [
-                    'title',
-                    'context',
-                    'walkthrough',
-                    'behavioralConsequence',
-                  ],
-                  properties: {
-                    title: {
-                      type: 'string',
-                    },
-                    context: {
-                      type: 'string',
-                    },
-                    walkthrough: {
-                      type: 'array',
-                      items: {
-                        type: 'object',
-                        required: ['excerpt', 'explanation'],
-                        properties: {
-                          excerpt: {
+        {
+          type: 'object',
+          required: ['reportType', 'summary', 'targetRunId', 'groups'],
+          properties: {
+            reportType: {
+              type: 'string',
+              enum: ['CHANGE_WALKTHROUGH'],
+            },
+            summary: {
+              type: 'string',
+            },
+            targetRunId: {
+              type: 'string',
+              format: 'uuid',
+              description:
+                'Host-stamped reviewed Run identity whose resolved Service workspaces supply source authority.',
+            },
+            groups: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['title', 'changes'],
+                properties: {
+                  title: {
+                    type: 'string',
+                  },
+                  changes: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      required: [
+                        'title',
+                        'context',
+                        'walkthrough',
+                        'behavioralConsequence',
+                      ],
+                      properties: {
+                        title: {
+                          type: 'string',
+                        },
+                        context: {
+                          type: 'string',
+                        },
+                        walkthrough: {
+                          type: 'array',
+                          items: {
                             type: 'object',
-                            required: [
-                              'serviceId',
-                              'file',
-                              'startLine',
-                              'endLine',
-                              'language',
-                              'code',
-                              'sourceVersion',
-                              'verification',
-                            ],
+                            required: ['excerpt', 'explanation'],
                             properties: {
-                              serviceId: {
-                                type: 'string',
-                                format: 'uuid',
-                              },
-                              file: {
-                                type: 'string',
-                                minLength: 1,
-                                description:
-                                  'Normalized repository-relative POSIX path with no absolute, dot, parent, empty or backslash segments. Invalid references are retained as UNRESOLVED.',
-                              },
-                              startLine: {
-                                type: 'integer',
-                                minimum: 1,
-                              },
-                              endLine: {
-                                type: 'integer',
-                                minimum: 1,
-                                description:
-                                  'Inclusive end, at least startLine. Invalid ranges are UNRESOLVED.',
-                              },
-                              language: {
-                                type: 'string',
-                              },
-                              code: {
-                                type: 'string',
-                                description:
-                                  'Exact literal lines joined with newline, excluding the final line separator.',
-                              },
-                              sourceVersion: {
-                                oneOf: [
-                                  {
-                                    type: 'object',
-                                    additionalProperties: false,
-                                    required: ['kind'],
-                                    properties: {
-                                      kind: {
-                                        type: 'string',
-                                        enum: ['WORKSPACE'],
-                                      },
-                                    },
-                                  },
-                                  {
-                                    type: 'object',
-                                    additionalProperties: false,
-                                    required: ['kind', 'revision'],
-                                    properties: {
-                                      kind: {
-                                        type: 'string',
-                                        enum: ['GIT'],
-                                      },
-                                      revision: {
-                                        type: 'string',
-                                        pattern:
-                                          '^[0-9a-f]{40}([0-9a-f]{24})?$',
-                                        description:
-                                          'Immutable full Git commit object ID.',
-                                      },
-                                    },
-                                  },
+                              excerpt: {
+                                type: 'object',
+                                required: [
+                                  'serviceId',
+                                  'file',
+                                  'startLine',
+                                  'endLine',
+                                  'language',
+                                  'code',
+                                  'sourceVersion',
+                                  'verification',
                                 ],
+                                properties: {
+                                  serviceId: {
+                                    type: 'string',
+                                    format: 'uuid',
+                                  },
+                                  file: {
+                                    type: 'string',
+                                    minLength: 1,
+                                    description:
+                                      'Normalized repository-relative POSIX path with no absolute, dot, parent, empty or backslash segments. Invalid references are retained as UNRESOLVED.',
+                                  },
+                                  startLine: {
+                                    type: 'integer',
+                                    minimum: 1,
+                                  },
+                                  endLine: {
+                                    type: 'integer',
+                                    minimum: 1,
+                                    description:
+                                      'Inclusive end, at least startLine. Invalid ranges are UNRESOLVED.',
+                                  },
+                                  language: {
+                                    type: 'string',
+                                  },
+                                  code: {
+                                    type: 'string',
+                                    description:
+                                      'Exact literal lines joined with newline, excluding the final line separator.',
+                                  },
+                                  sourceVersion: {
+                                    oneOf: [
+                                      {
+                                        type: 'object',
+                                        additionalProperties: false,
+                                        required: ['kind'],
+                                        properties: {
+                                          kind: {
+                                            type: 'string',
+                                            enum: ['WORKSPACE'],
+                                          },
+                                        },
+                                      },
+                                      {
+                                        type: 'object',
+                                        additionalProperties: false,
+                                        required: ['kind', 'revision'],
+                                        properties: {
+                                          kind: {
+                                            type: 'string',
+                                            enum: ['GIT'],
+                                          },
+                                          revision: {
+                                            type: 'string',
+                                            pattern:
+                                              '^[0-9a-f]{40}([0-9a-f]{24})?$',
+                                            description:
+                                              'Immutable full Git commit object ID.',
+                                          },
+                                        },
+                                      },
+                                    ],
+                                  },
+                                  verification: {
+                                    description:
+                                      'Host-computed evidence at submission time. Revalidate before opening current source.',
+                                    oneOf: [
+                                      {
+                                        type: 'object',
+                                        additionalProperties: false,
+                                        required: ['status', 'checkedAt'],
+                                        properties: {
+                                          status: {
+                                            type: 'string',
+                                            enum: ['VERIFIED'],
+                                          },
+                                          checkedAt: {
+                                            type: 'string',
+                                            format: 'date-time',
+                                          },
+                                        },
+                                      },
+                                      {
+                                        type: 'object',
+                                        additionalProperties: false,
+                                        required: ['status', 'reason'],
+                                        properties: {
+                                          status: {
+                                            type: 'string',
+                                            enum: ['UNRESOLVED'],
+                                          },
+                                          reason: {
+                                            type: 'string',
+                                            minLength: 1,
+                                          },
+                                        },
+                                      },
+                                    ],
+                                  },
+                                },
                               },
-                              verification: {
-                                description:
-                                  'Host-computed evidence at submission time. Revalidate before opening current source.',
-                                oneOf: [
-                                  {
-                                    type: 'object',
-                                    additionalProperties: false,
-                                    required: ['status', 'checkedAt'],
-                                    properties: {
-                                      status: {
-                                        type: 'string',
-                                        enum: ['VERIFIED'],
-                                      },
-                                      checkedAt: {
-                                        type: 'string',
-                                        format: 'date-time',
-                                      },
-                                    },
-                                  },
-                                  {
-                                    type: 'object',
-                                    additionalProperties: false,
-                                    required: ['status', 'reason'],
-                                    properties: {
-                                      status: {
-                                        type: 'string',
-                                        enum: ['UNRESOLVED'],
-                                      },
-                                      reason: {
-                                        type: 'string',
-                                        minLength: 1,
-                                      },
-                                    },
-                                  },
-                                ],
+                              explanation: {
+                                type: 'string',
                               },
                             },
                           },
-                          explanation: {
-                            type: 'string',
-                          },
+                        },
+                        behavioralConsequence: {
+                          type: 'string',
                         },
                       },
-                    },
-                    behavioralConsequence: {
-                      type: 'string',
                     },
                   },
                 },
@@ -207,7 +209,7 @@ export const REPORT_SCHEMAS = {
             },
           },
         },
-      },
+      ],
     },
   },
   CODING_RESEARCH: {
@@ -2291,14 +2293,6 @@ export const REPORT_SCHEMAS = {
               ],
               not: {
                 type: 'object',
-                properties: {
-                  decisionGroups: {
-                    type: 'array',
-                  },
-                  schemaVersion: {
-                    type: 'integer',
-                  },
-                },
                 anyOf: [
                   {
                     required: ['decisionGroups'],
@@ -2415,17 +2409,6 @@ export const REPORT_SCHEMAS = {
               required: ['reportType', 'decisionGroups'],
               not: {
                 type: 'object',
-                properties: {
-                  discrepancies: {
-                    type: 'array',
-                  },
-                  reconciliationOptions: {
-                    type: 'array',
-                  },
-                  schemaVersion: {
-                    type: 'integer',
-                  },
-                },
                 anyOf: [
                   {
                     required: ['discrepancies'],

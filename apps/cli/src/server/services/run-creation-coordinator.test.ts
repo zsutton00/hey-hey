@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { StagedBrowserTabNotFoundError } from '../../browser/run-tabs';
 import type { LocalCreateRunRequest } from '../../shared/agent-bridge-contract/contract';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { NOOP_LOGGER } from '../logger';
 import { RunCreationCoordinator } from './run-creation-coordinator';
 

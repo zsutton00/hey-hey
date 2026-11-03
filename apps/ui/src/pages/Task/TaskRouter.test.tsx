@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WORK_ITEM_TYPE_KEYS } from "../../types/workItemTypes";
-import type { WorkItemTypeDefinitionDto } from "@hey-hey/ui-common/api";
+import type { WorkItemTypeDefinitionDto } from "@hey-hey/contracts/api";
 
 const mockNavigate = vi.fn();
 const mockPlanPage = vi.fn();

@@ -1,4 +1,4 @@
-import { SessionRole } from '../../generated/model/sessionRole';
+import { SessionRole } from '@hey-hey/contracts/api/models';
 import Ajv from 'ajv';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -17,8 +17,8 @@ import { CREATE_WORK_ITEM_TYPE_TOOL_DESCRIPTION } from '../tools/work-item-type-
 import { PROPOSAL_TOOL_NAMES } from '../tools/proposal-tool-names';
 import type { ProposalService } from '../../services/proposal/proposal.service';
 import type { WorkItemTypeRegistryService } from '../../services/tasks/work-item-type-registry.service';
-import { WorkItemTypeEffectiveSource } from '../../generated/model/workItemTypeEffectiveSource';
-import { WorkItemTypeLifecycleStatus } from '../../generated/model/workItemTypeLifecycleStatus';
+import { WorkItemTypeEffectiveSource } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeLifecycleStatus } from '@hey-hey/contracts/api/models';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import { AdminGuard } from '../../auth/guards/admin.guard';

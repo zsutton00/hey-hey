@@ -3,11 +3,8 @@ import {
   LocalReasoningEffort,
   LocalRunProvider,
 } from '../../../shared/agent-bridge-contract/contract';
-import { SessionMethod } from '../../../shared/agent-bridge-contract/generated';
-import {
-  ReportType,
-  type ReportType as CanonicalReportType,
-} from '../../../shared/api/generated/api';
+import { SessionMethod } from '@hey-hey/contracts/agent-bridge';
+import { ReportType, type ReportType as CanonicalReportType } from '@hey-hey/contracts/api/models';
 import type { CanonicalMonitorEvent } from '../normalizer';
 import { EveryEventGate } from '../rules/gate';
 import { sessionMonitorSubscribe } from '../rules/subscribe';

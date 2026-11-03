@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   RunEntityReferenceEntityTypeEnum,
   LocalPromptTaskType,
-} from '../../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import { buildProjectAssistantPrompt as buildPromptContract } from '../../prompts/project-assistant';
 import type { AgentProviderId } from '../../providers/provider-config';
 import type { ProjectAssistantPolicy } from '../../prompt-type-handler';

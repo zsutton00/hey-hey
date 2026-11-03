@@ -9,7 +9,7 @@ import {
 } from '../normalizer';
 import { DailySessionMonitor } from './daily-session';
 import { DEFAULT_DAILY_SESSION_LAUNCH } from '../daily-session-settings';
-import { ReportType } from '../../../shared/api/generated/api';
+import { ReportType } from '@hey-hey/contracts/api/models';
 import {
   SESSION_MONITOR_REPORT_TYPE_SUBSCRIPTION,
   SESSION_MONITOR_RUN_CONFIG,

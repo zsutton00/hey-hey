@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { PassThroughSubmissionToolDeclaration } from '../agents/submission-tools/types';
 import { ReportType } from '../shared/api/index';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { ReportChainEntry } from './types';
 import { createTestRun } from './run.test-support';
 import { emitChangedWorkspaceImplementReportIfNeeded } from './open-implement-report';

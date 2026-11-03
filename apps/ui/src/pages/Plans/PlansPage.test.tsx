@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { WorkStatus, TaskSource } from "@hey-hey/ui-common/api";
+import { WorkStatus, TaskSource } from "@hey-hey/contracts/api";
 import type { PlanWorkItem } from "@hey-hey/ui-common/data";
 import { PlansPage } from "./PlansPage";
 
@@ -55,7 +55,7 @@ vi.mock("../../components/CreatePlanDialog", () => ({
 function buildPlan(
   id: string,
   title: string,
-  status: WorkStatus
+  status: WorkStatus,
 ): PlanWorkItem {
   return {
     id,
@@ -75,7 +75,7 @@ const renderPage = () =>
       <Routes>
         <Route path="/projects/:projectId/plans" element={<PlansPage />} />
       </Routes>
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 
 beforeEach(() => {
@@ -132,7 +132,7 @@ describe("PlansPage lifecycle presentation", () => {
     expect(screen.queryByText("Active plan")).not.toBeInTheDocument();
     expect(screen.queryByText("Completed plan")).not.toBeInTheDocument();
     expect(
-      screen.queryByText("Continue the active work")
+      screen.queryByText("Continue the active work"),
     ).not.toBeInTheDocument();
   });
 

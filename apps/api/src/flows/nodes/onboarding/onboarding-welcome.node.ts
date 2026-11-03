@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ContextResolutionService } from '../../../context/services/context-resolution.service';
 import { ContextType, ContextScope } from '../../../context/interfaces';
-import { OrganizationRole } from '../../../generated';
+import { OrganizationRole } from '@hey-hey/contracts/api/models';
 import { FeatureFlagService } from '../../../services/feature-flag/feature-flag.service';
 import { ONBOARDING_NODES } from '../../constants/node-ids';
 import {

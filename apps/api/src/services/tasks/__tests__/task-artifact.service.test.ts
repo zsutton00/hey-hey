@@ -4,7 +4,10 @@ import {
   TaskOriginalData,
 } from '../task-artifact.service';
 import { ArtifactService } from '../../artifacts/artifact.service';
-import { ArtifactResponseDto, ArtifactType } from '../../../generated';
+import {
+  ArtifactResponseDto,
+  ArtifactType,
+} from '@hey-hey/contracts/api/models';
 import { OrganizationId, ProjectId, TaskId } from '../../../types';
 import { createServiceTestingModule } from '../../../../test/setup/testing-module.factory';
 

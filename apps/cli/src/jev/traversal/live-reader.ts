@@ -1,14 +1,12 @@
 import { restrictedConfiguration } from '../../shared/api/read-restriction';
 import { z } from 'zod';
+import { ConversationsApi, EntityContextApi, ImplementationHintsApi } from '@hey-hey/contracts/api';
 import {
-  ConversationsApi,
-  EntityContextApi,
   EntityType,
-  ImplementationHintsApi,
   type ImplementationHintDto,
   type MessageRecordDto,
   type ReadRestriction,
-} from '../../shared/api/generated';
+} from '@hey-hey/contracts/api/models';
 import type { EntitySource } from './entity-source';
 import type { LoadEntitySource } from './graph-reader';
 import type { EntityRef } from './types';

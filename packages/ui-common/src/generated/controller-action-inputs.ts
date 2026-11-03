@@ -4,7 +4,7 @@ import type {
   ControllerStartInputs,
   ControllerMessageInputs,
   UserMessageData,
-} from "../api";
+} from "@hey-hey/contracts/api/models";
 /** Build the delivered start payload before approval. Keep this mapping shared
  * with the API producer, so newly introduced execution inputs have one owner. */
 export function startControllerInputs(

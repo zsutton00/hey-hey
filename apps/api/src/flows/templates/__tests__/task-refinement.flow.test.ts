@@ -8,7 +8,7 @@ import {
 } from '../../../types/flow-internal.types';
 import { TaskService } from '../../../services/tasks/task.service';
 import { WorkItemTypeRegistryService } from '../../../services/tasks/work-item-type-registry.service';
-import { WorkStatus } from '../../../generated';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { TASK_REFINEMENT_NODES } from '../../constants';
 import { TaskRefinementWelcomeNode } from '../../nodes/task-refinement/welcome.node';
 import { createMutableContextHandle } from '../../../utils/mutable-context';

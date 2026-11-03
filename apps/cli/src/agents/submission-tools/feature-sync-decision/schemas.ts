@@ -4,7 +4,7 @@ import {
   type FeatureSyncDecisionGroup,
   type FeatureSyncDecisionReportPayloadV1,
   type FeatureSyncDecisionReportPayloadV2,
-} from '../../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { SubmissionToolExecuteContext } from '../types';
 
 const textSchema = z.string().min(1);

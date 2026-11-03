@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createTestRun } from '../../run/run.test-support';
-import { RunEntityReferenceEntityTypeEnum } from '../../shared/agent-bridge-contract/generated/api';
+import { RunEntityReferenceEntityTypeEnum } from '@hey-hey/contracts/agent-bridge';
 import type { Turn } from '../../turn/turn';
 import type { ProjectAssistantPolicy } from '../prompt-type-handler';
 import {

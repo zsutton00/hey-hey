@@ -10,7 +10,7 @@ import {
   type LocalRunBrowserOpenErrorResponse,
   type LocalRunBrowserOpenRequest,
   type LocalRunBrowserOpenSuccessResponse,
-} from '../../shared/local-agent-api/generated/api';
+} from '@hey-hey/contracts/local';
 import { NOOP_LOGGER, type ServerLogger } from '../logger';
 import { browserStartPageUrl } from './browser-start-page';
 import type { RunReadRestoreCoordinator } from '../restore-persisted-runs';

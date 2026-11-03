@@ -21,7 +21,7 @@ import {
   ArtifactData,
   SystemMessageData,
   UserMessageData,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 
 export const idBrandingExtension = Prisma.defineExtension({
   name: 'idBranding',

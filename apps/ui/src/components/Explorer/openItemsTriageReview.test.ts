@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { OpenItemsTriageMode } from "@hey-hey/ui-common/api";
+import { OpenItemsTriageMode } from "@hey-hey/contracts/api";
 import type { OpenItemsTriageRunOptions } from "@hey-hey/ui-common/components";
 import {
   initialTriageReview,

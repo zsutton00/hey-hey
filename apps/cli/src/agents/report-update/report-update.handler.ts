@@ -14,7 +14,7 @@ import type { AssistantCompleteEvent } from '../../run/types';
 import { type UpdateReportDto } from '../../shared/api/index';
 import { buildReportUpdatePrompt } from '../prompts/report-update';
 import { parseReportUpdateResponseFromText } from '../response-parser';
-import type { OtherReportPayload } from '../../shared/api/generated';
+import type { OtherReportPayload } from '@hey-hey/contracts/api/models';
 
 const SESSION_CONTEXT_KEY = 'reportUpdateTargetId';
 

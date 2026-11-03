@@ -4,8 +4,8 @@ import {
   ProposalAction,
   ProposalType,
   TargetEntityType,
-} from '../shared/api/generated';
-import type { ImplementationReadinessPayload } from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
+import type { ImplementationReadinessPayload } from '@hey-hey/contracts/api/models';
 import type {
   LocalAgentSearchResultsResponse,
   LocalChildTaskDescriptionUpdateResponse,

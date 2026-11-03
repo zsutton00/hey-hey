@@ -7,7 +7,10 @@ import {
 import { createMutableContextHandle } from '../../../../utils/mutable-context';
 import { INITIATIVE_REFINEMENT_NODES } from '../../../constants/node-ids';
 import { InitiativeService } from '../../../../services/initiatives/initiative.service';
-import { WorkStatus, SystemMessageResponseType } from '../../../../generated';
+import {
+  WorkStatus,
+  SystemMessageResponseType,
+} from '@hey-hey/contracts/api/models';
 import { Initiative } from '@prisma/client';
 
 const { testIds } = TestUtils;

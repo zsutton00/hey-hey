@@ -1,4 +1,7 @@
-import { ActivityCorrelationLinkType, EntityType } from 'src/generated';
+import {
+  ActivityCorrelationLinkType,
+  EntityType,
+} from '@hey-hey/contracts/api/models';
 import { DEFAULT_AGENT_SESSION_TITLE } from 'src/services/agent-session-title';
 import { ActivityCorrelationAugmentationService } from 'src/services/activity-correlation/activity-correlation-augmentation.service';
 import { RecentActivityCorrelationRecordDraft } from 'src/services/activity-correlation/activity-correlation.types';

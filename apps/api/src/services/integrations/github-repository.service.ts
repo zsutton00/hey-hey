@@ -14,7 +14,7 @@ import {
   IntegrationType,
   PaginatedGitHubRepositoryResponse,
   UpdateGitHubPrimaryRepositoryDto,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { RedisService } from '../../core/redis/redis.service';
 import { IntegrationId, OrganizationId, ProjectId } from '../../types';
 import { IntegrationService } from './integration.service';

@@ -1,7 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 import type { Proposal } from '@prisma/client';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
-import type { ProposalReconciliationBasis } from 'src/generated';
+import type { ProposalReconciliationBasis } from '@hey-hey/contracts/api/models';
 import { ProposalReconciliationService } from '../proposal-reconciliation.service';
 import {
   projectReconciliationContent,

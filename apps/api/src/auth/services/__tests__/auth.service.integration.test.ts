@@ -1,7 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomUUID } from 'node:crypto';
 
-import { RegisterDto } from '../../../generated';
+import { RegisterDto } from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { OrganizationService } from '../../../services/organization.service';
 import { UserService } from '../../../services/user.service';

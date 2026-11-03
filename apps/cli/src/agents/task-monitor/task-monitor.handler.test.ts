@@ -1,9 +1,10 @@
+import { asMessageId } from '../../test-utils/contract-ids';
 import { describe, expect, it, vi } from 'vitest';
 import type { AssistantCompleteEvent } from '../../run/types';
 import type { AgenticSession } from '../../session/types';
 import { NOOP_LOGGER, type ServerLogger } from '../../server/logger';
-import type { TaskMonitorPromptPayload } from '../../shared/agent-bridge-contract/generated/api';
-import { TaskMonitorLifecycleCause } from '../../shared/agent-bridge-contract/generated/api';
+import type { TaskMonitorPromptPayload } from '@hey-hey/contracts/agent-bridge';
+import { TaskMonitorLifecycleCause } from '@hey-hey/contracts/agent-bridge';
 import type { OnCompleteDeps } from '../prompt-type-handler';
 import {
   createOnCompleteTestDeps,
@@ -168,7 +169,7 @@ describe('taskMonitorHandler', () => {
       cause: 'JUDGMENT_RESOLVED',
       correlationId: 'judgment-request-1',
       judgment: {
-        requestMessageId: 'judgment-request-1',
+        requestMessageId: asMessageId('judgment-request-1'),
         label: 'Your judgment',
         conclusion: 'Proceed with the safer behavior.',
       },

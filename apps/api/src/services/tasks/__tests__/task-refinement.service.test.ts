@@ -10,7 +10,7 @@ import {
   WorkStatus,
   InitiationType,
   ConversationStatus,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   OrganizationId,
   TaskId,

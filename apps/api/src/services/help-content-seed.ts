@@ -7,7 +7,7 @@ import {
   HelpDemoDsl,
   HelpDemoPreset,
   HelpNodeWithBody,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { DomainEventPublisher } from '../core/events/domain-event-publisher';
 import { canonicalizeJcs } from '../core/websockets/trigger-canonicalization';
 import { PrismaService } from '../prisma/prisma.service';

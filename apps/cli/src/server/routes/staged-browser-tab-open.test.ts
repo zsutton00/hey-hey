@@ -2,7 +2,7 @@ import { createServer, type Server } from 'node:http';
 import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SharedBrowserDisabledError } from '../../browser/project-browser-manager';
-import { LocalStagedBrowserTabOpenErrorCode } from '../../shared/local-agent-api/generated/api';
+import { LocalStagedBrowserTabOpenErrorCode } from '@hey-hey/contracts/local';
 import { NOOP_LOGGER } from '../logger';
 import { createStagedBrowserTabOpenRouter } from './staged-browser-tab-open';
 

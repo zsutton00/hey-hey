@@ -1,4 +1,4 @@
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { agentSearchHandler } from './agent-search/agent-search.handler';
 import { childTaskUpdatesHandler } from './child-task-updates/child-task-updates.handler';
 import { codingFreeformHandler, freeFormHandler } from './coding-conversation';

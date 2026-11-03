@@ -32,7 +32,7 @@ import {
   ProposalAction,
   WorkItemTypeLifecycleStatus,
   WorkItemTypeRole,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { ProjectAccessService } from 'src/auth/services/project-access.service';
 
 jest.mock('../proposal-response-policy', () => {

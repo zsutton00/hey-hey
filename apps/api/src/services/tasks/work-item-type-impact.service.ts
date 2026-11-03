@@ -1,11 +1,11 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { firstValueFrom } from 'rxjs';
-import type { WorkItemTypeDefinitionDto } from '../../generated/model/workItemTypeDefinitionDto';
-import type { WorkItemTypeCascadeImpactDto } from '../../generated/model/workItemTypeCascadeImpactDto';
-import type { WorkItemTypeSummaryDto } from '../../generated/model/workItemTypeSummaryDto';
-import type { WorkItemTypeSectionContentImpactDto } from '../../generated/model/workItemTypeSectionContentImpactDto';
-import type { WorkItemTypeTrackingLinkRevocationImpactDto } from '../../generated/model/workItemTypeTrackingLinkRevocationImpactDto';
+import type { WorkItemTypeDefinitionDto } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeCascadeImpactDto } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeSummaryDto } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeSectionContentImpactDto } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeTrackingLinkRevocationImpactDto } from '@hey-hey/contracts/api/models';
 import { AgentEdgeType } from '../../generated/graphs/model/agentEdgeType';
 import { AgentEdgesService } from '../../generated/graphs/api/agentEdges.service';
 import type { DeleteIncidentAgentEdgesResponse } from '../../generated/graphs/model/deleteIncidentAgentEdgesResponse';
@@ -73,9 +73,9 @@ export class WorkItemTypeImpactService {
     });
     let response: { data: DeleteIncidentAgentEdgesResponse };
     try {
-      response = await firstValueFrom<
-        { data: DeleteIncidentAgentEdgesResponse }
-      >(
+      response = await firstValueFrom<{
+        data: DeleteIncidentAgentEdgesResponse;
+      }>(
         this.agentEdgesService.deleteIncidentAgentEdges(
           organizationId,
           projectId,
@@ -111,7 +111,7 @@ export class WorkItemTypeImpactService {
     });
     return {
       deletedEdgeCount: response.data.deletedEdgeCount,
-    }
+    };
   }
 
   async countCascadeImpact(

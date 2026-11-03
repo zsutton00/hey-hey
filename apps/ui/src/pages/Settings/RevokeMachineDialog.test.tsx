@@ -1,4 +1,4 @@
-import type { MachineDto } from "@hey-hey/ui-common/api";
+import type { MachineDto } from "@hey-hey/contracts/api";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { RevokeMachineDialog } from "./RevokeMachineDialog";
@@ -21,7 +21,9 @@ describe("RevokeMachineDialog", () => {
         onCancel={vi.fn()}
       />,
     );
-    expect(screen.queryByTestId("revoke-machine-dialog")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("revoke-machine-dialog"),
+    ).not.toBeInTheDocument();
   });
 
   it("renders the machine name in the body when open", () => {
@@ -36,8 +38,12 @@ describe("RevokeMachineDialog", () => {
     );
     expect(screen.getByTestId("revoke-machine-dialog")).toBeInTheDocument();
     expect(screen.getByText(/Zac's MacBook/)).toBeInTheDocument();
-    expect(screen.getByText(/connection, Passkeys, and permission/i)).toBeInTheDocument();
-    expect(screen.getByText(/history will remain available/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/connection, Passkeys, and permission/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/history will remain available/i),
+    ).toBeInTheDocument();
   });
 
   it("invokes onConfirm when the confirm button is clicked", () => {

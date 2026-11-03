@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
-import { TaskSource, WorkStatus } from "@hey-hey/ui-common/api";
+import { TaskSource, WorkStatus } from "@hey-hey/contracts/api";
 import type { PlanWorkItem } from "@hey-hey/ui-common/data";
 import { PlanSummaryList } from "./PlanSummaryList";
 const plan: PlanWorkItem = {
@@ -18,13 +18,13 @@ describe("PlanSummaryList draft presentation", () => {
     render(
       <MemoryRouter>
         <PlanSummaryList projectId="project-1" plans={[plan]} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     expect(screen.getByText("Draft")).toBeInTheDocument();
     expect(screen.queryByText("BACKLOG")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Draft rollout/ })).toHaveAttribute(
       "href",
-      "/projects/project-1/plans/plan-1"
+      "/projects/project-1/plans/plan-1",
     );
   });
   it("keeps an execution-ready Plan labeled Ready", () => {
@@ -34,7 +34,7 @@ describe("PlanSummaryList draft presentation", () => {
           projectId="project-1"
           plans={[{ ...plan, status: WorkStatus.Ready }]}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     expect(screen.getByText("Ready")).toBeInTheDocument();
     expect(screen.queryByText("Draft")).not.toBeInTheDocument();

@@ -16,7 +16,7 @@ import {
   type OpenItemGroup,
   type OpenItemsCollection,
   type OpenItemsMutationResult,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { createEntityActivation } from "@hey-hey/ui-common/context";
 import { createNavigationLineageEntry } from "@hey-hey/ui-common";
 import { projectOpenItems } from "../components/Explorer/openItemsProjection";

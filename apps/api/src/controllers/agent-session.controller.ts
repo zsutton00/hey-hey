@@ -49,7 +49,7 @@ import {
   HostActionTargetKind,
   HostAffectingActionType,
   GrantAgentSessionServicesDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { validate as isUuid } from 'uuid';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { OrganizationGuard } from 'src/auth/guards/organization.guard';

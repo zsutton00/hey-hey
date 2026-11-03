@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated';
-import type { VerifyFeaturePromptPayload } from '../../shared/agent-bridge-contract/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import type { VerifyFeaturePromptPayload } from '@hey-hey/contracts/agent-bridge';
 import { completionResponseHooks } from '../completion-reconciliation/message-mapper';
 import { ENTITY_CONVERSATION_ALLOWED_TOOLS } from '../entity-conversation/entity-conversation.handler';
 import {

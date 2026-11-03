@@ -17,7 +17,7 @@ import {
   CreateConversationDto,
   CreateTaskDto,
   WorkStatus,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { AgentSessionService } from '../agent-session.service';
 import { ConversationService } from '../conversation.service';
 import {

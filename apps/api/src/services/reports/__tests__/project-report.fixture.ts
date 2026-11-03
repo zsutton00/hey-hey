@@ -1,7 +1,7 @@
 import type {
   CreateProjectReportRequestDto,
   ProjectReportPayload,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 
 export const projectReportRequest = {
   question: 'What changed this week?',

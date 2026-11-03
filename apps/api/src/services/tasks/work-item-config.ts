@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { z } from 'zod';
-import type { WorkItemConfigV1 } from '../../generated/model/workItemConfigV1';
-import { WorkItemConfigKind } from '../../generated/model/workItemConfigKind';
+import type { WorkItemConfigV1 } from '@hey-hey/contracts/api/models';
+import { WorkItemConfigKind } from '@hey-hey/contracts/api/models';
 
 /**
  * The generated client currently collapses the one-variant OpenAPI union to

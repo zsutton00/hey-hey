@@ -5,7 +5,7 @@ import {
   canonicalizeTaskMonitorExecutionDefinitionContent,
   validateTaskMonitorExecutionDefinitionContent,
 } from '../task-monitor-execution-definition.validator';
-import { TaskMonitorReviewMode } from '../../../generated/model/taskMonitorReviewMode';
+import { TaskMonitorReviewMode } from '@hey-hey/contracts/api/models';
 
 interface TaskMonitorContractFixture {
   notStarted: Record<string, unknown>;

@@ -6,7 +6,7 @@ import {
   CliReadErrorCode,
   type LocalStagedRunAttachmentErrorResponse,
   type LocalStagedRunAttachmentSuccessResponse,
-} from '../../shared/local-agent-api/generated/api';
+} from '@hey-hey/contracts/local';
 import { NOOP_LOGGER, type ServerLogger } from '../logger';
 import {
   RunAttachmentStore,

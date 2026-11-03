@@ -8,7 +8,7 @@ import { LlmProcessor } from '../../../core/processing/llm-processor.service';
 import {
   ArtifactSourceType,
   GenerationSystemMessageData,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { EntityType } from 'src/generated/agents/models';
 import { ArtifactService } from '../../../services/artifacts/artifact.service';
 import { IntentDetectorService } from '../../../services/intent-detector.service';
