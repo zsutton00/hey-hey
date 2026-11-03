@@ -847,14 +847,7 @@ describe("ProjectOverview", () => {
     });
   });
 
-  it("loads project proposals while the metrics window is still unavailable", async () => {
-    const updated = proposal("updated-before-metrics", ProposalAction.Update, {
-      title: "Project update",
-      updates: {
-        type: "FEATURE",
-        description: "This project update is available before metrics resolve.",
-      },
-    });
+  it("waits for the metrics window before starting both proposal reads", () => {
     useProjectMetrics.mockReturnValue({
       ...readyMetricsResult(),
       data: null,
@@ -862,44 +855,38 @@ describe("ProjectOverview", () => {
       isReady: false,
       isLoading: true,
     });
-    useProposals.mockImplementation(
-      (
-        _organizationId: string,
-        _projectId: string,
-        options: { action?: ProposalAction },
-      ) =>
-        readyProposalResult(
-          options.action === ProposalAction.Update ? [updated] : [],
-        ),
-    );
+    const rendered = renderOverview();
+    expect(useProposals).not.toHaveBeenCalled();
 
-    renderOverview();
-
-    expect(useProposals).toHaveBeenNthCalledWith(
-      1,
-      ORGANIZATION_ID,
-      PROJECT_ID,
-      expect.objectContaining({
-        action: ProposalAction.Create,
-        enabled: true,
-        windowStart: undefined,
-        windowEnd: undefined,
-      }),
+    useProjectMetrics.mockReturnValue(readyMetricsResult());
+    rendered.rerender(
+      <MemoryRouter initialEntries={[`/projects/${PROJECT_ID}`]}>
+        <ProjectOverview
+          organizationId={ORGANIZATION_ID}
+          projectId={PROJECT_ID}
+        />
+        <LocationProbe />
+      </MemoryRouter>,
     );
-    expect(useProposals).toHaveBeenNthCalledWith(
-      2,
-      ORGANIZATION_ID,
-      PROJECT_ID,
-      expect.objectContaining({
-        action: ProposalAction.Update,
-        enabled: true,
-        windowStart: undefined,
-        windowEnd: undefined,
-      }),
-    );
-
-    await userEvent.click(screen.getByRole("tab", { name: "Updated (1)" }));
-    expect(getProposalRow("updated-before-metrics")).toBeInTheDocument();
+    for (const action of [ProposalAction.Create, ProposalAction.Update]) {
+      expect(useProposals).toHaveBeenCalledWith(
+        ORGANIZATION_ID,
+        PROJECT_ID,
+        expect.objectContaining({
+          action,
+          enabled: true,
+          windowStart: WINDOW_START,
+          windowEnd: WINDOW_END,
+        }),
+      );
+    }
+    expect(
+      useProposals.mock.calls.every(
+        ([, , options]) =>
+          options.windowStart === WINDOW_START &&
+          options.windowEnd === WINDOW_END,
+      ),
+    ).toBe(true);
   });
 
   it("uses numbered pages without changing the action filters or count-row match", async () => {

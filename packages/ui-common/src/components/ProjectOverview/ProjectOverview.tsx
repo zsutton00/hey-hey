@@ -506,12 +506,17 @@ export const ProjectOverview: React.FC<ProjectOverviewProps> = ({
               }}
             >
               <Stack spacing={3}>
-                <ProjectInfoActivity
-                  organizationId={organizationId}
-                  projectId={projectQuery.data.id}
-                  windowStart={metricsQuery.data?.windowStart}
-                  windowEnd={metricsQuery.data?.windowEnd}
-                />
+                {metricsQuery.data?.windowStart &&
+                metricsQuery.data.windowEnd ? (
+                  <ProjectInfoActivity
+                    organizationId={organizationId}
+                    projectId={projectQuery.data.id}
+                    windowStart={metricsQuery.data.windowStart}
+                    windowEnd={metricsQuery.data.windowEnd}
+                  />
+                ) : metricsQuery.error ? null : (
+                  <ProjectInfoActivitySkeleton />
+                )}
                 <OrganizationHomeEvidence
                   {...metricsQuery}
                   organizationId={organizationId}
