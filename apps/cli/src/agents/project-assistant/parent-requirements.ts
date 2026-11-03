@@ -67,16 +67,10 @@ export class ParentRequirementsUnfiltered extends Error {
   }
 }
 
-/** Reasons that are a normal outcome of the focal's type, not a failure; logged at info. */
-export const EXPECTED_UNFILTERED_REASONS: ReadonlySet<string> = new Set(['focal_not_a_task']);
-
 const sectionText = (sections: readonly MaterializedWorkItemSection[], key: string): string =>
   sections.find((section) => section.key === key)?.materializedMarkdown.trim() ?? '';
 
-/** Only plain work (tasks, bugs, ...) is judged here; features, mockups and diagrams are not. */
-const NON_TASK_TYPES: ReadonlySet<string> = new Set(['FEATURE', 'mockup', 'DIAGRAM']);
-
-const taskFocalOf = (
+const focalOf = (
   loaded: LoadedEntityPromptContext,
   parent: { name: string; sections: readonly MaterializedWorkItemSection[] },
 ): Focal => {
@@ -84,25 +78,35 @@ const taskFocalOf = (
     throw new ParentRequirementsUnfiltered('focal_not_a_work_item');
   }
   const { entity } = loaded;
-  if (NON_TASK_TYPES.has(entity.type)) {
-    throw new ParentRequirementsUnfiltered('focal_not_a_task', { focalType: entity.type });
-  }
   const sections = entity.sections ?? [];
-  return {
-    kind: 'task',
-    name: entity.name,
-    description: sectionText(sections, 'description'),
-    acceptanceCriteria: sectionText(sections, 'acceptanceCriteria'),
-    parent: {
-      kind: 'feature',
-      name: parent.name,
-      description: [...parent.sections]
-        .sort((a, b) => a.order - b.order)
-        .map((section) => section.materializedMarkdown.trim())
-        .filter((markdown) => markdown.length > 0)
-        .join('\n\n'),
-    },
+  const name = entity.name;
+  const description = sectionText(sections, 'description');
+  const framing = {
+    kind: 'feature' as const,
+    name: parent.name,
+    description: [...parent.sections]
+      .sort((a, b) => a.order - b.order)
+      .map((section) => section.materializedMarkdown.trim())
+      .filter((markdown) => markdown.length > 0)
+      .join('\n\n'),
   };
+
+  switch (entity.type) {
+    case 'FEATURE':
+      return { kind: 'feature', name, description };
+    case 'mockup':
+      return { kind: 'mockup', name, description, parent: framing };
+    case 'DIAGRAM':
+      return { kind: 'diagram', name, description, elements: [], parent: framing };
+    default:
+      return {
+        kind: 'task',
+        name,
+        description,
+        acceptanceCriteria: sectionText(sections, 'acceptanceCriteria'),
+        parent: framing,
+      };
+  }
 };
 
 const readRecords = async (
@@ -142,7 +146,7 @@ export const filterParentRequirements = async (
   loaded: LoadedEntityPromptContext,
   filter: ParentRequirementsFilter,
 ): Promise<FilteredParentRequirements> => {
-  const focal = taskFocalOf(loaded, parent);
+  const focal = focalOf(loaded, parent);
   const focalEntityId = loaded.focalEntity.entityId;
   const records = await readRecords(request, parent.id, filter);
   if (records.length === 0) throw new ParentRequirementsUnfiltered('no_requirements');

@@ -188,7 +188,7 @@ describe('filterParentRequirements', () => {
     ).rejects.toMatchObject({ reason: 'jev_failed', fields: { failureCode: 'INVALID_RESPONSE' } });
   });
 
-  it('throws unfiltered on malformed records and on a focal that is not a task', async () => {
+  it('throws unfiltered on malformed records', async () => {
     await expect(
       filterParentRequirements(
         request,
@@ -197,13 +197,15 @@ describe('filterParentRequirements', () => {
         filterWith([{ id: 'r1' }], evaluatorFor([])),
       ),
     ).rejects.toBeInstanceOf(ParentRequirementsUnfiltered);
+  });
 
+  it('filters for a feature focal as it does for a task', async () => {
     const feature = {
       ...loaded,
       entity: { ...(loaded as { entity: object }).entity, type: 'FEATURE' },
     } as unknown as LoadedEntityPromptContext;
     await expect(
       filterParentRequirements(request, parent, feature, filterWith([], evaluatorFor([]))),
-    ).rejects.toMatchObject({ reason: 'focal_not_a_task' });
+    ).rejects.toMatchObject({ reason: 'no_requirements' });
   });
 });

@@ -15,7 +15,6 @@ import {
   type ParentRequirementsAttemptRecord,
 } from './parent-requirements-attempt-log';
 import {
-  EXPECTED_UNFILTERED_REASONS,
   filterParentRequirements,
   ParentRequirementsUnfiltered,
   REQUIREMENTS_SECTION_KEY,
@@ -227,19 +226,13 @@ export const loadNearestParentFeatureSection = async (
     await writeAttempt({ ...attempt, outcome: 'filtered', filteredLoad: section });
     return section;
   } catch (error) {
-    const expected =
-      error instanceof ParentRequirementsUnfiltered &&
-      EXPECTED_UNFILTERED_REASONS.has(error.reason);
-    deps.logger[expected ? 'info' : 'warn'](
-      'project_assistant.prepare.parent_feature.filter_failed',
-      {
-        featureId: feature.id,
-        reason: error instanceof ParentRequirementsUnfiltered ? error.reason : 'unexpected_error',
-        ...(error instanceof ParentRequirementsUnfiltered
-          ? error.fields
-          : { error: error instanceof Error ? error.message : String(error) }),
-      },
-    );
+    deps.logger.warn('project_assistant.prepare.parent_feature.filter_failed', {
+      featureId: feature.id,
+      reason: error instanceof ParentRequirementsUnfiltered ? error.reason : 'unexpected_error',
+      ...(error instanceof ParentRequirementsUnfiltered
+        ? error.fields
+        : { error: error instanceof Error ? error.message : String(error) }),
+    });
     deps.logger.info('project_assistant.prepare.parent_feature.filter_stats', {
       featureId: feature.id,
       filtered: false,
