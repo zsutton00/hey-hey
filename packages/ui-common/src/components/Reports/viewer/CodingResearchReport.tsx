@@ -5,6 +5,8 @@ import { MarkdownRenderer } from "../../shared/MarkdownRenderer";
 import { CodingResearchFrameSection } from "./CodingResearchFrameSection";
 import { CodingResearchProvenanceSections } from "./CodingResearchProvenanceSections";
 import { CodingResearchUpdatesSection } from "./CodingResearchUpdatesSection";
+import { CodingResearchUncertaintiesSection } from "./CodingResearchUncertaintiesSection";
+import { parseCodingResearchWrittenAnalysis } from "./codingResearchWrittenUncertainties";
 import { createCodingResearchFrameModel } from "./codingResearchReportModel";
 import { ReportDisclosure, ReportLabeledText } from "./reportPrimitives";
 
@@ -27,10 +29,27 @@ export const CodingResearchReport: React.FC<CodingResearchReportProps> = ({
   evaluationOutput = false,
 }) => {
   const [isAnalysisExpanded, setIsAnalysisExpanded] = useState(false);
-  // Older or malformed reports can lack `provenance` despite the typed contract.
-  const discoveryCalls = payload.provenance?.discoveryCalls ?? [];
-  const edgesTraversed = payload.provenance?.edgesTraversed ?? [];
-  const frameModel = createCodingResearchFrameModel(payload.frame);
+  const reportData =
+    payload.format === "WRITTEN"
+      ? {
+          format: payload.format,
+          frameModel: createCodingResearchFrameModel(undefined),
+          discoveryCalls: [],
+          edgesTraversed: [],
+          updates: [],
+          ...parseCodingResearchWrittenAnalysis(payload.analysis),
+        }
+      : {
+          // Reports saved before the format discriminator existed are structured.
+          // These optional reads are only for that persisted legacy shape.
+          format: payload.format,
+          frameModel: createCodingResearchFrameModel(payload.frame),
+          discoveryCalls: payload.provenance?.discoveryCalls ?? [],
+          edgesTraversed: payload.provenance?.edgesTraversed ?? [],
+          updates: payload.updates ?? [],
+          uncertainties: payload.uncertainties ?? [],
+          analysis: payload.analysis,
+        };
 
   return (
     <Stack data-testid={`${reportTestId}-coding-research`} spacing={1.5}>
@@ -40,11 +59,15 @@ export const CodingResearchReport: React.FC<CodingResearchReportProps> = ({
         testId={`${reportTestId}-coding-research-summary`}
         value={payload.summary}
       />
+      <CodingResearchUncertaintiesSection
+        reportTestId={reportTestId}
+        uncertainties={reportData.uncertainties}
+      />
       <CodingResearchUpdatesSection
-        frameModel={frameModel}
+        frameModel={reportData.frameModel}
         report={evaluationOutput ? undefined : report}
         reportTestId={reportTestId}
-        updates={payload.updates}
+        updates={reportData.updates}
       />
       <ReportDisclosure
         onExpandedChange={setIsAnalysisExpanded}
@@ -52,7 +75,7 @@ export const CodingResearchReport: React.FC<CodingResearchReportProps> = ({
         title="Analysis"
       >
         <MarkdownRenderer mentionMode="minimal" sx={{ fontSize: "0.875rem" }}>
-          {payload.analysis}
+          {reportData.analysis}
         </MarkdownRenderer>
       </ReportDisclosure>
       {isAnalysisExpanded ? (
@@ -62,12 +85,12 @@ export const CodingResearchReport: React.FC<CodingResearchReportProps> = ({
         >
           <Stack spacing={1.5}>
             <CodingResearchFrameSection
-              frameModel={frameModel}
+              frameModel={reportData.frameModel}
               reportTestId={reportTestId}
             />
             <CodingResearchProvenanceSections
-              discoveryCalls={discoveryCalls}
-              edgesTraversed={edgesTraversed}
+              discoveryCalls={reportData.discoveryCalls}
+              edgesTraversed={reportData.edgesTraversed}
               reportTestId={reportTestId}
             />
           </Stack>

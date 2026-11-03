@@ -592,11 +592,13 @@ describe('AgentStartupPromptInput saved reports', () => {
 
   const research = (analysis: string, summary = 'Research summary'): ReportPayload => ({
     reportType: 'CODING_RESEARCH',
+    format: 'STRUCTURED',
     summary,
     analysis,
     frame: { focalId: 'entity-1' },
     provenance: { discoveryCalls: [], edgesTraversed: [] },
     updates: [],
+    uncertainties: [],
   });
 
   const stored = (

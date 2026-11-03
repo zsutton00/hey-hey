@@ -1128,7 +1128,7 @@ CodingResearchStructuredReportPayload:
 
 CodingResearchWrittenReportPayload:
   type: object
-  description: Written Project Assistant research result for runs using research subagents.
+  description: Written Project Assistant research result. The parent authors the visible summary and analysis, including its headed uncertainty section; children provide evidence to the parent and do not author the report.
   required:
     - reportType
     - format
@@ -1151,7 +1151,7 @@ CodingResearchWrittenReportPayload:
     analysis:
       type: string
       minLength: 1
-      description: Markdown handoff with headed uncertainty sections in parent and child research.
+      description: Markdown handoff authored by the Project Assistant parent. Any uncertainty section is headed `Uncertainties` and uses the shared entry convention; child handoffs remain source evidence and are not copied into the visible report as child-authored sections.
 
 CodingResearchReportPayload:
   description: >

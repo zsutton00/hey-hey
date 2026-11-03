@@ -104,7 +104,12 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
     private readonly parentRequirements?: ParentRequirementsFilter,
     private readonly isJevEnabled: () => Promise<boolean> = () => Promise.resolve(true),
   ) {
-    const codingResearchTool = new CodingResearchTool(createReportProxy);
+    const codingResearchTool = new CodingResearchTool(
+      createReportProxy,
+      undefined,
+      undefined,
+      runSubagentsTool ? 'WRITTEN' : 'STRUCTURED',
+    );
     this.submissionTools = [codingResearchTool, ...(runSubagentsTool ? [runSubagentsTool] : [])];
     this.parallelResearchSubagents = runSubagentsTool !== null;
   }

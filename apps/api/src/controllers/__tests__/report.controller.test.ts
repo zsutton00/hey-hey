@@ -65,11 +65,13 @@ describe('ReportController', () => {
         audience: ReportAudience.WorkflowOnly,
         payload: {
           reportType: 'CODING_RESEARCH',
+          format: 'STRUCTURED',
           summary: 'ok',
           analysis: '',
           frame: {},
           provenance: { discoveryCalls: [], edgesTraversed: [] },
           updates: [],
+          uncertainties: [],
         },
       },
       'org-1' as any,
@@ -235,11 +237,13 @@ describe('ReportController', () => {
       {
         payload: {
           reportType: 'CODING_RESEARCH',
+          format: 'STRUCTURED',
           summary: 'updated',
           analysis: '',
           frame: {},
           provenance: { discoveryCalls: [], edgesTraversed: [] },
           updates: [],
+          uncertainties: [],
         },
       },
       'org-1' as any,
@@ -248,11 +252,13 @@ describe('ReportController', () => {
     expect(mockService.update).toHaveBeenCalledWith('org-1', 'report-1', {
       payload: {
         reportType: 'CODING_RESEARCH',
+        format: 'STRUCTURED',
         summary: 'updated',
         analysis: '',
         frame: {},
         provenance: { discoveryCalls: [], edgesTraversed: [] },
         updates: [],
+        uncertainties: [],
       },
     });
     expect(result.version).toBe(2);

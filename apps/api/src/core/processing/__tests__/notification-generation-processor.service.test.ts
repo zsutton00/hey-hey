@@ -128,11 +128,13 @@ const buildReportCreatedEvent = (
       title: 'Coding Research',
       payload: {
         reportType: 'CODING_RESEARCH',
+        format: 'STRUCTURED',
         summary: 'Research stub.',
         analysis: '',
         frame: {},
         provenance: { discoveryCalls: [], edgesTraversed: [] },
         updates: [],
+        uncertainties: [],
       },
       version: 1,
       schemaVersion: 1,
