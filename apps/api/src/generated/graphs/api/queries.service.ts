@@ -15,6 +15,8 @@ import { Injectable, Optional } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import type { AxiosRequestConfig, AxiosResponse } from 'axios';
 import { Observable, from, of, switchMap } from 'rxjs';
+import { DesignDocProjectReadinessRequest } from '../model/designDocProjectReadinessRequest';
+import { DesignDocProjectReadinessResponse } from '../model/designDocProjectReadinessResponse';
 import { EntityNeighborhoodRequest } from '../model/entityNeighborhoodRequest';
 import { EntityNeighborhoodResponse } from '../model/entityNeighborhoodResponse';
 import { ErrorResponse } from '../model/errorResponse';
@@ -56,6 +58,99 @@ export class QueriesService {
     return consumes.includes(form);
   }
 
+  /**
+   * Count listed design docs scoped to the project in the graph
+   * Counts listed design doc nodes that match their exact identity and have the destination organization and project scope plus the project scope connection. This narrow read does not validate owner attachment, content or other graph projections.
+   * @param organizationId Organization identifier
+   * @param projectId Project identifier
+   * @param designDocProjectReadinessRequest
+   * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
+   * @param reportProgress flag to report request and response progress.
+   * @param {*} [checkDesignDocProjectReadinessOpts.config] Override http request option.
+   */
+  public checkDesignDocProjectReadiness(
+    organizationId: string,
+    projectId: string,
+    designDocProjectReadinessRequest: DesignDocProjectReadinessRequest,
+    checkDesignDocProjectReadinessOpts?: { config?: AxiosRequestConfig },
+  ): Observable<AxiosResponse<DesignDocProjectReadinessResponse>>;
+  public checkDesignDocProjectReadiness(
+    organizationId: string,
+    projectId: string,
+    designDocProjectReadinessRequest: DesignDocProjectReadinessRequest,
+    checkDesignDocProjectReadinessOpts?: { config?: AxiosRequestConfig },
+  ): Observable<any> {
+    if (organizationId === null || organizationId === undefined) {
+      throw new Error(
+        'Required parameter organizationId was null or undefined when calling checkDesignDocProjectReadiness.',
+      );
+    }
+
+    if (projectId === null || projectId === undefined) {
+      throw new Error(
+        'Required parameter projectId was null or undefined when calling checkDesignDocProjectReadiness.',
+      );
+    }
+
+    if (
+      designDocProjectReadinessRequest === null ||
+      designDocProjectReadinessRequest === undefined
+    ) {
+      throw new Error(
+        'Required parameter designDocProjectReadinessRequest was null or undefined when calling checkDesignDocProjectReadiness.',
+      );
+    }
+
+    let headers = { ...this.defaultHeaders };
+
+    let accessTokenObservable: Observable<any> = of(null);
+
+    // authentication (BearerAuth) required
+    if (typeof this.configuration.accessToken === 'function') {
+      accessTokenObservable = from(
+        Promise.resolve(this.configuration.accessToken()),
+      );
+    } else if (this.configuration.accessToken) {
+      accessTokenObservable = from(
+        Promise.resolve(this.configuration.accessToken),
+      );
+    }
+    // to determine the Accept header
+    let httpHeaderAccepts: string[] = ['application/json'];
+    const httpHeaderAcceptSelected: string | undefined =
+      this.configuration.selectHeaderAccept(httpHeaderAccepts);
+    if (httpHeaderAcceptSelected != undefined) {
+      headers['Accept'] = httpHeaderAcceptSelected;
+    }
+
+    // to determine the Content-Type header
+    const consumes: string[] = ['application/json'];
+    const httpContentTypeSelected: string | undefined =
+      this.configuration.selectHeaderContentType(consumes);
+    if (httpContentTypeSelected != undefined) {
+      headers['Content-Type'] = httpContentTypeSelected;
+    }
+    return accessTokenObservable.pipe(
+      switchMap((accessToken) => {
+        if (accessToken) {
+          headers['Authorization'] = `Bearer ${accessToken}`;
+        }
+
+        return this.httpClient.post<DesignDocProjectReadinessResponse>(
+          `${this.basePath}/organizations/${encodeURIComponent(String(organizationId))}/projects/${encodeURIComponent(String(projectId))}/design-doc-project-readiness`,
+          designDocProjectReadinessRequest,
+          {
+            withCredentials: this.configuration.withCredentials,
+            ...checkDesignDocProjectReadinessOpts?.config,
+            headers: {
+              ...headers,
+              ...checkDesignDocProjectReadinessOpts?.config?.headers,
+            },
+          },
+        );
+      }),
+    );
+  }
   /**
    * Count listed features with a stored project connection
    * Counts the distinct listed FEATURE tasks that have the exact SCOPED_TO_PROJECT edge to this project. Does not establish readiness of other projections.

@@ -44,6 +44,8 @@ model/createNodeRequest.ts
 model/createRelationshipRequest.ts
 model/deleteIncidentAgentEdgesRequest.ts
 model/deleteIncidentAgentEdgesResponse.ts
+model/designDocProjectReadinessRequest.ts
+model/designDocProjectReadinessResponse.ts
 model/designDocTraversalNode.ts
 model/designDocTraversalNodeProperties.ts
 model/entityNeighborhoodAgentSession.ts

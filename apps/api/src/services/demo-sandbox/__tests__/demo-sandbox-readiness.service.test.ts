@@ -4,6 +4,7 @@ import type { GraphsClientService } from '../../graphs-client.service';
 import { DemoSandboxReadinessService } from '../demo-sandbox-readiness.service';
 import {
   createPersistedGraphCopyIntent,
+  type CopiedDesignDocExpectation,
   type CopiedWorkItemExpectation,
 } from '../template-graph-copy-intent';
 
@@ -32,6 +33,23 @@ const WORK_ITEMS: CopiedWorkItemExpectation[] = [
     parentTaskId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
   },
 ];
+const DESIGN_DOCS: CopiedDesignDocExpectation[] = [
+  {
+    id: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
+    parentEntityType: 'TASK',
+    parentEntityId: FEATURES[0]!,
+  },
+  {
+    id: '8d0f7780-8536-41ef-a55c-f18fd2a01bf8',
+    parentEntityType: 'DESIGN_DOC',
+    parentEntityId: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
+  },
+  {
+    id: '9e1a8891-9647-42f0-b66d-029ae3b12c09',
+    parentEntityType: null,
+    parentEntityId: null,
+  },
+];
 const graphCommand = { id: randomUUID(), snapshot: { nodes: [], edges: [] } };
 const row = (deadlineInMs: number) => ({
   organizationId: 'org-1',
@@ -43,7 +61,9 @@ const row = (deadlineInMs: number) => ({
 describe('DemoSandboxReadinessService', () => {
   const checkFeatureProjectConnection = jest.fn();
   const checkWorkItemProjectReadiness = jest.fn();
+  const checkDesignDocProjectReadiness = jest.fn();
   const db = {
+    designDoc: { findMany: jest.fn() },
     demoSandbox: { findUnique: jest.fn(), updateMany: jest.fn() },
     demoGraphCopyIntent: { findUnique: jest.fn() },
   };
@@ -54,12 +74,26 @@ describe('DemoSandboxReadinessService', () => {
       {
         checkFeatureProjectConnection,
         checkWorkItemProjectReadiness,
+        checkDesignDocProjectReadiness,
       } as unknown as GraphsClientService,
       () => 'token',
     );
-  const workItemIntent = (workItems = WORK_ITEMS) => ({
-    command: createPersistedGraphCopyIntent(graphCommand, workItems),
+  const workItemIntent = (
+    workItems = WORK_ITEMS,
+    designDocs = DESIGN_DOCS,
+  ) => ({
+    command: createPersistedGraphCopyIntent(
+      graphCommand,
+      workItems,
+      designDocs,
+    ),
   });
+  const destinationRows = (docs = DESIGN_DOCS) =>
+    docs.map(({ id, parentEntityType, parentEntityId }) => ({
+      id,
+      parentEntityType,
+      parentEntityId,
+    }));
   const verified = (verifiedCount: number) => ({ verifiedCount });
   const connected = (connectedCount: number) => ({ connectedCount });
   const recordedCounts = () =>
@@ -77,6 +111,10 @@ describe('DemoSandboxReadinessService', () => {
     checkWorkItemProjectReadiness.mockResolvedValue(
       verified(WORK_ITEMS.length),
     );
+    checkDesignDocProjectReadiness.mockResolvedValue(
+      verified(DESIGN_DOCS.length),
+    );
+    db.designDoc.findMany.mockResolvedValue(destinationRows());
   });
   afterEach(() => jest.useRealTimers());
 
@@ -247,5 +285,109 @@ describe('DemoSandboxReadinessService', () => {
     await expect(build().waitUntilConnected('sandbox-1')).resolves.toBe(false);
     expect(checkFeatureProjectConnection).not.toHaveBeenCalled();
     expect(checkWorkItemProjectReadiness).not.toHaveBeenCalled();
+  });
+
+  describe('copied design docs', () => {
+    const attempt = async (deadlineInMs = 3_000) => {
+      db.demoSandbox.findUnique.mockResolvedValue(row(deadlineInMs));
+      const outcome = build().waitUntilConnected('sandbox-1');
+      await jest.advanceTimersByTimeAsync(deadlineInMs);
+      return outcome;
+    };
+
+    it('verifies the exact captured docs by Graph identity and destination owner', async () => {
+      await expect(build().waitUntilConnected('sandbox-1')).resolves.toBe(true);
+
+      expect(checkDesignDocProjectReadiness).toHaveBeenCalledWith(
+        'org-1',
+        'project-1',
+        { designDocIds: DESIGN_DOCS.map((doc) => doc.id) },
+        'token',
+      );
+      expect(db.designDoc.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            id: { in: DESIGN_DOCS.map((doc) => doc.id) },
+            organizationId: 'org-1',
+            projectId: 'project-1',
+          },
+        }),
+      );
+    });
+
+    it('does not pass when Graph is missing a doc even if other counts match', async () => {
+      checkDesignDocProjectReadiness.mockResolvedValue(
+        verified(DESIGN_DOCS.length - 1),
+      );
+
+      await expect(attempt()).resolves.toBe(false);
+    });
+
+    it('does not pass when a doc is attached to a different owner', async () => {
+      db.designDoc.findMany.mockResolvedValue(
+        destinationRows().map((doc, index) =>
+          index === 0
+            ? { ...doc, parentEntityId: '550e8400-e29b-41d4-a716-446655440099' }
+            : doc,
+        ),
+      );
+
+      await expect(attempt()).resolves.toBe(false);
+    });
+
+    it('does not pass when a substituted doc replaces an expected one in the destination project', async () => {
+      db.designDoc.findMany.mockResolvedValue([
+        ...destinationRows().slice(1),
+        {
+          id: randomUUID(),
+          parentEntityType: DESIGN_DOCS[0]!.parentEntityType,
+          parentEntityId: DESIGN_DOCS[0]!.parentEntityId,
+        },
+      ]);
+
+      await expect(attempt()).resolves.toBe(false);
+    });
+
+    it('does not pass when a doc has no destination-project row', async () => {
+      db.designDoc.findMany.mockResolvedValue(destinationRows().slice(1));
+
+      await expect(attempt()).resolves.toBe(false);
+    });
+
+    it('keeps polling until the doc check passes within the original deadline', async () => {
+      checkDesignDocProjectReadiness
+        .mockResolvedValueOnce(verified(0))
+        .mockResolvedValue(verified(DESIGN_DOCS.length));
+
+      const outcome = build().waitUntilConnected('sandbox-1');
+      await jest.advanceTimersByTimeAsync(1_000);
+
+      await expect(outcome).resolves.toBe(true);
+      expect(checkDesignDocProjectReadiness).toHaveBeenCalledTimes(2);
+    });
+
+    it('passes the doc check for an empty expected set without skipping the other checks', async () => {
+      db.demoGraphCopyIntent.findUnique.mockResolvedValue(
+        workItemIntent(WORK_ITEMS, []),
+      );
+
+      await expect(build().waitUntilConnected('sandbox-1')).resolves.toBe(true);
+      expect(checkDesignDocProjectReadiness).not.toHaveBeenCalled();
+      expect(checkWorkItemProjectReadiness).toHaveBeenCalledTimes(1);
+
+      jest.resetAllMocks();
+      db.demoSandbox.findUnique.mockResolvedValue(row(120_000));
+      db.demoGraphCopyIntent.findUnique.mockResolvedValue(
+        workItemIntent(WORK_ITEMS, []),
+      );
+      checkFeatureProjectConnection.mockResolvedValue(
+        connected(FEATURES.length),
+      );
+      checkWorkItemProjectReadiness.mockResolvedValue(verified(0));
+      db.demoSandbox.findUnique.mockResolvedValue(row(2_000));
+      const outcome = build().waitUntilConnected('sandbox-1');
+      await jest.advanceTimersByTimeAsync(2_000);
+      await expect(outcome).resolves.toBe(false);
+    });
   });
 });

@@ -79,7 +79,11 @@ describe('DemoTemplateGraphService durable retry', () => {
       id: graphCommand.id,
       organizationId: randomUUID(),
       projectId: randomUUID(),
-      command: createPersistedGraphCopyIntent(graphCommand, readinessWorkItems),
+      command: createPersistedGraphCopyIntent(
+        graphCommand,
+        readinessWorkItems,
+        [],
+      ),
     };
     const prisma = {
       demoGraphCopyIntent: {

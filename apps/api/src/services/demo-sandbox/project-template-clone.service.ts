@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, type DesignDocParentEntityType } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { DomainEventPublisher } from '../../core/events/domain-event-publisher';
 import { runWithWorkflowContext } from '../../core/events/context-utils';
@@ -14,6 +14,7 @@ import { DemoTemplateGraphService } from './template-graph.service';
 import { publishCloneCreatedEvents } from './template-clone-events';
 import {
   createPersistedGraphCopyIntent,
+  type CopiedDesignDocExpectation,
   type CopiedWorkItemExpectation,
 } from './template-graph-copy-intent';
 
@@ -81,6 +82,7 @@ export class ProjectTemplateCloneService {
     copiedFeatureIds: string[];
     /** Exact copied task identities and remapped structural parents. */
     copiedWorkItems: CopiedWorkItemExpectation[];
+    copiedDesignDocs: CopiedDesignDocExpectation[];
     graphCopyIntentId: string;
   }> {
     const template = await tx.demoTemplate.findFirstOrThrow({
@@ -406,12 +408,22 @@ export class ProjectTemplateCloneService {
           ? null
           : remap.require(row.parentTaskId as string),
     }));
+    const copiedDesignDocs = docs.map((row) => ({
+      id: remap.require(row.id as string),
+      parentEntityType:
+        row.parentEntityType as DesignDocParentEntityType | null,
+      parentEntityId:
+        row.parentEntityId === null
+          ? null
+          : remap.rewrite(row.parentEntityId as string),
+    }));
     const copiedFeatureIds = copiedWorkItems.flatMap((item) =>
       item.typeKey === 'FEATURE' ? [item.id] : [],
     );
     const persistedCommand = createPersistedGraphCopyIntent(
       command,
       copiedWorkItems,
+      copiedDesignDocs,
     );
     await tx.demoGraphCopyIntent.create({
       data: {
@@ -425,6 +437,7 @@ export class ProjectTemplateCloneService {
       idMap: remap.ids,
       copiedFeatureIds,
       copiedWorkItems,
+      copiedDesignDocs,
       graphCopyIntentId: intentId,
     };
   }

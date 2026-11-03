@@ -604,6 +604,7 @@ describe('ProjectTemplateCloneService', () => {
     expect(JSON.stringify(intent.command)).toContain(result.idMap.get(f.child));
     expect(intent.command).toMatchObject({
       readinessWorkItems: result.copiedWorkItems,
+      readinessDesignDocs: result.copiedDesignDocs,
     });
     expect(JSON.stringify(intent.command)).not.toContain(
       f.snapshot.edges[0]!.id,

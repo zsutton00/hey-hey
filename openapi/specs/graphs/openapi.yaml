@@ -409,6 +409,37 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /organizations/{organizationId}/projects/{projectId}/design-doc-project-readiness:
+    post:
+      tags:
+        - Queries
+      summary: Count listed design docs scoped to the project in the graph
+      operationId: checkDesignDocProjectReadiness
+      description: >-
+        Counts listed design doc nodes that match their exact identity and have the
+        destination organization and project scope plus the project scope connection.
+        This narrow read does not validate owner attachment, content or other graph projections.
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DesignDocProjectReadinessRequest"
+      responses:
+        "200":
+          description: How many listed design docs match the expected graph state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DesignDocProjectReadinessResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /organizations/{organizationId}/projects/{projectId}/traversal:
     post:
       tags:
@@ -2079,6 +2110,31 @@ components:
           type: integer
           minimum: 0
           description: Listed work items matching all expected graph properties
+
+    DesignDocProjectReadinessRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - designDocIds
+      properties:
+        designDocIds:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            type: string
+            format: uuid
+
+    DesignDocProjectReadinessResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - verifiedCount
+      properties:
+        verifiedCount:
+          type: integer
+          minimum: 0
+          description: Listed design docs scoped to the project in the graph
 
     # Search schemas
     SearchRequest:

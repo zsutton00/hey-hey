@@ -1,3 +1,4 @@
+import { DesignDocParentEntityType } from '@prisma/client';
 import { z } from 'zod';
 import { RelationshipType } from '../../generated/graphs';
 import type {
@@ -9,6 +10,12 @@ export interface CopiedWorkItemExpectation {
   id: string;
   typeKey: string;
   parentTaskId: string | null;
+}
+
+export interface CopiedDesignDocExpectation {
+  id: string;
+  parentEntityType: DesignDocParentEntityType | null;
+  parentEntityId: string | null;
 }
 
 const relationshipTypes = new Set<string>(Object.values(RelationshipType));
@@ -63,20 +70,47 @@ const workItemsSchema = z
     }
   });
 
+const designDocExpectationSchema = z
+  .object({
+    id: z.string().uuid(),
+    parentEntityType: z.nativeEnum(DesignDocParentEntityType).nullable(),
+    parentEntityId: z.string().uuid().nullable(),
+  })
+  .strict();
+
+const designDocsSchema = z
+  .array(designDocExpectationSchema)
+  .superRefine((designDocs, context) => {
+    const ids = new Set<string>();
+    for (const [index, designDoc] of designDocs.entries()) {
+      if (ids.has(designDoc.id)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index, 'id'],
+          message: 'Copied design-doc IDs must be unique',
+        });
+      }
+      ids.add(designDoc.id);
+    }
+  });
+
 const persistedGraphCopyIntentSchema = z
   .object({
     graphCommand: graphCopyCommandSchema,
     readinessWorkItems: workItemsSchema,
+    readinessDesignDocs: designDocsSchema,
   })
   .strict();
 
 export function createPersistedGraphCopyIntent(
   graphCommand: TemplateGraphCopyCommand,
   readinessWorkItems: CopiedWorkItemExpectation[],
+  readinessDesignDocs: CopiedDesignDocExpectation[],
 ) {
   return persistedGraphCopyIntentSchema.parse({
     graphCommand,
     readinessWorkItems,
+    readinessDesignDocs,
   });
 }
 
@@ -94,4 +128,10 @@ export function readReadinessWorkItems(
   value: unknown,
 ): CopiedWorkItemExpectation[] {
   return persistedGraphCopyIntentSchema.parse(value).readinessWorkItems;
+}
+
+export function readReadinessDesignDocs(
+  value: unknown,
+): CopiedDesignDocExpectation[] {
+  return persistedGraphCopyIntentSchema.parse(value).readinessDesignDocs;
 }

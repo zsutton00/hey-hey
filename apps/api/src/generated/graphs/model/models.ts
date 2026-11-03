@@ -28,6 +28,8 @@ export * from './createNodeRequest';
 export * from './createRelationshipRequest';
 export * from './deleteIncidentAgentEdgesRequest';
 export * from './deleteIncidentAgentEdgesResponse';
+export * from './designDocProjectReadinessRequest';
+export * from './designDocProjectReadinessResponse';
 export * from './designDocTraversalNode';
 export * from './designDocTraversalNodeProperties';
 export * from './entityNeighborhoodAgentSession';

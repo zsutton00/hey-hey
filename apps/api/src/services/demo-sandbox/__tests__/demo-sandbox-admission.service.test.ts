@@ -49,6 +49,7 @@ const persistedReadinessIntent = createPersistedGraphCopyIntent(
     snapshot: { nodes: [], edges: [] },
   },
   readinessWorkItems,
+  [],
 );
 
 const input = {
