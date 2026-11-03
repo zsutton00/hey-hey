@@ -1284,6 +1284,407 @@ async fn approvals_preserve_create_and_edit_influences_without_duplicates() -> a
     Ok(())
 }
 
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn approved_create_pairs_survive_stub_hydration_and_event_replay() -> anyhow::Result<()> {
+    use hey_hey_graph_search::graph::ingest::Ingest;
+    let f = Fixture::new(1190).await?;
+    let ingest = Ingest::new(f.pool.clone());
+    let mut stub = f.node(1191, "TASK", json!({"type":"STANDARD"})).await;
+    stub.stub = true;
+    stub.created_at = None;
+    stub.updated_at = None;
+    store::upsert_node(&f.pool, &f.scope, &stub).await?;
+    f.node(
+        1192,
+        "TASK",
+        json!({"name":"Hydrated partner","type":"STANDARD","status":"ACTIVE"}),
+    )
+    .await;
+
+    let partner_approval = f.event(
+        1193,
+        "proposal.approved",
+        1194,
+        json!({
+            "proposalId":id(1194),"targetEntityId":id(1192),"targetEntityType":"TASK",
+            "resultingEntityId":id(1192),"action":"CREATE","requestorId":id(2),
+            "createdAt":"2026-11-01T00:00:00Z","conversationId":id(1195),
+            "messageId":id(1196),"shouldProcess":true,"influences":[]
+        }),
+    );
+    let stub_approval = f.event(
+        1197,
+        "proposal.approved",
+        1198,
+        json!({
+            "proposalId":id(1198),"targetEntityId":id(1191),"targetEntityType":"TASK",
+            "resultingEntityId":id(1191),"action":"CREATE","requestorId":id(2),
+            "createdAt":"2026-11-01T00:00:00Z","conversationId":id(1195),
+            "messageId":id(1199),"shouldProcess":true,"influences":[]
+        }),
+    );
+    ingest.handle(&partner_approval).await?;
+    ingest.handle(&stub_approval).await?;
+
+    let stored_pairs: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM graph.edge WHERE organization_id=$1 AND project_id=$2 AND relationship_type='PROPOSED_TOGETHER' AND source_id=$3 AND target_id=$4",
+    )
+    .bind(&f.scope.organization)
+    .bind(&f.scope.project)
+    .bind(id(1191))
+    .bind(id(1192))
+    .fetch_one(&f.pool)
+    .await?;
+    assert_eq!(stored_pairs, 1);
+
+    let hidden_until_hydrated = f
+        .query(
+            "incident-edges",
+            json!({"seedEntityIds":[id(1192)],"relationshipTypes":["PROPOSED_TOGETHER"]}),
+        )
+        .await;
+    assert!(
+        hidden_until_hydrated["groups"][0]["relationships"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+
+    let hydration = f.event(
+        1200,
+        "task.created",
+        1191,
+        json!({"task":{"name":"Hydrated target","type":"STANDARD","status":"ACTIVE"}}),
+    );
+    ingest.handle(&hydration).await?;
+    let is_hydrated: bool = sqlx::query_scalar(
+        "SELECT NOT stub AND created_at IS NOT NULL AND updated_at IS NOT NULL FROM graph.node WHERE organization_id=$1 AND project_id=$2 AND id=$3",
+    )
+    .bind(&f.scope.organization)
+    .bind(&f.scope.project)
+    .bind(id(1191))
+    .fetch_one(&f.pool)
+    .await?;
+    assert!(is_hydrated);
+
+    let visible_after_hydration = f
+        .query(
+            "incident-edges",
+            json!({"seedEntityIds":[id(1192)],"relationshipTypes":["PROPOSED_TOGETHER"]}),
+        )
+        .await;
+    assert_eq!(
+        visible_after_hydration["groups"][0]["relationships"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    ingest.handle(&stub_approval).await?;
+    let replayed_pair_count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM graph.edge WHERE organization_id=$1 AND project_id=$2 AND relationship_type='PROPOSED_TOGETHER' AND source_id=$3 AND target_id=$4",
+    )
+    .bind(&f.scope.organization)
+    .bind(&f.scope.project)
+    .bind(id(1191))
+    .bind(id(1192))
+    .fetch_one(&f.pool)
+    .await?;
+    assert_eq!(replayed_pair_count, 1);
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn approved_create_proposals_store_symmetric_conversation_pairs() -> anyhow::Result<()> {
+    use hey_hey_graph_search::graph::ingest::Ingest;
+    let f = Fixture::new(1200).await?;
+    let ingest = Ingest::new(f.pool.clone());
+    let conversation = 1250;
+    let make_approval = |sequence, proposal, target, action, conversation, message| {
+        let payload = json!({
+            "proposalId":id(proposal),
+            "targetEntityId":id(target),
+            "targetEntityType":"TASK",
+            "resultingEntityId":id(target),
+            "action":action,
+            "requestorId":id(2),
+            "createdAt":"2026-11-01T00:00:00Z",
+            "conversationId":id(conversation),
+            "messageId":id(message),
+            "shouldProcess":true,
+            "influences":[]
+        });
+        f.event(sequence, "proposal.approved", proposal, payload)
+    };
+
+    let first = make_approval(1260, 1261, 1271, "CREATE", conversation, 1281);
+    let second = make_approval(1262, 1263, 1272, "CREATE", conversation, 1282);
+    ingest.handle(&second).await?;
+    ingest.handle(&first).await?;
+    ingest.handle(&first).await?;
+
+    let edit = make_approval(1264, 1265, 1273, "UPDATE", conversation, 1283);
+    ingest.handle(&edit).await?;
+    let other_conversation = make_approval(1266, 1267, 1274, "CREATE", 1251, 1284);
+    ingest.handle(&other_conversation).await?;
+    let other_conversation_target = make_approval(1267, 1276, 1275, "CREATE", 1251, 1286);
+    ingest.handle(&other_conversation_target).await?;
+    let repeated_target = make_approval(1268, 1269, 1271, "CREATE", conversation, 1285);
+
+    let (pair_id, pair_properties): (String, Value) = sqlx::query_as(
+        "SELECT id,properties FROM graph.edge WHERE organization_id=$1 AND project_id=$2 AND relationship_type='PROPOSED_TOGETHER' AND source_id=$3 AND target_id=$4",
+    )
+    .bind(&f.scope.organization)
+    .bind(&f.scope.project)
+    .bind(id(1271))
+    .bind(id(1272))
+    .fetch_one(&f.pool)
+    .await?;
+    assert_eq!(pair_properties["source"], "system");
+    assert_eq!(pair_properties["inferredBy"], "system");
+    assert_eq!(pair_properties["conversationId"], id(conversation));
+    ingest.handle(&repeated_target).await?;
+    let persisted_pair_id: String = sqlx::query_scalar(
+        "SELECT id FROM graph.edge WHERE organization_id=$1 AND project_id=$2 AND relationship_type='PROPOSED_TOGETHER' AND source_id=$3 AND target_id=$4",
+    )
+    .bind(&f.scope.organization)
+    .bind(&f.scope.project)
+    .bind(id(1271))
+    .bind(id(1272))
+    .fetch_one(&f.pool)
+    .await?;
+    assert_eq!(persisted_pair_id, pair_id);
+    let pair_count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM graph.edge WHERE organization_id=$1 AND project_id=$2 AND relationship_type='PROPOSED_TOGETHER' AND source_id=$3 AND target_id=$4",
+    )
+    .bind(&f.scope.organization)
+    .bind(&f.scope.project)
+    .bind(id(1271))
+    .bind(id(1272))
+    .fetch_one(&f.pool)
+    .await?;
+    assert_eq!(pair_count, 1);
+    assert!(!f.has_edge(1271, 1273, "PROPOSED_TOGETHER").await);
+    assert!(!f.has_edge(1271, 1274, "PROPOSED_TOGETHER").await);
+    assert!(f.has_edge(1274, 1275, "PROPOSED_TOGETHER").await);
+
+    for seed in [1271, 1272] {
+        let result = f
+            .query(
+                "incident-edges",
+                json!({"seedEntityIds":[id(seed)],"relationshipTypes":["PROPOSED_TOGETHER"]}),
+            )
+            .await;
+        assert_eq!(
+            result["groups"][0]["relationships"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+    for seed in [1271, 1272] {
+        let result = f
+            .query(
+                "traversal",
+                json!({"seedEntityIds":[id(seed)],"includeSeedEntities":true,"traversal":{"depth":1,"relationshipTypes":["PROPOSED_TOGETHER"]}}),
+            )
+            .await;
+        assert!(targets(&result).contains(&id(if seed == 1271 { 1272 } else { 1271 })));
+    }
+    let neighborhood = f
+        .query(
+            "entity-neighborhood",
+            json!({"seedEntityType":"TASK","seedEntityId":id(1272),"depth":1,"relationshipTypes":["PROPOSED_TOGETHER"]}),
+        )
+        .await;
+    assert!(
+        neighborhood["relatedEntities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entity| entity["entityId"] == id(1271))
+    );
+
+    sqlx::query(
+        "UPDATE graph.node SET deleted=true WHERE organization_id=$1 AND project_id=$2 AND id=$3",
+    )
+    .bind(&f.scope.organization)
+    .bind(&f.scope.project)
+    .bind(id(1272))
+    .execute(&f.pool)
+    .await?;
+    let hidden = f
+        .query(
+            "incident-edges",
+            json!({"seedEntityIds":[id(1271)],"relationshipTypes":["PROPOSED_TOGETHER"]}),
+        )
+        .await;
+    assert!(
+        hidden["groups"][0]["relationships"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    assert!(f.has_edge(1274, 1275, "PROPOSED_TOGETHER").await);
+    store::delete_node(&f.pool, &f.scope, &id(1272)).await?;
+    let deleted_pair_count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM graph.edge WHERE organization_id=$1 AND project_id=$2 AND relationship_type='PROPOSED_TOGETHER' AND source_id=$3 AND target_id=$4",
+    )
+    .bind(&f.scope.organization)
+    .bind(&f.scope.project)
+    .bind(id(1271))
+    .bind(id(1272))
+    .fetch_one(&f.pool)
+    .await?;
+    assert_eq!(deleted_pair_count, 0);
+    assert!(f.has_edge(1274, 1275, "PROPOSED_TOGETHER").await);
+
+    let other = Fixture::new(1201).await?;
+    let other_ingest = Ingest::new(other.pool.clone());
+    let foreign = {
+        let mut payload = json!({
+            "proposalId":id(1291),"targetEntityId":id(1292),"targetEntityType":"TASK",
+            "resultingEntityId":id(1292),"action":"CREATE","requestorId":id(2),
+            "createdAt":"2026-11-01T00:00:00Z","conversationId":id(conversation),
+            "messageId":id(1293),"shouldProcess":true,"influences":[]
+        });
+        payload["organizationId"] = json!(other.scope.organization);
+        payload["projectId"] = json!(other.scope.project);
+        json!({"event":{"id":id(1294),"type":"proposal.approved","aggregateId":id(1291),"payload":payload}})
+    };
+    other_ingest.handle(&foreign).await?;
+    let scoped_count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM graph.edge WHERE organization_id=$1 AND project_id=$2 AND relationship_type='PROPOSED_TOGETHER'",
+    )
+    .bind(&f.scope.organization)
+    .bind(&f.scope.project)
+    .fetch_one(&f.pool)
+    .await?;
+    assert_eq!(scoped_count, 1);
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn proposed_together_backfill_is_resumable_and_converges_with_approval() -> anyhow::Result<()>
+{
+    use hey_hey_graph_search::graph::{ingest::Ingest, proposed_together};
+    let f = Fixture::new(1300).await?;
+    for target in [1310, 1311, 1312] {
+        f.node(
+            target,
+            "TASK",
+            json!({"name":format!("Target {target}"),"type":"STANDARD"}),
+        )
+        .await;
+    }
+    for (proposal, target, conversation) in
+        [(1320, 1310, 1330), (1321, 1311, 1330), (1322, 1312, 1331)]
+    {
+        let resulting_entity = if proposal == 1320 {
+            Value::Null
+        } else {
+            json!(id(target))
+        };
+        f.node(
+            proposal,
+            "PROPOSAL",
+            json!({
+                "status":"APPROVED","action":"CREATE","conversationId":id(conversation),
+                "targetEntityId":id(target),"targetEntityType":"TASK","resultingEntityId":resulting_entity
+            }),
+        )
+        .await;
+    }
+    f.node(
+        1323,
+        "PROPOSAL",
+        json!({"status":"APPROVED","action":"CREATE","targetEntityId":"","resultingEntityId":""}),
+    )
+    .await;
+    f.node(
+        1324,
+        "PROPOSAL",
+        json!({"status":"APPROVED","action":"CREATE","conversationId":id(1330),"targetEntityId":"","resultingEntityId":""}),
+    )
+    .await;
+    f.node(
+        1325,
+        "PROPOSAL",
+        json!({"status":"APPROVED","action":"CREATE","conversationId":id(1330),"targetEntityId":id(1399),"targetEntityType":"TASK","resultingEntityId":id(1399)}),
+    )
+    .await;
+
+    let first = proposed_together::run_batch(&f.pool, &f.scope, None, 1).await?;
+    assert_eq!(first.cohorts, 1);
+    assert_eq!(first.examined_subjects, 2);
+    assert_eq!(first.ensured_pairs, 1);
+    assert_eq!(first.inserted_pairs, 1);
+    assert_eq!(first.invalid_records, 2);
+    assert!(
+        first
+            .diagnostics
+            .iter()
+            .any(|value| value.contains("no resultingEntityId"))
+    );
+    assert!(
+        first
+            .diagnostics
+            .iter()
+            .any(|value| value.contains("no live canonical endpoint"))
+    );
+    assert_eq!(first.missing_conversations.as_ref().unwrap().count, 1);
+    let cursor = first.after_conversation_id.clone().unwrap();
+    let second = proposed_together::run_batch(&f.pool, &f.scope, Some(&cursor), 1).await?;
+    assert_eq!(second.cohorts, 1);
+    assert_eq!(second.examined_subjects, 1);
+    assert_eq!(second.ensured_pairs, 0);
+
+    let ingest = Ingest::new(f.pool.clone());
+    let make_event = |event_id, proposal_id, target_id, message_id| {
+        f.event(
+            event_id,
+            "proposal.approved",
+            proposal_id,
+            json!({
+                "proposalId":id(proposal_id),"targetEntityId":id(target_id),"targetEntityType":"TASK",
+                "resultingEntityId":id(target_id),"action":"CREATE","requestorId":id(2),
+                "createdAt":"2026-11-01T00:00:00Z","conversationId":id(1330),
+                "messageId":id(message_id),"shouldProcess":true,"influences":[]
+            }),
+        )
+    };
+    let third = make_event(1342, 1340, 1312, 1341);
+    let backfill = proposed_together::run_batch(&f.pool, &f.scope, None, 100);
+    let (backfilled, third_result) = tokio::join!(backfill, ingest.handle(&third));
+    assert_eq!(backfilled?.cohorts, 2);
+    third_result?;
+
+    let fourth = make_event(1345, 1343, 1313, 1344);
+    let fifth = make_event(1348, 1346, 1314, 1347);
+    let (fourth_result, fifth_result) = tokio::join!(ingest.handle(&fourth), ingest.handle(&fifth));
+    fourth_result?;
+    fifth_result?;
+
+    let again = proposed_together::run_batch(&f.pool, &f.scope, None, 100).await?;
+    assert_eq!(again.ensured_pairs, 10);
+    assert_eq!(again.inserted_pairs, 0);
+    let pair_count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM graph.edge WHERE organization_id=$1 AND project_id=$2 AND relationship_type='PROPOSED_TOGETHER' AND properties->>'conversationId'=$3",
+    )
+    .bind(&f.scope.organization)
+    .bind(&f.scope.project)
+    .bind(id(1330))
+    .fetch_one(&f.pool)
+    .await?;
+    assert_eq!(pair_count, 10);
+    Ok(())
+}
+
 impl Fixture {
     fn event(&self, sequence: u64, kind: &str, aggregate: u64, mut payload: Value) -> Value {
         payload["organizationId"] = json!(self.scope.organization);

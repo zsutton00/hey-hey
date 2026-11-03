@@ -104,6 +104,11 @@ impl Ingest {
         let mut tx = native::begin(&self.pool, &scope).await.map_err(|error| {
             IngestError::Failed(anyhow::anyhow!("graph transaction failed: {}", error.1))
         })?;
+        if approval.action == "CREATE" {
+            native::lock_project_cohort(&mut tx, &scope)
+                .await
+                .map_err(IngestError::Failed)?;
+        }
         if !super::store::claim_event(
             &mut tx,
             &scope,
@@ -172,6 +177,46 @@ impl Ingest {
             }
         }
         super::store::merge_event_edge(&mut tx, &scope, &approval.proposal_id, subject, "TARGET_OF", &json!({"source":"system","inferredBy":"system","confidence":1.0,"reasoning":"Proposal targets subject entity"}), &approval.created_at).await?;
+        if approval.action == "CREATE"
+            && let Some(conversation_id) = approval
+                .conversation_id
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+        {
+            let cohort = sqlx::query_scalar::<_, String>(
+                "SELECT DISTINCT COALESCE(NULLIF(BTRIM(p.properties->>'resultingEntityId'),''),NULLIF(BTRIM(p.properties->>'targetEntityId'),''),target.target_id) AS subject_id FROM graph.node p LEFT JOIN LATERAL (SELECT e.target_id FROM graph.edge e WHERE e.organization_id=p.organization_id AND e.project_id=p.project_id AND e.source_id=p.id AND e.relationship_type='TARGET_OF' ORDER BY e.created_at,e.id LIMIT 1) target ON true JOIN graph.node endpoint ON endpoint.organization_id=p.organization_id AND endpoint.project_id=p.project_id AND endpoint.id=COALESCE(NULLIF(BTRIM(p.properties->>'resultingEntityId'),''),NULLIF(BTRIM(p.properties->>'targetEntityId'),''),target.target_id) AND (NULLIF(BTRIM(p.properties->>'targetEntityType'),'') IS NULL OR endpoint.entity_type=NULLIF(BTRIM(p.properties->>'targetEntityType'),'')) AND endpoint.project_scoped AND NOT endpoint.deleted AND endpoint.entity_type NOT IN ('PROJECT','USER') WHERE p.organization_id=$1 AND p.project_id=$2 AND p.entity_type='PROPOSAL' AND p.properties->>'status'='APPROVED' AND p.properties->>'action'='CREATE' AND p.properties->>'conversationId'=$3 ORDER BY subject_id",
+            )
+            .bind(&scope.organization)
+            .bind(&scope.project)
+            .bind(conversation_id)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(anyhow::Error::from)?;
+            let subject_live: bool = sqlx::query_scalar(
+                "SELECT EXISTS (SELECT 1 FROM graph.node WHERE organization_id=$1 AND project_id=$2 AND id=$3 AND entity_type=$4 AND project_scoped AND NOT deleted AND entity_type NOT IN ('PROJECT','USER'))",
+            )
+            .bind(&scope.organization)
+            .bind(&scope.project)
+            .bind(subject)
+            .bind(&approval.target_entity_type)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(anyhow::Error::from)?;
+            if subject_live {
+                let pairs = cohort
+                    .into_iter()
+                    .filter(|other_subject| other_subject != subject)
+                    .map(|other_subject| {
+                        (
+                            subject.to_owned(),
+                            other_subject,
+                            approval.created_at.clone(),
+                        )
+                    });
+                super::proposed_together::ensure_pairs(&mut tx, &scope, pairs, conversation_id)
+                    .await?;
+            }
+        }
         if let Some(message) = &approval.message_id {
             super::store::merge_event_node(&mut tx, &scope, message, ("MESSAGE", "Message"), &json!({"content":"","authorId":"unknown","messageType":"UNKNOWN","conversationId":approval.conversation_id,"source":"proposal_event_message"}), &approval.created_at, true).await?;
             super::store::merge_event_edge(&mut tx, &scope, &approval.proposal_id, message, "AUTHORED_IN", &json!({"source":"system","inferredBy":"system","confidence":1.0,"reasoning":"Proposal authored in message context"}), &approval.created_at).await?;
