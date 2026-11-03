@@ -26,6 +26,7 @@ import {
 import {
   ChangeWalkthroughReport,
   CodingResearchReport,
+  CodingResearchUncertaintiesSection,
   CommitReport,
   CompetitiveAnalysisReport,
   DailySessionReport,
@@ -54,6 +55,7 @@ import {
   type PlanReportInteractionContext,
   type ReportViewerTitleLink,
 } from "./viewer";
+import { getCodingResearchUncertainties } from "./viewer/codingResearchWrittenUncertainties";
 import {
   narrowFeatureSyncDecisionReport,
   type FeatureSyncDecisionReportDto,
@@ -101,8 +103,30 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({
   evaluationOutput = false,
 }) => {
   const testId = `${testIdPrefix}-${report.id}`;
+  const afterFrameContent = (() => {
+    if (report.reportType !== ReportType.CodingResearch) {
+      return null;
+    }
+
+    const payload = narrowReportPayload(report);
+    if (payload.reportType !== ReportType.CodingResearch) {
+      return null;
+    }
+
+    return (
+      <CodingResearchUncertaintiesSection
+        reportTestId={testId}
+        uncertainties={getCodingResearchUncertainties(payload)}
+      />
+    );
+  })();
   // Exactly one host title: the frame header or title link when present,
   // otherwise the renderer's own heading, unless the surface owns the title.
+  const isInteractive =
+    !evaluationOutput &&
+    ((report.reportType === ReportType.Plan && planInteraction !== undefined) ||
+      (report.reportType === ReportType.FeatureSyncDecision &&
+        featureSyncDecisionInteraction !== undefined));
   const rendererShowsTitle = renderTitle && !renderHeader && !titleLink;
 
   return (
@@ -112,6 +136,8 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({
       renderHeader={renderHeader}
       titleLink={titleLink}
       sx={sx}
+      interactive={isInteractive}
+      afterFrameContent={afterFrameContent}
     >
       {evaluationOutput && (
         <Box sx={{ mb: 1.5 }}>
@@ -264,6 +290,7 @@ const renderReportBody = (
           report={report}
           reportTestId={reportTestId}
           evaluationOutput={evaluationOutput}
+          renderOpenQuestions={false}
         />
       );
     case ReportType.FeatureSyncHandoff:

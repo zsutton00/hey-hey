@@ -25,9 +25,11 @@ const USAGE_REPORT_TYPES: ReadonlySet<ReportType> = new Set([
   ReportType.FeatureSyncDecision,
 ]);
 
-// Experiment: Atkinson Hyperlegible Mono (loaded in apps/ui/index.html), falling back to the cross-OS sans-serif stack.
-const REPORT_FONT_FAMILY =
-  '"Atkinson Hyperlegible Mono", system-ui, -apple-system, "Segoe UI", Arial, Helvetica, sans-serif';
+const SANS_FONT_FAMILY =
+  'system-ui, -apple-system, "Segoe UI", Arial, Helvetica, sans-serif';
+
+// Experiment: read-only reports use Atkinson Hyperlegible Mono (loaded in apps/ui/index.html).
+const READ_ONLY_REPORT_FONT_FAMILY = `"Atkinson Hyperlegible Mono", ${SANS_FONT_FAMILY}`;
 
 export interface ReportViewerTitleLink {
   entityId: string;
@@ -45,6 +47,8 @@ export interface ReportViewerFrameProps {
   titleLink?: ReportViewerTitleLink;
   /** Optional custom styling applied to the Paper component, merged with existing background styles */
   sx?: SxProps<Theme>;
+  /** Interactive reports (the user can act on them) keep the normal sans-serif font; read-only reports use the report font. Default: false */
+  interactive?: boolean;
   /** Content rendered after and outside the report card. */
   afterFrameContent?: React.ReactNode;
 }
@@ -56,8 +60,12 @@ export const ReportViewerFrame: React.FC<ReportViewerFrameProps> = ({
   renderHeader = true,
   titleLink,
   sx,
+  interactive = false,
   afterFrameContent,
 }) => {
+  const reportFontFamily = interactive
+    ? SANS_FONT_FAMILY
+    : READ_ONLY_REPORT_FONT_FAMILY;
   const pathService = usePathService();
   const titleHref =
     titleLink?.entityId.trim() &&
@@ -73,8 +81,8 @@ export const ReportViewerFrame: React.FC<ReportViewerFrameProps> = ({
     const defaultStyles = {
       p: 2,
       width: "100%",
-      fontFamily: REPORT_FONT_FAMILY,
-      "& .MuiTypography-root": { fontFamily: REPORT_FONT_FAMILY },
+      fontFamily: reportFontFamily,
+      "& .MuiTypography-root": { fontFamily: reportFontFamily },
       "& .MuiTypography-body1, & .MuiTypography-body2": {
         fontSize: "1rem",
         lineHeight: 1.6,
