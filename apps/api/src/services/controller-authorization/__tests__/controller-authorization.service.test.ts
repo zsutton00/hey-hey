@@ -607,7 +607,7 @@ describe('ControllerAuthorizationService', () => {
         {
           type: 'public-key',
           id: 'controller-credential',
-          transports: new Set(['internal']),
+          transports: ['internal'],
         },
       ],
     });

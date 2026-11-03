@@ -1019,50 +1019,147 @@ CodingResearchReadinessEvidence:
       type: string
       minLength: 1
 
+CodingResearchUncertaintyReference:
+  type: object
+  additionalProperties: false
+  required:
+    - entityType
+    - entityId
+    - title
+  properties:
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    entityId:
+      type: string
+      minLength: 1
+    title:
+      type: string
+      minLength: 1
+
+CodingResearchUncertainty:
+  type: object
+  additionalProperties: false
+  required:
+    - category
+    - severity
+    - statement
+    - references
+  properties:
+    category:
+      type: string
+      enum:
+        - lack_of_evidence
+        - conflict
+        - ambiguity
+        - not_implemented
+      description: >
+        lack_of_evidence means relevant project sources do not establish the
+        point; conflict means relevant sources make incompatible claims;
+        ambiguity means one source reasonably supports more than one reading;
+        not_implemented means evidence shows the expected behavior is absent.
+    severity:
+      type: string
+      enum:
+        - low
+        - medium
+        - high
+      description: >
+        Evidence impact: low is peripheral and needs little qualification;
+        medium weakens a material detail and requires a qualified answer; high
+        prevents a reliable answer to a central part of the ask.
+    statement:
+      type: string
+      minLength: 1
+    references:
+      type: array
+      items:
+        $ref: "#/CodingResearchUncertaintyReference"
+
+CodingResearchStructuredReportPayload:
+  type: object
+  description: Structured Project Assistant research result.
+  required:
+    - reportType
+    - format
+    - summary
+    - analysis
+    - frame
+    - provenance
+    - updates
+    - uncertainties
+  additionalProperties: false
+  properties:
+    reportType:
+      type: string
+      enum:
+        - CODING_RESEARCH
+    format:
+      type: string
+      enum:
+        - STRUCTURED
+    summary:
+      type: string
+      minLength: 1
+    analysis:
+      type: string
+      minLength: 1
+    frame:
+      type: object
+      description: ResearchOutput adjacency-list produced by the research subagent.
+      additionalProperties: true
+    provenance:
+      $ref: "#/CodingResearchProvenance"
+    updates:
+      type: array
+      description: Advisory reconciliation candidates; required, and [] means none found.
+      items:
+        $ref: "#/CodingResearchUpdate"
+    readinessEvidence:
+      type: array
+      maxItems: 8
+      description: Bounded evidence for consequential implementation-readiness decisions.
+      items:
+        $ref: "#/CodingResearchReadinessEvidence"
+    uncertainties:
+      type: array
+      description: Evidence uncertainties; an empty array means none were found.
+      items:
+        $ref: "#/CodingResearchUncertainty"
+
+CodingResearchWrittenReportPayload:
+  type: object
+  description: Written Project Assistant research result for runs using research subagents.
+  required:
+    - reportType
+    - format
+    - summary
+    - analysis
+  additionalProperties: false
+  properties:
+    reportType:
+      type: string
+      enum:
+        - CODING_RESEARCH
+    format:
+      type: string
+      enum:
+        - WRITTEN
+    summary:
+      type: string
+      minLength: 1
+      description: 50–100 word handoff derived from the opening paragraph of analysis.
+    analysis:
+      type: string
+      minLength: 1
+      description: Markdown handoff with headed uncertainty sections in parent and child research.
+
 CodingResearchReportPayload:
   description: >
-    Payload for CODING_RESEARCH reports emitted by the Project Assistant subagent.
-    `summary` (from BaseReportPayload) is the 50–100 word handoff for the coding agent.
-    `analysis` is the user-facing markdown synthesis of what the graph implies for the task.
-    `frame` is the ResearchOutput adjacency-list object.
-    `provenance` records every discovery call and edge traversal made during the investigation.
-  allOf:
-    - $ref: "#/BaseReportPayload"
-    - type: object
-      required:
-        - reportType
-        - analysis
-        - frame
-        - provenance
-        - updates
-      additionalProperties: false
-      properties:
-        reportType:
-          type: string
-          enum:
-            - CODING_RESEARCH
-        summary: {}
-        analysis:
-          type: string
-          minLength: 1
-          description: User-facing markdown synthesis of what the graph implies for the focal task.
-        frame:
-          type: object
-          description: ResearchOutput adjacency-list produced by the research subagent.
-          additionalProperties: true
-        provenance:
-          $ref: "#/CodingResearchProvenance"
-        updates:
-          type: array
-          description: Advisory reconciliation candidates; required, and [] means none found.
-          items:
-            $ref: "#/CodingResearchUpdate"
-        readinessEvidence:
-          type: array
-          maxItems: 8
-          description: Bounded evidence for consequential implementation-readiness decisions.
-          items:
-            $ref: "#/CodingResearchReadinessEvidence"
+    Payload for CODING_RESEARCH reports. The `format` discriminator selects
+    structured output or the strict written summary/analysis handoff.
+  oneOf:
+    - $ref: "#/CodingResearchStructuredReportPayload"
+    - $ref: "#/CodingResearchWrittenReportPayload"
 
 SnapshotReportPayload:
   description: Placeholder payload for SNAPSHOT reports.
