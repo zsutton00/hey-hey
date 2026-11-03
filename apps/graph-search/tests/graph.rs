@@ -328,6 +328,24 @@ async fn batch_incident_and_deletion_preserve_metadata_and_converge() -> anyhow:
         "A declared influence"
     );
     assert_eq!(groups[0]["relationships"][0]["id"], first.1["created"][0]);
+    let relationship = &groups[0]["relationships"][0];
+    let text = |value: &Value| value.as_str().unwrap().to_string();
+    let endpoint_ids: std::collections::BTreeSet<String> = groups[0]["endpoints"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| text(&e["entityId"]))
+        .collect();
+    let relationship_ends: std::collections::BTreeSet<String> = [
+        text(&relationship["sourceNodeId"]),
+        text(&relationship["targetNodeId"]),
+    ]
+    .into_iter()
+    .collect();
+    assert_eq!(
+        endpoint_ids, relationship_ends,
+        "a group describes both ends of its relationships, including the seed"
+    );
     let foreign = f
         .call(
             "POST",
@@ -519,9 +537,10 @@ async fn large_project_reads_use_adjacency_and_keep_complete_identity_groups() -
         )
         .await;
     assert_eq!(incident["groups"][0]["neighborTotal"], 320);
+    // The 100 retained neighbors plus the seed, which every returned relationship also touches.
     assert_eq!(
         incident["groups"][0]["endpoints"].as_array().unwrap().len(),
-        100
+        101
     );
     let sql = format!(
         "EXPLAIN (ANALYZE,BUFFERS,FORMAT JSON) {}",
@@ -2116,5 +2135,96 @@ async fn deleted_artifacts_disappear_from_authenticated_graph_reads_on_duplicate
                 .all(|node| node["entityId"] != id(1504))
         );
     }
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn clone_readiness_counts_only_live_items_in_their_expected_place() -> anyhow::Result<()> {
+    let f = Fixture::new(301).await?;
+    f.node(300 + 1, "PROJECT", json!({"name":"Project"})).await;
+    f.node(10, "TASK", json!({"type":"FEATURE"})).await;
+    f.node(11, "TASK", json!({"type":"STANDARD"})).await;
+    f.node(12, "TASK", json!({"type":"STANDARD"})).await;
+    f.edge(10, 11, "HAS_TASK", json!({})).await;
+    let item = |n: u64, kind: &str, parent: String| json!({"id":id(n),"typeKey":kind,"parentTaskId":parent});
+
+    let ready = f
+        .query(
+            "work-item-project-readiness",
+            json!({"workItems":[
+                item(10, "FEATURE", String::new()),
+                item(11, "STANDARD", id(10)),
+                item(12, "STANDARD", String::new()),
+            ]}),
+        )
+        .await;
+    assert_eq!(ready["verifiedCount"], 3);
+
+    let mismatched = f
+        .query(
+            "work-item-project-readiness",
+            json!({"workItems":[
+                item(11, "STANDARD", String::new()),
+                item(12, "STANDARD", id(10)),
+                item(10, "BUG", String::new()),
+                item(99, "STANDARD", String::new()),
+            ]}),
+        )
+        .await;
+    assert_eq!(mismatched["verifiedCount"], 0);
+
+    f.node(13, "DESIGN_DOC", json!({"name":"Doc"})).await;
+    f.node(14, "DESIGN_DOC", json!({"name":"Unscoped"})).await;
+    f.edge(13, 301, "SCOPED_TO_PROJECT", json!({})).await;
+    let docs = f
+        .query(
+            "design-doc-project-readiness",
+            json!({"designDocIds":[id(13),id(13),id(14)]}),
+        )
+        .await;
+    assert_eq!(docs["verifiedCount"], 1);
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn reparenting_a_task_withdraws_the_previous_parents_edge() -> anyhow::Result<()> {
+    use hey_hey_graph_search::graph::ingest::Ingest;
+    let f = Fixture::new(1200).await?;
+    let ingest = Ingest::new(f.pool.clone());
+    for (sequence, kind, aggregate, payload) in [
+        (
+            1201,
+            "task.created",
+            1210,
+            json!({"task":{"name":"First parent","type":"FEATURE"}}),
+        ),
+        (
+            1202,
+            "task.created",
+            1211,
+            json!({"task":{"name":"Second parent","type":"FEATURE"}}),
+        ),
+        (
+            1203,
+            "task.created",
+            1212,
+            json!({"task":{"name":"Child","type":"STANDARD","parentTaskId":id(1210)}}),
+        ),
+        (
+            1204,
+            "task.updated",
+            1212,
+            json!({"update":{"parentTaskId":id(1211)}}),
+        ),
+    ] {
+        ingest
+            .handle(&f.event(sequence, kind, aggregate, payload))
+            .await?;
+    }
+
+    assert!(f.has_edge(1211, 1212, "HAS_TASK").await);
+    assert!(!f.has_edge(1210, 1212, "HAS_TASK").await);
     Ok(())
 }

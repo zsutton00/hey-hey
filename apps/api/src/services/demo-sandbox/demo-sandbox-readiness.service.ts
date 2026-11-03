@@ -9,13 +9,19 @@ import {
 import type { OrganizationId, ProjectId } from '../../types';
 import { errorToLoggable } from '../../utils/logging.util';
 import { READINESS_POLL_INTERVAL_MILLISECONDS } from './demo-sandbox.constants';
-import type { WorkItemProjectReadinessRequest } from '../../generated/graphs';
+import type {
+  DesignDocProjectReadinessRequest,
+  WorkItemProjectReadinessRequest,
+} from '../../generated/graphs';
 import {
+  readReadinessDesignDocs,
   readReadinessWorkItems,
+  type CopiedDesignDocExpectation,
   type CopiedWorkItemExpectation,
 } from './template-graph-copy-intent';
 
 const WORK_ITEM_READINESS_BATCH_SIZE = 500;
+const DESIGN_DOC_READINESS_BATCH_SIZE = 500;
 
 /** The persisted readiness inputs of one prepared attempt. */
 interface ReadinessAttempt {
@@ -23,10 +29,11 @@ interface ReadinessAttempt {
   projectId: string;
   readinessFeatureIds: string[];
   readinessWorkItems: CopiedWorkItemExpectation[];
+  readinessDesignDocs: CopiedDesignDocExpectation[];
   provisioningDeadline: Date;
 }
 
-/** Waits for copied features and every captured work item to be ready in Graph. */
+/** Waits for copied features, captured work items and captured design docs to be ready. */
 @Injectable()
 export class DemoSandboxReadinessService {
   private readonly logger = new Logger(DemoSandboxReadinessService.name);
@@ -91,6 +98,65 @@ export class DemoSandboxReadinessService {
     return verifiedCount;
   }
 
+  /**
+   * Graph confirms each design doc node and its project scope; the destination
+   * rows confirm project scope and the remapped owner, which Graph does not store.
+   */
+  private async verifiedDesignDocCount(
+    attempt: ReadinessAttempt,
+  ): Promise<number> {
+    const organizationId = attempt.organizationId as OrganizationId;
+    const projectId = attempt.projectId as ProjectId;
+    const token = this.tokenFactory(organizationId, projectId);
+    let verifiedCount = 0;
+
+    for (
+      let offset = 0;
+      offset < attempt.readinessDesignDocs.length;
+      offset += DESIGN_DOC_READINESS_BATCH_SIZE
+    ) {
+      if (attempt.provisioningDeadline.getTime() - Date.now() <= 0) {
+        return verifiedCount;
+      }
+      const batch = attempt.readinessDesignDocs.slice(
+        offset,
+        offset + DESIGN_DOC_READINESS_BATCH_SIZE,
+      );
+      const request = {
+        designDocIds: batch.map((doc) => doc.id),
+      } satisfies DesignDocProjectReadinessRequest;
+      const [graphResult, rows] = await Promise.all([
+        this.graphs.checkDesignDocProjectReadiness(
+          organizationId,
+          projectId,
+          request,
+          token,
+        ),
+        this.prisma.db.designDoc.findMany({
+          where: {
+            id: { in: request.designDocIds },
+            organizationId: attempt.organizationId,
+            projectId: attempt.projectId,
+          },
+          select: { id: true, parentEntityType: true, parentEntityId: true },
+        }),
+      ]);
+      const ownersById = new Map<string, (typeof rows)[number]>(
+        rows.map((row) => [row.id, row]),
+      );
+      const attachedCount = batch.filter((expected) => {
+        const row = ownersById.get(expected.id);
+        return (
+          row?.parentEntityType === expected.parentEntityType &&
+          row.parentEntityId === expected.parentEntityId
+        );
+      }).length;
+      verifiedCount += Math.min(graphResult.verifiedCount, attachedCount);
+    }
+
+    return verifiedCount;
+  }
+
   private hasMatchingFeatureSet(attempt: ReadinessAttempt): boolean {
     const capturedFeatureIds = attempt.readinessWorkItems
       .filter((item) => item.typeKey === 'FEATURE')
@@ -128,11 +194,13 @@ export class DemoSandboxReadinessService {
     });
     if (!intent) return false;
     const readinessWorkItems = readReadinessWorkItems(intent.command);
+    const readinessDesignDocs = readReadinessDesignDocs(intent.command);
     const attempt: ReadinessAttempt = {
       organizationId: row.organizationId,
       projectId: row.projectId,
       readinessFeatureIds: row.readinessFeatureIds,
       readinessWorkItems,
+      readinessDesignDocs,
       provisioningDeadline: row.provisioningDeadline,
     };
     if (!this.hasMatchingFeatureSet(attempt)) return false;
@@ -141,6 +209,7 @@ export class DemoSandboxReadinessService {
     const verificationStartedAt = Date.now();
     let recorded = 0;
     let verifiedWorkItemCount = 0;
+    let verifiedDesignDocCount = 0;
     for (;;) {
       if (attempt.provisioningDeadline.getTime() - Date.now() <= 0) {
         this.logger.warn('Demo sandbox graph readiness deadline expired', {
@@ -148,22 +217,29 @@ export class DemoSandboxReadinessService {
           connectedFeatureCount: recorded,
           expectedWorkItemCount: attempt.readinessWorkItems.length,
           verifiedWorkItemCount,
+          expectedDesignDocCount: attempt.readinessDesignDocs.length,
+          verifiedDesignDocCount,
           verificationDurationMilliseconds: Date.now() - verificationStartedAt,
         });
         return false;
       }
       try {
-        const [connected, verified] = await Promise.all([
-          this.connectedFeatureCount(attempt),
-          this.verifiedWorkItemCount(attempt),
-        ]);
-        verifiedWorkItemCount = verified;
+        const [connected, verifiedWorkItems, verifiedDesignDocs] =
+          await Promise.all([
+            this.connectedFeatureCount(attempt),
+            this.verifiedWorkItemCount(attempt),
+            this.verifiedDesignDocCount(attempt),
+          ]);
+        verifiedWorkItemCount = verifiedWorkItems;
+        verifiedDesignDocCount = verifiedDesignDocs;
         if (attempt.provisioningDeadline.getTime() - Date.now() <= 0) {
           this.logger.warn('Demo sandbox graph readiness deadline expired', {
             expectedFeatureCount: total,
             connectedFeatureCount: connected,
             expectedWorkItemCount: attempt.readinessWorkItems.length,
             verifiedWorkItemCount,
+            expectedDesignDocCount: attempt.readinessDesignDocs.length,
+            verifiedDesignDocCount,
             verificationDurationMilliseconds:
               Date.now() - verificationStartedAt,
           });
@@ -178,13 +254,16 @@ export class DemoSandboxReadinessService {
         }
         if (
           connected === total &&
-          verifiedWorkItemCount === attempt.readinessWorkItems.length
+          verifiedWorkItemCount === attempt.readinessWorkItems.length &&
+          verifiedDesignDocCount === attempt.readinessDesignDocs.length
         ) {
           this.logger.log('Demo sandbox graph readiness verified', {
             expectedFeatureCount: total,
             connectedFeatureCount: connected,
             expectedWorkItemCount: attempt.readinessWorkItems.length,
             verifiedWorkItemCount,
+            expectedDesignDocCount: attempt.readinessDesignDocs.length,
+            verifiedDesignDocCount,
             verificationDurationMilliseconds:
               Date.now() - verificationStartedAt,
           });

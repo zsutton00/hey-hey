@@ -19,12 +19,15 @@ const DEFAULT_THRESHOLD: f64 = 0.15;
 pub struct Invalid {
     pub field: &'static str,
     pub message: String,
+    /// The `ErrorResponse.error` code; `validation_error` unless a more specific one is declared.
+    pub code: &'static str,
 }
 
 pub fn invalid(field: &'static str, message: impl Into<String>) -> Invalid {
     Invalid {
         field,
         message: message.into(),
+        code: "validation_error",
     }
 }
 
@@ -343,6 +346,10 @@ fn checked_limits(max_results: Option<u32>, threshold: Option<f64>) -> Result<(u
 /// the deployed service.
 const MIN_EXACT_QUERY_CHARS: usize = 3;
 
+fn is_too_short_for_exact(query: &str) -> bool {
+    query.chars().count() < MIN_EXACT_QUERY_CHARS || query.trim().is_empty()
+}
+
 fn checked_query(query: Option<String>, field: &'static str) -> Result<String, Invalid> {
     let query = query.unwrap_or_default();
     let length = query.chars().count();
@@ -358,17 +365,18 @@ fn checked_query(query: Option<String>, field: &'static str) -> Result<String, I
 impl SearchRequest {
     /// Returns the validated search and the filters' requested tenant.
     pub fn validate(self) -> Result<(Search, SearchFilters), Invalid> {
+        let exact = self.query_mode == QueryMode::Exact;
+        // The phrase is literal, so surrounding whitespace counts toward its length.
+        if exact && is_too_short_for_exact(self.query.as_deref().unwrap_or_default()) {
+            return Err(Invalid {
+                code: "invalid_exact_query",
+                ..invalid("query", "exact queries must be at least 3 characters")
+            });
+        }
         let query = checked_query(self.query, "query")?;
         let (max_results, threshold) = checked_limits(self.max_results, self.similarity_threshold)?;
         let filters = self.filters.unwrap_or_default();
         let title_only = self.query_mode == QueryMode::TitleFuzzy;
-        let exact = self.query_mode == QueryMode::Exact;
-        if exact && query.chars().count() < MIN_EXACT_QUERY_CHARS {
-            return Err(invalid(
-                "query",
-                "exact queries must be at least 3 characters",
-            ));
-        }
 
         // Title-fuzzy and exact matching are lexical only, as in the deployed
         // service; a literal hit is never dropped by a score cutoff.
@@ -792,5 +800,30 @@ impl DeletionIdentity {
             "irreversibleClosureAt": format(self.irreversible_closure_at),
             "deletionDeadline": format(self.deletion_deadline),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn exact(query: &str) -> Result<(Search, SearchFilters), Invalid> {
+        let request: SearchRequest =
+            serde_json::from_value(json!({"query": query, "query_mode": "exact"})).unwrap();
+        request.validate()
+    }
+
+    #[test]
+    fn short_and_blank_exact_queries_use_the_invalid_exact_query_code() {
+        for query in ["a", "ab", "   "] {
+            let error = exact(query).unwrap_err();
+            assert_eq!(error.code, "invalid_exact_query", "{query:?}");
+        }
+    }
+
+    #[test]
+    fn a_three_character_exact_query_is_accepted() {
+        assert!(exact("foo").is_ok());
     }
 }

@@ -102,9 +102,13 @@ impl From<anyhow::Error> for Failure {
 impl IntoResponse for Failure {
     fn into_response(self) -> Response {
         let (status, error, message, field) = match self {
-            Self::Invalid(Invalid { field, message }) => (
+            Self::Invalid(Invalid {
+                field,
+                message,
+                code,
+            }) => (
                 StatusCode::BAD_REQUEST,
-                "validation_error",
+                code,
                 format!("{field} {message}"),
                 Some(field),
             ),
@@ -419,7 +423,7 @@ async fn delete_projection(
         .and_then(|command| {
             command
                 .validate()
-                .map_err(|Invalid { field, message }| format!("{field} {message}"))
+                .map_err(|Invalid { field, message, .. }| format!("{field} {message}"))
         }) {
         Ok(identity) => identity,
         Err(message) => {

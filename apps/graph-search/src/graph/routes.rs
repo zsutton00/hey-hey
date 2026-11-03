@@ -39,6 +39,8 @@ pub fn router(enabled: bool, auth: Authenticator) -> Router {
         .route("/relationships/{relationshipId}", get(pending), Policy::User)
         .route("/relationships/{relationshipId}", delete(pending), Policy::User)
         .route("/organizations/{organizationId}/projects/{projectId}/feature-project-connection", post(connections), Policy::User)
+        .route("/organizations/{organizationId}/projects/{projectId}/work-item-project-readiness", post(work_item_readiness), Policy::User)
+        .route("/organizations/{organizationId}/projects/{projectId}/design-doc-project-readiness", post(design_doc_readiness), Policy::User)
         .route("/organizations/{organizationId}/projects/{projectId}/traversal", post(traverse), Policy::User)
         .route("/organizations/{organizationId}/projects/{projectId}/incident-edges", post(incident), Policy::User)
         .route("/organizations/{organizationId}/projects/{projectId}/entity-neighborhood", post(neighborhood), Policy::User)
@@ -137,6 +139,28 @@ async fn connections(
     Ok(Json(
         json!({"connectedCount":store::feature_connections(&pool,&scope(org,project)?,&request.feature_ids).await?}),
     ))
+}
+async fn work_item_readiness(
+    Extension(pool): Extension<PgPool>,
+    Path((org, project)): Path<(String, String)>,
+    Json(value): Json<Value>,
+) -> Result<Json<Value>, Failure> {
+    let request: WorkItemProjectReadinessRequest =
+        validation::decode("WorkItemProjectReadinessRequest", value).map_err(invalid)?;
+    let verified =
+        store::work_item_readiness(&pool, &scope(org, project)?, &request.work_items).await?;
+    Ok(Json(json!({"verifiedCount":verified})))
+}
+async fn design_doc_readiness(
+    Extension(pool): Extension<PgPool>,
+    Path((org, project)): Path<(String, String)>,
+    Json(value): Json<Value>,
+) -> Result<Json<Value>, Failure> {
+    let request: DesignDocProjectReadinessRequest =
+        validation::decode("DesignDocProjectReadinessRequest", value).map_err(invalid)?;
+    let verified =
+        store::design_doc_readiness(&pool, &scope(org, project)?, &request.design_doc_ids).await?;
+    Ok(Json(json!({"verifiedCount":verified})))
 }
 async fn topology(
     Extension(pool): Extension<PgPool>,

@@ -804,6 +804,7 @@ const ignoredStageDirectories = new Set([
   ".git",
   ".next",
   ".turbo",
+  ".vscode",
   ".tmp",
   ".worktrees",
   ".cache",

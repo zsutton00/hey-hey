@@ -4,10 +4,7 @@ const fs = require("fs"),
 const checkoutRoot = path.resolve(__dirname, "../../..");
 process.chdir(checkoutRoot);
 const { resolveOpenapiRoot } = require("../../../scripts/openapi-source.cjs");
-const source = path.join(
-  resolveOpenapiRoot(),
-  "specs/graphs/openapi.yaml",
-);
+const source = path.join(resolveOpenapiRoot(), "specs/graphs/openapi.yaml");
 const cache = new Map();
 function doc(file) {
   if (!cache.has(file)) {
@@ -48,6 +45,8 @@ const names = [
   "IncidentEdgesRequest",
   "BatchRelationshipRequest",
   "FeatureProjectConnectionRequest",
+  "WorkItemProjectReadinessRequest",
+  "DesignDocProjectReadinessRequest",
 ];
 let output =
   "// Generated from openapi/specs/graphs/openapi.yaml. Do not edit.\nuse serde::{Deserialize, Serialize};\n";

@@ -55,25 +55,28 @@ fn title_of(metadata: &Value) -> Option<&str> {
         .filter(|title| !title.is_empty())
 }
 
-/// The text to return and its spans: the body when it contains the phrase,
-/// otherwise the matching title, since spans are valid only for the text
-/// returned with them.
+/// The text to return and its spans. Spans are valid only for the text returned
+/// with them, so a phrase found only in the title returns the title, and any
+/// phrase found in the body returns the full text.
 pub fn literal_evidence(text: String, metadata: &Value, query: &str) -> (String, Vec<MatchSpan>) {
-    let spans = literal_spans(&text, query);
-    if !spans.is_empty() {
+    let title = title_of(metadata);
+    let body = match title {
+        Some(title) => text.strip_prefix(title).unwrap_or(&text),
+        None => &text,
+    };
+    if !literal_spans(body, query).is_empty() {
+        let spans = literal_spans(&text, query);
         return (text, spans);
     }
-    match title_of(metadata) {
-        Some(title) => {
-            let title_spans = literal_spans(title, query);
-            if title_spans.is_empty() {
-                (text, spans)
-            } else {
-                (title.to_string(), title_spans)
-            }
+
+    if let Some(title) = title {
+        let title_spans = literal_spans(title, query);
+        if !title_spans.is_empty() {
+            return (title.to_string(), title_spans);
         }
-        None => (text, spans),
     }
+    let spans = literal_spans(&text, query);
+    (text, spans)
 }
 
 #[cfg(test)]
@@ -94,6 +97,23 @@ mod tests {
         let (text, spans) = literal_evidence("unrelated".into(), &metadata, "buildturninputs");
         assert_eq!(text, "Fix buildTurnInputs");
         assert_eq!((spans[0].start, spans[0].end), (4, 19));
+    }
+
+    #[test]
+    fn a_title_only_match_ignores_the_stored_body_that_follows_the_title() {
+        let metadata = json!({ "name": "Exact title literal 42 phrase" });
+        let stored = "Exact title literal 42 phrase\n\nevidence_text:\nUnrelated body";
+        let (text, spans) = literal_evidence(stored.into(), &metadata, "literal 42 phrase");
+        assert_eq!(text, "Exact title literal 42 phrase");
+        assert_eq!((spans[0].start, spans[0].end), (12, 29));
+    }
+
+    #[test]
+    fn a_body_match_returns_the_full_text() {
+        let metadata = json!({ "name": "Title" });
+        let (text, spans) = literal_evidence("Title\n\n😀 needle".into(), &metadata, "needle");
+        assert_eq!(text, "Title\n\n😀 needle");
+        assert_eq!(spans.len(), 1);
     }
 
     #[test]

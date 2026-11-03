@@ -170,6 +170,12 @@ impl Projection<'_> {
             .bind(&self.scope.organization).bind(&self.scope.project).bind(kind).bind(incoming).bind(self.id).execute(&mut *self.tx).await.map_err(anyhow::Error::from)?;
         Ok(())
     }
+    /// A task has one task parent; withdraw the edge from any previous one after a reparent.
+    async fn withdraw_previous_task_parents(&mut self, current: &str) -> Result<(), IngestError> {
+        sqlx::query("DELETE FROM graph.edge e USING graph.node parent WHERE e.organization_id=$1 AND e.project_id=$2 AND e.relationship_type='HAS_TASK' AND e.target_id=$3 AND e.source_id<>$4 AND parent.organization_id=$1 AND parent.project_id=$2 AND parent.id=e.source_id AND parent.entity_type='TASK'")
+            .bind(&self.scope.organization).bind(&self.scope.project).bind(self.id).bind(current).execute(&mut *self.tx).await.map_err(anyhow::Error::from)?;
+        Ok(())
+    }
     async fn cascade(&mut self, kind: &str, hard: bool, status: &str) -> Result<(), IngestError> {
         let ids: Vec<String> = sqlx::query_scalar("WITH RECURSIVE descendants(id) AS (SELECT id FROM graph.node WHERE organization_id=$1 AND project_id=$2 AND id=$3 AND entity_type=$4 UNION SELECT e.target_id FROM descendants d JOIN graph.edge e ON e.organization_id=$1 AND e.project_id=$2 AND e.source_id=d.id WHERE e.relationship_type IN ('HAS_INITIATIVE','HAS_TASK','HAS_AGENT_SESSION','HAS_IMPLEMENTATION_HINT','HAS_DESIGN_DOC','HAS_SUB_DOC','HAS_MESSAGE','HAS_CATEGORY','HAS_FACET','HAS_KB_ENTRY')) SELECT id FROM descendants")
             .bind(&self.scope.organization).bind(&self.scope.project).bind(self.id).bind(kind).fetch_all(&mut *self.tx).await.map_err(anyhow::Error::from)?;

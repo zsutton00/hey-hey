@@ -108,6 +108,7 @@ pub(super) async fn simple(
                     json!({}),
                 )
                 .await?;
+                g.withdraw_previous_task_parents(parent).await?;
             }
             if created {
                 let initiative = p["initiativeId"].as_str();

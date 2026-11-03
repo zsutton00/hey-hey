@@ -213,9 +213,15 @@ pub async fn incident(
             });
             neighbors.truncate(100);
         }
-        let endpoints: Vec<_> = neighbors
+        // Both ends of every returned relationship, so the seed is described as well as its neighbors.
+        let endpoint_ids: BTreeSet<&str> = neighbors
             .iter()
-            .filter_map(|(id, _)| nodes.get(id))
+            .flat_map(|(_, edges)| edges.iter())
+            .flat_map(|e| [e.source_id.as_str(), e.target_id.as_str()])
+            .collect();
+        let endpoints: Vec<_> = endpoint_ids
+            .into_iter()
+            .filter_map(|id| nodes.get(id))
             .map(|n| n.display(true))
             .collect();
         let relationships: Vec<_> = neighbors

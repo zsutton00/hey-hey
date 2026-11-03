@@ -1,3 +1,4 @@
+use super::generated::WorkItemProjectReadinessExpectation;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::PgPool;
@@ -305,6 +306,60 @@ pub async fn feature_connections(
       scope.organization,scope.project,ids).fetch_one(pool).await?;
     Ok(row.count)
 }
+/// Counts listed tasks matching their type, project scope and structural parent.
+pub async fn work_item_readiness(
+    pool: &PgPool,
+    scope: &Scope,
+    items: &[WorkItemProjectReadinessExpectation],
+) -> anyhow::Result<i64> {
+    let expectations = serde_json::to_value(items)?;
+    let verified = sqlx::query_scalar(
+        r#"SELECT count(DISTINCT item.id) FROM jsonb_to_recordset($3::jsonb)
+        AS expected(id text, "typeKey" text, "parentTaskId" text)
+      JOIN graph.node item ON item.organization_id=$1 AND item.project_id=$2 AND item.id=expected.id
+        AND item.entity_type='TASK' AND item.properties->>'type'=expected."typeKey"
+      WHERE NOT item.stub AND NOT item.deleted
+        AND CASE WHEN expected."parentTaskId"=''
+          THEN NOT EXISTS (SELECT 1 FROM graph.edge e JOIN graph.node parent
+            ON parent.organization_id=$1 AND parent.project_id=$2 AND parent.id=e.source_id
+            WHERE e.organization_id=$1 AND e.project_id=$2 AND e.target_id=item.id
+              AND e.relationship_type='HAS_TASK' AND parent.entity_type='TASK')
+          ELSE EXISTS (SELECT 1 FROM graph.edge e JOIN graph.node parent
+            ON parent.organization_id=$1 AND parent.project_id=$2 AND parent.id=e.source_id
+            WHERE e.organization_id=$1 AND e.project_id=$2 AND e.target_id=item.id
+              AND e.relationship_type='HAS_TASK' AND parent.entity_type='TASK'
+              AND parent.id=expected."parentTaskId" AND NOT parent.stub AND NOT parent.deleted)
+        END"#,
+    )
+    .bind(&scope.organization)
+    .bind(&scope.project)
+    .bind(expectations)
+    .fetch_one(pool)
+    .await?;
+    Ok(verified)
+}
+/// Counts listed design docs scoped to the project by an edge to the live project node.
+pub async fn design_doc_readiness(
+    pool: &PgPool,
+    scope: &Scope,
+    ids: &[String],
+) -> anyhow::Result<i64> {
+    let verified = sqlx::query_scalar(
+        r#"SELECT count(DISTINCT doc.id) FROM graph.node doc
+      JOIN graph.edge e ON e.organization_id=$1 AND e.project_id=$2 AND e.source_id=doc.id
+        AND e.relationship_type='SCOPED_TO_PROJECT' AND e.target_id=$2
+      JOIN graph.node p ON p.organization_id=$1 AND p.project_id=$2 AND p.id=$2
+      WHERE doc.organization_id=$1 AND doc.project_id=$2 AND doc.id=ANY($3)
+        AND doc.entity_type='DESIGN_DOC' AND NOT doc.stub AND NOT doc.deleted
+        AND p.entity_type='PROJECT' AND NOT p.stub AND NOT p.deleted"#,
+    )
+    .bind(&scope.organization)
+    .bind(&scope.project)
+    .bind(ids)
+    .fetch_one(pool)
+    .await?;
+    Ok(verified)
+}
 pub async fn provenance(
     pool: &PgPool,
     scope: &Scope,
@@ -428,7 +483,7 @@ pub async fn merge_event_node(
     only_if_missing: bool,
 ) -> anyhow::Result<()> {
     let (kind, label) = entity;
-    sqlx::query("INSERT INTO graph.node (organization_id,project_id,id,entity_type,labels,properties,project_scoped,created_at,updated_at) VALUES ($1,$2,$3,$4,ARRAY[$5],$6,$4 NOT IN ('USER','PROJECT'),$7::text::timestamptz,$7::text::timestamptz) ON CONFLICT (organization_id,project_id,id) DO UPDATE SET properties=graph.node.properties||EXCLUDED.properties,stub=false,updated_at=EXCLUDED.updated_at WHERE NOT $8")
+    sqlx::query("INSERT INTO graph.node (organization_id,project_id,id,entity_type,labels,properties,project_scoped,created_at,updated_at) VALUES ($1,$2,$3,$4,ARRAY[$5],$6,$4 NOT IN ('USER','PROJECT'),$7::text::timestamptz,$7::text::timestamptz) ON CONFLICT (organization_id,project_id,id) DO UPDATE SET properties=graph.node.properties||EXCLUDED.properties,stub=false,created_at=COALESCE(graph.node.created_at,EXCLUDED.created_at),updated_at=EXCLUDED.updated_at WHERE NOT $8")
         .bind(&scope.organization).bind(&scope.project).bind(id).bind(kind).bind(label).bind(properties).bind(timestamp).bind(only_if_missing).execute(&mut **tx).await?;
     Ok(())
 }
