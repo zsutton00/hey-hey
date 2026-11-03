@@ -142,13 +142,38 @@ describe('API tracing configuration', () => {
     });
   });
 
-  it('blocks production and permits full sampling only for marked local diagnostics', () => {
+  it('permits explicitly enabled production tracing with at most five percent sampling', () => {
+    const production = {
+      ...baseEnvironment,
+      DEPLOYMENT_ENVIRONMENT: 'production',
+    };
+    expect(resolveApiTracingConfig(production)).toMatchObject({
+      deploymentEnvironment: 'production',
+      sampleRate: 0.05,
+    });
     expect(
       resolveApiTracingConfig({
-        ...baseEnvironment,
-        DEPLOYMENT_ENVIRONMENT: 'production',
+        ...production,
+        API_TRACING_SAMPLE_RATE: '0.01',
+      }),
+    ).toMatchObject({ sampleRate: 0.01 });
+    for (const rate of ['0.051', '0.20', '1']) {
+      expect(
+        resolveApiTracingConfig({
+          ...production,
+          API_TRACING_SAMPLE_RATE: rate,
+        }),
+      ).toBeUndefined();
+    }
+    expect(
+      resolveApiTracingConfig({
+        ...production,
+        API_TRACING_DIAGNOSTIC_MODE: 'true',
       }),
     ).toBeUndefined();
+  });
+
+  it('permits full sampling only for marked local diagnostics', () => {
     expect(
       resolveApiTracingConfig({
         ...baseEnvironment,
