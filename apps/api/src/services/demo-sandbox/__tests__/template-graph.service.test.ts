@@ -5,6 +5,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { JwtKeysService } from '../../../auth/services/jwt-keys.service';
 import { TemplateGraphService } from '../../../generated/graphs/api/templateGraph.service';
 import { TemplateGraphCopyCommand } from '../../../generated/graphs';
+import { createPersistedGraphCopyIntent } from '../template-graph-copy-intent';
 
 describe('DemoTemplateGraphService durable retry', () => {
   it('retains failed work and acknowledges the same command after a worker restart', async () => {
@@ -60,5 +61,50 @@ describe('DemoTemplateGraphService durable retry', () => {
       where: { id: intent.id, completedAt: null },
       data: { completedAt: expect.any(Date) },
     });
+  });
+
+  it('sends only the graph command from a persisted readiness envelope', async () => {
+    const graphCommand: TemplateGraphCopyCommand = {
+      id: randomUUID(),
+      snapshot: { nodes: [], edges: [] },
+    };
+    const readinessWorkItems = [
+      {
+        id: randomUUID(),
+        typeKey: 'FEATURE',
+        parentTaskId: null,
+      },
+    ];
+    const intent = {
+      id: graphCommand.id,
+      organizationId: randomUUID(),
+      projectId: randomUUID(),
+      command: createPersistedGraphCopyIntent(graphCommand, readinessWorkItems),
+    };
+    const prisma = {
+      demoGraphCopyIntent: {
+        findMany: jest.fn().mockResolvedValue([intent]),
+        updateMany: jest.fn(),
+      },
+    };
+    const client = {
+      applyTemplateGraphCopy: jest.fn().mockReturnValue(of({ status: 204 })),
+    };
+    const keys = { getTemplateGraphToken: jest.fn().mockReturnValue('token') };
+    const service = new DemoTemplateGraphService(
+      client as unknown as TemplateGraphService,
+      keys as unknown as JwtKeysService,
+      prisma as unknown as PrismaService,
+    );
+
+    await service.retryPending();
+
+    expect(client.applyTemplateGraphCopy).toHaveBeenCalledWith(
+      intent.organizationId,
+      intent.projectId,
+      graphCommand,
+      expect.any(Object),
+    );
+    expect(intent.command).toMatchObject({ readinessWorkItems });
   });
 });

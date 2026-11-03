@@ -24,7 +24,7 @@ import type {
   DemoSandboxAvailabilityDto,
   DemoSandboxResponseDto,
   ProvisionDemoSandboxDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   DemoSandboxAdmission,
   DemoSandboxAdmissionService,

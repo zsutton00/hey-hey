@@ -28,7 +28,7 @@ import {
   DemoSandboxUnavailableCode,
   DemoSandboxResumeState,
   ProvisionDemoSandboxDto,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   BrowserSessionPrincipal,
   BrowserSessionService,
@@ -158,9 +158,9 @@ export class DemoSandboxAdmissionService {
   }
 
   /**
-   * Prepare, wait for every copied feature, then activate. No request waits
-   * on this, so it never throws; a restart abandons it and the deadline sweep
-   * discards the row without extending the deadline.
+   * Prepare, wait for every copied feature and work item, then activate. No
+   * request waits on this, so it never throws; a restart abandons it and the
+   * deadline sweep discards the row without extending the deadline.
    */
   private async completeInBackground(sandboxId: string): Promise<void> {
     try {

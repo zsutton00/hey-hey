@@ -378,6 +378,37 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /organizations/{organizationId}/projects/{projectId}/work-item-project-readiness:
+    post:
+      tags:
+        - Queries
+      summary: Count listed work items matching their copied graph identity
+      operationId: checkWorkItemProjectReadiness
+      description: >-
+        Counts listed task nodes that match their exact identity, type, destination
+        project scope and expected structural parent (including no parent for roots).
+        This narrow read does not validate other graph projections or content.
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkItemProjectReadinessRequest"
+      responses:
+        "200":
+          description: How many listed work items match the expected graph state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkItemProjectReadinessResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /organizations/{organizationId}/projects/{projectId}/traversal:
     post:
       tags:
@@ -2007,6 +2038,48 @@ components:
           minimum: 0
           description: Distinct listed features connected to the project
 
+    WorkItemProjectReadinessRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - workItems
+      properties:
+        workItems:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            $ref: "#/components/schemas/WorkItemProjectReadinessExpectation"
+
+    WorkItemProjectReadinessExpectation:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - typeKey
+        - parentTaskId
+      properties:
+        id:
+          type: string
+          format: uuid
+        typeKey:
+          type: string
+          minLength: 1
+        parentTaskId:
+          type: string
+          description: Expected copied parent task UUID, or an empty string for a root item.
+
+    WorkItemProjectReadinessResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - verifiedCount
+      properties:
+        verifiedCount:
+          type: integer
+          minimum: 0
+          description: Listed work items matching all expected graph properties
+
     # Search schemas
     SearchRequest:
       type: object
@@ -2476,6 +2549,13 @@ components:
             to the graph service. ARTIFACT and AGENT_SESSION entries are
             excluded — agent sessions live in `agentSessions[]` and
             artifacts are excluded from neighborhood views entirely.
+        omittedCandidateCount:
+          type: integer
+          minimum: 0
+          description: >
+            Distinct candidates reached within the requested depth that the
+            graph service's own read limit left out of this response. Zero
+            when every reached candidate is present.
 
     EntityNeighborhoodNode:
       type: object

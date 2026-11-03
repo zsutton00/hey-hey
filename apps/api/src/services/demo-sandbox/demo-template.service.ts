@@ -5,7 +5,10 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import type { DemoTemplateDto, SetDemoTemplateDto } from '../../generated';
+import type {
+  DemoTemplateDto,
+  SetDemoTemplateDto,
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()

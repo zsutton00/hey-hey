@@ -4,7 +4,7 @@ import addFormats from 'ajv-formats';
 import type {
   DemoSandboxProgramDto,
   ProvisionDemoSandboxDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   demoSandboxProgramJsonSchema,
   provisionDemoSandboxJsonSchema,

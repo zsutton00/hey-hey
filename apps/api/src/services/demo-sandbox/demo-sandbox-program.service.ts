@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DemoSandboxStatus } from '@prisma/client';
 import { getDeploymentEnvironment } from '../../deployment-environment';
-import type { DemoSandboxProgramDto } from '../../generated';
+import type { DemoSandboxProgramDto } from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PROGRAM_STATE_ID } from './demo-sandbox.constants';
 

@@ -12,6 +12,10 @@ import type { AnyTransactionClient } from '../../prisma/prisma.service';
 import { TemplateCloneRemapper } from './template-clone-remapper';
 import { DemoTemplateGraphService } from './template-graph.service';
 import { publishCloneCreatedEvents } from './template-clone-events';
+import {
+  createPersistedGraphCopyIntent,
+  type CopiedWorkItemExpectation,
+} from './template-graph-copy-intent';
 
 type Row = Record<string, unknown>;
 interface CloneDelegate {
@@ -75,6 +79,8 @@ export class ProjectTemplateCloneService {
     idMap: ReadonlyMap<string, string>;
     /** Destination IDs of exactly the FEATURE tasks this clone copied. */
     copiedFeatureIds: string[];
+    /** Exact copied task identities and remapped structural parents. */
+    copiedWorkItems: CopiedWorkItemExpectation[];
     graphCopyIntentId: string;
   }> {
     const template = await tx.demoTemplate.findFirstOrThrow({
@@ -391,24 +397,34 @@ export class ProjectTemplateCloneService {
           sessions,
         }),
     );
+    // Derived from these exact source rows, never by recounting the template.
+    const copiedWorkItems = tasks.map((row) => ({
+      id: remap.require(row.id as string),
+      typeKey: row.type as string,
+      parentTaskId:
+        row.parentTaskId === null
+          ? null
+          : remap.require(row.parentTaskId as string),
+    }));
+    const copiedFeatureIds = copiedWorkItems.flatMap((item) =>
+      item.typeKey === 'FEATURE' ? [item.id] : [],
+    );
+    const persistedCommand = createPersistedGraphCopyIntent(
+      command,
+      copiedWorkItems,
+    );
     await tx.demoGraphCopyIntent.create({
       data: {
         id: intentId,
         organizationId: target.organizationId,
         projectId: target.id,
-        command: command as unknown as Prisma.InputJsonValue,
+        command: persistedCommand as unknown as Prisma.InputJsonValue,
       },
-    });
-    // Derived from the rows this clone read, so a template edited mid-admission
-    // cannot copy a feature that readiness never waits for.
-    const copiedFeatureIds = tasks.flatMap((row) => {
-      const copied =
-        row.type === 'FEATURE' ? remap.ids.get(row.id as string) : undefined;
-      return copied ? [copied] : [];
     });
     return {
       idMap: remap.ids,
       copiedFeatureIds,
+      copiedWorkItems,
       graphCopyIntentId: intentId,
     };
   }
