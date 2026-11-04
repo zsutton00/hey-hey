@@ -911,6 +911,20 @@ export class UnifiedApiClient {
     );
   }
 
+  async getUxFlowsForWorkItem(
+    params: { organizationId: string; projectId: string; workItemId: string },
+    options?: AxiosRequestConfig,
+  ) {
+    return this.clients.tasks.organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGet(
+      {
+        organizationId: params.organizationId,
+        projectId: params.projectId,
+        workItemId: params.workItemId,
+      },
+      options,
+    );
+  }
+
   async createTask(params: {
     organizationId: string;
     projectId: string;

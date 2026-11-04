@@ -65,6 +65,7 @@ import {
   UpdateTaskDto,
   PaginatedWorkItemReferenceResponseDto,
   WorkItemGraphAggregateResponseDto,
+  UxFlowMembershipResponseDto,
   WorkItemGraphDerivedReference,
   WorkItemGraphLayoutValue,
   WorkItemGraphParticipationType,
@@ -151,6 +152,10 @@ import {
   WORK_ITEM_GRAPH_PARTICIPATION_LIMITS,
   WorkItemGraphParticipationComposer,
 } from './work-item-graph-participation';
+import {
+  uxFlowElementsQuery,
+  uxFlowMembershipsFromElements,
+} from './ux-flow-membership';
 import {
   readWorkItemConfig,
   validateWorkItemConfigForType,
@@ -4165,6 +4170,32 @@ export class TaskService {
       userToken,
       edgeTypes,
     );
+  }
+
+  async getUxFlowMemberships(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    workItemId: TaskId,
+    userToken: string | null,
+  ): Promise<UxFlowMembershipResponseDto> {
+    const workItem = await this.findOneByOrganization(
+      organizationId,
+      workItemId,
+      false,
+      false,
+      false,
+      false,
+      userToken,
+    );
+    if (!workItem || workItem.projectId !== projectId) {
+      throw new NotFoundException('Work item not found');
+    }
+
+    const elements = await this.prisma.db.task.findMany(
+      uxFlowElementsQuery({ organizationId, projectId, workItemId }),
+    );
+
+    return { flows: uxFlowMembershipsFromElements(elements, workItemId) };
   }
 
   async getGraphAggregate(

@@ -59,6 +59,8 @@ import type { OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGet
 // @ts-ignore
 import type { OrganizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdGraphGet200Response } from '../models.js';
 // @ts-ignore
+import type { OrganizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGet200Response } from '../models.js';
+// @ts-ignore
 import type { SubmitTaskMonitorCommand200Response } from '../models.js';
 // @ts-ignore
 import type { SubmitTaskMonitorCommandRequestDto } from '../models.js';
@@ -1027,6 +1029,52 @@ export const TasksApiAxiosParamCreator = function (configuration?: Configuration
             };
         },
         /**
+         * Returns the live UX flow Diagrams in the project that have an element canonically referencing the work item, with the matching element id. Archived Diagrams and elements are excluded. The result is empty when the work item belongs to no UX flow.
+         * @summary List the UX flows that include a work item
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {string} workItemId
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGet: async (organizationId: string, projectId: string, workItemId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGet', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGet', 'projectId', projectId)
+            // verify required parameter 'workItemId' is not null or undefined
+            assertParamExists('organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGet', 'workItemId', workItemId)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/work-items/{workItemId}/ux-flows`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)))
+                .replace(`{${"workItemId"}}`, encodeURIComponent(String(workItemId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Authorize, persist, sign, and deliver one user-authored lifecycle command to the machine that owns the addressed Task Monitor. Retrying the same requestId returns the existing command and never changes its persisted machine binding. For JUDGMENT_RESOLVED, the API also validates the originating JUDGMENT_REQUESTED Message and persists the canonical parented USER reply before signed command delivery.
          * @summary Submit an explicit Task Monitor command
          * @param {string} organizationId
@@ -1414,6 +1462,21 @@ export const TasksApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Returns the live UX flow Diagrams in the project that have an element canonically referencing the work item, with the matching element id. Archived Diagrams and elements are excluded. The result is empty when the work item belongs to no UX flow.
+         * @summary List the UX flows that include a work item
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {string} workItemId
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGet(organizationId: string, projectId: string, workItemId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<OrganizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGet200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGet(organizationId, projectId, workItemId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['TasksApi.organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Authorize, persist, sign, and deliver one user-authored lifecycle command to the machine that owns the addressed Task Monitor. Retrying the same requestId returns the existing command and never changes its persisted machine binding. For JUDGMENT_RESOLVED, the API also validates the originating JUDGMENT_REQUESTED Message and persists the canonical parented USER reply before signed command delivery.
          * @summary Submit an explicit Task Monitor command
          * @param {string} organizationId
@@ -1606,6 +1669,16 @@ export const TasksApiFactory = function (configuration?: Configuration, basePath
             return localVarFp.organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdGraphGet(requestParameters.organizationId, requestParameters.projectId, requestParameters.workItemId, requestParameters.incidentRelationshipTypes, options).then((request) => request(axios, basePath));
         },
         /**
+         * Returns the live UX flow Diagrams in the project that have an element canonically referencing the work item, with the matching element id. Archived Diagrams and elements are excluded. The result is empty when the work item belongs to no UX flow.
+         * @summary List the UX flows that include a work item
+         * @param {TasksApiOrganizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGetRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGet(requestParameters: TasksApiOrganizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<OrganizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGet200Response> {
+            return localVarFp.organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGet(requestParameters.organizationId, requestParameters.projectId, requestParameters.workItemId, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Authorize, persist, sign, and deliver one user-authored lifecycle command to the machine that owns the addressed Task Monitor. Retrying the same requestId returns the existing command and never changes its persisted machine binding. For JUDGMENT_RESOLVED, the API also validates the originating JUDGMENT_REQUESTED Message and persists the canonical parented USER reply before signed command delivery.
          * @summary Submit an explicit Task Monitor command
          * @param {TasksApiSubmitTaskMonitorCommandRequest} requestParameters Request parameters.
@@ -1783,6 +1856,16 @@ export interface TasksApiInterface {
      * @memberof TasksApiInterface
      */
     organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdGraphGet(requestParameters: TasksApiOrganizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdGraphGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<OrganizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdGraphGet200Response>;
+
+    /**
+     * Returns the live UX flow Diagrams in the project that have an element canonically referencing the work item, with the matching element id. Archived Diagrams and elements are excluded. The result is empty when the work item belongs to no UX flow.
+     * @summary List the UX flows that include a work item
+     * @param {TasksApiOrganizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof TasksApiInterface
+     */
+    organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGet(requestParameters: TasksApiOrganizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<OrganizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGet200Response>;
 
     /**
      * Authorize, persist, sign, and deliver one user-authored lifecycle command to the machine that owns the addressed Task Monitor. Retrying the same requestId returns the existing command and never changes its persisted machine binding. For JUDGMENT_RESOLVED, the API also validates the originating JUDGMENT_REQUESTED Message and persists the canonical parented USER reply before signed command delivery.
@@ -2563,6 +2646,34 @@ export interface TasksApiOrganizationsOrganizationIdProjectsProjectIdWorkItemsWo
 }
 
 /**
+ * Request parameters for organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGet operation in TasksApi.
+ * @export
+ * @interface TasksApiOrganizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGetRequest
+ */
+export interface TasksApiOrganizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGetRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof TasksApiOrganizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGet
+     */
+    readonly organizationId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof TasksApiOrganizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGet
+     */
+    readonly projectId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof TasksApiOrganizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGet
+     */
+    readonly workItemId: string
+}
+
+/**
  * Request parameters for submitTaskMonitorCommand operation in TasksApi.
  * @export
  * @interface TasksApiSubmitTaskMonitorCommandRequest
@@ -2817,6 +2928,18 @@ export class TasksApi extends BaseAPI implements TasksApiInterface {
      */
     public organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdGraphGet(requestParameters: TasksApiOrganizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdGraphGetRequest, options?: RawAxiosRequestConfig) {
         return TasksApiFp(this.configuration).organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdGraphGet(requestParameters.organizationId, requestParameters.projectId, requestParameters.workItemId, requestParameters.incidentRelationshipTypes, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Returns the live UX flow Diagrams in the project that have an element canonically referencing the work item, with the matching element id. Archived Diagrams and elements are excluded. The result is empty when the work item belongs to no UX flow.
+     * @summary List the UX flows that include a work item
+     * @param {TasksApiOrganizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof TasksApi
+     */
+    public organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGet(requestParameters: TasksApiOrganizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGetRequest, options?: RawAxiosRequestConfig) {
+        return TasksApiFp(this.configuration).organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGet(requestParameters.organizationId, requestParameters.projectId, requestParameters.workItemId, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

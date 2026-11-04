@@ -4,6 +4,7 @@ import {
   toOpenApiProjectId,
 } from "../../clients/contractIdentifierAdapters";
 import { SavedJourneyScreen } from "../ProposalGroupReview/SavedJourneyScreen";
+import { UxFlowScreenWalkthrough } from "../ProposalGroupReview/UxFlowScreenWalkthrough";
 import { useModalState } from "../Modals/useModalState";
 import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
@@ -638,6 +639,8 @@ interface WorkflowGraphSurfaceProps {
   explorationAncestors?: readonly string[];
   participation?: WorkItemGraphParticipationResponseDto | null;
   directEntityLinks?: readonly WorkflowGraphDirectEntityLink[];
+  /** For a saved UX flow: the screen whose walkthrough opens first. */
+  initialUxFlowStepId?: string;
 }
 
 interface WorkflowGraphViewportSurfaceProps {
@@ -7174,6 +7177,82 @@ const DiagramExplorationDialog: React.FC<{
   );
 };
 
+/** A saved UX flow as a grid of screens; any screen opens in the one-at-a-time walkthrough. */
+const UxFlowSavedView: React.FC<{
+  graphData: WorkflowGraphSurfaceData;
+  savedPositions: ReadonlyMap<string, { x: number; y: number }>;
+  initialWalkthroughStepId: string | null;
+}> = ({ graphData, savedPositions, initialWalkthroughStepId }) => {
+  const [walkthroughStepId, setWalkthroughStepId] = useState(
+    initialWalkthroughStepId,
+  );
+  const scope = {
+    organizationId: toOpenApiOrganizationId(graphData.workflow.organizationId),
+    projectId: toOpenApiProjectId(graphData.workflow.projectId),
+  };
+  const renderScreen = (step: GraphWorkItem) => {
+    const reference = getDiagramElementMetadata(step)?.canonicalReference;
+
+    return reference?.entityType === "TASK" ? (
+      <SavedJourneyScreen
+        id={reference.entityId}
+        name={step.name}
+        group={scope}
+      />
+    ) : (
+      <Alert severity="info">Screen unavailable</Alert>
+    );
+  };
+
+  return (
+    <>
+      <JourneyCanvas
+        steps={graphData.steps}
+        edges={graphData.edges}
+        savedPositions={savedPositions}
+        renderScreen={(step) => (
+          <Stack spacing={1}>
+            <Button
+              size="small"
+              onClick={() => setWalkthroughStepId(step.id)}
+              data-testid="ux-flow-open-walkthrough"
+              data-step-id={step.id}
+              sx={{ alignSelf: "flex-start" }}
+            >
+              {`Walk through from ${step.name}`}
+            </Button>
+            {renderScreen(step)}
+          </Stack>
+        )}
+      />
+      <Dialog
+        open={walkthroughStepId !== null}
+        onClose={() => setWalkthroughStepId(null)}
+        fullWidth
+        maxWidth="xl"
+        workTitle={graphData.workflow.name}
+      >
+        {walkthroughStepId === null ? null : (
+          <DialogContent sx={{ p: 0, height: "85vh" }}>
+            <UxFlowScreenWalkthrough
+              flowName={graphData.workflow.name}
+              flow={graphData}
+              savedPositions={savedPositions}
+              initialScreenId={walkthroughStepId}
+              renderScreen={(screenId) => {
+                const step = graphData.steps.find(({ id }) => id === screenId);
+
+                return step ? renderScreen(step) : null;
+              }}
+              onOpenFullFlow={() => setWalkthroughStepId(null)}
+            />
+          </DialogContent>
+        )}
+      </Dialog>
+    </>
+  );
+};
+
 export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
   graphData,
   projection,
@@ -7189,6 +7268,7 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
   explorationAncestors,
   participation,
   directEntityLinks,
+  initialUxFlowStepId,
   ...interaction
 }) => {
   const hasRouter = useInRouterContext();
@@ -7316,12 +7396,6 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
     mode === "view" &&
     getDiagramMetadata(hydratedGraphData.workflow)?.kind === "UX_FLOW"
   ) {
-    const scope = {
-      organizationId: toOpenApiOrganizationId(
-        hydratedGraphData.workflow.organizationId,
-      ),
-      projectId: toOpenApiProjectId(hydratedGraphData.workflow.projectId),
-    };
     const positions = projection
       ? projection.effectiveLayout.nodes.map(
           ({ node, position }) =>
@@ -7333,22 +7407,10 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
             : [],
         );
     return (
-      <JourneyCanvas
-        steps={hydratedGraphData.steps}
-        edges={hydratedGraphData.edges}
+      <UxFlowSavedView
+        graphData={hydratedGraphData}
         savedPositions={new Map(positions)}
-        renderScreen={(step) => {
-          const reference = getDiagramElementMetadata(step)?.canonicalReference;
-          return reference?.entityType === "TASK" ? (
-            <SavedJourneyScreen
-              id={reference.entityId}
-              name={step.name}
-              group={scope}
-            />
-          ) : (
-            <Alert severity="info">Screen unavailable</Alert>
-          );
-        }}
+        initialWalkthroughStepId={initialUxFlowStepId ?? null}
       />
     );
   }

@@ -49,6 +49,7 @@ import {
   UpdateTaskDependencyDto,
   UpdateTaskResponseDto,
   WorkItemGraphAggregateResponseDto,
+  UxFlowMembershipResponseDto,
   WorkItemGraphParticipationType,
   WorkStatus,
 } from '@hey-hey/contracts/api/models';
@@ -584,6 +585,31 @@ export class TaskController {
       workItemId,
       userToken ?? null,
       this.normalizeIncidentRelationshipTypes(incidentRelationshipTypes),
+    );
+  }
+
+  @Get(':workItemId/ux-flows')
+  @ApiOperation({ summary: 'List the UX flows that include a work item' })
+  @ApiParam({ name: 'organizationId', description: 'Organization ID' })
+  @ApiParam({ name: 'projectId', description: 'Project ID' })
+  @ApiParam({ name: 'workItemId', description: 'Work item ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'UX flows that include the work item.',
+  })
+  @ApiResponse({ status: 401, description: 'Authentication token is required' })
+  @ApiResponse({ status: 404, description: 'Work item not found' })
+  async getUxFlowMemberships(
+    @Param('workItemId', ParseUUIDPipe) workItemId: TaskId,
+    @Param('projectId', ParseUUIDPipe) projectId: ProjectId,
+    @CurrentOrganization() organizationId: OrganizationId,
+    @AuthToken() userToken?: string | null,
+  ): Promise<UxFlowMembershipResponseDto> {
+    return this.taskService.getUxFlowMemberships(
+      organizationId,
+      projectId,
+      workItemId,
+      userToken ?? null,
     );
   }
 
