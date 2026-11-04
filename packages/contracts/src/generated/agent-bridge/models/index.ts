@@ -759,4 +759,5 @@ export * from './work-tracker-import-request.js';
 export * from './work-tracker-import-success.js';
 export * from './work-tracker-import-success-evidence-inner.js';
 export * from './workflow-name.js';
+export * from './workflow-transition-role.js';
 export * from './workspace-skills-host-action-preparation.js';

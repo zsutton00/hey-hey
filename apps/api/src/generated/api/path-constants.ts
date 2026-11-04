@@ -130,6 +130,7 @@ export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_PATH = '
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_REFERENCES_PATH = '/organizations/{organizationId}/projects/{projectId}/work-items/references';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_TASKID_PATH = '/organizations/{organizationId}/projects/{projectId}/work-items/{taskId}';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_WORKITEMID_GRAPH_PATH = '/organizations/{organizationId}/projects/{projectId}/work-items/{workItemId}/graph';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_WORKITEMID_UX_FLOWS_PATH = '/organizations/{organizationId}/projects/{projectId}/work-items/{workItemId}/ux-flows';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_TASKID_PLAN_GENERATION_PATH = '/organizations/{organizationId}/projects/{projectId}/work-items/{taskId}/plan-generation';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_TASKID_PLAN_GENERATION_ADMISSION_PATH = '/organizations/{organizationId}/projects/{projectId}/work-items/{taskId}/plan-generation/admission';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_TASKID_HIERARCHY_PATH = '/organizations/{organizationId}/projects/{projectId}/work-items/{taskId}/hierarchy';

@@ -10,6 +10,7 @@
  * Do not edit the class manually.
  */
 import { AgentEdgeDirection } from './agentEdgeDirection';
+import { WorkflowTransitionRole } from './workflowTransitionRole';
 import { RelationshipType } from './relationshipType';
 import { AgentEdgeEndpointEntityType } from './agentEdgeEndpointEntityType';
 import { AgentEdgeCategory } from './agentEdgeCategory';
@@ -58,6 +59,10 @@ export interface AgentEdge {
    * Optional plain-language action that triggers this flow transition.
    */
   actionLabel?: string | null;
+  /**
+   * Optional explicit meaning of this flow transition (primary progression, error path or recovery); omitted means unclassified.
+   */
+  transitionRole?: WorkflowTransitionRole | null;
   /**
    * Natural language rationale for why this edge exists
    */

@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { WorkflowTransitionRole } from './workflow-transition-role.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -20,6 +21,9 @@ import type { TemporaryRelationshipIdentity } from './temporary-relationship-ide
 // May contain unused imports in some cases
 // @ts-ignore
 import type { WorkItemChangeSetIdentity } from './work-item-change-set-identity.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { WorkflowTransitionRole } from './workflow-transition-role.js';
 
 /**
  *
@@ -77,6 +81,12 @@ export interface WorkItemLoopRelationshipCreateOperation {
     'actionLabel'?: string;
     /**
      *
+     * @type {WorkflowTransitionRole}
+     * @memberof WorkItemLoopRelationshipCreateOperation
+     */
+    'transitionRole'?: WorkflowTransitionRole;
+    /**
+     *
      * @type {string}
      * @memberof WorkItemLoopRelationshipCreateOperation
      */
@@ -118,4 +128,6 @@ export namespace WorkItemLoopRelationshipCreateOperation {
     export type EdgeTypeEnum = WorkItemLoopRelationshipCreateOperationEdgeTypeEnum;
     export const CategoryEnum = WorkItemLoopRelationshipCreateOperationCategoryEnum;
     export type CategoryEnum = WorkItemLoopRelationshipCreateOperationCategoryEnum;
+    export const TransitionRoleEnum = WorkflowTransitionRole;
+    export type TransitionRoleEnum = WorkflowTransitionRole;
 }

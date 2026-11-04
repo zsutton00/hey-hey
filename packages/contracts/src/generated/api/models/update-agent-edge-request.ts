@@ -3,6 +3,7 @@ import { AgentEdgeEndpointEntityType } from './agent-edge-endpoint-entity-type.j
 import { AgentEdgeType } from './agent-edge-type.js';
 import { AgentEdgeCategory } from './agent-edge-category.js';
 import { AgentEdgeDirection } from './agent-edge-direction.js';
+import { WorkflowTransitionRole } from './workflow-transition-role.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -30,6 +31,9 @@ import type { AgentEdgeEndpointEntityType } from './agent-edge-endpoint-entity-t
 // May contain unused imports in some cases
 // @ts-ignore
 import type { AgentEdgeType } from './agent-edge-type.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { WorkflowTransitionRole } from './workflow-transition-role.js';
 
 /**
  *
@@ -92,6 +96,12 @@ export interface UpdateAgentEdgeRequest {
      */
     'actionLabel'?: string | null;
     /**
+     * Optional explicit meaning of this flow transition (primary progression, error path or recovery); omitted means unclassified; set null to clear it.
+     * @type {WorkflowTransitionRole}
+     * @memberof UpdateAgentEdgeRequest
+     */
+    'transitionRole'?: WorkflowTransitionRole | null;
+    /**
      * Label-specific relationship metadata declared by the edge contract.
      * @type {{ [key: string]: any; }}
      * @memberof UpdateAgentEdgeRequest
@@ -122,4 +132,6 @@ export namespace UpdateAgentEdgeRequest {
     export type CategoryEnum = AgentEdgeCategory;
     export const DirectionEnum = AgentEdgeDirection;
     export type DirectionEnum = AgentEdgeDirection;
+    export const TransitionRoleEnum = WorkflowTransitionRole;
+    export type TransitionRoleEnum = WorkflowTransitionRole;
 }

@@ -155,3 +155,4 @@ export * from './workItemProjectReadinessExpectation';
 export * from './workItemProjectReadinessRequest';
 export * from './workItemProjectReadinessResponse';
 export * from './workStatus';
+export * from './workflowTransitionRole';

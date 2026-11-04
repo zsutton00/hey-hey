@@ -636,6 +636,28 @@ export const futureRevisionMutationSchema = {
                                   }
                                 ]
                               },
+                              "transitionRole": {
+                                "anyOf": [
+                                  {
+                                    "allOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "PRIMARY_PROGRESSION",
+                                          "ERROR_PATH",
+                                          "RECOVERY",
+                                          "RETURN"
+                                        ],
+                                        "description": "Optional explicit meaning of a flow transition, independent of its action label, relationship variant, predicate and placement. `PRIMARY_PROGRESSION` is the main depicted journey, `ERROR_PATH` an unsuccessful or exceptional branch, `RECOVERY` a route back toward usable progress after something went wrong, and `RETURN` a move back to an earlier step without any failure, such as breadcrumb or back navigation. Absence means unclassified; the role is never inferred from labels, position or topology. Valid only on flow edges (`STANDARD`, `CONDITIONAL`, `LOOP`).\n"
+                                      }
+                                    ],
+                                    "description": "Optional explicit meaning of this flow transition (primary progression, error path or recovery); omitted means unclassified."
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
                               "reasoning": {
                                 "type": "string"
                               },
@@ -1696,6 +1718,27 @@ export const futureRevisionMutationSchema = {
                                             "maxLength": 200,
                                             "pattern": ".*\\S.*",
                                             "description": "Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.\n"
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "transitionRole": {
+                                    "anyOf": [
+                                      {
+                                        "allOf": [
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "PRIMARY_PROGRESSION",
+                                              "ERROR_PATH",
+                                              "RECOVERY",
+                                              "RETURN"
+                                            ],
+                                            "description": "Optional explicit meaning of a flow transition, independent of its action label, relationship variant, predicate and placement. `PRIMARY_PROGRESSION` is the main depicted journey, `ERROR_PATH` an unsuccessful or exceptional branch, `RECOVERY` a route back toward usable progress after something went wrong, and `RETURN` a move back to an earlier step without any failure, such as breadcrumb or back navigation. Absence means unclassified; the role is never inferred from labels, position or topology. Valid only on flow edges (`STANDARD`, `CONDITIONAL`, `LOOP`).\n"
                                           }
                                         ]
                                       },
@@ -3092,6 +3135,16 @@ export const futureRevisionMutationSchema = {
                             "pattern": ".*\\S.*",
                             "description": "Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.\n"
                           },
+                          "transitionRole": {
+                            "type": "string",
+                            "enum": [
+                              "PRIMARY_PROGRESSION",
+                              "ERROR_PATH",
+                              "RECOVERY",
+                              "RETURN"
+                            ],
+                            "description": "Optional explicit meaning of a flow transition, independent of its action label, relationship variant, predicate and placement. `PRIMARY_PROGRESSION` is the main depicted journey, `ERROR_PATH` an unsuccessful or exceptional branch, `RECOVERY` a route back toward usable progress after something went wrong, and `RETURN` a move back to an earlier step without any failure, such as breadcrumb or back navigation. Absence means unclassified; the role is never inferred from labels, position or topology. Valid only on flow edges (`STANDARD`, `CONDITIONAL`, `LOOP`).\n"
+                          },
                           "reasoning": {
                             "anyOf": [
                               {
@@ -3295,6 +3348,16 @@ export const futureRevisionMutationSchema = {
                             "pattern": ".*\\S.*",
                             "description": "Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.\n"
                           },
+                          "transitionRole": {
+                            "type": "string",
+                            "enum": [
+                              "PRIMARY_PROGRESSION",
+                              "ERROR_PATH",
+                              "RECOVERY",
+                              "RETURN"
+                            ],
+                            "description": "Optional explicit meaning of a flow transition, independent of its action label, relationship variant, predicate and placement. `PRIMARY_PROGRESSION` is the main depicted journey, `ERROR_PATH` an unsuccessful or exceptional branch, `RECOVERY` a route back toward usable progress after something went wrong, and `RETURN` a move back to an earlier step without any failure, such as breadcrumb or back navigation. Absence means unclassified; the role is never inferred from labels, position or topology. Valid only on flow edges (`STANDARD`, `CONDITIONAL`, `LOOP`).\n"
+                          },
                           "reasoning": {
                             "anyOf": [
                               {
@@ -3487,6 +3550,16 @@ export const futureRevisionMutationSchema = {
                             "maxLength": 200,
                             "pattern": ".*\\S.*",
                             "description": "Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.\n"
+                          },
+                          "transitionRole": {
+                            "type": "string",
+                            "enum": [
+                              "PRIMARY_PROGRESSION",
+                              "ERROR_PATH",
+                              "RECOVERY",
+                              "RETURN"
+                            ],
+                            "description": "Optional explicit meaning of a flow transition, independent of its action label, relationship variant, predicate and placement. `PRIMARY_PROGRESSION` is the main depicted journey, `ERROR_PATH` an unsuccessful or exceptional branch, `RECOVERY` a route back toward usable progress after something went wrong, and `RETURN` a move back to an earlier step without any failure, such as breadcrumb or back navigation. Absence means unclassified; the role is never inferred from labels, position or topology. Valid only on flow edges (`STANDARD`, `CONDITIONAL`, `LOOP`).\n"
                           },
                           "reasoning": {
                             "anyOf": [
@@ -3807,6 +3880,27 @@ export const futureRevisionMutationSchema = {
                                 "maxLength": 200,
                                 "pattern": ".*\\S.*",
                                 "description": "Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.\n"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "transitionRole": {
+                        "anyOf": [
+                          {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "PRIMARY_PROGRESSION",
+                                  "ERROR_PATH",
+                                  "RECOVERY",
+                                  "RETURN"
+                                ],
+                                "description": "Optional explicit meaning of a flow transition, independent of its action label, relationship variant, predicate and placement. `PRIMARY_PROGRESSION` is the main depicted journey, `ERROR_PATH` an unsuccessful or exceptional branch, `RECOVERY` a route back toward usable progress after something went wrong, and `RETURN` a move back to an earlier step without any failure, such as breadcrumb or back navigation. Absence means unclassified; the role is never inferred from labels, position or topology. Valid only on flow edges (`STANDARD`, `CONDITIONAL`, `LOOP`).\n"
                               }
                             ]
                           },
@@ -4472,6 +4566,27 @@ export const futureRevisionMutationSchema = {
                                 "maxLength": 200,
                                 "pattern": ".*\\S.*",
                                 "description": "Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.\n"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "transitionRole": {
+                        "anyOf": [
+                          {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "PRIMARY_PROGRESSION",
+                                  "ERROR_PATH",
+                                  "RECOVERY",
+                                  "RETURN"
+                                ],
+                                "description": "Optional explicit meaning of a flow transition, independent of its action label, relationship variant, predicate and placement. `PRIMARY_PROGRESSION` is the main depicted journey, `ERROR_PATH` an unsuccessful or exceptional branch, `RECOVERY` a route back toward usable progress after something went wrong, and `RETURN` a move back to an earlier step without any failure, such as breadcrumb or back navigation. Absence means unclassified; the role is never inferred from labels, position or topology. Valid only on flow edges (`STANDARD`, `CONDITIONAL`, `LOOP`).\n"
                               }
                             ]
                           },
@@ -5236,6 +5351,28 @@ export const futureRevisionMutationSchema = {
                                   }
                                 ],
                                 "description": "Optional plain-language user action that triggers this flow transition. UX_FLOW Diagrams require it to be non-blank on each flow link.\n"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "transitionRole": {
+                            "anyOf": [
+                              {
+                                "allOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "PRIMARY_PROGRESSION",
+                                      "ERROR_PATH",
+                                      "RECOVERY",
+                                      "RETURN"
+                                    ],
+                                    "description": "Optional explicit meaning of a flow transition, independent of its action label, relationship variant, predicate and placement. `PRIMARY_PROGRESSION` is the main depicted journey, `ERROR_PATH` an unsuccessful or exceptional branch, `RECOVERY` a route back toward usable progress after something went wrong, and `RETURN` a move back to an earlier step without any failure, such as breadcrumb or back navigation. Absence means unclassified; the role is never inferred from labels, position or topology. Valid only on flow edges (`STANDARD`, `CONDITIONAL`, `LOOP`).\n"
+                                  }
+                                ],
+                                "description": "Optional explicit meaning of this flow transition (primary progression, error path or recovery); omitted means unclassified."
                               },
                               {
                                 "type": "null"
@@ -6302,6 +6439,27 @@ export const futureRevisionMutationSchema = {
                                         "maxLength": 200,
                                         "pattern": ".*\\S.*",
                                         "description": "Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.\n"
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "transitionRole": {
+                                "anyOf": [
+                                  {
+                                    "allOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "PRIMARY_PROGRESSION",
+                                          "ERROR_PATH",
+                                          "RECOVERY",
+                                          "RETURN"
+                                        ],
+                                        "description": "Optional explicit meaning of a flow transition, independent of its action label, relationship variant, predicate and placement. `PRIMARY_PROGRESSION` is the main depicted journey, `ERROR_PATH` an unsuccessful or exceptional branch, `RECOVERY` a route back toward usable progress after something went wrong, and `RETURN` a move back to an earlier step without any failure, such as breadcrumb or back navigation. Absence means unclassified; the role is never inferred from labels, position or topology. Valid only on flow edges (`STANDARD`, `CONDITIONAL`, `LOOP`).\n"
                                       }
                                     ]
                                   },
@@ -7922,6 +8080,16 @@ export const futureRevisionAuthoringSchema = {
                                 "pattern": ".*\\S.*",
                                 "description": "Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.\n"
                               },
+                              "transitionRole": {
+                                "type": "string",
+                                "enum": [
+                                  "PRIMARY_PROGRESSION",
+                                  "ERROR_PATH",
+                                  "RECOVERY",
+                                  "RETURN"
+                                ],
+                                "description": "Optional explicit meaning of a flow transition, independent of its action label, relationship variant, predicate and placement. `PRIMARY_PROGRESSION` is the main depicted journey, `ERROR_PATH` an unsuccessful or exceptional branch, `RECOVERY` a route back toward usable progress after something went wrong, and `RETURN` a move back to an earlier step without any failure, such as breadcrumb or back navigation. Absence means unclassified; the role is never inferred from labels, position or topology. Valid only on flow edges (`STANDARD`, `CONDITIONAL`, `LOOP`).\n"
+                              },
                               "reasoning": {
                                 "anyOf": [
                                   {
@@ -8125,6 +8293,16 @@ export const futureRevisionAuthoringSchema = {
                                 "pattern": ".*\\S.*",
                                 "description": "Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.\n"
                               },
+                              "transitionRole": {
+                                "type": "string",
+                                "enum": [
+                                  "PRIMARY_PROGRESSION",
+                                  "ERROR_PATH",
+                                  "RECOVERY",
+                                  "RETURN"
+                                ],
+                                "description": "Optional explicit meaning of a flow transition, independent of its action label, relationship variant, predicate and placement. `PRIMARY_PROGRESSION` is the main depicted journey, `ERROR_PATH` an unsuccessful or exceptional branch, `RECOVERY` a route back toward usable progress after something went wrong, and `RETURN` a move back to an earlier step without any failure, such as breadcrumb or back navigation. Absence means unclassified; the role is never inferred from labels, position or topology. Valid only on flow edges (`STANDARD`, `CONDITIONAL`, `LOOP`).\n"
+                              },
                               "reasoning": {
                                 "anyOf": [
                                   {
@@ -8317,6 +8495,16 @@ export const futureRevisionAuthoringSchema = {
                                 "maxLength": 200,
                                 "pattern": ".*\\S.*",
                                 "description": "Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.\n"
+                              },
+                              "transitionRole": {
+                                "type": "string",
+                                "enum": [
+                                  "PRIMARY_PROGRESSION",
+                                  "ERROR_PATH",
+                                  "RECOVERY",
+                                  "RETURN"
+                                ],
+                                "description": "Optional explicit meaning of a flow transition, independent of its action label, relationship variant, predicate and placement. `PRIMARY_PROGRESSION` is the main depicted journey, `ERROR_PATH` an unsuccessful or exceptional branch, `RECOVERY` a route back toward usable progress after something went wrong, and `RETURN` a move back to an earlier step without any failure, such as breadcrumb or back navigation. Absence means unclassified; the role is never inferred from labels, position or topology. Valid only on flow edges (`STANDARD`, `CONDITIONAL`, `LOOP`).\n"
                               },
                               "reasoning": {
                                 "anyOf": [
@@ -8637,6 +8825,27 @@ export const futureRevisionAuthoringSchema = {
                                     "maxLength": 200,
                                     "pattern": ".*\\S.*",
                                     "description": "Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.\n"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "transitionRole": {
+                            "anyOf": [
+                              {
+                                "allOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "PRIMARY_PROGRESSION",
+                                      "ERROR_PATH",
+                                      "RECOVERY",
+                                      "RETURN"
+                                    ],
+                                    "description": "Optional explicit meaning of a flow transition, independent of its action label, relationship variant, predicate and placement. `PRIMARY_PROGRESSION` is the main depicted journey, `ERROR_PATH` an unsuccessful or exceptional branch, `RECOVERY` a route back toward usable progress after something went wrong, and `RETURN` a move back to an earlier step without any failure, such as breadcrumb or back navigation. Absence means unclassified; the role is never inferred from labels, position or topology. Valid only on flow edges (`STANDARD`, `CONDITIONAL`, `LOOP`).\n"
                                   }
                                 ]
                               },
@@ -11210,6 +11419,16 @@ export const futureWorkItemChangesSchema = {
                     "pattern": ".*\\S.*",
                     "description": "Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.\n"
                   },
+                  "transitionRole": {
+                    "type": "string",
+                    "enum": [
+                      "PRIMARY_PROGRESSION",
+                      "ERROR_PATH",
+                      "RECOVERY",
+                      "RETURN"
+                    ],
+                    "description": "Optional explicit meaning of a flow transition, independent of its action label, relationship variant, predicate and placement. `PRIMARY_PROGRESSION` is the main depicted journey, `ERROR_PATH` an unsuccessful or exceptional branch, `RECOVERY` a route back toward usable progress after something went wrong, and `RETURN` a move back to an earlier step without any failure, such as breadcrumb or back navigation. Absence means unclassified; the role is never inferred from labels, position or topology. Valid only on flow edges (`STANDARD`, `CONDITIONAL`, `LOOP`).\n"
+                  },
                   "reasoning": {
                     "anyOf": [
                       {
@@ -11413,6 +11632,16 @@ export const futureWorkItemChangesSchema = {
                     "pattern": ".*\\S.*",
                     "description": "Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.\n"
                   },
+                  "transitionRole": {
+                    "type": "string",
+                    "enum": [
+                      "PRIMARY_PROGRESSION",
+                      "ERROR_PATH",
+                      "RECOVERY",
+                      "RETURN"
+                    ],
+                    "description": "Optional explicit meaning of a flow transition, independent of its action label, relationship variant, predicate and placement. `PRIMARY_PROGRESSION` is the main depicted journey, `ERROR_PATH` an unsuccessful or exceptional branch, `RECOVERY` a route back toward usable progress after something went wrong, and `RETURN` a move back to an earlier step without any failure, such as breadcrumb or back navigation. Absence means unclassified; the role is never inferred from labels, position or topology. Valid only on flow edges (`STANDARD`, `CONDITIONAL`, `LOOP`).\n"
+                  },
                   "reasoning": {
                     "anyOf": [
                       {
@@ -11605,6 +11834,16 @@ export const futureWorkItemChangesSchema = {
                     "maxLength": 200,
                     "pattern": ".*\\S.*",
                     "description": "Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.\n"
+                  },
+                  "transitionRole": {
+                    "type": "string",
+                    "enum": [
+                      "PRIMARY_PROGRESSION",
+                      "ERROR_PATH",
+                      "RECOVERY",
+                      "RETURN"
+                    ],
+                    "description": "Optional explicit meaning of a flow transition, independent of its action label, relationship variant, predicate and placement. `PRIMARY_PROGRESSION` is the main depicted journey, `ERROR_PATH` an unsuccessful or exceptional branch, `RECOVERY` a route back toward usable progress after something went wrong, and `RETURN` a move back to an earlier step without any failure, such as breadcrumb or back navigation. Absence means unclassified; the role is never inferred from labels, position or topology. Valid only on flow edges (`STANDARD`, `CONDITIONAL`, `LOOP`).\n"
                   },
                   "reasoning": {
                     "anyOf": [
@@ -11925,6 +12164,27 @@ export const futureWorkItemChangesSchema = {
                         "maxLength": 200,
                         "pattern": ".*\\S.*",
                         "description": "Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.\n"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "transitionRole": {
+                "anyOf": [
+                  {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "PRIMARY_PROGRESSION",
+                          "ERROR_PATH",
+                          "RECOVERY",
+                          "RETURN"
+                        ],
+                        "description": "Optional explicit meaning of a flow transition, independent of its action label, relationship variant, predicate and placement. `PRIMARY_PROGRESSION` is the main depicted journey, `ERROR_PATH` an unsuccessful or exceptional branch, `RECOVERY` a route back toward usable progress after something went wrong, and `RETURN` a move back to an earlier step without any failure, such as breadcrumb or back navigation. Absence means unclassified; the role is never inferred from labels, position or topology. Valid only on flow edges (`STANDARD`, `CONDITIONAL`, `LOOP`).\n"
                       }
                     ]
                   },

@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { AgentEdgeDirection } from './agent-edge-direction.js';
+import { WorkflowTransitionRole } from './workflow-transition-role.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -24,6 +25,9 @@ import type { TemporaryRelationshipIdentity } from './temporary-relationship-ide
 // May contain unused imports in some cases
 // @ts-ignore
 import type { WorkItemChangeSetIdentity } from './work-item-change-set-identity.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { WorkflowTransitionRole } from './workflow-transition-role.js';
 
 /**
  *
@@ -87,6 +91,12 @@ export interface WorkItemConditionalRelationshipCreateOperation {
     'actionLabel'?: string;
     /**
      *
+     * @type {WorkflowTransitionRole}
+     * @memberof WorkItemConditionalRelationshipCreateOperation
+     */
+    'transitionRole'?: WorkflowTransitionRole;
+    /**
+     *
      * @type {string}
      * @memberof WorkItemConditionalRelationshipCreateOperation
      */
@@ -130,4 +140,6 @@ export namespace WorkItemConditionalRelationshipCreateOperation {
     export type CategoryEnum = WorkItemConditionalRelationshipCreateOperationCategoryEnum;
     export const DirectionEnum = AgentEdgeDirection;
     export type DirectionEnum = AgentEdgeDirection;
+    export const TransitionRoleEnum = WorkflowTransitionRole;
+    export type TransitionRoleEnum = WorkflowTransitionRole;
 }

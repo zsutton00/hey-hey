@@ -3,6 +3,7 @@ import { AgentEdgeEndpointEntityType } from './agent-edge-endpoint-entity-type.j
 import { AgentEdgeType } from './agent-edge-type.js';
 import { AgentEdgeCategory } from './agent-edge-category.js';
 import { AgentEdgeDirection } from './agent-edge-direction.js';
+import { WorkflowTransitionRole } from './workflow-transition-role.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -33,6 +34,9 @@ import type { AgentEdgeType } from './agent-edge-type.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { WorkItemChangeSetIdentity } from './work-item-change-set-identity.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { WorkflowTransitionRole } from './workflow-transition-role.js';
 
 /**
  * Exact connection that replaces an existing relationship.
@@ -96,6 +100,12 @@ export interface RelationshipReplacement {
     'actionLabel'?: string | null;
     /**
      *
+     * @type {WorkflowTransitionRole}
+     * @memberof RelationshipReplacement
+     */
+    'transitionRole'?: WorkflowTransitionRole | null;
+    /**
+     *
      * @type {string}
      * @memberof RelationshipReplacement
      */
@@ -119,4 +129,6 @@ export namespace RelationshipReplacement {
     export type CategoryEnum = AgentEdgeCategory;
     export const DirectionEnum = AgentEdgeDirection;
     export type DirectionEnum = AgentEdgeDirection;
+    export const TransitionRoleEnum = WorkflowTransitionRole;
+    export type TransitionRoleEnum = WorkflowTransitionRole;
 }

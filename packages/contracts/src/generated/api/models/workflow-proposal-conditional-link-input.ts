@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { AgentEdgeDirection } from './agent-edge-direction.js';
+import { WorkflowTransitionRole } from './workflow-transition-role.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -18,6 +19,9 @@ import { AgentEdgeDirection } from './agent-edge-direction.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { AgentEdgeDirection } from './agent-edge-direction.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { WorkflowTransitionRole } from './workflow-transition-role.js';
 
 /**
  *
@@ -62,6 +66,12 @@ export interface WorkflowProposalConditionalLinkInput {
      */
     'actionLabel'?: string;
     /**
+     *
+     * @type {WorkflowTransitionRole}
+     * @memberof WorkflowProposalConditionalLinkInput
+     */
+    'transitionRole'?: WorkflowTransitionRole;
+    /**
      * Optional human-readable explanation for the link.
      * @type {string}
      * @memberof WorkflowProposalConditionalLinkInput
@@ -84,4 +94,6 @@ export namespace WorkflowProposalConditionalLinkInput {
     export type TypeEnum = WorkflowProposalConditionalLinkInputTypeEnum;
     export const DirectionEnum = AgentEdgeDirection;
     export type DirectionEnum = AgentEdgeDirection;
+    export const TransitionRoleEnum = WorkflowTransitionRole;
+    export type TransitionRoleEnum = WorkflowTransitionRole;
 }

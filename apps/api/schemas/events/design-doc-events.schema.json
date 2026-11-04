@@ -9210,6 +9210,17 @@
           "type": ["string", "null"],
           "description": "Optional plain-language user action that triggers this flow transition. UX_FLOW Diagrams require it to be non-blank on each flow link."
         },
+        "transitionRole": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/WorkflowTransitionRole"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional explicit meaning of this flow transition (primary progression, error path or recovery); omitted means unclassified."
+        },
         "reasoning": {
           "type": "string"
         },
@@ -9401,6 +9412,28 @@
         {}
       ],
       "description": "Direction declared on workflow flow edges where the direction matters to rendering or validation. `STANDARD` and `CONDITIONAL` edges require this field. `LOOP` edges do not carry it because the source step is also the return point."
+    },
+    "WorkflowTransitionRole": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "PRIMARY_PROGRESSION"
+        },
+        {
+          "type": "string",
+          "const": "ERROR_PATH"
+        },
+        {
+          "type": "string",
+          "const": "RECOVERY"
+        },
+        {
+          "type": "string",
+          "const": "RETURN"
+        },
+        {}
+      ],
+      "description": "Optional explicit meaning of a flow transition, independent of its action label, relationship variant, predicate and placement. `PRIMARY_PROGRESSION` is the main depicted journey, `ERROR_PATH` an unsuccessful or exceptional branch, `RECOVERY` a route back toward usable progress after something went wrong, and `RETURN` a move back to an earlier step without any failure, such as breadcrumb or back navigation. Absence means unclassified; the role is never inferred from labels, position or topology. Valid only on flow edges (`STANDARD`, `CONDITIONAL`, `LOOP`)."
     },
     "EdgeSource": {
       "anyOf": [
@@ -16779,6 +16812,9 @@
               "type": "string",
               "description": "Optional plain-language user action that triggers this flow transition, such as \\\"tap Continue\\\". Distinct from a CONDITIONAL branch predicate."
             },
+            "transitionRole": {
+              "$ref": "#/definitions/WorkflowTransitionRole"
+            },
             "description": {
               "type": "string",
               "description": "Optional human-readable explanation for the link."
@@ -16837,6 +16873,9 @@
               "type": "string",
               "description": "Optional plain-language user action that triggers this flow transition, such as \\\"tap Continue\\\". Distinct from a CONDITIONAL branch predicate."
             },
+            "transitionRole": {
+              "$ref": "#/definitions/WorkflowTransitionRole"
+            },
             "description": {
               "type": "string",
               "description": "Optional human-readable explanation for the link."
@@ -16865,6 +16904,9 @@
             "actionLabel": {
               "type": "string",
               "description": "Optional plain-language user action that triggers this flow transition, such as \\\"tap Continue\\\". Distinct from a CONDITIONAL branch predicate."
+            },
+            "transitionRole": {
+              "$ref": "#/definitions/WorkflowTransitionRole"
             },
             "description": {
               "type": "string",
@@ -17460,6 +17502,16 @@
           "type": ["string", "null"],
           "description": "Optional plain-language user action that triggers this flow transition, such as \\\"tap Continue\\\". Distinct from a CONDITIONAL branch predicate."
         },
+        "transitionRole": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/WorkflowTransitionRole"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "reasoning": {
           "type": ["string", "null"]
         },
@@ -17760,6 +17812,9 @@
               "type": "string",
               "description": "Optional plain-language user action that triggers this flow transition, such as \\\"tap Continue\\\". Distinct from a CONDITIONAL branch predicate."
             },
+            "transitionRole": {
+              "$ref": "#/definitions/WorkflowTransitionRole"
+            },
             "reasoning": {
               "type": ["string", "null"]
             },
@@ -17881,6 +17936,9 @@
               "type": "string",
               "description": "Optional plain-language user action that triggers this flow transition, such as \\\"tap Continue\\\". Distinct from a CONDITIONAL branch predicate."
             },
+            "transitionRole": {
+              "$ref": "#/definitions/WorkflowTransitionRole"
+            },
             "reasoning": {
               "type": ["string", "null"]
             },
@@ -17926,6 +17984,9 @@
             "actionLabel": {
               "type": "string",
               "description": "Optional plain-language user action that triggers this flow transition, such as \\\"tap Continue\\\". Distinct from a CONDITIONAL branch predicate."
+            },
+            "transitionRole": {
+              "$ref": "#/definitions/WorkflowTransitionRole"
             },
             "reasoning": {
               "type": ["string", "null"]
@@ -18001,6 +18062,16 @@
             "actionLabel": {
               "type": ["string", "null"],
               "description": "Optional plain-language user action that triggers this flow transition, such as \\\"tap Continue\\\". Distinct from a CONDITIONAL branch predicate."
+            },
+            "transitionRole": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/WorkflowTransitionRole"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "reasoning": {
               "type": ["string", "null"]
@@ -18398,6 +18469,16 @@
         "actionLabel": {
           "type": ["string", "null"],
           "description": "Optional plain-language user action that triggers this flow transition, such as \\\"tap Continue\\\". Distinct from a CONDITIONAL branch predicate."
+        },
+        "transitionRole": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/WorkflowTransitionRole"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "reasoning": {
           "type": ["string", "null"]

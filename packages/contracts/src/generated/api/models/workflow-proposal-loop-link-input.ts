@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { WorkflowTransitionRole } from './workflow-transition-role.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -14,6 +15,9 @@
  */
 
 
+// May contain unused imports in some cases
+// @ts-ignore
+import type { WorkflowTransitionRole } from './workflow-transition-role.js';
 
 /**
  *
@@ -52,6 +56,12 @@ export interface WorkflowProposalLoopLinkInput {
      */
     'actionLabel'?: string;
     /**
+     *
+     * @type {WorkflowTransitionRole}
+     * @memberof WorkflowProposalLoopLinkInput
+     */
+    'transitionRole'?: WorkflowTransitionRole;
+    /**
      * Optional human-readable explanation for the link.
      * @type {string}
      * @memberof WorkflowProposalLoopLinkInput
@@ -72,4 +82,6 @@ export type WorkflowProposalLoopLinkInputTypeEnum = typeof WorkflowProposalLoopL
 export namespace WorkflowProposalLoopLinkInput {
     export const TypeEnum = WorkflowProposalLoopLinkInputTypeEnum;
     export type TypeEnum = WorkflowProposalLoopLinkInputTypeEnum;
+    export const TransitionRoleEnum = WorkflowTransitionRole;
+    export type TransitionRoleEnum = WorkflowTransitionRole;
 }

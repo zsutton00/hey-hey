@@ -4771,6 +4771,30 @@ export const controllerActionRuntimeSchema = {
                       },
                     ],
                   },
+                  transitionRole: {
+                    anyOf: [
+                      {
+                        type: 'null',
+                      },
+                      {
+                        allOf: [
+                          {
+                            type: 'string',
+                            enum: [
+                              'PRIMARY_PROGRESSION',
+                              'ERROR_PATH',
+                              'RECOVERY',
+                              'RETURN',
+                            ],
+                            description:
+                              'Optional explicit meaning of a flow transition, independent of its action label, relationship variant, predicate and placement. `PRIMARY_PROGRESSION` is the main depicted journey, `ERROR_PATH` an unsuccessful or exceptional branch, `RECOVERY` a route back toward usable progress after something went wrong, and `RETURN` a move back to an earlier step without any failure, such as breadcrumb or back navigation. Absence means unclassified; the role is never inferred from labels, position or topology. Valid only on flow edges (`STANDARD`, `CONDITIONAL`, `LOOP`).\n',
+                          },
+                        ],
+                        description:
+                          'Optional explicit meaning of this flow transition (primary progression, error path or recovery); omitted means unclassified.',
+                      },
+                    ],
+                  },
                   reasoning: {
                     type: 'string',
                   },

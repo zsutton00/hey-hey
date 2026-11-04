@@ -172,6 +172,7 @@ model/workItemProjectReadinessExpectation.ts
 model/workItemProjectReadinessRequest.ts
 model/workItemProjectReadinessResponse.ts
 model/workStatus.ts
+model/workflowTransitionRole.ts
 package.json
 tsconfig.build.json
 tsconfig.json
