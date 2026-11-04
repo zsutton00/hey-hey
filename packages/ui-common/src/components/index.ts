@@ -61,6 +61,7 @@ export * from "./dnd";
 export { DebugManager } from "./Debug";
 export { OutboxEvents } from "./Debug";
 export { EntityViewer, EntityViewerLoader } from "./EntityViewer";
+export { OpenInUxFlowButton } from "./shared/UxFlowFromMockup";
 export { HeyHeyBranding } from "./Homepage";
 export type { OutboxEventsProps } from "./Debug";
 export { SmartTextAreaCard } from "./SmartTextAreaCard";

@@ -188,6 +188,9 @@ vi.mock("@hey-hey/ui-common/components", () => ({
     mockWorkItemMetadata(props);
     return <div data-testid="work-item-metadata" />;
   },
+  OpenInUxFlowButton: ({ mockupId }: { mockupId: string }) => (
+    <button data-testid="open-in-ux-flow" data-mockup-id={mockupId} />
+  ),
   WorkItemReadView: (props: unknown) => {
     mockWorkItemReadView(props);
     return <div data-testid="work-item-read-view" />;
@@ -698,6 +701,10 @@ describe("TaskPage data debug tab", () => {
 
     renderTaskPage("/projects/project-1/initiatives/initiative-1/tasks/task-1");
 
+    expect(screen.getByTestId("open-in-ux-flow")).toHaveAttribute(
+      "data-mockup-id",
+      mockHierarchyTask.id,
+    );
     expect(
       screen.getByRole("button", { name: "Show Context" }),
     ).toBeInTheDocument();

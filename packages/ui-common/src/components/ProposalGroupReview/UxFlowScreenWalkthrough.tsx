@@ -5,6 +5,7 @@ import {
   Box,
   Button,
   ButtonBase,
+  IconButton,
   Paper,
   Stack,
   Typography,
@@ -138,23 +139,29 @@ export const UxFlowScreenWalkthrough: React.FC<{
           }}
         >
           {previousId === null ? null : (
-            <Button
-              onClick={() => {
-                setTrail(goBack);
-                setPanelOpen(false);
-              }}
-              startIcon={<ArrowBackIcon />}
-              aria-label={`Back to ${names.get(previousId) ?? "previous screen"}`}
-              data-testid="ux-flow-back-button"
-              data-target-id={previousId}
-              sx={{
-                flexDirection: "column",
-                textTransform: "none",
-                minWidth: 0,
-              }}
-            >
-              {names.get(previousId)}
-            </Button>
+            <Stack alignItems="center" spacing={0.75}>
+              <IconButton
+                onClick={() => {
+                  setTrail(goBack);
+                  setPanelOpen(false);
+                }}
+                aria-label={`Back to ${names.get(previousId) ?? "previous screen"}`}
+                data-testid="ux-flow-back-button"
+                data-target-id={previousId}
+                sx={{
+                  width: 56,
+                  height: 56,
+                  bgcolor: "primary.main",
+                  color: "primary.contrastText",
+                  "&:hover": { bgcolor: "primary.dark" },
+                }}
+              >
+                <ArrowBackIcon fontSize="large" />
+              </IconButton>
+              <Typography variant="caption" noWrap>
+                Back
+              </Typography>
+            </Stack>
           )}
         </Box>
         <Box
@@ -173,16 +180,29 @@ export const UxFlowScreenWalkthrough: React.FC<{
             justifyContent: "center",
           }}
         >
-          <Button
-            disabled={optionCount === 0}
-            onClick={() => setPanelOpen((open) => !open)}
-            endIcon={optionCount === 0 ? undefined : <ArrowForwardIcon />}
-            aria-expanded={panelOpen}
-            data-testid="ux-flow-next-button"
-            sx={{ flexDirection: "column", textTransform: "none", minWidth: 0 }}
-          >
-            {optionCount === 0 ? "End" : `${optionCount} next`}
-          </Button>
+          <Stack alignItems="center" spacing={0.75}>
+            <IconButton
+              disabled={optionCount === 0}
+              onClick={() => setPanelOpen((open) => !open)}
+              aria-label={
+                optionCount === 0 ? "No next options" : "Next options"
+              }
+              aria-expanded={panelOpen}
+              data-testid="ux-flow-next-button"
+              sx={{
+                width: 56,
+                height: 56,
+                bgcolor: "primary.main",
+                color: "primary.contrastText",
+                "&:hover": { bgcolor: "primary.dark" },
+              }}
+            >
+              <ArrowForwardIcon fontSize="large" />
+            </IconButton>
+            <Typography variant="caption" noWrap>
+              {optionCount > 1 ? `Next (${optionCount})` : "Next"}
+            </Typography>
+          </Stack>
         </Box>
         {panelOpen && optionCount > 0 ? (
           <Paper
@@ -190,9 +210,11 @@ export const UxFlowScreenWalkthrough: React.FC<{
             data-testid="ux-flow-next-panel"
             sx={{
               position: "absolute",
-              top: 16,
+              top: "50%",
+              transform: "translateY(-50%)",
               right: RAIL_WIDTH,
               width: 320,
+              maxWidth: `calc(100% - ${RAIL_WIDTH * 2}px)`,
               maxHeight: "calc(100% - 32px)",
               overflow: "auto",
               p: 1.5,

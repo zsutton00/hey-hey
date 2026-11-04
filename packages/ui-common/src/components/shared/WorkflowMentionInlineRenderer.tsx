@@ -7190,7 +7190,7 @@ const UxFlowSavedView: React.FC<{
     organizationId: toOpenApiOrganizationId(graphData.workflow.organizationId),
     projectId: toOpenApiProjectId(graphData.workflow.projectId),
   };
-  const renderScreen = (step: GraphWorkItem) => {
+  const renderScreen = (step: GraphWorkItem, fullSize = false) => {
     const reference = getDiagramElementMetadata(step)?.canonicalReference;
 
     return reference?.entityType === "TASK" ? (
@@ -7198,6 +7198,8 @@ const UxFlowSavedView: React.FC<{
         id={reference.entityId}
         name={step.name}
         group={scope}
+        fullSize={fullSize}
+        onOpenFullSize={() => setWalkthroughStepId(step.id)}
       />
     ) : (
       <Alert severity="info">Screen unavailable</Alert>
@@ -7210,20 +7212,7 @@ const UxFlowSavedView: React.FC<{
         steps={graphData.steps}
         edges={graphData.edges}
         savedPositions={savedPositions}
-        renderScreen={(step) => (
-          <Stack spacing={1}>
-            <Button
-              size="small"
-              onClick={() => setWalkthroughStepId(step.id)}
-              data-testid="ux-flow-open-walkthrough"
-              data-step-id={step.id}
-              sx={{ alignSelf: "flex-start" }}
-            >
-              {`Walk through from ${step.name}`}
-            </Button>
-            {renderScreen(step)}
-          </Stack>
-        )}
+        renderScreen={(step) => renderScreen(step)}
       />
       <Dialog
         open={walkthroughStepId !== null}
@@ -7242,7 +7231,7 @@ const UxFlowSavedView: React.FC<{
               renderScreen={(screenId) => {
                 const step = graphData.steps.find(({ id }) => id === screenId);
 
-                return step ? renderScreen(step) : null;
+                return step ? renderScreen(step, true) : null;
               }}
               onOpenFullFlow={() => setWalkthroughStepId(null)}
             />

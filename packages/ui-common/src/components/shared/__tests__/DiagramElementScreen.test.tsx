@@ -274,6 +274,22 @@ describe("Diagram Element Mockup screen cards", () => {
         screen.getByRole("button", { name: "View Cart screen full size" }),
       ).toBeInTheDocument();
       expect(screen.queryByTestId("workflow-inline-step")).toBeNull();
+      if (surface === "saved") {
+        fireEvent.click(
+          screen.getByRole("button", { name: "View Cart screen full size" }),
+        );
+        const walkthrough = await screen.findByTestId("ux-flow-walkthrough");
+        expect(
+          within(walkthrough).getByTestId("journey-screen-full-size"),
+        ).toBeInTheDocument();
+        expect(
+          within(walkthrough).queryByTestId("html-css-section-thumbnail"),
+        ).toBeNull();
+        expect(
+          within(walkthrough).getByTestId("ux-flow-next-button"),
+        ).toBeDisabled();
+        expect(screen.queryByTestId("ux-flow-open-walkthrough")).toBeNull();
+      }
     },
   );
 

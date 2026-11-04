@@ -37,7 +37,17 @@ export const JourneyScreen: React.FC<{
   sections: readonly { key: string; materializedMarkdown: unknown }[];
   group: Pick<ProposalGroupSnapshot, "organizationId" | "projectId">;
   children?: React.ReactNode;
-}> = ({ name, source, sections, group, children }) => {
+  onOpenFullSize?: () => void;
+  fullSize?: boolean;
+}> = ({
+  name,
+  source,
+  sections,
+  group,
+  children,
+  onOpenFullSize,
+  fullSize = false,
+}) => {
   const [open, setOpen, ownerKey] = useModalState(false);
   const registry = useWorkItemTypeByKey(
     group.organizationId,
@@ -100,6 +110,10 @@ export const JourneyScreen: React.FC<{
         />
       ),
     );
+  if (fullSize) {
+    return <Box data-testid="journey-screen-full-size">{renderFullSize()}</Box>;
+  }
+
   return (
     <Stack spacing={1}>
       <Box
@@ -123,7 +137,13 @@ export const JourneyScreen: React.FC<{
           <ButtonBase
             data-testid="journey-screen-preview"
             aria-label={`View ${name} full size`}
-            onClick={() => setOpen(true)}
+            onClick={() => {
+              if (onOpenFullSize) {
+                onOpenFullSize();
+                return;
+              }
+              setOpen(true);
+            }}
             sx={{ position: "absolute", inset: 0 }}
           />
         ) : null}

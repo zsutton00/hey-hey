@@ -31,6 +31,7 @@ import {
   EntityGrid,
   EntityListItem,
   InteractionComponent,
+  OpenInUxFlowButton,
   WorkItemEditor,
   WorkItemMetadata,
   WorkItemReadView,
@@ -630,14 +631,23 @@ export const TaskPageView: React.FC<TaskPageViewProps> = ({
                           },
                         }}
                         content={
-                          <WorkItemReadView
-                            htmlCssRenderingContext="page"
-                            sections={
-                              task.sections as
-                                MaterializedWorkItemSection[] | undefined
-                            }
-                            sectionSelection={workItemSectionSelection}
-                          />
+                          <>
+                            {task.type === "mockup" ? (
+                              <OpenInUxFlowButton
+                                organizationId={organizationId}
+                                projectId={projectId}
+                                mockupId={task.id}
+                              />
+                            ) : null}
+                            <WorkItemReadView
+                              htmlCssRenderingContext="page"
+                              sections={
+                                task.sections as
+                                  MaterializedWorkItemSection[] | undefined
+                              }
+                              sectionSelection={workItemSectionSelection}
+                            />
+                          </>
                         }
                         sidebar={
                           <Box>
