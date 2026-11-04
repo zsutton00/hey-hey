@@ -8,13 +8,13 @@ export interface JourneyTransition {
   targetId: string;
 }
 
-const cellKey = ({ column, row }: GridCell) => `${column},${row}`;
+export const cellKey = ({ column, row }: GridCell) => `${column},${row}`;
 
 /**
  * Cells around an origin ordered by distance, then east, south, north, west,
  * so the first free one is the preferred neighbour or the nearest spill cell.
  */
-function* cellsAround(origin: GridCell): Generator<GridCell> {
+export function* cellsAround(origin: GridCell): Generator<GridCell> {
   for (let distance = 1; ; distance += 1) {
     const ring: GridCell[] = [];
     for (let dx = distance; dx >= -distance; dx -= 1) {
@@ -29,7 +29,7 @@ function* cellsAround(origin: GridCell): Generator<GridCell> {
 }
 
 /** Ranks distinct coordinates so saved positions keep their arrangement as cells. */
-function rankCoordinates(values: number[]): Map<number, number> {
+export function rankCoordinates(values: number[]): Map<number, number> {
   const distinct = [...new Set(values)].sort((left, right) => left - right);
   return new Map(distinct.map((value, index) => [value, index]));
 }
