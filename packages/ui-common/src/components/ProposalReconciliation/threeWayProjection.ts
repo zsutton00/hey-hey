@@ -214,6 +214,7 @@ function graphContentBasis(graph: ProjectedWorkItemChangeSetResponse) {
             : "meta"),
         direction: edge.direction ?? null,
         predicate: edge.predicate ?? null,
+        transitionRole: edge.transitionRole ?? null,
         reasoning: edge.reasoning ?? null,
         metadata: edge.metadata ?? null,
       },

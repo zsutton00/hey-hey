@@ -78,7 +78,11 @@ async fn validate(
     let predicate = v["predicate"]
         .as_str()
         .is_some_and(|s| !s.trim().is_empty());
-    if (!flow && (direction || predicate || !v["actionLabel"].is_null()))
+    if (!flow
+        && (direction
+            || predicate
+            || !v["actionLabel"].is_null()
+            || !v["transitionRole"].is_null()))
         || (matches!(kind, "STANDARD" | "CONDITIONAL") && !direction)
         || (kind == "LOOP" && direction)
         || (kind == "CONDITIONAL" && !predicate)
@@ -88,6 +92,14 @@ async fn validate(
     }
     if let Some(label) = v["actionLabel"].as_str() {
         native::text(label)?;
+    }
+    if !v["transitionRole"].is_null()
+        && !matches!(
+            v["transitionRole"].as_str(),
+            Some("PRIMARY_PROGRESSION" | "ERROR_PATH" | "RECOVERY" | "RETURN")
+        )
+    {
+        return Err(invalid("Invalid transition role"));
     }
     let participation = matches!(kind, "GUARANTEES" | "IMPLEMENTS" | "CONSUMES");
     if ((flow || participation)
@@ -366,7 +378,9 @@ pub async fn update(
             patch["type"].as_str(),
             Some("STANDARD" | "CONDITIONAL" | "LOOP")
         ) {
-            value.as_object_mut().unwrap().remove("actionLabel");
+            let object = value.as_object_mut().unwrap();
+            object.remove("actionLabel");
+            object.remove("transitionRole");
         }
     }
     for (key, item) in patch.as_object().unwrap() {

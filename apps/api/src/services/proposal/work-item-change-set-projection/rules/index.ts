@@ -26,6 +26,7 @@ import {
   planDependenciesChainRule,
   relationshipEndpointsRule,
   relationshipExistenceRule,
+  relationshipTransitionRoleRule,
 } from './relationship-rules';
 import {
   layoutSectionKeyRule,
@@ -64,6 +65,7 @@ export const PROJECTION_RULES: readonly AnyProjectionRule[] = [
   planStageChildRule,
   featureRequirementsRule,
   relationshipEndpointsRule,
+  relationshipTransitionRoleRule,
   dependencyTopologyRule,
   planDependenciesBoundaryRule,
   planDependenciesChainRule,

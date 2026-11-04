@@ -107,6 +107,7 @@ impl Edge {
             "direction",
             "predicate",
             "actionLabel",
+            "transitionRole",
             "metadata",
             "createdBySessionId",
             "lastModifiedBySessionId",

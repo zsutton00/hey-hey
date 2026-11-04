@@ -216,6 +216,15 @@ const FLOW_RELATIONSHIP_VARIANT_GUIDANCE = [
   '```json',
   '{ "edgeType": "LOOP", "category": "flow", "direction": "forward" }',
   '```',
+  '',
+  '### Transition role (optional, any flow variant)',
+  '',
+  'Set `transitionRole` on a STANDARD, CONDITIONAL or LOOP relationship only when you know what the transition means: `PRIMARY_PROGRESSION` is the main depicted journey, `ERROR_PATH` is an unsuccessful or exceptional branch, `RECOVERY` is a route back toward usable progress after something went wrong, and `RETURN` is a move back to an earlier step with no failure involved, such as breadcrumb or back navigation. The role is separate from `actionLabel`, the variant and the predicate; never infer it from a label, position or topology. Outside `UX_FLOW` Diagrams, when a transition is uncertain or none of the meanings apply, omit `transitionRole` so it stays unclassified. It is rejected on non-flow relationships. A Diagram can have several `PRIMARY_PROGRESSION` transitions: every forward step of the intended journey is primary, including each alternative choice from a screen (for example Sign in and Sign up). Do not mark a transition `ERROR_PATH` merely because it is a less common choice. In a `UX_FLOW` Diagram every transition must declare a role, so classify each one; the proposal is rejected otherwise.',
+  'Set on create, or change on update, by sending the value; send `"transitionRole": null` in a `relationship.update` to clear it; omit the field to keep the current value.',
+  '```json',
+  '{ "op": "relationship.update", "ref": { "refType": "existing", "id": "<relationship-id>" }, "transitionRole": "ERROR_PATH" }',
+  '{ "op": "relationship.update", "ref": { "refType": "existing", "id": "<relationship-id>" }, "transitionRole": null }',
+  '```',
 ].join('\n');
 
 export interface ToolGuidanceEntry {
@@ -1488,7 +1497,8 @@ export const TOOL_GUIDANCE = {
       'rebuild keeps it. An element with no description prints nothing extra.',
       '',
       'Flow links are STANDARD, CONDITIONAL or LOOP links between elements; each',
-      'shows its direction and predicate where the link carries them. Fulfillment',
+      'shows its direction, predicate, action label and transition role where the link',
+      'carries them. Fulfillment',
       'links are FULFILLED_BY implementation evidence. Contract participation is',
       'GUARANTEES, IMPLEMENTS or CONSUMES. The links section carries every other',
       'readable link, including DEPENDS_ON to a Contract.',

@@ -2228,3 +2228,101 @@ async fn reparenting_a_task_withdraws_the_previous_parents_edge() -> anyhow::Res
     assert!(!f.has_edge(1210, 1212, "HAS_TASK").await);
     Ok(())
 }
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn transition_role_persists_changes_clears_and_stays_on_flow_edges() -> anyhow::Result<()> {
+    let f = Fixture::new(9700).await?;
+    let token = f.token(&f.scope.organization, vec![]);
+    let base = format!(
+        "/api/organizations/{}/projects/{}/agent-edges",
+        f.scope.organization, f.scope.project
+    );
+    for node in 9701..=9703 {
+        f.node(node, "TASK", json!({"type":"STANDARD"})).await;
+    }
+    let flow = |edge: u64, target: u64, extra: Value| {
+        let mut request = json!({"id":id(edge),"sourceNodeId":id(9701),"sourceEntityType":"TASK","targetNodeId":id(target),"targetEntityType":"TASK","type":"STANDARD","category":"flow","direction":"forward","actionLabel":"tap Continue","reasoning":"journey"});
+        request
+            .as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        request
+    };
+
+    // Unclassified stays unclassified; a classified transition round-trips.
+    let (status, plain) = f
+        .call("POST", &base, &token, flow(9710, 9702, json!({})))
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{plain}");
+    assert!(plain.get("transitionRole").is_none());
+    let (status, classified) = f
+        .call(
+            "POST",
+            &base,
+            &token,
+            flow(9711, 9703, json!({"transitionRole":"ERROR_PATH"})),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{classified}");
+    assert_eq!(classified["transitionRole"], "ERROR_PATH");
+
+    // Change, preserve across an unrelated edit, then clear with explicit null.
+    let path = format!("{base}/{}", id(9711));
+    let (status, changed) = f
+        .call(
+            "PATCH",
+            &path,
+            &token,
+            json!({"lastModifiedBySessionId":id(1),"transitionRole":"RECOVERY"}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{changed}");
+    assert_eq!(changed["transitionRole"], "RECOVERY");
+    let (status, returned) = f
+        .call(
+            "PATCH",
+            &path,
+            &token,
+            json!({"lastModifiedBySessionId":id(1),"transitionRole":"RETURN"}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{returned}");
+    assert_eq!(returned["transitionRole"], "RETURN");
+    let (_, kept) = f
+        .call(
+            "PATCH",
+            &path,
+            &token,
+            json!({"lastModifiedBySessionId":id(1),"reasoning":"renamed"}),
+        )
+        .await;
+    assert_eq!(kept["transitionRole"], "RETURN");
+    assert_eq!(kept["actionLabel"], "tap Continue");
+    let (status, cleared) = f
+        .call(
+            "PATCH",
+            &path,
+            &token,
+            json!({"lastModifiedBySessionId":id(1),"transitionRole":null}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{cleared}");
+    assert!(cleared.get("transitionRole").is_none());
+    assert_eq!(cleared["direction"], "forward");
+
+    // Invalid value and non-flow use are rejected.
+    let (status, _) = f
+        .call(
+            "POST",
+            &base,
+            &token,
+            flow(9712, 9703, json!({"transitionRole":"HAPPY_PATH"})),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let meta = json!({"id":id(9713),"sourceNodeId":id(9701),"sourceEntityType":"TASK","targetNodeId":id(9703),"targetEntityType":"TASK","type":"RELATED_TO","reasoning":"meta","transitionRole":"RECOVERY"});
+    let (status, _) = f.call("POST", &base, &token, meta).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    Ok(())
+}

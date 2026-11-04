@@ -577,6 +577,7 @@ describe("WorkItemGraphProposalRenderer", () => {
         target: second,
         direction: AgentEdgeDirection.Backward,
         predicate: null,
+        transitionRole: "ERROR_PATH",
         reasoning: null,
       },
       { op: "relationship.delete", ref: removedRelationship },
@@ -620,6 +621,7 @@ describe("WorkItemGraphProposalRenderer", () => {
         category: AgentEdgeCategory.Flow,
         direction: AgentEdgeDirection.Backward,
         predicate: null,
+        transitionRole: "ERROR_PATH",
         reasoning: null,
         deleted: false,
       },
@@ -771,6 +773,7 @@ describe("WorkItemGraphProposalRenderer", () => {
     ).toBeGreaterThan(0);
     expect(summary).toHaveTextContent("Direction: Forward");
     expect(summary).toHaveTextContent("Direction: Backward");
+    expect(summary).toHaveTextContent("Transition role: ERROR PATH");
     expect(summary).toHaveTextContent("First → First");
     expect(summary).toHaveTextContent("First → Second");
     expect(summary).toHaveTextContent("Removed");

@@ -27,6 +27,7 @@ import { ProposalEdgeEndpointMode } from '@hey-hey/contracts/api/models';
 import type { AgentEdgeType } from 'src/generated/graphs/model/agentEdgeType';
 import type { AgentEdgeCategory } from 'src/generated/graphs/model/agentEdgeCategory';
 import type { AgentEdgeDirection } from 'src/generated/graphs/model/agentEdgeDirection';
+import type { WorkflowTransitionRole } from 'src/generated/graphs/model/workflowTransitionRole';
 import type { CreateAgentEdgeDto } from 'src/generated/graphs/model/createAgentEdgeDto';
 import { AgentEdgeEndpointEntityType } from 'src/generated/graphs/model/agentEdgeEndpointEntityType';
 import { normalizeMentionTypeAlias } from 'src/services/mentions/mention-type-aliases';
@@ -76,6 +77,7 @@ export interface MaterializableEdge {
   direction?: AgentEdgeDirection;
   predicate?: string;
   actionLabel?: string;
+  transitionRole?: WorkflowTransitionRole;
   description?: string;
 }
 
@@ -1253,6 +1255,9 @@ export class PendingEdgeService {
       ...(edge.predicate !== undefined ? { predicate: edge.predicate } : {}),
       ...(edge.actionLabel !== undefined
         ? { actionLabel: edge.actionLabel }
+        : {}),
+      ...(edge.transitionRole !== undefined
+        ? { transitionRole: edge.transitionRole }
         : {}),
       reasoning:
         edge.description ?? `Declared via proposal edge (${edge.edgeType})`,

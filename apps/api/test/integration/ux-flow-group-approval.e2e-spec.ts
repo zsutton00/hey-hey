@@ -263,6 +263,7 @@ describe('UX journey grouped approval', () => {
           category: 'flow',
           direction: 'forward',
           actionLabel: 'Continue',
+          transitionRole: 'PRIMARY_PROGRESSION',
           reasoning: 'Opens Profile',
         },
       ],

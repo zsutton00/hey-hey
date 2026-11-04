@@ -877,6 +877,7 @@ export class ProposalReconciliationService {
         category: edge.category ?? 'meta',
         direction: edge.direction ?? null,
         predicate: edge.predicate ?? null,
+        transitionRole: edge.transitionRole ?? null,
         reasoning: edge.reasoning,
         metadata: edge.metadata ?? null,
       },

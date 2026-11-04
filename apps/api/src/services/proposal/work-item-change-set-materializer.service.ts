@@ -1075,6 +1075,9 @@ export class WorkItemChangeSetMaterializerService {
         source,
         target,
         reasoning: link.description ?? null,
+        ...('transitionRole' in link && link.transitionRole !== undefined
+          ? { transitionRole: link.transitionRole }
+          : {}),
       };
       const operation =
         link.type === 'CONDITIONAL'
@@ -3533,6 +3536,13 @@ export class WorkItemChangeSetMaterializerService {
           ('predicate' in operation ? (operation.predicate ?? null) : null),
       ],
       [
+        'transitionRole',
+        (edge.transitionRole ?? null) ===
+          ('transitionRole' in operation
+            ? (operation.transitionRole ?? null)
+            : null),
+      ],
+      [
         'reasoning',
         edge.reasoning ===
           (operation.reasoning ?? 'Generic work-item change-set relationship.'),
@@ -3568,6 +3578,8 @@ export class WorkItemChangeSetMaterializerService {
         (edge.direction ?? null) === (operation.direction ?? null)) &&
       (!Object.prototype.hasOwnProperty.call(operation, 'predicate') ||
         (edge.predicate ?? null) === (operation.predicate ?? null)) &&
+      (!Object.prototype.hasOwnProperty.call(operation, 'transitionRole') ||
+        (edge.transitionRole ?? null) === (operation.transitionRole ?? null)) &&
       (!Object.prototype.hasOwnProperty.call(operation, 'reasoning') ||
         edge.reasoning === operation.reasoning) &&
       (!Object.prototype.hasOwnProperty.call(operation, 'metadata') ||
@@ -4739,6 +4751,9 @@ export class WorkItemChangeSetMaterializerService {
       ...('actionLabel' in operation
         ? { actionLabel: operation.actionLabel ?? undefined }
         : {}),
+      ...('transitionRole' in operation
+        ? { transitionRole: operation.transitionRole ?? undefined }
+        : {}),
       metadata: operation.metadata,
       reasoning:
         operation.reasoning ?? 'Generic work-item change-set relationship.',
@@ -4777,6 +4792,7 @@ export class WorkItemChangeSetMaterializerService {
       direction: operation.direction,
       predicate: operation.predicate,
       actionLabel: operation.actionLabel,
+      transitionRole: operation.transitionRole,
       metadata: operation.metadata,
       reasoning: operation.reasoning ?? undefined,
       lastModifiedBySessionId: proposalId,

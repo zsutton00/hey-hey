@@ -1,3 +1,4 @@
+import type { WorkflowTransitionRole } from '@hey-hey/contracts/api/models';
 import { AxiosError, AxiosHeaders } from 'axios';
 import { PlanSubmissionAdmissionService } from '../../plan/plan-submission-admission.service';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -3322,6 +3323,12 @@ describe('UX flow constraints', () => {
     includeMockupReference = true,
     screenEdit?: { keepReference: boolean; approval: boolean },
     changeFlowType = false,
+    roles?: {
+      stored?: WorkflowTransitionRole;
+      update?: WorkflowTransitionRole | null;
+      toMeta?: boolean;
+      unclassified?: boolean;
+    },
   ) {
     const { projector, prisma, mockAgentEdgeClient } = await createProjector(
       undefined,
@@ -3386,6 +3393,9 @@ describe('UX flow constraints', () => {
         category: 'flow',
         direction: 'forward',
         ...(actionLabel === undefined ? {} : { actionLabel }),
+        ...(roles?.unclassified
+          ? {}
+          : { transitionRole: roles?.stored ?? 'PRIMARY_PROGRESSION' }),
         createdAt: '2026-10-01T00:00:00.000Z',
         updatedAt: '2026-10-01T00:00:00.000Z',
       },
@@ -3428,7 +3438,10 @@ describe('UX flow constraints', () => {
                 ref: { refType: 'existing', id: DIAGRAM },
                 name: 'Onboarding flow',
               },
-              ...(actionLabelUpdate === undefined && !changeFlowType
+              ...(actionLabelUpdate === undefined &&
+              !changeFlowType &&
+              roles?.update === undefined &&
+              !roles?.toMeta
                 ? []
                 : [
                     {
@@ -3437,10 +3450,19 @@ describe('UX flow constraints', () => {
                       ...(actionLabelUpdate === undefined
                         ? {}
                         : { actionLabel: actionLabelUpdate }),
+                      ...(roles?.update === undefined
+                        ? {}
+                        : { transitionRole: roles.update }),
                       ...(changeFlowType
                         ? {
                             edgeType: 'LOOP' as const,
                             category: 'flow' as const,
+                          }
+                        : {}),
+                      ...(roles?.toMeta
+                        ? {
+                            edgeType: 'RELATED_TO' as const,
+                            category: 'meta' as const,
                           }
                         : {}),
                     },
@@ -3548,6 +3570,96 @@ describe('UX flow constraints', () => {
     expect(projected.incidentRelationships).toEqual([
       expect.objectContaining({ actionLabel: 'tap Next' }),
     ]);
+  });
+
+  const projectRole = (roles: {
+    stored?: WorkflowTransitionRole;
+    update?: WorkflowTransitionRole | null;
+    toMeta?: boolean;
+    unclassified?: boolean;
+  }) =>
+    projectFlow(
+      'mockup',
+      'tap Continue',
+      undefined,
+      true,
+      undefined,
+      false,
+      roles,
+    );
+
+  it('rejects a UX flow transition that has no transition role', async () => {
+    const projected = await projectRole({ unclassified: true });
+
+    expect(projected.valid).toBe(false);
+    expect(projected.issues).toContainEqual(
+      expect.objectContaining({
+        code: 'missing_ux_flow_transition_role',
+        field: expect.stringMatching(/\.transitionRole$/),
+      }),
+    );
+  });
+
+  it.each(['PRIMARY_PROGRESSION', 'ERROR_PATH', 'RECOVERY', 'RETURN'] as const)(
+    'sets %s without changing the transition',
+    async (role) => {
+      const projected = await projectRole({ update: role });
+
+      expect(projected.valid).toBe(true);
+      expect(projected.incidentRelationships).toEqual([
+        expect.objectContaining({
+          transitionRole: role,
+          edgeType: 'STANDARD',
+          direction: 'forward',
+          actionLabel: 'tap Continue',
+        }),
+      ]);
+    },
+  );
+
+  it('changes a stored role and refuses to clear it on a UX flow', async () => {
+    const changed = await projectRole({
+      stored: 'ERROR_PATH',
+      update: 'RECOVERY',
+    });
+    expect(changed.incidentRelationships[0]?.transitionRole).toBe('RECOVERY');
+
+    const cleared = await projectRole({ stored: 'ERROR_PATH', update: null });
+    expect(cleared.valid).toBe(false);
+    expect(cleared.issues.map((issue) => issue.code)).toContain(
+      'missing_ux_flow_transition_role',
+    );
+    expect(cleared.incidentRelationships[0]).toMatchObject({
+      transitionRole: null,
+      actionLabel: 'tap Continue',
+      direction: 'forward',
+    });
+  });
+
+  it('keeps a stored role when only the action label is edited', async () => {
+    const projected = await projectFlow(
+      'mockup',
+      'tap Continue',
+      'tap Next',
+      true,
+      undefined,
+      false,
+      { stored: 'PRIMARY_PROGRESSION' },
+    );
+
+    expect(projected.incidentRelationships[0]).toMatchObject({
+      actionLabel: 'tap Next',
+      transitionRole: 'PRIMARY_PROGRESSION',
+    });
+  });
+
+  it('rejects a role on a relationship that is not a flow transition', async () => {
+    const projected = await projectRole({ update: 'RECOVERY', toMeta: true });
+
+    expect(projected.valid).toBe(false);
+    expect(projected.issues.map((issue) => issue.code)).toContain(
+      'transition_role_requires_flow_relationship',
+    );
   });
 });
 

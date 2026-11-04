@@ -616,6 +616,92 @@ describe("work item graph draft", () => {
     );
   });
 
+  it("sets, changes, preserves and clears a transition role without touching the rest of the transition", () => {
+    const input = graphInput();
+    input.incidentRelationships[0]!.actionLabel = "tap Continue";
+    const draft = createWorkItemGraphDraftState(input);
+    const before = draft.projection.incidentRelationships[0]!;
+
+    const set = workItemGraphDraftReducer(draft, {
+      type: "reconnect",
+      input: {
+        ref: { refType: "existing", id: "edge-1" },
+        transitionRole: "ERROR_PATH",
+      },
+    });
+    const changed = workItemGraphDraftReducer(set, {
+      type: "reconnect",
+      input: {
+        ref: { refType: "existing", id: "edge-1" },
+        transitionRole: "RECOVERY",
+      },
+    });
+    const unrelated = workItemGraphDraftReducer(changed, {
+      type: "reconnect",
+      input: {
+        ref: { refType: "existing", id: "edge-1" },
+        reasoning: "Reworded",
+      },
+    });
+    expect(unrelated.projection.incidentRelationships[0]).toMatchObject({
+      transitionRole: "RECOVERY",
+      actionLabel: "tap Continue",
+      edgeType: before.edgeType,
+      source: before.source,
+      target: before.target,
+      direction: before.direction,
+    });
+
+    const cleared = workItemGraphDraftReducer(unrelated, {
+      type: "reconnect",
+      input: {
+        ref: { refType: "existing", id: "edge-1" },
+        transitionRole: null,
+      },
+    });
+    expect(
+      cleared.projection.incidentRelationships[0]?.transitionRole,
+    ).toBeNull();
+    expect(cleared.operations).toContainEqual(
+      expect.objectContaining({
+        op: "relationship.update",
+        transitionRole: null,
+      }),
+    );
+  });
+
+  it("creates classified and unclassified transitions", () => {
+    const draft = createWorkItemGraphDraftState(graphInput());
+    const classified = workItemGraphDraftReducer(draft, {
+      type: "connect",
+      input: {
+        source: firstIdentity,
+        target: secondIdentity,
+        edgeType: AgentEdgeType.Standard,
+        category: AgentEdgeCategory.Flow,
+        direction: AgentEdgeDirection.Forward,
+        transitionRole: "PRIMARY_PROGRESSION",
+      },
+    });
+    expect(
+      classified.operations.find((o) => o.op === "relationship.create"),
+    ).toHaveProperty("transitionRole", "PRIMARY_PROGRESSION");
+
+    const unclassified = workItemGraphDraftReducer(draft, {
+      type: "connect",
+      input: {
+        source: firstIdentity,
+        target: secondIdentity,
+        edgeType: AgentEdgeType.Standard,
+        category: AgentEdgeCategory.Flow,
+        direction: AgentEdgeDirection.Forward,
+      },
+    });
+    expect(
+      unclassified.operations.find((o) => o.op === "relationship.create"),
+    ).not.toHaveProperty("transitionRole");
+  });
+
   it("reconnects one relationship identity with an update", () => {
     const draft = createWorkItemGraphDraftState(graphInput());
     const reconnected = workItemGraphDraftReducer(draft, {

@@ -39,6 +39,7 @@ import type {
 } from '@hey-hey/contracts/api/models';
 import {
   workflowEdgeActionLabelSchema,
+  workflowTransitionRoleSchema,
   workflowEdgePredicateSchema,
 } from './workflow-proposal-link.schema';
 
@@ -195,6 +196,7 @@ const workItemStandardRelationshipCreateOperationSchema = z
     category: z.literal('flow'),
     direction: agentEdgeDirectionSchema,
     actionLabel: workflowEdgeActionLabelSchema.optional(),
+    transitionRole: workflowTransitionRoleSchema.optional(),
     reasoning: z.string().nullable().optional(),
     metadata: z.record(z.string(), z.unknown()).nullable().optional(),
   })
@@ -211,6 +213,7 @@ const workItemConditionalRelationshipCreateOperationSchema = z
     direction: agentEdgeDirectionSchema,
     predicate: workflowEdgePredicateSchema,
     actionLabel: workflowEdgeActionLabelSchema.optional(),
+    transitionRole: workflowTransitionRoleSchema.optional(),
     reasoning: z.string().nullable().optional(),
     metadata: z.record(z.string(), z.unknown()).nullable().optional(),
   })
@@ -226,6 +229,7 @@ const workItemLoopRelationshipCreateOperationSchema = z
     category: z.literal('flow'),
     predicate: workflowEdgePredicateSchema.optional(),
     actionLabel: workflowEdgeActionLabelSchema.optional(),
+    transitionRole: workflowTransitionRoleSchema.optional(),
     reasoning: z.string().nullable().optional(),
     metadata: z.record(z.string(), z.unknown()).nullable().optional(),
   })
@@ -254,6 +258,7 @@ const workItemRelationshipUpdateOperationSchema = z
     direction: agentEdgeDirectionSchema.optional(),
     predicate: z.string().nullable().optional(),
     actionLabel: workflowEdgeActionLabelSchema.nullable().optional(),
+    transitionRole: workflowTransitionRoleSchema.nullable().optional(),
     reasoning: z.string().nullable().optional(),
     metadata: z.record(z.string(), z.unknown()).nullable().optional(),
   })
@@ -385,6 +390,7 @@ const relationshipReplacementSchema = z
     direction: agentEdgeDirectionSchema.optional(),
     predicate: z.string().nullable().optional(),
     actionLabel: workflowEdgeActionLabelSchema.nullable().optional(),
+    transitionRole: workflowTransitionRoleSchema.nullable().optional(),
     reasoning: z.string().nullable().optional(),
     metadata: z.record(z.string(), z.unknown()).nullable().optional(),
   })

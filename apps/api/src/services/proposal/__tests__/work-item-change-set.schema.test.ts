@@ -303,6 +303,92 @@ describe('workItemChangeSetValidationRequestSchema', () => {
     },
   );
 
+  describe('transition role', () => {
+    const create = (extra: Record<string, unknown>) => ({
+      root,
+      operations: [
+        {
+          op: 'relationship.create',
+          ref: temporaryRelationship,
+          source: root,
+          target: temporaryWorkItem,
+          ...extra,
+        },
+      ],
+    });
+    const standard = {
+      edgeType: 'STANDARD',
+      category: 'flow',
+      direction: 'forward',
+    };
+
+    it.each(['PRIMARY_PROGRESSION', 'ERROR_PATH', 'RECOVERY', 'RETURN'])(
+      'accepts %s on each flow variant and leaves it optional',
+      (transitionRole) => {
+        for (const variant of [
+          standard,
+          { ...standard, edgeType: 'CONDITIONAL', predicate: 'approved' },
+          { edgeType: 'LOOP', category: 'flow' },
+        ]) {
+          expect(
+            workItemChangeSetValidationRequestSchema.safeParse(
+              create({ ...variant, transitionRole }),
+            ).success,
+          ).toBe(true);
+          expect(
+            workItemChangeSetValidationRequestSchema.safeParse(create(variant))
+              .success,
+          ).toBe(true);
+        }
+      },
+    );
+
+    it('rejects an unsupported role and a role on a non-flow relationship', () => {
+      expect(
+        workItemChangeSetValidationRequestSchema.safeParse(
+          create({ ...standard, transitionRole: 'HAPPY_PATH' }),
+        ).success,
+      ).toBe(false);
+      expect(
+        workItemChangeSetValidationRequestSchema.safeParse(
+          create({
+            edgeType: 'RELATED_TO',
+            category: 'meta',
+            transitionRole: 'RECOVERY',
+          }),
+        ).success,
+      ).toBe(false);
+    });
+
+    it('keeps the variant matrix when a role is present', () => {
+      expect(
+        workItemChangeSetValidationRequestSchema.safeParse(
+          create({ ...standard, predicate: 'x', transitionRole: 'ERROR_PATH' }),
+        ).success,
+      ).toBe(false);
+    });
+
+    it('lets an update set, change or explicitly clear a role', () => {
+      for (const transitionRole of ['ERROR_PATH', null]) {
+        expect(
+          workItemChangeSetValidationRequestSchema.safeParse({
+            root,
+            operations: [
+              {
+                op: 'relationship.update',
+                ref: {
+                  refType: 'existing',
+                  id: '11111111-1111-4111-8111-111111111111',
+                },
+                transitionRole,
+              },
+            ],
+          }).success,
+        ).toBe(true);
+      }
+    });
+  });
+
   it('rejects a whitespace-only flow action label', () => {
     expect(
       workItemChangeSetValidationRequestSchema.safeParse({

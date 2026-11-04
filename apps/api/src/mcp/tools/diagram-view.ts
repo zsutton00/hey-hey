@@ -80,7 +80,10 @@ const flowLine = (edge: AgentEdge): string => {
   const actionLabel = edge.actionLabel
     ? ` action=${quoted(edge.actionLabel)}`
     : '';
-  return `  ${edge.id} ${edge.sourceNodeId} -> ${edge.targetNodeId} ${edge.type}${direction}${predicate}${actionLabel}`;
+  const transitionRole = edge.transitionRole
+    ? ` role=${edge.transitionRole}`
+    : '';
+  return `  ${edge.id} ${edge.sourceNodeId} -> ${edge.targetNodeId} ${edge.type}${direction}${predicate}${actionLabel}${transitionRole}`;
 };
 
 const linkLine = (edge: AgentEdge): string =>

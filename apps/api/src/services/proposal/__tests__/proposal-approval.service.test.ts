@@ -3637,7 +3637,9 @@ describe('ProposalApprovalService', () => {
               category: 'flow',
               source: { refType: 'existing', id: screenId },
               target: { refType: 'existing', id: screenId },
-              ...(keepReference ? { actionLabel: 'tap Retry' } : {}),
+              ...(keepReference
+                ? { actionLabel: 'tap Retry', transitionRole: 'RECOVERY' }
+                : {}),
             },
           ];
         }

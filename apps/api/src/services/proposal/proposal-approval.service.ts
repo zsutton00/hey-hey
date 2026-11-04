@@ -3689,12 +3689,18 @@ export class ProposalApprovalService {
               ...(link.actionLabel !== undefined
                 ? { actionLabel: link.actionLabel }
                 : {}),
+              ...(link.transitionRole !== undefined
+                ? { transitionRole: link.transitionRole }
+                : {}),
             }
           : link.type === 'STANDARD'
             ? {
                 direction: link.direction,
                 ...(link.actionLabel !== undefined
                   ? { actionLabel: link.actionLabel }
+                  : {}),
+                ...(link.transitionRole !== undefined
+                  ? { transitionRole: link.transitionRole }
                   : {}),
               }
             : {
@@ -3703,6 +3709,9 @@ export class ProposalApprovalService {
                   : {}),
                 ...(link.actionLabel !== undefined
                   ? { actionLabel: link.actionLabel }
+                  : {}),
+                ...(link.transitionRole !== undefined
+                  ? { transitionRole: link.transitionRole }
                   : {}),
               };
 

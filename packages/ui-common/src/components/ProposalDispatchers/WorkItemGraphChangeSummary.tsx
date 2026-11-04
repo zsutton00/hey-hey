@@ -259,6 +259,7 @@ const priorRelationshipExplanation = (
           category: relationship.category,
           direction: relationship.direction ?? undefined,
           predicate: relationship.predicate,
+          transitionRole: relationship.transitionRole,
           reasoning: relationship.reasoning,
           metadata: relationship.metadata,
           deleted: false,
@@ -308,6 +309,9 @@ const relationshipExplanation = (
       ? `Direction: ${humanize(relationship.direction)}`
       : null,
     relationship.predicate ? `Label: ${relationship.predicate}` : null,
+    relationship.transitionRole
+      ? `Transition role: ${humanize(relationship.transitionRole)}`
+      : null,
     typeof metadata?.label === "string" ? `Label: ${metadata.label}` : null,
     typeof metadata?.description === "string"
       ? `Description: ${metadata.description}`

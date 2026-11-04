@@ -1835,6 +1835,66 @@ describe('WorkItemChangeSetMaterializerService', () => {
     );
   });
 
+  it('carries a reviewed transition role into the Graph create and update requests', async () => {
+    const { service } = createService();
+    const agentEdgeClient = (service as any).agentEdgeClient;
+    const mappings = {
+      workItems: {
+        'existing:screen-welcome': 'screen-welcome',
+        'existing:screen-profile': 'screen-profile',
+      },
+      relationships: { 'temporary:edge-role': 'edge-role' },
+    };
+    agentEdgeClient.create.mockResolvedValue({ id: 'edge-role' });
+
+    await (service as any).applyOperation(
+      {
+        proposalId: 'proposal-1',
+        organizationId: 'organization-1',
+        projectId: 'project-1',
+      },
+      'materialization-1',
+      {
+        op: 'relationship.create',
+        ref: { refType: 'temporary', tempId: 'edge-role' },
+        source: { refType: 'existing', id: 'screen-welcome' },
+        target: { refType: 'existing', id: 'screen-profile' },
+        edgeType: 'STANDARD',
+        category: 'flow',
+        direction: 'forward',
+        transitionRole: 'ERROR_PATH',
+      },
+      mappings,
+      0,
+      'claim-1',
+    );
+    expect(agentEdgeClient.create).toHaveBeenCalledWith(
+      'organization-1',
+      'project-1',
+      expect.objectContaining({
+        id: 'edge-role',
+        transitionRole: 'ERROR_PATH',
+      }),
+      undefined,
+      'materialization-1',
+    );
+
+    const toUpdate = (operation: Record<string, unknown>) =>
+      (service as any).toUpdateAgentEdgeDto(
+        { op: 'relationship.update', ...operation },
+        mappings,
+        'proposal-1',
+      );
+    expect(toUpdate({ transitionRole: 'RECOVERY' })).toMatchObject({
+      transitionRole: 'RECOVERY',
+    });
+    expect(toUpdate({ transitionRole: null })).toHaveProperty(
+      'transitionRole',
+      null,
+    );
+    expect(toUpdate({ reasoning: 'Reworded' }).transitionRole).toBeUndefined();
+  });
+
   it('runs task update post-commit effects after applying a durable update', async () => {
     const { service, taskService } = createService();
     const postCommit = {

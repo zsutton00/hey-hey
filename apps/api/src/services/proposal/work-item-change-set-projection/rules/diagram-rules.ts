@@ -316,6 +316,14 @@ export const diagramUxFlowRule: ProjectionRule<UxFlowScope> = {
             STRUCTURAL,
           );
         }
+        if (!relationship.transitionRole) {
+          ctx.addIssue(
+            field.replace(/\.actionLabel$/, '.transitionRole'),
+            'missing_ux_flow_transition_role',
+            'Every UX flow transition must declare a transition role: PRIMARY_PROGRESSION, ERROR_PATH or RECOVERY.',
+            STRUCTURAL,
+          );
+        }
       }
     }
   },

@@ -83,8 +83,8 @@ const CHECKOUT_TEXT = [
   `  ${STEP_TWO_ID} GENERIC "Validate payment" ref=TASK:${IMPLEMENTATION_ID} group=payments`,
   'flow:',
   `  edge-standard ${STEP_ONE_ID} -> ${STEP_TWO_ID} STANDARD direction=forward action="tap Continue"`,
-  `  edge-conditional ${STEP_TWO_ID} -> ${STEP_ONE_ID} CONDITIONAL direction=backward predicate="payment \\"declined\\""`,
-  `  edge-loop ${STEP_TWO_ID} -> ${STEP_TWO_ID} LOOP`,
+  `  edge-conditional ${STEP_TWO_ID} -> ${STEP_ONE_ID} CONDITIONAL direction=backward predicate="payment \\"declined\\"" role=ERROR_PATH`,
+  `  edge-loop ${STEP_TWO_ID} -> ${STEP_TWO_ID} LOOP role=RECOVERY`,
   'fulfillment:',
   `  edge-fulfillment ${STEP_ONE_ID} FULFILLED_BY STANDARD:${IMPLEMENTATION_ID} "Implement checkout"`,
   'contracts:',
@@ -222,10 +222,12 @@ function checkoutEdges(): Record<string, unknown>[] {
         category: 'flow',
         direction: 'backward',
         predicate: 'payment "declined"',
+        transitionRole: 'ERROR_PATH',
       },
     ),
     edge('edge-loop', AgentEdgeType.Loop, STEP_TWO_ID, STEP_TWO_ID, {
       category: 'flow',
+      transitionRole: 'RECOVERY',
     }),
     edge(
       'edge-fulfillment',

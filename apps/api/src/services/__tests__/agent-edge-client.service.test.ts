@@ -319,6 +319,33 @@ describe('AgentEdgeClientService', () => {
         actionLabel: 'tap Retry',
       },
     },
+    {
+      name: 'STANDARD with a primary-progression role',
+      relationship: {
+        type: AgentEdgeType.Standard,
+        category: AgentEdgeCategory.Flow,
+        direction: AgentEdgeDirection.Forward,
+        transitionRole: 'PRIMARY_PROGRESSION',
+      },
+    },
+    {
+      name: 'CONDITIONAL with an error-path role',
+      relationship: {
+        type: AgentEdgeType.Conditional,
+        category: AgentEdgeCategory.Flow,
+        direction: AgentEdgeDirection.Forward,
+        predicate: 'approved',
+        transitionRole: 'ERROR_PATH',
+      },
+    },
+    {
+      name: 'LOOP with a recovery role',
+      relationship: {
+        type: AgentEdgeType.Loop,
+        category: AgentEdgeCategory.Flow,
+        transitionRole: 'RECOVERY',
+      },
+    },
   ])(
     'accepts a contract-valid $name graph relationship',
     async ({ relationship }) => {
@@ -416,6 +443,25 @@ describe('AgentEdgeClientService', () => {
         type: AgentEdgeType.Loop,
       },
       field: 'category',
+    },
+    {
+      name: 'flow relationship with an unsupported transition role',
+      relationship: {
+        type: AgentEdgeType.Standard,
+        category: AgentEdgeCategory.Flow,
+        direction: AgentEdgeDirection.Forward,
+        transitionRole: 'HAPPY_PATH',
+      },
+      field: 'transitionRole',
+    },
+    {
+      name: 'meta relationship with a transition role',
+      relationship: {
+        type: AgentEdgeType.RelatedTo,
+        category: AgentEdgeCategory.Meta,
+        transitionRole: 'RECOVERY',
+      },
+      field: 'transitionRole',
     },
   ])(
     'rejects $name before the Graph request',

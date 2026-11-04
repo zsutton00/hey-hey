@@ -28,6 +28,8 @@ export interface RequestFacts {
     edgeType?: string;
     source?: NodeKey;
     target?: NodeKey;
+    /** An update that sets (not clears) a transition role. */
+    setsTransitionRole?: boolean;
   }[];
   layoutOps: { op: 'replace' | 'clear'; root: NodeKey }[];
   hasLayoutBoundary: boolean;
@@ -203,6 +205,7 @@ export function deriveRequestFacts(
           ...(operation.edgeType ? { edgeType: operation.edgeType } : {}),
           ...(operation.source ? { source: nodeKey(operation.source) } : {}),
           ...(operation.target ? { target: nodeKey(operation.target) } : {}),
+          ...(operation.transitionRole ? { setsTransitionRole: true } : {}),
         });
         break;
       case 'relationship.delete':

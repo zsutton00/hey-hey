@@ -1570,6 +1570,7 @@ export class WorkItemChangeSetProjectorService {
       direction: edge.direction ?? undefined,
       predicate: edge.predicate ?? null,
       actionLabel: edge.actionLabel ?? null,
+      transitionRole: edge.transitionRole ?? null,
       reasoning: edge.reasoning,
       metadata: edge.metadata ?? null,
       deleted: false,
@@ -1911,6 +1912,10 @@ export class WorkItemChangeSetProjectorService {
         'predicate' in operation ? (operation.predicate ?? null) : null,
       actionLabel:
         'actionLabel' in operation ? (operation.actionLabel ?? null) : null,
+      transitionRole:
+        'transitionRole' in operation
+          ? (operation.transitionRole ?? null)
+          : null,
       reasoning: operation.reasoning ?? null,
       metadata: operation.metadata ?? null,
       deleted: false,
@@ -1951,6 +1956,13 @@ export class WorkItemChangeSetProjectorService {
     ) {
       edge.actionLabel = null;
     }
+    if (
+      operation.category !== undefined &&
+      operation.category !== 'flow' &&
+      !Object.prototype.hasOwnProperty.call(operation, 'transitionRole')
+    ) {
+      edge.transitionRole = null;
+    }
     if (operation.category !== undefined) edge.category = operation.category;
     if (Object.prototype.hasOwnProperty.call(operation, 'direction')) {
       edge.direction = operation.direction ?? undefined;
@@ -1960,6 +1972,9 @@ export class WorkItemChangeSetProjectorService {
     }
     if (Object.prototype.hasOwnProperty.call(operation, 'actionLabel')) {
       edge.actionLabel = operation.actionLabel ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(operation, 'transitionRole')) {
+      edge.transitionRole = operation.transitionRole ?? null;
     }
     if (Object.prototype.hasOwnProperty.call(operation, 'reasoning')) {
       edge.reasoning = operation.reasoning ?? null;

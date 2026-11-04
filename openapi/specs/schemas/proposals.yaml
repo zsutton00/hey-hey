@@ -1674,6 +1674,8 @@ WorkItemStandardRelationshipCreateOperation:
       $ref: "./agent-edges.yaml#/AgentEdgeDirection"
     actionLabel:
       $ref: "./agent-edges.yaml#/WorkflowEdgeActionLabel"
+    transitionRole:
+      $ref: "./agent-edges.yaml#/WorkflowTransitionRole"
     reasoning:
       type: string
       nullable: true
@@ -1719,6 +1721,8 @@ WorkItemConditionalRelationshipCreateOperation:
       $ref: "./agent-edges.yaml#/WorkflowEdgePredicate"
     actionLabel:
       $ref: "./agent-edges.yaml#/WorkflowEdgeActionLabel"
+    transitionRole:
+      $ref: "./agent-edges.yaml#/WorkflowTransitionRole"
     reasoning:
       type: string
       nullable: true
@@ -1760,6 +1764,8 @@ WorkItemLoopRelationshipCreateOperation:
       $ref: "./agent-edges.yaml#/WorkflowEdgePredicate"
     actionLabel:
       $ref: "./agent-edges.yaml#/WorkflowEdgeActionLabel"
+    transitionRole:
+      $ref: "./agent-edges.yaml#/WorkflowTransitionRole"
     reasoning:
       type: string
       nullable: true
@@ -1827,6 +1833,10 @@ WorkItemRelationshipUpdateOperation:
     actionLabel:
       allOf:
         - $ref: "./agent-edges.yaml#/WorkflowEdgeActionLabel"
+      nullable: true
+    transitionRole:
+      allOf:
+        - $ref: "./agent-edges.yaml#/WorkflowTransitionRole"
       nullable: true
     reasoning:
       type: string
@@ -2023,6 +2033,10 @@ RelationshipReplacement:
       allOf:
         - $ref: "./agent-edges.yaml#/WorkflowEdgeActionLabel"
       nullable: true
+    transitionRole:
+      allOf:
+        - $ref: "./agent-edges.yaml#/WorkflowTransitionRole"
+      nullable: true
     reasoning:
       type: string
       nullable: true
@@ -2153,6 +2167,10 @@ ProjectedWorkItemRelationship:
     actionLabel:
       allOf:
         - $ref: "./agent-edges.yaml#/WorkflowEdgeActionLabel"
+      nullable: true
+    transitionRole:
+      allOf:
+        - $ref: "./agent-edges.yaml#/WorkflowTransitionRole"
       nullable: true
     reasoning:
       type: string

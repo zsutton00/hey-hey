@@ -1284,6 +1284,7 @@ const projectedRelationshipToSurfaceEdge = (
     direction: relationship.direction,
     predicate: relationship.predicate,
     actionLabel: relationship.actionLabel,
+    transitionRole: relationship.transitionRole,
     reasoning: relationship.reasoning ?? "",
     metadata: relationship.metadata,
     createdAt: PROJECTED_EDGE_TIMESTAMP,

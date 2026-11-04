@@ -4982,6 +4982,11 @@ paths:
                     - $ref: "../schemas/agent-edges.yaml#/WorkflowEdgeActionLabel"
                   nullable: true
                   description: Optional plain-language action that triggers this flow transition.
+                transitionRole:
+                  allOf:
+                    - $ref: "../schemas/agent-edges.yaml#/WorkflowTransitionRole"
+                  nullable: true
+                  description: Optional explicit meaning of this flow transition (primary progression, error path or recovery); omitted means unclassified.
                 metadata:
                   type: object
                   additionalProperties: true
@@ -5166,6 +5171,11 @@ paths:
                     - $ref: "../schemas/agent-edges.yaml#/WorkflowEdgeActionLabel"
                   nullable: true
                   description: Optional plain-language action that triggers this flow transition; set null to clear it.
+                transitionRole:
+                  allOf:
+                    - $ref: "../schemas/agent-edges.yaml#/WorkflowTransitionRole"
+                  nullable: true
+                  description: Optional explicit meaning of this flow transition (primary progression, error path or recovery); omitted means unclassified; set null to clear it.
                 metadata:
                   type: object
                   additionalProperties: true
@@ -5979,6 +5989,52 @@ paths:
           description: The effective work-item type has no valid graph capability.
         "401":
           description: An authenticated Graph token is required.
+        "404":
+          description: Work item not found in the requested project.
+
+  /organizations/{organizationId}/projects/{projectId}/work-items/{workItemId}/ux-flows:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: workItemId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: List the UX flows that include a work item
+      description: >
+        Returns the live UX flow Diagrams in the project that have an element
+        canonically referencing the work item, with the matching element id.
+        Archived Diagrams and elements are excluded. The result is empty when
+        the work item belongs to no UX flow.
+      operationId: organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGet
+      tags: [Tasks]
+      responses:
+        "200":
+          description: UX flows that include the work item.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/UxFlowMembershipResponseDto"
+        "401":
+          description: Unauthorized
         "404":
           description: Work item not found in the requested project.
 
@@ -28426,6 +28482,10 @@ components:
       $ref: "../schemas/work-items.yaml#/WorkItemGraphLayoutNodeRef"
     WorkItemGraphAggregateResponseDto:
       $ref: "../schemas/work-items.yaml#/WorkItemGraphAggregateResponseDto"
+    UxFlowMembership:
+      $ref: "../schemas/work-items.yaml#/UxFlowMembership"
+    UxFlowMembershipResponseDto:
+      $ref: "../schemas/work-items.yaml#/UxFlowMembershipResponseDto"
     WorkItemGraphDerivedReference:
       $ref: "../schemas/work-items.yaml#/WorkItemGraphDerivedReference"
     WorkItemGraphParticipationType:
