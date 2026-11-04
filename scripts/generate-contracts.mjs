@@ -801,6 +801,7 @@ const backupOutputs = (target, backupRoot) => {
 
 const ignoredStageDirectories = new Set([
   ".boostgraph",
+  ".claude",
   ".git",
   ".next",
   ".turbo",
