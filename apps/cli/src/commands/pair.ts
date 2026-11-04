@@ -37,6 +37,7 @@ import { ExecutionGrantStore } from '../server/controller-authorization/executio
 import { StructuredServerLogger, type ServerLogger } from '../server/logger';
 import { resolvePairingUrl } from './pairing-web-url';
 import { describeEnrollment } from './pairing-presentation';
+import type { LocalApprovalSecret } from '../auth/local-approval';
 
 export interface MachinesEnrollmentClient {
   createMachineEnrollment(
@@ -61,6 +62,8 @@ export interface PairCommandDependencies {
   confirmation?: MachineEnrollmentConfirmation;
   prompter?: Pick<CredentialPrompter, 'confirm'>;
   onBrowserHandoff?: (userCode: string) => void;
+  /** First-time `heyhey local` only; never used for controller upgrades or recovery. */
+  localApproval?: LocalApprovalSecret;
   log: (message: string) => void;
   logError: (message: string) => void;
 }
@@ -221,6 +224,7 @@ export const resolvePairDependencies = (
   ...(dependencies.confirmation ? { confirmation: dependencies.confirmation } : {}),
   ...(dependencies.prompter ? { prompter: dependencies.prompter } : {}),
   ...(dependencies.onBrowserHandoff ? { onBrowserHandoff: dependencies.onBrowserHandoff } : {}),
+  ...(dependencies.localApproval ? { localApproval: dependencies.localApproval } : {}),
   log: dependencies.log ?? console.log,
   logError: dependencies.logError ?? console.error,
 });
@@ -499,5 +503,8 @@ export const pairMachine = async (
   ports.step({ kind: 'browser-handoff', userCode: enrollment.userCode });
 
   const confirmation = createConfirmationOwner(deps);
-  return confirmation.run(enrollment, { ports });
+  return confirmation.run(enrollment, {
+    ports,
+    ...(deps.localApproval ? { localApproval: deps.localApproval } : {}),
+  });
 };

@@ -1,3 +1,4 @@
+import type { LocalApplicationNavigation } from '../local-app/local-application';
 /**
  * The immutable state the presentation owner publishes once per frame. View
  * models are pure functions of this state; nothing here is read from a Run,
@@ -121,6 +122,7 @@ export interface PresentationState {
   readonly viewport: Viewport;
   readonly nowMs: number;
   readonly webOrigin: string;
+  readonly localApplication?: LocalApplicationNavigation;
   readonly target: RuntimeTarget;
   readonly color: boolean;
 }

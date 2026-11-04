@@ -38,6 +38,7 @@ import {
   WebAuthnUnsupportedError,
 } from "./machineEnrollmentWebAuthn";
 import { normalizeEnrollmentCode } from "./machineEnrollmentClaimUtils";
+import { computeLocalApprovalProof } from "./localApproval";
 
 type ClaimViewState =
   | "run-cli"
@@ -66,6 +67,8 @@ interface ClaimMachineProps {
     machineId: string;
     machineName: string;
   };
+  /** First-time `heyhey local` only: proves this claim came from the page the CLI opened. */
+  localApprovalSecret?: string | null;
 }
 
 const PAIRING_STEPS: ReadonlyArray<{ id: PairingStepId; label: string }> = [
@@ -75,6 +78,10 @@ const PAIRING_STEPS: ReadonlyArray<{ id: PairingStepId; label: string }> = [
   { id: "confirm-in-cli", label: "Confirm in the Agent Bridge" },
   { id: "complete", label: "Complete" },
 ];
+
+/** First-time `heyhey local`: the CLI supplied the code, so the person only approves with a passkey. */
+const LOCAL_MACHINE_NAME = "This computer";
+const LOCAL_CONTROLLER_LABEL = "Passkey on this computer";
 
 const CONTROLLER_AUTHORIZATION_PROMPT =
   "Authorize this controller on this machine? [y/N]";
@@ -157,6 +164,7 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
   onCompletionAction,
   journey = "first-machine",
   authorizationTarget,
+  localApprovalSecret = null,
 }) => {
   const identity = useUserIdentity();
   const organizationContext = useOptionalOrganization();
@@ -167,8 +175,13 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
   const [initialJourney] = useState(() => initializeClaimJourney(initialCode));
   const [state, setState] = useState<ClaimViewState>(initialJourney.state);
   const [code, setCode] = useState(initialJourney.code);
-  const [machineName, setMachineName] = useState("");
-  const [controllerLabel, setControllerLabel] = useState("");
+  const localHandoff = localApprovalSecret !== null;
+  const [machineName, setMachineName] = useState(
+    localHandoff ? LOCAL_MACHINE_NAME : "",
+  );
+  const [controllerLabel, setControllerLabel] = useState(
+    localHandoff ? LOCAL_CONTROLLER_LABEL : "",
+  );
   const [claim, setClaim] = useState<BeginMachineEnrollmentClaimableDto | null>(
     null,
   );
@@ -416,6 +429,20 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
     }
   };
 
+  const autoBeginStarted = useRef(false);
+  useEffect(() => {
+    if (
+      !localHandoff ||
+      autoBeginStarted.current ||
+      state !== "code-entry" ||
+      validatedClaimContext === null
+    ) {
+      return;
+    }
+    autoBeginStarted.current = true;
+    void handleBegin();
+  });
+
   const cancelClaim = async (): Promise<void> => {
     if (!claim) {
       setState("cancelled");
@@ -497,10 +524,20 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
     }
 
     try {
+      const localApprovalProof =
+        localApprovalSecret === null
+          ? undefined
+          : await computeLocalApprovalProof(localApprovalSecret, {
+              enrollmentId: claim.enrollmentId,
+              accountId: validatedClaimContext.identity.userId,
+              organizationId: validatedClaimContext.organization.id,
+              controllerCredentialId: credential.rawId,
+            });
       const response = await completeClaim.mutate({
         enrollmentId: claim.enrollmentId,
         organizationId: validatedClaimContext.organization.id,
         credential,
+        ...(localApprovalProof === undefined ? {} : { localApprovalProof }),
       });
       if (activeAttemptRevision !== attemptRevision.current) return;
       setCompletion(response);
@@ -571,21 +608,25 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
 
   return (
     <Box data-testid="settings-machine-claim" sx={{ mb: 3 }}>
-      <Typography variant="h6" component="h2" gutterBottom>
-        {authorizationTarget
-          ? `Authorize this browser for ${authorizationTarget.machineName}`
-          : existingMachineJourney
-            ? "Add a controller"
-            : "Add an Agent Bridge"}
-      </Typography>
+      {localHandoff ? null : (
+        <>
+          <Typography variant="h6" component="h2" gutterBottom>
+            {authorizationTarget
+              ? `Authorize this browser for ${authorizationTarget.machineName}`
+              : existingMachineJourney
+                ? "Add a controller"
+                : "Add an Agent Bridge"}
+          </Typography>
 
-      <Stepper activeStep={activeStepIndex} alternativeLabel sx={{ mb: 3 }}>
-        {PAIRING_STEPS.map(({ id, label }, index) => (
-          <Step key={id} completed={index < activeStepIndex}>
-            <StepLabel>{label}</StepLabel>
-          </Step>
-        ))}
-      </Stepper>
+          <Stepper activeStep={activeStepIndex} alternativeLabel sx={{ mb: 3 }}>
+            {PAIRING_STEPS.map(({ id, label }, index) => (
+              <Step key={id} completed={index < activeStepIndex}>
+                <StepLabel>{label}</StepLabel>
+              </Step>
+            ))}
+          </Stepper>
+        </>
+      )}
 
       {identityGateBlocked ? (
         <Alert
@@ -637,22 +678,30 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
 
       {!identityGateBlocked && state === "expired" ? (
         <Alert severity="info" data-testid="settings-machine-claim-expired">
-          {claimFailureMessage ??
-            "This enrollment has expired. Start a fresh CLI enrollment to get a new code."}
-          <Box sx={{ mt: 1 }}>
-            <Button variant="outlined" onClick={startFreshEnrollment}>
-              Try a new code
-            </Button>
-          </Box>
+          {localHandoff
+            ? "This pairing expired. Run heyhey local again to start a new one."
+            : (claimFailureMessage ??
+              "This enrollment has expired. Start a fresh CLI enrollment to get a new code.")}
+          {localHandoff ? null : (
+            <Box sx={{ mt: 1 }}>
+              <Button variant="outlined" onClick={startFreshEnrollment}>
+                Try a new code
+              </Button>
+            </Box>
+          )}
         </Alert>
       ) : null}
 
       {!identityGateBlocked && state === "cancelled" ? (
         <Alert severity="info" data-testid="settings-machine-claim-cancelled">
-          Pairing was cancelled.
-          <Box sx={{ mt: 1 }}>
-            <Button onClick={startFreshEnrollment}>Start over</Button>
-          </Box>
+          {localHandoff
+            ? "Pairing was cancelled. Run heyhey local again to start over."
+            : "Pairing was cancelled."}
+          {localHandoff ? null : (
+            <Box sx={{ mt: 1 }}>
+              <Button onClick={startFreshEnrollment}>Start over</Button>
+            </Box>
+          )}
         </Alert>
       ) : null}
 
@@ -661,7 +710,9 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
       completion ? (
         <Alert severity="success" data-testid="settings-machine-claim-success">
           <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-            Passkey created; local confirmation is still required
+            {localHandoff
+              ? "Passkey created; your CLI is finishing pairing"
+              : "Passkey created; local confirmation is still required"}
           </Typography>
           <Stack spacing={0.75} sx={{ mt: 1 }}>
             {renderDetail("Passkey name", completion.controllerLabel)}
@@ -677,26 +728,36 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
               "Backup state",
               completion.backupState ? "Backed up" : "Not backed up",
             )}
-            {renderDetail("Status", "Awaiting local confirmation")}
+            {renderDetail(
+              "Status",
+              localHandoff
+                ? "Finishing pairing"
+                : "Awaiting local confirmation",
+            )}
           </Stack>
           <Typography variant="body2" sx={{ mt: 1.5 }}>
             Synced passkeys can be available across your approved device
             ecosystem. The backup evidence above is verified by the server. This
-            Agent Bridge is not active until the CLI confirms locally.
+            Agent Bridge is not active until the CLI{" "}
+            {localHandoff ? "accepts this approval" : "confirms locally"}.
           </Typography>
           <Typography variant="body2" sx={{ mt: 1.5, fontWeight: 600 }}>
-            {authorizationTarget
-              ? `Return to the ${authorizationTarget.machineName} terminal where you ran heyhey controllers add and confirm the controller there.`
-              : existingMachineJourney
-                ? "Return to the terminal where you ran heyhey controllers add and confirm the controller there."
-                : "Return to the terminal where you ran heyhey pair and confirm the Agent Bridge there."}
+            {localHandoff
+              ? "Your heyhey local CLI is finishing pairing on its own. If it asks for confirmation in the terminal, confirm there."
+              : authorizationTarget
+                ? `Return to the ${authorizationTarget.machineName} terminal where you ran heyhey controllers add and confirm the controller there.`
+                : existingMachineJourney
+                  ? "Return to the terminal where you ran heyhey controllers add and confirm the controller there."
+                  : "Return to the terminal where you ran heyhey pair and confirm the Agent Bridge there."}
           </Typography>
-          <Box sx={{ mt: 1.5 }}>
-            <TerminalScene
-              command={CONTROLLER_AUTHORIZATION_PROMPT}
-              testIdPrefix="controller-authorization-terminal"
-            />
-          </Box>
+          {localHandoff ? null : (
+            <Box sx={{ mt: 1.5 }}>
+              <TerminalScene
+                command={CONTROLLER_AUTHORIZATION_PROMPT}
+                testIdPrefix="controller-authorization-terminal"
+              />
+            </Box>
+          )}
         </Alert>
       ) : null}
 
@@ -760,7 +821,19 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
         </Stack>
       ) : null}
 
-      {!identityGateBlocked && state === "code-entry" ? (
+      {!identityGateBlocked && localHandoff && state === "code-entry" ? (
+        <Stack spacing={2} data-testid="settings-machine-claim-local-preparing">
+          {inputError ? (
+            <Alert severity="warning">
+              {inputError} Run heyhey local again to start a new pairing.
+            </Alert>
+          ) : (
+            <CircularProgress size={28} />
+          )}
+        </Stack>
+      ) : null}
+
+      {!identityGateBlocked && !localHandoff && state === "code-entry" ? (
         <Stack spacing={2} data-testid="settings-machine-claim-code-entry">
           <Typography variant="body2" color="text.secondary">
             {authorizationTarget
@@ -862,8 +935,9 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
             </Alert>
           ) : null}
           <Typography variant="body2" color="text.secondary">
-            Review these non-secret Agent Bridge details before your browser
-            asks for a Passkey.
+            {localHandoff
+              ? "Approve this computer with a passkey. Your CLI finishes pairing on its own."
+              : "Review these non-secret Agent Bridge details before your browser asks for a Passkey."}
           </Typography>
           <Stack spacing={0.75}>
             {renderDetail("Agent Bridge name", claim.machineName)}
@@ -889,7 +963,9 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
             >
               {passkeyRetryMessage
                 ? "Try creating passkey again"
-                : "Create native passkey"}
+                : localHandoff
+                  ? "Create passkey"
+                  : "Create native passkey"}
             </Button>
             <Button
               onClick={() => void cancelClaim()}

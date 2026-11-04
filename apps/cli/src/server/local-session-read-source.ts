@@ -133,6 +133,13 @@ export class LocalSessionReadSource {
   }
 
   /** Registered Runs holding active work: the Runs a shutdown would stop mid-work. */
+  public activeRunIds(): string[] {
+    return this.dependencies.runRegistry
+      .list()
+      .filter((run) => run.hasActiveWork)
+      .map((run) => run.runId);
+  }
+
   public activeWorkCount(): number {
     return this.dependencies.runRegistry.list().filter((run) => run.hasActiveWork).length;
   }

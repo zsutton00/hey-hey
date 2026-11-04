@@ -1,4 +1,5 @@
 import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import { localOnboardingHandler } from './local-onboarding/local-onboarding.handler';
 import { agentSearchHandler } from './agent-search/agent-search.handler';
 import { childTaskUpdatesHandler } from './child-task-updates/child-task-updates.handler';
 import { codingFreeformHandler, freeFormHandler } from './coding-conversation';
@@ -104,6 +105,7 @@ const createHandlerBuilders = (
   parentRequirements: ParentRequirementsFilter | undefined,
   isJevEnabled: (() => Promise<boolean>) | undefined,
 ): readonly BuilderSpec[] => [
+  staticHandler(LocalPromptType.LocalOnboarding, localOnboardingHandler),
   staticHandler(LocalPromptType.StartupSession, codingPlanHandler),
   staticHandler(LocalPromptType.PlanExecution, planExecutionHandler),
   staticHandler(LocalPromptType.FinalAssessment, finalAssessmentHandler),

@@ -1,3 +1,5 @@
+import { createTestSessionRunnerFacade } from '../run.test-support';
+import { ProceduralProvider } from './procedural-provider';
 import { describe, expect, it, vi } from 'vitest';
 import type { PromptTypeHandler, PromptTypeHandlerDeps } from '../../agents/prompt-type-handler';
 import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
@@ -42,11 +44,11 @@ describe('ProceduralRunner', () => {
     const { ctx, onAgentOutput } = makeContext(runProcedure);
     const signal = new AbortController().signal;
 
-    await new ProceduralRunner(ctx).run(signal);
+    await new ProceduralRunner(ctx, createTestSessionRunnerFacade()).run(signal);
 
     expect(runProcedure).toHaveBeenCalledWith(
       { prepared: true },
-      { session: ctx.run.session, deps: ctx.handlerDeps },
+      { session: ctx.run.session, deps: ctx.handlerDeps, provider: expect.any(ProceduralProvider) },
       signal,
     );
     expect(onAgentOutput).toHaveBeenCalledWith({

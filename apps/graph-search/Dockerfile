@@ -1,10 +1,10 @@
 # Build from the repository root: docker build -f apps/graph-search/Dockerfile .
-FROM rust:1.97.0-bookworm AS build
+FROM rust:1.97.0-trixie AS build
 WORKDIR /app
 COPY apps/graph-search/ ./
 RUN cargo build --locked --release
 
-FROM debian:bookworm-slim AS runtime
+FROM debian:trixie-slim AS runtime
 ARG APP_VERSION=local
 ARG SOURCE_REVISION=unknown
 LABEL org.opencontainers.image.title="hey-hey-graph-search"

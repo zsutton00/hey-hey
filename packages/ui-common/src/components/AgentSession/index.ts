@@ -72,3 +72,5 @@ export { ChatSessionPendingPlaceholder } from "./ChatSessionPendingPlaceholder";
 export { useOpenItemsTriageRuntime } from "./useOpenItemsTriageRuntime";
 export type { OpenItemsTriageRunOptions } from "./useOpenItemsTriageRuntime";
 export { OpenItemsTriageResults } from "./OpenItemsTriageResults";
+
+export * from "./LocalOnboardingRuntime";

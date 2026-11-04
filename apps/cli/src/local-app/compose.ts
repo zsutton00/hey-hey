@@ -1,6 +1,11 @@
 import type { Installation, InstallationSecrets } from './installation-store';
 
 export const LOCAL_PROJECT = 'heyhey-local';
+/** The browser, not the API, is the WebAuthn origin: passkeys are bound to the local web app. */
+export const LOCAL_WEB_ORIGIN = 'http://localhost:5173';
+export const LOCAL_WEB_RP_ID = 'localhost';
+/** UI container variable the web app reads at runtime to find the bridge. */
+export const LOCAL_AGENT_PORT_VARIABLE = 'VITE_LOCAL_AGENT_PORT';
 export const SERVICE_IMAGES = {
   api: 'api',
   ui: 'ui',
@@ -10,7 +15,11 @@ export const SERVICE_IMAGES = {
 } as const;
 
 /** Internal Compose document. Every image comes exclusively from the validated release. */
-export function composeConfiguration(installation: Installation, secrets: InstallationSecrets) {
+export function composeConfiguration(
+  installation: Installation,
+  secrets: InstallationSecrets,
+  bridgePort: number,
+) {
   const { release, modelDirectory } = installation;
   const image = (name: keyof typeof release.images) => release.images[name].reference;
   const labels = { 'dev.heyhey.cli-version': release.cliVersion };
@@ -33,7 +42,16 @@ export function composeConfiguration(installation: Installation, secrets: Instal
     TRIGGER_SIGNING_PRIVATE_KEY: secrets.signingKey,
     SECRET_KEY: secrets.encryption,
     INTEGRATION_ENCRYPTION_KEY: secrets.encryption,
-    CORS_WHITELIST: 'http://localhost:5173',
+    MACHINE_ENROLLMENT_CODE_HMAC_KEY: secrets.enrollmentCodeHmac,
+    // Pairing passkeys are bound to the local UI origin, not the hosted production one.
+    MACHINE_ENROLLMENT_WEBAUTHN_RP_ID: LOCAL_WEB_RP_ID,
+    MACHINE_ENROLLMENT_WEBAUTHN_ORIGIN: LOCAL_WEB_ORIGIN,
+    // The api refuses to start unless these match its reviewed browser-session policy.
+    BROWSER_ACCESS_TOKEN_TTL_SECONDS: '900',
+    BROWSER_SESSION_INACTIVITY_TTL_SECONDS: '604800',
+    BROWSER_SESSION_ABSOLUTE_TTL_SECONDS: '2592000',
+    PASSWORD_CHANGE_TOKEN_TTL_SECONDS: '900',
+    CORS_WHITELIST: LOCAL_WEB_ORIGIN,
   };
   const ready = (url: string) => ({
     test: [
@@ -90,7 +108,12 @@ export function composeConfiguration(installation: Installation, secrets: Instal
         labels,
         restart: 'unless-stopped',
         ports: ['127.0.0.1:5173:5173'],
-        environment: { API_HOST: 'localhost', API_PORT: '3000', API_PROTOCOL: 'http' },
+        environment: {
+          API_HOST: 'localhost',
+          API_PORT: '3000',
+          API_PROTOCOL: 'http',
+          [LOCAL_AGENT_PORT_VARIABLE]: String(bridgePort),
+        },
         healthcheck: ready('http://127.0.0.1:5173/'),
       },
       'graph-search': {

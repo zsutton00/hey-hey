@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useModalState } from "../Modals/useModalState";
 import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import MenuBookOutlinedIcon from "@mui/icons-material/MenuBookOutlined";
@@ -418,6 +419,7 @@ export const HelpScenarioCard: React.FC<HelpScenarioCardProps> = ({
   titleComponent,
 }) => {
   const help = useOptionalHelp();
+  const { t } = useTranslation();
   const routing = help?.routing ?? null;
   const checkpoints = scenario.checkpoints ?? [];
   const hasCheckpoints = checkpoints.length > 0;
@@ -442,6 +444,14 @@ export const HelpScenarioCard: React.FC<HelpScenarioCardProps> = ({
       >
         {renderTitle(scenario.title, scenario.titleEmphasis)}
       </Typography>
+      {scenario.id === "install-agent-bridge" && help?.data.bridgeConnected && (
+        <Chip
+          color="success"
+          label={t("onboarding.local.connected")}
+          data-testid="help-bridge-connected"
+          sx={{ alignSelf: "flex-start" }}
+        />
+      )}
       {scenario.summary || scenario.templatedCopy ? (
         <Typography variant="body1" color="text.secondary" component="div">
           {renderSummary(scenario, features)}

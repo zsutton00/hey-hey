@@ -266,6 +266,11 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
   // use and torn down via this.dispose() when the Run cleans up. We do not share
   // servers across Runs — each Run owns its own child process.
   private serverHandle: OpenCodeServerProcess | null = null;
+  private pendingServerLaunch: {
+    controller: AbortController;
+    completion: Promise<OpenCodeServerProcess>;
+  } | null = null;
+  private disposed = false;
   private serverReadOnly = false;
   private serverDirectory: string | null = null;
   // Track whether MCP servers have been registered against the active server
@@ -416,6 +421,16 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
     readOnlyFilesystem = false,
     signal?: AbortSignal,
   ): Promise<OpenCodeServerProcess> => {
+    if (this.disposed) {
+      throw new Error('OpenCode runner is shutting down.');
+    }
+    if (this.pendingServerLaunch) {
+      await this.pendingServerLaunch.completion;
+    }
+    if (this.disposed) {
+      throw new Error('OpenCode runner is shutting down.');
+    }
+    signal?.throwIfAborted();
     if (
       this.serverHandle &&
       this.serverReadOnly === readOnlyFilesystem &&
@@ -431,11 +446,7 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
       } catch {
         // Cached server is dead; fall through to launch a new one.
       }
-      try {
-        await this.serverHandle.stop();
-      } catch {
-        // Best effort stop on dead handle.
-      }
+      await this.serverHandle.stop();
       this.serverHandle = null;
       this.serverDirectory = null;
       this.mcpRegisteredForServer = null;
@@ -443,7 +454,7 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
     }
 
     if (this.serverHandle) {
-      await this.serverHandle.stop().catch(() => undefined);
+      await this.serverHandle.stop();
       this.serverHandle = null;
       this.serverDirectory = null;
       this.mcpRegisteredForServer = null;
@@ -462,11 +473,33 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
       'local.runner.opencode.server.credential_sources',
       describeOpenCodeCredentialSources({ ...process.env, ...containment?.env }),
     );
-    const handle = await OpenCodeServerProcess.launch({
+    if (this.disposed) {
+      throw new Error('OpenCode runner is shutting down.');
+    }
+    signal?.throwIfAborted();
+    const controller = new AbortController();
+    const completion = OpenCodeServerProcess.launch({
       directory: cwd,
       ...(containment ? { containment } : {}),
-      ...(signal ? { signal } : {}),
+      signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
+      onSpawn: (handle) => {
+        this.serverHandle = handle;
+        this.serverDirectory = cwd;
+      },
     });
+    const pending = { controller, completion };
+    this.pendingServerLaunch = pending;
+    let handle: OpenCodeServerProcess;
+    try {
+      handle = await completion;
+    } finally {
+      if (this.pendingServerLaunch === pending) {
+        this.pendingServerLaunch = null;
+      }
+    }
+    if (this.disposed) {
+      throw new Error('OpenCode runner is shutting down.');
+    }
     this.serverHandle = handle;
     this.serverReadOnly = readOnlyFilesystem;
     this.serverDirectory = cwd;
@@ -1551,20 +1584,12 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
     const serverHandle = this.serverHandle;
     if (!serverHandle || this.serverDirectory !== directory) return;
 
-    try {
-      await serverHandle.stop();
-    } catch (error: unknown) {
-      requestContext.log(this.logger, 'warn', 'local.runner.opencode.isolated_server.stop_failed', {
-        directory,
-        error,
-      });
-    } finally {
-      if (this.serverHandle === serverHandle) {
-        this.serverHandle = null;
-        this.serverDirectory = null;
-        this.mcpRegisteredForServer = null;
-        this.mcpRegisteredPlatformProxyUrl = null;
-      }
+    await serverHandle.stop();
+    if (this.serverHandle === serverHandle) {
+      this.serverHandle = null;
+      this.serverDirectory = null;
+      this.mcpRegisteredForServer = null;
+      this.mcpRegisteredPlatformProxyUrl = null;
     }
   }
 
@@ -2230,6 +2255,15 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
   }
 
   private readonly stopServer = async (): Promise<string | null> => {
+    const pending = this.pendingServerLaunch;
+    if (pending) {
+      pending.controller.abort();
+      try {
+        await pending.completion;
+      } catch {
+        // Cancellation rejects readiness. The retained handle below still must confirm exit.
+      }
+    }
     if (!this.serverHandle) return null;
     const handle = this.serverHandle;
     await handle.stop();
@@ -2243,10 +2277,12 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
   };
 
   public async dispose(): Promise<void> {
+    this.disposed = true;
     try {
       await this.stopServer();
     } catch (error) {
       requestContext.log(this.logger, 'warn', 'local.runner.opencode.dispose_failed', { error });
+      throw error;
     }
   }
 

@@ -1075,9 +1075,11 @@ describe('session-runner-opencode parity', () => {
         branch: 'test-only',
       },
     });
-    expect(launchOpencodeServerMock).toHaveBeenCalledWith({
-      directory: '/tmp/repo/.worktrees/test-only',
-    });
+    expect(launchOpencodeServerMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        directory: '/tmp/repo/.worktrees/test-only',
+      }),
+    );
     expect(removeWorktreeMock).not.toHaveBeenCalled();
   });
 

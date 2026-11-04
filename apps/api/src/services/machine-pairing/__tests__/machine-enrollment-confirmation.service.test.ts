@@ -60,6 +60,7 @@ type TestEnrollment = {
   credentialBackupState: boolean;
   credentialFingerprint: string;
   confirmationNonce: string | null;
+  localApprovalProof: string | null;
   lastPolledAt: Date | null;
   consumedAt: Date | null;
   browserBindingCredentialHash: string | null;
@@ -147,6 +148,7 @@ describe('MachineEnrollmentConfirmationService', () => {
     credentialBackupState: false,
     credentialFingerprint: 'b'.repeat(64),
     confirmationNonce: CONFIRMATION_NONCE,
+    localApprovalProof: null,
     lastPolledAt: null,
     consumedAt: null,
     browserBindingCredentialHash: null,
@@ -323,6 +325,23 @@ describe('MachineEnrollmentConfirmationService', () => {
         reasonCode: 'poll_succeeded',
       }),
     );
+  });
+
+  it('returns a stored local approval proof only to the device-secret poll, and nothing when absent', async () => {
+    const input: PollMachineEnrollmentRequestDto = {
+      deviceSecret: DEVICE_SECRET,
+    };
+    const ready = await service.poll(ENROLLMENT_ID, input);
+    expect(ready).not.toHaveProperty('localApprovalProof');
+
+    jest.advanceTimersByTime(MACHINE_ENROLLMENT_MIN_POLL_INTERVAL_MS);
+    row.lastPolledAt = new Date(now.getTime() - 5_000);
+    row.localApprovalProof = 'p'.repeat(43);
+    await expect(service.poll(ENROLLMENT_ID, input)).resolves.toMatchObject({
+      state: 'ready',
+      localApprovalProof: 'p'.repeat(43),
+    });
+    expect(JSON.stringify(loggerLog.mock.calls)).not.toContain('p'.repeat(43));
   });
 
   it('enforces the advertised minimum poll interval without exposing evidence', async () => {

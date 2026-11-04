@@ -67,55 +67,86 @@ const LocationDisplay = () => {
   );
 };
 
-vi.mock("@hey-hey/ui-common/components", () => ({
-  DISABLED_CONVERSATION_SCROLL_POLICY: {},
-  determineMessageState: () => "completed",
-  HeyHeyBranding: () => <span>Hey Hey</span>,
-  Conversation: ({
-    conversation,
-    onSubmitOnboardingReply,
-    agentSessionId,
-    agentSessionCurrentState,
-  }: {
-    conversation: ConversationResponseDto;
-    onSubmitOnboardingReply: (submission: {
-      parentMessageId: string;
-      expectedConversationVersion: number;
-      answers: Record<string, unknown>;
-    }) => Promise<void>;
-    agentSessionId?: string;
-    agentSessionCurrentState?: string;
-  }) => {
-    const [value, setValue] = useState("");
-    const { data: messages } = useConversationMessages(
-      conversation.organizationId,
-      conversation.projectId,
-      conversation.id,
-    );
-    const firstMessage = messages[0];
-    const isReplyForm = firstMessage?.awaitingResponse;
-    const isExistingWorkIntent = firstMessage?.data?.uiElements?.some(
-      (element) => element.id === "repository_grounding_intent",
-    );
+vi.mock("@hey-hey/ui-common/components", async () => {
+  const { LocalOnboardingRuntime } =
+    await import("../../../../../../packages/ui-common/src/components/AgentSession/LocalOnboardingRuntime");
+  return {
+    LocalOnboardingRuntime,
+    DISABLED_CONVERSATION_SCROLL_POLICY: {},
+    determineMessageState: () => "completed",
+    HeyHeyBranding: () => <span>Hey Hey</span>,
+    Conversation: ({
+      conversation,
+      onSubmitOnboardingReply,
+      agentSessionId,
+      agentSessionCurrentState,
+    }: {
+      conversation: ConversationResponseDto;
+      onSubmitOnboardingReply: (submission: {
+        parentMessageId: string;
+        expectedConversationVersion: number;
+        answers: Record<string, unknown>;
+      }) => Promise<void>;
+      agentSessionId?: string;
+      agentSessionCurrentState?: string;
+    }) => {
+      const [value, setValue] = useState("");
+      const { data: messages } = useConversationMessages(
+        conversation.organizationId,
+        conversation.projectId,
+        conversation.id,
+      );
+      const firstMessage = messages[0];
+      const isReplyForm = firstMessage?.awaitingResponse;
+      const isExistingWorkIntent = firstMessage?.data?.uiElements?.some(
+        (element) => element.id === "repository_grounding_intent",
+      );
 
-    if (isReplyForm) {
-      if (isExistingWorkIntent) {
+      if (isReplyForm) {
+        if (isExistingWorkIntent) {
+          return (
+            <div data-testid="conversation-timeline">
+              <div data-testid="dynamic-form">
+                <button
+                  data-testid="existing-work-import"
+                  onClick={() =>
+                    void onSubmitOnboardingReply({
+                      parentMessageId: firstMessage.id,
+                      expectedConversationVersion: conversation.version,
+                      answers: {
+                        repository_grounding_intent: { choice: "yes" },
+                      },
+                    }).catch(() => undefined)
+                  }
+                >
+                  Import existing work
+                </button>
+              </div>
+            </div>
+          );
+        }
+
         return (
           <div data-testid="conversation-timeline">
             <div data-testid="dynamic-form">
+              <label data-testid="textarea-field-project_concept">
+                Project Concept
+                <textarea
+                  value={value}
+                  onChange={(event) => setValue(event.target.value)}
+                />
+              </label>
               <button
-                data-testid="existing-work-import"
+                data-testid="run-stream-external-reply-submit"
                 onClick={() =>
                   void onSubmitOnboardingReply({
                     parentMessageId: firstMessage.id,
                     expectedConversationVersion: conversation.version,
-                    answers: {
-                      repository_grounding_intent: { choice: "yes" },
-                    },
+                    answers: { project_concept: value },
                   }).catch(() => undefined)
                 }
               >
-                Import existing work
+                Submit
               </button>
             </div>
           </div>
@@ -123,48 +154,50 @@ vi.mock("@hey-hey/ui-common/components", () => ({
       }
 
       return (
-        <div data-testid="conversation-timeline">
-          <div data-testid="dynamic-form">
-            <label data-testid="textarea-field-project_concept">
-              Project Concept
-              <textarea
-                value={value}
-                onChange={(event) => setValue(event.target.value)}
-              />
-            </label>
-            <button
-              data-testid="run-stream-external-reply-submit"
-              onClick={() =>
-                void onSubmitOnboardingReply({
-                  parentMessageId: firstMessage.id,
-                  expectedConversationVersion: conversation.version,
-                  answers: { project_concept: value },
-                }).catch(() => undefined)
-              }
-            >
-              Submit
-            </button>
+        <div
+          data-testid="conversation-timeline"
+          data-agent-session-id={agentSessionId}
+          data-agent-session-current-state={agentSessionCurrentState}
+        >
+          {Array.from({ length: 6 }, (_, index) => (
+            <div key={index} data-testid={`conversation-step-${index}`} />
+          ))}
+          <div data-testid="initiative-field-initiative-1">
+            <div data-testid="work-item-card" />
           </div>
         </div>
       );
-    }
+    },
+  };
+});
 
-    return (
-      <div
-        data-testid="conversation-timeline"
-        data-agent-session-id={agentSessionId}
-        data-agent-session-current-state={agentSessionCurrentState}
-      >
-        {Array.from({ length: 6 }, (_, index) => (
-          <div key={index} data-testid={`conversation-step-${index}`} />
-        ))}
-        <div data-testid="initiative-field-initiative-1">
-          <div data-testid="work-item-card" />
-        </div>
-      </div>
-    );
-  },
-}));
+const localRuntime = vi.hoisted(
+  (): {
+    account: boolean;
+    session: import("@hey-hey/ui-common/api").AgentSessionDto | null;
+  } => ({ account: false, session: null }),
+);
+
+vi.mock(
+  "../../../../../../packages/ui-common/src/data/hooks/useAgentSessions",
+  () => ({
+    useAgentSessions: () => ({
+      agentSessions: localRuntime.session ? [localRuntime.session] : [],
+      isLoading: false,
+    }),
+  }),
+);
+vi.mock(
+  "../../../../../../packages/ui-common/src/data/hooks/useUserPairedMachines",
+  () => ({
+    useUserPairedMachines: () => ({
+      machines: [],
+      isReady: true,
+      isFetched: true,
+      isLoading: false,
+    }),
+  }),
+);
 
 const mockAgentSessions = vi.hoisted(() => {
   const sessions: Array<{ id: string; currentState?: string }> = [];
@@ -217,6 +250,7 @@ vi.mock("@hey-hey/ui-common/context", async () => {
       user: {
         id: "0ed78103-c072-4c97-8749-4740d456c403",
         email: "test@example.com",
+        isLocalAccount: localRuntime.account,
       },
       loading: false,
     }),
@@ -611,6 +645,8 @@ describe("Onboarding Page Integration Tests", () => {
   };
   beforeEach(() => {
     currentMessages = mockMessages;
+    localRuntime.account = false;
+    localRuntime.session = null;
     vi.clearAllMocks();
     mockAgentSessions.sessions.length = 0;
     initializeBrowserApiRuntime({
@@ -776,6 +812,44 @@ describe("Onboarding Page Integration Tests", () => {
         },
       ),
     );
+  });
+
+  it("places committed local runtime metadata below the complete conversation", async () => {
+    localRuntime.account = true;
+    localRuntime.session = {
+      id: "3dc3faeb-dbc4-45bf-97fe-dfd928750d71",
+      organizationId: mockOrganization.id,
+      projectId: mockProject.id,
+      userId: mockProject.createdBy!,
+      conversationId: mockConversation.id,
+      status: "IN_PROGRESS",
+      currentState: "IDLE",
+      sessionDate: "2026-11-02T00:00:00Z",
+      title: "Local onboarding",
+      hasUnsyncedChanges: false,
+      monitoringEnabled: true,
+      autoDecide: false,
+      type: "CODING",
+      provider: "codex",
+      config: {
+        type: "CODING_SESSION",
+        version: "v2",
+        model: "selected-model",
+        effort: "high",
+        fastMode: true,
+      },
+    };
+    render(<OnboardingPage />, { wrapper: createTestWrapper() });
+    const conversation = await screen.findByTestId("conversation-timeline");
+    const model = await screen.findByTestId("agent-session-metadata-model");
+    expect(model).toHaveTextContent("selected-model");
+    expect(
+      screen.getByTestId("agent-session-metadata-effort"),
+    ).toHaveTextContent("high");
+    expect(
+      conversation.compareDocumentPosition(model) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("should render onboarding conversation with correct structure", async () => {

@@ -38,17 +38,19 @@ export class OnboardingFinalizeNode extends QuestionsNodeBase<RepositoryImportFl
     tracker: MutableContext<RepositoryImportFlowContext>,
   ): Promise<NodeResult> {
     const context = tracker.getContext();
-    await this.nextStepsService.generateAndRecord({
-      organizationId: context.core.organizationId,
-      projectId: context.core.projectId,
-      conversationId: context.core.conversationId,
-      workflowId: context.core.workflowId,
-      userId: context.core.user.id,
-      mockLlmSessionId: context.mockLlmSessionId,
-      nodeId: this.id,
-      materializedFeatureIds:
-        context.repositoryImportMaterializedFeatureIds ?? [],
-    });
+    if (context.onboardingExecutionOwner !== 'CLI') {
+      await this.nextStepsService.generateAndRecord({
+        organizationId: context.core.organizationId,
+        projectId: context.core.projectId,
+        conversationId: context.core.conversationId,
+        workflowId: context.core.workflowId,
+        userId: context.core.user.id,
+        mockLlmSessionId: context.mockLlmSessionId,
+        nodeId: this.id,
+        materializedFeatureIds:
+          context.repositoryImportMaterializedFeatureIds ?? [],
+      });
+    }
 
     return {
       type: NodeType.QUESTIONS,

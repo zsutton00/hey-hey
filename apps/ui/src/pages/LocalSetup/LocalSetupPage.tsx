@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { getApiRuntime } from "@hey-hey/ui-common/clients";
 import {
@@ -7,19 +7,80 @@ import {
 } from "@hey-hey/ui-common/services";
 import { useAuth } from "@hey-hey/ui-common/context";
 import type { LocalSetupStatusDto } from "@hey-hey/ui-common/api";
+import { ClaimMachine } from "../Settings/ClaimMachine";
+import {
+  heldLocalPairing,
+  holdLocalPairing,
+  LOCAL_APPROVAL_SECRET_PATTERN,
+} from "../Settings/localApproval";
+import { LocalSetupDiagnostics } from "./LocalSetupDiagnostics";
+import {
+  describeFragment,
+  describeNavigationType,
+  recordLocalSetupEvent,
+} from "./localSetupEvents";
 import "./LocalSetupPage.css";
 
-const readHandoffToken = (): string | null => {
+let mountCount = 0;
+
+const describeFailure = (failure: unknown): string =>
+  failure instanceof Error ? failure.message : String(failure);
+
+interface CliFragment {
+  handoffToken: string | null;
+  /** Which one-time values the URL carried, by length only. */
+  description: string;
+}
+
+/** Reads the CLI's one-time fragment values; the pairing details are kept for remounts. */
+const readCliFragment = (): CliFragment => {
   const fragment = new URLSearchParams(window.location.hash.slice(1));
-  const token = fragment.get("handoff");
-  if (token) {
-    window.history.replaceState(
-      window.history.state,
-      "",
-      `${window.location.pathname}${window.location.search}`,
-    );
+  const code = fragment.get("code");
+  const approval = fragment.get("approval");
+  if (
+    code &&
+    approval !== null &&
+    LOCAL_APPROVAL_SECRET_PATTERN.test(approval)
+  ) {
+    holdLocalPairing({ code, approvalSecret: approval });
   }
-  return token;
+
+  return {
+    handoffToken: fragment.get("handoff"),
+    description: describeFragment(window.location.hash),
+  };
+};
+
+const clearAddressBarFragment = (): void => {
+  if (!window.location.hash) {
+    return;
+  }
+  window.history.replaceState(
+    window.history.state,
+    "",
+    `${window.location.pathname}${window.location.search}`,
+  );
+};
+
+const describeView = ({
+  step,
+  status,
+  pairingStarted,
+  pairing,
+}: {
+  step: "loading" | "name" | "error";
+  status: LocalSetupStatusDto | null;
+  pairingStarted: boolean;
+  pairing: unknown;
+}): string => {
+  if (step === "error") return "error";
+  if (step === "loading" || !status) return "loading";
+  if (status.nameComplete && status.machineConnected) return "connected";
+  if (!status.nameComplete) return "name";
+  if (pairingStarted && pairing) return "passkey-step";
+  if (pairingStarted) return "missing-pairing-details";
+
+  return "waiting-for-cli";
 };
 
 export function LocalSetupPage(): React.JSX.Element {
@@ -28,16 +89,34 @@ export function LocalSetupPage(): React.JSX.Element {
   const { isAuthenticated } = useAuth();
   const [status, setStatus] = useState<LocalSetupStatusDto | null>(null);
   const [name, setName] = useState("");
-  const [step, setStep] = useState<"loading" | "start" | "name" | "error">(
-    "loading",
-  );
+  const [step, setStep] = useState<"loading" | "name" | "error">("loading");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const lastStatus = useRef<string | null>(null);
+
+  const [cliFragment] = useState(readCliFragment);
 
   useEffect(() => {
-    const handoffToken = readHandoffToken();
-    if (!handoffToken) return;
+    mountCount += 1;
+    const mountNumber = mountCount;
+    recordLocalSetupEvent(
+      `mounted #${String(mountNumber)} ${window.location.pathname}${window.location.search} fragment[${cliFragment.description}] navigation=${describeNavigationType()} history=${String(window.history.length)} pairing-held=${String(heldLocalPairing() !== null)}`,
+    );
 
+    return () => {
+      recordLocalSetupEvent(`unmounted #${String(mountNumber)}`);
+    };
+  }, [cliFragment]);
+
+  useEffect(() => {
+    clearAddressBarFragment();
+    const { handoffToken } = cliFragment;
+    if (!handoffToken) {
+      recordLocalSetupEvent("handoff: no token in the address");
+      return;
+    }
+
+    recordLocalSetupEvent("handoff: exchanging the one-use token");
     void getApiRuntime()
       .clients.auth.completeLocalHandoff({
         localHandoffRequestDto: { handoffToken },
@@ -45,17 +124,19 @@ export function LocalSetupPage(): React.JSX.Element {
       .then((response) => {
         if ("accessToken" in response.data.data) {
           acceptBrowserAuthSession(response.data.data);
+          recordLocalSetupEvent("handoff: browser session accepted");
           return;
         }
         throw new Error(
           "Local browser session did not select its organization.",
         );
       })
-      .catch(() => {
+      .catch((failure: unknown) => {
+        recordLocalSetupEvent(`handoff: failed (${describeFailure(failure)})`);
         setError("Run heyhey local again to restore access to this computer.");
         setStep("error");
       });
-  }, []);
+  }, [cliFragment]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -67,13 +148,14 @@ export function LocalSetupPage(): React.JSX.Element {
           await getApiRuntime().clients.auth.getLocalSetupStatus();
         if (!active) return;
         const nextStatus = response.data.data;
+        const statusSummary = `name-saved=${String(nextStatus.nameComplete)} cli-connected=${String(nextStatus.machineConnected)} has-projects=${String(nextStatus.hasProjects)}`;
+        if (statusSummary !== lastStatus.current) {
+          lastStatus.current = statusSummary;
+          recordLocalSetupEvent(`status: ${statusSummary}`);
+        }
         setStatus(nextStatus);
         setStep((currentStep) =>
-          currentStep === "loading"
-            ? nextStatus.nameComplete
-              ? "name"
-              : "start"
-            : currentStep,
+          currentStep === "loading" ? "name" : currentStep,
         );
         if (
           nextStatus.nameComplete &&
@@ -82,8 +164,9 @@ export function LocalSetupPage(): React.JSX.Element {
         ) {
           await navigate("/home", { replace: true });
         }
-      } catch {
+      } catch (failure: unknown) {
         if (active) {
+          recordLocalSetupEvent(`status: failed (${describeFailure(failure)})`);
           setError(
             "Local account status is unavailable. Run heyhey local and retry.",
           );
@@ -106,6 +189,7 @@ export function LocalSetupPage(): React.JSX.Element {
 
     setSaving(true);
     setError("");
+    recordLocalSetupEvent("name: saving");
     try {
       const response = await getApiRuntime().clients.auth.saveLocalDisplayName({
         localNameRequestDto: { name: displayName },
@@ -113,7 +197,9 @@ export function LocalSetupPage(): React.JSX.Element {
       await refreshAuthToken();
       setStatus(response.data.data);
       setStep("name");
-    } catch {
+      recordLocalSetupEvent("name: saved and session refreshed");
+    } catch (failure: unknown) {
+      recordLocalSetupEvent(`name: failed (${describeFailure(failure)})`);
       setError("We couldn't save your name. Try again.");
     } finally {
       setSaving(false);
@@ -121,12 +207,19 @@ export function LocalSetupPage(): React.JSX.Element {
   };
 
   const pairingStarted = searchParams.get("pairing") === "started";
+  const pairing = heldLocalPairing();
+  const view = describeView({ step, status, pairingStarted, pairing });
+  useEffect(() => {
+    recordLocalSetupEvent(`view: ${view}`);
+  }, [view]);
+
   if (step === "error") {
     return (
       <main className="local-setup">
         <p className="local-setup__wordmark">HEY HEY</p>
         <h1>LOCAL SETUP NEEDS ATTENTION</h1>
         <p role="alert">{error}</p>
+        <LocalSetupDiagnostics />
       </main>
     );
   }
@@ -155,30 +248,6 @@ export function LocalSetupPage(): React.JSX.Element {
             Bootstrap your first project
           </button>
         </section>
-      </main>
-    );
-  }
-
-  if (!status.nameComplete && step === "start") {
-    return (
-      <main className="local-setup">
-        <p className="local-setup__wordmark">HEY HEY</p>
-        <h1>GET STARTED</h1>
-        <ol className="local-setup__steps">
-          <li className="is-current">
-            <span>1</span>
-            <strong>Tell us your name</strong>
-            <button onClick={() => setStep("name")}>Get started</button>
-          </li>
-          <li>
-            <span>2</span>
-            <strong>Connect Hey Hey to your coding plans</strong>
-          </li>
-          <li>
-            <span>3</span>
-            <strong>Bootstrap your first project and get going</strong>
-          </li>
-        </ol>
       </main>
     );
   }
@@ -218,37 +287,22 @@ export function LocalSetupPage(): React.JSX.Element {
         Pair your CLI to connect this computer to Hey Hey.
       </p>
       <section className="local-setup__card">
-        <h2>Continue with your CLI</h2>
-        {pairingStarted ? (
+        {pairingStarted && pairing ? (
+          <ClaimMachine
+            initialCode={pairing.code}
+            localApprovalSecret={pairing.approvalSecret}
+          />
+        ) : pairingStarted ? (
           <>
-            <p>
-              Keep the terminal running <code>heyhey local</code> open. It
-              starts pairing and opens this page for you.
+            <p role="alert">
+              This page did not receive its pairing details. Run heyhey local
+              again.
             </p>
-            <ol>
-              <li>
-                <strong>Enter the code from your terminal</strong>
-                <span>Use the code shown by your CLI on the pairing page.</span>
-              </li>
-              <li>
-                <strong>Create a pairing passkey</strong>
-                <span>Review this computer and follow the browser prompt.</span>
-              </li>
-              <li>
-                <strong>Confirm in your terminal</strong>
-                <span>Return to the original CLI to finish pairing.</span>
-              </li>
-            </ol>
-            <button onClick={() => void navigate("/pairing?returnTo=local")}>
-              Continue to pairing
-            </button>
+            <LocalSetupDiagnostics />
           </>
         ) : (
           <p>Waiting for the local CLI to connect to Hey Hey…</p>
         )}
-        <p className="local-setup__status" role="status">
-          {pairingStarted ? "Pairing started" : "Connecting"}
-        </p>
       </section>
     </main>
   );

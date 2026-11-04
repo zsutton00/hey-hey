@@ -4192,6 +4192,8 @@ model PendingMachineEnrollment {
   localOutcomeConsumedAt        DateTime?                 @map("local_outcome_consumed_at")
   lastPolledAt                  DateTime?                 @map("last_polled_at")
   confirmationNonce             String?                   @map("confirmation_nonce")
+  // Opaque first-time `heyhey local` approval proof; only the originating CLI can verify it.
+  localApprovalProof            String?                   @map("local_approval_proof") @db.VarChar(43)
   updatedAt                     DateTime                  @updatedAt @map("updated_at")
 
   claimantUser               User?                           @relation("PendingMachineEnrollmentClaimant", fields: [claimantUserId], references: [id], onDelete: Cascade)

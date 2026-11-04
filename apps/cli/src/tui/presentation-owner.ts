@@ -1,3 +1,4 @@
+import type { LocalApplicationNavigation } from '../local-app/local-application';
 /**
  * PresentationOwner — the terminal menu's single state owner.
  *
@@ -110,6 +111,7 @@ export interface PresentationOwnerDependencies {
   /** The Debug feed; it exists before the server starts so startup output is kept. */
   diagnostics: Pick<DiagnosticFeed, 'observe' | 'snapshot'>;
   webOrigin: string;
+  localApplication?: LocalApplicationNavigation;
   target: RuntimeTarget;
   pairingUrl: (userCode: string, route: PairingWebRoute) => string;
   openUrl: (url: string) => Promise<void>;
@@ -938,6 +940,9 @@ export class PresentationOwner {
       viewport: this.viewport,
       nowMs: this.now(),
       webOrigin: this.dependencies.webOrigin,
+      ...(this.dependencies.localApplication
+        ? { localApplication: this.dependencies.localApplication }
+        : {}),
       target: this.dependencies.target,
       color: this.dependencies.color,
     });

@@ -674,19 +674,31 @@ export class RunApplicationRuntime {
     this.localSessionMetadataSource.noteConversationTitle(conversationId, title);
   }
 
+  private cleanupSteps: Array<() => void | Promise<void>> | undefined;
+
   public async dispose(): Promise<void> {
-    this.memoryMonitor.dispose();
-    this.unsubscribeReconnect();
-    this.unsubscribeAuthChanged();
-    this.localSessionMetadataSource.dispose();
-    for (const subscription of this.dispatchSubscriptions.splice(0)) subscription.dispose();
-    this.subagentInteractionRuntime.dispose();
-    await this.inputAdmissionLifecycle.dispose();
-    this.runRegistry.dispose();
-    await this.browserMcpAccess?.dispose();
-    this.sessionActivitySource.dispose();
-    this.localSessionReadSource.dispose();
-    await this.messagePoster.cleanup();
-    await this.projectModeBundleMaterializer.dispose();
+    this.runRegistry.closeAdmission();
+    this.cleanupSteps ??= [
+      () => this.memoryMonitor.dispose(),
+      () => this.unsubscribeReconnect(),
+      () => this.unsubscribeAuthChanged(),
+      () => this.localSessionMetadataSource.dispose(),
+      ...this.dispatchSubscriptions.map((subscription) => () => subscription.dispose()),
+      () => this.subagentInteractionRuntime.dispose(),
+      () => this.inputAdmissionLifecycle.dispose(),
+      () => this.runRegistry.dispose(),
+      async () => {
+        await this.browserMcpAccess?.dispose();
+      },
+      () => this.sessionActivitySource.dispose(),
+      () => this.localSessionReadSource.dispose(),
+      () => this.messagePoster.cleanup(),
+      () => this.projectModeBundleMaterializer.dispose(),
+    ];
+    while (this.cleanupSteps.length) {
+      await this.cleanupSteps[0]!();
+      this.cleanupSteps.shift();
+    }
+    this.dispatchSubscriptions.length = 0;
   }
 }

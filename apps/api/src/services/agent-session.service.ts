@@ -1,3 +1,4 @@
+import { isSerializableWorkflowState } from '../workflows/conversation-workflow-state';
 import { resolveAncestorPlanWorkItem } from './plan/resolve-plan-work-item';
 import { parseProjectReportSessionConfig } from 'src/contracts/project-report-session-config';
 import {
@@ -5046,7 +5047,14 @@ export class AgentSessionService {
         currentNode: execution.currentNode,
         flowState: execution.flowState,
       });
-    if (!conversation || (!isDedicatedImport && !isLegacyImport)) {
+    const isLocalOnboarding =
+      conversation?.workflowName === WorkflowName.Onboarding &&
+      isSerializableWorkflowState(execution?.flowState) &&
+      execution.flowState.executionOwner === 'CLI';
+    if (
+      !conversation ||
+      (!isDedicatedImport && !isLegacyImport && !isLocalOnboarding)
+    ) {
       this.logger.warn('Existing workflow Agent Session binding rejected', {
         organizationId,
         projectId,
@@ -5061,6 +5069,7 @@ export class AgentSessionService {
     // Work-tracker imports run on the paired CLI without a repository workspace.
     if (
       conversation.workflowName !== WorkflowName.WorkTrackerImport &&
+      !isLocalOnboarding &&
       !params.launchServiceId
     ) {
       throw new BadRequestException(

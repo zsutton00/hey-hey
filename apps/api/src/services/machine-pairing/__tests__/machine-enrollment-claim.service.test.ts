@@ -822,6 +822,54 @@ describe('MachineEnrollmentClaimService', () => {
     expect(row.credentialPublicKeyX).toEqual(Buffer.alloc(32, 1));
     expect(row.credentialPublicKeyY).toEqual(Buffer.alloc(32, 2));
     expect(row.credentialAaguid).toEqual(Buffer.alloc(16, 3));
+    expect(row.localApprovalProof).toBeNull();
+  });
+
+  it('stores a local approval proof opaquely with the claim', async () => {
+    await service.beginClaim(
+      makeBeginInput(),
+      USER_ID,
+      [{ orgId: ORGANIZATION_ID }],
+      '192.0.2.1',
+      { email: 'zac@example.com', name: 'Zac' },
+    );
+    const localApprovalProof = 'q'.repeat(43);
+
+    const result = await service.completeClaim(
+      { ...makeCredential(), localApprovalProof },
+      USER_ID,
+      [{ orgId: ORGANIZATION_ID }],
+      '192.0.2.1',
+    );
+
+    expect(result.state).toBe('awaiting-machine-confirmation');
+    expect(row.localApprovalProof).toBe(localApprovalProof);
+    expect(JSON.stringify(result)).not.toContain(localApprovalProof);
+  });
+
+  it('rejects a proof that is not a contract-shaped local approval proof', async () => {
+    await service.beginClaim(
+      makeBeginInput(),
+      USER_ID,
+      [{ orgId: ORGANIZATION_ID }],
+      '192.0.2.1',
+      { email: 'zac@example.com', name: 'Zac' },
+    );
+
+    const error = await service
+      .completeClaim(
+        { ...makeCredential(), localApprovalProof: 'not+base64url' },
+        USER_ID,
+        [{ orgId: ORGANIZATION_ID }],
+        '192.0.2.1',
+      )
+      .catch((failure: unknown) => failure);
+
+    expect(
+      (error as MachineEnrollmentClaimFailedException).getResponse(),
+    ).toMatchObject({ code: MACHINE_ENROLLMENT_CLIENT_INCOMPATIBLE });
+    expect(row.state).toBe(MachineEnrollmentState.BROWSER_CLAIMED);
+    expect(row.localApprovalProof ?? null).toBeNull();
   });
 
   it('stores only a pending browser-binding hash while local confirmation is outstanding', async () => {

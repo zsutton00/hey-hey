@@ -2675,6 +2675,9 @@ export const controllerActionRuntimeSchema = {
           $ref: '#/definitions/RunCreatePayloadRunEval',
         },
         {
+          $ref: '#/definitions/RunCreatePayloadLocalOnboarding',
+        },
+        {
           $ref: '#/definitions/RunCreatePayloadQuick',
         },
         {
@@ -6214,6 +6217,24 @@ export const controllerActionRuntimeSchema = {
               },
             },
           },
+        },
+      },
+    },
+    RunCreatePayloadLocalOnboarding: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['promptType', 'userMessage', 'conversationId'],
+      properties: {
+        promptType: {
+          type: 'string',
+          enum: ['local_onboarding'],
+        },
+        userMessage: {
+          type: 'string',
+        },
+        conversationId: {
+          type: 'string',
+          format: 'uuid',
         },
       },
     },

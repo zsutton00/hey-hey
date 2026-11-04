@@ -14,6 +14,15 @@ import { KEYS } from "../keys";
 import { compose, patterns } from "../compose";
 
 export const en = {
+  "onboarding.local.runtimeUnavailable":
+    "The saved runtime is unavailable on this computer. Restore that provider to resume onboarding.",
+  "onboarding.local.launchRequired":
+    "Choose a ready provider and authorize the selected computer before starting onboarding.",
+  "onboarding.local.start": "Start onboarding",
+  "onboarding.local.resume": "Resume onboarding",
+  "onboarding.local.failed": "Unable to start onboarding",
+  "onboarding.local.cancelled": "Launch cancelled",
+  "onboarding.local.connected": "Connected",
   "usageTrends.title": "Usage Trends",
   "usageTrends.from": "From",
   "usageTrends.to": "To",

@@ -75,7 +75,7 @@
 }
 
 .local-setup__card button,
-.local-setup__steps button {
+.local-setup__card a {
   box-sizing: border-box;
   min-height: 2.8rem;
   padding: 0.65rem 1.4rem;
@@ -88,8 +88,12 @@
   font-weight: 600;
 }
 
-.local-setup__card button {
+.local-setup__card button,
+.local-setup__card a {
+  display: block;
   width: 100%;
+  text-align: center;
+  text-decoration: none;
 }
 
 .local-setup__card button:disabled {
@@ -126,43 +130,15 @@
   text-align: center;
 }
 
-.local-setup__steps {
-  display: grid;
-  max-width: 40rem;
-  gap: 0.9rem;
-  margin: 0 auto;
-  padding: 0;
-  list-style: none;
+.local-setup__diagnostics {
+  margin: 1.5rem auto 0;
+  max-width: 48rem;
+  color: #ccc;
+  font-size: 0.8rem;
   text-align: left;
 }
 
-.local-setup__steps li {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1.1rem 1.25rem;
-  border: 1px solid rgb(255 255 255 / 22%);
-  border-radius: 10px;
-  opacity: 0.65;
-}
-
-.local-setup__steps li.is-current {
-  border-color: rgb(255 255 255 / 60%);
-  background: rgb(255 255 255 / 12%);
-  opacity: 1;
-}
-
-.local-setup__steps li > span {
-  display: grid;
-  width: 2rem;
-  height: 2rem;
-  flex: none;
-  place-items: center;
-  border: 1px solid rgb(255 255 255 / 55%);
-  border-radius: 50%;
-  font-weight: 700;
-}
-
-.local-setup__steps strong {
-  flex: 1;
+.local-setup__diagnostics pre {
+  white-space: pre-wrap;
+  word-break: break-all;
 }

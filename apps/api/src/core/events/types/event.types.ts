@@ -10,6 +10,7 @@ import {
 } from 'src/types';
 
 export interface OnboardingReplyDelivery {
+  executionOwner?: 'CLI';
   workflowId?: WorkflowId;
   nodeId: string;
 }

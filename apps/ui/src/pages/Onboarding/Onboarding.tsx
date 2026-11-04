@@ -1,3 +1,6 @@
+import { useTranslation } from "react-i18next";
+import { LocalOnboardingRuntime } from "@hey-hey/ui-common/components";
+import { useAuth } from "@hey-hey/ui-common/context";
 import { AnimatedConditional, FadeIn } from "@hey-hey/ui-common/animations";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
@@ -32,7 +35,7 @@ import {
   useSubmitOnboardingReply,
 } from "@hey-hey/ui-common/data";
 import { Box, useTheme } from "@mui/material";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ConversationMessage } from "../../types/conversation";
 import { PageBreadcrumbs } from "../../components/Layout";
 import { OnboardingLoadingScreen } from "./components/Loading";
@@ -85,6 +88,9 @@ const isSelectedExistingWorkIntentAnswer = (answer: unknown): boolean =>
 // Container component for data loading and orchestration
 const OnboardingPageContent = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { t } = useTranslation();
+  const localOnboardingLaunch = useRef<(() => Promise<boolean>) | null>(null);
   const theme = useTheme();
   // Read the active org from the app-wide OrganizationContext — the same source
   // every other page (and project creation) uses. The JWT's currentOrgId is a
@@ -336,6 +342,9 @@ const OnboardingPageContent = () => {
           submission.answers.repository_grounding_intent,
         );
 
+      if (user?.isLocalAccount && !(await localOnboardingLaunch.current?.())) {
+        throw new Error(t("onboarding.local.launchRequired"));
+      }
       await submitOnboardingReply({
         organizationId: project.organizationId,
         projectId,
@@ -360,6 +369,8 @@ const OnboardingPageContent = () => {
       redirectToHelp,
       resolvedOnboardingConversation?.id,
       submitOnboardingReply,
+      user?.isLocalAccount,
+      t,
     ],
   );
 
@@ -368,6 +379,25 @@ const OnboardingPageContent = () => {
   }
 
   // Debug logging removed to prevent re-render cycles
+  const conversationContent =
+    project && resolvedOnboardingConversation ? (
+      <>
+        <ProjectDetailsForm project={project} organizationId={currentOrgId!} />
+        <Conversation
+          animationType="minimal"
+          navigationOrientation="vertical"
+          conversation={resolvedOnboardingConversation}
+          project={project}
+          agentSessionId={resolvedAgentSession?.id}
+          agentSessionCurrentState={resolvedAgentSession?.currentState}
+          scrollPolicy={DISABLED_CONVERSATION_SCROLL_POLICY}
+          stepCount={-1}
+          showNavigation
+          onSubmitOnboardingReply={handleSubmitOnboardingReply}
+        />
+      </>
+    ) : null;
+
   return (
     <Box sx={{ px: { xs: 2, sm: 4, md: 6 }, py: 3 }}>
       {existingImportBreadcrumbs ? (
@@ -404,22 +434,24 @@ const OnboardingPageContent = () => {
       >
         {isLoaded && resolvedOnboardingConversation && project && (
           <FadeIn delay={0.26} duration="slow">
-            <ProjectDetailsForm
-              project={project}
-              organizationId={currentOrgId!}
-            />
-            <Conversation
-              animationType="minimal"
-              navigationOrientation="vertical"
-              conversation={resolvedOnboardingConversation}
-              project={project}
-              agentSessionId={resolvedAgentSession?.id}
-              agentSessionCurrentState={resolvedAgentSession?.currentState}
-              scrollPolicy={DISABLED_CONVERSATION_SCROLL_POLICY}
-              stepCount={-1}
-              showNavigation
-              onSubmitOnboardingReply={handleSubmitOnboardingReply}
-            />
+            {user?.isLocalAccount &&
+              resolvedOnboardingConversation.workflowId && (
+                <LocalOnboardingRuntime
+                  key={resolvedOnboardingConversation.id}
+                  onLaunchReady={(launch) => {
+                    localOnboardingLaunch.current = launch;
+                  }}
+                  organizationId={project.organizationId}
+                  projectId={project.id}
+                  conversationId={resolvedOnboardingConversation.id}
+                  workflowId={resolvedOnboardingConversation.workflowId}
+                >
+                  {conversationContent}
+                </LocalOnboardingRuntime>
+              )}
+            {!user?.isLocalAccount || !resolvedOnboardingConversation.workflowId
+              ? conversationContent
+              : null}
           </FadeIn>
         )}
       </AnimatedConditional>

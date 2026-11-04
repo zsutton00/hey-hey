@@ -3019,6 +3019,30 @@ export class Run {
    * The callback given to the session runner at creation time. Provider
    * calls this for every event it emits; Run normalizes and dispatches.
    */
+  private proceduralOutputCapture: ((event: ReturnType<typeof normalizeEvent>) => void) | null =
+    null;
+
+  async captureProviderOutput(execute: () => Promise<void>): Promise<string> {
+    if (this.proceduralOutputCapture) {
+      throw new Error('A provider request is already active');
+    }
+    let output = '';
+    this.proceduralOutputCapture = (event) => {
+      if (event.kind === 'assistant_complete') {
+        output = event.summary;
+      }
+    };
+    try {
+      await execute();
+      if (!output) {
+        throw new Error('The provider ended without an onboarding result');
+      }
+      return output;
+    } finally {
+      this.proceduralOutputCapture = null;
+    }
+  }
+
   readonly onAgentOutput = (message: AgentOutputMessage): void => {
     this.handleAgentOutput(message, { kind: 'run-provider-session' });
   };
@@ -3269,6 +3293,10 @@ export class Run {
       });
     }
 
+    if (this.proceduralOutputCapture) {
+      this.proceduralOutputCapture(normalizeEvent(event, this.provider));
+      return;
+    }
     this.broadcaster.publishAgentOutput(event, {
       run: this,
       turnId: admittedTurnId ?? null,
@@ -6512,7 +6540,18 @@ export class Run {
     });
   }
 
+  private cleanupCompletion: Promise<void> = Promise.resolve();
+  private cleanupStarted = false;
+
+  public waitForCleanup(): Promise<void> {
+    return this.cleanupCompletion;
+  }
+
   cleanup(): void {
+    if (this.cleanupStarted) {
+      return;
+    }
+    this.cleanupStarted = true;
     this.clearInactivityTimer('cleanup');
     this._inactivityReapInterrupted = true;
     this._inactivityReapingDisabled = true;
@@ -6553,48 +6592,25 @@ export class Run {
     this._processing = false;
     this.resetAbort();
     const runner = this.runner;
-    let runnerDisposePromise: Promise<void> = Promise.resolve();
-    if (runner?.dispose) {
-      runnerDisposePromise = runner.dispose().catch((error: unknown) => {
-        this.logger.warn('local.run.cleanup.dispose_failed', {
-          runId: this.runId,
-          error,
-        });
-      });
-    }
-    const workspaceWriteBoundary = this.workspaceWriteBoundary;
-    this.workspaceWriteBoundary = null;
-    if (workspaceWriteBoundary) {
-      void runnerDisposePromise.then(() =>
-        workspaceWriteBoundary.dispose().catch((error: unknown) => {
-          this.logger.warn('local.run.cleanup.workspace_write_boundary_dispose_failed', {
-            runId: this.runId,
-            error,
-          });
-        }),
-      );
-    }
-    const runEvidenceDirectory = this.runEvidenceDirectory;
-    this.runEvidenceDirectory = null;
-    if (runEvidenceDirectory) {
-      void runnerDisposePromise
-        .then(() => runEvidenceDirectory)
-        .then((directory) => fs.rm(directory, { recursive: true, force: true }))
-        .catch((error: unknown) => {
-          this.logger.warn('local.run.cleanup.run_evidence_dispose_failed', {
-            runId: this.runId,
-            error,
-          });
-        });
-    }
-    if (this.ownsProjectModeBundleMaterializer) {
-      void this.projectModeBundleMaterializer.dispose().catch((error: unknown) => {
-        this.logger.warn('local.run.cleanup.project_mode_bundle_dispose_failed', {
-          runId: this.runId,
-          error,
-        });
-      });
-    }
+    this.cleanupCompletion = (async () => {
+      await runner?.dispose?.();
+      if (this.workspaceWriteBoundary) {
+        await this.workspaceWriteBoundary.dispose();
+        this.workspaceWriteBoundary = null;
+      }
+      if (this.runEvidenceDirectory) {
+        const directory = await this.runEvidenceDirectory;
+        await fs.rm(directory, { recursive: true, force: true });
+        this.runEvidenceDirectory = null;
+      }
+      if (this.ownsProjectModeBundleMaterializer) {
+        await this.projectModeBundleMaterializer.dispose();
+      }
+    })();
+    void this.cleanupCompletion.catch((error: unknown) => {
+      this.cleanupStarted = false;
+      this.logger.warn('local.run.cleanup.dispose_failed', { runId: this.runId, error });
+    });
   }
 }
 

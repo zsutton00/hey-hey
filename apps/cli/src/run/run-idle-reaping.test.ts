@@ -346,7 +346,7 @@ describe('Run idle reaping', () => {
     );
   });
 
-  it('publishes registration and removal for registry-owned lifecycle transitions', () => {
+  it('publishes registration and removal for registry-owned lifecycle transitions', async () => {
     const lifecycle = new RunLifecycleEvents();
     const registered: string[] = [];
     const removed: string[] = [];
@@ -378,10 +378,10 @@ describe('Run idle reaping', () => {
         contextMetadata: { ...makeSession().contextMetadata, agentSessionId: 'run-2' },
       },
     });
-    registry.dispose();
+    await registry.dispose();
     expect(removed).toEqual(['run-1', 'run-1', 'run-2']);
     expect(causes).toEqual(['permanent', 'idle', 'permanent']);
-    registry.dispose();
+    await registry.dispose();
     expect(removed).toEqual(['run-1', 'run-1', 'run-2']);
   });
 });

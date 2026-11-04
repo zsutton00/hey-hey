@@ -677,6 +677,40 @@ paths:
         "401":
           description: Local installation authority is invalid or unavailable.
 
+  /auth/local/cli-credentials:
+    post:
+      summary: Issue local CLI credentials
+      description: >-
+        Local-deployment-only machine operation. The CLI proves authority with
+        its installation secret and receives its own access and refresh tokens
+        for the ordinary local user, so it never needs the browser login. The
+        tokens are stored only in the CLI credential store.
+      operationId: issueLocalCliCredentials
+      tags: [Auth]
+      security: []
+      parameters:
+        - in: header
+          name: X-HeyHey-Local-Secret
+          required: true
+          description: Installation secret held by the local CLI.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Credentials for the local CLI.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LocalCliCredentialsResponseDto"
+        "401":
+          description: Local installation authority is invalid or unavailable.
+
   /auth/local/handoff:
     post:
       summary: Exchange one-use local browser handoff
@@ -10242,6 +10276,50 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
 
+  /organizations/{organizationId}/projects/{projectId}/onboarding/conversations/{conversationId}/local-step:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: conversationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: advanceLocalOnboarding
+      tags: [Conversations]
+      summary: Advance the CLI-owned onboarding execution
+      description: The admitted CLI owner reads durable work or submits the result of its exact saved provider request. Repeated results return canonical progress without repeating effects. This endpoint grants no host execution authority.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/conversations.yaml#/LocalOnboardingStepRequest"
+      responses:
+        "200":
+          description: Canonical durable progress
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "../schemas/conversations.yaml#/LocalOnboardingStepResponse"
+        "409":
+          description: The execution owner or provider request is stale
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiErrorResponse" }
+
   /organizations/{organizationId}/projects/{projectId}/onboarding/conversations/{conversationId}/replies:
     parameters:
       - name: organizationId
@@ -10267,7 +10345,7 @@ paths:
       summary: Admit a reply to the canonical onboarding workflow
       description: >-
         Validates and records one reply for the route-scoped active onboarding
-        Temporal conversation, together with its durable workflow-continuation
+        conversation, together with its durable execution-owner continuation
         obligation. This operation grants no local-execution or CLI authority.
       requestBody:
         required: true
@@ -10277,7 +10355,7 @@ paths:
               $ref: "#/components/schemas/SubmitOnboardingReplyRequestDto"
       responses:
         "202":
-          description: Reply and durable Temporal continuation accepted
+          description: Reply and durable execution-owner continuation accepted
           content:
             application/json:
               schema:
@@ -10332,7 +10410,7 @@ paths:
       summary: Admit a reply to a repository import workflow
       description: >-
         Validates and records one reply for the route-scoped active repository-import
-        Temporal conversation, together with its durable workflow-continuation obligation.
+        conversation, together with its durable execution-owner continuation obligation.
         Qualifying persisted pre-cutover onboarding imports are admitted through the
         repository-import compatibility boundary. This operation grants no local-execution
         or CLI authority.
@@ -10344,7 +10422,7 @@ paths:
               $ref: "#/components/schemas/SubmitRepositoryImportReplyRequestDto"
       responses:
         "202":
-          description: Reply and durable Temporal continuation accepted
+          description: Reply and durable execution-owner continuation accepted
           content:
             application/json:
               schema:
@@ -10399,7 +10477,7 @@ paths:
       summary: Admit a reply to a work-tracker import workflow
       description: >-
         Validates and records one reply for the route-scoped active work-tracker-import
-        Temporal conversation, together with its durable workflow-continuation obligation.
+        conversation, together with its durable execution-owner continuation obligation.
         This operation grants no local-execution or CLI authority.
       requestBody:
         required: true
@@ -10409,7 +10487,7 @@ paths:
               $ref: "#/components/schemas/SubmitWorkTrackerImportReplyRequestDto"
       responses:
         "202":
-          description: Reply and durable Temporal continuation accepted
+          description: Reply and durable execution-owner continuation accepted
           content:
             application/json:
               schema:
@@ -25254,6 +25332,8 @@ components:
       $ref: ../schemas/auth.yaml#/AccountDefaultOrganizationDto
     LocalBootstrapResponseDto:
       $ref: ../schemas/auth.yaml#/LocalBootstrapResponseDto
+    LocalCliCredentialsResponseDto:
+      $ref: ../schemas/auth.yaml#/LocalCliCredentialsResponseDto
     LocalHandoffRequestDto:
       $ref: ../schemas/auth.yaml#/LocalHandoffRequestDto
     LocalNameRequestDto:
@@ -25774,6 +25854,10 @@ components:
       $ref: "../schemas/conversations.yaml#/OnboardingPlanStageProposalReviewPayload"
     OnboardingPlanStageProposalReviewUserSubmission:
       $ref: "../schemas/conversations.yaml#/OnboardingPlanStageProposalReviewUserSubmission"
+    LocalOnboardingStepRequest:
+      $ref: "../schemas/conversations.yaml#/LocalOnboardingStepRequest"
+    LocalOnboardingStepResponse:
+      $ref: "../schemas/conversations.yaml#/LocalOnboardingStepResponse"
     SubmitOnboardingReplyRequestDto:
       $ref: "../schemas/conversations.yaml#/SubmitOnboardingReplyRequestDto"
     SubmitRepositoryImportReplyRequestDto:
@@ -26316,6 +26400,8 @@ components:
             Single-use server nonce that the machine must include in its
             canonical signed confirmation object.
           example: "Y29uZmlybWF0aW9uLW5vbmNlLTEyMw"
+        localApprovalProof:
+          $ref: "#/components/schemas/MachineEnrollmentLocalApprovalProof"
         expiresAt:
           type: string
           format: date-time
@@ -27014,6 +27100,23 @@ components:
           $ref: "#/components/schemas/OrganizationId"
         credential:
           $ref: "#/components/schemas/MachineEnrollmentWebAuthnRegistrationCredentialDto"
+        localApprovalProof:
+          $ref: "#/components/schemas/MachineEnrollmentLocalApprovalProof"
+
+    MachineEnrollmentLocalApprovalProof:
+      type: string
+      minLength: 43
+      maxLength: 43
+      pattern: "^[A-Za-z0-9_-]{43}$"
+      description: >-
+        Unpadded base64url HMAC-SHA-256 that a first-time `heyhey local`
+        pairing page computes from the one-time local approval secret it
+        received from the CLI, over "heyhey-local-approval-v1", the enrollment,
+        account, organization and controller credential identifiers. The API
+        stores it opaquely with the claim and returns it only to the
+        device-secret poll; it confers no API-side authority. Only the
+        originating CLI can verify it.
+      example: "q2X0n3H5bJ1m8Qe6p4T9wVZ7cA0kL2sD5fG8hJ1mN3o"
 
     MachineEnrollmentWebAuthnRegistrationCredentialDto:
       type: object

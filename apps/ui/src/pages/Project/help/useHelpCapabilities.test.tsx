@@ -11,6 +11,7 @@ vi.mock("@hey-hey/ui-common/data", () => ({
   useConversations: () => ({ data: [] }),
   useUserPairedMachines: () => ({ machines: [] }),
   useProject: () => ({ data: undefined }),
+  useUserPairedMachines: () => ({ machines: [] }),
 }));
 
 vi.mock("@hey-hey/ui-common/services", () => ({

@@ -6,11 +6,7 @@ import { createTestLocalAgentServerRuntimeOwners } from './local-agent-server-ru
 const closeServer = (server: Server): Promise<void> =>
   new Promise((resolve) => server.close(() => resolve()));
 
-const createOwners = (
-  httpServer: Server,
-  runs: Run[] = [],
-  preferredPort = 0,
-) =>
+const createOwners = (httpServer: Server, runs: Run[] = [], preferredPort = 0) =>
   createTestLocalAgentServerRuntimeOwners({
     httpServer,
     runs,
@@ -37,8 +33,7 @@ describe('LocalAgentServerRuntime', () => {
     const disposeApplication = vi.spyOn(owners.applicationLifecycle, 'dispose');
     const runtime = owners.runtime;
 
-    await expect(runtime.start()).rejects.toThrow('is already in use');
+    await expect(runtime.start()).rejects.toThrow(`port ${address.port} is already in use`);
     expect(disposeApplication).toHaveBeenCalledTimes(1);
   });
-
 });

@@ -1,3 +1,4 @@
+import { LocalOnboardingController } from './controllers/local-onboarding.controller';
 import { WorkspaceSkillsController } from './controllers/workspace-skills.controller';
 import { RuntimeModelCatalogController } from './controllers/runtime-model-catalog.controller';
 import { RuntimeModelCatalogReadService } from './services/runtime-model-catalog-read.service';
@@ -279,6 +280,7 @@ import { ReadRestrictionModule } from './read-restriction/read-restriction.modul
     MessageController,
     ConversationController,
     OnboardingReplyController,
+    LocalOnboardingController,
     RepositoryImportReplyController,
     WorkTrackerImportReplyController,
     ArtifactController,

@@ -47,6 +47,7 @@ export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_PROJECT_REPORT_REQU
 export const AUTH_ACCOUNT_DEFAULT_ORGANIZATION_PATH = '/auth/account-default-organization';
 export const AUTH_LOGIN_PATH = '/auth/login';
 export const AUTH_LOCAL_BOOTSTRAP_PATH = '/auth/local/bootstrap';
+export const AUTH_LOCAL_CLI_CREDENTIALS_PATH = '/auth/local/cli-credentials';
 export const AUTH_LOCAL_HANDOFF_PATH = '/auth/local/handoff';
 export const AUTH_LOCAL_NAME_PATH = '/auth/local/name';
 export const AUTH_LOCAL_STATUS_PATH = '/auth/local/status';
@@ -185,6 +186,7 @@ export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_CONVERSATIONS_PATH 
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_CONVERSATIONS_ACTIVE_PATH = '/organizations/{organizationId}/projects/{projectId}/conversations/active';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_CONVERSATIONS_CONVERSATIONID_PATH = '/organizations/{organizationId}/projects/{projectId}/conversations/{conversationId}';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_CONVERSATIONS_CONVERSATIONID_VERSION_PATH = '/organizations/{organizationId}/projects/{projectId}/conversations/{conversationId}/version';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_ONBOARDING_CONVERSATIONS_CONVERSATIONID_LOCAL_STEP_PATH = '/organizations/{organizationId}/projects/{projectId}/onboarding/conversations/{conversationId}/local-step';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_ONBOARDING_CONVERSATIONS_CONVERSATIONID_REPLIES_PATH = '/organizations/{organizationId}/projects/{projectId}/onboarding/conversations/{conversationId}/replies';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_REPOSITORY_IMPORT_CONVERSATIONS_CONVERSATIONID_REPLIES_PATH = '/organizations/{organizationId}/projects/{projectId}/repository-import/conversations/{conversationId}/replies';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_TRACKER_IMPORT_CONVERSATIONS_CONVERSATIONID_REPLIES_PATH = '/organizations/{organizationId}/projects/{projectId}/work-tracker-import/conversations/{conversationId}/replies';

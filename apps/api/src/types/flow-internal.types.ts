@@ -1872,6 +1872,7 @@ type BaseFlowContext = {
    * Never add non-ID values here!
    */
   flowId: string;
+  onboardingExecutionOwner?: 'CLI';
   lastIntent?: Intent;
   lastClassification?: FlowClassificationSnapshot;
   lastSystemMessageId?: MessageId; // Track the last system message for parentMessageId linking

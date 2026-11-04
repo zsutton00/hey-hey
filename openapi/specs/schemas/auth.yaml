@@ -38,6 +38,22 @@ LocalBootstrapResponseDto:
       enum: [120]
       description: Handoff validity in seconds.
 
+LocalCliCredentialsResponseDto:
+  type: object
+  additionalProperties: false
+  required: [accessToken, refreshToken, expiresInSeconds]
+  properties:
+    accessToken:
+      type: string
+      description: Access token for the local application, held only in the CLI credential store.
+    refreshToken:
+      type: string
+      description: Refresh token for the local application, held only in the CLI credential store.
+    expiresInSeconds:
+      type: integer
+      minimum: 1
+      description: Access token validity in seconds.
+
 LocalHandoffRequestDto:
   type: object
   additionalProperties: false

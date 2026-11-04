@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   interactive: false,
   runInteractiveServer: vi.fn<() => Promise<boolean>>().mockResolvedValue(true),
   launchImported: vi.fn(),
+  runLocal: vi.fn<() => Promise<boolean>>().mockResolvedValue(true),
+  localImported: vi.fn(),
 }));
 
 vi.mock('./tui/interactive-terminal', async (importOriginal) => ({
@@ -20,6 +22,11 @@ vi.mock('./tui/interactive-terminal', async (importOriginal) => ({
 vi.mock('./tui/launch', () => {
   mocks.launchImported();
   return { runInteractiveServer: mocks.runInteractiveServer };
+});
+
+vi.mock('./commands/local', () => {
+  mocks.localImported();
+  return { runLocalCommand: mocks.runLocal };
 });
 
 vi.mock('./commands/server', () => ({
@@ -63,7 +70,25 @@ describe('CLI startup options', () => {
     mocks.interactive = false;
     mocks.runInteractiveServer.mockClear();
     mocks.launchImported.mockClear();
+    mocks.localImported.mockClear();
+    mocks.runLocal.mockClear();
     vi.resetModules();
+  });
+
+  it('routes heyhey local before credentials, bridge or hosted initialization', async () => {
+    process.argv = ['node', 'index.tsx', 'local'];
+    await import('./index');
+    await vi.waitFor(() => expect(mocks.runLocal).toHaveBeenCalledWith([]));
+    expect(mocks.seedCredential).not.toHaveBeenCalled();
+    expect(mocks.runServer).not.toHaveBeenCalled();
+    expect(mocks.launchImported).not.toHaveBeenCalled();
+  });
+
+  it('plain heyhey does not import or invoke the local application', async () => {
+    await importCli(['node', 'index.tsx']);
+    expect(mocks.runServer).toHaveBeenCalledTimes(1);
+    expect(mocks.localImported).not.toHaveBeenCalled();
+    expect(mocks.runLocal).not.toHaveBeenCalled();
   });
 
   it('preserves the migration stack URL and controller origin with --local', async () => {

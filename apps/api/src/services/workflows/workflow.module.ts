@@ -1,3 +1,4 @@
+import { LocalOnboardingService } from './local-onboarding.service';
 import { Global, Module, forwardRef } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { HttpModule } from '@nestjs/axios';
@@ -102,6 +103,7 @@ import { PlanModule } from '../plan/plan.module';
     DesignDocService,
     FlowExecutionService,
     NodeExecutionService,
+    LocalOnboardingService,
     PendingTriggerService,
     FlowSecurityService,
     InitiativeRefinementWorkflowService,
@@ -129,6 +131,7 @@ import { PlanModule } from '../plan/plan.module';
     DesignDocService,
     FlowExecutionService,
     NodeExecutionService,
+    LocalOnboardingService,
     PendingTriggerService,
     FlowSecurityService,
     InitiativeRefinementWorkflowService,

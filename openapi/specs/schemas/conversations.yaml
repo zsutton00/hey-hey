@@ -8458,6 +8458,7 @@ UserMessageAgentInput:
     - $ref: "#/UserMessageDataValidationWalkthrough"
     - $ref: "#/UserMessageDataCodingFreeform"
     - $ref: "#/UserMessageDataWorkflowDefined"
+    - $ref: "#/UserMessageDataLocalOnboarding"
     - $ref: "#/UserMessageDataFeatureTreeConversation"
     - $ref: "#/UserMessageDataTaskMonitor"
   discriminator:
@@ -10685,3 +10686,45 @@ AgentTriggerWorkTrackerImport:
       minLength: 1
     payload:
       $ref: "./work-tracker-import.yaml#/WorkTrackerImportRequest"
+
+LocalOnboardingStepRequest:
+  type: object
+  additionalProperties: false
+  required: [agentSessionId]
+  properties:
+    agentSessionId:
+      type: string
+      format: uuid
+    requestId:
+      type: string
+      format: uuid
+    outputText:
+      type: string
+      description: Provider output for the exact saved request. Validated against the node schema before use.
+LocalOnboardingStepResponse:
+  type: object
+  additionalProperties: false
+  required: [state]
+  properties:
+    state:
+      type: string
+      enum: [WAITING_FOR_USER, PROVIDER_REQUIRED, COMPLETED]
+    requestId:
+      type: string
+      format: uuid
+    prompt:
+      type: string
+      description: Canonical server-authored prompt, including the node output schema.
+
+UserMessageDataLocalOnboarding:
+  allOf:
+    - $ref: "#/UserMessageDataBase"
+    - type: object
+      required: [promptType, conversationId]
+      properties:
+        promptType:
+          type: string
+          enum: [local_onboarding]
+        conversationId:
+          type: string
+          format: uuid

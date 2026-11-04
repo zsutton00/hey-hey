@@ -248,7 +248,7 @@ describeDatabase('AuthService registration browser session handoff', () => {
     const actualUserService = new UserService(
       prisma,
       actualOrganizationService,
-      {} as AccountEntitlementService,
+      new AccountEntitlementService(prisma),
       {} as ModuleRef,
     );
     userService.createLocalBootstrapUser = jest.fn(
@@ -288,6 +288,12 @@ describeDatabase('AuthService registration browser session handoff', () => {
         include: { organization: true },
       });
       expect(memberships).toHaveLength(1);
+      // Without an entitlement the access check rejects every request from the local user.
+      await expect(
+        prisma.db.accountEntitlement.count({
+          where: { organizationId: memberships[0]!.organizationId },
+        }),
+      ).resolves.toBe(1);
 
       const simulatedMachine = await prisma.db.machine.create({
         data: {

@@ -1,3 +1,5 @@
+import { ProceduralProvider } from './procedural-provider';
+import type { SessionRunnerFacade } from '../../server/runtime/providers/select';
 import type { AgentOutputMessage } from '../../agents/agent-event-stream';
 import type { Runner } from '../../turn/turn';
 import type { RunnerContext } from './types';
@@ -8,7 +10,10 @@ import type { RunnerContext } from './types';
  * is published as the Turn's assistant message.
  */
 export class ProceduralRunner implements Runner {
-  public constructor(private readonly context: RunnerContext) {}
+  public constructor(
+    private readonly context: RunnerContext,
+    private readonly providers: SessionRunnerFacade,
+  ) {}
 
   public async run(signal: AbortSignal): Promise<void> {
     const { run, handler, input, preparedPayload, handlerDeps } = this.context;
@@ -20,7 +25,11 @@ export class ProceduralRunner implements Runner {
     }
     const summary = await handler.runProcedure(
       preparedPayload !== undefined ? preparedPayload : input.payload,
-      { session: run.session, deps: handlerDeps },
+      {
+        session: run.session,
+        deps: handlerDeps,
+        provider: new ProceduralProvider(run, this.providers),
+      },
       signal,
     );
     const message: AgentOutputMessage = {

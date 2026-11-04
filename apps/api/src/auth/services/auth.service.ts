@@ -7,6 +7,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { OrganizationId, UserId } from 'src/types';
+import { ACCESS_TOKEN_EXPIRES_IN } from '../oauth/oauth.constants';
 import {
   AuthResponseDto,
   AccountDefaultOrganizationDto,
@@ -15,6 +16,7 @@ import {
   ChangePasswordDto,
   LoginDto,
   LocalBootstrapResponseDto,
+  LocalCliCredentialsResponseDto,
   OrganizationRole,
   PasswordChangeRequiredDto,
   PasswordRecoveryAcknowledgementDto,
@@ -75,6 +77,21 @@ export class AuthService {
       .set(handoffKey, user.id, 'EX', 120, 'NX');
     this.logger.log('Local browser handoff issued', { userId: user.id });
     return { handoffToken, expiresInSeconds: 120 };
+  }
+
+  async issueLocalCliCredentials(
+    installationSecret: string | undefined,
+  ): Promise<LocalCliCredentialsResponseDto> {
+    this.assertLocalInstallationSecret(installationSecret);
+    const user =
+      await this.userService.createLocalBootstrapUser(installationSecret);
+    const tokens = await this.generateTokensForUserId(user.id as UserId);
+    this.logger.log('Local CLI credentials issued', { userId: user.id });
+    return {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      expiresInSeconds: ACCESS_TOKEN_EXPIRES_IN,
+    };
   }
 
   async completeLocalHandoff(

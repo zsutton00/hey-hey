@@ -8,11 +8,25 @@ const { generateRuntimeSchema } = require(
   path.join(openapiRoot, 'scripts/generate-repository-feature-enrichment-runtime-schema.js'),
 );
 
-generateRuntimeSchema([
-  path.join(
-    __dirname,
-    '..',
-    'src/shared/agent-bridge-contract/generated/repository-feature-enrichment-runtime-schema.ts',
+Promise.all([
+  generateRuntimeSchema([
+    path.join(
+      __dirname,
+      '..',
+      'src/shared/agent-bridge-contract/generated/repository-feature-enrichment-runtime-schema.ts',
+    ),
+  ]),
+  generateRuntimeSchema(
+    [
+      path.join(
+        __dirname,
+        '..',
+        'src/shared/agent-bridge-contract/generated/local-lifecycle-runtime-schema.ts',
+      ),
+    ],
+    ['LocalLifecycleWork'],
+    'localLifecycleRuntimeSchema',
+    './api',
   ),
 ]).catch((error) => {
   console.error(error instanceof Error ? error.message : String(error));

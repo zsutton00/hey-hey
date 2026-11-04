@@ -1,10 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { acceptBrowserAuthSession } from "@hey-hey/ui-common/services";
+import { createHmac } from "node:crypto";
 import { LocalSetupPage } from "./LocalSetupPage";
+import {
+  computeLocalApprovalProof,
+  forgetLocalPairing,
+} from "../Settings/localApproval";
 
 const { authClient } = vi.hoisted(() => ({
   authClient: {
@@ -25,10 +30,26 @@ vi.mock("@hey-hey/ui-common/services", async (importOriginal) => ({
   refreshAuthToken: vi.fn().mockResolvedValue({}),
 }));
 
+vi.mock("../Settings/ClaimMachine", () => ({
+  ClaimMachine: ({
+    initialCode,
+    localApprovalSecret,
+  }: {
+    initialCode: string | null;
+    localApprovalSecret?: string | null;
+  }) => (
+    <div data-testid="claim-machine">
+      {initialCode}|{localApprovalSecret}
+    </div>
+  ),
+}));
+
 vi.mock("@hey-hey/ui-common/context", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@hey-hey/ui-common/context")>()),
   useAuth: () => ({ isAuthenticated: true }),
 }));
+
+const HANDOFF_TOKEN = "one-use-local-handoff-token";
 
 const statusResponse = (
   overrides: Partial<{
@@ -61,7 +82,6 @@ function renderLocalPage(initialPath = "/local") {
     <MemoryRouter initialEntries={[initialPath]}>
       <Routes>
         <Route path="/local" element={<LocalSetupPage />} />
-        <Route path="/pairing" element={<LocationProbe />} />
         <Route path="/welcome" element={<LocationProbe />} />
         <Route path="/home" element={<LocationProbe />} />
       </Routes>
@@ -72,26 +92,19 @@ function renderLocalPage(initialPath = "/local") {
 describe("LocalSetupPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    forgetLocalPairing();
+    sessionStorage.clear();
     authClient.getLocalSetupStatus.mockResolvedValue(statusResponse());
     authClient.saveLocalDisplayName.mockResolvedValue(
       statusResponse({ nameComplete: true }),
     );
   });
 
-  it("shows the first-use steps and collects only a display name", async () => {
-    const user = userEvent.setup();
+  it("opens directly on the display name question", async () => {
     renderLocalPage();
 
     expect(
-      await screen.findByRole("heading", { name: "GET STARTED" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Connect Hey Hey to your coding plans"),
-    ).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Get started" }));
-
-    expect(
-      screen.getByRole("heading", { name: "WHAT SHOULD WE CALL YOU?" }),
+      await screen.findByRole("heading", { name: "WHAT SHOULD WE CALL YOU?" }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
     expect(
@@ -103,7 +116,7 @@ describe("LocalSetupPage", () => {
   });
 
   it("scrubs the one-use handoff from the URL and keeps it out of browser storage", async () => {
-    const handoffToken = "one-use-local-handoff-token";
+    const handoffToken = HANDOFF_TOKEN;
     authClient.completeLocalHandoff.mockResolvedValue({
       data: { data: { accessToken: "local-access-token" } },
     });
@@ -123,39 +136,82 @@ describe("LocalSetupPage", () => {
     });
     expect(window.location.hash).toBe("");
     expect(localStorage.length).toBe(0);
-    expect(sessionStorage.length).toBe(0);
+    expect(JSON.stringify({ ...sessionStorage })).not.toContain(HANDOFF_TOKEN);
   });
 
-  it("saves the name, explains the existing pairing ceremony, and requires manual CLI code entry", async () => {
+  it("takes the CLI code and approval secret from the fragment through name entry straight to passkey approval", async () => {
     const user = userEvent.setup();
+    const code = "ABCDEFGHJK";
+    const secret = Buffer.alloc(32, 9).toString("base64url");
+    authClient.completeLocalHandoff.mockResolvedValue({
+      data: { data: { accessToken: "local-access-token" } },
+    });
     authClient.getLocalSetupStatus
       .mockResolvedValueOnce(statusResponse())
       .mockResolvedValue(statusResponse({ nameComplete: true }));
+    window.history.replaceState(
+      {},
+      "",
+      `/local?pairing=started#code=${code}&approval=${secret}&handoff=token`,
+    );
     renderLocalPage("/local?pairing=started");
 
-    await user.click(
-      await screen.findByRole("button", { name: "Get started" }),
-    );
+    await screen.findByLabelText("Name");
+    expect(window.location.hash).toBe("");
+    expect(window.location.href).not.toContain(code);
     await user.type(screen.getByLabelText("Name"), "Ada Lovelace");
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(
-      await screen.findByRole("heading", { name: "CONNECT THIS COMPUTER" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Enter the code from your terminal"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Create a pairing passkey")).toBeInTheDocument();
-    expect(screen.getByText("Confirm in your terminal")).toBeInTheDocument();
-    await user.click(
-      screen.getByRole("button", { name: "Continue to pairing" }),
+    // The next screen is the passkey step itself, with no page to click through.
+    expect(await screen.findByTestId("claim-machine")).toHaveTextContent(
+      `${code}|${secret}`,
     );
-    expect(await screen.findByTestId("location")).toHaveTextContent(
-      "/pairing?returnTo=local",
+    expect(
+      screen.queryByRole("link", { name: "Continue to pairing" }),
+    ).not.toBeInTheDocument();
+
+    // The app tree remounts while the session refreshes; the cleared fragment must not matter.
+    cleanup();
+    renderLocalPage("/local?pairing=started");
+    expect(await screen.findByTestId("claim-machine")).toHaveTextContent(
+      `${code}|${secret}`,
     );
-    expect(authClient.saveLocalDisplayName).toHaveBeenCalledWith({
-      localNameRequestDto: { name: "Ada Lovelace" },
-    });
+    expect(localStorage.length).toBe(0);
+    expect(JSON.stringify({ ...sessionStorage })).not.toContain(code);
+    expect(JSON.stringify({ ...sessionStorage })).not.toContain(secret);
+
+    // The browser proof matches what the originating CLI recomputes.
+    const binding = {
+      enrollmentId: "550e8400-e29b-41d4-a716-446655440040",
+      accountId: "account-1",
+      organizationId: "organization-1",
+      controllerCredentialId: "Y29udHJvbGxlcg",
+    };
+    expect(await computeLocalApprovalProof(secret, binding)).toBe(
+      createHmac("sha256", Buffer.from(secret, "base64url"))
+        .update(
+          `heyhey-local-approval-v1${binding.enrollmentId}${binding.accountId}${binding.organizationId}${binding.controllerCredentialId}`,
+        )
+        .digest("base64url"),
+    );
+  });
+
+  it("explains on screen why pairing details are missing, without exposing any secret", async () => {
+    authClient.getLocalSetupStatus.mockResolvedValue(
+      statusResponse({ nameComplete: true }),
+    );
+    window.history.replaceState({}, "", "/local?pairing=started");
+    renderLocalPage("/local?pairing=started");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "did not receive its pairing details",
+    );
+    const details = screen.getByTestId("local-setup-diagnostics");
+    expect(details).toHaveTextContent(
+      "handoff=absent code=absent approval=absent",
+    );
+    expect(details).toHaveTextContent("pairing-held=false");
+    expect(details).toHaveTextContent("view: missing-pairing-details");
   });
 
   it("shows the connected handoff for a live CLI connection", async () => {
@@ -188,12 +244,9 @@ describe("LocalSetupPage", () => {
         machineConnected: true,
       }),
     );
-    const user = userEvent.setup();
     renderLocalPage();
 
-    await user.click(
-      await screen.findByRole("button", { name: "Get started" }),
-    );
+    await screen.findByLabelText("Name");
 
     expect(
       screen.getByRole("heading", { name: "WHAT SHOULD WE CALL YOU?" }),
@@ -219,7 +272,7 @@ describe("LocalSetupPage", () => {
     expect(
       screen.queryByText("Create a pairing passkey"),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Connecting");
+    expect(screen.queryByTestId("claim-machine")).not.toBeInTheDocument();
   });
 
   it("automatically returns existing projects to the workspace", async () => {

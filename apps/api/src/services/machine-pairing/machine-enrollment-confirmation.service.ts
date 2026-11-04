@@ -585,6 +585,9 @@ export class MachineEnrollmentConfirmationService {
       backupEligible: enrollment.credentialBackupEligible,
       backupState: enrollment.credentialBackupState,
       confirmationNonce,
+      ...(enrollment.localApprovalProof === null
+        ? {}
+        : { localApprovalProof: enrollment.localApprovalProof }),
       expiresAt: enrollment.expiresAt.toISOString(),
     } satisfies MachineEnrollmentPollReadyDto;
   }

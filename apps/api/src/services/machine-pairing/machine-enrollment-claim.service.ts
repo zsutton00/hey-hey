@@ -627,6 +627,7 @@ export class MachineEnrollmentClaimService {
             credentialBackupState: verified.credentialBackupState,
             credentialFingerprint: verified.credentialFingerprint,
             credentialVerifiedAt: consumedAt,
+            localApprovalProof: input.localApprovalProof ?? null,
           },
         });
 
@@ -1154,10 +1155,15 @@ export class MachineEnrollmentClaimService {
         'enrollmentId',
         'organizationId',
         'credential',
+        ...(input.localApprovalProof === undefined
+          ? []
+          : ['localApprovalProof']),
       ]) ||
       !this.isUuid(input.enrollmentId) ||
       !this.isUuid(input.organizationId) ||
-      !this.isValidCredentialShape(input.credential)
+      !this.isValidCredentialShape(input.credential) ||
+      (input.localApprovalProof !== undefined &&
+        !/^[A-Za-z0-9_-]{43}$/.test(input.localApprovalProof))
     ) {
       throw new Error('invalid-complete-request');
     }

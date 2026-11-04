@@ -13,6 +13,7 @@ opens the menu (machine actions, local sessions, Debug); otherwise it prints
 line output.
 
 Commands:
+  local         Install, start or check the durable local application
   run-retention Configure automatic cleanup of completed Runs
   machine-history Inspect durable state and transition evidence for a machine instance
   credential    Manage provider credentials
@@ -265,6 +266,15 @@ const run = async (): Promise<void> => {
     const { runMachineHistoryCommand } = await import('./commands/machine-history');
     const ok = await runMachineHistoryCommand(args.slice(1));
     if (!ok) process.exitCode = 1;
+    return;
+  }
+
+  if (command === 'local') {
+    const { runLocalCommand } = await import('./commands/local');
+    const ok = await runLocalCommand(args.slice(1));
+    if (!ok) {
+      process.exitCode = 1;
+    }
     return;
   }
 

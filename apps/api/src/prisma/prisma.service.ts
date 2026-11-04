@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Prisma, PrismaClient, Project } from '@prisma/client';
 import {
@@ -368,7 +369,55 @@ export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
-  public readonly db = this.$extends(idBrandingExtension);
+  private readonly transactionScope =
+    new AsyncLocalStorage<Prisma.TransactionClient>();
+  private readonly extendedClient = this.$extends(idBrandingExtension);
+
+  // Existing lifecycle owners use db and may open their own transaction. Within
+  // an explicit atomic operation they join its transaction instead of committing
+  // effects independently of the operation's saved coordination state.
+  public readonly db = new Proxy(this.extendedClient, {
+    get: (client, property, receiver) => {
+      // Prisma exposes immutable internal properties. JavaScript requires a
+      // proxy to return the target's original value for those properties.
+      if (
+        Reflect.getOwnPropertyDescriptor(client, property)?.configurable ===
+        false
+      ) {
+        return Reflect.get(client, property, receiver);
+      }
+      const transaction = this.transactionScope.getStore();
+      if (!transaction) {
+        return Reflect.get(client, property, receiver);
+      }
+      if (property === '$transaction') {
+        return async (
+          work:
+            | ((tx: Prisma.TransactionClient) => Promise<unknown>)
+            | Promise<unknown>[],
+        ) =>
+          typeof work === 'function' ? work(transaction) : Promise.all(work);
+      }
+      return Reflect.get(transaction, property);
+    },
+  });
+
+  async withTransaction<T>(
+    work: (tx: Prisma.TransactionClient) => Promise<T>,
+    options?: {
+      timeout?: number;
+      isolationLevel?: Prisma.TransactionIsolationLevel;
+    },
+  ): Promise<T> {
+    const current = this.transactionScope.getStore();
+    if (current) {
+      return work(current);
+    }
+    return super.$transaction(
+      (tx) => this.transactionScope.run(tx, () => work(tx)),
+      options,
+    );
+  }
   constructor() {
     super();
   }

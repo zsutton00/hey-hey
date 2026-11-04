@@ -140,6 +140,40 @@ export class OnboardingNextStepsService {
     }
   }
 
+  async prepareLocal(
+    source: OnboardingNextStepsSource,
+  ): Promise<string | undefined> {
+    const features = await this.loadTopLevelFeatures(source);
+    if (features.length === 0) {
+      return undefined;
+    }
+    const history = source.conversationId
+      ? await this.loadConversationHistory(source)
+      : '';
+    return this.buildPrompt(features, history);
+  }
+
+  async recordLocal(
+    source: OnboardingNextStepsSource,
+    output: unknown,
+  ): Promise<void> {
+    const features = await this.loadTopLevelFeatures(source);
+    const steps = this.validate(
+      featureNextStepsResponseSchema.parse(output),
+      features,
+    );
+    if (!steps) {
+      throw new Error(
+        'Onboarding next steps must cover the generated Features',
+      );
+    }
+    await this.projectService.recordOnboardingFeatureNextSteps({
+      projectId: source.projectId,
+      organizationId: source.organizationId,
+      featureNextSteps: steps,
+    });
+  }
+
   private async loadTopLevelFeatures(
     source: OnboardingNextStepsSource,
   ): Promise<TopLevelFeature[]> {

@@ -1,3 +1,4 @@
+import { useUserPairedMachines } from "@hey-hey/ui-common/data";
 import { useMemo } from "react";
 
 import type {
@@ -21,15 +22,19 @@ export function useHelpCapabilities(
   importAction: HelpActionCapability,
 ): HelpCapabilities {
   const data = useHelpDataCapability(organizationId, projectId);
+  const { machines } = useUserPairedMachines();
+  const bridgeConnected = machines.some(
+    (machine) => machine.active && !machine.revokedAt,
+  );
   const routing = useHelpRoutingCapability(projectId);
 
   return useMemo<HelpCapabilities>(
     () => ({
       actions: { "import-repository": importAction },
-      data,
+      data: { ...data, bridgeConnected },
       routing,
       demos: buildHelpDemoMap(organizationId, projectId),
     }),
-    [data, routing, organizationId, projectId, importAction],
+    [data, bridgeConnected, routing, organizationId, projectId, importAction],
   );
 }

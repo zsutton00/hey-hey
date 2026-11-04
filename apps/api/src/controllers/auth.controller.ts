@@ -33,6 +33,7 @@ import {
   RefreshBrowserSessionDto,
   RegisterDto,
   LocalBootstrapResponseDto,
+  LocalCliCredentialsResponseDto,
   LocalSetupStatusDto,
 } from '@hey-hey/contracts/api/models';
 import { Public } from '../auth/decorators/public.decorator';
@@ -78,6 +79,17 @@ export class AuthController {
     @Headers('x-heyhey-local-secret') installationSecret: string | undefined,
   ): Promise<LocalBootstrapResponseDto> {
     return this.authService.createLocalHandoff(installationSecret);
+  }
+
+  @Public()
+  @Post('local/cli-credentials')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Issue local CLI credentials' })
+  @ApiResponse({ status: 200, type: Object })
+  async localCliCredentials(
+    @Headers('x-heyhey-local-secret') installationSecret: string | undefined,
+  ): Promise<LocalCliCredentialsResponseDto> {
+    return this.authService.issueLocalCliCredentials(installationSecret);
   }
 
   @Public()

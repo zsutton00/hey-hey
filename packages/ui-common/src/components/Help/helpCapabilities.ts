@@ -31,6 +31,8 @@ export interface HelpFeatureNextStep {
  * interpolate into scenario copy (e.g. the feature list in "features-ready").
  */
 export interface HelpDataCapability {
+  /** Live bridge presence, independent of pairing and host-action authorization. */
+  bridgeConnected?: boolean;
   features: readonly HelpFeatureRecord[];
   welcomeStepCompletion?: {
     installAgentBridge: boolean;

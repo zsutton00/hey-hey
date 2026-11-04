@@ -45,6 +45,7 @@ import {
 import { ConversationService } from '../conversation.service';
 import { MessageService } from '../message.service';
 import { FlowExecutionService } from './flow-execution.service';
+import { onboardingExecutionOwner } from './onboarding-execution-owner';
 import { NodeExecutionService } from './node-execution.service';
 import { WorkflowRouterService } from './workflow-router.service';
 import {
@@ -419,6 +420,13 @@ export class ConversationWorkflowService {
         additionalContext,
       });
 
+      if (onboardingExecutionOwner(validatedWorkflowName) === 'CLI') {
+        this.logger.debug('Local onboarding initialized for its CLI owner', {
+          conversationId,
+        });
+        return { conversation, workflowStarted: true, workflowId };
+      }
+
       const workflowResult =
         await this.workflowTypeRegistry.startWorkflowByType(
           validatedWorkflowName,
@@ -683,6 +691,9 @@ export class ConversationWorkflowService {
     const updatedContext = tracker.getContext();
 
     const serializableState: SerializableWorkflowState = {
+      ...(onboardingExecutionOwner(workflowName) === 'CLI'
+        ? { executionOwner: 'CLI' as const }
+        : {}),
       step: WorkflowStep.WAITING_FOR_USER_INPUT,
       phase: WORKFLOW_STEP_TO_PHASE[WorkflowStep.WAITING_FOR_USER_INPUT],
       nodeConfig: {
@@ -708,7 +719,10 @@ export class ConversationWorkflowService {
     const systemUserId = 'system' as UserId;
 
     const execution = await this.flowExecutionService.createFlowExecution({
-      userId: systemUserId,
+      userId:
+        onboardingExecutionOwner(workflowName) === 'CLI'
+          ? updatedContext.core.user.id
+          : systemUserId,
       flowId: flow.id,
       organizationId,
       projectId: conversation.projectId,
@@ -783,6 +797,9 @@ export class ConversationWorkflowService {
         },
       },
       flowId: flow.id,
+      ...(onboardingExecutionOwner(flow.id) === 'CLI'
+        ? { onboardingExecutionOwner: 'CLI' as const }
+        : {}),
       lastSystemMessageId: undefined,
       flowPath: {
         pathTaken: [],

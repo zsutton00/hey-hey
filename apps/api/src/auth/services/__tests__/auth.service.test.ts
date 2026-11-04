@@ -209,6 +209,44 @@ describe('AuthService browser sign-in', () => {
     }
   });
 
+  it('issues local CLI credentials only to the holder of the installation secret', async () => {
+    const previous = {
+      deployment: process.env.DEPLOYMENT_ENVIRONMENT,
+      localFlag: process.env.HEYHEY_LOCAL_APPLICATION,
+      secret: process.env.LOCAL_INSTALLATION_SECRET,
+    };
+    process.env.DEPLOYMENT_ENVIRONMENT = 'local';
+    process.env.HEYHEY_LOCAL_APPLICATION = 'true';
+    process.env.LOCAL_INSTALLATION_SECRET = 'installation-secret';
+
+    try {
+      await expect(
+        service.issueLocalCliCredentials('unrelated-secret'),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(jwtKeysService.signToken).not.toHaveBeenCalled();
+
+      await expect(
+        service.issueLocalCliCredentials('installation-secret'),
+      ).resolves.toEqual({
+        accessToken: 'legacy-access',
+        refreshToken: 'legacy-refresh',
+        expiresInSeconds: 60 * 60 * 24,
+      });
+    } finally {
+      for (const [key, value] of [
+        ['DEPLOYMENT_ENVIRONMENT', previous.deployment],
+        ['HEYHEY_LOCAL_APPLICATION', previous.localFlag],
+        ['LOCAL_INSTALLATION_SECRET', previous.secret],
+      ] as const) {
+        if (value === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = value;
+        }
+      }
+    }
+  });
+
   it('keeps unknown and delivery-failure outcomes indistinguishable', async () => {
     userService.findByEmail.mockResolvedValueOnce(null);
     const unknown = await service.initiatePasswordRecovery(

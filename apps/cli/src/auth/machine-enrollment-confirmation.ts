@@ -29,6 +29,7 @@ import {
   toMachineEnrollmentReview,
   type MachineEnrollmentCeremonyPorts,
 } from './machine-enrollment-ceremony';
+import type { LocalApprovalSecret } from './local-approval';
 
 /** Generated ready-state evidence retained for local review and recovery. */
 export type PendingMachineEnrollment = MachineEnrollmentPollReadyDto;
@@ -79,6 +80,8 @@ export interface MachineEnrollmentRunOptions {
   onResume?: () => void;
   /** Drives a caller-owned ceremony; without it the terminal prompter and log are used. */
   ports?: MachineEnrollmentCeremonyPorts;
+  /** First-time `heyhey local` only: a verified browser proof stands in for the terminal prompt. */
+  localApproval?: LocalApprovalSecret;
 }
 
 export interface MachineEnrollmentConfirmationDependencies {
@@ -249,6 +252,11 @@ const sleepUnlessCancelled = (
     );
   });
 };
+
+const withoutLocalApprovalProof = ({
+  localApprovalProof: _proof,
+  ...claim
+}: MachineEnrollmentPollReadyDto): MachineEnrollmentPollReadyDto => claim;
 
 const isExpired = (expiresAt: string, now: number): boolean => {
   const expiry = Date.parse(expiresAt);
@@ -642,7 +650,10 @@ export class MachineEnrollmentConfirmation {
   private async runWith(
     enrollment: MachineEnrollmentSeed,
     ports: MachineEnrollmentCeremonyPorts,
-    options: Pick<MachineEnrollmentRunOptions, 'waitBeforeFirstPoll' | 'onResume'> = {},
+    options: Pick<
+      MachineEnrollmentRunOptions,
+      'waitBeforeFirstPoll' | 'onResume' | 'localApproval'
+    > = {},
   ): Promise<MachineEnrollmentConfirmationResult> {
     let ready: MachineEnrollmentPollReadyDto | undefined;
     let waitBeforePoll = options.waitBeforeFirstPoll === true;
@@ -713,7 +724,8 @@ export class MachineEnrollmentConfirmation {
           expiresAt: enrollment.expiresAt,
           pollingIntervalSeconds: enrollment.pollingIntervalSeconds,
           ...(enrollment.userCode !== undefined ? { userCode: enrollment.userCode } : {}),
-          claim: ready,
+          // The local approval proof is spent in memory and never written to disk.
+          claim: withoutLocalApprovalProof(ready),
         }),
       );
     } catch (error) {
@@ -726,9 +738,19 @@ export class MachineEnrollmentConfirmation {
       return FAILED;
     }
 
+    const locallyApproved = options.localApproval?.consume(ready) === true;
+    if (options.localApproval) {
+      this.log(
+        locallyApproved
+          ? 'Approved by the passkey you created in the page heyhey local opened.'
+          : 'The browser claim did not carry this CLI\'s local approval; confirm here instead.',
+      );
+    }
+
     let approved: boolean;
     try {
-      approved = await ports.requestConfirmation(toMachineEnrollmentReview(ready));
+      approved =
+        locallyApproved || (await ports.requestConfirmation(toMachineEnrollmentReview(ready)));
     } catch (error) {
       if (error instanceof MachineEnrollmentCancelledError) {
         return this.cancelled(enrollment.enrollmentId, ports);

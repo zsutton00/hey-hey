@@ -23,7 +23,10 @@ import {
   PasswordChangeCredentialIssuer,
 } from '../auth/password-change-credential.types';
 import { OrganizationService } from './organization.service';
-import { AccountEntitlementService } from './account-entitlement.service';
+import {
+  AccountEntitlementService,
+  type AccountEntitlementAuditMetadata,
+} from './account-entitlement.service';
 import { isLocalAccountEmail } from '../auth/local-account';
 import { toPrivateBetaProvisioningError } from './private-beta-provisioning-error';
 
@@ -175,6 +178,7 @@ export class UserService {
       where: { email },
     });
     if (existingUser) {
+      await this.ensureLocalAccountEntitlement(existingUser.id as UserId);
       return existingUser;
     }
 
@@ -183,8 +187,9 @@ export class UserService {
       12,
     );
 
-    return this.prisma.db.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${email}))`;
+    return this.prisma.db.$transaction(async (tx: AnyTransactionClient) => {
+      // The lock function returns void, which Prisma cannot read through $queryRaw.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${email}))`;
       const existing = await tx.user.findUnique({ where: { email } });
       if (existing) {
         return existing;
@@ -193,14 +198,20 @@ export class UserService {
       const user = await tx.user.create({
         data: { email, name: '', passwordHash },
       });
-      await this.organizationService.createOrganizationWithTransaction(
+      const organization =
+        await this.organizationService.createOrganizationWithTransaction(
+          tx,
+          {
+            name: 'My Hey Hey',
+            description: 'Local Hey Hey workspace',
+            slug: `heyhey-local-${localIdentity.slice(0, 24)}`,
+          },
+          user.id as UserId,
+        );
+      await this.accountEntitlementService.createBetaAtAdmissionInTransaction(
         tx,
-        {
-          name: 'My Hey Hey',
-          description: 'Local Hey Hey workspace',
-          slug: `heyhey-local-${localIdentity.slice(0, 24)}`,
-        },
-        user.id as UserId,
+        organization.id as OrganizationId,
+        this.localEntitlementAudit(user.id as UserId),
       );
 
       this.logger.log('Local account bootstrap completed', {
@@ -208,6 +219,26 @@ export class UserService {
       });
       return user;
     });
+  }
+
+  /** Repairs local installations created before their organization had an entitlement. */
+  private async ensureLocalAccountEntitlement(userId: UserId): Promise<void> {
+    const membership = await this.prisma.db.organizationMember.findFirstOrThrow(
+      {
+        where: { userId, isActive: true },
+        select: { organizationId: true },
+      },
+    );
+    await this.accountEntitlementService.createBetaAtAdmission(
+      membership.organizationId as OrganizationId,
+      this.localEntitlementAudit(userId),
+    );
+  }
+
+  private localEntitlementAudit(
+    userId: UserId,
+  ): AccountEntitlementAuditMetadata {
+    return { actor: userId, reason: 'LOCAL_INSTALLATION' };
   }
 
   async updateLocalDisplayName(userId: UserId, name: string): Promise<User> {

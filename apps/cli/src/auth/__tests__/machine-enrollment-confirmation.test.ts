@@ -1,5 +1,5 @@
 import { asOrganizationId, asUserId } from '../../test-utils/contract-ids';
-import { createPublicKey, verify } from 'node:crypto';
+import { createHmac, createPublicKey, verify } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -19,6 +19,7 @@ import { ControllerRegistryStore } from '../../credentials/controller-registry';
 import { generateMachineKeyPair, KeyPairStore } from '../../credentials/keypair';
 import { MemoryPlatformStore } from '../../credentials/keypair.test-support';
 import { canonicalizeJson } from '../../shared/canonical-json';
+import { LocalApprovalSecret } from '../local-approval';
 
 const ENROLLMENT_ID = 'enrollment-1';
 const MACHINE_ID = 'machine-1';
@@ -588,5 +589,140 @@ describe('MachineEnrollmentConfirmation', () => {
     });
     expect(harness.confirm).toHaveBeenCalledTimes(1);
     await expect(harness.keyPairStore.loadPendingEnrollmentId()).resolves.toBeNull();
+  });
+});
+
+describe('first-time heyhey local approval', () => {
+  const browserProof = (
+    secret: string,
+    claim: Pick<
+      PendingMachineEnrollment,
+      'enrollmentId' | 'accountId' | 'organizationId' | 'controllerCredentialId'
+    >,
+  ): string =>
+    createHmac('sha256', Buffer.from(secret, 'base64url'))
+      .update(
+        `heyhey-local-approval-v1${claim.enrollmentId}${claim.accountId}${claim.organizationId}${claim.controllerCredentialId}`,
+      )
+      .digest('base64url');
+
+  const runWithClaim = async (
+    claimFor: (secret: string) => PendingMachineEnrollment,
+    localApproval = new LocalApprovalSecret(),
+  ) => {
+    const harness = makeHarness(false);
+    harness.poll.mockResolvedValue(claimFor(localApproval.fragmentValue));
+    await harness.keyPairStore.storePrivateKey(MACHINE_ID, harness.generated.privateKeyPem);
+    const result = await harness.confirmation.run(
+      {
+        enrollmentId: ENROLLMENT_ID,
+        machineId: MACHINE_ID,
+        deviceSecret: DEVICE_SECRET,
+        pollingIntervalSeconds: 5,
+        expiresAt: '2026-08-12T22:00:00.000Z',
+      },
+      { localApproval },
+    );
+    return { harness, result };
+  };
+
+  it('activates without a terminal prompt when the claim carries this CLI proof', async () => {
+    const { harness, result } = await runWithClaim((secret) => ({
+      ...pending(),
+      localApprovalProof: browserProof(secret, pending()),
+    }));
+
+    expect(result).toMatchObject({ outcome: 'confirmed' });
+    expect(harness.promptConfirm).not.toHaveBeenCalled();
+    expect(harness.confirm).toHaveBeenCalledTimes(1);
+    await expect(harness.keyPairStore.loadCurrentMachineId()).resolves.toBe(MACHINE_ID);
+  });
+
+  it.each([
+    ['missing', () => pending()],
+    [
+      'altered',
+      (secret: string) => ({
+        ...pending(),
+        localApprovalProof: browserProof(secret, pending()).replace(/^./u, (c) =>
+          c === 'A' ? 'B' : 'A',
+        ),
+      }),
+    ],
+    [
+      'made for another enrollment',
+      (secret: string) => ({
+        ...pending(),
+        localApprovalProof: browserProof(secret, { ...pending(), enrollmentId: 'enrollment-2' }),
+      }),
+    ],
+    [
+      'made for another controller',
+      (secret: string) => ({
+        ...pending(),
+        localApprovalProof: browserProof(secret, {
+          ...pending(),
+          controllerCredentialId: 'credential-2',
+        }),
+      }),
+    ],
+    [
+      'made by a different account claiming the same code',
+      (secret: string) => ({
+        ...pending(),
+        localApprovalProof: browserProof(secret, { ...pending(), accountId: 'account-2' }),
+      }),
+    ],
+    [
+      'made without the CLI secret',
+      () => ({
+        ...pending(),
+        localApprovalProof: browserProof(Buffer.alloc(32, 7).toString('base64url'), pending()),
+      }),
+    ],
+  ])('falls back to terminal confirmation when the proof is %s', async (_label, claimFor) => {
+    const { harness, result } = await runWithClaim(claimFor);
+
+    expect(harness.promptConfirm).toHaveBeenCalledWith('Confirm pairing on this machine?', false);
+    expect(result).toEqual({ outcome: 'declined' });
+    expect(harness.confirm).not.toHaveBeenCalled();
+    await expect(harness.keyPairStore.loadCurrentMachineId()).resolves.toBeNull();
+  });
+
+  it('spends the secret on the first claim so a replayed proof needs terminal confirmation', async () => {
+    const localApproval = new LocalApprovalSecret();
+    const secret = localApproval.fragmentValue;
+    const claim = { ...pending(), localApprovalProof: browserProof(secret, pending()) };
+    const first = await runWithClaim(() => pending(), localApproval);
+    expect(first.result).toEqual({ outcome: 'declined' });
+
+    const harness = makeHarness(false);
+    harness.poll.mockResolvedValue(claim);
+    await harness.keyPairStore.storePrivateKey(MACHINE_ID, harness.generated.privateKeyPem);
+    await expect(
+      harness.confirmation.run(
+        {
+          enrollmentId: ENROLLMENT_ID,
+          machineId: MACHINE_ID,
+          deviceSecret: DEVICE_SECRET,
+          pollingIntervalSeconds: 5,
+          expiresAt: '2026-08-12T22:00:00.000Z',
+        },
+        { localApproval },
+      ),
+    ).resolves.toEqual({ outcome: 'declined' });
+    expect(harness.promptConfirm).toHaveBeenCalled();
+    expect(harness.confirm).not.toHaveBeenCalled();
+  });
+
+  it('never prints the approval secret or proof', async () => {
+    let secretSeen = '';
+    const { harness } = await runWithClaim((secret) => {
+      secretSeen = secret;
+      return { ...pending(), localApprovalProof: browserProof(secret, pending()) };
+    });
+    const output = [...harness.log.mock.calls, ...harness.logError.mock.calls].flat().join('\n');
+    expect(output).not.toContain(secretSeen);
+    expect(output).not.toContain(browserProof(secretSeen, pending()));
   });
 });

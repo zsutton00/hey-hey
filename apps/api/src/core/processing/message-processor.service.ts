@@ -366,6 +366,14 @@ export class MessageProcessor {
         );
       }
       await this.handleParentMessageCompletion(storedMessage, organizationId);
+      if (
+        hasOnboardingReplyDelivery(event) &&
+        event.payload.onboardingReplyDelivery.executionOwner === 'CLI'
+      ) {
+        // The reply itself is durable. Its CLI owner reads it on the next
+        // authoritative step request, including after missed notifications.
+        return;
+      }
       const delivery = hasOnboardingReplyDelivery(event)
         ? event.payload.onboardingReplyDelivery
         : (

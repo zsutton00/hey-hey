@@ -275,7 +275,18 @@ export const menuViewModel = (state: PresentationState): ScreenModel => {
   const selected = items[selectedIndex(items, state.selection)] ?? null;
   const isSelected = (item: MenuItem): boolean => selected !== null && sameMenuItem(item, selected);
 
-  const head: Row[] = [...statusRows(state)];
+  const localApplication = state.localApplication;
+  const head: Row[] = [
+    ...statusRows(state),
+    ...(localApplication
+      ? [
+          row(`Local Hey Hey: ${localApplication.url}`, 'accent'),
+          row(`Reconnect: ${localApplication.reconnectCommand}`),
+          row(`Stop application: ${localApplication.stopCommand}`),
+          row(''),
+        ]
+      : []),
+  ];
   if (state.navigation.notice) head.push(row(state.navigation.notice, 'warning'));
   head.push(
     DIVIDER,

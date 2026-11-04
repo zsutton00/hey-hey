@@ -39,6 +39,7 @@ export const FUTURE_REVISION_MCP_TOOLS: readonly string[] = [
 ];
 
 export type McpToolUseCase =
+  | 'local_onboarding'
   | 'coding'
   | 'general'
   | 'planning'

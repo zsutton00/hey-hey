@@ -1,3 +1,4 @@
+import { isLocalApplication } from '../../deployment-environment';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { jsonrepair } from 'jsonrepair';
@@ -282,7 +283,9 @@ export class LLMClientService {
     }
 
     // Comprehensive configuration validation
-    this.validateConfiguration();
+    if (!isLocalApplication()) {
+      this.validateConfiguration();
+    }
   }
 
   /**
@@ -613,6 +616,10 @@ export class LLMClientService {
       mockLlmSessionId?: MockLlmSessionId;
     },
   ): Promise<LLMResponse<T>> {
+    if (isLocalApplication()) {
+      this.validateConfiguration();
+    }
+
     if (!options || !options.responseSchema) {
       throw new Error('responseSchema is required for structured LLM calls');
     }

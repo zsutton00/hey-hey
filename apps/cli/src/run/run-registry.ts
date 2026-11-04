@@ -73,6 +73,7 @@ export interface RunRegistryDependencies {
 
 export class RunRegistry {
   private readonly runs = new Map<string, Run>();
+  private disposed = false;
   private readonly foregroundSubagentHolds = new Map<string, Set<string>>();
 
   public constructor(private readonly dependencies: RunRegistryDependencies) {}
@@ -99,6 +100,9 @@ export class RunRegistry {
   }
 
   public create(args: RunArgs): Run {
+    if (this.disposed) {
+      throw new Error('The terminal bridge is shutting down. Reconnect to start work.');
+    }
     const existing = this.runs.get(args.runId);
     if (existing) return existing;
 
@@ -343,7 +347,23 @@ export class RunRegistry {
     return true;
   }
 
-  public dispose(): void {
+  public closeAdmission(): void {
+    this.disposed = true;
+  }
+
+  private disposal: Promise<void> | undefined;
+
+  public dispose(): Promise<void> {
+    this.closeAdmission();
+    this.disposal ??= this.finishDisposal().catch((error: unknown) => {
+      this.disposal = undefined;
+      throw error;
+    });
+    return this.disposal;
+  }
+
+  private async finishDisposal(): Promise<void> {
+    const disposing = [...this.runs.values()];
     this.dependencies.runCollaborators.logger.info('run-registry.disposing', {
       registeredRunCount: this.runs.size,
     });
@@ -351,9 +371,14 @@ export class RunRegistry {
       this.dependencies.submissionToolRegistry.unregisterByRunId(runId);
       this.dependencies.sessionRunnerFacade.forgetRun(runId);
       run.cleanup();
-      this.dependencies.runLifecycleEvents.publishRunRemoved(runId);
     }
-    this.runs.clear();
+    await Promise.all(
+      disposing.map(async (run) => {
+        await run.waitForCleanup();
+        this.runs.delete(run.runId);
+        this.dependencies.runLifecycleEvents.publishRunRemoved(run.runId);
+      }),
+    );
     this.foregroundSubagentHolds.clear();
     this.dependencies.runCollaborators.logger.info('run-registry.disposed');
   }

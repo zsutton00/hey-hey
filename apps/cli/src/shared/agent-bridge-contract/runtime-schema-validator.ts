@@ -5,9 +5,12 @@ import { repositoryFeatureEnrichmentRuntimeSchema } from '@hey-hey/contracts/age
 const ajv = new Ajv({ allErrors: true, strict: false });
 addFormats(ajv);
 
-export const createAgentBridgeRuntimeValidator = <T>(definition: string): ValidateFunction<T> =>
+export const createAgentBridgeRuntimeValidator = <T>(
+  definition: string,
+  schema: object = repositoryFeatureEnrichmentRuntimeSchema,
+): ValidateFunction<T> =>
   ajv.compile<T>({
-    ...repositoryFeatureEnrichmentRuntimeSchema,
+    ...schema,
     $ref: `#/definitions/${definition}`,
   });
 

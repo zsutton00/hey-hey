@@ -1,3 +1,4 @@
+import type { ProceduralProvider } from '../run/runners/procedural-provider';
 import type { ReadRestriction } from '@hey-hey/contracts/api/models';
 import type { FullEntityContextDto } from '@hey-hey/contracts/api/models';
 import type { EvalAttemptExecution } from './run-eval/eval-attempt-execution';
@@ -412,6 +413,7 @@ export interface SubagentConfig {
  * (task B4) asserts each `required` variant landed before the turn ends.
  */
 export interface ProceduralRunContext {
+  provider: ProceduralProvider;
   session: AgenticSession;
   deps: PromptTypeHandlerDeps;
 }
