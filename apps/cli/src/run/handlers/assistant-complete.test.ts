@@ -1099,9 +1099,6 @@ describe('assistant_complete end-to-end', () => {
       },
       recordPendingCompletion,
     });
-    vi.spyOn(ctx, 'readCodingPlanElementTypes').mockReturnValue([
-      ExtendedUIFieldType.CodingPlanVersion,
-    ]);
 
     await handleAssistantComplete(
       normalizeEvent(makeRawAssistantComplete(summary), 'claude') as AssistantCompleteEvent,
@@ -1121,84 +1118,6 @@ describe('assistant_complete end-to-end', () => {
     expect(outOfBandDto(poster).data?.['responseType']).toBeUndefined();
     expect(outOfBandDto(poster).data?.['uiElements']).toBeUndefined();
     expect(recordPendingCompletion).not.toHaveBeenCalled();
-  });
-
-  describe('Coding Plan turn that ends without saving a plan', () => {
-    const complete = async (
-      summary: string,
-      saved: string[] = [],
-      payload: unknown = { _hasSavedPlanVersion: false },
-    ) => {
-      const poster = makePoster();
-      const turn = makeTestTurn(
-        codingPlanHandler as unknown as PromptTypeHandler<unknown>,
-        'turn-1',
-        null,
-        payload,
-      );
-      // Save through the Run's real planning-element path so it records the Turn.
-      const ctx = makeTestRun({ activeTurn: turn });
-      for (const type of saved) {
-        if (type === 'coding_plan_question') await ctx.persistCodingPlanQuestion('Which Services?');
-        else await ctx.persistCodingPlanElement(type as ExtendedUIFieldType, {} as never);
-      }
-      await handleAssistantComplete(
-        normalizeEvent(makeRawAssistantComplete(summary), 'claude') as AssistantCompleteEvent,
-        ctx,
-        makeDeps(poster),
-        turn,
-      );
-      return { poster, turn };
-    };
-
-    const NOTICE =
-      "**The plan wasn't saved, so it can't be approved yet. Reply to try saving it again.**";
-
-    it('leads the reply with a notice and keeps the session usable when the plan went to chat instead', async () => {
-      const summary =
-        "I couldn't record this plan in the app. The emit_coding_plan tools aren't loaded.\n\n# Plan\n1. Do it.";
-      const { poster, turn } = await complete(summary);
-
-      expect(poster.createOutOfBand).toHaveBeenCalledOnce();
-      expect(outOfBandDto(poster)).toMatchObject({
-        status: MessageStatus.Completed,
-        data: { type: SystemMessageDataTypeEnum.Agent, response: `${NOTICE}\n\n${summary}` },
-      });
-      // The Turn completes, so the user's next reply starts a fresh planning attempt.
-      expect(turn.completedAssistantMessageId).not.toBeNull();
-      expect(turn.completionPublicationFailed).toBe(false);
-      expect(turn.terminalOutcome).not.toBe('FAILED');
-    });
-
-    it('flags a plan printed in chat even when it contains question marks', async () => {
-      const { poster } = await complete(
-        '# Plan\n\n## Open questions?\n\nShould retries back off? See https://example.test/docs?page=2.\n\n1. Add the endpoint.\n2. Add tests.',
-      );
-
-      expect(String(outOfBandDto(poster).data?.['response'])).toMatch(/^\*\*The plan wasn't saved/);
-    });
-
-    it.each([
-      ['a plan already exists', 'Agreed, that stays the same.', [], { _hasSavedPlanVersion: true }],
-      [
-        'the planner asked a question',
-        'I asked one question above.',
-        ['coding_plan_question'],
-        undefined,
-      ],
-    ])('ends normally when %s', async (_case, summary, saved, payload) => {
-      const { poster, turn } = await complete(
-        summary,
-        saved,
-        payload ?? { _hasSavedPlanVersion: false },
-      );
-
-      expect(outOfBandDto(poster)).toMatchObject({
-        status: MessageStatus.Completed,
-        data: { response: summary },
-      });
-      expect(turn.completedAssistantMessageId).not.toBeNull();
-    });
   });
 
   it('posts only the plan message when a startup_plan_v1 body has no nextAction (first-turn shape)', async () => {

@@ -22,9 +22,6 @@ import {
   renderCodingPlanConversation,
 } from './conversation-context';
 
-export const CODING_PLAN_NOT_SAVED_MESSAGE =
-  "The plan wasn't saved, so it can't be approved yet. Reply to try saving it again.";
-
 /**
  * Restricted MCP tool allowlist for the coding-plan subagent. The planner may
  * ground its plan in project state, read and maintain graph Hints, and persist
@@ -262,15 +259,6 @@ export const codingPlanHandler: CodingPlanHandler = {
         ? { planDesignDocReference: enriched._planDesignDocReference }
         : {}),
     });
-  },
-
-  // Before any plan exists, a turn must save a plan, a discrepancy or a
-  // question through its tools. Otherwise the plan likely went to chat text
-  // because the tools were unavailable; the reply says so and the user can retry.
-  getUnsavedOutputNotice(_event, payload, saved) {
-    if (saved.codingPlanElementTypes.length > 0) return null;
-    if ((payload as EnrichedCodingPlanPromptPayload | undefined)?._hasSavedPlanVersion) return null;
-    return CODING_PLAN_NOT_SAVED_MESSAGE;
   },
 
   // The rebuilt prompt already carries persisted replies and any unsaved current feedback.
