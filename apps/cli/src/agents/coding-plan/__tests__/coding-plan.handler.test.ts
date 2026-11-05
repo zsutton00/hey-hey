@@ -589,7 +589,8 @@ describe('codingPlanHandler', () => {
       expect(prompt).toContain('It contains no gates of any kind');
       expect(prompt).toContain('Every replacement re-lists every finding that still applies');
       expect(prompt).toContain('project_context');
-      expect(prompt).toContain('ask the user for direction');
+      expect(prompt).not.toContain('ask_coding_plan_question');
+      expect(prompt).toContain('record it as a discrepancy with a proposed resolution');
       expect(prompt).toContain('their assent does not erase it');
       expect(prompt).toContain(
         'Only the explicit Approve control on the current complete emitted plan authorizes implementation',
@@ -623,9 +624,6 @@ describe('coding-plan registry wiring', () => {
 
   it('the registered handler carries the explicit completion tools', async () => {
     const fetched = registry.get('startup_session');
-    expect(fetched?.submissionTools?.map((tool) => tool.name)).toEqual([
-      'ask_coding_plan_question',
-      'emit_coding_plan',
-    ]);
+    expect(fetched?.submissionTools?.map((tool) => tool.name)).toEqual(['emit_coding_plan']);
   });
 });

@@ -16,7 +16,6 @@ const generatedSchemaNames = [
   'CodingPlanVersion',
   'CodingPlanVersionApproval',
   'CodingPlanEmissionInput',
-  'CodingPlanQuestion',
   'CodingPlanConversationalApproval',
   'CodingPlanApprovalPayload',
   'CodingPlanWorkflowAnswer',
@@ -185,13 +184,16 @@ if (process.argv[2]) {
       ...(description ? { description } : {}),
       ...(closed ? { additionalProperties: false } : {}),
       required,
-      properties: Object.assign({}, ...parts.map((part) => part.properties ?? {})),
+      properties: Object.assign(
+        {},
+        ...parts.map((part) => part.properties ?? {}),
+      ),
     };
   };
   fs.writeFileSync(
     process.argv[2].replace('.schemas.ts', '.tool-schemas.ts'),
     '/* Generated from OpenAPI; do not edit. */\n' +
-      ['CodingPlanEmissionInput', 'CodingPlanDiscrepancy', 'CodingPlanQuestion']
+      ['CodingPlanEmissionInput', 'CodingPlanDiscrepancy']
         .map(
           (name) =>
             `export const ${name}ToolSchema = ${JSON.stringify(toToolInputSchema(expand(schemas[name])), null, 2)};\n`,

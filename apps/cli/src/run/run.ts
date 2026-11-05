@@ -6449,11 +6449,6 @@ export class Run {
     ]);
   }
 
-  /** Posts a planner question as visible text; the user's reply starts the next Turn. */
-  public async persistCodingPlanQuestion(question: string): Promise<string> {
-    return this.persistCodingPlanMessage('coding_plan_question', question);
-  }
-
   private async persistCodingPlanMessage(
     savedType: string,
     response: string,

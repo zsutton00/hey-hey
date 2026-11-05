@@ -1,28 +1,9 @@
-import {
-  CodingPlanEmissionInputToolSchema,
-  CodingPlanQuestionToolSchema,
-} from '../../generated/coding-plan.tool-schemas';
-import {
-  CodingPlanEmissionInputSchema,
-  CodingPlanQuestionSchema,
-} from '../../generated/coding-plan.schemas';
+import { CodingPlanEmissionInputToolSchema } from '../../generated/coding-plan.tool-schemas';
+import { CodingPlanEmissionInputSchema } from '../../generated/coding-plan.schemas';
 import { ExtendedUIFieldType } from '@hey-hey/contracts/api/models';
 import type { PassThroughSubmissionToolDeclaration } from '../submission-tools/types';
 
 export const codingPlanConversationTools: readonly PassThroughSubmissionToolDeclaration[] = [
-  {
-    kind: 'pass_through',
-    name: 'ask_coding_plan_question',
-    description:
-      'Show one question the user must answer before planning can continue. Their reply starts the next planning turn.',
-    inputSchema: CodingPlanQuestionToolSchema,
-    async execute({ args, run }) {
-      if (!run) throw new Error('A planning Run is required.');
-      const { question } = CodingPlanQuestionSchema.parse(args);
-      const messageId = await run.persistCodingPlanQuestion(question);
-      return { content: [{ type: 'text', text: JSON.stringify({ messageId }) }] };
-    },
-  },
   {
     kind: 'pass_through',
     name: 'emit_coding_plan',
@@ -63,9 +44,7 @@ export const codingPlanConversationTools: readonly PassThroughSubmissionToolDecl
             ...(category === undefined ? {} : { category }),
             ...(userDirection === undefined ? {} : { userDirection }),
             ...(disposition === undefined ? {} : { disposition }),
-            ...(implementationFollowThrough === undefined
-              ? {}
-              : { implementationFollowThrough }),
+            ...(implementationFollowThrough === undefined ? {} : { implementationFollowThrough }),
             ...(withdrawalEvidence === undefined ? {} : { withdrawalEvidence }),
           }),
         ),
