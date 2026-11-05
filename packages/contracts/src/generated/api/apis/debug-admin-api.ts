@@ -140,14 +140,17 @@ export const DebugAdminApiAxiosParamCreator = function (configuration?: Configur
             };
         },
         /**
-         * Read-only project listing. Returns no hints when the deployment Hints switch is off. Separate from agent connected-item retrieval and legacy implementation hints.
+         * Read-only project listing with connected item titles and types resolved for items the caller can see. Filters apply over the whole list; a hint matches when any connection matches the type and strength filters, and a matching hint keeps all its connections. Separate from agent connected-item retrieval and legacy implementation hints.
          * @summary List live graph Hints for platform admins
          * @param {string} organizationId
          * @param {string} projectId
+         * @param {string} [search] Matches hint text or the title of a connected item the caller can see.
+         * @param {Array<string>} [itemTypes] Connected item types (work-item type keys or entity types). Repeat the param for an OR-set.
+         * @param {number} [minStrength] Minimum connection strength.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        getAdminProjectHints: async (organizationId: string, projectId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        getAdminProjectHints: async (organizationId: string, projectId: string, search?: string, itemTypes?: Array<string>, minStrength?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'organizationId' is not null or undefined
             assertParamExists('getAdminProjectHints', 'organizationId', organizationId)
             // verify required parameter 'projectId' is not null or undefined
@@ -169,6 +172,18 @@ export const DebugAdminApiAxiosParamCreator = function (configuration?: Configur
             // authentication BearerAuth required
             // http bearer authentication required
             await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+            if (search !== undefined) {
+                localVarQueryParameter['search'] = search;
+            }
+
+            if (itemTypes) {
+                localVarQueryParameter['itemTypes'] = itemTypes;
+            }
+
+            if (minStrength !== undefined) {
+                localVarQueryParameter['minStrength'] = minStrength;
+            }
 
 
 
@@ -1429,15 +1444,18 @@ export const DebugAdminApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Read-only project listing. Returns no hints when the deployment Hints switch is off. Separate from agent connected-item retrieval and legacy implementation hints.
+         * Read-only project listing with connected item titles and types resolved for items the caller can see. Filters apply over the whole list; a hint matches when any connection matches the type and strength filters, and a matching hint keeps all its connections. Separate from agent connected-item retrieval and legacy implementation hints.
          * @summary List live graph Hints for platform admins
          * @param {string} organizationId
          * @param {string} projectId
+         * @param {string} [search] Matches hint text or the title of a connected item the caller can see.
+         * @param {Array<string>} [itemTypes] Connected item types (work-item type keys or entity types). Repeat the param for an OR-set.
+         * @param {number} [minStrength] Minimum connection strength.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async getAdminProjectHints(organizationId: string, projectId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetAdminProjectHints200Response>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.getAdminProjectHints(organizationId, projectId, options);
+        async getAdminProjectHints(organizationId: string, projectId: string, search?: string, itemTypes?: Array<string>, minStrength?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetAdminProjectHints200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getAdminProjectHints(organizationId, projectId, search, itemTypes, minStrength, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['DebugAdminApi.getAdminProjectHints']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
@@ -1848,14 +1866,14 @@ export const DebugAdminApiFactory = function (configuration?: Configuration, bas
             return localVarFp.deleteOrganization(requestParameters.organizationId, requestParameters.hard, options).then((request) => request(axios, basePath));
         },
         /**
-         * Read-only project listing. Returns no hints when the deployment Hints switch is off. Separate from agent connected-item retrieval and legacy implementation hints.
+         * Read-only project listing with connected item titles and types resolved for items the caller can see. Filters apply over the whole list; a hint matches when any connection matches the type and strength filters, and a matching hint keeps all its connections. Separate from agent connected-item retrieval and legacy implementation hints.
          * @summary List live graph Hints for platform admins
          * @param {DebugAdminApiGetAdminProjectHintsRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
         getAdminProjectHints(requestParameters: DebugAdminApiGetAdminProjectHintsRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetAdminProjectHints200Response> {
-            return localVarFp.getAdminProjectHints(requestParameters.organizationId, requestParameters.projectId, options).then((request) => request(axios, basePath));
+            return localVarFp.getAdminProjectHints(requestParameters.organizationId, requestParameters.projectId, requestParameters.search, requestParameters.itemTypes, requestParameters.minStrength, options).then((request) => request(axios, basePath));
         },
         /**
          * Platform admins only. Returns every implementation hint of every Service in the project, archived Services included, which agent search can no longer reach.
@@ -2152,7 +2170,7 @@ export interface DebugAdminApiInterface {
     deleteOrganization(requestParameters: DebugAdminApiDeleteOrganizationRequest, options?: RawAxiosRequestConfig): AxiosPromise<void>;
 
     /**
-     * Read-only project listing. Returns no hints when the deployment Hints switch is off. Separate from agent connected-item retrieval and legacy implementation hints.
+     * Read-only project listing with connected item titles and types resolved for items the caller can see. Filters apply over the whole list; a hint matches when any connection matches the type and strength filters, and a matching hint keeps all its connections. Separate from agent connected-item retrieval and legacy implementation hints.
      * @summary List live graph Hints for platform admins
      * @param {DebugAdminApiGetAdminProjectHintsRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -2478,6 +2496,27 @@ export interface DebugAdminApiGetAdminProjectHintsRequest {
      * @memberof DebugAdminApiGetAdminProjectHints
      */
     readonly projectId: string
+
+    /**
+     * Matches hint text or the title of a connected item the caller can see.
+     * @type {string}
+     * @memberof DebugAdminApiGetAdminProjectHints
+     */
+    readonly search?: string
+
+    /**
+     * Connected item types (work-item type keys or entity types). Repeat the param for an OR-set.
+     * @type {Array<string>}
+     * @memberof DebugAdminApiGetAdminProjectHints
+     */
+    readonly itemTypes?: Array<string>
+
+    /**
+     * Minimum connection strength.
+     * @type {number}
+     * @memberof DebugAdminApiGetAdminProjectHints
+     */
+    readonly minStrength?: number
 }
 
 /**
@@ -3004,7 +3043,7 @@ export class DebugAdminApi extends BaseAPI implements DebugAdminApiInterface {
     }
 
     /**
-     * Read-only project listing. Returns no hints when the deployment Hints switch is off. Separate from agent connected-item retrieval and legacy implementation hints.
+     * Read-only project listing with connected item titles and types resolved for items the caller can see. Filters apply over the whole list; a hint matches when any connection matches the type and strength filters, and a matching hint keeps all its connections. Separate from agent connected-item retrieval and legacy implementation hints.
      * @summary List live graph Hints for platform admins
      * @param {DebugAdminApiGetAdminProjectHintsRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -3012,7 +3051,7 @@ export class DebugAdminApi extends BaseAPI implements DebugAdminApiInterface {
      * @memberof DebugAdminApi
      */
     public getAdminProjectHints(requestParameters: DebugAdminApiGetAdminProjectHintsRequest, options?: RawAxiosRequestConfig) {
-        return DebugAdminApiFp(this.configuration).getAdminProjectHints(requestParameters.organizationId, requestParameters.projectId, options).then((request) => request(this.axios, this.basePath));
+        return DebugAdminApiFp(this.configuration).getAdminProjectHints(requestParameters.organizationId, requestParameters.projectId, requestParameters.search, requestParameters.itemTypes, requestParameters.minStrength, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

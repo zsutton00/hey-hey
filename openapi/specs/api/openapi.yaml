@@ -1805,7 +1805,12 @@ paths:
       operationId: getAdminProjectHints
       tags: [DebugAdmin]
       summary: List live graph Hints for platform admins
-      description: Read-only project listing. Returns no hints when the deployment Hints switch is off. Separate from agent connected-item retrieval and legacy implementation hints.
+      description: >-
+        Read-only project listing with connected item titles and types resolved
+        for items the caller can see. Filters apply over the whole list; a hint
+        matches when any connection matches the type and strength filters, and
+        a matching hint keeps all its connections. Separate from agent
+        connected-item retrieval and legacy implementation hints.
       parameters:
         - name: organizationId
           in: path
@@ -1815,6 +1820,25 @@ paths:
           in: path
           required: true
           schema: { type: string, format: uuid }
+        - name: search
+          in: query
+          required: false
+          description: Matches hint text or the title of a connected item the caller can see.
+          schema: { type: string }
+        - name: itemTypes
+          in: query
+          required: false
+          description: Connected item types (work-item type keys or entity types). Repeat the param for an OR-set.
+          schema:
+            type: array
+            items: { type: string }
+          style: form
+          explode: true
+        - name: minStrength
+          in: query
+          required: false
+          description: Minimum connection strength.
+          schema: { type: number, format: double, minimum: 0 }
       responses:
         "200":
           description: Live project hints with connections and strengths.
@@ -1827,7 +1851,7 @@ paths:
                     required: [data]
                     properties:
                       data:
-                        $ref: "../schemas/hints.yaml#/ListProjectHintsResponse"
+                        $ref: "../schemas/hints.yaml#/AdminProjectHintsResponse"
         "403":
           description: Admin access required.
 
@@ -30728,6 +30752,10 @@ components:
       $ref: "../schemas/eval-runs.yaml#/EvalCaseGrading"
     EvalRunSettings:
       $ref: "../schemas/eval-runs.yaml#/EvalRunSettings"
+    EvalCaseCoding:
+      $ref: "../schemas/eval-runs.yaml#/EvalCaseCoding"
+    EvalCaseCodingCommit:
+      $ref: "../schemas/eval-runs.yaml#/EvalCaseCodingCommit"
     EvalRunCaseInput:
       $ref: "../schemas/eval-runs.yaml#/EvalRunCaseInput"
     EvalRecordedAttempt:

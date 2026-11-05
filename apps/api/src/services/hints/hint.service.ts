@@ -67,16 +67,6 @@ export class HintService {
     private readonly resourceAccess: ProjectResourceAccessService,
   ) {}
 
-  // Only the platform-admin controller exposes this project-wide read.
-  async listProjectHints(requestor: HintRequestor) {
-    await this.assertProjectAccess(requestor);
-    return this.graphsClient.listProjectHints(
-      requestor.organizationId,
-      requestor.projectId,
-      requestor.token,
-    );
-  }
-
   async createHint(
     requestor: HintRequestor,
     input: {

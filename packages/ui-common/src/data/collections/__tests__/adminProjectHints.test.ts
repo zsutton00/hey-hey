@@ -21,8 +21,37 @@ describe("Admin graph Hints query", () => {
       ),
     ).toEqual(data);
     expect(list).toHaveBeenCalledWith(
-      { organizationId: "organization", projectId: "project" },
+      {
+        organizationId: "organization",
+        projectId: "project",
+        search: undefined,
+        itemTypes: undefined,
+        minStrength: undefined,
+      },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    client.clear();
+  });
+  it("sends filters as query parameters and keeps filtered results apart in the cache", async () => {
+    list.mockResolvedValue({ data: { data: { hints: [] } } });
+    const filters = { search: "api", itemTypes: ["FEATURE"], minStrength: 2 };
+    const client = new QueryClient();
+    await client.fetchQuery(
+      adminProjectHintsQueryOptions("organization", "project", filters),
+    );
+    expect(list).toHaveBeenLastCalledWith(
+      {
+        organizationId: "organization",
+        projectId: "project",
+        ...filters,
+      },
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(
+      adminProjectHintsQueryOptions("organization", "project", filters)
+        .queryKey,
+    ).not.toEqual(
+      adminProjectHintsQueryOptions("organization", "project").queryKey,
     );
     client.clear();
   });

@@ -80,6 +80,7 @@ import { TemplateGraphService } from 'src/generated/graphs/api/templateGraph.ser
 import { AgentEdgesService as GraphsAgentEdgesService } from 'src/generated/graphs/api/agentEdges.service';
 import { HintsService as GraphsHintsService } from 'src/generated/graphs/api/hints.service';
 import { HintService } from 'src/services/hints/hint.service';
+import { AdminHintListingService } from 'src/services/hints/admin-hint-listing.service';
 import { AgentEdgeClientService } from 'src/services/agent-edge-client.service';
 import { ProjectModeEligibilityService } from 'src/services/tasks/project-mode-eligibility.service';
 import { PlanDesignDocLinksService } from 'src/services/design-doc/plan-design-doc-links.service';
@@ -200,6 +201,7 @@ export const DOMAIN_SERVICES: Provider[] = [
   GraphsAgentEdgesService,
   GraphsHintsService,
   HintService,
+  AdminHintListingService,
   FeatureFlagService,
   EntityGraphEmbeddingMappingService,
   EntityRegistryService,
@@ -348,6 +350,7 @@ export const DOMAIN_EXPORTS = [
   GraphsAgentEdgesService,
   GraphsHintsService,
   HintService,
+  AdminHintListingService,
   FeatureFlagService,
   EntityGraphEmbeddingMappingService,
   EntityRegistryService,

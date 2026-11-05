@@ -1,8 +1,10 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Param,
   ParseUUIDPipe,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -12,8 +14,8 @@ import {
   AuthToken,
   CurrentUser,
 } from '../auth/decorators/current-user.decorator';
-import { HintService } from '../services/hints/hint.service';
-import type { ListProjectHintsResponse } from '@hey-hey/contracts/api/models';
+import { AdminHintListingService } from '../services/hints/admin-hint-listing.service';
+import type { AdminProjectHintsResponse } from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId } from '../types';
 
 @ApiTags('DebugAdmin')
@@ -23,7 +25,7 @@ import type { OrganizationId, ProjectId } from '../types';
   'api/v1/admin/organizations/:organizationId/projects/:projectId/hints',
 )
 export class AdminHintController {
-  constructor(private readonly hintService: HintService) {}
+  constructor(private readonly listing: AdminHintListingService) {}
 
   @Get()
   list(
@@ -31,12 +33,33 @@ export class AdminHintController {
     @Param('projectId', ParseUUIDPipe) projectId: ProjectId,
     @CurrentUser('userId') userId: string,
     @AuthToken() token: string,
-  ): Promise<ListProjectHintsResponse> {
-    return this.hintService.listProjectHints({
-      userId,
-      organizationId,
-      projectId,
-      token,
-    });
+    @Query('search') search?: string,
+    @Query('itemTypes') itemTypes?: string | string[],
+    @Query('minStrength') minStrength?: string,
+  ): Promise<AdminProjectHintsResponse> {
+    return this.listing.list(
+      { userId, organizationId, projectId, token },
+      {
+        search: search?.trim() || undefined,
+        itemTypes: parseItemTypes(itemTypes),
+        minStrength: parseMinStrength(minStrength),
+      },
+    );
   }
+}
+
+function parseItemTypes(raw: string | string[] | undefined) {
+  const values = [raw ?? []].flat().filter((value) => value.length > 0);
+  return values.length > 0 ? values : undefined;
+}
+
+function parseMinStrength(raw: string | undefined) {
+  if (raw === undefined || raw === '') {
+    return undefined;
+  }
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new BadRequestException('minStrength must be a non-negative number');
+  }
+  return value;
 }

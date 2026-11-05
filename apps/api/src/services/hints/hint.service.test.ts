@@ -55,38 +55,6 @@ function setup() {
 }
 
 describe('HintService', () => {
-  it('lists the project without using connected-item queries', async () => {
-    const { service, graphsClient, resourceAccess } = setup();
-    const response = { hints: [makeHint('admin', [visibleTask])] };
-    graphsClient.listProjectHints.mockResolvedValue(response);
-    await expect(service.listProjectHints(requestor)).resolves.toEqual(
-      response,
-    );
-    expect(graphsClient.listProjectHints).toHaveBeenCalledWith(
-      requestor.organizationId,
-      requestor.projectId,
-      requestor.token,
-    );
-    expect(resourceAccess.assertResource).toHaveBeenCalledWith(
-      requestor.userId,
-      requestor.organizationId,
-      'project',
-      requestor.projectId,
-    );
-    expect(graphsClient.findHintsByConnectedItems).not.toHaveBeenCalled();
-  });
-
-  it('refuses the project listing before querying the graph when project access fails', async () => {
-    const { service, graphsClient, resourceAccess } = setup();
-    resourceAccess.assertResource.mockRejectedValueOnce(
-      new ForbiddenException('hidden project'),
-    );
-    await expect(service.listProjectHints(requestor)).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
-    expect(graphsClient.listProjectHints).not.toHaveBeenCalled();
-  });
-
   it('drops any hint connected to an item the caller cannot see', async () => {
     const { service, graphsClient } = setup();
     graphsClient.findHintsByConnectedItems.mockResolvedValue({
