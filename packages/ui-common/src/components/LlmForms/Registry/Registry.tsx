@@ -1052,6 +1052,7 @@ export const FIELD_REGISTRY: Record<string, FieldRegistryEntry> = {
       AgentPermissionRequestField as unknown as React.FC<FieldComponentProps>,
     getHasContent: () => true,
     shouldShowButtons: () => false,
+    hideSystemMessage: true,
   },
   agent_question: {
     ...getFieldResponseMetadata("agent_question"),

@@ -10,7 +10,7 @@ vi.mock(
       submit: submitDecisionMock,
       isPending: false,
     }),
-  })
+  }),
 );
 
 const basePayload = {
@@ -62,7 +62,7 @@ const renderField = (overrides?: { agentSessionId?: string | undefined }) => {
       }}
       context={context}
       isSubmitted={false}
-    />
+    />,
   );
 };
 
@@ -77,25 +77,25 @@ describe("AgentPermissionRequestField", () => {
     renderField();
 
     expect(
-      screen.getByTestId("permission-request-summary-request-1")
+      screen.getByTestId("permission-request-summary-request-1"),
     ).toHaveTextContent("filesystem_write request for /tmp/example.ts");
     expect(
-      screen.getByTestId("permission-request-reason-request-1")
+      screen.getByTestId("permission-request-reason-request-1"),
     ).toHaveTextContent("Reason: Need elevated write access");
     expect(
-      screen.getByTestId("permission-request-agent-intent-request-1")
+      screen.getByTestId("permission-request-agent-intent-request-1"),
     ).toHaveTextContent("Agent intent: Patch api contracts");
     expect(
-      screen.queryByTestId("permission-request-edit-replace-all-request-1")
+      screen.queryByTestId("permission-request-edit-replace-all-request-1"),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByTestId("permission-request-referenced-file-request-1-0")
+      screen.getByTestId("permission-request-referenced-file-request-1-0"),
     ).toHaveTextContent("src/services/agent-message-mapping.ts");
     expect(
-      screen.getByTestId("permission-request-diff-request-1")
+      screen.getByTestId("permission-request-diff-request-1"),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId("diff-renderer-split-code-view")
+      screen.getByTestId("diff-renderer-split-code-view"),
     ).toBeInTheDocument();
   });
 
@@ -104,7 +104,7 @@ describe("AgentPermissionRequestField", () => {
     renderField();
 
     await userEvent.click(
-      screen.getByTestId("permission-request-approve-request-1")
+      screen.getByTestId("permission-request-approve-request-1"),
     );
 
     await waitFor(() => {
@@ -122,8 +122,8 @@ describe("AgentPermissionRequestField", () => {
 
     expect(
       await screen.findByTestId(
-        "permission-request-submitted-decision-request-1"
-      )
+        "permission-request-submitted-decision-request-1",
+      ),
     ).toHaveTextContent("Decision: approve");
   });
 
@@ -132,7 +132,7 @@ describe("AgentPermissionRequestField", () => {
     renderField();
 
     await userEvent.click(
-      screen.getByTestId("permission-request-deny-request-1")
+      screen.getByTestId("permission-request-deny-request-1"),
     );
 
     await waitFor(() => {
@@ -154,11 +154,11 @@ describe("AgentPermissionRequestField", () => {
     renderField();
 
     await userEvent.click(
-      screen.getByTestId("permission-request-approve-request-1")
+      screen.getByTestId("permission-request-approve-request-1"),
     );
 
     expect(
-      await screen.findByTestId("permission-request-delivery-error-request-1")
+      await screen.findByTestId("permission-request-delivery-error-request-1"),
     ).toHaveTextContent("network down");
   });
 
@@ -166,12 +166,73 @@ describe("AgentPermissionRequestField", () => {
     renderField({ agentSessionId: undefined });
 
     await userEvent.click(
-      screen.getByTestId("permission-request-approve-request-1")
+      screen.getByTestId("permission-request-approve-request-1"),
     );
 
     expect(
-      await screen.findByTestId("permission-request-delivery-error-request-1")
+      await screen.findByTestId("permission-request-delivery-error-request-1"),
     ).toHaveTextContent("Missing agent session id");
     expect(submitDecisionMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps concurrent WebSearch requests independent", async () => {
+    submitDecisionMock.mockResolvedValue(undefined as never);
+    const searchPayload = (id: string, token: string, query: string) => ({
+      ...basePayload,
+      permissionRequest: {
+        ...basePayload.permissionRequest,
+        id,
+        idempotencyToken: token,
+        agentType: "claude" as const,
+        reason: `WebSearch: query=${query}, mode=standard`,
+      },
+      rawEvent: { toolName: "WebSearch", toolInput: { query } },
+    });
+
+    render(
+      <>
+        {[
+          searchPayload("search-1", "idem-a", "first query"),
+          searchPayload("search-2", "idem-b", "second query"),
+        ].map((payload) => (
+          <AgentPermissionRequestField
+            key={payload.permissionRequest.id}
+            config={{
+              field: payload.permissionRequest.id,
+              description: "Permission request",
+              type: "agent_request_permission",
+              payload,
+            }}
+            context={{
+              conversationId: "conversation-1",
+              organizationId: "org-1",
+              projectId: "project-1",
+              agentSessionId: "session-1",
+            }}
+            isSubmitted={false}
+          />
+        ))}
+      </>,
+    );
+
+    expect(screen.getAllByText(/query=first query/)).toHaveLength(1);
+    expect(screen.getAllByText(/query=second query/)).toHaveLength(1);
+
+    await userEvent.click(
+      screen.getByTestId("permission-request-approve-search-1"),
+    );
+
+    await waitFor(() => {
+      expect(submitDecisionMock).toHaveBeenCalledTimes(1);
+    });
+    expect(submitDecisionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: "search-1",
+        idempotencyToken: "idem-a",
+      }),
+    );
+    expect(
+      screen.getByTestId("permission-request-approve-search-2"),
+    ).toBeEnabled();
   });
 });

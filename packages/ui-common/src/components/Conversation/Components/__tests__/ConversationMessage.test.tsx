@@ -2017,4 +2017,46 @@ describe("ConversationMessage", () => {
     // Should still render form renderer
     expect(screen.getByTestId("form-renderer")).toBeInTheDocument();
   });
+
+  describe("permission requests", () => {
+    const renderPermissionMessage = (uiElements: unknown[]) => {
+      const conversationMessage = createMockConversationMessage({
+        message: {
+          ...createMockConversationMessage().message,
+          data: {
+            type: "QUESTIONS",
+            response:
+              "WebSearch: query=Cursor agent SDK TypeScript docs, mode=standard",
+            uiHints: { title: "Permission Request: WebSearch" },
+            uiElements,
+          },
+        } as never,
+      });
+
+      render(
+        <ConversationMessage
+          conversationMessage={conversationMessage}
+          messageIndex={0}
+          totalMessages={1}
+        />,
+      );
+    };
+
+    it("shows a permission request only through its card, not a repeated summary", () => {
+      renderPermissionMessage([
+        { id: "permission-1", type: "agent_request_permission", payload: {} },
+      ]);
+
+      expect(screen.getByTestId("form-renderer")).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("system-message-retry"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("keeps the message text for ordinary messages without a permission card", () => {
+      renderPermissionMessage([]);
+
+      expect(screen.getByTestId("system-message-retry")).toBeInTheDocument();
+    });
+  });
 });
