@@ -112,7 +112,7 @@ it('keeps JSON dollar quotes from forming Flyway placeholders', () => {
 
 it('appends transition role guidance once to canonical Diagram standards and canonical-derived project copies', () => {
   const transitionRoles = migration(
-    'V2026.11.05.100100__teach_diagram_transition_roles.sql',
+    'V2026.11.03.224337__teach_diagram_transition_roles.sql',
   );
   for (const rule of [
     'PRIMARY_PROGRESSION',
