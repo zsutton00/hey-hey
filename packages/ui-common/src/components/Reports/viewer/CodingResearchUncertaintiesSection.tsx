@@ -46,6 +46,7 @@ export const CodingResearchUncertaintiesSection: React.FC<
                     severity={uncertainty.severity}
                     category={uncertainty.category}
                     statement={uncertainty.statement}
+                    showAnswerBand={false}
                   >
                     <Stack spacing={0.5}>
                       {uncertainty.references.map((reference) => (

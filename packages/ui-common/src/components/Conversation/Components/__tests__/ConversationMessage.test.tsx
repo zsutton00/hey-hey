@@ -1,4 +1,6 @@
+import { ThemeProvider } from "@mui/material/styles";
 import { render, screen } from "@testing-library/react";
+import { createHeyTheme } from "../../../../contexts/ThemeContext";
 import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
 import type { ComponentProps } from "react";
@@ -342,11 +344,13 @@ describe("ConversationMessage", () => {
     });
 
     render(
-      <ConversationMessage
-        conversationMessage={conversationMessage}
-        messageIndex={0}
-        totalMessages={1}
-      />,
+      <ThemeProvider theme={createHeyTheme("light")}>
+        <ConversationMessage
+          conversationMessage={conversationMessage}
+          messageIndex={0}
+          totalMessages={1}
+        />
+      </ThemeProvider>,
     );
 
     const uncertainty = screen.getByTestId("conversation-agent-uncertainty");
