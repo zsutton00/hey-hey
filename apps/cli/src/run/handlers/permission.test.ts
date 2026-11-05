@@ -131,9 +131,44 @@ describe('permission end-to-end', () => {
     );
   });
 
-  it('delegates Task Monitor-owned projection without creating the generic permission UI', async () => {
+  it('shows the normal permission card on a Task Monitor Run when the monitor cannot admit the request', async () => {
     const event = normalizeEvent(
       makeRawPermissionFull(['src/auth.ts']),
+      'claude',
+    ) as PermissionEvent;
+    const poster = makePoster();
+    const deps = makeDeps(poster);
+    const ctx = makeTestRun({
+      taskMonitorId: '10000000-0000-4000-8000-000000000001',
+    });
+
+    await handlePermission(event, ctx, deps);
+
+    expect(poster.createOutOfBand).toHaveBeenCalledOnce();
+    expect(ctx.recordPermissionRequestMessage).toHaveBeenCalledWith(
+      'perm-1',
+      'oob-msg-1',
+      expect.objectContaining({ type: 'QUESTIONS' }),
+    );
+    expect(deps.logger.warn).toHaveBeenCalledWith(
+      'local.handler.permission.task_monitor_not_admissible',
+      expect.objectContaining({ providerActionId: 'perm-1' }),
+    );
+  });
+
+  it('delegates Task Monitor-owned projection without creating the generic permission UI', async () => {
+    const raw = makeRawPermissionFull(['src/auth.ts']);
+    const event = normalizeEvent(
+      {
+        ...raw,
+        payload: {
+          ...raw.payload,
+          permission_request: {
+            ...(raw.payload['permission_request'] as Record<string, unknown>),
+            expires_at: '2025-01-01T00:05:00.000Z',
+          },
+        },
+      },
       'claude',
     ) as PermissionEvent;
     const poster = makePoster();

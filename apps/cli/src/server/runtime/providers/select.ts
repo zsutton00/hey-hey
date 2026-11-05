@@ -220,8 +220,9 @@ export class SessionRunnerFacade {
       run.setTaskMonitorAutomationAuthorization(false);
       return runner.runPrompt(launch);
     }
-    const derived = await this.readAutoDecide(launch);
-    run.setTaskMonitorAutomationAuthorization(derived === true);
+    const autoDecide = await this.readAutoDecide(launch);
+    run.setTaskMonitorAutomationAuthorization(autoDecide === true);
+    const derived = this.skipPermissionsFor(run, autoDecide);
     return derived === undefined
       ? runner.runPrompt(launch)
       : runner.runPrompt({ ...launch, skipPermissions: derived });
@@ -236,11 +237,32 @@ export class SessionRunnerFacade {
       run.setTaskMonitorAutomationAuthorization(false);
       return runner.resumeSession(args);
     }
-    const derived = await this.readAutoDecide(args);
-    run.setTaskMonitorAutomationAuthorization(derived === true);
+    const autoDecide = await this.readAutoDecide(args);
+    run.setTaskMonitorAutomationAuthorization(autoDecide === true);
+    const derived = this.skipPermissionsFor(run, autoDecide);
     return derived === undefined
       ? runner.resumeSession(args)
       : runner.resumeSession({ ...args, skipPermissions: derived });
+  }
+
+  /**
+   * A Task Monitor-owned session is created with `autoDecide` on, and nothing
+   * answers a permission prompt on its behalf, so a monitored Run never waits
+   * for one. An `autoDecide` that is off on such a session is an invalid state;
+   * run with permissions skipped and say so.
+   */
+  private skipPermissionsFor(run: Run, autoDecide: boolean | undefined): boolean | undefined {
+    if (run.taskMonitorId === null || autoDecide === true) {
+      return autoDecide;
+    }
+
+    this.dependencies.logger.warn('select.skip_permissions.task_monitor_forced', {
+      runId: run.runId,
+      taskMonitorId: run.taskMonitorId,
+      autoDecide: autoDecide ?? null,
+    });
+
+    return true;
   }
 
   private async readAutoDecide(args: RunPromptArgs | ResumeArgs): Promise<boolean | undefined> {

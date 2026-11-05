@@ -234,6 +234,23 @@ describe('SessionRunnerFacade — skipPermissions derivation', () => {
     expect(opencodeState.lastRunPromptArgs).toMatchObject({ skipPermissions: true });
   });
 
+  it('skips permissions on a Task Monitor Run even when autoDecide is off, without granting scope automation', async () => {
+    resetState();
+    const facade = buildFacade(async () => dto(false));
+    const run = buildRun();
+    vi.spyOn(run, 'taskMonitorId', 'get').mockReturnValue('monitor-1');
+    const setAuthorization = vi.spyOn(run, 'setTaskMonitorAutomationAuthorization');
+
+    await facade.runPrompt(run, buildRunArgs());
+    await facade.resumeSession(run, buildResumeArgs());
+
+    expect(opencodeState.lastRunPromptArgs).toMatchObject({ skipPermissions: true });
+    expect(opencodeState.lastResumeArgs).toMatchObject({ skipPermissions: true });
+    expect(setAuthorization).toHaveBeenCalledTimes(2);
+    expect(setAuthorization).toHaveBeenNthCalledWith(1, false);
+    expect(setAuthorization).toHaveBeenNthCalledWith(2, false);
+  });
+
   it('forwards skipPermissions=false when autoDecide is false', async () => {
     resetState();
     const facade = buildFacade(async () => dto(false));
