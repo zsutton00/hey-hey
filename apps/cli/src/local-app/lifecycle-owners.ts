@@ -1,16 +1,13 @@
-import { Configuration } from '../shared/agent-bridge-contract/generated/configuration';
+import { Configuration } from '@hey-hey/contracts/agent-bridge/configuration';
 import { createAgentBridgeRuntimeValidator } from '../shared/agent-bridge-contract/runtime-schema-validator';
-import { localLifecycleRuntimeSchema } from '../shared/agent-bridge-contract/generated/local-lifecycle-runtime-schema';
+import { localLifecycleRuntimeSchema } from '@hey-hey/contracts/agent-bridge/local-lifecycle-runtime-schema';
 import { StructuredServerLogger } from '../server/logger';
 import { createServer, type Server } from 'node:http';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, readdir, unlink, writeFile, open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod/v4';
-import {
-  LocalLifecycleApi,
-  type LocalLifecycleWork,
-} from '../shared/agent-bridge-contract/generated/api';
+import { LocalLifecycleApi, type LocalLifecycleWork } from '@hey-hey/contracts/agent-bridge';
 import type { LocalAgentServerRuntime } from '../server/local-agent-server-runtime';
 import { InstallationStore } from './installation-store';
 

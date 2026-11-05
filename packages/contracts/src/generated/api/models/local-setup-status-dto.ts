@@ -51,4 +51,10 @@ export interface LocalSetupStatusDto {
      * @memberof LocalSetupStatusDto
      */
     'hasProjects': boolean;
+    /**
+     * The default project created when the name was saved, while it is still in onboarding and no other project has finished setup. First-project setup resumes this project; null once setup is complete or before the name is saved.
+     * @type {string}
+     * @memberof LocalSetupStatusDto
+     */
+    'setupProjectId': string | null;
 }

@@ -18,6 +18,11 @@ import type {
   AgentSessionInteractionAccess,
   BoundStartSessionInput,
 } from "./AgentOperationCoordinator";
+import {
+  toOpenApiConversationId,
+  toOpenApiProjectId,
+  toOpenApiWorkflowId,
+} from "../../../clients/contractIdentifierAdapters";
 import type { MachinePingResult } from "../runtime/hooks/submitMachinePingViaPlatform";
 import type {
   UpdateAgentSessionRecordInput,
@@ -224,7 +229,8 @@ const settled = (
 };
 
 type Prepared<T> =
-  { ok: true; value: T } | { ok: false; result: AgentSessionLaunchResult };
+  | { ok: true; value: T }
+  | { ok: false; result: AgentSessionLaunchResult };
 
 const prepareSession = async (
   deps: AgentSessionLaunchDependencies,
@@ -240,7 +246,7 @@ const prepareSession = async (
       organizationId: binding.organizationId,
       agentSession: {
         ...session,
-        projectId: binding.projectId,
+        projectId: toOpenApiProjectId(binding.projectId),
         sessionDate: new Date().toISOString(),
         type: session.type ?? AgentSessionType.Coding,
         provider: runtime.provider,
@@ -248,8 +254,10 @@ const prepareSession = async (
         ...(conversation.kind === "existingWorkflow"
           ? {
               existingWorkflowBinding: {
-                conversationId: conversation.conversationId,
-                workflowId: conversation.workflowId,
+                conversationId: toOpenApiConversationId(
+                  conversation.conversationId,
+                ),
+                workflowId: toOpenApiWorkflowId(conversation.workflowId),
               },
             }
           : {}),

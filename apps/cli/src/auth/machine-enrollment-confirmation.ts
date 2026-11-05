@@ -19,10 +19,7 @@ import {
 } from '../credentials/controller-registry';
 import { KeyPairStore } from '../credentials/keypair';
 import { canonicalizeJson, type CanonicalJsonValue } from '../shared/canonical-json';
-import {
-  toOpenApiOrganizationId,
-  toOpenApiUserId,
-} from '../shared/api/identifierAdapters';
+import { toOpenApiOrganizationId, toOpenApiUserId } from '../shared/api/identifierAdapters';
 import {
   attachDirectEnrollmentOutput,
   MachineEnrollmentCancelledError,
@@ -37,7 +34,7 @@ import {
   verifiedFirstLocalGrantIntent,
 } from './first-local-grant';
 import { ExecutionGrantStore } from '../server/controller-authorization/execution-grant-store';
-import { CurrentAgentOperation, HostActionCategory } from '../shared/api/generated/api';
+import { CurrentAgentOperation, HostActionCategory } from '@hey-hey/contracts/api/models';
 
 /** Generated ready-state evidence retained for local review and recovery. */
 export type PendingMachineEnrollment = MachineEnrollmentPollReadyDto;
@@ -150,18 +147,14 @@ const firstLocalGrantIntentSchema = z
     version: z.literal(1),
     enrollmentId: z.string().min(1),
     machineId: z.string().min(1),
-    userId: z.string().min(1),
-    organizationId: z.string().min(1),
+    userId: z.string().min(1).transform(toOpenApiUserId),
+    organizationId: z.string().min(1).transform(toOpenApiOrganizationId),
     projectId: z.string().min(1),
     controllerInstallationId: z.string().min(1),
     cadence: cadenceSchema,
     policyRevision: z.number().int().min(1),
-    allowedActionTypes: z
-      .array(z.nativeEnum(CurrentAgentOperation))
-      .transform((values) => new Set(values)),
-    allowedActionCategories: z
-      .array(z.nativeEnum(HostActionCategory))
-      .transform((values) => new Set(values)),
+    allowedActionTypes: z.array(z.nativeEnum(CurrentAgentOperation)),
+    allowedActionCategories: z.array(z.nativeEnum(HostActionCategory)),
     target: z.object({ kind: z.literal('CLI_READ'), id: z.string().min(1) }).strict(),
     issuedAtMs: z.number().int(),
     nonce: z.string().length(43),
@@ -247,16 +240,12 @@ const storedActivationSchema = z
             controllerCredentialId: z.string().min(1),
             controllerInstallationId: z.string().min(1),
             machineId: z.string().min(1),
-            userId: z.string().min(1),
-            organizationId: z.string().min(1),
+            userId: z.string().min(1).transform(toOpenApiUserId),
+            organizationId: z.string().min(1).transform(toOpenApiOrganizationId),
             cadence: cadenceSchema,
             policyRevision: z.number().int().min(1),
-            allowedActionTypes: z
-              .array(z.nativeEnum(CurrentAgentOperation))
-              .transform((values) => new Set(values)),
-            allowedActionCategories: z
-              .array(z.nativeEnum(HostActionCategory))
-              .transform((values) => new Set(values)),
+            allowedActionTypes: z.array(z.nativeEnum(CurrentAgentOperation)),
+            allowedActionCategories: z.array(z.nativeEnum(HostActionCategory)),
             issuedAtMs: z.number().int(),
             effectiveExpiresAtMs: z.number().int(),
           })
@@ -296,12 +285,6 @@ export const parseStoredMachineEnrollmentActivation = (
   const { firstLocalGrant, ...activation } = result.data;
   return firstLocalGrant ? { ...activation, firstLocalGrant } : activation;
 };
-
-/** Generated set-typed fields are JSON arrays on the wire and on disk. */
-const toPersistedJson = (value: unknown): string =>
-  JSON.stringify(value, (_key, member: unknown) =>
-    member instanceof Set ? [...(member as Set<unknown>)] : member,
-  );
 
 /** Build the exact generated-field object covered by the Ed25519 signature. */
 export const buildMachineEnrollmentConfirmation = (
@@ -431,7 +414,7 @@ const bindingsMatch = (
   binding.backupState === enrollment.backupState;
 
 const activationJson = (activation: ConfirmMachineEnrollmentResponseDto): string =>
-  toPersistedJson(activation);
+  JSON.stringify(activation);
 
 /** Owns the browser-claim wait, local consent, signature, and activation cutover. */
 export class MachineEnrollmentConfirmation {
@@ -900,7 +883,7 @@ export class MachineEnrollmentConfirmation {
     try {
       await this.keyPairStore.storePendingEnrollmentMetadata(
         enrollment.enrollmentId,
-        toPersistedJson({
+        JSON.stringify({
           enrollmentId: enrollment.enrollmentId,
           machineId: enrollment.machineId,
           expiresAt: enrollment.expiresAt,

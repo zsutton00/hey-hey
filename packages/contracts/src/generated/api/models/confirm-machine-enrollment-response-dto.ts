@@ -16,6 +16,9 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
+import type { FirstLocalGrantActivationDto } from './first-local-grant-activation-dto.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { MachineEnrollmentActivatedBindingDto } from './machine-enrollment-activated-binding-dto.js';
 
 /**
@@ -48,6 +51,12 @@ export interface ConfirmMachineEnrollmentResponseDto {
      * @memberof ConfirmMachineEnrollmentResponseDto
      */
     'activatedBinding': MachineEnrollmentActivatedBindingDto;
+    /**
+     *
+     * @type {FirstLocalGrantActivationDto}
+     * @memberof ConfirmMachineEnrollmentResponseDto
+     */
+    'firstLocalGrant'?: FirstLocalGrantActivationDto;
 }
 
 

@@ -117,8 +117,8 @@ export const firstLocalGrantDescriptor = (
     organizationId: intent.organizationId,
     cadence: intent.cadence,
     policyRevision: intent.policyRevision,
-    allowedActionTypes: new Set(intent.allowedActionTypes),
-    allowedActionCategories: new Set(intent.allowedActionCategories),
+    allowedActionTypes: [...intent.allowedActionTypes],
+    allowedActionCategories: [...intent.allowedActionCategories],
     issuedAtMs,
     effectiveExpiresAtMs: issuedAtMs + ttlMs,
   };

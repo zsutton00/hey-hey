@@ -15,6 +15,12 @@ import type { OrganizationId, UserId } from '../../../brands.js';
  */
 
 
+// May contain unused imports in some cases
+// @ts-ignore
+import type { ControllerCredentialPublicKey } from './controller-credential-public-key.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { FirstLocalGrantIntent } from './first-local-grant-intent.js';
 
 /**
  *
@@ -112,6 +118,30 @@ export interface MachineEnrollmentPollReadyDto {
      * @memberof MachineEnrollmentPollReadyDto
      */
     'confirmationNonce': string;
+    /**
+     *
+     * @type {ControllerCredentialPublicKey}
+     * @memberof MachineEnrollmentPollReadyDto
+     */
+    'controllerCredentialPublicKey': ControllerCredentialPublicKey;
+    /**
+     * The WebAuthn registration challenge the claim was verified against.
+     * @type {string}
+     * @memberof MachineEnrollmentPollReadyDto
+     */
+    'registrationChallenge': string;
+    /**
+     * Unpadded base64url HMAC-SHA-256 that a first-time `heyhey local` pairing page computes from the one-time local approval secret it received from the CLI. The message is the UTF-8 newline-joined list of \"heyhey-local-approval-v2\", the enrollment, account, organization and controller credential identifiers, the lowercase hex SHA-256 of the credential\'s SubjectPublicKeyInfo, and the registration challenge. The challenge commits to any FirstLocalGrantIntent. The API stores it opaquely with the claim and returns it only to the device-secret poll; it confers no API-side authority. Only the originating CLI can verify it.
+     * @type {string}
+     * @memberof MachineEnrollmentPollReadyDto
+     */
+    'localApprovalProof'?: string;
+    /**
+     *
+     * @type {FirstLocalGrantIntent}
+     * @memberof MachineEnrollmentPollReadyDto
+     */
+    'firstLocalGrant'?: FirstLocalGrantIntent;
     /**
      * Absolute timestamp after which this review cannot be confirmed.
      * @type {string}

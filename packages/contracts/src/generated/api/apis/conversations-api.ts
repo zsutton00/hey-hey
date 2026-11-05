@@ -25,6 +25,8 @@ import { BASE_PATH, COLLECTION_FORMATS, type RequestArgs, BaseAPI, RequiredError
 // @ts-ignore
 import type { ActionConfirmationDto } from '../models.js';
 // @ts-ignore
+import type { AdvanceLocalOnboarding200Response } from '../models.js';
+// @ts-ignore
 import type { ApiErrorResponse } from '../models.js';
 // @ts-ignore
 import type { CloneConversation201Response } from '../models.js';
@@ -70,6 +72,8 @@ import type { GetOrganizationInitiatives200Response } from '../models.js';
 import type { GetRetryStatus200Response } from '../models.js';
 // @ts-ignore
 import type { InitiationType } from '../models.js';
+// @ts-ignore
+import type { LocalOnboardingStepRequest } from '../models.js';
 // @ts-ignore
 import type { MessageReadMode } from '../models.js';
 // @ts-ignore
@@ -124,6 +128,58 @@ import type { WorkflowName } from '../models.js';
  */
 export const ConversationsApiAxiosParamCreator = function (configuration?: Configuration) {
     return {
+        /**
+         * The admitted CLI owner reads durable work or submits the result of its exact saved provider request. Repeated results return canonical progress without repeating effects. This endpoint grants no host execution authority.
+         * @summary Advance the CLI-owned onboarding execution
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {string} conversationId
+         * @param {LocalOnboardingStepRequest} localOnboardingStepRequest
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        advanceLocalOnboarding: async (organizationId: string, projectId: string, conversationId: string, localOnboardingStepRequest: LocalOnboardingStepRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('advanceLocalOnboarding', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('advanceLocalOnboarding', 'projectId', projectId)
+            // verify required parameter 'conversationId' is not null or undefined
+            assertParamExists('advanceLocalOnboarding', 'conversationId', conversationId)
+            // verify required parameter 'localOnboardingStepRequest' is not null or undefined
+            assertParamExists('advanceLocalOnboarding', 'localOnboardingStepRequest', localOnboardingStepRequest)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/onboarding/conversations/{conversationId}/local-step`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)))
+                .replace(`{${"conversationId"}}`, encodeURIComponent(String(conversationId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(localOnboardingStepRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
         /**
          * Creates a new conversation by cloning an existing one up to a specified workflow node. This allows users to branch off from any point in a conversation workflow. The cloned conversation will have a new workflow instance that starts from the specified node.
          * @summary Clone a conversation up to a specific node
@@ -1573,7 +1629,7 @@ export const ConversationsApiAxiosParamCreator = function (configuration?: Confi
             };
         },
         /**
-         * Validates and records one reply for the route-scoped active onboarding Temporal conversation, together with its durable workflow-continuation obligation. This operation grants no local-execution or CLI authority.
+         * Validates and records one reply for the route-scoped active onboarding conversation, together with its durable execution-owner continuation obligation. This operation grants no local-execution or CLI authority.
          * @summary Admit a reply to the canonical onboarding workflow
          * @param {string} organizationId
          * @param {string} projectId
@@ -1625,7 +1681,7 @@ export const ConversationsApiAxiosParamCreator = function (configuration?: Confi
             };
         },
         /**
-         * Validates and records one reply for the route-scoped active repository-import Temporal conversation, together with its durable workflow-continuation obligation. Qualifying persisted pre-cutover onboarding imports are admitted through the repository-import compatibility boundary. This operation grants no local-execution or CLI authority.
+         * Validates and records one reply for the route-scoped active repository-import conversation, together with its durable execution-owner continuation obligation. Qualifying persisted pre-cutover onboarding imports are admitted through the repository-import compatibility boundary. This operation grants no local-execution or CLI authority.
          * @summary Admit a reply to a repository import workflow
          * @param {string} organizationId
          * @param {string} projectId
@@ -1677,7 +1733,7 @@ export const ConversationsApiAxiosParamCreator = function (configuration?: Confi
             };
         },
         /**
-         * Validates and records one reply for the route-scoped active work-tracker-import Temporal conversation, together with its durable workflow-continuation obligation. This operation grants no local-execution or CLI authority.
+         * Validates and records one reply for the route-scoped active work-tracker-import conversation, together with its durable execution-owner continuation obligation. This operation grants no local-execution or CLI authority.
          * @summary Admit a reply to a work-tracker import workflow
          * @param {string} organizationId
          * @param {string} projectId
@@ -1898,6 +1954,22 @@ export const ConversationsApiAxiosParamCreator = function (configuration?: Confi
 export const ConversationsApiFp = function(configuration?: Configuration) {
     const localVarAxiosParamCreator = ConversationsApiAxiosParamCreator(configuration)
     return {
+        /**
+         * The admitted CLI owner reads durable work or submits the result of its exact saved provider request. Repeated results return canonical progress without repeating effects. This endpoint grants no host execution authority.
+         * @summary Advance the CLI-owned onboarding execution
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {string} conversationId
+         * @param {LocalOnboardingStepRequest} localOnboardingStepRequest
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async advanceLocalOnboarding(organizationId: string, projectId: string, conversationId: string, localOnboardingStepRequest: LocalOnboardingStepRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<AdvanceLocalOnboarding200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.advanceLocalOnboarding(organizationId, projectId, conversationId, localOnboardingStepRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['ConversationsApi.advanceLocalOnboarding']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
         /**
          * Creates a new conversation by cloning an existing one up to a specified workflow node. This allows users to branch off from any point in a conversation workflow. The cloned conversation will have a new workflow instance that starts from the specified node.
          * @summary Clone a conversation up to a specific node
@@ -2338,7 +2410,7 @@ export const ConversationsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Validates and records one reply for the route-scoped active onboarding Temporal conversation, together with its durable workflow-continuation obligation. This operation grants no local-execution or CLI authority.
+         * Validates and records one reply for the route-scoped active onboarding conversation, together with its durable execution-owner continuation obligation. This operation grants no local-execution or CLI authority.
          * @summary Admit a reply to the canonical onboarding workflow
          * @param {string} organizationId
          * @param {string} projectId
@@ -2354,7 +2426,7 @@ export const ConversationsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Validates and records one reply for the route-scoped active repository-import Temporal conversation, together with its durable workflow-continuation obligation. Qualifying persisted pre-cutover onboarding imports are admitted through the repository-import compatibility boundary. This operation grants no local-execution or CLI authority.
+         * Validates and records one reply for the route-scoped active repository-import conversation, together with its durable execution-owner continuation obligation. Qualifying persisted pre-cutover onboarding imports are admitted through the repository-import compatibility boundary. This operation grants no local-execution or CLI authority.
          * @summary Admit a reply to a repository import workflow
          * @param {string} organizationId
          * @param {string} projectId
@@ -2370,7 +2442,7 @@ export const ConversationsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Validates and records one reply for the route-scoped active work-tracker-import Temporal conversation, together with its durable workflow-continuation obligation. This operation grants no local-execution or CLI authority.
+         * Validates and records one reply for the route-scoped active work-tracker-import conversation, together with its durable execution-owner continuation obligation. This operation grants no local-execution or CLI authority.
          * @summary Admit a reply to a work-tracker import workflow
          * @param {string} organizationId
          * @param {string} projectId
@@ -2444,6 +2516,16 @@ export const ConversationsApiFp = function(configuration?: Configuration) {
 export const ConversationsApiFactory = function (configuration?: Configuration, basePath?: string, axios?: AxiosInstance) {
     const localVarFp = ConversationsApiFp(configuration)
     return {
+        /**
+         * The admitted CLI owner reads durable work or submits the result of its exact saved provider request. Repeated results return canonical progress without repeating effects. This endpoint grants no host execution authority.
+         * @summary Advance the CLI-owned onboarding execution
+         * @param {ConversationsApiAdvanceLocalOnboardingRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        advanceLocalOnboarding(requestParameters: ConversationsApiAdvanceLocalOnboardingRequest, options?: RawAxiosRequestConfig): AxiosPromise<AdvanceLocalOnboarding200Response> {
+            return localVarFp.advanceLocalOnboarding(requestParameters.organizationId, requestParameters.projectId, requestParameters.conversationId, requestParameters.localOnboardingStepRequest, options).then((request) => request(axios, basePath));
+        },
         /**
          * Creates a new conversation by cloning an existing one up to a specified workflow node. This allows users to branch off from any point in a conversation workflow. The cloned conversation will have a new workflow instance that starts from the specified node.
          * @summary Clone a conversation up to a specific node
@@ -2705,7 +2787,7 @@ export const ConversationsApiFactory = function (configuration?: Configuration, 
             return localVarFp.startConversationRun(requestParameters.organizationId, requestParameters.projectId, requestParameters.conversationId, requestParameters.conversationStartRunRequestDto, options).then((request) => request(axios, basePath));
         },
         /**
-         * Validates and records one reply for the route-scoped active onboarding Temporal conversation, together with its durable workflow-continuation obligation. This operation grants no local-execution or CLI authority.
+         * Validates and records one reply for the route-scoped active onboarding conversation, together with its durable execution-owner continuation obligation. This operation grants no local-execution or CLI authority.
          * @summary Admit a reply to the canonical onboarding workflow
          * @param {ConversationsApiSubmitOnboardingReplyRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
@@ -2715,7 +2797,7 @@ export const ConversationsApiFactory = function (configuration?: Configuration, 
             return localVarFp.submitOnboardingReply(requestParameters.organizationId, requestParameters.projectId, requestParameters.conversationId, requestParameters.submitOnboardingReplyRequestDto, options).then((request) => request(axios, basePath));
         },
         /**
-         * Validates and records one reply for the route-scoped active repository-import Temporal conversation, together with its durable workflow-continuation obligation. Qualifying persisted pre-cutover onboarding imports are admitted through the repository-import compatibility boundary. This operation grants no local-execution or CLI authority.
+         * Validates and records one reply for the route-scoped active repository-import conversation, together with its durable execution-owner continuation obligation. Qualifying persisted pre-cutover onboarding imports are admitted through the repository-import compatibility boundary. This operation grants no local-execution or CLI authority.
          * @summary Admit a reply to a repository import workflow
          * @param {ConversationsApiSubmitRepositoryImportReplyRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
@@ -2725,7 +2807,7 @@ export const ConversationsApiFactory = function (configuration?: Configuration, 
             return localVarFp.submitRepositoryImportReply(requestParameters.organizationId, requestParameters.projectId, requestParameters.conversationId, requestParameters.submitRepositoryImportReplyRequestDto, options).then((request) => request(axios, basePath));
         },
         /**
-         * Validates and records one reply for the route-scoped active work-tracker-import Temporal conversation, together with its durable workflow-continuation obligation. This operation grants no local-execution or CLI authority.
+         * Validates and records one reply for the route-scoped active work-tracker-import conversation, together with its durable execution-owner continuation obligation. This operation grants no local-execution or CLI authority.
          * @summary Admit a reply to a work-tracker import workflow
          * @param {ConversationsApiSubmitWorkTrackerImportReplyRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
@@ -2773,6 +2855,16 @@ export const ConversationsApiFactory = function (configuration?: Configuration, 
  * @interface ConversationsApi
  */
 export interface ConversationsApiInterface {
+    /**
+     * The admitted CLI owner reads durable work or submits the result of its exact saved provider request. Repeated results return canonical progress without repeating effects. This endpoint grants no host execution authority.
+     * @summary Advance the CLI-owned onboarding execution
+     * @param {ConversationsApiAdvanceLocalOnboardingRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ConversationsApiInterface
+     */
+    advanceLocalOnboarding(requestParameters: ConversationsApiAdvanceLocalOnboardingRequest, options?: RawAxiosRequestConfig): AxiosPromise<AdvanceLocalOnboarding200Response>;
+
     /**
      * Creates a new conversation by cloning an existing one up to a specified workflow node. This allows users to branch off from any point in a conversation workflow. The cloned conversation will have a new workflow instance that starts from the specified node.
      * @summary Clone a conversation up to a specific node
@@ -3034,7 +3126,7 @@ export interface ConversationsApiInterface {
     startConversationRun(requestParameters: ConversationsApiStartConversationRunRequest, options?: RawAxiosRequestConfig): AxiosPromise<StartConversationRun200Response>;
 
     /**
-     * Validates and records one reply for the route-scoped active onboarding Temporal conversation, together with its durable workflow-continuation obligation. This operation grants no local-execution or CLI authority.
+     * Validates and records one reply for the route-scoped active onboarding conversation, together with its durable execution-owner continuation obligation. This operation grants no local-execution or CLI authority.
      * @summary Admit a reply to the canonical onboarding workflow
      * @param {ConversationsApiSubmitOnboardingReplyRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -3044,7 +3136,7 @@ export interface ConversationsApiInterface {
     submitOnboardingReply(requestParameters: ConversationsApiSubmitOnboardingReplyRequest, options?: RawAxiosRequestConfig): AxiosPromise<SubmitOnboardingReply202Response>;
 
     /**
-     * Validates and records one reply for the route-scoped active repository-import Temporal conversation, together with its durable workflow-continuation obligation. Qualifying persisted pre-cutover onboarding imports are admitted through the repository-import compatibility boundary. This operation grants no local-execution or CLI authority.
+     * Validates and records one reply for the route-scoped active repository-import conversation, together with its durable execution-owner continuation obligation. Qualifying persisted pre-cutover onboarding imports are admitted through the repository-import compatibility boundary. This operation grants no local-execution or CLI authority.
      * @summary Admit a reply to a repository import workflow
      * @param {ConversationsApiSubmitRepositoryImportReplyRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -3054,7 +3146,7 @@ export interface ConversationsApiInterface {
     submitRepositoryImportReply(requestParameters: ConversationsApiSubmitRepositoryImportReplyRequest, options?: RawAxiosRequestConfig): AxiosPromise<SubmitOnboardingReply202Response>;
 
     /**
-     * Validates and records one reply for the route-scoped active work-tracker-import Temporal conversation, together with its durable workflow-continuation obligation. This operation grants no local-execution or CLI authority.
+     * Validates and records one reply for the route-scoped active work-tracker-import conversation, together with its durable execution-owner continuation obligation. This operation grants no local-execution or CLI authority.
      * @summary Admit a reply to a work-tracker import workflow
      * @param {ConversationsApiSubmitWorkTrackerImportReplyRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -3093,6 +3185,41 @@ export interface ConversationsApiInterface {
      */
     updateMessage(requestParameters: ConversationsApiUpdateMessageRequest, options?: RawAxiosRequestConfig): AxiosPromise<UpdateMessage200Response>;
 
+}
+
+/**
+ * Request parameters for advanceLocalOnboarding operation in ConversationsApi.
+ * @export
+ * @interface ConversationsApiAdvanceLocalOnboardingRequest
+ */
+export interface ConversationsApiAdvanceLocalOnboardingRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof ConversationsApiAdvanceLocalOnboarding
+     */
+    readonly organizationId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof ConversationsApiAdvanceLocalOnboarding
+     */
+    readonly projectId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof ConversationsApiAdvanceLocalOnboarding
+     */
+    readonly conversationId: string
+
+    /**
+     *
+     * @type {LocalOnboardingStepRequest}
+     * @memberof ConversationsApiAdvanceLocalOnboarding
+     */
+    readonly localOnboardingStepRequest: LocalOnboardingStepRequest
 }
 
 /**
@@ -4391,6 +4518,18 @@ export interface ConversationsApiUpdateMessageRequest {
  */
 export class ConversationsApi extends BaseAPI implements ConversationsApiInterface {
     /**
+     * The admitted CLI owner reads durable work or submits the result of its exact saved provider request. Repeated results return canonical progress without repeating effects. This endpoint grants no host execution authority.
+     * @summary Advance the CLI-owned onboarding execution
+     * @param {ConversationsApiAdvanceLocalOnboardingRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ConversationsApi
+     */
+    public advanceLocalOnboarding(requestParameters: ConversationsApiAdvanceLocalOnboardingRequest, options?: RawAxiosRequestConfig) {
+        return ConversationsApiFp(this.configuration).advanceLocalOnboarding(requestParameters.organizationId, requestParameters.projectId, requestParameters.conversationId, requestParameters.localOnboardingStepRequest, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
      * Creates a new conversation by cloning an existing one up to a specified workflow node. This allows users to branch off from any point in a conversation workflow. The cloned conversation will have a new workflow instance that starts from the specified node.
      * @summary Clone a conversation up to a specific node
      * @param {ConversationsApiCloneConversationRequest} requestParameters Request parameters.
@@ -4703,7 +4842,7 @@ export class ConversationsApi extends BaseAPI implements ConversationsApiInterfa
     }
 
     /**
-     * Validates and records one reply for the route-scoped active onboarding Temporal conversation, together with its durable workflow-continuation obligation. This operation grants no local-execution or CLI authority.
+     * Validates and records one reply for the route-scoped active onboarding conversation, together with its durable execution-owner continuation obligation. This operation grants no local-execution or CLI authority.
      * @summary Admit a reply to the canonical onboarding workflow
      * @param {ConversationsApiSubmitOnboardingReplyRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -4715,7 +4854,7 @@ export class ConversationsApi extends BaseAPI implements ConversationsApiInterfa
     }
 
     /**
-     * Validates and records one reply for the route-scoped active repository-import Temporal conversation, together with its durable workflow-continuation obligation. Qualifying persisted pre-cutover onboarding imports are admitted through the repository-import compatibility boundary. This operation grants no local-execution or CLI authority.
+     * Validates and records one reply for the route-scoped active repository-import conversation, together with its durable execution-owner continuation obligation. Qualifying persisted pre-cutover onboarding imports are admitted through the repository-import compatibility boundary. This operation grants no local-execution or CLI authority.
      * @summary Admit a reply to a repository import workflow
      * @param {ConversationsApiSubmitRepositoryImportReplyRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -4727,7 +4866,7 @@ export class ConversationsApi extends BaseAPI implements ConversationsApiInterfa
     }
 
     /**
-     * Validates and records one reply for the route-scoped active work-tracker-import Temporal conversation, together with its durable workflow-continuation obligation. This operation grants no local-execution or CLI authority.
+     * Validates and records one reply for the route-scoped active work-tracker-import conversation, together with its durable execution-owner continuation obligation. This operation grants no local-execution or CLI authority.
      * @summary Admit a reply to a work-tracker import workflow
      * @param {ConversationsApiSubmitWorkTrackerImportReplyRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.

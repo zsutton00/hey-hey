@@ -16,6 +16,12 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
+import type { ControllerCredentialPublicKey } from './controller-credential-public-key.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { FirstLocalGrantIntent } from './first-local-grant-intent.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { MachineEnrollmentPollPendingDto } from './machine-enrollment-poll-pending-dto.js';
 // May contain unused imports in some cases
 // @ts-ignore

@@ -224,6 +224,17 @@ if (selectedTargets.some((target) => target.id === "agent-bridge")) {
       "agent-bridge/repository-feature-enrichment-runtime-schema.ts",
     ),
   ]);
+  await generateRuntimeSchema(
+    [
+      path.join(
+        generatedRoot,
+        "agent-bridge/local-lifecycle-runtime-schema.ts",
+      ),
+    ],
+    ["LocalLifecycleWork"],
+    "localLifecycleRuntimeSchema",
+    "./models.js",
+  );
 }
 run("node", [
   path.join(checkoutRoot, "packages/contracts/scripts/postprocess-brands.cjs"),

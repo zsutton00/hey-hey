@@ -37,6 +37,8 @@ import type { GetJwks200Response } from '../models.js';
 // @ts-ignore
 import type { InitiatePasswordRecovery200Response } from '../models.js';
 // @ts-ignore
+import type { IssueLocalCliCredentials200Response } from '../models.js';
+// @ts-ignore
 import type { LocalHandoffRequestDto } from '../models.js';
 // @ts-ignore
 import type { LocalNameRequestDto } from '../models.js';
@@ -310,6 +312,42 @@ export const AuthApiAxiosParamCreator = function (configuration?: Configuration)
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
             localVarRequestOptions.data = serializeDataIfNeeded(passwordRecoveryRequestDto, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Local-deployment-only machine operation. The CLI proves authority with its installation secret and receives its own access and refresh tokens for the ordinary local user, so it never needs the browser login. The tokens are stored only in the CLI credential store.
+         * @summary Issue local CLI credentials
+         * @param {string} xHeyHeyLocalSecret Installation secret held by the local CLI.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        issueLocalCliCredentials: async (xHeyHeyLocalSecret: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'xHeyHeyLocalSecret' is not null or undefined
+            assertParamExists('issueLocalCliCredentials', 'xHeyHeyLocalSecret', xHeyHeyLocalSecret)
+            const localVarPath = `/auth/local/cli-credentials`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+
+            if (xHeyHeyLocalSecret != null) {
+                localVarHeaderParameter['X-HeyHey-Local-Secret'] = String(xHeyHeyLocalSecret);
+            }
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -707,6 +745,19 @@ export const AuthApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Local-deployment-only machine operation. The CLI proves authority with its installation secret and receives its own access and refresh tokens for the ordinary local user, so it never needs the browser login. The tokens are stored only in the CLI credential store.
+         * @summary Issue local CLI credentials
+         * @param {string} xHeyHeyLocalSecret Installation secret held by the local CLI.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async issueLocalCliCredentials(xHeyHeyLocalSecret: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<IssueLocalCliCredentials200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.issueLocalCliCredentials(xHeyHeyLocalSecret, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AuthApi.issueLocalCliCredentials']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Authenticate the user and return a short-lived browser access token with expiry metadata. Refresh continuity remains in HttpOnly cookies and is never returned to browser JavaScript. Fresh sign-in authorizes only the exact saved account default. An absent default requires explicit selection, even for one membership; an inaccessible default returns selection denied. Renewal retains the exact session choice and never substitutes the default. When the user must change their password (e.g. beta onboarding), returns a PasswordChangeRequiredDto with a short-lived token instead.
          * @summary User login
          * @param {LoginDto} loginDto
@@ -887,6 +938,16 @@ export const AuthApiFactory = function (configuration?: Configuration, basePath?
             return localVarFp.initiatePasswordRecovery(requestParameters.passwordRecoveryRequestDto, options).then((request) => request(axios, basePath));
         },
         /**
+         * Local-deployment-only machine operation. The CLI proves authority with its installation secret and receives its own access and refresh tokens for the ordinary local user, so it never needs the browser login. The tokens are stored only in the CLI credential store.
+         * @summary Issue local CLI credentials
+         * @param {AuthApiIssueLocalCliCredentialsRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        issueLocalCliCredentials(requestParameters: AuthApiIssueLocalCliCredentialsRequest, options?: RawAxiosRequestConfig): AxiosPromise<IssueLocalCliCredentials200Response> {
+            return localVarFp.issueLocalCliCredentials(requestParameters.xHeyHeyLocalSecret, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Authenticate the user and return a short-lived browser access token with expiry metadata. Refresh continuity remains in HttpOnly cookies and is never returned to browser JavaScript. Fresh sign-in authorizes only the exact saved account default. An absent default requires explicit selection, even for one membership; an inaccessible default returns selection denied. Renewal retains the exact session choice and never substitutes the default. When the user must change their password (e.g. beta onboarding), returns a PasswordChangeRequiredDto with a short-lived token instead.
          * @summary User login
          * @param {AuthApiLoginRequest} requestParameters Request parameters.
@@ -1042,6 +1103,16 @@ export interface AuthApiInterface {
     initiatePasswordRecovery(requestParameters: AuthApiInitiatePasswordRecoveryRequest, options?: RawAxiosRequestConfig): AxiosPromise<InitiatePasswordRecovery200Response>;
 
     /**
+     * Local-deployment-only machine operation. The CLI proves authority with its installation secret and receives its own access and refresh tokens for the ordinary local user, so it never needs the browser login. The tokens are stored only in the CLI credential store.
+     * @summary Issue local CLI credentials
+     * @param {AuthApiIssueLocalCliCredentialsRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApiInterface
+     */
+    issueLocalCliCredentials(requestParameters: AuthApiIssueLocalCliCredentialsRequest, options?: RawAxiosRequestConfig): AxiosPromise<IssueLocalCliCredentials200Response>;
+
+    /**
      * Authenticate the user and return a short-lived browser access token with expiry metadata. Refresh continuity remains in HttpOnly cookies and is never returned to browser JavaScript. Fresh sign-in authorizes only the exact saved account default. An absent default requires explicit selection, even for one membership; an inaccessible default returns selection denied. Renewal retains the exact session choice and never substitutes the default. When the user must change their password (e.g. beta onboarding), returns a PasswordChangeRequiredDto with a short-lived token instead.
      * @summary User login
      * @param {AuthApiLoginRequest} requestParameters Request parameters.
@@ -1176,6 +1247,20 @@ export interface AuthApiInitiatePasswordRecoveryRequest {
      * @memberof AuthApiInitiatePasswordRecovery
      */
     readonly passwordRecoveryRequestDto: PasswordRecoveryRequestDto
+}
+
+/**
+ * Request parameters for issueLocalCliCredentials operation in AuthApi.
+ * @export
+ * @interface AuthApiIssueLocalCliCredentialsRequest
+ */
+export interface AuthApiIssueLocalCliCredentialsRequest {
+    /**
+     * Installation secret held by the local CLI.
+     * @type {string}
+     * @memberof AuthApiIssueLocalCliCredentials
+     */
+    readonly xHeyHeyLocalSecret: string
 }
 
 /**
@@ -1362,6 +1447,18 @@ export class AuthApi extends BaseAPI implements AuthApiInterface {
      */
     public initiatePasswordRecovery(requestParameters: AuthApiInitiatePasswordRecoveryRequest, options?: RawAxiosRequestConfig) {
         return AuthApiFp(this.configuration).initiatePasswordRecovery(requestParameters.passwordRecoveryRequestDto, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Local-deployment-only machine operation. The CLI proves authority with its installation secret and receives its own access and refresh tokens for the ordinary local user, so it never needs the browser login. The tokens are stored only in the CLI credential store.
+     * @summary Issue local CLI credentials
+     * @param {AuthApiIssueLocalCliCredentialsRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApi
+     */
+    public issueLocalCliCredentials(requestParameters: AuthApiIssueLocalCliCredentialsRequest, options?: RawAxiosRequestConfig) {
+        return AuthApiFp(this.configuration).issueLocalCliCredentials(requestParameters.xHeyHeyLocalSecret, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

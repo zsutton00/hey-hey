@@ -34,6 +34,7 @@ export const LocalPromptType = {
     Debug: 'debug',
     Research: 'research',
     RunEval: 'run_eval',
+    LocalOnboarding: 'local_onboarding',
     Quick: 'quick',
     DailySession: 'daily_session',
     RollupProposal: 'rollup_proposal',
@@ -89,6 +90,7 @@ export const LocalPromptType = {
     "debug": "debug",
     "research": "research",
     "run_eval": "run_eval",
+    "local_onboarding": "local_onboarding",
     "quick": "quick",
     "daily_session": "daily_session",
     "rollup_proposal": "rollup_proposal",
@@ -144,6 +146,7 @@ Object.defineProperty(LocalPromptType, "free_form", { enumerable: false, value: 
 Object.defineProperty(LocalPromptType, "debug", { enumerable: false, value: LocalPromptType["Debug"] });
 Object.defineProperty(LocalPromptType, "research", { enumerable: false, value: LocalPromptType["Research"] });
 Object.defineProperty(LocalPromptType, "run_eval", { enumerable: false, value: LocalPromptType["RunEval"] });
+Object.defineProperty(LocalPromptType, "local_onboarding", { enumerable: false, value: LocalPromptType["LocalOnboarding"] });
 Object.defineProperty(LocalPromptType, "quick", { enumerable: false, value: LocalPromptType["Quick"] });
 Object.defineProperty(LocalPromptType, "daily_session", { enumerable: false, value: LocalPromptType["DailySession"] });
 Object.defineProperty(LocalPromptType, "rollup_proposal", { enumerable: false, value: LocalPromptType["RollupProposal"] });

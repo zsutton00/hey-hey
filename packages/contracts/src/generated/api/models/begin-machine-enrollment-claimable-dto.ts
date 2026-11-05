@@ -17,6 +17,9 @@ import type { OrganizationId, UserId } from '../../../brands.js';
 
 // May contain unused imports in some cases
 // @ts-ignore
+import type { FirstLocalGrantIntent } from './first-local-grant-intent.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { MachineEnrollmentWebAuthnRegistrationOptionsDto } from './machine-enrollment-web-authn-registration-options-dto.js';
 
 /**
@@ -97,6 +100,12 @@ export interface BeginMachineEnrollmentClaimableDto {
      * @memberof BeginMachineEnrollmentClaimableDto
      */
     'registrationOptions': MachineEnrollmentWebAuthnRegistrationOptionsDto;
+    /**
+     *
+     * @type {FirstLocalGrantIntent}
+     * @memberof BeginMachineEnrollmentClaimableDto
+     */
+    'firstLocalGrant'?: FirstLocalGrantIntent;
 }
 
 

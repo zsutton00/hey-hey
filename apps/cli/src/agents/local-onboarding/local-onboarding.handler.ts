@@ -1,13 +1,11 @@
 import { setTimeout as delay } from 'node:timers/promises';
-import {
-  Configuration,
-  ConversationsApi,
-  type LocalOnboardingStepRequest,
-} from '../../shared/api/generated';
+import { ConversationsApi } from '@hey-hey/contracts/api';
+import { Configuration } from '@hey-hey/contracts/api/configuration';
+import type { LocalOnboardingStepRequest } from '@hey-hey/contracts/api/models';
 import {
   LocalPromptType,
   type RunCreatePayloadLocalOnboarding,
-} from '../../shared/agent-bridge-contract/generated';
+} from '@hey-hey/contracts/agent-bridge';
 import {
   defaultAddUserMessage,
   type UserLaunchablePromptTypeHandler,

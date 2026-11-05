@@ -15,6 +15,9 @@ import type { OrganizationId } from '../../../brands.js';
  */
 
 
+// May contain unused imports in some cases
+// @ts-ignore
+import type { FirstLocalGrantRequestDto } from './first-local-grant-request-dto.js';
 
 /**
  *
@@ -40,4 +43,10 @@ export interface BeginMachineEnrollmentClaimRequestDto {
      * @memberof BeginMachineEnrollmentClaimRequestDto
      */
     'controllerLabel': string;
+    /**
+     *
+     * @type {FirstLocalGrantRequestDto}
+     * @memberof BeginMachineEnrollmentClaimRequestDto
+     */
+    'firstLocalGrant'?: FirstLocalGrantRequestDto;
 }

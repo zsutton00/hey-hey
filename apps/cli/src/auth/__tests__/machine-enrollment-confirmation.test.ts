@@ -718,7 +718,10 @@ describe('first-time heyhey local approval', () => {
       'made by a different account claiming the same code',
       (secret: string) => ({
         ...pending(),
-        localApprovalProof: browserProof(secret, { ...pending(), accountId: 'account-2' }),
+        localApprovalProof: browserProof(secret, {
+          ...pending(),
+          accountId: asUserId('account-2'),
+        }),
       }),
     ],
     [
@@ -820,14 +823,14 @@ describe('first-time heyhey local grant', () => {
     version: 1,
     enrollmentId: ENROLLMENT_ID,
     machineId: MACHINE_ID,
-    userId: 'account-1',
-    organizationId: 'organization-1',
+    userId: asUserId('account-1'),
+    organizationId: asOrganizationId('organization-1'),
     projectId: 'project-1',
     controllerInstallationId: 'installation-1',
     cadence,
     policyRevision: 1,
-    allowedActionTypes: new Set(CURRENT_AGENT_OPERATIONS),
-    allowedActionCategories: new Set(Object.values(CURRENT_AGENT_OPERATION_CATEGORY)),
+    allowedActionTypes: [...CURRENT_AGENT_OPERATIONS],
+    allowedActionCategories: [...new Set(Object.values(CURRENT_AGENT_OPERATION_CATEGORY))],
     target: { kind: 'CLI_READ', id: MACHINE_ID },
     issuedAtMs: NOW - 30_000,
     nonce: randomBytes(32).toString('base64url'),
@@ -860,8 +863,8 @@ describe('first-time heyhey local grant', () => {
     organizationId: intent.organizationId,
     cadence: intent.cadence,
     policyRevision: intent.policyRevision,
-    allowedActionTypes: new Set(intent.allowedActionTypes),
-    allowedActionCategories: new Set(intent.allowedActionCategories),
+    allowedActionTypes: [...intent.allowedActionTypes],
+    allowedActionCategories: [...intent.allowedActionCategories],
     issuedAtMs,
     effectiveExpiresAtMs: issuedAtMs + CADENCE_TTL_MS[intent.cadence],
   });
@@ -978,8 +981,8 @@ describe('first-time heyhey local grant', () => {
     overrides: Partial<HostActionAdmissionRequest> = {},
   ): HostActionAdmissionRequest => ({
     machineId: MACHINE_ID,
-    userId: 'account-1',
-    organizationId: 'organization-1',
+    userId: asUserId('account-1'),
+    organizationId: asOrganizationId('organization-1'),
     projectId: 'project-1',
     controllerInstallationId: 'installation-1',
     actionCategory: CURRENT_AGENT_OPERATION_CATEGORY[actionType],
@@ -1092,7 +1095,7 @@ describe('first-time heyhey local grant', () => {
       'operation set',
       (intent: FirstLocalGrantIntent) => ({
         ...intent,
-        allowedActionTypes: new Set([...intent.allowedActionTypes].slice(1)),
+        allowedActionTypes: intent.allowedActionTypes.slice(1),
       }),
     ],
   ])(

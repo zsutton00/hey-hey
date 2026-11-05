@@ -74,6 +74,7 @@ interface TestRow {
   browserBindingIssuedAt?: Date | null;
   browserBindingExpiresAt?: Date | null;
   requestedCadence?: string | null;
+  localApprovalProof?: string | null;
 }
 
 const makeCredential = (

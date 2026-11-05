@@ -31,8 +31,10 @@ it('routes API RedisService, event publisher/subscriber and graph/search to the 
       graph: 'c'.repeat(64),
       jwt: 'd'.repeat(64),
       encryption: 'e'.repeat(64),
+      enrollmentCodeHmac: 'f'.repeat(64),
       signingKey: 'fixture-signing-key',
     },
+    4100,
   );
   const clients: Redis[] = [];
   // Keep the actual ioredis configuration parser; replace only connection I/O.

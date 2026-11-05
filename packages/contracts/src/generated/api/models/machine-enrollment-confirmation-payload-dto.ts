@@ -15,6 +15,9 @@ import type { OrganizationId, UserId } from '../../../brands.js';
  */
 
 
+// May contain unused imports in some cases
+// @ts-ignore
+import type { FirstLocalGrantConfirmationDto } from './first-local-grant-confirmation-dto.js';
 
 /**
  *
@@ -58,4 +61,10 @@ export interface MachineEnrollmentConfirmationPayloadDto {
      * @memberof MachineEnrollmentConfirmationPayloadDto
      */
     'confirmationNonce': string;
+    /**
+     *
+     * @type {FirstLocalGrantConfirmationDto}
+     * @memberof MachineEnrollmentConfirmationPayloadDto
+     */
+    'firstLocalGrant'?: FirstLocalGrantConfirmationDto;
 }
