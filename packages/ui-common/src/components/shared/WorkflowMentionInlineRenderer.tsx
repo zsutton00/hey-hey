@@ -641,6 +641,8 @@ interface WorkflowGraphSurfaceProps {
   directEntityLinks?: readonly WorkflowGraphDirectEntityLink[];
   /** For a saved UX flow: the screen whose walkthrough opens first. */
   initialUxFlowStepId?: string;
+  /** For a saved UX flow: the screen marked "You are here"; the flow stays in grid view. */
+  currentUxFlowStepId?: string;
 }
 
 interface WorkflowGraphViewportSurfaceProps {
@@ -7182,7 +7184,13 @@ const UxFlowSavedView: React.FC<{
   graphData: WorkflowGraphSurfaceData;
   savedPositions: ReadonlyMap<string, { x: number; y: number }>;
   initialWalkthroughStepId: string | null;
-}> = ({ graphData, savedPositions, initialWalkthroughStepId }) => {
+  currentStepId: string | null;
+}> = ({
+  graphData,
+  savedPositions,
+  initialWalkthroughStepId,
+  currentStepId,
+}) => {
   const [walkthroughStepId, setWalkthroughStepId] = useState(
     initialWalkthroughStepId,
   );
@@ -7193,7 +7201,11 @@ const UxFlowSavedView: React.FC<{
   const renderScreen = (step: GraphWorkItem, fullSize = false) => {
     const reference = getDiagramElementMetadata(step)?.canonicalReference;
 
-    return reference?.entityType === "TASK" ? (
+    if (reference?.entityType !== "TASK") {
+      return <Alert severity="info">Screen unavailable</Alert>;
+    }
+
+    const screen = (
       <SavedJourneyScreen
         id={reference.entityId}
         name={step.name}
@@ -7201,8 +7213,31 @@ const UxFlowSavedView: React.FC<{
         fullSize={fullSize}
         onOpenFullSize={() => setWalkthroughStepId(step.id)}
       />
+    );
+
+    return !fullSize && step.id === currentStepId ? (
+      <Box
+        data-testid="ux-flow-current-screen"
+        sx={{
+          outline: "3px solid",
+          outlineColor: "primary.main",
+          outlineOffset: 4,
+          borderRadius: 1,
+        }}
+      >
+        <Typography
+          variant="caption"
+          fontWeight={700}
+          color="primary"
+          data-testid="ux-flow-you-are-here"
+          sx={{ display: "block", mb: 0.5 }}
+        >
+          You are here
+        </Typography>
+        {screen}
+      </Box>
     ) : (
-      <Alert severity="info">Screen unavailable</Alert>
+      screen
     );
   };
 
@@ -7258,6 +7293,7 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
   participation,
   directEntityLinks,
   initialUxFlowStepId,
+  currentUxFlowStepId,
   ...interaction
 }) => {
   const hasRouter = useInRouterContext();
@@ -7400,6 +7436,7 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
         graphData={hydratedGraphData}
         savedPositions={new Map(positions)}
         initialWalkthroughStepId={initialUxFlowStepId ?? null}
+        currentStepId={currentUxFlowStepId ?? null}
       />
     );
   }

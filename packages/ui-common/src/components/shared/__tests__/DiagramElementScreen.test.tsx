@@ -321,6 +321,43 @@ describe("Diagram Element Mockup screen cards", () => {
     expect(card.queryByTestId("diagram-element-screen-unavailable")).toBeNull();
   });
 
+  it("marks the current screen in a saved UX flow without leaving the grid", async () => {
+    respondWith({
+      [MOCKUP_ID]: mockupItem(MOCKUP_ID),
+      [OTHER_MOCKUP_ID]: mockupItem(OTHER_MOCKUP_ID, { name: "Pay screen" }),
+    });
+    const projection = buildProjection([
+      element("cart", "Cart", { entityType: "TASK", entityId: MOCKUP_ID }),
+      element("pay", "Pay", { entityType: "TASK", entityId: OTHER_MOCKUP_ID }),
+    ]);
+    projection.projectedRoot.sections = [
+      {
+        key: "diagramMetadata",
+        content: { kind: "UX_FLOW", level: "OVERVIEW" },
+      },
+    ];
+    const graphData = projectWorkItemGraphForWorkflowSurface(projection, {
+      organizationId: ORG,
+      projectId: PROJECT,
+    });
+    render(
+      <WorkflowGraphSurface graphData={graphData} currentUxFlowStepId="pay" />,
+      { wrapper: Wrapper },
+    );
+    await flush();
+
+    expect(screen.queryByTestId("ux-flow-walkthrough")).toBeNull();
+    const screens = screen.getAllByTestId("journey-screen");
+    expect(screens).toHaveLength(2);
+    const current = screen.getByTestId("ux-flow-current-screen");
+    expect(screen.getAllByTestId("ux-flow-you-are-here")).toHaveLength(1);
+    expect(current).toHaveTextContent("You are here");
+    expect(current.closest('[data-testid="journey-screen"]')).toHaveAttribute(
+      "data-step-id",
+      "pay",
+    );
+  });
+
   it("scales the complete screen proportionally inside the density footprint", async () => {
     respondWith({ [MOCKUP_ID]: mockupItem(MOCKUP_ID) });
     renderSurface(

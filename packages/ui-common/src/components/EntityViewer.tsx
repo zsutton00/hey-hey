@@ -39,7 +39,7 @@ import { InteractionComponent } from "./InteractionComponent/InteractionComponen
 import { EntityStarToggle } from "./Entity/EntityStarToggle";
 import { DesignDocReadView } from "./shared";
 import { WorkItemReadView } from "./shared/WorkItemReadView";
-import { OpenInUxFlowButton } from "./shared/UxFlowFromMockup";
+import { MockupUxFlows } from "./shared/UxFlowFromMockup";
 import {
   selectWorkItemSections,
   type ResolvedWorkItemSectionSelection,
@@ -176,17 +176,19 @@ const TaskEntityViewer: React.FC<{
       indicatorOffsetX={-22}
       indicatorOffsetY={-22}
     >
-      {entity.type === "mockup" ? (
-        <OpenInUxFlowButton
-          organizationId={resolvedOrganizationId}
-          projectId={resolvedProjectId}
-          mockupId={entity.id}
-        />
-      ) : null}
       <WorkItemReadView
         sections={entity.sections}
         sectionSelection={sectionSelection}
         htmlCssRenderingContext="page"
+        afterVisualSections={
+          entity.type === "mockup" ? (
+            <MockupUxFlows
+              organizationId={resolvedOrganizationId}
+              projectId={resolvedProjectId}
+              mockupId={entity.id}
+            />
+          ) : undefined
+        }
       />
     </InteractionComponent>
   );

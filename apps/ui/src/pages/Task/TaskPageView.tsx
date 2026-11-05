@@ -1,3 +1,7 @@
+import {
+  EvalCaseCodingSection,
+  isFreeFormEvalCase,
+} from "./EvalCaseCodingSection";
 import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import {
   Box,
@@ -31,7 +35,7 @@ import {
   EntityGrid,
   EntityListItem,
   InteractionComponent,
-  OpenInUxFlowButton,
+  MockupUxFlows,
   WorkItemEditor,
   WorkItemMetadata,
   WorkItemReadView,
@@ -632,20 +636,34 @@ export const TaskPageView: React.FC<TaskPageViewProps> = ({
                         }}
                         content={
                           <>
-                            {task.type === "mockup" ? (
-                              <OpenInUxFlowButton
-                                organizationId={organizationId}
-                                projectId={projectId}
-                                mockupId={task.id}
-                              />
-                            ) : null}
                             <WorkItemReadView
                               htmlCssRenderingContext="page"
+                              afterVisualSections={
+                                task.type === "mockup" ? (
+                                  <MockupUxFlows
+                                    organizationId={organizationId}
+                                    projectId={projectId}
+                                    mockupId={task.id}
+                                  />
+                                ) : undefined
+                              }
                               sections={
                                 task.sections as
                                   MaterializedWorkItemSection[] | undefined
                               }
                               sectionSelection={workItemSectionSelection}
+                              renderSection={(section, value) =>
+                                task.type === "EVAL_CASE" &&
+                                section.key === "coding" ? (
+                                  value && isFreeFormEvalCase(task.sections) ? (
+                                    <EvalCaseCodingSection
+                                      content={value}
+                                      organizationId={organizationId}
+                                      projectId={projectId}
+                                    />
+                                  ) : null
+                                ) : undefined
+                              }
                             />
                           </>
                         }
