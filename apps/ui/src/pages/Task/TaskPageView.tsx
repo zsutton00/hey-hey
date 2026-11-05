@@ -643,7 +643,8 @@ export const TaskPageView: React.FC<TaskPageViewProps> = ({
                               htmlCssRenderingContext="page"
                               sections={
                                 task.sections as
-                                  MaterializedWorkItemSection[] | undefined
+                                  | MaterializedWorkItemSection[]
+                                  | undefined
                               }
                               sectionSelection={workItemSectionSelection}
                             />
