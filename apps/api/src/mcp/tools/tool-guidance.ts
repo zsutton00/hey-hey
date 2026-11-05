@@ -149,6 +149,12 @@ export const LIFECYCLE_AWARE_TASK_EDIT_SAFETY_SUMMARY =
 const STANDARD_TASK_DEPENDENCY_GUIDANCE =
   'When authoring multiple tasks, declare a `DEPENDS_ON` edge in `edges` when one task cannot proceed without another; authoring or ordering tasks together alone does not establish a dependency.';
 
+export const FEATURE_REQUIREMENT_CONCISION_GUIDANCE = [
+  '## Concise requirements',
+  '',
+  'Keep each requirement as concise as possible. Make its first sentence a self-contained summary of the promised behavior, and keep further detail only where it changes what is delivered. Cite the owning task, design doc or Contract instead of restating its content. Split a requirement that bundles several independent rules into separate requirements, or move the detail to the fulfilling task.',
+].join('\n');
+
 const FLOW_RELATIONSHIP_VARIANT_GUIDANCE = [
   '',
   '## Flow relationship variants',
@@ -501,6 +507,17 @@ function buildWorkItemGuidanceBody(
   const standardTaskDependencyGuidance = (typeKey: string): string[] =>
     typeKey === 'STANDARD' ? ['', STANDARD_TASK_DEPENDENCY_GUIDANCE] : [];
 
+  // Canonical standards carry this block once the migration has run; the
+  // tool-level reminder covers project overrides without repeating it.
+  const featureRequirementConcisionGuidance = (
+    typeKey: string,
+    cfg: WorkItemTypeRules,
+  ): string[] =>
+    typeKey === 'FEATURE' &&
+    !cfg.writingStandards[mode].includes(FEATURE_REQUIREMENT_CONCISION_GUIDANCE)
+      ? ['', FEATURE_REQUIREMENT_CONCISION_GUIDANCE]
+      : [];
+
   const planStageCreateDependencyGuidance = (typeKey: string): string[] =>
     mode === 'create' && typeKey === 'PLAN_STAGE'
       ? [
@@ -805,6 +822,7 @@ function buildWorkItemGuidanceBody(
         ...graphEditGuidance(cfg),
         ...diagramProposalEdgeGuidance(typeKey),
         ...standardTaskDependencyGuidance(typeKey),
+        ...featureRequirementConcisionGuidance(typeKey, cfg),
         ...serviceScopeGuidance,
         '',
         cfg.writingStandards[mode],
