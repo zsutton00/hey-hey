@@ -50,6 +50,12 @@ export type {
   BoundDirectTriggerInput,
 } from "./operations/AgentOperationCoordinator";
 export { AgentOperationProvider } from "./operations/AgentOperationProvider";
+export type {
+  AgentSessionLaunchBinding,
+  AgentSessionLaunchRequest,
+  AgentSessionLaunchResult,
+} from "./operations/launchAgentSession";
+export { useLaunchAgentSession } from "./operations/useLaunchAgentSession";
 export {
   useAgentSessionInteractionAccess,
   useAgentSessionInteractionAccessResolver,
