@@ -10,5 +10,4 @@ export const buildTaskPathWithAgentTab = (
   projectId: string,
   _initiativeId: string,
   taskId: string,
-): string =>
-  `/projects/${projectId}/tasks/${taskId}?tab=agent-sessions`;
+): string => `/projects/${projectId}/tasks/${taskId}?tab=agent-sessions`;

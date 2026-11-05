@@ -196,6 +196,52 @@ createInterface({ input: process.stdin }).on("line", () => {
     },
   );
 
+  it.each([
+    ['a workspace-bound Run', true],
+    ['an ordinary Run', false],
+  ])('%s starts Claude with the expected git and GitHub credentials', async (_name, bound) => {
+    vi.stubEnv('GH_TOKEN', 'gh-secret');
+    vi.stubEnv('GITHUB_TOKEN', 'github-secret');
+    vi.stubEnv('GIT_ASKPASS', '/bin/askpass');
+    const recordDirectory = mkdtempSync(join(tmpdir(), 'claude-credentials-'));
+    tempDirs.push(recordDirectory);
+    const recordPath = join(recordDirectory, 'env.json');
+    const providerPath = createMockScript(`
+import { createInterface } from "node:readline";
+import { writeFileSync } from "node:fs";
+writeFileSync(${JSON.stringify(recordPath)}, JSON.stringify({
+  GH_TOKEN: process.env.GH_TOKEN ?? null,
+  GITHUB_TOKEN: process.env.GITHUB_TOKEN ?? null,
+  GIT_ASKPASS: process.env.GIT_ASKPASS ?? null,
+  PATH: process.env.PATH ?? null,
+}));
+createInterface({ input: process.stdin }).on("line", () => {
+  process.stdout.write(JSON.stringify({ type: "system", subtype: "init", session_id: "s" }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "result", subtype: "success", is_error: false, num_turns: 1, session_id: "s" }) + "\\n");
+});
+`);
+    const client = new ClaudeCodeSdkClient();
+    client.setCommand(providerPath);
+
+    try {
+      await client.startSession({
+        fastMode: false,
+        prompt: 'go',
+        cwd: process.cwd(),
+        ...(bound ? { withoutGitCredentials: true } : {}),
+      });
+      const seen = JSON.parse(readFileSync(recordPath, 'utf8')) as Record<string, string | null>;
+
+      expect(seen['GH_TOKEN']).toBe(bound ? null : 'gh-secret');
+      expect(seen['GITHUB_TOKEN']).toBe(bound ? null : 'github-secret');
+      expect(seen['GIT_ASKPASS']).toBe(bound ? null : '/bin/askpass');
+      expect(seen['PATH']).toBe(process.env['PATH']);
+    } finally {
+      await client.disconnect();
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('can be instantiated', () => {
     const client = new ClaudeCodeSdkClient();
     expect(client.getSessionId()).toBeNull();

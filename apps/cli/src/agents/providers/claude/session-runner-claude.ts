@@ -1972,6 +1972,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
             cwd: runCwd,
             permissionMode: 'default' as const,
             ...(toolExecutionHooks ? { toolExecutionHooks } : {}),
+            ...(session.workspaceBound === true ? { withoutGitCredentials: true } : {}),
             ...(this.workspaceWriteBoundary
               ? {
                   workspaceContainment: repositoryResearch

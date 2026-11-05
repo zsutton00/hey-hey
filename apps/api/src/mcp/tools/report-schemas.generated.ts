@@ -1007,8 +1007,12 @@ export const REPORT_SCHEMAS = {
                     assessedOutput: {
                       type: 'string',
                       description:
-                        'Which output the judge assesses for an attempt.',
-                      enum: ['RESEARCH_REPORT', 'HANDLER_REPLY'],
+                        'Which output the judge assesses for an attempt. CODE_CHANGES is the recorded changes and test checks of a coding attempt, not its chat reply.\n',
+                      enum: [
+                        'RESEARCH_REPORT',
+                        'HANDLER_REPLY',
+                        'CODE_CHANGES',
+                      ],
                     },
                   },
                 },
@@ -1317,6 +1321,109 @@ export const REPORT_SCHEMAS = {
                   type: 'null',
                 },
               ],
+            },
+            recordedChanges: {
+              allOf: [
+                {
+                  type: 'object',
+                  additionalProperties: false,
+                  description:
+                    'Everything a coding attempt changed, saved before its workspace was removed.',
+                  required: ['files'],
+                  properties: {
+                    files: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        additionalProperties: false,
+                        description:
+                          'One file a coding attempt changed relative to its pinned commit.',
+                        required: [
+                          'path',
+                          'status',
+                          'additions',
+                          'deletions',
+                          'patch',
+                        ],
+                        properties: {
+                          path: {
+                            type: 'string',
+                          },
+                          status: {
+                            type: 'string',
+                            enum: ['added', 'modified', 'deleted'],
+                          },
+                          additions: {
+                            type: 'integer',
+                            minimum: 0,
+                          },
+                          deletions: {
+                            type: 'integer',
+                            minimum: 0,
+                          },
+                          patch: {
+                            type: 'string',
+                            description: 'Unified diff of the file.',
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              ],
+              description:
+                'Present for coding attempts once their changes were saved.',
+            },
+            testChecks: {
+              type: 'array',
+              description:
+                "Results of the case's named test commands, in the order run. Absent until the commands ran; empty when the case names none.\n",
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                description:
+                  "One test command the runner ran in the attempt's workspace.",
+                required: [
+                  'command',
+                  'passed',
+                  'exitCode',
+                  'output',
+                  'truncated',
+                  'elapsedMs',
+                ],
+                properties: {
+                  command: {
+                    type: 'string',
+                  },
+                  passed: {
+                    type: 'boolean',
+                  },
+                  exitCode: {
+                    anyOf: [
+                      {
+                        type: 'integer',
+                        description:
+                          'Null when the command was stopped by its timeout or could not start.',
+                      },
+                      {
+                        type: 'null',
+                      },
+                    ],
+                  },
+                  output: {
+                    type: 'string',
+                    description: 'Combined stdout and stderr, capped.',
+                  },
+                  truncated: {
+                    type: 'boolean',
+                    description: 'True when output was cut at the cap.',
+                  },
+                  elapsedMs: {
+                    type: 'integer',
+                    minimum: 0,
+                  },
+                },
+              },
             },
             judgedOutput: {
               anyOf: [
@@ -1676,6 +1783,71 @@ export const REPORT_SCHEMAS = {
                             },
                           },
                         },
+                      },
+                    },
+                  },
+                  coding: {
+                    type: 'object',
+                    additionalProperties: false,
+                    description:
+                      "Coding section of an Eval Case whose handler is `free_form`. For the runner, coordinator and judge only; never passed to the target. Valid exactly when the case's handler is `free_form`; checked at approval and at launch, and recorded with each run.\n",
+                    required: [
+                      'serviceId',
+                      'pinnedCommit',
+                      'knownGoodDiff',
+                      'knownBadDiff',
+                    ],
+                    properties: {
+                      serviceId: {
+                        type: 'string',
+                        format: 'branded-ServiceId',
+                        pattern:
+                          '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+                        description:
+                          'Unique identifier for a service (branded type)',
+                        example: '550e8400-e29b-41d4-a716-446655440015',
+                        'x-typescript-type': 'ServiceId',
+                        'x-brand': 'ServiceId',
+                        'x-semantic-type': 'resource-identifier',
+                      },
+                      pinnedCommit: {
+                        type: 'object',
+                        additionalProperties: false,
+                        description: 'The commit a coding attempt starts from.',
+                        required: ['sha', 'shortMessage'],
+                        properties: {
+                          sha: {
+                            type: 'string',
+                            pattern: '^[0-9a-f]{40}$',
+                            description: 'Full 40-character commit SHA.',
+                          },
+                          shortMessage: {
+                            type: 'string',
+                            minLength: 1,
+                            description:
+                              'First line of the commit message, shown for recognition.',
+                          },
+                        },
+                      },
+                      testCommands: {
+                        type: 'array',
+                        description:
+                          'Targeted commands the runner runs after the agent finishes. The agent does not run them. Empty or absent means no tests run.\n',
+                        items: {
+                          type: 'string',
+                          minLength: 1,
+                        },
+                      },
+                      knownGoodDiff: {
+                        type: 'string',
+                        minLength: 1,
+                        description: 'A change that satisfies the case.',
+                      },
+                      knownBadDiff: {
+                        type: 'string',
+                        minLength: 1,
+                        description:
+                          'A change that plausibly looks right but fails the case.',
                       },
                     },
                   },

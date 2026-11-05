@@ -42,6 +42,7 @@ import { WebPathService } from "@hey-hey/ui-common/services";
 import { AttemptExecutionSummary } from "./AttemptExecutionSummary";
 import { AttemptSessions } from "./AttemptSessions";
 
+import { CodingAttemptResults, CodingStartPoint } from "./CodingAttemptResults";
 import { EvalHumanReviewForm } from "./EvalHumanReviewForm";
 import {
   automatedAssessment,
@@ -409,7 +410,10 @@ const WorkBreakdown: React.FC<{ rows: WorkBreakdownRow[] }> = ({ rows }) => {
   );
 };
 
-const ExpectedVersusResult: React.FC<{ row: CaseRow }> = ({ row }) => {
+const ExpectedVersusResult: React.FC<{
+  row: CaseRow;
+  organizationId: string;
+}> = ({ row, organizationId }) => {
   const { t } = useTranslation();
   return (
     <Box sx={{ mb: 2 }} data-testid="eval-expected-vs-result">
@@ -417,6 +421,12 @@ const ExpectedVersusResult: React.FC<{ row: CaseRow }> = ({ row }) => {
         <b>{t("eval.results.detail.expected")}:</b>{" "}
         {row.expectation ?? t("eval.results.detail.noExpectation")}
       </Typography>
+      {row.coding && (
+        <CodingStartPoint
+          organizationId={organizationId}
+          startPoint={row.coding.startPoint}
+        />
+      )}
       <Typography variant="body2" sx={{ mt: 0.5, whiteSpace: "pre-wrap" }}>
         <b>{t("eval.results.detail.result")}:</b>{" "}
         {row.recognitionExplanation ?? t("eval.results.detail.noResult")}
@@ -453,7 +463,8 @@ export const EvalCaseDetail: React.FC<EvalCaseDetailProps> = ({
 }) => (
   <Box sx={{ p: 2 }} data-testid={`eval-attempt-detail-${attempt.id}`}>
     <AttemptExecutionSummary attempt={attempt} />
-    <ExpectedVersusResult row={row} />
+    <ExpectedVersusResult row={row} organizationId={organizationId} />
+    {row.coding && <CodingAttemptResults coding={row.coding} />}
     <AttemptSessions
       attempt={attempt}
       judgeSessionHref={row.judgeSessionHref}

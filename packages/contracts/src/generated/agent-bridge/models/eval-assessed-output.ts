@@ -16,7 +16,7 @@
 
 
 /**
- * Which output the judge assesses for an attempt.
+ * Which output the judge assesses for an attempt. CODE_CHANGES is the recorded changes and test checks of a coding attempt, not its chat reply.
  * @export
  * @enum {string}
  */
@@ -24,10 +24,13 @@
 export const EvalAssessedOutput = {
     ResearchReport: 'RESEARCH_REPORT',
     HandlerReply: 'HANDLER_REPLY',
+    CodeChanges: 'CODE_CHANGES',
     "RESEARCH_REPORT": "RESEARCH_REPORT",
     "HANDLER_REPLY": "HANDLER_REPLY",
+    "CODE_CHANGES": "CODE_CHANGES",
 } as const;
 Object.defineProperty(EvalAssessedOutput, "RESEARCH_REPORT", { enumerable: false, value: EvalAssessedOutput["ResearchReport"] });
 Object.defineProperty(EvalAssessedOutput, "HANDLER_REPLY", { enumerable: false, value: EvalAssessedOutput["HandlerReply"] });
+Object.defineProperty(EvalAssessedOutput, "CODE_CHANGES", { enumerable: false, value: EvalAssessedOutput["CodeChanges"] });
 
 export type EvalAssessedOutput = typeof EvalAssessedOutput[keyof typeof EvalAssessedOutput];

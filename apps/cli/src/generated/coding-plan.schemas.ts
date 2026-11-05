@@ -147,12 +147,6 @@ export const CodingPlanEmissionInputSchema = z
   })
   .strict();
 
-export const CodingPlanQuestionSchema = z
-  .object({
-    question: z.string().min(1),
-  })
-  .strict();
-
 export const CodingPlanConversationalApprovalSchema = z
   .object({
     responseType: z.literal('coding_plan_approval_v1'),

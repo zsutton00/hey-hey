@@ -30,7 +30,13 @@ import type { EvalConfiguration } from './eval-configuration.js';
 import type { EvalMeasurement } from './eval-measurement.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { EvalRecordedChanges } from './eval-recorded-changes.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { EvalResolvedExecution } from './eval-resolved-execution.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { EvalTestCheck } from './eval-test-check.js';
 
 /**
  *
@@ -134,6 +140,18 @@ export interface EvalAttemptReportPayloadAllOf {
      * @memberof EvalAttemptReportPayloadAllOf
      */
     'automatedAssessment'?: object | null;
+    /**
+     * Present for coding attempts once their changes were saved.
+     * @type {EvalRecordedChanges}
+     * @memberof EvalAttemptReportPayloadAllOf
+     */
+    'recordedChanges'?: EvalRecordedChanges;
+    /**
+     * Results of the case\'s named test commands, in the order run. Absent until the commands ran; empty when the case names none.
+     * @type {Array<EvalTestCheck>}
+     * @memberof EvalAttemptReportPayloadAllOf
+     */
+    'testChecks'?: Array<EvalTestCheck>;
     /**
      * The exact text the judge was given to assess: the saved research for research alone, otherwise the handler\'s reply. Absent when judging never started. The judge runs as an isolated child inside the run\'s coordinator session and has no session of its own, so this is the record of what it looked at.
      * @type {string}

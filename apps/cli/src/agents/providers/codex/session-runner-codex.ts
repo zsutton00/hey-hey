@@ -1978,6 +1978,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
         );
         const startSessionConfig: CodexSdkSessionConfigWithServiceTier = {
           ...(toolExecutionHooks ? { toolExecutionHooks } : {}),
+          ...(session.workspaceBound === true ? { withoutGitCredentials: true } : {}),
           prompt: providerPrompt,
           attachments: attachmentContent,
           ...(freshPlatformPromptDelivery?.mode === PROVIDER_PLATFORM_PROMPT_DELIVERY_MODE.codex
@@ -2030,6 +2031,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
         );
         const resumeSessionConfig: CodexSdkSessionConfigWithServiceTier = {
           ...(toolExecutionHooks ? { toolExecutionHooks } : {}),
+          ...(session.workspaceBound === true ? { withoutGitCredentials: true } : {}),
           prompt: providerPrompt,
           attachments: attachmentContent,
           cwd: runCwd,

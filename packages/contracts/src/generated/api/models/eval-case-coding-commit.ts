@@ -14,20 +14,23 @@
  */
 
 
-// May contain unused imports in some cases
-// @ts-ignore
-import type { Hint } from './hint.js';
 
 /**
- *
+ * The commit a coding attempt starts from.
  * @export
- * @interface ListProjectHintsResponse
+ * @interface EvalCaseCodingCommit
  */
-export interface ListProjectHintsResponse {
+export interface EvalCaseCodingCommit {
     /**
-     *
-     * @type {Array<Hint>}
-     * @memberof ListProjectHintsResponse
+     * Full 40-character commit SHA.
+     * @type {string}
+     * @memberof EvalCaseCodingCommit
      */
-    'hints': Array<Hint>;
+    'sha': string;
+    /**
+     * First line of the commit message, shown for recognition.
+     * @type {string}
+     * @memberof EvalCaseCodingCommit
+     */
+    'shortMessage': string;
 }

@@ -4,11 +4,13 @@ import {
   EvalConsumerHandlerKey,
   EvalTargetHandlerKey,
   WorkStatus,
+  type EvalCaseCoding,
   type EvalCaseTarget,
   type EvalHandlerConfig,
   type EvalResolvedExecution,
   type ProjectedWorkItem,
 } from '@hey-hey/contracts/api/models';
+import { validateEvalCaseCodingContent } from '../tasks/eval-case-coding.validator';
 
 const TARGET_HANDLER_KEYS: readonly string[] =
   Object.values(EvalTargetHandlerKey);
@@ -37,9 +39,10 @@ function sectionText(
  * launch is rejected here, before anyone can select it. A case leaving the
  * runnable state is not checked.
  */
-export function assertApprovedEvalCaseHandlers(
+export async function assertApprovedEvalCaseHandlers(
   root: Pick<ProjectedWorkItem, 'name' | 'status' | 'sections'>,
-): void {
+  serviceExists: EvalCaseServiceLookup,
+): Promise<void> {
   if (
     root.status === WorkStatus.Archived ||
     root.status === WorkStatus.Superseded
@@ -47,11 +50,17 @@ export function assertApprovedEvalCaseHandlers(
     return;
   }
 
-  resolveEvalCaseHandlers(
+  const handlers = resolveEvalCaseHandlers(
     root.name,
     sectionText(root.sections, 'handler'),
     sectionText(root.sections, 'consumerHandler'),
   );
+  const coding = resolveEvalCaseCoding(
+    root.name,
+    handlers.targetHandler,
+    root.sections.find((section) => section.key === 'coding')?.content,
+  );
+  await assertEvalCaseServiceExists(root.name, coding, serviceExists);
 }
 
 /**
@@ -104,7 +113,10 @@ export function resolveEvalExecution(
     projectAssistantPrepares:
       isConsumerHandlerKey(handler) &&
       handlerConfig?.projectAssistant?.enabled !== false,
-    assessedOutput: EvalAssessedOutput.HandlerReply,
+    assessedOutput:
+      handler === EvalTargetHandlerKey.FreeForm
+        ? EvalAssessedOutput.CodeChanges
+        : EvalAssessedOutput.HandlerReply,
   };
 }
 
@@ -142,4 +154,58 @@ export function resolveEvalCaseHandlers(
     );
   }
   return { targetHandler: handler, consumerHandler: consumer };
+}
+
+/** Whether a Service with this id belongs to the case's project. */
+export type EvalCaseServiceLookup = (serviceId: string) => Promise<boolean>;
+
+/**
+ * The Coding section is accepted exactly when the case's handler is the
+ * free-form coding agent, and must be well formed. Shared by approval and
+ * launch. Returns the section, or undefined when the case has none.
+ */
+export function resolveEvalCaseCoding(
+  caseName: string,
+  handler: EvalTargetHandlerKey,
+  content: unknown,
+): EvalCaseCoding | undefined {
+  const isBlank =
+    content === undefined ||
+    content === null ||
+    (typeof content === 'string' && content.trim() === '');
+
+  if (isBlank) {
+    if (handler === EvalTargetHandlerKey.FreeForm) {
+      throw new BadRequestException(
+        `Eval case "${caseName}" cannot run: a ${EvalTargetHandlerKey.FreeForm} case must have a Coding section.`,
+      );
+    }
+    return undefined;
+  }
+
+  if (handler !== EvalTargetHandlerKey.FreeForm) {
+    throw new BadRequestException(
+      `Eval case "${caseName}" cannot run: only a ${EvalTargetHandlerKey.FreeForm} case has a Coding section.`,
+    );
+  }
+
+  const result = validateEvalCaseCodingContent(content);
+  if (!result.success) {
+    throw new BadRequestException(
+      `Eval case "${caseName}" cannot run: its Coding section is invalid (${result.message}).`,
+    );
+  }
+  return result.value;
+}
+
+export async function assertEvalCaseServiceExists(
+  caseName: string,
+  coding: EvalCaseCoding | undefined,
+  serviceExists: EvalCaseServiceLookup,
+): Promise<void> {
+  if (coding && !(await serviceExists(coding.serviceId))) {
+    throw new BadRequestException(
+      `Eval case "${caseName}" cannot run: its Coding section names Service ${coding.serviceId}, which is not in this project.`,
+    );
+  }
 }

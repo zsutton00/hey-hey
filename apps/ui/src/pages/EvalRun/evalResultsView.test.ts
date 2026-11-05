@@ -7,6 +7,7 @@ import {
   groupCasesBySetup,
   rowMeasure,
   measuredTokens,
+  testCount,
 } from "./evalResultsView";
 
 const setupA = {
@@ -311,5 +312,72 @@ describe("cost", () => {
       ["TARGET_PREPARATION", 0.5],
       ["TARGET_HANDLER", 1.4],
     ]);
+  });
+});
+
+describe("coding attempts", () => {
+  const codingRun = {
+    id: "run-2",
+    payload: {
+      ...run.payload,
+      cases: [
+        {
+          id: "coding-case",
+          title: "Add a field",
+          grading: { checks: [], rubric: [] },
+          coding: {
+            serviceId: "svc-1",
+            pinnedCommit: { sha: "abcdef1234567", shortMessage: "Start here" },
+          },
+        },
+      ],
+    },
+  } as unknown as EvalRunReport;
+  const changes = {
+    files: [
+      {
+        path: "a.ts",
+        status: "modified",
+        additions: 2,
+        deletions: 1,
+        patch: "",
+      },
+    ],
+  };
+  const testChecks = [
+    { command: "ok", passed: true },
+    { command: "bad", passed: false },
+  ];
+
+  it("shows what the attempt saved and where it started", () => {
+    const row = caseRow(
+      "p1",
+      codingRun,
+      attempt("x", setupA, "coding-case", {
+        recordedChanges: changes,
+        testChecks,
+        error: { message: "boom" },
+      }),
+    );
+
+    expect(row.coding).toEqual({
+      changes,
+      testChecks,
+      startPoint: {
+        serviceId: "svc-1",
+        sha: "abcdef1234567",
+        shortMessage: "Start here",
+      },
+    });
+    expect(row.errorMessage).toBe("boom");
+    expect(testCount(testChecks as never)).toEqual({ passed: 1, total: 2 });
+  });
+
+  it("reports no tests when none ran, and leaves non-coding attempts alone", () => {
+    expect(testCount([])).toBeNull();
+    expect(testCount(null)).toBeNull();
+    expect(
+      caseRow("p1", run, attempt("x", setupA, "case-1")).coding,
+    ).toBeNull();
   });
 });

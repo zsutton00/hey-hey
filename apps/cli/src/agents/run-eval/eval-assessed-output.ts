@@ -1,5 +1,10 @@
 import { LocalPromptType } from '../../shared/agent-bridge-contract/contract';
-import { EvalAssessedOutput, type EvalResolvedExecution } from '@hey-hey/contracts/api/models';
+import {
+  EvalAssessedOutput,
+  type EvalRecordedChanges,
+  type EvalResolvedExecution,
+  type EvalTestCheck,
+} from '@hey-hey/contracts/api/models';
 import type { RunMemo } from '../../session/types';
 
 /**
@@ -19,4 +24,39 @@ export const assessedOutputText = (
 
   return [...memos].reverse().find((memo) => memo.source === LocalPromptType.ProjectAssistant)
     ?.content;
+};
+
+const MAX_JUDGED_PATCH_CHARS = 30_000;
+
+/**
+ * The judged output for a coding attempt: the saved changes and test checks,
+ * never the chat reply. Stored as the attempt's judgedOutput, so it is the
+ * exact record of what the judge saw.
+ */
+export const codeChangesOutputText = (
+  changes: EvalRecordedChanges,
+  checks: readonly EvalTestCheck[],
+): string => {
+  const files =
+    changes.files.length === 0
+      ? ['The attempt changed no files.']
+      : changes.files.map((file) => {
+          const patch =
+            file.patch.length > MAX_JUDGED_PATCH_CHARS
+              ? `${file.patch.slice(0, MAX_JUDGED_PATCH_CHARS)}\n[Patch cut after ${MAX_JUDGED_PATCH_CHARS} characters.]`
+              : file.patch;
+
+          return `### ${file.path} (${file.status}, +${file.additions} -${file.deletions})\n${patch}`;
+        });
+  const tests =
+    checks.length === 0
+      ? ['No test commands were named for this case, so none were run.']
+      : checks.map((check) => {
+          const result = check.passed ? 'PASSED' : `FAILED (exit ${check.exitCode ?? 'none'})`;
+          const cut = check.truncated ? ' [output cut]' : '';
+
+          return `### ${check.command}: ${result}${cut}\n${check.output}`;
+        });
+
+  return ['## Changes made', ...files, '', '## Test results', ...tests].join('\n');
 };

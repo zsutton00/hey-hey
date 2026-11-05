@@ -17,6 +17,27 @@ const projected = (
   ],
 });
 
+const SERVICE = '44444444-4444-4444-8444-444444444444';
+const SHA = 'a'.repeat(40);
+const coding = (overrides: Record<string, unknown> = {}) =>
+  JSON.stringify({
+    serviceId: SERVICE,
+    pinnedCommit: { sha: SHA, shortMessage: 'Add settings page' },
+    testCommands: ['pnpm test settings'],
+    knownGoodDiff: 'diff --git good',
+    knownBadDiff: 'diff --git bad',
+    ...overrides,
+  });
+const withCoding = (handler: string, content?: string) => ({
+  name: 'A case',
+  sections: [
+    { key: 'handler', content: handler },
+    { key: 'consumerHandler', content: '' },
+    ...(content === undefined ? [] : [{ key: 'coding', content }]),
+  ],
+});
+const serviceExists = async (id: string) => id === SERVICE;
+
 describe('assertApprovedEvalCaseHandlers', () => {
   it.each([
     ['an entity conversation case', 'entity_conversation', ''],
@@ -25,10 +46,13 @@ describe('assertApprovedEvalCaseHandlers', () => {
       'project_assistant',
       'entity_conversation',
     ],
-  ])('approves %s', (_name, handler, consumer) => {
-    expect(() =>
-      assertApprovedEvalCaseHandlers(projected(handler, consumer)),
-    ).not.toThrow();
+  ])('approves %s', async (_name, handler, consumer) => {
+    await expect(
+      assertApprovedEvalCaseHandlers(
+        projected(handler, consumer),
+        serviceExists,
+      ),
+    ).resolves.toBeUndefined();
   });
 
   it.each([
@@ -36,17 +60,57 @@ describe('assertApprovedEvalCaseHandlers', () => {
     ['a Project Assistant case with no consumer', 'project_assistant', ''],
   ])(
     'rejects %s before the case becomes runnable',
-    (_name, handler, consumer) => {
-      expect(() =>
-        assertApprovedEvalCaseHandlers(projected(handler, consumer)),
-      ).toThrow(BadRequestException);
+    async (_name, handler, consumer) => {
+      await expect(
+        assertApprovedEvalCaseHandlers(
+          projected(handler, consumer),
+          serviceExists,
+        ),
+      ).rejects.toThrow(BadRequestException);
     },
   );
 
-  it('does not check a case that is leaving the runnable state', () => {
-    expect(() =>
-      assertApprovedEvalCaseHandlers(projected('run_eval', '', 'ARCHIVED')),
-    ).not.toThrow();
+  it('does not check a case that is leaving the runnable state', async () => {
+    await expect(
+      assertApprovedEvalCaseHandlers(
+        projected('run_eval', '', 'ARCHIVED'),
+        serviceExists,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  describe('Coding section', () => {
+    it('approves a free-form coding case with a valid Coding section', async () => {
+      await expect(
+        assertApprovedEvalCaseHandlers(
+          withCoding('free_form', coding()),
+          serviceExists,
+        ),
+      ).resolves.toBeUndefined();
+    });
+
+    it.each([
+      ['a free-form case without a Coding section', withCoding('free_form')],
+      [
+        'another handler with a Coding section',
+        withCoding('entity_conversation', coding()),
+      ],
+      [
+        'a Coding section naming an unknown Service',
+        withCoding('free_form', coding({ serviceId: crypto.randomUUID() })),
+      ],
+      [
+        'a malformed commit',
+        withCoding(
+          'free_form',
+          coding({ pinnedCommit: { sha: 'abc123', shortMessage: 'x' } }),
+        ),
+      ],
+    ])('rejects %s', async (_name, item) => {
+      await expect(
+        assertApprovedEvalCaseHandlers(item, serviceExists),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 });
 
@@ -99,6 +163,17 @@ describe('resolveEvalExecution', () => {
       projectAssistantPrepares: false,
       assessedOutput: 'RESEARCH_REPORT',
     });
+  });
+
+  it('judges the recorded changes, not the reply, for a free-form coding case', () => {
+    expect(
+      resolveEvalExecution(
+        { targetHandler: 'free_form' } as Parameters<
+          typeof resolveEvalExecution
+        >[0],
+        undefined,
+      ),
+    ).toMatchObject({ assessedOutput: 'CODE_CHANGES' });
   });
 
   it('never has Project Assistant prepare a handler that declares no policy', () => {

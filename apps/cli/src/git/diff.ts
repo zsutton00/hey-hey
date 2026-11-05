@@ -3,6 +3,7 @@ import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { LocalDiffFilePatch } from '../shared/agent-bridge-contract/runtime-types';
+import type { EvalRecordedFileChange } from '@hey-hey/contracts/api/models';
 import type {
   CliReadChangedFileDetail,
   CliReadChangedFileInventoryEntry,
@@ -399,4 +400,91 @@ export const countChangedFilesInPaths = async (opts: {
   } catch {
     return 0;
   }
+};
+
+/** Counts hunk lines only: everything before the first `@@` is the file header, whatever it starts with. */
+const countPatchLines = (patch: string): { additions: number; deletions: number } => {
+  let additions = 0;
+  let deletions = 0;
+  let inHunk = false;
+  for (const line of patch.split('\n')) {
+    if (!inHunk) {
+      inHunk = line.startsWith('@@');
+      continue;
+    }
+    if (line.startsWith('+')) {
+      additions += 1;
+    } else if (line.startsWith('-')) {
+      deletions += 1;
+    }
+  }
+
+  return { additions, deletions };
+};
+
+const patchStatus = (patch: string): EvalRecordedFileChange['status'] => {
+  if (/^new file mode /mu.test(patch)) {
+    return 'added';
+  }
+  if (/^deleted file mode /mu.test(patch)) {
+    return 'deleted';
+  }
+
+  return 'modified';
+};
+
+/**
+ * Everything changed in the working tree relative to `commit`, including new
+ * untracked files (which `git diff` alone omits). Ignored files are left out.
+ * Throws when git cannot produce the diff, so callers never record a partial
+ * result as complete.
+ */
+export const captureChangesSinceCommit = async (options: {
+  repoPath: string;
+  commit: string;
+}): Promise<EvalRecordedFileChange[]> => {
+  const { repoPath, commit } = options;
+  const { stdout: trackedDiff } = await execFileAsync(
+    'git',
+    ['diff', '--no-renames', '--unified=3', commit],
+    {
+      cwd: repoPath,
+      maxBuffer: MAX_DIFF_BUFFER,
+    },
+  );
+  const { stdout: untrackedList } = await execFileAsync(
+    'git',
+    ['ls-files', '--others', '--exclude-standard', '-z'],
+    { cwd: repoPath, maxBuffer: MAX_DIFF_BUFFER },
+  );
+  const files: EvalRecordedFileChange[] = splitIntoPatchesByFile(trackedDiff).map(
+    ({ filePath, diff }) => ({
+      path: filePath,
+      status: patchStatus(diff),
+      ...countPatchLines(diff),
+      patch: diff,
+    }),
+  );
+
+  for (const untrackedPath of untrackedList.split('\0').filter(Boolean)) {
+    const patch = await diffUntrackedFile(repoPath, untrackedPath);
+    if (patch) {
+      files.push({
+        path: patch.filePath,
+        status: 'added',
+        ...countPatchLines(patch.diff),
+        patch: patch.diff,
+      });
+      continue;
+    }
+
+    // git prints no diff for an empty new file; anything else missing is a failed capture.
+    const { size } = await stat(path.join(repoPath, untrackedPath));
+    if (size > 0) {
+      throw new Error(`The new file ${untrackedPath} could not be captured.`);
+    }
+    files.push({ path: untrackedPath, status: 'added', additions: 0, deletions: 0, patch: '' });
+  }
+
+  return files;
 };

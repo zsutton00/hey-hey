@@ -5745,8 +5745,9 @@ export const controllerActionRuntimeSchema = {
                   },
                   assessedOutput: {
                     type: 'string',
-                    description: 'Which output the judge assesses for an attempt.',
-                    enum: ['RESEARCH_REPORT', 'HANDLER_REPLY'],
+                    description:
+                      'Which output the judge assesses for an attempt. CODE_CHANGES is the recorded changes and test checks of a coding attempt, not its chat reply.\n',
+                    enum: ['RESEARCH_REPORT', 'HANDLER_REPLY', 'CODE_CHANGES'],
                   },
                 },
               },
@@ -5869,6 +5870,55 @@ export const controllerActionRuntimeSchema = {
                             },
                           },
                         },
+                      },
+                    },
+                  },
+                  coding: {
+                    type: 'object',
+                    additionalProperties: false,
+                    description:
+                      "Coding section of an Eval Case whose handler is `free_form`. For the runner, coordinator and judge only; never passed to the target. Valid exactly when the case's handler is `free_form`; checked at approval and at launch, and recorded with each run.\n",
+                    required: ['serviceId', 'pinnedCommit', 'knownGoodDiff', 'knownBadDiff'],
+                    properties: {
+                      serviceId: {
+                        $ref: '#/definitions/RepositoryFirstWorkRequest/properties/serviceId',
+                      },
+                      pinnedCommit: {
+                        type: 'object',
+                        additionalProperties: false,
+                        description: 'The commit a coding attempt starts from.',
+                        required: ['sha', 'shortMessage'],
+                        properties: {
+                          sha: {
+                            type: 'string',
+                            pattern: '^[0-9a-f]{40}$',
+                            description: 'Full 40-character commit SHA.',
+                          },
+                          shortMessage: {
+                            type: 'string',
+                            minLength: 1,
+                            description: 'First line of the commit message, shown for recognition.',
+                          },
+                        },
+                      },
+                      testCommands: {
+                        type: 'array',
+                        description:
+                          'Targeted commands the runner runs after the agent finishes. The agent does not run them. Empty or absent means no tests run.\n',
+                        items: {
+                          type: 'string',
+                          minLength: 1,
+                        },
+                      },
+                      knownGoodDiff: {
+                        type: 'string',
+                        minLength: 1,
+                        description: 'A change that satisfies the case.',
+                      },
+                      knownBadDiff: {
+                        type: 'string',
+                        minLength: 1,
+                        description: 'A change that plausibly looks right but fails the case.',
                       },
                     },
                   },

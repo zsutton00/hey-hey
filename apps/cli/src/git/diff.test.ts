@@ -9,6 +9,7 @@ import { promisify } from 'node:util';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   countChangedFilesInPaths,
+  captureChangesSinceCommit,
   getGitDiff,
   listGitChangedFilePathsExcludingIgnored,
 } from './diff';
@@ -326,5 +327,61 @@ describe('countChangedFilesInPaths', () => {
       paths: ['anything.txt'],
     });
     expect(count).toBe(0);
+  });
+});
+
+describe('captureChangesSinceCommit', () => {
+  it('reports a rename as a deletion plus an addition with correct line counts', async () => {
+    const repo = await createTempRepo();
+    const body = 'line1\nline2\nline3\nline4\n';
+    await writeFile(repo, 'old.txt', body);
+    await runGit(repo, ['add', '.']);
+    await runGit(repo, ['commit', '-qm', 'base']);
+    const commit = await runGit(repo, ['rev-parse', 'HEAD']);
+    await runGit(repo, ['mv', 'old.txt', 'new.txt']);
+
+    const files = await captureChangesSinceCommit({ repoPath: repo, commit });
+
+    expect(
+      files.map(({ path: file, status, additions, deletions }) => ({
+        file,
+        status,
+        additions,
+        deletions,
+      })),
+    ).toEqual([
+      { file: 'new.txt', status: 'added', additions: 4, deletions: 0 },
+      { file: 'old.txt', status: 'deleted', additions: 0, deletions: 4 },
+    ]);
+  });
+
+  it('counts hunk lines that look like diff headers, and handles new, deleted, empty and binary files', async () => {
+    const repo = await createTempRepo();
+    await writeFile(repo, 'q.sql', 'keep\n-- drop me\nkeep2\n');
+    await writeFile(repo, 'gone.txt', 'a\nb\n');
+    await runGit(repo, ['add', '.']);
+    await runGit(repo, ['commit', '-qm', 'base']);
+    const commit = await runGit(repo, ['rev-parse', 'HEAD']);
+    await writeFile(repo, 'q.sql', 'keep\n++plus\nkeep2\n');
+    await fs.rm(path.join(repo, 'gone.txt'));
+    await writeFile(repo, 'fresh.txt', 'x\ny\n');
+    await writeFile(repo, 'empty.txt', '');
+    await fs.writeFile(path.join(repo, 'blob.bin'), Buffer.from([0, 1, 2, 0, 255]));
+
+    const files = await captureChangesSinceCommit({ repoPath: repo, commit });
+    const byPath = Object.fromEntries(
+      files.map(({ path: file, status, additions, deletions }) => [
+        file,
+        { status, additions, deletions },
+      ]),
+    );
+
+    expect(byPath).toEqual({
+      'q.sql': { status: 'modified', additions: 1, deletions: 1 },
+      'gone.txt': { status: 'deleted', additions: 0, deletions: 2 },
+      'fresh.txt': { status: 'added', additions: 2, deletions: 0 },
+      'empty.txt': { status: 'added', additions: 0, deletions: 0 },
+      'blob.bin': { status: 'added', additions: 0, deletions: 0 },
+    });
   });
 });

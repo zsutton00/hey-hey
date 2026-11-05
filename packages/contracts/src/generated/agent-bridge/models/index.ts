@@ -215,6 +215,8 @@ export * from './disposition.js';
 export * from './edge-source.js';
 export * from './entity-type.js';
 export * from './eval-assessed-output.js';
+export * from './eval-case-coding.js';
+export * from './eval-case-coding-commit.js';
 export * from './eval-case-grading.js';
 export * from './eval-case-target.js';
 export * from './eval-check-definition.js';

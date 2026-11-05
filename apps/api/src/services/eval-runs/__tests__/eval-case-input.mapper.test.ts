@@ -168,6 +168,26 @@ describe('toEvalRunCaseInput', () => {
     );
   });
 
+  it('records the Coding section of a free-form case as a copy for the run', () => {
+    const content = {
+      serviceId: '44444444-4444-4444-8444-444444444444',
+      pinnedCommit: { sha: 'b'.repeat(40), shortMessage: 'Add settings page' },
+      testCommands: ['pnpm test settings'],
+      knownGoodDiff: 'good',
+      knownBadDiff: 'bad',
+    };
+    const recorded = toEvalRunCaseInput({
+      ...withHandlers('free_form', ''),
+      sections: [
+        ...withHandlers('free_form', '').sections,
+        section('coding', JSON.stringify(content)),
+      ],
+    });
+
+    expect(recorded.coding).toEqual(content);
+    expect(recorded.target).not.toHaveProperty('coding');
+  });
+
   it('rejects a case that cannot be run', () => {
     expect(() =>
       toEvalRunCaseInput({

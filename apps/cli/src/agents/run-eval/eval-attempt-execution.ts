@@ -6,13 +6,18 @@ import {
   type EvalRecordedAttempt,
   type EvalMeasurement,
   type EvalCost,
+  type EvalRecordedChanges,
+  type EvalTestCheck,
 } from '@hey-hey/contracts/api/models';
 import { SessionCostReader } from '../../provider-usage/session-cost';
 import type { AgenticSession } from '../../session/types';
 import type { LocalAgentService } from '../../server/local-agent-service';
 import type { RunStore } from '../../run-store/run-store';
+import { EvalWorkspaces, type EvalWorkspace } from './eval-workspace';
 import { EvalTargetFailure, type EvalTargetResult } from './eval-runner';
-import { assessedOutputText } from './eval-assessed-output';
+import { assessedOutputText, codeChangesOutputText } from './eval-assessed-output';
+import { runEvalTestCommands } from './eval-test-commands';
+import { captureChangesSinceCommit } from '../../git/diff';
 import { buildEvalFirstTurn } from './eval-handler-launch';
 import { resolveEvalTargetEntity } from './eval-targets';
 import { z } from 'zod';
@@ -72,8 +77,19 @@ export class EvalAttemptExecution {
   public constructor(
     private readonly logger: ServerLogger,
     costReader?: SessionCostReader,
+    private readonly workspaces?: EvalWorkspaces,
   ) {
     this.costReader = costReader ?? new SessionCostReader(logger);
+  }
+
+  /** Removes workspaces an interrupted run left behind. Called when evaluations start. */
+  public async sweepWorkspaces(): Promise<void> {
+    await this.workspaces?.sweep();
+  }
+
+  /** Removes the prepared dependencies the run's attempts shared. Called when the eval run ends. */
+  public async removePreparedBases(): Promise<void> {
+    await this.workspaces?.removePreparedBases();
   }
 
   public bind(service: LocalAgentService, store: RunStore): void {
@@ -89,6 +105,11 @@ export class EvalAttemptExecution {
       tokenBudget?: number;
       onTokenLimit?: () => void;
       onProviderSessionIds?: (ids: string[]) => Promise<void>;
+      /** Stores the attempt's saved changes and test checks before its workspace is removed. */
+      onWorkspaceSettled?: (settled: {
+        recordedChanges: EvalRecordedChanges;
+        testChecks: EvalTestCheck[];
+      }) => Promise<void>;
     },
   ): Promise<EvalTargetResult> {
     const service = this.service;
@@ -109,7 +130,7 @@ export class EvalAttemptExecution {
     const projectAssistantRuns =
       execution.projectAssistantPrepares ||
       execution.handler === EvalTargetHandlerKey.ProjectAssistant;
-    const request: LocalCreateRunRequest = {
+    const baseRequest: LocalCreateRunRequest = {
       context: {
         projectId: coordinator.contextMetadata.projectId,
         provider: providerSchema.parse(setting.provider),
@@ -150,6 +171,8 @@ export class EvalAttemptExecution {
         ? { projectAssistantConsumerHandlerId: firstTurn.projectAssistantConsumerHandlerId }
         : {}),
     };
+    const coding = attempt.caseInput.coding;
+    let workspace: EvalWorkspace | undefined;
     this.logger.info('run_eval.attempt.run_started', {
       runId: attempt.targetSessionId,
       handlerId: execution.handler,
@@ -192,10 +215,62 @@ export class EvalAttemptExecution {
         });
       });
     };
+    // Runs once, after the Run settles and before the workspace goes: saves the
+    // changes, runs the case's named tests, and records both. The first failure
+    // is the attempt's error, whichever path asks first.
+    let settlement:
+      | Promise<{ recordedChanges: EvalRecordedChanges; testChecks: EvalTestCheck[] } | undefined>
+      | undefined;
+    const settleWorkspace = (): NonNullable<typeof settlement> => {
+      settlement ??= (async () => {
+        if (!workspace || !coding) {
+          return undefined;
+        }
+        const files = await captureChangesSinceCommit({
+          repoPath: workspace.directory,
+          commit: coding.pinnedCommit.sha,
+        });
+        const testChecks = await runEvalTestCommands({
+          directory: workspace.directory,
+          environment: workspace.environment,
+          commands: coding.testCommands ?? [],
+          // Tests still run for an attempt stopped earlier (their results are part of its
+          // record); only a stop that arrives while they run cuts the remaining ones short.
+          signal: options.signal.aborted ? undefined : options.signal,
+        });
+        const settled = { recordedChanges: { files }, testChecks };
+        await options.onWorkspaceSettled?.(settled);
+
+        return settled;
+      })();
+
+      return settlement;
+    };
     const onAbort = (): void => scheduleCheck();
     options.signal.addEventListener('abort', onAbort, { once: true });
     const timer = setInterval(scheduleCheck, 100);
     try {
+      if (execution.handler === EvalTargetHandlerKey.FreeForm && coding) {
+        if (!this.workspaces) {
+          throw new Error('Coding evaluations require workspace support, which is unavailable.');
+        }
+        workspace = await this.workspaces.acquire(
+          {
+            attemptId: attempt.attemptId,
+            serviceId: coding.serviceId,
+            commitSha: coding.pinnedCommit.sha,
+          },
+          options.signal,
+        );
+        this.recordPreparation(attempt.targetSessionId, workspace.preparationMs);
+      }
+      const request: LocalCreateRunRequest =
+        workspace && coding
+          ? {
+              ...baseRequest,
+              workspaceBinding: { serviceId: coding.serviceId, directory: workspace.directory },
+            }
+          : baseRequest;
       if (!options.signal.aborted) {
         try {
           const created = await service.createRun(request);
@@ -261,6 +336,7 @@ export class EvalAttemptExecution {
           ]
         : [];
       const stopped = isStopped();
+      const settled = await settleWorkspace();
       if (
         !stopped &&
         metadata?.latestTurn?.state === 'settled' &&
@@ -271,7 +347,9 @@ export class EvalAttemptExecution {
           { ...result?.usage, cost: testedCost, researchMeasurements },
         );
       }
-      const assessedText = assessedOutputText(execution, result?.outputText, metadata?.memos);
+      const assessedText = settled
+        ? codeChangesOutputText(settled.recordedChanges, settled.testChecks)
+        : assessedOutputText(execution, result?.outputText, metadata?.memos);
       const completed = !stopped && (result?.assistantCompleted ?? false);
       if (
         completed &&
@@ -303,6 +381,18 @@ export class EvalAttemptExecution {
       options.signal.removeEventListener('abort', onAbort);
       await monitoring;
       const metadata = await store.getRunMetadata(attempt.targetSessionId);
+      try {
+        await settleWorkspace();
+      } catch (error) {
+        // The main path surfaces this once; here it must not hide an earlier Run error
+        // or skip recording the provider session ids.
+        this.logger.warn('run_eval.attempt.settlement_failed', {
+          runId: attempt.targetSessionId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        await workspace?.release();
+      }
       const ids = (metadata?.provider_session_history ?? [])
         .map((entry) => entry.providerSessionId)
         .filter((id) => !id.startsWith('pending_'));

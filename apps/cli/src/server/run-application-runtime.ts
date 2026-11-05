@@ -1,4 +1,5 @@
 import { EvalAttemptExecution } from '../agents/run-eval/eval-attempt-execution';
+import { EvalWorkspaces } from '../agents/run-eval/eval-workspace';
 import type { ProjectBrowser } from '../browser/project-browser-manager';
 import { RunTabs } from '../browser/run-tabs';
 import { BrowserTools } from '../browser/browser-tools';
@@ -387,7 +388,11 @@ export class RunApplicationRuntime {
       capabilityCatalog: dependencies.capabilityCatalog,
     });
     const deterministicE2EScenarioRegistry = DeterministicE2EScenarioRegistry.fromEnvironment();
-    const evalAttemptExecution = new EvalAttemptExecution(runLogger);
+    const evalAttemptExecution = new EvalAttemptExecution(
+      runLogger,
+      undefined,
+      new EvalWorkspaces(dependencies.repoStore, runLogger.child({ component: 'eval-workspaces' })),
+    );
     const baseHandlerDeps = {
       evalAttemptExecution,
       fetchImpl,

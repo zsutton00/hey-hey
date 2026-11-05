@@ -7,7 +7,9 @@ import { MessagePoster } from '../../run/message-poster';
 import { NOOP_LOGGER } from '../../server/logger';
 /** @vitest-environment node */
 
-import { mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -285,6 +287,13 @@ const attempt = (
       situation: 'SECRET-SITUATION',
     },
     grading: { checks: [], rubric: [], expectations: 'SECRET-EXPECTATIONS' },
+    coding: {
+      serviceId: '55555555-5555-4555-8555-555555555555',
+      pinnedCommit: { sha: 'a'.repeat(40), shortMessage: 'SECRET-COMMIT-MESSAGE' },
+      testCommands: ['SECRET-TEST-COMMAND'],
+      knownGoodDiff: 'SECRET-KNOWN-GOOD',
+      knownBadDiff: 'SECRET-KNOWN-BAD',
+    },
   },
 });
 /** Saves research and a different completion note, as a research turn does. */
@@ -949,6 +958,19 @@ describe('free-form coding attempt bound to a workspace directory', () => {
       cwd: string;
     };
     expect(startConfig.cwd).toBe(directory);
+    // The source repository is never a write root: the workspace is the only one.
+    expect(boundary.allowedRepositoryRoots).toEqual([directory]);
+    expect(
+      (
+        startConfig as unknown as {
+          workspaceContainment: { settings: { sandbox: { filesystem: { allowWrite: string[] } } } };
+        }
+      ).workspaceContainment.settings.sandbox.filesystem.allowWrite,
+    ).toEqual([directory]);
+    // The provider process starts without git or GitHub credentials.
+    expect(
+      (startConfig as unknown as { withoutGitCredentials?: boolean }).withoutGitCredentials,
+    ).toBe(true);
     expect(startConfig.builtinTools).toEqual(
       expect.arrayContaining(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']),
     );
@@ -1012,5 +1034,265 @@ describe('free-form coding attempt bound to a workspace directory', () => {
     providerEventHandler?.({ type: 'result' });
     await runPromise;
     await boundary.dispose();
+  });
+});
+
+describe('free-form coding attempts and their workspaces', () => {
+  const git = (cwd: string, ...args: string[]): string =>
+    execFileSync('git', args, { cwd, encoding: 'utf8' });
+
+  const codingSetup = async (failFirstClone = false) => {
+    const { EvalWorkspaces } = await import('./eval-workspace');
+    const temp = await mkdtemp(path.join(os.tmpdir(), 'heyhey-coding-attempts-'));
+    tempDirs.push(temp);
+    const source = path.join(temp, 'source');
+    const root = path.join(temp, 'workspaces');
+    await mkdir(source);
+    git(source, 'init', '-q');
+    git(source, 'config', 'user.email', 't@example.com');
+    git(source, 'config', 'user.name', 't');
+    await writeFile(path.join(source, 'a.txt'), 'one');
+    git(source, 'add', '.');
+    git(source, 'commit', '-qm', 'one');
+    const sha = git(source, 'rev-parse', 'HEAD').trim();
+
+    let resolutions = 0;
+    const workspaces = new EvalWorkspaces(
+      {
+        resolvePathForService: async () => {
+          resolutions += 1;
+          if (failFirstClone && resolutions === 1) {
+            throw new Error('repository is not mapped on this machine');
+          }
+
+          return source;
+        },
+      },
+      NOOP_LOGGER,
+      { rootDirectory: root, maxOpen: 2 },
+    );
+    const harness = await makeHarness();
+    const execution = new EvalAttemptExecution(NOOP_LOGGER, undefined, workspaces);
+    execution.bind(harness.service, harness.runStore);
+    const codingAttempt = (attemptId: string): EvalRecordedAttempt => {
+      const base = attempt('free_form');
+
+      return {
+        ...base,
+        attemptId,
+        caseInput: {
+          ...base.caseInput,
+          coding: { ...base.caseInput.coding!, pinnedCommit: { sha, shortMessage: 'one' } },
+        },
+      };
+    };
+    /** The directory the Run was bound to, read while the attempt is running. */
+    const boundDirectory = async (): Promise<string> => {
+      const run = await harness.runStore.getRunMetadata(AGENT_SESSION_ID);
+
+      return run!.services![0]!.path;
+    };
+
+    return { harness, execution, codingAttempt, boundDirectory, root };
+  };
+
+  const leftovers = async (root: string): Promise<string[]> =>
+    existsSync(root) ? readdir(root) : [];
+
+  it.each(['succeeds', 'fails', 'is cancelled'] as const)(
+    'leaves no workspace directory when the attempt %s',
+    async (outcome) => {
+      const { harness, execution, codingAttempt, boundDirectory, root } = await codingSetup();
+      const controller = new AbortController();
+      let during: string | undefined;
+      harness.runPrompt.mockImplementationOnce(async (...args: unknown[]) => {
+        during = await boundDirectory();
+        expect(existsSync(during)).toBe(true);
+        if (outcome === 'fails') {
+          throw new Error('provider crashed');
+        }
+        if (outcome === 'is cancelled') {
+          const input = args[0] as import('../providers/session-runner').RunPromptArgs;
+          controller.abort();
+          await new Promise<void>((resolve) => {
+            input.signal?.addEventListener('abort', () => resolve(), { once: true });
+            if (input.signal?.aborted) {
+              resolve();
+            }
+          });
+        }
+
+        return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+      });
+
+      await execution
+        .execute(coordinator, codingAttempt('44444444-4444-4444-8444-444444444444'), {
+          signal: controller.signal,
+        })
+        .catch(() => undefined);
+
+      expect(during).toBeDefined();
+      expect(existsSync(during!)).toBe(false);
+      expect(await leftovers(root)).toEqual([]);
+    },
+  );
+
+  it('saves the changes and runs the named tests before the workspace is removed, even when stopped', async () => {
+    const { harness, execution, codingAttempt, boundDirectory } = await codingSetup();
+    const controller = new AbortController();
+    harness.runPrompt.mockImplementationOnce(async (...args: unknown[]) => {
+      const directory = await boundDirectory();
+      await writeFile(path.join(directory, 'a.txt'), 'one\ntwo\n');
+      await writeFile(path.join(directory, 'new.txt'), 'hello\n');
+      const input = args[0] as import('../providers/session-runner').RunPromptArgs;
+      controller.abort();
+      await new Promise<void>((resolve) => {
+        input.signal?.addEventListener('abort', () => resolve(), { once: true });
+        if (input.signal?.aborted) {
+          resolve();
+        }
+      });
+
+      return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+    });
+    const recorded = codingAttempt('88888888-8888-4888-8888-888888888888');
+    recorded.caseInput.coding!.testCommands = ['test -f new.txt', 'exit 3', 'test -f a.txt'];
+    let directoryExistedWhenSaved: boolean | undefined;
+    let saved:
+      | Parameters<NonNullable<Parameters<typeof execution.execute>[2]['onWorkspaceSettled']>>[0]
+      | undefined;
+
+    await execution
+      .execute(coordinator, recorded, {
+        signal: controller.signal,
+        onWorkspaceSettled: async (settled) => {
+          directoryExistedWhenSaved = existsSync(await boundDirectory());
+          saved = settled;
+        },
+      })
+      .catch(() => undefined);
+
+    expect(directoryExistedWhenSaved).toBe(true);
+    expect(
+      saved?.recordedChanges.files.map(({ path: file, status, additions, deletions }) => ({
+        file,
+        status,
+        additions,
+        deletions,
+      })),
+    ).toEqual([
+      { file: 'a.txt', status: 'modified', additions: 2, deletions: 1 },
+      { file: 'new.txt', status: 'added', additions: 1, deletions: 0 },
+    ]);
+    expect(saved?.testChecks.map((check) => check.passed)).toEqual([true, false, true]);
+  });
+
+  it('fails only the attempt whose changes cannot be captured, keeps its session ids, and runs the next', async () => {
+    const { harness, execution, codingAttempt, boundDirectory, root } = await codingSetup();
+    const recordProviderSession = async (providerSessionId: string): Promise<void> => {
+      await harness.runStore.appendRunProviderSessionHistory(AGENT_SESSION_ID, {
+        providerSessionId,
+        providerConversationId: null,
+        providerSessionAgentId: 'agent_search',
+        observedAt: new Date().toISOString(),
+      });
+    };
+    harness.runPrompt.mockImplementationOnce(async () => {
+      await recordProviderSession('first-attempt-session');
+      // Without its repository, git cannot diff the workspace.
+      await rm(path.join(await boundDirectory(), '.git'), { recursive: true, force: true });
+
+      return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+    });
+    const patches: Array<{ attemptId: string; patch: EvalAttemptPatch }> = [];
+    const sessionIds: string[][] = [];
+    const first = codingAttempt('99999999-9999-4999-8999-999999999999');
+    const second = codingAttempt('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+
+    await runEvalAttempts(
+      {
+        attempts: [first, second],
+        settings: { maxConcurrentAttempts: 1, attemptTokenLimit: 1_000_000 },
+        signal: new AbortController().signal,
+      },
+      {
+        now: () => new Date(),
+        recorder: {
+          setRunStatus: () => Promise.resolve(),
+          updateAttempt: (attemptId, patch) => {
+            patches.push({ attemptId, patch });
+
+            return Promise.resolve();
+          },
+        },
+        launchTarget: (recorded, options) =>
+          execution.execute(coordinator, recorded, {
+            ...options,
+            onProviderSessionIds: async (ids) => {
+              sessionIds.push(ids);
+            },
+          }),
+        judge: vi.fn(async () => {
+          throw new Error('judging is not part of this check');
+        }),
+      },
+    );
+
+    const firstFinal = patches.filter((entry) => entry.attemptId === first.attemptId).at(-1);
+    expect(firstFinal?.patch).toMatchObject({
+      status: 'ERROR',
+      error: { message: expect.stringMatching(/not a git repository|git/i) },
+    });
+    expect(patches.some((entry) => entry.attemptId === second.attemptId)).toBe(true);
+    expect(sessionIds[0]).toEqual(['first-attempt-session']);
+    // Both attempts share the harness's one Run record, so the second reports the same ids.
+    expect(sessionIds[1]).toEqual(['first-attempt-session']);
+    expect(await leftovers(root)).toEqual([]);
+  });
+
+  it('fails only the attempt whose workspace cannot be created, and the next attempt still runs', async () => {
+    const { harness, execution, codingAttempt, boundDirectory, root } = await codingSetup(true);
+    let boundDuringSecond: string | undefined;
+    harness.runPrompt.mockImplementationOnce(async () => {
+      boundDuringSecond = await boundDirectory();
+
+      return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+    });
+    const patches: Array<{ attemptId: string; patch: EvalAttemptPatch }> = [];
+    const first = codingAttempt('66666666-6666-4666-8666-666666666666');
+    const second = codingAttempt('77777777-7777-4777-8777-777777777777');
+
+    await runEvalAttempts(
+      {
+        attempts: [first, second],
+        settings: { maxConcurrentAttempts: 1, attemptTokenLimit: 1_000_000 },
+        signal: new AbortController().signal,
+      },
+      {
+        now: () => new Date(),
+        recorder: {
+          setRunStatus: () => Promise.resolve(),
+          updateAttempt: (attemptId, patch) => {
+            patches.push({ attemptId, patch });
+
+            return Promise.resolve();
+          },
+        },
+        launchTarget: (recorded, options) => execution.execute(coordinator, recorded, options),
+        judge: vi.fn(async () => {
+          throw new Error('judging is not part of this check');
+        }),
+      },
+    );
+
+    const firstFinal = patches.filter((entry) => entry.attemptId === first.attemptId).at(-1);
+    expect(firstFinal?.patch).toMatchObject({
+      status: 'ERROR',
+      error: {
+        message: expect.stringMatching(/workspace could not be created.*repository is not mapped/),
+      },
+    });
+    expect(boundDuringSecond).toBeDefined();
+    expect(await leftovers(root)).toEqual([]);
   });
 });

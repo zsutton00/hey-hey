@@ -66,6 +66,7 @@ const runRecordedAttempts = async (
         ...options,
         onProviderSessionIds: (ids) =>
           recorder.updateAttempt(attempt.attemptId, { attemptProviderSessionIds: ids }),
+        onWorkspaceSettled: (settled) => recorder.updateAttempt(attempt.attemptId, settled),
       });
     },
     async judge(attempt, outputText, judgeSignal) {
@@ -104,6 +105,7 @@ const runRecordedAttempts = async (
       };
     },
   };
+  await deps.evalAttemptExecution?.sweepWorkspaces();
   deps.logger.info('run_eval.started', {
     runId: session.agentic_session_id,
     evalRunId: payload.evalRunId,
@@ -112,10 +114,15 @@ const runRecordedAttempts = async (
     attemptTimeLimitSeconds: payload.settings.attemptTimeLimitSeconds ?? null,
     attemptTokenLimit: payload.settings.attemptTokenLimit ?? null,
   });
-  const tally = await runEvalAttempts(
-    { attempts: payload.attempts, settings: payload.settings, signal },
-    ports,
-  );
+  let tally: EvalRunTally;
+  try {
+    tally = await runEvalAttempts(
+      { attempts: payload.attempts, settings: payload.settings, signal },
+      ports,
+    );
+  } finally {
+    await deps.evalAttemptExecution?.removePreparedBases();
+  }
   deps.logger.info('run_eval.ended', {
     runId: session.agentic_session_id,
     evalRunId: payload.evalRunId,

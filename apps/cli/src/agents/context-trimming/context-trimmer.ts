@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 import { DEFAULT_JEV_MODEL } from '../../jev/client';
+import { jevCostUsd } from '../../jev/pricing';
 import {
   CONTEXT_SELECTION,
   JEV_CUTOFFS,
@@ -24,7 +25,6 @@ import {
   type Slot,
 } from './get-context-result';
 import {
-  jevCostUsd,
   writeGetContextAttemptRecord,
   type GetContextAttemptRecord,
   type GetContextEntryRecord,

@@ -16,6 +16,9 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
+import type { EvalCaseCoding } from './eval-case-coding.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { EvalCaseGrading } from './eval-case-grading.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -57,4 +60,10 @@ export interface EvalRunCaseInput {
      * @memberof EvalRunCaseInput
      */
     'grading': EvalCaseGrading;
+    /**
+     *
+     * @type {EvalCaseCoding}
+     * @memberof EvalRunCaseInput
+     */
+    'coding'?: EvalCaseCoding;
 }

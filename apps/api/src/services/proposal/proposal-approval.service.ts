@@ -2715,7 +2715,17 @@ export class ProposalApprovalService {
       projection.projectedRoot.type === WORK_ITEM_TYPE_KEYS.EvalCase &&
       !projection.projectedRoot.deleted
     ) {
-      assertApprovedEvalCaseHandlers(projection.projectedRoot);
+      await assertApprovedEvalCaseHandlers(
+        projection.projectedRoot,
+        async (serviceId) =>
+          (await this.prisma.db.service.count({
+            where: {
+              id: serviceId,
+              organizationId: proposal.organizationId,
+              projectId: proposal.projectId,
+            },
+          })) > 0,
+      );
     }
     this.logger.debug(
       'Validated generic work-item change set before approval',

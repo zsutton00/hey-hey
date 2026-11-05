@@ -5,14 +5,6 @@ import path from 'node:path';
 import type { Focal, Tier } from '../../jev/scenarios';
 import type { RecordedJevCall } from '../project-assistant/parent-requirements-attempt-log';
 
-/** Jev's price per million tokens in USD: input is billed, output is free (structured decisions). */
-export const JEV_INPUT_USD_PER_MTOK = 0.042;
-export const JEV_OUTPUT_USD_PER_MTOK = 0;
-
-export const jevCostUsd = (usage: { inputTokens: number; outputTokens: number }): number =>
-  (usage.inputTokens * JEV_INPUT_USD_PER_MTOK + usage.outputTokens * JEV_OUTPUT_USD_PER_MTOK) /
-  1_000_000;
-
 /** One entry of the narrowed result and how it was decided. */
 export interface GetContextEntryRecord {
   section: string;

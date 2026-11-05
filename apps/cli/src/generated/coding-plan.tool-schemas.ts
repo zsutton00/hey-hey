@@ -229,17 +229,3 @@ export const CodingPlanDiscrepancyToolSchema = {
     },
   },
 };
-
-export const CodingPlanQuestionToolSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['question'],
-  properties: {
-    question: {
-      type: 'string',
-      minLength: 1,
-      description:
-        'One question the user must answer before planning can continue, shown verbatim in the conversation.',
-    },
-  },
-};

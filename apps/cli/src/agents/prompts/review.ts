@@ -36,7 +36,7 @@ export const buildReviewPrompt = (input: ReviewPromptInput): string => {
 
   sections.push('# Review');
   sections.push(
-    "Judge whether the coding session delivers the behavior required by the originating task, governing Feature requirements and Contracts, and latest applicable user intent. Trace the affected behavior through implementation and test evidence, including relevant unchanged components. Report findings and recommended changes. Do not edit code, tests, configuration or project artifacts, apply fixes, or commit.",
+    'Judge whether the coding session delivers the behavior required by the originating task, governing Feature requirements and Contracts, and latest applicable user intent. Trace the affected behavior through implementation and test evidence, including relevant unchanged components. Report findings and recommended changes. Do not edit code, tests, configuration or project artifacts, apply fixes, or commit.',
   );
 
   const servicesContext = buildServicesContextBlock(input);

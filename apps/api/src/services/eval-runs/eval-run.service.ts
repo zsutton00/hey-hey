@@ -48,6 +48,7 @@ import { ReportService } from '../reports/report.service';
 import { WORK_ITEM_TYPE_KEYS } from '../tasks/work-item-type-keys';
 import { toEvalRunCaseInput } from './eval-case-input.mapper';
 import {
+  assertEvalCaseServiceExists,
   assertEvaluableRunHandler,
   resolveEvalExecution,
 } from './eval-case-handlers';
@@ -156,6 +157,16 @@ export class EvalRunService {
     const caseInputs = request.evalCaseIds.map((id) =>
       toEvalRunCaseInput(casesById.get(id)!),
     );
+    for (const caseInput of caseInputs) {
+      await assertEvalCaseServiceExists(
+        caseInput.title,
+        caseInput.coding,
+        async (serviceId) =>
+          (await this.prisma.db.service.count({
+            where: { id: serviceId, organizationId, projectId },
+          })) > 0,
+      );
+    }
 
     const settings = this.resolveSettings(request.settings);
 

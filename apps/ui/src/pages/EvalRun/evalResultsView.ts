@@ -5,6 +5,8 @@ import {
   type EvalCheckDefinition,
   type EvalConfiguration,
   type EvalMeasurement,
+  type EvalRecordedChanges,
+  type EvalTestCheck,
 } from "@hey-hey/contracts/api";
 import type { EvalAttemptReport, EvalRunReport } from "@hey-hey/ui-common/data";
 import { WebPathService } from "@hey-hey/ui-common/services";
@@ -293,6 +295,27 @@ const breakdownRow = (
   };
 };
 
+/** What a coding attempt saved before its workspace was removed. */
+export interface CodingResults {
+  /** Null when the attempt never got as far as saving its changes. */
+  changes: EvalRecordedChanges | null;
+  /** Null until the named commands ran; empty when the case names none. */
+  testChecks: EvalTestCheck[] | null;
+  /** Where the attempt started: the Service and the pinned commit. */
+  startPoint: { serviceId: string; sha: string; shortMessage: string };
+}
+
+/** Passed over total test checks, or null when no tests ran. */
+export const testCount = (
+  checks: readonly EvalTestCheck[] | null,
+): { passed: number; total: number } | null =>
+  checks && checks.length > 0
+    ? {
+        passed: checks.filter((check) => check.passed).length,
+        total: checks.length,
+      }
+    : null;
+
 export type RecognitionView = "correct" | "missed" | "pending";
 
 export interface CaseRow {
@@ -316,11 +339,24 @@ export interface CaseRow {
   judgeSessionHref: string | null;
   /** The Eval Case record this attempt ran; null when the run did not name one. */
   evalCaseHref: string | null;
+  /** Set for coding attempts; null for every other kind. */
+  coding: CodingResults | null;
+  /** The attempt's own error message, shown in its cell. */
+  errorMessage: string | null;
   /** What the case expected, as recorded on the run. */
   expectation: string | null;
   /** The judge's saved explanation of its recognition result. */
   recognitionExplanation: string | null;
 }
+
+/** The generated type leaves the attempt's error as an untyped object. */
+const errorMessage = (attempt: EvalAttemptReport): string | null => {
+  const error: unknown = attempt.payload.error;
+
+  return isRecord(error) && typeof error.message === "string"
+    ? error.message
+    : null;
+};
 
 export const caseRow = (
   projectId: string,
@@ -336,6 +372,7 @@ export const caseRow = (
     .filter((score): score is number => score !== undefined);
   const sessionId = attempt.payload.targetSessionId;
   const expectation = caseInput?.grading.expectations?.trim();
+  const codingCase = caseInput?.coding;
   return {
     attemptId: attempt.id,
     setupId: attempt.payload.configuration.id,
@@ -386,6 +423,18 @@ export const caseRow = (
     evalCaseHref: caseInput?.evalCaseId
       ? WebPathService.task({ projectId, taskId: caseInput.evalCaseId })
       : null,
+    coding: codingCase
+      ? {
+          changes: attempt.payload.recordedChanges ?? null,
+          testChecks: attempt.payload.testChecks ?? null,
+          startPoint: {
+            serviceId: codingCase.serviceId,
+            sha: codingCase.pinnedCommit.sha,
+            shortMessage: codingCase.pinnedCommit.shortMessage,
+          },
+        }
+      : null,
+    errorMessage: errorMessage(attempt),
     expectation: expectation ? expectation : null,
     recognitionExplanation: assessment?.recognition.explanation ?? null,
   };

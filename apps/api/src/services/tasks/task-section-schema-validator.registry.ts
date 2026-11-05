@@ -50,6 +50,10 @@ import {
   validateImageSectionContent,
 } from './image-section-content.validator';
 import {
+  EVAL_CASE_CODING_SCHEMA_REF,
+  validateEvalCaseCodingContent,
+} from './eval-case-coding.validator';
+import {
   FEATURE_REQUIREMENTS_SCHEMA_REF,
   validateFeatureRequirementsSection,
 } from './feature-requirements-section.validator';
@@ -278,6 +282,19 @@ export class TaskSectionSchemaValidatorRegistry {
           const result = validateImageSectionContent(content);
           return result.success
             ? result
+            : {
+                success: false,
+                code: 'invalid_json_section',
+                message: result.message,
+              };
+        },
+      ],
+      [
+        EVAL_CASE_CODING_SCHEMA_REF,
+        (content: unknown): TaskSectionSchemaValidationResult => {
+          const result = validateEvalCaseCodingContent(content);
+          return result.success
+            ? { success: true, canonicalContent: result.canonicalContent }
             : {
                 success: false,
                 code: 'invalid_json_section',

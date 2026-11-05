@@ -3766,6 +3766,83 @@ describe('ProposalApprovalService', () => {
     );
   });
 
+  describe('approving an Eval Case with a Coding section', () => {
+    const inProject = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const inOtherProject = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const inOtherOrganization = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    const unknown = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    const services = [
+      {
+        id: inProject,
+        organizationId: testIds.organization,
+        projectId: testIds.project,
+      },
+      {
+        id: inOtherProject,
+        organizationId: testIds.organization,
+        projectId: 'other-project',
+      },
+      {
+        id: inOtherOrganization,
+        organizationId: 'other-organization',
+        projectId: testIds.project,
+      },
+    ];
+
+    const approveCodingCase = (serviceId: string) => {
+      (mockPrisma.db.service as any).count = jest.fn(
+        async ({ where }: { where: Record<string, string> }) =>
+          services.filter((row) =>
+            Object.entries(where).every(
+              ([key, value]) => row[key as keyof typeof row] === value,
+            ),
+          ).length,
+      );
+      const root = {
+        type: 'EVAL_CASE',
+        deleted: false,
+        name: 'A coding case',
+        status: WorkStatus.Backlog,
+        sections: [
+          { key: 'handler', content: 'free_form' },
+          { key: 'consumerHandler', content: '' },
+          {
+            key: 'coding',
+            content: JSON.stringify({
+              serviceId,
+              pinnedCommit: { sha: 'a'.repeat(40), shortMessage: 'Add page' },
+              knownGoodDiff: 'diff --git good',
+              knownBadDiff: 'diff --git bad',
+            }),
+          },
+        ],
+      };
+
+      return (service as any).assertGenericChangeSetValid(
+        {
+          organizationId: testIds.organization,
+          projectId: testIds.project,
+        },
+        {},
+        { projectedRoot: root, valid: true, issues: [] },
+      ) as Promise<void>;
+    };
+
+    it.each([
+      ['an unknown Service', unknown],
+      ['a Service in another project', inOtherProject],
+      ['a Service in another organization', inOtherOrganization],
+    ])('rejects a case naming %s', async (_name, serviceId) => {
+      await expect(approveCodingCase(serviceId)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('accepts a case naming a Service in the project', async () => {
+      await expect(approveCodingCase(inProject)).resolves.toBeUndefined();
+    });
+  });
+
   describe('validation', () => {
     it('throws when proposal not found', async () => {
       stubStoredProposal(null);

@@ -51,6 +51,8 @@ export type EvalAttemptPatch = Partial<
     | 'measurements'
     | 'automatedAssessment'
     | 'judgedOutput'
+    | 'recordedChanges'
+    | 'testChecks'
     | 'summary'
   >
 >;

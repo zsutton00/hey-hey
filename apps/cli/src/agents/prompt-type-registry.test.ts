@@ -1,4 +1,9 @@
-import { asConversationId, asProjectId, asServiceId, asWorkflowId } from '../test-utils/contract-ids';
+import {
+  asConversationId,
+  asProjectId,
+  asServiceId,
+  asWorkflowId,
+} from '../test-utils/contract-ids';
 import { describe, expect, it } from 'vitest';
 import { PromptTypeRegistry } from './prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from './prompt-type-registry.test-support';
@@ -238,6 +243,21 @@ describe('prompt-type-registry', () => {
     expect(registry.getById('project_report_section')).toBeUndefined();
     expect(registry.getChildHandler('research')).toBe(registry.getById('research'));
     expect(registry.getChildHandler('not_a_real_handler_id')).toBeUndefined();
+  });
+
+  it('mounts the report tool for every subagent handler that declares a required report', () => {
+    const handlers = registry
+      .list()
+      .filter((handler) => handler.reports.some((report) => report.required));
+
+    for (const handler of handlers) {
+      const names = handler.subagentConfig?.submissionToolNames;
+      if (names === undefined) {
+        continue;
+      }
+
+      expect(names, handler.id).toContain('create_report');
+    }
   });
 
   it('resolves every registered handler by its stable id', () => {

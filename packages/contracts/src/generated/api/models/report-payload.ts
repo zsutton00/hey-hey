@@ -73,6 +73,9 @@ import type { EvalMeasurement } from './eval-measurement.js';
 import type { EvalModelSetting } from './eval-model-setting.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { EvalRecordedChanges } from './eval-recorded-changes.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { EvalResolvedExecution } from './eval-resolved-execution.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -83,6 +86,9 @@ import type { EvalRunReportPayload } from './eval-run-report-payload.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { EvalRunSettings } from './eval-run-settings.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { EvalTestCheck } from './eval-test-check.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { EvidencePipelineReportEvidenceItemSummary } from './evidence-pipeline-report-evidence-item-summary.js';

@@ -27,7 +27,9 @@ export const readHintsEnabled = async (
     body: JSON.stringify({ jsonrpc: '2.0', id: 'hints-enabled', method: 'tools/list' }),
   });
   if (!response.ok) {
-    throw new Error(`Cannot start session: platform tool list failed (${String(response.status)}).`);
+    throw new Error(
+      `Cannot start session: platform tool list failed (${String(response.status)}).`,
+    );
   }
   const parsed = toolsListResponseSchema.safeParse(await response.json());
   if (!parsed.success) {

@@ -11,6 +11,8 @@ import type {
 } from '../prompt-type-handler';
 import { buildReviewPrompt } from '../prompts/review';
 import { buildStartingMessage as buildStartingMessageForPromptType } from '../prompts/starting-message';
+import { CREATE_REPORT_TOOL_NAME } from '../submission-tools/create-report-tool';
+import { RAISE_UNCERTAINTY_TOOL_NAME } from '../submission-tools/raise-uncertainty-tool';
 import {
   ReviewIntegrationContextResolver,
   type ReviewIntegrationContext,
@@ -89,7 +91,7 @@ export const reviewHandler: UserLaunchablePromptTypeHandler<LocalCodeReviewPromp
   submissionTools: [],
   subagentConfig: {
     submissionTools: 'run-registered',
-    submissionToolNames: ['raise_uncertainty'],
+    submissionToolNames: [CREATE_REPORT_TOOL_NAME, RAISE_UNCERTAINTY_TOOL_NAME],
     mcpAllowedTools: REVIEW_SUBAGENT_MCP_ALLOWED_TOOLS,
     builtinAllowedTools: REVIEW_SUBAGENT_BUILTIN_ALLOWED_TOOLS,
     adapterId: 'review-subagent',
