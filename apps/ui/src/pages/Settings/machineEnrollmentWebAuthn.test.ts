@@ -40,17 +40,17 @@ describe("createMachineEnrollmentCredential", () => {
           clientDataJSON: new Uint8Array([4, 5]).buffer,
           attestationObject: new Uint8Array([6, 7]).buffer,
           getTransports: () => ["internal", "hybrid"],
+          getPublicKey: () => new Uint8Array([8, 9]).buffer,
         },
         authenticatorAttachment: "platform",
       };
     });
 
-    const credential = await createMachineEnrollmentCredential(
-      registrationOptions,
-      { create },
-    );
+    const { credential, publicKeySpki } =
+      await createMachineEnrollmentCredential(registrationOptions, { create });
 
     expect(create).toHaveBeenCalledTimes(1);
+    expect(new Uint8Array(publicKeySpki!)).toEqual(new Uint8Array([8, 9]));
     expect(credential).toEqual({
       id: "credential-id",
       rawId: "AQID",

@@ -18,6 +18,15 @@ import {
 import { PrismaService } from '../../../prisma/prisma.service';
 import { OrganizationId, UserId } from '../../../types';
 import { MachineEnrollmentConfirmationService } from '../machine-enrollment-confirmation.service';
+import {
+  FIRST_LOCAL_GRANT_OUTCOME_REASON,
+  buildFirstLocalGrantIntent,
+  firstLocalGrantChallenge,
+  firstLocalGrantDescriptor,
+  firstLocalGrantAction,
+  hashControllerDeviceGrantDescriptor,
+  newFirstLocalGrantNonce,
+} from '../first-local-grant';
 
 const describeDatabase =
   process.env.RUN_MACHINE_ENROLLMENT_CONFIRMATION_DB_TESTS === '1' &&
@@ -108,6 +117,7 @@ describeDatabase(
           credentialBackupState: false,
           credentialFingerprint: crypto.randomBytes(32).toString('hex'),
           credentialVerifiedAt: new Date(),
+          webauthnChallenge: crypto.randomBytes(32).toString('base64url'),
           confirmationNonce,
           lastPolledAt: null,
         },
@@ -150,6 +160,14 @@ describeDatabase(
       const cleanupOrganizationIds = organizationIds.splice(0);
       const cleanupUserIds = userIds.splice(0);
 
+      if (cleanupMachineIds.length > 0) {
+        await prisma.db.executionGrant.deleteMany({
+          where: { machineId: { in: cleanupMachineIds } },
+        });
+        await prisma.db.executionAuthorization.deleteMany({
+          where: { machineId: { in: cleanupMachineIds } },
+        });
+      }
       if (cleanupEnrollmentIds.length > 0) {
         await prisma.db.machineControllerCredential.deleteMany({
           where: { enrollmentId: { in: cleanupEnrollmentIds } },
@@ -190,6 +208,164 @@ describeDatabase(
 
     afterAll(async () => {
       await prisma.$disconnect();
+    });
+
+    /** Turns a fixture into a first-time local claim whose challenge committed to a grant. */
+    const withFirstLocalGrant = async (
+      fixture: Awaited<ReturnType<typeof makeFixture>>,
+    ) => {
+      const project = await prisma.db.project.create({
+        data: {
+          name: 'My First Project',
+          organizationId: fixture.enrollment.claimantOrganizationId!,
+          status: 'ONBOARDING',
+        },
+      });
+      const issuedAt = new Date(Date.now() - 10_000);
+      const intent = buildFirstLocalGrantIntent({
+        enrollmentId: fixture.enrollment.id,
+        machineId: fixture.machineId,
+        userId: fixture.enrollment.claimantUserId!,
+        organizationId: fixture.enrollment.claimantOrganizationId!,
+        projectId: project.id,
+        controllerInstallationId: randomUUID(),
+        cadence: 'EIGHT_HOURS',
+        issuedAt,
+        nonce: newFirstLocalGrantNonce(),
+      });
+      await prisma.db.pendingMachineEnrollment.update({
+        where: { id: fixture.enrollment.id },
+        data: {
+          controllerInstallationId: intent.controllerInstallationId,
+          webauthnChallenge: firstLocalGrantChallenge(intent),
+          challengeIssuedAt: issuedAt,
+          requestedCadence: 'EIGHT_HOURS',
+        },
+      });
+      const activationAt = new Date();
+      const grantDescriptorHash = hashControllerDeviceGrantDescriptor(
+        firstLocalGrantDescriptor(
+          intent,
+          fixture.enrollment.credentialId!,
+          activationAt,
+          firstLocalGrantAction(intent, randomUUID()),
+        ),
+      );
+      const sign = (
+        firstLocalGrant: MachineEnrollmentConfirmationPayloadDto['firstLocalGrant'],
+      ): ConfirmMachineEnrollmentRequestDto => {
+        const confirmation = {
+          ...fixture.request.confirmation,
+          firstLocalGrant,
+        };
+        return {
+          ...fixture.request,
+          confirmation,
+          signature: crypto
+            .sign(
+              null,
+              Buffer.from(canonicalizeJcs(confirmation), 'utf8'),
+              fixture.privateKey,
+            )
+            .toString('base64'),
+        };
+      };
+      return {
+        intent,
+        project,
+        activationAt,
+        request: sign({
+          issuedAtMs: activationAt.getTime(),
+          grantDescriptorHash,
+        }),
+        tampered: sign({
+          issuedAtMs: activationAt.getTime(),
+          grantDescriptorHash: 'f'.repeat(64),
+        }),
+      };
+    };
+
+    it('issues exactly one ordinary first grant with the activation the CLI signed for', async () => {
+      const fixture = await makeFixture();
+      const firstLocal = await withFirstLocalGrant(fixture);
+
+      const ready = await service.poll(fixture.enrollment.id, {
+        deviceSecret: fixture.request.deviceSecret,
+      });
+      expect(ready).toMatchObject({
+        state: 'ready',
+        firstLocalGrant: {
+          cadence: 'EIGHT_HOURS',
+          projectId: firstLocal.project.id,
+        },
+      });
+
+      const activation = await service.confirm(
+        fixture.enrollment.id,
+        firstLocal.request,
+      );
+      const grant = await prisma.db.executionGrant.findUniqueOrThrow({
+        where: { id: activation.firstLocalGrant!.grantId },
+        include: { authorization: true },
+      });
+      expect(grant).toMatchObject({
+        scope: 'CONTROLLER_DEVICE_WINDOW',
+        cadence: 'EIGHT_HOURS',
+        machineId: fixture.machineId,
+        projectId: firstLocal.project.id,
+        controllerInstallationId: firstLocal.intent.controllerInstallationId,
+        targetKind: 'CLI_READ',
+        targetId: fixture.machineId,
+        issuedAt: firstLocal.activationAt,
+        expiresAt: new Date(
+          firstLocal.activationAt.getTime() + 8 * 60 * 60 * 1000,
+        ),
+        // Distinguishable from assertion-backed authorizations.
+        authorization: {
+          outcome: 'ADMITTED',
+          outcomeReason: FIRST_LOCAL_GRANT_OUTCOME_REASON,
+          assertionEvidence: null,
+          actionType: 'CLI_READ',
+        },
+      });
+      expect(
+        hashControllerDeviceGrantDescriptor(
+          activation.firstLocalGrant!.grantDescriptor,
+        ),
+      ).toBe(
+        firstLocal.request.confirmation.firstLocalGrant!.grantDescriptorHash,
+      );
+
+      await expect(
+        service.confirm(fixture.enrollment.id, firstLocal.request),
+      ).rejects.toBeInstanceOf(MachineEnrollmentAuthenticationFailedException);
+      expect(
+        await prisma.db.executionGrant.count({
+          where: { machineId: fixture.machineId },
+        }),
+      ).toBe(1);
+    });
+
+    it('rejects a signed descriptor the claim did not commit to and issues nothing', async () => {
+      const fixture = await makeFixture();
+      const firstLocal = await withFirstLocalGrant(fixture);
+
+      await expect(
+        service.confirm(fixture.enrollment.id, firstLocal.tampered),
+      ).rejects.toBeInstanceOf(MachineEnrollmentAuthenticationFailedException);
+      expect(
+        await prisma.db.executionGrant.count({
+          where: { machineId: fixture.machineId },
+        }),
+      ).toBe(0);
+
+      // Without a grant in the signed confirmation the same claim pairs with none.
+      await service.confirm(fixture.enrollment.id, fixture.request);
+      expect(
+        await prisma.db.executionGrant.count({
+          where: { machineId: fixture.machineId },
+        }),
+      ).toBe(0);
     });
 
     it('persists state-only polling, a stable nonce, and ready review evidence', async () => {

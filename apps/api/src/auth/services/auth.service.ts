@@ -17,6 +17,7 @@ import {
   LoginDto,
   LocalBootstrapResponseDto,
   LocalCliCredentialsResponseDto,
+  LocalSetupStatusDto,
   OrganizationRole,
   PasswordChangeRequiredDto,
   PasswordRecoveryAcknowledgementDto,
@@ -43,6 +44,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { isLocalApplication } from '../../deployment-environment';
 import { RedisService } from '../../core/redis/redis.service';
 import { isLocalAccountEmail } from '../local-account';
+import { LocalDefaultProjectService } from '../../services/local-default-project.service';
 
 export const PASSWORD_RECOVERY_ACKNOWLEDGEMENT =
   'If an eligible account exists, recovery instructions will be sent.' as const;
@@ -62,6 +64,7 @@ export class AuthService {
     private emailService: EmailService,
     private passwordRecoveryThrottleService: PasswordRecoveryThrottleService,
     private redisService: RedisService,
+    private localDefaultProjectService: LocalDefaultProjectService,
   ) {}
 
   async createLocalHandoff(
@@ -118,25 +121,18 @@ export class AuthService {
   async updateLocalDisplayName(
     userId: UserId,
     name: string,
-  ): Promise<{
-    nameComplete: boolean;
-    browserSession: boolean;
-    machineConnected: boolean;
-    executionReady: boolean;
-    hasProjects: boolean;
-  }> {
+  ): Promise<LocalSetupStatusDto> {
     this.assertLocalApplication();
     await this.userService.updateLocalDisplayName(userId, name);
+    // Pairing's first grant needs a project, so the name save creates it.
+    await this.localDefaultProjectService.ensure(
+      userId,
+      await this.localOrganizationId(userId),
+    );
     return this.getLocalStatus(userId);
   }
 
-  async getLocalStatus(userId: UserId): Promise<{
-    nameComplete: boolean;
-    browserSession: boolean;
-    machineConnected: boolean;
-    executionReady: boolean;
-    hasProjects: boolean;
-  }> {
+  async getLocalStatus(userId: UserId): Promise<LocalSetupStatusDto> {
     this.assertLocalApplication();
     const user = await this.userService.findForAuthentication(userId);
     if (!user || !isLocalAccountEmail(user.email)) {
@@ -151,19 +147,12 @@ export class AuthService {
         controllerCredentials: { select: { revokedAt: true } },
       },
     });
-    const memberships = await this.prisma.db.organizationMember.findMany({
-      where: { userId, isActive: true },
-      select: { organizationId: true },
-    });
+    const organizationId = await this.localOrganizationId(userId);
     const hasProjects =
-      memberships.length > 0 &&
-      (await this.prisma.db.project.count({
-        where: {
-          organizationId: {
-            in: memberships.map((membership) => membership.organizationId),
-          },
-        },
-      })) > 0;
+      (await this.localDefaultProjectService.findDefault(organizationId)) !==
+      null;
+    const setupProjectId =
+      await this.localDefaultProjectService.findUnfinished(organizationId);
     const connected = await Promise.all(
       machines.map((machine) =>
         this.redisService
@@ -188,7 +177,19 @@ export class AuthService {
       machineConnected,
       executionReady,
       hasProjects,
-    };
+      setupProjectId,
+    } satisfies LocalSetupStatusDto;
+  }
+
+  /** A local installation's account belongs to exactly one organization. */
+  private async localOrganizationId(userId: UserId): Promise<OrganizationId> {
+    const membership = await this.prisma.db.organizationMember.findFirstOrThrow(
+      {
+        where: { userId, isActive: true },
+        select: { organizationId: true },
+      },
+    );
+    return membership.organizationId as OrganizationId;
   }
 
   private async establishBrowserSession(

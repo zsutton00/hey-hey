@@ -17,6 +17,7 @@ import {
   CompleteMachineEnrollmentClaimRequestDto,
 } from '@hey-hey/contracts/api/models';
 import { OrganizationId, UserId } from '../../../types';
+import { firstLocalGrantChallenge } from '../first-local-grant';
 import {
   MACHINE_ENROLLMENT_ACCOUNT_FAILURE_LIMIT,
   MachineEnrollmentClaimService,
@@ -72,6 +73,7 @@ interface TestRow {
   browserBindingCredentialHash?: string | null;
   browserBindingIssuedAt?: Date | null;
   browserBindingExpiresAt?: Date | null;
+  requestedCadence?: string | null;
 }
 
 const makeCredential = (
@@ -332,6 +334,76 @@ describe('MachineEnrollmentClaimService', () => {
     expect(result.userId).toBe(row.claimantUserId);
     expect(row.webauthnChallenge).toBe(result.registrationOptions.challenge);
     expect(result.machineKeyFingerprint).toBe(`sha256:${'b'.repeat(64)}`);
+  });
+
+  describe('first-time local duration', () => {
+    const PROJECT_ID = '66666666-6666-4666-8666-666666666666';
+    const begin = (
+      firstLocalGrant?: BeginMachineEnrollmentClaimRequestDto['firstLocalGrant'],
+    ) =>
+      service.beginClaim(
+        makeBeginInput(firstLocalGrant ? { firstLocalGrant } : {}),
+        USER_ID,
+        [{ orgId: ORGANIZATION_ID }],
+        '::ffff:192.0.2.1',
+        { email: 'zac@example.com', name: 'Zac' },
+      );
+
+    beforeEach(() => {
+      prismaDb.project = {
+        findFirst: jest.fn(async () => ({ id: PROJECT_ID })),
+      };
+    });
+
+    it('commits the passkey challenge to the chosen duration and re-issues it when the duration changes', async () => {
+      const first = await begin({ cadence: 'ONE_MONTH' });
+      if (first.state !== 'claimable' || !first.firstLocalGrant) {
+        throw new Error('Expected a claim with a first grant intent');
+      }
+      expect(first.firstLocalGrant).toMatchObject({
+        cadence: 'ONE_MONTH',
+        projectId: PROJECT_ID,
+        enrollmentId: ENROLLMENT_ID,
+        machineId: MACHINE_ID,
+        userId: USER_ID,
+        organizationId: ORGANIZATION_ID,
+        controllerInstallationId: row.controllerInstallationId,
+        target: { kind: 'CLI_READ', id: MACHINE_ID },
+      });
+      expect(first.registrationOptions.challenge).toBe(
+        firstLocalGrantChallenge(first.firstLocalGrant),
+      );
+      expect(row.requestedCadence).toBe('ONE_MONTH');
+
+      const second = await begin({ cadence: 'EIGHT_HOURS' });
+      if (second.state !== 'claimable' || !second.firstLocalGrant) {
+        throw new Error('Expected a re-issued first grant intent');
+      }
+      expect(second.firstLocalGrant.cadence).toBe('EIGHT_HOURS');
+      expect(second.registrationOptions.challenge).not.toBe(
+        first.registrationOptions.challenge,
+      );
+      expect(second.registrationOptions.challenge).toBe(
+        firstLocalGrantChallenge(second.firstLocalGrant),
+      );
+      expect(row.requestedCadence).toBe('EIGHT_HOURS');
+    });
+
+    it('keeps an ordinary random challenge when no duration is requested', async () => {
+      const result = await begin();
+      expect(result).not.toHaveProperty('firstLocalGrant');
+      expect(row.requestedCadence).toBeNull();
+    });
+
+    it('rejects a duration outside the closed cadence set as an incompatible client', async () => {
+      const error = await begin({ cadence: 'EVERY_ACTION' } as never).catch(
+        (failure: unknown) => failure,
+      );
+      expect(
+        (error as MachineEnrollmentClaimFailedException).getResponse(),
+      ).toMatchObject({ code: MACHINE_ENROLLMENT_CLIENT_INCOMPATIBLE });
+      expect(row.state).toBe(MachineEnrollmentState.PENDING);
+    });
   });
 
   it('resumes the same claimant with the original ceremony material', async () => {

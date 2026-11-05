@@ -14,6 +14,51 @@ import { KEYS } from "../keys";
 import { compose, patterns } from "../compose";
 
 export const en = {
+  "localSetup.pairing.title": "Let Hey Hey work with your coding agents",
+  "localSetup.pairing.purpose":
+    "You're creating a passkey so Hey Hey can work with the coding agents on this computer. Your browser will ask you to approve it once.",
+  "localSetup.pairing.privacy":
+    "No data ever leaves this computer. Hey Hey runs here, on your machine.",
+  "localSetup.pairing.computer": "This computer",
+  "localSetup.pairing.agents.heading": "Coding agents found on this computer",
+  "localSetup.pairing.agents.claude": "Claude Code",
+  "localSetup.pairing.agents.codex": "Codex",
+  "localSetup.pairing.agents.opencode": "OpenCode",
+  "localSetup.pairing.agents.installed": "Found",
+  "localSetup.pairing.agents.notFound": "Not found",
+  "localSetup.pairing.agents.checkFailed": "Couldn't check",
+  "localSetup.pairing.agents.noneFound":
+    "No coding agents were found. Install Claude Code, Codex or OpenCode, then run heyhey local again.",
+  "localSetup.pairing.agents.unreported":
+    "This page didn't receive the list of coding agents. Run heyhey local again to see them.",
+  "localSetup.pairing.technical.heading": "Technical details",
+  "localSetup.pairing.technical.os": "Operating system",
+  "localSetup.pairing.technical.cliVersion": "CLI version",
+  "localSetup.pairing.technical.fingerprint": "Key fingerprint",
+  "localSetup.pairing.technical.account": "Account",
+  "localSetup.pairing.technical.organization": "Organization",
+  "localSetup.pairing.technical.passkeyName": "Passkey name",
+  "localSetup.pairing.duration.heading":
+    "Allow this browser to use this computer for",
+  "localSetup.pairing.duration.FIVE_MINUTES": "5 minutes",
+  "localSetup.pairing.duration.EIGHT_HOURS": "8 hours",
+  "localSetup.pairing.duration.ONE_DAY": "1 day",
+  "localSetup.pairing.duration.ONE_WEEK": "1 week",
+  "localSetup.pairing.duration.ONE_MONTH": "1 month",
+  "localSetup.pairing.duration.permission":
+    "This browser may drive this computer until this time ends or you revoke access. The same passkey approval connects this computer and grants access for your first project.",
+  "localSetup.pairing.preparing": "Getting ready…",
+  "localSetup.pairing.createPasskey": "Create passkey",
+  "localSetup.pairing.tryAgain": "Try creating passkey again",
+  "localSetup.pairing.cancel": "Cancel",
+  "localSetup.progress.title": "Connecting your computer",
+  "localSetup.progress.explanation":
+    "Hey Hey is getting set up on this computer. This page continues on its own.",
+  "localSetup.progress.terminalHint":
+    "If your terminal asks you to confirm, confirm it there. Keep it open.",
+  "localSetup.progress.failed":
+    "We couldn't finish connecting your computer. Try again, and if it keeps happening run heyhey local again.",
+  "localSetup.progress.retry": "Try again",
   "onboarding.local.runtimeUnavailable":
     "The saved runtime is unavailable on this computer. Restore that provider to resume onboarding.",
   "onboarding.local.launchRequired":

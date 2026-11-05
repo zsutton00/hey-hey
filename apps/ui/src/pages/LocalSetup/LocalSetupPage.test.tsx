@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { acceptBrowserAuthSession } from "@hey-hey/ui-common/services";
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { LocalSetupPage } from "./LocalSetupPage";
 import {
   computeLocalApprovalProof,
@@ -34,12 +34,18 @@ vi.mock("../Settings/ClaimMachine", () => ({
   ClaimMachine: ({
     initialCode,
     localApprovalSecret,
+    localAgents,
+    onLocalPasskeyCreated,
   }: {
     initialCode: string | null;
     localApprovalSecret?: string | null;
+    localAgents?: unknown;
+    onLocalPasskeyCreated?: () => void;
   }) => (
     <div data-testid="claim-machine">
       {initialCode}|{localApprovalSecret}
+      <span data-testid="claim-agents">{JSON.stringify(localAgents)}</span>
+      <button onClick={onLocalPasskeyCreated}>passkey created</button>
     </div>
   ),
 }));
@@ -58,6 +64,7 @@ const statusResponse = (
     machineConnected: boolean;
     executionReady: boolean;
     hasProjects: boolean;
+    setupProjectId: string | null;
   }> = {},
 ) => ({
   data: {
@@ -67,6 +74,7 @@ const statusResponse = (
       machineConnected: false,
       executionReady: false,
       hasProjects: false,
+      setupProjectId: null,
       ...overrides,
     },
   },
@@ -84,6 +92,10 @@ function renderLocalPage(initialPath = "/local") {
         <Route path="/local" element={<LocalSetupPage />} />
         <Route path="/welcome" element={<LocationProbe />} />
         <Route path="/home" element={<LocationProbe />} />
+        <Route
+          path="/projects/:projectId/onboarding"
+          element={<LocationProbe />}
+        />
       </Routes>
     </MemoryRouter>,
   );
@@ -181,16 +193,27 @@ describe("LocalSetupPage", () => {
     expect(JSON.stringify({ ...sessionStorage })).not.toContain(secret);
 
     // The browser proof matches what the originating CLI recomputes.
+    const spki = new Uint8Array([48, 89, 48, 19]);
     const binding = {
       enrollmentId: "550e8400-e29b-41d4-a716-446655440040",
       accountId: "account-1",
       organizationId: "organization-1",
       controllerCredentialId: "Y29udHJvbGxlcg",
+      credentialPublicKeySpki: spki.buffer,
+      registrationChallenge: "Y2hhbGxlbmdl",
     };
     expect(await computeLocalApprovalProof(secret, binding)).toBe(
       createHmac("sha256", Buffer.from(secret, "base64url"))
         .update(
-          `heyhey-local-approval-v1${binding.enrollmentId}${binding.accountId}${binding.organizationId}${binding.controllerCredentialId}`,
+          [
+            "heyhey-local-approval-v2",
+            binding.enrollmentId,
+            binding.accountId,
+            binding.organizationId,
+            binding.controllerCredentialId,
+            createHash("sha256").update(spki).digest("hex"),
+            binding.registrationChallenge,
+          ].join("\n"),
         )
         .digest("base64url"),
     );
@@ -214,27 +237,143 @@ describe("LocalSetupPage", () => {
     expect(details).toHaveTextContent("view: missing-pairing-details");
   });
 
-  it("shows the connected handoff for a live CLI connection", async () => {
+  it("hands the CLI's detected coding agents to the pairing screen and validates them once", async () => {
+    const agents = {
+      claude: "installed",
+      codex: "not-found",
+      opencode: "check-failed",
+    };
+    const secret = Buffer.alloc(32, 9).toString("base64url");
     authClient.getLocalSetupStatus.mockResolvedValue(
-      statusResponse({
-        nameComplete: true,
-        machineConnected: true,
-        executionReady: false,
-        hasProjects: false,
-      }),
+      statusResponse({ nameComplete: true }),
     );
+    window.history.replaceState(
+      {},
+      "",
+      `/local?pairing=started#code=ABCDEFGHJK&approval=${secret}&agents=${encodeURIComponent(JSON.stringify(agents))}`,
+    );
+    renderLocalPage("/local?pairing=started");
+
+    expect(await screen.findByTestId("claim-agents")).toHaveTextContent(
+      JSON.stringify(agents),
+    );
+    expect(window.location.href).not.toContain("agents");
+
+    cleanup();
+    forgetLocalPairing();
+    window.history.replaceState(
+      {},
+      "",
+      `/local?pairing=started#code=ABCDEFGHJK&approval=${secret}&agents=${encodeURIComponent('{"claude":"nonsense"}')}`,
+    );
+    renderLocalPage("/local?pairing=started");
+    expect(await screen.findByTestId("claim-agents")).toHaveTextContent("null");
+  });
+
+  it("after the passkey shows button-free progress and moves on by itself once the connection is live", async () => {
     const user = userEvent.setup();
-    renderLocalPage();
+    const secret = Buffer.alloc(32, 9).toString("base64url");
+    authClient.getLocalSetupStatus.mockResolvedValue(
+      statusResponse({ nameComplete: true, machineConnected: false }),
+    );
+    window.history.replaceState(
+      {},
+      "",
+      `/local?pairing=started#code=ABCDEFGHJK&approval=${secret}`,
+    );
+    renderLocalPage("/local?pairing=started");
+    await user.click(await screen.findByText("passkey created"));
+
+    const progress = await screen.findByTestId("local-pairing-progress");
+    expect(progress.querySelector("button")).toBeNull();
+    expect(screen.queryByTestId("location")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("local-pairing-progress-error")).toBeNull();
+
+    authClient.getLocalSetupStatus.mockResolvedValue(
+      statusResponse({ nameComplete: true, machineConnected: true }),
+    );
+    await waitFor(
+      () => {
+        expect(screen.getByTestId("location")).toHaveTextContent("/welcome");
+      },
+      { timeout: 5000 },
+    );
+  });
+
+  it("shows an error and a retry only when connecting fails", async () => {
+    const user = userEvent.setup();
+    const secret = Buffer.alloc(32, 9).toString("base64url");
+    authClient.getLocalSetupStatus
+      .mockResolvedValueOnce(statusResponse({ nameComplete: true }))
+      .mockRejectedValue(new Error("offline"));
+    window.history.replaceState(
+      {},
+      "",
+      `/local?pairing=started#code=ABCDEFGHJK&approval=${secret}`,
+    );
+    renderLocalPage("/local?pairing=started");
+    await user.click(await screen.findByText("passkey created"));
 
     expect(
-      await screen.findByRole("heading", {
-        name: "CONNECTED TO YOUR CODING PLANS",
-      }),
+      await screen.findByTestId(
+        "local-pairing-progress-error",
+        {},
+        { timeout: 5000 },
+      ),
     ).toBeInTheDocument();
-    await user.click(
-      screen.getByRole("button", { name: "Bootstrap your first project" }),
+
+    authClient.getLocalSetupStatus.mockResolvedValue(
+      statusResponse({ nameComplete: true, machineConnected: true }),
     );
-    expect(await screen.findByTestId("location")).toHaveTextContent("/welcome");
+    await user.click(screen.getByTestId("local-pairing-progress-retry"));
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/welcome");
+    });
+  });
+
+  it("tells the person to check their terminal while connecting, and offers a retry when the CLI never connects", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const secret = Buffer.alloc(32, 9).toString("base64url");
+      // The status request keeps succeeding: the CLI rejected the pairing or stopped.
+      authClient.getLocalSetupStatus.mockResolvedValue(
+        statusResponse({ nameComplete: true, machineConnected: false }),
+      );
+      window.history.replaceState(
+        {},
+        "",
+        `/local?pairing=started#code=ABCDEFGHJK&approval=${secret}`,
+      );
+      renderLocalPage("/local?pairing=started");
+      await user.click(await screen.findByText("passkey created"));
+
+      expect(
+        await screen.findByTestId("local-pairing-terminal-hint"),
+      ).toBeInTheDocument();
+      expect(screen.queryByTestId("local-pairing-progress-error")).toBeNull();
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(
+        await screen.findByTestId("local-pairing-progress-error"),
+      ).toBeInTheDocument();
+
+      await user.click(screen.getByTestId("local-pairing-progress-retry"));
+      expect(screen.queryByTestId("local-pairing-progress-error")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("goes straight on for an already-connected computer without a button", async () => {
+    authClient.getLocalSetupStatus.mockResolvedValue(
+      statusResponse({ nameComplete: true, machineConnected: true }),
+    );
+    renderLocalPage();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/welcome");
+    });
   });
 
   it("asks for the display name before showing a connected handoff", async () => {
@@ -256,6 +395,7 @@ describe("LocalSetupPage", () => {
         name: "CONNECTED TO YOUR CODING PLANS",
       }),
     ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("local-pairing-progress")).toBeNull();
   });
 
   it("shows a reconnect state without asking an already-paired return visit to enroll again", async () => {
@@ -273,6 +413,24 @@ describe("LocalSetupPage", () => {
       screen.queryByText("Create a pairing passkey"),
     ).not.toBeInTheDocument();
     expect(screen.queryByTestId("claim-machine")).not.toBeInTheDocument();
+  });
+
+  it("resumes first-project setup on the project saved with the name once connected", async () => {
+    const projectId = "550e8400-e29b-41d4-a716-446655440077";
+    authClient.getLocalSetupStatus.mockResolvedValue(
+      statusResponse({
+        nameComplete: true,
+        machineConnected: true,
+        hasProjects: true,
+        setupProjectId: projectId,
+      }),
+    );
+    renderLocalPage();
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent(
+        `/projects/${projectId}/onboarding`,
+      );
+    });
   });
 
   it("automatically returns existing projects to the workspace", async () => {

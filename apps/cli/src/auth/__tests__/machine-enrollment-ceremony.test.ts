@@ -50,6 +50,8 @@ const ready = (): PendingMachineEnrollment => ({
   controllerCredentialFingerprint: 'fp-1',
   backupEligible: true,
   backupState: false,
+  controllerCredentialPublicKey: { kty: 'EC', crv: 'P-256', x: 'A'.repeat(43), y: 'B'.repeat(43) },
+  registrationChallenge: 'registration-challenge',
   confirmationNonce: NONCE,
   expiresAt: '2026-08-12T22:00:00.000Z',
   state: 'ready',

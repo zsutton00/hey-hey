@@ -11,6 +11,8 @@ import {
   WebAuthnUnsupportedError,
 } from "./machineEnrollmentWebAuthn";
 
+const TEST_PUBLIC_KEY_SPKI = new Uint8Array([48, 89, 1, 2]).buffer;
+
 const mocks = vi.hoisted(() => ({
   beginMutate: vi.fn(),
   abandonMutate: vi.fn(),
@@ -82,7 +84,8 @@ vi.mock("@hey-hey/ui-common/data", () => ({
   }),
 }));
 
-vi.mock("@hey-hey/ui-common/hooks", () => ({
+vi.mock("@hey-hey/ui-common/hooks", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@hey-hey/ui-common/hooks")>()),
   useUserIdentity: () => fixtures.identity,
 }));
 
@@ -220,15 +223,18 @@ describe("ClaimMachine", () => {
       state: "rejected",
     });
     mocks.createCredential.mockResolvedValue({
-      id: "credential-id",
-      rawId: "raw-id",
-      type: "public-key",
-      response: {
-        clientDataJSON: "client-data",
-        attestationObject: "attestation",
-        transports: new Set(["internal"]),
+      credential: {
+        id: "credential-id",
+        rawId: "raw-id",
+        type: "public-key",
+        response: {
+          clientDataJSON: "client-data",
+          attestationObject: "attestation",
+          transports: new Set(["internal"]),
+        },
+        authenticatorAttachment: "platform",
       },
-      authenticatorAttachment: "platform",
+      publicKeySpki: TEST_PUBLIC_KEY_SPKI,
     });
     mocks.completeMutate.mockResolvedValue(completeResult);
   });
@@ -624,6 +630,74 @@ describe("ClaimMachine", () => {
     expect(mocks.completeMutate).not.toHaveBeenCalled();
   });
 
+  it("first-time local pairing is one screen with the agents found, then a direct passkey with the CLI-verifiable proof", async () => {
+    const secret = Buffer.alloc(32, 7).toString("base64url");
+    const onLocalPasskeyCreated = vi.fn();
+    render(
+      <ClaimMachine
+        initialCode="BCDFG-HJKLM"
+        localApprovalSecret={secret}
+        localAgents={{
+          claude: "installed",
+          codex: "not-found",
+          opencode: "not-found",
+        }}
+        onLocalPasskeyCreated={onLocalPasskeyCreated}
+      />,
+    );
+
+    // The enrollment is prepared on its own; there is no review page to continue through.
+    await waitFor(() =>
+      expect(screen.getByTestId("local-pairing-create-passkey")).toBeEnabled(),
+    );
+    expect(
+      screen.queryByTestId("settings-machine-claim-review"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("local-pairing-agent-claude"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("local-pairing-technical")).not.toHaveAttribute(
+      "open",
+    );
+    expect(mocks.createCredential).not.toHaveBeenCalled();
+    // One month is chosen until the person picks another duration.
+    expect(
+      screen.getByTestId("local-pairing-duration-ONE_MONTH"),
+    ).toBeChecked();
+    expect(mocks.beginMutate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ firstLocalGrant: { cadence: "ONE_MONTH" } }),
+    );
+    expect(screen.getByTestId("local-pairing-permission")).toBeVisible();
+
+    // The passkey challenge commits to the duration, so choosing another
+    // prepares the claim again before the passkey can be created.
+    fireEvent.click(screen.getByTestId("local-pairing-duration-EIGHT_HOURS"));
+    await waitFor(() =>
+      expect(mocks.beginMutate).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          firstLocalGrant: { cadence: "EIGHT_HOURS" },
+        }),
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("local-pairing-create-passkey")).toBeEnabled(),
+    );
+
+    fireEvent.click(screen.getByTestId("local-pairing-create-passkey"));
+
+    await waitFor(() => expect(onLocalPasskeyCreated).toHaveBeenCalled());
+    expect(mocks.createCredential).toHaveBeenCalledTimes(1);
+    expect(mocks.completeMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enrollmentId: "enrollment-1",
+        localApprovalProof: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
+      }),
+    );
+    expect(
+      screen.queryByText(/controller authorization/i),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows the awaiting-local-confirmation result without treating the machine as active", async () => {
     render(<ClaimMachine initialCode={null} />);
     advancePastCliStep();
@@ -748,15 +822,18 @@ describe("ClaimMachine", () => {
       mocks.createCredential
         .mockRejectedValueOnce(error)
         .mockResolvedValueOnce({
-          id: "credential-id",
-          rawId: "raw-id",
-          type: "public-key",
-          response: {
-            clientDataJSON: "client-data",
-            attestationObject: "attestation",
-            transports: new Set(["internal"]),
+          credential: {
+            id: "credential-id",
+            rawId: "raw-id",
+            type: "public-key",
+            response: {
+              clientDataJSON: "client-data",
+              attestationObject: "attestation",
+              transports: new Set(["internal"]),
+            },
+            authenticatorAttachment: "platform",
           },
-          authenticatorAttachment: "platform",
+          publicKeySpki: TEST_PUBLIC_KEY_SPKI,
         });
       render(<ClaimMachine initialCode="BCDFG-HJKLM" />);
       submitClaim();

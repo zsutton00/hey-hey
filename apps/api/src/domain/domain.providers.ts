@@ -26,6 +26,7 @@ import { PaymentEntitlementReconciliationService } from '../services/payment-ent
 import { OrganizationAccountLifecycleOwner } from '../services/organization-account-lifecycle.owner';
 import { OrganizationAccountLifecycleService } from '../services/organization-account-lifecycle.service';
 import { ProjectService } from '../services/project.service';
+import { LocalDefaultProjectService } from '../services/local-default-project.service';
 import { SecurityLoggerService } from '../services/security-logger.service';
 import { TagService } from '../services/tag.service';
 import { TaskService } from '../services/tasks/task.service';
@@ -227,6 +228,7 @@ export const DOMAIN_SERVICES: Provider[] = [
   EmailService,
   PrivateBetaAccessNotificationService,
   ProjectService,
+  LocalDefaultProjectService,
   ReportService,
   ReportRetentionService,
   SecurityLoggerService,
@@ -370,6 +372,7 @@ export const DOMAIN_EXPORTS = [
   EmailService,
   PrivateBetaAccessNotificationService,
   ProjectService,
+  LocalDefaultProjectService,
   ReportService,
   SecurityLoggerService,
   TagService,

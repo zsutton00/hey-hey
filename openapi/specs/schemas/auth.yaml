@@ -74,6 +74,24 @@ LocalNameRequestDto:
       maxLength: 100
       description: Display name only; not a login identifier or authentication factor.
 
+LocalCodingAgentAvailability:
+  type: string
+  enum: [installed, not-found, check-failed]
+  description: Whether the executable for one coding agent was found on this computer. It says nothing about login or model readiness.
+
+LocalCodingAgentDetectionDto:
+  type: object
+  additionalProperties: false
+  required: [claude, codex, opencode]
+  description: Installed coding agents found by the local CLI, carried in the local pairing page URL fragment. Display information only; it never grants host authority and never contains paths, credentials or provider output.
+  properties:
+    claude:
+      $ref: "#/LocalCodingAgentAvailability"
+    codex:
+      $ref: "#/LocalCodingAgentAvailability"
+    opencode:
+      $ref: "#/LocalCodingAgentAvailability"
+
 LocalSetupStatusDto:
   type: object
   additionalProperties: false
@@ -84,6 +102,7 @@ LocalSetupStatusDto:
       machineConnected,
       executionReady,
       hasProjects,
+      setupProjectId,
     ]
   properties:
     nameComplete:
@@ -99,6 +118,11 @@ LocalSetupStatusDto:
     hasProjects:
       type: boolean
       description: True when the local organization already contains a project, for automatic workspace return.
+    setupProjectId:
+      type: string
+      format: uuid
+      nullable: true
+      description: The default project created when the name was saved, while it is still in onboarding and no other project has finished setup. First-project setup resumes this project; null once setup is complete or before the name is saved.
 
 LoginDto:
   type: object

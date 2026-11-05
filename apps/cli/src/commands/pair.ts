@@ -128,6 +128,9 @@ const createConfirmationOwner = (
       new ControllerRegistryStore({ keyPairStore: dependencies.keyPairStore }),
     client: dependencies.machinesApi,
     prompter: dependencies.prompter ?? createInteractivePrompter(),
+    ...(dependencies.executionGrantStore
+      ? { executionGrantStore: dependencies.executionGrantStore }
+      : {}),
     log: dependencies.log,
     logError: dependencies.logError,
   });

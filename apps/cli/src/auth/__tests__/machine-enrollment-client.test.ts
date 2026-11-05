@@ -35,6 +35,8 @@ const readyResponse: PollMachineEnrollmentResponseDto = {
   controllerCredentialFingerprint: 'controller-fingerprint',
   backupEligible: true,
   backupState: false,
+  controllerCredentialPublicKey: { kty: 'EC', crv: 'P-256', x: 'A'.repeat(43), y: 'B'.repeat(43) },
+  registrationChallenge: 'registration-challenge',
   confirmationNonce: 'confirmation-nonce',
   expiresAt: '2099-08-12T22:00:00.000Z',
 };

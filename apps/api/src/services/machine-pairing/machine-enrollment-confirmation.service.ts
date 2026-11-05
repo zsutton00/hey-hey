@@ -1,5 +1,9 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import {
+  ExecutionGrantScope,
+  HostActionCategory,
+  HostActionTargetKind,
+  HostAffectingActionType,
   MachineEnrollmentState,
   PendingMachineEnrollment,
   Prisma,
@@ -8,6 +12,9 @@ import * as crypto from 'node:crypto';
 import {
   ConfirmMachineEnrollmentRequestDto,
   ConfirmMachineEnrollmentResponseDto,
+  FirstLocalGrantActivationDto,
+  FirstLocalGrantConfirmationDto,
+  FirstLocalGrantIntent,
   MachineEnrollmentActivatedBindingDto,
   MachineEnrollmentConfirmationPayloadDto,
   MachineEnrollmentPollReadyDto,
@@ -24,10 +31,27 @@ import { ServerSigningKeyService } from '../../core/server-signing/server-signin
 import { AgentOperationDispatchService } from '../../core/websockets/agent-operation-dispatch.service';
 import { ApiMetricsService } from '../../core/metrics/api-metrics.service';
 import { canonicalizeJcs } from '../../core/websockets/trigger-canonicalization';
-import { PrismaService } from '../../prisma/prisma.service';
+import {
+  AnyTransactionClient,
+  PrismaService,
+} from '../../prisma/prisma.service';
 import { OrganizationId, UserId } from '../../types';
 import { machineEnrollmentDiagnostic } from './machine-enrollment-diagnostics';
 import { ControllerBrowserBindingService } from '../controller-authorization/controller-browser-binding.service';
+import { hashControllerAction } from '../../generated/controller-action-contract';
+import {
+  CURRENT_AGENT_OPERATIONS,
+  getControllerDeviceGrantExpiry,
+} from '../controller-authorization/controller-authorization-operations';
+import {
+  FIRST_LOCAL_GRANT_ACTIVATION_SKEW_MS,
+  FIRST_LOCAL_GRANT_OUTCOME_REASON,
+  firstLocalGrantAction,
+  firstLocalGrantDescriptor,
+  firstLocalGrantIntentDigest,
+  hashControllerDeviceGrantDescriptor,
+  resolveFirstLocalGrantIntent,
+} from './first-local-grant';
 
 export const MACHINE_ENROLLMENT_MIN_POLL_INTERVAL_MS = 5_000;
 
@@ -56,11 +80,20 @@ type ReviewableMachineEnrollment = PendingMachineEnrollment & {
   credentialBackupEligible: boolean;
   credentialBackupState: boolean;
   credentialFingerprint: string;
+  webauthnChallenge: string;
 };
 
 type ConfirmableMachineEnrollment = ReviewableMachineEnrollment & {
   confirmationNonce: string;
 };
+
+interface ExpectedFirstLocalGrant {
+  confirmation: FirstLocalGrantConfirmationDto;
+  intent: FirstLocalGrantIntent;
+  action: ReturnType<typeof firstLocalGrantAction>;
+  grantDescriptor: ReturnType<typeof firstLocalGrantDescriptor>;
+  issuedAt: Date;
+}
 
 @Injectable()
 export class MachineEnrollmentConfirmationService {
@@ -184,7 +217,11 @@ export class MachineEnrollmentConfirmationService {
         }
 
         this.assertReviewEvidence(current);
-        return this.toReadyResponse(current, confirmationNonce!);
+        return this.toReadyResponse(
+          current,
+          confirmationNonce!,
+          await resolveFirstLocalGrantIntent(tx, current),
+        );
       });
 
       this.logger.log(
@@ -234,7 +271,14 @@ export class MachineEnrollmentConfirmationService {
 
     let expectedConfirmation: MachineEnrollmentConfirmationPayloadDto;
     try {
-      expectedConfirmation = this.toConfirmationPayload(enrollment);
+      expectedConfirmation = this.toConfirmationPayload(
+        enrollment,
+        await this.expectedFirstLocalGrant(
+          this.prisma.db,
+          enrollment,
+          input.confirmation.firstLocalGrant,
+        ),
+      );
     } catch (error) {
       this.throwPublicFailure(error);
     }
@@ -283,7 +327,15 @@ export class MachineEnrollmentConfirmationService {
 
         this.assertAuthenticatedEnrollment(current, deviceSecret);
         this.assertConfirmableEnrollment(current, new Date());
-        const currentConfirmation = this.toConfirmationPayload(current);
+        const firstLocalGrant = await this.expectedFirstLocalGrant(
+          tx,
+          current,
+          input.confirmation.firstLocalGrant,
+        );
+        const currentConfirmation = this.toConfirmationPayload(
+          current,
+          firstLocalGrant,
+        );
         if (
           !this.confirmationsEqual(input.confirmation, currentConfirmation) ||
           !this.verifyMachineSignature(
@@ -408,9 +460,18 @@ export class MachineEnrollmentConfirmationService {
           );
         }
 
+        const issuedFirstLocalGrant = firstLocalGrant
+          ? await this.issueFirstLocalGrant(tx, {
+              expected: firstLocalGrant,
+              controllerCredentialRecordId: controllerCredential.id,
+              activatedAt,
+            })
+          : null;
+
         return {
           credential,
           activatedBinding: this.toActivatedBinding(current),
+          firstLocalGrant: issuedFirstLocalGrant,
         };
       });
 
@@ -421,7 +482,9 @@ export class MachineEnrollmentConfirmationService {
           machineId: activation.activatedBinding.machineId,
           userId: activation.activatedBinding.accountId,
           organizationId: activation.activatedBinding.organizationId,
-          reasonCode: 'activation_succeeded',
+          reasonCode: activation.firstLocalGrant
+            ? 'activation_with_first_local_grant'
+            : 'activation_succeeded',
           state: 'consumed',
           decision: 'activated_after_local_confirmation',
         }),
@@ -458,6 +521,9 @@ export class MachineEnrollmentConfirmationService {
           this.serverSigningKeyService.getPublicKeyBase64(),
         authorizationProtocolVersion: 2,
         activatedBinding: activation.activatedBinding,
+        ...(activation.firstLocalGrant
+          ? { firstLocalGrant: activation.firstLocalGrant }
+          : {}),
       } satisfies ConfirmMachineEnrollmentResponseDto;
     } catch (error) {
       if (
@@ -480,6 +546,136 @@ export class MachineEnrollmentConfirmationService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Validates the first grant the CLI's signed confirmation asks for. The
+   * descriptor is rebuilt from the claim's committed intent, the verified
+   * credential and the CLI-chosen activation time; any mismatch rejects the
+   * confirmation rather than activating without the authority it signed for.
+   */
+  private async expectedFirstLocalGrant(
+    db: Pick<AnyTransactionClient, 'project'>,
+    enrollment: PendingMachineEnrollment,
+    requested: FirstLocalGrantConfirmationDto | undefined,
+  ): Promise<ExpectedFirstLocalGrant | null> {
+    if (requested === undefined) {
+      return null;
+    }
+    const intent = await resolveFirstLocalGrantIntent(db, enrollment);
+    const now = Date.now();
+    if (
+      !intent ||
+      !enrollment.credentialId ||
+      requested.issuedAtMs < intent.issuedAtMs ||
+      Math.abs(requested.issuedAtMs - now) >
+        FIRST_LOCAL_GRANT_ACTIVATION_SKEW_MS
+    ) {
+      throw new EnrollmentAuthenticationFailure();
+    }
+    const issuedAt = new Date(requested.issuedAtMs);
+    const action = firstLocalGrantAction(intent, crypto.randomUUID());
+    const grantDescriptor = firstLocalGrantDescriptor(
+      intent,
+      enrollment.credentialId,
+      issuedAt,
+      action,
+    );
+    const grantDescriptorHash =
+      hashControllerDeviceGrantDescriptor(grantDescriptor);
+    if (grantDescriptorHash !== requested.grantDescriptorHash) {
+      throw new EnrollmentAuthenticationFailure();
+    }
+    return {
+      confirmation: { issuedAtMs: requested.issuedAtMs, grantDescriptorHash },
+      intent,
+      action,
+      grantDescriptor,
+      issuedAt,
+    };
+  }
+
+  /**
+   * Records the first grant as an admitted controller-device authorization,
+   * so every later reuse, expiry and revocation path treats it as an ordinary
+   * grant. The record has no assertion evidence and is marked with
+   * FIRST_LOCAL_GRANT_OUTCOME_REASON, so it is never mistaken for one backed
+   * by a passkey assertion. One enrollment activates once, so it issues at
+   * most one.
+   */
+  private async issueFirstLocalGrant(
+    tx: AnyTransactionClient,
+    params: {
+      expected: ExpectedFirstLocalGrant;
+      controllerCredentialRecordId: string;
+      activatedAt: Date;
+    },
+  ): Promise<FirstLocalGrantActivationDto> {
+    const { intent, action, grantDescriptor, issuedAt } = params.expected;
+    const cadence = intent.cadence;
+    const recordedAt = new Date(
+      Math.max(params.activatedAt.getTime(), issuedAt.getTime()),
+    );
+    const authorization = await tx.executionAuthorization.create({
+      data: {
+        requestId: action.requestId,
+        canonicalIntent: canonicalizeJcs(intent),
+        webauthnChallenge:
+          firstLocalGrantIntentDigest(intent).toString('base64url'),
+        controllerCredentialId: params.controllerCredentialRecordId,
+        controllerInstallationId: intent.controllerInstallationId,
+        machineId: intent.machineId,
+        userId: intent.userId,
+        organizationId: intent.organizationId,
+        projectId: intent.projectId,
+        cadence,
+        policyRevision: intent.policyRevision,
+        grantDescriptorHash: params.expected.confirmation.grantDescriptorHash,
+        actionCategory: HostActionCategory.CLI_READ,
+        actionType: HostAffectingActionType.CLI_READ,
+        actionPayloadHash: hashControllerAction(action),
+        targetKind: HostActionTargetKind.CLI_READ,
+        targetId: intent.target.id,
+        agentSessionId: null,
+        taskMonitorId: null,
+        nonce: intent.nonce,
+        issuedAt,
+        expiresAt: new Date(issuedAt.getTime() + 2 * 60 * 1000),
+        consumedAt: recordedAt,
+        outcome: 'ADMITTED',
+        outcomeReason: FIRST_LOCAL_GRANT_OUTCOME_REASON,
+        outcomeRecordedAt: recordedAt,
+      },
+    });
+    const grant = await tx.executionGrant.create({
+      data: {
+        authorizationId: authorization.id,
+        scope: ExecutionGrantScope.CONTROLLER_DEVICE_WINDOW,
+        controllerCredentialId: params.controllerCredentialRecordId,
+        controllerInstallationId: intent.controllerInstallationId,
+        machineId: intent.machineId,
+        userId: intent.userId,
+        organizationId: intent.organizationId,
+        projectId: intent.projectId,
+        cadence,
+        policyRevision: intent.policyRevision,
+        grantDescriptorHash: params.expected.confirmation.grantDescriptorHash,
+        targetKind: HostActionTargetKind.CLI_READ,
+        targetId: intent.target.id,
+        allowedActions: CURRENT_AGENT_OPERATIONS.map(
+          (operation) => HostAffectingActionType[operation],
+        ),
+        agentSessionId: null,
+        authorizedTurnId: null,
+        issuedAt,
+        expiresAt: getControllerDeviceGrantExpiry(issuedAt, cadence),
+      },
+    });
+    return {
+      authorizationId: authorization.id,
+      grantId: grant.id,
+      grantDescriptor,
+    } satisfies FirstLocalGrantActivationDto;
   }
 
   private async lockEnrollment(
@@ -555,6 +751,7 @@ export class MachineEnrollmentConfirmationService {
       !enrollment.controllerInstallationId ||
       !enrollment.credentialId ||
       !enrollment.credentialFingerprint ||
+      !enrollment.webauthnChallenge ||
       !enrollment.credentialPublicKeyX ||
       !enrollment.credentialPublicKeyY ||
       enrollment.credentialSignCount === null ||
@@ -568,6 +765,7 @@ export class MachineEnrollmentConfirmationService {
   private toReadyResponse(
     enrollment: ReviewableMachineEnrollment,
     confirmationNonce: string,
+    firstLocalGrant: FirstLocalGrantIntent | null,
   ): MachineEnrollmentPollReadyDto {
     return {
       state: 'ready',
@@ -584,16 +782,20 @@ export class MachineEnrollmentConfirmationService {
       controllerCredentialFingerprint: `sha256:${enrollment.credentialFingerprint}`,
       backupEligible: enrollment.credentialBackupEligible,
       backupState: enrollment.credentialBackupState,
+      controllerCredentialPublicKey: this.toPublicKey(enrollment),
+      registrationChallenge: enrollment.webauthnChallenge,
       confirmationNonce,
       ...(enrollment.localApprovalProof === null
         ? {}
         : { localApprovalProof: enrollment.localApprovalProof }),
+      ...(firstLocalGrant ? { firstLocalGrant } : {}),
       expiresAt: enrollment.expiresAt.toISOString(),
     } satisfies MachineEnrollmentPollReadyDto;
   }
 
   private toConfirmationPayload(
     enrollment: ConfirmableMachineEnrollment,
+    firstLocalGrant: ExpectedFirstLocalGrant | null,
   ): MachineEnrollmentConfirmationPayloadDto {
     return {
       enrollmentId: enrollment.id,
@@ -602,7 +804,21 @@ export class MachineEnrollmentConfirmationService {
       organizationId: enrollment.claimantOrganizationId as OrganizationId,
       controllerCredentialId: enrollment.credentialId,
       confirmationNonce: enrollment.confirmationNonce,
+      ...(firstLocalGrant
+        ? { firstLocalGrant: firstLocalGrant.confirmation }
+        : {}),
     } satisfies MachineEnrollmentConfirmationPayloadDto;
+  }
+
+  private toPublicKey(
+    enrollment: ReviewableMachineEnrollment,
+  ): MachineEnrollmentActivatedBindingDto['controllerCredentialPublicKey'] {
+    return {
+      kty: 'EC',
+      crv: 'P-256',
+      x: Buffer.from(enrollment.credentialPublicKeyX).toString('base64url'),
+      y: Buffer.from(enrollment.credentialPublicKeyY).toString('base64url'),
+    };
   }
 
   private toActivatedBinding(
@@ -618,12 +834,7 @@ export class MachineEnrollmentConfirmationService {
       organizationId: enrollment.claimantOrganizationId as OrganizationId,
       controllerLabel: enrollment.controllerLabel,
       controllerCredentialId: enrollment.credentialId,
-      controllerCredentialPublicKey: {
-        kty: 'EC',
-        crv: 'P-256',
-        x: Buffer.from(enrollment.credentialPublicKeyX).toString('base64url'),
-        y: Buffer.from(enrollment.credentialPublicKeyY).toString('base64url'),
-      },
+      controllerCredentialPublicKey: this.toPublicKey(enrollment),
       controllerCredentialFingerprint: `sha256:${enrollment.credentialFingerprint}`,
       backupEligible: enrollment.credentialBackupEligible,
       backupState: enrollment.credentialBackupState,
@@ -640,7 +851,11 @@ export class MachineEnrollmentConfirmationService {
       actual.accountId === expected.accountId &&
       actual.organizationId === expected.organizationId &&
       actual.controllerCredentialId === expected.controllerCredentialId &&
-      actual.confirmationNonce === expected.confirmationNonce
+      actual.confirmationNonce === expected.confirmationNonce &&
+      actual.firstLocalGrant?.issuedAtMs ===
+        expected.firstLocalGrant?.issuedAtMs &&
+      actual.firstLocalGrant?.grantDescriptorHash ===
+        expected.firstLocalGrant?.grantDescriptorHash
     );
   }
 
@@ -726,7 +941,14 @@ export class MachineEnrollmentConfirmationService {
         'organizationId',
         'controllerCredentialId',
         'confirmationNonce',
+        ...(input.confirmation.firstLocalGrant === undefined
+          ? []
+          : ['firstLocalGrant']),
       ]) ||
+      (input.confirmation.firstLocalGrant !== undefined &&
+        !this.isFirstLocalGrantConfirmation(
+          input.confirmation.firstLocalGrant,
+        )) ||
       !this.isUuid(input.confirmation.enrollmentId) ||
       !this.isUuid(input.confirmation.machineId) ||
       !this.isUuid(input.confirmation.accountId) ||
@@ -736,6 +958,22 @@ export class MachineEnrollmentConfirmationService {
     ) {
       throw new Error('invalid-confirm-request');
     }
+  }
+
+  private isFirstLocalGrantConfirmation(value: unknown): boolean {
+    if (
+      typeof value !== 'object' ||
+      value === null ||
+      !this.hasExactKeys(value, ['issuedAtMs', 'grantDescriptorHash'])
+    ) {
+      return false;
+    }
+    const confirmation = value as Record<string, unknown>;
+    return (
+      Number.isSafeInteger(confirmation['issuedAtMs']) &&
+      typeof confirmation['grantDescriptorHash'] === 'string' &&
+      /^[a-f0-9]{64}$/.test(confirmation['grantDescriptorHash'])
+    );
   }
 
   private hasExactKeys(value: object, keys: readonly string[]): boolean {

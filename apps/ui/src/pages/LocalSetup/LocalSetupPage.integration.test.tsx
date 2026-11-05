@@ -52,6 +52,7 @@ it("establishes first-use access through handoff, then refreshes the real provid
     machineConnected,
     executionReady: false,
     hasProjects,
+    setupProjectId: null,
   });
   globalThis.mswServer.use(
     http.post("*/auth/refresh", () =>
@@ -96,6 +97,10 @@ it("establishes first-use access through handoff, then refreshes the real provid
             path="/home"
             element={<p data-testid="workspace">Workspace</p>}
           />
+          <Route
+            path="/welcome"
+            element={<p data-testid="first-project">First project</p>}
+          />
         </Routes>
       </MemoryRouter>
     </AuthProvider>,
@@ -112,7 +117,7 @@ it("establishes first-use access through handoff, then refreshes the real provid
     expect(screen.getByTestId("identity")).toHaveTextContent("Ada Lovelace"),
   );
   expect(
-    await screen.findByRole("heading", { name: "CONNECT THIS COMPUTER" }),
+    await screen.findByText(/did not receive its pairing details/),
   ).toBeInTheDocument();
   expect(
     screen.queryByRole("link", { name: "Continue to pairing" }),
@@ -134,32 +139,24 @@ it("establishes first-use access through handoff, then refreshes the real provid
             path="/home"
             element={<p data-testid="workspace">Workspace</p>}
           />
+          <Route
+            path="/welcome"
+            element={<p data-testid="first-project">First project</p>}
+          />
         </Routes>
       </MemoryRouter>
     </AuthProvider>,
   );
   expect(
-    await screen.findByRole("heading", { name: "CONNECT THIS COMPUTER" }),
+    await screen.findByText(/did not receive its pairing details/),
   ).toBeInTheDocument();
   expect(screen.getByTestId("identity")).toHaveTextContent("Ada Lovelace");
   expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
 
-  // A saved name and live connection alone lead to the connected handoff.
+  // A saved name and a live connection alone lead on to first-project setup, with nothing to press.
   machineConnected = true;
   expect(
-    await screen.findByRole(
-      "heading",
-      {
-        name: "CONNECTED TO YOUR CODING PLANS",
-      },
-      { timeout: 3000 },
-    ),
+    await screen.findByTestId("first-project", {}, { timeout: 3000 }),
   ).toBeInTheDocument();
   expect(screen.queryByTestId("workspace")).not.toBeInTheDocument();
-
-  // Returning to an installation with all three prerequisites opens the workspace.
-  hasProjects = true;
-  expect(
-    await screen.findByTestId("workspace", {}, { timeout: 3000 }),
-  ).toBeInTheDocument();
 }, 10000);

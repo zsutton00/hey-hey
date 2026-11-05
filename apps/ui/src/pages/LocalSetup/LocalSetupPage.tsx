@@ -1,17 +1,20 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { getApiRuntime } from "@hey-hey/ui-common/clients";
 import {
   acceptBrowserAuthSession,
   refreshAuthToken,
+  WebPathService,
 } from "@hey-hey/ui-common/services";
 import { useAuth } from "@hey-hey/ui-common/context";
 import type { LocalSetupStatusDto } from "@hey-hey/ui-common/api";
 import { ClaimMachine } from "../Settings/ClaimMachine";
+import { LocalPairingProgress } from "./LocalPairingProgress";
 import {
   heldLocalPairing,
   holdLocalPairing,
   LOCAL_APPROVAL_SECRET_PATTERN,
+  parseLocalCodingAgents,
 } from "../Settings/localApproval";
 import { LocalSetupDiagnostics } from "./LocalSetupDiagnostics";
 import {
@@ -22,6 +25,9 @@ import {
 import "./LocalSetupPage.css";
 
 let mountCount = 0;
+
+/** Pairing normally finishes in seconds; past this the person is told how to recover. */
+const CONNECT_TIMEOUT_MS = 60_000;
 
 const describeFailure = (failure: unknown): string =>
   failure instanceof Error ? failure.message : String(failure);
@@ -42,7 +48,11 @@ const readCliFragment = (): CliFragment => {
     approval !== null &&
     LOCAL_APPROVAL_SECRET_PATTERN.test(approval)
   ) {
-    holdLocalPairing({ code, approvalSecret: approval });
+    holdLocalPairing({
+      code,
+      approvalSecret: approval,
+      agents: parseLocalCodingAgents(fragment.get("agents")),
+    });
   }
 
   return {
@@ -62,6 +72,18 @@ const clearAddressBarFragment = (): void => {
   );
 };
 
+/** Where a connected installation continues: unfinished setup first, then the workspace. */
+const destinationAfterConnecting = (status: LocalSetupStatusDto): string => {
+  if (status.setupProjectId) {
+    return WebPathService.onboarding({
+      projectId: status.setupProjectId,
+      isNew: true,
+    });
+  }
+
+  return status.hasProjects ? "/home" : "/welcome";
+};
+
 const describeView = ({
   step,
   status,
@@ -75,7 +97,7 @@ const describeView = ({
 }): string => {
   if (step === "error") return "error";
   if (step === "loading" || !status) return "loading";
-  if (status.nameComplete && status.machineConnected) return "connected";
+  if (status.nameComplete && status.machineConnected) return "continuing";
   if (!status.nameComplete) return "name";
   if (pairingStarted && pairing) return "passkey-step";
   if (pairingStarted) return "missing-pairing-details";
@@ -93,6 +115,34 @@ export function LocalSetupPage(): React.JSX.Element {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const lastStatus = useRef<string | null>(null);
+  const refreshStatusNow = useRef<() => Promise<void>>(() => Promise.resolve());
+  const [passkeyCreated, setPasskeyCreated] = useState(false);
+  const passkeyCreatedRef = useRef(false);
+  const handlePasskeyCreated = useCallback(() => {
+    passkeyCreatedRef.current = true;
+    setPasskeyCreated(true);
+  }, []);
+  const [connectionFailed, setConnectionFailed] = useState(false);
+  const [connectAttempt, setConnectAttempt] = useState(0);
+
+  useEffect(() => {
+    if (!passkeyCreated) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      recordLocalSetupEvent("connect: timed out waiting for the CLI");
+      setConnectionFailed(true);
+    }, CONNECT_TIMEOUT_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [passkeyCreated, connectAttempt]);
+
+  const handleRetry = () => {
+    setConnectionFailed(false);
+    setConnectAttempt((attempt) => attempt + 1);
+    void refreshStatusNow.current();
+  };
 
   const [cliFragment] = useState(readCliFragment);
 
@@ -148,7 +198,7 @@ export function LocalSetupPage(): React.JSX.Element {
           await getApiRuntime().clients.auth.getLocalSetupStatus();
         if (!active) return;
         const nextStatus = response.data.data;
-        const statusSummary = `name-saved=${String(nextStatus.nameComplete)} cli-connected=${String(nextStatus.machineConnected)} has-projects=${String(nextStatus.hasProjects)}`;
+        const statusSummary = `name-saved=${String(nextStatus.nameComplete)} cli-connected=${String(nextStatus.machineConnected)} has-projects=${String(nextStatus.hasProjects)} setup-unfinished=${String(nextStatus.setupProjectId !== null)}`;
         if (statusSummary !== lastStatus.current) {
           lastStatus.current = statusSummary;
           recordLocalSetupEvent(`status: ${statusSummary}`);
@@ -157,15 +207,18 @@ export function LocalSetupPage(): React.JSX.Element {
         setStep((currentStep) =>
           currentStep === "loading" ? "name" : currentStep,
         );
-        if (
-          nextStatus.nameComplete &&
-          nextStatus.hasProjects &&
-          nextStatus.machineConnected
-        ) {
-          await navigate("/home", { replace: true });
+        // Move on only once the connection is real. The protected routes keep
+        // the terms gate, then first-project setup resumes the saved project.
+        if (nextStatus.nameComplete && nextStatus.machineConnected) {
+          await navigate(destinationAfterConnecting(nextStatus), {
+            replace: true,
+          });
         }
       } catch (failure: unknown) {
-        if (active) {
+        if (active && passkeyCreatedRef.current) {
+          recordLocalSetupEvent(`status: failed (${describeFailure(failure)})`);
+          setConnectionFailed(true);
+        } else if (active) {
           recordLocalSetupEvent(`status: failed (${describeFailure(failure)})`);
           setError(
             "Local account status is unavailable. Run heyhey local and retry.",
@@ -175,6 +228,7 @@ export function LocalSetupPage(): React.JSX.Element {
       }
     };
 
+    refreshStatusNow.current = refreshStatus;
     void refreshStatus();
     const interval = window.setInterval(() => void refreshStatus(), 2000);
     return () => {
@@ -233,20 +287,15 @@ export function LocalSetupPage(): React.JSX.Element {
     );
   }
 
-  if (status.nameComplete && status.machineConnected) {
+  if (status.nameComplete && (status.machineConnected || passkeyCreated)) {
     return (
       <main className="local-setup">
         <p className="local-setup__wordmark">HEY HEY</p>
-        <p className="local-setup__eyebrow">LOCAL SETUP · CONNECTED</p>
-        <h1>CONNECTED TO YOUR CODING PLANS</h1>
         <section className="local-setup__card">
-          <p>
-            Your CLI is connected. Host actions still require the existing
-            controller authorization checks.
-          </p>
-          <button onClick={() => void navigate("/welcome")}>
-            Bootstrap your first project
-          </button>
+          <LocalPairingProgress
+            failed={connectionFailed}
+            onRetry={handleRetry}
+          />
         </section>
       </main>
     );
@@ -281,16 +330,13 @@ export function LocalSetupPage(): React.JSX.Element {
   return (
     <main className="local-setup">
       <p className="local-setup__wordmark">HEY HEY</p>
-      <p className="local-setup__eyebrow">LOCAL SETUP · CONNECT</p>
-      <h1>CONNECT THIS COMPUTER</h1>
-      <p className="local-setup__intro">
-        Pair your CLI to connect this computer to Hey Hey.
-      </p>
       <section className="local-setup__card">
         {pairingStarted && pairing ? (
           <ClaimMachine
             initialCode={pairing.code}
             localApprovalSecret={pairing.approvalSecret}
+            localAgents={pairing.agents}
+            onLocalPasskeyCreated={handlePasskeyCreated}
           />
         ) : pairingStarted ? (
           <>

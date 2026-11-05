@@ -4194,6 +4194,8 @@ model PendingMachineEnrollment {
   confirmationNonce             String?                   @map("confirmation_nonce")
   // Opaque first-time `heyhey local` approval proof; only the originating CLI can verify it.
   localApprovalProof            String?                   @map("local_approval_proof") @db.VarChar(43)
+  // First-time `heyhey local` only: the duration chosen for the first grant.
+  requestedCadence              ControllerAuthorizationCadence? @map("requested_cadence")
   updatedAt                     DateTime                  @updatedAt @map("updated_at")
 
   claimantUser               User?                           @relation("PendingMachineEnrollmentClaimant", fields: [claimantUserId], references: [id], onDelete: Cascade)

@@ -59,6 +59,8 @@ type TestEnrollment = {
   credentialBackupEligible: boolean;
   credentialBackupState: boolean;
   credentialFingerprint: string;
+  webauthnChallenge: string;
+  requestedCadence: null;
   confirmationNonce: string | null;
   localApprovalProof: string | null;
   lastPolledAt: Date | null;
@@ -147,6 +149,8 @@ describe('MachineEnrollmentConfirmationService', () => {
     credentialBackupEligible: true,
     credentialBackupState: false,
     credentialFingerprint: 'b'.repeat(64),
+    webauthnChallenge: 'c'.repeat(43),
+    requestedCadence: null,
     confirmationNonce: CONFIRMATION_NONCE,
     localApprovalProof: null,
     lastPolledAt: null,
@@ -310,6 +314,13 @@ describe('MachineEnrollmentConfirmationService', () => {
       organizationId: ORGANIZATION_ID,
       controllerCredentialId: CREDENTIAL_ID,
       controllerCredentialFingerprint: `sha256:${'b'.repeat(64)}`,
+      controllerCredentialPublicKey: {
+        kty: 'EC',
+        crv: 'P-256',
+        x: Buffer.alloc(32, 1).toString('base64url'),
+        y: Buffer.alloc(32, 2).toString('base64url'),
+      },
+      registrationChallenge: 'c'.repeat(43),
     });
     expect(row.confirmationNonce).toEqual(expect.any(String));
     expect(loggerLog).toHaveBeenLastCalledWith(

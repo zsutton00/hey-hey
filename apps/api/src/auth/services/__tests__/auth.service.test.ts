@@ -122,6 +122,7 @@ describe('AuthService browser sign-in', () => {
       emailService as never,
       passwordRecoveryThrottleService as never,
       { getClient: jest.fn() } as never,
+      {} as never,
     );
   });
 

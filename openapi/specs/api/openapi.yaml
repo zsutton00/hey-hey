@@ -25340,6 +25340,10 @@ components:
       $ref: ../schemas/auth.yaml#/LocalNameRequestDto
     LocalSetupStatusDto:
       $ref: ../schemas/auth.yaml#/LocalSetupStatusDto
+    LocalCodingAgentAvailability:
+      $ref: ../schemas/auth.yaml#/LocalCodingAgentAvailability
+    LocalCodingAgentDetectionDto:
+      $ref: ../schemas/auth.yaml#/LocalCodingAgentDetectionDto
     SetAccountDefaultOrganizationDto:
       $ref: ../schemas/auth.yaml#/SetAccountDefaultOrganizationDto
     LoginDto:
@@ -26318,6 +26322,8 @@ components:
         - controllerCredentialFingerprint
         - backupEligible
         - backupState
+        - controllerCredentialPublicKey
+        - registrationChallenge
         - confirmationNonce
         - expiresAt
       properties:
@@ -26400,8 +26406,21 @@ components:
             Single-use server nonce that the machine must include in its
             canonical signed confirmation object.
           example: "Y29uZmlybWF0aW9uLW5vbmNlLTEyMw"
+        controllerCredentialPublicKey:
+          $ref: "#/components/schemas/ControllerCredentialPublicKey"
+          description: >-
+            Verified controller public key. The local approval proof covers the
+            SHA-256 of its SubjectPublicKeyInfo, so the API cannot substitute it.
+        registrationChallenge:
+          type: string
+          minLength: 43
+          maxLength: 128
+          pattern: "^[A-Za-z0-9_-]+$"
+          description: The WebAuthn registration challenge the claim was verified against.
         localApprovalProof:
           $ref: "#/components/schemas/MachineEnrollmentLocalApprovalProof"
+        firstLocalGrant:
+          $ref: "#/components/schemas/FirstLocalGrantIntent"
         expiresAt:
           type: string
           format: date-time
@@ -26476,6 +26495,33 @@ components:
           pattern: "^[A-Za-z0-9_-]+$"
           description: Single-use nonce returned by the ready poll response.
           example: "Y29uZmlybWF0aW9uLW5vbmNlLTEyMw"
+        firstLocalGrant:
+          $ref: "#/components/schemas/FirstLocalGrantConfirmationDto"
+
+    FirstLocalGrantConfirmationDto:
+      type: object
+      additionalProperties: false
+      required:
+        - issuedAtMs
+        - grantDescriptorHash
+      properties:
+        issuedAtMs:
+          type: integer
+          format: int64
+          description: >-
+            Activation time the CLI chose as the start of the grant window. The
+            API accepts it only within a short window around its own clock.
+        grantDescriptorHash:
+          type: string
+          pattern: "^[a-f0-9]{64}$"
+          description: >-
+            Lowercase hex SHA-256 of the RFC 8785 ControllerDeviceGrantDescriptor
+            the CLI derived from the ready claim's FirstLocalGrantIntent, the
+            controller credential and issuedAtMs.
+      description: >-
+        Present only when the CLI verified the local approval proof for the
+        ready claim's FirstLocalGrantIntent. The API issues the first grant only
+        for this exact descriptor; without it, activation issues no grant.
 
     ConfirmMachineEnrollmentResponseDto:
       type: object
@@ -26512,6 +26558,8 @@ components:
           example: 2
         activatedBinding:
           $ref: "#/components/schemas/MachineEnrollmentActivatedBindingDto"
+        firstLocalGrant:
+          $ref: "#/components/schemas/FirstLocalGrantActivationDto"
 
     MachineEnrollmentActivatedBindingDto:
       type: object
@@ -26822,6 +26870,138 @@ components:
           maxLength: 128
           description: User-visible label for the controller being enrolled.
           example: "Zac's browser"
+        firstLocalGrant:
+          $ref: "#/components/schemas/FirstLocalGrantRequestDto"
+
+    FirstLocalGrantRequestDto:
+      type: object
+      additionalProperties: false
+      required:
+        - cadence
+      properties:
+        cadence:
+          $ref: "#/components/schemas/ControllerAuthorizationCadence"
+      description: >-
+        First-time `heyhey local` pairing only. The duration the person chose
+        for this browser to drive this computer. The claim's passkey challenge
+        then commits to a FirstLocalGrantIntent for the account's default
+        project, so the same passkey approval can also create the first grant.
+        Requesting it confers nothing by itself: the grant is issued only if the
+        originating CLI verifies the local approval proof and signs the grant
+        descriptor hash in its confirmation. Repeating begin-claim with a
+        different cadence re-issues the unconsumed challenge.
+
+    FirstLocalGrantIntent:
+      type: object
+      additionalProperties: false
+      required:
+        - version
+        - enrollmentId
+        - machineId
+        - userId
+        - organizationId
+        - projectId
+        - controllerInstallationId
+        - cadence
+        - policyRevision
+        - allowedActionTypes
+        - allowedActionCategories
+        - target
+        - issuedAtMs
+        - nonce
+      properties:
+        version:
+          type: integer
+          enum:
+            - 1
+        enrollmentId:
+          type: string
+          format: uuid
+        machineId:
+          $ref: "#/components/schemas/MachineId"
+        userId:
+          $ref: "#/components/schemas/UserId"
+        organizationId:
+          $ref: "#/components/schemas/OrganizationId"
+        projectId:
+          type: string
+          format: uuid
+          description: The default project the first authorization belongs to.
+        controllerInstallationId:
+          $ref: "#/components/schemas/ControllerInstallationId"
+        cadence:
+          $ref: "#/components/schemas/ControllerAuthorizationCadence"
+        policyRevision:
+          type: integer
+          format: int32
+          minimum: 1
+        allowedActionTypes:
+          $ref: "#/components/schemas/CurrentAgentOperations"
+        allowedActionCategories:
+          type: array
+          minItems: 1
+          maxItems: 7
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/HostActionCategory"
+        target:
+          $ref: "#/components/schemas/FirstLocalGrantTarget"
+        issuedAtMs:
+          type: integer
+          format: int64
+          description: When the claim's challenge was issued.
+        nonce:
+          type: string
+          minLength: 43
+          maxLength: 43
+          pattern: "^[A-Za-z0-9_-]{43}$"
+          description: Unpadded base64url 256-bit nonce.
+      description: >-
+        What one first-time local passkey registration authorizes, before the
+        credential exists. The WebAuthn registration challenge is the unpadded
+        base64url of the 32 nonce bytes followed by
+        SHA-256("heyhey-first-local-grant-v1" || 0x00 || RFC 8785 JSON of this
+        intent). The grant window starts at activation: once the credential
+        exists, these fields, its identifier and the CLI-signed activation time
+        determine the ordinary ControllerDeviceGrantDescriptor exactly.
+
+    FirstLocalGrantTarget:
+      type: object
+      additionalProperties: false
+      required:
+        - kind
+        - id
+      properties:
+        kind:
+          type: string
+          enum:
+            - CLI_READ
+        id:
+          $ref: "#/components/schemas/MachineId"
+      description: >-
+        The initial exact authorization context: a machine-addressed CLI read.
+        It is separate from the reusable grant scope in the descriptor.
+
+    FirstLocalGrantActivationDto:
+      type: object
+      additionalProperties: false
+      required:
+        - authorizationId
+        - grantId
+        - grantDescriptor
+      properties:
+        authorizationId:
+          type: string
+          format: uuid
+        grantId:
+          type: string
+          format: uuid
+        grantDescriptor:
+          $ref: "#/components/schemas/ControllerDeviceGrantDescriptor"
+      description: >-
+        The first grant issued atomically with activation because the CLI's
+        signed confirmation named its descriptor hash. The CLI recomputes and
+        compares the hash before installing the grant in its own store.
 
     AbandonMachineEnrollmentClaimRequestDto:
       $ref: "../schemas/machines.yaml#/AbandonMachineEnrollmentClaimRequestDto"
@@ -26911,6 +27091,8 @@ components:
           example: "2026-08-11T18:05:00.000Z"
         registrationOptions:
           $ref: "#/components/schemas/MachineEnrollmentWebAuthnRegistrationOptionsDto"
+        firstLocalGrant:
+          $ref: "#/components/schemas/FirstLocalGrantIntent"
 
     BeginMachineEnrollmentAwaitingConfirmationDto:
       type: object
@@ -27111,11 +27293,14 @@ components:
       description: >-
         Unpadded base64url HMAC-SHA-256 that a first-time `heyhey local`
         pairing page computes from the one-time local approval secret it
-        received from the CLI, over "heyhey-local-approval-v1", the enrollment,
-        account, organization and controller credential identifiers. The API
-        stores it opaquely with the claim and returns it only to the
-        device-secret poll; it confers no API-side authority. Only the
-        originating CLI can verify it.
+        received from the CLI. The message is the UTF-8 newline-joined list of
+        "heyhey-local-approval-v2", the enrollment, account, organization and
+        controller credential identifiers, the lowercase hex SHA-256 of the
+        credential's SubjectPublicKeyInfo, and the registration challenge. The
+        challenge commits to any FirstLocalGrantIntent. The API stores it
+        opaquely with the claim and returns it only to the device-secret poll;
+        it confers no API-side authority. Only the originating CLI can verify
+        it.
       example: "q2X0n3H5bJ1m8Qe6p4T9wVZ7cA0kL2sD5fG8hJ1mN3o"
 
     MachineEnrollmentWebAuthnRegistrationCredentialDto:

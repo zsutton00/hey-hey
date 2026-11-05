@@ -18,6 +18,11 @@ import { AuthService } from '../auth.service';
 import { BrowserSessionService } from '../browser-session.service';
 import { AccountEntitlementService } from '../../../services/account-entitlement.service';
 import { JwtKeysService } from '../jwt-keys.service';
+import { ProjectService } from '../../../services/project.service';
+import { LocalDefaultProjectService } from '../../../services/local-default-project.service';
+import { ProjectAccessService } from '../project-access.service';
+import { OrganizationProjectEntitlementService } from '../../../services/organization-project-entitlement.service';
+import { EntityRegistryService } from '../../../services/entity-registry/entity-registry.service';
 
 const describeDatabase =
   process.env.RUN_AUTH_DB_TESTS === '1' && process.env.PROJECT_DATABASE_URL
@@ -37,6 +42,13 @@ describeDatabase('AuthService registration browser session handoff', () => {
   let userService: jest.Mocked<UserService>;
   let organizationService: jest.Mocked<OrganizationService>;
   let localInstallationSecret: string | undefined;
+  let localDefaultProjects: () => LocalDefaultProjectService;
+  let jwtKeysService: JwtKeysService;
+  let browserSessionService: BrowserSessionService;
+  // Temporal is the system boundary; project creation itself runs for real.
+  const startWorkflowByType = jest.fn(async () => ({
+    workflowId: `onboarding-${randomUUID()}`,
+  }));
   const handoffEntries = new Map<string, string>();
   const redisClient = {
     set: jest.fn(async (key: string, value: string) => {
@@ -64,12 +76,12 @@ describeDatabase('AuthService registration browser session handoff', () => {
     const configService = {
       get: jest.fn((key: string) => policy[key as keyof typeof policy]),
     } as unknown as ConfigService;
-    const jwtKeysService = {
+    jwtKeysService = {
       signToken: jest.fn(
         (payload: { sid?: string }) => `access-${payload.sid}`,
       ),
     } as unknown as JwtKeysService;
-    const browserSessionService = new BrowserSessionService(
+    browserSessionService = new BrowserSessionService(
       configService,
       prisma,
       jwtKeysService,
@@ -121,7 +133,30 @@ describeDatabase('AuthService registration browser session handoff', () => {
       getUserMemberships: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<OrganizationService>;
 
-    authService = new AuthService(
+    // A fresh owner per call stands in for an API restart between saves.
+    localDefaultProjects = () =>
+      new LocalDefaultProjectService(
+        prisma,
+        new ProjectService(
+          {} as never,
+          prisma,
+          new ProjectAccessService(prisma),
+          {} as never,
+          {
+            refresh: jest.fn(),
+            publishConfigChanged: jest.fn(),
+          } as never,
+          { startWorkflowByType } as never,
+          new OrganizationProjectEntitlementService(prisma),
+          new EntityRegistryService(prisma),
+          { publishInTransaction: jest.fn(async () => null) } as never,
+        ),
+      );
+    authService = createAuthService();
+  });
+
+  const createAuthService = (): AuthService =>
+    new AuthService(
       userService,
       organizationService,
       jwtKeysService,
@@ -132,8 +167,8 @@ describeDatabase('AuthService registration browser session handoff', () => {
       {} as never,
       {} as never,
       redisService as never,
+      localDefaultProjects(),
     );
-  });
 
   afterAll(async () => {
     if (prisma) {
@@ -317,10 +352,40 @@ describeDatabase('AuthService registration browser session handoff', () => {
         id: users[0]?.id,
         isLocalAccount: true,
       });
-      await authService.updateLocalDisplayName(
-        users[0]!.id as UserId,
+      const localUserId = users[0]!.id as UserId;
+      const localOrganizationId = memberships[0]!.organizationId;
+      // Concurrent first saves, a retry and a save after restart all
+      // converge on the single project pairing will grant access to.
+      const statuses = await Promise.all([
+        authService.updateLocalDisplayName(localUserId, 'Ada Lovelace'),
+        createAuthService().updateLocalDisplayName(localUserId, 'Ada Lovelace'),
+      ]);
+      await authService.updateLocalDisplayName(localUserId, 'Ada Lovelace');
+      const afterRestart = await createAuthService().updateLocalDisplayName(
+        localUserId,
         'Ada Lovelace',
       );
+      const projects = await prisma.db.project.findMany({
+        where: { organizationId: localOrganizationId },
+        include: { members: true },
+      });
+      expect(projects).toHaveLength(1);
+      expect(projects[0]).toMatchObject({
+        status: 'ONBOARDING',
+        createdBy: localUserId,
+        description: null,
+      });
+      expect(projects[0]!.members).toEqual([
+        expect.objectContaining({ userId: localUserId, role: 'OWNER' }),
+      ]);
+      expect(startWorkflowByType).toHaveBeenCalledTimes(1);
+      for (const status of [...statuses, afterRestart]) {
+        expect(status).toMatchObject({
+          nameComplete: true,
+          hasProjects: true,
+          setupProjectId: projects[0]!.id,
+        });
+      }
       const refreshedSession = await authService.refreshToken(
         session.refreshSecret,
         { userAgent: 'local-handoff-integration-test' },
@@ -335,6 +400,18 @@ describeDatabase('AuthService registration browser session handoff', () => {
         browserSession: true,
         machineConnected: true,
         executionReady: false,
+      });
+      // Leaving onboarding completes setup: return visits enter the workspace.
+      await prisma.db.project.update({
+        where: { id: projects[0]!.id },
+        data: { status: 'ACTIVE' },
+      });
+      await expect(
+        authService.getLocalStatus(localUserId),
+      ).resolves.toMatchObject({ hasProjects: true, setupProjectId: null });
+      await prisma.db.project.update({
+        where: { id: projects[0]!.id },
+        data: { status: 'ONBOARDING' },
       });
       // Exercise the launch boundary with the automatically authenticated user,
       // not merely the readiness projection. No controller proof or grant is

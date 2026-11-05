@@ -106,11 +106,17 @@ const isTransport = (
   value === Transport.Internal ||
   value === Transport.Hybrid;
 
+export interface MachineEnrollmentRegistration {
+  credential: MachineEnrollmentWebAuthnRegistrationCredentialDto;
+  /** DER SubjectPublicKeyInfo of the new key; null when the browser cannot report it. */
+  publicKeySpki: ArrayBuffer | null;
+}
+
 export const createMachineEnrollmentCredential = async (
   options: MachineEnrollmentWebAuthnRegistrationOptionsDto,
   credentials:
     WebAuthnCredentialsContainer | undefined = getBrowserCredentials(),
-): Promise<MachineEnrollmentWebAuthnRegistrationCredentialDto> => {
+): Promise<MachineEnrollmentRegistration> => {
   if (!credentials) {
     throw new WebAuthnUnsupportedError();
   }
@@ -150,15 +156,26 @@ export const createMachineEnrollmentCredential = async (
       ? credential.response.getTransports()
       : [];
 
+  const publicKeySpki =
+    "getPublicKey" in credential.response &&
+    typeof credential.response.getPublicKey === "function"
+      ? credential.response.getPublicKey()
+      : null;
+
   return {
-    id: credential.id,
-    rawId: encodeBase64Url(credential.rawId),
-    type: CredentialType.PublicKey,
-    response: {
-      clientDataJSON: encodeBase64Url(credential.response.clientDataJSON),
-      attestationObject: encodeBase64Url(credential.response.attestationObject),
-      transports: reportedTransports.filter(isTransport),
+    credential: {
+      id: credential.id,
+      rawId: encodeBase64Url(credential.rawId),
+      type: CredentialType.PublicKey,
+      response: {
+        clientDataJSON: encodeBase64Url(credential.response.clientDataJSON),
+        attestationObject: encodeBase64Url(
+          credential.response.attestationObject,
+        ),
+        transports: reportedTransports.filter(isTransport),
+      },
+      authenticatorAttachment: toAttachment(credential.authenticatorAttachment),
     },
-    authenticatorAttachment: toAttachment(credential.authenticatorAttachment),
+    publicKeySpki,
   };
 };
