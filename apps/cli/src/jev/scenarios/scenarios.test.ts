@@ -13,7 +13,6 @@ import {
   buildQuestions,
   buildState,
   cacheKey,
-  conflictQuestionId,
   judge,
   openingFor,
   tierOf,
@@ -144,7 +143,7 @@ describe('buildState', () => {
         task,
         [
           { id: 'x', kind: 'requirement', text: 'one' },
-          { id: conflictQuestionId('x'), kind: 'requirement', text: 'two' },
+          { id: 'x', kind: 'requirement', text: 'two' },
         ],
         DEFAULT_WORDING,
       ),
@@ -195,15 +194,10 @@ describe('buildQuestions', () => {
     });
   });
 
-  it('asks one relevance and one conflict question per candidate', () => {
+  it('asks one relevance question per candidate and no conflict question', () => {
     const questions = buildQuestions(PARENT_REQUIREMENTS, feature, requirements, DEFAULT_WORDING);
-    expect(Object.keys(questions).sort()).toEqual([
-      'agent_configuration',
-      'conflict:agent_configuration',
-      'conflict:invocation',
-      'invocation',
-    ]);
-    expect(questions['conflict:invocation']).toMatchObject({ type: 'noul' });
+    expect(Object.keys(questions).sort()).toEqual(['agent_configuration', 'invocation']);
+    expect(questions['invocation']).toMatchObject({ type: 'choice' });
   });
 
   it('names the candidate kind and its state path in neighbourhood questions', () => {
@@ -396,21 +390,18 @@ describe('cacheKey', () => {
 
 describe('tierOf', () => {
   it.each([
-    [{ relevance: 0.95, conflict: 0 }, 'full'],
-    [{ relevance: 0.9, conflict: 0 }, 'full'],
-    [{ relevance: 0.89, conflict: 0 }, 'short'],
-    [{ relevance: 0.5, conflict: 0 }, 'short'],
-    [{ relevance: 0.49, conflict: 0 }, 'index'],
-    [{ relevance: 0.1, conflict: 0.69 }, 'index'],
-    [{ relevance: 0.1, conflict: 0.7 }, 'full'],
+    [{ relevance: 0.95 }, 'full'],
+    [{ relevance: 0.9 }, 'full'],
+    [{ relevance: 0.89 }, 'short'],
+    [{ relevance: 0.5 }, 'short'],
+    [{ relevance: 0.49 }, 'index'],
+    [{ relevance: 0.1 }, 'index'],
   ] as const)('%j → %s', (judgment, tier) => {
     expect(tierOf(judgment, JEV_CUTOFFS)).toBe(tier);
   });
 
   it('uses the cutoffs it is given', () => {
-    expect(tierOf({ relevance: 0.6, conflict: 0 }, { full: 0.6, short: 0.2, conflict: 1 })).toBe(
-      'full',
-    );
+    expect(tierOf({ relevance: 0.6 }, { full: 0.6, short: 0.2 })).toBe('full');
   });
 });
 
@@ -429,7 +420,7 @@ describe('judge', () => {
   const choice = (probabilities: Record<string, number>) =>
     ({ type: 'choice', choice: 'implements', probabilities, confidence: 0.9 }) as const;
 
-  it('reads relevance as p(implements)+p(informs) and conflict as the noul probability', async () => {
+  it('reads relevance as p(implements)+p(informs) from the one relevance answer', async () => {
     const { client, evaluate } = clientReturning(
       ok({
         invocation: choice({
@@ -438,7 +429,6 @@ describe('judge', () => {
           same_feature_unrelated: 0.1,
           other: 0.1,
         }),
-        'conflict:invocation': { type: 'noul', noul: 0.25 },
       }),
     );
     const result = await judge(
@@ -454,7 +444,7 @@ describe('judge', () => {
       ok: true,
       model: 'jev-test',
       usage: { inputTokens: 5, outputTokens: 2 },
-      judgments: [{ id: 'invocation', relevance: 0.8, conflict: 0.25 }],
+      judgments: [{ id: 'invocation', relevance: 0.8 }],
     });
   });
 
@@ -524,11 +514,7 @@ describe('judge', () => {
   });
 
   it('fails with INVALID_RESPONSE instead of inventing a judgment for a missing answer', async () => {
-    const { client } = clientReturning(
-      ok({
-        invocation: choice({ implements: 1, informs: 0, same_feature_unrelated: 0, other: 0 }),
-      }),
-    );
+    const { client } = clientReturning(ok({}));
     await expect(
       judge(
         client,
@@ -561,7 +547,7 @@ describe('requests of the scenarios that existed before the read check', () => {
       'parent_requirements',
       PARENT_REQUIREMENTS,
       [{ id: 'r', kind: 'requirement', text: 'users can choose the model' }],
-      '46fdb1ad870145f2f93baa83b6f30aed008934562a787ed999f1204562325080',
+      'cbfeb3a1913d1b21ba7fab4cd036756551cf40b49fcf2c20904c6f224f3d15c3',
     ],
     [
       'neighbourhood',
@@ -570,7 +556,7 @@ describe('requests of the scenarios that existed before the read check', () => {
         { id: 'a', kind: 'ancestor', text: 'A' },
         { id: 'c', kind: 'child', text: 'C' },
       ],
-      '531a4ae7d669f36b0c10942f8360219b83089c8bdadd5bfa7b65e0ba9553ba13',
+      'd812048632333dc891e3d0579132a518759dab87a4c197a7a626d36432915b9e',
     ],
     [
       'edges',
@@ -585,7 +571,7 @@ describe('requests of the scenarios that existed before the read check', () => {
       'hint_selection',
       HINT_SELECTION,
       [{ id: 'h', kind: 'hint', text: 'Reports: register' }],
-      '91dcc37fd73e1631b06f0946abc3997b08a1be0c40343d4a41db5e4188a6e421',
+      'b5e949610a502bd92182515c9f5979c439192d37c2e31c6566c0040e414aa76a',
     ],
   ] as const)('keeps the %s request unchanged', (_name, scenario, candidates, expected) => {
     expect(requestKey(scenario, [...candidates])).toBe(expected);

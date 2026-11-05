@@ -84,6 +84,8 @@ export interface CreateContextTrimmerInput {
   payload: unknown;
   deps: TrimmingDeps;
   logger: ServerLogger;
+  /** Where narrowed get_context calls write development traces; null or absent writes none. */
+  attemptLogDir?: string | null;
 }
 
 /**
@@ -145,5 +147,6 @@ export const createContextTrimmer = async (
         .map((entry) => entry.id),
     ),
     logger: input.logger,
+    ...(input.attemptLogDir ? { attemptLogDir: input.attemptLogDir } : {}),
   });
 };

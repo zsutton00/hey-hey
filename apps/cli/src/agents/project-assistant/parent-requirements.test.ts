@@ -63,7 +63,6 @@ const evaluatorFor = (relevant: string[]) =>
         model: 'jev-test',
         answers: Object.fromEntries<JevAnswer>(
           Object.entries(input.questions).map(([id, question]) => {
-            if (question.type === 'noul') return [id, { type: 'noul', noul: 0 }];
             const isRelevant = relevant.includes(id);
             return [
               id,
@@ -145,7 +144,7 @@ describe('filterParentRequirements', () => {
       '- Fulfilled by the focal. Second sentence. (fulfilled by @[TASK:task-1|Title of task-1])',
     );
     const sent = evaluate.mock.calls[0]?.[0];
-    expect(Object.keys(sent?.questions ?? {})).toEqual(['requirement:1', 'conflict:requirement:1']);
+    expect(Object.keys(sent?.questions ?? {})).toEqual(['requirement:1']);
   });
 
   it('does not call Jev when the focal task fulfils every requirement', async () => {

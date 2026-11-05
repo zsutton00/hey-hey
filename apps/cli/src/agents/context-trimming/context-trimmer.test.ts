@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { JevInput, JevResult } from '../../jev/client';
 import type { Focal } from '../../jev/scenarios';
 import type { ServerLogger } from '../../server/logger';
@@ -21,21 +24,13 @@ const focal: Focal = {
 interface Score {
   implements: number;
   informs: number;
-  conflict: number;
 }
 
-/** Answers every relevance and conflict question from the score keyed by candidate id. */
+/** Answers every relevance question from the score keyed by candidate id. */
 const answerFrom = (scores: Record<string, Score>) =>
   vi.fn((input: JevInput): Promise<JevResult> => {
     const answers: Extract<JevResult, { ok: true }>['answers'] = {};
     for (const [questionId, question] of Object.entries(input.questions)) {
-      if (question.type === 'noul') {
-        answers[questionId] = {
-          type: 'noul',
-          noul: scores[questionId.replace('conflict:', '')]?.conflict ?? 0,
-        };
-        continue;
-      }
       const score = scores[questionId];
       if (!score) return Promise.reject(new Error(`No score for ${questionId}`));
       const rest = (1 - score.implements - score.informs) / 2;
@@ -115,12 +110,12 @@ const contextBody = {
 };
 
 const scores: Record<string, Score> = {
-  'hierarchy:1': { implements: 0.3, informs: 0.4, conflict: 0.1 },
-  'related:0': { implements: 0.9, informs: 0.05, conflict: 0.1 },
-  'related:1': { implements: 0.2, informs: 0.45, conflict: 0.1 },
-  'related:2': { implements: 0.05, informs: 0.05, conflict: 0.1 },
-  'related:3': { implements: 0.0, informs: 0.0, conflict: 0.8 },
-  'session:0': { implements: 0.1, informs: 0.1, conflict: 0.1 },
+  'hierarchy:1': { implements: 0.3, informs: 0.4 },
+  'related:0': { implements: 0.9, informs: 0.05 },
+  'related:1': { implements: 0.2, informs: 0.45 },
+  'related:2': { implements: 0.05, informs: 0.05 },
+  'related:3': { implements: 0.0, informs: 0.0 },
+  'session:0': { implements: 0.1, informs: 0.1 },
 };
 
 const toolResult = (body: unknown, pretty = false): JsonValue => ({
@@ -165,7 +160,7 @@ describe('GetContextTrimmer', () => {
       reasoning: 'The complete link rationale.',
     };
     const evaluate = answerFrom({
-      'edge:other-seed:0': { implements: 0.02, informs: 0.03, conflict: 0 },
+      'edge:other-seed:0': { implements: 0.02, informs: 0.03 },
     });
     const { trimmer, debug } = makeTrimmer(evaluate, {
       ancestorEntityIds: new Set(['ancestor-seed']),
@@ -265,7 +260,7 @@ describe('GetContextTrimmer', () => {
     );
   });
 
-  it('abbreviates entries by tier, forces conflicts to full, orders by relevance, and keeps the rest', async () => {
+  it('abbreviates entries by tier, orders by relevance, and keeps the rest', async () => {
     const { trimmer, debug } = makeTrimmer(answerFrom(scores));
 
     const parsed = parsedBody(await trimmer.trimResult(toolResult(contextBody)));
@@ -285,7 +280,6 @@ describe('GetContextTrimmer', () => {
     });
     expect(parsed['relatedEntities']).toEqual([
       contextBody.relatedEntities[0],
-      contextBody.relatedEntities[3],
       {
         entityId: 'id-Middle',
         entityType: 'TASK',
@@ -296,16 +290,17 @@ describe('GetContextTrimmer', () => {
         summary: 'Mentioned once.',
       },
       { entityId: 'id-Low', entityType: 'TASK', displayName: 'Low' },
+      { entityId: 'id-Hidden-conflict', entityType: 'TASK', displayName: 'Hidden-conflict' },
     ]);
     expect(parsed['agentSessions']).toEqual([
       { entityId: 'sess', entityType: 'AGENT_SESSION', displayName: 'Session' },
     ]);
-    expect(parsed['contextTrimmed']).toMatch(/^4 entries were abbreviated/);
+    expect(parsed['contextTrimmed']).toMatch(/^5 entries were abbreviated/);
     expect(debug).toHaveBeenCalledWith(
       'local.platform_mcp_proxy.get_context_trim.trimmed',
       expect.objectContaining({
         candidateCount: 6,
-        tierCounts: { full: 2, short: 2, index: 2 },
+        tierCounts: { full: 1, short: 2, index: 3 },
         decisionModelDurationMs: 30,
         inputTokens: 100,
         outputTokens: 20,
@@ -314,7 +309,7 @@ describe('GetContextTrimmer', () => {
   });
 
   it('never asks Jev about a requirement the focal task fulfils, and keeps it in full', async () => {
-    const evaluate = answerFrom({ 'requirement:1': { implements: 0, informs: 0, conflict: 0 } });
+    const evaluate = answerFrom({ 'requirement:1': { implements: 0, informs: 0 } });
     const { trimmer } = makeTrimmer(evaluate);
     const body = {
       entityId: 'seed',
@@ -343,7 +338,7 @@ describe('GetContextTrimmer', () => {
     const parsed = parsedBody(await trimmer.trimResult(toolResult(body)));
 
     const [{ questions }] = evaluate.mock.calls[0] as [JevInput];
-    expect(Object.keys(questions).sort()).toEqual(['conflict:requirement:1', 'requirement:1']);
+    expect(Object.keys(questions).sort()).toEqual(['requirement:1']);
     const { content } = parsed as { content: { requirementsSection: { records: unknown[] } } };
     expect(content.requirementsSection.records).toEqual([
       body.content.requirementsSection.records[0],
@@ -470,5 +465,105 @@ describe('GetContextTrimmer', () => {
     const logged = JSON.stringify([...debug.mock.calls, ...warn.mock.calls, ...error.mock.calls]);
     expect(logged).not.toContain('Sibling does things');
     expect(logged).not.toContain('Needed first');
+  });
+
+  describe('development trace', () => {
+    const dirs: string[] = [];
+    afterEach(async () => {
+      await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+    });
+
+    const tracedTrimmer = async (attemptLogDir: string | null, evaluate = answerFrom(scores)) => {
+      const log = makeLogger();
+      const trimmer = new GetContextTrimmer({
+        decisionModel: { evaluate },
+        focal,
+        focalEntityId: FOCAL_ID,
+        logger: log.logger,
+        attemptLogDir,
+      });
+      return { trimmer, evaluate, ...log };
+    };
+    const newDir = async () => {
+      const dir = await mkdtemp(path.join(os.tmpdir(), 'get-context-log-'));
+      dirs.push(dir);
+      return dir;
+    };
+
+    it('writes one file per narrowed call with sizes, tiers and entry decisions', async () => {
+      const dir = await newDir();
+      const { trimmer } = await tracedTrimmer(dir);
+
+      const result = await trimmer.trimResult(toolResult(contextBody));
+      const files = await readdir(dir);
+
+      expect(files).toHaveLength(1);
+      const record = JSON.parse(await readFile(path.join(dir, files[0] ?? ''), 'utf8')) as {
+        focalEntityId: string;
+        rawResultChars: number;
+        narrowedResultChars: number;
+        tierCounts: unknown;
+        inputTokens: number;
+        costUsd: number;
+        jevCalls: Array<{ input: { questions: Record<string, unknown> } }>;
+        entries: Array<{ tier: string; judgedByDecisionModel: boolean; text: string }>;
+      };
+      expect(record.focalEntityId).toBe(FOCAL_ID);
+      expect(record.rawResultChars).toBe(JSON.stringify(contextBody).length);
+      expect(record.narrowedResultChars).toBe(textOf(result).length);
+      expect(record.tierCounts).toEqual({ full: 1, short: 2, index: 3 });
+      expect(record.inputTokens).toBe(100);
+      expect(record.costUsd).toBeCloseTo(0.0000042, 10);
+      expect(Object.keys(record)[1]).toBe('costUsd');
+      expect(record.jevCalls).toHaveLength(1);
+      expect(Object.keys(record.jevCalls[0]?.input.questions ?? {})).not.toContainEqual(
+        expect.stringContaining('conflict'),
+      );
+      expect(record.entries.every((entry) => entry.judgedByDecisionModel)).toBe(true);
+      expect(record.entries.some((entry) => entry.text.includes('Needed first'))).toBe(true);
+    });
+
+    it('judges and writes separately for repeated identical calls', async () => {
+      const dir = await newDir();
+      const { trimmer, evaluate } = await tracedTrimmer(dir);
+
+      await trimmer.trimResult(toolResult(contextBody));
+      await trimmer.trimResult(toolResult(contextBody));
+
+      expect(evaluate).toHaveBeenCalledTimes(2);
+      expect(await readdir(dir)).toHaveLength(2);
+    });
+
+    it('writes nothing when the call passes through unchanged or no directory is set', async () => {
+      const dir = await newDir();
+      const failing = vi.fn(
+        (): Promise<JevResult> =>
+          Promise.resolve({ ok: false, failure: { code: 'TIMEOUT', message: 'slow' } }),
+      );
+      const { trimmer } = await tracedTrimmer(dir, failing as ReturnType<typeof answerFrom>);
+      const upstream = toolResult(contextBody);
+      expect(await trimmer.trimResult(upstream)).toBe(upstream);
+      expect(await readdir(dir)).toHaveLength(0);
+
+      const { trimmer: untraced } = await tracedTrimmer(null);
+      await expect(untraced.trimResult(toolResult(contextBody))).resolves.toBeDefined();
+    });
+
+    it('returns the narrowed result with a safe warning when the trace cannot be written', async () => {
+      const dir = await newDir();
+      const blocker = path.join(dir, 'file');
+      await writeFile(blocker, 'x');
+      const { trimmer, warn, debug } = await tracedTrimmer(path.join(blocker, 'sub'));
+
+      const parsed = parsedBody(await trimmer.trimResult(toolResult(contextBody)));
+
+      expect(parsed['contextTrimmed']).toMatch(/entries were abbreviated/);
+      expect(warn).toHaveBeenCalledWith(
+        'local.platform_mcp_proxy.get_context_trim.attempt_log_failed',
+        { errorName: expect.any(String) },
+      );
+      const logged = JSON.stringify([...debug.mock.calls, ...warn.mock.calls]);
+      expect(logged).not.toContain('Needed first');
+    });
   });
 });

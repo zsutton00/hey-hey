@@ -12,6 +12,7 @@ import {
   type RelevanceJudgment,
   type Tier,
 } from '../../jev/scenarios';
+import { recordJevCalls } from '../project-assistant/parent-requirements-attempt-log';
 import type { ServerLogger } from '../../server/logger';
 import type { JsonObject, JsonValue } from '../platform-mcp-proxy/session';
 import {
@@ -22,6 +23,12 @@ import {
   type RelationToFocal,
   type Slot,
 } from './get-context-result';
+import {
+  jevCostUsd,
+  writeGetContextAttemptRecord,
+  type GetContextAttemptRecord,
+  type GetContextEntryRecord,
+} from './get-context-attempt-log';
 import { edgeIndex, edgeSlotsOf, edgesResultSchema, type EdgeSlot } from './get-edges-result';
 
 export interface GetContextTrimmerConfig {
@@ -32,6 +39,8 @@ export interface GetContextTrimmerConfig {
   logger: ServerLogger;
   model?: string;
   cutoffs?: Cutoffs;
+  /** Where each narrowed get_context call writes its development trace; null writes none. */
+  attemptLogDir?: string | null;
 }
 
 /** Provider-neutral interface used by the graph-result wrapper. */
@@ -269,8 +278,9 @@ export class GetContextTrimmer implements DecisionModelResultNarrower {
     const candidates = slots.flatMap(({ candidate }) => (candidate ? [candidate] : []));
     if (candidates.length === 0) throw new Untrimmed('no_candidates');
 
+    const recorder = recordJevCalls(this.config.decisionModel);
     const judged = await judge(
-      this.config.decisionModel,
+      recorder.evaluator,
       this.model,
       CONTEXT_SELECTION,
       this.config.focal,
@@ -288,9 +298,19 @@ export class GetContextTrimmer implements DecisionModelResultNarrower {
 
     const judgmentById = new Map(judged.judgments.map((judgment) => [judgment.id, judgment]));
     const tierCounts: Record<Tier, number> = { full: 0, short: 0, index: 0 };
+    const entries: GetContextEntryRecord[] = [];
     const placed = slots.map((slot): Placed => {
       const { tier, placement } = this.place(slot, judgmentById);
       tierCounts[tier] += 1;
+      const judgment = slot.candidate ? judgmentById.get(slot.candidate.id) : undefined;
+      entries.push({
+        section: slot.section,
+        position: slot.position,
+        tier,
+        ...(judgment ? { relevance: judgment.relevance } : {}),
+        judgedByDecisionModel: slot.candidate !== null,
+        text: slot.candidate ? slot.candidate.text : JSON.stringify(slot.entry),
+      });
       return placement;
     });
     const abbreviated = tierCounts.short + tierCounts.index;
@@ -316,7 +336,41 @@ export class GetContextTrimmer implements DecisionModelResultNarrower {
       inputTokens: judged.usage.inputTokens,
       outputTokens: judged.usage.outputTokens,
     });
+    await this.writeAttempt({
+      at: new Date().toISOString(),
+      costUsd: jevCostUsd(judged.usage),
+      inputTokens: judged.usage.inputTokens,
+      outputTokens: judged.usage.outputTokens,
+      decisionModelDurationMs: judged.durationMs,
+      rawResultChars: text.length,
+      narrowedResultChars: trimmedText.length,
+      tierCounts,
+      focalEntityId: this.config.focalEntityId,
+      model: this.model,
+      focal: this.config.focal,
+      jevCalls: recorder.calls,
+      entries,
+    });
     return { ...upstream, content: [{ ...block, text: trimmedText }] };
+  }
+
+  /** A trace that cannot be written must not undo a narrowing that succeeded. */
+  private async writeAttempt(record: GetContextAttemptRecord): Promise<void> {
+    const dir = this.config.attemptLogDir;
+    if (!dir) {
+      return;
+    }
+
+    try {
+      const file = await writeGetContextAttemptRecord(dir, record);
+      this.config.logger.debug('local.platform_mcp_proxy.get_context_trim.attempt_logged', {
+        file,
+      });
+    } catch (error) {
+      this.config.logger.warn('local.platform_mcp_proxy.get_context_trim.attempt_log_failed', {
+        errorName: error instanceof Error ? error.name : 'unknown',
+      });
+    }
   }
 
   private place(

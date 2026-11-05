@@ -52,6 +52,7 @@ import { toOpenApiProjectId } from '../shared/api/identifierAdapters';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { resolveJevLogsDir } from '../session/paths';
 
 import type { AgentOutputMessage } from '../agents/agent-event-stream';
 import {
@@ -823,8 +824,6 @@ export class Run {
    * into the current handler span, then cleared.
    */
   private readonly _submittedTurnIds: Set<string> = new Set();
-  /** Coding Plan items (plan version, discrepancy, question) each Turn persisted. */
-  private readonly _codingPlanElementsByTurn: Map<string, Set<string>> = new Map();
   /**
    * Report-chain length at Turn start, keyed by `Turn.turnId`. Open's
    * changed-workspace report helper reads the slice from this index to avoid
@@ -4845,7 +4844,6 @@ export class Run {
         this._stagedFileChanges.clear();
       }
       this._submittedTurnIds.delete(turn.turnId);
-      this._codingPlanElementsByTurn.delete(turn.turnId);
       this._reportChainStartByTurn.delete(turn.turnId);
       // Seal the Turn's coalesced narration row: dropping the slot means the
       // next Turn's first segment authors a fresh row instead of updating this
@@ -5616,6 +5614,7 @@ export class Run {
       ...(handler.mcpToolUseCase ? { useCase: handler.mcpToolUseCase } : {}),
       additionalTools: platformMcpAdditionalAllowedTools,
     });
+    const jevLogsDir = resolveJevLogsDir();
     const graphResultNarrower = await createContextTrimmer({
       promptType: handler.promptType,
       decisionModel: this.handlerDeps.decisionModel,
@@ -5624,6 +5623,7 @@ export class Run {
       payload: preparedPayload ?? input.payload,
       deps: this.handlerDeps,
       logger: this.logger,
+      attemptLogDir: jevLogsDir ? path.join(jevLogsDir, 'get-context') : null,
     });
     const platformMcpProxy = new TurnPlatformMcpProxy({
       runId: this.runId,
@@ -6482,9 +6482,6 @@ export class Run {
       },
       stamp: null,
     });
-    const saved = this._codingPlanElementsByTurn.get(turn.turnId) ?? new Set<string>();
-    saved.add(savedType);
-    this._codingPlanElementsByTurn.set(turn.turnId, saved);
     this.logger.debug('local.coding_plan.conversation.persisted', {
       runId: this.runId,
       turnId: turn.turnId,
@@ -6492,10 +6489,6 @@ export class Run {
       messageId,
     });
     return messageId;
-  }
-
-  public readCodingPlanElementTypes(turnId: string): readonly string[] {
-    return [...(this._codingPlanElementsByTurn.get(turnId) ?? [])];
   }
 
   private async postAgentSystemMessage(
@@ -6550,7 +6543,6 @@ export class Run {
     this._activeProviderThreadId = null;
     this._activeProviderTurnId = null;
     this._submittedTurnIds.clear();
-    this._codingPlanElementsByTurn.clear();
     this._reportChainStartByTurn.clear();
     this._narrationByTurn.clear();
     this.agentSessionCurrentState.cleanup(

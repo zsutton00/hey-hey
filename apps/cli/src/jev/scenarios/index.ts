@@ -25,9 +25,8 @@ export {
   type Scenario,
 } from './scenarios';
 export { formatRequest } from './format-request';
-export { buildQuestions, buildState, cacheKey, conflictQuestionId, openingFor } from './state';
+export { buildQuestions, buildState, cacheKey, openingFor } from './state';
 export {
-  conflictOf,
   edgeRelationshipsOf,
   judge,
   type JevEvaluator,

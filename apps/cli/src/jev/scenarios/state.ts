@@ -34,32 +34,16 @@ const FOCAL_NOUNS: Record<FocalKind, string> = {
   question: 'question',
 };
 
-const CONFLICT_QUESTION_PREFIX = 'conflict:';
-
-/** Id of the conflict question that accompanies a candidate's relevance question. */
-export const conflictQuestionId = (candidateId: string): string =>
-  `${CONFLICT_QUESTION_PREFIX}${candidateId}`;
-
-const CONFLICT_LEAD: Record<FocalKind, string> = {
-  task: 'Does implementing the task break, contradict or undo',
-  feature: 'Does delivering the feature break, contradict or undo',
-  mockup: 'Does the design the mockup shows break, contradict or undo',
-  diagram: 'Does the structure the diagram shows break, contradict or undo',
-  question: 'Does the question assume something that contradicts',
-};
-
 const assertCandidates = (scenario: Scenario, candidates: readonly Candidate[]): void => {
   const seen = new Set<string>();
   for (const candidate of candidates) {
     if (!scenario.candidateKinds.includes(candidate.kind)) {
       throw new Error(`Scenario ${scenario.id} does not take ${candidate.kind} candidates`);
     }
-    for (const questionId of [candidate.id, conflictQuestionId(candidate.id)]) {
-      if (seen.has(questionId)) {
-        throw new Error(`Scenario ${scenario.id} has colliding candidate id ${candidate.id}`);
-      }
-      seen.add(questionId);
+    if (seen.has(candidate.id)) {
+      throw new Error(`Scenario ${scenario.id} has colliding candidate id ${candidate.id}`);
     }
+    seen.add(candidate.id);
   }
 };
 
@@ -161,8 +145,7 @@ export const buildState = (
 };
 
 /**
- * One request, one question per candidate (id = candidate id). Relevance scenarios add a
- * conflict question per candidate under `conflictQuestionId`; the other scenarios ask one.
+ * One request, one question per candidate (id = candidate id).
  */
 export const buildQuestions = (
   scenario: Scenario,
@@ -197,10 +180,6 @@ export const buildQuestions = (
             template.replaceAll('{focal}', () => focalNoun).replaceAll('{candidate}', () => noun),
           ]),
         ),
-      };
-      questions[conflictQuestionId(candidate.id)] = {
-        type: 'noul',
-        instructions: `${openingFor(opening, focal)} ${CONFLICT_LEAD[focal.kind]} what ${subject} states?`,
       };
     } else if (scenario.decision === 'applies') {
       const { question, criteria } = wording.read_check;

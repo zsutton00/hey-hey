@@ -161,7 +161,7 @@ const printJudgments = (scenario: Scenario, judgments: readonly unknown[]): void
     return;
   }
   console.table(
-    (judgments as { id: string; relevance: number; conflict: number }[]).map((judgment) => ({
+    (judgments as { id: string; relevance: number }[]).map((judgment) => ({
       ...judgment,
       tier: tierOf(judgment, JEV_CUTOFFS),
     })),
