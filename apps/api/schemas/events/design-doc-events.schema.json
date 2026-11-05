@@ -7370,6 +7370,10 @@
           "type": "string",
           "const": "feature_sync_analyze"
         },
+        {
+          "type": "string",
+          "const": "free_form"
+        },
         {}
       ],
       "description": "Registry key of a handler an Eval Case or an eval run may execute. Each key must be a registered handler the Hey Hey CLI can start directly as the first agent; the CLI refuses to start when one is not registered."
