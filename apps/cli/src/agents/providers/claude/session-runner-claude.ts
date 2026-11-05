@@ -1,5 +1,6 @@
 import { filterInertBuiltinTools } from '../../../run/inert-execution-policy';
 import { toolResultLogLevel } from './tool-result-log-level';
+import { formatPermissionInputSummary, summarizePermissionInput } from './permission-input-summary';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { buildBrowserToolsMcpConfig, BROWSER_ALLOWED_TOOLS } from '../../browser-tools/mcp-config';
 import { researchHandler } from '../../research/research.handler';
@@ -619,8 +620,28 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       // fires onPermissionRequest N times. Only the first should emit events
       // and create a UI-visible permission request; the rest piggyback on its
       // resolution so the user sees a single approval prompt.
-      const existingPending = Array.from(this.pendingPermissionRequests.values()).find(
-        (p) => p.toolName === toolName && isDeepStrictEqual(p.toolInputRecord, toolInputRecord),
+      const permissionInputSummary = summarizePermissionInput(toolInputRecord);
+      const sameToolPending = Array.from(this.pendingPermissionRequests.values()).filter(
+        (p) => p.toolName === toolName,
+      );
+      const existingPending = sameToolPending.find((p) =>
+        isDeepStrictEqual(p.toolInputRecord, toolInputRecord),
+      );
+      requestContext.log(
+        this.logger,
+        'info',
+        'local.runner.claude.permission_request.coalesce_decision',
+        {
+          toolName,
+          agenticSessionId: this.activeAgenticSessionId,
+          inputSummary: permissionInputSummary,
+          sameToolPendingCount: sameToolPending.length,
+          sameToolPendingInputs: sameToolPending.map((p) =>
+            summarizePermissionInput(p.toolInputRecord),
+          ),
+          decision: existingPending ? 'coalesced' : 'new_request',
+          existingRequestId: existingPending?.requestId ?? null,
+        },
       );
       if (existingPending) {
         requestContext.log(
@@ -714,11 +735,14 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
         toolInputRecord && typeof toolInputRecord['command'] === 'string'
           ? toolInputRecord['command']
           : null;
+      const permissionInputText = formatPermissionInputSummary(permissionInputSummary);
       const permissionReason = toolCommand
         ? `${toolName}: ${toolCommand.length > 200 ? `${toolCommand.slice(0, 200)}…` : toolCommand}`
         : toolFilePath
           ? `${toolName}: ${toolFilePath}`
-          : `Permission requested for tool: ${toolName}`;
+          : permissionInputText
+            ? `${toolName}: ${permissionInputText}`
+            : `Permission requested for tool: ${toolName}`;
       const referencedFiles = toolFilePath ? [toolFilePath] : [];
       const agenticSessionId = this.activeAgenticSessionId;
       const permissionTarget = toolCommand || toolFilePath || toolName;
