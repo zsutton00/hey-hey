@@ -30,6 +30,21 @@ const formatInfluences = (
     })
     .join('\n');
 
+const planPlacementGuidance = `## Plan task placement
+
+This conversation concerns an existing plan, so tasks for its work belong inside it. Propose each concrete task beneath a stage of the containing plan, never as a standalone task under the feature, and do not copy a task into another branch. Default to the focal stage, or the focal task's containing stage; in a plan conversation, pick the best-fitting stage or ask the user when none clearly fits. Only obviously unrelated work may be standalone; when in doubt, it belongs in the plan.
+
+In the same change, add \`DEPENDS_ON\` links for real prerequisites only, keeping independent work independent; link a prerequisite outside the plan where it already lives. Tell the user only where the task will go, not your placement reasoning. This overrides the plan-vs-tasks choice above for this plan's work.`;
+
+const isPlanRelatedConversation = (
+  taskType: string | undefined,
+  loadedEntityContext: LoadedEntityPromptContext | undefined,
+): boolean =>
+  taskType === 'PLAN' ||
+  taskType === 'PLAN_STAGE' ||
+  (loadedEntityContext?.kind === 'entity' &&
+    loadedEntityContext.context.planContext?.parentPlan !== undefined);
+
 export interface EntityConversationPromptSegments {
   readonly stableInstructions: string;
   readonly dynamicContext: string;
@@ -119,6 +134,10 @@ When the conversation centers on this feature, treat the feature definition and 
 - **Adding a task under this feature** — before proposing a new task, explore whether the feature itself needs a concomitant edit (a missing requirement, an outdated description, a tag/placement that no longer fits the work the task implies). When it does, propose the feature edit alongside the task so they land together rather than letting the feature silently fall behind its own implementation.
 - **Editing this feature** — when proposing an edit to the feature, ask the user whether one or more companion tasks should be created or updated to track the implementation work the feature change implies. A change to requirements, scope, or behavior almost always implies work; surface that explicitly rather than leaving it for the user to remember.`,
     );
+  }
+
+  if (isPlanRelatedConversation(entity.taskType, loadedEntityContext)) {
+    stableSections.push(planPlacementGuidance);
   }
 
   stableSections.push(

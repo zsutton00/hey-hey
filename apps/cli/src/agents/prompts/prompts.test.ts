@@ -14,6 +14,7 @@ import type {
 import type { RunEntityReferenceEntityTypeEnum } from '@hey-hey/contracts/agent-bridge';
 import type { ImplementationReadinessSourceSnapshot } from '@hey-hey/contracts/api/models';
 import { buildChildTaskUpdatesPrompt } from './child-task-updates';
+import { raiseUncertaintyTool } from '../submission-tools/raise-uncertainty-tool';
 import {
   buildPlatformSystemPrompt,
   buildServicesContextBlock,
@@ -32,6 +33,7 @@ import type { WorkItemTypeDefinitionDto } from './render-type-ontology';
 import { buildCodingConversationPrompt } from './coding-conversation';
 import { buildCompletionReconciliationPromptFor } from '../completion-reconciliation/prompts/common';
 import { buildEntityConversationPrompt } from './entity-conversation';
+import type { LoadedEntityPromptContext } from '../entity-context/types';
 import { buildFeatureTreeConversationPrompt } from '../feature-tree-conversation/feature-tree-conversation-prompt';
 import { buildFinalAssessmentPrompt } from './final-assessment';
 import { buildReviewPrompt } from './review';
@@ -232,13 +234,18 @@ describe('focalContextOrientation', () => {
 });
 
 describe('buildPlatformSystemPrompt', () => {
-  it('delivers the shared uncertainty rubric once with severity and review calibration', () => {
+  it('leaves the uncertainty rubric to the tool, so agents without it never see it', () => {
     const prompt = buildPlatformSystemPrompt(sampleDefs);
 
-    expect(prompt.match(/## Raising uncertainties/g)).toHaveLength(1);
-    expect(prompt).toContain('Map review P0/P1 to high, P2 to medium, and P3/P4 to low');
-    expect(prompt).toContain('The tool records information only');
-    expect(prompt).toContain('If the tool is not available');
+    expect(prompt).not.toContain('raise_uncertainty');
+    expect(prompt).not.toContain('Raising uncertainties');
+  });
+
+  it('delivers the rubric, including the question category, with the tool', () => {
+    const { description } = raiseUncertaintyTool;
+
+    expect(description).toContain('Map review P0/P1 to high, P2 to medium, and P3/P4 to low');
+    expect(description).toContain('question');
   });
 
   it('tells agents which read answers which question without dropping graph research', () => {
@@ -784,6 +791,7 @@ describe('planVsTasksFork', () => {
   it('uses cohesive design and staged review within the plan as the test', () => {
     expect(planVsTasksFork).toContain('when cohesive design and staged review add value');
     expect(planVsTasksFork).toContain('offer a plan via `create_plan` or standalone tasks');
+    expect(planVsTasksFork).toContain('outside an existing plan');
   });
 
   it('prefers new feature work while preserving existing-system judgment and user choice', () => {
@@ -1997,6 +2005,50 @@ describe('buildEntityConversationPrompt', () => {
   it('includes the plan-vs-tasks fork', () => {
     const result = buildEntityConversationPrompt(makeEntityPayload());
     expect(result).toContain('## Plan vs. tasks');
+  });
+
+  describe('plan task placement', () => {
+    const planned = (taskType: string, planContext?: object) =>
+      buildEntityConversationPrompt(
+        makeEntityPayload({
+          entity: { ...makeEntityPayload().entity, taskType },
+        }),
+        planContext
+          ? ({
+              kind: 'entity',
+              context: { planContext },
+            } as unknown as LoadedEntityPromptContext)
+          : undefined,
+      );
+
+    it.each([
+      ['a plan', planned('PLAN')],
+      ['a plan stage', planned('PLAN_STAGE')],
+      [
+        'a task within a plan',
+        planned('STANDARD', {
+          parentPlan: { id: 'p' },
+          parentStage: { id: 's' },
+        }),
+      ],
+    ])('keeps plan work inside the plan for %s', (_label, result) => {
+      expect(result).toContain('## Plan task placement');
+      expect(result).toContain('beneath a stage of the containing plan');
+      expect(result).toContain('Default to the focal stage');
+      expect(result).toContain('ask the user when none clearly fits');
+      expect(result).toContain('Only obviously unrelated work may be standalone');
+      expect(result).toContain('`DEPENDS_ON`');
+      expect(result).toContain('do not copy a task');
+      expect(result).toContain('not your placement reasoning');
+    });
+
+    it.each([
+      ['a standalone task', planned('STANDARD', {})],
+      ['a feature', planned('FEATURE')],
+      ['an entity without loaded context', buildEntityConversationPrompt(makeEntityPayload())],
+    ])('adds no placement guidance for %s', (_label, result) => {
+      expect(result).not.toContain('## Plan task placement');
+    });
   });
 
   it('includes custom-type mutation guidance across creation, project-owned editing, grounding, and user intent', () => {
