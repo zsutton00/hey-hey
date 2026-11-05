@@ -5712,6 +5712,7 @@ export const controllerActionRuntimeSchema = {
                       'entity_conversation',
                       'project_assistant',
                       'feature_sync_analyze',
+                      'free_form',
                     ],
                   },
                   consumerHandler: {

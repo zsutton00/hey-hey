@@ -46,8 +46,29 @@ export const isInertPlatformToolAllowed = (shortName: string): boolean =>
 
 const INERT_SAFE_BUILTINS: ReadonlySet<string> = new Set(['Read', 'Glob', 'Grep', 'ToolSearch']);
 
-export const filterInertBuiltinTools = (names: readonly string[]): string[] =>
-  names.filter((name) => INERT_SAFE_BUILTINS.has(name));
+/**
+ * File-writing built-ins an inert Run may use only when it is bound to a
+ * workspace directory; the Sandbox write boundary confines them to it. Shell
+ * access is never granted.
+ */
+export const INERT_WORKSPACE_WRITE_BUILTINS: readonly string[] = [
+  'Edit',
+  'Write',
+  'MultiEdit',
+  'NotebookEdit',
+];
+
+export const filterInertBuiltinTools = (
+  names: readonly string[],
+  options: { workspaceBound?: boolean } = {},
+): string[] => {
+  const safe = names.filter((name) => INERT_SAFE_BUILTINS.has(name));
+  if (options.workspaceBound !== true) {
+    return safe;
+  }
+
+  return Array.from(new Set([...safe, ...INERT_WORKSPACE_WRITE_BUILTINS]));
+};
 
 // Local submission tools whose effects are already inert or safe by construction:
 // - report tools save through CreateReportProxy, which stamps the Run's inert flag;

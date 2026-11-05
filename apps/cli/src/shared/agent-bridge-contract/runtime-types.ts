@@ -33,8 +33,20 @@ export interface LocalPendingRunContext {
   provider?: 'claude' | 'codex' | 'opencode';
 }
 
+/**
+ * Binds a Run to one directory standing in for a Service. The Run uses the
+ * directory as that Service's path, so it is the Run's working directory and
+ * its only write root.
+ */
+export interface LocalRunWorkspaceBinding {
+  serviceId: string;
+  directory: string;
+}
+
 export interface LocalCreateRunRequest {
   context: LocalPendingRunContext;
+  /** Only valid on an inert Run: the directory its file-writing built-ins may change. */
+  workspaceBinding?: LocalRunWorkspaceBinding;
   contextMetadata: RunContextMetadata;
   scope?: LocalRunScope;
   conversationId: string;

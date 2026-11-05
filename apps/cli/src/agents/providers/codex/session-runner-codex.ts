@@ -830,7 +830,12 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
             enforceWorkspaceContainment: true,
           }
         : {}),
-      ...(session.inert || reportingRepair || readOnlyFilesystem
+      // A workspace-bound inert Run writes inside its workspace directory only:
+      // the workspace-write sandbox confines apply_patch to it, and the MCP-only
+      // feature overrides keep the shell off.
+      ...((session.inert && session.workspaceBound !== true) ||
+      reportingRepair ||
+      readOnlyFilesystem
         ? { readOnlyFilesystem: true }
         : {}),
     });

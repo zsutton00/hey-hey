@@ -46,6 +46,9 @@ export const buildEvalFirstTurn = (
         projectAssistantConsumerHandlerId: execution.consumerHandler,
       };
 
+    case EvalTargetHandlerKey.FreeForm:
+      return { payload: { promptType: LocalPromptType.FreeForm, entity, userMessage } };
+
     case EvalTargetHandlerKey.FeatureSyncAnalyze:
       if (entity.entityType !== 'TASK') {
         throw new Error(

@@ -7,7 +7,7 @@ import { MessagePoster } from '../../run/message-poster';
 import { NOOP_LOGGER } from '../../server/logger';
 /** @vitest-environment node */
 
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -17,6 +17,43 @@ vi.mock('../providers/session-runner-config', () => ({
     .fn()
     .mockResolvedValue({ sourcePath: '/tmp/cfg.json', warnings: [] }),
   resolveAgentInvocationConfigPath: vi.fn(() => '/tmp/agent-invocation.json'),
+}));
+
+const startSessionMock = vi.fn();
+let permissionRequestHandler:
+  | ((toolName: string, input: unknown) => Promise<Record<string, unknown>>)
+  | null = null;
+let providerEventHandler: ((event: Record<string, unknown>) => void) | null = null;
+
+// The Claude SDK is the process boundary: the real runner decides which tools
+// a Run is offered and what its permission handler allows.
+vi.mock('../../agent-runtime/index', async () => {
+  const actual = await vi.importActual<typeof import('../../agent-runtime/index')>(
+    '../../agent-runtime/index',
+  );
+  return {
+    ...actual,
+    ClaudeCodeSdkClient: class {
+      startSession(...args: unknown[]) {
+        return startSessionMock(...args);
+      }
+      getSessionId() {
+        return null;
+      }
+      async disconnect() {}
+      onPermissionRequest(handler: NonNullable<typeof permissionRequestHandler>) {
+        permissionRequestHandler = handler;
+      }
+      onEvent(handler: typeof providerEventHandler) {
+        providerEventHandler = handler;
+      }
+    },
+  };
+});
+
+vi.mock('../prompts/session-start-context', () => ({
+  readSessionStartContext: () =>
+    Promise.resolve({ workItemTypeDefinitions: [], intentFirst: false, maturity: 'ESTABLISHED' }),
 }));
 
 import { ProjectModeBundleMaterializer } from '../project-mode';
@@ -806,5 +843,174 @@ describe('settled eval usage evidence', () => {
       }),
     });
     expect(results[1]).toMatchObject({ status: 'fulfilled', value: { assistantCompleted: true } });
+  });
+});
+
+describe('free-form coding attempt bound to a workspace directory', () => {
+  it('starts on the request with no plan, edits only inside its directory, and cannot change the live graph', async () => {
+    const { realpath } = await import('node:fs/promises');
+    const { ClaudeAgentSessionRunner } = await import('../providers/claude/session-runner-claude');
+    const { RunWorkspaceWriteBoundary } = await import('../workspace-write-boundary');
+    const { resolveRunWorkspace } = await import('../run-scope');
+    const { filterInertPlatformTools } = await import('../../run/inert-execution-policy');
+    const { LocalAgentEndpoint } = await import('../../server/local-base-url');
+    const { SubmissionToolRegistry } = await import('../submission-tools/registry');
+    const { ToolRuleStore } = await import('../../session/tool-rules');
+    const { createProviderTestRepoMappingStore } =
+      await import('../providers/provider-owner.test-support');
+
+    const harness = await makeHarness();
+    const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), 'heyhey-workspace-')));
+    const outside = await realpath(await mkdtemp(path.join(os.tmpdir(), 'heyhey-outside-')));
+    tempDirs.push(directory, outside);
+
+    // 1. The attempt starts the free-form handler directly on the request.
+    const { buildEvalFirstTurn } = await import('./eval-handler-launch');
+    const firstTurn = buildEvalFirstTurn(
+      executionOf('free_form', false),
+      'Add a greeting file.',
+      ENTITY,
+    );
+    const created = await harness.service.createRun({
+      context: { projectId: 'project-1', provider: 'claude' },
+      contextMetadata: coordinator.contextMetadata,
+      conversationId: CONVERSATION_ID,
+      attachments: [],
+      stagedBrowserTab: null,
+      inert: true,
+      workspaceBinding: { serviceId: 'workspace-service', directory },
+      // As an attempt does: Project Assistant never prepares a free-form coding case.
+      config: {
+        type: 'ENTITY_CONVERSATION',
+        version: 'v1',
+        model: 'claude-test',
+        projectAssistant: {
+          enabled: false,
+          allowEdgeUpdates: false,
+          notifyDiscrepancies: false,
+          allowUpdateProposals: false,
+        },
+      },
+      payload: firstTurn.payload,
+    });
+    expect(created.status).toBe('started');
+    const run = await harness.runStore.getRunMetadata(AGENT_SESSION_ID);
+    expect(run).toMatchObject({
+      inert: true,
+      workspaceBound: true,
+      launchServiceId: 'workspace-service',
+      services: [{ id: 'workspace-service', path: directory }],
+      startedPromptTypes: ['free_form'],
+    });
+    expect(JSON.stringify(harness.runPrompt.mock.calls)).toContain('Add a greeting file.');
+
+    // 2. The real Claude runner, given that Run, offers file-writing built-ins
+    // but no shell, and only inside the bound directory.
+    const localAgentEndpoint = new LocalAgentEndpoint();
+    localAgentEndpoint.set('http://127.0.0.1:9999');
+    const toolRuleStore = new ToolRuleStore(path.join(harness.baseDir, 'tool-rules.json'));
+    const repoStore = createProviderTestRepoMappingStore(directory);
+    const session = run!;
+    const workspace = await resolveRunWorkspace({ session, repoStore });
+    if (!workspace.ok) {
+      throw new Error(workspace.message);
+    }
+    const boundary = await RunWorkspaceWriteBoundary.create(workspace);
+    startSessionMock.mockResolvedValue({
+      ok: true,
+      subtype: 'success',
+      numTurns: 1,
+      sessionId: null,
+    });
+    const platformTools = filterInertPlatformTools(['get_context', 'create_edge', 'delete_hint']);
+    const runner = new ClaudeAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry: new SubmissionToolRegistry(),
+      toolRuleStore,
+      runStore: harness.runStore,
+      repoStore,
+    });
+    const runPromise = runner.runPrompt({
+      session,
+      prompt: 'Add a greeting file.',
+      workspace,
+      workspaceWriteBoundary: boundary,
+      platformMcpProxyMount: {
+        runId: AGENT_SESSION_ID,
+        turnId: 'turn-1',
+        token: 'proxy-token',
+        allowedTools: platformTools.map((name) => `mcp__heyhey-platform__${name}`),
+      },
+    });
+    await vi.waitFor(() => expect(permissionRequestHandler).not.toBeNull());
+
+    const startConfig = startSessionMock.mock.calls[0]?.[0] as {
+      builtinTools: string[];
+      cwd: string;
+    };
+    expect(startConfig.cwd).toBe(directory);
+    expect(startConfig.builtinTools).toEqual(
+      expect.arrayContaining(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']),
+    );
+    expect(startConfig.builtinTools).not.toContain('Bash');
+
+    const handler = permissionRequestHandler!;
+    // The mocked SDK client stands in for Claude's own tool execution: it runs
+    // a tool call only when the real permission handler allowed it, and then
+    // applies it to the path the real write boundary resolved.
+    const runWrite = async (toolInput: {
+      file_path: string;
+      content: string;
+    }): Promise<'allowed' | 'denied'> => {
+      const decision = await handler('Write', toolInput);
+      if (decision['behavior'] !== 'allow') {
+        return 'denied';
+      }
+      const resolved = decision['updatedInput'] as { file_path: string; content: string };
+      await writeFile(resolved.file_path, resolved.content);
+      return 'allowed';
+    };
+
+    await expect(
+      runWrite({ file_path: path.join(directory, 'greeting.txt'), content: 'hello' }),
+    ).resolves.toBe('allowed');
+    expect(await readFile(path.join(directory, 'greeting.txt'), 'utf8')).toBe('hello');
+
+    // A relative path resolves inside the bound directory, not the process cwd.
+    await expect(runWrite({ file_path: 'nested.txt', content: 'relative' })).resolves.toBe(
+      'allowed',
+    );
+    expect(await readFile(path.join(directory, 'nested.txt'), 'utf8')).toBe('relative');
+
+    // Absolute path outside, relative escape, and a symlink out of the directory are all refused.
+    await symlink(outside, path.join(directory, 'escape'));
+    for (const toolInput of [
+      { file_path: path.join(outside, 'abs.txt'), content: 'no' },
+      { file_path: '../' + path.basename(outside) + '/rel.txt', content: 'no' },
+      { file_path: 'escape/link.txt', content: 'no' },
+    ]) {
+      await expect(runWrite(toolInput)).resolves.toBe('denied');
+    }
+    await expect(
+      handler('Edit', { file_path: path.join(outside, 'x.txt'), old_string: 'a', new_string: 'b' }),
+    ).resolves.toMatchObject({ behavior: 'deny' });
+    await expect(
+      handler('MultiEdit', { file_path: path.join(outside, 'm.txt'), edits: [] }),
+    ).resolves.toMatchObject({ behavior: 'deny' });
+    // Nothing was created outside the bound directory.
+    expect(await readdir(outside)).toEqual([]);
+
+    await expect(handler('Bash', { command: 'touch x' })).resolves.toMatchObject({
+      behavior: 'deny',
+    });
+    for (const graphWrite of ['create_edge', 'delete_hint', 'update_edge']) {
+      await expect(handler(`mcp__heyhey-platform__${graphWrite}`, {})).resolves.toMatchObject({
+        behavior: 'deny',
+      });
+    }
+
+    providerEventHandler?.({ type: 'result' });
+    await runPromise;
+    await boundary.dispose();
   });
 });

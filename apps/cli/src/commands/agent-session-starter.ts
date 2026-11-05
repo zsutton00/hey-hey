@@ -12,6 +12,7 @@ import type {
   LocalPendingRunContext,
   LocalReasoningEffort,
   LocalRunScope,
+  LocalRunWorkspaceBinding,
   LocalWorktreeConfig,
   AgentSessionConfig,
   RunEntityReference,
@@ -59,6 +60,8 @@ export interface StartAgenticSessionArgs {
   reasoningEffort?: LocalReasoningEffort;
   fastMode?: boolean;
   inert?: boolean;
+  /** Replaces the Run's Service set with this directory, which becomes its working directory and write root. */
+  workspaceBinding?: LocalRunWorkspaceBinding;
   createProviderSessionId?: () => string;
 }
 
@@ -95,6 +98,7 @@ export const startAgenticSession = async ({
   reasoningEffort,
   fastMode,
   inert,
+  workspaceBinding,
   createProviderSessionId = defaultCreateProviderSessionId,
 }: StartAgenticSessionArgs): Promise<AgentSessionStartResult> => {
   const agentSessionId = contextMetadata.agentSessionId?.trim();
@@ -104,11 +108,18 @@ export const startAgenticSession = async ({
     );
   }
 
-  const pendingServices = readPendingServices(context);
+  if (workspaceBinding && inert !== true) {
+    throw new SessionValidationError('Only an inert Run can be bound to a workspace directory.');
+  }
+
+  const pendingServices = workspaceBinding ? null : readPendingServices(context);
   const services: ResolvedServiceBinding[] = [];
   let launchServiceId: string | undefined;
 
-  if (pendingServices) {
+  if (workspaceBinding) {
+    services.push({ id: workspaceBinding.serviceId, path: workspaceBinding.directory });
+    launchServiceId = workspaceBinding.serviceId;
+  } else if (pendingServices) {
     for (const id of pendingServices.ids) {
       const binding = await repoStore.getBinding(toServiceId(id));
       if (!binding) {
@@ -132,6 +143,7 @@ export const startAgenticSession = async ({
 
   const sessionInput: CreateAgenticSessionInput = {
     ...(inert === undefined ? {} : { inert }),
+    ...(workspaceBinding ? { workspaceBound: true } : {}),
     agentic_session_id: agentSessionId,
     entity,
     services,

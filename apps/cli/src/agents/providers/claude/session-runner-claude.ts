@@ -1856,6 +1856,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
 
       const inertBuiltins = filterInertBuiltinTools(
         researchBuiltinTools ?? builtinTools ?? CLAUDE_READ_ONLY_BUILTIN_TOOLS,
+        { workspaceBound: session.workspaceBound === true },
       );
       if (session.inert) {
         allowedTools = (allowedTools ?? []).filter(

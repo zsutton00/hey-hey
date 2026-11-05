@@ -140,6 +140,8 @@ export interface AgenticSessionEvent {
 interface AgenticSessionBase {
   /** Immutable execution isolation, retained across restoration. */
   readonly inert?: boolean;
+  /** Immutable. An inert Run whose Service path is a dedicated workspace directory it may edit. */
+  readonly workspaceBound?: boolean;
   agentic_session_id: string;
   /** Canonical entity scope captured from payload.entity before Run creation. */
   entity: RunEntityReference | null;
@@ -262,6 +264,7 @@ export type AgenticSession = AgenticSessionBase & {
 
 interface CreateAgenticSessionInputBase {
   readonly inert?: boolean;
+  readonly workspaceBound?: boolean;
   agentic_session_id?: string;
   entity: RunEntityReference | null;
   services: ResolvedServiceBinding[];

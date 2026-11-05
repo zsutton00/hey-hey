@@ -1138,6 +1138,7 @@ export class RunStore {
       const baseEntry = {
         agentic_session_id: agenticSessionId,
         inert: input.inert ?? false,
+        ...(input.workspaceBound ? { workspaceBound: true } : {}),
         entity: parsedEntity.data,
         services: input.services,
         ...(input.launchServiceId ? { launchServiceId: input.launchServiceId } : {}),

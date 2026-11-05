@@ -855,6 +855,60 @@ describe('session-runner-codex', () => {
     ]);
   });
 
+  it('confines a workspace-bound inert session to its directory with the shell off, and keeps an unbound inert session read-only', async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cli-codex-inert-workspace-'));
+    try {
+      localAgentEndpoint.set('http://127.0.0.1:3847');
+      sdkStartSessionMock.mockImplementation(completedTurn('codex-thread-1'));
+      const runInert = async (workspaceBound: boolean) => {
+        const runner = new CodexAgentSessionRunner({
+          localAgentEndpoint,
+          submissionToolRegistry,
+          runStore: makeRunStore(),
+          repoStore: makeRepoStore(workspaceDir),
+          oauthClient: createProviderTestOAuthClient(),
+        });
+        await runner.runPrompt({
+          session: makeSession({
+            inert: true,
+            ...(workspaceBound ? { workspaceBound: true } : {}),
+            services: [{ id: 'svc-1', path: workspaceDir }],
+            launchServiceId: 'svc-1',
+          }),
+          prompt: 'Add a greeting file.',
+          platformMcpProxyMount: {
+            runId: 'agentic-1',
+            turnId: 'turn-1',
+            token: 'proxy-token',
+            allowedTools: ['mcp__heyhey-platform__get_context'],
+          },
+        });
+        return sdkStartSessionMock.mock.calls.at(-1)?.[0] as {
+          cwd: string;
+          sandbox: string;
+          config: {
+            features: Record<string, boolean>;
+            sandbox_workspace_write?: { writable_roots: string[] };
+          };
+        };
+      };
+
+      const bound = await runInert(true);
+      const canonicalDir = await fs.realpath(workspaceDir);
+      expect(bound.cwd).toBe(canonicalDir);
+      expect(bound.sandbox).toBe('workspace-write');
+      // No writable root beyond the bound directory (the cwd), and no shell.
+      expect(bound.config.sandbox_workspace_write?.writable_roots).toEqual([]);
+      expect(bound.config.features).toMatchObject({ shell_tool: false, unified_exec: false });
+
+      const unbound = await runInert(false);
+      expect(unbound.sandbox).toBe('read-only');
+      expect(unbound.config.features).toMatchObject({ shell_tool: false });
+    } finally {
+      await fs.rm(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
   it('starts git-backed write-capable sessions with the Codex Auto sandbox when no Codex permission default is configured', async () => {
     const repoDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cli-codex-runner-repo-'));
     const codexHome = await fs.mkdtemp(path.join(os.tmpdir(), 'cli-codex-home-'));

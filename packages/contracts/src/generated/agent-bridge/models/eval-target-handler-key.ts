@@ -26,14 +26,17 @@ export const EvalTargetHandlerKey = {
     EntityConversation: 'entity_conversation',
     ProjectAssistant: 'project_assistant',
     FeatureSyncAnalyze: 'feature_sync_analyze',
+    FreeForm: 'free_form',
     "agent_search": "agent_search",
     "entity_conversation": "entity_conversation",
     "project_assistant": "project_assistant",
     "feature_sync_analyze": "feature_sync_analyze",
+    "free_form": "free_form",
 } as const;
 Object.defineProperty(EvalTargetHandlerKey, "agent_search", { enumerable: false, value: EvalTargetHandlerKey["AgentSearch"] });
 Object.defineProperty(EvalTargetHandlerKey, "entity_conversation", { enumerable: false, value: EvalTargetHandlerKey["EntityConversation"] });
 Object.defineProperty(EvalTargetHandlerKey, "project_assistant", { enumerable: false, value: EvalTargetHandlerKey["ProjectAssistant"] });
 Object.defineProperty(EvalTargetHandlerKey, "feature_sync_analyze", { enumerable: false, value: EvalTargetHandlerKey["FeatureSyncAnalyze"] });
+Object.defineProperty(EvalTargetHandlerKey, "free_form", { enumerable: false, value: EvalTargetHandlerKey["FreeForm"] });
 
 export type EvalTargetHandlerKey = typeof EvalTargetHandlerKey[keyof typeof EvalTargetHandlerKey];

@@ -39,6 +39,7 @@ import type {
   LocalRunPromptPayload as RuntimeLocalRunPromptPayload,
   TaskMonitorConversationPromptPayload as RuntimeTaskMonitorConversationPromptPayload,
   LocalToolUsageEntry as RuntimeLocalToolUsageEntry,
+  LocalRunWorkspaceBinding as RuntimeLocalRunWorkspaceBinding,
   LocalWorktreeConfig as RuntimeLocalWorktreeConfig,
 } from './runtime-types';
 import {
@@ -371,6 +372,7 @@ export interface LocalGetRunResponse {
 }
 
 export type LocalWorktreeConfig = RuntimeLocalWorktreeConfig;
+export type LocalRunWorkspaceBinding = RuntimeLocalRunWorkspaceBinding;
 
 export interface LocalWorktreeState {
   worktreePath: string;

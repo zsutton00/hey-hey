@@ -557,6 +557,7 @@ export class RunService {
       if (resolvedEffort) startArgs.reasoningEffort = resolvedEffort;
       if (input.fastMode !== undefined) startArgs.fastMode = input.fastMode;
       if (input.inert !== undefined) startArgs.inert = input.inert;
+      if (input.workspaceBinding) startArgs.workspaceBinding = input.workspaceBinding;
       const result = await startAgenticSession(startArgs);
 
       if (result.status === 'repo-required') {
