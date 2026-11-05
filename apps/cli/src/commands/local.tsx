@@ -20,6 +20,8 @@ import { runPairCommand } from './pair';
 import { LocalApprovalSecret } from '../auth/local-approval';
 import { PairServerCommand } from './pair-server';
 import { resolvePairingUrl } from './pairing-web-url';
+import { CodingAgentDetector } from '../local-app/coding-agent-detection';
+import type { LocalCodingAgentDetectionDto } from '../shared/api/index';
 import { z } from 'zod';
 
 // The API wraps every success in the standard ApiResponse envelope; only `data` is ours to validate.
@@ -41,6 +43,7 @@ const localCliCredentialsResponseSchema = z.object({
 interface LocalPairingHandoff {
   userCode: string;
   localApproval: LocalApprovalSecret;
+  agents: LocalCodingAgentDetectionDto;
 }
 
 /** Secrets ride only in the fragment, which browsers never send to a server. */
@@ -51,6 +54,7 @@ const localWebUrl = (handoffToken?: string, pairing?: LocalPairingHandoff): stri
     url.searchParams.set('pairing', 'started');
     fragment.set('code', pairing.userCode);
     fragment.set('approval', pairing.localApproval.fragmentValue);
+    fragment.set('agents', JSON.stringify(pairing.agents));
   }
   if (handoffToken) {
     fragment.set('handoff', handoffToken);
@@ -63,7 +67,7 @@ const localWebUrl = (handoffToken?: string, pairing?: LocalPairingHandoff): stri
 async function openLocalPage(target: string, failure: string): Promise<void> {
   const url = new URL(target);
   const fragment = new URLSearchParams(url.hash.slice(1));
-  const carried = ['handoff', 'code', 'approval'].map(
+  const carried = ['handoff', 'code', 'approval', 'agents'].map(
     (key) => `${key}=${fragment.get(key)?.length ?? 'absent'}`,
   );
   console.log(`Opening ${url.origin}${url.pathname}${url.search} fragment[${carried.join(' ')}]`);
@@ -156,6 +160,7 @@ async function continueLocalApplication(
     }
 
     const localApproval = new LocalApprovalSecret();
+    const agents = await new CodingAgentDetector().detect();
     const paired = await runPairCommand({
       keyPairStore,
       localApproval,
@@ -163,7 +168,7 @@ async function continueLocalApplication(
       getPairingUrl: (userCode) => resolvePairingUrl(userCode),
       onBrowserHandoff: (userCode) => {
         void openLocalPage(
-          localWebUrl(handoffToken, { userCode, localApproval }),
+          localWebUrl(handoffToken, { userCode, localApproval, agents }),
           'Could not open the local pairing page automatically.',
         );
       },

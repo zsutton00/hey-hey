@@ -61,12 +61,14 @@ export const en = {
   "localSetup.progress.retry": "Try again",
   "onboarding.local.runtimeUnavailable":
     "The saved runtime is unavailable on this computer. Restore that provider to resume onboarding.",
-  "onboarding.local.launchRequired":
-    "Choose a ready provider and authorize the selected computer before starting onboarding.",
-  "onboarding.local.start": "Start onboarding",
-  "onboarding.local.resume": "Resume onboarding",
-  "onboarding.local.failed": "Unable to start onboarding",
-  "onboarding.local.cancelled": "Launch cancelled",
+  "onboarding.runtime.lowCostGuidance":
+    "A low-cost model is enough for onboarding.",
+  "onboarding.runtime.ownPlanGuidance":
+    "Choose which machine and model will run onboarding. It uses your own coding plan; a low-cost model is enough.",
+  "onboarding.runtime.loading": "Preparing your project…",
+  "onboarding.runtime.projectUnavailable":
+    "Your setup project is unavailable. Run heyhey local again to resume setup.",
+  "onboarding.local.loadFailed": "We couldn't load your onboarding session.",
   "onboarding.local.connected": "Connected",
   "usageTrends.title": "Usage Trends",
   "usageTrends.from": "From",

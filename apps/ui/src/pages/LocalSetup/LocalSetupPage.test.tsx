@@ -428,7 +428,7 @@ describe("LocalSetupPage", () => {
     renderLocalPage();
     await waitFor(() => {
       expect(screen.getByTestId("location")).toHaveTextContent(
-        `/projects/${projectId}/onboarding`,
+        `/welcome?projectId=${projectId}`,
       );
     });
   });

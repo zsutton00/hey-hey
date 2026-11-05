@@ -4,7 +4,6 @@ import { getApiRuntime } from "@hey-hey/ui-common/clients";
 import {
   acceptBrowserAuthSession,
   refreshAuthToken,
-  WebPathService,
 } from "@hey-hey/ui-common/services";
 import { useAuth } from "@hey-hey/ui-common/context";
 import type { LocalSetupStatusDto } from "@hey-hey/ui-common/api";
@@ -75,10 +74,7 @@ const clearAddressBarFragment = (): void => {
 /** Where a connected installation continues: unfinished setup first, then the workspace. */
 const destinationAfterConnecting = (status: LocalSetupStatusDto): string => {
   if (status.setupProjectId) {
-    return WebPathService.onboarding({
-      projectId: status.setupProjectId,
-      isNew: true,
-    });
+    return `/welcome?projectId=${encodeURIComponent(status.setupProjectId)}`;
   }
 
   return status.hasProjects ? "/home" : "/welcome";

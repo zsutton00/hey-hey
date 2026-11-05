@@ -18,8 +18,8 @@ vi.mock("@hey-hey/ui-common/components", () => ({
   },
 }));
 
-vi.mock("../../NewOrgLanding/OrientationContent", () => ({
-  OrientationContent: ({
+vi.mock("../../NewOrgLanding/WelcomeSteps", () => ({
+  WelcomeSteps: ({
     cta,
     heading,
   }: {

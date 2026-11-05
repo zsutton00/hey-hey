@@ -37,7 +37,7 @@ const NONCE_BYTES = 32;
  * WebAuthn assertion, so it carries no assertion evidence.
  */
 export const FIRST_LOCAL_GRANT_OUTCOME_REASON =
-  'first_local_pairing_registration';
+  'FIRST_LOCAL_PAIRING_REGISTRATION';
 
 /** The CLI and API clocks may differ slightly; the window is otherwise exact. */
 export const FIRST_LOCAL_GRANT_ACTIVATION_SKEW_MS = 60_000;

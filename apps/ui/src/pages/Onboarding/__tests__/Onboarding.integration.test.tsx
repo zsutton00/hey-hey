@@ -68,10 +68,7 @@ const LocationDisplay = () => {
 };
 
 vi.mock("@hey-hey/ui-common/components", async () => {
-  const { LocalOnboardingRuntime } =
-    await import("../../../../../../packages/ui-common/src/components/AgentSession/LocalOnboardingRuntime");
   return {
-    LocalOnboardingRuntime,
     DISABLED_CONVERSATION_SCROLL_POLICY: {},
     determineMessageState: () => "completed",
     HeyHeyBranding: () => <span>Hey Hey</span>,
@@ -171,34 +168,6 @@ vi.mock("@hey-hey/ui-common/components", async () => {
   };
 });
 
-const localRuntime = vi.hoisted(
-  (): {
-    account: boolean;
-    session: import("@hey-hey/ui-common/api").AgentSessionDto | null;
-  } => ({ account: false, session: null }),
-);
-
-vi.mock(
-  "../../../../../../packages/ui-common/src/data/hooks/useAgentSessions",
-  () => ({
-    useAgentSessions: () => ({
-      agentSessions: localRuntime.session ? [localRuntime.session] : [],
-      isLoading: false,
-    }),
-  }),
-);
-vi.mock(
-  "../../../../../../packages/ui-common/src/data/hooks/useUserPairedMachines",
-  () => ({
-    useUserPairedMachines: () => ({
-      machines: [],
-      isReady: true,
-      isFetched: true,
-      isLoading: false,
-    }),
-  }),
-);
-
 const mockAgentSessions = vi.hoisted(() => {
   const sessions: Array<{ id: string; currentState?: string }> = [];
   return {
@@ -250,7 +219,6 @@ vi.mock("@hey-hey/ui-common/context", async () => {
       user: {
         id: "0ed78103-c072-4c97-8749-4740d456c403",
         email: "test@example.com",
-        isLocalAccount: localRuntime.account,
       },
       loading: false,
     }),
@@ -645,8 +613,6 @@ describe("Onboarding Page Integration Tests", () => {
   };
   beforeEach(() => {
     currentMessages = mockMessages;
-    localRuntime.account = false;
-    localRuntime.session = null;
     vi.clearAllMocks();
     mockAgentSessions.sessions.length = 0;
     initializeBrowserApiRuntime({
@@ -814,44 +780,6 @@ describe("Onboarding Page Integration Tests", () => {
     );
   });
 
-  it("places committed local runtime metadata below the complete conversation", async () => {
-    localRuntime.account = true;
-    localRuntime.session = {
-      id: "3dc3faeb-dbc4-45bf-97fe-dfd928750d71",
-      organizationId: mockOrganization.id,
-      projectId: mockProject.id,
-      userId: mockProject.createdBy!,
-      conversationId: mockConversation.id,
-      status: "IN_PROGRESS",
-      currentState: "IDLE",
-      sessionDate: "2026-11-02T00:00:00Z",
-      title: "Local onboarding",
-      hasUnsyncedChanges: false,
-      monitoringEnabled: true,
-      autoDecide: false,
-      type: "CODING",
-      provider: "codex",
-      config: {
-        type: "CODING_SESSION",
-        version: "v2",
-        model: "selected-model",
-        effort: "high",
-        fastMode: true,
-      },
-    };
-    render(<OnboardingPage />, { wrapper: createTestWrapper() });
-    const conversation = await screen.findByTestId("conversation-timeline");
-    const model = await screen.findByTestId("agent-session-metadata-model");
-    expect(model).toHaveTextContent("selected-model");
-    expect(
-      screen.getByTestId("agent-session-metadata-effort"),
-    ).toHaveTextContent("high");
-    expect(
-      conversation.compareDocumentPosition(model) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-  });
-
   it("should render onboarding conversation with correct structure", async () => {
     const wrapper = createTestWrapper();
 
@@ -867,6 +795,11 @@ describe("Onboarding Page Integration Tests", () => {
     );
     expect(
       screen.queryByTestId("onboarding-breadcrumbs"),
+    ).not.toBeInTheDocument();
+    // Hosted intake explains the low-cost model and offers no separate start.
+    expect(screen.getByTestId("onboarding-model-guidance")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("local-onboarding-launch"),
     ).not.toBeInTheDocument();
 
     // Assert there are 6 elements with data-step-index

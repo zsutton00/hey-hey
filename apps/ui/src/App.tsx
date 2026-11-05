@@ -108,7 +108,10 @@ const PrivateBetaDisclosurePage = lazyNamed(
   () => import("./pages/PrivateBetaDisclosure/PrivateBetaDisclosurePage"),
   "PrivateBetaDisclosurePage",
 );
-const Onboarding = lazy(() => import("./pages/Onboarding"));
+const ProjectOnboardingRoute = lazyNamed(
+  () => import("./pages/ProjectOnboardingRoute"),
+  "ProjectOnboardingRoute",
+);
 const RepositoryImport = lazy(() => import("./pages/RepositoryImport"));
 const NewOrgLandingPage = lazy(
   () => import("./pages/NewOrgLanding/NewOrgLandingPage"),
@@ -580,7 +583,7 @@ export const router = createBrowserRouter(
         />
         <Route
           path="projects/:projectId/onboarding"
-          element={withProtectedRoute(<Onboarding />)}
+          element={withProtectedRoute(<ProjectOnboardingRoute />)}
         />
         <Route
           path="projects/:projectId/repository-import"

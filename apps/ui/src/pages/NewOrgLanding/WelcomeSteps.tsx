@@ -78,7 +78,7 @@ const useSections = (): SectionScaffold[] => {
   );
 };
 
-interface OrientationContentProps {
+interface WelcomeStepsProps {
   /**
    * Optional call-to-action rendered below the demo sections. The new-org
    * landing page passes its project-creation button here; surfaces that only
@@ -89,15 +89,12 @@ interface OrientationContentProps {
 }
 
 /**
- * Presentational orientation content: the HeyHey welcome intro and the three
- * scripted demo sections. Carries no first-sign-in gate and no
- * project-creation logic so it can be reused both on the new-org landing page
- * and inside a project.
+ * The `/welcome` steps both account types share: the Hey Hey intro and the
+ * three scripted demo sections. It carries no gate, project creation or launch
+ * logic; the local and hosted `/welcome` wrappers (and the in-project setup
+ * introduction) each supply their own call-to-action.
  */
-export const OrientationContent: React.FC<OrientationContentProps> = ({
-  cta,
-  heading,
-}) => {
+export const WelcomeSteps: React.FC<WelcomeStepsProps> = ({ cta, heading }) => {
   const { t } = useTranslation();
   const theme = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
@@ -120,9 +117,7 @@ export const OrientationContent: React.FC<OrientationContentProps> = ({
         sx={{
           "& > .MuiTypography-root": {
             color:
-              theme.palette.mode === "dark"
-                ? "common.white"
-                : "text.primary",
+              theme.palette.mode === "dark" ? "common.white" : "text.primary",
           },
         }}
       >
@@ -131,11 +126,18 @@ export const OrientationContent: React.FC<OrientationContentProps> = ({
       <Typography variant="h4" textAlign="center">
         {heading ?? t("newOrgLanding.header", "Creating your first project")}
       </Typography>
-      <Stack spacing={2} alignItems="center" data-testid="new-org-landing-intro">
+      <Stack
+        spacing={2}
+        alignItems="center"
+        data-testid="new-org-landing-intro"
+      >
         <Box
           component="img"
           src={welcomeMascot}
-          alt={t("newOrgLanding.intro.mascotAlt", "Hey Hey mascot waving hello")}
+          alt={t(
+            "newOrgLanding.intro.mascotAlt",
+            "Hey Hey mascot waving hello",
+          )}
           data-testid="new-org-landing-intro-mascot"
           sx={{
             width: { xs: 140, md: 180 },

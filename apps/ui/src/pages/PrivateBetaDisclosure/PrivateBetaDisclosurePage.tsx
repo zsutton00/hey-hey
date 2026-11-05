@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   Alert,
   Box,
@@ -23,6 +23,14 @@ import {
 } from "../Legal/legalContent";
 import { PRIVATE_BETA_DISCLOSURE_ROUTE } from "../../components/PrivateBetaDisclosureGate";
 import { resolveAuthReturnTarget } from "../../utils/authReturnTarget";
+
+const WELCOME_PATH = "/welcome";
+
+/** Accepting the Terms always continues to /welcome, keeping any /welcome target's query (local setup carries its project). */
+const destinationAfterAcceptance = (returnTarget: string): string =>
+  new URL(returnTarget, "https://app.local").pathname === WELCOME_PATH
+    ? returnTarget
+    : WELCOME_PATH;
 
 const documentKeyByKind: Record<
   PrivateBetaDisclosureRequirementDto["documentKind"],
@@ -91,6 +99,7 @@ export const PrivateBetaDisclosurePage = () => {
   const [checked, setChecked] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<Error | null>(null);
+  const acceptingRef = useRef(false);
   const returnTarget = resolveAuthReturnTarget(location);
 
   const serverRequirements = disclosure.data?.requiredDocuments;
@@ -127,7 +136,11 @@ export const PrivateBetaDisclosurePage = () => {
   const termsAccepted = hasCurrentTermsAcceptance(disclosure.data);
 
   useEffect(() => {
-    if (termsAccepted && location.pathname === PRIVATE_BETA_DISCLOSURE_ROUTE) {
+    if (
+      termsAccepted &&
+      !acceptingRef.current &&
+      location.pathname === PRIVATE_BETA_DISCLOSURE_ROUTE
+    ) {
       navigate(returnTarget, { replace: true });
     }
   }, [location.pathname, navigate, returnTarget, termsAccepted]);
@@ -169,6 +182,7 @@ export const PrivateBetaDisclosurePage = () => {
     event.preventDefault();
     setSubmissionError(null);
     setIsSubmitting(true);
+    acceptingRef.current = true;
 
     try {
       if (!allRequirementsAccepted && !checked) {
@@ -192,8 +206,9 @@ export const PrivateBetaDisclosurePage = () => {
           "The Terms were submitted, but the account is not complete yet.",
         );
       }
-      navigate(returnTarget, { replace: true });
+      navigate(destinationAfterAcceptance(returnTarget), { replace: true });
     } catch (error) {
+      acceptingRef.current = false;
       setSubmissionError(
         error instanceof Error ? error : new Error("Terms submission failed."),
       );

@@ -2,7 +2,7 @@ import { WebPathService } from "@hey-hey/ui-common";
 import { Box, Button } from "@mui/material";
 import React, { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { OrientationContent } from "../../NewOrgLanding/OrientationContent";
+import { WelcomeSteps } from "../../NewOrgLanding/WelcomeSteps";
 
 export interface ProjectSetupIntroductionProps {
   projectId: string;
@@ -28,7 +28,7 @@ export const ProjectSetupIntroduction: React.FC<
         py: 4,
       }}
     >
-      <OrientationContent
+      <WelcomeSteps
         heading={`Setting up ${projectName}`}
         cta={
           <Button

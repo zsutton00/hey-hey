@@ -93,6 +93,7 @@ vi.mock("@hey-hey/ui-common/context", async () => {
   >("@hey-hey/ui-common/context");
   return {
     ...actual,
+    useAuth: () => ({ user: { isLocalAccount: false } }),
     TrackingProvider: ({ children }: { children: React.ReactNode }) => (
       <>{children}</>
     ),
