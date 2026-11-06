@@ -120,10 +120,11 @@ interface WireGate {
  * `workflowState` is the load-bearing field and the only thing the
  * interpreter branches on — the pair fields are never used to infer state.
  *
- * Contract violations downgrade to `terminal`: a response missing the DTO
- * envelope entirely, or an `agent-pending` verdict missing the pair fields
- * the workflow promised. The dispatch path treats `terminal` as no pending
- * agent work.
+ * A response missing the DTO envelope entirely downgrades to `terminal`,
+ * which the dispatch path treats as no pending agent work. An `agent-pending`
+ * verdict missing the pair fields the workflow promised throws: the node is
+ * waiting on an agent, so treating it as terminal would re-dispatch a prompt
+ * that demands a completion the CLI cannot post.
  */
 export const interpretPromptTypeResponse = (
   response: PromptTypeResponseRaw,
@@ -145,7 +146,10 @@ export const interpretPromptTypeResponse = (
     const nodeId = data.nodeId ?? null;
     const triggerMessageId = data.triggerMessageId ?? null;
     if (promptType === null || nodeId === null || triggerMessageId === null) {
-      return { state: 'terminal', promptType, availableActions };
+      throw new Error(
+        'Workflow reported an agent-pending node without its prompt type, node id and trigger message id; ' +
+          'dispatching it as terminal would ask the agent for a completion that cannot be posted.',
+      );
     }
     return {
       state: 'agent-pending',

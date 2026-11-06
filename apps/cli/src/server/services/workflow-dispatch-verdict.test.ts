@@ -50,3 +50,36 @@ describe('WorkflowDispatchVerdictReader.readCurrentNodeId', () => {
     );
   });
 });
+
+describe('WorkflowDispatchVerdictReader.read', () => {
+  const readerFor = (data: Record<string, unknown>) =>
+    new WorkflowDispatchVerdictReader({
+      getConversationPromptType: vi.fn().mockResolvedValue({ data: { data } }),
+      getConversationWorkflowNode: vi.fn(),
+    });
+
+  it('raises an error for an agent node that has no open trigger instead of calling it terminal', async () => {
+    const reader = readerFor({
+      workflowState: 'agent-pending',
+      promptType: 'feature_sync_analyze',
+      nodeId: 'feature-sync-analyze',
+      triggerMessageId: null,
+    });
+
+    await expect(reader.read(identity)).rejects.toThrow('agent-pending');
+  });
+
+  it('returns the pair for an agent node with an open trigger', async () => {
+    const reader = readerFor({
+      workflowState: 'agent-pending',
+      promptType: 'feature_sync_analyze',
+      nodeId: 'feature-sync-analyze',
+      triggerMessageId: 'trigger-1',
+    });
+
+    await expect(reader.read(identity)).resolves.toMatchObject({
+      state: 'agent-pending',
+      triggerMessageId: 'trigger-1',
+    });
+  });
+});

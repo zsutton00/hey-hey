@@ -75,7 +75,9 @@ const isTransientError = (error: unknown): boolean => {
   if (!response) return true;
   const status = typeof response['status'] === 'number' ? response['status'] : null;
   if (status === null) return true;
-  return status !== 400 && status !== 401 && status !== 403 && status !== 409;
+  return (
+    status !== 400 && status !== 401 && status !== 403 && status !== 409 && status !== 422
+  );
 };
 
 // Agents are instructed to write `@[type:id|title]` mentions, but sometimes

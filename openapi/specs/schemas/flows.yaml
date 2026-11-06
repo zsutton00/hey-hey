@@ -344,13 +344,33 @@ ImplementationReadinessDisposition:
     produce CLEAR or REVIEW_REQUIRED; DISMISSED is reserved for the confirmed,
     user-authored acceptance of a displayed REVIEW_REQUIRED finding.
 
+ImplementationReadinessAuthoredDisposition:
+  type: object
+  additionalProperties: false
+  required: [state, sourceSnapshot, finding, resolution]
+  properties:
+    state:
+      $ref: "#/ImplementationReadinessState"
+    sourceSnapshot:
+      $ref: "#/ImplementationReadinessSourceSnapshot"
+    finding:
+      nullable: true
+      allOf:
+        - $ref: "#/ImplementationReadinessFinding"
+    resolution:
+      $ref: "#/ImplementationReadinessResolution"
+  description: >-
+    A readiness result an agent submits now. Same as the stored disposition,
+    except a finding must use the explained layout; the earlier layout is
+    accepted only when reading saved sessions.
+
 ImplementationReadinessOutcomeWorkflowAnswer:
   type: object
   additionalProperties: false
   required: [disposition]
   properties:
     disposition:
-      $ref: "#/ImplementationReadinessDisposition"
+      $ref: "#/ImplementationReadinessAuthoredDisposition"
   description: Structured Feature Sync answer carrying the readiness outcome.
 
 # LLM Response Types

@@ -7,7 +7,19 @@ const { resolveGeneratedRoot } = require('./generated-root');
 const openapiRoot = resolveOpenapiRoot();
 
 const schemaPath = path.join(openapiRoot, 'specs/schemas/conversations.yaml');
-const schemas = yaml.load(fs.readFileSync(schemaPath, 'utf8'));
+const flowsSchemas = yaml.load(
+  fs.readFileSync(path.join(openapiRoot, 'specs/schemas/flows.yaml'), 'utf8'),
+);
+const conversationSchemas = yaml.load(fs.readFileSync(schemaPath, 'utf8'));
+const duplicateNames = Object.keys(flowsSchemas).filter(
+  (name) => name in conversationSchemas,
+);
+if (duplicateNames.length > 0) {
+  throw new Error(
+    `Schema names defined in both conversations.yaml and flows.yaml: ${duplicateNames.join(', ')}`,
+  );
+}
+const schemas = { ...conversationSchemas, ...flowsSchemas };
 const generatedSchemaNames = [
   'ImplementPromptPayload',
   'CodingPlanDiscrepancy',
@@ -26,11 +38,17 @@ const generatedSchemaNames = [
   'PlanShapingFeatureSyncReviewRefineAnswerPayload',
   'OnboardingFeatureListReviewUserSubmission',
   'OnboardingPlanStageProposalReviewUserSubmission',
+  'ImplementationReadinessOutcomeWorkflowAnswer',
 ];
 
 const referencedNames = new Set();
 
 function schemaExpression(schema) {
+  const expression = unwrappedSchemaExpression(schema);
+  return schema.nullable ? `${expression}.nullable()` : expression;
+}
+
+function unwrappedSchemaExpression(schema) {
   if (schema.$ref) {
     const name = schema.$ref.replace(/^#\//, '');
     if (name.includes('/')) {
@@ -65,6 +83,7 @@ function schemaExpression(schema) {
     if (schema.minLength !== undefined) result += `.min(${schema.minLength})`;
     if (schema.maxLength !== undefined) result += `.max(${schema.maxLength})`;
     if (schema.format === 'uuid') result += '.uuid()';
+    if (schema.format === 'date-time') result += '.datetime({ offset: true })';
     return result;
   }
 

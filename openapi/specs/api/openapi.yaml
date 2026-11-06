@@ -11479,6 +11479,15 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+        "422":
+          description: >-
+            The payload does not satisfy the selected action's schema. Nothing
+            is recorded and the pending trigger stays open for a corrected
+            resubmission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/projects/{projectId}/agent-operations/{operationId}/input-cancellation:
     parameters:
@@ -26267,6 +26276,8 @@ components:
       $ref: "../schemas/controller-authorization.yaml#/ControllerInstallationId"
     ControllerAuthorizationCadence:
       $ref: "../schemas/controller-authorization.yaml#/ControllerAuthorizationCadence"
+    ControllerDeviceGrantCadence:
+      $ref: "../schemas/controller-authorization.yaml#/ControllerDeviceGrantCadence"
     ControllerDeviceGrantScope:
       $ref: "../schemas/controller-authorization.yaml#/ControllerDeviceGrantScope"
     ControllerDeviceGrantDescriptor:
@@ -27250,10 +27261,11 @@ components:
         - cadence
       properties:
         cadence:
-          $ref: "#/components/schemas/ControllerAuthorizationCadence"
+          $ref: "#/components/schemas/ControllerDeviceGrantCadence"
       description: >-
         First-time `heyhey local` pairing only. The duration the person chose
-        for this browser to drive this computer. The claim's passkey challenge
+        for this browser to drive this computer, or UNTIL_REVOKED for a grant
+        with no expiry. The claim's passkey challenge
         then commits to a FirstLocalGrantIntent for the account's default
         project, so the same passkey approval can also create the first grant.
         Requesting it confers nothing by itself: the grant is issued only if the
@@ -27300,7 +27312,7 @@ components:
         controllerInstallationId:
           $ref: "#/components/schemas/ControllerInstallationId"
         cadence:
-          $ref: "#/components/schemas/ControllerAuthorizationCadence"
+          $ref: "#/components/schemas/ControllerDeviceGrantCadence"
         policyRevision:
           type: integer
           format: int32

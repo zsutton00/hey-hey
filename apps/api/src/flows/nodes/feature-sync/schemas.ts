@@ -3,6 +3,7 @@ import { WorkflowReviewAction } from '@hey-hey/contracts/api/models';
 import type { ImplementationReadinessDisposition } from '@hey-hey/contracts/api/models';
 import {
   CodingPlanApprovalPayloadSchema,
+  ImplementationReadinessOutcomeWorkflowAnswerSchema,
   CodingPlanReviewAnswerPayloadSchema,
 } from 'src/generated/workflow-review.schemas';
 import { ExternalAgentActionSchemas } from 'src/types/flow-internal.types';
@@ -39,108 +40,11 @@ export const FEATURE_SYNC_ACTIONS = {
   READINESS_REVIEW_REQUIRED: 'READINESS_REVIEW_REQUIRED',
 } as const;
 
-const implementationReadinessEvidenceSchema = z
-  .object({
-    category: z.enum([
-      'behavior',
-      'ownership',
-      'data_lifecycle',
-      'authority',
-      'security',
-      'isolation',
-      'integration',
-    ]),
-    statement: z.string().min(1),
-    sourceRef: z.string().min(1).optional(),
-  })
-  .strict();
-
-const implementationReadinessItemReferenceSchema = z
-  .object({
-    entityType: z.enum([
-      'TASK',
-      'FEATURE',
-      'DESIGN_DOC',
-      'PLAN',
-      'CONTRACT',
-      'SERVICE',
-    ]),
-    entityId: z.string().uuid(),
-    title: z.string().min(1),
-  })
-  .strict();
-
-const implementationReadinessFindingSchema = z
-  .object({
-    requestedOutcome: z.string().min(1),
-    reasoningTrail: z
-      .array(
-        z
-          .object({
-            source: implementationReadinessItemReferenceSchema,
-            explanation: z.string().min(1),
-          })
-          .strict(),
-      )
-      .min(2)
-      .max(4),
-    problem: z.string().min(1),
-    failureScenario: z.array(z.string().min(1)).min(2).max(8),
-    fixSteps: z
-      .array(
-        z
-          .object({
-            owner: implementationReadinessItemReferenceSchema,
-            action: z.string().min(1),
-            state: z.enum(['DONE', 'REMAINING', 'USER_DECISION']),
-          })
-          .strict(),
-      )
-      .min(1)
-      .max(8),
-    userRequest: z.string().min(1),
-    boundedEvidence: z
-      .array(implementationReadinessEvidenceSchema)
-      .min(1)
-      .max(8),
-  })
-  .strict();
-
-const implementationReadinessDispositionSchema = z
-  .object({
-    state: z.enum(['CLEAR', 'REVIEW_REQUIRED', 'DISMISSED']),
-    sourceSnapshot: z
-      .object({
-        runId: z.string().min(1),
-        focalEntityId: z.string().min(1),
-        focalEntityType: z.enum(['TASK', 'FEATURE', 'DESIGN_DOC', 'PLAN']),
-        sourceRevision: z.string().min(1),
-        capturedAt: z.string().datetime({ offset: true }),
-      })
-      .strict(),
-    finding: implementationReadinessFindingSchema.nullable(),
-    resolution: z.discriminatedUnion('kind', [
-      z.object({ kind: z.literal('NONE') }).strict(),
-      z
-        .object({
-          kind: z.literal('DISMISSED'),
-          runId: z.string().min(1),
-          sourceRevision: z.string().min(1),
-          resolvedAt: z.string().datetime({ offset: true }),
-        })
-        .strict(),
-    ]),
-  })
-  .strict();
-
-const implementationReadinessOutcomePayloadSchema = z
-  .object({ disposition: implementationReadinessDispositionSchema })
-  .strict();
-
 export const parseImplementationReadinessPayload = (
   payload: unknown,
 ): ImplementationReadinessDisposition | null => {
-  const parsed = implementationReadinessOutcomePayloadSchema.safeParse(payload);
+  const parsed =
+    ImplementationReadinessOutcomeWorkflowAnswerSchema.safeParse(payload);
   return parsed.success ? parsed.data.disposition : null;
 };
 
@@ -188,11 +92,11 @@ export const featureSyncAnalyzeActions: ExternalAgentActionSchemas = {
     waitForUser: true,
   },
   [FEATURE_SYNC_ACTIONS.READINESS_CLEAR]: {
-    schema: implementationReadinessOutcomePayloadSchema,
+    schema: ImplementationReadinessOutcomeWorkflowAnswerSchema,
     waitForUser: false,
   },
   [FEATURE_SYNC_ACTIONS.READINESS_REVIEW_REQUIRED]: {
-    schema: implementationReadinessOutcomePayloadSchema,
+    schema: ImplementationReadinessOutcomeWorkflowAnswerSchema,
     waitForUser: false,
   },
 };

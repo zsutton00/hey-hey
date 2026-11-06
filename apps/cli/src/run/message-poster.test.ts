@@ -212,10 +212,10 @@ describe('MessagePoster — typed EXTERNAL_AGENT completion', () => {
     },
   );
 
-  it('logs typed rejection diagnostics and does not retry a permanent 409', async () => {
+  it.each([409, 422])('logs typed rejection diagnostics and does not retry a permanent %i', async (status) => {
     const rejection = Object.assign(new Error('completion rejected'), {
       response: {
-        status: 409,
+        status,
         headers: {
           'x-request-id': '11111111-1111-4111-8111-111111111111',
           'x-correlation-id': '22222222-2222-4222-8222-222222222222',
@@ -257,7 +257,7 @@ describe('MessagePoster — typed EXTERNAL_AGENT completion', () => {
         pendingTriggerMessageId: 'trigger-message-1',
         action: 'DONE',
         attempt: 1,
-        statusCode: 409,
+        statusCode: status,
         rejectionCode: 'STALE_TRIGGER',
         rejectionReason: 'STALE_TRIGGER',
         requestId: '11111111-1111-4111-8111-111111111111',
