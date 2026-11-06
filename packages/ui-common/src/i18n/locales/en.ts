@@ -14,6 +14,14 @@ import { KEYS } from "../keys";
 import { compose, patterns } from "../compose";
 
 export const en = {
+  "localLogin.title": "Welcome back",
+  "localLogin.note": "Use your passkey to continue where you left off.",
+  "localLogin.continuing": "Continuing where you left off…",
+  "localLogin.signIn": "Sign in with passkey",
+  "localLogin.failed": "Passkey sign-in failed. Please try again.",
+  "localLogin.unsupported":
+    "This browser does not support passkeys. Open Hey Hey in a browser that supports passkeys.",
+
   "localSetup.pairing.title": "Let Hey Hey work with your coding agents",
   "localSetup.pairing.purpose":
     "You're creating a passkey so Hey Hey can work with the coding agents on this computer. Your browser will ask you to approve it once.",
@@ -51,6 +59,8 @@ export const en = {
   "localSetup.pairing.createPasskey": "Create passkey",
   "localSetup.pairing.tryAgain": "Try creating passkey again",
   "localSetup.pairing.cancel": "Cancel",
+  "localSetup.pairing.signInNote":
+    "You will also use this passkey to sign in to Hey Hey. Removing it later also disconnects it from this computer.",
   "localSetup.progress.title": "Connecting your computer",
   "localSetup.progress.explanation":
     "Hey Hey is getting set up on this computer. This page continues on its own.",
