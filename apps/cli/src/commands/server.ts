@@ -22,6 +22,12 @@ export interface ServerCommandOptions {
   localApplicationDirectory?: string;
   localApplicationRelease?: ReleaseManifest;
   localApplicationNavigation?: LocalApplicationNavigation;
+  /**
+   * Compose services that must be running before connecting. Defaults to the full installed
+   * stack. Only `heyhey local dev` sets this: it runs the API and UI from source, so their
+   * containers are intentionally absent and only the infrastructure containers exist.
+   */
+  localApplicationServices?: readonly string[];
   onLocalApplicationStopping?: () => void;
   preferredPort?: number;
   enableDailySession?: boolean;
@@ -168,13 +174,14 @@ export class ServerCommand {
         const docker = new DockerBoundary();
         const observed = await docker.inspect();
         assertObservedRelease(observed, options.localApplicationRelease);
+        const expectedServices = options.localApplicationServices ?? Object.keys(SERVICE_IMAGES);
         if (
-          observed.length !== Object.keys(SERVICE_IMAGES).length ||
+          observed.length !== expectedServices.length ||
           observed.some((container) => !container.State.Running)
         ) {
           throw new Error('Local application stopped before connection. Run heyhey local again.');
         }
-        await docker.health();
+        await docker.health([...expectedServices]);
         const server = await this.serverStarter.start(options);
         try {
           localBridge = await owners.register(server, options.onLocalApplicationStopping);

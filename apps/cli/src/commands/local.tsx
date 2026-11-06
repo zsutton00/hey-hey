@@ -189,7 +189,10 @@ export async function continueLocalApplication(
   navigation: LocalApplicationNavigation,
   bridgePort: number,
   onStopping: () => void,
+  /** Dev mode only: the containers expected to be running. See `ServerCommandOptions`. */
+  expectedServices?: readonly string[],
 ): Promise<boolean> {
+  const serverServices = expectedServices ? { localApplicationServices: expectedServices } : {};
   const originalApiUrl = process.env['HEYHEY_API_URL'];
   const originalWebOrigin = process.env['HEYHEY_WEB_ORIGIN'];
   const originalControllerOrigin = process.env['HEYHEY_CONTROLLER_ORIGIN'];
@@ -222,6 +225,7 @@ export async function continueLocalApplication(
       return await new PairServerCommand().runServerAfterPairing({
         localApplicationDirectory: storage.directory,
         localApplicationRelease: release,
+        ...serverServices,
         localApplicationNavigation: navigation,
         preferredPort: bridgePort,
         onLocalApplicationStopping: onStopping,
@@ -254,6 +258,7 @@ export async function continueLocalApplication(
     return await new PairServerCommand().runServerAfterPairing({
       localApplicationDirectory: storage.directory,
       localApplicationRelease: release,
+      ...serverServices,
       localApplicationNavigation: navigation,
       preferredPort: bridgePort,
       onLocalApplicationStopping: onStopping,

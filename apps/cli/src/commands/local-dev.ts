@@ -158,7 +158,14 @@ export async function runLocalDevCommand(): Promise<boolean> {
       stopCommand: 'Ctrl+C',
     };
     console.log(`Local Hey Hey (dev mode): ${navigation.url}`);
-    return await continueLocalApplication(storage, release, navigation, bridgePort, () => {});
+    return await continueLocalApplication(
+      storage,
+      release,
+      navigation,
+      bridgePort,
+      () => {},
+      INFRASTRUCTURE,
+    );
   } catch (error) {
     console.error(error instanceof Error ? error.message : 'heyhey local dev failed.');
     return false;
