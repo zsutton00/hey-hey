@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import type { EvalAttemptReport, EvalRunReport } from "@hey-hey/ui-common/data";
 
 import { EvalCaseDetail } from "./EvalCaseDetail";
-import { testCount, type CaseRow, type RowMeasure } from "./evalResultsView";
+import type { CaseRow, RowMeasure } from "./evalResultsView";
 import { formatCost, formatElapsed, formatTokenCount } from "./evalRunView";
 import { SpaLink } from "./SpaLink";
 
@@ -57,8 +57,6 @@ export const EvalCaseRow: React.FC<EvalCaseRowProps> = ({
   const handlerUsage = row.breakdown.find(
     (entry) => entry.scope === "TARGET_HANDLER",
   );
-
-  const tests = testCount(row.coding?.testChecks ?? null);
 
   useEffect(() => {
     if (selected) containerRef.current?.scrollIntoView?.({ block: "nearest" });
@@ -175,23 +173,6 @@ export const EvalCaseRow: React.FC<EvalCaseRowProps> = ({
             : row.checks === null || row.checks.total === 0
               ? notReported
               : `${row.checks.passed} / ${row.checks.total}`}
-          {row.coding && !row.errored && (
-            <Typography
-              component="span"
-              variant="caption"
-              display="block"
-              color={
-                tests !== null && tests.passed < tests.total
-                  ? "error"
-                  : "text.secondary"
-              }
-              data-testid={`eval-case-tests-${row.attemptId}`}
-            >
-              {tests
-                ? t("eval.results.coding.testCount", tests)
-                : t("eval.results.coding.noTestCount")}
-            </Typography>
-          )}
         </Typography>
         <Typography
           variant="body2"

@@ -18,3 +18,15 @@ export const CODEX_MCP_ONLY_FEATURE_OVERRIDES: Readonly<Record<string, boolean>>
   memory_tool: false,
   external_agent_memory_import: false,
 };
+
+/**
+ * Overrides for a workspace-bound inert Run: every MCP-only restriction stays
+ * except the shell, which the workspace-write sandbox confines to the bound
+ * directory.
+ */
+export const CODEX_WORKSPACE_SHELL_FEATURE_OVERRIDES: Readonly<Record<string, boolean>> = {
+  ...CODEX_MCP_ONLY_FEATURE_OVERRIDES,
+  shell_tool: true,
+  unified_exec: true,
+  unified_exec_tty: true,
+};

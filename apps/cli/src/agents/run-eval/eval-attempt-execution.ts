@@ -7,7 +7,6 @@ import {
   type EvalMeasurement,
   type EvalCost,
   type EvalRecordedChanges,
-  type EvalTestCheck,
 } from '@hey-hey/contracts/api/models';
 import { SessionCostReader } from '../../provider-usage/session-cost';
 import type { AgenticSession } from '../../session/types';
@@ -16,7 +15,6 @@ import type { RunStore } from '../../run-store/run-store';
 import { EvalWorkspaces, type EvalWorkspace } from './eval-workspace';
 import { EvalTargetFailure, type EvalTargetResult } from './eval-runner';
 import { assessedOutputText, codeChangesOutputText } from './eval-assessed-output';
-import { runEvalTestCommands } from './eval-test-commands';
 import { captureChangesSinceCommit } from '../../git/diff';
 import { buildEvalFirstTurn } from './eval-handler-launch';
 import { resolveEvalTargetEntity } from './eval-targets';
@@ -87,11 +85,6 @@ export class EvalAttemptExecution {
     await this.workspaces?.sweep();
   }
 
-  /** Removes the prepared dependencies the run's attempts shared. Called when the eval run ends. */
-  public async removePreparedBases(): Promise<void> {
-    await this.workspaces?.removePreparedBases();
-  }
-
   public bind(service: LocalAgentService, store: RunStore): void {
     this.service = service;
     this.store = store;
@@ -105,11 +98,8 @@ export class EvalAttemptExecution {
       tokenBudget?: number;
       onTokenLimit?: () => void;
       onProviderSessionIds?: (ids: string[]) => Promise<void>;
-      /** Stores the attempt's saved changes and test checks before its workspace is removed. */
-      onWorkspaceSettled?: (settled: {
-        recordedChanges: EvalRecordedChanges;
-        testChecks: EvalTestCheck[];
-      }) => Promise<void>;
+      /** Stores the attempt's saved changes before its workspace is removed. */
+      onWorkspaceSettled?: (settled: { recordedChanges: EvalRecordedChanges }) => Promise<void>;
     },
   ): Promise<EvalTargetResult> {
     const service = this.service;
@@ -216,11 +206,9 @@ export class EvalAttemptExecution {
       });
     };
     // Runs once, after the Run settles and before the workspace goes: saves the
-    // changes, runs the case's named tests, and records both. The first failure
-    // is the attempt's error, whichever path asks first.
-    let settlement:
-      | Promise<{ recordedChanges: EvalRecordedChanges; testChecks: EvalTestCheck[] } | undefined>
-      | undefined;
+    // changes and records them. The first failure is the attempt's error,
+    // whichever path asks first.
+    let settlement: Promise<{ recordedChanges: EvalRecordedChanges } | undefined> | undefined;
     const settleWorkspace = (): NonNullable<typeof settlement> => {
       settlement ??= (async () => {
         if (!workspace || !coding) {
@@ -230,15 +218,7 @@ export class EvalAttemptExecution {
           repoPath: workspace.directory,
           commit: coding.pinnedCommit.sha,
         });
-        const testChecks = await runEvalTestCommands({
-          directory: workspace.directory,
-          environment: workspace.environment,
-          commands: coding.testCommands ?? [],
-          // Tests still run for an attempt stopped earlier (their results are part of its
-          // record); only a stop that arrives while they run cuts the remaining ones short.
-          signal: options.signal.aborted ? undefined : options.signal,
-        });
-        const settled = { recordedChanges: { files }, testChecks };
+        const settled = { recordedChanges: { files } };
         await options.onWorkspaceSettled?.(settled);
 
         return settled;
@@ -262,7 +242,6 @@ export class EvalAttemptExecution {
           },
           options.signal,
         );
-        this.recordPreparation(attempt.targetSessionId, workspace.preparationMs);
       }
       const request: LocalCreateRunRequest =
         workspace && coding
@@ -348,7 +327,7 @@ export class EvalAttemptExecution {
         );
       }
       const assessedText = settled
-        ? codeChangesOutputText(settled.recordedChanges, settled.testChecks)
+        ? codeChangesOutputText(settled.recordedChanges)
         : assessedOutputText(execution, result?.outputText, metadata?.memos);
       const completed = !stopped && (result?.assistantCompleted ?? false);
       if (

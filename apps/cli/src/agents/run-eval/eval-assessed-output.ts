@@ -3,7 +3,6 @@ import {
   EvalAssessedOutput,
   type EvalRecordedChanges,
   type EvalResolvedExecution,
-  type EvalTestCheck,
 } from '@hey-hey/contracts/api/models';
 import type { RunMemo } from '../../session/types';
 
@@ -29,14 +28,11 @@ export const assessedOutputText = (
 const MAX_JUDGED_PATCH_CHARS = 30_000;
 
 /**
- * The judged output for a coding attempt: the saved changes and test checks,
+ * The judged output for a coding attempt: the saved changes,
  * never the chat reply. Stored as the attempt's judgedOutput, so it is the
  * exact record of what the judge saw.
  */
-export const codeChangesOutputText = (
-  changes: EvalRecordedChanges,
-  checks: readonly EvalTestCheck[],
-): string => {
+export const codeChangesOutputText = (changes: EvalRecordedChanges): string => {
   const files =
     changes.files.length === 0
       ? ['The attempt changed no files.']
@@ -48,15 +44,5 @@ export const codeChangesOutputText = (
 
           return `### ${file.path} (${file.status}, +${file.additions} -${file.deletions})\n${patch}`;
         });
-  const tests =
-    checks.length === 0
-      ? ['No test commands were named for this case, so none were run.']
-      : checks.map((check) => {
-          const result = check.passed ? 'PASSED' : `FAILED (exit ${check.exitCode ?? 'none'})`;
-          const cut = check.truncated ? ' [output cut]' : '';
-
-          return `### ${check.command}: ${result}${cut}\n${check.output}`;
-        });
-
-  return ['## Changes made', ...files, '', '## Test results', ...tests].join('\n');
+  return ['## Changes made', ...files].join('\n');
 };

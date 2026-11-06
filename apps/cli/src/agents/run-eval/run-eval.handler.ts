@@ -114,15 +114,10 @@ const runRecordedAttempts = async (
     attemptTimeLimitSeconds: payload.settings.attemptTimeLimitSeconds ?? null,
     attemptTokenLimit: payload.settings.attemptTokenLimit ?? null,
   });
-  let tally: EvalRunTally;
-  try {
-    tally = await runEvalAttempts(
-      { attempts: payload.attempts, settings: payload.settings, signal },
-      ports,
-    );
-  } finally {
-    await deps.evalAttemptExecution?.removePreparedBases();
-  }
+  const tally = await runEvalAttempts(
+    { attempts: payload.attempts, settings: payload.settings, signal },
+    ports,
+  );
   deps.logger.info('run_eval.ended', {
     runId: session.agentic_session_id,
     evalRunId: payload.evalRunId,

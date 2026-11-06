@@ -855,7 +855,7 @@ describe('session-runner-codex', () => {
     ]);
   });
 
-  it('confines a workspace-bound inert session to its directory with the shell off, and keeps an unbound inert session read-only', async () => {
+  it('confines a workspace-bound inert session shell to its directory, and keeps an unbound inert session read-only with no shell', async () => {
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cli-codex-inert-workspace-'));
     try {
       localAgentEndpoint.set('http://127.0.0.1:3847');
@@ -897,13 +897,22 @@ describe('session-runner-codex', () => {
       const canonicalDir = await fs.realpath(workspaceDir);
       expect(bound.cwd).toBe(canonicalDir);
       expect(bound.sandbox).toBe('workspace-write');
-      // No writable root beyond the bound directory (the cwd), and no shell.
+      // No writable root beyond the bound directory (the cwd); the shell runs under that sandbox.
       expect(bound.config.sandbox_workspace_write?.writable_roots).toEqual([]);
-      expect(bound.config.features).toMatchObject({ shell_tool: false, unified_exec: false });
+      expect(bound.config.features).toMatchObject({ shell_tool: true });
+      // Every other inert restriction stays on.
+      expect(bound.config.features).toMatchObject({
+        view_image: false,
+        code_mode: false,
+        apps: false,
+        plugins: false,
+        collab: false,
+        memory_tool: false,
+      });
 
       const unbound = await runInert(false);
       expect(unbound.sandbox).toBe('read-only');
-      expect(unbound.config.features).toMatchObject({ shell_tool: false });
+      expect(unbound.config.features).toMatchObject({ shell_tool: false, unified_exec: false });
     } finally {
       await fs.rm(workspaceDir, { recursive: true, force: true });
     }

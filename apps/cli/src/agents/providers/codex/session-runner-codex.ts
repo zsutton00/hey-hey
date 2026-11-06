@@ -1,5 +1,8 @@
 import type { TokenUsage } from '../../../session/types';
-import { CODEX_MCP_ONLY_FEATURE_OVERRIDES } from './mcp-only-features';
+import {
+  CODEX_MCP_ONLY_FEATURE_OVERRIDES,
+  CODEX_WORKSPACE_SHELL_FEATURE_OVERRIDES,
+} from './mcp-only-features';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { withoutCodexInputEcho } from './codex-input-echo';
 import {
@@ -831,8 +834,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
           }
         : {}),
       // A workspace-bound inert Run writes inside its workspace directory only:
-      // the workspace-write sandbox confines apply_patch to it, and the MCP-only
-      // feature overrides keep the shell off.
+      // the workspace-write sandbox confines apply_patch and the shell to it.
       ...((session.inert && session.workspaceBound !== true) ||
       reportingRepair ||
       readOnlyFilesystem
@@ -1895,7 +1897,10 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
         session.inert || mcpToolUseCase === 'project_report'
           ? {
               ...(baseConfig ?? {}),
-              features: CODEX_MCP_ONLY_FEATURE_OVERRIDES,
+              features:
+                session.inert && session.workspaceBound === true
+                  ? CODEX_WORKSPACE_SHELL_FEATURE_OVERRIDES
+                  : CODEX_MCP_ONLY_FEATURE_OVERRIDES,
             }
           : baseConfig;
       requestContext.log(this.logger, 'debug', 'local.runner.codex.session_policy.resolved', {

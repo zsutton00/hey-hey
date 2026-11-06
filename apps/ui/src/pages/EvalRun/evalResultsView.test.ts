@@ -7,7 +7,6 @@ import {
   groupCasesBySetup,
   rowMeasure,
   measuredTokens,
-  testCount,
 } from "./evalResultsView";
 
 const setupA = {
@@ -344,7 +343,8 @@ describe("coding attempts", () => {
       },
     ],
   };
-  const testChecks = [
+  // Attempts recorded before the runner stopped running tests still carry these.
+  const historicalTestChecks = [
     { command: "ok", passed: true },
     { command: "bad", passed: false },
   ];
@@ -355,14 +355,13 @@ describe("coding attempts", () => {
       codingRun,
       attempt("x", setupA, "coding-case", {
         recordedChanges: changes,
-        testChecks,
+        ...({ testChecks: historicalTestChecks } as object),
         error: { message: "boom" },
       }),
     );
 
     expect(row.coding).toEqual({
       changes,
-      testChecks,
       ended: true,
       startPoint: {
         serviceId: "svc-1",
@@ -371,7 +370,6 @@ describe("coding attempts", () => {
       },
     });
     expect(row.errorMessage).toBe("boom");
-    expect(testCount(testChecks as never)).toEqual({ passed: 1, total: 2 });
   });
 
   it("does not treat a running attempt's missing changes as final", () => {
@@ -380,9 +378,7 @@ describe("coding attempts", () => {
     expect(caseRow("p1", codingRun, running).coding?.ended).toBe(false);
   });
 
-  it("reports no tests when none ran, and leaves non-coding attempts alone", () => {
-    expect(testCount([])).toBeNull();
-    expect(testCount(null)).toBeNull();
+  it("leaves non-coding attempts alone", () => {
     expect(
       caseRow("p1", run, attempt("x", setupA, "case-1")).coding,
     ).toBeNull();

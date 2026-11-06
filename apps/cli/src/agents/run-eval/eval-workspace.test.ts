@@ -1,9 +1,10 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { stripCredentialEnvironment } from '../../agent-runtime/node/credential-environment';
 import { NOOP_LOGGER } from '../../server/logger';
 import { EvalWorkspaces } from './eval-workspace';
 
@@ -88,7 +89,7 @@ describe('EvalWorkspaces', () => {
       const emptyHome = path.join(temp, 'empty-home');
       await mkdir(emptyHome);
       const isolated = {
-        ...workspace.environment,
+        ...stripCredentialEnvironment(process.env),
         HOME: emptyHome,
         GH_CONFIG_DIR: emptyHome,
         GH_PROMPT_DISABLED: '1',
@@ -113,17 +114,6 @@ describe('EvalWorkspaces', () => {
       await workspace.release();
     },
   );
-
-  it('holds credentials out of the environment it hands back', async () => {
-    process.env['GH_TOKEN'] = 'secret';
-    try {
-      const workspace = await workspaces().acquire(request('a'), signal);
-      expect(workspace.environment['GH_TOKEN']).toBeUndefined();
-      await workspace.release();
-    } finally {
-      delete process.env['GH_TOKEN'];
-    }
-  });
 
   it('makes an extra attempt wait for a free slot', async () => {
     const owner = workspaces(1);
@@ -226,23 +216,16 @@ describe('EvalWorkspaces', () => {
     await live.release();
   });
 
-  describe('prepared dependencies', () => {
-    let preparations: string;
-    let originalPath: string | undefined;
-
-    // A stand-in `pnpm` at the process boundary: it records each call and, like an
-    // install, writes git-ignored dependency output.
-    beforeEach(async () => {
-      const bin = path.join(temp, 'bin');
-      preparations = path.join(temp, 'preparations.log');
-      await mkdir(bin);
-      await writeFile(
-        path.join(bin, 'pnpm'),
-        `#!/bin/sh\necho "$@" >> "${preparations}"\nwhile [ -f "${temp}/gate" ]; do sleep 0.02; done\n[ -f "${temp}/fail" ] && { echo 'registry unreachable' >&2; exit 1; }\nmkdir -p node_modules && echo dep > node_modules/dep.txt\n`,
-        { mode: 0o755 },
-      );
-      originalPath = process.env['PATH'];
-      process.env['PATH'] = `${bin}:${originalPath}`;
+  it('prepares nothing: no install runs, and the checkout holds only the repository', async () => {
+    const bin = path.join(temp, 'bin');
+    const calls = path.join(temp, 'package-manager-calls.log');
+    await mkdir(bin);
+    await writeFile(path.join(bin, 'pnpm'), `#!/bin/sh\necho "$@" >> "${calls}"\n`, {
+      mode: 0o755,
+    });
+    const originalPath = process.env['PATH'];
+    process.env['PATH'] = `${bin}:${originalPath}`;
+    try {
       await writeFile(path.join(source, '.gitignore'), 'node_modules/\n');
       await writeFile(path.join(source, 'pnpm-lock.yaml'), '');
       await writeFile(
@@ -252,216 +235,48 @@ describe('EvalWorkspaces', () => {
       git(source, 'add', '.');
       git(source, 'commit', '-qm', 'two');
       sha = git(source, 'rev-parse', 'HEAD').trim();
-    });
 
-    afterEach(async () => {
-      process.env['PATH'] = originalPath;
-      // Prepared output is read-only; let the temp directory be deleted.
-      await chmod(temp, 0o755);
-    });
+      const workspace = await workspaces().acquire(request('a'), signal);
 
-    const calls = async (): Promise<string[]> =>
-      (await readFile(preparations, 'utf8').catch(() => '')).split('\n').filter(Boolean);
-
-    it('prepares once for concurrent first attempts and reuses it for a later one', async () => {
-      const owner = workspaces(3);
-      const concurrent = await Promise.all([
-        owner.acquire(request('a'), signal),
-        owner.acquire(request('b'), signal),
+      expect(existsSync(calls)).toBe(false);
+      expect((await readdir(workspace.directory)).sort()).toEqual([
+        '.git',
+        '.gitignore',
+        'a.txt',
+        'package.json',
+        'pnpm-lock.yaml',
       ]);
-      expect(await calls()).toEqual(['run bootstrap', 'run generate:contracts']);
-
-      await concurrent[0]!.release();
-      const later = await owner.acquire(request('c'), signal);
-      expect(await calls()).toHaveLength(2);
-      expect(await readFile(path.join(later.directory, 'node_modules/dep.txt'), 'utf8')).toBe(
-        'dep\n',
-      );
-
-      await concurrent[1]!.release();
-      await later.release();
-      await owner.removePreparedBases();
-    });
-
-    it('never lets an attempt change the prepared output, and keeps it out of the captured changes', async () => {
-      const owner = workspaces();
-      const first = await owner.acquire(request('a'), signal);
-      const target = path.join(first.directory, 'node_modules/dep.txt');
-
-      await expect(writeFile(target, 'changed')).rejects.toThrow();
-      await writeFile(path.join(first.directory, 'new.txt'), 'edit');
-      expect(git(first.directory, 'status', '--porcelain').trim()).toBe('?? new.txt');
-
-      const second = await owner.acquire(request('b'), signal);
-      expect(existsSync(path.join(second.directory, 'new.txt'))).toBe(false);
-      expect(await readFile(path.join(second.directory, 'node_modules/dep.txt'), 'utf8')).toBe(
-        'dep\n',
-      );
-
-      await first.release();
-      await second.release();
-      await owner.removePreparedBases();
-      expect(await readdir(path.join(temp, 'eval-prepared'))).toEqual([]);
-    });
-
-    it('fails every attempt from a commit whose preparation failed, with the reason, and only that commit', async () => {
-      await writeFile(path.join(temp, 'fail'), '');
-      const owner = workspaces();
-
-      await expect(owner.acquire(request('a'), signal)).rejects.toThrow('registry unreachable');
-      await expect(owner.acquire(request('b'), signal)).rejects.toThrow('registry unreachable');
-      expect(await calls()).toHaveLength(1);
-
-      await writeFile(path.join(source, 'other.txt'), 'x');
-      git(source, 'add', '.');
-      git(source, 'commit', '-qm', 'three');
-      await rm(path.join(temp, 'fail'));
-      const other = await owner.acquire(
-        {
-          attemptId: 'c',
-          serviceId: 'service',
-          commitSha: git(source, 'rev-parse', 'HEAD').trim(),
-        },
-        signal,
-      );
-      await other.release();
-      await owner.removePreparedBases();
-    });
-
-    it('frees the slot of a cancelled attempt while the preparation carries on for the others', async () => {
-      await writeFile(path.join(temp, 'gate'), '');
-      const waits: string[] = [];
-      const logger: typeof NOOP_LOGGER = Object.assign(Object.create(NOOP_LOGGER), {
-        child: () => logger,
-        info: (event: string) => waits.push(event),
-      });
-      const owner = new EvalWorkspaces({ resolvePathForService: async () => source }, logger, {
-        rootDirectory: root,
-        maxOpen: 2,
-      });
-      const first = owner.acquire(request('a'), signal);
-      const controller = new AbortController();
-      const cancelled = owner.acquire(request('b'), controller.signal);
-      const cancelledOutcome = cancelled.catch((error: Error) => error.message);
-      await vi.waitFor(async () => expect(await calls()).toHaveLength(1));
-
-      controller.abort();
-      expect(await cancelledOutcome).toContain('Stopped while waiting for dependencies');
-
-      // The slot is free again: a new attempt takes it without queueing, though the preparation is still running.
-      const third = owner.acquire(request('c'), signal);
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      expect(waits).not.toContain('run_eval.workspace.waiting');
-      expect(await calls()).toHaveLength(1);
-
-      await rm(path.join(temp, 'gate'));
-      const [a, c] = await Promise.all([first, third]);
-      expect(await calls()).toEqual(['run bootstrap', 'run generate:contracts']);
-      await a.release();
-      await c.release();
-      await owner.removePreparedBases();
-    });
-
-    it('keeps bases an open workspace still uses when another run ends or starts', async () => {
-      const owner = workspaces(3);
-      const inUse = await owner.acquire(request('a'), signal);
-      await writeFile(path.join(temp, 'gate'), '');
-
-      // Another run's start sweep and end cleanup, while this one's attempt is open.
-      await owner.sweep();
-      await owner.removePreparedBases();
-      expect(await readFile(path.join(inUse.directory, 'node_modules/dep.txt'), 'utf8')).toBe(
-        'dep\n',
-      );
-      expect(await readdir(path.join(temp, 'eval-prepared'))).toHaveLength(1);
-
-      await rm(path.join(temp, 'gate'));
-      await inUse.release();
-      await owner.removePreparedBases();
-      expect(await readdir(path.join(temp, 'eval-prepared'))).toEqual([]);
-    });
-
-    it('only discourages writes to the prepared output: a command that restores permission can still change it', async () => {
-      const owner = workspaces();
-      const first = await owner.acquire(request('a'), signal);
-      const target = path.join(first.directory, 'node_modules/dep.txt');
-
-      await expect(writeFile(target, 'changed')).rejects.toThrow();
-      // Accepted limit: the base belongs to the same user, so chmod undoes the guard.
-      await chmod(target, 0o644);
-      await writeFile(target, 'changed');
-
-      const second = await owner.acquire(request('b'), signal);
-      expect(await readFile(path.join(second.directory, 'node_modules/dep.txt'), 'utf8')).toBe(
-        'changed',
-      );
-      // It still cannot reach the attempt's captured changes or the source repository.
-      expect(git(first.directory, 'status', '--porcelain').trim()).toBe('');
-      expect(await readFile(path.join(source, 'a.txt'), 'utf8')).toBe('uncommitted edit');
-
-      await first.release();
-      await second.release();
-      await owner.removePreparedBases();
-    });
-
-    it('sweeps prepared bases an interrupted run left behind', async () => {
-      const owner = workspaces();
-      const first = await owner.acquire(request('a'), signal);
-      await first.release();
-
-      await workspaces().sweep();
-
-      expect(await readdir(path.join(temp, 'eval-prepared'))).toEqual([]);
-    });
+      expect(existsSync(path.join(temp, 'eval-prepared'))).toBe(false);
+      await workspace.release();
+    } finally {
+      process.env['PATH'] = originalPath;
+    }
   });
 
-  describe.skipIf(spawnSync('pnpm', ['--version']).status !== 0)(
-    'with a real pnpm workspace',
-    () => {
-      it("lets a dependent package see an edit made to a shared package in the attempt's workspace", async () => {
-        const files: Record<string, string> = {
-          '.gitignore': 'node_modules/\n',
-          'package.json': JSON.stringify({ name: 'root', private: true }),
-          'pnpm-workspace.yaml': 'packages:\n  - packages/*\n',
-          'packages/a/package.json': JSON.stringify({
-            name: 'a',
-            version: '1.0.0',
-            main: 'index.js',
-          }),
-          'packages/a/index.js': 'module.exports = "original";\n',
-          'packages/b/package.json': JSON.stringify({
-            name: 'b',
-            version: '1.0.0',
-            dependencies: { a: 'workspace:*' },
-          }),
-          'packages/b/run.js': 'process.stdout.write(require("a"));\n',
-        };
-        await rm(path.join(source, 'a.txt'));
-        for (const [file, content] of Object.entries(files)) {
-          await mkdir(path.dirname(path.join(source, file)), { recursive: true });
-          await writeFile(path.join(source, file), content);
-        }
-        execFileSync('pnpm', ['install', '--lockfile-only', '--offline'], { cwd: source });
-        git(source, 'add', '-A');
-        git(source, 'commit', '-qm', 'workspace');
-        sha = git(source, 'rev-parse', 'HEAD').trim();
+  it('removes a workspace whose files the attempt made read-only', async () => {
+    const owner = workspaces();
+    const workspace = await owner.acquire(request('a'), signal);
+    const locked = path.join(workspace.directory, 'locked');
+    await mkdir(locked);
+    await writeFile(path.join(locked, 'cache.txt'), 'x');
+    await chmod(path.join(locked, 'cache.txt'), 0o444);
+    await chmod(locked, 0o555);
 
-        const owner = workspaces();
-        const workspace = await owner.acquire(request('a'), signal);
-        await writeFile(
-          path.join(workspace.directory, 'packages/a/index.js'),
-          'module.exports = "edited";\n',
-        );
+    await workspace.release();
 
-        const output = execFileSync('node', ['run.js'], {
-          cwd: path.join(workspace.directory, 'packages/b'),
-          encoding: 'utf8',
-        });
-        expect(output).toBe('edited');
+    expect(existsSync(workspace.directory)).toBe(false);
+    const next = await owner.acquire(request('b'), signal);
+    await next.release();
+  });
 
-        await workspace.release();
-        await owner.removePreparedBases();
-      });
-    },
-  );
+  it('sweeps the prepared bases older versions kept, read-only contents included', async () => {
+    const legacy = path.join(temp, 'eval-prepared', 'abc123');
+    await mkdir(path.join(legacy, 'node_modules'), { recursive: true });
+    await writeFile(path.join(legacy, 'node_modules', 'dep.txt'), 'dep');
+    execFileSync('chmod', ['-R', 'a-w', legacy]);
+
+    await workspaces().sweep();
+
+    expect(existsSync(path.join(temp, 'eval-prepared'))).toBe(false);
+  });
 });

@@ -23,7 +23,6 @@ const coding = (overrides: Record<string, unknown> = {}) =>
   JSON.stringify({
     serviceId: SERVICE,
     pinnedCommit: { sha: SHA, shortMessage: 'Add settings page' },
-    testCommands: ['pnpm test settings'],
     knownGoodDiff: 'diff --git good',
     knownBadDiff: 'diff --git bad',
     ...overrides,
@@ -98,6 +97,10 @@ describe('assertApprovedEvalCaseHandlers', () => {
       [
         'a Coding section naming an unknown Service',
         withCoding('free_form', coding({ serviceId: crypto.randomUUID() })),
+      ],
+      [
+        'a Coding section that still names test commands',
+        withCoding('free_form', coding({ testCommands: ['pnpm test'] })),
       ],
       [
         'a malformed commit',

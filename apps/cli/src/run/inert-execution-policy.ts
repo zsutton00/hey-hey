@@ -47,11 +47,12 @@ export const isInertPlatformToolAllowed = (shortName: string): boolean =>
 const INERT_SAFE_BUILTINS: ReadonlySet<string> = new Set(['Read', 'Glob', 'Grep', 'ToolSearch']);
 
 /**
- * File-writing built-ins an inert Run may use only when it is bound to a
- * workspace directory; the Sandbox write boundary confines them to it. Shell
- * access is never granted.
+ * File-writing and shell built-ins an inert Run may use only when it is bound
+ * to a workspace directory; the Sandbox write boundary confines them to it.
+ * An unbound inert Run stays read-only with no shell.
  */
 export const INERT_WORKSPACE_WRITE_BUILTINS: readonly string[] = [
+  'Bash',
   'Edit',
   'Write',
   'MultiEdit',

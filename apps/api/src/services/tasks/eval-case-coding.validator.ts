@@ -17,7 +17,6 @@ const evalCaseCodingSchema: z.ZodType<EvalCaseCoding> = z
         shortMessage: nonEmpty,
       })
       .strict(),
-    testCommands: z.array(nonEmpty).optional(),
     knownGoodDiff: nonEmpty,
     knownBadDiff: nonEmpty,
   })

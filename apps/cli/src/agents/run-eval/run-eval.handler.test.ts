@@ -121,7 +121,6 @@ describe('runEvalHandler', () => {
           logger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
           evalAttemptExecution: {
             sweepWorkspaces: () => Promise.resolve(),
-            removePreparedBases: () => Promise.resolve(),
             execute: (_session: unknown, recorded: typeof attempt) => {
               launches.push({
                 handlerId: recorded.caseInput.target.targetHandler,

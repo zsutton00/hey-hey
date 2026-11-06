@@ -384,4 +384,88 @@ describe('captureChangesSinceCommit', () => {
       'blob.bin': { status: 'added', additions: 0, deletions: 0 },
     });
   });
+  it('runs nothing the checkout configured when it saves changes', async () => {
+    const repo = await createTempRepo();
+    const planted = await fs.mkdtemp(path.join(os.tmpdir(), 'heyhey-planted-'));
+    tempRoots.push(planted);
+    const script = path.join(planted, 'plant.sh');
+    await fs.writeFile(script, `#!/bin/sh\ntouch "${planted}/ran-$(basename "$0")-$$"\nexit 0\n`);
+    await fs.chmod(script, 0o755);
+    await writeFile(repo, '.gitattributes', '*.txt diff=planted\n*.dat filter=planted\n');
+    await writeFile(repo, 'a.txt', 'one\n');
+    await writeFile(repo, 'b.dat', 'one\n');
+    await runGit(repo, ['add', '.']);
+    await runGit(repo, ['commit', '-qm', 'base']);
+    const commit = await runGit(repo, ['rev-parse', 'HEAD']);
+    await runGit(repo, ['config', 'diff.external', script]);
+    await runGit(repo, ['config', 'diff.planted.textconv', script]);
+    await runGit(repo, ['config', 'core.fsmonitor', script]);
+    await runGit(repo, ['config', 'core.hooksPath', planted]);
+    await runGit(repo, ['config', 'filter.planted.clean', script]);
+    await runGit(repo, ['config', 'filter.planted.required', 'true']);
+    await writeFile(repo, 'a.txt', 'two\n');
+    await writeFile(repo, 'b.dat', 'two\n');
+    await writeFile(repo, 'new.txt', 'fresh\n');
+
+    const files = await captureChangesSinceCommit({ repoPath: repo, commit });
+
+    expect(await fs.readdir(planted)).toEqual(['plant.sh']);
+    expect(
+      files.map(({ path: file, status, additions, deletions }) => ({
+        file,
+        status,
+        additions,
+        deletions,
+      })),
+    ).toEqual([
+      { file: 'a.txt', status: 'modified', additions: 1, deletions: 1 },
+      { file: 'b.dat', status: 'modified', additions: 1, deletions: 1 },
+      { file: 'new.txt', status: 'added', additions: 1, deletions: 0 },
+    ]);
+  });
+
+  it('runs no filter the checkout defines through an included configuration file', async () => {
+    const repo = await createTempRepo();
+    const planted = await fs.mkdtemp(path.join(os.tmpdir(), 'heyhey-planted-'));
+    tempRoots.push(planted);
+    const script = path.join(planted, 'plant.sh');
+    await fs.writeFile(script, `#!/bin/sh\ntouch "${planted}/ran-$$"\ncat\n`);
+    await fs.chmod(script, 0o755);
+    // The filter is defined two includes deep, one of them conditional.
+    const innermost = path.join(planted, 'innermost.cfg');
+    const middle = path.join(planted, 'middle.cfg');
+    const outer = path.join(planted, 'outer.cfg');
+    await fs.writeFile(innermost, `[filter "planted"]\n\tclean = ${script}\n\trequired = true\n`);
+    await fs.writeFile(middle, `[include]\n\tpath = ${innermost}\n`);
+    await fs.writeFile(outer, `[includeIf "onbranch:main"]\n\tpath = ${middle}\n`);
+    await writeFile(repo, '.gitattributes', '*.dat filter=planted\n');
+    await writeFile(repo, 'b.dat', 'one\n');
+    await runGit(repo, ['add', '.']);
+    await runGit(repo, ['commit', '-qm', 'base']);
+    const commit = await runGit(repo, ['rev-parse', 'HEAD']);
+    await runGit(repo, ['config', 'include.path', outer]);
+    await writeFile(repo, 'b.dat', 'two\n');
+
+    const files = await captureChangesSinceCommit({ repoPath: repo, commit });
+
+    expect(await fs.readdir(planted)).not.toContainEqual(expect.stringMatching(/^ran-/));
+    expect(files.map(({ path: file, status }) => ({ file, status }))).toEqual([
+      { file: 'b.dat', status: 'modified' },
+    ]);
+  });
+
+  it('records a new file whose name looks like a git option without acting on it', async () => {
+    const repo = await createTempRepo();
+    await writeFile(repo, 'base.txt', 'base\n');
+    await runGit(repo, ['add', '.']);
+    await runGit(repo, ['commit', '-qm', 'base']);
+    const commit = await runGit(repo, ['rev-parse', 'HEAD']);
+    const outside = path.join(os.tmpdir(), `heyhey-option-${Date.now()}`);
+    await writeFile(repo, `--output=${outside}`, 'x\n');
+
+    const files = await captureChangesSinceCommit({ repoPath: repo, commit });
+
+    expect(files.map((file) => file.path)).toEqual([`--output=${outside}`]);
+    await expect(fs.stat(outside)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
 });

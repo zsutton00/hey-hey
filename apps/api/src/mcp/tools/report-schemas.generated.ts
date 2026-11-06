@@ -1007,7 +1007,7 @@ export const REPORT_SCHEMAS = {
                     assessedOutput: {
                       type: 'string',
                       description:
-                        'Which output the judge assesses for an attempt. CODE_CHANGES is the recorded changes and test checks of a coding attempt, not its chat reply.\n',
+                        'Which output the judge assesses for an attempt. CODE_CHANGES is the recorded changes of a coding attempt, not its chat reply.\n',
                       enum: [
                         'RESEARCH_REPORT',
                         'HANDLER_REPLY',
@@ -1373,57 +1373,6 @@ export const REPORT_SCHEMAS = {
               ],
               description:
                 'Present for coding attempts once their changes were saved.',
-            },
-            testChecks: {
-              type: 'array',
-              description:
-                "Results of the case's named test commands, in the order run. Absent until the commands ran; empty when the case names none.\n",
-              items: {
-                type: 'object',
-                additionalProperties: false,
-                description:
-                  "One test command the runner ran in the attempt's workspace.",
-                required: [
-                  'command',
-                  'passed',
-                  'exitCode',
-                  'output',
-                  'truncated',
-                  'elapsedMs',
-                ],
-                properties: {
-                  command: {
-                    type: 'string',
-                  },
-                  passed: {
-                    type: 'boolean',
-                  },
-                  exitCode: {
-                    anyOf: [
-                      {
-                        type: 'integer',
-                        description:
-                          'Null when the command was stopped by its timeout or could not start.',
-                      },
-                      {
-                        type: 'null',
-                      },
-                    ],
-                  },
-                  output: {
-                    type: 'string',
-                    description: 'Combined stdout and stderr, capped.',
-                  },
-                  truncated: {
-                    type: 'boolean',
-                    description: 'True when output was cut at the cap.',
-                  },
-                  elapsedMs: {
-                    type: 'integer',
-                    minimum: 0,
-                  },
-                },
-              },
             },
             judgedOutput: {
               anyOf: [
@@ -1827,15 +1776,6 @@ export const REPORT_SCHEMAS = {
                             description:
                               'First line of the commit message, shown for recognition.',
                           },
-                        },
-                      },
-                      testCommands: {
-                        type: 'array',
-                        description:
-                          'Targeted commands the runner runs after the agent finishes. The agent does not run them. Empty or absent means no tests run.\n',
-                        items: {
-                          type: 'string',
-                          minLength: 1,
                         },
                       },
                       knownGoodDiff: {

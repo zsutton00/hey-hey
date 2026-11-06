@@ -16,7 +16,7 @@
 
 
 /**
- * Which output the judge assesses for an attempt. CODE_CHANGES is the recorded changes and test checks of a coding attempt, not its chat reply.
+ * Which output the judge assesses for an attempt. CODE_CHANGES is the recorded changes of a coding attempt, not its chat reply.
  * @export
  * @enum {string}
  */

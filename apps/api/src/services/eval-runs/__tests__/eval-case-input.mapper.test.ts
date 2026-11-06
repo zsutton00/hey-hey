@@ -172,7 +172,6 @@ describe('toEvalRunCaseInput', () => {
     const content = {
       serviceId: '44444444-4444-4444-8444-444444444444',
       pinnedCommit: { sha: 'b'.repeat(40), shortMessage: 'Add settings page' },
-      testCommands: ['pnpm test settings'],
       knownGoodDiff: 'good',
       knownBadDiff: 'bad',
     };

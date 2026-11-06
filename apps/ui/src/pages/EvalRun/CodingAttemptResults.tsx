@@ -1,13 +1,8 @@
-import CheckIcon from "@mui/icons-material/Check";
-import CloseIcon from "@mui/icons-material/Close";
 import { Box, Button, Chip, Stack, Typography } from "@mui/material";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  EvalRecordedFileChange,
-  EvalTestCheck,
-} from "@hey-hey/contracts/api/models";
+import type { EvalRecordedFileChange } from "@hey-hey/contracts/api/models";
 import { useService } from "@hey-hey/ui-common/data";
 
 import type { CodingResults } from "./evalResultsView";
@@ -105,58 +100,15 @@ const ChangedFile: React.FC<{ file: EvalRecordedFileChange }> = ({ file }) => {
   );
 };
 
-const TestCheck: React.FC<{ check: EvalTestCheck }> = ({ check }) => {
-  const { t } = useTranslation();
-  const [open, setOpen] = React.useState(false);
-
-  return (
-    <Box data-testid="eval-coding-test-check">
-      <Stack direction="row" spacing={1} alignItems="center">
-        {check.passed ? (
-          <CheckIcon
-            fontSize="small"
-            color="success"
-            titleAccess={t("eval.results.coding.passed")}
-          />
-        ) : (
-          <CloseIcon
-            fontSize="small"
-            color="error"
-            titleAccess={t("eval.results.coding.failed")}
-          />
-        )}
-        <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
-          {check.command}
-        </Typography>
-        <Button size="small" onClick={() => setOpen((value) => !value)}>
-          {open
-            ? t("eval.results.coding.hideOutput")
-            : t("eval.results.coding.output")}
-        </Button>
-      </Stack>
-      {open && (
-        <>
-          {check.truncated && (
-            <Typography variant="caption" color="text.secondary">
-              {t("eval.results.coding.outputCut")}
-            </Typography>
-          )}
-          <Pre testId="eval-coding-test-output">{check.output}</Pre>
-        </>
-      )}
-    </Box>
-  );
-};
-
 /**
- * What a coding attempt changed and how its named tests fared, read from what
- * the runner saved before the workspace was removed.
+ * What a coding attempt changed, read from what the runner saved before the
+ * workspace was removed. Commands the agent ran are in its session.
  */
 export const CodingAttemptResults: React.FC<{ coding: CodingResults }> = ({
   coding,
 }) => {
   const { t } = useTranslation();
-  const { changes, testChecks, ended } = coding;
+  const { changes, ended } = coding;
 
   return (
     <Stack spacing={2} sx={{ mb: 2 }} data-testid="eval-coding-results">
@@ -190,30 +142,6 @@ export const CodingAttemptResults: React.FC<{ coding: CodingResults }> = ({
                 <ChangedFile key={file.path} file={file} />
               ))
             )}
-          </Stack>
-        )}
-      </Box>
-      <Box>
-        <Typography variant="subtitle2" component="h3">
-          {t("eval.results.coding.tests")}
-        </Typography>
-        {testChecks === null ? (
-          <Typography variant="body2" color="text.secondary">
-            {t("eval.results.coding.notRun")}
-          </Typography>
-        ) : testChecks.length === 0 ? (
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            data-testid="eval-coding-no-tests"
-          >
-            {t("eval.results.coding.noTests")}
-          </Typography>
-        ) : (
-          <Stack spacing={1}>
-            {testChecks.map((check, index) => (
-              <TestCheck key={`${index}:${check.command}`} check={check} />
-            ))}
           </Stack>
         )}
       </Box>

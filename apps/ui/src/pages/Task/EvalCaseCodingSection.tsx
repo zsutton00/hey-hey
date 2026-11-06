@@ -27,16 +27,12 @@ export function isEvalCaseCoding(value: unknown): value is EvalCaseCoding {
     return false;
   }
 
-  const { serviceId, pinnedCommit, testCommands, knownGoodDiff, knownBadDiff } =
-    value;
+  const { serviceId, pinnedCommit, knownGoodDiff, knownBadDiff } = value;
 
   return (
     typeof serviceId === "string" &&
     typeof pinnedCommit.sha === "string" &&
     typeof pinnedCommit.shortMessage === "string" &&
-    (testCommands === undefined ||
-      (Array.isArray(testCommands) &&
-        testCommands.every((command) => typeof command === "string"))) &&
     typeof knownGoodDiff === "string" &&
     typeof knownBadDiff === "string"
   );
@@ -184,7 +180,7 @@ const DiffField: React.FC<{
 
 /**
  * The Coding section of a free-form coding Eval Case: where the attempt
- * starts, what the runner runs afterwards, and the reference changes. Reviewer
+ * starts and the reference changes. Reviewer
  * and judge context only; the evaluated agent never sees it.
  */
 export const EvalCaseCodingSection: React.FC<EvalCaseCodingSectionProps> = ({
@@ -199,8 +195,6 @@ export const EvalCaseCodingSection: React.FC<EvalCaseCodingSectionProps> = ({
   if (!coding) {
     return <Alert severity="error">{t("eval.case.coding.invalid")}</Alert>;
   }
-
-  const testCommands = coding.testCommands ?? [];
 
   return (
     <Box data-testid="work-item-section" data-section-key="coding">
@@ -238,30 +232,6 @@ export const EvalCaseCodingSection: React.FC<EvalCaseCodingSectionProps> = ({
           <Typography variant="body2">
             <code>{shortSha(coding.pinnedCommit.sha)}</code>{" "}
             {coding.pinnedCommit.shortMessage}
-          </Typography>
-        </Field>
-        <Field
-          id="coding-test-commands"
-          label={t("eval.case.coding.testCommands")}
-        >
-          {testCommands.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">
-              {t("eval.case.coding.noTestCommands")}
-            </Typography>
-          ) : (
-            testCommands.map((command) => (
-              <Typography key={command} variant="body2" component="div">
-                <code>{command}</code>
-              </Typography>
-            ))
-          )}
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            data-hh-id="coding-tests-note"
-            data-testid="coding-tests-note"
-          >
-            {t("eval.case.coding.testsNote")}
           </Typography>
         </Field>
         <Stack direction="row" spacing={1.5}>

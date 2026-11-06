@@ -125,7 +125,7 @@ EvalAssessedOutput:
   type: string
   description: >
     Which output the judge assesses for an attempt. CODE_CHANGES is the
-    recorded changes and test checks of a coding attempt, not its chat reply.
+    recorded changes of a coding attempt, not its chat reply.
   enum: [RESEARCH_REPORT, HANDLER_REPLY, CODE_CHANGES]
 
 EvalResolvedExecution:
@@ -256,14 +256,6 @@ EvalCaseCoding:
       $ref: "./common.yaml#/ServiceId"
     pinnedCommit:
       $ref: "#/EvalCaseCodingCommit"
-    testCommands:
-      type: array
-      description: >
-        Targeted commands the runner runs after the agent finishes. The agent
-        does not run them. Empty or absent means no tests run.
-      items:
-        type: string
-        minLength: 1
     knownGoodDiff:
       type: string
       minLength: 1
@@ -603,30 +595,6 @@ EvalRecordedChanges:
       items:
         $ref: "#/EvalRecordedFileChange"
 
-EvalTestCheck:
-  type: object
-  additionalProperties: false
-  description: One test command the runner ran in the attempt's workspace.
-  required: [command, passed, exitCode, output, truncated, elapsedMs]
-  properties:
-    command:
-      type: string
-    passed:
-      type: boolean
-    exitCode:
-      type: integer
-      nullable: true
-      description: Null when the command was stopped by its timeout or could not start.
-    output:
-      type: string
-      description: Combined stdout and stderr, capped.
-    truncated:
-      type: boolean
-      description: True when output was cut at the cap.
-    elapsedMs:
-      type: integer
-      minimum: 0
-
 EvalAttemptReportPayload:
   description: >
     Payload for EVAL_ATTEMPT reports, one per case and configuration. The
@@ -707,13 +675,6 @@ EvalAttemptReportPayload:
           allOf:
             - $ref: "#/EvalRecordedChanges"
           description: Present for coding attempts once their changes were saved.
-        testChecks:
-          type: array
-          description: >
-            Results of the case's named test commands, in the order run. Absent
-            until the commands ran; empty when the case names none.
-          items:
-            $ref: "#/EvalTestCheck"
         judgedOutput:
           type: string
           nullable: true

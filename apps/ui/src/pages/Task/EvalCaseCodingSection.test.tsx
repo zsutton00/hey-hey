@@ -24,13 +24,28 @@ vi.mock("@hey-hey/ui-common/data", () => ({
 const content = JSON.stringify({
   serviceId: "44444444-4444-4444-8444-444444444444",
   pinnedCommit: { sha: "a".repeat(40), shortMessage: "Add settings page" },
-  testCommands: ["pnpm test settings"],
   knownGoodDiff: "diff --git good",
   knownBadDiff: "diff --git bad",
 });
 
 describe("EvalCaseCodingSection", () => {
-  it("shows the service, commit, test commands and hidden-from-agent note, and reveals diffs on demand", () => {
+  it("reads a section saved with test commands and shows no test commands", () => {
+    render(
+      <EvalCaseCodingSection
+        content={JSON.stringify({
+          ...JSON.parse(content),
+          testCommands: ["pnpm test settings"],
+        })}
+        organizationId="org"
+        projectId="project"
+      />,
+    );
+
+    expect(screen.getByText("Add settings page")).toBeTruthy();
+    expect(screen.queryByText("pnpm test settings")).toBeNull();
+  });
+
+  it("shows the service, commit and hidden-from-agent note, and reveals diffs on demand", () => {
     render(
       <EvalCaseCodingSection
         content={content}
@@ -41,18 +56,16 @@ describe("EvalCaseCodingSection", () => {
 
     expect(screen.getByText("hey-hey")).toBeTruthy();
     expect(screen.getByText("Add settings page")).toBeTruthy();
-    expect(screen.getByText("pnpm test settings")).toBeTruthy();
     for (const id of [
       "coding-service",
       "coding-commit",
-      "coding-test-commands",
-      "coding-tests-note",
       "coding-known-good",
       "coding-known-bad",
       "coding-hidden-note",
     ]) {
       expect(screen.getByTestId(id)).toBeTruthy();
     }
+    expect(screen.queryByTestId("coding-test-commands")).toBeNull();
     expect(screen.queryByText("diff --git good")).toBeNull();
 
     fireEvent.click(

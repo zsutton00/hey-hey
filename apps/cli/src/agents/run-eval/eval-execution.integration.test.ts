@@ -9,7 +9,16 @@ import { NOOP_LOGGER } from '../../server/logger';
 
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -290,7 +299,6 @@ const attempt = (
     coding: {
       serviceId: '55555555-5555-4555-8555-555555555555',
       pinnedCommit: { sha: 'a'.repeat(40), shortMessage: 'SECRET-COMMIT-MESSAGE' },
-      testCommands: ['SECRET-TEST-COMMAND'],
       knownGoodDiff: 'SECRET-KNOWN-GOOD',
       knownBadDiff: 'SECRET-KNOWN-BAD',
     },
@@ -914,7 +922,7 @@ describe('free-form coding attempt bound to a workspace directory', () => {
     expect(JSON.stringify(harness.runPrompt.mock.calls)).toContain('Add a greeting file.');
 
     // 2. The real Claude runner, given that Run, offers file-writing built-ins
-    // but no shell, and only inside the bound directory.
+    // and a shell, both confined to the bound directory.
     const localAgentEndpoint = new LocalAgentEndpoint();
     localAgentEndpoint.set('http://127.0.0.1:9999');
     const toolRuleStore = new ToolRuleStore(path.join(harness.baseDir, 'tool-rules.json'));
@@ -972,9 +980,18 @@ describe('free-form coding attempt bound to a workspace directory', () => {
       (startConfig as unknown as { withoutGitCredentials?: boolean }).withoutGitCredentials,
     ).toBe(true);
     expect(startConfig.builtinTools).toEqual(
-      expect.arrayContaining(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']),
+      expect.arrayContaining(['Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit']),
     );
-    expect(startConfig.builtinTools).not.toContain('Bash');
+    // The shell never runs outside the Sandbox: the turn fails if it cannot start.
+    expect(
+      (
+        startConfig as unknown as {
+          workspaceContainment: {
+            settings: { sandbox: { enabled: boolean; failIfUnavailable: boolean } };
+          };
+        }
+      ).workspaceContainment.settings.sandbox,
+    ).toMatchObject({ enabled: true, failIfUnavailable: true, allowUnsandboxedCommands: false });
 
     const handler = permissionRequestHandler!;
     // The mocked SDK client stands in for Claude's own tool execution: it runs
@@ -1022,8 +1039,9 @@ describe('free-form coding attempt bound to a workspace directory', () => {
     // Nothing was created outside the bound directory.
     expect(await readdir(outside)).toEqual([]);
 
-    await expect(handler('Bash', { command: 'touch x' })).resolves.toMatchObject({
-      behavior: 'deny',
+    // The shell is the agent's own to use; the Sandbox, not a prompt, confines it.
+    await expect(handler('Bash', { command: 'pnpm install' })).resolves.toMatchObject({
+      behavior: 'allow',
     });
     for (const graphWrite of ['create_edge', 'delete_hint', 'update_edge']) {
       await expect(handler(`mcp__heyhey-platform__${graphWrite}`, {})).resolves.toMatchObject({
@@ -1037,11 +1055,142 @@ describe('free-form coding attempt bound to a workspace directory', () => {
   });
 });
 
+describe('commands an eval agent runs in its workspace', () => {
+  const git = (cwd: string, ...args: string[]): string =>
+    execFileSync('git', args, { cwd, encoding: 'utf8' });
+
+  it.runIf(process.platform === 'darwin' || process.platform === 'linux')(
+    'run inside the cloned workspace only: they cannot write outside it or push to the source repository, and a git setting they plant is not executed when the changes are saved',
+    async () => {
+      const { spawnSync } = await import('node:child_process');
+      const { RunWorkspaceWriteBoundary } = await import('../workspace-write-boundary');
+      const { EvalWorkspaces } = await import('./eval-workspace');
+      const { captureChangesSinceCommit } = await import('../../git/diff');
+
+      const temp = await mkdtemp(path.join(os.tmpdir(), 'heyhey-agent-commands-'));
+      tempDirs.push(temp);
+      const source = path.join(temp, 'source');
+      const outside = path.join(temp, 'outside');
+      const planted = path.join(temp, 'planted');
+      await Promise.all([source, outside, planted].map((dir) => mkdir(dir)));
+      git(source, 'init', '-q');
+      git(source, 'config', 'user.email', 't@example.com');
+      git(source, 'config', 'user.name', 't');
+      await writeFile(path.join(source, 'a.txt'), 'one\n');
+      git(source, 'add', '.');
+      git(source, 'commit', '-qm', 'one');
+      const sha = git(source, 'rev-parse', 'HEAD').trim();
+      const sourceSnapshot = (): string =>
+        [
+          git(source, 'for-each-ref'),
+          git(source, 'branch', '--all'),
+          git(source, 'status', '--porcelain'),
+        ].join('|');
+      const before = sourceSnapshot();
+
+      const workspaces = new EvalWorkspaces(
+        { resolvePathForService: async () => source },
+        NOOP_LOGGER,
+        { rootDirectory: path.join(temp, 'workspaces'), maxOpen: 1 },
+      );
+      const workspace = await workspaces.acquire(
+        { attemptId: 'attempt', serviceId: 'service', commitSha: sha },
+        new AbortController().signal,
+      );
+      const directory = await realpath(workspace.directory);
+      const boundary = await RunWorkspaceWriteBoundary.create({
+        ok: true,
+        runMode: 'default',
+        repositoryPathForRunStarted: directory,
+        cwd: directory,
+        allowedRepositoryRoots: [directory],
+        bindingRepositoryPath: directory,
+        workspaceRoot: null,
+      });
+      try {
+        // Run Claude's exact Sandbox policy for this Run through its own engine.
+        const sandbox = boundary.claudeContainment().settings.sandbox;
+        const policy = path.join(await realpath(temp), 'sandbox-policy.json');
+        await writeFile(
+          policy,
+          JSON.stringify({
+            filesystem: {
+              allowWrite: sandbox.filesystem.allowWrite,
+              allowRead: sandbox.filesystem.allowRead,
+              denyWrite: [],
+              denyRead: [],
+            },
+            network: {
+              allowedDomains: [],
+              deniedDomains: [],
+              allowAllUnixSockets: sandbox.network.allowAllUnixSockets,
+              allowLocalBinding: sandbox.network.allowLocalBinding,
+            },
+          }),
+        );
+        const launcher = boundary.processContainment().argsPrefix[0]!;
+        const agentCommand = (script: string, ...args: string[]) =>
+          spawnSync(
+            process.execPath,
+            [launcher, policy, '/bin/bash', '-c', script, 'agent', ...args],
+            {
+              cwd: directory,
+              env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+              encoding: 'utf8',
+              timeout: 30000,
+              killSignal: 'SIGKILL',
+            },
+          );
+
+        const result = agentCommand(
+          `set -u
+          printf made > "$1/made-by-command.txt"                      # inside the workspace
+          ! (printf escaped > "$2/escaped.txt")                        # outside it
+          ! git push "$3" HEAD:refs/heads/escaped                      # push into the source repository
+          ! git push origin HEAD                                       # push to a remote (there is none)
+          git config core.fsmonitor "$4/plant.sh"                      # plant a command for the host
+          git config diff.external "$4/plant.sh"
+          printf ran-ok`,
+          directory,
+          outside,
+          source,
+          planted,
+        );
+        expect(result.error).toBeUndefined();
+        expect(result.status, result.stderr).toBe(0);
+        expect(result.stdout).toContain('ran-ok');
+
+        expect(await readFile(path.join(directory, 'made-by-command.txt'), 'utf8')).toBe('made');
+        expect(await readdir(outside)).toEqual([]);
+        expect(sourceSnapshot()).toBe(before);
+
+        await writeFile(
+          path.join(planted, 'plant.sh'),
+          `#!/bin/sh\ntouch "${planted}/executed"\n`,
+          { mode: 0o755 },
+        );
+        await writeFile(path.join(directory, 'a.txt'), 'one\ntwo\n');
+        const files = await captureChangesSinceCommit({ repoPath: directory, commit: sha });
+
+        expect(files.map((file) => file.path).sort()).toEqual(['a.txt', 'made-by-command.txt']);
+        expect(existsSync(path.join(planted, 'executed'))).toBe(false);
+      } finally {
+        await boundary.dispose();
+        await workspace.release();
+      }
+    },
+    70000,
+  );
+});
+
 describe('free-form coding attempts and their workspaces', () => {
   const git = (cwd: string, ...args: string[]): string =>
     execFileSync('git', args, { cwd, encoding: 'utf8' });
 
-  const codingSetup = async (failFirstClone = false) => {
+  const codingSetup = async (
+    options: { failFirstClone?: boolean; packageManagerProject?: boolean } = {},
+  ) => {
+    const failFirstClone = options.failFirstClone ?? false;
     const { EvalWorkspaces } = await import('./eval-workspace');
     const temp = await mkdtemp(path.join(os.tmpdir(), 'heyhey-coding-attempts-'));
     tempDirs.push(temp);
@@ -1052,6 +1201,13 @@ describe('free-form coding attempts and their workspaces', () => {
     git(source, 'config', 'user.email', 't@example.com');
     git(source, 'config', 'user.name', 't');
     await writeFile(path.join(source, 'a.txt'), 'one');
+    if (options.packageManagerProject) {
+      await writeFile(path.join(source, 'pnpm-lock.yaml'), '');
+      await writeFile(
+        path.join(source, 'package.json'),
+        JSON.stringify({ scripts: { bootstrap: 'x', 'generate:contracts': 'y', test: 'z' } }),
+      );
+    }
     git(source, 'add', '.');
     git(source, 'commit', '-qm', 'one');
     const sha = git(source, 'rev-parse', 'HEAD').trim();
@@ -1093,7 +1249,7 @@ describe('free-form coding attempts and their workspaces', () => {
       return run!.services![0]!.path;
     };
 
-    return { harness, execution, codingAttempt, boundDirectory, root };
+    return { harness, execution, codingAttempt, boundDirectory, root, source };
   };
 
   const leftovers = async (root: string): Promise<string[]> =>
@@ -1137,7 +1293,7 @@ describe('free-form coding attempts and their workspaces', () => {
     },
   );
 
-  it('saves the changes and runs the named tests before the workspace is removed, even when stopped', async () => {
+  it('saves the changes before the workspace is removed, even when stopped', async () => {
     const { harness, execution, codingAttempt, boundDirectory } = await codingSetup();
     const controller = new AbortController();
     harness.runPrompt.mockImplementationOnce(async (...args: unknown[]) => {
@@ -1156,7 +1312,6 @@ describe('free-form coding attempts and their workspaces', () => {
       return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
     });
     const recorded = codingAttempt('88888888-8888-4888-8888-888888888888');
-    recorded.caseInput.coding!.testCommands = ['test -f new.txt', 'exit 3', 'test -f a.txt'];
     let directoryExistedWhenSaved: boolean | undefined;
     let saved:
       | Parameters<NonNullable<Parameters<typeof execution.execute>[2]['onWorkspaceSettled']>>[0]
@@ -1184,7 +1339,59 @@ describe('free-form coding attempts and their workspaces', () => {
       { file: 'a.txt', status: 'modified', additions: 2, deletions: 1 },
       { file: 'new.txt', status: 'added', additions: 1, deletions: 0 },
     ]);
-    expect(saved?.testChecks.map((check) => check.passed)).toEqual([true, false, true]);
+    expect(saved).toEqual({ recordedChanges: expect.anything() });
+  });
+
+  it('judges the saved changes alone, and runs no install, build or test of its own', async () => {
+    const { harness, execution, codingAttempt, boundDirectory, source } = await codingSetup({
+      packageManagerProject: true,
+    });
+    const bin = path.join(path.dirname(source), 'bin');
+    const calls = path.join(path.dirname(source), 'runner-commands.log');
+    await mkdir(bin);
+    for (const command of ['pnpm', 'npm', 'yarn']) {
+      await writeFile(path.join(bin, command), `#!/bin/sh\necho ${command} "$@" >> "${calls}"\n`, {
+        mode: 0o755,
+      });
+    }
+    harness.runPrompt.mockImplementationOnce(async () => {
+      const directory = await boundDirectory();
+      await writeFile(path.join(directory, 'new.txt'), 'hello\n');
+      const turnId = (await harness.runStore.getRunMetadata(AGENT_SESSION_ID))?.latestTurn?.turnId;
+      await harness.runStore.updateRunFinalAssistantMessage(AGENT_SESSION_ID, {
+        turnId: turnId ?? '',
+        messageId: 'final',
+        text: 'Added new.txt.',
+        committedAt: new Date().toISOString(),
+      });
+
+      return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+    });
+    let directoryContents: string[] = [];
+    const originalPath = process.env['PATH'];
+    process.env['PATH'] = `${bin}:${originalPath}`;
+    try {
+      const result = await execution.execute(
+        coordinator,
+        codingAttempt('99999999-9999-4999-8999-999999999999'),
+        {
+          signal: new AbortController().signal,
+          onWorkspaceSettled: async () => {
+            directoryContents = await readdir(await boundDirectory());
+          },
+        },
+      );
+
+      expect(result.outputText).toContain('## Changes made');
+      expect(result.outputText).toContain('### new.txt (added, +1 -0)');
+      expect(result.outputText).not.toContain('Test results');
+    } finally {
+      process.env['PATH'] = originalPath;
+    }
+    expect(existsSync(calls)).toBe(false);
+    expect(directoryContents.sort()).toEqual(
+      ['.git', 'a.txt', 'new.txt', 'package.json', 'pnpm-lock.yaml'].sort(),
+    );
   });
 
   it('fails only the attempt whose changes cannot be captured, keeps its session ids, and runs the next', async () => {
@@ -1251,7 +1458,9 @@ describe('free-form coding attempts and their workspaces', () => {
   });
 
   it('fails only the attempt whose workspace cannot be created, and the next attempt still runs', async () => {
-    const { harness, execution, codingAttempt, boundDirectory, root } = await codingSetup(true);
+    const { harness, execution, codingAttempt, boundDirectory, root } = await codingSetup({
+      failFirstClone: true,
+    });
     let boundDuringSecond: string | undefined;
     harness.runPrompt.mockImplementationOnce(async () => {
       boundDuringSecond = await boundDirectory();

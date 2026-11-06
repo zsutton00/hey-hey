@@ -37,12 +37,6 @@ export interface EvalCaseCoding {
      */
     'pinnedCommit': EvalCaseCodingCommit;
     /**
-     * Targeted commands the runner runs after the agent finishes. The agent does not run them. Empty or absent means no tests run.
-     * @type {Array<string>}
-     * @memberof EvalCaseCoding
-     */
-    'testCommands'?: Array<string>;
-    /**
      * A change that satisfies the case.
      * @type {string}
      * @memberof EvalCaseCoding

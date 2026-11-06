@@ -2,6 +2,7 @@ import { execFile, spawn } from 'node:child_process';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { stripCredentialEnvironment } from '../agent-runtime/node/credential-environment';
 import type { LocalDiffFilePatch } from '../shared/agent-bridge-contract/runtime-types';
 import type { EvalRecordedFileChange } from '@hey-hey/contracts/api/models';
 import type {
@@ -237,18 +238,105 @@ export const getGitChangedFileDetail = async (options: {
 };
 
 /**
+ * Runs git in a checkout an agent has had a shell in. Everything in its `.git`
+ * is untrusted, so nothing it configured may run on the host: credentials are
+ * stripped, an external diff program from the environment is dropped, fsmonitor
+ * and hooks are switched off, and every filter driver it defined is emptied.
+ * Diff commands also pass `--no-ext-diff --no-textconv` themselves.
+ */
+const untrustedCheckoutGit = async (repoPath: string, args: readonly string[]): Promise<string> => {
+  const env = stripCredentialEnvironment(process.env);
+  delete env['GIT_EXTERNAL_DIFF'];
+  const overrides = [
+    '-c',
+    'core.fsmonitor=false',
+    '-c',
+    'core.hooksPath=/dev/null',
+    ...(await disabledFilterOverrides(repoPath, env)),
+  ];
+  const { stdout } = await execFileAsync('git', [...overrides, ...args], {
+    cwd: repoPath,
+    env,
+    maxBuffer: MAX_DIFF_BUFFER,
+  });
+
+  return stdout;
+};
+
+/**
+ * `-c` overrides that empty every clean/smudge/process filter the checkout's own
+ * configuration defines, including filters it pulls in through `include` and
+ * `includeIf` files, which git applies when it diffs. Filters from the machine's
+ * system and global configuration are the user's own and stay.
+ */
+const disabledFilterOverrides = async (
+  repoPath: string,
+  env: NodeJS.ProcessEnv,
+): Promise<string[]> => {
+  let configured: string;
+  try {
+    ({ stdout: configured } = await execFileAsync(
+      'git',
+      ['config', '--show-scope', '--includes', '--name-only', '--get-regexp', '^filter\\.'],
+      { cwd: repoPath, env },
+    ));
+  } catch (error) {
+    // `git config --get-regexp` exits 1 when nothing matches.
+    if ((error as { code?: number }).code === 1) {
+      return [];
+    }
+    throw error;
+  }
+  const drivers = new Set<string>();
+  for (const line of configured.split('\n')) {
+    const [scope, key = ''] = line.split('\t');
+    if (scope !== 'local' && scope !== 'worktree') {
+      continue;
+    }
+    const driver = /^filter\.(.+)\.(?:clean|smudge|process|required)$/iu.exec(key)?.[1];
+    if (driver) {
+      drivers.add(driver);
+    }
+  }
+
+  return [...drivers].flatMap((driver) => [
+    '-c',
+    `filter.${driver}.clean=`,
+    '-c',
+    `filter.${driver}.smudge=`,
+    '-c',
+    `filter.${driver}.process=`,
+    '-c',
+    `filter.${driver}.required=false`,
+  ]);
+};
+
+/**
  * Generate a "new file" diff for an untracked file using git diff --no-index.
+ * `untrusted` is for checkouts an agent has had a shell in (see `untrustedCheckoutGit`).
  */
 const diffUntrackedFile = async (
   repoPath: string,
   filePath: string,
+  options: { untrusted?: boolean } = {},
 ): Promise<RawFilePatch | null> => {
+  // `--` keeps a file named like an option (`--output=...`) from being read as one.
+  const diffArgs = options.untrusted
+    ? [
+        'diff',
+        '--no-ext-diff',
+        '--no-textconv',
+        '--no-index',
+        '--unified=3',
+        '--',
+        '/dev/null',
+        filePath,
+      ]
+    : ['diff', '--no-index', '--unified=3', '/dev/null', filePath];
   try {
-    const { stdout } = await execFileAsync(
-      'git',
-      ['diff', '--no-index', '--unified=3', '/dev/null', filePath],
-      { cwd: repoPath },
-    );
+    const stdout = options.untrusted
+      ? await untrustedCheckoutGit(repoPath, diffArgs)
+      : (await execFileAsync('git', diffArgs, { cwd: repoPath })).stdout;
     const trimmed = stdout.trim();
     return trimmed ? { filePath, diff: trimmed } : null;
   } catch (error: unknown) {
@@ -444,19 +532,20 @@ export const captureChangesSinceCommit = async (options: {
   commit: string;
 }): Promise<EvalRecordedFileChange[]> => {
   const { repoPath, commit } = options;
-  const { stdout: trackedDiff } = await execFileAsync(
-    'git',
-    ['diff', '--no-renames', '--unified=3', commit],
-    {
-      cwd: repoPath,
-      maxBuffer: MAX_DIFF_BUFFER,
-    },
-  );
-  const { stdout: untrackedList } = await execFileAsync(
-    'git',
-    ['ls-files', '--others', '--exclude-standard', '-z'],
-    { cwd: repoPath, maxBuffer: MAX_DIFF_BUFFER },
-  );
+  const trackedDiff = await untrustedCheckoutGit(repoPath, [
+    'diff',
+    '--no-ext-diff',
+    '--no-textconv',
+    '--no-renames',
+    '--unified=3',
+    commit,
+  ]);
+  const untrackedList = await untrustedCheckoutGit(repoPath, [
+    'ls-files',
+    '--others',
+    '--exclude-standard',
+    '-z',
+  ]);
   const files: EvalRecordedFileChange[] = splitIntoPatchesByFile(trackedDiff).map(
     ({ filePath, diff }) => ({
       path: filePath,
@@ -467,7 +556,7 @@ export const captureChangesSinceCommit = async (options: {
   );
 
   for (const untrackedPath of untrackedList.split('\0').filter(Boolean)) {
-    const patch = await diffUntrackedFile(repoPath, untrackedPath);
+    const patch = await diffUntrackedFile(repoPath, untrackedPath, { untrusted: true });
     if (patch) {
       files.push({
         path: patch.filePath,

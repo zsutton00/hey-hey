@@ -6,7 +6,6 @@ import {
   type EvalConfiguration,
   type EvalMeasurement,
   type EvalRecordedChanges,
-  type EvalTestCheck,
 } from "@hey-hey/contracts/api";
 import type { EvalAttemptReport, EvalRunReport } from "@hey-hey/ui-common/data";
 import { WebPathService } from "@hey-hey/ui-common/services";
@@ -305,24 +304,11 @@ const ATTEMPT_ENDED: ReadonlySet<EvalAttemptStatus> = new Set([
 export interface CodingResults {
   /** Null when the attempt never got as far as saving its changes. */
   changes: EvalRecordedChanges | null;
-  /** Null until the named commands ran; empty when the case names none. */
-  testChecks: EvalTestCheck[] | null;
   /** The attempt has stopped for good, so absent changes will not appear later. */
   ended: boolean;
   /** Where the attempt started: the Service and the pinned commit. */
   startPoint: { serviceId: string; sha: string; shortMessage: string };
 }
-
-/** Passed over total test checks, or null when no tests ran. */
-export const testCount = (
-  checks: readonly EvalTestCheck[] | null,
-): { passed: number; total: number } | null =>
-  checks && checks.length > 0
-    ? {
-        passed: checks.filter((check) => check.passed).length,
-        total: checks.length,
-      }
-    : null;
 
 export type RecognitionView = "correct" | "missed" | "pending";
 
@@ -435,7 +421,6 @@ export const caseRow = (
       ? {
           changes: attempt.payload.recordedChanges ?? null,
           ended: ATTEMPT_ENDED.has(attempt.payload.status),
-          testChecks: attempt.payload.testChecks ?? null,
           startPoint: {
             serviceId: codingCase.serviceId,
             sha: codingCase.pinnedCommit.sha,

@@ -88,9 +88,6 @@ import type { EvalRunReportPayload } from './eval-run-report-payload.js';
 import type { EvalRunSettings } from './eval-run-settings.js';
 // May contain unused imports in some cases
 // @ts-ignore
-import type { EvalTestCheck } from './eval-test-check.js';
-// May contain unused imports in some cases
-// @ts-ignore
 import type { EvidencePipelineReportEvidenceItemSummary } from './evidence-pipeline-report-evidence-item-summary.js';
 // May contain unused imports in some cases
 // @ts-ignore
