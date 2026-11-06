@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -149,6 +150,30 @@ describe("LocalSetupPage", () => {
     expect(window.location.hash).toBe("");
     expect(localStorage.length).toBe(0);
     expect(JSON.stringify({ ...sessionStorage })).not.toContain(HANDOFF_TOKEN);
+  });
+
+  it("spends the one-use handoff once when the page is remounted in development", async () => {
+    authClient.completeLocalHandoff.mockResolvedValue({
+      data: { data: { accessToken: "local-access-token" } },
+    });
+    window.history.replaceState({}, "", `/local#handoff=${HANDOFF_TOKEN}`);
+
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={["/local"]}>
+          <Routes>
+            <Route path="/local" element={<LocalSetupPage />} />
+          </Routes>
+        </MemoryRouter>
+      </StrictMode>,
+    );
+
+    await waitFor(() => {
+      expect(acceptBrowserAuthSession).toHaveBeenCalledWith({
+        accessToken: "local-access-token",
+      });
+    });
+    expect(authClient.completeLocalHandoff).toHaveBeenCalledTimes(1);
   });
 
   it("takes the CLI code and approval secret from the fragment through name entry straight to passkey approval", async () => {

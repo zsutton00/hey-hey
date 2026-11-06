@@ -31,6 +31,32 @@ const CONNECT_TIMEOUT_MS = 60_000;
 const describeFailure = (failure: unknown): string =>
   failure instanceof Error ? failure.message : String(failure);
 
+type HandoffExchange = ReturnType<
+  ReturnType<typeof getApiRuntime>["clients"]["auth"]["completeLocalHandoff"]
+>;
+
+const handoffExchanges = new Map<string, HandoffExchange>();
+
+/**
+ * The handoff token is single-use, and a remount (React StrictMode in development) runs the
+ * exchange effect again with the same token. Every mount shares the one request per token.
+ */
+const exchangeHandoffToken = (handoffToken: string): HandoffExchange => {
+  const inFlight = handoffExchanges.get(handoffToken);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const exchange = getApiRuntime().clients.auth.completeLocalHandoff({
+    localHandoffRequestDto: { handoffToken },
+  });
+  handoffExchanges.set(handoffToken, exchange);
+  const forget = () => handoffExchanges.delete(handoffToken);
+  exchange.then(forget, forget);
+
+  return exchange;
+};
+
 interface CliFragment {
   handoffToken: string | null;
   /** Which one-time values the URL carried, by length only. */
@@ -163,10 +189,7 @@ export function LocalSetupPage(): React.JSX.Element {
     }
 
     recordLocalSetupEvent("handoff: exchanging the one-use token");
-    void getApiRuntime()
-      .clients.auth.completeLocalHandoff({
-        localHandoffRequestDto: { handoffToken },
-      })
+    void exchangeHandoffToken(handoffToken)
       .then((response) => {
         if ("accessToken" in response.data.data) {
           acceptBrowserAuthSession(response.data.data);
