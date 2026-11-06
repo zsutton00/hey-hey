@@ -12,9 +12,17 @@ export interface PlanHierarchyStatusTransition {
   initiativeId: string | null;
 }
 
+/** Stage statuses that satisfy a stage prerequisite. */
 const TERMINAL_STATUSES = new Set<WorkStatus>([
   WorkStatus.COMPLETED,
   WorkStatus.CANCELLED,
+]);
+
+/** Direct Task statuses that leave no actionable work in a stage. */
+const TERMINAL_TASK_STATUSES = new Set<WorkStatus>([
+  WorkStatus.COMPLETED,
+  WorkStatus.CANCELLED,
+  WorkStatus.SUPERSEDED,
 ]);
 
 /**
@@ -263,7 +271,7 @@ export class PlanHierarchyRollupService {
   ): WorkStatus {
     if (currentStatus === WorkStatus.REFINING) return currentStatus;
     if (childStatuses.length === 0) return WorkStatus.BACKLOG;
-    if (childStatuses.every((status) => TERMINAL_STATUSES.has(status))) {
+    if (childStatuses.every((status) => TERMINAL_TASK_STATUSES.has(status))) {
       return WorkStatus.COMPLETED;
     }
     if (childStatuses.includes(WorkStatus.BLOCKED)) return WorkStatus.BLOCKED;
