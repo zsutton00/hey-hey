@@ -4,7 +4,7 @@ import { createElement, type ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useUserPairedMachines } from "../useUserPairedMachines";
 import { machineKeys } from "../../collections/machines";
-import type { MachineDto } from "../../../api";
+import { MachineExecutionReadinessState, type MachineDto } from "../../../api";
 
 const { listMachines } = vi.hoisted(() => ({ listMachines: vi.fn() }));
 vi.mock("../../../clients/serviceClients", () => ({
@@ -28,7 +28,9 @@ const machines = [
   },
 ] as unknown as MachineDto[];
 
-const listResponse = (value: unknown) => ({ data: { data: { machines: value } } });
+const listResponse = (value: unknown) => ({
+  data: { data: { machines: value } },
+});
 
 function createHarness() {
   const queryClient = new QueryClient({
@@ -61,8 +63,32 @@ describe("useUserPairedMachines", () => {
     expect(result.current.machines).toEqual(machines);
     expect(result.current.data).toBe(result.current.machines);
     expect(queryClient.getQueryData(machineKeys.currentUser())).toEqual(
-      machines
+      machines,
     );
+  });
+
+  it("keeps re-reading until a machine is ready, then stops", async () => {
+    const { wrapper } = createHarness();
+    const ready = [
+      {
+        ...machines[0],
+        executionReadiness: MachineExecutionReadinessState.Ready,
+      },
+    ] as unknown as MachineDto[];
+    listMachines.mockReset();
+    listMachines
+      .mockResolvedValueOnce(listResponse([]))
+      .mockResolvedValue(listResponse(ready));
+
+    const { result } = renderHook(
+      () => useUserPairedMachines({ pollUntilReadyMs: 20 }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.machines).toEqual(ready));
+    const callsWhenReady = listMachines.mock.calls.length;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(listMachines).toHaveBeenCalledTimes(callsWhenReady);
   });
 
   it("shares one request between hooks", async () => {
@@ -70,7 +96,7 @@ describe("useUserPairedMachines", () => {
 
     const { result } = renderHook(
       () => ({ a: useUserPairedMachines(), b: useUserPairedMachines() }),
-      { wrapper }
+      { wrapper },
     );
 
     await waitFor(() => expect(result.current.b.isReady).toBe(true));
@@ -107,7 +133,7 @@ describe("useUserPairedMachines", () => {
     const { result } = renderHook(() => useUserPairedMachines(), { wrapper });
 
     await waitFor(() =>
-      expect(result.current.error?.message).toBe("Network error")
+      expect(result.current.error?.message).toBe("Network error"),
     );
     expect(result.current.isReady).toBe(false);
     expect(result.current.machines).toEqual([]);
@@ -118,7 +144,7 @@ describe("useUserPairedMachines", () => {
 
     const { result } = renderHook(
       () => useUserPairedMachines({ enabled: false }),
-      { wrapper }
+      { wrapper },
     );
 
     expect(listMachines).not.toHaveBeenCalled();

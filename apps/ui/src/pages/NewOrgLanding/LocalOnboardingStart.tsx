@@ -35,6 +35,9 @@ import {
   type LocalOnboardingTarget,
 } from "./useLocalOnboardingLaunch";
 
+/** The CLI may connect after `/welcome` opens; keep looking until it does. */
+const MACHINE_POLL_MS = 2000;
+
 const isSameRuntime = (a: SurfaceSelection, b: SurfaceSelection): boolean =>
   a.provider === b.provider &&
   a.model === b.model &&
@@ -72,7 +75,11 @@ export function LocalOnboardingStart({
     [savedSession, selection],
   );
 
-  const machine = useMachineResolution(savedSession?.machineId ?? null);
+  const machine = useMachineResolution(
+    savedSession?.machineId ?? null,
+    undefined,
+    MACHINE_POLL_MS,
+  );
   const machineId = machine.selectedMachine?.machineId ?? null;
   const catalogSource = useMemo(
     () => (machineId ? { organizationId, projectId, machineId } : null),
