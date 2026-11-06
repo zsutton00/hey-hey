@@ -48,4 +48,25 @@ describe('toStoredTriggerFrame', () => {
       payload: { materializedFeatureIds: payload.materializedFeatureIds },
     });
   });
+
+  it('stores a start-run for a local onboarding session, which the newest storage version admits', () => {
+    const payload = {
+      handlerPromptType: LocalPromptType.LocalOnboarding,
+      model: 'claude-haiku-5-5',
+      provider: 'claude',
+      contextMetadata: {},
+      agentSessionId: '22222222-2222-4222-8222-222222222222',
+    };
+    const event = {
+      promptType: 'start_run',
+      operationId: '11111111-1111-4111-8111-111111111111',
+      operationFingerprint: 'a'.repeat(64),
+      triggerMessageId: 'trigger-1',
+      payload,
+    } as unknown as AgentTrigger;
+
+    const stored = toStoredTriggerFrame(null, event, payload);
+
+    expect(stored.event).toMatchObject({ payload: { handlerPromptType: 'local_onboarding' } });
+  });
 });
