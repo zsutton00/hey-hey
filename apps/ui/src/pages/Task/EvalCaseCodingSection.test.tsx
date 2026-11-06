@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   EvalCaseCodingSection,
   isFreeFormEvalCase,
+  summarizeDiff,
 } from "./EvalCaseCodingSection";
 
 vi.mock("react-router-dom", () => ({ useNavigate: () => vi.fn() }));
@@ -81,5 +82,39 @@ describe("EvalCaseCodingSection", () => {
     expect(isFreeFormEvalCase(withHandler("free_form"))).toBe(true);
     expect(isFreeFormEvalCase(withHandler("entity_conversation"))).toBe(false);
     expect(isFreeFormEvalCase([])).toBe(false);
+  });
+});
+
+describe("summarizeDiff", () => {
+  it("counts content lines that look like headers, and files without git headers", () => {
+    const withGitHeaders = [
+      "diff --git a/q.sql b/q.sql",
+      "--- a/q.sql",
+      "+++ b/q.sql",
+      "@@ -1,2 +1,2 @@",
+      " select 1;",
+      "--- drop comment",
+      "+++ added comment",
+      "diff --git a/n.txt b/n.txt",
+      "--- /dev/null",
+      "+++ b/n.txt",
+      "@@ -0,0 +1 @@",
+      "+hello",
+    ].join("\n");
+    const withoutGitHeaders = withGitHeaders
+      .split("\n")
+      .filter((line) => !line.startsWith("diff --git"))
+      .join("\n");
+
+    expect(summarizeDiff(withGitHeaders)).toEqual({
+      files: 2,
+      added: 2,
+      removed: 1,
+    });
+    expect(summarizeDiff(withoutGitHeaders)).toEqual({
+      files: 2,
+      added: 2,
+      removed: 1,
+    });
   });
 });

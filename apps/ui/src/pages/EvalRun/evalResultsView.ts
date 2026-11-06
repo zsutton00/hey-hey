@@ -295,12 +295,20 @@ const breakdownRow = (
   };
 };
 
+const ATTEMPT_ENDED: ReadonlySet<EvalAttemptStatus> = new Set([
+  EvalAttemptStatus.Completed,
+  EvalAttemptStatus.Error,
+  EvalAttemptStatus.Stopped,
+]);
+
 /** What a coding attempt saved before its workspace was removed. */
 export interface CodingResults {
   /** Null when the attempt never got as far as saving its changes. */
   changes: EvalRecordedChanges | null;
   /** Null until the named commands ran; empty when the case names none. */
   testChecks: EvalTestCheck[] | null;
+  /** The attempt has stopped for good, so absent changes will not appear later. */
+  ended: boolean;
   /** Where the attempt started: the Service and the pinned commit. */
   startPoint: { serviceId: string; sha: string; shortMessage: string };
 }
@@ -426,6 +434,7 @@ export const caseRow = (
     coding: codingCase
       ? {
           changes: attempt.payload.recordedChanges ?? null,
+          ended: ATTEMPT_ENDED.has(attempt.payload.status),
           testChecks: attempt.payload.testChecks ?? null,
           startPoint: {
             serviceId: codingCase.serviceId,

@@ -8,6 +8,7 @@ import { useService } from "@hey-hey/ui-common/data";
 import { WebPathService } from "@hey-hey/ui-common/services";
 
 import { SpaLink } from "../EvalRun/SpaLink";
+import { shortSha } from "../EvalRun/shortSha";
 
 export interface EvalCaseCodingSectionProps {
   /** The stored Coding section content (JSON). */
@@ -92,22 +93,53 @@ const Field: React.FC<{
   </Box>
 );
 
-function summarizeDiff(diff: string): {
+/**
+ * Counts files and changed lines in a unified diff. Lines starting `---` or
+ * `+++` are file headers only outside a hunk; inside one they are content (a
+ * removed SQL comment reads `---`), so each hunk's header says how many lines
+ * it holds.
+ */
+export function summarizeDiff(diff: string): {
   files: number;
   added: number;
   removed: number;
 } {
-  const lines = diff.split("\n");
+  let files = 0;
+  let added = 0;
+  let removed = 0;
+  let oldLeft = 0;
+  let newLeft = 0;
+  let gitHeaderCounted = false;
 
-  return {
-    files: lines.filter((line) => line.startsWith("diff --git")).length,
-    added: lines.filter(
-      (line) => line.startsWith("+") && !line.startsWith("+++"),
-    ).length,
-    removed: lines.filter(
-      (line) => line.startsWith("-") && !line.startsWith("---"),
-    ).length,
-  };
+  for (const line of diff.split("\n")) {
+    if (oldLeft > 0 || newLeft > 0) {
+      if (line.startsWith("-")) {
+        removed += 1;
+        oldLeft -= 1;
+      } else if (line.startsWith("+")) {
+        added += 1;
+        newLeft -= 1;
+      } else if (!line.startsWith("\\")) {
+        oldLeft -= 1;
+        newLeft -= 1;
+      }
+      continue;
+    }
+
+    const hunk = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/.exec(line);
+    if (hunk) {
+      oldLeft = Number(hunk[1] ?? 1);
+      newLeft = Number(hunk[2] ?? 1);
+    } else if (line.startsWith("diff --git")) {
+      files += 1;
+      gitHeaderCounted = true;
+    } else if (line.startsWith("+++ ")) {
+      files += gitHeaderCounted ? 0 : 1;
+      gitHeaderCounted = false;
+    }
+  }
+
+  return { files, added, removed };
 }
 
 const DiffField: React.FC<{
@@ -123,7 +155,11 @@ const DiffField: React.FC<{
   return (
     <Field id={id} label={label} accent={accent}>
       <Typography variant="caption" color="text.secondary" component="div">
-        {t("eval.case.coding.diffSummary", { files, added, removed })}
+        {t("eval.case.coding.diffSummary", {
+          count: files,
+          added,
+          removed,
+        })}
       </Typography>
       <Button size="small" onClick={() => setOpen((value) => !value)}>
         {open ? t("eval.case.coding.hideDiff") : t("eval.case.coding.viewDiff")}
@@ -200,7 +236,7 @@ export const EvalCaseCodingSection: React.FC<EvalCaseCodingSectionProps> = ({
         </Field>
         <Field id="coding-commit" label={t("eval.case.coding.commit")}>
           <Typography variant="body2">
-            <code>{coding.pinnedCommit.sha.slice(0, 7)}</code>{" "}
+            <code>{shortSha(coding.pinnedCommit.sha)}</code>{" "}
             {coding.pinnedCommit.shortMessage}
           </Typography>
         </Field>

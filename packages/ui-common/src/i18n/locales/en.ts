@@ -1584,6 +1584,8 @@ export const en = {
   "eval.results.coding.savedNote": "Saved before the workspace was removed.",
   "eval.results.coding.noChanges": "The attempt changed no files.",
   "eval.results.coding.notSaved": "The changes were not saved.",
+  "eval.results.coding.notSavedYet":
+    "The changes are saved when the attempt ends.",
   "eval.results.coding.changed": "changed",
   "eval.results.coding.new": "new",
   "eval.results.coding.deleted": "deleted",
@@ -1618,7 +1620,10 @@ export const en = {
   "eval.case.coding.hideDiff": "Hide diff",
   "eval.case.coding.hiddenNote":
     "Hidden from the evaluated agent. Each run keeps a copy of this section as it was at launch.",
-  "eval.case.coding.diffSummary": "{{files}} files · +{{added}} −{{removed}}",
+  "eval.case.coding.diffSummary_one":
+    "{{count}} file · +{{added}} −{{removed}}",
+  "eval.case.coding.diffSummary_other":
+    "{{count}} files · +{{added}} −{{removed}}",
   "eval.case.coding.invalid": "The Coding section can't be read.",
   "eval.results.work.scope": "Work done",
   "eval.results.usage.cacheRead": "Cache read: {{value}}",

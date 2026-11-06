@@ -363,6 +363,7 @@ describe("coding attempts", () => {
     expect(row.coding).toEqual({
       changes,
       testChecks,
+      ended: true,
       startPoint: {
         serviceId: "svc-1",
         sha: "abcdef1234567",
@@ -371,6 +372,12 @@ describe("coding attempts", () => {
     });
     expect(row.errorMessage).toBe("boom");
     expect(testCount(testChecks as never)).toEqual({ passed: 1, total: 2 });
+  });
+
+  it("does not treat a running attempt's missing changes as final", () => {
+    const running = attempt("x", setupA, "coding-case", { status: "RUNNING" });
+
+    expect(caseRow("p1", codingRun, running).coding?.ended).toBe(false);
   });
 
   it("reports no tests when none ran, and leaves non-coding attempts alone", () => {

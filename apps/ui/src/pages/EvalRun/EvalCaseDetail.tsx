@@ -471,14 +471,16 @@ export const EvalCaseDetail: React.FC<EvalCaseDetailProps> = ({
     />
     <WorkBreakdown rows={row.breakdown} />
     <Grid container spacing={2}>
-      <Grid size={{ xs: 12, md: 6 }}>
-        <AttemptOutputs
-          organizationId={organizationId}
-          projectId={projectId}
-          attempt={attempt}
-        />
-      </Grid>
-      <Grid size={{ xs: 12, md: 6 }}>
+      {!row.coding && (
+        <Grid size={{ xs: 12, md: 6 }}>
+          <AttemptOutputs
+            organizationId={organizationId}
+            projectId={projectId}
+            attempt={attempt}
+          />
+        </Grid>
+      )}
+      <Grid size={{ xs: 12, md: row.coding ? 12 : 6 }}>
         <Stack spacing={3}>
           <AutomatedAssessment run={run} attempt={attempt} />
           <EvalHumanReviewForm
