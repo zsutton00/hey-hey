@@ -23,9 +23,14 @@ if (!process.env.REDISMS_SYSTEM_BINARY) {
 process.env.LOG_LEVEL = 'silent';
 process.env.LOG_TO_FILE = 'false';
 process.env.LOGSTASH_ENABLED = 'false';
-process.env.MACHINE_ENROLLMENT_CODE_HMAC_KEY ??= 'test-machine-enrollment-code-hmac-key';
+process.env.MACHINE_ENROLLMENT_CODE_HMAC_KEY ??=
+  'test-machine-enrollment-code-hmac-key';
 process.env.MACHINE_ENROLLMENT_WEBAUTHN_RP_ID ??= 'localhost.test';
 process.env.MACHINE_ENROLLMENT_WEBAUTHN_ORIGIN ??= 'https://localhost.test';
+process.env.ACCOUNT_PASSKEY_RP_ID ??= 'localhost.test';
+process.env.ACCOUNT_PASSKEY_ORIGIN ??= 'https://localhost.test';
+process.env.BROWSER_TOKEN_ISSUER ??= 'https://api.localhost.test';
+process.env.BROWSER_TOKEN_AUDIENCE ??= 'https://localhost.test';
 
 // Silence NestJS built-in Logger (used as fallback in ContextAwareLogger)
 import { Logger } from '@nestjs/common';

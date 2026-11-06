@@ -123,6 +123,12 @@ describe('AuthService browser sign-in', () => {
       passwordRecoveryThrottleService as never,
       { getClient: jest.fn() } as never,
       {} as never,
+      {
+        issuer: 'https://hosted.test/api',
+        browserAudience: 'https://hosted.test',
+        oauthAudience: 'https://hosted.test:oauth',
+      } as never,
+      {} as never,
     );
   });
 
@@ -418,6 +424,14 @@ describe('AuthService browser sign-in', () => {
       expiresIn: 86400,
     });
     expect(browserSessionService.establish).not.toHaveBeenCalled();
+    // Native OAuth access is marked so it can never pass as browser access.
+    expect(jwtKeysService.signToken).toHaveBeenCalledWith(
+      expect.objectContaining({ token_use: 'oauth_access' }),
+      expect.objectContaining({
+        issuer: 'https://hosted.test/api',
+        audience: 'https://hosted.test:oauth',
+      }),
+    );
   });
 
   it('establishes a persisted browser session after registration', async () => {

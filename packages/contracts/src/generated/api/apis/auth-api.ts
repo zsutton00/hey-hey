@@ -23,6 +23,16 @@ import { DUMMY_BASE_URL, assertParamExists, setApiKeyToObject, setBasicAuthToObj
 // @ts-ignore
 import { BASE_PATH, COLLECTION_FORMATS, type RequestArgs, BaseAPI, RequiredError, operationServerMap } from '../base.js';
 // @ts-ignore
+import type { AccountPasskeyProofOptionsRequestDto } from '../models.js';
+// @ts-ignore
+import type { AccountPasskeyRegistrationDto } from '../models.js';
+// @ts-ignore
+import type { AccountPasskeyRemovalDto } from '../models.js';
+// @ts-ignore
+import type { AccountPasskeyRenameDto } from '../models.js';
+// @ts-ignore
+import type { AccountPasskeySignInDto } from '../models.js';
+// @ts-ignore
 import type { ApiErrorResponse } from '../models.js';
 // @ts-ignore
 import type { ChangeCurrentPasswordDto } from '../models.js';
@@ -38,6 +48,8 @@ import type { GetJwks200Response } from '../models.js';
 import type { InitiatePasswordRecovery200Response } from '../models.js';
 // @ts-ignore
 import type { IssueLocalCliCredentials200Response } from '../models.js';
+// @ts-ignore
+import type { ListAccountPasskeys200Response } from '../models.js';
 // @ts-ignore
 import type { LocalHandoffRequestDto } from '../models.js';
 // @ts-ignore
@@ -57,11 +69,19 @@ import type { Register201Response } from '../models.js';
 // @ts-ignore
 import type { RegisterDto } from '../models.js';
 // @ts-ignore
+import type { RenameAccountPasskey200Response } from '../models.js';
+// @ts-ignore
 import type { SaveLocalDisplayName200Response } from '../models.js';
 // @ts-ignore
 import type { SetAccountDefaultOrganizationDto } from '../models.js';
 // @ts-ignore
+import type { StartAccountPasskeyProof200Response } from '../models.js';
+// @ts-ignore
+import type { StartAccountPasskeyRegistration200Response } from '../models.js';
+// @ts-ignore
 import type { StartLocalBootstrap200Response } from '../models.js';
+// @ts-ignore
+import type { ToggleDevAdminMode200Response } from '../models.js';
 // @ts-ignore
 import type { ValidateToken200Response } from '../models.js';
 // @ts-ignore
@@ -142,6 +162,42 @@ export const AuthApiAxiosParamCreator = function (configuration?: Configuration)
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
             localVarRequestOptions.data = serializeDataIfNeeded(changePasswordDto, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Verifies the assertion answering a sign-in challenge and establishes the same browser session as password sign-in, including organization selection. Refresh continuity stays in HttpOnly cookies. Failures are generic.
+         * @summary Sign in with a passkey
+         * @param {AccountPasskeySignInDto} accountPasskeySignInDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        completeAccountPasskeySignIn: async (accountPasskeySignInDto: AccountPasskeySignInDto, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'accountPasskeySignInDto' is not null or undefined
+            assertParamExists('completeAccountPasskeySignIn', 'accountPasskeySignInDto', accountPasskeySignInDto)
+            const localVarPath = `/auth/passkeys/sign-in`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(accountPasskeySignInDto, localVarRequestOptions, configuration)
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -355,6 +411,40 @@ export const AuthApiAxiosParamCreator = function (configuration?: Configuration)
             };
         },
         /**
+         * Returns only passkeys owned by the signed-in account. Controller credentials are never listed.
+         * @summary List the signed-in account\'s passkeys
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        listAccountPasskeys: async (options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/auth/passkeys`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Authenticate the user and return a short-lived browser access token with expiry metadata. Refresh continuity remains in HttpOnly cookies and is never returned to browser JavaScript. Fresh sign-in authorizes only the exact saved account default. An absent default requires explicit selection, even for one membership; an inaccessible default returns selection denied. Renewal retains the exact session choice and never substitutes the default. When the user must change their password (e.g. beta onboarding), returns a PasswordChangeRequiredDto with a short-lived token instead.
          * @summary User login
          * @param {LoginDto} loginDto
@@ -495,6 +585,134 @@ export const AuthApiAxiosParamCreator = function (configuration?: Configuration)
             };
         },
         /**
+         * Verifies the registration answering this session\'s registration challenge together with fresh account proof, then in one transaction stores the passkey, advances the account\'s authorization revision, ends every earlier browser session for the account and establishes exactly one fresh session for the acting browser. Refresh continuity stays in HttpOnly cookies. A failure changes nothing.
+         * @summary Add a passkey to the signed-in account
+         * @param {AccountPasskeyRegistrationDto} accountPasskeyRegistrationDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        registerAccountPasskey: async (accountPasskeyRegistrationDto: AccountPasskeyRegistrationDto, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'accountPasskeyRegistrationDto' is not null or undefined
+            assertParamExists('registerAccountPasskey', 'accountPasskeyRegistrationDto', accountPasskeyRegistrationDto)
+            const localVarPath = `/auth/passkeys`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(accountPasskeyRegistrationDto, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Verifies fresh account proof bound to this removal, then in one transaction removes the passkey, advances the account\'s authorization revision, ends every earlier browser session for the account and establishes exactly one fresh session for the acting browser. A failure changes nothing.
+         * @summary Remove an account passkey
+         * @param {string} passkeyId
+         * @param {AccountPasskeyRemovalDto} accountPasskeyRemovalDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        removeAccountPasskey: async (passkeyId: string, accountPasskeyRemovalDto: AccountPasskeyRemovalDto, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'passkeyId' is not null or undefined
+            assertParamExists('removeAccountPasskey', 'passkeyId', passkeyId)
+            // verify required parameter 'accountPasskeyRemovalDto' is not null or undefined
+            assertParamExists('removeAccountPasskey', 'accountPasskeyRemovalDto', accountPasskeyRemovalDto)
+            const localVarPath = `/auth/passkeys/{passkeyId}/removal`
+                .replace(`{${"passkeyId"}}`, encodeURIComponent(String(passkeyId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(accountPasskeyRemovalDto, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Changes only the display name of a passkey owned by the signed-in account.
+         * @summary Rename an account passkey
+         * @param {string} passkeyId
+         * @param {AccountPasskeyRenameDto} accountPasskeyRenameDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        renameAccountPasskey: async (passkeyId: string, accountPasskeyRenameDto: AccountPasskeyRenameDto, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'passkeyId' is not null or undefined
+            assertParamExists('renameAccountPasskey', 'passkeyId', passkeyId)
+            // verify required parameter 'accountPasskeyRenameDto' is not null or undefined
+            assertParamExists('renameAccountPasskey', 'accountPasskeyRenameDto', accountPasskeyRenameDto)
+            const localVarPath = `/auth/passkeys/{passkeyId}`
+                .replace(`{${"passkeyId"}}`, encodeURIComponent(String(passkeyId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'PATCH', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(accountPasskeyRenameDto, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Saves the display name on the automatically created local user. This is personalization only and does not authenticate or authorize the caller.
          * @summary Save local account display name
          * @param {LocalNameRequestDto} localNameRequestDto
@@ -575,6 +793,110 @@ export const AuthApiAxiosParamCreator = function (configuration?: Configuration)
             };
         },
         /**
+         * Issues a single-use assertion challenge that proves account ownership for exactly one operation (adding a passkey, or removing the named passkey). It cannot be used to sign in or for another operation.
+         * @summary Start passkey account proof
+         * @param {AccountPasskeyProofOptionsRequestDto} accountPasskeyProofOptionsRequestDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        startAccountPasskeyProof: async (accountPasskeyProofOptionsRequestDto: AccountPasskeyProofOptionsRequestDto, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'accountPasskeyProofOptionsRequestDto' is not null or undefined
+            assertParamExists('startAccountPasskeyProof', 'accountPasskeyProofOptionsRequestDto', accountPasskeyProofOptionsRequestDto)
+            const localVarPath = `/auth/passkeys/proof/options`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(accountPasskeyProofOptionsRequestDto, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Issues a single-use registration challenge bound to the signed-in account and acting browser session.
+         * @summary Start adding a passkey
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        startAccountPasskeyRegistration: async (options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/auth/passkeys/registration/options`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Issues a single-use discoverable-credential sign-in challenge.
+         * @summary Start passkey sign-in
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        startAccountPasskeySignIn: async (options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/auth/passkeys/sign-in/options`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Local-deployment-only machine operation. The CLI proves authority with its installation secret. The server idempotently creates the ordinary local user and organization in existing identity storage and returns a short-lived, one-use browser handoff token. The token is exchanged from the approved local UI origin and is never persisted by the UI.
          * @summary Prepare local account access
          * @param {string} xHeyHeyLocalSecret Installation secret held by the local CLI.
@@ -601,6 +923,40 @@ export const AuthApiAxiosParamCreator = function (configuration?: Configuration)
             if (xHeyHeyLocalSecret != null) {
                 localVarHeaderParameter['X-HeyHey-Local-Secret'] = String(xHeyHeyLocalSecret);
             }
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Switches dev-admin mode for a user with dev-admin privileges. Issues no credentials; the browser renews its session to receive access that reflects the new mode.
+         * @summary Toggle dev-admin mode
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        toggleDevAdminMode: async (options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/auth/toggle-dev-admin`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'PATCH', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
             setSearchParams(localVarUrlObj, localVarQueryParameter);
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
@@ -683,6 +1039,19 @@ export const AuthApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Verifies the assertion answering a sign-in challenge and establishes the same browser session as password sign-in, including organization selection. Refresh continuity stays in HttpOnly cookies. Failures are generic.
+         * @summary Sign in with a passkey
+         * @param {AccountPasskeySignInDto} accountPasskeySignInDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async completeAccountPasskeySignIn(accountPasskeySignInDto: AccountPasskeySignInDto, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<CompleteLocalHandoff200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.completeAccountPasskeySignIn(accountPasskeySignInDto, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AuthApi.completeAccountPasskeySignIn']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Exchanges a short-lived token issued to the local CLI for the existing server-owned browser session. The token can be consumed once, and the request must come from the local application\'s approved UI origin.
          * @summary Exchange one-use local browser handoff
          * @param {LocalHandoffRequestDto} localHandoffRequestDto
@@ -758,6 +1127,18 @@ export const AuthApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Returns only passkeys owned by the signed-in account. Controller credentials are never listed.
+         * @summary List the signed-in account\'s passkeys
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async listAccountPasskeys(options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ListAccountPasskeys200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.listAccountPasskeys(options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AuthApi.listAccountPasskeys']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Authenticate the user and return a short-lived browser access token with expiry metadata. Refresh continuity remains in HttpOnly cookies and is never returned to browser JavaScript. Fresh sign-in authorizes only the exact saved account default. An absent default requires explicit selection, even for one membership; an inaccessible default returns selection denied. Renewal retains the exact session choice and never substitutes the default. When the user must change their password (e.g. beta onboarding), returns a PasswordChangeRequiredDto with a short-lived token instead.
          * @summary User login
          * @param {LoginDto} loginDto
@@ -809,6 +1190,47 @@ export const AuthApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Verifies the registration answering this session\'s registration challenge together with fresh account proof, then in one transaction stores the passkey, advances the account\'s authorization revision, ends every earlier browser session for the account and establishes exactly one fresh session for the acting browser. Refresh continuity stays in HttpOnly cookies. A failure changes nothing.
+         * @summary Add a passkey to the signed-in account
+         * @param {AccountPasskeyRegistrationDto} accountPasskeyRegistrationDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async registerAccountPasskey(accountPasskeyRegistrationDto: AccountPasskeyRegistrationDto, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<CompleteLocalHandoff200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.registerAccountPasskey(accountPasskeyRegistrationDto, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AuthApi.registerAccountPasskey']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Verifies fresh account proof bound to this removal, then in one transaction removes the passkey, advances the account\'s authorization revision, ends every earlier browser session for the account and establishes exactly one fresh session for the acting browser. A failure changes nothing.
+         * @summary Remove an account passkey
+         * @param {string} passkeyId
+         * @param {AccountPasskeyRemovalDto} accountPasskeyRemovalDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async removeAccountPasskey(passkeyId: string, accountPasskeyRemovalDto: AccountPasskeyRemovalDto, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<CompleteLocalHandoff200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.removeAccountPasskey(passkeyId, accountPasskeyRemovalDto, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AuthApi.removeAccountPasskey']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Changes only the display name of a passkey owned by the signed-in account.
+         * @summary Rename an account passkey
+         * @param {string} passkeyId
+         * @param {AccountPasskeyRenameDto} accountPasskeyRenameDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async renameAccountPasskey(passkeyId: string, accountPasskeyRenameDto: AccountPasskeyRenameDto, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<RenameAccountPasskey200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.renameAccountPasskey(passkeyId, accountPasskeyRenameDto, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AuthApi.renameAccountPasskey']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Saves the display name on the automatically created local user. This is personalization only and does not authenticate or authorize the caller.
          * @summary Save local account display name
          * @param {LocalNameRequestDto} localNameRequestDto
@@ -835,6 +1257,43 @@ export const AuthApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Issues a single-use assertion challenge that proves account ownership for exactly one operation (adding a passkey, or removing the named passkey). It cannot be used to sign in or for another operation.
+         * @summary Start passkey account proof
+         * @param {AccountPasskeyProofOptionsRequestDto} accountPasskeyProofOptionsRequestDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async startAccountPasskeyProof(accountPasskeyProofOptionsRequestDto: AccountPasskeyProofOptionsRequestDto, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<StartAccountPasskeyProof200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.startAccountPasskeyProof(accountPasskeyProofOptionsRequestDto, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AuthApi.startAccountPasskeyProof']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Issues a single-use registration challenge bound to the signed-in account and acting browser session.
+         * @summary Start adding a passkey
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async startAccountPasskeyRegistration(options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<StartAccountPasskeyRegistration200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.startAccountPasskeyRegistration(options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AuthApi.startAccountPasskeyRegistration']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Issues a single-use discoverable-credential sign-in challenge.
+         * @summary Start passkey sign-in
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async startAccountPasskeySignIn(options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<StartAccountPasskeyProof200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.startAccountPasskeySignIn(options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AuthApi.startAccountPasskeySignIn']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Local-deployment-only machine operation. The CLI proves authority with its installation secret. The server idempotently creates the ordinary local user and organization in existing identity storage and returns a short-lived, one-use browser handoff token. The token is exchanged from the approved local UI origin and is never persisted by the UI.
          * @summary Prepare local account access
          * @param {string} xHeyHeyLocalSecret Installation secret held by the local CLI.
@@ -845,6 +1304,18 @@ export const AuthApiFp = function(configuration?: Configuration) {
             const localVarAxiosArgs = await localVarAxiosParamCreator.startLocalBootstrap(xHeyHeyLocalSecret, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['AuthApi.startLocalBootstrap']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Switches dev-admin mode for a user with dev-admin privileges. Issues no credentials; the browser renews its session to receive access that reflects the new mode.
+         * @summary Toggle dev-admin mode
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async toggleDevAdminMode(options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ToggleDevAdminMode200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.toggleDevAdminMode(options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AuthApi.toggleDevAdminMode']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
@@ -889,6 +1360,16 @@ export const AuthApiFactory = function (configuration?: Configuration, basePath?
          */
         changePassword(requestParameters: AuthApiChangePasswordRequest, options?: RawAxiosRequestConfig): AxiosPromise<Register201Response> {
             return localVarFp.changePassword(requestParameters.changePasswordDto, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Verifies the assertion answering a sign-in challenge and establishes the same browser session as password sign-in, including organization selection. Refresh continuity stays in HttpOnly cookies. Failures are generic.
+         * @summary Sign in with a passkey
+         * @param {AuthApiCompleteAccountPasskeySignInRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        completeAccountPasskeySignIn(requestParameters: AuthApiCompleteAccountPasskeySignInRequest, options?: RawAxiosRequestConfig): AxiosPromise<CompleteLocalHandoff200Response> {
+            return localVarFp.completeAccountPasskeySignIn(requestParameters.accountPasskeySignInDto, options).then((request) => request(axios, basePath));
         },
         /**
          * Exchanges a short-lived token issued to the local CLI for the existing server-owned browser session. The token can be consumed once, and the request must come from the local application\'s approved UI origin.
@@ -948,6 +1429,15 @@ export const AuthApiFactory = function (configuration?: Configuration, basePath?
             return localVarFp.issueLocalCliCredentials(requestParameters.xHeyHeyLocalSecret, options).then((request) => request(axios, basePath));
         },
         /**
+         * Returns only passkeys owned by the signed-in account. Controller credentials are never listed.
+         * @summary List the signed-in account\'s passkeys
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        listAccountPasskeys(options?: RawAxiosRequestConfig): AxiosPromise<ListAccountPasskeys200Response> {
+            return localVarFp.listAccountPasskeys(options).then((request) => request(axios, basePath));
+        },
+        /**
          * Authenticate the user and return a short-lived browser access token with expiry metadata. Refresh continuity remains in HttpOnly cookies and is never returned to browser JavaScript. Fresh sign-in authorizes only the exact saved account default. An absent default requires explicit selection, even for one membership; an inaccessible default returns selection denied. Renewal retains the exact session choice and never substitutes the default. When the user must change their password (e.g. beta onboarding), returns a PasswordChangeRequiredDto with a short-lived token instead.
          * @summary User login
          * @param {AuthApiLoginRequest} requestParameters Request parameters.
@@ -987,6 +1477,36 @@ export const AuthApiFactory = function (configuration?: Configuration, basePath?
             return localVarFp.register(requestParameters.registerDto, options).then((request) => request(axios, basePath));
         },
         /**
+         * Verifies the registration answering this session\'s registration challenge together with fresh account proof, then in one transaction stores the passkey, advances the account\'s authorization revision, ends every earlier browser session for the account and establishes exactly one fresh session for the acting browser. Refresh continuity stays in HttpOnly cookies. A failure changes nothing.
+         * @summary Add a passkey to the signed-in account
+         * @param {AuthApiRegisterAccountPasskeyRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        registerAccountPasskey(requestParameters: AuthApiRegisterAccountPasskeyRequest, options?: RawAxiosRequestConfig): AxiosPromise<CompleteLocalHandoff200Response> {
+            return localVarFp.registerAccountPasskey(requestParameters.accountPasskeyRegistrationDto, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Verifies fresh account proof bound to this removal, then in one transaction removes the passkey, advances the account\'s authorization revision, ends every earlier browser session for the account and establishes exactly one fresh session for the acting browser. A failure changes nothing.
+         * @summary Remove an account passkey
+         * @param {AuthApiRemoveAccountPasskeyRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        removeAccountPasskey(requestParameters: AuthApiRemoveAccountPasskeyRequest, options?: RawAxiosRequestConfig): AxiosPromise<CompleteLocalHandoff200Response> {
+            return localVarFp.removeAccountPasskey(requestParameters.passkeyId, requestParameters.accountPasskeyRemovalDto, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Changes only the display name of a passkey owned by the signed-in account.
+         * @summary Rename an account passkey
+         * @param {AuthApiRenameAccountPasskeyRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        renameAccountPasskey(requestParameters: AuthApiRenameAccountPasskeyRequest, options?: RawAxiosRequestConfig): AxiosPromise<RenameAccountPasskey200Response> {
+            return localVarFp.renameAccountPasskey(requestParameters.passkeyId, requestParameters.accountPasskeyRenameDto, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Saves the display name on the automatically created local user. This is personalization only and does not authenticate or authorize the caller.
          * @summary Save local account display name
          * @param {AuthApiSaveLocalDisplayNameRequest} requestParameters Request parameters.
@@ -1007,6 +1527,34 @@ export const AuthApiFactory = function (configuration?: Configuration, basePath?
             return localVarFp.setAccountDefaultOrganization(requestParameters.setAccountDefaultOrganizationDto, options).then((request) => request(axios, basePath));
         },
         /**
+         * Issues a single-use assertion challenge that proves account ownership for exactly one operation (adding a passkey, or removing the named passkey). It cannot be used to sign in or for another operation.
+         * @summary Start passkey account proof
+         * @param {AuthApiStartAccountPasskeyProofRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        startAccountPasskeyProof(requestParameters: AuthApiStartAccountPasskeyProofRequest, options?: RawAxiosRequestConfig): AxiosPromise<StartAccountPasskeyProof200Response> {
+            return localVarFp.startAccountPasskeyProof(requestParameters.accountPasskeyProofOptionsRequestDto, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Issues a single-use registration challenge bound to the signed-in account and acting browser session.
+         * @summary Start adding a passkey
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        startAccountPasskeyRegistration(options?: RawAxiosRequestConfig): AxiosPromise<StartAccountPasskeyRegistration200Response> {
+            return localVarFp.startAccountPasskeyRegistration(options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Issues a single-use discoverable-credential sign-in challenge.
+         * @summary Start passkey sign-in
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        startAccountPasskeySignIn(options?: RawAxiosRequestConfig): AxiosPromise<StartAccountPasskeyProof200Response> {
+            return localVarFp.startAccountPasskeySignIn(options).then((request) => request(axios, basePath));
+        },
+        /**
          * Local-deployment-only machine operation. The CLI proves authority with its installation secret. The server idempotently creates the ordinary local user and organization in existing identity storage and returns a short-lived, one-use browser handoff token. The token is exchanged from the approved local UI origin and is never persisted by the UI.
          * @summary Prepare local account access
          * @param {AuthApiStartLocalBootstrapRequest} requestParameters Request parameters.
@@ -1015,6 +1563,15 @@ export const AuthApiFactory = function (configuration?: Configuration, basePath?
          */
         startLocalBootstrap(requestParameters: AuthApiStartLocalBootstrapRequest, options?: RawAxiosRequestConfig): AxiosPromise<StartLocalBootstrap200Response> {
             return localVarFp.startLocalBootstrap(requestParameters.xHeyHeyLocalSecret, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Switches dev-admin mode for a user with dev-admin privileges. Issues no credentials; the browser renews its session to receive access that reflects the new mode.
+         * @summary Toggle dev-admin mode
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        toggleDevAdminMode(options?: RawAxiosRequestConfig): AxiosPromise<ToggleDevAdminMode200Response> {
+            return localVarFp.toggleDevAdminMode(options).then((request) => request(axios, basePath));
         },
         /**
          * Validate JWT token and return payload information
@@ -1054,6 +1611,16 @@ export interface AuthApiInterface {
      * @memberof AuthApiInterface
      */
     changePassword(requestParameters: AuthApiChangePasswordRequest, options?: RawAxiosRequestConfig): AxiosPromise<Register201Response>;
+
+    /**
+     * Verifies the assertion answering a sign-in challenge and establishes the same browser session as password sign-in, including organization selection. Refresh continuity stays in HttpOnly cookies. Failures are generic.
+     * @summary Sign in with a passkey
+     * @param {AuthApiCompleteAccountPasskeySignInRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApiInterface
+     */
+    completeAccountPasskeySignIn(requestParameters: AuthApiCompleteAccountPasskeySignInRequest, options?: RawAxiosRequestConfig): AxiosPromise<CompleteLocalHandoff200Response>;
 
     /**
      * Exchanges a short-lived token issued to the local CLI for the existing server-owned browser session. The token can be consumed once, and the request must come from the local application\'s approved UI origin.
@@ -1113,6 +1680,15 @@ export interface AuthApiInterface {
     issueLocalCliCredentials(requestParameters: AuthApiIssueLocalCliCredentialsRequest, options?: RawAxiosRequestConfig): AxiosPromise<IssueLocalCliCredentials200Response>;
 
     /**
+     * Returns only passkeys owned by the signed-in account. Controller credentials are never listed.
+     * @summary List the signed-in account\'s passkeys
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApiInterface
+     */
+    listAccountPasskeys(options?: RawAxiosRequestConfig): AxiosPromise<ListAccountPasskeys200Response>;
+
+    /**
      * Authenticate the user and return a short-lived browser access token with expiry metadata. Refresh continuity remains in HttpOnly cookies and is never returned to browser JavaScript. Fresh sign-in authorizes only the exact saved account default. An absent default requires explicit selection, even for one membership; an inaccessible default returns selection denied. Renewal retains the exact session choice and never substitutes the default. When the user must change their password (e.g. beta onboarding), returns a PasswordChangeRequiredDto with a short-lived token instead.
      * @summary User login
      * @param {AuthApiLoginRequest} requestParameters Request parameters.
@@ -1152,6 +1728,36 @@ export interface AuthApiInterface {
     register(requestParameters: AuthApiRegisterRequest, options?: RawAxiosRequestConfig): AxiosPromise<Register201Response>;
 
     /**
+     * Verifies the registration answering this session\'s registration challenge together with fresh account proof, then in one transaction stores the passkey, advances the account\'s authorization revision, ends every earlier browser session for the account and establishes exactly one fresh session for the acting browser. Refresh continuity stays in HttpOnly cookies. A failure changes nothing.
+     * @summary Add a passkey to the signed-in account
+     * @param {AuthApiRegisterAccountPasskeyRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApiInterface
+     */
+    registerAccountPasskey(requestParameters: AuthApiRegisterAccountPasskeyRequest, options?: RawAxiosRequestConfig): AxiosPromise<CompleteLocalHandoff200Response>;
+
+    /**
+     * Verifies fresh account proof bound to this removal, then in one transaction removes the passkey, advances the account\'s authorization revision, ends every earlier browser session for the account and establishes exactly one fresh session for the acting browser. A failure changes nothing.
+     * @summary Remove an account passkey
+     * @param {AuthApiRemoveAccountPasskeyRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApiInterface
+     */
+    removeAccountPasskey(requestParameters: AuthApiRemoveAccountPasskeyRequest, options?: RawAxiosRequestConfig): AxiosPromise<CompleteLocalHandoff200Response>;
+
+    /**
+     * Changes only the display name of a passkey owned by the signed-in account.
+     * @summary Rename an account passkey
+     * @param {AuthApiRenameAccountPasskeyRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApiInterface
+     */
+    renameAccountPasskey(requestParameters: AuthApiRenameAccountPasskeyRequest, options?: RawAxiosRequestConfig): AxiosPromise<RenameAccountPasskey200Response>;
+
+    /**
      * Saves the display name on the automatically created local user. This is personalization only and does not authenticate or authorize the caller.
      * @summary Save local account display name
      * @param {AuthApiSaveLocalDisplayNameRequest} requestParameters Request parameters.
@@ -1172,6 +1778,34 @@ export interface AuthApiInterface {
     setAccountDefaultOrganization(requestParameters: AuthApiSetAccountDefaultOrganizationRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetAccountDefaultOrganization200Response>;
 
     /**
+     * Issues a single-use assertion challenge that proves account ownership for exactly one operation (adding a passkey, or removing the named passkey). It cannot be used to sign in or for another operation.
+     * @summary Start passkey account proof
+     * @param {AuthApiStartAccountPasskeyProofRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApiInterface
+     */
+    startAccountPasskeyProof(requestParameters: AuthApiStartAccountPasskeyProofRequest, options?: RawAxiosRequestConfig): AxiosPromise<StartAccountPasskeyProof200Response>;
+
+    /**
+     * Issues a single-use registration challenge bound to the signed-in account and acting browser session.
+     * @summary Start adding a passkey
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApiInterface
+     */
+    startAccountPasskeyRegistration(options?: RawAxiosRequestConfig): AxiosPromise<StartAccountPasskeyRegistration200Response>;
+
+    /**
+     * Issues a single-use discoverable-credential sign-in challenge.
+     * @summary Start passkey sign-in
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApiInterface
+     */
+    startAccountPasskeySignIn(options?: RawAxiosRequestConfig): AxiosPromise<StartAccountPasskeyProof200Response>;
+
+    /**
      * Local-deployment-only machine operation. The CLI proves authority with its installation secret. The server idempotently creates the ordinary local user and organization in existing identity storage and returns a short-lived, one-use browser handoff token. The token is exchanged from the approved local UI origin and is never persisted by the UI.
      * @summary Prepare local account access
      * @param {AuthApiStartLocalBootstrapRequest} requestParameters Request parameters.
@@ -1180,6 +1814,15 @@ export interface AuthApiInterface {
      * @memberof AuthApiInterface
      */
     startLocalBootstrap(requestParameters: AuthApiStartLocalBootstrapRequest, options?: RawAxiosRequestConfig): AxiosPromise<StartLocalBootstrap200Response>;
+
+    /**
+     * Switches dev-admin mode for a user with dev-admin privileges. Issues no credentials; the browser renews its session to receive access that reflects the new mode.
+     * @summary Toggle dev-admin mode
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApiInterface
+     */
+    toggleDevAdminMode(options?: RawAxiosRequestConfig): AxiosPromise<ToggleDevAdminMode200Response>;
 
     /**
      * Validate JWT token and return payload information
@@ -1219,6 +1862,20 @@ export interface AuthApiChangePasswordRequest {
      * @memberof AuthApiChangePassword
      */
     readonly changePasswordDto: ChangePasswordDto
+}
+
+/**
+ * Request parameters for completeAccountPasskeySignIn operation in AuthApi.
+ * @export
+ * @interface AuthApiCompleteAccountPasskeySignInRequest
+ */
+export interface AuthApiCompleteAccountPasskeySignInRequest {
+    /**
+     *
+     * @type {AccountPasskeySignInDto}
+     * @memberof AuthApiCompleteAccountPasskeySignIn
+     */
+    readonly accountPasskeySignInDto: AccountPasskeySignInDto
 }
 
 /**
@@ -1306,6 +1963,62 @@ export interface AuthApiRegisterRequest {
 }
 
 /**
+ * Request parameters for registerAccountPasskey operation in AuthApi.
+ * @export
+ * @interface AuthApiRegisterAccountPasskeyRequest
+ */
+export interface AuthApiRegisterAccountPasskeyRequest {
+    /**
+     *
+     * @type {AccountPasskeyRegistrationDto}
+     * @memberof AuthApiRegisterAccountPasskey
+     */
+    readonly accountPasskeyRegistrationDto: AccountPasskeyRegistrationDto
+}
+
+/**
+ * Request parameters for removeAccountPasskey operation in AuthApi.
+ * @export
+ * @interface AuthApiRemoveAccountPasskeyRequest
+ */
+export interface AuthApiRemoveAccountPasskeyRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof AuthApiRemoveAccountPasskey
+     */
+    readonly passkeyId: string
+
+    /**
+     *
+     * @type {AccountPasskeyRemovalDto}
+     * @memberof AuthApiRemoveAccountPasskey
+     */
+    readonly accountPasskeyRemovalDto: AccountPasskeyRemovalDto
+}
+
+/**
+ * Request parameters for renameAccountPasskey operation in AuthApi.
+ * @export
+ * @interface AuthApiRenameAccountPasskeyRequest
+ */
+export interface AuthApiRenameAccountPasskeyRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof AuthApiRenameAccountPasskey
+     */
+    readonly passkeyId: string
+
+    /**
+     *
+     * @type {AccountPasskeyRenameDto}
+     * @memberof AuthApiRenameAccountPasskey
+     */
+    readonly accountPasskeyRenameDto: AccountPasskeyRenameDto
+}
+
+/**
  * Request parameters for saveLocalDisplayName operation in AuthApi.
  * @export
  * @interface AuthApiSaveLocalDisplayNameRequest
@@ -1331,6 +2044,20 @@ export interface AuthApiSetAccountDefaultOrganizationRequest {
      * @memberof AuthApiSetAccountDefaultOrganization
      */
     readonly setAccountDefaultOrganizationDto: SetAccountDefaultOrganizationDto
+}
+
+/**
+ * Request parameters for startAccountPasskeyProof operation in AuthApi.
+ * @export
+ * @interface AuthApiStartAccountPasskeyProofRequest
+ */
+export interface AuthApiStartAccountPasskeyProofRequest {
+    /**
+     *
+     * @type {AccountPasskeyProofOptionsRequestDto}
+     * @memberof AuthApiStartAccountPasskeyProof
+     */
+    readonly accountPasskeyProofOptionsRequestDto: AccountPasskeyProofOptionsRequestDto
 }
 
 /**
@@ -1390,6 +2117,18 @@ export class AuthApi extends BaseAPI implements AuthApiInterface {
      */
     public changePassword(requestParameters: AuthApiChangePasswordRequest, options?: RawAxiosRequestConfig) {
         return AuthApiFp(this.configuration).changePassword(requestParameters.changePasswordDto, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Verifies the assertion answering a sign-in challenge and establishes the same browser session as password sign-in, including organization selection. Refresh continuity stays in HttpOnly cookies. Failures are generic.
+     * @summary Sign in with a passkey
+     * @param {AuthApiCompleteAccountPasskeySignInRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApi
+     */
+    public completeAccountPasskeySignIn(requestParameters: AuthApiCompleteAccountPasskeySignInRequest, options?: RawAxiosRequestConfig) {
+        return AuthApiFp(this.configuration).completeAccountPasskeySignIn(requestParameters.accountPasskeySignInDto, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -1462,6 +2201,17 @@ export class AuthApi extends BaseAPI implements AuthApiInterface {
     }
 
     /**
+     * Returns only passkeys owned by the signed-in account. Controller credentials are never listed.
+     * @summary List the signed-in account\'s passkeys
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApi
+     */
+    public listAccountPasskeys(options?: RawAxiosRequestConfig) {
+        return AuthApiFp(this.configuration).listAccountPasskeys(options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
      * Authenticate the user and return a short-lived browser access token with expiry metadata. Refresh continuity remains in HttpOnly cookies and is never returned to browser JavaScript. Fresh sign-in authorizes only the exact saved account default. An absent default requires explicit selection, even for one membership; an inaccessible default returns selection denied. Renewal retains the exact session choice and never substitutes the default. When the user must change their password (e.g. beta onboarding), returns a PasswordChangeRequiredDto with a short-lived token instead.
      * @summary User login
      * @param {AuthApiLoginRequest} requestParameters Request parameters.
@@ -1509,6 +2259,42 @@ export class AuthApi extends BaseAPI implements AuthApiInterface {
     }
 
     /**
+     * Verifies the registration answering this session\'s registration challenge together with fresh account proof, then in one transaction stores the passkey, advances the account\'s authorization revision, ends every earlier browser session for the account and establishes exactly one fresh session for the acting browser. Refresh continuity stays in HttpOnly cookies. A failure changes nothing.
+     * @summary Add a passkey to the signed-in account
+     * @param {AuthApiRegisterAccountPasskeyRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApi
+     */
+    public registerAccountPasskey(requestParameters: AuthApiRegisterAccountPasskeyRequest, options?: RawAxiosRequestConfig) {
+        return AuthApiFp(this.configuration).registerAccountPasskey(requestParameters.accountPasskeyRegistrationDto, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Verifies fresh account proof bound to this removal, then in one transaction removes the passkey, advances the account\'s authorization revision, ends every earlier browser session for the account and establishes exactly one fresh session for the acting browser. A failure changes nothing.
+     * @summary Remove an account passkey
+     * @param {AuthApiRemoveAccountPasskeyRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApi
+     */
+    public removeAccountPasskey(requestParameters: AuthApiRemoveAccountPasskeyRequest, options?: RawAxiosRequestConfig) {
+        return AuthApiFp(this.configuration).removeAccountPasskey(requestParameters.passkeyId, requestParameters.accountPasskeyRemovalDto, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Changes only the display name of a passkey owned by the signed-in account.
+     * @summary Rename an account passkey
+     * @param {AuthApiRenameAccountPasskeyRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApi
+     */
+    public renameAccountPasskey(requestParameters: AuthApiRenameAccountPasskeyRequest, options?: RawAxiosRequestConfig) {
+        return AuthApiFp(this.configuration).renameAccountPasskey(requestParameters.passkeyId, requestParameters.accountPasskeyRenameDto, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
      * Saves the display name on the automatically created local user. This is personalization only and does not authenticate or authorize the caller.
      * @summary Save local account display name
      * @param {AuthApiSaveLocalDisplayNameRequest} requestParameters Request parameters.
@@ -1533,6 +2319,40 @@ export class AuthApi extends BaseAPI implements AuthApiInterface {
     }
 
     /**
+     * Issues a single-use assertion challenge that proves account ownership for exactly one operation (adding a passkey, or removing the named passkey). It cannot be used to sign in or for another operation.
+     * @summary Start passkey account proof
+     * @param {AuthApiStartAccountPasskeyProofRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApi
+     */
+    public startAccountPasskeyProof(requestParameters: AuthApiStartAccountPasskeyProofRequest, options?: RawAxiosRequestConfig) {
+        return AuthApiFp(this.configuration).startAccountPasskeyProof(requestParameters.accountPasskeyProofOptionsRequestDto, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Issues a single-use registration challenge bound to the signed-in account and acting browser session.
+     * @summary Start adding a passkey
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApi
+     */
+    public startAccountPasskeyRegistration(options?: RawAxiosRequestConfig) {
+        return AuthApiFp(this.configuration).startAccountPasskeyRegistration(options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Issues a single-use discoverable-credential sign-in challenge.
+     * @summary Start passkey sign-in
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApi
+     */
+    public startAccountPasskeySignIn(options?: RawAxiosRequestConfig) {
+        return AuthApiFp(this.configuration).startAccountPasskeySignIn(options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
      * Local-deployment-only machine operation. The CLI proves authority with its installation secret. The server idempotently creates the ordinary local user and organization in existing identity storage and returns a short-lived, one-use browser handoff token. The token is exchanged from the approved local UI origin and is never persisted by the UI.
      * @summary Prepare local account access
      * @param {AuthApiStartLocalBootstrapRequest} requestParameters Request parameters.
@@ -1542,6 +2362,17 @@ export class AuthApi extends BaseAPI implements AuthApiInterface {
      */
     public startLocalBootstrap(requestParameters: AuthApiStartLocalBootstrapRequest, options?: RawAxiosRequestConfig) {
         return AuthApiFp(this.configuration).startLocalBootstrap(requestParameters.xHeyHeyLocalSecret, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Switches dev-admin mode for a user with dev-admin privileges. Issues no credentials; the browser renews its session to receive access that reflects the new mode.
+     * @summary Toggle dev-admin mode
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApi
+     */
+    public toggleDevAdminMode(options?: RawAxiosRequestConfig) {
+        return AuthApiFp(this.configuration).toggleDevAdminMode(options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

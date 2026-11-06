@@ -174,8 +174,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const toggleDevAdminMode = async (): Promise<void> => {
     try {
-      const tokens = await authToggleDevAdminMode();
-      setUser(tokens.user || null);
+      await authToggleDevAdminMode();
+      // Renew the browser session so its access reflects the new mode.
+      const renewed = await refreshAuthToken();
+      setUser(renewed.user);
     } catch (error) {
       console.error("Failed to toggle dev-admin mode:", error);
       throw error;

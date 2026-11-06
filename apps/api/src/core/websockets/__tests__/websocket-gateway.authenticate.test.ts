@@ -934,7 +934,7 @@ describe('WebsocketGateway.handleAuthenticate', () => {
       websocketUserConnectionLifecycle,
     } = makeHarness('user-1', {
       accessContext: {
-        sessionId: 'session-1',
+        browserSessionId: 'session-1',
         authorizationVersion: 4,
       },
     });

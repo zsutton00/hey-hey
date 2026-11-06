@@ -92,6 +92,11 @@ describeDatabase('AuthService registration browser session handoff', () => {
           async (organizationIds: string[]) => new Set(organizationIds),
         ),
       } as unknown as AccountEntitlementService,
+      {
+        issuer: 'https://hosted.test/api',
+        browserAudience: 'https://hosted.test',
+        oauthAudience: 'https://hosted.test:oauth',
+      } as never,
     );
 
     userService = {
@@ -168,6 +173,12 @@ describeDatabase('AuthService registration browser session handoff', () => {
       {} as never,
       redisService as never,
       localDefaultProjects(),
+      {
+        issuer: 'https://hosted.test/api',
+        browserAudience: 'https://hosted.test',
+        oauthAudience: 'https://hosted.test:oauth',
+      } as never,
+      {} as never,
     );
 
   afterAll(async () => {

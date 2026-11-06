@@ -104,6 +104,7 @@ describe('UserService - Password Security', () => {
         mustChangePassword: false,
         defaultOrganizationId: null,
         isDemoUser: false,
+        authorizationRevision: 0,
       };
 
       (prismaService.db.$transaction as jest.Mock).mockImplementation(
@@ -194,6 +195,7 @@ describe('UserService - Password Security', () => {
         mustChangePassword: true,
         defaultOrganizationId: null,
         isDemoUser: false,
+        authorizationRevision: 0,
       } as User);
       (prismaService.db.$transaction as jest.Mock).mockImplementation(
         async (cb) => cb({ user: { create: txCreate } }),
@@ -253,6 +255,7 @@ describe('UserService - Password Security', () => {
         mustChangePassword: true,
         defaultOrganizationId: null,
         isDemoUser: false,
+        authorizationRevision: 0,
       } as User;
       const tx = {
         user: { create: jest.fn().mockResolvedValue(createdUser) },
@@ -354,6 +357,7 @@ describe('UserService - Password Security', () => {
         mustChangePassword: true,
         defaultOrganizationId: null,
         isDemoUser: false,
+        authorizationRevision: 0,
       } as User;
       const userCheckpointRequest = {
         ...request,
@@ -463,6 +467,7 @@ describe('UserService - Password Security', () => {
         mustChangePassword: false,
         defaultOrganizationId: null,
         isDemoUser: false,
+        authorizationRevision: 0,
       };
       const providedPassword = 'correctPassword123';
 
@@ -496,6 +501,7 @@ describe('UserService - Password Security', () => {
         mustChangePassword: false,
         defaultOrganizationId: null,
         isDemoUser: false,
+        authorizationRevision: 0,
       };
 
       mockBcrypt.compare.mockResolvedValue(true as never);
@@ -523,6 +529,7 @@ describe('UserService - Password Security', () => {
         mustChangePassword: false,
         defaultOrganizationId: null,
         isDemoUser: false,
+        authorizationRevision: 0,
       };
 
       mockBcrypt.compare.mockResolvedValue(false as never);
@@ -551,6 +558,7 @@ describe('UserService - Password Security', () => {
         mustChangePassword: false,
         defaultOrganizationId: null,
         isDemoUser: false,
+        authorizationRevision: 0,
       };
       const updatedUser = {
         ...lockedUser,

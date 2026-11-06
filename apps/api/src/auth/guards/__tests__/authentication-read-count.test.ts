@@ -61,13 +61,19 @@ describe('authentication read counts across existing guards', () => {
         organizationAccountLifecycle: { findMany: lifecycles },
       } as never),
       { recordActivity: jest.fn() } as never,
+      {} as never,
+      {
+        issuer: 'https://hosted.test/api',
+        browserAudience: 'https://hosted.test',
+        oauthAudience: 'https://hosted.test:oauth',
+      } as never,
     );
     new JwtStrategy({} as never, keys as never, validator);
     const request = {
       method: 'GET',
       url: '/api/v1/debug/auth-read-count',
       headers: {
-        authorization: `Bearer ${sign({ sub: 'user-1', currentOrgId: 'organization-1' }, privateKey, { algorithm: 'RS256', expiresIn: 60 })}`,
+        authorization: `Bearer ${sign({ sub: 'user-1', token_use: 'oauth_access', currentOrgId: 'organization-1' }, privateKey, { algorithm: 'RS256', expiresIn: 60, issuer: 'https://hosted.test/api', audience: 'https://hosted.test:oauth' })}`,
       },
     };
     const context = {

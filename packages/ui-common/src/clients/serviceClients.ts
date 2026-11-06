@@ -453,6 +453,52 @@ export class UnifiedApiClient {
     return this.clients.auth.changeCurrentPassword(...args);
   }
 
+  toggleDevAdminMode(...args: Parameters<AuthApi["toggleDevAdminMode"]>) {
+    return this.clients.auth.toggleDevAdminMode(...args);
+  }
+
+  listAccountPasskeys(...args: Parameters<AuthApi["listAccountPasskeys"]>) {
+    return this.clients.auth.listAccountPasskeys(...args);
+  }
+
+  startAccountPasskeyRegistration(
+    ...args: Parameters<AuthApi["startAccountPasskeyRegistration"]>
+  ) {
+    return this.clients.auth.startAccountPasskeyRegistration(...args);
+  }
+
+  registerAccountPasskey(
+    ...args: Parameters<AuthApi["registerAccountPasskey"]>
+  ) {
+    return this.clients.auth.registerAccountPasskey(...args);
+  }
+
+  startAccountPasskeyProof(
+    ...args: Parameters<AuthApi["startAccountPasskeyProof"]>
+  ) {
+    return this.clients.auth.startAccountPasskeyProof(...args);
+  }
+
+  renameAccountPasskey(...args: Parameters<AuthApi["renameAccountPasskey"]>) {
+    return this.clients.auth.renameAccountPasskey(...args);
+  }
+
+  removeAccountPasskey(...args: Parameters<AuthApi["removeAccountPasskey"]>) {
+    return this.clients.auth.removeAccountPasskey(...args);
+  }
+
+  startAccountPasskeySignIn(
+    ...args: Parameters<AuthApi["startAccountPasskeySignIn"]>
+  ) {
+    return this.clients.auth.startAccountPasskeySignIn(...args);
+  }
+
+  completeAccountPasskeySignIn(
+    ...args: Parameters<AuthApi["completeAccountPasskeySignIn"]>
+  ) {
+    return this.clients.auth.completeAccountPasskeySignIn(...args);
+  }
+
   onboardBetaUser(...args: Parameters<DebugAdminApi["onboardBetaUser"]>) {
     return this.clients.debugAdmin.onboardBetaUser(...args);
   }

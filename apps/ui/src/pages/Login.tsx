@@ -15,6 +15,11 @@ import { useAuth } from "@hey-hey/ui-common/context";
 import { useTranslation } from "react-i18next";
 import { KEYS } from "@hey-hey/ui-common/i18n";
 import { resolveAuthReturnTarget } from "../utils/authReturnTarget";
+import {
+  PasskeyCeremonyCancelledError,
+  isPasskeySupported,
+  signInWithPasskey,
+} from "@hey-hey/ui-common/services";
 
 const PASSWORD_RECOVERY_ACKNOWLEDGEMENT =
   "We've sent an email with recovery instructions";
@@ -22,11 +27,7 @@ const PASSWORD_RECOVERY_ACKNOWLEDGEMENT =
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const {
-    login,
-    initiatePasswordRecovery,
-    isAuthenticated,
-  } = useAuth();
+  const { login, initiatePasswordRecovery, isAuthenticated } = useAuth();
   const { t } = useTranslation();
 
   const [formData, setFormData] = useState({
@@ -79,6 +80,21 @@ const Login = () => {
     }
   };
 
+  const handlePasskeySignIn = async (): Promise<void> => {
+    setLoading(true);
+    setError("");
+    try {
+      await signInWithPasskey();
+      navigate(from, { replace: true });
+    } catch (err) {
+      if (!(err instanceof PasskeyCeremonyCancelledError)) {
+        setError("Passkey sign-in failed");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRecoverySubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoading(true);
@@ -88,7 +104,7 @@ const Login = () => {
       setRecoveryAcknowledgement(PASSWORD_RECOVERY_ACKNOWLEDGEMENT);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Unable to request recovery"
+        err instanceof Error ? err.message : "Unable to request recovery",
       );
     } finally {
       setLoading(false);
@@ -179,6 +195,19 @@ const Login = () => {
                   t(KEYS.auth.signIn)
                 )}
               </Button>
+              {isPasskeySupported() && (
+                <Button
+                  type="button"
+                  fullWidth
+                  variant="outlined"
+                  sx={{ mb: 1 }}
+                  onClick={() => void handlePasskeySignIn()}
+                  disabled={loading}
+                  data-testid="passkey-sign-in-button"
+                >
+                  Sign in with a passkey
+                </Button>
+              )}
               <Button
                 type="button"
                 fullWidth

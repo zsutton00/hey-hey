@@ -41,6 +41,7 @@ import { DemoTemplateService } from './services/demo-sandbox/demo-template.servi
 import { ProjectTemplateCloneService } from './services/demo-sandbox/project-template-clone.service';
 import { DemoTemplateGraphService } from './services/demo-sandbox/template-graph.service';
 import { AuthController } from './controllers/auth.controller';
+import { AccountPasskeyModule } from './auth/passkeys/account-passkey.module';
 import { AnalyticsController } from './controllers/analytics.controller';
 import { ConversationController } from './controllers/conversation.controller';
 import { OnboardingReplyController } from './controllers/onboarding-reply.controller';
@@ -224,6 +225,7 @@ import { ReadRestrictionModule } from './read-restriction/read-restriction.modul
     CoreModule,
     WebsocketsModule,
     AuthModule,
+    AccountPasskeyModule,
     OAuthModule,
     OutboxPublisherModule,
     CoreDomainModule,

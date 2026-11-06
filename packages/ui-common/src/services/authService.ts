@@ -5,6 +5,7 @@ import axios, { AxiosError } from "axios";
 import type {
   BrowserSessionResponseDto,
   BrowserOrganizationSelectionDto,
+  DevAdminModeDto,
   PasswordRecoveryAcknowledgementDto,
 } from "../api/api";
 import {
@@ -331,6 +332,16 @@ export const acceptBrowserAuthSession = (
   response: BrowserSessionResponseDto,
 ): void => {
   setBrowserAuthState(response);
+};
+
+/** Validates a server browser-session response, then adopts it. */
+export const acceptBrowserAuthResponse = (
+  value: unknown,
+): BrowserSessionResponseDto => {
+  const response = parseBrowserAuthResponse(value);
+  setBrowserAuthState(response);
+  markDemoSandboxSession(false);
+  return response;
 };
 
 const receiveBrowserRenewal = (value: unknown): void => {
@@ -677,28 +688,12 @@ export const getCurrentUser = () => {
 };
 
 // Toggle dev-admin mode
-export const toggleDevAdminMode = async (): Promise<AuthTokens> => {
+export const toggleDevAdminMode = async (
+  client?: UnifiedApiClient,
+): Promise<DevAdminModeDto> => {
   try {
-    const runtime = getApiRuntime();
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-    if (authToken) {
-      headers.Authorization = `Bearer ${authToken}`;
-    }
-    const response = await runtime.transport.request<AuthTokens>({
-      method: "PATCH",
-      url: "/auth/toggle-dev-admin",
-      data: {},
-      headers,
-      withCredentials: true,
-    });
-
-    if (response.data?.accessToken) {
-      setAuthToken(response.data.accessToken);
-      return response.data;
-    }
-    throw new Error("Failed to toggle dev-admin mode");
+    const response = await resolveClient(client).toggleDevAdminMode();
+    return response.data.data;
   } catch (error) {
     return handleAxiosError(error, "Toggle dev-admin mode");
   }

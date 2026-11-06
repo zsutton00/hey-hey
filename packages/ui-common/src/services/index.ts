@@ -1,4 +1,5 @@
 export * from "./authService";
+export * from "./accountPasskeys";
 export * from "./collab";
 export * from "./configService";
 export * from "./globalTrackingInitializer";

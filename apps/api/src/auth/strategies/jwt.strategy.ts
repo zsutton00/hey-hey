@@ -24,9 +24,10 @@ export interface JwtPayload {
   isDevAdmin?: boolean;
   devAdminMode?: boolean; // Whether user is currently in dev-admin mode
   isLocalAccount?: boolean;
-  sid?: string; // Browser session binding, added by the browser-session cutover
-  authz_version?: number; // Current authorization revision binding
+  sid?: string; // Browser session binding (required on browser access)
+  authz_version?: number; // Authorization revision binding (required on browser access)
   jti?: string;
+  iss?: string;
   aud?: string | string[];
   iat?: number;
   exp?: number; // Optional since we let JWT service handle expiration
@@ -47,6 +48,9 @@ export interface AuthenticatedUser {
   isLocalAccount?: boolean;
   isSystemUser?: boolean;
   systemSubject?: string;
+  /** Present only when authenticated by a browser-session access token. */
+  browserSessionId?: string;
+  authorizationVersion?: number;
 }
 
 @Injectable()

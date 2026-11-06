@@ -6,6 +6,14 @@ import { UserAccessTokenValidatorService } from '../user-access-token-validator.
 import { OrganizationId } from '../../../types';
 import { AccountEntitlementService } from '../../../services/account-entitlement.service';
 import { DemoSandboxActivityService } from '../../../services/demo-sandbox/demo-sandbox-activity.service';
+import { PrismaService } from '../../../prisma/prisma.service';
+import { CredentialProfileService } from '../../credential-profile';
+
+const profile = {
+  issuer: 'https://hosted.test/api',
+  browserAudience: 'https://hosted.test',
+  oauthAudience: 'https://hosted.test:oauth',
+} as CredentialProfileService;
 
 describe('UserAccessTokenValidatorService', () => {
   const activeUser = {
@@ -16,6 +24,7 @@ describe('UserAccessTokenValidatorService', () => {
     isDevAdmin: false,
     devAdminMode: false,
     isDemoUser: false,
+    authorizationRevision: 3,
     memberships: [
       {
         organizationId: 'org-1',
@@ -36,6 +45,7 @@ describe('UserAccessTokenValidatorService', () => {
   let accountEntitlementService: jest.Mocked<AccountEntitlementService>;
   let getAuthorizedOrganizationIds: jest.Mock;
   let demoSandboxActivity: { recordActivity: jest.Mock };
+  let findSession: jest.Mock;
 
   beforeEach(() => {
     userService = {
@@ -52,27 +62,100 @@ describe('UserAccessTokenValidatorService', () => {
       getAuthorizedOrganizationIds,
     } as unknown as jest.Mocked<AccountEntitlementService>;
     demoSandboxActivity = { recordActivity: jest.fn() };
+    findSession = jest.fn().mockResolvedValue({
+      userId: 'user-1',
+      revokedAt: null,
+      inactivityExpiresAt: new Date(Date.now() + 60_000),
+      absoluteExpiresAt: new Date(Date.now() + 60_000),
+    });
     service = new UserAccessTokenValidatorService(
       userService,
       jwtKeysService,
       accountEntitlementService,
       demoSandboxActivity as unknown as DemoSandboxActivityService,
+      {
+        db: { browserSessionFamily: { findUnique: findSession } },
+      } as unknown as PrismaService,
+      profile,
     );
   });
 
-  const legacyAccessPayload = (
+  const browserAccessPayload = (
     overrides: Partial<JwtPayload> = {},
   ): JwtPayload => ({
     sub: 'user-1',
+    token_use: 'access',
+    iss: profile.issuer,
+    aud: profile.browserAudience,
+    sid: 'session-1',
+    authz_version: 3,
     currentOrgId: 'org-1' as OrganizationId,
     exp: Math.floor(Date.now() / 1000) + 60,
     ...overrides,
   });
 
-  it('accepts a legacy unscoped browser access token as an interim compatibility case', async () => {
-    jwtKeysService.verifyToken.mockReturnValue(legacyAccessPayload());
+  it('rejects a legacy unscoped browser access token', async () => {
+    await expect(
+      service.validate({
+        sub: 'user-1',
+        currentOrgId: 'org-1' as OrganizationId,
+      }),
+    ).rejects.toThrow('Token issuer does not match this deployment');
+  });
 
-    await expect(service.verifyAndValidate('legacy-token')).resolves.toEqual(
+  it.each([
+    ['another deployment issuer', { iss: 'urn:heyhey:local' }],
+    ['another deployment audience', { aud: 'http://localhost:5173' }],
+    ['a missing session binding', { sid: undefined }],
+    ['a missing authorization revision', { authz_version: undefined }],
+    ['an unknown purpose', { token_use: undefined }],
+  ])('rejects a correctly signed token with %s', async (_case, overrides) => {
+    await expect(
+      service.validate(browserAccessPayload(overrides)),
+    ).rejects.toThrow();
+  });
+
+  it('rejects a stale authorization revision', async () => {
+    await expect(
+      service.validate(browserAccessPayload({ authz_version: 2 })),
+    ).rejects.toThrow('Browser session authorization is out of date');
+  });
+
+  it.each([
+    ['revoked', { revokedAt: new Date() }],
+    ['expired', { inactivityExpiresAt: new Date(Date.now() - 1) }],
+    ['foreign', { userId: 'user-2' }],
+  ])('rejects a %s browser session', async (_case, overrides) => {
+    findSession.mockResolvedValue({
+      userId: 'user-1',
+      revokedAt: null,
+      inactivityExpiresAt: new Date(Date.now() + 60_000),
+      absoluteExpiresAt: new Date(Date.now() + 60_000),
+      ...overrides,
+    });
+    await expect(service.validate(browserAccessPayload())).rejects.toThrow(
+      'Browser session is no longer active',
+    );
+  });
+
+  it('accepts native OAuth access without a browser session', async () => {
+    await expect(
+      service.validate(
+        browserAccessPayload({
+          token_use: 'oauth_access',
+          aud: profile.oauthAudience,
+          sid: undefined,
+          authz_version: undefined,
+        }),
+      ),
+    ).resolves.toEqual(expect.objectContaining({ userId: 'user-1' }));
+    expect(findSession).not.toHaveBeenCalled();
+  });
+
+  it('accepts current browser access bound to its session', async () => {
+    jwtKeysService.verifyToken.mockReturnValue(browserAccessPayload());
+
+    await expect(service.verifyAndValidate('access-token')).resolves.toEqual(
       expect.objectContaining({
         userId: 'user-1',
         currentOrgId: 'org-1',
@@ -92,7 +175,7 @@ describe('UserAccessTokenValidatorService', () => {
 
   it('rejects a verified token without an expiry for browser lifecycle use', async () => {
     jwtKeysService.verifyToken.mockReturnValue(
-      legacyAccessPayload({ exp: undefined }),
+      browserAccessPayload({ exp: undefined }),
     );
 
     await expect(service.verifyAndValidate('legacy-token')).rejects.toThrow(
@@ -100,19 +183,13 @@ describe('UserAccessTokenValidatorService', () => {
     );
   });
 
-  it('returns expiry and optional lifecycle bindings from the verified payload', async () => {
-    jwtKeysService.verifyToken.mockReturnValue(
-      legacyAccessPayload({
-        exp: Math.floor(Date.now() / 1000) + 60,
-        sid: 'session-1',
-        authz_version: 3,
-      }),
-    );
+  it('returns expiry and lifecycle bindings from the verified payload', async () => {
+    jwtKeysService.verifyToken.mockReturnValue(browserAccessPayload());
 
     await expect(service.verifyAndValidate('access-token')).resolves.toEqual(
       expect.objectContaining({
         expiresAt: expect.any(Date),
-        sessionId: 'session-1',
+        browserSessionId: 'session-1',
         authorizationVersion: 3,
       }),
     );
@@ -132,7 +209,7 @@ describe('UserAccessTokenValidatorService', () => {
 
   it('rejects a payload without a subject', async () => {
     await expect(
-      service.validate(legacyAccessPayload({ sub: '' })),
+      service.validate(browserAccessPayload({ sub: '' })),
     ).rejects.toThrow('Token subject is missing');
     expect(userService.findForAuthentication).not.toHaveBeenCalled();
   });
@@ -141,7 +218,7 @@ describe('UserAccessTokenValidatorService', () => {
     'rejects a %s-purpose credential',
     async (type) => {
       await expect(
-        service.validate(legacyAccessPayload({ type })),
+        service.validate(browserAccessPayload({ type })),
       ).rejects.toThrow('Scoped token cannot be used for authentication');
       expect(userService.findForAuthentication).not.toHaveBeenCalled();
     },
@@ -151,7 +228,7 @@ describe('UserAccessTokenValidatorService', () => {
     jwtKeysService.isSystemSubject.mockReturnValue(true);
 
     await expect(
-      service.validate(legacyAccessPayload({ sub: 'system:internal' })),
+      service.validate(browserAccessPayload({ sub: 'system:internal' })),
     ).rejects.toThrow('System token cannot authenticate a browser user');
     expect(userService.findForAuthentication).not.toHaveBeenCalled();
   });
@@ -162,7 +239,7 @@ describe('UserAccessTokenValidatorService', () => {
   ])('rejects a %s current user', async (_case, user) => {
     userService.findForAuthentication.mockResolvedValue(user as never);
 
-    await expect(service.validate(legacyAccessPayload())).rejects.toThrow(
+    await expect(service.validate(browserAccessPayload())).rejects.toThrow(
       'User not found or inactive',
     );
   });
@@ -170,7 +247,7 @@ describe('UserAccessTokenValidatorService', () => {
   it('rejects a user token without organization context', async () => {
     await expect(
       service.validate(
-        legacyAccessPayload({
+        browserAccessPayload({
           currentOrgId: undefined,
           orgMemberships: [],
         }),
@@ -179,7 +256,7 @@ describe('UserAccessTokenValidatorService', () => {
   });
 
   it('uses fresh membership roles and denies removal on the next validation', async () => {
-    const payload = legacyAccessPayload();
+    const payload = browserAccessPayload();
     await expect(service.validate(payload)).resolves.toMatchObject({
       orgMemberships: [
         { orgId: 'org-1', role: OrganizationRole.Owner },
@@ -215,7 +292,7 @@ describe('UserAccessTokenValidatorService', () => {
 
   it('preserves token identity fallbacks with the minimal user record', async () => {
     await expect(
-      service.validate(legacyAccessPayload()),
+      service.validate(browserAccessPayload()),
     ).resolves.toMatchObject({
       email: activeUser.email,
       name: activeUser.name,
@@ -224,7 +301,7 @@ describe('UserAccessTokenValidatorService', () => {
     });
     await expect(
       service.validate(
-        legacyAccessPayload({
+        browserAccessPayload({
           email: 'token@example.com',
           name: 'Token Name',
           isDevAdmin: true,
@@ -242,7 +319,7 @@ describe('UserAccessTokenValidatorService', () => {
   it('rejects a token whose current organization is not a current membership', async () => {
     await expect(
       service.validate(
-        legacyAccessPayload({ currentOrgId: 'foreign-org' as OrganizationId }),
+        browserAccessPayload({ currentOrgId: 'foreign-org' as OrganizationId }),
       ),
     ).rejects.toThrow('Not authorized');
     expect(getAuthorizedOrganizationIds).toHaveBeenCalledWith([
@@ -254,7 +331,7 @@ describe('UserAccessTokenValidatorService', () => {
   it('re-reads and denies revoked or expired current organization access', async () => {
     getAuthorizedOrganizationIds.mockResolvedValue(new Set(['org-2']));
 
-    await expect(service.validate(legacyAccessPayload())).rejects.toThrow(
+    await expect(service.validate(browserAccessPayload())).rejects.toThrow(
       'Not authorized',
     );
   });
@@ -262,7 +339,7 @@ describe('UserAccessTokenValidatorService', () => {
   it('removes revoked or expired secondary organizations from the validated context', async () => {
     getAuthorizedOrganizationIds.mockResolvedValue(new Set(['org-1']));
 
-    await expect(service.validate(legacyAccessPayload())).resolves.toEqual(
+    await expect(service.validate(browserAccessPayload())).resolves.toEqual(
       expect.objectContaining({
         currentOrgId: 'org-1',
         orgMemberships: [{ orgId: 'org-1', role: OrganizationRole.Owner }],
@@ -272,13 +349,13 @@ describe('UserAccessTokenValidatorService', () => {
 
   describe('demo sandbox activity', () => {
     it('records activity for a demo user without changing the validated principal', async () => {
-      const plain = await service.validate(legacyAccessPayload());
+      const plain = await service.validate(browserAccessPayload());
       userService.findForAuthentication.mockResolvedValue({
         ...activeUser,
         isDemoUser: true,
       } as never);
 
-      const demo = await service.validate(legacyAccessPayload());
+      const demo = await service.validate(browserAccessPayload());
 
       expect(demo).toEqual(plain);
       expect(demoSandboxActivity.recordActivity).toHaveBeenCalledTimes(1);
@@ -291,7 +368,7 @@ describe('UserAccessTokenValidatorService', () => {
         isDemoUser: false,
       } as never);
 
-      await service.validate(legacyAccessPayload());
+      await service.validate(browserAccessPayload());
 
       expect(demoSandboxActivity.recordActivity).not.toHaveBeenCalled();
     });
@@ -303,7 +380,7 @@ describe('UserAccessTokenValidatorService', () => {
       } as never);
       getAuthorizedOrganizationIds.mockResolvedValue(new Set(['org-2']));
 
-      await expect(service.validate(legacyAccessPayload())).rejects.toThrow(
+      await expect(service.validate(browserAccessPayload())).rejects.toThrow(
         'Not authorized',
       );
 

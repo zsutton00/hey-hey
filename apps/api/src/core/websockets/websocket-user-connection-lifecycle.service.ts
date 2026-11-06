@@ -6,17 +6,24 @@ import { UserId } from '../../types';
 export interface WebsocketUserConnectionRegistration {
   userId: UserId;
   expiresAt: Date | string | number;
-  sessionId?: string;
-  authorizationVersion?: number;
+  sessionId: string | undefined;
+  authorizationVersion: number | undefined;
 }
 
 interface RegisteredConnection {
   socket: Socket;
   userId: UserId;
   expiresAt: number;
-  sessionId?: string;
-  authorizationVersion?: number;
+  sessionId: string;
+  authorizationVersion: number;
   expiryTimer?: NodeJS.Timeout;
+}
+
+/** Session binding of a registered browser socket, for reconciliation. */
+export interface RegisteredBrowserSessionBinding {
+  userId: UserId;
+  sessionId: string;
+  authorizationVersion: number;
 }
 
 const MAX_TIMEOUT_MS = 2_147_483_647;
@@ -65,20 +72,11 @@ export class WebsocketUserConnectionLifecycleService {
       this.logger.verbose('[browser-lifecycle] replacing registration', {
         socketId: socket.id,
         userId: normalized.userId,
-        hadSessionBinding: existing.sessionId !== undefined,
-        hasSessionBinding: normalized.sessionId !== undefined,
-        hadAuthorizationVersionBinding:
-          existing.authorizationVersion !== undefined,
-        hasAuthorizationVersionBinding:
-          normalized.authorizationVersion !== undefined,
       });
     } else {
       this.logger.verbose('[browser-lifecycle] registering connection', {
         socketId: socket.id,
         userId: normalized.userId,
-        hasSessionBinding: normalized.sessionId !== undefined,
-        hasAuthorizationVersionBinding:
-          normalized.authorizationVersion !== undefined,
       });
     }
 
@@ -120,7 +118,6 @@ export class WebsocketUserConnectionLifecycleService {
 
   /**
    * Close only sockets that were registered with the matching session binding.
-   * Sockets without a session binding are intentionally not targeted.
    */
   invalidateSession(sessionId: string): number {
     return this.invalidate(
@@ -131,8 +128,7 @@ export class WebsocketUserConnectionLifecycleService {
 
   /**
    * Invalidate sockets carrying an older authorization revision for a user.
-   * Unbound legacy registrations are intentionally left alone until a later
-   * validation stage supplies the binding.
+   * Sockets at or above the current revision (the replacement session) stay.
    */
   invalidateAuthorizationVersion(
     userId: UserId,
@@ -155,10 +151,22 @@ export class WebsocketUserConnectionLifecycleService {
     return this.invalidate(
       (registration) =>
         registration.userId === userId &&
-        registration.authorizationVersion !== undefined &&
-        registration.authorizationVersion !== currentAuthorizationVersion,
+        registration.authorizationVersion < currentAuthorizationVersion,
       'authorization_version_invalidation',
     );
+  }
+
+  /** Distinct session bindings currently registered on this replica. */
+  registeredSessionBindings(): RegisteredBrowserSessionBinding[] {
+    const bindings = new Map<string, RegisteredBrowserSessionBinding>();
+    for (const registration of this.registrations.values()) {
+      bindings.set(registration.sessionId, {
+        userId: registration.userId,
+        sessionId: registration.sessionId,
+        authorizationVersion: registration.authorizationVersion,
+      });
+    }
+    return [...bindings.values()];
   }
 
   /** Testable state query that exposes no socket or credential material. */
@@ -182,31 +190,27 @@ export class WebsocketUserConnectionLifecycleService {
     }
 
     if (
-      context.sessionId !== undefined &&
-      (typeof context.sessionId !== 'string' || context.sessionId.trim() === '')
+      typeof context.sessionId !== 'string' ||
+      context.sessionId.trim() === ''
     ) {
-      throw new Error('Browser lifecycle session binding is invalid');
+      throw new Error('Browser lifecycle session binding is required');
     }
 
     if (
-      context.authorizationVersion !== undefined &&
-      (!Number.isInteger(context.authorizationVersion) ||
-        context.authorizationVersion < 0)
+      context.authorizationVersion === undefined ||
+      !Number.isInteger(context.authorizationVersion) ||
+      context.authorizationVersion < 0
     ) {
       throw new Error(
-        'Browser lifecycle authorization-version binding is invalid',
+        'Browser lifecycle authorization-version binding is required',
       );
     }
 
     return {
       userId: context.userId,
       expiresAt,
-      ...(context.sessionId !== undefined
-        ? { sessionId: context.sessionId }
-        : {}),
-      ...(context.authorizationVersion !== undefined
-        ? { authorizationVersion: context.authorizationVersion }
-        : {}),
+      sessionId: context.sessionId,
+      authorizationVersion: context.authorizationVersion,
     };
   }
 
@@ -318,9 +322,6 @@ export class WebsocketUserConnectionLifecycleService {
       socketId,
       userId: registration.userId,
       reason,
-      hasSessionBinding: registration.sessionId !== undefined,
-      hasAuthorizationVersionBinding:
-        registration.authorizationVersion !== undefined,
     });
 
     try {

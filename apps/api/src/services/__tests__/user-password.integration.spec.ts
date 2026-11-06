@@ -98,6 +98,7 @@ describe('UserService - Password Integration Tests', () => {
                   mustChangePassword: false,
                   defaultOrganizationId: null,
                   isDemoUser: false,
+                  authorizationRevision: 0,
                 };
                 return createdUser;
               }),
@@ -168,6 +169,7 @@ describe('UserService - Password Integration Tests', () => {
                   mustChangePassword: false,
                   defaultOrganizationId: null,
                   isDemoUser: false,
+                  authorizationRevision: 0,
                 };
               }),
             },
@@ -220,6 +222,7 @@ describe('UserService - Password Integration Tests', () => {
                   mustChangePassword: false,
                   defaultOrganizationId: null,
                   isDemoUser: false,
+                  authorizationRevision: 0,
                 };
               }),
             },
@@ -275,6 +278,7 @@ describe('UserService - Password Integration Tests', () => {
                   mustChangePassword: false,
                   defaultOrganizationId: null,
                   isDemoUser: false,
+                  authorizationRevision: 0,
                 };
                 return createdUser;
               }),
@@ -390,6 +394,7 @@ describe('UserService - Password Integration Tests', () => {
                   mustChangePassword: false,
                   defaultOrganizationId: null,
                   isDemoUser: false,
+                  authorizationRevision: 0,
                 };
                 return createdUser;
               }),

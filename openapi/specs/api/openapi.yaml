@@ -1345,6 +1345,333 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
 
+  /auth/toggle-dev-admin:
+    patch:
+      summary: Toggle dev-admin mode
+      description: >-
+        Switches dev-admin mode for a user with dev-admin privileges. Issues no
+        credentials; the browser renews its session to receive access that
+        reflects the new mode.
+      operationId: toggleDevAdminMode
+      tags: [Auth]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Dev-admin mode toggled
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/DevAdminModeDto"
+        "403":
+          description: User does not have dev-admin privileges
+
+  /auth/passkeys:
+    get:
+      summary: List the signed-in account's passkeys
+      description: Returns only passkeys owned by the signed-in account. Controller credentials are never listed.
+      operationId: listAccountPasskeys
+      tags: [Auth]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AccountPasskeyListDto"
+        "401":
+          description: Authentication or account proof failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+    post:
+      summary: Add a passkey to the signed-in account
+      description: >-
+        Verifies the registration answering this session's registration
+        challenge together with fresh account proof, then in one transaction
+        stores the passkey, advances the account's authorization revision,
+        ends every earlier browser session for the account and establishes
+        exactly one fresh session for the acting browser. Refresh continuity
+        stays in HttpOnly cookies. A failure changes nothing.
+      operationId: registerAccountPasskey
+      tags: [Auth]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountPasskeyRegistrationDto"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BrowserSessionResponseDto"
+        "400":
+          description: The registration is malformed or the passkey is already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "401":
+          description: Authentication or account proof failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
+  /auth/passkeys/registration/options:
+    post:
+      summary: Start adding a passkey
+      description: Issues a single-use registration challenge bound to the signed-in account and acting browser session.
+      operationId: startAccountPasskeyRegistration
+      tags: [Auth]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AccountPasskeyRegistrationOptionsDto"
+        "401":
+          description: Authentication or account proof failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
+  /auth/passkeys/proof/options:
+    post:
+      summary: Start passkey account proof
+      description: >-
+        Issues a single-use assertion challenge that proves account ownership
+        for exactly one operation (adding a passkey, or removing the named
+        passkey). It cannot be used to sign in or for another operation.
+      operationId: startAccountPasskeyProof
+      tags: [Auth]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountPasskeyProofOptionsRequestDto"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AccountPasskeyAssertionOptionsDto"
+        "401":
+          description: Authentication or account proof failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: The account has no passkey to prove with, or the removal target is not owned by the account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
+  /auth/passkeys/sign-in/options:
+    post:
+      summary: Start passkey sign-in
+      description: Issues a single-use discoverable-credential sign-in challenge.
+      operationId: startAccountPasskeySignIn
+      tags: [Auth]
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AccountPasskeyAssertionOptionsDto"
+
+  /auth/passkeys/sign-in:
+    post:
+      summary: Sign in with a passkey
+      description: >-
+        Verifies the assertion answering a sign-in challenge and establishes the
+        same browser session as password sign-in, including organization
+        selection. Refresh continuity stays in HttpOnly cookies. Failures are
+        generic.
+      operationId: completeAccountPasskeySignIn
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountPasskeySignInDto"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BrowserSessionResponseDto"
+        "401":
+          description: Authentication or account proof failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
+  /auth/passkeys/{passkeyId}:
+    patch:
+      summary: Rename an account passkey
+      description: Changes only the display name of a passkey owned by the signed-in account.
+      operationId: renameAccountPasskey
+      tags: [Auth]
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: passkeyId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountPasskeyRenameDto"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AccountPasskeyDto"
+        "401":
+          description: Authentication or account proof failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: Passkey not found for this account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
+  /auth/passkeys/{passkeyId}/removal:
+    post:
+      summary: Remove an account passkey
+      description: >-
+        Verifies fresh account proof bound to this removal, then in one
+        transaction removes the passkey, advances the account's authorization
+        revision, ends every earlier browser session for the account and
+        establishes exactly one fresh session for the acting browser. A failure
+        changes nothing.
+      operationId: removeAccountPasskey
+      tags: [Auth]
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: passkeyId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountPasskeyRemovalDto"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BrowserSessionResponseDto"
+        "401":
+          description: Authentication or account proof failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: Passkey not found for this account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
   # =============================================
   # Admin Routes
   # =============================================
@@ -25378,6 +25705,32 @@ components:
       $ref: "../schemas/auth.yaml#/OnboardBetaUserResponseDto"
     PlatformAdminAccessDto:
       $ref: "../schemas/auth.yaml#/PlatformAdminAccessDto"
+    AccountPasskeyDto:
+      $ref: "../schemas/auth.yaml#/AccountPasskeyDto"
+    AccountPasskeyListDto:
+      $ref: "../schemas/auth.yaml#/AccountPasskeyListDto"
+    AccountPasskeyRegistrationOptionsDto:
+      $ref: "../schemas/auth.yaml#/AccountPasskeyRegistrationOptionsDto"
+    AccountPasskeyAssertionOptionsDto:
+      $ref: "../schemas/auth.yaml#/AccountPasskeyAssertionOptionsDto"
+    AccountPasskeyProofOptionsRequestDto:
+      $ref: "../schemas/auth.yaml#/AccountPasskeyProofOptionsRequestDto"
+    AccountPasskeyRegistrationCredentialDto:
+      $ref: "../schemas/auth.yaml#/AccountPasskeyRegistrationCredentialDto"
+    AccountPasskeyAssertionCredentialDto:
+      $ref: "../schemas/auth.yaml#/AccountPasskeyAssertionCredentialDto"
+    AccountProofDto:
+      $ref: "../schemas/auth.yaml#/AccountProofDto"
+    AccountPasskeySignInDto:
+      $ref: "../schemas/auth.yaml#/AccountPasskeySignInDto"
+    AccountPasskeyRegistrationDto:
+      $ref: "../schemas/auth.yaml#/AccountPasskeyRegistrationDto"
+    AccountPasskeyRenameDto:
+      $ref: "../schemas/auth.yaml#/AccountPasskeyRenameDto"
+    AccountPasskeyRemovalDto:
+      $ref: "../schemas/auth.yaml#/AccountPasskeyRemovalDto"
+    DevAdminModeDto:
+      $ref: "../schemas/auth.yaml#/DevAdminModeDto"
 
     # Private beta access schemas
     PrivateBetaAccessRequestId:

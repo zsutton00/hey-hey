@@ -439,6 +439,8 @@ export { useImplementationHints } from "./useImplementationHints";
 
 // Machines hooks
 export { useUserPairedMachines } from "./useUserPairedMachines";
+export { useAccountPasskeys } from "./useAccountPasskeys";
+export type { UseAccountPasskeysReturn } from "./useAccountPasskeys";
 export type {
   UseUserPairedMachinesOptions,
   UseUserPairedMachinesReturn,

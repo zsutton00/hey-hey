@@ -23,6 +23,7 @@ import {
   AccountDefaultOrganizationDto,
   SetAccountDefaultOrganizationDto,
   BrowserAuthResponseDto,
+  DevAdminModeDto,
   BrowserSessionResponseDto,
   ChangeCurrentPasswordDto,
   ChangePasswordDto,
@@ -55,7 +56,6 @@ import { clearDemoBindingCookie } from '../services/demo-sandbox/demo-binding-co
 import { OrganizationId } from '../types';
 import { z } from 'zod';
 
-const LEGACY_REFRESH_TTL_MILLISECONDS = 7 * 24 * 60 * 60 * 1000;
 const localHandoffBodySchema = z
   .object({ handoffToken: z.string().regex(/^[A-Za-z0-9_-]{40,64}$/) })
   .strict();
@@ -479,7 +479,7 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description: 'Dev-admin mode toggled successfully',
-    type: 'AuthResponseDto',
+    type: 'DevAdminModeDto',
   })
   @ApiResponse({
     status: 403,
@@ -487,30 +487,8 @@ export class AuthController {
   })
   async toggleDevAdminMode(
     @CurrentUser() user: AuthenticatedUser,
-    @Res({ passthrough: true }) response: Response,
-  ): Promise<AuthResponseDto> {
-    const authResponse = await this.authService.toggleDevAdminMode(user.userId);
-    this.setLegacyAuthCookies(response, authResponse);
-    return authResponse;
-  }
-
-  private setLegacyAuthCookies(
-    response: Response,
-    authResponse: AuthResponseDto,
-  ): void {
-    const expiresIn = requiredExpiresIn(
-      authResponse.expiresIn,
-      'Access-token expiry is missing or invalid',
-    );
-
-    response.cookie(ACCESS_COOKIE_NAME, authResponse.accessToken, {
-      ...cookieAttributes('/'),
-      maxAge: expiresIn * 1000,
-    });
-    response.cookie(REFRESH_COOKIE_NAME, authResponse.refreshToken, {
-      ...cookieAttributes('/'),
-      maxAge: LEGACY_REFRESH_TTL_MILLISECONDS,
-    });
+  ): Promise<DevAdminModeDto> {
+    return this.authService.toggleDevAdminMode(user.userId);
   }
 
   private clearBrowserSessionCookies(response: Response): void {

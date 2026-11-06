@@ -13,6 +13,7 @@ import {
 } from "../../components/Layout";
 import { ClaimMachine } from "./ClaimMachine";
 import { MachinesList } from "./MachinesList";
+import { AccountPasskeysSection } from "./AccountPasskeysSection";
 
 type SettingsView = "landing" | "pairing";
 
@@ -138,13 +139,14 @@ export const SettingsPage: React.FC = () => {
                 <CurrentPasswordChangeForm
                   onSubmit={({ currentPassword, newPassword }) =>
                     changeCurrentPassword(currentPassword, newPassword).then(
-                      () => undefined
+                      () => undefined,
                     )
                   }
                 />
               </Box>
             )}
           </Box>
+          <AccountPasskeysSection />
           <Box component="section" data-testid="settings-machines-section">
             <Typography
               variant="h6"

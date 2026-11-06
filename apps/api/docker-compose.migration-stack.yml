@@ -341,6 +341,10 @@ services:
       CORS_WHITELIST: http://${STACK_HOSTNAME:?Run the migration-stack launcher}:${STACK_UI_PORT},http://${STACK_HOSTNAME:?Run the migration-stack launcher}:${STACK_API_PORT}
       MACHINE_ENROLLMENT_WEBAUTHN_RP_ID: ${STACK_HOSTNAME:?Run the migration-stack launcher}
       MACHINE_ENROLLMENT_WEBAUTHN_ORIGIN: http://${STACK_HOSTNAME:?Run the migration-stack launcher}:${STACK_UI_PORT}
+      ACCOUNT_PASSKEY_RP_ID: ${STACK_HOSTNAME:?Run the migration-stack launcher}
+      ACCOUNT_PASSKEY_ORIGIN: http://${STACK_HOSTNAME:?Run the migration-stack launcher}:${STACK_UI_PORT}
+      BROWSER_TOKEN_ISSUER: http://${STACK_HOSTNAME:?Run the migration-stack launcher}:${STACK_API_PORT}/api
+      BROWSER_TOKEN_AUDIENCE: http://${STACK_HOSTNAME:?Run the migration-stack launcher}:${STACK_UI_PORT}
       JWT_SECRET: ${STACK_JWT_SECRET}
       JWT_ISSUER: http://${STACK_HOSTNAME:?Run the migration-stack launcher}
       SECRET_KEY: ${STACK_SECRET_KEY}

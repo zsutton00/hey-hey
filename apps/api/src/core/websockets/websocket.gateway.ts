@@ -683,7 +683,7 @@ export class WebsocketGateway
           {
             userId,
             expiresAt: accessContext.expiresAt,
-            sessionId: accessContext.sessionId,
+            sessionId: accessContext.browserSessionId,
             authorizationVersion: accessContext.authorizationVersion,
           },
         );

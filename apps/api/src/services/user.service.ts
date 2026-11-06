@@ -81,6 +81,7 @@ const AUTHENTICATION_USER_SELECT = {
   isDevAdmin: true,
   devAdminMode: true,
   isDemoUser: true,
+  authorizationRevision: true,
   memberships: {
     select: { organizationId: true, role: true, isActive: true },
   },

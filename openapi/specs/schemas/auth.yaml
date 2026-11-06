@@ -421,3 +421,262 @@ PlatformAdminAccessDto:
       description: >-
         Whether the caller is a platform admin, decided by the same allowlist
         the server applies to admin endpoints.
+
+AccountPasskeyDto:
+  type: object
+  additionalProperties: false
+  required: [id, name, createdAt, lastUsedAt, backedUp]
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Identifier of the account passkey record.
+    name:
+      type: string
+      minLength: 1
+      maxLength: 100
+      description: Display name chosen by the account owner.
+    createdAt:
+      type: string
+      format: date-time
+    lastUsedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Last successful sign-in or account proof with this passkey.
+    backedUp:
+      type: boolean
+      description: Whether the authenticator reports the passkey as synced or backed up.
+
+AccountPasskeyListDto:
+  type: object
+  additionalProperties: false
+  required: [passkeys]
+  properties:
+    passkeys:
+      type: array
+      items:
+        $ref: "#/AccountPasskeyDto"
+
+AccountPasskeyRegistrationOptionsDto:
+  type: object
+  additionalProperties: false
+  description: >-
+    Inputs for navigator.credentials.create. The challenge is single-use,
+    expires after five minutes, and is bound to the signed-in account and the
+    acting browser session.
+  required:
+    [
+      challenge,
+      rpId,
+      rpName,
+      userHandle,
+      userName,
+      userDisplayName,
+      excludeCredentialIds,
+      timeoutMs,
+    ]
+  properties:
+    challenge:
+      type: string
+      pattern: "^[A-Za-z0-9_-]+$"
+    rpId:
+      type: string
+    rpName:
+      type: string
+    userHandle:
+      type: string
+      pattern: "^[A-Za-z0-9_-]+$"
+      description: Base64url WebAuthn user handle for this account.
+    userName:
+      type: string
+    userDisplayName:
+      type: string
+    excludeCredentialIds:
+      type: array
+      items:
+        type: string
+        pattern: "^[A-Za-z0-9_-]+$"
+    timeoutMs:
+      type: integer
+
+AccountPasskeyAssertionOptionsDto:
+  type: object
+  additionalProperties: false
+  description: >-
+    Inputs for navigator.credentials.get. The challenge is single-use, expires
+    after five minutes, and is accepted only for the purpose it was issued for.
+  required: [challenge, rpId, allowCredentialIds, timeoutMs]
+  properties:
+    challenge:
+      type: string
+      pattern: "^[A-Za-z0-9_-]+$"
+    rpId:
+      type: string
+    allowCredentialIds:
+      type: array
+      description: Empty for discoverable sign-in; the account's own passkeys for account proof.
+      items:
+        type: string
+        pattern: "^[A-Za-z0-9_-]+$"
+    timeoutMs:
+      type: integer
+
+AccountPasskeyProofOptionsRequestDto:
+  type: object
+  additionalProperties: false
+  required: [operation]
+  properties:
+    operation:
+      type: string
+      enum: [register, remove]
+    passkeyId:
+      type: string
+      format: uuid
+      description: Required when operation is remove; the passkey that will be removed.
+
+AccountPasskeyRegistrationCredentialDto:
+  type: object
+  additionalProperties: false
+  required: [id, rawId, type, response]
+  properties:
+    id:
+      type: string
+      minLength: 1
+      pattern: "^[A-Za-z0-9_-]+$"
+    rawId:
+      type: string
+      minLength: 1
+      pattern: "^[A-Za-z0-9_-]+$"
+    type:
+      type: string
+      enum: [public-key]
+    authenticatorAttachment:
+      type: string
+      enum: [platform, cross-platform]
+      nullable: true
+    response:
+      type: object
+      additionalProperties: false
+      required: [clientDataJSON, attestationObject, transports]
+      properties:
+        clientDataJSON:
+          type: string
+          minLength: 1
+          pattern: "^[A-Za-z0-9_-]+$"
+        attestationObject:
+          type: string
+          minLength: 1
+          pattern: "^[A-Za-z0-9_-]+$"
+        transports:
+          type: array
+          maxItems: 8
+          items:
+            type: string
+            enum: [ble, cable, hybrid, internal, nfc, smart-card, usb]
+
+AccountPasskeyAssertionCredentialDto:
+  type: object
+  additionalProperties: false
+  required: [id, rawId, type, response]
+  properties:
+    id:
+      type: string
+      minLength: 1
+      pattern: "^[A-Za-z0-9_-]+$"
+    rawId:
+      type: string
+      minLength: 1
+      pattern: "^[A-Za-z0-9_-]+$"
+    type:
+      type: string
+      enum: [public-key]
+    authenticatorAttachment:
+      type: string
+      enum: [platform, cross-platform]
+      nullable: true
+    response:
+      type: object
+      additionalProperties: false
+      required: [clientDataJSON, authenticatorData, signature, userHandle]
+      properties:
+        clientDataJSON:
+          type: string
+          minLength: 1
+          pattern: "^[A-Za-z0-9_-]+$"
+        authenticatorData:
+          type: string
+          minLength: 1
+          pattern: "^[A-Za-z0-9_-]+$"
+        signature:
+          type: string
+          minLength: 1
+          pattern: "^[A-Za-z0-9_-]+$"
+        userHandle:
+          type: string
+          nullable: true
+          pattern: "^[A-Za-z0-9_-]*$"
+
+AccountProofDto:
+  type: object
+  additionalProperties: false
+  description: >-
+    Fresh proof of account ownership. Supply exactly one of the current
+    password or an assertion from one of the account's own passkeys answering
+    a proof challenge issued for this operation.
+  properties:
+    currentPassword:
+      type: string
+      minLength: 1
+      maxLength: 1024
+    passkeyAssertion:
+      $ref: "#/AccountPasskeyAssertionCredentialDto"
+
+AccountPasskeySignInDto:
+  type: object
+  additionalProperties: false
+  required: [credential]
+  properties:
+    credential:
+      $ref: "#/AccountPasskeyAssertionCredentialDto"
+
+AccountPasskeyRegistrationDto:
+  type: object
+  additionalProperties: false
+  required: [name, credential, proof]
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 100
+    credential:
+      $ref: "#/AccountPasskeyRegistrationCredentialDto"
+    proof:
+      $ref: "#/AccountProofDto"
+
+AccountPasskeyRenameDto:
+  type: object
+  additionalProperties: false
+  required: [name]
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 100
+
+AccountPasskeyRemovalDto:
+  type: object
+  additionalProperties: false
+  required: [proof]
+  properties:
+    proof:
+      $ref: "#/AccountProofDto"
+
+DevAdminModeDto:
+  type: object
+  additionalProperties: false
+  required: [devAdminMode]
+  properties:
+    devAdminMode:
+      type: boolean
+      description: Whether dev-admin mode is now on. The browser renews its session to pick it up.

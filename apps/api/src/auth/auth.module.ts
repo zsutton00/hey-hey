@@ -16,6 +16,7 @@ import { PasswordChangeCredentialService } from './services/password-change-cred
 import { PASSWORD_CHANGE_CREDENTIAL_ISSUER } from './password-change-credential.types';
 import { DemoSandboxActivityModule } from '../services/demo-sandbox/demo-sandbox-activity.module';
 import { PasswordRecoveryThrottleService } from './services/password-recovery-throttle.service';
+import { CredentialProfileService } from './credential-profile';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { PasswordRecoveryThrottleService } from './services/password-recovery-th
       useExisting: PasswordChangeCredentialService,
     },
     JwtKeysService,
+    CredentialProfileService,
     UserAccessTokenValidatorService,
     JwtStrategy,
     ApiKeyStrategy,
@@ -57,6 +59,7 @@ import { PasswordRecoveryThrottleService } from './services/password-recovery-th
     PasswordChangeCredentialService,
     PASSWORD_CHANGE_CREDENTIAL_ISSUER,
     JwtKeysService,
+    CredentialProfileService,
     UserAccessTokenValidatorService,
     JwtStrategy,
     ApiKeyStrategy,

@@ -47,13 +47,23 @@ describeDatabase('BrowserSessionService database concurrency', () => {
         .mockImplementation(({ sid }: { sid: string }) => `access-${sid}`),
     } as unknown as JwtKeysService;
 
-    service = new BrowserSessionService(configService, prisma, jwtKeysService, {
-      assertOrganizationAuthorized: jest.fn(),
-      isOrganizationAuthorized: jest.fn().mockResolvedValue(true),
-      getAuthorizedOrganizationIds: jest.fn(
-        async (ids: string[]) => new Set(ids),
-      ),
-    } as unknown as AccountEntitlementService);
+    service = new BrowserSessionService(
+      configService,
+      prisma,
+      jwtKeysService,
+      {
+        assertOrganizationAuthorized: jest.fn(),
+        isOrganizationAuthorized: jest.fn().mockResolvedValue(true),
+        getAuthorizedOrganizationIds: jest.fn(
+          async (ids: string[]) => new Set(ids),
+        ),
+      } as unknown as AccountEntitlementService,
+      {
+        issuer: 'https://hosted.test/api',
+        browserAudience: 'https://hosted.test',
+        oauthAudience: 'https://hosted.test:oauth',
+      } as never,
+    );
   });
 
   afterAll(async () => {

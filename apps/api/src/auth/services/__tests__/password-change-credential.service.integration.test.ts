@@ -53,6 +53,11 @@ describeDatabase('PasswordChangeCredentialService database concurrency', () => {
         assertOrganizationAuthorized: jest.fn(),
         isOrganizationAuthorized: jest.fn().mockResolvedValue(true),
       } as unknown as AccountEntitlementService,
+      {
+        issuer: 'https://hosted.test/api',
+        browserAudience: 'https://hosted.test',
+        oauthAudience: 'https://hosted.test:oauth',
+      } as never,
     );
     const userService = new UserService(
       prisma,
