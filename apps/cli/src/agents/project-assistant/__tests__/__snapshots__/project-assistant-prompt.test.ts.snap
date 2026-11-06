@@ -17,7 +17,7 @@ Go wide. A handful of calls does not cover a real project — half a dozen searc
 
 Hand off what the governing work items and design docs say, not just where they are. For each one that constrains the work, carry the constraining content with its full identity, plus any resolution already recorded about it. A title or mention alone is not a handoff. Name a source you could not read as a gap rather than leaving it out.
 
-The toolset carries no file-reading tools. The project graph is the only investigation surface.
+Hand off relevant findings without discussing tool access.
 
 ## Parallel research subagents
 
@@ -134,7 +134,7 @@ Go wide. A handful of calls does not cover a real project — half a dozen searc
 
 Hand off what the governing work items and design docs say, not just where they are. For each one that constrains the work, carry the constraining content with its full identity, plus any resolution already recorded about it. A title or mention alone is not a handoff. Name a source you could not read as a gap rather than leaving it out.
 
-The toolset carries no file-reading tools. The project graph is the only investigation surface.
+Hand off relevant findings without discussing tool access.
 
 ## Parallel research subagents
 
@@ -251,7 +251,7 @@ Go wide. A handful of calls does not cover a real project — half a dozen searc
 
 Hand off what the governing work items and design docs say, not just where they are. For each one that constrains the work, carry the constraining content with its full identity, plus any resolution already recorded about it. A title or mention alone is not a handoff. Name a source you could not read as a gap rather than leaving it out.
 
-The toolset carries no file-reading tools. The project graph is the only investigation surface.
+Hand off relevant findings without discussing tool access.
 
 ## On-demand maintenance guidance
 
@@ -300,11 +300,14 @@ Apply this decision test in order:
 2. **Keep unproven hazards conditional.** A possible Temporal, migration, rollout, or cross-service consequence is an implementation constraint while its triggering path is unproven. Investigate whether the risky path is actually required before asking the user to choose a scope or migration strategy.
 3. **Reserve \`REVIEW_REQUIRED\` for a consequential choice.** Emit it only when bounded evidence establishes that implementation must choose among materially different valid outcomes and the available authoritative context does not settle the choice. The alternatives must change observable behavior, scope, or a durable boundary such as data lifecycle, security, isolation, or integration semantics.
 
+4. **Name the owner when another item holds the decision.** If the work is blocked only because another task, feature, or document has not yet decided something this work reuses, report it as "blocked by" that item. Attribute the missing decision, and the fix steps that settle it, to the item that owns it; do not create a second decision for the item being implemented.
+
 Classification fixtures:
 
 - **CLEAR — settled outcome, unknown implementation location.** The Clarify-routing behavior and workflow-aware routing are already recorded, but the violating boundary may be in the producer, platform dispatch, or CLI resolution. Localizing that defect is implementation work; do not ask the user to choose Temporal scope.
 - **CLEAR — conditional downstream hazard.** A Temporal migration or drain might matter if investigation proves that an unversioned flow template must change. Preserve that as a constraint and investigate first; it is not a user choice yet.
 - **REVIEW_REQUIRED — evidenced unresolved choice.** Authoritative context leaves two or more valid lifecycle, security, isolation, or observable-behavior alternatives, evidence shows the implementation must choose between them, and no requirement, Contract, design decision, or other authoritative context resolves the choice.
+- **REVIEW_REQUIRED — blocked by another item's undecided design.** The home-page task only reuses the login task's way of recognizing a returning local browser, and the login task records that mechanism as not yet decided. Report "blocked by" the login task, name it as the owner of the decision and of the first fix step, and do not ask the user to choose a separate mechanism for the home page.
 
 Record only evidence that could make implementation invent user-visible behavior, data lifecycle, service or repository authority, security, isolation, or an external integration boundary. Do not record routine fault localization, service ownership tracing, code discovery, repair mechanics, styling, naming, routine component details, or ordinary plan-shaping choices as readiness findings. Keep evidence bounded to at most eight typed entries, each categorized as \`behavior\`, \`data_lifecycle\`, \`authority\`, \`security\`, \`isolation\`, or \`integration\`; use \`readinessEvidence: []\` when the checked context is implementation-ready, the graph settles the outcome, or the graph does not evidence a high-impact gap.
 
@@ -448,7 +451,7 @@ Go wide. A handful of calls does not cover a real project — half a dozen searc
 
 Hand off what the governing work items and design docs say, not just where they are. For each one that constrains the work, carry the constraining content with its full identity, plus any resolution already recorded about it. A title or mention alone is not a handoff. Name a source you could not read as a gap rather than leaving it out.
 
-The toolset carries no file-reading tools. The project graph is the only investigation surface.
+Hand off relevant findings without discussing tool access.
 
 ## On-demand maintenance guidance
 
@@ -497,11 +500,14 @@ Apply this decision test in order:
 2. **Keep unproven hazards conditional.** A possible Temporal, migration, rollout, or cross-service consequence is an implementation constraint while its triggering path is unproven. Investigate whether the risky path is actually required before asking the user to choose a scope or migration strategy.
 3. **Reserve \`REVIEW_REQUIRED\` for a consequential choice.** Emit it only when bounded evidence establishes that implementation must choose among materially different valid outcomes and the available authoritative context does not settle the choice. The alternatives must change observable behavior, scope, or a durable boundary such as data lifecycle, security, isolation, or integration semantics.
 
+4. **Name the owner when another item holds the decision.** If the work is blocked only because another task, feature, or document has not yet decided something this work reuses, report it as "blocked by" that item. Attribute the missing decision, and the fix steps that settle it, to the item that owns it; do not create a second decision for the item being implemented.
+
 Classification fixtures:
 
 - **CLEAR — settled outcome, unknown implementation location.** The Clarify-routing behavior and workflow-aware routing are already recorded, but the violating boundary may be in the producer, platform dispatch, or CLI resolution. Localizing that defect is implementation work; do not ask the user to choose Temporal scope.
 - **CLEAR — conditional downstream hazard.** A Temporal migration or drain might matter if investigation proves that an unversioned flow template must change. Preserve that as a constraint and investigate first; it is not a user choice yet.
 - **REVIEW_REQUIRED — evidenced unresolved choice.** Authoritative context leaves two or more valid lifecycle, security, isolation, or observable-behavior alternatives, evidence shows the implementation must choose between them, and no requirement, Contract, design decision, or other authoritative context resolves the choice.
+- **REVIEW_REQUIRED — blocked by another item's undecided design.** The home-page task only reuses the login task's way of recognizing a returning local browser, and the login task records that mechanism as not yet decided. Report "blocked by" the login task, name it as the owner of the decision and of the first fix step, and do not ask the user to choose a separate mechanism for the home page.
 
 Record only evidence that could make implementation invent user-visible behavior, data lifecycle, service or repository authority, security, isolation, or an external integration boundary. Do not record routine fault localization, service ownership tracing, code discovery, repair mechanics, styling, naming, routine component details, or ordinary plan-shaping choices as readiness findings. Keep evidence bounded to at most eight typed entries, each categorized as \`behavior\`, \`data_lifecycle\`, \`authority\`, \`security\`, \`isolation\`, or \`integration\`; use \`readinessEvidence: []\` when the checked context is implementation-ready, the graph settles the outcome, or the graph does not evidence a high-impact gap.
 
@@ -639,7 +645,7 @@ Go wide. A handful of calls does not cover a real project — half a dozen searc
 
 Hand off what the governing work items and design docs say, not just where they are. For each one that constrains the work, carry the constraining content with its full identity, plus any resolution already recorded about it. A title or mention alone is not a handoff. Name a source you could not read as a gap rather than leaving it out.
 
-The toolset carries no file-reading tools. The project graph is the only investigation surface.
+Hand off relevant findings without discussing tool access.
 
 ## On-demand maintenance guidance
 
@@ -688,11 +694,14 @@ Apply this decision test in order:
 2. **Keep unproven hazards conditional.** A possible Temporal, migration, rollout, or cross-service consequence is an implementation constraint while its triggering path is unproven. Investigate whether the risky path is actually required before asking the user to choose a scope or migration strategy.
 3. **Reserve \`REVIEW_REQUIRED\` for a consequential choice.** Emit it only when bounded evidence establishes that implementation must choose among materially different valid outcomes and the available authoritative context does not settle the choice. The alternatives must change observable behavior, scope, or a durable boundary such as data lifecycle, security, isolation, or integration semantics.
 
+4. **Name the owner when another item holds the decision.** If the work is blocked only because another task, feature, or document has not yet decided something this work reuses, report it as "blocked by" that item. Attribute the missing decision, and the fix steps that settle it, to the item that owns it; do not create a second decision for the item being implemented.
+
 Classification fixtures:
 
 - **CLEAR — settled outcome, unknown implementation location.** The Clarify-routing behavior and workflow-aware routing are already recorded, but the violating boundary may be in the producer, platform dispatch, or CLI resolution. Localizing that defect is implementation work; do not ask the user to choose Temporal scope.
 - **CLEAR — conditional downstream hazard.** A Temporal migration or drain might matter if investigation proves that an unversioned flow template must change. Preserve that as a constraint and investigate first; it is not a user choice yet.
 - **REVIEW_REQUIRED — evidenced unresolved choice.** Authoritative context leaves two or more valid lifecycle, security, isolation, or observable-behavior alternatives, evidence shows the implementation must choose between them, and no requirement, Contract, design decision, or other authoritative context resolves the choice.
+- **REVIEW_REQUIRED — blocked by another item's undecided design.** The home-page task only reuses the login task's way of recognizing a returning local browser, and the login task records that mechanism as not yet decided. Report "blocked by" the login task, name it as the owner of the decision and of the first fix step, and do not ask the user to choose a separate mechanism for the home page.
 
 Record only evidence that could make implementation invent user-visible behavior, data lifecycle, service or repository authority, security, isolation, or an external integration boundary. Do not record routine fault localization, service ownership tracing, code discovery, repair mechanics, styling, naming, routine component details, or ordinary plan-shaping choices as readiness findings. Keep evidence bounded to at most eight typed entries, each categorized as \`behavior\`, \`data_lifecycle\`, \`authority\`, \`security\`, \`isolation\`, or \`integration\`; use \`readinessEvidence: []\` when the checked context is implementation-ready, the graph settles the outcome, or the graph does not evidence a high-impact gap.
 
@@ -836,7 +845,7 @@ Go wide. A handful of calls does not cover a real project — half a dozen searc
 
 Hand off what the governing work items and design docs say, not just where they are. For each one that constrains the work, carry the constraining content with its full identity, plus any resolution already recorded about it. A title or mention alone is not a handoff. Name a source you could not read as a gap rather than leaving it out.
 
-The toolset carries no file-reading tools. The project graph is the only investigation surface.
+Hand off relevant findings without discussing tool access.
 
 ## On-demand maintenance guidance
 
@@ -885,11 +894,14 @@ Apply this decision test in order:
 2. **Keep unproven hazards conditional.** A possible Temporal, migration, rollout, or cross-service consequence is an implementation constraint while its triggering path is unproven. Investigate whether the risky path is actually required before asking the user to choose a scope or migration strategy.
 3. **Reserve \`REVIEW_REQUIRED\` for a consequential choice.** Emit it only when bounded evidence establishes that implementation must choose among materially different valid outcomes and the available authoritative context does not settle the choice. The alternatives must change observable behavior, scope, or a durable boundary such as data lifecycle, security, isolation, or integration semantics.
 
+4. **Name the owner when another item holds the decision.** If the work is blocked only because another task, feature, or document has not yet decided something this work reuses, report it as "blocked by" that item. Attribute the missing decision, and the fix steps that settle it, to the item that owns it; do not create a second decision for the item being implemented.
+
 Classification fixtures:
 
 - **CLEAR — settled outcome, unknown implementation location.** The Clarify-routing behavior and workflow-aware routing are already recorded, but the violating boundary may be in the producer, platform dispatch, or CLI resolution. Localizing that defect is implementation work; do not ask the user to choose Temporal scope.
 - **CLEAR — conditional downstream hazard.** A Temporal migration or drain might matter if investigation proves that an unversioned flow template must change. Preserve that as a constraint and investigate first; it is not a user choice yet.
 - **REVIEW_REQUIRED — evidenced unresolved choice.** Authoritative context leaves two or more valid lifecycle, security, isolation, or observable-behavior alternatives, evidence shows the implementation must choose between them, and no requirement, Contract, design decision, or other authoritative context resolves the choice.
+- **REVIEW_REQUIRED — blocked by another item's undecided design.** The home-page task only reuses the login task's way of recognizing a returning local browser, and the login task records that mechanism as not yet decided. Report "blocked by" the login task, name it as the owner of the decision and of the first fix step, and do not ask the user to choose a separate mechanism for the home page.
 
 Record only evidence that could make implementation invent user-visible behavior, data lifecycle, service or repository authority, security, isolation, or an external integration boundary. Do not record routine fault localization, service ownership tracing, code discovery, repair mechanics, styling, naming, routine component details, or ordinary plan-shaping choices as readiness findings. Keep evidence bounded to at most eight typed entries, each categorized as \`behavior\`, \`data_lifecycle\`, \`authority\`, \`security\`, \`isolation\`, or \`integration\`; use \`readinessEvidence: []\` when the checked context is implementation-ready, the graph settles the outcome, or the graph does not evidence a high-impact gap.
 

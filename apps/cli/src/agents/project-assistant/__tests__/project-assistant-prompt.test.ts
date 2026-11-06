@@ -271,10 +271,10 @@ describe('buildProjectAssistantPrompt', () => {
     expect(prompt).toMatch(/one turn rather than one per turn/i);
   });
 
-  it('states the toolset carries no file-reading tools', () => {
+  it('keeps research capability limits out of the prompt', () => {
     const prompt = buildPrompt();
-    expect(prompt).toMatch(/The toolset carries no file-reading tools/i);
-    expect(prompt).toMatch(/The project graph is the only investigation surface/i);
+    expect(prompt).toMatch(/Hand off relevant findings without discussing tool access/i);
+    expect(prompt).not.toMatch(/cannot read code|cannot read files|cannot read screenshots/i);
   });
 
   it('validates findings against the governing requirements, contracts, and design docs', () => {

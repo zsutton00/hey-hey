@@ -319,7 +319,7 @@ Go wide. A handful of calls does not cover a real project — half a dozen searc
 
 ${researchResponsibility}
 
-The toolset carries no file-reading tools. The project graph is the only investigation surface.
+Hand off relevant findings without discussing tool access.
 
 ${parallelResearchSection}${researchChecksBeforeGates}## Capability gates
 
