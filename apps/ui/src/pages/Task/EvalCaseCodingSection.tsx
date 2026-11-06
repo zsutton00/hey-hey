@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import type { EvalCaseCoding } from "@hey-hey/contracts/api/models";
 import { EvalTargetHandlerKey } from "@hey-hey/contracts/api";
 import { useService } from "@hey-hey/ui-common/data";
+import { SavedPatchDiffViewer } from "@hey-hey/ui-common/components";
 import { WebPathService } from "@hey-hey/ui-common/services";
 
 import { SpaLink } from "../EvalRun/SpaLink";
@@ -138,6 +139,70 @@ export function summarizeDiff(diff: string): {
   return { files, added, removed };
 }
 
+export function splitDiffFiles(
+  diff: string,
+): Array<{ filePath: string; patch: string }> {
+  if (diff.trim().length === 0) return [];
+
+  const lines = diff.split("\n");
+  const hasGitHeaders = lines.some((line) => line.startsWith("diff --git "));
+  const filePatches: string[] = [];
+  let current: string[] = [];
+  let oldLinesLeft = 0;
+  let newLinesLeft = 0;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]!;
+    const isUnifiedFileHeader =
+      !hasGitHeaders &&
+      oldLinesLeft === 0 &&
+      newLinesLeft === 0 &&
+      line.startsWith("--- ") &&
+      lines[index + 1]?.startsWith("+++ ");
+
+    if (
+      current.length > 0 &&
+      (line.startsWith("diff --git ") || isUnifiedFileHeader)
+    ) {
+      filePatches.push(current.join("\n"));
+      current = [];
+    }
+    current.push(line);
+
+    const hunk = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/.exec(line);
+    if (hunk) {
+      oldLinesLeft = Number(hunk[1] ?? 1);
+      newLinesLeft = Number(hunk[2] ?? 1);
+    } else if (oldLinesLeft > 0 || newLinesLeft > 0) {
+      if (line.startsWith("-")) {
+        oldLinesLeft -= 1;
+      } else if (line.startsWith("+")) {
+        newLinesLeft -= 1;
+      } else if (!line.startsWith("\\")) {
+        oldLinesLeft -= 1;
+        newLinesLeft -= 1;
+      }
+    }
+  }
+
+  if (current.length > 0) {
+    filePatches.push(current.join("\n"));
+  }
+
+  return filePatches.map((patch, index) => {
+    const gitHeader = /^diff --git a\/(.+) b\/(.+)$/m.exec(patch);
+    const newFileHeader = /^\+\+\+ b\/(.+)$/m.exec(patch);
+    const oldFileHeader = /^--- a\/(.+)$/m.exec(patch);
+    const filePath =
+      gitHeader?.[2] ??
+      newFileHeader?.[1] ??
+      oldFileHeader?.[1] ??
+      `file-${String(index + 1)}`;
+
+    return { filePath, patch };
+  });
+}
+
 const DiffField: React.FC<{
   id: string;
   label: string;
@@ -145,8 +210,9 @@ const DiffField: React.FC<{
   accent: "success.main" | "error.main";
 }> = ({ id, label, diff, accent }) => {
   const { t } = useTranslation();
-  const [open, setOpen] = React.useState(false);
+  const [openFilePath, setOpenFilePath] = React.useState<string | null>(null);
   const { files, added, removed } = summarizeDiff(diff);
+  const filePatches = splitDiffFiles(diff);
 
   return (
     <Field id={id} label={label} accent={accent}>
@@ -157,23 +223,35 @@ const DiffField: React.FC<{
           removed,
         })}
       </Typography>
-      <Button size="small" onClick={() => setOpen((value) => !value)}>
-        {open ? t("eval.case.coding.hideDiff") : t("eval.case.coding.viewDiff")}
-      </Button>
-      {open ? (
-        <Box
-          component="pre"
-          sx={{
-            m: 0,
-            p: 1,
-            overflow: "auto",
-            fontSize: 12,
-            bgcolor: "action.hover",
-          }}
-        >
-          {diff}
-        </Box>
-      ) : null}
+      <Stack spacing={0.5}>
+        {filePatches.map(({ filePath, patch }) => {
+          const fileOpen = openFilePath === filePath;
+          return (
+            <Box key={filePath}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
+                  {filePath}
+                </Typography>
+                <Button
+                  size="small"
+                  onClick={() => setOpenFilePath(fileOpen ? null : filePath)}
+                >
+                  {fileOpen
+                    ? t("eval.case.coding.hideDiff")
+                    : t("eval.case.coding.viewDiff")}
+                </Button>
+              </Stack>
+              {fileOpen ? (
+                <SavedPatchDiffViewer
+                  filePath={filePath}
+                  patch={patch}
+                  testId={`${id}-diff-${filePath}`}
+                />
+              ) : null}
+            </Box>
+          );
+        })}
+      </Stack>
     </Field>
   );
 };

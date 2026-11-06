@@ -4,10 +4,12 @@ import {
   screen,
   waitFor,
   within,
+  cleanup,
 } from "@testing-library/react";
 import React from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EvalAttemptReport, EvalRunReport } from "@hey-hey/ui-common/data";
+import { installDiffViewerLayoutShims } from "../../../../../packages/ui-common/src/components/AgentSession/CollatedFileDiffModal/__tests__/diffViewerLayoutShims";
 
 const mockNavigate = vi.fn();
 const mockUseEvalRun = vi.fn();
@@ -57,20 +59,25 @@ vi.mock("@hey-hey/ui-common/services", () => ({
   },
 }));
 
-vi.mock("@hey-hey/ui-common/components", () => ({
-  CreateProposal: () => <div data-testid="create-proposal" />,
-  DeleteProposal: () => <div data-testid="delete-proposal" />,
-  UpdateProposal: (props: { renderMode?: string }) => {
-    mockUpdateProposal(props);
-    return <div data-testid="update-proposal">{props.renderMode}</div>;
-  },
-  Report: (props: { evaluationOutput?: boolean }) => {
-    mockReport(props);
-    return <div data-testid="report" />;
-  },
-  isPlaceholderEntityId: (id: string) =>
-    !id || id === "00000000-0000-0000-0000-000000000000",
-}));
+vi.mock("@hey-hey/ui-common/components", async () => {
+  const { SavedPatchDiffViewer } =
+    await import("../../../../../packages/ui-common/src/components/AgentSession/CollatedFileDiffModal/SavedPatchDiffViewer");
+  return {
+    CreateProposal: () => <div data-testid="create-proposal" />,
+    DeleteProposal: () => <div data-testid="delete-proposal" />,
+    UpdateProposal: (props: { renderMode?: string }) => {
+      mockUpdateProposal(props);
+      return <div data-testid="update-proposal">{props.renderMode}</div>;
+    },
+    Report: (props: { evaluationOutput?: boolean }) => {
+      mockReport(props);
+      return <div data-testid="report" />;
+    },
+    SavedPatchDiffViewer,
+    isPlaceholderEntityId: (id: string) =>
+      !id || id === "00000000-0000-0000-0000-000000000000",
+  };
+});
 
 vi.mock("@hey-hey/ui-common/data", () => ({
   evalRunName: (run: { payload: { name?: string } }) =>
@@ -90,6 +97,7 @@ vi.mock("@hey-hey/ui-common/data", () => ({
     isPending: false,
     error: null,
   }),
+  useService: () => ({ data: { name: "hey-hey" } }),
 }));
 
 vi.mock("../../components/Layout", () => ({
@@ -119,7 +127,7 @@ const codex = {
   target: { provider: "codex", model: "gpt", reasoningEffort: "low" },
 };
 
-const run = (status = "FINISHED"): EvalRunReport =>
+const run = (status = "FINISHED", coding = false): EvalRunReport =>
   ({
     id: "run-1",
     organizationId: "org",
@@ -146,6 +154,17 @@ const run = (status = "FINISHED"): EvalRunReport =>
           id: "case-1",
           evalCaseId: "eval-case-1",
           title: "Feature change that should update its mockup",
+          ...(coding
+            ? {
+                coding: {
+                  serviceId: "service-1",
+                  pinnedCommit: {
+                    sha: "a".repeat(40),
+                    shortMessage: "Starting point",
+                  },
+                },
+              }
+            : {}),
           grading: {
             expectations: "Update the existing mockup instead of making one.",
             checks: [
@@ -320,6 +339,9 @@ const proposal = {
 };
 
 describe("EvalResultsPage", () => {
+  let diffViewerLayout: ReturnType<typeof installDiffViewerLayoutShims> | null =
+    null;
+
   beforeEach(() => {
     vi.clearAllMocks();
     deepLink.attempt = null;
@@ -335,6 +357,12 @@ describe("EvalResultsPage", () => {
     });
     mockUseEvalHumanReviews.mockReturnValue({ data: [] });
     mockSaveReview.mockResolvedValue({ id: "review-1" });
+  });
+
+  afterEach(() => {
+    diffViewerLayout?.restore();
+    diffViewerLayout = null;
+    cleanup();
   });
 
   it("compares only the tested agent, ignoring legacy preparation", () => {
@@ -372,6 +400,90 @@ describe("EvalResultsPage", () => {
     expect(
       screen.getByTestId("eval-results-setup-sonnet-checks"),
     ).not.toHaveTextContent(/\b0\b/);
+  });
+
+  it("opens saved changed and new file patches in the highlighted shared viewer", () => {
+    diffViewerLayout = installDiffViewerLayoutShims();
+    const changedPatch = [
+      "diff --git a/src/changed.ts b/src/changed.ts",
+      "--- a/src/changed.ts",
+      "+++ b/src/changed.ts",
+      "@@ -1,1 +1,1 @@",
+      "-export const value = 1;",
+      "+export const value = 2;",
+    ].join("\n");
+    const newFilePatch = [
+      "diff --git a/notes/new.txt b/notes/new.txt",
+      "new file mode 100644",
+      "--- /dev/null",
+      "+++ b/notes/new.txt",
+      "@@ -0,0 +1,2 @@",
+      "+first saved line",
+      "+second saved line",
+    ].join("\n");
+    const codingAttempt = attempt("coding-attempt", opusHigh, {
+      recordedChanges: {
+        files: [
+          {
+            path: "src/changed.ts",
+            status: "modified",
+            additions: 1,
+            deletions: 1,
+            patch: changedPatch,
+          },
+          {
+            path: "notes/new.txt",
+            status: "added",
+            additions: 2,
+            deletions: 0,
+            patch: newFilePatch,
+          },
+        ],
+      },
+    });
+
+    givenRun(run("FINISHED", true), [codingAttempt]);
+    render(<EvalResultsPage />);
+    expand("coding-attempt");
+
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: "eval.results.coding.showDiff",
+      })[0]!,
+    );
+    expect(
+      screen.getByTestId("eval-coding-diff-src/changed.ts"),
+    ).toBeInTheDocument();
+    const changedViewer = screen.getByTestId("eval-coding-diff-src/changed.ts");
+    expect(
+      within(changedViewer).getByTestId("full-file-split-view"),
+    ).toHaveAttribute("data-language-id", "typescript");
+    expect(
+      within(changedViewer).getByTestId("full-file-split-pane-new"),
+    ).toHaveTextContent("export const value = 2;");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "eval.results.coding.showDiff" }),
+    );
+    expect(
+      screen.getByTestId("eval-coding-diff-notes/new.txt"),
+    ).toBeInTheDocument();
+    const newFileViewer = screen.getByTestId("eval-coding-diff-notes/new.txt");
+    expect(
+      within(newFileViewer).getByTestId("full-file-split-view"),
+    ).toHaveAttribute("data-language-id", "plain-text");
+    expect(
+      within(newFileViewer).getByTestId("full-file-split-pane-new"),
+    ).toHaveTextContent("first saved line");
+    expect(
+      within(newFileViewer).getByTestId("full-file-split-pane-new"),
+    ).toHaveTextContent(/\+first saved line/);
+    expect(
+      within(newFileViewer).getByTestId("full-file-split-pane-old"),
+    ).not.toHaveTextContent("first saved line");
+    expect(
+      within(newFileViewer).getByTestId("full-file-split-pane-new"),
+    ).toHaveTextContent("second saved line");
   });
 
   it("puts coordinator overhead on its own line and never shows the judge's work", () => {

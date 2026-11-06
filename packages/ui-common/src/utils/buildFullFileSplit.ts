@@ -18,7 +18,7 @@
 
 import { diffArrays, diffLines } from "diff";
 
-type FullFileSplitRowType = "equal" | "insert" | "delete" | "replace";
+type FullFileSplitRowType = "equal" | "insert" | "delete" | "replace" | "gap";
 
 export interface FullFileSplitRow {
   type: FullFileSplitRowType;
@@ -26,6 +26,7 @@ export interface FullFileSplitRow {
   newLine: string | null;
   oldLineNumber: number | null;
   newLineNumber: number | null;
+  gapLabel?: string;
 }
 
 const splitContentIntoLines = (value: string): string[] => {

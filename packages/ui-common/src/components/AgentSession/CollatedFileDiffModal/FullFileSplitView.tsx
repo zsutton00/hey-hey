@@ -12,6 +12,7 @@ import {
   buildFullFileSplit,
   type FullFileSplitRow,
 } from "../../../utils/buildFullFileSplit";
+import { buildUnifiedPatchSplit } from "../../../utils/buildUnifiedPatchSplit";
 import { filterCommentRows } from "../../../utils/filterCommentRows";
 import { resolvePrismLanguage } from "../../../utils/prismLanguage";
 import { tokenizeLine } from "../../../utils/highlightLine";
@@ -25,6 +26,8 @@ export interface FullFileSplitViewProps {
   preContent: string | null;
   /** File contents after the change. Null for deleted files. */
   postContent: string | null;
+  /** Saved unified patch. When provided, only saved hunks are rendered. */
+  patch?: string;
   /** Path of the file being diffed, used to resolve its comment syntax. */
   filePath: string;
   /** The visual arrangement used to emit each normalized paired row. */
@@ -263,6 +266,7 @@ const DiffLine: React.FC<DiffLineProps> = ({
     <Box
       component="code"
       data-diff-side={pane}
+      data-testid={row.type === "gap" ? "diff-omitted-lines" : undefined}
       sx={{
         display: "grid",
         gridTemplateColumns: "3rem 1.5rem 1fr",
@@ -275,49 +279,66 @@ const DiffLine: React.FC<DiffLineProps> = ({
           : colors.backgroundColor,
       }}
     >
-      <Box
-        component="span"
-        sx={{
-          userSelect: "none",
-          textAlign: "right",
-          pr: 0.5,
-          borderRight: "1px solid",
-          borderColor: "divider",
-          color: "text.secondary",
-          backgroundColor: "action.hover",
-        }}
-      >
-        {lineNumber ?? ""}
-      </Box>
-      <Box
-        component="span"
-        sx={{
-          textAlign: "center",
-          userSelect: "none",
-          color: "text.secondary",
-          fontWeight: 600,
-        }}
-      >
-        {isAbsent ? "" : prefix}
-      </Box>
-      <Box
-        component="span"
-        sx={{
-          whiteSpace: "pre-wrap",
-          overflowWrap: "anywhere",
-          maxWidth: "100ch",
-          px: 1.25,
-        }}
-      >
-        {isAbsent ? (
-          " "
-        ) : (
-          <HighlightedTokens
-            tokens={tokenizeLine(line, languageId)}
-            colors={tokenColors}
-          />
-        )}
-      </Box>
+      {row.type === "gap" ? (
+        <Box
+          component="span"
+          sx={{
+            gridColumn: "1 / -1",
+            px: 1.25,
+            color: "text.secondary",
+            fontStyle: "italic",
+            textAlign: "center",
+          }}
+        >
+          {row.gapLabel}
+        </Box>
+      ) : (
+        <>
+          <Box
+            component="span"
+            sx={{
+              userSelect: "none",
+              textAlign: "right",
+              pr: 0.5,
+              borderRight: "1px solid",
+              borderColor: "divider",
+              color: "text.secondary",
+              backgroundColor: "action.hover",
+            }}
+          >
+            {lineNumber ?? ""}
+          </Box>
+          <Box
+            component="span"
+            sx={{
+              textAlign: "center",
+              userSelect: "none",
+              color: "text.secondary",
+              fontWeight: 600,
+            }}
+          >
+            {isAbsent ? "" : prefix}
+          </Box>
+          <Box
+            component="span"
+            sx={{
+              whiteSpace: "pre-wrap",
+              overflowWrap: "anywhere",
+              maxWidth: "100ch",
+              px: 1.25,
+            }}
+          >
+            {isAbsent ? (
+              " "
+            ) : (
+              <HighlightedTokens
+                tokens={tokenizeLine(line, languageId)}
+                colors={tokenColors}
+              />
+            )}
+          </Box>
+        </>
+      )}
     </Box>
   );
 };
@@ -809,6 +830,7 @@ const OverviewRuler: React.FC<OverviewRulerProps> = ({
 export const FullFileSplitView: React.FC<FullFileSplitViewProps> = ({
   preContent,
   postContent,
+  patch,
   filePath,
   presentationMode,
   hideComments = false,
@@ -823,8 +845,11 @@ export const FullFileSplitView: React.FC<FullFileSplitViewProps> = ({
   );
 
   const allRows = useMemo(
-    () => buildFullFileSplit(preContent, postContent),
-    [preContent, postContent],
+    () =>
+      patch === undefined
+        ? buildFullFileSplit(preContent, postContent)
+        : buildUnifiedPatchSplit(patch),
+    [preContent, postContent, patch],
   );
 
   // When comments are hidden, every downstream computation — change segments,
@@ -1120,6 +1145,7 @@ export const FullFileSplitView: React.FC<FullFileSplitViewProps> = ({
   return (
     <Box
       data-testid="full-file-split-view"
+      data-language-id={languageId ?? "plain-text"}
       sx={{
         display: "flex",
         alignItems: "stretch",

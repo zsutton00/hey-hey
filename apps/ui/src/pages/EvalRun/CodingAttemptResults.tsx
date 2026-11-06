@@ -4,29 +4,10 @@ import { useTranslation } from "react-i18next";
 
 import type { EvalRecordedFileChange } from "@hey-hey/contracts/api/models";
 import { useService } from "@hey-hey/ui-common/data";
+import { SavedPatchDiffViewer } from "@hey-hey/ui-common/components";
 
 import type { CodingResults } from "./evalResultsView";
 import { shortSha } from "./shortSha";
-
-const Pre: React.FC<{ testId: string; children: string }> = ({
-  testId,
-  children,
-}) => (
-  <Box
-    component="pre"
-    data-testid={testId}
-    sx={{
-      m: 0,
-      mt: 0.5,
-      p: 1,
-      overflow: "auto",
-      fontSize: 12,
-      bgcolor: "action.hover",
-    }}
-  >
-    {children}
-  </Box>
-);
 
 /** Where the attempt started: the Service and the pinned commit. */
 export const CodingStartPoint: React.FC<{
@@ -95,7 +76,13 @@ const ChangedFile: React.FC<{ file: EvalRecordedFileChange }> = ({ file }) => {
             : t("eval.results.coding.showDiff")}
         </Button>
       </Stack>
-      {open && <Pre testId={`eval-coding-diff-${file.path}`}>{file.patch}</Pre>}
+      {open && (
+        <SavedPatchDiffViewer
+          filePath={file.path}
+          patch={file.patch}
+          testId={`eval-coding-diff-${file.path}`}
+        />
+      )}
     </Box>
   );
 };

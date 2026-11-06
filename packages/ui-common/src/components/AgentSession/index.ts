@@ -78,4 +78,6 @@ export { ChatSessionPendingPlaceholder } from "./ChatSessionPendingPlaceholder";
 export { useOpenItemsTriageRuntime } from "./useOpenItemsTriageRuntime";
 export type { OpenItemsTriageRunOptions } from "./useOpenItemsTriageRuntime";
 export { OpenItemsTriageResults } from "./OpenItemsTriageResults";
+export { SavedPatchDiffViewer } from "./CollatedFileDiffModal/SavedPatchDiffViewer";
+export type { SavedPatchDiffViewerProps } from "./CollatedFileDiffModal/SavedPatchDiffViewer";
 export { buildDirectTriggerInput } from "./runtime/hooks/directTriggerInput";
