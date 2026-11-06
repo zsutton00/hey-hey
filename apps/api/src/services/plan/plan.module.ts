@@ -19,7 +19,7 @@ import { PlanSubmissionAdmissionService } from './plan-submission-admission.serv
   imports: [
     CoreModule,
     PrismaModule,
-    WebsocketsModule,
+    forwardRef(() => WebsocketsModule),
     StagedContentModule,
     ServiceModule,
     forwardRef(() => WorkflowModule),
