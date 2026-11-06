@@ -758,11 +758,11 @@ describe("ClaimMachine", () => {
 
     // The passkey challenge commits to the duration, so choosing another
     // prepares the claim again before the passkey can be created.
-    fireEvent.click(screen.getByTestId("local-pairing-duration-EIGHT_HOURS"));
+    fireEvent.click(screen.getByTestId("local-pairing-duration-ONE_WEEK"));
     await waitFor(() =>
       expect(mocks.beginMutate).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          firstLocalGrant: { cadence: "EIGHT_HOURS" },
+          firstLocalGrant: { cadence: "ONE_WEEK" },
         }),
       ),
     );

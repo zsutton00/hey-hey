@@ -31577,6 +31577,10 @@ components:
       $ref: "../schemas/eval-runs.yaml#/EvalCaseCoding"
     EvalCaseCodingCommit:
       $ref: "../schemas/eval-runs.yaml#/EvalCaseCodingCommit"
+    EvalCaseMockupChecklist:
+      $ref: "../schemas/eval-runs.yaml#/EvalCaseMockupChecklist"
+    EvalCaseMockupChecklistItem:
+      $ref: "../schemas/eval-runs.yaml#/EvalCaseMockupChecklistItem"
     EvalRunCaseInput:
       $ref: "../schemas/eval-runs.yaml#/EvalRunCaseInput"
     EvalRecordedAttempt:

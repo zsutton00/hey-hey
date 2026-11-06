@@ -1,6 +1,6 @@
 import * as crypto from 'node:crypto';
 import {
-  ControllerAuthorizationCadence,
+  ControllerDeviceGrantCadence,
   ControllerDeviceGrantDescriptor,
   FirstLocalGrantIntent,
   RuntimeModelCatalogHostActionPreparation,
@@ -10,7 +10,7 @@ import { canonicalizeJcs } from '../../core/websockets/trigger-canonicalization'
 import { AnyTransactionClient } from '../../prisma/prisma.service';
 import { OrganizationId, UserId } from '../../types';
 import { findLocalDefaultProjectId } from '../local-default-project.service';
-import { toControllerAuthorizationCadence } from '../controller-authorization/controller-authorization-operations';
+import { toControllerDeviceGrantCadence } from '../controller-authorization/controller-authorization-operations';
 import {
   buildControllerDeviceGrantDescriptor,
   hashControllerDeviceGrantDescriptor,
@@ -49,7 +49,7 @@ export function buildFirstLocalGrantIntent(params: {
   organizationId: string;
   projectId: string;
   controllerInstallationId: string;
-  cadence: ControllerAuthorizationCadence;
+  cadence: ControllerDeviceGrantCadence;
   issuedAt: Date;
   nonce: string;
 }): FirstLocalGrantIntent {
@@ -172,14 +172,14 @@ export async function resolveFirstLocalGrantIntent(
     webauthnChallenge: string | null;
     challengeIssuedAt: Date | null;
     requestedCadence:
-      | Parameters<typeof toControllerAuthorizationCadence>[0]
+      | Parameters<typeof toControllerDeviceGrantCadence>[0]
       | null;
   },
 ): Promise<FirstLocalGrantIntent | null> {
   const cadence =
     enrollment.requestedCadence === null
       ? null
-      : toControllerAuthorizationCadence(enrollment.requestedCadence);
+      : toControllerDeviceGrantCadence(enrollment.requestedCadence);
   const nonce = enrollment.webauthnChallenge
     ? firstLocalGrantNonce(enrollment.webauthnChallenge)
     : null;

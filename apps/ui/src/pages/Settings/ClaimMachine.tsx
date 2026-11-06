@@ -1,5 +1,5 @@
 import {
-  ControllerAuthorizationCadence,
+  ControllerDeviceGrantCadence,
   CurrentControllerMachineEligibilityState,
   MachineEnrollmentClaimFailureCode,
   MachineEnrollmentMode,
@@ -220,12 +220,12 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
   );
   // First-time local pairing: the duration the same passkey grants.
   const [localGrantCadence, setLocalGrantCadence] =
-    useState<ControllerAuthorizationCadence>(
-      ControllerAuthorizationCadence.OneMonth,
+    useState<ControllerDeviceGrantCadence>(
+      ControllerDeviceGrantCadence.OneMonth,
     );
   const firstLocalGrantRequest = (
-    cadence: ControllerAuthorizationCadence,
-  ): { firstLocalGrant?: { cadence: ControllerAuthorizationCadence } } =>
+    cadence: ControllerDeviceGrantCadence,
+  ): { firstLocalGrant?: { cadence: ControllerDeviceGrantCadence } } =>
     localHandoff ? { firstLocalGrant: { cadence } } : {};
   const abandonClaim = useAbandonMachineEnrollmentClaim();
   const beginClaim = useBeginMachineEnrollmentClaim();
@@ -392,7 +392,7 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
   };
 
   const handleBegin = async (
-    cadence: ControllerAuthorizationCadence = localGrantCadence,
+    cadence: ControllerDeviceGrantCadence = localGrantCadence,
   ): Promise<void> => {
     if (!validatedClaimContext) {
       setState("identity-blocked");
@@ -490,7 +490,7 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
 
   /** The passkey challenge commits to the duration, so a change re-prepares it. */
   const handleLocalGrantCadenceChange = (
-    cadence: ControllerAuthorizationCadence,
+    cadence: ControllerDeviceGrantCadence,
   ): void => {
     setLocalGrantCadence(cadence);
     setPasskeyRetryMessage(null);

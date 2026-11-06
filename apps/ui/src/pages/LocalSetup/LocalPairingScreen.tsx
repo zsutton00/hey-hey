@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import {
-  ControllerAuthorizationCadence,
+  ControllerDeviceGrantCadence,
   LocalCodingAgentAvailability,
   type LocalCodingAgentDetectionDto,
 } from "@hey-hey/ui-common/api";
@@ -20,8 +20,8 @@ interface LocalPairingScreenProps {
   busy: boolean;
   retryMessage: string | null;
   /** How long this browser may drive this computer once the passkey is approved. */
-  cadence: ControllerAuthorizationCadence;
-  onCadenceChange: (cadence: ControllerAuthorizationCadence) => void;
+  cadence: ControllerDeviceGrantCadence;
+  onCadenceChange: (cadence: ControllerDeviceGrantCadence) => void;
   onCreatePasskey: () => void;
   onCancel: () => void;
   /** Only true when the deployment lets this passkey double as the sign-in passkey. */
@@ -29,25 +29,21 @@ interface LocalPairingScreenProps {
 }
 
 const DURATION_OPTIONS = [
-  ControllerAuthorizationCadence.FiveMinutes,
-  ControllerAuthorizationCadence.EightHours,
-  ControllerAuthorizationCadence.OneDay,
-  ControllerAuthorizationCadence.OneWeek,
-  ControllerAuthorizationCadence.OneMonth,
+  ControllerDeviceGrantCadence.OneDay,
+  ControllerDeviceGrantCadence.OneWeek,
+  ControllerDeviceGrantCadence.OneMonth,
+  ControllerDeviceGrantCadence.UntilRevoked,
 ] as const;
 
 const DURATION_KEYS = {
-  [ControllerAuthorizationCadence.FiveMinutes]:
-    "localSetup.pairing.duration.FIVE_MINUTES",
-  [ControllerAuthorizationCadence.EightHours]:
-    "localSetup.pairing.duration.EIGHT_HOURS",
-  [ControllerAuthorizationCadence.OneDay]:
-    "localSetup.pairing.duration.ONE_DAY",
-  [ControllerAuthorizationCadence.OneWeek]:
+  [ControllerDeviceGrantCadence.OneDay]: "localSetup.pairing.duration.ONE_DAY",
+  [ControllerDeviceGrantCadence.OneWeek]:
     "localSetup.pairing.duration.ONE_WEEK",
-  [ControllerAuthorizationCadence.OneMonth]:
+  [ControllerDeviceGrantCadence.OneMonth]:
     "localSetup.pairing.duration.ONE_MONTH",
-} as const satisfies Record<ControllerAuthorizationCadence, string>;
+  [ControllerDeviceGrantCadence.UntilRevoked]:
+    "localSetup.pairing.duration.UNTIL_REVOKED",
+} as const satisfies Record<(typeof DURATION_OPTIONS)[number], string>;
 
 const AGENT_KEYS = ["claude", "codex", "opencode"] as const;
 

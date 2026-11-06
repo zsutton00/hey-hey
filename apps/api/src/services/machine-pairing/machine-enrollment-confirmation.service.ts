@@ -41,7 +41,7 @@ import { ControllerBrowserBindingService } from '../controller-authorization/con
 import { hashControllerAction } from '../../generated/controller-action-contract';
 import {
   CURRENT_AGENT_OPERATIONS,
-  getControllerDeviceGrantExpiry,
+  getControllerDeviceGrantWindowExpiry,
 } from '../controller-authorization/controller-authorization-operations';
 import {
   FIRST_LOCAL_GRANT_ACTIVATION_SKEW_MS,
@@ -670,7 +670,7 @@ export class MachineEnrollmentConfirmationService {
         agentSessionId: null,
         authorizedTurnId: null,
         issuedAt,
-        expiresAt: getControllerDeviceGrantExpiry(issuedAt, cadence),
+        expiresAt: getControllerDeviceGrantWindowExpiry(issuedAt, cadence),
       },
     });
     return {

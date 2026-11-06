@@ -4173,6 +4173,7 @@ enum ControllerAuthorizationCadence {
   ONE_DAY
   ONE_WEEK
   ONE_MONTH
+  UNTIL_REVOKED
 
   @@map("controller_authorization_cadence")
 }
@@ -4481,7 +4482,7 @@ model ExecutionGrant {
   selectedWorkFingerprint  String?                        @map("selected_work_fingerprint") @db.VarChar(64)
   policyFingerprint        String?                        @map("policy_fingerprint") @db.VarChar(64)
   issuedAt                 DateTime                       @map("issued_at")
-  expiresAt                DateTime                       @map("expires_at")
+  expiresAt                DateTime?                      @map("expires_at")
   suspendedAt              DateTime?                      @map("suspended_at")
   terminalAt               DateTime?                      @map("terminal_at")
   revokedAt                DateTime?                      @map("revoked_at")

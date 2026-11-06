@@ -19,6 +19,7 @@ import {
 import * as crypto from 'node:crypto';
 import {
   ControllerAuthorizationCadence,
+  ControllerDeviceGrantCadence,
   ControllerDeviceGrantDescriptor,
   CanonicalControllerAuthorizationIntent,
   ControllerAuthorizationAllowedCredential,
@@ -65,6 +66,8 @@ import {
   CURRENT_AGENT_OPERATION_CATEGORIES,
   CURRENT_AGENT_OPERATIONS,
   getControllerDeviceGrantExpiry,
+  executionGrantNotExpired,
+  getControllerDeviceGrantWindowExpiry,
   PRISMA_CURRENT_AGENT_OPERATIONS,
   toControllerAuthorizationCadence,
 } from './controller-authorization-operations';
@@ -106,11 +109,11 @@ export function buildControllerDeviceGrantDescriptor(params: {
   actionPayloadHash: string;
   target: ResolvedTarget;
   allowedActions: HostAffectingActionType[];
-  cadence: ControllerAuthorizationCadence;
+  cadence: ControllerDeviceGrantCadence;
   policyRevision: number;
   issuedAt: Date;
 }): ControllerDeviceGrantDescriptor {
-  const effectiveExpiry = getControllerDeviceGrantExpiry(
+  const effectiveExpiry = getControllerDeviceGrantWindowExpiry(
     params.issuedAt,
     params.cadence,
   );
@@ -126,7 +129,7 @@ export function buildControllerDeviceGrantDescriptor(params: {
     allowedActionTypes: [...CURRENT_AGENT_OPERATIONS],
     allowedActionCategories: [...CURRENT_AGENT_OPERATION_CATEGORIES],
     issuedAtMs: params.issuedAt.getTime(),
-    effectiveExpiresAtMs: effectiveExpiry.getTime(),
+    effectiveExpiresAtMs: effectiveExpiry?.getTime() ?? null,
   };
 }
 
@@ -247,7 +250,7 @@ export class ControllerAuthorizationService {
         allowedActions: {
           hasEvery: PRISMA_CURRENT_AGENT_OPERATIONS,
         },
-        expiresAt: { gt: now },
+        AND: [executionGrantNotExpired(now)],
         suspendedAt: null,
         terminalAt: null,
         revokedAt: null,
@@ -293,7 +296,7 @@ export class ControllerAuthorizationService {
     return {
       outcome: 'ACTIVE_GRANT',
       authorization: { kind: 'bounded_grant', grantId: grant.id },
-      effectiveExpiresAtMs: grant.expiresAt.getTime(),
+      effectiveExpiresAtMs: grant.expiresAt?.getTime() ?? null,
     } satisfies ResolveControllerAuthorizationResponseDto;
   }
 
@@ -422,7 +425,10 @@ export class ControllerAuthorizationService {
       projectId,
       cadence: input.cadence,
       policyRevision,
-      effectiveGrantExpiresAtMs: grantDescriptor.effectiveExpiresAtMs,
+      effectiveGrantExpiresAtMs: getControllerDeviceGrantExpiry(
+        issuedAt,
+        input.cadence,
+      ).getTime(),
       grantDescriptorHash,
       actionCategory: resolvedAction.payload.actionCategory,
       actionType: resolvedAction.payload.actionType,

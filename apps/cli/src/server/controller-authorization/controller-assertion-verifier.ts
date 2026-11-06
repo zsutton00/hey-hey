@@ -163,6 +163,7 @@ const verifyGrantDescriptor = (
   const cadenceTtlMs = CONTROLLER_AUTHORIZATION_CADENCE_TTL_MS.get(intent.cadence);
   if (
     cadenceTtlMs === undefined ||
+    descriptor.effectiveExpiresAtMs === null ||
     !Number.isSafeInteger(descriptor.effectiveExpiresAtMs) ||
     descriptor.effectiveExpiresAtMs <= descriptor.issuedAtMs ||
     descriptor.effectiveExpiresAtMs - descriptor.issuedAtMs !== cadenceTtlMs ||

@@ -90,7 +90,7 @@ export const verifiedFirstLocalGrantIntent = (
     intent.organizationId === claim.organizationId &&
     intent.target.kind === 'CLI_READ' &&
     intent.target.id === claim.machineId &&
-    CONTROLLER_AUTHORIZATION_CADENCE_TTL_MS.has(intent.cadence) &&
+    isSupportedFirstGrantCadence(intent.cadence) &&
     Number.isSafeInteger(intent.policyRevision) &&
     intent.policyRevision >= 1 &&
     hasExactCurrentAgentOperations([...intent.allowedActionTypes]) &&
@@ -100,14 +100,24 @@ export const verifiedFirstLocalGrantIntent = (
   return matches ? intent : null;
 };
 
+const isSupportedFirstGrantCadence = (cadence: string): boolean =>
+  cadence === 'UNTIL_REVOKED' || CONTROLLER_AUTHORIZATION_CADENCE_TTL_MS.has(cadence);
+
+/** Null for UNTIL_REVOKED, which has no expiry. */
+const firstGrantExpiresAtMs = (cadence: string, issuedAtMs: number): number | null => {
+  const ttlMs = CONTROLLER_AUTHORIZATION_CADENCE_TTL_MS.get(cadence);
+  return ttlMs === undefined ? null : issuedAtMs + ttlMs;
+};
+
 /** The ordinary controller-device descriptor, with its window starting at `issuedAtMs`. */
 export const firstLocalGrantDescriptor = (
   intent: FirstLocalGrantIntent,
   controllerCredentialId: string,
   issuedAtMs: number,
 ): ControllerDeviceGrantDescriptor => {
-  const ttlMs = CONTROLLER_AUTHORIZATION_CADENCE_TTL_MS.get(intent.cadence);
-  if (ttlMs === undefined) throw new Error('First grant cadence is not supported.');
+  if (!isSupportedFirstGrantCadence(intent.cadence)) {
+    throw new Error('First grant cadence is not supported.');
+  }
   return {
     scope: 'controller_device_window',
     controllerCredentialId,
@@ -120,7 +130,7 @@ export const firstLocalGrantDescriptor = (
     allowedActionTypes: [...intent.allowedActionTypes],
     allowedActionCategories: [...intent.allowedActionCategories],
     issuedAtMs,
-    effectiveExpiresAtMs: issuedAtMs + ttlMs,
+    effectiveExpiresAtMs: firstGrantExpiresAtMs(intent.cadence, issuedAtMs),
   };
 };
 

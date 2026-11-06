@@ -4,7 +4,7 @@ import type {
   BoundedGrantReference,
   CanonicalControllerAuthorizationIntent,
   ExecutableControllerAssertionEvidence,
-  ControllerAuthorizationCadence,
+  ControllerDeviceGrantCadence,
   ControllerDeviceGrantDescriptor,
   ControllerDeviceGrantScope,
   CurrentAgentOperation as CurrentAgentOperationValue,
@@ -136,12 +136,13 @@ export interface ExecutionGrant {
   machineId: string;
   userId: string;
   organizationId: string;
-  cadence: ControllerAuthorizationCadence;
+  cadence: ControllerDeviceGrantCadence;
   policyRevision: number;
   allowedActionTypes: CurrentAgentOperationValue[];
   allowedActionCategories: HostActionCategory[];
   issuedAtMs: number;
-  effectiveExpiresAtMs: number;
+  /** Null for an UNTIL_REVOKED grant, which stays valid until revoked. */
+  effectiveExpiresAtMs: number | null;
   descriptorHash: string;
   controllerCredentialFingerprint: string;
   suspended: boolean;

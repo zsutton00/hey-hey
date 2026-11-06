@@ -26,6 +26,7 @@ import type {
   ConfirmMachineEnrollmentRequestDto,
   ConfirmMachineEnrollmentResponseDto,
   ControllerAuthorizationCadence,
+  ControllerDeviceGrantCadence,
   FirstLocalGrantIntent,
 } from '../../shared/api/index';
 import { ControllerRegistryStore } from '../../credentials/controller-registry';
@@ -811,6 +812,10 @@ describe('first-time heyhey local grant', () => {
     ONE_MONTH: 30 * 24 * 60 * 60 * 1000,
   };
 
+  // UNTIL_REVOKED is the one cadence with no expiry.
+  const expiryFor = (cadence: ControllerDeviceGrantCadence, issuedAtMs: number): number | null =>
+    cadence === 'UNTIL_REVOKED' ? null : issuedAtMs + CADENCE_TTL_MS[cadence];
+
   let directory: string;
   beforeEach(async () => {
     directory = await fs.mkdtemp(path.join(os.tmpdir(), 'first-local-grant-'));
@@ -819,7 +824,7 @@ describe('first-time heyhey local grant', () => {
     await fs.rm(directory, { recursive: true, force: true });
   });
 
-  const intentFor = (cadence: ControllerAuthorizationCadence): FirstLocalGrantIntent => ({
+  const intentFor = (cadence: ControllerDeviceGrantCadence): FirstLocalGrantIntent => ({
     version: 1,
     enrollmentId: ENROLLMENT_ID,
     machineId: MACHINE_ID,
@@ -866,7 +871,7 @@ describe('first-time heyhey local grant', () => {
     allowedActionTypes: [...intent.allowedActionTypes],
     allowedActionCategories: [...intent.allowedActionCategories],
     issuedAtMs,
-    effectiveExpiresAtMs: issuedAtMs + CADENCE_TTL_MS[intent.cadence],
+    effectiveExpiresAtMs: expiryFor(intent.cadence, issuedAtMs),
   });
 
   const hashDescriptor = (descriptor: ReturnType<typeof descriptorFor>): string =>
@@ -894,7 +899,7 @@ describe('first-time heyhey local grant', () => {
    * answers with the grant `respondWith` describes for the signed request.
    */
   const pair = async (options: {
-    cadence?: ControllerAuthorizationCadence;
+    cadence?: ControllerDeviceGrantCadence;
     tamperIntent?: (intent: FirstLocalGrantIntent) => FirstLocalGrantIntent;
     proof?: 'valid' | 'missing';
     respondWith?: (
@@ -1042,16 +1047,30 @@ describe('first-time heyhey local grant', () => {
     });
   });
 
-  it.each(Object.keys(CADENCE_TTL_MS) as ControllerAuthorizationCadence[])(
+  it.each([...Object.keys(CADENCE_TTL_MS), 'UNTIL_REVOKED'] as ControllerDeviceGrantCadence[])(
     'grants exactly the %s window the person chose',
     async (cadence) => {
       const { store } = await pair({ cadence });
       await expect(store.get(GRANT_ID)).resolves.toMatchObject({
         cadence,
-        effectiveExpiresAtMs: NOW + CADENCE_TTL_MS[cadence],
+        effectiveExpiresAtMs: expiryFor(cadence, NOW),
       });
     },
   );
+
+  it('keeps an until-revoked grant usable long after any bounded window, until it is revoked', async () => {
+    const { store } = await pair({ cadence: 'UNTIL_REVOKED' });
+    const muchLater = () => NOW + 10 * 365 * 24 * 60 * 60 * 1000;
+
+    await expect(
+      admission(grantStore(muchLater), muchLater).admit(reuse('CLI_READ')),
+    ).resolves.toMatchObject({ admitted: true, grantId: GRANT_ID });
+
+    await store.revoke(GRANT_ID);
+    await expect(
+      admission(grantStore(muchLater), muchLater).admit(reuse('CLI_READ')),
+    ).resolves.toEqual({ admitted: false, reason: 'GRANT_NOT_ACTIVE' });
+  });
 
   it('refuses reuse after expiry, after revocation, and from another machine or account', async () => {
     const { store } = await pair({ cadence: 'FIVE_MINUTES' });

@@ -140,7 +140,14 @@ const publicKeySchema = z
   })
   .strict();
 
-const cadenceSchema = z.enum(['FIVE_MINUTES', 'EIGHT_HOURS', 'ONE_DAY', 'ONE_WEEK', 'ONE_MONTH']);
+const cadenceSchema = z.enum([
+  'FIVE_MINUTES',
+  'EIGHT_HOURS',
+  'ONE_DAY',
+  'ONE_WEEK',
+  'ONE_MONTH',
+  'UNTIL_REVOKED',
+]);
 
 const firstLocalGrantIntentSchema = z
   .object({
@@ -247,7 +254,7 @@ const storedActivationSchema = z
             allowedActionTypes: z.array(z.nativeEnum(CurrentAgentOperation)),
             allowedActionCategories: z.array(z.nativeEnum(HostActionCategory)),
             issuedAtMs: z.number().int(),
-            effectiveExpiresAtMs: z.number().int(),
+            effectiveExpiresAtMs: z.number().int().nullable(),
           })
           .strict(),
       })
@@ -522,7 +529,7 @@ export class MachineEnrollmentConfirmation {
       }
       return;
     }
-    if (descriptor.effectiveExpiresAtMs <= this.now()) {
+    if (descriptor.effectiveExpiresAtMs !== null && descriptor.effectiveExpiresAtMs <= this.now()) {
       this.log('The first access window ended before it could be installed.');
       return;
     }

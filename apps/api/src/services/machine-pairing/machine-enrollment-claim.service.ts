@@ -16,7 +16,7 @@ import {
   BeginMachineEnrollmentClaimResponseDto,
   CompleteMachineEnrollmentClaimRequestDto,
   CompleteMachineEnrollmentClaimResponseDto,
-  ControllerAuthorizationCadence,
+  ControllerDeviceGrantCadence,
   MachineEnrollmentMode,
   MachineEnrollmentWebAuthnRegistrationCredentialDto,
 } from '@hey-hey/contracts/api/models';
@@ -1340,7 +1340,7 @@ export class MachineEnrollmentClaimService {
       typeof value === 'object' &&
       value !== null &&
       this.hasExactKeys(value, ['cadence']) &&
-      Object.values<unknown>(ControllerAuthorizationCadence).includes(
+      Object.values<unknown>(ControllerDeviceGrantCadence).includes(
         (value as { cadence: unknown }).cadence,
       )
     );

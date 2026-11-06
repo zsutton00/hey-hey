@@ -36,27 +36,26 @@ const renderScreen = (
 };
 
 describe("LocalPairingScreen", () => {
-  it("offers the five durations, shows the chosen one and explains the permission", async () => {
+  it("offers the local durations, shows the chosen one and explains the permission", async () => {
     const handlers = renderScreen();
 
     expect(
       screen
         .getAllByRole("radio")
         .map((radio) => (radio as HTMLInputElement).value),
-    ).toEqual([
-      "FIVE_MINUTES",
-      "EIGHT_HOURS",
-      "ONE_DAY",
-      "ONE_WEEK",
-      "ONE_MONTH",
-    ]);
+    ).toEqual(["ONE_DAY", "ONE_WEEK", "ONE_MONTH", "UNTIL_REVOKED"]);
     expect(screen.getByRole("radio", { name: "1 month" })).toBeChecked();
     expect(screen.getByTestId("local-pairing-permission")).toHaveTextContent(
       /until this time ends or you revoke access/i,
     );
 
-    await userEvent.click(screen.getByRole("radio", { name: "5 minutes" }));
-    expect(handlers.onCadenceChange).toHaveBeenCalledWith("FIVE_MINUTES");
+    await userEvent.click(screen.getByRole("radio", { name: "1 week" }));
+    expect(handlers.onCadenceChange).toHaveBeenCalledWith("ONE_WEEK");
+
+    await userEvent.click(
+      screen.getByRole("radio", { name: "Until I revoke it" }),
+    );
+    expect(handlers.onCadenceChange).toHaveBeenCalledWith("UNTIL_REVOKED");
   });
 
   it("explains the passkey, the privacy promise and lists the agents found", () => {
