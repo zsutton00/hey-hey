@@ -14,21 +14,27 @@ export class ProceduralProvider {
     if (!model) {
       throw new Error('Onboarding requires a complete saved runtime selection');
     }
-    return this.run.captureProviderOutput(async () => {
-      const result = await this.providers.runPrompt(this.run, {
-        session,
-        prompt,
-        model,
-        ...(session.reasoningEffort ? { reasoningEffort: session.reasoningEffort } : {}),
-        signal,
-        mcpToolUseCase: 'local_onboarding',
-        replaceProviderSystemPrompt: true,
-        readOnlyFilesystem: true,
-        builtinTools: [],
+    // Captured output never reaches the status handler, so the call itself is the working interval.
+    this.run.observeProviderPhase('thinking');
+    try {
+      return await this.run.captureProviderOutput(async () => {
+        const result = await this.providers.runPrompt(this.run, {
+          session,
+          prompt,
+          model,
+          ...(session.reasoningEffort ? { reasoningEffort: session.reasoningEffort } : {}),
+          signal,
+          mcpToolUseCase: 'local_onboarding',
+          replaceProviderSystemPrompt: true,
+          readOnlyFilesystem: true,
+          builtinTools: [],
+        });
+        if (result.errorCount > 0) {
+          throw new Error('The onboarding provider request failed');
+        }
       });
-      if (result.errorCount > 0) {
-        throw new Error('The onboarding provider request failed');
-      }
-    });
+    } finally {
+      this.run.observeProviderPhase('idle');
+    }
   }
 }

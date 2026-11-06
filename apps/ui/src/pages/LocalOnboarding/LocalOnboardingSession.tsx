@@ -67,6 +67,7 @@ export function LocalOnboardingSession({
         project={project}
         agentSessionId={session.id}
         agentSessionCurrentState={session.currentState}
+        showAgentSessionCurrentStateIndicator
         scrollPolicy={DISABLED_CONVERSATION_SCROLL_POLICY}
         stepCount={-1}
         showNavigation
