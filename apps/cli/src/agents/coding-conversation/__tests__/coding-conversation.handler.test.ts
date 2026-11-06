@@ -23,6 +23,7 @@ import {
   type CodingConversationPreparedPayload,
 } from '../../prompts/coding-conversation';
 import { codingFreeformHandler, freeFormHandler } from '../coding-conversation.handler';
+import { homePageBlockedFinding } from '../../implementation-readiness/__tests__/readiness-finding.fixture';
 
 const makeStartupInput = (): LocalPromptStartupInput => ({
   task: {
@@ -144,13 +145,7 @@ const readinessDisposition = {
     sourceRevision: 'sha256:readiness-source',
     capturedAt: '2026-09-17T19:00:00.000Z',
   },
-  finding: {
-    affectedSourceContext: 'Task context',
-    unresolvedDecision: 'Who owns the write?',
-    consequentialInventionRisk: 'The implementation would invent ownership.',
-    boundedEvidence: [{ category: 'ownership', statement: 'The task leaves ownership open.' }],
-    answerKind: 'Name the owner.',
-  },
+  finding: homePageBlockedFinding,
   resolution: { kind: 'NONE' },
 };
 
@@ -400,18 +395,13 @@ describe('launch preparation', () => {
       implementationReadinessSourceSnapshot:
         readinessDisposition.sourceSnapshot as ImplementationReadinessSourceSnapshot,
       implementationReadinessClarification: {
-        finding: {
-          affectedSourceContext: 'Task context',
-          unresolvedDecision: 'Who owns the write?',
-          consequentialInventionRisk: 'The implementation would invent ownership.',
-          boundedEvidence: [{ category: 'ownership', statement: 'Ownership is open.' }],
-          answerKind: 'Name the owner.',
-        },
+        finding: homePageBlockedFinding,
       },
     });
 
     expect(prompt).toContain('## Readiness clarification');
-    expect(prompt).toContain('The open decision was: Who owns the write?');
+    expect(prompt).toContain(homePageBlockedFinding.problem);
+    expect(prompt).toContain(homePageBlockedFinding.userRequest);
     expect(prompt).toContain('with a `CLEAR` disposition');
     expect(prompt.indexOf('## Readiness clarification')).toBeLessThan(
       prompt.indexOf('## Implementation-readiness preflight'),

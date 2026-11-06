@@ -10,6 +10,7 @@ import {
   parsePlanShapingFeatureSyncIterateResponse,
   parseImplementationReadinessResponse,
 } from './response-schemas';
+import { homePageBlockedFinding } from './implementation-readiness/__tests__/readiness-finding.fixture';
 
 const validImplementationReadinessResponse = {
   responseType: 'implementation_readiness_v1',
@@ -22,18 +23,7 @@ const validImplementationReadinessResponse = {
       sourceRevision: 'sha256:source',
       capturedAt: '2026-09-17T19:00:00.000Z',
     },
-    finding: {
-      affectedSourceContext: 'Task context',
-      unresolvedDecision: 'Which observable behavior should the boundary provide?',
-      consequentialInventionRisk: 'Implementation would invent observable behavior.',
-      boundedEvidence: [
-        {
-          category: 'behavior',
-          statement: 'The checked context leaves two observable outcomes open.',
-        },
-      ],
-      answerKind: 'Choose the observable behavior.',
-    },
+    finding: homePageBlockedFinding,
     resolution: { kind: 'NONE' },
   },
 };

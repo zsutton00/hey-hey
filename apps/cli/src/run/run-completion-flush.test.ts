@@ -25,6 +25,7 @@ import type {
 import type { MessagePoster } from './message-poster';
 import { createPromptTypeHandlerTestDeps } from '../agents/prompt-type-handler.test-support';
 import { WorkflowDispatchVerdictReader } from '../server/services/workflow-dispatch-verdict';
+import { homePageBlockedFinding } from '../agents/implementation-readiness/__tests__/readiness-finding.fixture';
 
 // Bypass the heavy resolver / registry / reference validator so the test can
 // drive Run.handleMessage end-to-end with a synthetic subagent handler.
@@ -582,18 +583,7 @@ describe('Run.drainInFlightDispatch', () => {
           sourceRevision: 'sha256:source-revision',
           capturedAt: '2026-09-20T00:00:00.000Z',
         },
-        finding: {
-          affectedSourceContext: 'The task and its project context',
-          unresolvedDecision: 'Which service owns the persisted disposition?',
-          consequentialInventionRisk: 'Coding would otherwise invent observable behavior.',
-          boundedEvidence: [
-            {
-              category: 'ownership',
-              statement: 'The source does not identify the owning service.',
-            },
-          ],
-          answerKind: 'Name the authoritative owner.',
-        },
+        finding: homePageBlockedFinding,
         resolution: { kind: 'NONE' },
       },
     });

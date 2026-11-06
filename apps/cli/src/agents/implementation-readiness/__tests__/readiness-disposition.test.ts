@@ -10,6 +10,7 @@ import {
   parseImplementationReadinessFromSessionContext,
   serializeImplementationReadinessToSessionContext,
 } from '../session-context';
+import { homePageBlockedFinding, legacyReadinessFinding } from './readiness-finding.fixture';
 
 const capturedAt = '2026-09-17T20:00:00.000Z';
 
@@ -26,19 +27,7 @@ const makeSnapshot = (decision = 'store server-owned state') =>
     },
   });
 
-const finding = {
-  affectedSourceContext: 'The task description and API design doc',
-  unresolvedDecision: 'Which persistence lifecycle should the implementation preserve?',
-  consequentialInventionRisk: 'Implementation could lose or duplicate durable state.',
-  boundedEvidence: [
-    {
-      category: 'data_lifecycle' as const,
-      statement: 'The task leaves two candidate persistence lifecycles unresolved.',
-      sourceRef: 'task.description',
-    },
-  ],
-  answerKind: 'Choose the authoritative persistence lifecycle.',
-};
+const finding = homePageBlockedFinding;
 
 const makeDisposition = (
   overrides: Partial<ImplementationReadinessDisposition> = {},
@@ -135,6 +124,21 @@ describe('implementation-readiness disposition', () => {
     expect(legacyWaived?.state).toBe('DISMISSED');
     expect(legacyWaived?.resolution.kind).toBe('DISMISSED');
     expect(allowsImplementation(legacyWaived)).toBe(true);
+  });
+
+  it('restores a saved finding in either layout without rewriting it', () => {
+    const restore = (savedFinding: unknown) =>
+      parseImplementationReadinessFromSessionContext({
+        implementationReadiness: {
+          state: 'REVIEW_REQUIRED',
+          sourceSnapshot: makeSnapshot(),
+          finding: savedFinding,
+          resolution: { kind: 'NONE' },
+        },
+      });
+
+    expect(restore(homePageBlockedFinding)?.finding).toEqual(homePageBlockedFinding);
+    expect(restore(legacyReadinessFinding)?.finding).toEqual(legacyReadinessFinding);
   });
 
   it('rejects a dismissal bound to another run or source revision', () => {

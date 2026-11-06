@@ -3320,77 +3320,288 @@ export const controllerActionRuntimeSchema = {
                     {
                       allOf: [
                         {
-                          type: 'object',
-                          additionalProperties: false,
-                          required: [
-                            'affectedSourceContext',
-                            'unresolvedDecision',
-                            'consequentialInventionRisk',
-                            'boundedEvidence',
-                            'answerKind',
-                          ],
-                          properties: {
-                            affectedSourceContext: {
-                              type: 'string',
-                              minLength: 1,
+                          description:
+                            'A finding as stored with a disposition: the current explained layout, or the earlier layout kept readable for saved sessions.',
+                          oneOf: [
+                            {
+                              type: 'object',
+                              additionalProperties: false,
+                              required: [
+                                'requestedOutcome',
+                                'reasoningTrail',
+                                'problem',
+                                'failureScenario',
+                                'fixSteps',
+                                'userRequest',
+                                'boundedEvidence',
+                              ],
                               description:
-                                'Source-bound context presented in the Issue section.',
-                            },
-                            unresolvedDecision: {
-                              type: 'string',
-                              minLength: 1,
-                              description:
-                                'Unresolved choice included in the How to resolve section.',
-                            },
-                            consequentialInventionRisk: {
-                              type: 'string',
-                              minLength: 1,
-                              description:
-                                'Consequence presented in the What could go wrong section.',
-                            },
-                            boundedEvidence: {
-                              type: 'array',
-                              minItems: 1,
-                              maxItems: 8,
-                              items: {
-                                type: 'object',
-                                additionalProperties: false,
-                                required: ['category', 'statement'],
-                                properties: {
-                                  category: {
-                                    description:
-                                      'Machine-readable evidence classification; presentation does not prefix the statement with it.',
-                                    type: 'string',
-                                    enum: [
-                                      'behavior',
-                                      'ownership',
-                                      'data_lifecycle',
-                                      'authority',
-                                      'security',
-                                      'isolation',
-                                      'integration',
-                                    ],
+                                'Plain-language explanation of why work cannot start yet, written for a reader who has not followed the analysis. Use ordinary words and define any technical term the first time it appears.',
+                              properties: {
+                                requestedOutcome: {
+                                  type: 'string',
+                                  minLength: 1,
+                                  description:
+                                    'What the user asked for, in ordinary language.',
+                                },
+                                reasoningTrail: {
+                                  type: 'array',
+                                  minItems: 2,
+                                  maxItems: 4,
+                                  description:
+                                    'Ordered short trail from the request to the problem, each step naming a real task or document consulted.',
+                                  items: {
+                                    type: 'object',
+                                    additionalProperties: false,
+                                    required: ['source', 'explanation'],
+                                    properties: {
+                                      source: {
+                                        type: 'object',
+                                        additionalProperties: false,
+                                        required: [
+                                          'entityType',
+                                          'entityId',
+                                          'title',
+                                        ],
+                                        properties: {
+                                          entityType: {
+                                            type: 'string',
+                                            enum: [
+                                              'TASK',
+                                              'FEATURE',
+                                              'DESIGN_DOC',
+                                              'PLAN',
+                                              'CONTRACT',
+                                              'SERVICE',
+                                            ],
+                                            description:
+                                              'Kind of project item a readiness finding cites.',
+                                          },
+                                          entityId: {
+                                            type: 'string',
+                                            format: 'uuid',
+                                            description:
+                                              'Full id of the cited project item.',
+                                          },
+                                          title: {
+                                            type: 'string',
+                                            minLength: 1,
+                                            description:
+                                              "The cited item's real title, shown to the user as a link.",
+                                          },
+                                        },
+                                        description:
+                                          'A real project item, cited so the user can open it.',
+                                      },
+                                      explanation: {
+                                        type: 'string',
+                                        minLength: 1,
+                                        description:
+                                          'One plain sentence on what the agent learned from this item and why it led to the next step.',
+                                      },
+                                    },
                                   },
-                                  statement: {
+                                },
+                                problem: {
+                                  type: 'string',
+                                  minLength: 1,
+                                  description: 'The problem in one sentence.',
+                                },
+                                failureScenario: {
+                                  type: 'array',
+                                  minItems: 2,
+                                  maxItems: 8,
+                                  description:
+                                    'Ordered steps that begin in a normal situation and end in the concrete failure.',
+                                  items: {
                                     type: 'string',
                                     minLength: 1,
                                   },
-                                  sourceRef: {
-                                    type: 'string',
-                                    minLength: 1,
+                                },
+                                fixSteps: {
+                                  type: 'array',
+                                  minItems: 1,
+                                  maxItems: 8,
+                                  description:
+                                    'Ordered steps that resolve the problem.',
+                                  items: {
+                                    type: 'object',
+                                    additionalProperties: false,
+                                    required: ['owner', 'action', 'state'],
                                     description:
-                                      'Bounded reference to the project evidence supporting the statement.',
+                                      'One step toward resolving the problem. The owner may be a different item from the one being implemented.',
+                                    properties: {
+                                      owner: {
+                                        type: 'object',
+                                        additionalProperties: false,
+                                        required: [
+                                          'entityType',
+                                          'entityId',
+                                          'title',
+                                        ],
+                                        properties: {
+                                          entityType: {
+                                            type: 'string',
+                                            enum: [
+                                              'TASK',
+                                              'FEATURE',
+                                              'DESIGN_DOC',
+                                              'PLAN',
+                                              'CONTRACT',
+                                              'SERVICE',
+                                            ],
+                                            description:
+                                              'Kind of project item a readiness finding cites.',
+                                          },
+                                          entityId: {
+                                            type: 'string',
+                                            format: 'uuid',
+                                            description:
+                                              'Full id of the cited project item.',
+                                          },
+                                          title: {
+                                            type: 'string',
+                                            minLength: 1,
+                                            description:
+                                              "The cited item's real title, shown to the user as a link.",
+                                          },
+                                        },
+                                        description:
+                                          'A real project item, cited so the user can open it.',
+                                      },
+                                      action: {
+                                        type: 'string',
+                                        minLength: 1,
+                                        description:
+                                          'What must happen in this step, in plain words.',
+                                      },
+                                      state: {
+                                        type: 'string',
+                                        enum: [
+                                          'DONE',
+                                          'REMAINING',
+                                          'USER_DECISION',
+                                        ],
+                                        description:
+                                          'DONE means the step is already complete. REMAINING means work is still to be done and needs no decision from the user. USER_DECISION means the user must decide before the step can happen.',
+                                      },
+                                    },
+                                  },
+                                },
+                                userRequest: {
+                                  type: 'string',
+                                  minLength: 1,
+                                  description:
+                                    'The one specific thing the agent needs from the user.',
+                                },
+                                boundedEvidence: {
+                                  type: 'array',
+                                  minItems: 1,
+                                  maxItems: 8,
+                                  description:
+                                    'Supporting evidence kept with the finding; it is not shown as a separate section.',
+                                  items: {
+                                    type: 'object',
+                                    additionalProperties: false,
+                                    required: ['category', 'statement'],
+                                    properties: {
+                                      category: {
+                                        description:
+                                          'Machine-readable evidence classification; presentation does not prefix the statement with it.',
+                                        type: 'string',
+                                        enum: [
+                                          'behavior',
+                                          'ownership',
+                                          'data_lifecycle',
+                                          'authority',
+                                          'security',
+                                          'isolation',
+                                          'integration',
+                                        ],
+                                      },
+                                      statement: {
+                                        type: 'string',
+                                        minLength: 1,
+                                      },
+                                      sourceRef: {
+                                        type: 'string',
+                                        minLength: 1,
+                                        description:
+                                          'Bounded reference to the project evidence supporting the statement.',
+                                      },
+                                    },
                                   },
                                 },
                               },
                             },
-                            answerKind: {
-                              type: 'string',
-                              minLength: 1,
+                            {
+                              type: 'object',
+                              additionalProperties: false,
+                              required: [
+                                'affectedSourceContext',
+                                'unresolvedDecision',
+                                'consequentialInventionRisk',
+                                'boundedEvidence',
+                                'answerKind',
+                              ],
                               description:
-                                'Requested clarification included with unresolvedDecision in the How to resolve section.',
+                                'Finding layout stored before the explained layout existed. It is read for saved sessions only; new findings never use it.',
+                              properties: {
+                                affectedSourceContext: {
+                                  type: 'string',
+                                  minLength: 1,
+                                },
+                                unresolvedDecision: {
+                                  type: 'string',
+                                  minLength: 1,
+                                },
+                                consequentialInventionRisk: {
+                                  type: 'string',
+                                  minLength: 1,
+                                },
+                                boundedEvidence: {
+                                  type: 'array',
+                                  minItems: 1,
+                                  maxItems: 8,
+                                  items: {
+                                    type: 'object',
+                                    additionalProperties: false,
+                                    required: ['category', 'statement'],
+                                    properties: {
+                                      category: {
+                                        description:
+                                          'Machine-readable evidence classification; presentation does not prefix the statement with it.',
+                                        type: 'string',
+                                        enum: [
+                                          'behavior',
+                                          'ownership',
+                                          'data_lifecycle',
+                                          'authority',
+                                          'security',
+                                          'isolation',
+                                          'integration',
+                                        ],
+                                      },
+                                      statement: {
+                                        type: 'string',
+                                        minLength: 1,
+                                      },
+                                      sourceRef: {
+                                        type: 'string',
+                                        minLength: 1,
+                                        description:
+                                          'Bounded reference to the project evidence supporting the statement.',
+                                      },
+                                    },
+                                  },
+                                },
+                                answerKind: {
+                                  type: 'string',
+                                  minLength: 1,
+                                },
+                              },
                             },
-                          },
+                          ],
                         },
                       ],
                     },
@@ -5998,7 +6209,7 @@ export const controllerActionRuntimeSchema = {
                   assessedOutput: {
                     type: 'string',
                     description:
-                      'Which output the judge assesses for an attempt. CODE_CHANGES is the recorded changes and test checks of a coding attempt, not its chat reply.\n',
+                      'Which output the judge assesses for an attempt. CODE_CHANGES is the recorded changes of a coding attempt, not its chat reply.\n',
                     enum: ['RESEARCH_REPORT', 'HANDLER_REPLY', 'CODE_CHANGES'],
                   },
                 },
@@ -6165,15 +6376,6 @@ export const controllerActionRuntimeSchema = {
                             description:
                               'First line of the commit message, shown for recognition.',
                           },
-                        },
-                      },
-                      testCommands: {
-                        type: 'array',
-                        description:
-                          'Targeted commands the runner runs after the agent finishes. The agent does not run them. Empty or absent means no tests run.\n',
-                        items: {
-                          type: 'string',
-                          minLength: 1,
                         },
                       },
                       knownGoodDiff: {

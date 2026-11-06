@@ -132,7 +132,122 @@ ImplementationReadinessSourceSnapshot:
       type: string
       format: date-time
 
+ImplementationReadinessSourceEntityType:
+  type: string
+  enum: [TASK, FEATURE, DESIGN_DOC, PLAN, CONTRACT, SERVICE]
+  description: Kind of project item a readiness finding cites.
+
+ImplementationReadinessItemReference:
+  type: object
+  additionalProperties: false
+  required: [entityType, entityId, title]
+  properties:
+    entityType:
+      $ref: "#/ImplementationReadinessSourceEntityType"
+    entityId:
+      type: string
+      format: uuid
+      description: Full id of the cited project item.
+    title:
+      type: string
+      minLength: 1
+      description: The cited item's real title, shown to the user as a link.
+  description: A real project item, cited so the user can open it.
+
+ImplementationReadinessTrailEntry:
+  type: object
+  additionalProperties: false
+  required: [source, explanation]
+  properties:
+    source:
+      $ref: "#/ImplementationReadinessItemReference"
+    explanation:
+      type: string
+      minLength: 1
+      description: One plain sentence on what the agent learned from this item and why it led to the next step.
+
+ImplementationReadinessFixStepState:
+  type: string
+  enum: [DONE, REMAINING, USER_DECISION]
+  description: >-
+    DONE means the step is already complete. REMAINING means work is still to
+    be done and needs no decision from the user. USER_DECISION means the user
+    must decide before the step can happen.
+
+ImplementationReadinessFixStep:
+  type: object
+  additionalProperties: false
+  required: [owner, action, state]
+  description: One step toward resolving the problem. The owner may be a different item from the one being implemented.
+  properties:
+    owner:
+      $ref: "#/ImplementationReadinessItemReference"
+    action:
+      type: string
+      minLength: 1
+      description: What must happen in this step, in plain words.
+    state:
+      $ref: "#/ImplementationReadinessFixStepState"
+
 ImplementationReadinessFinding:
+  type: object
+  additionalProperties: false
+  required:
+    - requestedOutcome
+    - reasoningTrail
+    - problem
+    - failureScenario
+    - fixSteps
+    - userRequest
+    - boundedEvidence
+  description: >-
+    Plain-language explanation of why work cannot start yet, written for a
+    reader who has not followed the analysis. Use ordinary words and define any
+    technical term the first time it appears.
+  properties:
+    requestedOutcome:
+      type: string
+      minLength: 1
+      description: What the user asked for, in ordinary language.
+    reasoningTrail:
+      type: array
+      minItems: 2
+      maxItems: 4
+      description: Ordered short trail from the request to the problem, each step naming a real task or document consulted.
+      items:
+        $ref: "#/ImplementationReadinessTrailEntry"
+    problem:
+      type: string
+      minLength: 1
+      description: The problem in one sentence.
+    failureScenario:
+      type: array
+      minItems: 2
+      maxItems: 8
+      description: Ordered steps that begin in a normal situation and end in the concrete failure.
+      items:
+        type: string
+        minLength: 1
+    fixSteps:
+      type: array
+      minItems: 1
+      maxItems: 8
+      description: Ordered steps that resolve the problem.
+      items:
+        $ref: "#/ImplementationReadinessFixStep"
+    userRequest:
+      type: string
+      minLength: 1
+      description: The one specific thing the agent needs from the user.
+    boundedEvidence:
+      type: array
+      minItems: 1
+      maxItems: 8
+      description: Supporting evidence kept with the finding; it is not shown as a separate section.
+      items:
+        $ref: "#/ImplementationReadinessEvidence"
+
+ImplementationReadinessLegacyFinding:
   type: object
   additionalProperties: false
   required:
@@ -141,19 +256,19 @@ ImplementationReadinessFinding:
     - consequentialInventionRisk
     - boundedEvidence
     - answerKind
+  description: >-
+    Finding layout stored before the explained layout existed. It is read for
+    saved sessions only; new findings never use it.
   properties:
     affectedSourceContext:
       type: string
       minLength: 1
-      description: Source-bound context presented in the Issue section.
     unresolvedDecision:
       type: string
       minLength: 1
-      description: Unresolved choice included in the How to resolve section.
     consequentialInventionRisk:
       type: string
       minLength: 1
-      description: Consequence presented in the What could go wrong section.
     boundedEvidence:
       type: array
       minItems: 1
@@ -163,7 +278,14 @@ ImplementationReadinessFinding:
     answerKind:
       type: string
       minLength: 1
-      description: Requested clarification included with unresolvedDecision in the How to resolve section.
+
+ImplementationReadinessStoredFinding:
+  description: >-
+    A finding as stored with a disposition: the current explained layout, or the
+    earlier layout kept readable for saved sessions.
+  oneOf:
+    - $ref: "#/ImplementationReadinessFinding"
+    - $ref: "#/ImplementationReadinessLegacyFinding"
 
 ImplementationReadinessNoResolution:
   type: object
@@ -214,7 +336,7 @@ ImplementationReadinessDisposition:
     finding:
       nullable: true
       allOf:
-        - $ref: "#/ImplementationReadinessFinding"
+        - $ref: "#/ImplementationReadinessStoredFinding"
     resolution:
       $ref: "#/ImplementationReadinessResolution"
   description: >-

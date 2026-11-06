@@ -36,6 +36,7 @@ import {
   createTestRunRegistry,
   createTestSessionRunnerFacade,
 } from './run.test-support';
+import { homePageBlockedFinding } from '../agents/implementation-readiness/__tests__/readiness-finding.fixture';
 
 /**
  * A free-form Run with no workflow whose launch readiness check saved
@@ -121,19 +122,7 @@ const startupPromptInput: AgentStartupPromptInputResult = {
   },
 };
 
-const makeFinding = (unresolvedDecision: string) => ({
-  affectedSourceContext: 'The task description',
-  unresolvedDecision,
-  consequentialInventionRisk: 'Implementation could place durable state in the wrong service.',
-  boundedEvidence: [
-    {
-      category: 'behavior' as const,
-      statement: 'The task leaves the owning service open.',
-      sourceRef: 'task.description',
-    },
-  ],
-  answerKind: 'Name the authoritative service.',
-});
+const makeFinding = (problem: string) => ({ ...homePageBlockedFinding, problem });
 
 const launchReviewRequired = (): ImplementationReadinessDisposition => {
   const sourceSnapshot = createReadinessSourceSnapshotFromStartupInput({
@@ -483,9 +472,9 @@ describe('readiness clarification on a free-form Run with no workflow', () => {
     expect(validation?.isError).not.toBe(true);
     const afterFirst = await harness.persisted();
     expect(afterFirst.readiness?.state).toBe('REVIEW_REQUIRED');
-    expect(afterFirst.readiness?.finding?.unresolvedDecision).toBe(
-      'Which API version owns the write path?',
-    );
+    expect(afterFirst.readiness?.finding).toMatchObject({
+      problem: 'Which API version owns the write path?',
+    });
     expect(afterFirst.promptType).toBe(LocalPromptType.FreeForm);
 
     await harness.reply('v2.');

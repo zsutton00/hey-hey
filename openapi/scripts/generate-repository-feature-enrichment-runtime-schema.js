@@ -107,6 +107,67 @@ const rewriteSchemaReferences = (value) => {
   return { anyOf: [{ type: "null" }, rewritten] };
 };
 
+const DEEP_POINTER_PREFIX = "#/components/schemas/";
+
+const decodePointerSegment = (segment) =>
+  decodeURIComponent(segment).replace(/~1/g, "/").replace(/~0/g, "~");
+
+// SwaggerParser.bundle reuses a repeated schema by pointing at the first place
+// it was inlined. rewriteSchemaReferences later wraps nullable objects in
+// `anyOf`, which moves that first occurrence, so any pointer that crosses such
+// a wrapper no longer resolves. Replace only those pointers with a copy of the
+// target; every other pointer keeps its bundled form.
+const resolvesThroughNullableWrapper = (schemas, ref) => {
+  const segments = ref
+    .slice(DEEP_POINTER_PREFIX.length)
+    .split("/")
+    .map(decodePointerSegment);
+  let node = schemas;
+  for (const [index, segment] of segments.entries()) {
+    if (!node || typeof node !== "object") return { crosses: false };
+    node = node[segment];
+    const isLast = index === segments.length - 1;
+    if (
+      !isLast &&
+      node &&
+      node.nullable === true &&
+      typeof node.type !== "string"
+    ) {
+      return { crosses: true, target: undefined, segments };
+    }
+  }
+  return { crosses: false, target: node, segments };
+};
+
+const resolvePointerTarget = (schemas, segments) =>
+  segments.reduce((node, segment) => node?.[segment], schemas);
+
+const inlinePointersThroughNullableWrappers = (schemas) => {
+  const visit = (value) => {
+    if (Array.isArray(value)) return value.map(visit);
+    if (!value || typeof value !== "object") return value;
+
+    const { $ref: ref, ...rest } = value;
+    const isDeepPointer =
+      typeof ref === "string" &&
+      ref.startsWith(DEEP_POINTER_PREFIX) &&
+      ref.slice(DEEP_POINTER_PREFIX.length).includes("/");
+    if (isDeepPointer && resolvesThroughNullableWrapper(schemas, ref).crosses) {
+      const { segments } = resolvesThroughNullableWrapper(schemas, ref);
+      const target = resolvePointerTarget(schemas, segments);
+      return { ...visit(structuredClone(target)), ...visit(rest) };
+    }
+
+    return Object.fromEntries(
+      Object.entries(value).map(([key, child]) => [key, visit(child)]),
+    );
+  };
+
+  return Object.fromEntries(
+    Object.entries(schemas).map(([name, schema]) => [name, visit(schema)]),
+  );
+};
+
 async function generateRuntimeSchema(
   outputPaths,
   rootDefinitions = ROOT_DEFINITIONS,
@@ -121,9 +182,10 @@ async function generateRuntimeSchema(
     "openapi.yaml",
   );
   const bundled = await SwaggerParser.bundle(inputPath);
-  const schemas = bundled.components?.schemas;
-  if (!schemas)
+  const bundledSchemas = bundled.components?.schemas;
+  if (!bundledSchemas)
     throw new Error("Agent Bridge OpenAPI document has no component schemas.");
+  const schemas = inlinePointersThroughNullableWrappers(bundledSchemas);
 
   const definitionNames = collectDefinitionNames(schemas, rootDefinitions);
   const definitions = {};

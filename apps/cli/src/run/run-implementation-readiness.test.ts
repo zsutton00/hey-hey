@@ -12,6 +12,7 @@ import type { AgenticSession } from '../session/types';
 import type { RunStore } from '../run-store/run-store';
 import { createTestMessagePoster, createTestRun, createTestRunStore } from './run.test-support';
 import type { Run } from './run';
+import { homePageBlockedFinding } from '../agents/implementation-readiness/__tests__/readiness-finding.fixture';
 
 const makeStartupPromptInput = (displayName: string): AgentStartupPromptInputResult => ({
   startupInput: {
@@ -155,19 +156,7 @@ const makeSnapshot = (
   return snapshot;
 };
 
-const makeFinding = () => ({
-  affectedSourceContext: 'The task and its design document',
-  unresolvedDecision: 'Which service owns the write path?',
-  consequentialInventionRisk: 'Implementation could place durable state in the wrong service.',
-  boundedEvidence: [
-    {
-      category: 'behavior' as const,
-      statement: 'The checked context leaves two observable outcomes open.',
-      sourceRef: 'task.description',
-    },
-  ],
-  answerKind: 'Name the authoritative service.',
-});
+const makeFinding = () => (homePageBlockedFinding);
 
 const makeRunHarness = (disposition: ImplementationReadinessDisposition) => {
   const session = makeSession(disposition);
@@ -304,7 +293,7 @@ describe('Run implementation-readiness admission', () => {
     await run.persistImplementationReadinessFromAgentResponse({
       state: 'REVIEW_REQUIRED',
       sourceSnapshot,
-      finding: { ...makeFinding(), unresolvedDecision: 'Which API version owns it?' },
+      finding: { ...makeFinding(), problem: 'Which API version owns it?' },
       resolution: { kind: 'NONE' },
     });
 

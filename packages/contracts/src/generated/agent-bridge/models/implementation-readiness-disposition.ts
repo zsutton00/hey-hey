@@ -17,9 +17,6 @@ import { ImplementationReadinessState } from './implementation-readiness-state.j
 
 // May contain unused imports in some cases
 // @ts-ignore
-import type { ImplementationReadinessFinding } from './implementation-readiness-finding.js';
-// May contain unused imports in some cases
-// @ts-ignore
 import type { ImplementationReadinessResolution } from './implementation-readiness-resolution.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -27,6 +24,9 @@ import type { ImplementationReadinessSourceSnapshot } from './implementation-rea
 // May contain unused imports in some cases
 // @ts-ignore
 import type { ImplementationReadinessState } from './implementation-readiness-state.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { ImplementationReadinessStoredFinding } from './implementation-readiness-stored-finding.js';
 
 /**
  * Source-bound readiness result produced by Feature Sync. Fresh analysis may produce CLEAR or REVIEW_REQUIRED; DISMISSED is reserved for the confirmed, user-authored acceptance of a displayed REVIEW_REQUIRED finding.
@@ -48,10 +48,10 @@ export interface ImplementationReadinessDisposition {
     'sourceSnapshot': ImplementationReadinessSourceSnapshot;
     /**
      *
-     * @type {ImplementationReadinessFinding}
+     * @type {ImplementationReadinessStoredFinding}
      * @memberof ImplementationReadinessDisposition
      */
-    'finding': ImplementationReadinessFinding | null;
+    'finding': ImplementationReadinessStoredFinding | null;
     /**
      *
      * @type {ImplementationReadinessResolution}

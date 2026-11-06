@@ -17,41 +17,59 @@
 // May contain unused imports in some cases
 // @ts-ignore
 import type { ImplementationReadinessEvidence } from './implementation-readiness-evidence.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { ImplementationReadinessFixStep } from './implementation-readiness-fix-step.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { ImplementationReadinessTrailEntry } from './implementation-readiness-trail-entry.js';
 
 /**
- *
+ * Plain-language explanation of why work cannot start yet, written for a reader who has not followed the analysis. Use ordinary words and define any technical term the first time it appears.
  * @export
  * @interface ImplementationReadinessFinding
  */
 export interface ImplementationReadinessFinding {
     /**
-     * Source-bound context presented in the Issue section.
+     * What the user asked for, in ordinary language.
      * @type {string}
      * @memberof ImplementationReadinessFinding
      */
-    'affectedSourceContext': string;
+    'requestedOutcome': string;
     /**
-     * Unresolved choice included in the How to resolve section.
+     * Ordered short trail from the request to the problem, each step naming a real task or document consulted.
+     * @type {Array<ImplementationReadinessTrailEntry>}
+     * @memberof ImplementationReadinessFinding
+     */
+    'reasoningTrail': Array<ImplementationReadinessTrailEntry>;
+    /**
+     * The problem in one sentence.
      * @type {string}
      * @memberof ImplementationReadinessFinding
      */
-    'unresolvedDecision': string;
+    'problem': string;
     /**
-     * Consequence presented in the What could go wrong section.
+     * Ordered steps that begin in a normal situation and end in the concrete failure.
+     * @type {Array<string>}
+     * @memberof ImplementationReadinessFinding
+     */
+    'failureScenario': Array<string>;
+    /**
+     * Ordered steps that resolve the problem.
+     * @type {Array<ImplementationReadinessFixStep>}
+     * @memberof ImplementationReadinessFinding
+     */
+    'fixSteps': Array<ImplementationReadinessFixStep>;
+    /**
+     * The one specific thing the agent needs from the user.
      * @type {string}
      * @memberof ImplementationReadinessFinding
      */
-    'consequentialInventionRisk': string;
+    'userRequest': string;
     /**
-     *
+     * Supporting evidence kept with the finding; it is not shown as a separate section.
      * @type {Array<ImplementationReadinessEvidence>}
      * @memberof ImplementationReadinessFinding
      */
     'boundedEvidence': Array<ImplementationReadinessEvidence>;
-    /**
-     * Requested clarification included with unresolvedDecision in the How to resolve section.
-     * @type {string}
-     * @memberof ImplementationReadinessFinding
-     */
-    'answerKind': string;
 }

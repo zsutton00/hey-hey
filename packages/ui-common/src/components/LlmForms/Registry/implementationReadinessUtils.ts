@@ -1,5 +1,9 @@
 import type {
+  ImplementationReadinessDisposition,
   ImplementationReadinessFinding,
+  ImplementationReadinessFixStepState,
+  ImplementationReadinessItemReference,
+  ImplementationReadinessLegacyFinding,
   ImplementationReadinessPayload,
   SecondaryActionHandler,
   UIElementPayload,
@@ -7,8 +11,33 @@ import type {
 import type { FormValue } from "../types";
 import type { SecondaryActionConfigWithHandler } from "./types";
 
-export const buildImplementationReadinessFindingMarkdown = (
-  finding: ImplementationReadinessFinding,
+type ReadinessFinding = NonNullable<
+  ImplementationReadinessDisposition["finding"]
+>;
+
+const isExplainedFinding = (
+  finding: ReadinessFinding,
+): finding is ImplementationReadinessFinding => "requestedOutcome" in finding;
+
+const FIX_STEP_STATE_LABELS: Record<
+  ImplementationReadinessFixStepState,
+  string
+> = {
+  DONE: "already done",
+  REMAINING: "work remaining",
+  USER_DECISION: "your decision",
+};
+
+const mention = (item: ImplementationReadinessItemReference): string => {
+  const title = item.title.replace(/[|\]]/g, " ");
+  return `@[${item.entityType.toLowerCase()}:${item.entityId}|${title}]`;
+};
+
+const numbered = (lines: string[]): string =>
+  lines.map((line, index) => `${index + 1}. ${line}`).join("\n");
+
+const buildLegacyFindingMarkdown = (
+  finding: ImplementationReadinessLegacyFinding,
 ): string => {
   const evidence = finding.boundedEvidence
     .map((item) =>
@@ -30,6 +59,41 @@ export const buildImplementationReadinessFindingMarkdown = (
   ]
     .filter((section) => section.length > 0)
     .join("\n\n");
+};
+
+export const buildImplementationReadinessFindingMarkdown = (
+  finding: ReadinessFinding,
+): string => {
+  if (!isExplainedFinding(finding)) {
+    return buildLegacyFindingMarkdown(finding);
+  }
+
+  const trail = numbered(
+    finding.reasoningTrail.map(
+      (entry) => `${mention(entry.source)} — ${entry.explanation}`,
+    ),
+  );
+  const fixSteps = numbered(
+    finding.fixSteps.map(
+      (step) =>
+        `${step.action} — ${mention(step.owner)} (${FIX_STEP_STATE_LABELS[step.state]})`,
+    ),
+  );
+
+  return [
+    "## What you asked for",
+    finding.requestedOutcome,
+    "## How the agent got here",
+    trail,
+    "## The problem",
+    finding.problem,
+    "## What could go wrong",
+    numbered(finding.failureScenario),
+    "## Steps to fix",
+    fixSteps,
+    "## What I need from you",
+    finding.userRequest,
+  ].join("\n\n");
 };
 
 /**

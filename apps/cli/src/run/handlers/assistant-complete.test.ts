@@ -29,6 +29,7 @@ import {
   SystemMessageDataTypeEnum,
 } from '../../shared/api/index';
 import type { MessagePosterCreateOutOfBandArgs } from '../types';
+import { homePageBlockedFinding } from '../../agents/implementation-readiness/__tests__/readiness-finding.fixture';
 
 const outOfBandCalls = (poster: { createOutOfBand: unknown }) =>
   (poster.createOutOfBand as ReturnType<typeof vi.fn>).mock.calls;
@@ -844,19 +845,7 @@ describe('assistant_complete end-to-end', () => {
           sourceRevision: 'sha256:open-source-revision',
           capturedAt: '2026-09-17T19:00:00.000Z',
         },
-        finding: {
-          affectedSourceContext: 'The task and its project context',
-          unresolvedDecision: 'Which service owns the persisted readiness disposition?',
-          consequentialInventionRisk: 'Coding would otherwise invent the observable behavior.',
-          boundedEvidence: [
-            {
-              category: 'behavior',
-              statement: 'The task leaves the observable outcome open.',
-              sourceRef: 'Project Assistant memo',
-            },
-          ],
-          answerKind: 'Name the authoritative owner and persistence boundary.',
-        },
+        finding: homePageBlockedFinding,
         resolution: { kind: 'NONE' },
       },
     };
@@ -894,19 +883,7 @@ describe('assistant_complete end-to-end', () => {
         sourceRevision: 'sha256:open-source-revision',
         capturedAt: '2026-09-17T19:00:00.000Z',
       },
-      finding: {
-        affectedSourceContext: 'The task and its project context',
-        unresolvedDecision: 'Which service owns the persisted readiness disposition?',
-        consequentialInventionRisk: 'Coding would otherwise invent the observable behavior.',
-        boundedEvidence: [
-          {
-            category: 'behavior',
-            statement: 'The task leaves the observable outcome open.',
-            sourceRef: 'Project Assistant memo',
-          },
-        ],
-        answerKind: 'Name the authoritative owner and persistence boundary.',
-      },
+      finding: homePageBlockedFinding,
       resolution: { kind: 'NONE' },
     };
     const summary = `\`\`\`json\n${JSON.stringify({

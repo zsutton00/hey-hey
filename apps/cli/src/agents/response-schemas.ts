@@ -31,14 +31,14 @@ import {
   LocalResponseVerificationTier,
 } from '../shared/agent-bridge-contract/index';
 import { REPORT_CATALOG } from './daily-session/report-catalog';
-import { implementationReadinessDispositionSchema } from './implementation-readiness/session-context';
+import { authoredImplementationReadinessDispositionSchema } from './implementation-readiness/session-context';
 
 const startupSourceTypeSchema = z.nativeEnum(LocalResponseSourceType);
 
 const implementationReadinessResponseSchema = z
   .object({
     responseType: z.literal('implementation_readiness_v1'),
-    disposition: implementationReadinessDispositionSchema.refine(
+    disposition: authoredImplementationReadinessDispositionSchema.refine(
       (disposition) => disposition.state !== 'DISMISSED',
       'DISMISSED is reserved for the confirmed user-facing Dismiss action.',
     ),

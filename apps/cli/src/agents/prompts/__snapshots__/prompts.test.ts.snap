@@ -139,17 +139,20 @@ Apply this decision test in order:
 2. **Keep unproven hazards conditional.** A possible Temporal, migration, rollout, or cross-service consequence is an implementation constraint while its triggering path is unproven. Investigate whether the risky path is actually required before asking the user to choose a scope or migration strategy.
 3. **Reserve \`REVIEW_REQUIRED\` for a consequential choice.** Emit it only when bounded evidence establishes that implementation must choose among materially different valid outcomes and the available authoritative context does not settle the choice. The alternatives must change observable behavior, scope, or a durable boundary such as data lifecycle, security, isolation, or integration semantics.
 
+4. **Name the owner when another item holds the decision.** If the work is blocked only because another task, feature, or document has not yet decided something this work reuses, report it as "blocked by" that item. Attribute the missing decision, and the fix steps that settle it, to the item that owns it; do not create a second decision for the item being implemented.
+
 Classification fixtures:
 
 - **CLEAR — settled outcome, unknown implementation location.** The Clarify-routing behavior and workflow-aware routing are already recorded, but the violating boundary may be in the producer, platform dispatch, or CLI resolution. Localizing that defect is implementation work; do not ask the user to choose Temporal scope.
 - **CLEAR — conditional downstream hazard.** A Temporal migration or drain might matter if investigation proves that an unversioned flow template must change. Preserve that as a constraint and investigate first; it is not a user choice yet.
 - **REVIEW_REQUIRED — evidenced unresolved choice.** Authoritative context leaves two or more valid lifecycle, security, isolation, or observable-behavior alternatives, evidence shows the implementation must choose between them, and no requirement, Contract, design decision, or other authoritative context resolves the choice.
+- **REVIEW_REQUIRED — blocked by another item's undecided design.** The home-page task only reuses the login task's way of recognizing a returning local browser, and the login task records that mechanism as not yet decided. Report "blocked by" the login task, name it as the owner of the decision and of the first fix step, and do not ask the user to choose a separate mechanism for the home page.
 
 - If the evidence identifies a consequential unresolved decision under that test, call \`submit_implementation_readiness\` with the disposition below. Correct any tool error and retry in this same session. After the tool accepts it, stop before coding and emit the same structured response below.
 - If the evidence is empty, describes only routine implementation discovery, or preserves a conditional hazard whose triggering path is not established, continue with the user's request without asking about those details.
 - When emitting the structured response, do not use code-capable tools in the same turn. The response is rendered as a read-only review field so the user can clarify the source context.
 
-The structured response must be a single fenced JSON object with \`responseType: "implementation_readiness_v1"\`, a \`REVIEW_REQUIRED\` disposition, the affected source context, unresolved decision, consequential invention risk, bounded evidence, and the kind of answer needed. Use \`resolution: { "kind": "NONE" }\`. Copy the canonical source binding below exactly; set \`capturedAt\` to the current ISO-8601 time.
+The structured response must be a single fenced JSON object with \`responseType: "implementation_readiness_v1"\`, a \`REVIEW_REQUIRED\` disposition, a plain-language finding that follows the field descriptions of \`submit_implementation_readiness\`. Use \`resolution: { "kind": "NONE" }\`. Copy the canonical source binding below exactly; set \`capturedAt\` to the current ISO-8601 time.
 
 If no canonical source binding is available, do not emit a readiness response; continue with the request.
 
@@ -167,15 +170,22 @@ Example response shape:
       "capturedAt": "<current ISO-8601 time>"
     },
     "finding": {
-      "affectedSourceContext": "<task, feature, design doc, or plan context>",
-      "unresolvedDecision": "<one consequential decision>",
-      "consequentialInventionRisk": "<what implementation would otherwise invent>",
+      "requestedOutcome": "<what the user asked for, in ordinary words>",
+      "reasoningTrail": [
+        { "source": { "entityType": "TASK", "entityId": "<full id>", "title": "<real title>" }, "explanation": "<what it told you>" },
+        { "source": { "entityType": "TASK", "entityId": "<full id>", "title": "<real title>" }, "explanation": "<why that led to the problem>" }
+      ],
+      "problem": "<the problem in one sentence>",
+      "failureScenario": ["<a normal situation>", "<what happens next>", "<the concrete failure>"],
+      "fixSteps": [
+        { "owner": { "entityType": "TASK", "entityId": "<full id>", "title": "<real title>" }, "action": "<what must happen>", "state": "USER_DECISION" }
+      ],
+      "userRequest": "<the one thing you need from the user>",
       "boundedEvidence": [{
         "category": "behavior",
         "statement": "<bounded evidence statement>",
         "sourceRef": "<memo or source reference>"
-      }],
-      "answerKind": "<the kind of clarification needed>"
+      }]
     },
     "resolution": { "kind": "NONE" }
   }
@@ -264,17 +274,20 @@ Apply this decision test in order:
 2. **Keep unproven hazards conditional.** A possible Temporal, migration, rollout, or cross-service consequence is an implementation constraint while its triggering path is unproven. Investigate whether the risky path is actually required before asking the user to choose a scope or migration strategy.
 3. **Reserve \`REVIEW_REQUIRED\` for a consequential choice.** Emit it only when bounded evidence establishes that implementation must choose among materially different valid outcomes and the available authoritative context does not settle the choice. The alternatives must change observable behavior, scope, or a durable boundary such as data lifecycle, security, isolation, or integration semantics.
 
+4. **Name the owner when another item holds the decision.** If the work is blocked only because another task, feature, or document has not yet decided something this work reuses, report it as "blocked by" that item. Attribute the missing decision, and the fix steps that settle it, to the item that owns it; do not create a second decision for the item being implemented.
+
 Classification fixtures:
 
 - **CLEAR — settled outcome, unknown implementation location.** The Clarify-routing behavior and workflow-aware routing are already recorded, but the violating boundary may be in the producer, platform dispatch, or CLI resolution. Localizing that defect is implementation work; do not ask the user to choose Temporal scope.
 - **CLEAR — conditional downstream hazard.** A Temporal migration or drain might matter if investigation proves that an unversioned flow template must change. Preserve that as a constraint and investigate first; it is not a user choice yet.
 - **REVIEW_REQUIRED — evidenced unresolved choice.** Authoritative context leaves two or more valid lifecycle, security, isolation, or observable-behavior alternatives, evidence shows the implementation must choose between them, and no requirement, Contract, design decision, or other authoritative context resolves the choice.
+- **REVIEW_REQUIRED — blocked by another item's undecided design.** The home-page task only reuses the login task's way of recognizing a returning local browser, and the login task records that mechanism as not yet decided. Report "blocked by" the login task, name it as the owner of the decision and of the first fix step, and do not ask the user to choose a separate mechanism for the home page.
 
 - If the evidence identifies a consequential unresolved decision under that test, call \`submit_implementation_readiness\` with the disposition below. Correct any tool error and retry in this same session. After the tool accepts it, stop before coding and emit the same structured response below.
 - If the evidence is empty, describes only routine implementation discovery, or preserves a conditional hazard whose triggering path is not established, continue with the user's request without asking about those details.
 - When emitting the structured response, do not use code-capable tools in the same turn. The response is rendered as a read-only review field so the user can clarify the source context.
 
-The structured response must be a single fenced JSON object with \`responseType: "implementation_readiness_v1"\`, a \`REVIEW_REQUIRED\` disposition, the affected source context, unresolved decision, consequential invention risk, bounded evidence, and the kind of answer needed. Use \`resolution: { "kind": "NONE" }\`. Copy the canonical source binding below exactly; set \`capturedAt\` to the current ISO-8601 time.
+The structured response must be a single fenced JSON object with \`responseType: "implementation_readiness_v1"\`, a \`REVIEW_REQUIRED\` disposition, a plain-language finding that follows the field descriptions of \`submit_implementation_readiness\`. Use \`resolution: { "kind": "NONE" }\`. Copy the canonical source binding below exactly; set \`capturedAt\` to the current ISO-8601 time.
 
 Canonical source binding:
 - runId: \`run-free-form-1\`
@@ -296,15 +309,22 @@ Example response shape:
       "capturedAt": "<current ISO-8601 time>"
     },
     "finding": {
-      "affectedSourceContext": "<task, feature, design doc, or plan context>",
-      "unresolvedDecision": "<one consequential decision>",
-      "consequentialInventionRisk": "<what implementation would otherwise invent>",
+      "requestedOutcome": "<what the user asked for, in ordinary words>",
+      "reasoningTrail": [
+        { "source": { "entityType": "TASK", "entityId": "<full id>", "title": "<real title>" }, "explanation": "<what it told you>" },
+        { "source": { "entityType": "TASK", "entityId": "<full id>", "title": "<real title>" }, "explanation": "<why that led to the problem>" }
+      ],
+      "problem": "<the problem in one sentence>",
+      "failureScenario": ["<a normal situation>", "<what happens next>", "<the concrete failure>"],
+      "fixSteps": [
+        { "owner": { "entityType": "TASK", "entityId": "<full id>", "title": "<real title>" }, "action": "<what must happen>", "state": "USER_DECISION" }
+      ],
+      "userRequest": "<the one thing you need from the user>",
       "boundedEvidence": [{
         "category": "behavior",
         "statement": "<bounded evidence statement>",
         "sourceRef": "<memo or source reference>"
-      }],
-      "answerKind": "<the kind of clarification needed>"
+      }]
     },
     "resolution": { "kind": "NONE" }
   }

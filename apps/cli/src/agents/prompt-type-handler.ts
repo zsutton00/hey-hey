@@ -38,7 +38,7 @@ import type { TaskMonitorDecisionStore } from './task-monitor/task-monitor-decis
 import type { SessionMonitorEvaluationStore } from './session-monitor';
 import type { LoadedEntityPromptContext } from './entity-context/types';
 import type {
-  ImplementationReadinessFinding,
+  ImplementationReadinessStoredFinding,
   ImplementationReadinessSourceSnapshot,
 } from '@hey-hey/contracts/api/models';
 import type { ResponseTypeToken } from './response-dispatch';
@@ -91,7 +91,7 @@ export interface PromptTypeHandlerContext {
    * the fresh assessment can resolve it, whether or not the provider session
    * still holds the earlier exchange.
    */
-  implementationReadinessClarification?: { finding: ImplementationReadinessFinding | null };
+  implementationReadinessClarification?: { finding: ImplementationReadinessStoredFinding | null };
   recentUserReplies: ReadonlyArray<RecentUserReply>;
   /**
    * `parentMessageId` of the trigger message that started this Turn, computed

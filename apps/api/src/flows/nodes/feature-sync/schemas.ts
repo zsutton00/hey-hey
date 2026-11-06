@@ -55,6 +55,57 @@ const implementationReadinessEvidenceSchema = z
   })
   .strict();
 
+const implementationReadinessItemReferenceSchema = z
+  .object({
+    entityType: z.enum([
+      'TASK',
+      'FEATURE',
+      'DESIGN_DOC',
+      'PLAN',
+      'CONTRACT',
+      'SERVICE',
+    ]),
+    entityId: z.string().uuid(),
+    title: z.string().min(1),
+  })
+  .strict();
+
+const implementationReadinessFindingSchema = z
+  .object({
+    requestedOutcome: z.string().min(1),
+    reasoningTrail: z
+      .array(
+        z
+          .object({
+            source: implementationReadinessItemReferenceSchema,
+            explanation: z.string().min(1),
+          })
+          .strict(),
+      )
+      .min(2)
+      .max(4),
+    problem: z.string().min(1),
+    failureScenario: z.array(z.string().min(1)).min(2).max(8),
+    fixSteps: z
+      .array(
+        z
+          .object({
+            owner: implementationReadinessItemReferenceSchema,
+            action: z.string().min(1),
+            state: z.enum(['DONE', 'REMAINING', 'USER_DECISION']),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(8),
+    userRequest: z.string().min(1),
+    boundedEvidence: z
+      .array(implementationReadinessEvidenceSchema)
+      .min(1)
+      .max(8),
+  })
+  .strict();
+
 const implementationReadinessDispositionSchema = z
   .object({
     state: z.enum(['CLEAR', 'REVIEW_REQUIRED', 'DISMISSED']),
@@ -67,19 +118,7 @@ const implementationReadinessDispositionSchema = z
         capturedAt: z.string().datetime({ offset: true }),
       })
       .strict(),
-    finding: z
-      .object({
-        affectedSourceContext: z.string().min(1),
-        unresolvedDecision: z.string().min(1),
-        consequentialInventionRisk: z.string().min(1),
-        boundedEvidence: z
-          .array(implementationReadinessEvidenceSchema)
-          .min(1)
-          .max(8),
-        answerKind: z.string().min(1),
-      })
-      .strict()
-      .nullable(),
+    finding: implementationReadinessFindingSchema.nullable(),
     resolution: z.discriminatedUnion('kind', [
       z.object({ kind: z.literal('NONE') }).strict(),
       z
