@@ -23,6 +23,8 @@ import { resolvePairingUrl } from './pairing-web-url';
 import { CodingAgentDetector } from '../local-app/coding-agent-detection';
 import type { LocalCodingAgentDetectionDto } from '../shared/api/index';
 import { z } from 'zod';
+import { createInterface, type Interface } from 'node:readline';
+import type { MachineEnrollmentCeremonyStep } from '../auth/machine-enrollment-ceremony';
 
 // The API wraps every success in the standard ApiResponse envelope; only `data` is ours to validate.
 const localBootstrapResponseSchema = z.object({
@@ -106,6 +108,73 @@ async function storeLocalCliCredentials(installationSecret: string): Promise<voi
   await new CredentialStore().store(getActiveCredentialKey(), credential);
 }
 
+/**
+ * While pairing waits for the browser, Enter reopens the pairing page, so a closed
+ * tab is not a dead end. Each reopen carries a fresh handoff token because the
+ * first one expires after two minutes. It stops listening as soon as the ceremony
+ * moves on, so it never competes with the terminal confirmation prompt.
+ */
+class LocalPairingPageReopener {
+  private userCode: string | null = null;
+  private lines: Interface | null = null;
+
+  constructor(
+    private readonly installationSecret: string,
+    private readonly localApproval: LocalApprovalSecret,
+    private readonly agents: LocalCodingAgentDetectionDto,
+  ) {}
+
+  follow(step: MachineEnrollmentCeremonyStep): void {
+    if (step.kind === 'browser-handoff') {
+      this.userCode = step.userCode;
+      return;
+    }
+    if (step.kind === 'waiting-for-browser' && this.userCode) {
+      this.listen();
+      return;
+    }
+    this.stop();
+  }
+
+  stop(): void {
+    this.lines?.close();
+    this.lines = null;
+  }
+
+  private listen(): void {
+    if (this.lines || !process.stdin.isTTY) {
+      return;
+    }
+
+    console.log('Closed the pairing page? Press Enter to open it again.');
+    this.lines = createInterface({ input: process.stdin });
+    this.lines.on('line', () => {
+      void this.reopen();
+    });
+  }
+
+  private async reopen(): Promise<void> {
+    if (!this.userCode) {
+      return;
+    }
+
+    try {
+      const handoffToken = await createLocalHandoff(this.installationSecret);
+      const pairing = {
+        userCode: this.userCode,
+        localApproval: this.localApproval,
+        agents: this.agents,
+      };
+      await openLocalPage(
+        localWebUrl(handoffToken, pairing),
+        'Could not open the local pairing page automatically.',
+      );
+    } catch (error: unknown) {
+      console.error(error instanceof Error ? error.message : String(error));
+    }
+  }
+}
+
 function restoreEnvironment(name: string, original: string | undefined): void {
   if (original === undefined) {
     delete process.env[name];
@@ -114,7 +183,7 @@ function restoreEnvironment(name: string, original: string | undefined): void {
   }
 }
 
-async function continueLocalApplication(
+export async function continueLocalApplication(
   storage: InstallationStore,
   release: ReleaseManifest,
   navigation: LocalApplicationNavigation,
@@ -161,6 +230,7 @@ async function continueLocalApplication(
 
     const localApproval = new LocalApprovalSecret();
     const agents = await new CodingAgentDetector().detect();
+    const reopener = new LocalPairingPageReopener(secrets.admin, localApproval, agents);
     const paired = await runPairCommand({
       keyPairStore,
       localApproval,
@@ -172,6 +242,11 @@ async function continueLocalApplication(
           'Could not open the local pairing page automatically.',
         );
       },
+      onCeremonyStep: (step) => {
+        reopener.follow(step);
+      },
+    }).finally(() => {
+      reopener.stop();
     });
     if (!paired) {
       return false;
@@ -254,6 +329,10 @@ function LocalRoot({
 }
 
 export async function runLocalCommand(args: string[]): Promise<boolean> {
+  if (args.length === 1 && args[0] === 'dev') {
+    const { runLocalDevCommand } = await import('./local-dev');
+    return runLocalDevCommand();
+  }
   const stopping = args.length === 1 && args[0] === 'stop';
   if (args.length > 0 && !stopping) {
     console.error('Usage: heyhey local [stop]');

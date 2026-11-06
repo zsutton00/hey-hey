@@ -509,6 +509,43 @@ describe('local application installation and return visits', () => {
     );
   });
 
+  it('dev mode runs only pinned infrastructure on loopback and derives the API configuration from the installed definition', async () => {
+    const installation = await storage.prepare(release, models);
+    const secrets = await storage.secrets();
+    const {
+      composeConfiguration,
+      devComposeConfiguration,
+      localApiEnvironment,
+      DEV_INFRASTRUCTURE_ENDPOINTS,
+    } = await import('./compose');
+    const installed = composeConfiguration(installation, secrets, DEFAULT_LOCAL_BRIDGE_PORT);
+    const dev = devComposeConfiguration(
+      installation,
+      secrets,
+      DEFAULT_LOCAL_BRIDGE_PORT,
+      '/flyway',
+    );
+
+    expect(dev.name).toBe(installed.name);
+    expect(dev.volumes).toEqual(installed.volumes);
+    expect(dev.services).not.toHaveProperty('ui');
+    expect(dev.services.api).not.toHaveProperty('ports');
+    for (const name of ['postgres', 'redis', 'graph-search'] as const) {
+      expect(dev.services[name].image).toBe(installed.services[name].image);
+      expect(dev.services[name].ports.every((port) => port.startsWith('127.0.0.1:'))).toBe(true);
+    }
+
+    const hostApi = localApiEnvironment(secrets, DEV_INFRASTRUCTURE_ENDPOINTS);
+    const addressKeys = /URL|HOST|PORT/;
+    for (const [key, value] of Object.entries(installed.services.api.environment)) {
+      if (!addressKeys.test(key)) {
+        expect(hostApi[key as keyof typeof hostApi]).toBe(value);
+      }
+    }
+    expect(hostApi.PROJECT_DATABASE_URL).toContain('127.0.0.1:55432');
+    expect(hostApi.GRAPH_SERVICE_URL).toBe('http://127.0.0.1:58090');
+  });
+
   it('fixture releases cannot bypass packaged version or digest validation', async () => {
     await expect(
       new ReleaseSource(join(directory, 'release.json'), 'other-version').read(),

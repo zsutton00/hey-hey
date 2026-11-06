@@ -32,6 +32,11 @@ export class InstallationStore {
     return join(this.directory, 'compose.json');
   }
 
+  /** Developer-only infrastructure document for `heyhey local dev`; same project and volumes. */
+  get devComposePath(): string {
+    return join(this.directory, 'compose.dev.json');
+  }
+
   async read(): Promise<Installation | undefined> {
     try {
       return installationSchema.parse(
@@ -145,9 +150,9 @@ export class InstallationStore {
     await rename(temporary, join(this.directory, name));
   }
 
-  async writeCompose(config: unknown): Promise<void> {
-    await writeFile(this.composePath, JSON.stringify(config, null, 2), { mode: 0o600 });
-    await chmod(this.composePath, 0o600);
+  async writeCompose(config: unknown, path: string = this.composePath): Promise<void> {
+    await writeFile(path, JSON.stringify(config, null, 2), { mode: 0o600 });
+    await chmod(path, 0o600);
   }
 }
 

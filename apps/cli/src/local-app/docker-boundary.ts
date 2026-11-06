@@ -175,7 +175,11 @@ export class DockerBoundary {
       sql,
     );
   }
-  async migrate(path: string): Promise<void> {
+  /**
+   * `outOfOrder` is for dev mode only: a checkout ahead of the installed release
+   * can carry migrations dated before ones the release already applied.
+   */
+  async migrate(path: string, { outOfOrder = false } = {}): Promise<void> {
     await this.compose(path, [
       'run',
       '--rm',
@@ -185,6 +189,7 @@ export class DockerBoundary {
       'api',
       'flyway',
       '-locations=filesystem:/app/db/flyway',
+      ...(outOfOrder ? ['-outOfOrder=true'] : []),
       'migrate',
     ]);
   }
@@ -198,8 +203,18 @@ export class DockerBoundary {
     }
   }
 
-  async health(): Promise<void> {
-    await this.waitForServices(Object.keys(SERVICE_IMAGES));
+  async health(services: string[] = Object.keys(SERVICE_IMAGES)): Promise<void> {
+    await this.waitForServices(services);
+  }
+
+  /** Developer-only: graph/search alone, once an API run from source serves signing keys. */
+  async startGraphSearch(path: string): Promise<void> {
+    await this.startService(path, 'graph-search', false);
+  }
+
+  /** Removes containers only; named volumes, and so all data, are kept. */
+  async removeContainers(path: string, services: string[]): Promise<void> {
+    await this.compose(path, ['rm', '--stop', '--force', ...services]);
   }
 
   private async waitForServices(services: string[]): Promise<void> {

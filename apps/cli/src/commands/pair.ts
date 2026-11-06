@@ -32,6 +32,7 @@ import {
   attachDirectEnrollmentOutput,
   MachineEnrollmentCeremony,
   type MachineEnrollmentCeremonyPorts,
+  type MachineEnrollmentCeremonyStep,
 } from '../auth/machine-enrollment-ceremony';
 import { ExecutionGrantStore } from '../server/controller-authorization/execution-grant-store';
 import { StructuredServerLogger, type ServerLogger } from '../server/logger';
@@ -62,6 +63,8 @@ export interface PairCommandDependencies {
   confirmation?: MachineEnrollmentConfirmation;
   prompter?: Pick<CredentialPrompter, 'confirm'>;
   onBrowserHandoff?: (userCode: string) => void;
+  /** Observes every ceremony step, e.g. to offer reopening the browser while it waits. */
+  onCeremonyStep?: (step: MachineEnrollmentCeremonyStep) => void;
   /** First-time `heyhey local` only; never used for controller upgrades or recovery. */
   localApproval?: LocalApprovalSecret;
   log: (message: string) => void;
@@ -227,6 +230,7 @@ export const resolvePairDependencies = (
   ...(dependencies.confirmation ? { confirmation: dependencies.confirmation } : {}),
   ...(dependencies.prompter ? { prompter: dependencies.prompter } : {}),
   ...(dependencies.onBrowserHandoff ? { onBrowserHandoff: dependencies.onBrowserHandoff } : {}),
+  ...(dependencies.onCeremonyStep ? { onCeremonyStep: dependencies.onCeremonyStep } : {}),
   ...(dependencies.localApproval ? { localApproval: dependencies.localApproval } : {}),
   log: dependencies.log ?? console.log,
   logError: dependencies.logError ?? console.error,
@@ -252,6 +256,9 @@ export const runPairCommand = async (
     describeHandoff: (userCode) => describeEnrollment({ userCode }, deps.getPairingUrl(userCode)),
     ...(deps.onBrowserHandoff ? { onBrowserHandoff: deps.onBrowserHandoff } : {}),
   });
+  if (deps.onCeremonyStep) {
+    ceremony.observe(deps.onCeremonyStep);
+  }
   const result = await ceremony.run(
     (ports) => pairMachine(deps, ports),
     () => FAILED,
