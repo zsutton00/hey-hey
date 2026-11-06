@@ -27223,8 +27223,25 @@ components:
           maxLength: 128
           description: User-visible label for the controller being enrolled.
           example: "Zac's browser"
+        enrollmentMode:
+          $ref: "#/components/schemas/MachineEnrollmentMode"
         firstLocalGrant:
           $ref: "#/components/schemas/FirstLocalGrantRequestDto"
+
+    MachineEnrollmentMode:
+      type: string
+      enum:
+        - CONTROLLER_ONLY
+        - SHARED_NEW
+      description: >-
+        How the credential created by this claim is used. CONTROLLER_ONLY
+        (default) creates a controller credential only. SHARED_NEW creates one
+        discoverable ES256 credential in a single ceremony that is explicitly
+        enrolled both as an account sign-in passkey and as this computer's
+        controller. Sign-in eligibility never grants execution authority: the
+        computer still confirms locally and verifies controller proof itself.
+        The mode is fixed when the claim begins and is returned unchanged on
+        recoverable retries.
 
     FirstLocalGrantRequestDto:
       type: object
@@ -27442,6 +27459,8 @@ components:
           format: date-time
           description: Absolute timestamp at which the enrollment expires.
           example: "2026-08-11T18:05:00.000Z"
+        enrollmentMode:
+          $ref: "#/components/schemas/MachineEnrollmentMode"
         registrationOptions:
           $ref: "#/components/schemas/MachineEnrollmentWebAuthnRegistrationOptionsDto"
         firstLocalGrant:
@@ -27615,7 +27634,11 @@ components:
           type: string
           enum:
             - preferred
-          description: A discoverable credential is preferred.
+            - required
+          description: >-
+            A discoverable credential is preferred for controller-only claims
+            and required for SHARED_NEW claims, so the credential can also
+            sign in to the account.
           example: "preferred"
 
     CompleteMachineEnrollmentClaimRequestDto:
@@ -27637,6 +27660,14 @@ components:
           $ref: "#/components/schemas/MachineEnrollmentWebAuthnRegistrationCredentialDto"
         localApprovalProof:
           $ref: "#/components/schemas/MachineEnrollmentLocalApprovalProof"
+        accountProof:
+          allOf:
+            - $ref: "#/components/schemas/AccountProofDto"
+          description: >-
+            Required when the claim began in SHARED_NEW mode and rejected
+            otherwise. Fresh account proof, answering a challenge issued for
+            registering an account passkey, authorizing the credential's
+            sign-in eligibility.
 
     MachineEnrollmentLocalApprovalProof:
       type: string
@@ -27775,6 +27806,13 @@ components:
           maxLength: 128
           description: User-visible label retained for the controller credential.
           example: "Zac's browser"
+        session:
+          allOf:
+            - $ref: "#/components/schemas/BrowserSessionResponseDto"
+          description: >-
+            Present only for SHARED_NEW. Adding sign-in eligibility replaces
+            every earlier browser session; this is the single fresh session for
+            the acting browser.
 
     MachineEnrollmentClaimFailureCode:
       type: string

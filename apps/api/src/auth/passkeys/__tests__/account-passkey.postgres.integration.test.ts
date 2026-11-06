@@ -1,3 +1,4 @@
+import type { ControllerManagementService } from '../../../services/controller-management/controller-management.service';
 import { randomUUID } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
 import { hash } from 'bcrypt';
@@ -125,6 +126,9 @@ describeDatabase('Account passkeys at the browser session boundary', () => {
       {
         allowPasswordProof: async () => true,
       } as unknown as AccountProofThrottleService,
+      {
+        publishAccountRemovalReductions: async () => undefined,
+      } as unknown as ControllerManagementService,
     );
     validator = buildValidator(hosted);
     localValidator = buildValidator(local);
@@ -405,6 +409,52 @@ describeDatabase('Account passkeys at the browser session boundary', () => {
         {},
       ),
     ).rejects.toThrow('Passkey sign-in failed');
+  });
+
+  it('creates no session for a sign-in whose passkey is removed after its assertion was verified', async () => {
+    const account = await createAccount();
+    const session = await addPasskey(
+      account,
+      accessTokenOf(await account.signIn()),
+    );
+    const passkey = (await passkeys.list(account.userId)).passkeys[0]!;
+    const actor = await actorFor(account.userId, accessTokenOf(session));
+    const options = await passkeys.startSignIn();
+    const assertion = account.authenticator.assert(options.challenge, ORIGIN);
+
+    // Removal commits after sign-in has verified the assertion and before it
+    // opens the session transaction: the window the pre-check cannot cover.
+    let replacement: Awaited<ReturnType<typeof passkeys.remove>> | undefined;
+    const service = passkeys as unknown as {
+      verifyAssertion: (...args: unknown[]) => Promise<number>;
+    };
+    const verify = service.verifyAssertion.bind(passkeys);
+    const interleave = jest
+      .spyOn(service, 'verifyAssertion')
+      .mockImplementationOnce(async (...args) => {
+        const counter = await verify(...args);
+        replacement = await passkeys.remove(
+          actor,
+          passkey.id,
+          { currentPassword: PASSWORD },
+          {},
+        );
+        return counter;
+      });
+
+    try {
+      await expect(passkeys.completeSignIn(assertion, {})).rejects.toThrow(
+        'Passkey sign-in failed',
+      );
+    } finally {
+      interleave.mockRestore();
+    }
+
+    expect(replacement).toBeDefined();
+    expect(await activeFamilies(account.userId)).toBe(1);
+    await expect(
+      validator.verifyAndValidate(accessTokenOf(replacement!)),
+    ).resolves.toBeDefined();
   });
 
   it('leaves passkeys, sessions and access unchanged when account proof fails', async () => {

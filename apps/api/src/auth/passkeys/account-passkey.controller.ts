@@ -269,7 +269,7 @@ export class AccountPasskeyController {
 }
 
 /** Account passkey changes require a browser session, never OAuth access. */
-function actorFor(user: AuthenticatedUser): AccountPasskeyActor {
+export function actorFor(user: AuthenticatedUser): AccountPasskeyActor {
   if (!user.browserSessionId) {
     throw new UnauthorizedException('A browser session is required');
   }
@@ -289,7 +289,7 @@ function parse<T>(schema: z.ZodType<T>, body: unknown): T {
   return parsed.data;
 }
 
-function replaceBrowserSession(
+export function replaceBrowserSession(
   response: Response,
   session: EstablishedBrowserSession,
 ): BrowserSessionResponseDto {
@@ -304,7 +304,7 @@ function replaceBrowserSession(
   return session.response;
 }
 
-function assertTrustedBrowserOrigin(request: Request): void {
+export function assertTrustedBrowserOrigin(request: Request): void {
   if (!CorsConfig.isBrowserOriginAllowed(request.headers.origin)) {
     throw new UnauthorizedException('Browser session mutation is not allowed');
   }

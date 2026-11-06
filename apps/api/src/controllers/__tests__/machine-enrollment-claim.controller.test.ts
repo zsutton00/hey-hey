@@ -1,3 +1,4 @@
+import { SharedEnrollmentClaimService } from '../../services/machine-pairing/shared-enrollment-claim.service';
 import { MachineEnrollmentClaimController } from '../machine-enrollment-claim.controller';
 import type { AuthenticatedUser } from '../../auth/strategies/jwt.strategy';
 import type { MachineEnrollmentClaimService } from '../../services/machine-pairing/machine-enrollment-claim.service';
@@ -16,7 +17,11 @@ describe('MachineEnrollmentClaimController', () => {
     const cookies = {
       set: jest.fn(),
     } as unknown as ControllerBindingCookieService;
-    const controller = new MachineEnrollmentClaimController(service, cookies);
+    const controller = new MachineEnrollmentClaimController(
+      service,
+      cookies,
+      {} as SharedEnrollmentClaimService,
+    );
     const user = {
       userId: 'local-user',
       email: 'local-installation@local.invalid',
@@ -55,7 +60,11 @@ describe('MachineEnrollmentClaimController', () => {
     const cookies = {
       set: jest.fn(),
     } as unknown as ControllerBindingCookieService;
-    const controller = new MachineEnrollmentClaimController(service, cookies);
+    const controller = new MachineEnrollmentClaimController(
+      service,
+      cookies,
+      {} as SharedEnrollmentClaimService,
+    );
     const user = {
       userId: 'local-user',
       email: 'local-installation@local.invalid',

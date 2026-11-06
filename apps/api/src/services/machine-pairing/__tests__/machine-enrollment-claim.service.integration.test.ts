@@ -71,6 +71,7 @@ describeDatabase('MachineEnrollmentClaimService PostgreSQL invariants', () => {
 
   const verified = (): VerifiedMachineEnrollmentCredential => ({
     credentialId: 'shared-credential',
+    credentialPublicKey: Buffer.alloc(77, 4),
     credentialPublicKeyX: Buffer.alloc(32, 1),
     credentialPublicKeyY: Buffer.alloc(32, 2),
     credentialAaguid: Buffer.alloc(16, 3),

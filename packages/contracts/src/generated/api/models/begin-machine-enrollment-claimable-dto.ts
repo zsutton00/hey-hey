@@ -1,5 +1,6 @@
 // @ts-nocheck
 import type { OrganizationId, UserId } from '../../../brands.js';
+import { MachineEnrollmentMode } from './machine-enrollment-mode.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -18,6 +19,9 @@ import type { OrganizationId, UserId } from '../../../brands.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { FirstLocalGrantIntent } from './first-local-grant-intent.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { MachineEnrollmentMode } from './machine-enrollment-mode.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { MachineEnrollmentWebAuthnRegistrationOptionsDto } from './machine-enrollment-web-authn-registration-options-dto.js';
@@ -96,6 +100,12 @@ export interface BeginMachineEnrollmentClaimableDto {
     'expiresAt': string;
     /**
      *
+     * @type {MachineEnrollmentMode}
+     * @memberof BeginMachineEnrollmentClaimableDto
+     */
+    'enrollmentMode'?: MachineEnrollmentMode;
+    /**
+     *
      * @type {MachineEnrollmentWebAuthnRegistrationOptionsDto}
      * @memberof BeginMachineEnrollmentClaimableDto
      */
@@ -136,4 +146,6 @@ export namespace BeginMachineEnrollmentClaimableDto {
     export type StateEnum = BeginMachineEnrollmentClaimableDtoStateEnum;
     export const OsFamilyEnum = BeginMachineEnrollmentClaimableDtoOsFamilyEnum;
     export type OsFamilyEnum = BeginMachineEnrollmentClaimableDtoOsFamilyEnum;
+    export const EnrollmentModeEnum = MachineEnrollmentMode;
+    export type EnrollmentModeEnum = MachineEnrollmentMode;
 }

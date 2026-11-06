@@ -1,3 +1,4 @@
+import type { ControllerManagementService } from '../../../services/controller-management/controller-management.service';
 import { randomUUID } from 'node:crypto';
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -134,6 +135,9 @@ describeDatabase('Account passkeys over HTTP', () => {
       {
         allowPasswordProof: async () => true,
       } as unknown as AccountProofThrottleService,
+      {
+        publishAccountRemovalReductions: async () => undefined,
+      } as unknown as ControllerManagementService,
     );
     const authService = new AuthService(
       userService,

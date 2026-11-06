@@ -194,6 +194,16 @@ const accountProof = async (
   };
 };
 
+/**
+ * Fresh account proof authorizing a new account passkey. Used when a pairing
+ * claim also enrolls its passkey for sign-in.
+ */
+export const requestRegistrationProof = (
+  proof: AccountProofInput,
+  client?: UnifiedApiClient,
+): Promise<AccountProofDto> =>
+  accountProof(resolveClient(client), proof, "register");
+
 export const listAccountPasskeys = async (
   client?: UnifiedApiClient,
 ): Promise<AccountPasskeyDto[]> => {

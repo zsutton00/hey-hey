@@ -17,6 +17,7 @@ import {
   CompleteMachineEnrollmentClaimRequestDto,
   CompleteMachineEnrollmentClaimResponseDto,
   ControllerAuthorizationCadence,
+  MachineEnrollmentMode,
   MachineEnrollmentWebAuthnRegistrationCredentialDto,
 } from '@hey-hey/contracts/api/models';
 import {
@@ -51,6 +52,11 @@ import {
   ControllerBrowserBindingService,
   IssuedControllerBinding,
 } from '../controller-authorization/controller-browser-binding.service';
+
+export interface PreparedCompletion {
+  enrollment: PendingMachineEnrollment;
+  verified: VerifiedMachineEnrollmentCredential;
+}
 
 type BrowserSafeClaimFailureCode =
   | typeof MACHINE_ENROLLMENT_CLAIM_UNAVAILABLE
@@ -124,7 +130,7 @@ const LIVE_CLAIM_STATES: MachineEnrollmentState[] = [
   MachineEnrollmentState.AWAITING_MACHINE_CONFIRMATION,
 ] as const;
 
-interface OrganizationMembership {
+export interface OrganizationMembership {
   orgId: string;
 }
 
@@ -394,7 +400,13 @@ export class MachineEnrollmentClaimService {
           requestedCadence: challenge.requestedCadence,
           challengeIssuedAt: now,
           challengeExpiresAt,
-          ...(decision.kind === 'claim' ? { browserClaimedAt: now } : {}),
+          ...(decision.kind === 'claim'
+            ? {
+                browserClaimedAt: now,
+                enrollmentMode:
+                  input.enrollmentMode ?? MachineEnrollmentMode.CONTROLLER_ONLY,
+              }
+            : {}),
         },
       });
       if (claimed.count !== 1) throw new ClaimTransitionFailedError();
@@ -486,8 +498,12 @@ export class MachineEnrollmentClaimService {
       }),
     );
 
+    const shared =
+      claimedEnrollment.enrollmentMode === MachineEnrollmentMode.SHARED_NEW;
+
     return {
       state: 'claimable',
+      enrollmentMode: claimedEnrollment.enrollmentMode as MachineEnrollmentMode,
       enrollmentId: claimedEnrollment.id,
       machineId: claimedEnrollment.machineId,
       userId,
@@ -514,7 +530,7 @@ export class MachineEnrollmentClaimService {
         pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
         authenticatorSelection: {
           userVerification: 'required',
-          residentKey: 'preferred',
+          residentKey: shared ? 'required' : 'preferred',
         },
         attestation: 'none',
       },
@@ -528,6 +544,32 @@ export class MachineEnrollmentClaimService {
     memberships: readonly OrganizationMembership[],
     sourceAddress: string | undefined,
   ): Promise<CompleteMachineEnrollmentClaimResponseDto> {
+    const prepared = await this.prepareCompletion(
+      input,
+      userId,
+      memberships,
+      sourceAddress,
+      MachineEnrollmentMode.CONTROLLER_ONLY,
+    );
+
+    try {
+      await this.prisma.db.$transaction(async (tx) => {
+        await this.stageVerifiedCredential(tx, prepared, userId, input);
+      });
+    } catch (error) {
+      return this.failStaging(error, prepared, userId, sourceAddress);
+    }
+
+    return this.completionResponse(prepared, input);
+  }
+
+  async prepareCompletion(
+    input: CompleteMachineEnrollmentClaimRequestDto,
+    userId: UserId,
+    memberships: readonly OrganizationMembership[],
+    sourceAddress: string | undefined,
+    expectedMode: MachineEnrollmentMode,
+  ): Promise<PreparedCompletion> {
     const normalizedSourceAddress = this.normalizeSource(sourceAddress);
 
     try {
@@ -615,6 +657,21 @@ export class MachineEnrollmentClaimService {
       );
     }
 
+    if (
+      enrollment.enrollmentMode !== expectedMode ||
+      (expectedMode === MachineEnrollmentMode.SHARED_NEW) !==
+        (input.accountProof !== undefined)
+    ) {
+      return this.failClaim(
+        userId,
+        normalizedSourceAddress,
+        enrollment.id,
+        'enrollment_mode_mismatch',
+        true,
+        MACHINE_ENROLLMENT_CLIENT_INCOMPATIBLE,
+      );
+    }
+
     let verified: VerifiedMachineEnrollmentCredential;
     try {
       verified = await this.webauthnVerifier.verifyRegistration({
@@ -634,74 +691,108 @@ export class MachineEnrollmentClaimService {
       );
     }
 
-    try {
-      const consumedAt = new Date();
-      const updated = await this.prisma.db.$transaction(async (tx) => {
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${enrollment.id}, 21))`;
+    return { enrollment, verified };
+  }
 
-        const result = await tx.pendingMachineEnrollment.updateMany({
-          where: {
-            id: enrollment.id,
-            state: MachineEnrollmentState.BROWSER_CLAIMED,
-            claimantUserId: userId,
-            claimantOrganizationId: input.organizationId,
-            expiresAt: { gt: consumedAt },
-            challengeExpiresAt: { gt: consumedAt },
-            challengeConsumedAt: null,
-            credentialId: null,
-          },
-          data: {
-            state: MachineEnrollmentState.AWAITING_MACHINE_CONFIRMATION,
-            awaitingMachineConfirmationAt: consumedAt,
-            challengeConsumedAt: consumedAt,
-            credentialId: verified.credentialId,
-            credentialPublicKeyX: verified.credentialPublicKeyX,
-            credentialPublicKeyY: verified.credentialPublicKeyY,
-            credentialTransports: verified.credentialTransports,
-            credentialAaguid: verified.credentialAaguid,
-            credentialSignCount: verified.credentialSignCount,
-            credentialBackupEligible: verified.credentialBackupEligible,
-            credentialBackupState: verified.credentialBackupState,
-            credentialFingerprint: verified.credentialFingerprint,
-            credentialVerifiedAt: consumedAt,
-            localApprovalProof: input.localApprovalProof ?? null,
-          },
-        });
+  async stageVerifiedCredential(
+    tx: AnyTransactionClient,
+    prepared: PreparedCompletion,
+    userId: UserId,
+    input: CompleteMachineEnrollmentClaimRequestDto,
+    accountPasskeyId?: string,
+  ): Promise<void> {
+    const { enrollment, verified } = prepared;
+    const consumedAt = new Date();
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${enrollment.id}, 21))`;
 
-        if (result.count !== 1) {
-          throw new ClaimTransitionFailedError();
-        }
-        return result.count;
-      });
+    const result = await tx.pendingMachineEnrollment.updateMany({
+      where: {
+        id: enrollment.id,
+        state: MachineEnrollmentState.BROWSER_CLAIMED,
+        claimantUserId: userId,
+        claimantOrganizationId: input.organizationId,
+        expiresAt: { gt: consumedAt },
+        challengeExpiresAt: { gt: consumedAt },
+        challengeConsumedAt: null,
+        credentialId: null,
+      },
+      data: {
+        state: MachineEnrollmentState.AWAITING_MACHINE_CONFIRMATION,
+        awaitingMachineConfirmationAt: consumedAt,
+        challengeConsumedAt: consumedAt,
+        credentialId: verified.credentialId,
+        credentialPublicKeyX: verified.credentialPublicKeyX,
+        credentialPublicKeyY: verified.credentialPublicKeyY,
+        credentialTransports: verified.credentialTransports,
+        credentialAaguid: verified.credentialAaguid,
+        credentialSignCount: verified.credentialSignCount,
+        credentialBackupEligible: verified.credentialBackupEligible,
+        credentialBackupState: verified.credentialBackupState,
+        credentialFingerprint: verified.credentialFingerprint,
+        credentialVerifiedAt: consumedAt,
+        localApprovalProof: input.localApprovalProof ?? null,
+        ...(accountPasskeyId ? { accountPasskeyId } : {}),
+      },
+    });
 
-      if (updated !== 1) {
-        throw new ClaimTransitionFailedError();
-      }
-    } catch (error) {
-      if (
-        !(error instanceof ClaimTransitionFailedError) &&
-        !this.isUniqueConstraintError(error)
-      ) {
-        throw error;
-      }
+    if (result.count !== 1) {
+      throw new ClaimTransitionFailedError();
+    }
+  }
 
-      return this.failClaim(
-        userId,
-        normalizedSourceAddress,
-        enrollment.id,
-        this.isUniqueConstraintError(error)
-          ? 'credential_already_retained'
-          : 'completion_race_or_state_transition',
-        false,
-      );
+  rejectCompletion(
+    userId: UserId,
+    sourceAddress: string | undefined,
+    enrollmentId: string,
+    reasonCode: string,
+    countAsInvalidAttempt: boolean,
+    publicCode: BrowserSafeClaimFailureCode,
+  ): Promise<never> {
+    return this.failClaim(
+      userId,
+      this.normalizeSource(sourceAddress),
+      enrollmentId,
+      reasonCode,
+      countAsInvalidAttempt,
+      publicCode,
+    );
+  }
+
+  failStaging(
+    error: unknown,
+    prepared: PreparedCompletion,
+    userId: UserId,
+    sourceAddress: string | undefined,
+  ): Promise<never> {
+    if (
+      !(error instanceof ClaimTransitionFailedError) &&
+      !this.isUniqueConstraintError(error)
+    ) {
+      throw error;
     }
 
+    return this.failClaim(
+      userId,
+      this.normalizeSource(sourceAddress),
+      prepared.enrollment.id,
+      this.isUniqueConstraintError(error)
+        ? 'credential_already_retained'
+        : 'completion_race_or_state_transition',
+      false,
+    );
+  }
+
+  completionResponse(
+    prepared: PreparedCompletion,
+    input: CompleteMachineEnrollmentClaimRequestDto,
+  ): CompleteMachineEnrollmentClaimResponseDto {
+    const { enrollment, verified } = prepared;
     this.logger.log(
       'Machine enrollment browser claim completed',
       machineEnrollmentDiagnostic('complete_claim', {
         enrollmentId: enrollment.id,
         machineId: enrollment.machineId,
-        userId,
+        userId: enrollment.claimantUserId ?? undefined,
         organizationId: input.organizationId,
         credentialFingerprint: `sha256:${verified.credentialFingerprint}`,
         reasonCode: 'awaiting_machine_confirmation',
@@ -718,7 +809,7 @@ export class MachineEnrollmentClaimService {
       credentialFingerprint: `sha256:${verified.credentialFingerprint}`,
       backupEligible: verified.credentialBackupEligible,
       backupState: verified.credentialBackupState,
-      controllerLabel: enrollment.controllerLabel,
+      controllerLabel: enrollment.controllerLabel!,
     } satisfies CompleteMachineEnrollmentClaimResponseDto;
   }
 
@@ -1226,7 +1317,12 @@ export class MachineEnrollmentClaimService {
         'userCode',
         'controllerLabel',
         ...(input.firstLocalGrant === undefined ? [] : ['firstLocalGrant']),
+        ...(input.enrollmentMode === undefined ? [] : ['enrollmentMode']),
       ]) ||
+      (input.enrollmentMode !== undefined &&
+        !Object.values<unknown>(MachineEnrollmentMode).includes(
+          input.enrollmentMode,
+        )) ||
       !this.isUuid(input.organizationId) ||
       typeof input.userCode !== 'string' ||
       typeof input.controllerLabel !== 'string' ||
@@ -1261,6 +1357,7 @@ export class MachineEnrollmentClaimService {
         ...(input.localApprovalProof === undefined
           ? []
           : ['localApprovalProof']),
+        ...(input.accountProof === undefined ? [] : ['accountProof']),
       ]) ||
       !this.isUuid(input.enrollmentId) ||
       !this.isUuid(input.organizationId) ||

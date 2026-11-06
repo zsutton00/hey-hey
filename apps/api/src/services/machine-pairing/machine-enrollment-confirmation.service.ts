@@ -327,6 +327,7 @@ export class MachineEnrollmentConfirmationService {
 
         this.assertAuthenticatedEnrollment(current, deviceSecret);
         this.assertConfirmableEnrollment(current, new Date());
+        await this.assertSharedAccountPasskeyActive(tx, current);
         const firstLocalGrant = await this.expectedFirstLocalGrant(
           tx,
           current,
@@ -434,6 +435,7 @@ export class MachineEnrollmentConfirmationService {
               controllerInstallationId: current.controllerInstallationId,
               credentialFingerprint: current.credentialFingerprint!,
               enrollmentId: current.id,
+              accountPasskeyId: current.accountPasskeyId,
               createdAt: activatedAt,
             },
           });
@@ -676,6 +678,29 @@ export class MachineEnrollmentConfirmationService {
       grantId: grant.id,
       grantDescriptor,
     } satisfies FirstLocalGrantActivationDto;
+  }
+
+  /**
+   * A shared enrollment may activate only while the account passkey it was
+   * created with still exists. The row lock serializes activation against
+   * account-passkey removal, so a pending enrollment cannot restore authority
+   * that removal has revoked.
+   */
+  private async assertSharedAccountPasskeyActive(
+    tx: AnyTransactionClient,
+    enrollment: PendingMachineEnrollment,
+  ): Promise<void> {
+    if (!enrollment.accountPasskeyId) {
+      return;
+    }
+
+    const rows = await tx.$queryRaw<{ revoked_at: Date | null }[]>`
+      SELECT "revoked_at" FROM "account_passkeys"
+      WHERE "id" = ${enrollment.accountPasskeyId} FOR UPDATE
+    `;
+    if (!rows[0] || rows[0].revoked_at !== null) {
+      throw new EnrollmentAuthenticationFailure();
+    }
   }
 
   private async lockEnrollment(

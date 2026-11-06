@@ -173,7 +173,11 @@ export const AccountPasskeysSection: React.FC = () => {
               ? "Add a passkey"
               : `Remove ${pendingChange.passkey.name}`
           }
-          description="Confirm it's you. Other browsers signed in to your account will be signed out."
+          description={
+            pendingChange.kind === "add"
+              ? "Confirm it's you. Other browsers signed in to your account will be signed out."
+              : "Confirm it's you. Removing this passkey ends it everywhere: it can no longer sign in, and any computer it was paired with stops accepting it, including its time-limited permissions. Other browsers signed in to your account will be signed out."
+          }
           askForName={pendingChange.kind === "add"}
           canUsePasskey={(passkeys?.length ?? 0) > 0}
           onCancel={() => setPendingChange(null)}

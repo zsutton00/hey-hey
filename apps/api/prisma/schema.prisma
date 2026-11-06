@@ -110,9 +110,13 @@ model AccountPasskey {
   name         String    @db.VarChar(100)
   createdAt    DateTime  @default(now()) @map("created_at")
   lastUsedAt   DateTime? @map("last_used_at")
+  revokedAt    DateTime? @map("revoked_at")
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  controllerCredentials MachineControllerCredential[]
+  pendingEnrollments    PendingMachineEnrollment[]
 
   @@index([userId])
+  @@index([userId, revokedAt])
   @@map("account_passkeys")
 }
 
@@ -4235,10 +4239,13 @@ model PendingMachineEnrollment {
   localApprovalProof            String?                   @map("local_approval_proof") @db.VarChar(43)
   // First-time `heyhey local` only: the duration chosen for the first grant.
   requestedCadence              ControllerAuthorizationCadence? @map("requested_cadence")
+  enrollmentMode                String                    @default("CONTROLLER_ONLY") @map("enrollment_mode") @db.VarChar(16)
+  accountPasskeyId              String?                   @map("account_passkey_id")
   updatedAt                     DateTime                  @updatedAt @map("updated_at")
 
   claimantUser               User?                           @relation("PendingMachineEnrollmentClaimant", fields: [claimantUserId], references: [id], onDelete: Cascade)
   claimantOrganization       Organization?                   @relation(fields: [claimantOrganizationId], references: [id], onDelete: Cascade)
+  accountPasskey             AccountPasskey?                 @relation(fields: [accountPasskeyId], references: [id], onDelete: Restrict)
   claimFailures              MachineEnrollmentClaimFailure[]
   activeControllerCredential MachineControllerCredential?
 
@@ -4341,7 +4348,9 @@ model MachineControllerCredential {
   lastUsedAt               DateTime? @map("last_used_at")
   revokedAt                DateTime? @map("revoked_at")
   enrollmentId             String    @unique @map("enrollment_id")
+  accountPasskeyId         String?   @map("account_passkey_id")
 
+  accountPasskey            AccountPasskey?            @relation(fields: [accountPasskeyId], references: [id], onDelete: Restrict)
   machine                   Machine                    @relation(fields: [machineId], references: [id], onDelete: Cascade)
   user                      User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization              Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -4354,6 +4363,7 @@ model MachineControllerCredential {
   @@index([userId, revokedAt], map: "machine_controller_credentials_user_revoked_at_idx")
   @@index([organizationId, revokedAt], map: "machine_controller_credentials_organization_revoked_at_idx")
   @@index([controllerInstallationId, machineId, revokedAt], map: "machine_controller_credentials_installation_machine_revoked_idx")
+  @@index([accountPasskeyId, revokedAt], map: "machine_controller_credentials_account_passkey_idx")
   @@map("machine_controller_credentials")
 }
 

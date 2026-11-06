@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => ({
   completeMutate: vi.fn(),
   createCredential: vi.fn(),
   refetchMachines: vi.fn(),
+  requestProof: vi.fn(),
+  acceptSession: vi.fn(),
 }));
 
 type IdentityFixture = {
@@ -82,6 +84,12 @@ vi.mock("@hey-hey/ui-common/data", () => ({
     machines: fixtures.machines,
     refetch: mocks.refetchMachines,
   }),
+}));
+
+vi.mock("@hey-hey/ui-common/services", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@hey-hey/ui-common/services")>()),
+  requestRegistrationProof: mocks.requestProof,
+  acceptBrowserAuthResponse: mocks.acceptSession,
 }));
 
 vi.mock("@hey-hey/ui-common/hooks", async (importOriginal) => ({
@@ -453,6 +461,85 @@ describe("ClaimMachine", () => {
         organizationId: "org-1",
         credential: expect.objectContaining({ id: "credential-id" }),
       }),
+    );
+  });
+
+  it("enrolls one passkey for sign-in and the controller, keeping the replacement session", async () => {
+    const sharedBegin = {
+      ...beginResult,
+      enrollmentMode: "SHARED_NEW",
+      registrationOptions: {
+        ...beginResult.registrationOptions,
+        authenticatorSelection: {
+          userVerification: "required",
+          residentKey: "required",
+        },
+      },
+    };
+    const session = { accessToken: "fresh" };
+    mocks.beginMutate.mockResolvedValue(sharedBegin);
+    mocks.requestProof.mockResolvedValue({ currentPassword: "pw" });
+    mocks.completeMutate.mockResolvedValue({ ...completeResult, session });
+
+    render(<ClaimMachine initialCode={null} />);
+    advancePastCliStep();
+    fireEvent.change(screen.getByTestId("settings-machine-claim-code"), {
+      target: { value: "BCDFGHJKLM" },
+    });
+    fireEvent.click(screen.getByTestId("settings-machine-claim-share-sign-in"));
+    submitClaim();
+
+    await waitFor(() =>
+      expect(mocks.beginMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ enrollmentMode: "SHARED_NEW" }),
+      ),
+    );
+
+    fireEvent.click(
+      screen.getByTestId("settings-machine-claim-create-passkey"),
+    );
+    expect(mocks.createCredential).not.toHaveBeenCalled();
+    expect(mocks.requestProof).not.toHaveBeenCalled();
+
+    fireEvent.change(
+      screen.getByTestId("settings-machine-claim-sign-in-password"),
+      { target: { value: "pw" } },
+    );
+    fireEvent.click(
+      screen.getByTestId("settings-machine-claim-create-passkey"),
+    );
+
+    await waitFor(() =>
+      expect(mocks.completeMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ accountProof: { currentPassword: "pw" } }),
+      ),
+    );
+    expect(mocks.requestProof).toHaveBeenCalledWith({
+      kind: "password",
+      currentPassword: "pw",
+    });
+    expect(mocks.acceptSession).toHaveBeenCalledWith(session);
+  });
+
+  it("asks for no account proof when the passkey is for pairing only", async () => {
+    render(<ClaimMachine initialCode={null} />);
+    advancePastCliStep();
+    fireEvent.change(screen.getByTestId("settings-machine-claim-code"), {
+      target: { value: "BCDFGHJKLM" },
+    });
+    submitClaim();
+    await screen.findByTestId("settings-machine-claim-review");
+
+    expect(
+      screen.queryByTestId("settings-machine-claim-shared"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByTestId("settings-machine-claim-create-passkey"),
+    );
+    await waitFor(() => expect(mocks.completeMutate).toHaveBeenCalled());
+    expect(mocks.requestProof).not.toHaveBeenCalled();
+    expect(mocks.completeMutate.mock.calls[0]![0]).not.toHaveProperty(
+      "accountProof",
     );
   });
 

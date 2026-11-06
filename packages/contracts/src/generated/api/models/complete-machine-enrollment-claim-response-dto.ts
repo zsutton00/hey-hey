@@ -15,6 +15,9 @@ import type { OrganizationId } from '../../../brands.js';
  */
 
 
+// May contain unused imports in some cases
+// @ts-ignore
+import type { BrowserSessionResponseDto } from './browser-session-response-dto.js';
 
 /**
  *
@@ -70,6 +73,12 @@ export interface CompleteMachineEnrollmentClaimResponseDto {
      * @memberof CompleteMachineEnrollmentClaimResponseDto
      */
     'controllerLabel': string;
+    /**
+     * Present only for SHARED_NEW. Adding sign-in eligibility replaces every earlier browser session; this is the single fresh session for the acting browser.
+     * @type {BrowserSessionResponseDto}
+     * @memberof CompleteMachineEnrollmentClaimResponseDto
+     */
+    'session'?: BrowserSessionResponseDto;
 }
 
 

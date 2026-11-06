@@ -28,7 +28,7 @@ export interface MachineEnrollmentWebAuthnAuthenticatorSelectionDto {
      */
     'userVerification': MachineEnrollmentWebAuthnAuthenticatorSelectionDtoUserVerificationEnum;
     /**
-     * A discoverable credential is preferred.
+     * A discoverable credential is preferred for controller-only claims and required for SHARED_NEW claims, so the credential can also sign in to the account.
      * @type {string}
      * @memberof MachineEnrollmentWebAuthnAuthenticatorSelectionDto
      */
@@ -46,9 +46,12 @@ Object.defineProperty(MachineEnrollmentWebAuthnAuthenticatorSelectionDtoUserVeri
 export type MachineEnrollmentWebAuthnAuthenticatorSelectionDtoUserVerificationEnum = typeof MachineEnrollmentWebAuthnAuthenticatorSelectionDtoUserVerificationEnum[keyof typeof MachineEnrollmentWebAuthnAuthenticatorSelectionDtoUserVerificationEnum];
 export const MachineEnrollmentWebAuthnAuthenticatorSelectionDtoResidentKeyEnum = {
     Preferred: 'preferred',
+    Required: 'required',
     "preferred": "preferred",
+    "required": "required",
 } as const;
 Object.defineProperty(MachineEnrollmentWebAuthnAuthenticatorSelectionDtoResidentKeyEnum, "preferred", { enumerable: false, value: MachineEnrollmentWebAuthnAuthenticatorSelectionDtoResidentKeyEnum["Preferred"] });
+Object.defineProperty(MachineEnrollmentWebAuthnAuthenticatorSelectionDtoResidentKeyEnum, "required", { enumerable: false, value: MachineEnrollmentWebAuthnAuthenticatorSelectionDtoResidentKeyEnum["Required"] });
 
 export type MachineEnrollmentWebAuthnAuthenticatorSelectionDtoResidentKeyEnum = typeof MachineEnrollmentWebAuthnAuthenticatorSelectionDtoResidentKeyEnum[keyof typeof MachineEnrollmentWebAuthnAuthenticatorSelectionDtoResidentKeyEnum];
 

@@ -2,7 +2,9 @@ import {
   ControllerAuthorizationCadence,
   CurrentControllerMachineEligibilityState,
   MachineEnrollmentClaimFailureCode,
+  MachineEnrollmentMode,
   type BeginMachineEnrollmentClaimableDto,
+  type AccountProofDto,
   type CompleteMachineEnrollmentClaimResponseDto,
 } from "@hey-hey/contracts/api";
 import {
@@ -19,11 +21,18 @@ import {
 } from "@hey-hey/ui-common/data";
 import { formatUserIdentity, useUserIdentity } from "@hey-hey/ui-common/hooks";
 import {
+  acceptBrowserAuthResponse,
+  requestRegistrationProof,
+  type AccountProofInput,
+} from "@hey-hey/ui-common/services";
+import {
   Alert,
   Box,
   Button,
+  Checkbox,
   CircularProgress,
   Divider,
+  FormControlLabel,
   Step,
   StepLabel,
   Stepper,
@@ -199,6 +208,10 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
   const [completion, setCompletion] =
     useState<CompleteMachineEnrollmentClaimResponseDto | null>(null);
   const [inputError, setInputError] = useState<string | null>(null);
+  const [shareForSignIn, setShareForSignIn] = useState(false);
+  const [signInProofPassword, setSignInProofPassword] = useState("");
+  const [signInProofKind, setSignInProofKind] =
+    useState<AccountProofInput["kind"]>("password");
   const [claimFailureMessage, setClaimFailureMessage] = useState<string | null>(
     null,
   );
@@ -410,6 +423,9 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
         organizationId: validatedClaimContext.organization.id,
         userCode: normalizedCode,
         controllerLabel: normalizedLabel,
+        ...(shareForSignIn
+          ? { enrollmentMode: MachineEnrollmentMode.SharedNew }
+          : {}),
         ...firstLocalGrantRequest(cadence),
       };
       const response = await beginClaim.mutate(beginRequest);
@@ -536,6 +552,37 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
 
     const activeAttemptRevision = attemptRevision.current;
     setPasskeyRetryMessage(null);
+
+    const sharedForSignIn =
+      claim.enrollmentMode === MachineEnrollmentMode.SharedNew;
+    let accountProof: AccountProofDto | undefined;
+    if (sharedForSignIn) {
+      if (signInProofKind === "password" && signInProofPassword === "") {
+        setPasskeyRetryMessage(
+          "Enter your account password, or choose an existing passkey, to also use this passkey for sign-in.",
+        );
+        return;
+      }
+      setState("passkey-in-progress");
+      try {
+        accountProof = await requestRegistrationProof(
+          signInProofKind === "password"
+            ? { kind: "password", currentPassword: signInProofPassword }
+            : { kind: "passkey" },
+        );
+        if (activeAttemptRevision !== attemptRevision.current) return;
+      } catch (error) {
+        if (activeAttemptRevision !== attemptRevision.current) return;
+        setPasskeyRetryMessage(
+          error instanceof Error
+            ? error.message
+            : "We could not confirm your account. Try again.",
+        );
+        setState("review");
+        return;
+      }
+    }
+
     setState("passkey-in-progress");
     let registration: MachineEnrollmentRegistration;
     try {
@@ -581,7 +628,12 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
         organizationId: validatedClaimContext.organization.id,
         credential,
         ...(localApprovalProof === undefined ? {} : { localApprovalProof }),
+        ...(accountProof === undefined ? {} : { accountProof }),
       });
+      if (response.session) {
+        // Adding sign-in eligibility replaced every earlier browser session.
+        acceptBrowserAuthResponse(response.session);
+      }
       if (activeAttemptRevision !== attemptRevision.current) return;
       setCompletion(response);
       setClaim(null);
@@ -987,6 +1039,20 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
               "data-testid": "settings-machine-claim-controller-label",
             }}
           />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={shareForSignIn}
+                onChange={(event) => setShareForSignIn(event.target.checked)}
+                inputProps={
+                  {
+                    "data-testid": "settings-machine-claim-share-sign-in",
+                  } as React.InputHTMLAttributes<HTMLInputElement>
+                }
+              />
+            }
+            label="Also use this passkey to sign in to my account"
+          />
           <Button
             variant="contained"
             onClick={() => void handleBegin()}
@@ -1033,6 +1099,42 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
             )}
             {renderDetail("Passkey name", claim.controllerLabel)}
           </Stack>
+          {claim.enrollmentMode === MachineEnrollmentMode.SharedNew ? (
+            <Stack spacing={1} data-testid="settings-machine-claim-shared">
+              <Typography variant="body2" color="text.secondary">
+                This passkey will also sign in to your account. Signing in never
+                lets this browser run work on your computer: the Agent Bridge
+                still confirms locally. Adding it signs out your other browsers.
+              </Typography>
+              {signInProofKind === "password" ? (
+                <TextField
+                  type="password"
+                  label="Account password"
+                  value={signInProofPassword}
+                  onChange={(event) =>
+                    setSignInProofPassword(event.target.value)
+                  }
+                  autoComplete="current-password"
+                  inputProps={{
+                    "data-testid": "settings-machine-claim-sign-in-password",
+                  }}
+                />
+              ) : null}
+              <Button
+                size="small"
+                onClick={() =>
+                  setSignInProofKind(
+                    signInProofKind === "password" ? "passkey" : "password",
+                  )
+                }
+                data-testid="settings-machine-claim-sign-in-proof-toggle"
+              >
+                {signInProofKind === "password"
+                  ? "Use an existing passkey instead"
+                  : "Use my password instead"}
+              </Button>
+            </Stack>
+          ) : null}
           <Divider />
           <Stack direction="row" spacing={1}>
             <Button

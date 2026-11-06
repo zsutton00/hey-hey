@@ -43,8 +43,9 @@ export const ControllerRevokeDialog: React.FC<ControllerRevokeDialogProps> = ({
       <DialogContentText id="revoke-controller-dialog-description">
         Remove <strong>{controller?.label ?? "this Passkey"}</strong> from the{" "}
         <strong>{machine.name}</strong> Agent Bridge? It will no longer
-        authorize work on that computer. If it is the last Passkey, signing in
-        cannot restore access; on that computer, run{" "}
+        authorize work on that computer, but it can still sign in to your
+        account if it is also used for sign-in. If it is the last Passkey,
+        signing in cannot restore access; on that computer, run{" "}
         <code>heyhey controllers add</code>.
       </DialogContentText>
     </DialogContent>

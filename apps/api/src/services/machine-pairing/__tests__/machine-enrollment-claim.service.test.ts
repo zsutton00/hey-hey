@@ -102,6 +102,7 @@ const makeAbandonInput = (): AbandonMachineEnrollmentClaimRequestDto => ({
 
 const makeVerified = (): VerifiedMachineEnrollmentCredential => ({
   credentialId: 'credential-id',
+  credentialPublicKey: Buffer.alloc(77, 4),
   credentialPublicKeyX: Buffer.alloc(32, 1),
   credentialPublicKeyY: Buffer.alloc(32, 2),
   credentialAaguid: Buffer.alloc(16, 3),
@@ -335,6 +336,77 @@ describe('MachineEnrollmentClaimService', () => {
     expect(result.userId).toBe(row.claimantUserId);
     expect(row.webauthnChallenge).toBe(result.registrationOptions.challenge);
     expect(result.machineKeyFingerprint).toBe(`sha256:${'b'.repeat(64)}`);
+  });
+
+  describe('shared enrollment mode', () => {
+    const beginShared = () =>
+      service.beginClaim(
+        makeBeginInput({ enrollmentMode: 'SHARED_NEW' }),
+        USER_ID,
+        [{ orgId: ORGANIZATION_ID }],
+        '192.0.2.1',
+        { email: 'zac@example.com', name: 'Zac' },
+      );
+
+    it('requires a discoverable credential and keeps the mode on retry', async () => {
+      const first = await beginShared();
+      if (first.state !== 'claimable') {
+        throw new Error('Expected claimable response');
+      }
+      expect(first.enrollmentMode).toBe('SHARED_NEW');
+      expect(first.registrationOptions.authenticatorSelection.residentKey).toBe(
+        'required',
+      );
+
+      const retry = await service.beginClaim(
+        makeBeginInput(),
+        USER_ID,
+        [{ orgId: ORGANIZATION_ID }],
+        '192.0.2.1',
+        { email: 'zac@example.com', name: 'Zac' },
+      );
+      if (retry.state !== 'claimable') {
+        throw new Error('Expected claimable response');
+      }
+      expect(retry.enrollmentMode).toBe('SHARED_NEW');
+      expect(retry.registrationOptions.challenge).toBe(
+        first.registrationOptions.challenge,
+      );
+    });
+
+    it('does not let the controller-only completion stage a shared claim', async () => {
+      await beginShared();
+
+      await expect(
+        service.completeClaim(
+          makeCredential(),
+          USER_ID,
+          [{ orgId: ORGANIZATION_ID }],
+          '192.0.2.1',
+        ),
+      ).rejects.toMatchObject({
+        response: { code: 'MACHINE_ENROLLMENT_CLIENT_INCOMPATIBLE' },
+      });
+      expect(row.state).toBe(MachineEnrollmentState.BROWSER_CLAIMED);
+      expect(row.credentialId).toBeNull();
+    });
+
+    it('defaults to a controller-only claim with a preferred credential', async () => {
+      const result = await service.beginClaim(
+        makeBeginInput(),
+        USER_ID,
+        [{ orgId: ORGANIZATION_ID }],
+        '192.0.2.1',
+        { email: 'zac@example.com', name: 'Zac' },
+      );
+      if (result.state !== 'claimable') {
+        throw new Error('Expected claimable response');
+      }
+      expect(result.enrollmentMode).toBe('CONTROLLER_ONLY');
+      expect(
+        result.registrationOptions.authenticatorSelection.residentKey,
+      ).toBe('preferred');
+    });
   });
 
   describe('first-time local duration', () => {

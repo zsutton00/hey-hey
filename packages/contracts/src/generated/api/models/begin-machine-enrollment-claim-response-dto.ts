@@ -25,6 +25,9 @@ import type { BeginMachineEnrollmentClaimableDto } from './begin-machine-enrollm
 import type { FirstLocalGrantIntent } from './first-local-grant-intent.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { MachineEnrollmentMode } from './machine-enrollment-mode.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { MachineEnrollmentWebAuthnRegistrationOptionsDto } from './machine-enrollment-web-authn-registration-options-dto.js';
 
 /**

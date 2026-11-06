@@ -11,7 +11,16 @@ This file is pruned periodically. Add a rule only when its absence has demonstra
 - Checks are evidence, not a work queue. A failure outside your change is reported, not fixed.
 - If asked only to commit, commit without running checks.
 - In a linked worktree, OpenAPI generation resolves the matching `openapi/.worktrees/<worktree>` first, then the main checkout. Set `HEY_HEY_OPENAPI_ROOT` only to pin a source deliberately.
-- After editing, run `pnpm exec prettier --write <changed files>`. Claude Code does this via a hook; other agents do it by hand.
+- After editing, run `pnpm exec prettier --write <changed files>`. Claude Code does this via a hook; other agents do it by hand. Pass file paths, never a directory: formatting a directory rewrites unrelated files.
+
+## Command cost
+
+Some commands are slow enough to dominate a task. Budget for them.
+
+- `pnpm generate:contracts` takes about five minutes. Finish every OpenAPI edit first, then run it once. `pnpm check` and `pnpm type-check` also take the generation lock and rebuild contracts.
+- Run `pnpm check` once, at the end. While iterating, run only the focused tests for the files you changed, one package at a time. The full UI and CLI suites together can be killed for memory (exit 137).
+- Run `ui`, `ui-common` and `cli` Vitest with `NODE_ENV=test`. The shell default of `production` fails every React test with "jsxDEV is not a function" and wastes a full run.
+- Run any command expected to exceed two minutes in the background and watch its log. Do not start a second copy while one runs.
 
 ## Contracts come from OpenAPI
 

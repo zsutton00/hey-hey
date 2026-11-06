@@ -34,8 +34,14 @@ describe('TopologyQueryController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [TopologyQueryController],
       providers: [
-        { provide: ProjectAccessService, useValue: { assertOrganization: jest.fn(), assertProject: jest.fn() } },
-        { provide: ProjectResourceAccessService, useValue: { assertResource: jest.fn() } },
+        {
+          provide: ProjectAccessService,
+          useValue: { assertOrganization: jest.fn(), assertProject: jest.fn() },
+        },
+        {
+          provide: ProjectResourceAccessService,
+          useValue: { assertResource: jest.fn() },
+        },
         { provide: EntitySummaryService, useValue: mockEntitySummaryService },
         { provide: SubfacetService, useValue: mockSubfacetService },
         {

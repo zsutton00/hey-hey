@@ -17,6 +17,9 @@ import type { OrganizationId } from '../../../brands.js';
 
 // May contain unused imports in some cases
 // @ts-ignore
+import type { AccountProofDto } from './account-proof-dto.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { MachineEnrollmentWebAuthnRegistrationCredentialDto } from './machine-enrollment-web-authn-registration-credential-dto.js';
 
 /**
@@ -49,4 +52,10 @@ export interface CompleteMachineEnrollmentClaimRequestDto {
      * @memberof CompleteMachineEnrollmentClaimRequestDto
      */
     'localApprovalProof'?: string;
+    /**
+     * Required when the claim began in SHARED_NEW mode and rejected otherwise. Fresh account proof, answering a challenge issued for registering an account passkey, authorizing the credential\'s sign-in eligibility.
+     * @type {AccountProofDto}
+     * @memberof CompleteMachineEnrollmentClaimRequestDto
+     */
+    'accountProof'?: AccountProofDto;
 }

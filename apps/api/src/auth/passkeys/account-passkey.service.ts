@@ -30,7 +30,8 @@ import {
   PrismaService,
 } from '../../prisma/prisma.service';
 import { UserService } from '../../services/user.service';
-import { UserId } from '../../types';
+import { MachineId, UserId } from '../../types';
+import { ControllerEnrollmentEligibilityState } from '@hey-hey/contracts/api/models';
 import type { BrowserSessionRequestMetadata } from '../browser-session.types';
 import {
   BrowserSessionPrincipal,
@@ -39,6 +40,10 @@ import {
 } from '../services/browser-session.service';
 import { isLocalAccountEmail } from '../local-account';
 import { AccountProofThrottleService } from './account-proof-throttle.service';
+import {
+  ControllerManagementService,
+  type AccountRemovalRevocation,
+} from '../../services/controller-management/controller-management.service';
 import { isLocalApplication } from '../../deployment-environment';
 
 /** Ceremony lifetime for every account passkey challenge. */
@@ -89,6 +94,7 @@ export class AccountPasskeyService {
     private readonly userService: UserService,
     private readonly browserSessionService: BrowserSessionService,
     private readonly proofThrottle: AccountProofThrottleService,
+    private readonly controllerManagement: ControllerManagementService,
   ) {
     this.rpId = requiredConfig(configService, 'ACCOUNT_PASSKEY_RP_ID');
     this.origin = requiredConfig(configService, 'ACCOUNT_PASSKEY_ORIGIN');
@@ -99,7 +105,7 @@ export class AccountPasskeyService {
 
   async list(userId: UserId): Promise<AccountPasskeyListDto> {
     const passkeys = await this.prisma.db.accountPasskey.findMany({
-      where: { userId },
+      where: { userId, revokedAt: null },
       orderBy: { createdAt: 'asc' },
     });
     return { passkeys: passkeys.map(toDto) };
@@ -111,7 +117,7 @@ export class AccountPasskeyService {
     name: string,
   ): Promise<AccountPasskeyDto> {
     const updated = await this.prisma.db.accountPasskey.updateMany({
-      where: { id: passkeyId, userId },
+      where: { id: passkeyId, userId, revokedAt: null },
       data: { name },
     });
     if (updated.count === 0) {
@@ -155,7 +161,7 @@ export class AccountPasskeyService {
     if (operation === 'remove') {
       const target = passkeyId
         ? await this.prisma.db.accountPasskey.findFirst({
-            where: { id: passkeyId, userId: actor.userId },
+            where: { id: passkeyId, userId: actor.userId, revokedAt: null },
             select: { id: true },
           })
         : null;
@@ -165,7 +171,7 @@ export class AccountPasskeyService {
     }
 
     const owned = await this.prisma.db.accountPasskey.findMany({
-      where: { userId: actor.userId },
+      where: { userId: actor.userId, revokedAt: null },
       select: { credentialId: true },
     });
     if (owned.length === 0) {
@@ -211,7 +217,7 @@ export class AccountPasskeyService {
         AccountPasskeyChallengePurpose.SignIn,
       );
       const passkey = await this.prisma.db.accountPasskey.findUnique({
-        where: { credentialId: credential.id },
+        where: { credentialId: credential.id, revokedAt: null },
       });
       if (
         !passkey ||
@@ -225,9 +231,11 @@ export class AccountPasskeyService {
         passkey,
       );
 
+      // Lock the account before touching the passkey, the same order removal
+      // uses, so a removal that commits after the pre-check above is seen here.
       const session = await this.prisma.db.$transaction(async (tx) => {
-        await this.recordPasskeyUse(tx, passkey.id, newCounter);
         const user = await this.lockActiveUser(tx, passkey.userId as UserId);
+        await this.recordPasskeyUse(tx, passkey.id, newCounter);
         return this.browserSessionService.establishInTransaction(
           tx,
           principalFor(user),
@@ -255,7 +263,71 @@ export class AccountPasskeyService {
     requestMetadata: BrowserSessionRequestMetadata,
   ): Promise<EstablishedBrowserSession> {
     const registration = await this.verifyRegistration(actor, dto.credential);
-    const proofPasskey = await this.verifyAccountProof(actor, dto.proof, {
+    return this.addPasskey(
+      actor,
+      registration,
+      dto.name.trim(),
+      dto.proof,
+      requestMetadata,
+    );
+  }
+
+  /**
+   * Adds sign-in eligibility for a credential that was just verified by the
+   * controller enrollment ceremony, in the same transaction that stages its
+   * controller enrollment. Account proof is verified here against the
+   * credential's own verified public key, never a client-supplied flag.
+   * Failure in either step leaves passkeys, sessions and enrollment unchanged.
+   */
+  async addVerifiedSharedPasskey(
+    actor: AccountPasskeyActor,
+    credential: SharedEnrollmentCredential,
+    name: string,
+    proof: AccountProofDto,
+    requestMetadata: BrowserSessionRequestMetadata,
+    stageControllerEnrollment: (
+      tx: AnyTransactionClient,
+      accountPasskeyId: string,
+    ) => Promise<void>,
+  ): Promise<EstablishedBrowserSession> {
+    return this.addPasskey(
+      actor,
+      {
+        credentialId: credential.credentialId,
+        publicKey: credential.publicKey,
+        counter: credential.counter,
+        transports: credential.transports,
+        deviceType: credential.backupEligible ? 'multiDevice' : 'singleDevice',
+        backedUp: credential.backupState,
+        aaguid: formatAaguid(credential.aaguid),
+      },
+      name,
+      proof,
+      requestMetadata,
+      stageControllerEnrollment,
+    );
+  }
+
+  private async addPasskey(
+    actor: AccountPasskeyActor,
+    registration: {
+      credentialId: string;
+      publicKey: Uint8Array;
+      counter: number;
+      transports: string[];
+      deviceType: string;
+      backedUp: boolean;
+      aaguid: string;
+    },
+    name: string,
+    proof: AccountProofDto,
+    requestMetadata: BrowserSessionRequestMetadata,
+    afterCreate?: (
+      tx: AnyTransactionClient,
+      accountPasskeyId: string,
+    ) => Promise<void>,
+  ): Promise<EstablishedBrowserSession> {
+    const proofPasskey = await this.verifyAccountProof(actor, proof, {
       purpose: AccountPasskeyChallengePurpose.ProofRegister,
     });
 
@@ -271,8 +343,9 @@ export class AccountPasskeyService {
             proofPasskey.newCounter,
           );
         }
+        let created: { id: string };
         try {
-          await tx.accountPasskey.create({
+          created = await tx.accountPasskey.create({
             data: {
               userId: actor.userId,
               credentialId: registration.credentialId,
@@ -282,8 +355,9 @@ export class AccountPasskeyService {
               deviceType: registration.deviceType,
               backedUp: registration.backedUp,
               aaguid: registration.aaguid,
-              name: dto.name.trim(),
+              name,
             },
+            select: { id: true },
           });
         } catch (error) {
           if (isUniqueViolation(error)) {
@@ -291,6 +365,7 @@ export class AccountPasskeyService {
           }
           throw error;
         }
+        await afterCreate?.(tx, created.id);
       },
     );
   }
@@ -302,7 +377,7 @@ export class AccountPasskeyService {
     requestMetadata: BrowserSessionRequestMetadata,
   ): Promise<EstablishedBrowserSession> {
     const target = await this.prisma.db.accountPasskey.findFirst({
-      where: { id: passkeyId, userId: actor.userId },
+      where: { id: passkeyId, userId: actor.userId, revokedAt: null },
       select: { id: true },
     });
     if (!target) {
@@ -314,7 +389,8 @@ export class AccountPasskeyService {
       targetPasskeyId: passkeyId,
     });
 
-    return this.replaceSessionsAfterChange(
+    let revocations: AccountRemovalRevocation[] = [];
+    const session = await this.replaceSessionsAfterChange(
       actor,
       'passkey_removed',
       requestMetadata,
@@ -326,14 +402,108 @@ export class AccountPasskeyService {
             proofPasskey.newCounter,
           );
         }
-        const removed = await tx.accountPasskey.deleteMany({
-          where: { id: passkeyId, userId: actor.userId },
+        const revokedAt = new Date();
+        const removed = await tx.accountPasskey.updateMany({
+          where: { id: passkeyId, userId: actor.userId, revokedAt: null },
+          data: { revokedAt },
         });
         if (removed.count === 0) {
           throw new NotFoundException('Passkey not found');
         }
+        revocations = await this.revokeLinkedControllerAuthority(
+          tx,
+          passkeyId,
+          revokedAt,
+        );
       },
     );
+
+    await this.controllerManagement.publishAccountRemovalReductions(
+      revocations,
+    );
+    return session;
+  }
+
+  /**
+   * Removing an account passkey removes every use of it in this deployment:
+   * each linked controller credential, its execution grants and its browser
+   * bindings are revoked, and a machine left without an active controller
+   * requires controller enrollment again.
+   */
+  private async revokeLinkedControllerAuthority(
+    tx: AnyTransactionClient,
+    accountPasskeyId: string,
+    revokedAt: Date,
+  ): Promise<AccountRemovalRevocation[]> {
+    await tx.pendingMachineEnrollment.updateMany({
+      where: {
+        accountPasskeyId,
+        state: {
+          in: ['BROWSER_CLAIMED', 'AWAITING_MACHINE_CONFIRMATION'],
+        },
+      },
+      data: { state: 'REJECTED', rejectedAt: revokedAt },
+    });
+
+    const linked: LinkedController[] =
+      await tx.machineControllerCredential.findMany({
+        where: { accountPasskeyId, revokedAt: null },
+        select: {
+          id: true,
+          machineId: true,
+          userId: true,
+          credentialId: true,
+          organizationId: true,
+        },
+      });
+    if (linked.length === 0) {
+      return [];
+    }
+
+    const controllerIds = linked.map((controller) => controller.id);
+    await tx.machineControllerCredential.updateMany({
+      where: { id: { in: controllerIds }, revokedAt: null },
+      data: { revokedAt },
+    });
+    await tx.executionGrant.updateMany({
+      where: { controllerCredentialId: { in: controllerIds }, revokedAt: null },
+      data: { revokedAt },
+    });
+    await tx.controllerBrowserBinding.updateMany({
+      where: {
+        controllerCredentialId: { in: controllerIds },
+        revokedAt: null,
+      },
+      data: { revokedAt, revocationReason: 'account_passkey_removed' },
+    });
+
+    const machineIds = [
+      ...new Set(linked.map((controller) => controller.machineId)),
+    ];
+    const enrollmentRequired = new Set<string>();
+    for (const machineId of machineIds) {
+      const remaining = await tx.machineControllerCredential.count({
+        where: { machineId, revokedAt: null },
+      });
+      if (remaining === 0) {
+        enrollmentRequired.add(machineId);
+        await tx.machine.updateMany({
+          where: { id: machineId, revokedAt: null },
+          data: { authorizationState: 'CONTROLLER_ENROLLMENT_REQUIRED' },
+        });
+      }
+    }
+
+    return linked.map((controller) => ({
+      machineId: controller.machineId as MachineId,
+      userId: controller.userId as UserId,
+      controllerCredentialId: controller.credentialId,
+      revokedAt,
+      enrollmentState: enrollmentRequired.has(controller.machineId)
+        ? ControllerEnrollmentEligibilityState.ControllerEnrollmentRequired
+        : ControllerEnrollmentEligibilityState.Ready,
+      organizationId: controller.organizationId,
+    }));
   }
 
   /**
@@ -537,7 +707,7 @@ export class AccountPasskeyService {
         throw new Error('proof-target-mismatch');
       }
       const passkey = await this.prisma.db.accountPasskey.findUnique({
-        where: { credentialId: assertion.id },
+        where: { credentialId: assertion.id, revokedAt: null },
       });
       if (!passkey || passkey.userId !== actor.userId) {
         throw new Error('proof-passkey-not-owned');
@@ -596,15 +766,23 @@ export class AccountPasskeyService {
     return verification.authenticationInfo.newCounter;
   }
 
+  /**
+   * Records use of a passkey that must still be registered. Callers hold the
+   * account row lock, so a removal committed since verification fails here
+   * and rolls back the session or credential change that depended on it.
+   */
   private async recordPasskeyUse(
     tx: AnyTransactionClient,
     passkeyId: string,
     newCounter: number,
   ): Promise<void> {
-    await tx.accountPasskey.update({
-      where: { id: passkeyId },
+    const recorded = await tx.accountPasskey.updateMany({
+      where: { id: passkeyId, revokedAt: null },
       data: { signCount: newCounter, lastUsedAt: new Date() },
     });
+    if (recorded.count === 0) {
+      throw new UnauthorizedException('Passkey is no longer registered');
+    }
   }
 
   private assertBoundToActor(
@@ -709,6 +887,36 @@ function principalFor(
       ...(isLocalAccount ? { isLocalAccount: true } : {}),
     },
   };
+}
+
+interface LinkedController {
+  id: string;
+  machineId: string;
+  userId: string;
+  credentialId: string;
+  organizationId: string;
+}
+
+/** Verified public credential material handed over by controller enrollment. */
+export interface SharedEnrollmentCredential {
+  credentialId: string;
+  publicKey: Uint8Array;
+  counter: number;
+  transports: string[];
+  backupEligible: boolean;
+  backupState: boolean;
+  aaguid: Uint8Array;
+}
+
+function formatAaguid(aaguid: Uint8Array): string {
+  const hex = Buffer.from(aaguid).toString('hex');
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20, 32),
+  ].join('-');
 }
 
 export function userHandleFor(userId: string): string {

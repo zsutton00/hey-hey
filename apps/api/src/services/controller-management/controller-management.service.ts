@@ -63,6 +63,8 @@ type StoredControllerCredential = {
   revokedAt: Date | null;
 };
 
+export type AccountRemovalRevocation = RevocationResult;
+
 type RevocationResult = {
   machineId: MachineId;
   userId: UserId;
@@ -440,6 +442,35 @@ export class ControllerManagementService {
       } satisfies RevocationResult;
     });
 
+    return this.publishReduction(result);
+  }
+
+  /**
+   * Delivers the signed authority reduction for controllers revoked by an
+   * account-passkey removal. Delivery is best effort per controller: the
+   * database already rejects the authority, and a machine that missed the
+   * live frame reconciles on reconnect.
+   */
+  async publishAccountRemovalReductions(
+    results: readonly AccountRemovalRevocation[],
+  ): Promise<void> {
+    for (const result of results) {
+      try {
+        await this.publishReduction(result);
+      } catch (error) {
+        this.logger.warn('Account removal reduction delivery failed', {
+          machineId: result.machineId,
+          controllerCredentialId: result.controllerCredentialId,
+          reasonCode: 'delivery_failed',
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  }
+
+  private async publishReduction(
+    result: RevocationResult,
+  ): Promise<ControllerRevocationResponseDto> {
     const inventory = await this.readInventoryAfterRevocation(
       result.machineId,
       result.userId,
