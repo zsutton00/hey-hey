@@ -1,4 +1,10 @@
-import React, { useId, useLayoutEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Box } from "@mui/material";
 import type { WorkflowGraphSurfaceData } from "../shared/WorkflowMentionInlineRenderer";
 import { JOURNEY_SCREEN_WIDTH } from "./JourneyScreen";
@@ -24,6 +30,75 @@ const CONNECTOR_WIDTH = 2.5;
 /** Keeps horizontal arrows near the top of tall screens. */
 const MAX_ANCHOR_OFFSET = 180;
 
+/** Pointer travel (px) before a press counts as a drag rather than a click. */
+const DRAG_THRESHOLD = 4;
+
+/**
+ * Lets a mouse drag scroll the element. A press that moved is a drag, and the
+ * click that follows it is swallowed so it does not open a screen or follow a
+ * link.
+ */
+function useDragScroll(container: React.RefObject<HTMLElement | null>) {
+  const [dragging, setDragging] = useState(false);
+  const moved = useRef(false);
+
+  const onPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLElement>) => {
+      const element = container.current;
+      if (!element || event.pointerType !== "mouse" || event.button !== 0) {
+        return;
+      }
+
+      const start = {
+        x: event.clientX,
+        y: event.clientY,
+        left: element.scrollLeft,
+        top: element.scrollTop,
+      };
+      moved.current = false;
+
+      const onMove = (move: PointerEvent) => {
+        const dx = move.clientX - start.x;
+        const dy = move.clientY - start.y;
+        if (!moved.current) {
+          if (Math.hypot(dx, dy) < DRAG_THRESHOLD) {
+            return;
+          }
+          moved.current = true;
+          setDragging(true);
+        }
+        element.scrollLeft = start.left - dx;
+        element.scrollTop = start.top - dy;
+      };
+      const onEnd = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onEnd);
+        window.removeEventListener("pointercancel", onEnd);
+        setDragging(false);
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onEnd);
+      window.addEventListener("pointercancel", onEnd);
+    },
+    [container],
+  );
+
+  const onClickCapture = useCallback((event: React.MouseEvent) => {
+    if (moved.current) {
+      moved.current = false;
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }, []);
+
+  // Native link and image dragging would cancel the pointer stream.
+  const onDragStart = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+  }, []);
+
+  return { dragging, onPointerDown, onClickCapture, onDragStart };
+}
+
 export const JourneyCanvas: React.FC<{
   steps: WorkflowGraphSurfaceData["steps"];
   edges: WorkflowGraphSurfaceData["edges"];
@@ -33,6 +108,7 @@ export const JourneyCanvas: React.FC<{
 }> = ({ steps, edges, savedPositions, renderScreen }) => {
   const markerId = useId();
   const container = useRef<HTMLDivElement>(null);
+  const dragScroll = useDragScroll(container);
   const [heights, setHeights] = useState<Record<string, number>>({});
   useLayoutEffect(() => {
     const elements = container.current?.querySelectorAll<HTMLElement>(
@@ -129,8 +205,14 @@ export const JourneyCanvas: React.FC<{
   return (
     <Box
       ref={container}
+      data-testid="journey-canvas"
+      onPointerDown={dragScroll.onPointerDown}
+      onClickCapture={dragScroll.onClickCapture}
+      onDragStart={dragScroll.onDragStart}
       sx={{
         overflow: "auto",
+        cursor: dragScroll.dragging ? "grabbing" : "grab",
+        userSelect: dragScroll.dragging ? "none" : undefined,
         bgcolor: (theme) => CANVAS_COLOR[theme.palette.mode],
         p: 3,
       }}

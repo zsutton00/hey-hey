@@ -1,36 +1,23 @@
-import React, { useCallback, useMemo, useState } from "react";
-import {
-  Alert,
-  Box,
-  Button,
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  Link,
-  Skeleton,
-  Stack,
-  Typography,
-} from "@mui/material";
+import React, { useMemo } from "react";
+import { Link as RouterLink } from "react-router-dom";
+import { Alert, Box, Link, Skeleton, Stack } from "@mui/material";
 import type { UxFlowMembership } from "../../api";
 import { useUxFlowsForMockup } from "../../data/hooks/useUxFlowsForMockup";
 import { useWorkItemGraph } from "../../data/hooks/useWorkItemGraph";
 import { useWorkItemTypeByKey } from "../../data/hooks/useWorkItemTypes";
+import { getPathService } from "../../services/webPathService";
+import { EntityIcon } from "../Entity/EntityIcon";
 import { WorkflowGraphSurface } from "./WorkflowMentionInlineRenderer";
 
 const DIAGRAM_ELEMENT_TYPE = "DIAGRAM_ELEMENT";
-
-type FlowSurfaceMode =
-  | { kind: "walkthrough"; elementId: string }
-  | { kind: "preview"; elementId: string };
+const DIAGRAM_TYPE = "DIAGRAM";
 
 /** Loads a UX flow and draws it on the shared flow surface. */
 const UxFlowSurface: React.FC<{
   organizationId: string;
   projectId: string;
   flow: UxFlowMembership;
-  mode: FlowSurfaceMode;
-  skeletonHeight: number;
-}> = ({ organizationId, projectId, flow, mode, skeletonHeight }) => {
+}> = ({ organizationId, projectId, flow }) => {
   const graph = useWorkItemGraph(organizationId, projectId, flow.diagramId, {
     incidentRelationshipTypes: ["GUARANTEES", "IMPLEMENTS", "CONSUMES"],
   });
@@ -76,12 +63,7 @@ const UxFlowSurface: React.FC<{
     );
   }
   if (!graphData) {
-    return (
-      <Skeleton
-        height={skeletonHeight}
-        data-testid="ux-flow-from-mockup-loading"
-      />
-    );
+    return <Skeleton height={320} data-testid="ux-flow-from-mockup-loading" />;
   }
 
   return (
@@ -89,45 +71,15 @@ const UxFlowSurface: React.FC<{
       graphData={graphData}
       organizationId={organizationId}
       projectId={projectId}
-      {...(mode.kind === "walkthrough"
-        ? { initialUxFlowStepId: mode.elementId }
-        : { currentUxFlowStepId: mode.elementId })}
+      currentUxFlowStepId={flow.elementId}
     />
   );
 };
 
-/** Opens a UX flow full screen on the chosen screen. */
-const UxFlowDialog: React.FC<{
-  organizationId: string;
-  projectId: string;
-  flow: UxFlowMembership;
-  onClose: () => void;
-}> = ({ organizationId, projectId, flow, onClose }) => (
-  <Dialog open onClose={onClose} fullScreen>
-    <DialogTitle>{flow.diagramName}</DialogTitle>
-    <DialogContent dividers>
-      <UxFlowSurface
-        organizationId={organizationId}
-        projectId={projectId}
-        flow={flow}
-        mode={{ kind: "walkthrough", elementId: flow.elementId }}
-        skeletonHeight={240}
-      />
-    </DialogContent>
-    <Button
-      onClick={onClose}
-      data-testid="ux-flow-from-mockup-close"
-      sx={{ m: 1, alignSelf: "flex-end" }}
-    >
-      Close
-    </Button>
-  </Dialog>
-);
-
 /**
- * Shows each UX flow a Mockup belongs to as its own titled block, with the
- * Mockup's screen marked and a link that opens the full flow. A Mockup in no
- * flow renders nothing.
+ * Shows each UX flow a Mockup belongs to as its own block: the flow icon and
+ * title (a link to the full flow) above a preview with this Mockup's screen
+ * marked. A Mockup in no flow renders nothing.
  */
 export const MockupUxFlows: React.FC<{
   organizationId: string;
@@ -135,8 +87,11 @@ export const MockupUxFlows: React.FC<{
   mockupId: string;
 }> = ({ organizationId, projectId, mockupId }) => {
   const { flows } = useUxFlowsForMockup(organizationId, projectId, mockupId);
-  const [openFlow, setOpenFlow] = useState<UxFlowMembership | null>(null);
-  const handleCloseFlow = useCallback(() => setOpenFlow(null), []);
+  const diagramType = useWorkItemTypeByKey(
+    organizationId,
+    projectId,
+    DIAGRAM_TYPE,
+  );
 
   if (flows.length === 0) {
     return null;
@@ -144,50 +99,42 @@ export const MockupUxFlows: React.FC<{
 
   return (
     <Stack spacing={3} data-testid="mockup-ux-flows">
-      <Typography variant="subtitle1" fontWeight={600}>
-        {flows.length === 1
-          ? `Part of UX flow: ${flows[0].diagramName}`
-          : `Part of ${flows.length} UX flows`}
-      </Typography>
       {flows.map((flow) => (
         <Box
           key={flow.diagramId}
           data-testid="mockup-ux-flow"
           data-diagram-id={flow.diagramId}
         >
-          {flows.length > 1 ? (
-            <Typography variant="subtitle2" gutterBottom>
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+            <EntityIcon
+              entityType={DIAGRAM_TYPE}
+              workItemIcon={{
+                typeKey: DIAGRAM_TYPE,
+                definition: diagramType.workItemTypeDefinition,
+              }}
+              size={24}
+            />
+            <Link
+              component={RouterLink}
+              to={getPathService().task({
+                projectId,
+                taskId: flow.diagramId,
+              })}
+              variant="subtitle1"
+              fontWeight={600}
+              underline="hover"
+              data-testid="ux-flow-title-link"
+            >
               {flow.diagramName}
-            </Typography>
-          ) : null}
+            </Link>
+          </Stack>
           <UxFlowSurface
             organizationId={organizationId}
             projectId={projectId}
             flow={flow}
-            mode={{ kind: "preview", elementId: flow.elementId }}
-            skeletonHeight={320}
           />
-          <Link
-            component="button"
-            type="button"
-            underline="hover"
-            data-testid="open-ux-flow"
-            data-diagram-id={flow.diagramId}
-            onClick={() => setOpenFlow(flow)}
-            sx={{ mt: 1 }}
-          >
-            Open flow →
-          </Link>
         </Box>
       ))}
-      {openFlow ? (
-        <UxFlowDialog
-          organizationId={organizationId}
-          projectId={projectId}
-          flow={openFlow}
-          onClose={handleCloseFlow}
-        />
-      ) : null}
     </Stack>
   );
 };

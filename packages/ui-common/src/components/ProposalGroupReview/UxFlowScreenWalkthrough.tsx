@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import { Link as RouterLink } from "react-router-dom";
 import {
   Box,
-  Button,
   ButtonBase,
+  DialogTitle,
   IconButton,
+  Link,
   Paper,
   Stack,
   Typography,
@@ -38,20 +40,22 @@ function isTypingTarget(target: EventTarget | null): boolean {
  * screen the person came from behind a back button on the left edge.
  */
 export const UxFlowScreenWalkthrough: React.FC<{
-  flowName: string;
   flow: UxFlowShape;
   /** Positions saved on the Diagram, keyed by step id; they order the screens. */
   savedPositions: ReadonlyMap<string, { x: number; y: number }>;
   initialScreenId: string;
   renderScreen: (screenId: string) => React.ReactNode;
-  onOpenFullFlow: () => void;
+  /** Page of the screen's Mockup, or null when the screen has no Mockup. */
+  screenHref: (screenId: string) => string | null;
+  /** Called when the screen title link is followed, so the host can close. */
+  onFollowScreenLink: () => void;
 }> = ({
-  flowName,
   flow,
   savedPositions,
   initialScreenId,
   renderScreen,
-  onOpenFullFlow,
+  screenHref,
+  onFollowScreenLink,
 }) => {
   const [trail, setTrail] = useState<WalkthroughTrail>([initialScreenId]);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -74,6 +78,7 @@ export const UxFlowScreenWalkthrough: React.FC<{
   );
   const previousId = deriveIncomingScreen(trail);
   const position = orderedIds.indexOf(screenId) + 1;
+  const currentHref = screenHref(screenId);
 
   const show = (nextId: string) => {
     setTrail((current) => goToScreen(current, nextId));
@@ -104,28 +109,39 @@ export const UxFlowScreenWalkthrough: React.FC<{
       data-testid="ux-flow-walkthrough"
       sx={{ height: "100%", minHeight: 0 }}
     >
-      <Stack
-        direction="row"
-        alignItems="center"
-        spacing={2}
-        sx={{ px: 2, py: 1, borderBottom: 1, borderColor: "divider" }}
+      <DialogTitle
+        component="div"
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 2,
+          py: 1,
+          borderBottom: 1,
+          borderColor: "divider",
+        }}
       >
-        <Typography variant="subtitle1" fontWeight={600} noWrap>
-          {flowName}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
+        {currentHref === null ? (
+          <Typography variant="subtitle1" fontWeight={600} noWrap>
+            {names.get(screenId)}
+          </Typography>
+        ) : (
+          <Link
+            component={RouterLink}
+            to={currentHref}
+            onClick={onFollowScreenLink}
+            variant="subtitle1"
+            fontWeight={600}
+            underline="hover"
+            noWrap
+            data-testid="ux-flow-screen-title-link"
+          >
+            {names.get(screenId)}
+          </Link>
+        )}
+        <Typography variant="body2" color="text.secondary" noWrap>
           {`Screen ${position} of ${orderedIds.length}`}
         </Typography>
-        <Box sx={{ flex: 1 }} />
-        <Button
-          size="small"
-          variant="outlined"
-          onClick={onOpenFullFlow}
-          data-testid="ux-flow-open-full"
-        >
-          Open full flow
-        </Button>
-      </Stack>
+      </DialogTitle>
       <Box
         sx={{ position: "relative", flex: 1, minHeight: 0, display: "flex" }}
       >

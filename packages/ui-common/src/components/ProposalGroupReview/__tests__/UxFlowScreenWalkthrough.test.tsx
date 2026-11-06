@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { UxFlowScreenWalkthrough } from "../UxFlowScreenWalkthrough";
 import type { UxFlowShape } from "../deriveScreenNextOptions";
@@ -41,16 +42,19 @@ const flow: UxFlowShape = {
   ],
 };
 
-function open(initialScreenId: string, onOpenFullFlow = vi.fn()) {
+function open(initialScreenId: string, onFollowScreenLink = vi.fn()) {
   render(
-    <UxFlowScreenWalkthrough
-      flowName="Checkout"
-      flow={flow}
-      savedPositions={new Map()}
-      initialScreenId={initialScreenId}
-      renderScreen={(id) => <div>{`screen:${id}`}</div>}
-      onOpenFullFlow={onOpenFullFlow}
-    />,
+    <MemoryRouter>
+      <UxFlowScreenWalkthrough
+        flowName="Checkout"
+        flow={flow}
+        savedPositions={new Map()}
+        initialScreenId={initialScreenId}
+        renderScreen={(id) => <div>{`screen:${id}`}</div>}
+        screenHref={(id) => `/mockups/${id}`}
+        onFollowScreenLink={onFollowScreenLink}
+      />
+    </MemoryRouter>,
   );
 }
 
@@ -98,14 +102,18 @@ describe("UxFlowScreenWalkthrough", () => {
     expect(screen.getByText("Next")).toBeInTheDocument();
   });
 
-  it("names the flow and screen position and can open the full flow", () => {
-    const onOpenFullFlow = vi.fn();
-    open("pay", onOpenFullFlow);
+  it("titles the screen with a link to its Mockup page and names the flow and position", () => {
+    const onFollowScreenLink = vi.fn();
+    open("pay", onFollowScreenLink);
 
-    expect(screen.getByText("Checkout")).toBeInTheDocument();
+    const title = screen.getByTestId("ux-flow-screen-title-link");
+    expect(title).toHaveTextContent("Payment");
+    expect(title).toHaveAttribute("href", "/mockups/pay");
     expect(screen.getByText("Screen 2 of 4")).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("ux-flow-open-full"));
-    expect(onOpenFullFlow).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("ux-flow-open-full")).toBeNull();
+
+    fireEvent.click(title);
+    expect(onFollowScreenLink).toHaveBeenCalledTimes(1);
   });
 
   it("steps through screens with the arrow keys", () => {

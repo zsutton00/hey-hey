@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MockupUxFlows } from "../UxFlowFromMockup";
 
@@ -36,10 +37,7 @@ vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
   }),
 }));
 vi.mock("../WorkflowMentionInlineRenderer", () => ({
-  WorkflowGraphSurface: (props: {
-    initialUxFlowStepId?: string;
-    currentUxFlowStepId?: string;
-  }) => {
+  WorkflowGraphSurface: (props: { currentUxFlowStepId?: string }) => {
     surfaceProps(props);
     return <div data-testid="surface" />;
   },
@@ -47,11 +45,13 @@ vi.mock("../WorkflowMentionInlineRenderer", () => ({
 
 const renderFlows = () =>
   render(
-    <MockupUxFlows
-      organizationId="org"
-      projectId="project"
-      mockupId="mockup"
-    />,
+    <MemoryRouter>
+      <MockupUxFlows
+        organizationId="org"
+        projectId="project"
+        mockupId="mockup"
+      />
+    </MemoryRouter>,
   );
 
 describe("MockupUxFlows", () => {
@@ -66,26 +66,22 @@ describe("MockupUxFlows", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("shows the only flow inline with this screen marked and no old button", () => {
+  it("heads the only flow with its title as a link to the full flow, with this screen marked", () => {
     flowsState.flows = [
       { diagramId: "d1", diagramName: "Checkout", elementId: "el1" },
     ];
     renderFlows();
 
-    expect(screen.queryByTestId("open-in-ux-flow")).toBeNull();
-    expect(screen.getByTestId("mockup-ux-flows")).toHaveTextContent(
-      "Part of UX flow: Checkout",
-    );
-    expect(screen.getAllByTestId("mockup-ux-flow")).toHaveLength(1);
+    const title = screen.getByTestId("ux-flow-title-link");
+    expect(title).toHaveTextContent("Checkout");
+    expect(title.getAttribute("href")).toContain("d1");
+    expect(screen.queryByText(/open flow/i)).toBeNull();
     expect(surfaceProps).toHaveBeenCalledWith(
       expect.objectContaining({ currentUxFlowStepId: "el1" }),
     );
-    expect(surfaceProps).not.toHaveBeenCalledWith(
-      expect.objectContaining({ initialUxFlowStepId: expect.anything() }),
-    );
   });
 
-  it("shows each of several flows as its own block with its own open link", () => {
+  it("shows each of several flows as its own titled block", () => {
     flowsState.flows = [
       { diagramId: "d1", diagramName: "Checkout", elementId: "el1" },
       { diagramId: "d2", diagramName: "Signup", elementId: "el2" },
@@ -94,15 +90,14 @@ describe("MockupUxFlows", () => {
 
     const blocks = screen.getAllByTestId("mockup-ux-flow");
     expect(blocks).toHaveLength(2);
-    expect(blocks[0]).toHaveTextContent("Checkout");
-    expect(blocks[1]).toHaveTextContent("Signup");
-    expect(screen.getAllByTestId("open-ux-flow")).toHaveLength(2);
-
-    surfaceProps.mockClear();
-    fireEvent.click(within(blocks[1]).getByTestId("open-ux-flow"));
-
-    expect(surfaceProps).toHaveBeenCalledWith(
-      expect.objectContaining({ initialUxFlowStepId: "el2" }),
-    );
+    expect(
+      within(blocks[0]).getByTestId("ux-flow-title-link"),
+    ).toHaveTextContent("Checkout");
+    expect(
+      within(blocks[1]).getByTestId("ux-flow-title-link"),
+    ).toHaveTextContent("Signup");
+    expect(
+      within(blocks[1]).getByTestId("ux-flow-title-link").getAttribute("href"),
+    ).toContain("d2");
   });
 });
