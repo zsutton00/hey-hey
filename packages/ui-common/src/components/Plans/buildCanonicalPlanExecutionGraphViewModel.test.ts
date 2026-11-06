@@ -8,7 +8,7 @@ import { buildCanonicalPlanExecutionGraphViewModel } from "./buildCanonicalPlanE
 const task = (
   id: string,
   status: WorkStatus,
-  dependencies: string[] = []
+  dependencies: string[] = [],
 ): PlanStageStandardTask => ({
   id,
   name: id,
@@ -62,5 +62,39 @@ describe("buildCanonicalPlanExecutionGraphViewModel", () => {
         targetNodeId: "blocked",
       },
     ]);
+  });
+
+  it.each([
+    [WorkStatus.Verifying, "taskStatus"],
+    [WorkStatus.Cancelled, "taskStatus"],
+    [WorkStatus.Superseded, "taskStatus"],
+    [WorkStatus.Archived, "taskStatus"],
+    [WorkStatus.OnHold, "taskStatus"],
+    [WorkStatus.Backlog, "taskStatus"],
+  ])("carries the real %s status on the node", (status) => {
+    const only = task("only", status);
+    const viewModel = buildCanonicalPlanExecutionGraphViewModel({
+      orderedTasks: [only],
+      dependenciesByTaskId: new Map([[only.id, []]]),
+    } as unknown as CanonicalPlanAggregateStage);
+
+    expect(viewModel.nodes[0].taskStatus).toBe(status);
+  });
+
+  it("flags dependency waits without replacing the status", () => {
+    const dep = task("dep", WorkStatus.Active);
+    const waiting = task("waiting", WorkStatus.Verifying, [dep.id]);
+    const viewModel = buildCanonicalPlanExecutionGraphViewModel({
+      orderedTasks: [dep, waiting],
+      dependenciesByTaskId: new Map([
+        [dep.id, []],
+        [waiting.id, [dep.id]],
+      ]),
+    } as unknown as CanonicalPlanAggregateStage);
+
+    expect(viewModel.nodes[1].taskStatus).toBe(WorkStatus.Verifying);
+    expect(viewModel.nodes[1].notices?.[0].text).toBe(
+      "Waiting on dependencies",
+    );
   });
 });

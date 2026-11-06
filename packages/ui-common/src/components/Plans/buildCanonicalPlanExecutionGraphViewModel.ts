@@ -11,10 +11,19 @@ import type {
 const isTerminal = (task: PlanStageStandardTask): boolean =>
   task.status === WorkStatus.Completed;
 
+const hasUnmetDependencies = (
+  dependencies: readonly string[],
+  tasksById: ReadonlyMap<string, PlanStageStandardTask>,
+): boolean =>
+  dependencies.some((dependencyId) => {
+    const dependency = tasksById.get(dependencyId);
+    return dependency !== undefined && !isTerminal(dependency);
+  });
+
 const stateForTask = (
   task: PlanStageStandardTask,
   dependencies: readonly string[],
-  tasksById: ReadonlyMap<string, PlanStageStandardTask>
+  tasksById: ReadonlyMap<string, PlanStageStandardTask>,
 ): ExecutionGraphNodeState => {
   if (task.status === WorkStatus.Completed) return "completed";
   if (
@@ -26,14 +35,7 @@ const stateForTask = (
   }
   if (task.status === WorkStatus.Blocked) return "blocked";
   if (task.status === WorkStatus.Active) return "active";
-  if (
-    dependencies.some((dependencyId) => {
-      const dependency = tasksById.get(dependencyId);
-      return dependency !== undefined && !isTerminal(dependency);
-    })
-  ) {
-    return "blocked";
-  }
+  if (hasUnmetDependencies(dependencies, tasksById)) return "blocked";
   return "eligible";
 };
 
@@ -43,11 +45,9 @@ const taskSummary = (task: PlanStageStandardTask): string | undefined =>
     ?.materializedMarkdown.trim() || undefined;
 
 export const buildCanonicalPlanExecutionGraphViewModel = (
-  stage: CanonicalPlanAggregateStage
+  stage: CanonicalPlanAggregateStage,
 ): ExecutionGraphViewModel => {
-  const tasksById = new Map(
-    stage.orderedTasks.map((task) => [task.id, task])
-  );
+  const tasksById = new Map(stage.orderedTasks.map((task) => [task.id, task]));
 
   return {
     nodes: stage.orderedTasks.map((task) => {
@@ -57,6 +57,17 @@ export const buildCanonicalPlanExecutionGraphViewModel = (
         title: task.name,
         summary: taskSummary(task),
         state: stateForTask(task, dependencies, tasksById),
+        taskStatus: task.status,
+        notices:
+          !isTerminal(task) && hasUnmetDependencies(dependencies, tasksById)
+            ? [
+                {
+                  id: "waiting-on-dependencies",
+                  text: "Waiting on dependencies",
+                  tone: "warning" as const,
+                },
+              ]
+            : undefined,
         entityType: task.type,
         metadata: [],
       };
@@ -66,7 +77,7 @@ export const buildCanonicalPlanExecutionGraphViewModel = (
         id: `${dependencyId}-${task.id}`,
         sourceNodeId: dependencyId,
         targetNodeId: task.id,
-      }))
+      })),
     ),
   };
 };
