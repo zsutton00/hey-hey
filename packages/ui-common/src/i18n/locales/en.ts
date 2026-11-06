@@ -14,6 +14,9 @@ import { KEYS } from "../keys";
 import { compose, patterns } from "../compose";
 
 export const en = {
+  "localSetup.pairing.eyebrow": "LOCAL SETUP · CONNECT",
+  "localSetup.pairing.signInNote":
+    "This passkey is also your Hey Hey sign-in passkey. Removing it later also disconnects this computer.",
   "localSetup.pairing.title": "Let Hey Hey work with your coding agents",
   "localSetup.pairing.purpose":
     "You're creating a passkey so Hey Hey can work with the coding agents on this computer. Your browser will ask you to approve it once.",
@@ -24,7 +27,7 @@ export const en = {
   "localSetup.pairing.agents.claude": "Claude Code",
   "localSetup.pairing.agents.codex": "Codex",
   "localSetup.pairing.agents.opencode": "OpenCode",
-  "localSetup.pairing.agents.installed": "Found",
+  "localSetup.pairing.agents.installed": "Installed",
   "localSetup.pairing.agents.notFound": "Not found",
   "localSetup.pairing.agents.checkFailed": "Couldn't check",
   "localSetup.pairing.agents.noneFound":

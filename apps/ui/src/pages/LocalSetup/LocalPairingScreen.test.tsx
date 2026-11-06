@@ -62,17 +62,14 @@ describe("LocalPairingScreen", () => {
   it("explains the passkey, the privacy promise and lists the agents found", () => {
     renderScreen();
 
-    expect(
-      screen.getByText(/creating a passkey so Hey Hey can work/i),
-    ).toBeVisible();
     expect(screen.getByTestId("local-pairing-privacy")).toHaveTextContent(
       "No data ever leaves this computer",
     );
     expect(screen.getByTestId("local-pairing-agent-claude")).toHaveTextContent(
-      "Claude Code: Found",
+      "Claude CodeInstalled",
     );
     expect(screen.getByTestId("local-pairing-agent-codex")).toHaveTextContent(
-      "Codex: Not found",
+      "CodexNot found",
     );
     expect(screen.queryByTestId("local-pairing-none-found")).toBeNull();
     expect(screen.getByTestId("local-pairing-computer")).toHaveTextContent(

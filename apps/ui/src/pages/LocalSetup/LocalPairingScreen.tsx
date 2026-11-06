@@ -24,6 +24,8 @@ interface LocalPairingScreenProps {
   onCadenceChange: (cadence: ControllerAuthorizationCadence) => void;
   onCreatePasskey: () => void;
   onCancel: () => void;
+  /** Only true when the deployment lets this passkey double as the sign-in passkey. */
+  sharedPasskeysAllowed?: boolean;
 }
 
 const DURATION_OPTIONS = [
@@ -75,6 +77,7 @@ export function LocalPairingScreen({
   onCadenceChange,
   onCreatePasskey,
   onCancel,
+  sharedPasskeysAllowed = false,
 }: LocalPairingScreenProps): React.JSX.Element {
   const { t } = useTranslation();
   const noneFound =
@@ -84,13 +87,7 @@ export function LocalPairingScreen({
     );
 
   return (
-    <div data-testid="local-pairing-screen">
-      <h2>{t("localSetup.pairing.title")}</h2>
-      <p>{t("localSetup.pairing.purpose")}</p>
-      <p data-testid="local-pairing-computer">
-        {t("localSetup.pairing.computer")}: <strong>{computerName}</strong>
-      </p>
-
+    <div className="local-pairing" data-testid="local-pairing-screen">
       <section aria-labelledby="local-pairing-agents-heading">
         <h3 id="local-pairing-agents-heading">
           {t("localSetup.pairing.agents.heading")}
@@ -103,7 +100,16 @@ export function LocalPairingScreen({
           <ul data-testid="local-pairing-agents">
             {AGENT_KEYS.map((key) => (
               <li key={key} data-testid={`local-pairing-agent-${key}`}>
-                {t(AGENT_NAME_KEYS[key])}: {t(AVAILABILITY_KEYS[agents[key]])}
+                {t(AGENT_NAME_KEYS[key])}
+                <span
+                  className={
+                    agents[key] === LocalCodingAgentAvailability.Installed
+                      ? "local-pairing__available"
+                      : "local-pairing__unavailable"
+                  }
+                >
+                  {t(AVAILABILITY_KEYS[agents[key]])}
+                </span>
               </li>
             ))}
           </ul>
@@ -115,8 +121,16 @@ export function LocalPairingScreen({
         ) : null}
       </section>
 
-      <p data-testid="local-pairing-privacy">
+      <p className="local-pairing__privacy" data-testid="local-pairing-privacy">
         {t("localSetup.pairing.privacy")}
+      </p>
+
+      <p
+        className="local-pairing__computer"
+        data-testid="local-pairing-computer"
+      >
+        <span>{t("localSetup.pairing.computer")}</span>
+        <strong>{computerName}</strong>
       </p>
 
       <fieldset data-testid="local-pairing-duration" disabled={busy}>
@@ -139,6 +153,15 @@ export function LocalPairingScreen({
         </p>
       </fieldset>
 
+      {sharedPasskeysAllowed ? (
+        <p
+          className="local-pairing__signin"
+          data-testid="local-pairing-signin-note"
+        >
+          {t("localSetup.pairing.signInNote")}
+        </p>
+      ) : null}
+
       <details data-testid="local-pairing-technical">
         <summary>{t("localSetup.pairing.technical.heading")}</summary>
         <dl>
@@ -157,7 +180,14 @@ export function LocalPairingScreen({
         </p>
       ) : null}
 
-      <div className="local-setup__actions">
+      <div className="local-pairing__actions">
+        <button
+          className="local-pairing__cancel"
+          data-testid="local-pairing-cancel"
+          onClick={onCancel}
+        >
+          {t("localSetup.pairing.cancel")}
+        </button>
         <button
           data-testid="local-pairing-create-passkey"
           disabled={!ready || busy}
@@ -168,9 +198,6 @@ export function LocalPairingScreen({
             : retryMessage
               ? t("localSetup.pairing.tryAgain")
               : t("localSetup.pairing.createPasskey")}
-        </button>
-        <button data-testid="local-pairing-cancel" onClick={onCancel}>
-          {t("localSetup.pairing.cancel")}
         </button>
       </div>
     </div>

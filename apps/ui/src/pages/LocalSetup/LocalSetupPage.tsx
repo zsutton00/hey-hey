@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { getApiRuntime } from "@hey-hey/ui-common/clients";
 import {
@@ -128,6 +129,7 @@ const describeView = ({
 };
 
 export function LocalSetupPage(): React.JSX.Element {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { isAuthenticated } = useAuth();
@@ -349,6 +351,17 @@ export function LocalSetupPage(): React.JSX.Element {
   return (
     <main className="local-setup">
       <p className="local-setup__wordmark">HEY HEY</p>
+      {pairingStarted && pairing ? (
+        <header>
+          <p className="local-setup__eyebrow">
+            {t("localSetup.pairing.eyebrow")}
+          </p>
+          <h1>{t("localSetup.pairing.title")}</h1>
+          <p className="local-setup__intro">
+            {t("localSetup.pairing.purpose")}
+          </p>
+        </header>
+      ) : null}
       <section className="local-setup__card">
         {pairingStarted && pairing ? (
           <ClaimMachine
