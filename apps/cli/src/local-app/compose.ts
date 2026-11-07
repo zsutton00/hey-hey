@@ -151,7 +151,8 @@ export function localApiEnvironment(
     REDIS_URL: `redis://${redis.host}:${redis.port}`,
     REDIS_HOST: redis.host,
     REDIS_PORT: String(redis.port),
-    GRAPH_SERVICE_URL: graphSearchUrl,
+    // The one graph-search process serves graph routes under /api and search routes at the root.
+    GRAPH_SERVICE_URL: `${graphSearchUrl}/api`,
     EMBEDDINGS_SERVICE_URL: graphSearchUrl,
     JWT_SECRET: secrets.jwt,
     TRIGGER_SIGNING_PRIVATE_KEY: secrets.signingKey,

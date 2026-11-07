@@ -502,7 +502,7 @@ describe('local application installation and return visits', () => {
       /TEMPORAL|CLAUDE_API_KEY|OPENAI_API_KEY|SYNTHETIC_LLM_API_KEY/,
     );
     expect(config.services.api.environment.GRAPH_SERVICE_URL).toBe(
-      config.services.api.environment.EMBEDDINGS_SERVICE_URL,
+      `${config.services.api.environment.EMBEDDINGS_SERVICE_URL}/api`,
     );
     expect(config.services['graph-search'].environment.GRAPH_SEARCH_DATABASE_URL).toContain(
       '/heyhey_graph_search',
@@ -543,7 +543,7 @@ describe('local application installation and return visits', () => {
       }
     }
     expect(hostApi.PROJECT_DATABASE_URL).toContain('127.0.0.1:55432');
-    expect(hostApi.GRAPH_SERVICE_URL).toBe('http://127.0.0.1:58090');
+    expect(hostApi.GRAPH_SERVICE_URL).toBe('http://127.0.0.1:58090/api');
   });
 
   it('fixture releases cannot bypass packaged version or digest validation', async () => {
