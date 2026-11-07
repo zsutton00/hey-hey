@@ -2,6 +2,7 @@ import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import type { AxiosRequestConfig } from "axios";
 import axios from "axios";
 import {
+  MessageCursorNotFoundErrorDto,
   MessageReadMode,
   MessageStatus,
   type ConversationMessageHistoryPageDto,
@@ -9,6 +10,7 @@ import {
   type MessageResponseDto,
 } from "../../api";
 import { platformClient, projectsClient } from "../../clients/serviceClients";
+import { extractErrorCode } from "../../utils/errorUtils";
 import logger from "../../utils/logger";
 import {
   captureRequestOptions,
@@ -264,7 +266,16 @@ async function fetchConversationMessageHistoryPage(
     }
     return data;
   } catch (error) {
-    if (axios.isAxiosError(error) && error.response?.status === 404) {
+    // A 404 carrying the cursor code means the history cursor was rejected,
+    // not that the conversation is gone.
+    const isRejectedCursor =
+      extractErrorCode(error) ===
+      MessageCursorNotFoundErrorDto.CodeEnum.MessageCursorNotFound;
+    if (
+      axios.isAxiosError(error) &&
+      error.response?.status === 404 &&
+      !isRejectedCursor
+    ) {
       throw new ConversationMessagesNotFoundError(conversationId);
     }
     throw error;

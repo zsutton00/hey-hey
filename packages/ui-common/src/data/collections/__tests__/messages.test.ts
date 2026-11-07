@@ -15,11 +15,15 @@ import {
   type ProposalResponseDto,
   type ReportDto,
 } from "../../../api";
-import { platformClient, projectsClient } from "../../../clients/serviceClients";
+import {
+  platformClient,
+  projectsClient,
+} from "../../../clients/serviceClients";
 import {
   ConversationMessagesNotFoundError,
   conversationMessagesQueryOptions,
   getDeltaFetchCursorId,
+  loadOlderConversationMessages,
   messageKeys,
 } from "../messages";
 import { resetConversationMessageHistoryStateForTests } from "../conversationMessageHistoryState";
@@ -35,7 +39,7 @@ vi.mock("../../../clients/serviceClients", () => ({
 }));
 
 const buildMessage = (
-  overrides: Partial<MessageResponseDto> = {}
+  overrides: Partial<MessageResponseDto> = {},
 ): MessageResponseDto => ({
   id: "msg-1",
   conversationId: "conv-1",
@@ -68,9 +72,7 @@ describe("getDeltaFetchCursorId", () => {
 
     // since=msg-a (exclusive) re-fetches msg-b, the boundary message — so a
     // late server-side edit to the most recent terminal message is observed.
-    expect(
-getDeltaFetchCursorId(cached)
-    ).toBe("msg-a");
+    expect(getDeltaFetchCursorId(cached)).toBe("msg-a");
   });
 
   it("never anchors the cursor on an undated queued input", () => {
@@ -93,9 +95,7 @@ getDeltaFetchCursorId(cached)
       } as never,
     ];
 
-    expect(
-getDeltaFetchCursorId(cached)
-    ).toBe("msg-a");
+    expect(getDeltaFetchCursorId(cached)).toBe("msg-a");
   });
 
   it("backs the cursor up one terminal message below the oldest non-terminal", () => {
@@ -125,9 +125,7 @@ getDeltaFetchCursorId(cached)
     // since=msg-a returns msg-b (the overlap/boundary terminal), msg-c (with
     // current status) and msg-d — so both msg-c's transitions and a late edit
     // to msg-b are observed without a side-channel single-message refetch.
-    expect(
-getDeltaFetchCursorId(cached)
-    ).toBe("msg-a");
+    expect(getDeltaFetchCursorId(cached)).toBe("msg-a");
   });
 
   it("returns null (full fetch) when only one eligible terminal message exists to anchor on", () => {
@@ -147,9 +145,7 @@ getDeltaFetchCursorId(cached)
     // Only msg-a is terminal below the non-terminal boundary; backing up one
     // leaves no anchor, so we fall back to a full fetch rather than cursoring
     // exactly on msg-a.
-    expect(
-getDeltaFetchCursorId(cached)
-    ).toBeNull();
+    expect(getDeltaFetchCursorId(cached)).toBeNull();
   });
 
   it("returns null when the oldest cached message is non-terminal (no terminal anchor available)", () => {
@@ -166,9 +162,7 @@ getDeltaFetchCursorId(cached)
       }),
     ];
 
-    expect(
-getDeltaFetchCursorId(cached)
-    ).toBeNull();
+    expect(getDeltaFetchCursorId(cached)).toBeNull();
   });
 });
 
@@ -199,25 +193,25 @@ const seedConversationMessages = (
   organizationId: string,
   projectId: string,
   conversationId: string,
-  messages: MessageResponseDto[]
+  messages: MessageResponseDto[],
 ) => {
   queryClient.setQueryData(
     messageKeys.list(organizationId, projectId, conversationId),
-    messages
+    messages,
   );
 };
 
 const readConversationMessages = (
   organizationId: string,
   projectId: string,
-  conversationId: string
+  conversationId: string,
 ) =>
   queryClient.fetchQuery({
     ...conversationMessagesQueryOptions(
       queryClient,
       organizationId,
       projectId,
-      conversationId
+      conversationId,
     ),
     staleTime: 0,
   });
@@ -225,19 +219,19 @@ const readConversationMessages = (
 const readCachedMessages = (
   organizationId: string,
   projectId: string,
-  conversationId: string
+  conversationId: string,
 ) =>
   queryClient.getQueryData<MessageResponseDto[]>(
-    messageKeys.list(organizationId, projectId, conversationId)
+    messageKeys.list(organizationId, projectId, conversationId),
   );
 
 const readCachedMessageIds = (
   organizationId: string,
   projectId: string,
-  conversationId: string
+  conversationId: string,
 ): string[] | undefined =>
   readCachedMessages(organizationId, projectId, conversationId)?.map(
-    (message) => message.id
+    (message) => message.id,
   );
 
 const requestOptions = expect.objectContaining({
@@ -273,8 +267,12 @@ describe("conversation messages list read", () => {
     await readConversationMessages("org-1", "proj-1", "conv-1");
 
     expect(projectsClient.getQueuedConversationInputs).toHaveBeenCalledWith(
-      { organizationId: "org-1", projectId: "proj-1", conversationId: "conv-1" },
-      requestOptions
+      {
+        organizationId: "org-1",
+        projectId: "proj-1",
+        conversationId: "conv-1",
+      },
+      requestOptions,
     );
     expect(getMessagesMock).toHaveBeenCalledTimes(1);
     expect(getMessagesMock).toHaveBeenCalledWith(
@@ -287,7 +285,7 @@ describe("conversation messages list read", () => {
         includeProposals: true,
         includeReports: true,
       }),
-      requestOptions
+      requestOptions,
     );
     expect(readCachedMessageIds("org-1", "proj-1", "conv-1")).toEqual([
       "msg-1",
@@ -296,15 +294,10 @@ describe("conversation messages list read", () => {
   });
 
   it("issues since=<terminal before latest> (one-message overlap) and merges the delta", async () => {
-    seedConversationMessages(
-      "org-1",
-      "proj-1",
-      "conv-1",
-      [
-        buildMessage({ id: "msg-1", createdAt: "2026-04-01T10:00:00.000Z" }),
-        buildMessage({ id: "msg-2", createdAt: "2026-04-01T10:05:00.000Z" }),
-      ]
-    );
+    seedConversationMessages("org-1", "proj-1", "conv-1", [
+      buildMessage({ id: "msg-1", createdAt: "2026-04-01T10:00:00.000Z" }),
+      buildMessage({ id: "msg-2", createdAt: "2026-04-01T10:05:00.000Z" }),
+    ]);
 
     const delta = [
       buildMessage({ id: "msg-3", createdAt: "2026-04-01T10:10:00.000Z" }),
@@ -326,7 +319,7 @@ describe("conversation messages list read", () => {
         includeProposals: true,
         includeReports: true,
       }),
-      requestOptions
+      requestOptions,
     );
     expect(readCachedMessageIds("org-1", "proj-1", "conv-1")).toEqual([
       "msg-1",
@@ -341,12 +334,7 @@ describe("conversation messages list read", () => {
       buildMessage({ id: "msg-1", createdAt: "2026-04-01T10:00:00.000Z" }),
       buildMessage({ id: "msg-2", createdAt: "2026-04-01T10:05:00.000Z" }),
     ];
-    seedConversationMessages(
-      "org-1",
-      "proj-1",
-      "conv-1",
-      cachedMessages
-    );
+    seedConversationMessages("org-1", "proj-1", "conv-1", cachedMessages);
 
     const proposals: ProposalResponseDto[] = [
       {
@@ -409,7 +397,7 @@ describe("conversation messages list read", () => {
       reports,
     });
     getMessagesMock.mockResolvedValueOnce(
-      okMessagesResponse([cachedMessages[1]!, finalMessage])
+      okMessagesResponse([cachedMessages[1]!, finalMessage]),
     );
 
     await readConversationMessages("org-1", "proj-1", "conv-1");
@@ -421,7 +409,7 @@ describe("conversation messages list read", () => {
         includeProposals: true,
         includeReports: true,
       }),
-      requestOptions
+      requestOptions,
     );
     expect(readCachedMessageIds("org-1", "proj-1", "conv-1")).toEqual([
       "msg-1",
@@ -432,7 +420,7 @@ describe("conversation messages list read", () => {
     const storedFinalMessage = readCachedMessages(
       "org-1",
       "proj-1",
-      "conv-1"
+      "conv-1",
     )?.find((message) => message.id === "final-message");
     expect(storedFinalMessage).toEqual(finalMessage);
     expect(storedFinalMessage?.proposals).toEqual(proposals);
@@ -440,29 +428,24 @@ describe("conversation messages list read", () => {
   });
 
   it("upserts in-flight messages when the delta returns a status update", async () => {
-    seedConversationMessages(
-      "org-1",
-      "proj-1",
-      "conv-1",
-      [
-        buildMessage({
-          id: "msg-0",
-          createdAt: "2026-04-01T09:55:00.000Z",
-          status: MessageStatus.Completed,
-        }),
-        buildMessage({
-          id: "msg-1",
-          createdAt: "2026-04-01T10:00:00.000Z",
-          status: MessageStatus.Completed,
-        }),
-        buildMessage({
-          id: "msg-2",
-          createdAt: "2026-04-01T10:05:00.000Z",
-          status: MessageStatus.SystemProcessing,
-          content: "still processing",
-        }),
-      ]
-    );
+    seedConversationMessages("org-1", "proj-1", "conv-1", [
+      buildMessage({
+        id: "msg-0",
+        createdAt: "2026-04-01T09:55:00.000Z",
+        status: MessageStatus.Completed,
+      }),
+      buildMessage({
+        id: "msg-1",
+        createdAt: "2026-04-01T10:00:00.000Z",
+        status: MessageStatus.Completed,
+      }),
+      buildMessage({
+        id: "msg-2",
+        createdAt: "2026-04-01T10:05:00.000Z",
+        status: MessageStatus.SystemProcessing,
+        content: "still processing",
+      }),
+    ]);
 
     getMessagesMock.mockResolvedValueOnce(
       okMessagesResponse([
@@ -472,7 +455,7 @@ describe("conversation messages list read", () => {
           status: MessageStatus.Completed,
           content: "now done",
         }),
-      ])
+      ]),
     );
 
     await readConversationMessages("org-1", "proj-1", "conv-1");
@@ -488,40 +471,35 @@ describe("conversation messages list read", () => {
         includeProposals: true,
         includeReports: true,
       }),
-      requestOptions
+      requestOptions,
     );
 
     const updatedMsg2 = readCachedMessages("org-1", "proj-1", "conv-1")?.find(
-      (message) => message.id === "msg-2"
+      (message) => message.id === "msg-2",
     );
     expect(updatedMsg2?.status).toBe(MessageStatus.Completed);
     expect(updatedMsg2?.content).toBe("now done");
   });
 
   it("merges recent recovery when the oldest cached message is still non-terminal", async () => {
-    seedConversationMessages(
-      "org-1",
-      "proj-1",
-      "conv-1",
-      [
-        buildMessage({
-          id: "msg-1",
-          createdAt: "2026-04-01T10:00:00.000Z",
-          status: MessageStatus.SystemProcessing,
-          content: "anchor still processing",
-        }),
-        buildMessage({
-          id: "msg-2",
-          createdAt: "2026-04-01T10:05:00.000Z",
-          status: MessageStatus.Completed,
-        }),
-        buildMessage({
-          id: "msg-3",
-          createdAt: "2026-04-01T10:10:00.000Z",
-          status: MessageStatus.Completed,
-        }),
-      ]
-    );
+    seedConversationMessages("org-1", "proj-1", "conv-1", [
+      buildMessage({
+        id: "msg-1",
+        createdAt: "2026-04-01T10:00:00.000Z",
+        status: MessageStatus.SystemProcessing,
+        content: "anchor still processing",
+      }),
+      buildMessage({
+        id: "msg-2",
+        createdAt: "2026-04-01T10:05:00.000Z",
+        status: MessageStatus.Completed,
+      }),
+      buildMessage({
+        id: "msg-3",
+        createdAt: "2026-04-01T10:10:00.000Z",
+        status: MessageStatus.Completed,
+      }),
+    ]);
 
     getMessagesMock.mockResolvedValueOnce(
       okHistoryResponse([
@@ -541,7 +519,7 @@ describe("conversation messages list read", () => {
           createdAt: "2026-04-01T10:10:00.000Z",
           status: MessageStatus.Completed,
         }),
-      ])
+      ]),
     );
 
     await readConversationMessages("org-1", "proj-1", "conv-1");
@@ -558,27 +536,22 @@ describe("conversation messages list read", () => {
         includeProposals: true,
         includeReports: true,
       }),
-      requestOptions
+      requestOptions,
     );
     expect(getMessageMock).not.toHaveBeenCalled();
 
     const updatedAnchor = readCachedMessages("org-1", "proj-1", "conv-1")?.find(
-      (message) => message.id === "msg-1"
+      (message) => message.id === "msg-1",
     );
     expect(updatedAnchor?.status).toBe(MessageStatus.Completed);
     expect(updatedAnchor?.content).toBe("anchor done");
   });
 
   it("recovers from a 404 on the since= delta with a merged recent page", async () => {
-    seedConversationMessages(
-      "org-1",
-      "proj-1",
-      "conv-1",
-      [
-        buildMessage({ id: "msg-1", createdAt: "2026-04-01T10:00:00.000Z" }),
-        buildMessage({ id: "msg-2", createdAt: "2026-04-01T10:05:00.000Z" }),
-      ]
-    );
+    seedConversationMessages("org-1", "proj-1", "conv-1", [
+      buildMessage({ id: "msg-1", createdAt: "2026-04-01T10:00:00.000Z" }),
+      buildMessage({ id: "msg-2", createdAt: "2026-04-01T10:05:00.000Z" }),
+    ]);
 
     const cursorInvalid = Object.assign(new Error("Not Found"), {
       isAxiosError: true,
@@ -606,7 +579,7 @@ describe("conversation messages list read", () => {
         includeProposals: true,
         includeReports: true,
       }),
-      requestOptions
+      requestOptions,
     );
     expect(getMessagesMock).toHaveBeenNthCalledWith(
       2,
@@ -619,13 +592,36 @@ describe("conversation messages list read", () => {
         includeProposals: true,
         includeReports: true,
       }),
-      requestOptions
+      requestOptions,
     );
     expect(readCachedMessageIds("org-1", "proj-1", "conv-1")).toEqual([
       "msg-1",
       "msg-2",
       "msg-9",
     ]);
+  });
+
+  it("keeps a rejected history cursor distinct from a missing conversation", async () => {
+    const rejectedCursor = Object.assign(new Error("Not Found"), {
+      isAxiosError: true,
+      response: {
+        status: 404,
+        data: { code: "MESSAGE_CURSOR_NOT_FOUND" },
+      },
+      toJSON: () => ({}),
+    });
+    getMessagesMock.mockRejectedValueOnce(rejectedCursor);
+
+    const error = await loadOlderConversationMessages(
+      queryClient,
+      "org-1",
+      "proj-1",
+      "conv-1",
+      "stale-cursor",
+    ).catch((caught: unknown) => caught);
+
+    expect(error).toBe(rejectedCursor);
+    expect(error).not.toBeInstanceOf(ConversationMessagesNotFoundError);
   });
 
   it("surfaces ConversationMessagesNotFoundError when the conversation itself is gone", async () => {
@@ -639,7 +635,7 @@ describe("conversation messages list read", () => {
     const error = await readConversationMessages(
       "org-1",
       "proj-1",
-      "conv-1"
+      "conv-1",
     ).catch((caught: unknown) => caught);
 
     expect(error).toBeInstanceOf(ConversationMessagesNotFoundError);

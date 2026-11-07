@@ -3,6 +3,8 @@ import { INestApplication, NotFoundException } from '@nestjs/common';
 import { GraphQLModule } from '@nestjs/graphql';
 import { Test } from '@nestjs/testing';
 import * as request from 'supertest';
+import { MessageReadMode } from '@hey-hey/contracts/api/models';
+import { ConversationMessageHistoryCursorError } from '../../../services/conversation-message-history-cursor';
 import { ConversationService } from '../../../services/conversation.service';
 import { MessageService } from '../../../services/message.service';
 import type { GraphQLRequestContext } from '../../graphql-request-context';
@@ -157,6 +159,130 @@ describe('ConversationResolver', () => {
 
     expect(body.errors[0].extensions.code).toBe('MESSAGE_CURSOR_NOT_FOUND');
     expect(body.errors[0].path).toEqual(['conversation', 'messages']);
+  });
+
+  describe('newest-first page', () => {
+    const HISTORY_CURSOR = 'opaque-history-cursor';
+
+    it('reads the same page as the REST reverse-history query and exposes its continuation', async () => {
+      messageService.getMessagesForAdapter.mockResolvedValue({
+        messages: [message('m2'), message('m3')],
+        nextCursor: HISTORY_CURSOR,
+      });
+
+      const body = await query(
+        `{ conversation(id: "${CONVERSATION}") { messages(last: 2) { nodes { id } endCursor startCursor hasOlder } } }`,
+      );
+
+      expect(body.data.conversation.messages).toEqual({
+        nodes: [{ id: 'm2' }, { id: 'm3' }],
+        endCursor: 'm3',
+        startCursor: HISTORY_CURSOR,
+        hasOlder: true,
+      });
+      expect(messageService.getMessagesForAdapter).toHaveBeenCalledWith(
+        {
+          conversationId: CONVERSATION,
+          projectId: PROJECT,
+          mode: MessageReadMode.ReverseHistory,
+          limit: 2,
+          historyCursor: undefined,
+        },
+        ORG,
+        PROJECT,
+        false,
+        false,
+        false,
+      );
+    });
+
+    it('offers no continuation once the oldest message is reached', async () => {
+      messageService.getMessagesForAdapter.mockResolvedValue({
+        messages: [message('m1')],
+      });
+
+      const body = await query(
+        `{ conversation(id: "${CONVERSATION}") { messages(last: 2, before: "${HISTORY_CURSOR}") { nodes { id } startCursor hasOlder } } }`,
+      );
+
+      expect(body.data.conversation.messages).toEqual({
+        nodes: [{ id: 'm1' }],
+        startCursor: null,
+        hasOlder: false,
+      });
+      expect(messageService.getMessagesForAdapter).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mode: MessageReadMode.ReverseHistory,
+          historyCursor: HISTORY_CURSOR,
+        }),
+        ORG,
+        PROJECT,
+        false,
+        false,
+        false,
+      );
+    });
+
+    it('loads proposals and reports only when the query selects them', async () => {
+      messageService.getMessagesForAdapter.mockResolvedValue({ messages: [] });
+
+      await query(
+        `{ conversation(id: "${CONVERSATION}") { messages(last: 2) { nodes { id proposals reports } } } }`,
+      );
+
+      expect(messageService.getMessagesForAdapter).toHaveBeenCalledWith(
+        expect.anything(),
+        ORG,
+        PROJECT,
+        false,
+        true,
+        true,
+      );
+    });
+
+    it('rejects an invalid or other-conversation history cursor as not found with the stable code', async () => {
+      messageService.getMessagesForAdapter.mockRejectedValue(
+        new ConversationMessageHistoryCursorError(),
+      );
+
+      const body = await query(
+        `{ conversation(id: "${CONVERSATION}") { messages(last: 2, before: "bogus") { nodes { id } } } }`,
+      );
+
+      expect(body.errors[0].extensions.code).toBe('MESSAGE_CURSOR_NOT_FOUND');
+    });
+
+    it('reads forward when the newest-first arguments are explicitly null', async () => {
+      messageService.getMessagesForAdapter.mockResolvedValue([message('m4')]);
+
+      const body = await query(
+        `{ conversation(id: "${CONVERSATION}") { messages(after: "m3", last: null, before: null) { nodes { id } endCursor hasOlder } } }`,
+      );
+
+      expect(body.errors).toBeUndefined();
+      expect(body.data.conversation.messages).toEqual({
+        nodes: [{ id: 'm4' }],
+        endCursor: 'm4',
+        hasOlder: null,
+      });
+      expect(messageService.getMessagesForAdapter).toHaveBeenCalledWith(
+        { conversationId: CONVERSATION, projectId: PROJECT, since: 'm3' },
+        ORG,
+        PROJECT,
+        false,
+        false,
+        false,
+      );
+    });
+
+    it('rejects the forward cursor combined with newest-first paging', async () => {
+      const body = await query(
+        `{ conversation(id: "${CONVERSATION}") { messages(after: "m3", last: 2) { nodes { id } } } }`,
+      );
+
+      expect(body.errors).toHaveLength(1);
+      expect(messageService.getMessagesForAdapter).not.toHaveBeenCalled();
+    });
   });
 
   it('loads proposals and reports only when the query selects them', async () => {

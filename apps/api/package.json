@@ -88,6 +88,7 @@
     "performance:api-activity": "node scripts/k6/launch-api-diagnostic.mjs",
     "performance:api-activity:seed": "node scripts/k6/seed-activity-fixture.mjs",
     "typesafe:jev:smoke": "ts-node -r tsconfig-paths/register scripts/typesafe-jev-smoke.ts",
+    "graphql:publish": "UPDATE_GRAPHQL_SCHEMA=1 NODE_ENV=test jest src/graphql/__tests__/web-ui-read-schema.test.ts",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
     "build:unlocked": "pnpm run clean && pnpm prisma generate && nest build",
     "generate:check": "node ../../scripts/generate-contracts.mjs --check --target=api-custom,api-agents,api-embeddings,api-graphs,api-event-schemas"
@@ -95,7 +96,9 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.2",
     "@apollo/server": "^5.5.1",
+    "@as-integrations/express5": "^1.1.2",
     "@elastic/elasticsearch": "8.11.0",
+    "@hey-hey/contracts": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@nestjs/apollo": "^13.4.5",
     "@nestjs/axios": "^4.0.0",
@@ -168,8 +171,7 @@
     "uuid": "^11.1.0",
     "winston": "^3.17.0",
     "zod": "^3.25.74",
-    "zod-to-json-schema": "^3.24.6",
-    "@hey-hey/contracts": "workspace:*"
+    "zod-to-json-schema": "^3.24.6"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",

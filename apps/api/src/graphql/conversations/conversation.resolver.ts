@@ -1,4 +1,5 @@
-import { InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { MessageReadMode } from '@hey-hey/contracts/api/models';
 import {
   Args,
   Context,
@@ -88,25 +89,56 @@ export class ConversationResolver {
   }
 
   /**
-   * Same read as GET /messages?conversationId=…&since=…: the whole thread in
-   * order without `after`, only newer messages after it. A cursor that is not
-   * a message of this conversation is rejected as not found.
+   * Same read as GET /messages?conversationId=…: the whole thread in order,
+   * only newer messages with `after` (`since`), or, with `last` / `before`, the
+   * newest-first page of REVERSE_HISTORY mode (`limit` / `historyCursor`).
+   * `after` cannot be combined with `last` / `before`. A cursor that is not
+   * of this conversation is rejected as not found.
    */
   @ResolveField(() => MessageConnection)
   async messages(
     @Parent() conversation: ConversationNode,
     @Info() info: GraphQLResolveInfo,
-    @Args('after', { type: () => ID, nullable: true }) after?: MessageId,
+    @Args('after', { type: () => ID, nullable: true }) after?: MessageId | null,
+    @Args('last', {
+      type: () => Int,
+      nullable: true,
+      description:
+        'Read the newest `last` messages (1-100, default 8) instead of the whole thread. `nodes` stay oldest first.',
+    })
+    last?: number | null,
+    @Args('before', {
+      type: () => ID,
+      nullable: true,
+      description:
+        'Continuation cursor from a previous newest-first page (`startCursor`).',
+    })
+    before?: string | null,
   ): Promise<MessageConnection> {
     const selected = selectedFieldNames(info, ['nodes']);
     const organizationId = conversation.organizationId as OrganizationId;
     const projectId = conversation.projectId as ProjectId;
+    // An explicit null argument means the same as an omitted one.
+    const forwardCursor = after ?? undefined;
+    const pageSize = last ?? undefined;
+    const historyCursor = before ?? undefined;
+    const newestFirst = pageSize !== undefined || historyCursor !== undefined;
+    if (newestFirst && forwardCursor !== undefined) {
+      throw new BadRequestException(
+        '`after` cannot be combined with `last` or `before`',
+      );
+    }
 
     const result = await this.messageService.getMessagesForAdapter(
       {
         conversationId: conversation.id as ConversationId,
         projectId,
-        since: after,
+        since: forwardCursor,
+        ...(newestFirst && {
+          mode: MessageReadMode.ReverseHistory,
+          limit: pageSize,
+          historyCursor,
+        }),
       },
       organizationId,
       projectId,
@@ -114,13 +146,23 @@ export class ConversationResolver {
       selected.has('proposals'),
       selected.has('reports'),
     );
-    // Only REVERSE_HISTORY mode answers with a page, and it is never requested here.
-    if (!Array.isArray(result)) {
-      throw new InternalServerErrorException('Unexpected message history page');
+
+    if (Array.isArray(result)) {
+      const newest = result.at(-1);
+
+      return {
+        nodes: result,
+        endCursor: newest?.id ?? forwardCursor ?? null,
+        startCursor: null,
+        hasOlder: null,
+      };
     }
 
-    const last = result.at(-1);
-
-    return { nodes: result, endCursor: last?.id ?? after ?? null };
+    return {
+      nodes: result.messages,
+      endCursor: result.messages.at(-1)?.id ?? null,
+      startCursor: result.nextCursor ?? null,
+      hasOlder: result.nextCursor !== undefined,
+    };
   }
 }

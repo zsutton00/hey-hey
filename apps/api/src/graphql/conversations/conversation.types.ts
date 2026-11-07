@@ -129,7 +129,9 @@ export class MessageNode {
 }
 
 /**
- * A conversation's messages in thread order. Pass `endCursor` back as
+ * A conversation's messages. `nodes` are always in thread order, oldest first,
+ * including for a newest-first page (`last` / `before`), which holds the
+ * newest messages of the thread, still oldest first. Pass `endCursor` back as
  * `after` to receive only messages appended since this read.
  */
 @ObjectType()
@@ -139,4 +141,18 @@ export class MessageConnection {
 
   @Field(() => ID, { nullable: true })
   endCursor!: string | null;
+
+  @Field(() => ID, {
+    nullable: true,
+    description:
+      'Newest-first reads only: pass as `before` to read the next older page. Null when no older messages remain, and for reads without `last` / `before`.',
+  })
+  startCursor!: string | null;
+
+  @Field(() => Boolean, {
+    nullable: true,
+    description:
+      'Newest-first reads only: whether older messages remain before this page. Null for reads without `last` / `before`.',
+  })
+  hasOlder!: boolean | null;
 }

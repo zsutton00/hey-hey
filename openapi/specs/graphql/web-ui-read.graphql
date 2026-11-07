@@ -1,0 +1,258 @@
+type Conversation {
+  createdAt: String!
+  createdBy: String
+  id: ID!
+  initiatedBy: String!
+  lastModifiedBy: String
+  messages(
+    after: ID
+
+    """Continuation cursor from a previous newest-first page (`startCursor`)."""
+    before: ID
+
+    """
+    Read the newest `last` messages (1-100, default 8) instead of the whole thread. `nodes` stay oldest first.
+    """
+    last: Int
+  ): MessageConnection!
+  organizationId: String!
+  projectId: String!
+  restricted: Boolean!
+  status: String!
+  title: String
+  triggerEvent: String
+  updatedAt: String!
+  version: Int!
+  workflowAboutId: String
+  workflowAboutType: String
+  workflowId: String
+  workflowName: String!
+}
+
+type ConversationPage {
+  nodes: [Conversation!]!
+  pageInfo: PageInfo!
+}
+
+enum EdgeType {
+  Conditional
+  Consumes
+  Contradicts
+  DependsOn
+  DerivesFrom
+  Evolves
+  FulfilledBy
+  Guarantees
+  Implements
+  Loop
+  ProposedTogether
+  RelatedTo
+  Standard
+  Supersedes
+  Tracks
+}
+
+type EntityRef {
+  entityId: ID!
+  entityType: String
+  name: String
+  workItem: WorkItem
+}
+
+enum EntityType {
+  AgentSession
+  Artifact
+  Conversation
+  DesignDoc
+  ImplementationHint
+  Initiative
+  Message
+  Project
+  Proposal
+  Report
+  Service
+  Task
+  ValidationSession
+}
+
+"""A value whose shape is defined by the REST contract."""
+scalar JSON
+
+type Message {
+  conversationId: String!
+  createdAt: String!
+  data: JSON!
+  id: ID!
+  parentMessageId: String
+  projectId: String!
+  proposals: [JSON!]
+  reports: [JSON!]
+  status: String!
+  type: String!
+  userId: String
+}
+
+type MessageConnection {
+  endCursor: ID
+
+  """
+  Newest-first reads only: whether older messages remain before this page. Null for reads without `last` / `before`.
+  """
+  hasOlder: Boolean
+  nodes: [Message!]!
+
+  """
+  Newest-first reads only: pass as `before` to read the next older page. Null when no older messages remain, and for reads without `last` / `before`.
+  """
+  startCursor: ID
+}
+
+type PageInfo {
+  limit: Int!
+  page: Int!
+  total: Int!
+  totalPages: Int!
+}
+
+type ProjectScope {
+  organizationId: String!
+  projectId: String!
+}
+
+type Query {
+  conversation(id: ID!): Conversation!
+  conversations(limit: Int, page: Int): ConversationPage!
+  projectScope: ProjectScope!
+  workItem(id: ID!): WorkItem!
+  workItems(ids: [ID!], includeDescendants: Boolean, initiativeId: ID, limit: Int, page: Int, parentTaskId: ID, parentTaskIds: [ID!], relatedTo: RelatedEntityFilter, sort: WorkItemSort, statuses: [String!], type: String): [WorkItem!]!
+}
+
+input RelatedEntityFilter {
+  edgeTypes: [EdgeType!]!
+  entityId: ID!
+  entityType: EntityType!
+}
+
+type ServiceRelation {
+  createdAt: String!
+  id: ID!
+  relationType: String
+  serviceId: ID!
+}
+
+enum SortDirection {
+  asc
+  desc
+}
+
+type TrackedEntity {
+  dueDate: String
+  entityId: ID!
+  entityType: String
+  name: String
+  status: String
+  workItem: WorkItem
+}
+
+type TrackedWorkSummary {
+  cancelledCount: Int!
+  completedCount: Int!
+  openUndatedCount: Int!
+  pastDueCount: Int!
+  totalCount: Int!
+}
+
+type WorkItem {
+  agentSessionCount: Int
+  archivedAt: String
+  assigneeId: String
+  childCounts: WorkItemChildCounts
+  codingSessionCount: Int
+  createdAt: String
+  designDocCount: Int
+  dueDate: String
+  edges(types: [EdgeType!]): [WorkItemEdge!]
+  graph(incidentRelationshipTypes: [String!]): WorkItemGraph!
+  id: ID!
+  initiativeId: String
+  name: String!
+  organizationId: String!
+  parentTaskId: String
+  priority: String
+  projectId: String!
+  reporterId: String
+  sections(keys: [String!]): [WorkItemSection!]
+  serviceRelations: [ServiceRelation!]
+  source: String!
+  status: String!
+  tag: String
+  trackedEntities: [TrackedEntity!]
+  trackedWorkSummary: TrackedWorkSummary
+  type: String!
+  updatedAt: String
+}
+
+type WorkItemChildCounts {
+  backlog: Int
+  done: Int
+  inProgress: Int
+  total: Int
+}
+
+type WorkItemEdge {
+  actionLabel: String
+  category: String
+  createdAt: String!
+  createdBySessionId: String
+  direction: String
+  id: ID!
+  lastModifiedBySessionId: String
+  metadata: JSON
+  origin: String
+  predicate: String
+  reasoning: String!
+  source: EntityRef!
+  target: EntityRef!
+  transitionRole: String
+  type: EdgeType!
+  updatedAt: String!
+}
+
+type WorkItemGraph {
+  children: [WorkItem!]!
+  derivedReferences: [WorkItemGraphReference!]!
+  layout: JSON
+  participation: JSON!
+  relationships: [WorkItemEdge!]!
+  root: WorkItem!
+}
+
+type WorkItemGraphReference {
+  entityId: ID!
+  entityType: String
+  expansionKey: String!
+  name: String
+  viaEntityIds: [ID!]!
+  workItem: WorkItem
+  workItemTypeKey: String
+}
+
+type WorkItemSection {
+  id: ID!
+  key: String!
+  materializedMarkdown: String!
+  order: Int!
+}
+
+input WorkItemSort {
+  direction: SortDirection! = desc
+  field: WorkItemSortField!
+}
+
+enum WorkItemSortField {
+  createdAt
+  priority
+  status
+  title
+  updatedAt
+}

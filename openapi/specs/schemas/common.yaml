@@ -365,8 +365,8 @@ ApiErrorResponse:
 MessageCursorNotFoundErrorDto:
   description: |
     The `since` cursor does not name a timeline message in the requested
-    conversation. Unknown ids and ids from another conversation are
-    indistinguishable.
+    conversation, or the `historyCursor` is invalid for it. Unknown, malformed
+    and other-conversation cursors are indistinguishable.
   allOf:
     - $ref: "#/ApiErrorResponse"
     - type: object
