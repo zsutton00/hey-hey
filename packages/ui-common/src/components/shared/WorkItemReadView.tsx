@@ -19,7 +19,7 @@ import {
   type WorkItemSectionSelection,
 } from "../../utils/workItemSections";
 import {
-  adaptFeatureRequirementsSection,
+  readFeatureRequirementsSection,
   isCanonicalFeatureRequirementsDefinition,
 } from "../../utils/featureRequirementsSection";
 
@@ -383,7 +383,6 @@ export const WorkItemReadView: React.FC<WorkItemReadViewProps> = ({
                   sectionSelection?.status === "resolved"
                     ? sectionSelection.typeKey
                     : undefined,
-                  section,
                   materializedSection,
                   requirementsPreview,
                 )
@@ -412,17 +411,15 @@ const renderRequirementsSection = (
   markdownComponents: Components,
   mentionConfig?: MarkdownRendererMentionConfig,
   typeKey?: string,
-  definition?: WorkItemTypeSectionDefinition,
   section?: MaterializedWorkItemSection,
   requirementsPreview?: WorkItemRequirementsPreview,
 ): React.ReactNode => {
-  const isCanonical = isCanonicalFeatureRequirementsDefinition(
-    typeKey,
-    definition,
-  );
-  const canonicalState = isCanonical
-    ? adaptFeatureRequirementsSection({ typeKey, definition, section })
-    : undefined;
+  // Feature requirements are always structured records, so the stored content
+  // alone decides the state: empty content is empty, never raw JSON text.
+  const canonicalState =
+    typeKey === "FEATURE"
+      ? readFeatureRequirementsSection(section?.materializedMarkdown)
+      : undefined;
 
   return (
     <RequirementsSectionFrame label={label}>

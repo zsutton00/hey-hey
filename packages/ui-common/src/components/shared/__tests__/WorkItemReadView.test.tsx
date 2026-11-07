@@ -1229,6 +1229,31 @@ describe("WorkItemReadView requirements section", () => {
     expect(section.textContent ?? "").not.toContain(requirements);
   });
 
+  it("shows the empty state for empty requirements even when the section definition declares no schema", () => {
+    const undeclaredSchemaFeature: WorkItemSectionSelection = {
+      status: "resolved",
+      typeKey: "FEATURE",
+      sections: [
+        { key: "description", label: "Description" },
+        { key: "requirements", label: "Requirements" },
+      ],
+    };
+    render(
+      <WorkItemReadView
+        {...makeReadViewProps(undeclaredSchemaFeature, {
+          requirements: JSON.stringify({ records: [] }),
+        })}
+      />,
+      { wrapper },
+    );
+
+    const section = screen.getByTestId("feature-requirements-section");
+    expect(
+      screen.queryByTestId("feature-requirements-invalid"),
+    ).not.toBeInTheDocument();
+    expect(section.textContent ?? "").not.toContain('"records"');
+  });
+
   it("shows helper text explaining the boundary with acceptanceCriteria", () => {
     render(
       <WorkItemReadView
