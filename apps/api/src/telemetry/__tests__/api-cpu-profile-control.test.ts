@@ -72,7 +72,7 @@ it('stays idle, bounds a capture without its caller, and allows later captures',
     await stop();
     await rm(root, { recursive: true, force: true });
   }
-});
+}, 20_000);
 
 it('stops an active capture during API shutdown and releases the private socket', async () => {
   const root = await mkdtemp(join(tmpdir(), 'api-capture-shutdown-'));

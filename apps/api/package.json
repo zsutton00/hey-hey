@@ -11,6 +11,7 @@
     "clean": "node -e \"const fs=require('fs');try{fs.rmSync('dist',{recursive:true,force:true});}catch(e){if(e.code!=='ENOENT')throw e;}\"",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "dev": "node scripts/run-dev.js",
+    "dev:no-watch": "node scripts/run-dev.js --no-watch",
     "dev:with-worker": "concurrently --kill-others-on-fail \"pnpm dev\" \"pnpm run worker:dev\" --names \"api,worker\" --prefix-colors \"blue,green\"",
     "worker": "ts-node -r tsconfig-paths/register src/worker.ts",
     "worker:dev": "nodemon --watch src --ext ts --exec 'ts-node -r tsconfig-paths/register' src/worker.ts",

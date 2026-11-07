@@ -16,6 +16,7 @@ export { ConversationHistoryList } from "./Components";
 export { ConversationPhaseIndicator } from "./Components";
 export type { ConversationPhaseIndicatorProps } from "./Components";
 export { SystemMessage } from "./Components/SystemMessage";
+export { ThinkingText } from "./Components/ThinkingText";
 export { useConversationPanel } from "./useConversationPanel";
 export type { ConversationPanelLayoutProps } from "./ConversationPanelLayout";
 export type { EditorConversationPanelProps } from "./EditorConversationPanel";
@@ -25,4 +26,12 @@ export type {
 } from "./useConversationPanel";
 export { determineMessageState } from "./utils/messageStateUtils";
 
-export type { ConversationResponseTarget, CanonicalMessageId, ResponseSubmissionKind, ConversationResponseDeclaration, ConversationFormResolution, ConversationFormResolver, ResponseTargetChangeHandler } from "./Components/conversationFormTypes";
+export type {
+  ConversationResponseTarget,
+  CanonicalMessageId,
+  ResponseSubmissionKind,
+  ConversationResponseDeclaration,
+  ConversationFormResolution,
+  ConversationFormResolver,
+  ResponseTargetChangeHandler,
+} from "./Components/conversationFormTypes";
