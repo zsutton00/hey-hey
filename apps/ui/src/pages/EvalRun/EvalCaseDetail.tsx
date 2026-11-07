@@ -48,6 +48,7 @@ import {
   automatedAssessment,
   checkDescriptions,
   type CaseRow,
+  type ChecklistView,
   type WorkBreakdownRow,
 } from "./evalResultsView";
 import { formatCost, formatElapsed, formatTokenCount } from "./evalRunView";
@@ -226,10 +227,65 @@ const AttemptOutputs: React.FC<{
   );
 };
 
+const MockupChecklistResults: React.FC<{ checklist: ChecklistView }> = ({
+  checklist,
+}) => {
+  const { t } = useTranslation();
+
+  return (
+    <Box data-testid="eval-mockup-checklist">
+      <Typography variant="caption" color="text.secondary">
+        {t("eval.results.assessment.checklist")}
+      </Typography>
+      <List dense disablePadding>
+        {checklist.items.map((item) => (
+          <ListItem
+            key={item.id}
+            disableGutters
+            data-testid={`eval-checklist-item-${item.id}`}
+          >
+            <ListItemIcon sx={{ minWidth: 28 }}>
+              {item.hit === null ? null : item.hit ? (
+                <CheckIcon
+                  fontSize="small"
+                  color="success"
+                  titleAccess={t("eval.results.assessment.checklistHit")}
+                />
+              ) : (
+                <CloseIcon
+                  fontSize="small"
+                  color="error"
+                  titleAccess={t("eval.results.assessment.checklistMissed")}
+                />
+              )}
+            </ListItemIcon>
+            <ListItemText
+              primary={item.description}
+              secondary={
+                item.explanation ??
+                t("eval.results.assessment.checklistUnanswered")
+              }
+            />
+          </ListItem>
+        ))}
+      </List>
+      {checklist.regressions && (
+        <Typography variant="body2" data-testid="eval-checklist-regressions">
+          {t("eval.results.assessment.regressions")}{" "}
+          {checklist.regressions.length === 0
+            ? t("eval.results.assessment.noRegressions")
+            : checklist.regressions.join("; ")}
+        </Typography>
+      )}
+    </Box>
+  );
+};
+
 const AutomatedAssessment: React.FC<{
   run: EvalRunReport;
   attempt: EvalAttemptReport;
-}> = ({ run, attempt }) => {
+  row: CaseRow;
+}> = ({ run, attempt, row }) => {
   const { t } = useTranslation();
   const assessment = automatedAssessment(attempt);
   if (!assessment) {
@@ -290,6 +346,7 @@ const AutomatedAssessment: React.FC<{
           ))}
         </List>
       )}
+      {row.checklist && <MockupChecklistResults checklist={row.checklist} />}
       <Typography variant="caption" color="text.secondary">
         {t("eval.results.assessment.rubric")}
       </Typography>
@@ -482,7 +539,7 @@ export const EvalCaseDetail: React.FC<EvalCaseDetailProps> = ({
       )}
       <Grid size={{ xs: 12, md: row.coding ? 12 : 6 }}>
         <Stack spacing={3}>
-          <AutomatedAssessment run={run} attempt={attempt} />
+          <AutomatedAssessment run={run} attempt={attempt} row={row} />
           <EvalHumanReviewForm
             organizationId={organizationId}
             projectId={projectId}

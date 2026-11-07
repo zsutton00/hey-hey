@@ -17,6 +17,9 @@
 // May contain unused imports in some cases
 // @ts-ignore
 import type { EvalCaseCodingCommit } from './eval-case-coding-commit.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { EvalCaseMockupChecklist } from './eval-case-mockup-checklist.js';
 
 /**
  * Coding section of an Eval Case whose handler is `free_form`. For the runner, coordinator and judge only; never passed to the target. Valid exactly when the case\'s handler is `free_form`; checked at approval and at launch, and recorded with each run.
@@ -37,15 +40,21 @@ export interface EvalCaseCoding {
      */
     'pinnedCommit': EvalCaseCodingCommit;
     /**
-     * A change that satisfies the case.
+     * Optional reference for the judge: a change that satisfies the case. Never passed to the target.
      * @type {string}
      * @memberof EvalCaseCoding
      */
-    'knownGoodDiff': string;
+    'knownGoodDiff'?: string;
     /**
-     * A change that plausibly looks right but fails the case.
+     * Optional reference for the judge: a change that plausibly looks right but fails the case. Never passed to the target.
      * @type {string}
      * @memberof EvalCaseCoding
      */
-    'knownBadDiff': string;
+    'knownBadDiff'?: string;
+    /**
+     *
+     * @type {EvalCaseMockupChecklist}
+     * @memberof EvalCaseCoding
+     */
+    'mockupChecklist'?: EvalCaseMockupChecklist;
 }

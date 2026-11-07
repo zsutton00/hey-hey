@@ -23,11 +23,18 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("@hey-hey/ui-common/services", () => ({
-  WebPathService: { service: () => "/service" },
+  WebPathService: { service: () => "/service", task: () => "/task" },
 }));
 
 vi.mock("@hey-hey/ui-common/data", () => ({
   useService: () => ({ data: { name: "hey-hey" } }),
+  useEvalRunSession: () => ({ start: vi.fn(), isStarting: false }),
+  useLaunchEvalRun: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+
+vi.mock("../EvalRun/EvalRunMachinePicker", () => ({
+  useEvalRunMachine: () => ({ machineId: "machine" }),
+  EvalRunMachinePicker: () => null,
 }));
 
 const content = JSON.stringify({
@@ -151,6 +158,77 @@ describe("EvalCaseCodingSection", () => {
       .getByTestId("full-file-split-pane-old")
       .querySelector('[data-index="2"] code > span:first-child');
     expect(secondHunkLine).toHaveTextContent("20");
+  });
+
+  it("shows the Mockup checklist with its kind and items, and omits it when absent", () => {
+    const withChecklist = JSON.stringify({
+      ...JSON.parse(content),
+      mockupChecklist: {
+        mockupId: "55555555-5555-4555-8555-555555555555",
+        kind: "UPDATE",
+        items: [
+          { id: "estimate", description: "Each stage shows an estimate" },
+          { id: "empty", description: "A stage without one shows No estimate" },
+        ],
+      },
+    });
+    const { unmount } = render(
+      <EvalCaseCodingSection
+        content={withChecklist}
+        organizationId="org"
+        projectId="project"
+      />,
+    );
+
+    expect(screen.getByTestId("coding-mockup-kind")).toHaveTextContent(
+      "eval.case.coding.checklist.kind.UPDATE",
+    );
+    expect(
+      within(screen.getByTestId("coding-mockup-checklist")).getAllByRole(
+        "listitem",
+      ),
+    ).toHaveLength(2);
+    expect(screen.getByText("Each stage shows an estimate")).toBeTruthy();
+    unmount();
+
+    render(
+      <EvalCaseCodingSection
+        content={content}
+        organizationId="org"
+        projectId="project"
+      />,
+    );
+    expect(screen.queryByTestId("coding-mockup-checklist")).toBeNull();
+  });
+
+  it("shows only the examples a case has, and none when it has neither", () => {
+    const {
+      knownGoodDiff,
+      knownBadDiff: _bad,
+      ...withoutBad
+    } = JSON.parse(content);
+    const { unmount } = render(
+      <EvalCaseCodingSection
+        content={JSON.stringify({ ...withoutBad, knownGoodDiff })}
+        organizationId="org"
+        projectId="project"
+      />,
+    );
+    expect(screen.getByTestId("coding-known-good")).toBeTruthy();
+    expect(screen.queryByTestId("coding-known-bad")).toBeNull();
+    unmount();
+
+    const { knownGoodDiff: _good, ...withoutExamples } = withoutBad;
+    render(
+      <EvalCaseCodingSection
+        content={JSON.stringify(withoutExamples)}
+        organizationId="org"
+        projectId="project"
+      />,
+    );
+    expect(screen.getByText("Add settings page")).toBeTruthy();
+    expect(screen.queryByTestId("coding-known-good")).toBeNull();
+    expect(screen.queryByTestId("coding-known-bad")).toBeNull();
   });
 
   it("shows an error instead of crashing when the stored section is not a Coding section", () => {

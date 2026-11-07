@@ -20,11 +20,16 @@ import { useNavigate } from "react-router-dom";
 
 import {
   EvalRunStatus,
+  TargetEntityType,
   WorkStatus,
   type MaterializedWorkItemSection,
   type TaskResponseDto,
 } from "@hey-hey/contracts/api";
-import { CapsuleAction, WorkItemReadView } from "@hey-hey/ui-common/components";
+import {
+  CapsuleAction,
+  DiscussCapsuleAction,
+  WorkItemReadView,
+} from "@hey-hey/ui-common/components";
 import {
   evalRunName,
   useEvalRuns,
@@ -209,6 +214,13 @@ export const EvalPage: React.FC<EvalPageProps> = ({
         order={1}
         behavior="click"
         onClick={handleOpenRunSetup}
+      />
+      <DiscussCapsuleAction
+        entityId={evalId}
+        entityType={TargetEntityType.Task}
+        entityTitle={task.name}
+        organizationId={organizationId}
+        projectId={projectId}
       />
       <TaskBreadcrumbs
         projectId={projectId}

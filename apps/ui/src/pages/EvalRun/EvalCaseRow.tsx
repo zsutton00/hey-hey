@@ -106,24 +106,26 @@ export const EvalCaseRow: React.FC<EvalCaseRowProps> = ({
             sx={{ transform: expanded ? "none" : "rotate(-90deg)" }}
           />
         </IconButton>
-        {row.sessionHref ? (
-          <SpaLink
-            href={row.sessionHref}
-            testId={`eval-case-link-${row.attemptId}`}
-            sx={{ fontWeight: 600 }}
-          >
-            {title}
-          </SpaLink>
-        ) : (
-          <Typography
-            variant="body2"
-            sx={{ fontWeight: 600 }}
-            title={t("eval.results.cases.noSession")}
-            data-testid={`eval-case-name-${row.attemptId}`}
-          >
-            {title}
-          </Typography>
-        )}
+        <Box>
+          {row.sessionHref ? (
+            <SpaLink
+              href={row.sessionHref}
+              testId={`eval-case-link-${row.attemptId}`}
+              sx={{ fontWeight: 600 }}
+            >
+              {title}
+            </SpaLink>
+          ) : (
+            <Typography
+              variant="body2"
+              sx={{ fontWeight: 600 }}
+              title={t("eval.results.cases.noSession")}
+              data-testid={`eval-case-name-${row.attemptId}`}
+            >
+              {title}
+            </Typography>
+          )}
+        </Box>
         {row.errored ? (
           <Typography
             variant="body2"
@@ -147,6 +149,19 @@ export const EvalCaseRow: React.FC<EvalCaseRowProps> = ({
             data-testid={`eval-case-recognition-${row.attemptId}`}
           >
             {recognitionText}
+            {row.checklist && row.checklist.hits !== null && (
+              <Typography
+                component="span"
+                variant="caption"
+                display="block"
+                data-testid={`eval-case-checklist-${row.attemptId}`}
+              >
+                {t("eval.results.cases.checklistCount", {
+                  hits: row.checklist.hits,
+                  total: row.checklist.items.length,
+                })}
+              </Typography>
+            )}
           </Typography>
         )}
         <Typography

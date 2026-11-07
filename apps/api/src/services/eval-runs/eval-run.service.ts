@@ -48,6 +48,7 @@ import { ReportService } from '../reports/report.service';
 import { WORK_ITEM_TYPE_KEYS } from '../tasks/work-item-type-keys';
 import { toEvalRunCaseInput } from './eval-case-input.mapper';
 import {
+  assertEvalCaseMockupExists,
   assertEvalCaseServiceExists,
   assertEvaluableRunHandler,
   resolveEvalExecution,
@@ -93,12 +94,13 @@ export class EvalRunService {
     evalId: string,
     request: LaunchEvalRunRequest,
   ): Promise<ReportDto> {
+    const configurations = request.configurations ?? [];
     this.logger.log('Launching eval run', {
       organizationId,
       projectId,
       evalId,
       caseCount: request.evalCaseIds.length,
-      configurationCount: request.configurations.length,
+      configurationCount: configurations.length,
     });
     this.assertRequestShape(request);
     this.assertDistinct(
@@ -106,7 +108,7 @@ export class EvalRunService {
       'evalCaseIds must not repeat a case',
     );
     this.assertDistinct(
-      request.configurations.map((configuration) => configuration.id),
+      configurations.map((configuration) => configuration.id),
       'configurations must have distinct ids',
     );
 
@@ -166,6 +168,19 @@ export class EvalRunService {
             where: { id: serviceId, organizationId, projectId },
           })) > 0,
       );
+      await assertEvalCaseMockupExists(
+        caseInput.title,
+        caseInput.coding,
+        async (mockupId) =>
+          (await this.prisma.db.task.count({
+            where: {
+              id: mockupId,
+              organizationId,
+              projectId,
+              type: WORK_ITEM_TYPE_KEYS.Mockup,
+            },
+          })) > 0,
+      );
     }
 
     const settings = this.resolveSettings(request.settings);
@@ -183,12 +198,12 @@ export class EvalRunService {
     const runPayload = {
       reportType: ReportType.EvalRun,
       ...(name ? { name } : {}),
-      summary: `Eval run of ${caseInputs.length} case(s) across ${request.configurations.length} setup(s) on ${evalItem.name}`,
+      summary: `Eval run of ${caseInputs.length} case(s) across ${configurations.length} setup(s) on ${evalItem.name}`,
       evalId,
       status: 'QUEUED',
       judgeSetup: request.judgeSetup,
       cases: caseInputs,
-      configurations: request.configurations,
+      configurations,
       settings,
       coordinatorAgentSessionId: agentSessionId,
       coordinatorConversationId: conversationId,
@@ -200,7 +215,7 @@ export class EvalRunService {
       async () => {
         const attemptPayloads: EvalAttemptReportPayload[] = [];
         for (const caseInput of caseInputs) {
-          for (const configuration of request.configurations) {
+          for (const configuration of configurations) {
             const summary = `${caseInput.title} on ${configuration.target.model}`;
             const execution = resolveEvalExecution(
               caseInput.target,
@@ -259,7 +274,7 @@ export class EvalRunService {
     this.logger.log('Launched eval run', {
       evalId,
       runId,
-      attemptCount: caseInputs.length * request.configurations.length,
+      attemptCount: caseInputs.length * configurations.length,
       agentSessionId,
       conversationId,
     });
@@ -635,10 +650,10 @@ export class EvalRunService {
         'evalCaseIds must be a non-empty list of case ids',
       );
     }
+    const configurations = request.configurations ?? [];
     if (
-      !Array.isArray(request.configurations) ||
-      request.configurations.length === 0 ||
-      !request.configurations.every(
+      configurations.length === 0 ||
+      !configurations.every(
         (configuration) =>
           isUuid(configuration?.id) &&
           configuration.target?.provider &&
@@ -652,7 +667,7 @@ export class EvalRunService {
     if (!request.judgeSetup?.provider || !request.judgeSetup?.model) {
       throw new BadRequestException('judgeSetup requires a provider and model');
     }
-    for (const configuration of request.configurations) {
+    for (const configuration of configurations) {
       assertEvaluableRunHandler(configuration.target.handlerConfig);
     }
   }

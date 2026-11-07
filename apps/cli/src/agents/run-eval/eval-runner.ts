@@ -68,7 +68,7 @@ export interface EvalRunnerPorts {
     attempt: EvalRecordedAttempt,
     options: { signal: AbortSignal; tokenBudget?: number; onTokenLimit?: () => void },
   ): Promise<EvalTargetResult>;
-  /** Judges a finished attempt's output against its recorded checks and rubric. */
+  /** Judges an output against the case's recorded checks and rubric. */
   judge(
     attempt: EvalRecordedAttempt,
     outputText: string,

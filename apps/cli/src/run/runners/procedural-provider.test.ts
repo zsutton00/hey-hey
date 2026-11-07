@@ -60,4 +60,10 @@ describe('ProceduralProvider activity', () => {
     await provider.generate('b', new AbortController().signal);
     expect(phases).toEqual(['thinking', 'idle', 'thinking', 'idle']);
   });
+
+  it('goes idle while the procedure waits on the user, before any provider call', () => {
+    const { provider, phases } = makeProvider(vi.fn() as unknown as RunPrompt);
+    provider.settleWhileWaiting();
+    expect(phases).toEqual(['idle']);
+  });
 });

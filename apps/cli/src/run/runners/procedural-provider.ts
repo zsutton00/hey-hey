@@ -8,6 +8,14 @@ export class ProceduralProvider {
     private readonly providers: SessionRunnerFacade,
   ) {}
 
+  /**
+   * The procedure is waiting on something other than the provider, so the Turn's `starting`
+   * label no longer applies. The Run's terminal cleanup still ends the Turn.
+   */
+  settleWhileWaiting(): void {
+    this.run.observeProviderPhase('idle');
+  }
+
   async generate(prompt: string, signal: AbortSignal): Promise<string> {
     const { session } = this.run;
     const model = session.model;

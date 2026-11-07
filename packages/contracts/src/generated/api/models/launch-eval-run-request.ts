@@ -43,7 +43,7 @@ export interface LaunchEvalRunRequest {
      */
     'evalCaseIds': Array<string>;
     /**
-     *
+     * One or more setups.
      * @type {Array<EvalConfiguration>}
      * @memberof LaunchEvalRunRequest
      */

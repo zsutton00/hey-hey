@@ -35,7 +35,17 @@ const withCoding = (handler: string, content?: string) => ({
     ...(content === undefined ? [] : [{ key: 'coding', content }]),
   ],
 });
+const MOCKUP = '55555555-5555-4555-8555-555555555555';
+const checklist = (overrides: Record<string, unknown> = {}) => ({
+  mockupChecklist: {
+    mockupId: MOCKUP,
+    kind: 'NEW',
+    items: [{ id: 'save', description: 'Saving shows a confirmation' }],
+    ...overrides,
+  },
+});
 const serviceExists = async (id: string) => id === SERVICE;
+const mockupExists = async (id: string) => id === MOCKUP;
 
 describe('assertApprovedEvalCaseHandlers', () => {
   it.each([
@@ -50,6 +60,7 @@ describe('assertApprovedEvalCaseHandlers', () => {
       assertApprovedEvalCaseHandlers(
         projected(handler, consumer),
         serviceExists,
+        mockupExists,
       ),
     ).resolves.toBeUndefined();
   });
@@ -64,6 +75,7 @@ describe('assertApprovedEvalCaseHandlers', () => {
         assertApprovedEvalCaseHandlers(
           projected(handler, consumer),
           serviceExists,
+          mockupExists,
         ),
       ).rejects.toThrow(BadRequestException);
     },
@@ -74,6 +86,7 @@ describe('assertApprovedEvalCaseHandlers', () => {
       assertApprovedEvalCaseHandlers(
         projected('run_eval', '', 'ARCHIVED'),
         serviceExists,
+        mockupExists,
       ),
     ).resolves.toBeUndefined();
   });
@@ -84,6 +97,17 @@ describe('assertApprovedEvalCaseHandlers', () => {
         assertApprovedEvalCaseHandlers(
           withCoding('free_form', coding()),
           serviceExists,
+          mockupExists,
+        ),
+      ).resolves.toBeUndefined();
+    });
+
+    it('approves a Coding section with a Mockup checklist', async () => {
+      await expect(
+        assertApprovedEvalCaseHandlers(
+          withCoding('free_form', coding(checklist())),
+          serviceExists,
+          mockupExists,
         ),
       ).resolves.toBeUndefined();
     });
@@ -103,6 +127,31 @@ describe('assertApprovedEvalCaseHandlers', () => {
         withCoding('free_form', coding({ testCommands: ['pnpm test'] })),
       ],
       [
+        'a checklist naming a Mockup outside the project',
+        withCoding(
+          'free_form',
+          coding(checklist({ mockupId: crypto.randomUUID() })),
+        ),
+      ],
+      [
+        'a checklist with no items',
+        withCoding('free_form', coding(checklist({ items: [] }))),
+      ],
+      [
+        'a checklist that repeats an item id',
+        withCoding(
+          'free_form',
+          coding(
+            checklist({
+              items: [
+                { id: 'a', description: 'One' },
+                { id: 'a', description: 'Two' },
+              ],
+            }),
+          ),
+        ),
+      ],
+      [
         'a malformed commit',
         withCoding(
           'free_form',
@@ -111,7 +160,7 @@ describe('assertApprovedEvalCaseHandlers', () => {
       ],
     ])('rejects %s', async (_name, item) => {
       await expect(
-        assertApprovedEvalCaseHandlers(item, serviceExists),
+        assertApprovedEvalCaseHandlers(item, serviceExists, mockupExists),
       ).rejects.toThrow(BadRequestException);
     });
   });

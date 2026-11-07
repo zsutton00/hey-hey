@@ -1679,10 +1679,6 @@ export const en = {
   "eval.results.assessment.noRegressions":
     "Nothing that worked before is broken.",
   "eval.results.cases.checklistCount": "Checklist {{hits}} / {{total}}",
-  "eval.results.trust.untrusted": "Scores untrusted",
-  "eval.results.trust.reason": "Why scores are untrusted: {{reason}}",
-  "eval.results.trust.notChecked":
-    "The judge was not checked against this case's known-good and known-bad changes in this run.",
   "eval.results.review.title": "Your review",
   "eval.results.review.score": "Score out of 5",
   "eval.results.review.scoreValue": "{{score}} / 5",

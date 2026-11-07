@@ -2,7 +2,10 @@ import { Alert, Box, Button, Stack, Typography } from "@mui/material";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import type { EvalCaseCoding } from "@hey-hey/contracts/api/models";
+import type {
+  EvalCaseCoding,
+  EvalCaseMockupChecklist,
+} from "@hey-hey/contracts/api/models";
 import { EvalTargetHandlerKey } from "@hey-hey/contracts/api";
 import { useService } from "@hey-hey/ui-common/data";
 import { SavedPatchDiffViewer } from "@hey-hey/ui-common/components";
@@ -22,6 +25,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function isMockupChecklist(value: unknown): value is EvalCaseMockupChecklist {
+  return (
+    isRecord(value) &&
+    typeof value.mockupId === "string" &&
+    (value.kind === "NEW" || value.kind === "UPDATE") &&
+    Array.isArray(value.items) &&
+    value.items.every(
+      (item: unknown) =>
+        isRecord(item) &&
+        typeof item.id === "string" &&
+        typeof item.description === "string",
+    )
+  );
+}
+
 // Own guard: the only schema validator for this shape is zod in apps/api, which the UI cannot import.
 export function isEvalCaseCoding(value: unknown): value is EvalCaseCoding {
   if (!isRecord(value) || !isRecord(value.pinnedCommit)) {
@@ -30,12 +48,19 @@ export function isEvalCaseCoding(value: unknown): value is EvalCaseCoding {
 
   const { serviceId, pinnedCommit, knownGoodDiff, knownBadDiff } = value;
 
+  if (
+    value.mockupChecklist !== undefined &&
+    !isMockupChecklist(value.mockupChecklist)
+  ) {
+    return false;
+  }
+
   return (
     typeof serviceId === "string" &&
     typeof pinnedCommit.sha === "string" &&
     typeof pinnedCommit.shortMessage === "string" &&
-    typeof knownGoodDiff === "string" &&
-    typeof knownBadDiff === "string"
+    (knownGoodDiff === undefined || typeof knownGoodDiff === "string") &&
+    (knownBadDiff === undefined || typeof knownBadDiff === "string")
   );
 }
 
@@ -256,6 +281,57 @@ const DiffField: React.FC<{
   );
 };
 
+const MockupChecklistBlock: React.FC<{
+  checklist: EvalCaseMockupChecklist;
+  projectId: string;
+}> = ({ checklist, projectId }) => {
+  const { t } = useTranslation();
+
+  return (
+    <Box>
+      <Typography variant="subtitle2" fontWeight={600} gutterBottom>
+        {t("eval.case.coding.checklist.heading")}
+      </Typography>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        component="div"
+        data-hh-id="coding-mockup-source"
+        data-testid="coding-mockup-source"
+      >
+        {t("eval.case.coding.checklist.from")}{" "}
+        <SpaLink
+          testId="coding-open-mockup"
+          href={WebPathService.task({
+            projectId,
+            taskId: checklist.mockupId,
+          })}
+        >
+          {t("eval.case.coding.checklist.openMockup")}
+        </SpaLink>
+        {" · "}
+        <b data-testid="coding-mockup-kind">
+          {t(`eval.case.coding.checklist.kind.${checklist.kind}`)}
+        </b>
+        {": "}
+        {t(`eval.case.coding.checklist.note.${checklist.kind}`)}
+      </Typography>
+      <Box
+        component="ul"
+        sx={{ my: 0.5, pl: 2.5 }}
+        data-hh-id="coding-mockup-checklist"
+        data-testid="coding-mockup-checklist"
+      >
+        {checklist.items.map((item) => (
+          <li key={item.id} data-hh-id={`checklist-item-${item.id}`}>
+            <Typography variant="body2">{item.description}</Typography>
+          </li>
+        ))}
+      </Box>
+    </Box>
+  );
+};
+
 /**
  * The Coding section of a free-form coding Eval Case: where the attempt
  * starts and the reference changes. Reviewer
@@ -276,7 +352,7 @@ export const EvalCaseCodingSection: React.FC<EvalCaseCodingSectionProps> = ({
 
   return (
     <Box data-testid="work-item-section" data-section-key="coding">
-      <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+      <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 0.5 }}>
         {t("eval.case.coding.heading")}
       </Typography>
       <Typography
@@ -312,20 +388,33 @@ export const EvalCaseCodingSection: React.FC<EvalCaseCodingSectionProps> = ({
             {coding.pinnedCommit.shortMessage}
           </Typography>
         </Field>
-        <Stack direction="row" spacing={1.5}>
-          <DiffField
-            id="coding-known-good"
-            label={t("eval.case.coding.knownGood")}
-            diff={coding.knownGoodDiff}
-            accent="success.main"
+        {coding.mockupChecklist ? (
+          <MockupChecklistBlock
+            checklist={coding.mockupChecklist}
+            projectId={projectId}
           />
-          <DiffField
-            id="coding-known-bad"
-            label={t("eval.case.coding.knownBad")}
-            diff={coding.knownBadDiff}
-            accent="error.main"
-          />
-        </Stack>
+        ) : null}
+        {coding.knownGoodDiff !== undefined ||
+        coding.knownBadDiff !== undefined ? (
+          <Stack direction="row" spacing={1.5}>
+            {coding.knownGoodDiff !== undefined ? (
+              <DiffField
+                id="coding-known-good"
+                label={t("eval.case.coding.knownGood")}
+                diff={coding.knownGoodDiff}
+                accent="success.main"
+              />
+            ) : null}
+            {coding.knownBadDiff !== undefined ? (
+              <DiffField
+                id="coding-known-bad"
+                label={t("eval.case.coding.knownBad")}
+                diff={coding.knownBadDiff}
+                accent="error.main"
+              />
+            ) : null}
+          </Stack>
+        ) : null}
       </Stack>
     </Box>
   );

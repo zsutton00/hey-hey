@@ -6,6 +6,7 @@ import {
   type EvalConfiguration,
   type EvalMeasurement,
   type EvalRecordedChanges,
+  type EvalRunCaseInput,
 } from "@hey-hey/contracts/api";
 import type { EvalAttemptReport, EvalRunReport } from "@hey-hey/ui-common/data";
 import { WebPathService } from "@hey-hey/ui-common/services";
@@ -310,6 +311,25 @@ export interface CodingResults {
   startPoint: { serviceId: string; sha: string; shortMessage: string };
 }
 
+/** One Mockup checklist item and, once judged, whether the changes hit it. */
+export interface ChecklistItemView {
+  id: string;
+  description: string;
+  /** Null until the judge answered. */
+  hit: boolean | null;
+  explanation: string | null;
+}
+
+/** A coding case's Mockup checklist as judged for one attempt. */
+export interface ChecklistView {
+  kind: "NEW" | "UPDATE";
+  items: ChecklistItemView[];
+  /** Null until the judge answered. */
+  hits: number | null;
+  /** What the change broke; null unless the case is an updated Mockup and judged. */
+  regressions: string[] | null;
+}
+
 export type RecognitionView = "correct" | "missed" | "pending";
 
 export interface CaseRow {
@@ -335,6 +355,8 @@ export interface CaseRow {
   evalCaseHref: string | null;
   /** Set for coding attempts; null for every other kind. */
   coding: CodingResults | null;
+  /** Set for coding attempts whose case carries a Mockup checklist. */
+  checklist: ChecklistView | null;
   /** The attempt's own error message, shown in its cell. */
   errorMessage: string | null;
   /** What the case expected, as recorded on the run. */
@@ -350,6 +372,40 @@ const errorMessage = (attempt: EvalAttemptReport): string | null => {
   return isRecord(error) && typeof error.message === "string"
     ? error.message
     : null;
+};
+
+const checklistView = (
+  checklist: NonNullable<EvalRunCaseInput["coding"]>["mockupChecklist"],
+  assessment: EvalAutomatedAssessment | null,
+): ChecklistView | null => {
+  if (!checklist) {
+    return null;
+  }
+
+  const results = new Map(
+    (assessment?.checklistResults ?? []).map((result) => [
+      result.itemId,
+      result,
+    ]),
+  );
+  const judged = results.size > 0;
+  const items = checklist.items.map((item) => {
+    const result = results.get(item.id);
+
+    return {
+      id: item.id,
+      description: item.description,
+      hit: result?.hit ?? null,
+      explanation: result?.explanation ?? null,
+    };
+  });
+
+  return {
+    kind: checklist.kind,
+    items,
+    hits: judged ? items.filter((item) => item.hit).length : null,
+    regressions: judged ? (assessment?.regressions ?? null) : null,
+  };
 };
 
 export const caseRow = (
@@ -428,6 +484,7 @@ export const caseRow = (
           },
         }
       : null,
+    checklist: checklistView(codingCase?.mockupChecklist, assessment),
     errorMessage: errorMessage(attempt),
     expectation: expectation ? expectation : null,
     recognitionExplanation: assessment?.recognition.explanation ?? null,

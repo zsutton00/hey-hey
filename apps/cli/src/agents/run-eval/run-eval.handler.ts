@@ -89,6 +89,7 @@ const runRecordedAttempts = async (
         .catch((error: unknown) => {
           deps.logger.error('run_eval.attempt.judge_failed', {
             runId: session.agentic_session_id,
+            caseInputId: attempt.caseInput.id,
             attemptId: attempt.attemptId,
             error: describeFailure(error),
           });
@@ -115,7 +116,11 @@ const runRecordedAttempts = async (
     attemptTokenLimit: payload.settings.attemptTokenLimit ?? null,
   });
   const tally = await runEvalAttempts(
-    { attempts: payload.attempts, settings: payload.settings, signal },
+    {
+      attempts: payload.attempts,
+      settings: payload.settings,
+      signal,
+    },
     ports,
   );
   deps.logger.info('run_eval.ended', {

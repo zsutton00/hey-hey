@@ -19,6 +19,9 @@
 import type { EvalCheckResult } from './eval-check-result.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { EvalChecklistResult } from './eval-checklist-result.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { EvalQualityDimensionResult } from './eval-quality-dimension-result.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -54,6 +57,18 @@ export interface EvalAutomatedAssessment {
      * @memberof EvalAutomatedAssessment
      */
     'quality': Array<EvalQualityDimensionResult>;
+    /**
+     * Coding attempts with a Mockup checklist only: one answer per checklist item, hit or missed, judged from the saved changes.
+     * @type {Array<EvalChecklistResult>}
+     * @memberof EvalAutomatedAssessment
+     */
+    'checklistResults'?: Array<EvalChecklistResult>;
+    /**
+     * Coding attempts for an UPDATE checklist only: what used to work and the change now breaks.
+     * @type {Array<string>}
+     * @memberof EvalAutomatedAssessment
+     */
+    'regressions'?: Array<string>;
     /**
      *
      * @type {string}

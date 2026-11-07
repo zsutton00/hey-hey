@@ -42,7 +42,11 @@ const completed: EvalTargetResult = {
 
 const makePorts = (
   launchTarget: EvalRunnerPorts['launchTarget'],
-): { ports: EvalRunnerPorts; attempts: Map<string, EvalAttemptPatch[]>; runStatuses: string[] } => {
+): {
+  ports: EvalRunnerPorts;
+  attempts: Map<string, EvalAttemptPatch[]>;
+  runStatuses: string[];
+} => {
   const attempts = new Map<string, EvalAttemptPatch[]>();
   const runStatuses: string[] = [];
   return {

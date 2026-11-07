@@ -17,8 +17,23 @@ const evalCaseCodingSchema: z.ZodType<EvalCaseCoding> = z
         shortMessage: nonEmpty,
       })
       .strict(),
-    knownGoodDiff: nonEmpty,
-    knownBadDiff: nonEmpty,
+    knownGoodDiff: nonEmpty.optional(),
+    knownBadDiff: nonEmpty.optional(),
+    mockupChecklist: z
+      .object({
+        mockupId: z.string().uuid(),
+        kind: z.enum(['NEW', 'UPDATE']),
+        items: z
+          .array(z.object({ id: nonEmpty, description: nonEmpty }).strict())
+          .min(1)
+          .refine(
+            (items) =>
+              new Set(items.map((item) => item.id)).size === items.length,
+            'item ids must be unique',
+          ),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 

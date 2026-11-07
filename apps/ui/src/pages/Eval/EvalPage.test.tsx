@@ -22,6 +22,7 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("@hey-hey/contracts/api", () => ({
   WorkStatus: { Active: "ACTIVE" },
+  TargetEntityType: { Task: "task" },
   EvalRunStatus: { Finished: "FINISHED", Stopped: "STOPPED" },
 }));
 
@@ -29,6 +30,7 @@ vi.mock("@hey-hey/ui-common/components", () => ({
   CapsuleAction: (props: { id: string; onClick: () => void }) => (
     <button data-testid={`capsule-${props.id}`} onClick={props.onClick} />
   ),
+  DiscussCapsuleAction: () => <button data-testid="capsule-discuss" />,
   WorkItemReadView: () => <div data-testid="read-view" />,
 }));
 

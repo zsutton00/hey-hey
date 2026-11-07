@@ -242,6 +242,42 @@ EvalCaseCodingCommit:
       minLength: 1
       description: First line of the commit message, shown for recognition.
 
+EvalCaseMockupChecklistItem:
+  type: object
+  additionalProperties: false
+  description: One observable outcome to check in a Mockup-derived coding attempt.
+  required: [id, description]
+  properties:
+    id:
+      type: string
+      minLength: 1
+      description: Unique within the checklist; the judge answers by this id.
+    description:
+      type: string
+      minLength: 1
+      description: The outcome to check, written as observable behavior.
+
+EvalCaseMockupChecklist:
+  type: object
+  additionalProperties: false
+  description: >
+    What a coding case built from a Mockup is judged against. For a NEW Mockup
+    the items cover every control; for an UPDATE only the parts that changed.
+  required: [mockupId, kind, items]
+  properties:
+    mockupId:
+      type: string
+      format: uuid
+      description: The source Mockup, which must be in the case's project.
+    kind:
+      type: string
+      enum: [NEW, UPDATE]
+    items:
+      type: array
+      minItems: 1
+      items:
+        $ref: "#/EvalCaseMockupChecklistItem"
+
 EvalCaseCoding:
   type: object
   additionalProperties: false
@@ -250,7 +286,7 @@ EvalCaseCoding:
     coordinator and judge only; never passed to the target. Valid exactly when
     the case's handler is `free_form`; checked at approval and at launch, and
     recorded with each run.
-  required: [serviceId, pinnedCommit, knownGoodDiff, knownBadDiff]
+  required: [serviceId, pinnedCommit]
   properties:
     serviceId:
       $ref: "./common.yaml#/ServiceId"
@@ -259,11 +295,17 @@ EvalCaseCoding:
     knownGoodDiff:
       type: string
       minLength: 1
-      description: A change that satisfies the case.
+      description: >
+        Optional reference for the judge: a change that satisfies the case.
+        Never passed to the target.
     knownBadDiff:
       type: string
       minLength: 1
-      description: A change that plausibly looks right but fails the case.
+      description: >
+        Optional reference for the judge: a change that plausibly looks right
+        but fails the case. Never passed to the target.
+    mockupChecklist:
+      $ref: "#/EvalCaseMockupChecklist"
 
 EvalRunCaseInput:
   type: object
@@ -450,9 +492,35 @@ EvalAutomatedAssessment:
       type: array
       items:
         $ref: "#/EvalQualityDimensionResult"
+    checklistResults:
+      type: array
+      description: >
+        Coding attempts with a Mockup checklist only: one answer per checklist
+        item, hit or missed, judged from the saved changes.
+      items:
+        $ref: "#/EvalChecklistResult"
+    regressions:
+      type: array
+      description: >
+        Coding attempts for an UPDATE checklist only: what used to work and the
+        change now breaks.
+      items:
+        type: string
     createdAt:
       type: string
       format: date-time
+
+EvalChecklistResult:
+  type: object
+  required: [itemId, hit, explanation]
+  properties:
+    itemId:
+      type: string
+      description: The Mockup checklist item this answers.
+    hit:
+      type: boolean
+    explanation:
+      type: string
 
 LaunchEvalRunRequest:
   type: object
@@ -473,6 +541,7 @@ LaunchEvalRunRequest:
     configurations:
       type: array
       minItems: 1
+      description: One or more setups.
       items:
         $ref: "#/EvalConfiguration"
     judgeSetup:

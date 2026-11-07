@@ -1,8 +1,10 @@
 import { z } from 'zod';
 import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import {
+  EvalCaseMockupChecklistKindEnum,
   ReadRestriction,
   type EvalAutomatedAssessment,
+  type EvalCaseCoding,
   type EvalRunCaseInput,
 } from '@hey-hey/contracts/api/models';
 import type { PromptTypeHandler } from '../prompt-type-handler';
@@ -11,7 +13,10 @@ export const EVAL_JUDGE_HANDLER_ID = 'eval_judge';
 
 export interface EvalJudgePayload {
   caseInput: EvalRunCaseInput;
-  /** The attempt's retained answer. The judge never sees the target's context. */
+  /**
+   * The attempt's retained answer. For a coding case this is the rendered saved
+   * changes, never the chat reply. The judge never sees the target's context.
+   */
   outputText: string;
 }
 
@@ -28,7 +33,14 @@ const judgeOutputSchema = z.object({
       explanation: z.string(),
     }),
   ),
+  checklistResults: z
+    .array(z.object({ itemId: z.string(), hit: z.boolean(), explanation: z.string() }))
+    .optional(),
+  regressions: z.array(z.string()).optional(),
 });
+
+const sameIds = (expected: readonly string[], answered: readonly string[]): boolean =>
+  [...expected].sort().join('\n') === [...answered].sort().join('\n');
 
 /**
  * Reads the judge's final JSON object. Every recorded check must be answered
@@ -43,12 +55,102 @@ export const parseEvalJudgeOutput = (
   const end = outputText.lastIndexOf('}');
   if (start < 0 || end < start) throw new Error('The judge returned no JSON assessment.');
   const parsed = judgeOutputSchema.parse(JSON.parse(outputText.slice(start, end + 1)));
-  const expected = caseInput.grading.checks.map((check) => check.id).sort();
-  const answered = parsed.checkResults.map((result) => result.checkId).sort();
-  if (expected.join('\n') !== answered.join('\n')) {
+  const { checklistResults, regressions, ...assessed } = parsed;
+  const expected = caseInput.grading.checks.map((check) => check.id);
+  const answered = parsed.checkResults.map((result) => result.checkId);
+  if (!sameIds(expected, answered)) {
     throw new Error('The judge did not answer each recorded check exactly once.');
   }
-  return { ...parsed, createdAt };
+
+  const checklist = caseInput.coding?.mockupChecklist;
+  if (!checklist) {
+    return { ...assessed, createdAt };
+  }
+
+  const checklistIds = checklist.items.map((item) => item.id);
+  if (
+    !checklistResults ||
+    !sameIds(
+      checklistIds,
+      checklistResults.map((r) => r.itemId),
+    )
+  ) {
+    throw new Error('The judge did not answer each checklist item exactly once.');
+  }
+
+  return {
+    ...assessed,
+    checklistResults,
+    ...(checklist.kind === EvalCaseMockupChecklistKindEnum.Update
+      ? { regressions: regressions ?? [] }
+      : {}),
+    createdAt,
+  };
+};
+
+const fenced = (text: string): string[] => {
+  const longestRun = Math.max(0, ...(text.match(/`+/g) ?? []).map((run) => run.length));
+  const fence = '`'.repeat(Math.max(3, longestRun + 1));
+  return [fence, text, fence];
+};
+
+/** The case's optional good and bad examples, kept apart from the attempt's own changes. */
+const buildReferenceExamplesSection = (coding: EvalCaseCoding): string[] => {
+  const examples = [
+    { label: 'a good way to do this task', diff: coding.knownGoodDiff },
+    { label: 'a bad way to do this task', diff: coding.knownBadDiff },
+  ].filter((example) => example.diff !== undefined);
+  if (examples.length === 0) {
+    return [];
+  }
+
+  return [
+    '',
+    '## Reference examples',
+    'These show what this case exists to catch. Compare the attempt against them; they are not the attempt under judgment.',
+    ...examples.flatMap((example) => ['', `Reference: ${example.label}`, ...fenced(example.diff!)]),
+  ];
+};
+
+const buildCodingJudgeSections = (caseInput: EvalRunCaseInput): string[] => {
+  const checklist = caseInput.coding?.mockupChecklist;
+  if (!caseInput.coding) {
+    return [];
+  }
+
+  return [
+    '',
+    '## Judging a coding attempt',
+    "- The output above is the attempt's saved changes as per-file patches, not its chat reply. Judge only what the patches do.",
+    '- Recognition: did the changes address requirements that appear only on the governing Feature or other linked items and not in the request? Rate this apart from code quality.',
+    '- Quality: judge the code itself.',
+    ...(checklist
+      ? [
+          '- A checklist item is a hit only if the changes implement it. Judge from the changes, not from appearance or intent.',
+          ...(checklist.kind === EvalCaseMockupChecklistKindEnum.Update
+            ? [
+                '- Regressions: list anything that worked before and the changes now break. Use an empty list if none.',
+              ]
+            : []),
+          '',
+          `## Mockup checklist (${checklist.kind === EvalCaseMockupChecklistKindEnum.New ? 'new Mockup' : 'updated Mockup'})`,
+          ...checklist.items.map((item) => `- ${item.id}: ${item.description}`),
+        ]
+      : []),
+    ...buildReferenceExamplesSection(caseInput.coding),
+  ];
+};
+
+const checklistShape = (caseInput: EvalRunCaseInput): string => {
+  const checklist = caseInput.coding?.mockupChecklist;
+  if (!checklist) {
+    return '';
+  }
+
+  const regressions =
+    checklist.kind === EvalCaseMockupChecklistKindEnum.Update ? ',"regressions":[""]' : '';
+
+  return `,"checklistResults":[{"itemId":"","hit":true,"explanation":""}]${regressions}`;
 };
 
 const buildEvalJudgePrompt = (payload: EvalJudgePayload): string => {
@@ -82,9 +184,10 @@ const buildEvalJudgePrompt = (payload: EvalJudgePayload): string => {
     '- Quality: score each rubric dimension from 0 to 5 with an explanation.',
     '- Accept any approach that meets the expectations. A different tool sequence or different wording is not a failure.',
     '- If the output lacks what a judgment needs, say so in that explanation rather than guessing.',
+    ...buildCodingJudgeSections(caseInput),
     '',
     'Reply with one JSON object and nothing else:',
-    '{"checkResults":[{"checkId":"","passed":true,"explanation":""}],"recognition":{"recognized":true,"explanation":""},"quality":[{"key":"","name":"","score":0,"explanation":""}]}',
+    `{"checkResults":[{"checkId":"","passed":true,"explanation":""}],"recognition":{"recognized":true,"explanation":""},"quality":[{"key":"","name":"","score":0,"explanation":""}]${checklistShape(caseInput)}}`,
   ].join('\n');
 };
 

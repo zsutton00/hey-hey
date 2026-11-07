@@ -42,6 +42,7 @@ function sectionText(
 export async function assertApprovedEvalCaseHandlers(
   root: Pick<ProjectedWorkItem, 'name' | 'status' | 'sections'>,
   serviceExists: EvalCaseServiceLookup,
+  mockupExists: EvalCaseMockupLookup,
 ): Promise<void> {
   if (
     root.status === WorkStatus.Archived ||
@@ -61,6 +62,7 @@ export async function assertApprovedEvalCaseHandlers(
     root.sections.find((section) => section.key === 'coding')?.content,
   );
   await assertEvalCaseServiceExists(root.name, coding, serviceExists);
+  await assertEvalCaseMockupExists(root.name, coding, mockupExists);
 }
 
 /**
@@ -196,6 +198,22 @@ export function resolveEvalCaseCoding(
     );
   }
   return result.value;
+}
+
+/** Whether a Mockup with this id belongs to the case's project. */
+export type EvalCaseMockupLookup = (mockupId: string) => Promise<boolean>;
+
+export async function assertEvalCaseMockupExists(
+  caseName: string,
+  coding: EvalCaseCoding | undefined,
+  mockupExists: EvalCaseMockupLookup,
+): Promise<void> {
+  const mockupId = coding?.mockupChecklist?.mockupId;
+  if (mockupId && !(await mockupExists(mockupId))) {
+    throw new BadRequestException(
+      `Eval case "${caseName}" cannot run: its Mockup checklist names Mockup ${mockupId}, which is not in this project.`,
+    );
+  }
 }
 
 export async function assertEvalCaseServiceExists(

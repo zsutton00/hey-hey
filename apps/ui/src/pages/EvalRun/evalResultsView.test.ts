@@ -378,9 +378,63 @@ describe("coding attempts", () => {
     expect(caseRow("p1", codingRun, running).coding?.ended).toBe(false);
   });
 
+  it("maps checklist hits and regressions for an updated Mockup", () => {
+    const checklistRun = {
+      ...codingRun,
+      payload: {
+        ...codingRun.payload,
+        cases: [
+          {
+            ...codingRun.payload.cases[0],
+            coding: {
+              ...codingRun.payload.cases[0].coding,
+              mockupChecklist: {
+                kind: "UPDATE",
+                items: [
+                  { id: "a", description: "Shows it" },
+                  { id: "b", description: "Clears it" },
+                ],
+              },
+            },
+          },
+        ],
+      },
+    } as unknown as EvalRunReport;
+    const judged = attempt("x", setupA, "coding-case", {
+      automatedAssessment: {
+        checkResults: [],
+        recognition: { recognized: true, explanation: "" },
+        quality: [],
+        checklistResults: [
+          { itemId: "a", hit: true, explanation: "added" },
+          { itemId: "b", hit: false, explanation: "missing" },
+        ],
+        regressions: ["Sorting broke"],
+        createdAt: "2026-10-22T10:20:00.000Z",
+      },
+    });
+
+    const row = caseRow("p1", checklistRun, judged);
+
+    expect(row.checklist).toMatchObject({
+      kind: "UPDATE",
+      hits: 1,
+      regressions: ["Sorting broke"],
+    });
+    expect(row.checklist?.items.map((item) => item.hit)).toEqual([true, false]);
+
+    const pending = caseRow(
+      "p1",
+      checklistRun,
+      attempt("y", setupA, "coding-case"),
+    );
+    expect(pending.checklist?.hits).toBeNull();
+    expect(caseRow("p1", codingRun, judged).checklist).toBeNull();
+  });
+
   it("leaves non-coding attempts alone", () => {
-    expect(
-      caseRow("p1", run, attempt("x", setupA, "case-1")).coding,
-    ).toBeNull();
+    const row = caseRow("p1", run, attempt("x", setupA, "case-1"));
+
+    expect(row.coding).toBeNull();
   });
 });
