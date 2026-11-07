@@ -16,7 +16,7 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
-import type { ImplementationReadinessDisposition } from './implementation-readiness-disposition.js';
+import type { ImplementationReadinessAuthoredDisposition } from './implementation-readiness-authored-disposition.js';
 
 /**
  * Structured Feature Sync answer carrying the readiness outcome.
@@ -26,8 +26,8 @@ import type { ImplementationReadinessDisposition } from './implementation-readin
 export interface ImplementationReadinessOutcomeWorkflowAnswer {
     /**
      *
-     * @type {ImplementationReadinessDisposition}
+     * @type {ImplementationReadinessAuthoredDisposition}
      * @memberof ImplementationReadinessOutcomeWorkflowAnswer
      */
-    'disposition': ImplementationReadinessDisposition;
+    'disposition': ImplementationReadinessAuthoredDisposition;
 }
