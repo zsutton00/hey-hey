@@ -95,11 +95,7 @@ For each change, give a title and only the system context needed to understand i
 
 Copy excerpts from code you inspected. Identify the Service, normalized repository-relative file, inclusive line range, language, and source version. Use the target Run's resolved Service workspaces, including worktrees. Include previous code only when comparison helps and identify its full immutable Git commit revision explicitly. Do not describe historical code as current or an unresolved reference as verified. Source checking is per excerpt: retain independent valid excerpts and findings when another source is unavailable.
 
-Use CHANGE_WALKTHROUGH when saving this explanation through the existing report submission path; consult its live definition first. Omit \`targetRunId\` and each excerpt's \`verification\`: the host stamps the target Run from this Review and computes source verification per excerpt, so neither is established by an agent assertion. An excerpt the host cannot verify stays in the report marked unresolved. Create the CHANGE_WALKTHROUGH report; it is required. Put the explanation only in the report and do not restate it in your reply. The report holds only the explanation of the changes; findings and recommended corrections or decisions stay in the reply. Prior Messages, Plan reports, and Implement reports are not prerequisites. This explanation does not permit source or other project artifact edits or change Service authority, canonical file membership, Review dispositions, or monitor routing.
-
-## Reminder — NO partial UUIDs, EVER (HARD STOP)
-
-Never write a shortened or partial entity id, in any form: bare, in backticks, or as "task 427b18d2". Name an entity only with a full, unescaped \`@[type:id|title]\` mention that has the COMPLETE UUID and a real title, e.g. \`@[task:427b18d2-7f06-408b-aa74-4b9e209a2f2c|Title]\`. If you lack the full id and title, resolve a known id with \`get_entity_identities\` (cheapest; \`entityType: "TASK"\` if the work-item subtype is unknown), discover with \`unified_search\` (small \`limit\`), and use \`get_context\` only if you need the surrounding graph. No exceptions."
+Use CHANGE_WALKTHROUGH when saving this explanation through the existing report submission path; consult its live definition first. Omit \`targetRunId\` and each excerpt's \`verification\`: the host stamps the target Run from this Review and computes source verification per excerpt, so neither is established by an agent assertion. An excerpt the host cannot verify stays in the report marked unresolved. Create the CHANGE_WALKTHROUGH report; it is required. Put the explanation only in the report and do not restate it in your reply. The report holds only the explanation of the changes; findings and recommended corrections or decisions stay in the reply. Prior Messages, Plan reports, and Implement reports are not prerequisites. This explanation does not permit source or other project artifact edits or change Service authority, canonical file membership, Review dispositions, or monitor routing."
 `;
 
 exports[`SubAgent — unified runtime contract > captures the complete registered commit child prompt 1`] = `
@@ -132,11 +128,7 @@ Return only a concise conventional-commit message for the session-owned changes 
 
 The user has sent the following message. Please respond to it directly:
 
-Inspect @[task:20000000-0000-4000-8000-000000000002|Fixed task].
-
-## Reminder — NO partial UUIDs, EVER (HARD STOP)
-
-Never write a shortened or partial entity id, in any form: bare, in backticks, or as "task 427b18d2". Name an entity only with a full, unescaped \`@[type:id|title]\` mention that has the COMPLETE UUID and a real title, e.g. \`@[task:427b18d2-7f06-408b-aa74-4b9e209a2f2c|Title]\`. If you lack the full id and title, resolve a known id with \`get_entity_identities\` (cheapest; \`entityType: "TASK"\` if the work-item subtype is unknown), discover with \`unified_search\` (small \`limit\`), and use \`get_context\` only if you need the surrounding graph. No exceptions."
+Inspect @[task:20000000-0000-4000-8000-000000000002|Fixed task]."
 `;
 
 exports[`SubAgent — unified runtime contract > captures the complete registered final_assessment child prompt 1`] = `
@@ -455,11 +447,7 @@ After making your tool calls, explain your thinking conversationally — what yo
 
 Rules:
 - taskAssessment.statusRecommendation must align to acceptanceCriteria-based completeness only.
-- The JSON block above must appear exactly once at the end of your response, after your conversational explanation.
-
-## Reminder — NO partial UUIDs, EVER (HARD STOP)
-
-Never write a shortened or partial entity id, in any form: bare, in backticks, or as "task 427b18d2". Name an entity only with a full, unescaped \`@[type:id|title]\` mention that has the COMPLETE UUID and a real title, e.g. \`@[task:427b18d2-7f06-408b-aa74-4b9e209a2f2c|Title]\`. If you lack the full id and title, resolve a known id with \`get_entity_identities\` (cheapest; \`entityType: "TASK"\` if the work-item subtype is unknown), discover with \`unified_search\` (small \`limit\`), and use \`get_context\` only if you need the surrounding graph. No exceptions."
+- The JSON block above must appear exactly once at the end of your response, after your conversational explanation."
 `;
 
 exports[`SubAgent — unified runtime contract > captures the complete registered research child prompt 1`] = `
@@ -521,15 +509,11 @@ Only one service is in scope here, but real projects contain others. Treat any c
 
 ## Focal context orientation
 
-The canonical focal entity projection supplied at provider startup is your initial orientation. Do not reload that same focal entity by default. Read additional context only when the user requests fresh state, you need to follow a different referenced entity, or the supplied neighborhood is insufficient for the current work. In those cases, pick the smallest read for the question: \`get_entity_identities\` for a missing title or item type, \`get_full_entity\` for content, \`get_context\` for hierarchy, relationships or proposal history, and \`unified_search\` for discovery.
+The canonical focal entity projection supplied at provider startup is your initial orientation. Do not reload that same focal entity by default. Read additional context only when the user requests fresh state, you need to follow a different referenced entity, or the supplied neighborhood is insufficient for the current work. In those cases, pick the smallest read for the question, as described in Choosing the Smallest Read.
 
 ---
 
 The user has sent the following message. Please respond to it directly:
 
-Inspect @[task:20000000-0000-4000-8000-000000000002|Fixed task].
-
-## Reminder — NO partial UUIDs, EVER (HARD STOP)
-
-Never write a shortened or partial entity id, in any form: bare, in backticks, or as "task 427b18d2". Name an entity only with a full, unescaped \`@[type:id|title]\` mention that has the COMPLETE UUID and a real title, e.g. \`@[task:427b18d2-7f06-408b-aa74-4b9e209a2f2c|Title]\`. If you lack the full id and title, resolve a known id with \`get_entity_identities\` (cheapest; \`entityType: "TASK"\` if the work-item subtype is unknown), discover with \`unified_search\` (small \`limit\`), and use \`get_context\` only if you need the surrounding graph. No exceptions."
+Inspect @[task:20000000-0000-4000-8000-000000000002|Fixed task]."
 `;

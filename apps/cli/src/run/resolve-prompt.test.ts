@@ -22,7 +22,7 @@ import { createPromptTypeHandlerTestDeps } from '../agents/prompt-type-handler.t
 import { PromptTypeRegistry } from '../agents/prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../agents/prompt-type-registry.test-support';
 import { WorkflowAboutReader } from '../agents/submission-tools/search-messages-proxy';
-import { heyHeyContextReminder, mentionFormatReminder } from '../agents/prompts/common';
+import { heyHeyContextReminder } from '../agents/prompts/common';
 import type { InternalRunPromptRequest } from '../shared/agent-bridge-contract/contract';
 import type { RunEntityReference } from '../shared/agent-bridge-contract/contract';
 import {
@@ -176,7 +176,7 @@ const callResolve = (overrides: Partial<ResolvePromptArgs>) => {
 
 const stripTurnReminders = (prompt: string | null): string | null => {
   if (prompt === null) return null;
-  const suffix = `\n\n${heyHeyContextReminder}\n\n${mentionFormatReminder}`;
+  const suffix = `\n\n${heyHeyContextReminder}`;
   return prompt.endsWith(suffix) ? prompt.slice(0, -suffix.length) : prompt;
 };
 
@@ -185,11 +185,7 @@ const expectResolvedPromptBody = (
   expected: string,
 ): void => {
   expect(stripTurnReminders(result.resolvedPrompt)).toBe(expected);
-  expect(result.resolvedPrompt).toContain(heyHeyContextReminder);
-  expect(result.resolvedPrompt).toContain(mentionFormatReminder);
-  expect(
-    result.resolvedPrompt?.endsWith(`${heyHeyContextReminder}\n\n${mentionFormatReminder}`),
-  ).toBe(true);
+  expect(result.resolvedPrompt?.endsWith(heyHeyContextReminder)).toBe(true);
 };
 
 const registeredPromptTypes: string[] = [];
@@ -214,7 +210,7 @@ const registerHandler = (
   return full;
 };
 
-it('omits only the Hey Hey reminder when its machine option is off', async () => {
+it('appends no per-turn reminder when the Hey Hey reminder option is off', async () => {
   const handler = registerHandler('reminder-gate-test', {
     buildPrompt: () => 'User request',
     addUserMessage: () => null,
@@ -225,9 +221,7 @@ it('omits only the Hey Hey reminder when its machine option is off', async () =>
     heyHeyContextReminderEnabled: false,
   });
 
-  expect(result.resolvedPrompt).not.toContain(heyHeyContextReminder);
-  expect(result.resolvedPrompt).toContain(mentionFormatReminder);
-  expect(result.resolvedPrompt?.endsWith(mentionFormatReminder)).toBe(true);
+  expect(result.resolvedPrompt).toBe('User request');
 });
 
 afterEach(() => {
@@ -371,7 +365,7 @@ describe('resolvePrompt — first turn with handler and payload', () => {
       dynamicContext: 'HANDLER CONTEXT: CURRENT ENTITY CONTEXT',
       userInput: expect.stringContaining('Start now.'),
     });
-    expect(rerun.providerSessionStartupSegments?.userInput).toContain('NO partial UUIDs, EVER');
+    expect(rerun.providerSessionStartupSegments?.userInput).toContain(heyHeyContextReminder);
     const firstMintSegments = rerun.providerSessionStartupSegments;
     if (!firstMintSegments) throw new Error('Expected first-mint startup segments.');
     expect(
@@ -1038,7 +1032,10 @@ describe('resolvePrompt — registered handlers consume one preloaded entity Con
     run.provider_session_id = '';
     const userMessage = 'Explain the current entity and its next steps.';
 
-    const cases: ReadonlyArray<{ promptType: string; payload: unknown }> = [
+    const cases: ReadonlyArray<{
+      promptType: string;
+      payload: unknown;
+    }> = [
       {
         promptType: LocalPromptType.EntityConversation,
         payload: {
@@ -1089,6 +1086,8 @@ describe('resolvePrompt — registered handlers consume one preloaded entity Con
         expect(providerPrompt).toContain('PRELOADED ENTITY CONTEXT');
         expect(providerPrompt.match(/PRELOADED ENTITY CONTEXT/g)).toHaveLength(1);
         expect(providerPrompt).toContain(userMessage);
+        // Session-level guidance belongs to the platform system prompt, never a Turn's prompt.
+        expect(providerPrompt).not.toContain('## Widening graph research');
         expect(providerPrompt).toContain(
           handler.buildPrompt(result.preparedPayload, {
             runId: run.agentic_session_id,
@@ -1600,6 +1599,7 @@ describe('resolvePrompt — previousProviderSession prepend', () => {
         promptType: PROMPT_TYPE,
         userMessage: 'follow-up message',
       }),
+      providerSessionDecision: 'agent-transition-mint',
     });
 
     expect(result.consumedPreviousProviderSession).toBe(true);
@@ -1607,7 +1607,49 @@ describe('resolvePrompt — previousProviderSession prepend', () => {
     expect(resolved).toContain('## Previous phase (startup_session)');
     expect(resolved).toContain('## Prior Plan');
     expect(resolved).toContain('---');
-    expect(stripTurnReminders(resolved)?.endsWith('follow-up message')).toBe(true);
+    expect(resolved).toContain('SYSTEM');
+  });
+
+  it('does not repeat the prior reply when the provider session is resumed', async () => {
+    registerHandler(`${PROMPT_TYPE}_resume`, { buildPrompt: () => 'SYSTEM' });
+
+    const result = await callResolve({
+      runState: makeRunState({
+        isFirstTurn: false,
+        currentPromptType: `${PROMPT_TYPE}_resume`,
+        previousProviderSession: {
+          promptType: 'startup_session',
+          lastMessage: 'UNIQUE_PRIOR_REPLY',
+          completedAt: '2026-04-26T01:00:00.000Z',
+        },
+      }),
+      input: makeInput({ promptType: `${PROMPT_TYPE}_resume`, userMessage: 'follow-up' }),
+      providerSessionDecision: 'resume',
+    });
+
+    expect(result.consumedPreviousProviderSession).toBe(false);
+    expect(result.resolvedPrompt ?? '').not.toContain('UNIQUE_PRIOR_REPLY');
+  });
+
+  it('carries the prior reply on a first-turn mint', async () => {
+    registerHandler(`${PROMPT_TYPE}_mint`, { buildPrompt: () => 'SYSTEM' });
+
+    const result = await callResolve({
+      runState: makeRunState({
+        isFirstTurn: false,
+        currentPromptType: `${PROMPT_TYPE}_mint`,
+        previousProviderSession: {
+          promptType: 'startup_session',
+          lastMessage: 'UNIQUE_PRIOR_REPLY',
+          completedAt: '2026-04-26T01:00:00.000Z',
+        },
+      }),
+      input: makeInput({ promptType: `${PROMPT_TYPE}_mint`, userMessage: 'follow-up' }),
+      providerSessionDecision: 'first-turn-mint',
+    });
+
+    expect(result.consumedPreviousProviderSession).toBe(true);
+    expect(result.resolvedPrompt ?? '').toContain('UNIQUE_PRIOR_REPLY');
   });
 
   it('returns consumedPreviousProviderSession=false for subagent-owned promptTypes even when a summary is recorded', async () => {

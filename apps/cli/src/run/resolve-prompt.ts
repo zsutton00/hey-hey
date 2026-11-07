@@ -23,11 +23,7 @@ import {
   type AgentStartupPromptInputRequest,
 } from '../commands/agent-startup-prompt-input';
 import { LocalAgentApiError } from '../shared/agent-bridge-contract/errors';
-import {
-  buildServiceContextNote,
-  heyHeyContextReminder,
-  mentionFormatReminder,
-} from '../agents/prompts/common';
+import { buildServiceContextNote, heyHeyContextReminder } from '../agents/prompts/common';
 import { renderReportChainBlock } from '../agents/prompts/report-chain';
 import { resolveAgentProviderId } from '../agents/providers/provider-config';
 import { renderMemoBlock } from '../agents/prompts/memo-block';
@@ -533,7 +529,15 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
   // next phase in ordinary provider sessions. Children retain their existing
   // explicit reports and never inherit previous provider output.
   let consumedPreviousProviderSession = false;
-  if (!isSubagentOwned && !child && resolvedPrompt && runState.previousProviderSession) {
+  // A resumed provider session already holds that output in its history.
+  const providerSessionResumes = args.providerSessionDecision === 'resume';
+  if (
+    !isSubagentOwned &&
+    !child &&
+    !providerSessionResumes &&
+    resolvedPrompt &&
+    runState.previousProviderSession
+  ) {
     const prior = runState.previousProviderSession;
     const previousContext = `## Previous phase (${prior.promptType})\n\n${prior.lastMessage}`;
     resolvedPrompt = `${previousContext}\n\n---\n\n${resolvedPrompt}`;
@@ -612,25 +616,20 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
     }
   }
 
-  // Re-state the orientation and entity-mention reminders at the very tail of
-  // every per-turn prompt — after the report-chain/last-turn prepends and any
-  // transform — so they are the most recent instructions before the agent
-  // replies. The full rules remain in the session system prompt.
-  if (resolvedPrompt) {
-    const turnReminders = [
-      ...(args.heyHeyContextReminderEnabled ? [heyHeyContextReminder] : []),
-      mentionFormatReminder,
-    ].join('\n\n');
-    resolvedPrompt = `${resolvedPrompt}\n\n${turnReminders}`;
+  // Re-state the opt-in orientation reminder at the very tail of every
+  // per-turn prompt — after the report-chain/last-turn prepends and any
+  // transform — so it is the most recent instruction before the agent replies.
+  if (resolvedPrompt && args.heyHeyContextReminderEnabled) {
+    resolvedPrompt = `${resolvedPrompt}\n\n${heyHeyContextReminder}`;
     if (providerPromptState.segments) {
       providerPromptState.segments = providerPromptState.segments.userInput
         ? {
             ...providerPromptState.segments,
-            userInput: `${providerPromptState.segments.userInput}\n\n${turnReminders}`,
+            userInput: `${providerPromptState.segments.userInput}\n\n${heyHeyContextReminder}`,
           }
         : {
             ...providerPromptState.segments,
-            dynamicContext: `${providerPromptState.segments.dynamicContext}\n\n${turnReminders}`,
+            dynamicContext: `${providerPromptState.segments.dynamicContext}\n\n${heyHeyContextReminder}`,
           };
     }
   }

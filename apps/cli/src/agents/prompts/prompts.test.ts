@@ -423,9 +423,7 @@ Good: "Turning Shared Browser off now stays off after you restart the CLI."`;
     expect(prompt.indexOf('**Links as connective tissue.**')).toBeLessThan(
       prompt.indexOf(paragraph),
     );
-    expect(prompt.indexOf(paragraph)).toBeLessThan(
-      prompt.indexOf('**Search as the default discovery move.**'),
-    );
+    expect(prompt.indexOf(paragraph)).toBeLessThan(prompt.indexOf('**Propose vs. edit vs. ask.**'));
     for (const agentPrompt of [
       buildCodingConversationPrompt(
         { userMessage: 'review knowledge' },
@@ -609,26 +607,28 @@ Good: "Turning Shared Browser off now stays off after you restart the CLI."`;
     );
   });
 
-  it('frames a plan as a single artifact for a feature, not an assembled collection of tasks', () => {
-    expect(buildPlatformSystemPrompt(sampleDefs)).toContain('authored as a single artifact');
-    expect(buildPlatformSystemPrompt(sampleDefs)).toContain(
-      'not assembled from pre-existing tasks',
-    );
-    expect(buildPlatformSystemPrompt(sampleDefs)).toContain('sequence of work for a feature');
-    expect(buildPlatformSystemPrompt(sampleDefs)).not.toContain(
-      'ordered collection of tasks and design docs',
-    );
-    expect(buildPlatformSystemPrompt(sampleDefs)).not.toContain('`create_plan`');
+  it('describes Plan only through the project type registry', () => {
+    const planType = {
+      ...sampleDefs[0]!,
+      key: 'PLAN',
+      name: 'Plan',
+      description: 'A dependency-ordered collection of durable implementation stages.',
+      role: 'project-info',
+    } satisfies WorkItemTypeDefinitionDto;
+    const prompt = buildPlatformSystemPrompt([...sampleDefs, planType]);
+
+    expect(prompt.split('(`PLAN`)')).toHaveLength(2);
+    expect(prompt.split('**Work-item types.**')[1]).toContain('(`PLAN`)');
+    expect(prompt).not.toContain('`create_plan`');
   });
 
-  it('preserves the existing situational-awareness, links, search, and propose-edit-ask paragraphs', () => {
+  it('preserves the existing situational-awareness, links, and propose-edit-ask paragraphs', () => {
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain(
       'Situational awareness (passive reflex, not a fan-out)',
     );
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain('notice what I already see');
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain('src/agents/feature-sync/prompts.ts');
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain('Links as connective tissue');
-    expect(buildPlatformSystemPrompt(sampleDefs)).toContain('Search as the default discovery move');
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain('unified_search');
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain('Propose vs. edit vs. ask');
   });
@@ -671,7 +671,7 @@ Good: "Turning Shared Browser off now stays off after you restart the CLI."`;
   });
 
   it('bundles the mention-format block', () => {
-    expect(buildPlatformSystemPrompt(sampleDefs)).toContain('## Entity References (HARD STOP)');
+    expect(buildPlatformSystemPrompt(sampleDefs)).toContain('## Entity References');
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain('@[type:id|title]');
   });
 
@@ -1800,11 +1800,8 @@ describe('buildEntityConversationPrompt', () => {
     const prompt = buildEntityConversationPrompt(makeEntityPayload());
     expect(prompt).toContain(planVsTasksFork);
     expect(prompt).toMatch(/Contract Companion Proposals/i);
-    expect(prompt).toContain('ambient Contract-recognition boundary');
-    expect(prompt).toContain("relevant element's concrete inputs, outputs, and responsibility");
-    expect(prompt).toContain('outside a Diagram');
+    expect(prompt).toContain('recognition boundary from Contract Discovery and Enforcement');
     expect(prompt).toContain('root authoring guide and Contract-specific guide');
-    expect(prompt).toContain('reference roll-ups');
     expect(prompt).not.toContain('Attach every step evidenced as authoring');
     expect(prompt).toContain('boundary remains under-modeled');
     expect(prompt).toMatchSnapshot();
@@ -1838,12 +1835,6 @@ describe('buildEntityConversationPrompt', () => {
   it('includes the conversation role instruction', () => {
     const result = buildEntityConversationPrompt(makeEntityPayload());
     expect(result).toContain('user has started a conversation');
-  });
-
-  it('composes graph research once in Entity Conversation instructions', () => {
-    const result = buildEntityConversationPrompt(makeEntityPayload());
-    expect(result.match(/## Widening graph research/gu)).toHaveLength(1);
-    expect(result).toContain('no supplied Service association or session Service context');
   });
 
   it('includes page context when provided', () => {
@@ -2289,7 +2280,11 @@ describe('buildCodingConversationPrompt', () => {
     expect(result).toContain('## Follow References');
     expect(result).toContain('## Plan vs. tasks');
     expect(result).toContain('## Additional Service scope');
-    expect(result.endsWith(buildCompletionReconciliationPromptFor(new Set()))).toBe(true);
+    expect(
+      result.endsWith(
+        buildCompletionReconciliationPromptFor({ startedPromptTypes: new Set(), subject: 'task' }),
+      ),
+    ).toBe(true);
     expect(result).toMatchSnapshot();
   });
 
@@ -2297,7 +2292,9 @@ describe('buildCodingConversationPrompt', () => {
     const result = buildCodingConversationPrompt({ userMessage: 'go' }, { kind: 'launch' });
     expect(result).toContain('A readiness response replaces the completion JSON below');
     expect(result.indexOf('## Implementation-readiness preflight')).toBeLessThan(
-      result.indexOf(buildCompletionReconciliationPromptFor(new Set())),
+      result.indexOf(
+        buildCompletionReconciliationPromptFor({ startedPromptTypes: new Set(), subject: 'task' }),
+      ),
     );
   });
 

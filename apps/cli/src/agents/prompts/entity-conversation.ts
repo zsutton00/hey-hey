@@ -1,8 +1,10 @@
-import { buildCompletionReconciliationPromptFor } from '../completion-reconciliation/prompts/common';
+import {
+  buildCompletionReconciliationPromptFor,
+  completionSubjectFor,
+} from '../completion-reconciliation/prompts/common';
 import type { LocalEntityConversationPromptPayload } from '../../shared/agent-bridge-contract/index';
 import { formatAgentSessionTranscript } from '../entity-context/conversation-transcript';
 import type { LoadedEntityPromptContext } from '../entity-context/types';
-import { graphResearchGuidance } from './graph-research';
 import {
   codingServiceScopeGuidance,
   customTypeDrafting,
@@ -87,12 +89,10 @@ Research, update the project and propose work items by default. Questions ("why 
 Creating and pruning graph links via \`create_edge\` / \`delete_edge\` is part of your silent, internal work — links are agent-internal breadcrumbs the next session can follow or prune, not user-facing actions, and they never warrant a permission request. This is distinct from proposals, which ARE user-reviewable mutations to an entity (a task or feature created or edited via \`create_work_item\` / \`edit_work_item\`) and must be surfaced for approval. Never fold a link into the same user-facing ask as a proposal-shaped action: the entity creation or edit goes to the user for review; the accompanying link records itself in the graph without comment.`,
   );
 
-  stableSections.push(graphResearchGuidance);
-
   stableSections.push(
     `## Contract Companion Proposals
 
-Before drafting a feature, task, or design-doc create or edit, apply the ambient Contract-recognition boundary. In a Diagram, start from the relevant element's concrete inputs, outputs, and responsibility; outside a Diagram, use the narrowest authoritative operation, work item, design artifact, or schema. If a narrowly stated durable agreement is evidenced, follow the root authoring guide and Contract-specific guide to discover or propose the Contract and reconcile its links. Otherwise keep ad hoc interactions, broad channels, reference roll-ups, and schema mentions as ordinary topology. If the boundary remains under-modeled, preserve that candidate and its evidence in the context you hand forward.`,
+Before drafting a feature, task, or design-doc create or edit, apply the recognition boundary from Contract Discovery and Enforcement to the change. If it evidences a narrowly stated durable agreement, follow the root authoring guide and Contract-specific guide to discover or propose the Contract and reconcile its links. If the boundary remains under-modeled, preserve that candidate and its evidence in the context you hand forward.`,
   );
 
   stableSections.push(
@@ -169,7 +169,12 @@ Call \`submit_session_name\` once the conversation has produced a stable handle 
     }
   }
 
-  stableSections.push(buildCompletionReconciliationPromptFor(startedPromptTypes));
+  stableSections.push(
+    buildCompletionReconciliationPromptFor({
+      startedPromptTypes,
+      subject: completionSubjectFor({ entity, loadedEntityContext }),
+    }),
+  );
   return {
     stableInstructions: stableSections.join('\n\n'),
     dynamicContext: dynamicSections.join('\n\n'),

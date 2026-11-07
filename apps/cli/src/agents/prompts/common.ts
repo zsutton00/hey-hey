@@ -16,10 +16,9 @@ import {
   renderWorkItemTypeOntologyEntry,
 } from './render-type-ontology';
 import type { AgentProviderId } from '../providers/provider-config';
-import {
-  selectGpt56EpistemicCalibration,
-  type PlatformPromptContext,
-} from './epistemic-calibration';
+import { selectGpt56EpistemicCalibration } from './epistemic-calibration';
+import { selectGraphResearchGuidance } from './graph-research';
+import type { PlatformPromptContext } from './platform-prompt-context';
 
 type AgentWorkflowContext = LocalFinalAssessmentPromptPayload['context'];
 
@@ -86,7 +85,7 @@ Fetch only what answers your question, and reuse content already supplied in the
 - **You want an item's own content or sections:** \`get_full_entity\`.
 - **You need hierarchy, relationships, proposal history, or the upstream and downstream consequences of a change:** \`get_context\`.
 - **You want the direct links around several items you have already identified:** \`get_edges\`, one call for the batch instead of a \`get_context\` per item.
-- **You do not yet know which items are relevant:** \`unified_search\`. Its hits already carry the TASK subtype, so they need no identity follow-up.
+- **You do not yet know which items are relevant** — hunting for relationships, feature-tree gaps, or whether something is already covered: \`unified_search\` (or its batch variant) before reading entities one by one, so discovery cost stays bounded. Its hits already carry the TASK subtype, so they need no identity follow-up.
 
 Identity lookup never replaces reading. Before a consequential change, read the governing requirements and design decisions (\`get_full_entity\`, or \`get_context\` when you also need the surrounding graph) and orient on the graph around the entity you are changing.`;
 
@@ -96,13 +95,13 @@ Identity lookup never replaces reading. Before a consequential change, read the 
  *
  * Internal — composed into `platformSystemPrompt`.
  */
-const mentionFormat = `## Entity References (HARD STOP)
+const mentionFormat = `## Entity References
 
-Any time you reference an entity (task, feature, design doc, service, proposal, agent session, etc.) in user-visible text, you MUST write it as \`@[type:id|title]\` — for example \`@[task:2d5158b4-f564-4891-a9ea-4134ebd2ea72|Task Name]\` or \`@[proposal:461f6ba7-010f-4853-90d0-ea5d878b0a0c|Rewrite task description]\`.
+The UI renders \`@[type:id|title]\` mentions as clickable links; any other way of naming an entity is dead text the user cannot act on, and users treat a broken or partial reference as a serious failure. So whenever you reference an entity (task, feature, design doc, service, proposal, agent session, etc.) in user-visible text, write it as a mention with the complete ID and a real title — for example \`@[task:2d5158b4-f564-4891-a9ea-4134ebd2ea72|Task Name]\` or \`@[proposal:461f6ba7-010f-4853-90d0-ea5d878b0a0c|Rewrite task description]\`.
 
-Never write bare IDs, truncated IDs, or prose like "task 8fb5e689", \`8fb5e689\`, "8fb5e689 (Title)", "sibling 8fb5e689 (title)", or "proposal bb027bea from 2026-04-18". The UI renders \`@[...]\` mentions as clickable links; anything else is dead text the user cannot act on. If you know the ID, you must have or look up a title — use \`get_entity_identities\` for a known ID and \`unified_search\` to discover — and wrap both in the mention format. There is no path that ends in a half-formed reference: look up the title first. Records that are not entities follow the same rule: name a feature requirement by its feature's mention plus the requirement's own wording, never by its \`id\` (e.g. "requirement \`06fcd4ab\`"). Requirement IDs and other short identifiers appear only in tool arguments such as \`requirementOps\`.
+Do not write bare or shortened IDs, in backticks or in prose, such as "task 8fb5e689", \`8fb5e689\`, "8fb5e689 (Title)", "sibling 8fb5e689 (title)", or "proposal bb027bea from 2026-04-18". If you know an ID but not its title, look the title up before writing the reference: \`get_entity_identities\` resolves a known ID (pass \`entityType: "TASK"\` when the work-item subtype is unknown) and \`unified_search\` discovers entities you cannot yet name. Records that are not entities follow the same rule: name a feature requirement by its feature's mention plus the requirement's own wording, never by its \`id\` (e.g. "requirement \`06fcd4ab\`"). Requirement IDs and other short identifiers appear only in tool arguments such as \`requirementOps\`.
 
-**NEVER escape the brackets — zero escapes, ever.** Write \`@[task:...]\` — never \`@\\[task:...]\`. The backslash is a markdown-escape habit; in this UI it breaks the link and emits the raw literal as dead text. No exception — not in lists, not in tables, not in code-adjacent prose, not "to be safe". Examples of what is forbidden: \`@\\[task:6e671950-78ff-41fc-b001-1e1378b6e41a|Reports]\`, \`@\\[feature:...|...]\`, \`@\\[proposal:...|...]\`. Always emit a bare \`@[\`. Code-layer normalization exists as a backstop and does not license the prompt to soften this rule — the rule binds your output regardless of whether the code would silently fix it.`;
+Do not escape the brackets: write \`@[task:...]\`, never \`@\\[task:...]\`. The backslash is a markdown-escape habit that breaks the link in this UI and shows the raw text instead. This holds everywhere, including lists, tables and text next to code.`;
 
 /**
  * Stale references: tells the agent that ARCHIVED entities have no
@@ -119,21 +118,6 @@ Treat every entity with status \`ARCHIVED\` as absent from usable agent context.
 This applies even when an archived entity appears in quoted text, conversation history, reports, mentions, retrieved topology, or any other indirect context. An archived mention or quote does not restore relevance or authority.
 
 Before mentioning a proposal or targeting it in an edge, check it with \`get_proposal\`. An approved CREATE's \`targetEntityId\` is the entity it created; mention and link that entity by ID and title instead. Reference the proposal only while it is pending (including same-round edges) or when it is itself the subject, such as asking the user to review it.`;
-
-/**
- * Per-turn reiteration of the entity-mention HARD STOP. The full rule lives in
- * `mentionFormat` and is delivered once per session via the platform system
- * prompt; that single statement gets buried as the session's context fills,
- * which is exactly when bare and partial IDs start leaking. This terse pointer
- * is appended to the tail of every per-turn prompt (see `resolve-prompt.ts` and
- * `subagent.ts`) so the rule is always the most recent thing the agent read
- * before composing its reply. Keep it short — it rides every turn and shares
- * the prompt token budget; it points back to the full rule rather than
- * restating it.
- */
-export const mentionFormatReminder = `## Reminder — NO partial UUIDs, EVER (HARD STOP)
-
-Never write a shortened or partial entity id, in any form: bare, in backticks, or as "task 427b18d2". Name an entity only with a full, unescaped \`@[type:id|title]\` mention that has the COMPLETE UUID and a real title, e.g. \`@[task:427b18d2-7f06-408b-aa74-4b9e209a2f2c|Title]\`. If you lack the full id and title, resolve a known id with \`get_entity_identities\` (cheapest; \`entityType: "TASK"\` if the work-item subtype is unknown), discover with \`unified_search\` (small \`limit\`), and use \`get_context\` only if you need the surrounding graph. No exceptions.`;
 
 /** Per-turn reminder to use Hey Hey's project context and tools. */
 export const heyHeyContextReminder = `Reminder: you are working inside Hey Hey. It gives you the user's project and tools to search, read and change it, and the user expects you to leverage the project's context and Hey Hey's tools to do work.`;
@@ -248,7 +232,7 @@ export const formatFinalAssessmentTaskNeighborhood = (
 
 export const focalContextOrientation = `## Focal context orientation
 
-The canonical focal entity projection supplied at provider startup is your initial orientation. Do not reload that same focal entity by default. Read additional context only when the user requests fresh state, you need to follow a different referenced entity, or the supplied neighborhood is insufficient for the current work. In those cases, pick the smallest read for the question: \`get_entity_identities\` for a missing title or item type, \`get_full_entity\` for content, \`get_context\` for hierarchy, relationships or proposal history, and \`unified_search\` for discovery.`;
+The canonical focal entity projection supplied at provider startup is your initial orientation. Do not reload that same focal entity by default. Read additional context only when the user requests fresh state, you need to follow a different referenced entity, or the supplied neighborhood is insufficient for the current work. In those cases, pick the smallest read for the question, as described in Choosing the Smallest Read.`;
 
 export const formatFinalAssessmentStartupDiscrepancyContext = (
   discrepancies: LocalPromptStartupDiscrepancyContextItem[],
@@ -292,12 +276,6 @@ const NON_WORK_ITEM_ENTITY_TYPES: WorkItemTypeDefinitionDto[] = [
     name: 'Service',
     description:
       'A code base. Tasks execute against a service; services are the code context, not a product concept.',
-  },
-  {
-    key: 'PLAN',
-    name: 'Plan',
-    description:
-      'A staged, reviewable sequence of work for a feature, authored as a single artifact and decomposed into stages and steps (not assembled from pre-existing tasks). A plan carries a design doc.',
   },
   {
     key: 'AGENT_SESSION',
@@ -348,8 +326,6 @@ const platformPrimerGuidance = `**Top-level features are product concepts, not a
 **Links as connective tissue.** The parent-chain gives only the easy part of the tree; links carry the rest — cross-hierarchy connections and the project's evolution. See Link Discovery for the typed vocabulary, create/prune rules, and the supersede-as-history framing.
 
 **Other work items carry the project too.** Features are the backbone, but every work-item type fills a role in the project topology — a Mockup shows how an interface should look and behave, a Diagram shows how the parts of a system relate, and every other type fills the role its description defines. Its contextual type guidance and maintenance guidance explain how it fits. Applicable items govern research, planning, implementation and verification. Read their content, follow their requirements, and surface conflicts instead of routing around them. Judge completion against governing Feature requirements and Contracts, using evidence of delivered behavior. Passing checks alone do not establish fulfillment.
-
-**Search as the default discovery move.** When hunting for relationships, feature-tree gaps, or "is this already covered somewhere?", reach for \`unified_search\` (and its batch variant) before brute-forcing entity reads. Search keeps discovery cost bounded.
 
 **Propose vs. edit vs. ask.** Entity mutations go through \`create_*\` / \`edit_*\` proposals; cross-hierarchy connections go through \`create_edge\`. Anything that mutates live external state or has non-trivial blast radius gets confirmed with the user first.`;
 
@@ -403,7 +379,7 @@ const topologyAuthoringRecognition = `## Topology authoring
 
 When your next action may create or change project topology — including hierarchy, typed edges, proposal groups, TRACKS, Contracts, Diagrams, references, or Diagram Element fulfillment — call get_authoring_guidance() once before the mutation. Carry its reusable authoringRootProof into the specific authoring-guidance read and any covered topology mutation, then carry the returned scoped guidanceToken wherever the operation also authors prose. Missing or mismatched proofs are actionable read-again signals, not authorization failures to work around.
 
-The always-loaded prompt supplies the ambient ontology, mention syntax, search-first discovery, feature references, and recognition boundary. The detailed mutation rules live in get_authoring_guidance(); do not recreate them from memory or duplicate them here.`;
+The always-loaded prompt supplies the ambient ontology, mention syntax, search-first discovery, feature references, and recognition boundary. The detailed mutation rules live in get_authoring_guidance(); do not recreate them from memory.`;
 
 const contractDiscoveryRecognition = `## Contract Discovery and Enforcement
 
@@ -553,9 +529,6 @@ export interface PlatformPromptOptions {
   hints: HintPromptAccess;
 }
 
-const changedFileReportingObligation =
-  'If you changed files this turn, you must call `report_changed_files` before completing and correct any rejected claims.';
-
 /**
  * Builds the ambient session-level system prompt from a live set of work-item
  * type definitions. The platform ontology, mention format, cross-feature
@@ -577,6 +550,7 @@ export function buildPlatformSystemPrompt(
     platformPrimerGuidance;
 
   const calibration = context ? selectGpt56EpistemicCalibration(context) : null;
+  const graphResearch = context ? selectGraphResearchGuidance(context) : null;
 
   return [
     primer,
@@ -596,9 +570,9 @@ export function buildPlatformSystemPrompt(
     ephemeralAgentIterationGuidance,
     providerDefersMcpTools(options?.provider) ? deferredMcpTools : null,
     consultGraphBeforeAsking,
+    graphResearch,
     options?.maturity === ProjectMaturity.TakingShape ? takingShapeGuidance : null,
     topologyIsImplementationWork,
-    changedFileReportingObligation,
     options?.intentFirst ? intentFirstGuidance : null,
   ]
     .filter((section): section is string => section !== null)

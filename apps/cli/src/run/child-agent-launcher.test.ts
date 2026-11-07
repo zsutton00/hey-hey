@@ -1,6 +1,6 @@
 import { SubmissionToolRegistry } from '../agents/submission-tools/registry';
 import { reviewHandler } from '../agents/review-subagent/review.handler';
-import { heyHeyContextReminder, mentionFormatReminder } from '../agents/prompts/common';
+import { heyHeyContextReminder } from '../agents/prompts/common';
 import { createPromptTypeHandlerTestDeps } from '../agents/prompt-type-handler.test-support';
 import { describe, expect, it, vi } from 'vitest';
 import { ChildAgentLauncher, type ChildAgentLauncherDependencies } from './child-agent-launcher';
@@ -121,7 +121,7 @@ describe('ChildAgentLauncher', () => {
     );
   });
 
-  it('keeps the partial-ID reminder in child prompts when the Hey Hey reminder is off', async () => {
+  it('omits the Hey Hey reminder from child prompts when its option is off', async () => {
     harness.construct.mockClear();
     await makeLauncher(false).launch({
       parentSession: session,
@@ -132,8 +132,6 @@ describe('ChildAgentLauncher', () => {
 
     const prompt = harness.construct.mock.calls.at(-1)?.[0].prompt;
     expect(prompt).not.toContain(heyHeyContextReminder);
-    expect(prompt).toContain(mentionFormatReminder);
-    expect(prompt.endsWith(mentionFormatReminder)).toBe(true);
   });
 
   it('prepares independent Review once and preserves its file scope and recent user decisions', async () => {
@@ -166,11 +164,8 @@ describe('ChildAgentLauncher', () => {
     const supplied = harness.construct.mock.calls.at(-1)?.[0];
     expect(supplied.prompt).toContain('/repo/change.ts');
     expect(supplied.prompt).toContain('Keep the public behavior.');
-    expect(supplied.prompt).toContain(heyHeyContextReminder);
-    expect(supplied.prompt.endsWith(`${heyHeyContextReminder}\n\n${mentionFormatReminder}`)).toBe(
-      true,
-    );
-    expect(supplied.prompt.split(mentionFormatReminder)).toHaveLength(2);
+    expect(supplied.prompt.endsWith(heyHeyContextReminder)).toBe(true);
+    expect(supplied.prompt.split(heyHeyContextReminder)).toHaveLength(2);
 
     // A Run/eval already owns preparation. The launcher renders that enriched
     // payload without repeating preparation or fetching its context again.

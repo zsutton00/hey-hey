@@ -1,7 +1,6 @@
 import type { VerifyFeaturePromptPayload } from '@hey-hey/contracts/agent-bridge';
 import { verifyFeatureCompletionPrompt } from '../completion-reconciliation/prompts/common';
 import type { LoadedEntityPromptContext } from '../entity-context/types';
-import { graphResearchGuidance } from '../prompts/graph-research';
 import { focalContextOrientation, lifecycleAwareTaskEditSafety } from '../prompts/common';
 
 const featureName = (loadedEntityContext?: LoadedEntityPromptContext): string | null =>
@@ -31,7 +30,6 @@ ${focalContextOrientation}
 4. If the concern is real, propose the feature, task, Diagram or Mockup updates it warrants; inspect any Mockup or Diagram the concern names, and keep artifact and Diagram Element identities and any historical or exploratory intent in the update. If it is not, explain specifically what you checked and why no update is needed. Never answer "nothing is wrong" without that evidence.
 
 Do not start or request another Feature Sync.`,
-    graphResearchGuidance,
     lifecycleAwareTaskEditSafety,
     verifyFeatureCompletionPrompt,
   ].join('\n\n');
