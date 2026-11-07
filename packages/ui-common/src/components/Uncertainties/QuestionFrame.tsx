@@ -33,6 +33,7 @@ export const QuestionFrame: React.FC<QuestionFrameProps> = ({
     data-testid={testId}
     variant="outlined"
     sx={(theme) => ({
+      mt: 1.5,
       overflow: "hidden",
       borderWidth: 2,
       borderColor: theme.palette.actionable.main,
