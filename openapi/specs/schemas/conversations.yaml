@@ -6396,7 +6396,38 @@ AgentRequestPermissionPayload:
       format: date-time
       nullable: true
       description: ISO timestamp of when the decision was recorded
+    groupedRequests:
+      type: array
+      description: >
+        Present when this card lists several same-tool requests. Each entry
+        carries its own decision. The first entry is the request described by
+        permissionRequest, decision and decidedAt.
+      items:
+        $ref: "#/AgentGroupedPermissionRequest"
   description: Structured payload for permission-request UI elements
+
+AgentGroupedPermissionRequest:
+  type: object
+  required:
+    - requestId
+    - description
+  properties:
+    requestId:
+      type: string
+      description: Permission request id this entry answers
+    description:
+      type: string
+      description: What this request is for, such as a search query or network host
+    decision:
+      type: string
+      enum: [approve, always_approve, whitelist, deny]
+      nullable: true
+      description: The user's decision for this request, once recorded
+    decidedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: ISO timestamp of when this request's decision was recorded
 
 AgentQuestionOption:
   type: object

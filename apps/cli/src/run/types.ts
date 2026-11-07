@@ -69,6 +69,7 @@ type NormalizedEventKind =
   | 'diff'
   | 'permission'
   | 'permission_decision_recorded'
+  | 'permission_group_item_added'
   | 'agent_question'
   | 'question_answered'
   | 'tool_use'
@@ -204,6 +205,15 @@ export interface PermissionDecisionRecordedEvent extends NormalizedEventBase {
   userId?: string;
 }
 
+/** A same-tool request joined an open permission card. */
+export interface PermissionGroupItemAddedEvent extends NormalizedEventBase {
+  kind: 'permission_group_item_added';
+  cardRequestId: string;
+  cardDescription: string;
+  requestId: string;
+  description: string;
+}
+
 export interface AgentQuestionEvent extends NormalizedEventBase {
   kind: 'agent_question';
   requestId: string;
@@ -231,6 +241,7 @@ export type NormalizedEvent =
   | DiffEvent
   | PermissionEvent
   | PermissionDecisionRecordedEvent
+  | PermissionGroupItemAddedEvent
   | AgentQuestionEvent
   | QuestionAnsweredEvent
   | ToolUseEvent

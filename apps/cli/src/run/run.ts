@@ -706,6 +706,9 @@ export class Run {
     { messageId: string; data: SystemMessageData | null }
   > = new Map();
   private readonly settledPermissionRequestIds = new Set<string>();
+  // Handlers waiting for a permission card's message to be posted, by the
+  // request id the card is keyed by.
+  private readonly permissionCardWaiters = new Map<string, Array<() => void>>();
   // Open `AskUserQuestion` messages by question request id. In-memory only: a
   // waiting question cannot outlive the process that holds its tool call.
   private readonly questionMessages = new Map<
@@ -2447,6 +2450,10 @@ export class Run {
   ): void {
     this.settledPermissionRequestIds.delete(requestId);
     this.permissionRequestMessages.set(requestId, { messageId, data });
+    for (const wake of this.permissionCardWaiters.get(requestId) ?? []) {
+      wake();
+    }
+    this.permissionCardWaiters.delete(requestId);
     const presentations: PermissionRequestPresentation[] = [
       ...(this.session.permissionRequestPresentations ?? []).filter(
         (presentation) => presentation.requestId !== requestId,
@@ -2464,6 +2471,50 @@ export class Run {
           error,
         });
       });
+  }
+
+  /**
+   * Resolves once the message for the card keyed by `requestId` has been
+   * recorded, or false after `timeoutMs`. A request can join a card before the
+   * card's own post has finished, so joining waits for the card instead of
+   * dropping the row.
+   */
+  async whenPermissionRequestMessageRecorded(
+    requestId: string,
+    timeoutMs: number,
+  ): Promise<boolean> {
+    if (this.permissionRequestMessages.has(requestId)) {
+      return true;
+    }
+
+    return new Promise<boolean>((resolve) => {
+      const timer = setTimeout(() => {
+        const waiters = this.permissionCardWaiters.get(requestId)?.filter((w) => w !== wake);
+        if (waiters?.length) {
+          this.permissionCardWaiters.set(requestId, waiters);
+        } else {
+          this.permissionCardWaiters.delete(requestId);
+        }
+        resolve(false);
+      }, timeoutMs);
+      const wake = () => {
+        clearTimeout(timer);
+        resolve(true);
+      };
+      this.permissionCardWaiters.set(requestId, [
+        ...(this.permissionCardWaiters.get(requestId) ?? []),
+        wake,
+      ]);
+    });
+  }
+
+  /** Makes a request that joined an open card share that card's message entry. */
+  joinPermissionRequestMessage(
+    requestId: string,
+    entry: { messageId: string; data: SystemMessageData | null },
+  ): void {
+    this.settledPermissionRequestIds.delete(requestId);
+    this.permissionRequestMessages.set(requestId, entry);
   }
 
   recordQuestionMessage(requestId: string, messageId: string, data: SystemMessageData): void {

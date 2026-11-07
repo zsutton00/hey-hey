@@ -1608,6 +1608,94 @@ describe('session-runner-claude', () => {
     await runPromise;
   });
 
+  it('lists same-tool requests with different inputs on one card with a decision per request', async () => {
+    const onAgentOutput = vi.fn();
+    const runner = new ClaudeAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry,
+      toolRuleStore,
+      runStore: makeRunStore(),
+      repoStore: makeRepoStore(),
+      agentOutputOwner: createProviderTestAgentOutputOwner(onAgentOutput),
+    });
+    const session = makeSession();
+    const runPromise = runner.runPrompt({ session, prompt: 'Search the web.' });
+    await waitForPermissionHandler();
+
+    const emitted = () =>
+      onAgentOutput.mock.calls.flatMap((call) => {
+        const event = call[0]?.event as
+          | { eventType?: string; sessionId?: string; payload?: Record<string, unknown> }
+          | undefined;
+
+        return event?.eventType ? [event] : [];
+      });
+    const cards = () =>
+      emitted().filter(
+        (event) => event.eventType === 'permission_request' && event.payload?.['tool_name'],
+      );
+    const joinedRows = () =>
+      emitted()
+        .filter((event) => event.eventType === 'permission_group_item_added')
+        .map((event) => event.payload as Record<string, string>);
+    const decide = (requestId: string, decision: 'approve' | 'deny') =>
+      runner.submitPermissionDecision?.({
+        session,
+        dispatch: translatePermissionDecisionToDispatch({
+          runId: session.agentic_session_id,
+          sessionId: 'session-1',
+          requestId,
+          agentType: 'claude',
+          decision,
+          reason: decision === 'deny' ? 'Denied for this search.' : null,
+          idempotencyToken: requestId,
+          deciderUserId: 'user-1',
+        }),
+      });
+
+    const alpha = { query: 'alpha', mode: 'standard' };
+    const beta = { query: 'beta', mode: 'standard' };
+    const gamma = { query: 'gamma', mode: 'standard' };
+    const alphaPromise = permissionRequestHandler!('WebSearch', alpha);
+    const betaPromise = permissionRequestHandler!('WebSearch', beta);
+    const gammaPromise = permissionRequestHandler!('WebSearch', gamma);
+    const alphaTwinPromise = permissionRequestHandler!('WebSearch', { ...alpha });
+    await vi.waitFor(() => expect(joinedRows()).toHaveLength(2));
+
+    // One card for the three distinct searches; the exact duplicate adds no row.
+    expect(cards()).toHaveLength(1);
+    const cardRequestId = (cards()[0]!.payload!['permission_request'] as { id: string }).id;
+    const [betaRow, gammaRow] = joinedRows();
+    expect(joinedRows().map((row) => row['description'])).toEqual(['beta', 'gamma']);
+    expect(betaRow).toMatchObject({ cardRequestId, cardDescription: 'alpha' });
+
+    // Each row is decided on its own; the duplicate follows its twin.
+    await decide(cardRequestId, 'approve');
+    await expect(alphaPromise).resolves.toEqual({ behavior: 'allow', updatedInput: alpha });
+    await expect(alphaTwinPromise).resolves.toEqual({ behavior: 'allow', updatedInput: alpha });
+
+    // A request arriving after a decision opens a new card instead of inheriting one.
+    const deltaPromise = permissionRequestHandler!('WebSearch', { query: 'delta' });
+    await vi.waitFor(() => expect(cards()).toHaveLength(2));
+    expect(joinedRows()).toHaveLength(2);
+
+    await decide(betaRow!['requestId']!, 'deny');
+    await expect(betaPromise).resolves.toEqual({
+      behavior: 'deny',
+      message: 'Denied for this search.',
+    });
+    await decide(gammaRow!['requestId']!, 'approve');
+    await expect(gammaPromise).resolves.toEqual({ behavior: 'allow', updatedInput: gamma });
+
+    const deltaRequestId = (cards()[1]!.payload!['permission_request'] as { id: string }).id;
+    await decide(deltaRequestId, 'approve');
+    await expect(deltaPromise).resolves.toMatchObject({ behavior: 'allow' });
+
+    await waitForEventHandler();
+    emitClaudeEvent({ type: 'result' });
+    await runPromise;
+  });
+
   describe('AskUserQuestion', () => {
     const askInput = {
       questions: [

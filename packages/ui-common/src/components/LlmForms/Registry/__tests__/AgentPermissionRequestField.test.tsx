@@ -235,4 +235,84 @@ describe("AgentPermissionRequestField", () => {
       screen.getByTestId("permission-request-approve-search-2"),
     ).toBeEnabled();
   });
+
+  it("lists grouped requests, sends one decision per undecided row for a group decision, and shows persisted decisions", async () => {
+    submitDecisionMock.mockResolvedValue(undefined as never);
+    const user = userEvent.setup();
+    const groupedPayload = {
+      ...basePayload,
+      permissionRequest: {
+        ...basePayload.permissionRequest,
+        permissionType: "WebSearch",
+      },
+      groupedRequests: [
+        {
+          requestId: "request-1",
+          description: "alpha",
+          decision: "approve" as const,
+          decidedAt: "2026-03-06T00:01:00.000Z",
+        },
+        {
+          requestId: "request-2",
+          description: "beta",
+          decision: null,
+          decidedAt: null,
+        },
+        {
+          requestId: "request-3",
+          description: "gamma",
+          decision: null,
+          decidedAt: null,
+        },
+      ],
+    };
+    render(
+      <AgentPermissionRequestField
+        config={{
+          field: "permission-field",
+          description: "Permission request",
+          type: "agent_request_permission",
+          payload: groupedPayload,
+        }}
+        context={{
+          conversationId: "conversation-1",
+          organizationId: "org-1",
+          projectId: "project-1",
+          agentSessionId: "session-1",
+        }}
+        isSubmitted={false}
+      />,
+    );
+
+    expect(screen.getByText("alpha")).toBeTruthy();
+    expect(screen.getByText("beta")).toBeTruthy();
+    expect(screen.getByText("gamma")).toBeTruthy();
+    // Already-decided row is shown from the payload and cannot be decided again.
+    expect(
+      screen.getByTestId("permission-request-submitted-decision-request-1")
+        .textContent,
+    ).toBe("Approved");
+    expect(
+      (
+        screen.getByTestId(
+          "permission-request-approve-request-1",
+        ) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+
+    await user.click(
+      screen.getByTestId("permission-request-deny-all-request-1"),
+    );
+
+    await waitFor(() => expect(submitDecisionMock).toHaveBeenCalledTimes(2));
+    expect(
+      submitDecisionMock.mock.calls.map(([call]) => [
+        call.requestId,
+        call.decision,
+      ]),
+    ).toEqual([
+      ["request-2", "deny"],
+      ["request-3", "deny"],
+    ]);
+  });
 });

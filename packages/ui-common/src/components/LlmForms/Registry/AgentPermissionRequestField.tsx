@@ -8,11 +8,7 @@ import type { FieldComponentProps, FieldConfig } from "./types";
 import { type AgentRequestPermissionPayload } from "../../../api";
 
 type PermissionDeliveryState =
-  | "idle"
-  | "queued"
-  | "in-flight"
-  | "delivered"
-  | "failed";
+  "idle" | "queued" | "in-flight" | "delivered" | "failed";
 
 type JsonObject = Record<string, unknown>;
 
@@ -36,8 +32,10 @@ interface PermissionRequestFieldConfig extends Omit<FieldConfig, "payload"> {
   payload: AgentRequestPermissionPayload;
 }
 
-export interface AgentPermissionRequestFieldProps
-  extends Omit<FieldComponentProps<AgentRequestPermissionPayload>, "config"> {
+export interface AgentPermissionRequestFieldProps extends Omit<
+  FieldComponentProps<AgentRequestPermissionPayload>,
+  "config"
+> {
   config: PermissionRequestFieldConfig;
 }
 
@@ -55,7 +53,7 @@ const readString = (value: unknown): string | null => {
 
 const readStringByKeys = (
   record: JsonObject,
-  keys: readonly string[]
+  keys: readonly string[],
 ): string | null => {
   for (const key of keys) {
     const value = readString(record[key]);
@@ -69,7 +67,7 @@ const readStringByKeys = (
 
 const readBooleanByKeys = (
   record: JsonObject,
-  keys: readonly string[]
+  keys: readonly string[],
 ): boolean | null => {
   for (const key of keys) {
     const value = record[key];
@@ -83,7 +81,7 @@ const readBooleanByKeys = (
 
 const readRecordByKeys = (
   record: JsonObject,
-  keys: readonly string[]
+  keys: readonly string[],
 ): JsonObject | null => {
   for (const key of keys) {
     const value = record[key];
@@ -96,7 +94,7 @@ const readRecordByKeys = (
 };
 
 const parseEditToolPermissionDetails = (
-  rawEvent: AgentRequestPermissionPayload["rawEvent"]
+  rawEvent: AgentRequestPermissionPayload["rawEvent"],
 ): EditToolPermissionDetails | null => {
   if (!isRecord(rawEvent)) {
     return null;
@@ -129,7 +127,7 @@ const parseEditToolPermissionDetails = (
 const isRedundantReason = (
   reason: string | null,
   permissionType: string,
-  targetFile: string | null
+  targetFile: string | null,
 ): boolean => {
   if (!reason || !targetFile) {
     return false;
@@ -163,7 +161,7 @@ const dedupeStrings = (values: readonly string[]): string[] => {
   return uniqueValues;
 };
 
-export const AgentPermissionRequestField: React.FC<
+const SinglePermissionRequestField: React.FC<
   AgentPermissionRequestFieldProps
 > = ({ config, context, disabled = false, isSubmitted = false }) => {
   const { organizationId, projectId, agentSessionId } = context;
@@ -171,7 +169,7 @@ export const AgentPermissionRequestField: React.FC<
     useSubmitControllerAuthorizedPermissionDecision(
       organizationId,
       projectId,
-      agentSessionId
+      agentSessionId,
     );
   const [deliveryState, setDeliveryState] =
     React.useState<PermissionDeliveryState>("idle");
@@ -189,7 +187,7 @@ export const AgentPermissionRequestField: React.FC<
     submittedDecision;
   const editToolDetails = React.useMemo(
     () => parseEditToolPermissionDetails(payload.rawEvent),
-    [payload.rawEvent]
+    [payload.rawEvent],
   );
   const targetFile =
     editToolDetails?.filePath ?? permissionRequest.referencedFiles[0] ?? null;
@@ -200,7 +198,7 @@ export const AgentPermissionRequestField: React.FC<
     !isRedundantReason(
       permissionRequest.reason ?? null,
       permissionRequest.permissionType,
-      targetFile
+      targetFile,
     ) && Boolean(permissionRequest.reason);
   const additionalReferencedFiles = React.useMemo(() => {
     const uniqueFiles = dedupeStrings(permissionRequest.referencedFiles);
@@ -218,7 +216,7 @@ export const AgentPermissionRequestField: React.FC<
         }
       : null;
   const diffLanguage = getCodeLanguageFromFilePath(
-    editToolDetails?.filePath ?? null
+    editToolDetails?.filePath ?? null,
   );
 
   const shouldDisableDecisionButtons =
@@ -237,7 +235,7 @@ export const AgentPermissionRequestField: React.FC<
 
       if (!agentSessionId) {
         setDeliveryError(
-          "Missing agent session id — cannot route permission decision."
+          "Missing agent session id — cannot route permission decision.",
         );
         setDeliveryState("failed");
         return;
@@ -279,7 +277,7 @@ export const AgentPermissionRequestField: React.FC<
       permissionRequest.sessionId,
       shouldDisableDecisionButtons,
       submitControllerDecision,
-    ]
+    ],
   );
 
   return (
@@ -422,8 +420,8 @@ export const AgentPermissionRequestField: React.FC<
             resolvedDecision === "always_approve"
               ? "always approve"
               : resolvedDecision === "whitelist"
-              ? "whitelisted"
-              : resolvedDecision
+                ? "whitelisted"
+                : resolvedDecision
           }${
             !payload.decision ? ` (${DELIVERY_STATE_LABEL[deliveryState]})` : ""
           }`}
@@ -439,5 +437,227 @@ export const AgentPermissionRequestField: React.FC<
         </Alert>
       ) : null}
     </Stack>
+  );
+};
+
+type GroupedRowState = {
+  decision: PermissionDecision;
+  delivery: PermissionDeliveryState;
+  error: string | null;
+};
+
+const decisionLabel = (decision: PermissionDecision): string =>
+  decision === "approve"
+    ? "Approved"
+    : decision === "deny"
+      ? "Denied"
+      : decision === "always_approve"
+        ? "Always approved"
+        : "Whitelisted";
+
+/**
+ * One card for several same-tool requests: a row per request with its own
+ * decision, plus approve/deny for every row still undecided. A group decision
+ * is one decision per row, so each covers exactly the row it names.
+ */
+const GroupedPermissionRequestField: React.FC<
+  AgentPermissionRequestFieldProps & {
+    rows: NonNullable<AgentRequestPermissionPayload["groupedRequests"]>;
+  }
+> = ({ config, context, rows, disabled = false }) => {
+  const { organizationId, projectId, agentSessionId } = context;
+  const { submit: submitControllerDecision } =
+    useSubmitControllerAuthorizedPermissionDecision(
+      organizationId,
+      projectId,
+      agentSessionId,
+    );
+  const [rowStates, setRowStates] = React.useState<
+    Record<string, GroupedRowState>
+  >({});
+  const permissionRequest = config.payload.permissionRequest;
+
+  // The persisted decision is the source of truth; the local state covers the
+  // window before the message update round-trips.
+  const decisionFor = (row: (typeof rows)[number]): PermissionDecision | null =>
+    (row.decision as PermissionDecision | null | undefined) ??
+    rowStates[row.requestId]?.decision ??
+    null;
+  const undecidedRows = rows.filter((row) => decisionFor(row) === null);
+
+  const submitRow = React.useCallback(
+    async (requestId: string, decision: PermissionDecision) => {
+      const setRow = (state: GroupedRowState) => {
+        setRowStates((current) => ({ ...current, [requestId]: state }));
+      };
+
+      if (!agentSessionId) {
+        setRow({
+          decision,
+          delivery: "failed",
+          error: "Missing agent session id — cannot route permission decision.",
+        });
+        return;
+      }
+
+      setRow({ decision, delivery: "in-flight", error: null });
+      try {
+        await submitControllerDecision({
+          decision,
+          requestId,
+          sessionId: permissionRequest.sessionId,
+          agentType: permissionRequest.agentType,
+          reason: null,
+          idempotencyToken:
+            requestId === permissionRequest.id
+              ? permissionRequest.idempotencyToken
+              : requestId,
+        });
+        setRow({ decision, delivery: "delivered", error: null });
+      } catch (error) {
+        setRow({
+          decision,
+          delivery: "failed",
+          error:
+            error instanceof Error
+              ? error.message
+              : "Failed to route permission response.",
+        });
+      }
+    },
+    [
+      agentSessionId,
+      permissionRequest.agentType,
+      permissionRequest.id,
+      permissionRequest.idempotencyToken,
+      permissionRequest.sessionId,
+      submitControllerDecision,
+    ],
+  );
+
+  const submitAll = async (decision: PermissionDecision) => {
+    for (const row of undecidedRows) {
+      await submitRow(row.requestId, decision);
+    }
+  };
+
+  const isRowLocked = (row: (typeof rows)[number]): boolean =>
+    disabled ||
+    decisionFor(row) !== null ||
+    rowStates[row.requestId]?.delivery === "in-flight";
+
+  return (
+    <Stack spacing={2} data-testid={`permission-request-field-${config.field}`}>
+      <Typography
+        variant="subtitle2"
+        data-testid={`permission-request-summary-${permissionRequest.id}`}
+      >
+        {`${permissionRequest.permissionType}: ${String(rows.length)} requests`}
+      </Typography>
+
+      <Stack spacing={1}>
+        {rows.map((row) => {
+          const decision = decisionFor(row);
+          const rowState = rowStates[row.requestId];
+          return (
+            <Stack
+              key={row.requestId}
+              spacing={0.5}
+              data-testid={`permission-request-row-${row.requestId}`}
+            >
+              <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
+                {row.description}
+              </Typography>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Button
+                  size="small"
+                  variant={decision === "approve" ? "contained" : "outlined"}
+                  color="success"
+                  disabled={isRowLocked(row)}
+                  onClick={() => {
+                    void submitRow(row.requestId, "approve");
+                  }}
+                  data-testid={`permission-request-approve-${row.requestId}`}
+                >
+                  Approve
+                </Button>
+                <Button
+                  size="small"
+                  variant={decision === "deny" ? "contained" : "outlined"}
+                  color="error"
+                  disabled={isRowLocked(row)}
+                  onClick={() => {
+                    void submitRow(row.requestId, "deny");
+                  }}
+                  data-testid={`permission-request-deny-${row.requestId}`}
+                >
+                  Deny
+                </Button>
+                {decision ? (
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    data-testid={`permission-request-submitted-decision-${row.requestId}`}
+                  >
+                    {`${decisionLabel(decision)}${
+                      !row.decision && rowState
+                        ? ` (${DELIVERY_STATE_LABEL[rowState.delivery]})`
+                        : ""
+                    }`}
+                  </Typography>
+                ) : null}
+              </Stack>
+              {rowState?.error ? (
+                <Alert
+                  severity="error"
+                  data-testid={`permission-request-delivery-error-${row.requestId}`}
+                >
+                  {rowState.error}
+                </Alert>
+              ) : null}
+            </Stack>
+          );
+        })}
+      </Stack>
+
+      {undecidedRows.length > 0 ? (
+        <Stack direction="row" spacing={1} justifyContent="flex-start">
+          <Button
+            variant="outlined"
+            color="success"
+            disabled={disabled}
+            onClick={() => {
+              void submitAll("approve");
+            }}
+            data-testid={`permission-request-approve-all-${permissionRequest.id}`}
+          >
+            Approve all
+          </Button>
+          <Button
+            variant="outlined"
+            color="error"
+            disabled={disabled}
+            onClick={() => {
+              void submitAll("deny");
+            }}
+            data-testid={`permission-request-deny-all-${permissionRequest.id}`}
+          >
+            Deny all
+          </Button>
+        </Stack>
+      ) : null}
+    </Stack>
+  );
+};
+
+export const AgentPermissionRequestField: React.FC<
+  AgentPermissionRequestFieldProps
+> = (props) => {
+  const rows = props.config.payload.groupedRequests;
+
+  return rows && rows.length > 0 ? (
+    <GroupedPermissionRequestField {...props} rows={rows} />
+  ) : (
+    <SinglePermissionRequestField {...props} />
   );
 };
