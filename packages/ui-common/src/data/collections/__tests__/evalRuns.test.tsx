@@ -375,6 +375,7 @@ describe("run_eval start payload", () => {
       evalRunId: "run-1",
       judgeSetup: run.payload.judgeSetup,
       settings: run.payload.settings,
+      cases: run.payload.cases,
       attempts: [
         {
           attemptId: "attempt-1",

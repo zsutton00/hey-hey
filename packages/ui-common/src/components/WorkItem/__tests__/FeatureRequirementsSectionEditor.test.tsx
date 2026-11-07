@@ -378,7 +378,6 @@ describe("FeatureRequirementsSectionEditor", () => {
   );
 
   it("cites only slot-eligible results and removes cited mentions", async () => {
-    vi.useFakeTimers();
     const results: SearchEntity[] = [
       { id: FEATURE_ID, type: "feature", name: "Self" },
       { id: PARENT_ID, type: "feature", name: "Parent" },
@@ -391,9 +390,11 @@ describe("FeatureRequirementsSectionEditor", () => {
       .getAllByTestId("requirement-citation-slot")
       .find((el) => el.getAttribute("data-citation-slot") === "fulfilledBy")!;
     fireEvent.click(within(slot).getByTestId("requirement-citation-add"));
-    fireEvent.change(screen.getByTestId("requirement-citation-search-input"), {
-      target: { value: "build" },
-    });
+    const searchInput = await screen.findByTestId(
+      "requirement-citation-search-input",
+    );
+    vi.useFakeTimers();
+    fireEvent.change(searchInput, { target: { value: "build" } });
     await act(async () => {
       await vi.runAllTimersAsync();
     });

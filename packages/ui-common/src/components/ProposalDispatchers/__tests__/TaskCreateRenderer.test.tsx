@@ -869,8 +869,8 @@ describe("TaskCreateRenderer — project registry type labels", () => {
       screen.getByTestId("mockup-proposal-screen-first"),
     ).toBeInTheDocument();
     expect(
-      within(details).queryByText("Screen details for reviewers."),
-    ).toBeNull();
+      within(details).getByText("Screen details for reviewers."),
+    ).not.toBeVisible();
     fireEvent.click(within(details).getByText("Written details"));
     expect(details).toHaveAttribute("open");
     expect(

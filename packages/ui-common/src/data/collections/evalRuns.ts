@@ -419,6 +419,7 @@ export function buildRunEvalStartPayload(
     evalRunId: run.id,
     judgeSetup: run.payload.judgeSetup,
     settings: run.payload.settings,
+    cases: run.payload.cases,
     attempts: recordedAttempts,
   };
 }

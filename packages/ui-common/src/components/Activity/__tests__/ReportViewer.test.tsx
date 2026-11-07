@@ -30,6 +30,7 @@ const reportFixture: ReportDto = {
 };
 
 const evidencePipelinePayload = {
+  reportType: "EVIDENCE_PIPELINE",
   plannerInput: {
     messageCount: 4,
     optionKeys: ["scope", "services"],

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -98,13 +99,15 @@ describe("ProjectReportHistory", () => {
       refetch,
     });
     render(
-      <ProjectReportHistory
-        organizationId="org"
-        projectId="project"
-        offset={0}
-        onOffsetChange={vi.fn()}
-        onCreate={vi.fn()}
-      />,
+      <MemoryRouter>
+        <ProjectReportHistory
+          organizationId="org"
+          projectId="project"
+          offset={0}
+          onOffsetChange={vi.fn()}
+          onCreate={vi.fn()}
+        />
+      </MemoryRouter>,
     );
 
     expect(screen.getByText("What changed this week?")).toBeInTheDocument();

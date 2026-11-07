@@ -343,13 +343,13 @@ describe("TaskUpdateRenderer visual section review", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByTestId("html-css-preview")).toHaveLength(1);
     expect(screen.getAllByTestId("structured-mockup-preview")).toHaveLength(1);
-    expect(within(details).queryByText("Proposed description")).toBeNull();
+    expect(
+      within(details).getByTestId("ordinary-section-diff"),
+    ).not.toBeVisible();
 
     fireEvent.click(within(details).getByText("Written details"));
     expect(details).toHaveAttribute("open");
-    expect(
-      within(details).getByText("Proposed description"),
-    ).toBeInTheDocument();
+    expect(within(details).getByTestId("ordinary-section-diff")).toBeVisible();
   });
 
   it("gives the pencil the proposal's mockup on After and none on Before", () => {

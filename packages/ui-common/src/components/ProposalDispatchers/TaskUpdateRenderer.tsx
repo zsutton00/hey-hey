@@ -734,34 +734,38 @@ export const TaskUpdateRenderer: React.FC<{
                         defaultViewMode={resolvedDiffMode}
                       />
                     ) : null}
-                    {htmlCssSections.map((section) => (
-                      <VisualProposalSectionComparison
-                        key={section.key}
-                        kind="html/css"
-                        label={section.label}
-                        definition={section.definition}
-                        before={section.existingValue}
-                        after={section.proposedValue}
-                        organizationId={proposal.organizationId}
-                        materializedProposalId={section.materializedProposalId}
-                        projectId={proposal.projectId}
-                        proposedMockupSource={{
-                          kind: "proposal",
-                          proposalId: proposal.id,
-                          sectionKey: section.key,
-                        }}
-                      />
-                    ))}
-                    {structuredMockupSections.map((section) => (
-                      <VisualProposalSectionComparison
-                        key={section.key}
-                        kind="structured-mockup"
-                        label={section.label}
-                        definition={section.definition}
-                        before={section.existingValue}
-                        after={section.proposedValue}
-                      />
-                    ))}
+                    {!isMockupReview &&
+                      htmlCssSections.map((section) => (
+                        <VisualProposalSectionComparison
+                          key={section.key}
+                          kind="html/css"
+                          label={section.label}
+                          definition={section.definition}
+                          before={section.existingValue}
+                          after={section.proposedValue}
+                          organizationId={proposal.organizationId}
+                          materializedProposalId={
+                            section.materializedProposalId
+                          }
+                          projectId={proposal.projectId}
+                          proposedMockupSource={{
+                            kind: "proposal",
+                            proposalId: proposal.id,
+                            sectionKey: section.key,
+                          }}
+                        />
+                      ))}
+                    {!isMockupReview &&
+                      structuredMockupSections.map((section) => (
+                        <VisualProposalSectionComparison
+                          key={section.key}
+                          kind="structured-mockup"
+                          label={section.label}
+                          definition={section.definition}
+                          before={section.existingValue}
+                          after={section.proposedValue}
+                        />
+                      ))}
                     {modeSettingsSections.map((section) => (
                       <Stack
                         component="details"

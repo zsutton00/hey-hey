@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const yaml = require("js-yaml");
+const prettier = require("prettier");
 const parserSource = require("../../../scripts/entity-prompt-template-parser-source.cjs");
 const { resolveOpenapiRoot } = require("../../../scripts/openapi-source.cjs");
 
@@ -222,11 +223,20 @@ function render(languages, fixturePath) {
   ].join("\n");
 }
 
-const openApiRoot = resolveOpenapiRoot();
-const fixturePath = findFixture(openApiRoot);
-const languages = normalizeLanguages(readFixture(fixturePath));
-fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-fs.writeFileSync(outputPath, render(languages, fixturePath));
-console.log(
-  `Generated ${path.relative(process.cwd(), outputPath)} from ${fixturePath}`,
-);
+async function main() {
+  const openApiRoot = resolveOpenapiRoot();
+  const fixturePath = findFixture(openApiRoot);
+  const languages = normalizeLanguages(readFixture(fixturePath));
+  const options = await prettier.resolveConfig(outputPath);
+  const source = await prettier.format(render(languages, fixturePath), {
+    ...options,
+    filepath: outputPath,
+  });
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.writeFileSync(outputPath, source);
+  console.log(
+    `Generated ${path.relative(process.cwd(), outputPath)} from ${fixturePath}`,
+  );
+}
+
+main();

@@ -130,6 +130,7 @@ const evidenceReport: ReportDto = {
   reportType: ReportType.EvidencePipeline,
   title: "Evidence Pipeline",
   payload: {
+    reportType: "EVIDENCE_PIPELINE",
     plannerInput: {
       messageCount: 2,
       optionKeys: ["scope"],
