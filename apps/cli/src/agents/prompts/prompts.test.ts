@@ -612,14 +612,15 @@ Good: "Turning Shared Browser off now stays off after you restart the CLI."`;
       ...sampleDefs[0]!,
       key: 'PLAN',
       name: 'Plan',
-      description: 'A dependency-ordered collection of durable implementation stages.',
+      description:
+        'A staged, reviewable sequence of work authored as one artifact with create_plan and divided into dependency-ordered stages, not assembled from existing tasks.',
       role: 'project-info',
     } satisfies WorkItemTypeDefinitionDto;
     const prompt = buildPlatformSystemPrompt([...sampleDefs, planType]);
 
     expect(prompt.split('(`PLAN`)')).toHaveLength(2);
     expect(prompt.split('**Work-item types.**')[1]).toContain('(`PLAN`)');
-    expect(prompt).not.toContain('`create_plan`');
+    expect(prompt.split('authored as one artifact with create_plan')).toHaveLength(2);
   });
 
   it('preserves the existing situational-awareness, links, and propose-edit-ask paragraphs', () => {
