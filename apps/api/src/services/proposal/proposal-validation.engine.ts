@@ -1079,13 +1079,6 @@ export function validateProposalStructure(
     }
   }
 
-  const influenceReasonTypes = new Set([
-    'explicit_mention',
-    'implied',
-    'derived',
-    'origin',
-    'user_reason',
-  ]);
   const influenceKeys = new Set<string>([
     'entityId',
     'entityType',
@@ -1137,11 +1130,14 @@ export function validateProposalStructure(
         layer: 'structural',
       });
     }
-    if (!influenceReasonTypes.has(influence.reasonType)) {
+    if (
+      typeof influence.reasonType !== 'string' ||
+      influence.reasonType.trim() === ''
+    ) {
       issues.push({
         field: `${influencePrefix}.reasonType`,
-        code: 'invalid_enum',
-        reason: 'reasonType must be a recognized influence reason type.',
+        code: 'invalid_format',
+        reason: 'reasonType is required and must be a non-empty string.',
         layer: 'structural',
       });
     }

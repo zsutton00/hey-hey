@@ -17,6 +17,7 @@ export const WORK_ITEM_TYPE_KEYS = {
   Eval: 'EVAL',
   EvalCase: 'EVAL_CASE',
   Decision: 'decision',
+  Mockup: 'mockup',
 } as const;
 
 export type BuiltInWorkItemTypeKey =

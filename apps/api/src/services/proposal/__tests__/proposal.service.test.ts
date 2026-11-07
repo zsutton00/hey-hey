@@ -1029,7 +1029,7 @@ describe('ProposalService.update', () => {
     expect(txMock.proposal.update).not.toHaveBeenCalled();
   });
 
-  it('rejects unknown reasonType values with BadRequestException', async () => {
+  it('rejects an empty reasonType with BadRequestException', async () => {
     const existing = makeStoredProposal({ influences: [] });
 
     const txMock = {
@@ -1052,7 +1052,7 @@ describe('ProposalService.update', () => {
               entityId: testIds.user,
               entityType: 'USER',
               reasoning: 'made up',
-              reasonType: 'not_a_real_reason',
+              reasonType: '',
             },
           ],
         },

@@ -2725,6 +2725,15 @@ export class ProposalApprovalService {
               projectId: proposal.projectId,
             },
           })) > 0,
+        async (mockupId) =>
+          (await this.prisma.db.task.count({
+            where: {
+              id: mockupId,
+              organizationId: proposal.organizationId,
+              projectId: proposal.projectId,
+              type: WORK_ITEM_TYPE_KEYS.Mockup,
+            },
+          })) > 0,
       );
     }
     this.logger.debug(
