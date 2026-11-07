@@ -832,7 +832,7 @@ describe('projectReportHandler', () => {
     }
     expect(projectReportSectionHandler.childConfig).toMatchObject({
       submissionTools: 'run-registered',
-      submissionToolNames: ['read_evidence_shard'],
+      submissionToolNames: ['read_evidence_shard', 'raise_uncertainty'],
       builtinAllowedTools: [],
       codexSandboxMode: 'read-only',
     });

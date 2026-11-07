@@ -135,7 +135,9 @@ describe('reviewHandler', () => {
       '- Launch service `service-a` at `/worktrees/service-a` — this is the launch Service workspace and working directory for the session.',
     );
     expect(prompt).toContain('- `service-b` at `/worktrees/service-b`');
-    expect(prompt).toContain("Host checkouts are outside this session's working context");
+    expect(prompt).toContain(
+      'Do not use a host checkout as a fallback location for edits or other mutations',
+    );
     expect(prompt).not.toContain('/repos/service-a');
     expect(prompt).not.toContain('/repos/service-b');
     expect(prompt).toContain('## Cross-Service Integration Verification');

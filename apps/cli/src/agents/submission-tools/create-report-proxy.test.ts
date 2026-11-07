@@ -1251,6 +1251,7 @@ describe('creation-time report usage', () => {
         provenance: { discoveryCalls: [], edgesTraversed: [] },
         updates: [],
         readinessEvidence: [],
+        uncertainties: [],
       },
     });
     expect(body(0)).toMatchObject({

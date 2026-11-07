@@ -318,6 +318,9 @@ async function makeHarness(rejectFirstContext = false) {
                 discrepancyText: 'The prior implementation accepts approval from text.',
                 reasoning: 'Retain explicit approval.',
                 severity: 'high' as const,
+                findingId: 'finding-approval-from-text',
+                category: 'implementation' as const,
+                disposition: 'open' as const,
               },
             ]
           : [],

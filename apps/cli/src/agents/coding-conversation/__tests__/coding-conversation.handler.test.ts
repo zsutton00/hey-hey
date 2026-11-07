@@ -323,7 +323,9 @@ describe('launch preparation', () => {
     expect(prompt).toContain('`service-a` at `/worktrees/service-a`');
     expect(prompt).not.toContain('/host/service-a');
     expect(prompt).not.toContain('/host/service-b');
-    expect(prompt).toContain("Host checkouts are outside this session's working context");
+    expect(prompt).toContain(
+      'Do not use a host checkout as a fallback location for edits or other mutations',
+    );
   });
 
   it('does not synthesize startup input from persisted Run identity alone', async () => {

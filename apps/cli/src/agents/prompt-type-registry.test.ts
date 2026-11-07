@@ -238,7 +238,10 @@ describe('prompt-type-registry', () => {
   it('resolves child-only handlers for the child launcher without making them dispatchable', () => {
     const section = registry.getChildHandler('project_report_section');
     expect(section?.childConfig?.submissionTools).toBe('run-registered');
-    expect(section?.childConfig?.submissionToolNames).toEqual(['read_evidence_shard']);
+    expect(section?.childConfig?.submissionToolNames).toEqual([
+      'read_evidence_shard',
+      'raise_uncertainty',
+    ]);
     expect(registry.list()).not.toContain(section);
     expect(registry.getById('project_report_section')).toBeUndefined();
     expect(registry.getChildHandler('research')).toBe(registry.getById('research'));

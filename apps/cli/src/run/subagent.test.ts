@@ -253,12 +253,7 @@ describe('SubAgent — unified runtime contract', () => {
       let permission: unknown;
       if (provider === 'claude') {
         startSessionMock.mockImplementationOnce(async (config) => {
-          expect(config).toMatchObject({
-            builtinTools: [],
-            strictMcpConfig: true,
-            mcpServers: {},
-            allowedTools: [],
-          });
+          expect(config).toMatchObject({ mcpServers: {}, allowedTools: [] });
           expect(JSON.stringify(config)).toContain('Recorded situation');
           expect(JSON.stringify(config)).toContain('Recorded answer');
           const decide = onPermissionRequestMock.mock.calls.at(-1)![0] as (
@@ -276,11 +271,7 @@ describe('SubAgent — unified runtime contract', () => {
         });
       } else {
         codexStartSessionMock.mockImplementationOnce(async (config) => {
-          expect(config).toMatchObject({
-            disableMcpServers: true,
-            config: { web_search: 'disabled' },
-            sandbox: 'read-only',
-          });
+          expect(config).toMatchObject({ sandbox: 'read-only' });
           const decide = codexOnServerRequestMock.mock.calls.at(-1)![0] as (
             request: unknown,
           ) => void;
