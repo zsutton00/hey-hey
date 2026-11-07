@@ -12,7 +12,7 @@ COMPOSE_FILE="${API_ROOT}/docker-compose.migration-stack.yml"
 
 usage() {
   cat <<'USAGE'
-Usage: pnpm migration-stack <bootstrap|prepare|up|status|logs|down|destroy|reset|restart|prune|config|cli> [options] [ARGS...]
+Usage: pnpm migration-stack <bootstrap|prepare|up|status|logs|provision|replay|stop|resume|mark-provisioned|down|destroy|reset|restart|prune|config|cli> [options] [ARGS...]
 
 Options:
   --name NAME     Isolated Compose project name (default: migration-test)
@@ -22,6 +22,19 @@ Options:
   --empty         Create an empty database bootstrap using Docker (bootstrap only)
   --timeout SEC   Maximum wait for service readiness (up, reset, restart; default: 600)
   --api-env-file FILE  Private API runtime overrides (up and reset)
+  --revision NAME=VALUE  Source revision to record (mark-provisioned; repeatable)
+  --replay-completed  Record that the verified projection rebuild finished (mark-provisioned)
+
+Lifecycle:
+  provision       Build and start only PostgreSQL, Redis, Neo4j, Vespa and the Graph and
+                  Embeddings consumers, and create (not start) the rest. The API stays down
+  replay [ARGS]   Republish stored events once to rebuild Graph and search (API must be
+                  stopped; ARGS: --dry-run, --skip N, --batch-size N, --delay-ms N)
+  stop            Stop the stack's containers and keep every volume and its state
+  resume          Restart a stopped, provisioned stack on its existing data;
+                  never imports the bootstrap or replays history
+  mark-provisioned  Record the stack as fully provisioned so resume will accept it
+  down            Remove containers and keep volumes (destroy deletes everything)
 
 Repository roots default to siblings of the API repository and can be overridden:
   HEY_HEY_GRAPH_ROOT, HEY_HEY_EMBEDDINGS_ROOT, HEY_HEY_UI_ROOT,
@@ -49,6 +62,8 @@ bootstrap_source=''
 empty_bootstrap=false
 readiness_timeout=600
 api_env_source=''
+revisions=()
+replay_completed=false
 services=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -84,8 +99,17 @@ while [[ $# -gt 0 ]]; do
       api_env_source="$2"
       shift 2
       ;;
+    --revision)
+      [[ $# -ge 2 && "$2" =~ ^[A-Za-z0-9._-]+=[^[:space:]]+$ ]] || { echo 'Error: --revision requires NAME=VALUE.' >&2; exit 2; }
+      revisions+=("$2")
+      shift 2
+      ;;
+    --replay-completed)
+      replay_completed=true
+      shift
+      ;;
     -*)
-      if [[ "$command" == 'cli' ]]; then
+      if [[ "$command" == 'cli' || "$command" == 'replay' ]]; then
         services+=("$1")
         shift
       else
@@ -101,8 +125,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ ${#services[@]} -gt 0 && "$command" != 'logs' && "$command" != 'cli' && "$command" != 'restart' ]]; then
-  echo "Error: trailing arguments are supported only by logs, cli, and restart." >&2
+if [[ ${#services[@]} -gt 0 && "$command" != 'logs' && "$command" != 'cli' && "$command" != 'restart' && "$command" != 'replay' ]]; then
+  echo "Error: trailing arguments are supported only by logs, cli, restart, and replay." >&2
   usage >&2
   exit 1
 fi
@@ -112,6 +136,11 @@ if [[ "$command" == 'restart' && ${#services[@]} -ne 1 ]]; then
 fi
 if [[ -n "$api_env_source" && "$command" != 'up' && "$command" != 'reset' ]]; then
   echo 'Error: --api-env-file is supported only by up and reset.' >&2
+  exit 2
+fi
+
+if [[ "$command" != 'mark-provisioned' && ( ${#revisions[@]} -gt 0 || "$replay_completed" == true ) ]]; then
+  echo 'Error: --revision and --replay-completed are supported only by mark-provisioned.' >&2
   exit 2
 fi
 
@@ -197,6 +226,13 @@ if [[ "$command" == 'destroy' && ! -f "$runtime_env" ]]; then
   fi
   echo "Migration stack heyhey-${safe_name} is already absent."
   exit 0
+fi
+provisioned_state="${state_dir}/provisioned.env"
+if [[ ( "$command" == 'stop' || "$command" == 'resume' || "$command" == 'mark-provisioned' || "$command" == 'replay' ) && ! -f "$runtime_env" ]]; then
+  # These commands act only on an existing stack. Fail before any file is created.
+  echo "Error: stack heyhey-${safe_name} has no runtime file; nothing was changed." >&2
+  echo "Create it with up. This command never creates or resets a stack." >&2
+  exit 1
 fi
 mkdir -p "$state_dir"
 
@@ -442,9 +478,9 @@ if [[ -n "$api_env_source" ]]; then
   fi
 fi
 compose=(docker compose --project-name "heyhey-${safe_name}" --env-file "$runtime_env" --file "$COMPOSE_FILE")
-# Teardown only needs the project identity from the base Compose file. An
+# Teardown and stop only need the project identity from the base Compose file. An
 # invalid or interrupted override must not prevent cleanup after a failed up.
-if [[ -f "$api_extra_env" && "$command" != 'down' && "$command" != 'destroy' ]]; then
+if [[ -f "$api_extra_env" && "$command" != 'down' && "$command" != 'destroy' && "$command" != 'stop' ]]; then
   printf 'services:\n  api:\n    env_file:\n      - path: %s\n        required: true\n' \
     "$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$api_extra_env")" >"$api_extra_compose"
   compose+=(--file "$api_extra_compose")
@@ -507,6 +543,78 @@ wait_for_web() {
   done
 }
 
+# lifecycle:begin
+# One-shot services (bootstrap copy, Flyway, data import, Neo4j seed, Vespa
+# deploy) are deliberately absent: starting them again would re-import data.
+resume_data_services=(postgres redis neo4j vespa)
+resume_consumer_services=(temporal temporal-ui graph-service embeddings)
+resume_application_services=(api ui)
+
+bootstrap_checksum() {
+  [[ -f "$bootstrap_metadata" ]] || return 1
+  sed -n 's/^sha256=//p' "$bootstrap_metadata"
+}
+
+provisioned_value() {
+  sed -n "s/^$1=//p" "$provisioned_state"
+}
+
+require_provisioned_stack() {
+  local project="heyhey-${safe_name}" recorded current service volume
+  if [[ ! -f "$provisioned_state" ]]; then
+    echo "Error: stack ${project} was never marked provisioned; nothing was changed." >&2
+    echo 'Finish provisioning, then run mark-provisioned. Resume never builds or imports.' >&2
+    return 1
+  fi
+  recorded="$(provisioned_value bootstrap_sha256)"
+  current="$(bootstrap_checksum)" || current=''
+  if [[ -z "$recorded" || "$recorded" != "$current" ]]; then
+    echo "Error: the bootstrap behind ${project} differs from the one it was provisioned with; nothing was changed." >&2
+    return 1
+  fi
+  for service in "${resume_data_services[@]}"; do
+    if [[ -z "$(docker ps -aq --filter "label=com.docker.compose.project=${project}" --filter "label=com.docker.compose.service=${service}")" ]]; then
+      echo "Error: ${project} has no ${service} container; nothing was changed." >&2
+      return 1
+    fi
+  done
+  for volume in postgres-data neo4j-data vespa-data api-jwt-keys; do
+    if ! docker volume inspect "${project}_${volume}" >/dev/null 2>&1; then
+      echo "Error: volume ${project}_${volume} is missing; nothing was changed." >&2
+      return 1
+    fi
+  done
+}
+
+write_provisioned_state() {
+  local temporary="${provisioned_state}.tmp" revision
+  local checksum
+  checksum="$(bootstrap_checksum)" || checksum=''
+  [[ -n "$checksum" ]] || { echo 'Error: bootstrap metadata has no checksum to record.' >&2; return 1; }
+  umask 077
+  {
+    printf 'provisioned_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    printf 'bootstrap_sha256=%s\n' "$checksum"
+    printf 'replay_completed=%s\n' "$replay_completed"
+    for revision in ${revisions[@]+"${revisions[@]}"}; do
+      printf 'revision.%s\n' "$revision"
+    done
+  } >"$temporary"
+  mv "$temporary" "$provisioned_state"
+}
+require_replay_allowed() {
+  local project="heyhey-${safe_name}"
+  if [[ -f "$provisioned_state" && "$(provisioned_value replay_completed)" == 'true' ]]; then
+    echo "Error: ${project} already completed its projection rebuild; replay runs once. Nothing was changed." >&2
+    return 1
+  fi
+  if [[ -n "$(docker ps -q --filter "label=com.docker.compose.project=${project}" --filter 'label=com.docker.compose.service=api' --filter status=running)" ]]; then
+    echo "Error: the API of ${project} is running; replay needs it stopped. Nothing was changed." >&2
+    return 1
+  fi
+}
+# lifecycle:end
+
 case "$command" in
   bootstrap)
     if [[ -f "$bootstrap_dump" && "$refresh_bootstrap" != true ]]; then
@@ -554,6 +662,41 @@ case "$command" in
     ;;
   logs)
     "${compose[@]}" logs --follow --tail 200 "${services[@]}"
+    ;;
+  provision)
+    require_bootstrap
+    require_sources
+    ensure_persistent_volumes
+    # Only the stores and the Graph and Embeddings consumers run. Their
+    # dependencies bring up Flyway and the data import; nothing depends on the API.
+    "${compose[@]}" up --detach --build --wait --wait-timeout "$readiness_timeout" \
+      "${resume_data_services[@]}" postgres-data-import graph-service embeddings
+    # Build and create the rest without starting it; resume starts it later.
+    "${compose[@]}" create --build api ui temporal temporal-ui
+    prune_stack_images --all
+    echo "Provisioned services are up; the API, UI and Temporal are created but not started."
+    echo "Next: replay, reconcile, mark-provisioned, then resume."
+    print_endpoints
+    ;;
+  replay)
+    require_replay_allowed
+    "${compose[@]}" run --rm --no-deps -T event-replay ${services[@]+"${services[@]}"}
+    ;;
+  stop)
+    "${compose[@]}" stop
+    echo "Stopped heyhey-${safe_name}. Data and configuration are preserved; run resume to restart it."
+    ;;
+  resume)
+    require_provisioned_stack
+    "${compose[@]}" up --detach --no-deps --no-recreate --wait --wait-timeout "$readiness_timeout" "${resume_data_services[@]}"
+    "${compose[@]}" up --detach --no-deps --no-recreate --wait --wait-timeout "$readiness_timeout" "${resume_consumer_services[@]}"
+    "${compose[@]}" up --detach --no-deps --no-recreate --wait --wait-timeout "$readiness_timeout" "${resume_application_services[@]}"
+    wait_for_web
+    print_endpoints
+    ;;
+  mark-provisioned)
+    write_provisioned_state
+    echo "Recorded provisioned state for heyhey-${safe_name}."
     ;;
   down)
     "${compose[@]}" down --remove-orphans
