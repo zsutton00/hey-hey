@@ -142,7 +142,9 @@ async fn setup() -> anyhow::Result<(Ingest, Search, PgPool)> {
         encoder: encoder.clone(),
         model: config.search.encoder.model.clone(),
     };
-    let router = server::router(&config, pool.clone(), common::auth()).layer(Extension(state));
+    // The caller is a current member of PROJECT according to the API.
+    let api = common::project_api(&[PROJECT]).await;
+    let router = server::router(&config, pool.clone(), api.auth).layer(Extension(state));
     let search = Search {
         router,
         token: user_token(),

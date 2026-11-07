@@ -73,7 +73,16 @@ struct KeyCache {
 struct Inner {
     config: TrustConfig,
     client: reqwest::Client,
+    /// Project-policy checks: short timeout, and a redirect is a denial, not a hop.
+    api: reqwest::Client,
     keys: Mutex<KeyCache>,
+}
+fn api_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .expect("static HTTP client configuration is valid")
 }
 #[derive(Clone)]
 pub struct Authenticator(Arc<Inner>);
@@ -91,6 +100,7 @@ impl Authenticator {
         Ok(Self(Arc::new(Inner {
             config,
             client,
+            api: api_client(),
             keys: Mutex::new(KeyCache {
                 keys,
                 loaded: Instant::now(),
@@ -102,6 +112,7 @@ impl Authenticator {
         Ok(Self(Arc::new(Inner {
             config,
             client: reqwest::Client::new(),
+            api: api_client(),
             keys: Mutex::new(KeyCache {
                 keys,
                 loaded: Instant::now(),
@@ -145,6 +156,68 @@ impl Authenticator {
         }
         Ok(claims)
     }
+
+    /// Projects whose private search content the caller may read right now. Like the
+    /// deployed Embeddings service, this asks the API's current project policy on every
+    /// request, so membership removal takes effect without a new token. Only the
+    /// API-issued search-context credential is trusted to carry its own project list.
+    pub async fn search_projects(
+        &self,
+        principal: &Principal,
+        organization: &str,
+        project: Option<&str>,
+    ) -> Result<Vec<String>, StatusCode> {
+        if principal.sub == format!("system:search-context:{organization}")
+            && principal.current_org.as_deref() == Some(organization)
+        {
+            return match project {
+                Some(project) if principal.project_ids.iter().any(|id| id == project) => {
+                    Ok(vec![project.to_owned()])
+                }
+                Some(_) => Err(StatusCode::FORBIDDEN),
+                None => Ok(principal.project_ids.clone()),
+            };
+        }
+
+        let path = match project {
+            Some(project) => format!("organizations/{organization}/projects/{project}"),
+            None => format!("organizations/{organization}/projects"),
+        };
+        let response = self
+            .api_get(&path, &principal.bearer)
+            .await
+            .ok_or(StatusCode::FORBIDDEN)?;
+        if let Some(project) = project {
+            return Ok(vec![project.to_owned()]);
+        }
+
+        // The API's project collection is already filtered by its current membership
+        // policy. A missing or malformed list never means "all projects".
+        let listed: ProjectList = response.json().await.map_err(|_| StatusCode::FORBIDDEN)?;
+        if !listed.success {
+            return Err(StatusCode::FORBIDDEN);
+        }
+        Ok(listed.data.into_iter().map(|project| project.id).collect())
+    }
+
+    /// Calls the API with the caller's own credential; any non-200 answer is a denial.
+    async fn api_get(&self, path: &str, bearer: &str) -> Option<reqwest::Response> {
+        let url = reqwest::Url::parse(&self.0.config.jwks_url)
+            .and_then(|jwks| jwks.join("../"))
+            .and_then(|base| base.join(path))
+            .ok()?;
+        let response = self.0.api.get(url).bearer_auth(bearer).send().await.ok()?;
+        (response.status() == StatusCode::OK).then_some(response)
+    }
+}
+#[derive(Deserialize)]
+struct ProjectList {
+    success: bool,
+    data: Vec<ListedProject>,
+}
+#[derive(Deserialize)]
+struct ListedProject {
+    id: String,
 }
 async fn fetch_keys(client: &reqwest::Client, url: &str) -> Result<JwkSet> {
     let keys: JwkSet = client
@@ -216,6 +289,9 @@ pub struct Principal {
     pub project_id: Option<String>,
     #[serde(default, rename = "markerId")]
     pub marker_id: Option<String>,
+    /// The verified credential itself, forwarded when asking the API for project access.
+    #[serde(skip)]
+    pub bearer: String,
 }
 #[derive(Clone, Deserialize)]
 pub struct Membership {
@@ -376,7 +452,8 @@ async fn authorize(requirement: &Requirement, request: Request) -> Result<Reques
         .and_then(|h| h.to_str().ok())
         .and_then(|h| h.strip_prefix("Bearer "))
         .ok_or(StatusCode::UNAUTHORIZED)?;
-    let principal = requirement.auth.verify(token).await?;
+    let mut principal = requirement.auth.verify(token).await?;
+    principal.bearer = token.to_owned();
     let segments: Vec<_> = request.uri().path().split('/').collect();
     let path_org = segments
         .windows(2)
@@ -513,5 +590,6 @@ async fn authorize(requirement: &Requirement, request: Request) -> Result<Reques
         }
     }
     parts.extensions.insert(principal);
+    parts.extensions.insert(requirement.auth.clone());
     Ok(Request::from_parts(parts, Body::from(bytes)))
 }

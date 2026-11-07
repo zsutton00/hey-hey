@@ -434,6 +434,14 @@ RS256 and a known `kid` are required; there is no static-secret fallback.
 JWKS refreshes after five minutes and on an unknown key (limited to once per five seconds).
 Publish new keys before signing with them, retaining overlapping keys through token expiry.
 
+Search asks the API for the caller's current project access on every request, as the
+deployed Embeddings service does, so it can reach only the API's projects. The API
+base is the JWKS URL's parent: `http://api:3000/api/v1/auth/jwks` gives
+`http://api:3000/api/v1/`. The JWKS URL must therefore be the API's own
+`.../api/v1/auth/jwks` endpoint, not a copy of the keys served elsewhere. Otherwise
+every user search is refused with 403. The API-issued search-context token carries its
+own project list and needs no lookup.
+
 Current API user tokens omit issuer and audience. Leave `GRAPH_SEARCH_JWT_ISSUER`
 and `GRAPH_SEARCH_USER_AUDIENCE` unset to accept that existing profile. These optional
 settings enforce issuer and ordinary-operation audience when the issuer supplies them.

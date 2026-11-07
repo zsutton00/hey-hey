@@ -184,8 +184,9 @@ async fn search_finds_text_and_meaning_within_the_callers_tenant_and_deletion_re
         encoder: encoder.clone(),
         model: config.search.encoder.model.clone(),
     };
+    let api = common::project_api(&[PROJECT, BULK_PROJECT]).await;
     let app = App {
-        router: server::router(&config, pool.clone(), common::auth()).layer(Extension(state)),
+        router: server::router(&config, pool.clone(), api.auth.clone()).layer(Extension(state)),
         ingest: Ingest::new(pool.clone(), encoder),
     };
     let alice = user(ORG);
@@ -391,6 +392,37 @@ async fn search_finds_text_and_meaning_within_the_callers_tenant_and_deletion_re
         )
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
+
+    // A member of the organization reads only the projects the API currently grants,
+    // matching the deployed Embeddings service.
+    let path = format!("/orgs/{ORG}/projects/{OTHER_PROJECT}/embeddings/search");
+    let (status, _) = app
+        .call("POST", &path, &alice, json!({"query": "invoices"}))
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let unscoped = json!({"query": "monthly invoices", "similarity_threshold": 0,
+                          "max_results": 50, "filters": {"organizationId": ORG}});
+    let (status, body) = app
+        .call("POST", "/embeddings/search", &alice, unscoped.clone())
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let hits = ids(&body);
+    assert!(hits.iter().any(|id| id == "billing"), "{hits:?}");
+    assert!(!hits.iter().any(|id| id.starts_with("other-")), "{hits:?}");
+
+    // Removing membership takes effect for the same token on its next request.
+    let granted = std::mem::take(&mut *api.projects.write().unwrap());
+    let path = format!("/orgs/{ORG}/projects/{PROJECT}/embeddings/search");
+    let (status, _) = app
+        .call("POST", &path, &alice, json!({"query": "invoices"}))
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, body) = app
+        .call("POST", "/embeddings/search", &alice, unscoped)
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(ids(&body), Vec::<String>::new());
+    *api.projects.write().unwrap() = granted;
 
     // Rewriting a document replaces its text; the old words no longer find it.
     app.index(
