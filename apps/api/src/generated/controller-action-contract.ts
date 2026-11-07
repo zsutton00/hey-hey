@@ -6146,6 +6146,227 @@ export const controllerActionRuntimeSchema = {
             },
           },
         },
+        cases: {
+          type: 'array',
+          description:
+            'Case inputs recorded on the run. Attempts reference them by id.',
+          items: {
+            type: 'object',
+            description:
+              'Approved case content and selections recorded when the run was launched. No project snapshot is implied; discovery reads the live project.\n',
+            required: ['id', 'evalCaseId', 'title', 'target', 'grading'],
+            properties: {
+              id: {
+                type: 'string',
+                format: 'uuid',
+              },
+              evalCaseId: {
+                type: 'string',
+                format: 'uuid',
+              },
+              title: {
+                type: 'string',
+              },
+              target: {
+                type: 'object',
+                description:
+                  'Recorded case context. Only the initiating request and focal entity reach the target; situation and supporting items are reviewer and judge context.',
+                required: ['situation', 'initiatingRequest', 'targetHandler'],
+                properties: {
+                  situation: {
+                    type: 'string',
+                    description: 'Approved case content as recorded at launch.',
+                  },
+                  focalItemId: {
+                    type: ['string', 'null'],
+                    format: 'uuid',
+                  },
+                  focalItemType: {
+                    allOf: [
+                      {
+                        $ref: '#/definitions/RunEntityReference/properties/entityType',
+                      },
+                    ],
+                    description:
+                      'Canonical entity family of the focal item. Required whenever focalItemId is present; work-item subtypes use TASK.',
+                  },
+                  supportingItemIds: {
+                    type: 'array',
+                    items: {
+                      type: 'string',
+                      format: 'uuid',
+                    },
+                  },
+                  initiatingRequest: {
+                    type: 'string',
+                    description: 'The single request that starts the case.',
+                  },
+                  targetHandler: {
+                    $ref: '#/definitions/LocalRunEvalPromptPayload/properties/attempts/items/properties/execution/properties/handler',
+                    description: 'Registry key of the handler under test.',
+                  },
+                  consumerHandler: {
+                    allOf: [
+                      {
+                        type: 'string',
+                        description:
+                          'Registry key of a handler whose real Project Assistant policy a Project Assistant case runs under. Each key must be a registered handler that declares a Project Assistant policy; the Hey Hey CLI tests the list against its registry.\n',
+                        enum: [
+                          'startup_session',
+                          'design_doc_refiner',
+                          'feature_sync_analyze',
+                          'feature_refiner',
+                          'task_refiner',
+                          'plan_shaping_feature_sync_analyze',
+                          'free_form',
+                          'entity_conversation',
+                          'html_css_mockup_revision',
+                          'validation_walkthrough',
+                        ],
+                      },
+                    ],
+                    description:
+                      'Present exactly when `targetHandler` is `project_assistant`: the real handler whose policy, tools and prompt Project Assistant runs under. Always explicit; there is no default.\n',
+                  },
+                },
+              },
+              grading: {
+                type: 'object',
+                description:
+                  'For the coordinator and judge only. Never passed to the target.',
+                required: ['checks', 'rubric'],
+                properties: {
+                  expectations: {
+                    type: 'string',
+                    description:
+                      'Expected and forbidden behavior recorded from the approved case.',
+                  },
+                  checks: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      required: ['id', 'description'],
+                      properties: {
+                        id: {
+                          type: 'string',
+                        },
+                        description: {
+                          type: 'string',
+                        },
+                      },
+                    },
+                  },
+                  rubric: {
+                    type: 'array',
+                    description: 'Dimensions are data, not an enum.',
+                    items: {
+                      type: 'object',
+                      required: ['key', 'name', 'description'],
+                      properties: {
+                        key: {
+                          type: 'string',
+                        },
+                        name: {
+                          type: 'string',
+                        },
+                        description: {
+                          type: 'string',
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              coding: {
+                type: 'object',
+                additionalProperties: false,
+                description:
+                  "Coding section of an Eval Case whose handler is `free_form`. For the runner, coordinator and judge only; never passed to the target. Valid exactly when the case's handler is `free_form`; checked at approval and at launch, and recorded with each run.\n",
+                required: ['serviceId', 'pinnedCommit'],
+                properties: {
+                  serviceId: {
+                    $ref: '#/definitions/RepositoryFirstWorkRequest/properties/serviceId',
+                  },
+                  pinnedCommit: {
+                    type: 'object',
+                    additionalProperties: false,
+                    description: 'The commit a coding attempt starts from.',
+                    required: ['sha', 'shortMessage'],
+                    properties: {
+                      sha: {
+                        type: 'string',
+                        pattern: '^[0-9a-f]{40}$',
+                        description: 'Full 40-character commit SHA.',
+                      },
+                      shortMessage: {
+                        type: 'string',
+                        minLength: 1,
+                        description:
+                          'First line of the commit message, shown for recognition.',
+                      },
+                    },
+                  },
+                  knownGoodDiff: {
+                    type: 'string',
+                    minLength: 1,
+                    description:
+                      'Optional reference for the judge: a change that satisfies the case. Never passed to the target.\n',
+                  },
+                  knownBadDiff: {
+                    type: 'string',
+                    minLength: 1,
+                    description:
+                      'Optional reference for the judge: a change that plausibly looks right but fails the case. Never passed to the target.\n',
+                  },
+                  mockupChecklist: {
+                    type: 'object',
+                    additionalProperties: false,
+                    description:
+                      'What a coding case built from a Mockup is judged against. For a NEW Mockup the items cover every control; for an UPDATE only the parts that changed.\n',
+                    required: ['mockupId', 'kind', 'items'],
+                    properties: {
+                      mockupId: {
+                        type: 'string',
+                        format: 'uuid',
+                        description:
+                          "The source Mockup, which must be in the case's project.",
+                      },
+                      kind: {
+                        type: 'string',
+                        enum: ['NEW', 'UPDATE'],
+                      },
+                      items: {
+                        type: 'array',
+                        minItems: 1,
+                        items: {
+                          type: 'object',
+                          additionalProperties: false,
+                          description:
+                            'One observable outcome to check in a Mockup-derived coding attempt.',
+                          required: ['id', 'description'],
+                          properties: {
+                            id: {
+                              type: 'string',
+                              minLength: 1,
+                              description:
+                                'Unique within the checklist; the judge answers by this id.',
+                            },
+                            description: {
+                              type: 'string',
+                              minLength: 1,
+                              description:
+                                'The outcome to check, written as observable behavior.',
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
         attempts: {
           type: 'array',
           minItems: 1,
@@ -6194,21 +6415,7 @@ export const controllerActionRuntimeSchema = {
                   consumerHandler: {
                     allOf: [
                       {
-                        type: 'string',
-                        description:
-                          'Registry key of a handler whose real Project Assistant policy a Project Assistant case runs under. Each key must be a registered handler that declares a Project Assistant policy; the Hey Hey CLI tests the list against its registry.\n',
-                        enum: [
-                          'startup_session',
-                          'design_doc_refiner',
-                          'feature_sync_analyze',
-                          'feature_refiner',
-                          'task_refiner',
-                          'plan_shaping_feature_sync_analyze',
-                          'free_form',
-                          'entity_conversation',
-                          'html_css_mockup_revision',
-                          'validation_walkthrough',
-                        ],
+                        $ref: '#/definitions/LocalRunEvalPromptPayload/properties/cases/items/properties/target/properties/consumerHandler/allOf/0',
                       },
                     ],
                     description:
@@ -6240,211 +6447,7 @@ export const controllerActionRuntimeSchema = {
                   'Conversation prepared at launch alongside the target session.',
               },
               caseInput: {
-                type: 'object',
-                description:
-                  'Approved case content and selections recorded when the run was launched. No project snapshot is implied; discovery reads the live project.\n',
-                required: ['id', 'evalCaseId', 'title', 'target', 'grading'],
-                properties: {
-                  id: {
-                    type: 'string',
-                    format: 'uuid',
-                  },
-                  evalCaseId: {
-                    type: 'string',
-                    format: 'uuid',
-                  },
-                  title: {
-                    type: 'string',
-                  },
-                  target: {
-                    type: 'object',
-                    description:
-                      'Recorded case context. Only the initiating request and focal entity reach the target; situation and supporting items are reviewer and judge context.',
-                    required: [
-                      'situation',
-                      'initiatingRequest',
-                      'targetHandler',
-                    ],
-                    properties: {
-                      situation: {
-                        type: 'string',
-                        description:
-                          'Approved case content as recorded at launch.',
-                      },
-                      focalItemId: {
-                        type: ['string', 'null'],
-                        format: 'uuid',
-                      },
-                      focalItemType: {
-                        allOf: [
-                          {
-                            $ref: '#/definitions/RunEntityReference/properties/entityType',
-                          },
-                        ],
-                        description:
-                          'Canonical entity family of the focal item. Required whenever focalItemId is present; work-item subtypes use TASK.',
-                      },
-                      supportingItemIds: {
-                        type: 'array',
-                        items: {
-                          type: 'string',
-                          format: 'uuid',
-                        },
-                      },
-                      initiatingRequest: {
-                        type: 'string',
-                        description: 'The single request that starts the case.',
-                      },
-                      targetHandler: {
-                        $ref: '#/definitions/LocalRunEvalPromptPayload/properties/attempts/items/properties/execution/properties/handler',
-                        description: 'Registry key of the handler under test.',
-                      },
-                      consumerHandler: {
-                        allOf: [
-                          {
-                            $ref: '#/definitions/LocalRunEvalPromptPayload/properties/attempts/items/properties/execution/properties/consumerHandler/allOf/0',
-                          },
-                        ],
-                        description:
-                          'Present exactly when `targetHandler` is `project_assistant`: the real handler whose policy, tools and prompt Project Assistant runs under. Always explicit; there is no default.\n',
-                      },
-                    },
-                  },
-                  grading: {
-                    type: 'object',
-                    description:
-                      'For the coordinator and judge only. Never passed to the target.',
-                    required: ['checks', 'rubric'],
-                    properties: {
-                      expectations: {
-                        type: 'string',
-                        description:
-                          'Expected and forbidden behavior recorded from the approved case.',
-                      },
-                      checks: {
-                        type: 'array',
-                        items: {
-                          type: 'object',
-                          required: ['id', 'description'],
-                          properties: {
-                            id: {
-                              type: 'string',
-                            },
-                            description: {
-                              type: 'string',
-                            },
-                          },
-                        },
-                      },
-                      rubric: {
-                        type: 'array',
-                        description: 'Dimensions are data, not an enum.',
-                        items: {
-                          type: 'object',
-                          required: ['key', 'name', 'description'],
-                          properties: {
-                            key: {
-                              type: 'string',
-                            },
-                            name: {
-                              type: 'string',
-                            },
-                            description: {
-                              type: 'string',
-                            },
-                          },
-                        },
-                      },
-                    },
-                  },
-                  coding: {
-                    type: 'object',
-                    additionalProperties: false,
-                    description:
-                      "Coding section of an Eval Case whose handler is `free_form`. For the runner, coordinator and judge only; never passed to the target. Valid exactly when the case's handler is `free_form`; checked at approval and at launch, and recorded with each run.\n",
-                    required: ['serviceId', 'pinnedCommit'],
-                    properties: {
-                      serviceId: {
-                        $ref: '#/definitions/RepositoryFirstWorkRequest/properties/serviceId',
-                      },
-                      pinnedCommit: {
-                        type: 'object',
-                        additionalProperties: false,
-                        description: 'The commit a coding attempt starts from.',
-                        required: ['sha', 'shortMessage'],
-                        properties: {
-                          sha: {
-                            type: 'string',
-                            pattern: '^[0-9a-f]{40}$',
-                            description: 'Full 40-character commit SHA.',
-                          },
-                          shortMessage: {
-                            type: 'string',
-                            minLength: 1,
-                            description:
-                              'First line of the commit message, shown for recognition.',
-                          },
-                        },
-                      },
-                      knownGoodDiff: {
-                        type: 'string',
-                        minLength: 1,
-                        description:
-                          'Optional reference for the judge: a change that satisfies the case. Never passed to the target.\n',
-                      },
-                      knownBadDiff: {
-                        type: 'string',
-                        minLength: 1,
-                        description:
-                          'Optional reference for the judge: a change that plausibly looks right but fails the case. Never passed to the target.\n',
-                      },
-                      mockupChecklist: {
-                        type: 'object',
-                        additionalProperties: false,
-                        description:
-                          'What a coding case built from a Mockup is judged against. For a NEW Mockup the items cover every control; for an UPDATE only the parts that changed.\n',
-                        required: ['mockupId', 'kind', 'items'],
-                        properties: {
-                          mockupId: {
-                            type: 'string',
-                            format: 'uuid',
-                            description:
-                              "The source Mockup, which must be in the case's project.",
-                          },
-                          kind: {
-                            type: 'string',
-                            enum: ['NEW', 'UPDATE'],
-                          },
-                          items: {
-                            type: 'array',
-                            minItems: 1,
-                            items: {
-                              type: 'object',
-                              additionalProperties: false,
-                              description:
-                                'One observable outcome to check in a Mockup-derived coding attempt.',
-                              required: ['id', 'description'],
-                              properties: {
-                                id: {
-                                  type: 'string',
-                                  minLength: 1,
-                                  description:
-                                    'Unique within the checklist; the judge answers by this id.',
-                                },
-                                description: {
-                                  type: 'string',
-                                  minLength: 1,
-                                  description:
-                                    'The outcome to check, written as observable behavior.',
-                                },
-                              },
-                            },
-                          },
-                        },
-                      },
-                    },
-                  },
-                },
+                $ref: '#/definitions/LocalRunEvalPromptPayload/properties/cases/items',
               },
               configuration: {
                 type: 'object',

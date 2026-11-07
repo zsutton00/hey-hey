@@ -214,14 +214,15 @@ export const REPORT_SCHEMAS = {
   },
   CODING_RESEARCH: {
     description:
-      'Payload for CODING_RESEARCH reports. The `format` discriminator selects structured output or the strict written summary/analysis handoff.',
+      'Payload for CODING_RESEARCH reports. The `format` discriminator records whether Project Assistant researched alone (`SELF_RESEARCH`) or was the parent of research subagents (`SUBAGENT_PARENT`).',
     schema: {
       description:
-        'Payload for CODING_RESEARCH reports. The `format` discriminator selects structured output or the strict written summary/analysis handoff.\n',
+        'Payload for CODING_RESEARCH reports. The `format` discriminator records whether Project Assistant researched alone (`SELF_RESEARCH`) or was the parent of research subagents (`SUBAGENT_PARENT`).\n',
       oneOf: [
         {
           type: 'object',
-          description: 'Structured Project Assistant research result.',
+          description:
+            'Project Assistant research result from a run where Project Assistant did the research itself, with no research subagents.',
           required: [
             'reportType',
             'format',
@@ -240,7 +241,7 @@ export const REPORT_SCHEMAS = {
             },
             format: {
               type: 'string',
-              enum: ['STRUCTURED'],
+              enum: ['SELF_RESEARCH'],
             },
             summary: {
               type: 'string',
@@ -505,7 +506,7 @@ export const REPORT_SCHEMAS = {
         {
           type: 'object',
           description:
-            'Written Project Assistant research result. The parent authors the visible summary and analysis, including its headed uncertainty section; children provide evidence to the parent and do not author the report.',
+            'Project Assistant research result from a run where Project Assistant is the parent of research subagents. The parent authors the visible summary and analysis, including its headed uncertainty section; children provide evidence to the parent and do not author the report.',
           required: ['reportType', 'format', 'summary', 'analysis'],
           additionalProperties: false,
           properties: {
@@ -515,7 +516,7 @@ export const REPORT_SCHEMAS = {
             },
             format: {
               type: 'string',
-              enum: ['WRITTEN'],
+              enum: ['SUBAGENT_PARENT'],
             },
             summary: {
               type: 'string',
