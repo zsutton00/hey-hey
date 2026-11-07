@@ -1429,6 +1429,13 @@ export const en = {
   "eval.run.setup.casesError": "Couldn't load the approved cases.",
   "eval.run.setup.attemptCount":
     "{{cases}} × {{configurations}} = {{attempts}}, each in a fresh session.",
+  "eval.run.setup.attemptCountRepeats":
+    "{{cases}} × {{configurations}} × {{repeats}} = {{attempts}}, each in a fresh session.",
+  "eval.run.setup.runAttempts": "Run {{attempts}}",
+  "eval.run.setup.liveProjectNoteRepeats":
+    "Runs against the project as it is now, so later repeats may see items that changed during the run. The cases, items, and settings used are saved with the run; the rest of the project is not.",
+  "eval.run.repeats_one": "{{count}} repeat",
+  "eval.run.repeats_other": "{{count}} repeats",
   "eval.run.setup.runsOn": "Runs on",
   "eval.run.setup.liveProjectNote":
     "Runs against the project as it is now. The cases, items, and settings used are saved with the run; the rest of the project is not.",
@@ -1445,6 +1452,9 @@ export const en = {
   "eval.run.setup.dialog.cancel": "Cancel",
   "eval.run.settings.title": "Run settings",
   "eval.run.settings.concurrency": "Attempts at once",
+  "eval.run.settings.repeats": "Repeats per case and setup",
+  "eval.run.settings.repeatsNote":
+    "Each repeat is a separate fresh attempt that can't see the others. Up to 10. The run page shows how often each setup got it right and how much its scores varied.",
   "eval.run.settings.timeLimit": "Time limit per attempt",
   "eval.run.settings.tokenLimit": "Token limit per attempt",
   "eval.run.settings.noLimit": "No limit",
@@ -1466,6 +1476,7 @@ export const en = {
   "eval.run.handler.entity_conversation": "Entity conversation",
   "eval.run.handler.feature_sync_analyze": "Feature sync",
   "eval.run.handler.agent_search": "Agent search",
+  "eval.run.handler.free_form": "Coding (free form)",
   "eval.run.settings.projectAssistant":
     "Project Assistant prepares the handler",
   "eval.run.settings.projectAssistantNote":
@@ -1475,11 +1486,18 @@ export const en = {
   "eval.run.page.attempts": "Attempts",
   "eval.run.page.progressSummary":
     "{{cases}} × {{configurations}} · {{ended}} of {{total}} ended",
+  "eval.run.page.statusRunning": "Running · {{ended}} of {{total}} ended",
+  "eval.run.page.statusFinished": "Finished",
+  "eval.run.page.statusFinishedWithErrors_one": "Finished with {{count}} error",
+  "eval.run.page.statusFinishedWithErrors_other":
+    "Finished with {{count}} errors",
+  "eval.run.page.statusStopped": "Stopped",
   "eval.run.page.backgroundHint":
     "You can leave this page; the run keeps going.",
   "eval.run.page.stop": "Stop run",
   "eval.run.page.settingsSummary":
     "{{concurrency}} at once · Time limit: {{time}} · Token limit: {{tokens}} · Handler: {{handler}} · Project Assistant: {{projectAssistant}}",
+  "eval.run.page.repeatsSummary": "{{count}} repeats per case and setup",
   "eval.run.page.projectAssistantOn": "on",
   "eval.run.page.projectAssistantOff": "off",
   "eval.run.page.projectAssistantAlone": "research only",
@@ -1515,30 +1533,16 @@ export const en = {
   "eval.run.cell.missing": "Not recorded",
   "eval.run.cell.proposals_one": "{{count}} proposal",
   "eval.run.cell.proposals_other": "{{count}} proposals",
+  "eval.run.cell.repeatsEnded": "{{ended}} of {{total}} ended",
+  "eval.run.cell.repeatsRunning": "{{count}} running",
+  "eval.run.cell.repeatsQueued": "Waiting · {{count}} repeats queued",
+  "eval.run.cell.repeatRunning": "Repeat {{repeat}} · {{status}}",
+  "eval.run.cell.correctSoFar": "{{correct}} / {{assessed}} correct so far",
+  "eval.run.cell.repeatDetail": "Repeat {{repeat}} · {{detail}}",
   "eval.run.cell.reports_one": "{{count}} report",
   "eval.run.cell.reports_other": "{{count}} reports",
-  "eval.run.progress.title": "Progress",
-  "eval.run.progress.empty": "No attempts have started yet.",
-  "eval.run.progress.started": "{{setup}} on “{{case}}” started.",
-  "eval.run.progress.finished": "{{setup}} on “{{case}}” finished.",
-  "eval.run.progress.error":
-    "{{setup}} on “{{case}}” ended with an error: {{message}}. Other attempts continue.",
-  "eval.run.progress.errorNoMessage":
-    "{{setup}} on “{{case}}” ended with an error. Other attempts continue.",
-  "eval.run.progress.stopped.USER":
-    "{{setup}} on “{{case}}” stopped: the run was stopped.",
-  "eval.run.progress.stopped.TIME_LIMIT":
-    "{{setup}} on “{{case}}” stopped: reached {{limit}} time limit.",
-  "eval.run.progress.stopped.TOKEN_LIMIT":
-    "{{setup}} on “{{case}}” stopped: reached {{limit}} token limit.",
   "eval.output.badge": "Evaluation output · can't be approved",
-  "eval.run.page.viewResults": "View results",
-  "eval.page.runs.results": "Results",
-  "eval.results.crumb": "Results",
   "eval.results.title": "Compare setups",
-  "eval.results.notFinished":
-    "This run hasn't finished yet. Results appear here once every attempt has ended.",
-  "eval.results.backToRun": "Back to run",
   "eval.results.notReported": "not reported",
   "eval.results.partial": "{{value}} ({{reported}} of {{total}} reported)",
   "eval.results.averagesNote":
@@ -1555,9 +1559,28 @@ export const en = {
   "eval.results.columns.cost": "Cost per attempt",
   "eval.results.errors_one": "{{count}} error",
   "eval.results.errors_other": "{{count}} errors",
-  "eval.results.overhead": "Coordinator: {{coordinator}} (not included above)",
-  "eval.results.overheadMeasures":
-    "{{elapsed}} · {{tokens}} tokens · {{toolCalls}} tool calls",
+  "eval.results.stopped_one": "{{count}} stopped",
+  "eval.results.stopped_other": "{{count}} stopped",
+  "eval.results.qualitySpread": "{{mean}} ± {{spread}}",
+  "eval.results.repeats.correct": "{{recognized}} / {{assessed}} correct",
+  "eval.results.repeats.label": "Repeat {{repeat}}",
+  "eval.results.repeats.help":
+    "Each row is one case run with one setup, summarised over its repeats: correct out of finished attempts, average quality ± spread (standard deviation), and checks passed. Errored and stopped repeats are named and left out of the averages. The arrow lists every repeat; select one to see its specifics and review it.",
+  "eval.results.repeats.excludedError":
+    "Repeat {{repeat}} errored: {{message}}",
+  "eval.results.repeats.excludedErrorNoMessage": "Repeat {{repeat}} errored",
+  "eval.results.repeats.excludedStopped":
+    "Repeat {{repeat}} stopped ({{reason}})",
+  "eval.results.repeats.stopReason.USER": "the run was stopped",
+  "eval.results.repeats.stopReason.TIME_LIMIT": "time limit",
+  "eval.results.repeats.stopReason.TOKEN_LIMIT": "token limit",
+  "eval.results.repeats.leftOut": "left out of averages",
+  "eval.results.repeats.col.repeat": "Repeat",
+  "eval.results.repeats.col.session": "Session",
+  "eval.results.repeats.openSession": "Open session",
+  "eval.results.repeats.weak": "Stands out as weak",
+  "eval.results.repeats.select": "Show repeat {{repeat}}",
+  "eval.results.repeats.stopped": "Stopped",
   "eval.results.cases.title": "Cases",
   "eval.results.cases.help":
     "Each row is one case run with one setup. The case name opens that attempt's session; the arrow opens the specifics. Recognition says whether the agent correctly decided what the case needed, including correctly doing nothing when no work was needed.",
@@ -1680,6 +1703,7 @@ export const en = {
     "Nothing that worked before is broken.",
   "eval.results.cases.checklistCount": "Checklist {{hits}} / {{total}}",
   "eval.results.review.title": "Your review",
+  "eval.results.review.titleRepeat": "Your review of repeat {{repeat}}",
   "eval.results.review.score": "Score out of 5",
   "eval.results.review.scoreValue": "{{score}} / 5",
   "eval.results.review.comment": "Comment",
