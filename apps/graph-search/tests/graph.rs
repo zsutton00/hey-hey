@@ -1259,6 +1259,24 @@ async fn reviewed_edge_deletion_retains_its_basis_for_retries() -> anyhow::Resul
 
 #[tokio::test]
 #[ignore = "requires disposable PostgreSQL"]
+async fn caller_delete_rejects_and_keeps_platform_owned_edges() -> anyhow::Result<()> {
+    let f = Fixture::new(9700).await?;
+    let token = f.token(&f.scope.organization, vec![]);
+    let edge_id = f.edge(9701, 9702, "HAS_TASK", json!({})).await;
+    let path = format!(
+        "/api/organizations/{}/projects/{}/agent-edges/{edge_id}",
+        f.scope.organization, f.scope.project
+    );
+    assert_eq!(
+        f.call("DELETE", &path, &token, Value::Null).await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert!(f.has_edge(9701, 9702, "HAS_TASK").await);
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
 async fn approvals_preserve_create_and_edit_influences_without_duplicates() -> anyhow::Result<()> {
     use hey_hey_graph_search::graph::ingest::Ingest;
     let f = Fixture::new(990).await?;
