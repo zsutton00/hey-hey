@@ -1309,6 +1309,36 @@ export const REPORT_SCHEMAS = {
                             },
                           },
                         },
+                        checklistResults: {
+                          type: 'array',
+                          description:
+                            'Coding attempts with a Mockup checklist only: one answer per checklist item, hit or missed, judged from the saved changes.\n',
+                          items: {
+                            type: 'object',
+                            required: ['itemId', 'hit', 'explanation'],
+                            properties: {
+                              itemId: {
+                                type: 'string',
+                                description:
+                                  'The Mockup checklist item this answers.',
+                              },
+                              hit: {
+                                type: 'boolean',
+                              },
+                              explanation: {
+                                type: 'string',
+                              },
+                            },
+                          },
+                        },
+                        regressions: {
+                          type: 'array',
+                          description:
+                            'Coding attempts for an UPDATE checklist only: what used to work and the change now breaks.\n',
+                          items: {
+                            type: 'string',
+                          },
+                        },
                         createdAt: {
                           type: 'string',
                           format: 'date-time',
@@ -1740,12 +1770,7 @@ export const REPORT_SCHEMAS = {
                     additionalProperties: false,
                     description:
                       "Coding section of an Eval Case whose handler is `free_form`. For the runner, coordinator and judge only; never passed to the target. Valid exactly when the case's handler is `free_form`; checked at approval and at launch, and recorded with each run.\n",
-                    required: [
-                      'serviceId',
-                      'pinnedCommit',
-                      'knownGoodDiff',
-                      'knownBadDiff',
-                    ],
+                    required: ['serviceId', 'pinnedCommit'],
                     properties: {
                       serviceId: {
                         type: 'string',
@@ -1781,13 +1806,58 @@ export const REPORT_SCHEMAS = {
                       knownGoodDiff: {
                         type: 'string',
                         minLength: 1,
-                        description: 'A change that satisfies the case.',
+                        description:
+                          'Optional reference for the judge: a change that satisfies the case. Never passed to the target.\n',
                       },
                       knownBadDiff: {
                         type: 'string',
                         minLength: 1,
                         description:
-                          'A change that plausibly looks right but fails the case.',
+                          'Optional reference for the judge: a change that plausibly looks right but fails the case. Never passed to the target.\n',
+                      },
+                      mockupChecklist: {
+                        type: 'object',
+                        additionalProperties: false,
+                        description:
+                          'What a coding case built from a Mockup is judged against. For a NEW Mockup the items cover every control; for an UPDATE only the parts that changed.\n',
+                        required: ['mockupId', 'kind', 'items'],
+                        properties: {
+                          mockupId: {
+                            type: 'string',
+                            format: 'uuid',
+                            description:
+                              "The source Mockup, which must be in the case's project.",
+                          },
+                          kind: {
+                            type: 'string',
+                            enum: ['NEW', 'UPDATE'],
+                          },
+                          items: {
+                            type: 'array',
+                            minItems: 1,
+                            items: {
+                              type: 'object',
+                              additionalProperties: false,
+                              description:
+                                'One observable outcome to check in a Mockup-derived coding attempt.',
+                              required: ['id', 'description'],
+                              properties: {
+                                id: {
+                                  type: 'string',
+                                  minLength: 1,
+                                  description:
+                                    'Unique within the checklist; the judge answers by this id.',
+                                },
+                                description: {
+                                  type: 'string',
+                                  minLength: 1,
+                                  description:
+                                    'The outcome to check, written as observable behavior.',
+                                },
+                              },
+                            },
+                          },
+                        },
                       },
                     },
                   },

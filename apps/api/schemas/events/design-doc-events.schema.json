@@ -7675,19 +7675,17 @@
         },
         "knownGoodDiff": {
           "type": "string",
-          "description": "A change that satisfies the case."
+          "description": "Optional reference for the judge: a change that satisfies the case. Never passed to the target."
         },
         "knownBadDiff": {
           "type": "string",
-          "description": "A change that plausibly looks right but fails the case."
+          "description": "Optional reference for the judge: a change that plausibly looks right but fails the case. Never passed to the target."
+        },
+        "mockupChecklist": {
+          "$ref": "#/definitions/EvalCaseMockupChecklist"
         }
       },
-      "required": [
-        "serviceId",
-        "pinnedCommit",
-        "knownGoodDiff",
-        "knownBadDiff"
-      ],
+      "required": ["serviceId", "pinnedCommit"],
       "description": "Coding section of an Eval Case whose handler is `free_form`. For the runner, coordinator and judge only; never passed to the target. Valid exactly when the case\\'s handler is `free_form`; checked at approval and at launch, and recorded with each run."
     },
     "EvalCaseCodingCommit": {
@@ -7704,6 +7702,54 @@
       },
       "required": ["sha", "shortMessage"],
       "description": "The commit a coding attempt starts from."
+    },
+    "EvalCaseMockupChecklist": {
+      "type": "object",
+      "properties": {
+        "mockupId": {
+          "type": "string",
+          "description": "The source Mockup, which must be in the case\\'s project."
+        },
+        "kind": {
+          "$ref": "#/definitions/EvalCaseMockupChecklistKindEnum"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/EvalCaseMockupChecklistItem"
+          }
+        }
+      },
+      "required": ["mockupId", "kind", "items"],
+      "description": "What a coding case built from a Mockup is judged against. For a NEW Mockup the items cover every control; for an UPDATE only the parts that changed."
+    },
+    "EvalCaseMockupChecklistKindEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "NEW"
+        },
+        {
+          "type": "string",
+          "const": "UPDATE"
+        },
+        {}
+      ]
+    },
+    "EvalCaseMockupChecklistItem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique within the checklist; the judge answers by this id."
+        },
+        "description": {
+          "type": "string",
+          "description": "The outcome to check, written as observable behavior."
+        }
+      },
+      "required": ["id", "description"],
+      "description": "One observable outcome to check in a Mockup-derived coding attempt."
     },
     "EvalConfiguration": {
       "type": "object",
