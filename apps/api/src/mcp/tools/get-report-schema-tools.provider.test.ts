@@ -22,7 +22,7 @@ const VALID_PAYLOAD_BY_TYPE: Record<ReportSchemaKey, ReportPayloadStub> = {
   PROJECT_REPORT: projectReportPayload,
   CODING_RESEARCH: {
     reportType: 'CODING_RESEARCH',
-    format: 'STRUCTURED',
+    format: 'SELF_RESEARCH',
     summary: 'Research stub.',
     analysis: 'Analysis stub.',
     frame: {},

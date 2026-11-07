@@ -1075,9 +1075,9 @@ CodingResearchUncertainty:
       items:
         $ref: "#/CodingResearchUncertaintyReference"
 
-CodingResearchStructuredReportPayload:
+CodingResearchSelfResearchReportPayload:
   type: object
-  description: Structured Project Assistant research result.
+  description: Project Assistant research result from a run where Project Assistant did the research itself, with no research subagents.
   required:
     - reportType
     - format
@@ -1096,7 +1096,7 @@ CodingResearchStructuredReportPayload:
     format:
       type: string
       enum:
-        - STRUCTURED
+        - SELF_RESEARCH
     summary:
       type: string
       minLength: 1
@@ -1126,9 +1126,9 @@ CodingResearchStructuredReportPayload:
       items:
         $ref: "#/CodingResearchUncertainty"
 
-CodingResearchWrittenReportPayload:
+CodingResearchSubagentParentReportPayload:
   type: object
-  description: Written Project Assistant research result. The parent authors the visible summary and analysis, including its headed uncertainty section; children provide evidence to the parent and do not author the report.
+  description: Project Assistant research result from a run where Project Assistant is the parent of research subagents. The parent authors the visible summary and analysis, including its headed uncertainty section; children provide evidence to the parent and do not author the report.
   required:
     - reportType
     - format
@@ -1143,7 +1143,7 @@ CodingResearchWrittenReportPayload:
     format:
       type: string
       enum:
-        - WRITTEN
+        - SUBAGENT_PARENT
     summary:
       type: string
       minLength: 1
@@ -1155,11 +1155,12 @@ CodingResearchWrittenReportPayload:
 
 CodingResearchReportPayload:
   description: >
-    Payload for CODING_RESEARCH reports. The `format` discriminator selects
-    structured output or the strict written summary/analysis handoff.
+    Payload for CODING_RESEARCH reports. The `format` discriminator records whether
+    Project Assistant researched alone (`SELF_RESEARCH`) or was the parent of
+    research subagents (`SUBAGENT_PARENT`).
   oneOf:
-    - $ref: "#/CodingResearchStructuredReportPayload"
-    - $ref: "#/CodingResearchWrittenReportPayload"
+    - $ref: "#/CodingResearchSelfResearchReportPayload"
+    - $ref: "#/CodingResearchSubagentParentReportPayload"
 
 SnapshotReportPayload:
   description: Placeholder payload for SNAPSHOT reports.

@@ -147,7 +147,7 @@ const evidencePipelineReportFixture: ReportDto = {
 
 const codingResearchPayload: CodingResearchReportPayload = {
   reportType: "CODING_RESEARCH",
-  format: "STRUCTURED",
+  format: "SELF_RESEARCH",
   summary: "The summary remains in the report card.",
   analysis: "Detailed analysis stays behind its disclosure.",
   uncertainties: [
@@ -173,7 +173,7 @@ const codingResearchWrittenReportFixture: ReportDto = {
   id: "report-coding-research-written",
   payload: {
     reportType: "CODING_RESEARCH",
-    format: "WRITTEN",
+    format: "SUBAGENT_PARENT",
     summary: "The written report summary remains in the report card.",
     analysis: [
       "Analysis remains in the report card.",

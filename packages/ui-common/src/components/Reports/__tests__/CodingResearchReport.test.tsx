@@ -86,7 +86,7 @@ const buildReport = (payload: CodingResearchReportPayload): ReportDto =>
 
 const fullPayload: CodingResearchReportPayload = {
   reportType: "CODING_RESEARCH",
-  format: "STRUCTURED",
+  format: "SELF_RESEARCH",
   summary:
     "The renderer remains typed and keeps its human-readable handoff visible.",
   analysis:
@@ -247,7 +247,7 @@ describe("CodingResearchReport", () => {
   it("renders written open questions below analysis and removes recognized entries from analysis", () => {
     const writtenPayload: CodingResearchReportPayload = {
       reportType: "CODING_RESEARCH",
-      format: "WRITTEN",
+      format: "SUBAGENT_PARENT",
       summary:
         "The parent reviewed the research evidence and wrote this report.",
       analysis: [

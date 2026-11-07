@@ -1238,7 +1238,7 @@ describe('creation-time report usage', () => {
     expect(read).toHaveBeenCalledTimes(1);
   });
 
-  it('captures usage on the structured research path without changing its handoff', async () => {
+  it('captures usage on the self-research path without changing its handoff', async () => {
     const { run, body, proxy, snapshotter } = setup();
     const tool = new CodingResearchTool(proxy, () => '2026-11-01T00:00:00.000Z', snapshotter);
     await tool.execute({
@@ -1246,7 +1246,7 @@ describe('creation-time report usage', () => {
       run,
       args: {
         frame: { focalId: 'focal', nodes: [] },
-        analysis: 'Written research handoff',
+        analysis: 'Subagent-parent research handoff',
         summary: 'Research summary',
         provenance: { discoveryCalls: [], edgesTraversed: [] },
         updates: [],
@@ -1258,7 +1258,7 @@ describe('creation-time report usage', () => {
       reportType: 'CODING_RESEARCH',
       payload: {
         summary: 'Research summary',
-        analysis: 'Written research handoff',
+        analysis: 'Subagent-parent research handoff',
         frame: { focalId: 'focal', nodes: [] },
       },
       usage: { inputTokens: 33, toolCalls: 2 },

@@ -62,7 +62,7 @@ describe('buildReportValue', () => {
   it('shows a dated research memo for CODING_RESEARCH and keeps the summary separate', () => {
     const value = buildReportValue(saved, {
       reportType: 'CODING_RESEARCH',
-      format: 'STRUCTURED',
+      format: 'SELF_RESEARCH',
       summary: 'Short handoff',
       analysis: 'Full analysis text',
       frame: { focalId: 'task-1' },
@@ -77,19 +77,19 @@ describe('buildReportValue', () => {
     expect(value.latest).toContain('Full analysis text');
   });
 
-  it('preserves a written report uncertainty section without inventing structured evidence', () => {
+  it('preserves a subagent-parent report uncertainty section without inventing self-research evidence', () => {
     const analysis =
       'Parent synthesis.\n\n## Uncertainties\n\n- **conflict · medium** — Sources disagree. — References: none';
     const value = buildReportValue(saved, {
       reportType: 'CODING_RESEARCH',
-      format: 'WRITTEN',
+      format: 'SUBAGENT_PARENT',
       summary: 'The parent wrote the research handoff.',
       analysis,
     });
 
     expect(value.latest).toContain(analysis);
     expect(value.latest).not.toContain('## Reconciliation updates');
-    expect(value.latest).not.toContain('## Structured uncertainties');
+    expect(value.latest.match(/## Uncertainties/g)).toHaveLength(1);
   });
 
   it('falls back to the dated summary for a type without a dedicated formatter', () => {

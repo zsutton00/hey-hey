@@ -524,7 +524,7 @@ describe('ReportService', () => {
       audience: ReportAudience.WorkflowOnly,
       payload: {
         reportType: 'CODING_RESEARCH',
-        format: 'STRUCTURED',
+        format: 'SELF_RESEARCH',
         summary: 'ok',
         analysis: 'analysis',
         frame: {},
@@ -607,7 +607,7 @@ describe('ReportService', () => {
     const expiresAt = new Date('2026-12-03T00:00:00.000Z');
     const payload = {
       reportType: 'CODING_RESEARCH',
-      format: 'WRITTEN',
+      format: 'SUBAGENT_PARENT',
       summary: 'The parent-authored findings reach the next handler.',
       analysis:
         'Parent synthesis.\n\n## Uncertainties\n\n- **conflict · medium** — Sources disagree. — References: none',
@@ -1715,7 +1715,7 @@ describe('ReportService', () => {
         audience: ReportAudience.WorkflowOnly,
         payload: {
           reportType: 'CODING_RESEARCH',
-          format: 'STRUCTURED',
+          format: 'SELF_RESEARCH',
           summary: 'ok',
           analysis: 'analysis',
           frame: {},
@@ -1823,7 +1823,7 @@ describe('ReportService', () => {
         audience: ReportAudience.WorkflowOnly,
         payload: {
           reportType: 'CODING_RESEARCH',
-          format: 'STRUCTURED',
+          format: 'SELF_RESEARCH',
           summary: 'ok',
           analysis: 'analysis',
           frame: {},
@@ -1870,7 +1870,7 @@ describe('ReportService', () => {
             type === ReportType.CodingResearch
               ? {
                   reportType: 'CODING_RESEARCH',
-                  format: 'STRUCTURED',
+                  format: 'SELF_RESEARCH',
                   summary: 'ok',
                   analysis: 'analysis',
                   frame: {},
@@ -1975,7 +1975,7 @@ describe('ReportService', () => {
           audience: ReportAudience.WorkflowOnly,
           payload: {
             reportType: 'CODING_RESEARCH',
-            format: 'STRUCTURED',
+            format: 'SELF_RESEARCH',
             summary: 'ok',
             analysis: 'analysis',
             frame: {},
@@ -2263,7 +2263,7 @@ describe('ReportService', () => {
       title: 'Coding Research',
       payload: {
         reportType: 'CODING_RESEARCH',
-        format: 'STRUCTURED',
+        format: 'SELF_RESEARCH',
         summary: 'Research stub.',
         analysis: 'analysis',
         frame: {},
@@ -2352,7 +2352,7 @@ describe('ReportService', () => {
     const result = await service.update('org-1' as any, 'report-1', {
       payload: {
         reportType: 'CODING_RESEARCH',
-        format: 'STRUCTURED',
+        format: 'SELF_RESEARCH',
         summary: 'updated',
         analysis: 'analysis',
         frame: {},
@@ -2368,7 +2368,7 @@ describe('ReportService', () => {
         data: expect.objectContaining({
           payload: {
             reportType: 'CODING_RESEARCH',
-            format: 'STRUCTURED',
+            format: 'SELF_RESEARCH',
             summary: 'updated',
             analysis: 'analysis',
             frame: {},
@@ -2392,7 +2392,7 @@ describe('ReportService', () => {
       expectedVersion: 3,
       payload: {
         reportType: 'CODING_RESEARCH',
-        format: 'STRUCTURED',
+        format: 'SELF_RESEARCH',
         summary: 'updated',
         analysis: 'analysis',
         frame: {},
@@ -2470,7 +2470,7 @@ describe('ReportService', () => {
       id: 'report-1',
       payload: {
         reportType: 'CODING_RESEARCH',
-        format: 'STRUCTURED',
+        format: 'SELF_RESEARCH',
         summary: 'old',
         __reportEnvelope: { agent: 'provider-session-1' },
       },
@@ -2483,7 +2483,7 @@ describe('ReportService', () => {
       audience: 'WORKFLOW_ONLY',
       payload: {
         reportType: 'CODING_RESEARCH',
-        format: 'STRUCTURED',
+        format: 'SELF_RESEARCH',
         summary: 'updated',
         __reportEnvelope: { agent: 'provider-session-1' },
       },
@@ -2499,7 +2499,7 @@ describe('ReportService', () => {
     const result = await service.update('org-1' as any, 'report-1', {
       payload: {
         reportType: 'CODING_RESEARCH',
-        format: 'STRUCTURED',
+        format: 'SELF_RESEARCH',
         summary: 'updated',
         analysis: 'analysis',
         frame: {},
@@ -2522,7 +2522,7 @@ describe('ReportService', () => {
     expect(result.agent).toBe('provider-session-1');
     expect(result.payload).toEqual({
       reportType: 'CODING_RESEARCH',
-      format: 'STRUCTURED',
+      format: 'SELF_RESEARCH',
       summary: 'updated',
     });
   });
@@ -2670,7 +2670,7 @@ describe('ReportService', () => {
         audience: ReportAudience.WorkflowOnly,
         payload: {
           reportType: 'CODING_RESEARCH',
-          format: 'STRUCTURED',
+          format: 'SELF_RESEARCH',
           summary: 'ok',
           analysis: 'analysis',
           frame: {},
@@ -2704,7 +2704,7 @@ describe('ReportService', () => {
           audience: ReportAudience.WorkflowOnly,
           payload: {
             reportType: 'CODING_RESEARCH',
-            format: 'STRUCTURED',
+            format: 'SELF_RESEARCH',
             summary: 'ok',
             analysis: 'analysis',
             frame: {},
@@ -2761,7 +2761,7 @@ describe('ReportService', () => {
       const result = await service.update('org-1' as any, 'report-1', {
         payload: {
           reportType: 'CODING_RESEARCH',
-          format: 'STRUCTURED',
+          format: 'SELF_RESEARCH',
           summary: 'ok',
           analysis: 'analysis',
           frame: {},
@@ -2780,7 +2780,7 @@ describe('ReportService', () => {
         .mockResolvedValueOnce({
           id: 'report-1',
           reportType: 'CODING_RESEARCH',
-          format: 'STRUCTURED',
+          format: 'SELF_RESEARCH',
         })
         .mockResolvedValueOnce(null);
 
@@ -2788,7 +2788,7 @@ describe('ReportService', () => {
         service.update('org-1' as any, 'report-1', {
           payload: {
             reportType: 'CODING_RESEARCH',
-            format: 'STRUCTURED',
+            format: 'SELF_RESEARCH',
             summary: 'ok',
             analysis: 'analysis',
             frame: {},
@@ -2812,7 +2812,7 @@ describe('ReportService', () => {
         service.update('org-1' as any, 'report-1', {
           payload: {
             reportType: 'CODING_RESEARCH',
-            format: 'STRUCTURED',
+            format: 'SELF_RESEARCH',
             summary: 'ok',
             analysis: 'analysis',
             frame: {},
@@ -3554,7 +3554,7 @@ describe('ReportService', () => {
         audience: ReportAudience.WorkflowOnly,
         payload: {
           reportType: 'CODING_RESEARCH',
-          format: 'STRUCTURED',
+          format: 'SELF_RESEARCH',
           summary: 'ok',
           analysis: 'analysis',
           frame: {},

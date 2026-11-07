@@ -4,7 +4,7 @@ import { validateCodingResearchPayload } from '../coding-research-payload.valida
 
 const validPayload = {
   reportType: 'CODING_RESEARCH',
-  format: 'STRUCTURED',
+  format: 'SELF_RESEARCH',
   summary: 'handoff',
   analysis: 'analysis',
   frame: {},
@@ -23,7 +23,7 @@ describe('CODING_RESEARCH submission boundary', () => {
   it('accepts and preserves a parent-authored written report', () => {
     const writtenPayload = {
       reportType: 'CODING_RESEARCH',
-      format: 'WRITTEN',
+      format: 'SUBAGENT_PARENT',
       summary: 'The parent researched the project and wrote this handoff.',
       analysis:
         'Findings from the project.\n\n## Uncertainties\n\n- None found.',

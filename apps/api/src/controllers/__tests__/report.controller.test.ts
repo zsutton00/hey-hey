@@ -65,7 +65,7 @@ describe('ReportController', () => {
         audience: ReportAudience.WorkflowOnly,
         payload: {
           reportType: 'CODING_RESEARCH',
-          format: 'STRUCTURED',
+          format: 'SELF_RESEARCH',
           summary: 'ok',
           analysis: '',
           frame: {},
@@ -237,7 +237,7 @@ describe('ReportController', () => {
       {
         payload: {
           reportType: 'CODING_RESEARCH',
-          format: 'STRUCTURED',
+          format: 'SELF_RESEARCH',
           summary: 'updated',
           analysis: '',
           frame: {},
@@ -252,7 +252,7 @@ describe('ReportController', () => {
     expect(mockService.update).toHaveBeenCalledWith('org-1', 'report-1', {
       payload: {
         reportType: 'CODING_RESEARCH',
-        format: 'STRUCTURED',
+        format: 'SELF_RESEARCH',
         summary: 'updated',
         analysis: '',
         frame: {},

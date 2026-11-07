@@ -6,7 +6,7 @@ import { CodingResearchFrameSection } from "./CodingResearchFrameSection";
 import { CodingResearchProvenanceSections } from "./CodingResearchProvenanceSections";
 import { CodingResearchUpdatesSection } from "./CodingResearchUpdatesSection";
 import { CodingResearchUncertaintiesSection } from "./CodingResearchUncertaintiesSection";
-import { parseCodingResearchWrittenAnalysis } from "./codingResearchWrittenUncertainties";
+import { parseCodingResearchSubagentParentAnalysis } from "./codingResearchSubagentParentUncertainties";
 import { createCodingResearchFrameModel } from "./codingResearchReportModel";
 import { ReportDisclosure, ReportLabeledText } from "./reportPrimitives";
 
@@ -33,17 +33,17 @@ export const CodingResearchReport: React.FC<CodingResearchReportProps> = ({
 }) => {
   const [isAnalysisExpanded, setIsAnalysisExpanded] = useState(false);
   const reportData =
-    payload.format === "WRITTEN"
+    payload.format === "SUBAGENT_PARENT"
       ? {
           format: payload.format,
           frameModel: createCodingResearchFrameModel(undefined),
           discoveryCalls: [],
           edgesTraversed: [],
           updates: [],
-          ...parseCodingResearchWrittenAnalysis(payload.analysis),
+          ...parseCodingResearchSubagentParentAnalysis(payload.analysis),
         }
       : {
-          // Reports saved before the format discriminator existed are structured.
+          // Reports saved before the format discriminator existed are self-research reports.
           // These optional reads are only for that persisted legacy shape.
           format: payload.format,
           frameModel: createCodingResearchFrameModel(payload.frame),

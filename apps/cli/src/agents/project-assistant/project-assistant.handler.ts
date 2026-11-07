@@ -109,7 +109,7 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
       createReportProxy,
       undefined,
       undefined,
-      runSubagentsTool ? 'WRITTEN' : 'STRUCTURED',
+      runSubagentsTool ? 'SUBAGENT_PARENT' : 'SELF_RESEARCH',
     );
     this.submissionTools = [codingResearchTool, ...(runSubagentsTool ? [runSubagentsTool] : [])];
     this.parallelResearchSubagents = runSubagentsTool !== null;

@@ -20,7 +20,7 @@ import { renderCodingResearchMemo } from '../prompts/coding-research-memo';
 
 import { z } from 'zod';
 import type { Run } from '../../run/run';
-import { CodingResearchStructuredReportPayloadReportTypeEnum as CodingResearchReportPayloadReportTypeEnum } from '@hey-hey/contracts/api/models';
+import { CodingResearchSelfResearchReportPayloadReportTypeEnum as CodingResearchReportPayloadReportTypeEnum } from '@hey-hey/contracts/api/models';
 import type {
   CodingResearchUncertainty,
   CodingResearchReadinessEvidence,
@@ -269,7 +269,7 @@ const codingResearchUncertaintiesValidator: z.ZodType<CodingResearchUncertainty[
     .strict(),
 );
 
-const createCodingResearchInputSchema = (format: 'STRUCTURED' | 'WRITTEN') =>
+const createCodingResearchInputSchema = (format: 'SELF_RESEARCH' | 'SUBAGENT_PARENT') =>
   ({
     type: 'object',
     additionalProperties: false,
@@ -304,12 +304,12 @@ const createCodingResearchInputSchema = (format: 'STRUCTURED' | 'WRITTEN') =>
           'Bounded evidence for consequential unresolved behavior, lifecycle, authority, security, isolation, or integration decisions. Use [] when none are evidenced.',
         items: codingResearchReadinessEvidenceSchema,
       },
-      ...(format === 'STRUCTURED'
+      ...(format === 'SELF_RESEARCH'
         ? { uncertainties: { type: 'array', items: codingResearchUncertaintySchema } }
         : {}),
     },
     required:
-      format === 'STRUCTURED'
+      format === 'SELF_RESEARCH'
         ? [
             'frame',
             'analysis',
@@ -339,7 +339,7 @@ export class CodingResearchTool implements PassThroughSubmissionToolDeclaration 
     proxy: CreateReportProxy,
     now: () => string = () => new Date().toISOString(),
     usageSnapshotter = new ReportUsageSnapshotter(),
-    private readonly format: 'STRUCTURED' | 'WRITTEN' = 'STRUCTURED',
+    private readonly format: 'SELF_RESEARCH' | 'SUBAGENT_PARENT' = 'SELF_RESEARCH',
   ) {
     this.now = now;
     this.reportTool = new CreateReportTool(proxy, now, undefined, undefined, usageSnapshotter);
@@ -406,7 +406,7 @@ export class CodingResearchTool implements PassThroughSubmissionToolDeclaration 
     }
 
     const parsedUncertainties =
-      this.format === 'STRUCTURED'
+      this.format === 'SELF_RESEARCH'
         ? codingResearchUncertaintiesValidator.safeParse(uncertainties)
         : { success: true as const, data: [] as CodingResearchUncertainty[] };
     if (!parsedUncertainties.success) {
@@ -421,16 +421,16 @@ export class CodingResearchTool implements PassThroughSubmissionToolDeclaration 
     }));
 
     const reportPayload: CodingResearchReportPayload =
-      this.format === 'WRITTEN'
+      this.format === 'SUBAGENT_PARENT'
         ? {
             reportType: CodingResearchReportPayloadReportTypeEnum.CodingResearch,
-            format: 'WRITTEN',
+            format: 'SUBAGENT_PARENT',
             summary,
             analysis,
           }
         : {
             reportType: CodingResearchReportPayloadReportTypeEnum.CodingResearch,
-            format: 'STRUCTURED',
+            format: 'SELF_RESEARCH',
             summary,
             frame: parsedFrame.data,
             analysis,
