@@ -8,11 +8,18 @@ import { Observable } from 'rxjs';
 import { EventContextManager } from '../../core/events/observable-event.context';
 import { AuthenticatedUser } from '../../auth/strategies/jwt.strategy';
 import { OrganizationId, ProjectId } from '../../types';
+import { resolveInterceptedHttp } from './http-request-context';
 
 @Injectable()
 export class EventContextInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    const request = context.switchToHttp().getRequest();
+    const http = resolveInterceptedHttp(context);
+
+    if (!http) {
+      return next.handle();
+    }
+
+    const { request } = http;
     const user: AuthenticatedUser = request.user;
 
     const eventContextManager = EventContextManager.getInstance();

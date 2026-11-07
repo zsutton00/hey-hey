@@ -8,13 +8,20 @@ import { Observable, from } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthenticatedUser } from '../../auth/strategies/jwt.strategy';
+import { resolveInterceptedHttp } from './http-request-context';
 
 @Injectable()
 export class OrganizationContextInterceptor implements NestInterceptor {
   constructor(private readonly prisma: PrismaService) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
-    const request = context.switchToHttp().getRequest();
+    const http = resolveInterceptedHttp(context);
+
+    if (!http) {
+      return next.handle();
+    }
+
+    const { request } = http;
     const user: AuthenticatedUser = request.user;
 
     // Extract organization ID from params, body, or query

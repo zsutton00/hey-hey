@@ -7,13 +7,13 @@ import {
 import { Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
-import { Request, Response } from 'express';
 import { CustomLoggerService } from '../logger/logger.service';
 import { v4 as uuidv4 } from 'uuid';
 import { createNamespace, getNamespace } from 'cls-hooked';
 import { NO_LOGGING_KEY } from '../decorators/no-logging.decorator';
 import type { AuthenticatedUser } from '../../auth/strategies/jwt.strategy';
 import { hostname } from 'node:os';
+import { resolveInterceptedHttp } from './http-request-context';
 
 function getErrorStatus(error: unknown): number {
   if (error && typeof error === 'object') {
@@ -97,14 +97,19 @@ export class LoggingInterceptor implements NestInterceptor {
   }
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    const http = resolveInterceptedHttp(context);
+
+    if (!http) {
+      return next.handle();
+    }
+
     // Check if logging is disabled for this endpoint
     const noLogging = this.reflector.getAllAndOverride<boolean>(
       NO_LOGGING_KEY,
       [context.getHandler(), context.getClass()],
     );
 
-    const request = context.switchToHttp().getRequest<Request>();
-    const response = context.switchToHttp().getResponse<Response>();
+    const { request, response } = http;
 
     const startTime = Date.now();
     const requestId = (request.headers['x-request-id'] as string) || uuidv4();
