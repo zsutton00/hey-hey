@@ -37,11 +37,11 @@ export interface ActiveControllerAuthorizationGrantDto {
      */
     'authorization': BoundedGrantReference;
     /**
-     * Authoritative server-side expiry of the matching grant.
+     * Authoritative server-side expiry of the matching grant, or null for an UNTIL_REVOKED grant.
      * @type {number}
      * @memberof ActiveControllerAuthorizationGrantDto
      */
-    'effectiveExpiresAtMs': number;
+    'effectiveExpiresAtMs': number | null;
 }
 
 

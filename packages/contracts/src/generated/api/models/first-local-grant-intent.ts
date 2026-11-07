@@ -1,6 +1,6 @@
 // @ts-nocheck
 import type { OrganizationId, UserId } from '../../../brands.js';
-import { ControllerAuthorizationCadence } from './controller-authorization-cadence.js';
+import { ControllerDeviceGrantCadence } from './controller-device-grant-cadence.js';
 import { CurrentAgentOperation } from './current-agent-operation.js';
 import { HostActionCategory } from './host-action-category.js';
 /* tslint:disable */
@@ -20,7 +20,7 @@ import { HostActionCategory } from './host-action-category.js';
 
 // May contain unused imports in some cases
 // @ts-ignore
-import type { ControllerAuthorizationCadence } from './controller-authorization-cadence.js';
+import type { ControllerDeviceGrantCadence } from './controller-device-grant-cadence.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { CurrentAgentOperation } from './current-agent-operation.js';
@@ -81,10 +81,10 @@ export interface FirstLocalGrantIntent {
     'controllerInstallationId': string;
     /**
      *
-     * @type {ControllerAuthorizationCadence}
+     * @type {ControllerDeviceGrantCadence}
      * @memberof FirstLocalGrantIntent
      */
-    'cadence': ControllerAuthorizationCadence;
+    'cadence': ControllerDeviceGrantCadence;
     /**
      *
      * @type {number}
@@ -134,8 +134,8 @@ export type FirstLocalGrantIntentVersionEnum = typeof FirstLocalGrantIntentVersi
 export namespace FirstLocalGrantIntent {
     export const VersionEnum = FirstLocalGrantIntentVersionEnum;
     export type VersionEnum = FirstLocalGrantIntentVersionEnum;
-    export const CadenceEnum = ControllerAuthorizationCadence;
-    export type CadenceEnum = ControllerAuthorizationCadence;
+    export const CadenceEnum = ControllerDeviceGrantCadence;
+    export type CadenceEnum = ControllerDeviceGrantCadence;
     export const AllowedActionTypesEnum = CurrentAgentOperation;
     export type AllowedActionTypesEnum = CurrentAgentOperation;
     export const AllowedActionCategoriesEnum = HostActionCategory;

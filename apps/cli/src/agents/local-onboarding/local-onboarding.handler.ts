@@ -49,6 +49,7 @@ export const localOnboardingHandler: UserLaunchablePromptTypeHandler<RunCreatePa
           return 'Project onboarding is complete.';
         }
         if (step.state === 'WAITING_FOR_USER') {
+          provider.settleWhileWaiting();
           await delay(1000, undefined, { signal });
           continue;
         }

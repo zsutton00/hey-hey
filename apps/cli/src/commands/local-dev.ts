@@ -127,7 +127,7 @@ export async function runLocalDevCommand(): Promise<boolean> {
       startFromSource(
         'api',
         join(root, 'apps', 'api'),
-        ['dev'],
+        ['dev:no-watch'],
         localApiEnvironment(secrets, DEV_INFRASTRUCTURE_ENDPOINTS),
         logDirectory,
       ),

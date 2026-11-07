@@ -1,7 +1,7 @@
 // @ts-nocheck
 import type { OrganizationId, UserId } from '../../../brands.js';
 import { ControllerDeviceGrantScope } from './controller-device-grant-scope.js';
-import { ControllerAuthorizationCadence } from './controller-authorization-cadence.js';
+import { ControllerDeviceGrantCadence } from './controller-device-grant-cadence.js';
 import { CurrentAgentOperation } from './current-agent-operation.js';
 import { HostActionCategory } from './host-action-category.js';
 /* tslint:disable */
@@ -21,7 +21,7 @@ import { HostActionCategory } from './host-action-category.js';
 
 // May contain unused imports in some cases
 // @ts-ignore
-import type { ControllerAuthorizationCadence } from './controller-authorization-cadence.js';
+import type { ControllerDeviceGrantCadence } from './controller-device-grant-cadence.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { ControllerDeviceGrantScope } from './controller-device-grant-scope.js';
@@ -33,7 +33,7 @@ import type { CurrentAgentOperation } from './current-agent-operation.js';
 import type { HostActionCategory } from './host-action-category.js';
 
 /**
- * Immutable descriptor hashed by CanonicalControllerAuthorizationIntent.grantDescriptorHash. Every cadence creates one reusable controller-device window with this effective expiry.
+ * Immutable descriptor hashed by CanonicalControllerAuthorizationIntent.grantDescriptorHash. Every cadence creates one reusable controller-device window; a bounded cadence has this effective expiry and UNTIL_REVOKED has none.
  * @export
  * @interface ControllerDeviceGrantDescriptor
  */
@@ -76,10 +76,10 @@ export interface ControllerDeviceGrantDescriptor {
     'organizationId': OrganizationId;
     /**
      *
-     * @type {ControllerAuthorizationCadence}
+     * @type {ControllerDeviceGrantCadence}
      * @memberof ControllerDeviceGrantDescriptor
      */
-    'cadence': ControllerAuthorizationCadence;
+    'cadence': ControllerDeviceGrantCadence;
     /**
      *
      * @type {number}
@@ -105,18 +105,18 @@ export interface ControllerDeviceGrantDescriptor {
      */
     'issuedAtMs': number;
     /**
-     *
+     * Effective expiry, fixed by the cadence. Null exactly when the cadence is UNTIL_REVOKED.
      * @type {number}
      * @memberof ControllerDeviceGrantDescriptor
      */
-    'effectiveExpiresAtMs': number;
+    'effectiveExpiresAtMs': number | null;
 }
 
 export namespace ControllerDeviceGrantDescriptor {
     export const ScopeEnum = ControllerDeviceGrantScope;
     export type ScopeEnum = ControllerDeviceGrantScope;
-    export const CadenceEnum = ControllerAuthorizationCadence;
-    export type CadenceEnum = ControllerAuthorizationCadence;
+    export const CadenceEnum = ControllerDeviceGrantCadence;
+    export type CadenceEnum = ControllerDeviceGrantCadence;
     export const AllowedActionTypesEnum = CurrentAgentOperation;
     export type AllowedActionTypesEnum = CurrentAgentOperation;
     export const AllowedActionCategoriesEnum = HostActionCategory;

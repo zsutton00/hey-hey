@@ -312,6 +312,7 @@ export function LocalSetupPage(): React.JSX.Element {
     return (
       <main className="local-setup">
         <p className="local-setup__wordmark">HEY HEY</p>
+        <h1>{t("localSetup.progress.title")}</h1>
         <section className="local-setup__card">
           <LocalPairingProgress
             failed={connectionFailed}

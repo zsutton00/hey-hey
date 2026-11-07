@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { ControllerAuthorizationCadence } from './controller-authorization-cadence.js';
+import { ControllerDeviceGrantCadence } from './controller-device-grant-cadence.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -17,23 +17,23 @@ import { ControllerAuthorizationCadence } from './controller-authorization-caden
 
 // May contain unused imports in some cases
 // @ts-ignore
-import type { ControllerAuthorizationCadence } from './controller-authorization-cadence.js';
+import type { ControllerDeviceGrantCadence } from './controller-device-grant-cadence.js';
 
 /**
- * First-time `heyhey local` pairing only. The duration the person chose for this browser to drive this computer. The claim\'s passkey challenge then commits to a FirstLocalGrantIntent for the account\'s default project, so the same passkey approval can also create the first grant. Requesting it confers nothing by itself: the grant is issued only if the originating CLI verifies the local approval proof and signs the grant descriptor hash in its confirmation. Repeating begin-claim with a different cadence re-issues the unconsumed challenge.
+ * First-time `heyhey local` pairing only. The duration the person chose for this browser to drive this computer, or UNTIL_REVOKED for a grant with no expiry. The claim\'s passkey challenge then commits to a FirstLocalGrantIntent for the account\'s default project, so the same passkey approval can also create the first grant. Requesting it confers nothing by itself: the grant is issued only if the originating CLI verifies the local approval proof and signs the grant descriptor hash in its confirmation. Repeating begin-claim with a different cadence re-issues the unconsumed challenge.
  * @export
  * @interface FirstLocalGrantRequestDto
  */
 export interface FirstLocalGrantRequestDto {
     /**
      *
-     * @type {ControllerAuthorizationCadence}
+     * @type {ControllerDeviceGrantCadence}
      * @memberof FirstLocalGrantRequestDto
      */
-    'cadence': ControllerAuthorizationCadence;
+    'cadence': ControllerDeviceGrantCadence;
 }
 
 export namespace FirstLocalGrantRequestDto {
-    export const CadenceEnum = ControllerAuthorizationCadence;
-    export type CadenceEnum = ControllerAuthorizationCadence;
+    export const CadenceEnum = ControllerDeviceGrantCadence;
+    export type CadenceEnum = ControllerDeviceGrantCadence;
 }

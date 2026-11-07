@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { ThinkingText } from "@hey-hey/ui-common/components";
 
 interface LocalPairingProgressProps {
   /** Shown only when connecting fails; progress itself has no controls. */
@@ -15,7 +16,6 @@ export function LocalPairingProgress({
 
   return (
     <div data-testid="local-pairing-progress" aria-live="polite">
-      <h2>{t("localSetup.progress.title")}</h2>
       <p>{t("localSetup.progress.explanation")}</p>
       <p data-testid="local-pairing-terminal-hint">
         {t("localSetup.progress.terminalHint")}
@@ -30,7 +30,7 @@ export function LocalPairingProgress({
           </button>
         </>
       ) : (
-        <progress aria-label={t("localSetup.progress.title")} />
+        <ThinkingText text="" sx={{ marginTop: 2 }} />
       )}
     </div>
   );
