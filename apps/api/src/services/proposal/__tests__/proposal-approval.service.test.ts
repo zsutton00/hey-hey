@@ -7,6 +7,7 @@ import { WorkItemChangeSetProjectorService } from '../work-item-change-set-proje
 import { ProposalValidationEngine } from '../proposal-validation.engine';
 import { AgentEdgeClientService } from '../../agent-edge-client.service';
 import type { CreateProposalDto } from '@hey-hey/contracts/api/models';
+import * as responsePolicy from '../proposal-response-policy';
 import { ProposalReconciliationService } from '../proposal-reconciliation.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as futureRevisions from '../future-revision';
@@ -580,19 +581,21 @@ describe('ProposalApprovalService', () => {
     jest.restoreAllMocks();
   });
 
-  // Pin the approval threshold the evaluator returns, decoupled from the live
-  // rule config. The default rule for a top-level FEATURE content change is
-  // threshold 1 (verified in permission-evaluation.test.ts), so a test that
-  // needs to exercise the service's "below threshold → stay DRAFT / at
-  // threshold → enact" gate must force a higher threshold here.
-  function forceThreshold(threshold: number) {
-    return jest
-      .spyOn(permissionEvaluation, 'evaluatePermissions')
-      .mockReturnValue({
+  // Supply policy at the resolver boundary so enforcement and explanation use the same real evaluator.
+  function forceThreshold(threshold: number, allowsProposerApproval = true) {
+    projectApprovalPolicyService.resolve.mockResolvedValue({
+      requiredApprovals: Math.max(1, threshold),
+      rules: [],
+      fallback: {
         requiresProposal: true,
-        threshold,
-        allowsProposerApproval: true,
-      });
+        threshold:
+          threshold === 0
+            ? { policy: 'IMMEDIATE' }
+            : { policy: 'FIXED_REQUIRED', requiredApprovals: threshold },
+        allowsProposerApproval,
+      },
+    });
+    return jest.spyOn(permissionEvaluation, 'evaluateApprovalPolicy');
   }
 
   // `findForUpdateInTx` takes the row lock via `$queryRaw` (which only
@@ -886,7 +889,12 @@ describe('ProposalApprovalService', () => {
       expect(txMock.proposal.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: proposalId },
-          data: { status: 'APPROVED' },
+          data: expect.objectContaining({
+            status: 'APPROVED',
+            approvalDecisionEvidence: expect.objectContaining({
+              evidence: 'CAPTURED',
+            }),
+          }),
         }),
       );
 
@@ -4300,7 +4308,12 @@ describe('ProposalApprovalService', () => {
       expect(txMock.proposal.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: proposalId },
-          data: { status: 'APPROVED' },
+          data: expect.objectContaining({
+            status: 'APPROVED',
+            approvalDecisionEvidence: expect.objectContaining({
+              evidence: 'CAPTURED',
+            }),
+          }),
         }),
       );
       expect(
@@ -4698,7 +4711,14 @@ describe('ProposalApprovalService', () => {
 
       expect(txMock.proposalApprovalRecord.create).toHaveBeenCalledTimes(1);
       expect(txMock.proposal.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { status: 'APPROVED' } }),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: 'APPROVED',
+            approvalDecisionEvidence: expect.objectContaining({
+              evidence: 'CAPTURED',
+            }),
+          }),
+        }),
       );
       expect(
         txMock.proposal.update.mock.calls.every(
@@ -5015,8 +5035,29 @@ describe('ProposalApprovalService', () => {
       });
       expect(txMock.proposal.update).toHaveBeenCalledWith({
         where: { id: proposalId },
-        data: { status: 'REJECTED' },
+        data: expect.objectContaining({ status: 'REJECTED' }),
       });
+    });
+
+    it('retains rejection when the target disappeared instead of inventing historical evidence', async () => {
+      const draft = makeStoredProposal({
+        action: 'UPDATE',
+        targetEntityType: 'TASK',
+      });
+      setupForRejection(draft);
+      txMock.task.findFirst.mockResolvedValue(null);
+      await service.reject(
+        proposalId,
+        testIds.organization,
+        testIds.project,
+        approvingUserId,
+        'No longer needed',
+      );
+      expect(txMock.proposal.update).toHaveBeenCalledWith({
+        where: { id: proposalId },
+        data: { status: 'REJECTED', approvalDecisionEvidence: Prisma.DbNull },
+      });
+      expect(mockPendingEdgeService.cleanupForProposal).toHaveBeenCalled();
     });
 
     it('trims whitespace from the rejection reason', async () => {
@@ -5068,7 +5109,7 @@ describe('ProposalApprovalService', () => {
         });
         expect(txMock.proposal.update).toHaveBeenCalledWith({
           where: { id: proposalId },
-          data: { status: 'REJECTED' },
+          data: expect.objectContaining({ status: 'REJECTED' }),
         });
       },
     );
@@ -5173,6 +5214,58 @@ describe('ProposalApprovalService', () => {
       ).rejects.toThrow(
         'Cannot reject a proposal that has already been approved',
       );
+    });
+
+    it('commits rejection with unavailable history when the target is missing and returns the terminal record', async () => {
+      const draft = makeStoredProposal({
+        action: 'UPDATE',
+        updates: { name: 'Changed' },
+      });
+      stubStoredProposal(draft);
+      txMock.task.findFirst.mockResolvedValue(null);
+      (mockPrisma.db.task.findFirst as jest.Mock).mockResolvedValue(null);
+      txMock.proposal.update.mockImplementation(
+        async ({ data }: { data: Record<string, unknown> }) => ({
+          ...draft,
+          ...data,
+          approvalDecisionEvidence: null,
+          approvalRecords: [],
+          groupMembership: null,
+          workItemChangeSetMaterialization: null,
+        }),
+      );
+      const actual = jest.requireActual('../proposal-response-policy');
+      jest
+        .spyOn(responsePolicy, 'mapProposalResponse')
+        .mockImplementationOnce(actual.mapProposalResponse);
+      const result = await service.reject(
+        proposalId,
+        testIds.organization,
+        testIds.project,
+        approvingUserId,
+        'Target removed',
+      );
+      expect(txMock.proposal.update).toHaveBeenCalledWith({
+        where: { id: proposalId },
+        data: {
+          status: 'REJECTED',
+          approvalDecisionEvidence: Prisma.DbNull,
+        },
+      });
+      expect(txMock.proposalApprovalRecord.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            type: 'REJECTION',
+            reason: 'Target removed',
+          }),
+        }),
+      );
+      expect(result.proposal).toMatchObject({
+        status: 'REJECTED',
+        requiredApprovals: null,
+        outOfDateStatus: 'NOT_APPLICABLE',
+        approvalExplanation: { evidence: 'UNAVAILABLE' },
+      });
     });
 
     it('allows rejecting a DRAFT proposal', async () => {
@@ -5387,11 +5480,7 @@ describe('ProposalApprovalService', () => {
     });
 
     it('rejects later self-approval when policy excludes the user author', async () => {
-      jest.spyOn(permissionEvaluation, 'evaluatePermissions').mockReturnValue({
-        requiresProposal: true,
-        threshold: 1,
-        allowsProposerApproval: false,
-      });
+      forceThreshold(1, false);
       const draft = makeStoredProposal({
         action: 'UPDATE',
         requestorId: approvingUserId,

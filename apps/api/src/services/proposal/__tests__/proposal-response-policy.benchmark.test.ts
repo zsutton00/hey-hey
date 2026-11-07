@@ -1,6 +1,7 @@
 import { ProposalReconciliationService } from '../proposal-reconciliation.service';
 import { ProposalReconciliationAdapterService } from '../proposal-reconciliation-adapter.service';
 import { performance } from 'node:perf_hooks';
+import { evaluateApprovalPolicy } from '../permission-evaluation';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 import { createDefaultProjectApprovalPolicy } from '../project-approval-policy.service';
 import { mapProposalResponse } from '../proposal-response-policy';
@@ -60,6 +61,7 @@ function persistedProposal(
       : [],
     groupMembership: null,
     workItemChangeSetMaterialization: null,
+    approvalDecisionEvidence: null,
   } as ProposalWithApprovals;
 }
 
@@ -107,7 +109,21 @@ run('proposal authoring response mapping benchmark', () => {
             tx,
             input,
             createDefaultProjectApprovalPolicy(1),
-            { requiredApprovals: 1, reconciliation },
+            {
+              reconciliation,
+              evaluation: evaluateApprovalPolicy(
+                { type: 'TASK', parentTaskId: null, initiativeId: null },
+                {
+                  source: 'user',
+                  action: input.action === 'CREATE' ? 'CREATE' : 'UPDATE',
+                  authorId: input.requestorId,
+                  eligibleProjectMemberIds: ['user-1', 'reviewer'],
+                  toolName: null,
+                  changedFields: input.action === 'UPDATE' ? ['name'] : [],
+                },
+                createDefaultProjectApprovalPolicy(),
+              ),
+            },
           );
         }
         measurements.push({

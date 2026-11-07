@@ -9,6 +9,7 @@ import {
   type FullEntityContextDto,
 } from '../../services/entity-context/entity-context.service';
 import { EdgeSource } from '@hey-hey/contracts/api/models';
+import type { ProposalApprovalExplanation } from '@hey-hey/contracts/api/models';
 import { EntityType as EntityTypeEnum } from '@hey-hey/contracts/api/models';
 import type { ContextProposalSummaryDto } from '@hey-hey/contracts/api/models';
 import type { EntityContextDtoProposalsInner } from '@hey-hey/contracts/api/models';
@@ -112,7 +113,9 @@ const proposalSummarySchema = z.object({
   title: z.string().nullable().optional(),
   requestorId: z.string(),
   requestorContext: z.record(z.unknown()).optional(),
-  requiredApprovals: z.number().int(),
+  requiredApprovals: z.number().int().nullable(),
+  // The response mapper owns validation and policy evaluation.
+  approvalExplanation: z.custom<ProposalApprovalExplanation>().optional(),
   influences: z
     .array(z.unknown())
     .optional()

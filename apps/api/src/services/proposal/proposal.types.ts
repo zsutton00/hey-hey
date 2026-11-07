@@ -1,3 +1,4 @@
+import type { ProposalApprovalExplanation } from 'src/generated';
 import type {
   CreateProposalRequestDto,
   CreateTaskDto,
@@ -177,10 +178,11 @@ export type ProposalWithResponseRelations = Prisma.ProposalGetPayload<{
 
 export function toProposalResponseDto(
   proposal: ProposalWithApprovals,
-  requiredApprovals: number,
+  requiredApprovals: number | null,
   reviewedFuture: FutureRevisionResponse | null = null,
   outOfDateStatus: ProposalOutOfDateStatus = 'NOT_APPLICABLE',
   dependencyPresentation?: FutureDependencyPresentation[],
+  approvalExplanation?: ProposalApprovalExplanation,
 ): TypedProposalResponse {
   const approvals: ProposalApprovalDto[] = (proposal.approvalRecords ?? []).map(
     (r) => ({
@@ -222,6 +224,7 @@ export function toProposalResponseDto(
     ...(dependencyPresentation ? { dependencyPresentation } : {}),
     requestorId: proposal.requestorId,
     requiredApprovals,
+    ...(approvalExplanation ? { approvalExplanation } : {}),
     requestorContext: proposal.requestorContext ?? undefined,
     influences:
       (proposal.influences as unknown as TypedProposalResponse['influences']) ??

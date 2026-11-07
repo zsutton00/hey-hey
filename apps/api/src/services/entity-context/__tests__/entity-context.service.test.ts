@@ -1,5 +1,7 @@
 import { ok } from 'node:assert/strict';
 import { ProposalReconciliationService } from '../../proposal/proposal-reconciliation.service';
+import { ProjectApprovalPolicyService } from 'src/services/proposal/project-approval-policy.service';
+import { createTestProjectApprovalPolicyService } from 'src/utils/testUtils';
 import { PlanDependenciesService } from '../../plan/plan-dependencies.service';
 import {
   WORK_ITEM_TYPE_KEYS,
@@ -32,10 +34,10 @@ jest.mock('../../proposal/proposal-response-policy', () => {
       _tx: AnyTransactionClient,
       proposal: ProposalWithApprovals,
     ) => toProposalResponseDto(proposal, 1),
-    mapProposalResponses: async (
-      _tx: AnyTransactionClient,
-      proposals: ProposalWithApprovals[],
-    ) => proposals.map((proposal) => toProposalResponseDto(proposal, 1)),
+    mapProposalResponses: jest.fn(
+      async (_tx: AnyTransactionClient, proposals: ProposalWithApprovals[]) =>
+        proposals.map((proposal) => toProposalResponseDto(proposal, 1)),
+    ),
   };
 });
 
@@ -244,6 +246,8 @@ describe('EntityContextService', () => {
             ProposalReconciliationService,
             'decisionsForProposals'
           >,
+          provide: ProjectApprovalPolicyService,
+          useValue: createTestProjectApprovalPolicyService(),
         },
         {
           provide: PlanDependenciesService,
@@ -282,6 +286,87 @@ describe('EntityContextService', () => {
   });
 
   describe('getEntityContext', () => {
+    it.each(['summary', 'full'] as const)(
+      'keeps healthy pending and historical proposals in %s context beside corrupt evidence',
+      async (proposalDetail) => {
+        Object.assign(mockPrisma.db.proposal, {
+          update: jest.fn(),
+          delete: jest.fn(),
+        });
+        const { mapProposalResponses } = await import(
+          '../../proposal/proposal-response-policy'
+        );
+        const actual = jest.requireActual(
+          '../../proposal/proposal-response-policy',
+        );
+        jest
+          .mocked(mapProposalResponses)
+          .mockImplementationOnce(actual.mapProposalResponses);
+        mockPrisma.db.projectMember.findMany.mockResolvedValue([
+          { userId: testIds.user },
+        ] as never);
+        Object.assign(mockPrisma.db.task, {
+          findFirst: jest.fn().mockResolvedValue({
+            type: 'STANDARD',
+            parentTaskId: null,
+            initiativeId: null,
+            lastAppliedProposalId: null,
+          }),
+        });
+        const legacyId = '123e4567-e89b-42d3-a456-426614174052';
+        const records = [
+          makeStoredProposal({
+            id: proposalIdA,
+            status: 'DRAFT',
+            groupMembership: null,
+            approvalDecisionEvidence: null,
+          }),
+          makeStoredProposal({
+            id: proposalIdB,
+            groupMembership: null,
+            approvalDecisionEvidence: {
+              evidence: 'CAPTURED',
+              secret: 'must-not-log',
+            },
+          }),
+          makeStoredProposal({
+            id: legacyId,
+            groupMembership: null,
+            approvalDecisionEvidence: null,
+          }),
+        ];
+        mockPrisma.db.proposal.findMany.mockResolvedValue(records as never);
+        mockPrisma.db.proposal.findFirst.mockResolvedValue(null);
+        const result = await service.getEntityContext(
+          testIds.organization,
+          'TASK' as EntityType,
+          entityId,
+          { proposalDetail },
+        );
+        expect(result.proposals?.map((item) => item.id)).toEqual([
+          proposalIdA,
+          legacyId,
+        ]);
+        expect(result.proposals?.[0]).toMatchObject({
+          status: 'DRAFT',
+          requiredApprovals: 1,
+          approvalExplanation: { evidence: 'LIVE' },
+        });
+        expect(result.proposals?.[1]).toMatchObject({
+          requiredApprovals: null,
+          approvalExplanation: { evidence: 'UNAVAILABLE', requirement: null },
+        });
+        expect(mockPrisma.db.proposal.update).not.toHaveBeenCalled();
+        expect(mockPrisma.db.proposal.delete).not.toHaveBeenCalled();
+        expect(records[1]).toMatchObject({
+          approvalDecisionEvidence: {
+            evidence: 'CAPTURED',
+            secret: 'must-not-log',
+          },
+        });
+      },
+    );
+
     it('should return proposals for a TASK entity via reverse lookup', async () => {
       const proposals = [
         makeStoredProposal({

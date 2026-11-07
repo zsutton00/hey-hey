@@ -1,4 +1,6 @@
 import { ProposalReconciliationService } from '../proposal/proposal-reconciliation.service';
+import { ProjectApprovalPolicyService } from 'src/services/proposal/project-approval-policy.service';
+import { createTestProjectApprovalPolicyService } from 'src/utils/testUtils';
 import { EventContextManager } from '../../core/events/observable-event.context';
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -24,6 +26,7 @@ const { testIds } = TestUtils;
 describe('MessageService', () => {
   let service: MessageService;
   let prismaService: PrismaService;
+  let policyPrisma: ReturnType<typeof TestUtils.createMockPrismaService>;
   let eventPublisher: { publish: jest.Mock; publishInTransaction: jest.Mock };
   let mockEntityRegistryService: {
     lookupEntityTypes: jest.Mock;
@@ -144,6 +147,7 @@ describe('MessageService', () => {
 
   beforeEach(async () => {
     const mockPrismaService = TestUtils.createMockPrismaServiceWithTypes();
+    policyPrisma = TestUtils.createMockPrismaService();
     eventPublisher = {
       publish: jest.fn(),
       publishInTransaction: jest.fn(),
@@ -165,6 +169,8 @@ describe('MessageService', () => {
             ProposalReconciliationService,
             'decisionsForProposals'
           >,
+          provide: ProjectApprovalPolicyService,
+          useValue: createTestProjectApprovalPolicyService(policyPrisma),
         },
         {
           provide: PrismaService,
@@ -349,6 +355,113 @@ describe('MessageService', () => {
 
       expect(result.messages.map((message) => message.id)).toEqual([newestId]);
       expect(result.nextCursor).toEqual(expect.any(String));
+    });
+
+    it('uses persisted policy resolution when reading conversation history', async () => {
+      const reference = proposalReference('persisted-policy-proposal', 0);
+      jest
+        .spyOn(prismaService.db.projectMember, 'findMany')
+        .mockResolvedValue([{ userId: testIds.user }] as never);
+      jest.spyOn(prismaService.db.message, 'findMany').mockResolvedValue([
+        {
+          ...row(newestId, '2026-08-28T12:00:02.000Z'),
+          proposalReferences: [
+            {
+              ...reference,
+              proposal: {
+                ...reference.proposal,
+                status: 'DRAFT',
+                groupMembership: null,
+              },
+            },
+          ],
+        },
+      ] as never);
+      policyPrisma.db.$queryRaw.mockResolvedValue([
+        { revision: 1, rules: { invalid: true } },
+      ]);
+      const readHistory = () =>
+        service.getAgentSessionHistoryPage({
+          organizationId: mockOrganizationId,
+          projectId: mockProjectId,
+          agentSessionId,
+          conversationId: mockConversationId,
+          limit: 2,
+          maxMessageCharacters: 1_000_000,
+        });
+      await expect(readHistory()).resolves.toMatchObject({
+        messages: [expect.objectContaining({ proposals: [] })],
+      });
+      expect(policyPrisma.db.proposal.update).not.toHaveBeenCalled();
+      policyPrisma.db.$queryRaw.mockResolvedValue([]);
+      await expect(readHistory()).resolves.toMatchObject({
+        messages: [
+          expect.objectContaining({
+            proposals: [
+              expect.objectContaining({ id: 'persisted-policy-proposal' }),
+            ],
+          }),
+        ],
+      });
+    });
+
+    it('isolates corrupt saved evidence in conversation history without changing durable records', async () => {
+      Object.assign(prismaService.db, {
+        proposal: { update: jest.fn(), delete: jest.fn() },
+      });
+      const healthy = proposalReference('healthy-history', 0);
+      const broken = proposalReference('corrupt-history', 1);
+      jest
+        .spyOn(prismaService.db.projectMember, 'findMany')
+        .mockResolvedValue([{ userId: testIds.user }] as never);
+      const legacy = proposalReference('legacy-history', 2);
+      const references = [healthy, broken, legacy].map((reference, index) => ({
+        ...reference,
+        proposal: {
+          ...reference.proposal,
+          groupMembership: null,
+          status: index === 0 ? 'DRAFT' : 'APPROVED',
+          approvalDecisionEvidence:
+            index === 1
+              ? { evidence: 'CAPTURED', secret: 'must-not-log' }
+              : null,
+        },
+      }));
+      jest.spyOn(prismaService.db.message, 'findMany').mockResolvedValue([
+        {
+          ...row(newestId, '2026-08-28T12:00:02.000Z'),
+          proposalReferences: references,
+        },
+      ] as never);
+      const result = await service.getAgentSessionHistoryPage({
+        organizationId: mockOrganizationId,
+        projectId: mockProjectId,
+        agentSessionId,
+        conversationId: mockConversationId,
+        limit: 2,
+        maxMessageCharacters: 1_000_000,
+      });
+      expect(result.messages[0]?.proposals).toEqual([
+        expect.objectContaining({
+          id: healthy.proposal.id,
+          status: 'DRAFT',
+          requiredApprovals: 1,
+          approvalExplanation: expect.objectContaining({ evidence: 'LIVE' }),
+        }),
+        expect.objectContaining({
+          id: legacy.proposal.id,
+          requiredApprovals: null,
+          approvalExplanation: expect.objectContaining({
+            evidence: 'UNAVAILABLE',
+          }),
+        }),
+      ]);
+      expect(prismaService.db.proposal.update).not.toHaveBeenCalled();
+      expect(prismaService.db.proposal.delete).not.toHaveBeenCalled();
+      expect(references[1]?.proposal.approvalDecisionEvidence).toEqual({
+        evidence: 'CAPTURED',
+        secret: 'must-not-log',
+      });
     });
 
     it('returns ordered Proposal references in Agent Session history', async () => {

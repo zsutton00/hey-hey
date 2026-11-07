@@ -453,6 +453,39 @@ describe('renderEntityPromptTemplate', () => {
     );
   });
 
+  it.each(['full', 'summary'] as const)(
+    'preserves unavailable historical approval facts in %s prompt context',
+    (detail) => {
+      const renderInput = input();
+      const original = renderInput.context.proposals![0]!;
+      if (!('updates' in original)) {
+        throw new Error('Expected a full proposal fixture.');
+      }
+      const { updates: _updates, ...summary } = original;
+      const legacy = {
+        ...(detail === 'summary' ? { ...summary, changes: [] } : original),
+        status: 'APPROVED',
+        requiredApprovals: null,
+        approvalExplanation: {
+          evidence: 'UNAVAILABLE',
+          source: null,
+          conditions: null,
+          requirement: null,
+          changedFields: null,
+          changedFieldClassification: null,
+          creditedProposerApprovals: null,
+          viewerEligibility: { eligibleToApprove: false },
+        },
+      } satisfies NonNullable<FullEntityContextDto['proposals']>[number];
+      renderInput.context.proposals = [legacy];
+      const [rendered] = JSON.parse(
+        renderEntityPromptTemplate('{{context.proposals}}', 'V1', renderInput),
+      );
+      expect(rendered.requiredApprovals).toBeNull();
+      expect(rendered.approvalExplanation).toEqual(legacy.approvalExplanation);
+    },
+  );
+
   it('preserves summary proposal changes without inventing full proposal updates', () => {
     const renderInput = input();
     const original = renderInput.context.proposals![0]!;

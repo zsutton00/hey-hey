@@ -1,9 +1,20 @@
+import { createMockPrismaService } from 'src/utils/testUtils';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { ProjectApprovalPolicyStore } from '../project-approval-policy.store';
+import { ProjectApprovalPolicyValidation } from '../project-approval-policy.validation';
+import { createDefaultProjectApprovalPolicy } from '../project-approval-policy.service';
+import {
+  evaluatePermissions,
+  type ProposalContext,
+} from '../permission-evaluation';
+import type { ProjectApprovalPolicyRule } from 'src/generated';
+import { createTestProjectApprovalPolicyService } from 'src/utils/testUtils';
 import type { ProjectId } from 'src/types';
 import { ProjectApprovalPolicyService } from '../project-approval-policy.service';
 
 describe('ProjectApprovalPolicyService', () => {
   it('resolves the complete ordered code-defined policy matrix', async () => {
-    const service = new ProjectApprovalPolicyService();
+    const service = createTestProjectApprovalPolicyService();
 
     const policy = await service.resolve(
       '00000000-0000-4000-8000-000000000001' as ProjectId,
@@ -216,7 +227,7 @@ describe('ProjectApprovalPolicyService', () => {
   });
 
   it('returns isolated policy documents for different projects', async () => {
-    const service = new ProjectApprovalPolicyService();
+    const service = createTestProjectApprovalPolicyService();
 
     const first = await service.resolve(
       '00000000-0000-4000-8000-000000000001' as ProjectId,
@@ -272,3 +283,136 @@ function rule(
     },
   };
 }
+
+describe('persisted project rule resolution', () => {
+  const projectId = '00000000-0000-4000-8000-000000000001' as ProjectId;
+  const otherProjectId = '00000000-0000-4000-8000-000000000002' as ProjectId;
+  const savedRule = {
+    conditions: {
+      typeKey: 'MARKETING',
+      author: 'USER',
+      action: 'UPDATE',
+      change: 'STATUS_ONLY',
+    },
+    requirement: 'IMMEDIATE',
+    requiredApprovals: 0,
+    allowsProposerApproval: true,
+  } satisfies ProjectApprovalPolicyRule;
+
+  function resolver(rules: unknown) {
+    const prisma = createMockPrismaService();
+    prisma.db.$queryRaw.mockImplementation(async (_sql, id) =>
+      id === projectId ? [{ revision: 7, rules }] : [],
+    );
+    return new ProjectApprovalPolicyService(
+      new ProjectApprovalPolicyStore(prisma as unknown as PrismaService),
+      new ProjectApprovalPolicyValidation({
+        isTypeActiveForProject: (key) => ['MARKETING', 'FEATURE'].includes(key),
+      }),
+    );
+  }
+
+  it('enforces saved canonical/custom rules, fixed precedence and independent default counts', async () => {
+    const service = resolver([
+      savedRule,
+      {
+        ...savedRule,
+        conditions: { typeKey: 'MARKETING', change: 'CONTENT_CHANGE' },
+        requirement: 'PROJECT_REQUIRED',
+        requiredApprovals: 3,
+        allowsProposerApproval: false,
+      },
+      {
+        ...savedRule,
+        conditions: { typeKey: 'FEATURE' },
+        requirement: 'PROJECT_REQUIRED',
+        requiredApprovals: 4,
+      },
+    ]);
+    const policy = await service.resolve(projectId);
+    expect(policy.rules.every((rule) => rule.source !== undefined)).toBe(true);
+    expect(
+      policy.rules.filter((rule) => rule.source === 'PROJECT'),
+    ).toHaveLength(3);
+    const entity = {
+      type: 'MARKETING',
+      parentTaskId: null,
+      initiativeId: null,
+    };
+    const proposal = {
+      source: 'user',
+      action: 'UPDATE',
+      authorId: 'alice',
+      eligibleProjectMemberIds: ['alice', 'bob', 'charlie', 'dana'],
+      toolName: null,
+      changedFields: ['status'],
+    } satisfies ProposalContext;
+    expect(evaluatePermissions(entity, proposal, policy).threshold).toBe(0);
+    expect(
+      evaluatePermissions(
+        entity,
+        { ...proposal, changedFields: ['status', 'sections.description'] },
+        policy,
+      ).threshold,
+    ).toBe(3);
+    expect(
+      evaluatePermissions(
+        { ...entity, type: 'FEATURE' },
+        {
+          ...proposal,
+          source: 'agent',
+          toolName: 'shared-generate-features',
+          action: 'CREATE',
+        },
+        policy,
+      ).threshold,
+    ).toBe(1);
+    expect(
+      evaluatePermissions(
+        { ...entity, type: 'FEATURE' },
+        { ...proposal, source: 'agent' },
+        policy,
+      ).threshold,
+    ).toBe(4);
+    expect(
+      evaluatePermissions(
+        { ...entity, type: 'GOAL' },
+        { ...proposal, changedFields: ['name'] },
+        policy,
+      ).threshold,
+    ).toBe(1);
+    expect(
+      evaluatePermissions(
+        { ...entity, type: 'SERVICE' },
+        { ...proposal, source: 'agent' },
+        policy,
+      ),
+    ).toMatchObject({ requiresProposal: false, threshold: 1 });
+    expect(await service.snapshot(projectId)).toMatchObject({
+      revision: 7,
+      hasProjectOverride: true,
+    });
+    expect(await service.resolve(otherProjectId)).toEqual(
+      createDefaultProjectApprovalPolicy(),
+    );
+  });
+
+  it.each([
+    [{ secret: 'never log this' }],
+    [{ ...savedRule, conditions: { typeKey: 'unknown' } }],
+  ])(
+    'fails malformed saved data without poisoning another project',
+    async (rules) => {
+      const service = resolver(rules);
+      await expect(service.resolve(projectId)).rejects.toThrow(
+        'Saved project approval policy is invalid',
+      );
+      await expect(service.snapshot(projectId)).rejects.toThrow(
+        'Saved project approval policy is invalid',
+      );
+      await expect(service.resolve(otherProjectId)).resolves.toEqual(
+        createDefaultProjectApprovalPolicy(),
+      );
+    },
+  );
+});

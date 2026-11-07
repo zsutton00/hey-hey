@@ -80,3 +80,5 @@ export {
   isWorkItemGraphProposal,
   isEdgeOnlyUpdateProposal,
 } from "./types";
+
+export { ProposalApprovalDetails } from "./ProposalApprovalDetails";

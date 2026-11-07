@@ -132,7 +132,11 @@ import {
   PendingEdgeService,
   type PendingEdgeTaskPostCommit,
 } from './pending-edge.service';
-import { evaluatePermissions } from './permission-evaluation';
+import {
+  evaluateApprovalPolicy,
+  type ApprovalEvaluation,
+} from './permission-evaluation';
+import { captureApprovalEvidence } from './approval-explanation';
 import { resolvePermissionEvaluationContext } from './permission-evaluation-context';
 import {
   deriveProposalSourceContext,
@@ -247,6 +251,7 @@ type GroupedPublicationPayload = {
 };
 
 type EnactmentOptions = {
+  approvalDecisionEvidence?: Prisma.InputJsonObject;
   reviewedFuture?: FutureRevisionResponse;
   mergedFutureUpdates?: UpdateTaskDto | UpdateDesignDocDto;
   reservedTargetEntityId?: string;
@@ -1134,6 +1139,7 @@ export class ProposalApprovalService {
     projectId: ProjectId,
     prepared: PreparedChangeSetProjection,
     reservedRootWorkItemId?: TaskId,
+    approvalDecisionEvidence?: Prisma.InputJsonObject,
   ): Promise<{
     proposal: Proposal;
     rootWorkItemId: string | null;
@@ -1153,7 +1159,10 @@ export class ProposalApprovalService {
     });
     const updated = await tx.proposal.update({
       where: { id: proposal.id },
-      data: { status: 'APPROVED' as PrismaProposalStatus },
+      data: {
+        status: 'APPROVED' as PrismaProposalStatus,
+        ...(approvalDecisionEvidence ? { approvalDecisionEvidence } : {}),
+      },
     });
     this.logger.debug('Generic proposal approval written in transaction', {
       proposalId: proposal.id,
@@ -1249,6 +1258,7 @@ export class ProposalApprovalService {
     }
     const immediatelyMaterializedEdges: MaterializedProposalEdge[] = [];
     let result: ApprovalTransactionResult;
+    let responseEvaluation: ApprovalEvaluation | undefined;
 
     // Project before the transaction so it holds no connection across the
     // projector's Graph and pooled reads; the locked row is re-checked below.
@@ -1359,11 +1369,14 @@ export class ProposalApprovalService {
           deriveProposalSourceContext(proposal),
           this.workItemTypeRegistry,
         );
-        const approvalConfig = evaluatePermissions(
+        const evaluation = evaluateApprovalPolicy(
           evaluationContext.entity,
           evaluationContext.proposal,
           projectPolicy,
         );
+
+        responseEvaluation = evaluation;
+        const approvalConfig = evaluation.config;
 
         if (
           !evaluationContext.proposal.eligibleProjectMemberIds.includes(userId)
@@ -1423,6 +1436,21 @@ export class ProposalApprovalService {
           };
         }
 
+        const proposerCredit =
+          evaluationContext.proposal.source === 'user'
+            ? await tx.proposalApprovalRecord.count({
+                where: {
+                  proposalId,
+                  userId: proposal.requestorId,
+                  type: 'APPROVAL',
+                },
+              })
+            : 0;
+        const approvalDecisionEvidence = captureApprovalEvidence(
+          evaluation,
+          proposerCredit,
+        );
+
         if (genericChangeSetRequest && prepared) {
           const queued = await this.queueGenericWorkItemChangeSetInTransaction(
             tx,
@@ -1430,6 +1458,8 @@ export class ProposalApprovalService {
             organizationId,
             projectId,
             prepared,
+            undefined,
+            approvalDecisionEvidence,
           );
           this.logger.log(
             'Approval durably recorded; generic work-item change set queued for enactment',
@@ -1453,6 +1483,10 @@ export class ProposalApprovalService {
           proposal.targetEntityType === 'WORK_ITEM_TYPE' &&
           isCascadeWorkItemTypeDeletePayload(proposal.updates)
         ) {
+          await tx.proposal.update({
+            where: { id: proposalId },
+            data: { approvalDecisionEvidence },
+          });
           const cascadeExecution =
             await this.prepareCascadeDeleteExecutionInTransaction(
               tx,
@@ -1480,7 +1514,10 @@ export class ProposalApprovalService {
 
         let updated = await tx.proposal.update({
           where: { id: proposalId },
-          data: { status: 'APPROVED' as PrismaProposalStatus },
+          data: {
+            status: 'APPROVED' as PrismaProposalStatus,
+            approvalDecisionEvidence,
+          },
         });
 
         if (updated.action === 'VERSIONED_UPDATE') {
@@ -1618,7 +1655,11 @@ export class ProposalApprovalService {
 
     if (result.cascadeExecutionId) {
       return {
-        proposal: await this.toResponseDto(result.proposal, projectPolicy),
+        proposal: await this.toResponseDto(
+          result.proposal,
+          projectPolicy,
+          responseEvaluation,
+        ),
         resultingEntityId: result.resultingEntityId,
         enacted: false,
       };
@@ -1678,7 +1719,11 @@ export class ProposalApprovalService {
     }
 
     return {
-      proposal: await this.toResponseDto(result.proposal, projectPolicy),
+      proposal: await this.toResponseDto(
+        result.proposal,
+        projectPolicy,
+        responseEvaluation,
+      ),
       resultingEntityId: result.resultingEntityId,
       enacted: result.enacted,
     };
@@ -2855,7 +2900,15 @@ export class ProposalApprovalService {
         }
       : await tx.proposal.update({
           where: { id: proposal.id },
-          data: { status: 'APPROVED' as PrismaProposalStatus },
+          data: {
+            status: 'APPROVED' as PrismaProposalStatus,
+            ...(enactmentOptions.approvalDecisionEvidence
+              ? {
+                  approvalDecisionEvidence:
+                    enactmentOptions.approvalDecisionEvidence,
+                }
+              : {}),
+          },
         });
 
     if (approved.action === 'VERSIONED_UPDATE') {
@@ -3257,9 +3310,60 @@ export class ProposalApprovalService {
 
       await this.recordRejectionInTx(tx, proposalId, userId, normalizedReason);
 
+      let approvalDecisionEvidence: Prisma.InputJsonObject | undefined;
+      if (proposal.action !== 'VERSIONED_UPDATE') {
+        try {
+          const evaluationContext = await resolvePermissionEvaluationContext(
+            tx,
+            organizationId,
+            projectId,
+            proposal,
+            deriveProposalSourceContext(proposal),
+            this.workItemTypeRegistry,
+          );
+          const evaluation = evaluateApprovalPolicy(
+            evaluationContext.entity,
+            evaluationContext.proposal,
+            projectPolicy,
+          );
+          const proposerCredit =
+            evaluationContext.proposal.source === 'user'
+              ? await tx.proposalApprovalRecord.count({
+                  where: {
+                    proposalId,
+                    userId: proposal.requestorId,
+                    type: 'APPROVAL',
+                  },
+                })
+              : 0;
+          approvalDecisionEvidence = captureApprovalEvidence(
+            evaluation,
+            proposerCredit,
+          );
+        } catch (error) {
+          if (!(error instanceof NotFoundException)) {
+            throw error;
+          }
+          // A removed target must not roll back an otherwise valid rejection.
+          // Persist absent evidence with the terminal transition: history will
+          // explicitly be unavailable, never inferred from later settings.
+          this.logger.warn(
+            'Target unavailable while capturing rejection evidence',
+            { proposalId },
+          );
+        }
+      }
       const result = await tx.proposal.update({
         where: { id: proposalId },
-        data: { status: 'REJECTED' as PrismaProposalStatus },
+        data: {
+          status: 'REJECTED' as PrismaProposalStatus,
+          ...(proposal.action !== 'VERSIONED_UPDATE'
+            ? {
+                approvalDecisionEvidence:
+                  approvalDecisionEvidence ?? Prisma.DbNull,
+              }
+            : {}),
+        },
       });
 
       await this.pendingEdgeService.cleanupForProposal(tx, proposalId);
@@ -4696,9 +4800,11 @@ export class ProposalApprovalService {
   private async toResponseDto(
     proposal: Proposal,
     projectPolicy: ProjectApprovalPolicy,
+    evaluation?: ApprovalEvaluation,
   ): Promise<TypedProposalResponse> {
     return mapProposalResponse(this.prisma.db, proposal, projectPolicy, {
       reconciliation: this.reconciliation,
+      evaluation,
       workItemTypeRegistry: this.workItemTypeRegistry,
     });
   }

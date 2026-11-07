@@ -106,12 +106,18 @@ import {
   snapshotInfluenceReferences,
   type ProposalReferenceMetadata,
 } from './proposal-title-snapshot';
-import { evaluatePermissions } from './permission-evaluation';
+import {
+  evaluatePermissions,
+  evaluateApprovalPolicy,
+  type ApprovalEvaluation,
+} from './permission-evaluation';
+import { captureApprovalEvidence } from './approval-explanation';
 import { storeTracksAttachmentAsProposalEdge } from './proposal-tracking-attachment';
 import type { PreparedChangeSetProjection } from './work-item-change-set-materializer.service';
 import {
   mapProposalResponse,
   mapProposalResponses,
+  resolveProjectApprovalPolicies,
 } from './proposal-response-policy';
 import { resolvePermissionEvaluationContext } from './permission-evaluation-context';
 import {
@@ -460,6 +466,7 @@ export class ProposalService {
       runPostCommit: PostCommitRunner;
       genericChangeSetReady: boolean;
       responseRequiredApprovals?: number;
+      responseEvaluation?: ApprovalEvaluation;
       immediatelyMaterializedEdges?: MaterializedProposalEdge[];
     };
     try {
@@ -640,6 +647,7 @@ export class ProposalService {
         result.proposal,
         projectPolicy,
         result.responseRequiredApprovals,
+        result.responseEvaluation,
       ),
     );
   }
@@ -1462,6 +1470,7 @@ export class ProposalService {
       throw new NotFoundException('Proposal not found');
     }
 
+<<<<<<< HEAD
     const [visibleProposal] = await this.visibility.filterVisibleProposals([
       proposal,
     ]);
@@ -1472,6 +1481,15 @@ export class ProposalService {
     const projectPolicy =
       await this.projectApprovalPolicyService.resolve(projectId);
     return this.toResponseDto(proposal, projectPolicy);
+=======
+    const policies = await resolveProjectApprovalPolicies(
+      this.projectApprovalPolicyService,
+      [proposal],
+    );
+    return mapProposalResponse(this.prisma.db, proposal, policies, {
+      workItemTypeRegistry: this.workItemTypeRegistry,
+    });
+>>>>>>> 160f4b8bd (feat(approvals): explain saved rules across review surfaces)
   }
 
   async findFuture(
@@ -1577,12 +1595,18 @@ export class ProposalService {
       this.prisma.db.proposal.count({ where }),
     ]);
 
-    const projectPolicy =
-      await this.projectApprovalPolicyService.resolve(projectId);
+    const projectPolicies = await resolveProjectApprovalPolicies(
+      this.projectApprovalPolicyService,
+      data,
+    );
 
     return {
+<<<<<<< HEAD
       data: await mapProposalResponses(this.prisma.db, data, projectPolicy, {
         reconciliation: this.reconciliation,
+=======
+      data: await mapProposalResponses(this.prisma.db, data, projectPolicies, {
+>>>>>>> 160f4b8bd (feat(approvals): explain saved rules across review surfaces)
         omitUnresolvableTargets: true,
         workItemTypeRegistry: this.workItemTypeRegistry,
       }),
@@ -2013,6 +2037,301 @@ export class ProposalService {
     });
   }
 
+<<<<<<< HEAD
+=======
+  async createBatch(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    userId: UserId,
+    dtos: StampedCreateProposalDto[],
+  ): Promise<TypedProposalResponse[]> {
+    if (dtos.length === 0) {
+      throw new BadRequestException('At least one proposal is required');
+    }
+    if (dtos.length > ProposalService.MAX_BATCH_SIZE) {
+      throw new BadRequestException(
+        `Batch size ${dtos.length} exceeds maximum of ${ProposalService.MAX_BATCH_SIZE}`,
+      );
+    }
+    await this.assertMayAuthorProposals(projectId, userId, dtos);
+
+    const projectPolicy =
+      await this.projectApprovalPolicyService.resolve(projectId);
+    const applyOnCreateByItem: Array<ApplyOnCreatePreparation | null> = [];
+    const evalWriter = await this.isEvalWriter(organizationId, projectId);
+    for (const dto of dtos) {
+      applyOnCreateByItem.push(
+        evalWriter
+          ? null
+          : await this.prepareApplyOnCreate(
+              organizationId,
+              projectId,
+              userId,
+              dto,
+              projectPolicy,
+            ),
+      );
+    }
+
+    const immediatelyMaterializedEdges: MaterializedProposalEdge[] = [];
+    let results: Array<{
+      proposal: ProposalWithResponseRelations;
+      materializableEdges: MaterializableEdge[];
+      runPostCommit: PostCommitRunner;
+      genericChangeSetReady: boolean;
+      responseRequiredApprovals?: number;
+      responseEvaluation?: ApprovalEvaluation;
+      immediatelyMaterializedEdges?: MaterializedProposalEdge[];
+    }>;
+    try {
+      results = await this.prisma.db.$transaction(async (tx) => {
+        const prepared: Array<{
+          dto: StampedCreateProposalDto;
+          title: string | null;
+          applyOnCreate: ApplyOnCreatePreparation | null;
+        }> = [];
+        const stampedInputs: StampedCreateProposalDto[] = [];
+
+        for (const dto of dtos) {
+          stampedInputs.push(await this.applyOriginInfluence(tx, dto));
+        }
+        const admission =
+          await this.validationEngine.assertAuthoringCandidatesValid({
+            proposals: stampedInputs,
+            context: { organizationId, projectId, db: tx },
+          });
+        for (const stampedInput of stampedInputs) {
+          this.assertProposalContextSource(stampedInput);
+          this.assertProposalTitleForCreate(stampedInput);
+          this.assertSupersedeInvariant(stampedInput);
+          assertWorkflowProposalLinksStructurallyValid(stampedInput);
+          assertWorkItemChangeSetStructurallyValid(stampedInput);
+          assertNoRawTracksDeclaration(stampedInput);
+          if (stampedInput.influences !== undefined) {
+            this.validateInfluenceInputs(stampedInput.influences);
+          }
+        }
+        const project = await tx.project.findFirst({
+          where: { id: projectId, organizationId },
+        });
+        if (!project) {
+          throw new NotFoundException('Project not found');
+        }
+        if (admission.candidates.length !== dtos.length) {
+          throw new InternalServerErrorException(
+            `Proposal admission returned ${admission.candidates.length} candidates for ${dtos.length} inputs`,
+          );
+        }
+        const metadata = admission.metadata;
+        for (const [index, admitted] of admission.candidates.entries()) {
+          const stampedDto = admitted.candidate;
+          // Admitted candidates carry no input key; the length check above
+          // pins admission to one candidate per input, in input order.
+          const applyOnCreate = applyOnCreateByItem[index] ?? null;
+          if (
+            stampedDto.action !== 'CREATE' &&
+            stampedDto.targetEntityType !== 'WORK_ITEM_TYPE' &&
+            stampedDto.targetEntityType !== 'ENTITY_PROMPT_TEMPLATE'
+          ) {
+            await this.validateTargetEntity(
+              stampedDto.targetEntityId,
+              stampedDto.targetEntityType,
+              organizationId,
+              projectId,
+              tx,
+              metadata,
+            );
+          }
+          await this.validationEngine.assertTaskMutationAuthoringValid(
+            admitted,
+            organizationId,
+            projectId,
+            tx,
+            { validatePlanStageTopology: false },
+          );
+
+          const preparedDto = await this.prepareTaskMutationRequirements(
+            stampedDto,
+            organizationId,
+            projectId,
+            tx,
+            applyOnCreate
+              ? replayMintedIds(applyOnCreate.mintedIds)
+              : undefined,
+          );
+          const snapshottedDto = await this.snapshotEntityTitles(
+            tx,
+            organizationId,
+            preparedDto,
+            metadata,
+          );
+
+          const title = await resolveProposalTitle({
+            db: tx,
+            organizationId,
+            action: snapshottedDto.action,
+            targetEntityType: snapshottedDto.targetEntityType,
+            targetEntityId: snapshottedDto.targetEntityId,
+            callerTitle: snapshottedDto.title,
+            metadata,
+          });
+
+          prepared.push({
+            applyOnCreate,
+            dto: {
+              ...snapshottedDto,
+              requestorContext: stampedDto.requestorContext,
+              eli5: stampedDto.eli5,
+            },
+            title,
+          });
+        }
+
+        await this.validationEngine.assertPlanStageProposalTopologyValid(
+          prepared.map(({ dto }) => ({ proposal: dto })),
+          organizationId,
+          projectId,
+        );
+
+        const items: Array<{
+          proposal: ProposalWithResponseRelations;
+          materializableEdges: MaterializableEdge[];
+          runPostCommit: PostCommitRunner;
+          genericChangeSetReady: boolean;
+          responseRequiredApprovals?: number;
+          responseEvaluation?: ApprovalEvaluation;
+          immediatelyMaterializedEdges?: MaterializedProposalEdge[];
+        }> = [];
+        for (const { dto, title, applyOnCreate } of prepared) {
+          const { stamp: evalStamp, data: evalData } =
+            await this.admitEvalProposal(tx, organizationId, projectId, dto);
+          const proposal = await tx.proposal.create({
+            data: {
+              ...this.buildCreateData(
+                organizationId,
+                projectId,
+                userId,
+                dto,
+                title,
+                await this.snapshotTargetLastAppliedProposalId(tx, dto),
+              ),
+              ...evalData,
+            },
+            include: PROPOSAL_RESPONSE_RELATIONS_INCLUDE,
+          });
+
+          await this.reconciliation.captureAuthoring(tx, proposal);
+          const applied = evalStamp.applicationEligible
+            ? await this.maybeApplyOnCreate(
+                tx,
+                proposal,
+                organizationId,
+                projectId,
+                dto,
+                projectPolicy,
+                applyOnCreate,
+                (edge) => immediatelyMaterializedEdges.push(edge),
+              )
+            : null;
+          if (applied?.immediatelyMaterializedEdges) {
+            immediatelyMaterializedEdges.push(
+              ...applied.immediatelyMaterializedEdges.filter(
+                (edge) =>
+                  !immediatelyMaterializedEdges.some(
+                    (created) => created.edgeId === edge.edgeId,
+                  ),
+              ),
+            );
+          }
+          items.push(
+            applied ?? {
+              proposal,
+              materializableEdges: [],
+              runPostCommit: NOOP_POST_COMMIT,
+              genericChangeSetReady: false,
+            },
+          );
+        }
+
+        return items;
+      }, PROPOSAL_ENACTMENT_TRANSACTION_OPTIONS);
+    } catch (error) {
+      await this.pendingEdgeService.rollbackMaterializedEdges(
+        organizationId,
+        projectId,
+        immediatelyMaterializedEdges,
+        'Rolling back proposal-declared SUPERSEDES edge because batch proposal creation failed.',
+      );
+      throw error;
+    }
+
+    const failedPostCommitIds = new Set<string>();
+    for (const item of results) {
+      try {
+        if (item.materializableEdges.length > 0) {
+          await this.pendingEdgeService.materializeEdges(
+            organizationId,
+            projectId,
+            item.materializableEdges,
+            item.proposal.conversationId,
+          );
+        }
+        await item.runPostCommit();
+        if (item.genericChangeSetReady) {
+          const materialized =
+            await this.approvalService.materializeGenericWorkItemChangeSet({
+              proposalId: item.proposal.id,
+              organizationId,
+              projectId,
+            });
+          item.proposal = materialized.proposal;
+        }
+      } catch {
+        failedPostCommitIds.add(item.proposal.id);
+        // Durable enactment owns its error and retry state; keep other items moving.
+        this.logger.warn('Batch proposal post-commit work failed', {
+          proposalId: item.proposal.id,
+        });
+      }
+    }
+
+    this.logger.log('Batch proposals created', {
+      count: results.length,
+      organizationId,
+      projectId,
+    });
+
+    const responses = await Promise.allSettled(
+      results.map(async (item) => {
+        const proposal = failedPostCommitIds.has(item.proposal.id)
+          ? await this.prisma.db.proposal.findUnique({
+              where: { id: item.proposal.id },
+              include: PROPOSAL_RESPONSE_RELATIONS_INCLUDE,
+            })
+          : item.proposal;
+        if (!proposal) {
+          throw new NotFoundException('Durable batch proposal is unavailable');
+        }
+        return this.toResponseDto(
+          proposal,
+          projectPolicy,
+          item.responseRequiredApprovals,
+          item.responseEvaluation,
+        );
+      }),
+    );
+    return responses.flatMap((response, index) => {
+      if (response.status === 'fulfilled') {
+        return [response.value];
+      }
+      this.logger.warn('Batch proposal response unavailable', {
+        proposalId: results[index]?.proposal.id,
+      });
+      return [];
+    });
+  }
+
+>>>>>>> 160f4b8bd (feat(approvals): explain saved rules across review surfaces)
   /**
    * Reject any incoming DTO that lacks a server-stamped requestorContext.source.
    * Production callers (the user proposal-create endpoint and the MCP boundary
@@ -2090,6 +2409,7 @@ export class ProposalService {
   ): Promise<{
     source: 'user' | 'agent';
     config: ReturnType<typeof evaluatePermissions>;
+    evaluation: ApprovalEvaluation;
     meetsThreshold: boolean;
   }> {
     const requestor = dto.requestorContext as {
@@ -2115,16 +2435,18 @@ export class ProposalService {
       },
       this.workItemTypeRegistry,
     );
-    const config = evaluatePermissions(
+    const evaluation = evaluateApprovalPolicy(
       evaluationContext.entity,
       evaluationContext.proposal,
       projectPolicy,
     );
+    const config = evaluation.config;
     const approvalCount =
       source === 'user' && config.allowsProposerApproval ? 1 : 0;
     return {
       source,
       config,
+      evaluation,
       meetsThreshold: approvalCount >= config.threshold,
     };
   }
@@ -2229,12 +2551,13 @@ export class ProposalService {
     runPostCommit: PostCommitRunner;
     genericChangeSetReady: boolean;
     responseRequiredApprovals?: number;
+    responseEvaluation?: ApprovalEvaluation;
   } | null> {
     if (!this.canApplyOnCreate(proposal)) {
       return null;
     }
 
-    const { source, config } = await this.evaluateApplyOnCreate(
+    const { source, config, evaluation } = await this.evaluateApplyOnCreate(
       tx,
       organizationId,
       projectId,
@@ -2271,6 +2594,7 @@ export class ProposalService {
         runPostCommit: NOOP_POST_COMMIT,
         genericChangeSetReady: false,
         responseRequiredApprovals: config.threshold,
+        responseEvaluation: evaluation,
       };
     }
 
@@ -2288,6 +2612,11 @@ export class ProposalService {
         'Proposal approval requirements changed while it was being created; retry the request.',
       );
     }
+    const approvalDecisionEvidence = captureApprovalEvidence(
+      evaluation,
+      approvalCount,
+    );
+    proposal = { ...proposal, approvalDecisionEvidence };
     const genericChangeSetRequest =
       this.approvalService.genericChangeSetRequest(proposal);
     const prepared = this.approvalService.assertPreparedChangeSetCurrent(
@@ -2303,6 +2632,8 @@ export class ProposalService {
           organizationId,
           projectId,
           prepared,
+          undefined,
+          approvalDecisionEvidence,
         );
       return {
         proposal: proposerApproval
@@ -2328,7 +2659,7 @@ export class ProposalService {
       proposal,
       organizationId,
       projectId,
-      { onImmediateEdgeCreated },
+      { onImmediateEdgeCreated, approvalDecisionEvidence },
     );
     return {
       proposal: proposerApproval
@@ -2604,10 +2935,15 @@ export class ProposalService {
     proposal: ProposalWithResponseRelations,
     projectPolicy: ProjectApprovalPolicy,
     requiredApprovals?: number,
+    evaluation?: ApprovalEvaluation,
   ): Promise<TypedProposalResponse> {
     return mapProposalResponse(this.prisma.db, proposal, projectPolicy, {
       requiredApprovals,
+<<<<<<< HEAD
       reconciliation: this.reconciliation,
+=======
+      evaluation,
+>>>>>>> 160f4b8bd (feat(approvals): explain saved rules across review surfaces)
       workItemTypeRegistry: this.workItemTypeRegistry,
     });
   }

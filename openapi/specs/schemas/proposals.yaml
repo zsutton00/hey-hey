@@ -722,10 +722,13 @@ ProposalResponseDto:
       description: Optional metadata about the requestor and request context
     requiredApprovals:
       type: integer
+      nullable: true
       description: >
         Effective number of approvals required by the API-owned proposal
-        policy. Clients must display this value rather than evaluating an
-        independent approval threshold.
+        policy. Null for terminal ordinary proposals whose historical evidence
+        is unavailable; null must never be displayed as zero or reconstructed
+        from current settings. Clients must display this value rather than
+        evaluating an independent approval threshold.
     approvalExplanation:
       $ref: "./approval-policies.yaml#/ProposalApprovalExplanation"
       description: >-

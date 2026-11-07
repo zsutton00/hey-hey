@@ -1,5 +1,7 @@
 import { ProposalReconciliationAdapterService } from '../proposal-reconciliation-adapter.service';
 import { ProposalReconciliationService } from '../proposal-reconciliation.service';
+import { Logger } from '@nestjs/common';
+import { evaluateApprovalPolicy } from '../permission-evaluation';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 import type { WorkItemTypeRegistryService } from '../../tasks/work-item-type-registry.service';
 import { createDefaultProjectApprovalPolicy } from '../project-approval-policy.service';
@@ -213,11 +215,30 @@ describe('mapProposalResponses', () => {
       tx,
       stored,
       createDefaultProjectApprovalPolicy(2),
-      { requiredApprovals: 2 },
+      {
+        evaluation: evaluateApprovalPolicy(
+          { type: 'DESIGN_DOC', parentTaskId: null, initiativeId: null },
+          {
+            source: 'agent',
+            action: 'CREATE',
+            authorId: stored.requestorId,
+            toolName: null,
+            changedFields: [],
+            eligibleProjectMemberIds: ['reviewer', 'another'],
+          },
+          createDefaultProjectApprovalPolicy(2),
+        ),
+      },
     );
 
     expect(findUnique).not.toHaveBeenCalled();
-    expect(result).toEqual(toProposalResponseDto(stored, 2));
+    expect(result).toMatchObject({
+      ...toProposalResponseDto(stored, 2),
+      approvalExplanation: {
+        evidence: 'LIVE',
+        requirement: { requiredApprovals: 2 },
+      },
+    });
   });
 
   it('resolves one policy per project for a batched read', async () => {
@@ -582,5 +603,258 @@ describe('out-of-date comparison batch', () => {
     expect(statuses.get('current')).toBe('CURRENT');
     expect(tx.proposalReconciliationRevision.findMany).toHaveBeenCalledTimes(1);
     expect(tx.task.findMany).toHaveBeenCalledTimes(1);
+describe('ordinary approval explanations', () => {
+  const members = [
+    { userId: 'author' },
+    { userId: 'reviewer' },
+    { userId: 'third' },
+  ];
+  const stored = (id = 'ordinary') => ({
+    ...proposal(id, []),
+    action: 'UPDATE' as const,
+    targetEntityType: 'TASK' as const,
+    targetLastAppliedProposalId: null,
+    requestorId: 'author',
+    requestorContext: { source: 'user' },
+    updates: { status: 'COMPLETED' },
+    groupMembership: null,
+    workItemChangeSetMaterialization: null,
+  });
+  function txFor(type = 'MARKETING') {
+    return {
+      projectMember: { findMany: jest.fn().mockResolvedValue(members) },
+      task: {
+        findFirst: jest.fn().mockResolvedValue({
+          type,
+          parentTaskId: null,
+          initiativeId: null,
+          lastAppliedProposalId: null,
+        }),
+      },
+    };
+  }
+  function policy(requiredApprovals: number) {
+    return {
+      ...createDefaultProjectApprovalPolicy(),
+      rules: [
+        {
+          source: 'PROJECT' as const,
+          match: {
+            proposal: {
+              source: 'user' as const,
+              action: 'UPDATE' as const,
+              statusOnlyChange: true,
+            },
+          },
+          config: {
+            requiresProposal: true,
+            threshold: { policy: 'IMMEDIATE' as const },
+            allowsProposerApproval: true,
+          },
+        },
+        {
+          source: 'PROJECT' as const,
+          match: {},
+          config: {
+            requiresProposal: true,
+            threshold: {
+              policy: 'PROJECT_REQUIRED' as const,
+              requiredApprovals,
+            },
+            allowsProposerApproval: true,
+          },
+        },
+      ],
+    };
+  }
+
+  it.each(['GOAL', 'MARKETING'])(
+    'explains status-only and combined custom-section writes for %s using live saved rules',
+    async (type) => {
+      const db = txFor(type);
+      const single = await mapProposalResponse(
+        db as unknown as AnyTransactionClient,
+        stored(),
+        policy(2),
+        { viewerId: 'reviewer' },
+      );
+      expect(single.approvalExplanation).toMatchObject({
+        evidence: 'LIVE',
+        source: 'PROJECT',
+        requirement: { category: 'IMMEDIATE', requiredApprovals: 0 },
+        changedFields: ['status'],
+        viewerEligibility: { eligibleToApprove: true },
+      });
+      const combined = {
+        ...stored(),
+        updates: {
+          status: 'COMPLETED',
+          sections: [{ key: 'audience', content: 'Teams' }],
+        },
+      };
+      for (const count of [3, 1, 2]) {
+        const response = await mapProposalResponse(
+          db as unknown as AnyTransactionClient,
+          combined,
+          policy(count),
+          { viewerId: 'author' },
+        );
+        expect(response.requiredApprovals).toBe(count);
+        expect(response.approvalExplanation).toMatchObject({
+          requirement: { requiredApprovals: count },
+          changedFields: ['status', 'sections.audience'],
+          changedFieldClassification: {
+            statusOnlyChange: false,
+            contentChange: true,
+          },
+        });
+      }
+    },
+  );
+
+  it('keeps captured history and explicit legacy absence independent of current policy', async () => {
+    const { evaluateApprovalPolicy } = await import('../permission-evaluation');
+    const { captureApprovalEvidence } = await import('../approval-explanation');
+    const evaluation = evaluateApprovalPolicy(
+      { type: 'MARKETING', parentTaskId: null, initiativeId: null },
+      {
+        source: 'user',
+        action: 'UPDATE',
+        authorId: 'author',
+        toolName: null,
+        changedFields: ['status'],
+        eligibleProjectMemberIds: ['author', 'reviewer'],
+      },
+      policy(2),
+    );
+    const evidence = captureApprovalEvidence(evaluation, 1);
+    expect(evidence).not.toHaveProperty('viewerEligibility');
+    const terminal = {
+      ...stored(),
+      status: 'APPROVED' as const,
+      approvalDecisionEvidence: evidence,
+    };
+    const historyDb = {
+      task: {
+        findFirst: jest.fn().mockResolvedValue({ lastAppliedProposalId: null }),
+      },
+    } as unknown as AnyTransactionClient;
+    for (const currentPolicy of [policy(1), policy(3)]) {
+      const response = await mapProposalResponse(
+        historyDb,
+        terminal,
+        currentPolicy,
+        { viewerId: 'reviewer' },
+      );
+      expect(response.approvalExplanation).toMatchObject({
+        ...evidence,
+        viewerEligibility: { eligibleToApprove: false },
+      });
+      expect(response.requiredApprovals).toBe(0);
+    }
+    const legacy = await mapProposalResponse(
+      historyDb,
+      { ...terminal, approvalDecisionEvidence: null },
+      policy(3),
+    );
+    expect(legacy.requiredApprovals).toBeNull();
+    expect(legacy.approvalExplanation).toMatchObject({
+      evidence: 'UNAVAILABLE',
+      source: null,
+      requirement: null,
+      changedFields: null,
+    });
+    const removedTargetHistory = await mapProposalResponse(
+      {
+        task: { findFirst: jest.fn().mockResolvedValue(null) },
+      } as unknown as AnyTransactionClient,
+      { ...terminal, status: 'REJECTED', approvalDecisionEvidence: null },
+      new Map(),
+    );
+    expect(removedTargetHistory).toMatchObject({
+      status: 'REJECTED',
+      requiredApprovals: null,
+      outOfDateStatus: 'NOT_APPLICABLE',
+      approvalExplanation: { evidence: 'UNAVAILABLE' },
+    });
+    const rejected = await mapProposalResponse(
+      historyDb,
+      { ...terminal, status: 'REJECTED' },
+      policy(3),
+    );
+    expect(rejected.approvalExplanation?.evidence).toBe('CAPTURED');
+    const diagnostic = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    const isolated = await mapProposalResponses(
+      txFor() as unknown as AnyTransactionClient,
+      [
+        {
+          ...terminal,
+          id: 'corrupt-history',
+          approvalDecisionEvidence: { evidence: 'CAPTURED' },
+        },
+        terminal,
+        {
+          ...stored('healthy-review'),
+          updates: { name: 'Content needing review' },
+        },
+      ],
+      policy(2),
+      { omitUnresolvableTargets: true },
+    );
+    expect(isolated.map((item) => item.id)).toEqual([
+      terminal.id,
+      'healthy-review',
+    ]);
+    expect(isolated[1]).toMatchObject({
+      status: 'DRAFT',
+      requiredApprovals: 2,
+      approvalExplanation: { evidence: 'LIVE', source: 'PROJECT' },
+    });
+    expect(diagnostic).toHaveBeenCalledWith(
+      'Proposal decision evidence unavailable in collection',
+      { proposalId: 'corrupt-history' },
+    );
+    expect(diagnostic.mock.calls.flat()).not.toContain('CAPTURED');
+    diagnostic.mockRestore();
+  });
+
+  it('returns healthy review work when another project or individual target fails, resolving each project once', async () => {
+    const db = txFor();
+    db.task.findFirst.mockImplementation(
+      async ({ where }: { where: { id: string } }) =>
+        where.id === 'missing'
+          ? null
+          : {
+              type: 'MARKETING',
+              parentTaskId: null,
+              initiativeId: null,
+              lastAppliedProposalId: null,
+            },
+    );
+    const proposals = [
+      stored('healthy'),
+      { ...stored('broken-project'), projectId: 'broken-project' },
+      { ...stored('missing-target'), targetEntityId: 'missing' },
+    ];
+    const resolver = {
+      resolve: jest.fn(async (id: string) => {
+        if (id === 'broken-project') {
+          throw new Error('secret connection string');
+        }
+        return policy(2);
+      }),
+    };
+    const policies = await resolveProjectApprovalPolicies(resolver, proposals);
+    const responses = await mapProposalResponses(
+      db as unknown as AnyTransactionClient,
+      proposals,
+      policies,
+      { omitUnresolvableTargets: true },
+    );
+    expect(resolver.resolve).toHaveBeenCalledTimes(2);
+    expect(db.projectMember.findMany).toHaveBeenCalledTimes(1);
+    expect(responses.map((response) => response.id)).toEqual(['healthy']);
   });
 });

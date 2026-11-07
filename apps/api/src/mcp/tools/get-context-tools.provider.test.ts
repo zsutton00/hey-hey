@@ -318,6 +318,63 @@ describe('GetContextToolsProvider', () => {
       expect(result.content).not.toHaveProperty('requirementsStructured');
     });
 
+    it('preserves unavailable historical evidence and a null threshold through the registered MCP output schema', async () => {
+      const context = {
+        entityId,
+        entityType: 'TASK',
+        displayName: 'Context task',
+        createdAt: '2026-02-15T08:00:00.000Z',
+        proposalDetail: 'summary',
+        proposals: [
+          {
+            id: proposalIdA,
+            organizationId: testIds.organization,
+            projectId: testIds.project,
+            type: 'SINGLE',
+            action: 'UPDATE',
+            status: 'APPROVED',
+            targetEntityId: entityId,
+            targetEntityType: 'TASK',
+            requestorId: testIds.user,
+            requiredApprovals: null,
+            approvals: [],
+            changes: [],
+            createdAt: '2026-02-15T08:00:00.000Z',
+            updatedAt: '2026-02-15T08:00:00.000Z',
+            approvalExplanation: {
+              evidence: 'UNAVAILABLE',
+              source: null,
+              conditions: null,
+              requirement: null,
+              changedFields: null,
+              changedFieldClassification: null,
+              creditedProposerApprovals: null,
+              viewerEligibility: { eligibleToApprove: false },
+            },
+          },
+        ],
+      } satisfies FullEntityContextDto;
+      entityContextService.getFullEntityContext.mockResolvedValue(context);
+      const result = await provider.getContext(
+        makeParams(),
+        {} as any,
+        makeRequest(),
+      );
+      const parsed = getContextOutput.parse(result);
+      expect(parsed.proposals[0]).toMatchObject({
+        requiredApprovals: null,
+        approvalExplanation: { evidence: 'UNAVAILABLE', requirement: null },
+      });
+      const schema = zodToJsonSchema(getContextOutput, {
+        target: 'jsonSchema7',
+      });
+      const validate = new Ajv({
+        strict: false,
+        formats: { 'date-time': true },
+      }).compile(schema);
+      expect(validate(result)).toBe(true);
+    });
+
     it('passes the shared proposal summary through unchanged', async () => {
       entityContextService.getFullEntityContext.mockResolvedValue(
         makeFullEntityContext() as any,
