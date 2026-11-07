@@ -139,7 +139,7 @@ describe('NewSessionRunner', () => {
     );
   });
 
-  it('forwards the handler epistemic-calibration declaration to the provider adapter', async () => {
+  it('forwards the handler prompt declarations to the provider adapter', async () => {
     const run = new Run(makeRunArgs(), makeCollaborators());
     const facade = createTestSessionRunnerFacade();
     vi.mocked(facade.runPrompt).mockResolvedValue({
@@ -147,7 +147,11 @@ describe('NewSessionRunner', () => {
       providerConversationId: null,
       errorCount: 0,
     });
-    const handler = { ...makeHandler(), epistemicCalibration: true as const };
+    const handler = {
+      ...makeHandler(),
+      epistemicCalibration: true as const,
+      graphResearchGuidance: true as const,
+    };
 
     await new NewSessionRunner(
       { ...makeCtx(run, 'conversation prompt'), handler },
@@ -156,7 +160,9 @@ describe('NewSessionRunner', () => {
 
     expect(facade.runPrompt).toHaveBeenCalledWith(
       run,
-      expect.objectContaining({ epistemicCalibration: true }),
+      expect.objectContaining({
+        promptDeclarations: { epistemicCalibration: true, graphResearchGuidance: true },
+      }),
     );
   });
 
@@ -271,6 +277,7 @@ describe('NewSessionRunner', () => {
       attachments: [],
       attachmentRunId: run.runId,
       prompt: 'first-turn prompt',
+      promptDeclarations: {},
       references: { resolved: ['task-1'], unresolved: [] },
       signal: controller.signal,
     });

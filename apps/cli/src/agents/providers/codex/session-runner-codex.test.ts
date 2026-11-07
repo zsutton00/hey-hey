@@ -2188,7 +2188,7 @@ describe('session-runner-codex', () => {
     await runner.runPrompt({
       session: makeSession(),
       prompt: firstTurnInput,
-      epistemicCalibration: true,
+      promptDeclarations: { epistemicCalibration: true },
       model: 'gpt-5.6-sol',
     });
 
@@ -2205,7 +2205,7 @@ describe('session-runner-codex', () => {
     await runner.runPrompt({
       session: makeSession({ provider_session_id: 'codex-thread-1' }),
       prompt: followUpInput,
-      epistemicCalibration: true,
+      promptDeclarations: { epistemicCalibration: true },
       model: 'gpt-5.6-sol',
     });
 

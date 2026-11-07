@@ -1614,6 +1614,7 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
       mcpToolUseCase,
       additionalAllowedTools,
       startupSegments,
+      promptDeclarations,
     }: RunPromptArgs,
     isolatedWorkingDirectory?: string,
   ): Promise<AgentRunResult> {
@@ -1760,7 +1761,7 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
         });
         this.platformSystemPrompt = buildPlatformSystemPrompt(
           sessionStartContext.workItemTypeDefinitions,
-          undefined,
+          { provider: 'opencode', model: selectedModel ?? null, ...promptDeclarations },
           {
             provider: 'opencode',
             intentFirst: sessionStartContext.intentFirst,

@@ -15,6 +15,7 @@ import type { ResolvedRunWorkspace } from '../run-scope';
 import type { RunWorkspaceWriteBoundary } from '../workspace-write-boundary';
 import type { AgentSkillCatalog, AgentSkillSelection } from './agent-skills';
 import type { ProviderSessionStartupSegments } from '../../run/provider-session-startup-input';
+import type { SessionPromptDeclarations } from '../prompts/platform-prompt-context';
 
 export type AgentSessionRunnerErrorCode =
   | 'INVALID_CREDENTIAL'
@@ -59,8 +60,8 @@ export interface RunPromptArgs {
   attachmentRunId?: string;
   attachments?: readonly RunAttachmentReference[];
   prompt: string;
-  /** Initiating handler's `epistemicCalibration` declaration, applied to fresh-session guidance. */
-  epistemicCalibration?: true;
+  /** Initiating handler's prompt declarations, composed into fresh-session guidance. */
+  promptDeclarations?: SessionPromptDeclarations;
   /** Replace provider defaults with the platform prompt on fresh sessions. */
   replaceProviderSystemPrompt?: boolean;
   /** Pathless provider Skill identity; provider adapters resolve native paths locally. */

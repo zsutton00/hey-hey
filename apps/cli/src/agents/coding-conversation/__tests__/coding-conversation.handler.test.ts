@@ -214,7 +214,14 @@ describe('coding-conversation adapters', () => {
     'the %s prompt ends with the shared completion instruction',
     (_label, handler, payload) => {
       const prompt = handler.buildPrompt(payload as never, makeCanonicalContext());
-      expect(prompt.endsWith(buildCompletionReconciliationPromptFor(new Set()))).toBe(true);
+      expect(
+        prompt.endsWith(
+          buildCompletionReconciliationPromptFor({
+            startedPromptTypes: new Set(),
+            focalTask: true,
+          }),
+        ),
+      ).toBe(true);
       expect(prompt).toContain('changedFiles');
     },
   );

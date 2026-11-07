@@ -132,5 +132,5 @@ export const buildImplementPrompt = (input: ImplementPromptInput = {}): string =
   prompt = appendApprovedPlan(prompt, input.approvedPlan);
   prompt = appendServicesContext(prompt, input);
   prompt = appendSessionContext(prompt, input);
-  return `${prompt}\n\n${codingServiceScopeGuidance}\n\n${buildCompletionReconciliationPromptFor(input.startedPromptTypes ?? new Set())}\n`;
+  return `${prompt}\n\n${codingServiceScopeGuidance}\n\n${buildCompletionReconciliationPromptFor({ startedPromptTypes: input.startedPromptTypes ?? new Set(), focalTask: true })}\n`;
 };

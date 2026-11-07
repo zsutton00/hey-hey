@@ -2282,7 +2282,7 @@ describe('buildCodingConversationPrompt', () => {
     expect(result).toContain('## Additional Service scope');
     expect(
       result.endsWith(
-        buildCompletionReconciliationPromptFor({ startedPromptTypes: new Set(), subject: 'task' }),
+        buildCompletionReconciliationPromptFor({ startedPromptTypes: new Set(), focalTask: true }),
       ),
     ).toBe(true);
     expect(result).toMatchSnapshot();
@@ -2293,7 +2293,7 @@ describe('buildCodingConversationPrompt', () => {
     expect(result).toContain('A readiness response replaces the completion JSON below');
     expect(result.indexOf('## Implementation-readiness preflight')).toBeLessThan(
       result.indexOf(
-        buildCompletionReconciliationPromptFor({ startedPromptTypes: new Set(), subject: 'task' }),
+        buildCompletionReconciliationPromptFor({ startedPromptTypes: new Set(), focalTask: true }),
       ),
     );
   });

@@ -663,7 +663,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
       prompt,
       attachmentRunId,
       attachments = [],
-      epistemicCalibration,
+      promptDeclarations,
       signal,
       startingMessage,
       readOnlyFilesystem,
@@ -1689,7 +1689,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
           {
             provider: 'codex',
             model: selectedModel,
-            ...(epistemicCalibration ? { epistemicCalibration } : {}),
+            ...promptDeclarations,
           },
           {
             provider: 'codex',

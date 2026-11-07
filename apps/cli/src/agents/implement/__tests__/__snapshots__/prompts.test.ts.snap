@@ -80,8 +80,6 @@ After satisfying the user's request, judge the completed work against the prepar
 
 When an active task exists, propose one reviewable task update for material divergence in scope, observable behavior, or implementation direction, citing concise implementation evidence. Include active-task fulfillment and the applicable completion groups in this judgment. Without an active task, do not invent one or propose a task update. Do not silently mutate entities. This instruction does not authorize additional code edits.
 
-When material changes diverge from the feature, Diagram or Mockup in the active context, or change what a governing Mockup or Diagram (one that actively guides what this task delivers) shows or models, call \`suggest_feature_verification\` with that one feature and the specific discrepancy you observed: what the code does versus what the artifact says. Name the artifact and the specific change that needs review, and list each governing artifact in \`impactedEntities\` with its entity type and ID; a Mockup or Diagram included only as background, history or exploration does not trigger the call. It opens a fresh Verify Feature session on that text, so a vague concern is wasted. Raise a concern once, when you first see it; if your session history shows you already suggested it, do not suggest it again. Feature Sync did not run in this session. You hold the task's Diagram and Mockup: raise a concern whenever the code diverges from them. A reply never waits on this call.
-
 Reply to the user in ordinary prose and Markdown. Keep required reports and proposals separate from this final response.
 "
 `;

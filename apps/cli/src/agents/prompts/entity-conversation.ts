@@ -1,6 +1,6 @@
 import {
   buildCompletionReconciliationPromptFor,
-  completionSubjectFor,
+  hasFocalTask,
 } from '../completion-reconciliation/prompts/common';
 import type { LocalEntityConversationPromptPayload } from '../../shared/agent-bridge-contract/index';
 import { formatAgentSessionTranscript } from '../entity-context/conversation-transcript';
@@ -172,7 +172,7 @@ Call \`submit_session_name\` once the conversation has produced a stable handle 
   stableSections.push(
     buildCompletionReconciliationPromptFor({
       startedPromptTypes,
-      subject: completionSubjectFor({ entity, loadedEntityContext }),
+      focalTask: hasFocalTask({ entity, loadedEntityContext }),
     }),
   );
   return {

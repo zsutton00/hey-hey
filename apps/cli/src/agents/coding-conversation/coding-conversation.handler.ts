@@ -21,6 +21,7 @@ import {
 } from '../prompts/coding-conversation';
 import { buildStartingMessage as buildStartingMessageForPromptType } from '../prompts/starting-message';
 import { parseImplementationReadinessResponseFromText } from '../response-parser';
+import { hasFocalTask } from '../completion-reconciliation/prompts/common';
 import { taskIdFromHandlerContext } from '../run-entity';
 import type { AssistantCompleteEvent } from '../../run/types';
 import { requestAgentSessionServiceScopeTool } from '../service-scope-request/service-scope-tool';
@@ -173,7 +174,13 @@ const createCodingConversationHandler = <TPayload extends CodingConversationPrep
               awaitingUserReview: ctx?.awaitingUserReview === true,
               taskId: taskIdFromHandlerContext(ctx),
             },
-        ctx?.startedPromptTypes,
+        {
+          startedPromptTypes: ctx?.startedPromptTypes ?? new Set(),
+          focalTask: hasFocalTask({
+            entity: ctx?.entity ?? null,
+            loadedEntityContext: ctx?.loadedEntityContext,
+          }),
+        },
       );
     },
 
