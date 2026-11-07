@@ -362,6 +362,24 @@ ApiErrorResponse:
       description: Request path
       example: "/api/v1/projects/123"
 
+MessageCursorNotFoundErrorDto:
+  description: |
+    The `since` cursor does not name a timeline message in the requested
+    conversation. Unknown ids and ids from another conversation are
+    indistinguishable.
+  allOf:
+    - $ref: "#/ApiErrorResponse"
+    - type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          enum:
+            - MESSAGE_CURSOR_NOT_FOUND
+          description: Stable machine-readable error code
+          example: MESSAGE_CURSOR_NOT_FOUND
+
 PlanTierGatingErrorDto:
   type: object
   required:

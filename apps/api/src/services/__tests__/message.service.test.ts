@@ -1,6 +1,10 @@
 import { ProposalReconciliationService } from '../proposal/proposal-reconciliation.service';
 import { EventContextManager } from '../../core/events/observable-event.context';
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EntityType, Prisma, ReportEntityRelation } from '@prisma/client';
 import { MessageStatus } from '../../constants/message-status.constants';
@@ -745,12 +749,14 @@ describe('MessageService', () => {
           .spyOn(prismaService.db.message, 'findFirst')
           .mockResolvedValue(null);
 
-        await expect(
-          service.getMessages(
-            { ...mockQuery, since: cursorId },
-            mockOrganizationId,
-          ),
-        ).rejects.toThrow(/not found in conversation/);
+        const error = await service
+          .getMessages({ ...mockQuery, since: cursorId }, mockOrganizationId)
+          .catch((caught: unknown) => caught);
+
+        expect(error).toBeInstanceOf(NotFoundException);
+        expect((error as NotFoundException).getResponse()).toMatchObject({
+          code: 'MESSAGE_CURSOR_NOT_FOUND',
+        });
       });
 
       it('throws BadRequestException when `since` is set without conversationId', async () => {

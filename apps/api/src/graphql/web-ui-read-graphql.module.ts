@@ -31,6 +31,9 @@ export const WEB_UI_READ_GRAPHQL_PATH =
       // Resolver access checks are the gate; do not publish the schema to
       // callers who have not passed them.
       introspection: false,
+      // Nested fields such as Conversation.messages must report failures under
+      // the REST stable code too; access is decided by the middleware, not guards.
+      fieldResolverEnhancers: ['filters'],
       context: ({ req, res }: GraphQLRequestContext) => ({ req, res }),
     }),
   ],

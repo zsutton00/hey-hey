@@ -9648,7 +9648,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
+                $ref: "#/components/schemas/MessageCursorNotFoundErrorDto"
 
     post:
       summary: Create a new Message interaction
@@ -25178,6 +25178,8 @@ components:
       $ref: "../schemas/trigger-payloads.yaml#/PlanSubmissionAdmissionResponse"
     PlanSubmissionAdmissionConflict:
       $ref: "../schemas/trigger-payloads.yaml#/PlanSubmissionAdmissionConflict"
+    MessageCursorNotFoundErrorDto:
+      $ref: "../schemas/common.yaml#/MessageCursorNotFoundErrorDto"
     PlanTierGatingErrorDto:
       $ref: "../schemas/common.yaml#/PlanTierGatingErrorDto"
     AgentSessionDto:
