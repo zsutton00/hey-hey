@@ -10,6 +10,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { ConversationGraphqlModule } from './graphql/conversations/conversation-graphql.module';
+import { WorkItemGraphqlModule } from './graphql/work-items/work-item-graphql.module';
 import { WebUiReadGraphqlModule } from './graphql/web-ui-read-graphql.module';
 import { OAuthModule } from './auth/oauth/oauth.module';
 import {
@@ -229,6 +230,7 @@ import { ReadRestrictionModule } from './read-restriction/read-restriction.modul
     AuthModule,
     WebUiReadGraphqlModule,
     ConversationGraphqlModule,
+    WorkItemGraphqlModule,
     AccountPasskeyModule,
     OAuthModule,
     OutboxPublisherModule,

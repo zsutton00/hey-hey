@@ -1172,6 +1172,404 @@ describe('TaskService', () => {
       ).not.toHaveBeenCalled();
     });
 
+    it('reads several roots with one structured graph read and splits it back per root', async () => {
+      const secondRootId = '66666666-6666-4666-8666-666666666666';
+      const secondChildId = '77777777-7777-4777-8777-777777777777';
+      const otherProjectId = '88888888-8888-4888-8888-888888888888';
+      const rootFor = (id: string, projectId: string = testIds.project) =>
+        TestUtils.createMockTaskResponseDto({
+          id,
+          type: 'GRAPH_ROOT',
+          projectId,
+          sections: [],
+        });
+      const childOf = (id: string, parentTaskId: string) =>
+        TestUtils.createMockTaskResponseDto({
+          id,
+          type: 'GRAPH_NODE',
+          projectId: testIds.project,
+          parentTaskId,
+        });
+      jest
+        .spyOn(service, 'findOneByOrganization')
+        .mockImplementation(async (_org, id) =>
+          id === otherProjectId
+            ? rootFor(otherProjectId, otherProjectId)
+            : rootFor(id),
+        );
+      jest
+        .spyOn(service as any, 'mapMixedInitiativeTasksWithChildCounts')
+        .mockResolvedValue([
+          childOf(childId, testIds.task),
+          childOf(secondChildId, secondRootId),
+        ]);
+      const baseCapability = workItemTypeRegistry.getGraphCapability(
+        'GRAPH_ROOT',
+        testIds.project,
+      )!;
+      jest.spyOn(workItemTypeRegistry, 'getGraphCapability').mockReturnValue({
+        ...baseCapability,
+        readExpansions: [
+          {
+            key: 'linkedGraphs',
+            seed: 'graphNodes',
+            path: [
+              {
+                relationshipType: 'HAS_TASK',
+                direction: 'INCOMING',
+                target: {
+                  entityTypes: ['TASK'],
+                  workItemTypeKeys: ['GRAPH_ROOT'],
+                },
+              },
+            ],
+            projectionKind: 'workItemReference',
+            deduplicateBy: 'entityId',
+            excludeRoot: true,
+            limit: 1,
+          },
+        ],
+      });
+      const edgeBetween = (id: string, source: string, target: string) => ({
+        id,
+        sourceNodeId: source,
+        targetNodeId: target,
+        sourceEntityType: AgentEdgeEndpointEntityType.Task,
+        targetEntityType: AgentEdgeEndpointEntityType.Task,
+        type: RelationshipType.Standard,
+        reasoning: '',
+        createdAt: '2026-09-11T05:35:12.404Z',
+        updatedAt: '2026-09-11T05:35:12.404Z',
+      });
+      const target = (entityId: string, via: string) => ({
+        identity: { entityId, entityType: 'TASK' },
+        paths: [
+          {
+            identities: [via, entityId].map((id) => ({
+              entityId: id,
+              entityType: 'TASK',
+            })),
+          },
+        ],
+      });
+      mockGraphsClient.readStructuredGraph.mockResolvedValue({
+        directEdges: [
+          edgeBetween('first-edge', childId, childId),
+          edgeBetween('second-edge', secondChildId, secondChildId),
+        ],
+        expansions: [
+          {
+            key: `${testIds.task}:linkedGraphs`,
+            // The root itself comes back because exclusion is applied locally.
+            targets: [
+              target(testIds.task, childId),
+              target(externalWorkflowId, childId),
+            ],
+          },
+          {
+            key: `${secondRootId}:linkedGraphs`,
+            targets: [target(testIds.task, secondChildId)],
+          },
+        ],
+      });
+      (
+        mockPrismaService.db.entityRegistry.findMany as jest.Mock
+      ).mockResolvedValue(
+        [testIds.task, externalWorkflowId].map((entityId) => ({
+          entityId,
+          entityType: 'TASK',
+          entityName: entityId,
+        })),
+      );
+      (mockPrismaService.db.task.findMany as jest.Mock).mockImplementation(
+        ({ where }: any) =>
+          where.id?.in
+            ? Promise.resolve(
+                [testIds.task, externalWorkflowId].map((id) => ({
+                  id,
+                  type: 'GRAPH_ROOT',
+                  name: id,
+                })),
+              )
+            : Promise.resolve([]),
+      );
+
+      const results = await service.getGraphAggregates(
+        testIds.organization,
+        testIds.project,
+        [testIds.task, secondRootId, otherProjectId] as TaskId[],
+        'token',
+      );
+
+      expect(mockGraphsClient.readStructuredGraph).toHaveBeenCalledTimes(1);
+      const sent = mockGraphsClient.readStructuredGraph.mock.calls[0][2];
+      expect(sent.expansions).toEqual([
+        expect.objectContaining({
+          key: `${testIds.task}:linkedGraphs`,
+          excludeRoot: false,
+          limit: 2,
+        }),
+        expect.objectContaining({
+          key: `${secondRootId}:linkedGraphs`,
+          excludeRoot: false,
+          limit: 2,
+        }),
+      ]);
+
+      const first = results.get(testIds.task as TaskId);
+      const second = results.get(secondRootId as TaskId);
+      if (first instanceof Error || second instanceof Error) {
+        throw new Error('expected both graph-capable roots to read');
+      }
+      expect(first?.children.map((child) => child.id)).toEqual([childId]);
+      expect(first?.relationships.map((edge) => edge.id)).toEqual([
+        'first-edge',
+      ]);
+      expect(first?.derivedReferences).toEqual([
+        expect.objectContaining({
+          expansionKey: 'linkedGraphs',
+          entityId: externalWorkflowId,
+        }),
+      ]);
+      expect(second?.children.map((child) => child.id)).toEqual([
+        secondChildId,
+      ]);
+      expect(second?.relationships.map((edge) => edge.id)).toEqual([
+        'second-edge',
+      ]);
+      expect(second?.derivedReferences).toEqual([
+        expect.objectContaining({
+          expansionKey: 'linkedGraphs',
+          entityId: testIds.task,
+        }),
+      ]);
+      expect(results.get(otherProjectId as TaskId)).toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('returns for each root in a batch exactly what a single-root read returns', async () => {
+      const rootA = testIds.task;
+      const rootB = '66666666-6666-4666-8666-666666666666';
+      const childA = '11111111-1111-4111-8111-11111111111a';
+      const childB = '11111111-1111-4111-8111-11111111111b';
+      const [targetX, targetY, targetZ] = [
+        '99999999-9999-4999-8999-999999999991',
+        '99999999-9999-4999-8999-999999999992',
+        '99999999-9999-4999-8999-999999999993',
+      ];
+      const childRows = [
+        {
+          ...mockTaskData,
+          id: childA,
+          type: 'GRAPH_NODE',
+          parentTaskId: rootA,
+        },
+        {
+          ...mockTaskData,
+          id: childB,
+          type: 'GRAPH_NODE',
+          parentTaskId: rootB,
+        },
+      ];
+      jest
+        .spyOn(service, 'findOneByOrganization')
+        .mockImplementation(async (_org, id) =>
+          TestUtils.createMockTaskResponseDto({
+            id,
+            type: 'GRAPH_ROOT',
+            projectId: testIds.project,
+            sections: [],
+            createdAt: '2026-09-11T05:35:12.404Z',
+            updatedAt: '2026-09-11T05:35:12.404Z',
+          }),
+        );
+      jest
+        .spyOn(service as any, 'mapMixedInitiativeTasksWithChildCounts')
+        .mockImplementation(async (rows: any) =>
+          rows.map((row: any) =>
+            TestUtils.createMockTaskResponseDto({
+              id: row.id,
+              type: row.type,
+              projectId: testIds.project,
+              parentTaskId: row.parentTaskId,
+              createdAt: '2026-09-11T05:35:12.404Z',
+              updatedAt: '2026-09-11T05:35:12.404Z',
+            }),
+          ),
+        );
+      const baseCapability = workItemTypeRegistry.getGraphCapability(
+        'GRAPH_ROOT',
+        testIds.project,
+      )!;
+      jest.spyOn(workItemTypeRegistry, 'getGraphCapability').mockReturnValue({
+        ...baseCapability,
+        readExpansions: [
+          {
+            key: 'linkedGraphs',
+            seed: 'graphNodes',
+            path: [
+              {
+                relationshipType: 'DEPENDS_ON',
+                direction: 'OUTGOING',
+                target: { entityTypes: ['TASK'] },
+              },
+            ],
+            projectionKind: 'workItemReference',
+            deduplicateBy: 'entityId',
+            excludeRoot: true,
+            limit: 2,
+          },
+        ],
+      });
+
+      const edge = (
+        id: string,
+        source: [string, AgentEdgeEndpointEntityType],
+        target: [string, AgentEdgeEndpointEntityType],
+      ) => ({
+        id,
+        sourceNodeId: source[0],
+        sourceEntityType: source[1],
+        targetNodeId: target[0],
+        targetEntityType: target[1],
+        type: RelationshipType.Standard,
+        reasoning: '',
+        createdAt: '2026-09-11T05:35:12.404Z',
+        updatedAt: '2026-09-11T05:35:12.404Z',
+      });
+      const TASK = AgentEdgeEndpointEntityType.Task;
+      const SERVICE = AgentEdgeEndpointEntityType.Service;
+      const storedEdges = [
+        edge('a-self', [childA, TASK], [childA, TASK]),
+        edge('b-self', [childB, TASK], [childB, TASK]),
+        edge('a-to-b', [childA, TASK], [childB, TASK]),
+        // Incident to childB's seed; its other end shares childA's id under
+        // another entity type, so it is not incident to rootA's graph.
+        edge('service-alias', [childB, TASK], [childA, SERVICE]),
+      ];
+      // One hop from each child; rootA reaches itself and three others.
+      const reach = new Map<string, string[]>([
+        [childA, [rootA, targetX, targetY, targetZ]],
+        [childB, [rootA, targetX]],
+      ]);
+      // Follows the Graphs StructuredGraphReadService rules.
+      mockGraphsClient.readStructuredGraph.mockImplementation(
+        async (_org: string, _project: string, request: any) => ({
+          directEdges: storedEdges.filter((stored) =>
+            request.seeds.some(
+              (seed: any) =>
+                (seed.entityId === stored.sourceNodeId &&
+                  seed.entityType === stored.sourceEntityType) ||
+                (seed.entityId === stored.targetNodeId &&
+                  seed.entityType === stored.targetEntityType),
+            ),
+          ),
+          expansions: request.expansions.map((expansion: any) => {
+            const paths = new Map<string, string[][]>();
+            for (const seed of expansion.seeds) {
+              for (const reached of reach.get(seed.entityId) ?? []) {
+                if (
+                  expansion.excludeRoot &&
+                  reached === request.root.entityId
+                ) {
+                  continue;
+                }
+                paths.set(reached, [
+                  ...(paths.get(reached) ?? []),
+                  [seed.entityId, reached],
+                ]);
+              }
+            }
+            return {
+              key: expansion.key,
+              targets: [...paths.keys()]
+                .sort()
+                .slice(0, expansion.limit)
+                .map((id) => ({
+                  identity: { entityId: id, entityType: 'TASK' },
+                  paths: paths.get(id)!.map((ids) => ({
+                    identities: ids.map((entityId) => ({
+                      entityId,
+                      entityType: 'TASK',
+                    })),
+                  })),
+                })),
+            };
+          }),
+        }),
+      );
+      const parentIdsOf = (where: any): string[] => {
+        const filter = where.AND ? where.AND[0] : where;
+        return filter.OR
+          ? filter.OR.map((clause: any) => clause.parentTaskId)
+          : [filter.parentTaskId];
+      };
+      (mockPrismaService.db.task.findMany as jest.Mock).mockImplementation(
+        async ({ where }: any) =>
+          where.id?.in
+            ? where.id.in.map((id: string) => ({
+                id,
+                type: 'GRAPH_ROOT',
+                name: `Graph ${id}`,
+              }))
+            : childRows.filter((row) =>
+                parentIdsOf(where).includes(row.parentTaskId),
+              ),
+      );
+      (
+        mockPrismaService.db.entityRegistry.findMany as jest.Mock
+      ).mockImplementation(async ({ where }: any) =>
+        where.entityId.in.map((entityId: string) => ({
+          entityId,
+          entityType: 'TASK',
+          entityName: `Graph ${entityId}`,
+        })),
+      );
+
+      const singleA = await service.getGraphAggregate(
+        testIds.organization,
+        testIds.project,
+        rootA as TaskId,
+        'token',
+      );
+      const singleB = await service.getGraphAggregate(
+        testIds.organization,
+        testIds.project,
+        rootB as TaskId,
+        'token',
+      );
+      mockGraphsClient.readStructuredGraph.mockClear();
+      const batch = await service.getGraphAggregates(
+        testIds.organization,
+        testIds.project,
+        [rootA, rootB] as TaskId[],
+        'token',
+      );
+
+      expect(mockGraphsClient.readStructuredGraph).toHaveBeenCalledTimes(1);
+      expect(batch.get(rootA as TaskId)).toEqual(singleA);
+      expect(batch.get(rootB as TaskId)).toEqual(singleB);
+      // The cases the split must get right, read alone:
+      expect(singleA.derivedReferences.map((ref) => ref.entityId)).toEqual([
+        targetX,
+        targetY,
+      ]);
+      expect(singleB.derivedReferences.map((ref) => ref.entityId)).toEqual([
+        rootA,
+        targetX,
+      ]);
+      expect(singleA.relationships.map((rel) => rel.id)).toEqual([
+        'a-self',
+        'a-to-b',
+      ]);
+      expect(singleB.relationships.map((rel) => rel.id)).toEqual([
+        'a-to-b',
+        'b-self',
+        'service-alias',
+      ]);
+    });
+
     it('rejects missing authentication and non-graph-capable types', async () => {
       await expect(
         service.getGraphAggregate(

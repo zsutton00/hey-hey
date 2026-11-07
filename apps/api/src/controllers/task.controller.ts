@@ -1,3 +1,5 @@
+import { normalizeStatusFilter } from '../utils/work-item.util';
+import { normalizeEdgeTypeFilter } from '../utils/edge-type-filter.util';
 import { ProjectAccessGuard } from '../auth/guards/project-access.guard';
 import { withApiSpan } from 'src/telemetry/api-tracing';
 import {
@@ -357,13 +359,13 @@ export class TaskController {
       includeAgentSessionCounts?.toLowerCase() === 'true';
     const includeServices = includeServiceRelations?.toLowerCase() === 'true';
     const includeEdgesFlag = includeEdges?.toLowerCase() === 'true';
-    const requestedEdgeTypes = this.normalizeEdgeTypes(edgeTypes);
+    const requestedEdgeTypes = normalizeEdgeTypeFilter(edgeTypes);
     const relatedEntity = this.normalizeRelatedEntity(
       relatedEntityId,
       relatedEntityType,
       requestedEdgeTypes,
     );
-    const statuses = this.normalizeStatuses(status);
+    const statuses = normalizeStatusFilter(status);
     const requestedTaskIds = this.normalizeTaskIds(taskIds);
     const sectionKeys = this.normalizeSectionKeys(includeSectionKeys);
     const parsedPage = page !== undefined ? parseInt(page, 10) : undefined;
@@ -661,7 +663,7 @@ export class TaskController {
     @AuthToken() userToken?: string | null,
     @Query('edgeTypes') edgeTypes?: string | string[],
   ): Promise<TaskResponseDto> {
-    const requestedEdgeTypes = this.normalizeEdgeTypes(edgeTypes);
+    const requestedEdgeTypes = normalizeEdgeTypeFilter(edgeTypes);
     const task = requestedEdgeTypes
       ? await this.taskService.findOneByOrganization(
           organizationId,
@@ -1128,25 +1130,6 @@ export class TaskController {
     return match;
   }
 
-  private normalizeStatuses(
-    status?: string | string[],
-  ): WorkStatus[] | undefined {
-    const statuses = Array.isArray(status)
-      ? status
-      : typeof status === 'string'
-        ? status.split(',').map((value) => value.trim())
-        : undefined;
-
-    const filteredStatuses = statuses?.filter(
-      (value) =>
-        value && value !== 'undefined' && value !== 'null' && value !== 'false',
-    ) as WorkStatus[] | undefined;
-
-    return filteredStatuses && filteredStatuses.length > 0
-      ? filteredStatuses
-      : undefined;
-  }
-
   private normalizeSectionKeys(
     includeSectionKeys?: string | string[],
   ): string[] | undefined {
@@ -1201,47 +1184,6 @@ export class TaskController {
     }
 
     return values;
-  }
-
-  private normalizeEdgeTypes(
-    edgeTypes?: string | string[],
-  ): RelationshipType[] | undefined {
-    if (edgeTypes === undefined) {
-      return undefined;
-    }
-
-    const values = (Array.isArray(edgeTypes) ? edgeTypes : [edgeTypes])
-      .flatMap((value) => value.split(','))
-      .map((value) => value.trim())
-      .filter((value) => value.length > 0);
-
-    if (values.length === 0) {
-      throw new BadRequestException(
-        'edgeTypes must contain at least one AgentEdgeType value',
-      );
-    }
-
-    const allowedAgentTypes = new Set<string>(Object.values(AgentEdgeType));
-    const allowedRelationshipTypes = new Map<string, RelationshipType>(
-      Object.values(RelationshipType).map((value) => [value, value]),
-    );
-    const requestedTypes: RelationshipType[] = [];
-    for (const value of values) {
-      if (!allowedAgentTypes.has(value)) {
-        throw new BadRequestException(
-          `edgeTypes must be one of: ${Object.values(AgentEdgeType).join(', ')}`,
-        );
-      }
-      const relationshipType = allowedRelationshipTypes.get(value);
-      if (!relationshipType) {
-        throw new BadRequestException(
-          `edgeTypes value ${value} is not supported by graph traversal`,
-        );
-      }
-      requestedTypes.push(relationshipType);
-    }
-
-    return [...new Set(requestedTypes)];
   }
 
   private normalizeIncidentRelationshipTypes(

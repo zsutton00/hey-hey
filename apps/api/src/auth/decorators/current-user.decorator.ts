@@ -69,17 +69,19 @@ export const UserRole = createParamDecorator(
  * Extract the raw JWT token from the request
  * Checks Authorization header first, then falls back to accessToken cookie
  */
+export function authTokenFromRequest(request: {
+  headers?: { authorization?: string };
+  cookies?: { accessToken?: string };
+}): string | null {
+  const authHeader = request.headers?.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    return authHeader.substring(7);
+  }
+
+  return request.cookies?.accessToken || null;
+}
+
 export const AuthToken = createParamDecorator(
-  (_data: unknown, ctx: ExecutionContext): string | null => {
-    const request = ctx.switchToHttp().getRequest();
-
-    // Check Authorization header first
-    const authHeader = request.headers?.authorization as string | undefined;
-    if (authHeader?.startsWith('Bearer ')) {
-      return authHeader.substring(7);
-    }
-
-    // Fallback to HTTP-only cookie
-    return (request.cookies?.accessToken as string) || null;
-  },
+  (_data: unknown, ctx: ExecutionContext): string | null =>
+    authTokenFromRequest(ctx.switchToHttp().getRequest()),
 );
