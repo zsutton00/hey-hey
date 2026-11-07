@@ -41,6 +41,7 @@ const mockAnalyzeWorkItemTypeEdit = vi.fn();
 const mockEditMutate = vi.fn();
 const mockArchiveMutate = vi.fn();
 const mockResetMutate = vi.fn();
+const mockUseCanonicalComparison = vi.fn();
 const mockHardDeleteMutate = vi.fn();
 const mockCascadeImpact = vi.fn();
 const mockSectionImpact = vi.fn();
@@ -117,6 +118,8 @@ vi.mock("@hey-hey/ui-common/data", async () => {
       capturedHardDeleteOptions = options;
       return { mutate: mockHardDeleteMutate, isPending: false };
     },
+    useWorkItemTypeCanonicalComparison: (...args: unknown[]) =>
+      mockUseCanonicalComparison(...args),
     useWorkItemTypeCascadeImpact: (...args: unknown[]) =>
       mockCascadeImpact(...args),
     useWorkItemTypeSectionContentImpact: (...args: unknown[]) =>
@@ -925,6 +928,96 @@ describe("WorkItemTypeFormPage", () => {
     expect(mockNavigate).toHaveBeenCalledWith(
       "/projects/proj-1/proposals/reset-prop-1",
     );
+  });
+
+  describe("compare with canonical", () => {
+    const overrideDefinition: WorkItemTypeSummaryDto["definition"] = {
+      key: "GOAL",
+      name: "Goal",
+      role: "project-info",
+      sections: [{ key: "description", label: "Description" }],
+      allowedStatuses: [WorkStatus.Active, WorkStatus.Completed],
+      sessionRoleGuidance: { planning: "Plan goals with owners." },
+    };
+
+    function openOverrideComparison(
+      canonical: WorkItemTypeSummaryDto["definition"],
+    ): void {
+      mockTypeKey = "GOAL";
+      const effective = canonicalSummary(overrideDefinition);
+      mockUseWorkItemTypeByKey.mockReturnValue({
+        workItemTypeSummary: effective,
+        isLoading: false,
+        error: null,
+      });
+      mockUseCanonicalComparison.mockReturnValue({
+        data: { effective, canonical },
+        isLoading: false,
+        error: null,
+      });
+      renderForm();
+      fireEvent.click(screen.getByTestId("wit-form-compare-with-canonical"));
+    }
+
+    it("shows changed and missing parts and collapses unchanged groups", () => {
+      openOverrideComparison({
+        ...overrideDefinition,
+        allowedStatuses: [
+          WorkStatus.Backlog,
+          WorkStatus.Active,
+          WorkStatus.Completed,
+        ],
+        sessionRoleGuidance: {
+          planning: "Plan goals with owners.",
+          review: "Check due dates.",
+        },
+      });
+
+      expect(screen.queryByTestId("wit-compare-matches")).toBeNull();
+      expect(
+        within(
+          screen.getByTestId("wit-compare-entry-allowedStatuses"),
+        ).getByText("Changed"),
+      ).toBeInTheDocument();
+      expect(
+        within(
+          screen.getByTestId("wit-compare-entry-sessionRoleGuidance.review"),
+        ).getByText("Only in canonical"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByTestId("wit-compare-linediff-sessionRoleGuidance.review"),
+      ).toHaveTextContent("Check due dates.");
+      expect(
+        screen.getByTestId("wit-compare-group-Overview"),
+      ).toHaveTextContent("No differences");
+      expect(
+        screen
+          .getByTestId("wit-compare-group-Overview")
+          .querySelector('[aria-expanded="true"]'),
+      ).toBeNull();
+    });
+
+    it("says plainly when the override matches canonical", () => {
+      openOverrideComparison(overrideDefinition);
+
+      expect(screen.getByTestId("wit-compare-matches")).toHaveTextContent(
+        "This override matches the current canonical definition.",
+      );
+    });
+
+    it("offers no comparison for a type that is not an override", () => {
+      mockTypeKey = "CUSTOM";
+      mockUseWorkItemTypeByKey.mockReturnValue({
+        workItemTypeSummary: builtInCanonicalSummary(overrideDefinition),
+        isLoading: false,
+        error: null,
+      });
+      renderForm();
+
+      expect(
+        screen.queryByTestId("wit-form-compare-with-canonical"),
+      ).toBeNull();
+    });
   });
 
   it("offers reset-to-canonical review for an eligible archived override without enabling edits", () => {

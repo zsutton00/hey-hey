@@ -149,6 +149,19 @@ export const WorkItemTypesList: React.FC<WorkItemTypesListProps> = ({
             </Typography>
           </CardContent>
         </CardActionArea>
+        {type.effectiveSource ===
+        WorkItemTypeEffectiveSource.CanonicalOverride ? (
+          <Box sx={{ px: 2, pb: 1 }}>
+            <Button
+              component={RouterLink}
+              to={`/projects/${projectId}/work-item-types/${encodeURIComponent(type.definition.key)}/edit?compare=1`}
+              size="small"
+              data-testid={`work-item-type-compare-${type.definition.key}`}
+            >
+              Differs from canonical
+            </Button>
+          </Box>
+        ) : null}
       </Card>
     );
   };

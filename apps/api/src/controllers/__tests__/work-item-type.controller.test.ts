@@ -7,6 +7,7 @@ import {
 } from '../work-item-type.controller';
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   HttpStatus,
   NotFoundException,
@@ -137,6 +138,7 @@ describe('WorkItemTypeController', () => {
     getGuidanceBatch: jest.fn(),
     getDefinitions: jest.fn(),
     getDefinition: jest.fn(),
+    getCanonicalComparison: jest.fn(),
   };
   const projectService = { findOne: jest.fn() };
   const proposalService = {
@@ -635,6 +637,52 @@ describe('WorkItemTypeController', () => {
         ),
       ).resolves.toEqual({ id: 'proposal-canonical' });
       expect(proposalService.create).toHaveBeenCalledTimes(1);
+    });
+
+    describe('canonical comparison', () => {
+      const canonical: WorkItemTypeDefinitionDto = {
+        ...definition,
+        key: 'STANDARD',
+        maintenanceGuidance: 'Keep it current.',
+        sessionRoleGuidance: { review: 'Check it.' },
+      };
+
+      it('returns the override and canonical definitions unchanged', () => {
+        const effective = {
+          ...summary('STANDARD'),
+          effectiveSource: WorkItemTypeEffectiveSource.CanonicalOverride,
+        };
+        registry.getCanonicalComparison.mockReturnValue({
+          effective,
+          canonical,
+        });
+
+        expect(
+          controller.getCanonicalComparison(PROJECT_ID, 'STANDARD'),
+        ).toEqual({ effective, canonical });
+      });
+
+      it('answers 404 for an unknown type', () => {
+        registry.getCanonicalComparison.mockReturnValue(undefined);
+
+        expect(() =>
+          controller.getCanonicalComparison(PROJECT_ID, 'NOPE'),
+        ).toThrow(NotFoundException);
+      });
+
+      it.each([
+        WorkItemTypeEffectiveSource.Canonical,
+        WorkItemTypeEffectiveSource.ProjectCustom,
+      ])('answers 409 for %s definitions', (effectiveSource) => {
+        registry.getCanonicalComparison.mockReturnValue({
+          effective: { ...summary('STANDARD'), effectiveSource },
+          canonical,
+        });
+
+        expect(() =>
+          controller.getCanonicalComparison(PROJECT_ID, 'STANDARD'),
+        ).toThrow(ConflictException);
+      });
     });
 
     it('submits reset-to-canonical only for a canonical override', async () => {

@@ -140,6 +140,7 @@ export {
   useRestoreWorkItemType,
   useWorkItemTypeCascadeImpact,
 } from "./hooks/useWorkItemTypeLifecycle";
+export { useWorkItemTypeCanonicalComparison } from "./hooks/useWorkItemTypeCanonicalComparison";
 
 // Export WebSocket debug utilities
 export { useWebSocketDebug, useWebSocketDebugger } from "./websockets/debug";

@@ -7355,8 +7355,7 @@ paths:
         list endpoint returns. This registry-backed read is the source of
         truth for opening the edit page: callers use the generated
         WorkItemTypeSummaryDto/WorkItemTypeDefinitionDto shape directly,
-        including lifecycle, owning-project, canonical template key, accepted
-        template revision, latest available template revision, and
+        including lifecycle, owning project, effective source, and
         schema-backed section metadata such as `kind` and `schemaRef`.
       operationId: organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyGet
       tags: [WorkItemTypes]
@@ -7606,6 +7605,46 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "404": { description: Work-item type not found. }
+
+  /organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/canonical-comparison:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: typeKey
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      summary: Read a canonical override next to the current canonical definition
+      description: >
+        Return the project's effective definition and the current canonical
+        definition for the same key, both complete and unmodified, so a caller
+        can show how the override differs. Read-only: nothing is merged,
+        created, or changed. Only available for a type whose effective source
+        is a canonical override.
+      operationId: organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet
+      tags: [WorkItemTypes]
+      responses:
+        "200":
+          description: The effective override and the current canonical definition.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/WorkItemTypeCanonicalComparisonDto"
+        "401": { description: Unauthorized }
+        "404": { description: Work-item type not found. }
+        "409": { description: The type is not a project override of a canonical type. }
 
   /organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/section-content-impact:
     parameters:
@@ -29472,6 +29511,8 @@ components:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeEffectiveSource"
     WorkItemTypeSummaryDto:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeSummaryDto"
+    WorkItemTypeCanonicalComparisonDto:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeCanonicalComparisonDto"
     WorkItemTypeEditRequestDto:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeEditRequestDto"
     WorkItemTypeSectionContentImpactDto:

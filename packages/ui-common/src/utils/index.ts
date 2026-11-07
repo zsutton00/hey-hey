@@ -75,3 +75,12 @@ export type { HighlightedToken } from "./highlightLine";
 export * from "./openItemSelection";
 
 export { getErrorMessage } from "./errorUtils";
+export { compareWorkItemTypeDefinitions } from "./workItemTypeComparison";
+export type {
+  ComparisonEntry,
+  ComparisonGroup,
+  ComparisonGroupId,
+  ComparisonStatus,
+  DefinitionComparison,
+  FieldLabeler,
+} from "./workItemTypeComparison";

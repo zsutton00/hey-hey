@@ -55,6 +55,7 @@ import type { WorkItemTypeCascadeImpactConflictDto } from '@hey-hey/contracts/ap
 import type { WorkItemTypeArchiveRequestDto } from '@hey-hey/contracts/api/models';
 import type { WorkItemTypeEditRequestDto } from '@hey-hey/contracts/api/models';
 import type { WorkItemTypeSummaryDto } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeCanonicalComparisonDto } from '@hey-hey/contracts/api/models';
 import { OrganizationId, ProjectId } from 'src/types';
 import {
   AuthToken,
@@ -291,6 +292,46 @@ export class WorkItemTypeController {
       );
     }
     return summary;
+  }
+
+  @Get(':typeKey/canonical-comparison')
+  @ApiOperation({
+    summary: 'Read a canonical override next to its canonical definition',
+  })
+  @ApiParam({ name: 'organizationId', description: 'Organization ID' })
+  @ApiParam({ name: 'projectId', description: 'Project ID' })
+  @ApiParam({ name: 'typeKey', description: 'Work-item type key' })
+  @ApiResponse({ status: 404, description: 'Work-item type not found' })
+  @ApiResponse({
+    status: 409,
+    description: 'The type is not a project override of a canonical type',
+  })
+  getCanonicalComparison(
+    @Param('projectId') projectId: ProjectId,
+    @Param('typeKey') typeKey: string,
+  ): WorkItemTypeCanonicalComparisonDto {
+    const comparison = this.registry.getCanonicalComparison(projectId, typeKey);
+    if (!comparison) {
+      throw new NotFoundException(
+        `Work-item type '${typeKey}' is not available in this project.`,
+      );
+    }
+
+    const { effective, canonical } = comparison;
+    if (
+      effective.effectiveSource !==
+        WorkItemTypeEffectiveSource.CanonicalOverride ||
+      !canonical
+    ) {
+      throw new ConflictException(
+        `Work-item type '${typeKey}' is not a canonical override.`,
+      );
+    }
+
+    return {
+      effective,
+      canonical,
+    } satisfies WorkItemTypeCanonicalComparisonDto;
   }
 
   @Get(':typeKey/guidance')

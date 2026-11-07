@@ -374,7 +374,10 @@ export class WorkItemTypeRegistryService
     projectTypeActivity: Map<string, Map<string, string>>;
     projectSummaries: Map<string, WorkItemTypeSummaryDto[]>;
     projectRelationships: Map<string, WorkItemTypeRelationshipIndex>;
+    /** Current canonical definition by type key; reference only, never merged. */
+    canonicalDefinitions: Map<string, WorkItemTypeDefinitionDto>;
   } = {
+    canonicalDefinitions: new Map(),
     projectRules: new Map(),
     projectTypeActivity: new Map(),
     projectSummaries: new Map(),
@@ -573,6 +576,12 @@ export class WorkItemTypeRegistryService
     const nextProjectSummaries = new Map<string, WorkItemTypeSummaryDto[]>();
 
     const canonicalKeys = new Set(templates.map((row) => row.typeKey));
+    const nextCanonicalDefinitions = new Map<string, WorkItemTypeDefinitionDto>(
+      templates.map((template) => [
+        template.typeKey,
+        this.materializeTemplateDefinition(template),
+      ]),
+    );
     const rowsByProject = new Map<string, WorkItemType[]>();
     for (const row of rows) {
       const projectRows = rowsByProject.get(row.projectId) ?? [];
@@ -676,6 +685,7 @@ export class WorkItemTypeRegistryService
         return merged;
       };
       this.snapshot = {
+        canonicalDefinitions: nextCanonicalDefinitions,
         projectRules: merge(this.snapshot.projectRules, nextProjectRules),
         projectTypeActivity: merge(
           this.snapshot.projectTypeActivity,
@@ -693,6 +703,7 @@ export class WorkItemTypeRegistryService
       return;
     }
     this.snapshot = {
+      canonicalDefinitions: nextCanonicalDefinitions,
       projectRules: nextProjectRules,
       projectTypeActivity: nextProjectActivity,
       projectSummaries: nextProjectSummaries,
@@ -1789,6 +1800,32 @@ export class WorkItemTypeRegistryService
     return (this.snapshot.projectSummaries.get(projectId) ?? []).find(
       (summary) => summary.definition.key === typeKey,
     );
+  }
+
+  /**
+   * The project's effective summary next to the current canonical definition
+   * for the same key, for display only. The two are returned unchanged and
+   * never combined. `canonical` is undefined when the key has no canonical
+   * definition (a project-custom type).
+   */
+  getCanonicalComparison(
+    projectId: string,
+    typeKey: string,
+  ):
+    | {
+        effective: WorkItemTypeSummaryDto;
+        canonical: WorkItemTypeDefinitionDto | undefined;
+      }
+    | undefined {
+    const effective = this.getDefinition(projectId, typeKey);
+    if (!effective) {
+      return undefined;
+    }
+
+    return {
+      effective,
+      canonical: this.snapshot.canonicalDefinitions.get(typeKey),
+    };
   }
 
   /** Resolves against this captured effective snapshot; never merge axes. */
