@@ -1730,8 +1730,8 @@ export class Run {
       nextPhase: 'thinking',
       hasActiveTurn: this.activeTurn !== null,
     });
-    this.agentSessionCurrentState.observeProviderPhase('thinking');
-    this.conversationPhase.resumeAfterApproval();
+    this.agentSessionCurrentState.resolveApproval('decision_delivered');
+    this.conversationPhase.resolveApproval('decision_delivered');
   }
 
   /**
@@ -1761,8 +1761,8 @@ export class Run {
       nextPhase: 'thinking',
       hasActiveTurn: this.activeTurn !== null,
     });
-    this.agentSessionCurrentState.observeProviderPhase('thinking');
-    this.conversationPhase.resumeAfterApproval();
+    this.agentSessionCurrentState.resolveApproval('question_answered');
+    this.conversationPhase.resolveApproval('question_answered');
   }
 
   setHasProviderSession(value: boolean, reason: string): void {
