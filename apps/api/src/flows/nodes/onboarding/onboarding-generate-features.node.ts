@@ -348,7 +348,7 @@ When generating features (top-level or child), you SHOULD include an "influences
 - entityId: UUID of the entity
 - entityType: type of the entity (as provided in the evidence)
 - reasoning: how this entity influenced the feature
-- reasonType: e.g. "previous_conversation", "related_feature", "depends_on", "similar_to", "references"
+- reasonType: exactly one of "explicit_mention" (the user or evidence named this entity), "implied" (the evidence suggests it without naming it), or "derived" (you inferred it from the evidence). No other value is accepted.
 
 EXAMPLE JSON STRUCTURE:
 {

@@ -2,6 +2,7 @@
 
 exports[`TaskGenerationGenerateStubsNode builds a stub system message snapshot 1`] = `
 {
+  "actions": [],
   "detectedIntent": "task_stub_iteration",
   "intentConfidence": 1,
   "response": "Here are some fresh stubs based on the feedback.",
