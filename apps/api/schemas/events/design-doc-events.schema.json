@@ -4831,6 +4831,13 @@
             "settings": {
               "$ref": "#/definitions/EvalRunSettings"
             },
+            "cases": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/EvalRunCaseInput"
+              },
+              "description": "Case inputs recorded on the run. Attempts reference them by id."
+            },
             "attempts": {
               "type": "array",
               "items": {
@@ -4841,6 +4848,7 @@
           },
           "required": [
             "attempts",
+            "cases",
             "entity",
             "evalRunId",
             "judgeSetup",
@@ -7433,125 +7441,6 @@
       "required": ["maxConcurrentAttempts"],
       "description": "How the run executes. An absent limit means no limit."
     },
-    "EvalRecordedAttempt": {
-      "type": "object",
-      "properties": {
-        "attemptId": {
-          "type": "string"
-        },
-        "execution": {
-          "$ref": "#/definitions/EvalResolvedExecution"
-        },
-        "targetSessionId": {
-          "type": "string",
-          "description": "Agent Session the attempt\\'s target runs and writes under."
-        },
-        "targetConversationId": {
-          "type": "string",
-          "description": "Conversation prepared at launch alongside the target session."
-        },
-        "caseInput": {
-          "$ref": "#/definitions/EvalRunCaseInput"
-        },
-        "configuration": {
-          "$ref": "#/definitions/EvalConfiguration"
-        }
-      },
-      "required": [
-        "attemptId",
-        "execution",
-        "targetSessionId",
-        "targetConversationId",
-        "caseInput",
-        "configuration"
-      ],
-      "description": "One case x configuration attempt as recorded for the coordinator."
-    },
-    "EvalResolvedExecution": {
-      "type": "object",
-      "properties": {
-        "handler": {
-          "$ref": "#/definitions/EvalTargetHandlerKey"
-        },
-        "consumerHandler": {
-          "$ref": "#/definitions/EvalConsumerHandlerKey",
-          "description": "Present exactly when `handler` is `project_assistant`: the handler whose real policy Project Assistant runs under."
-        },
-        "projectAssistantPrepares": {
-          "type": "boolean",
-          "description": "True when Project Assistant runs first and hands its research to `handler`. False when `handler` runs alone, and for `project_assistant`, which is the research itself."
-        },
-        "assessedOutput": {
-          "$ref": "#/definitions/EvalAssessedOutput"
-        }
-      },
-      "required": ["handler", "projectAssistantPrepares", "assessedOutput"],
-      "description": "What one attempt runs, resolved at launch from the run\\'s chosen handler (or the case\\'s own) and the Project Assistant setting. Recorded so later changes to defaults never rewrite what ran."
-    },
-    "EvalConsumerHandlerKey": {
-      "anyOf": [
-        {
-          "type": "string",
-          "const": "startup_session"
-        },
-        {
-          "type": "string",
-          "const": "design_doc_refiner"
-        },
-        {
-          "type": "string",
-          "const": "feature_sync_analyze"
-        },
-        {
-          "type": "string",
-          "const": "feature_refiner"
-        },
-        {
-          "type": "string",
-          "const": "task_refiner"
-        },
-        {
-          "type": "string",
-          "const": "plan_shaping_feature_sync_analyze"
-        },
-        {
-          "type": "string",
-          "const": "free_form"
-        },
-        {
-          "type": "string",
-          "const": "entity_conversation"
-        },
-        {
-          "type": "string",
-          "const": "html_css_mockup_revision"
-        },
-        {
-          "type": "string",
-          "const": "validation_walkthrough"
-        },
-        {}
-      ],
-      "description": "Registry key of a handler whose real Project Assistant policy a Project Assistant case runs under. Each key must be a registered handler that declares a Project Assistant policy; the Hey Hey CLI tests the list against its registry."
-    },
-    "EvalAssessedOutput": {
-      "anyOf": [
-        {
-          "type": "string",
-          "const": "RESEARCH_REPORT"
-        },
-        {
-          "type": "string",
-          "const": "HANDLER_REPLY"
-        },
-        {
-          "type": "string",
-          "const": "CODE_CHANGES"
-        },
-        {}
-      ],
-      "description": "Which output the judge assesses for an attempt. CODE_CHANGES is the recorded changes of a coding attempt, not its chat reply."
-    },
     "EvalRunCaseInput": {
       "type": "object",
       "properties": {
@@ -7611,6 +7500,52 @@
       },
       "required": ["situation", "initiatingRequest", "targetHandler"],
       "description": "Recorded case context. Only the initiating request and focal entity reach the target; situation and supporting items are reviewer and judge context."
+    },
+    "EvalConsumerHandlerKey": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "startup_session"
+        },
+        {
+          "type": "string",
+          "const": "design_doc_refiner"
+        },
+        {
+          "type": "string",
+          "const": "feature_sync_analyze"
+        },
+        {
+          "type": "string",
+          "const": "feature_refiner"
+        },
+        {
+          "type": "string",
+          "const": "task_refiner"
+        },
+        {
+          "type": "string",
+          "const": "plan_shaping_feature_sync_analyze"
+        },
+        {
+          "type": "string",
+          "const": "free_form"
+        },
+        {
+          "type": "string",
+          "const": "entity_conversation"
+        },
+        {
+          "type": "string",
+          "const": "html_css_mockup_revision"
+        },
+        {
+          "type": "string",
+          "const": "validation_walkthrough"
+        },
+        {}
+      ],
+      "description": "Registry key of a handler whose real Project Assistant policy a Project Assistant case runs under. Each key must be a registered handler that declares a Project Assistant policy; the Hey Hey CLI tests the list against its registry."
     },
     "EvalCaseGrading": {
       "type": "object",
@@ -7750,6 +7685,79 @@
       },
       "required": ["id", "description"],
       "description": "One observable outcome to check in a Mockup-derived coding attempt."
+    },
+    "EvalRecordedAttempt": {
+      "type": "object",
+      "properties": {
+        "attemptId": {
+          "type": "string"
+        },
+        "execution": {
+          "$ref": "#/definitions/EvalResolvedExecution"
+        },
+        "targetSessionId": {
+          "type": "string",
+          "description": "Agent Session the attempt\\'s target runs and writes under."
+        },
+        "targetConversationId": {
+          "type": "string",
+          "description": "Conversation prepared at launch alongside the target session."
+        },
+        "caseInput": {
+          "$ref": "#/definitions/EvalRunCaseInput"
+        },
+        "configuration": {
+          "$ref": "#/definitions/EvalConfiguration"
+        }
+      },
+      "required": [
+        "attemptId",
+        "execution",
+        "targetSessionId",
+        "targetConversationId",
+        "caseInput",
+        "configuration"
+      ],
+      "description": "One case x configuration attempt as recorded for the coordinator."
+    },
+    "EvalResolvedExecution": {
+      "type": "object",
+      "properties": {
+        "handler": {
+          "$ref": "#/definitions/EvalTargetHandlerKey"
+        },
+        "consumerHandler": {
+          "$ref": "#/definitions/EvalConsumerHandlerKey",
+          "description": "Present exactly when `handler` is `project_assistant`: the handler whose real policy Project Assistant runs under."
+        },
+        "projectAssistantPrepares": {
+          "type": "boolean",
+          "description": "True when Project Assistant runs first and hands its research to `handler`. False when `handler` runs alone, and for `project_assistant`, which is the research itself."
+        },
+        "assessedOutput": {
+          "$ref": "#/definitions/EvalAssessedOutput"
+        }
+      },
+      "required": ["handler", "projectAssistantPrepares", "assessedOutput"],
+      "description": "What one attempt runs, resolved at launch from the run\\'s chosen handler (or the case\\'s own) and the Project Assistant setting. Recorded so later changes to defaults never rewrite what ran."
+    },
+    "EvalAssessedOutput": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "RESEARCH_REPORT"
+        },
+        {
+          "type": "string",
+          "const": "HANDLER_REPLY"
+        },
+        {
+          "type": "string",
+          "const": "CODE_CHANGES"
+        },
+        {}
+      ],
+      "description": "Which output the judge assesses for an attempt. CODE_CHANGES is the recorded changes of a coding attempt, not its chat reply."
     },
     "EvalConfiguration": {
       "type": "object",
@@ -13536,6 +13544,13 @@
         "decidedAt": {
           "type": ["string", "null"],
           "description": "ISO timestamp of when the decision was recorded"
+        },
+        "groupedRequests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AgentGroupedPermissionRequest"
+          },
+          "description": "Present when this card lists several same-tool requests. Each entry carries its own decision. The first entry is the request described by permissionRequest, decision and decidedAt."
         }
       },
       "required": ["responseType", "permissionRequest"],
@@ -13639,6 +13654,56 @@
       "description": "Agent providers that can issue permission requests"
     },
     "AgentRequestPermissionPayloadDecisionEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "approve"
+        },
+        {
+          "type": "string",
+          "const": "always_approve"
+        },
+        {
+          "type": "string",
+          "const": "whitelist"
+        },
+        {
+          "type": "string",
+          "const": "deny"
+        },
+        {}
+      ]
+    },
+    "AgentGroupedPermissionRequest": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "description": "Permission request id this entry answers"
+        },
+        "description": {
+          "type": "string",
+          "description": "What this request is for, such as a search query or network host"
+        },
+        "decision": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AgentGroupedPermissionRequestDecisionEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The user\\'s decision for this request, once recorded"
+        },
+        "decidedAt": {
+          "type": ["string", "null"],
+          "description": "ISO timestamp of when this request\\'s decision was recorded"
+        }
+      },
+      "required": ["requestId", "description"]
+    },
+    "AgentGroupedPermissionRequestDecisionEnum": {
       "anyOf": [
         {
           "type": "string",
@@ -21283,7 +21348,7 @@
               "const": "CODING_RESEARCH"
             },
             "format": {
-              "$ref": "#/definitions/CodingResearchStructuredReportPayloadFormatEnum"
+              "$ref": "#/definitions/CodingResearchSelfResearchReportPayloadFormatEnum"
             },
             "summary": {
               "type": "string"
@@ -21339,7 +21404,7 @@
               "const": "CODING_RESEARCH"
             },
             "format": {
-              "$ref": "#/definitions/CodingResearchWrittenReportPayloadFormatEnum"
+              "$ref": "#/definitions/CodingResearchSubagentParentReportPayloadFormatEnum"
             },
             "summary": {
               "type": "string",
@@ -22403,11 +22468,11 @@
         {}
       ]
     },
-    "CodingResearchStructuredReportPayloadFormatEnum": {
+    "CodingResearchSelfResearchReportPayloadFormatEnum": {
       "anyOf": [
         {
           "type": "string",
-          "const": "STRUCTURED"
+          "const": "SELF_RESEARCH"
         },
         {}
       ]
@@ -22651,11 +22716,11 @@
       },
       "required": ["entityType", "entityId", "title"]
     },
-    "CodingResearchWrittenReportPayloadFormatEnum": {
+    "CodingResearchSubagentParentReportPayloadFormatEnum": {
       "anyOf": [
         {
           "type": "string",
-          "const": "WRITTEN"
+          "const": "SUBAGENT_PARENT"
         },
         {}
       ]
