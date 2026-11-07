@@ -35,7 +35,6 @@ type RenderOptions = {
   isSubmitting?: boolean;
   animationType?: "fun" | "minimal";
   readOnly?: boolean;
-  composerResetMode?: "preserve" | "clearOnSuccess";
   agentSessionId?: string;
   taskMonitorId?: string;
   conversationFormResolver?: ConversationFormResolver;
@@ -325,7 +324,6 @@ export const renderWithConversationProvider = async (
     isSubmitting = false,
     animationType = "fun",
     readOnly = false,
-    composerResetMode = "preserve",
     agentSessionId,
     taskMonitorId,
     conversationFormResolver,
@@ -473,7 +471,6 @@ export const renderWithConversationProvider = async (
             project={project}
             animationType={animationType}
             readOnly={readOnly}
-            composerResetMode={composerResetMode}
             agentSessionId={agentSessionId}
             taskMonitorId={taskMonitorId}
             conversationFormResolver={conversationFormResolver}

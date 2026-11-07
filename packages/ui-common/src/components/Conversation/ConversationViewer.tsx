@@ -121,10 +121,6 @@ export interface PersistedConversationViewerProps {
   ) => Promise<GoalPmRoutingEnactmentResponse>;
   goalPmConversationLink?: GoalPmConversationLink;
   /**
-   * Controls whether composer field values are preserved or cleared after successful submission.
-   */
-  composerResetMode?: "preserve" | "clearOnSuccess";
-  /**
    * the type of loading animation to show. fun gives bubbles and games
    */
   animationType: "fun" | "minimal";
@@ -888,7 +884,6 @@ const PersistedConversationViewer: React.FC<
   enableHistory = false,
   onHistoryConversationSelected,
   readOnly = false,
-  composerResetMode = "preserve",
   sidebarMode = "full",
   combineSameSections = false,
   timelineAnimationMode = "all",
@@ -995,7 +990,6 @@ const PersistedConversationViewer: React.FC<
       onConversationUpdated={onConversationUpdated}
       suggestionDecisions={suggestionDecisions}
       readOnly={readOnly}
-      composerResetMode={composerResetMode}
       renderNestedUserMessages={renderNestedUserMessages}
       hideAnalysisAction={hideAnalysisAction}
       proposalDiffDefaultViewMode={proposalDiffDefaultViewMode}

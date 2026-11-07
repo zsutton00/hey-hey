@@ -35,7 +35,9 @@ export const useTaskMonitorConversationFormResolver = ({
       const isCommandUnavailable =
         commandTarget === null || selectedMachineId === null;
 
-      const uiElements = getTaskMonitorJudgmentFormUiElements(conversationMessage.message);
+      const uiElements = getTaskMonitorJudgmentFormUiElements(
+        conversationMessage.message,
+      );
       return {
         responseDeclarations: uiElements.map((element) => ({
           ownership: "exclusive",
@@ -45,16 +47,15 @@ export const useTaskMonitorConversationFormResolver = ({
         uiElements,
         disabled: isCommandUnavailable || isSubmitted || isPending,
         isSubmitted,
-        composerResetMode: "clearOnSuccess",
         submit: async (data) => {
           if (!commandTarget) {
             throw new Error(
-              "The Task Monitor command target is missing from this conversation."
+              "The Task Monitor command target is missing from this conversation.",
             );
           }
           if (!selectedMachineId) {
             throw new Error(
-              "A controller-ready selected machine is required for this Task Monitor command."
+              "A controller-ready selected machine is required for this Task Monitor command.",
             );
           }
 
@@ -67,7 +68,7 @@ export const useTaskMonitorConversationFormResolver = ({
               machineId: selectedMachineId,
               command: buildTaskMonitorJudgmentCommand(
                 conversationMessage.message.id,
-                data
+                data,
               ),
             },
           });
@@ -76,12 +77,19 @@ export const useTaskMonitorConversationFormResolver = ({
             SubmitTaskMonitorCommandResponseDtoStatusEnum.Rejected
           ) {
             throw new Error(
-              outcome.message ?? "The Task Monitor rejected the judgment."
+              outcome.message ?? "The Task Monitor rejected the judgment.",
             );
           }
         },
       };
     },
-    [monitorId, organizationId, projectId, selectedMachineId, isPending, mutate]
+    [
+      monitorId,
+      organizationId,
+      projectId,
+      selectedMachineId,
+      isPending,
+      mutate,
+    ],
   );
 };

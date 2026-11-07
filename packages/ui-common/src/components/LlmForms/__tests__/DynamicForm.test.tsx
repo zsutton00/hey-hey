@@ -756,13 +756,12 @@ describe("DynamicForm", () => {
       );
     });
 
-    it("should clear text fields on submit when composerResetMode is clearOnSuccess", async () => {
+    it("should clear text fields on submit", async () => {
       const user = userEvent.setup();
       const uiElements = [createUIElement({ id: "message-input" })];
 
       renderForm({
         uiElements,
-        composerResetMode: "clearOnSuccess",
       });
 
       await user.type(screen.getByTestId("field-message-input"), "hello");
@@ -774,44 +773,12 @@ describe("DynamicForm", () => {
       });
     });
 
-    it("should preserve text field values when composerResetMode is preserve", async () => {
-      const user = userEvent.setup();
-      const uiElements = [createUIElement({ id: "message-input" })];
-
-      renderForm({
-        uiElements,
-        composerResetMode: "preserve",
-      });
-
-      const input = screen.getByTestId("field-message-input");
-      await user.type(input, "hello");
-      expect(input).toHaveValue("hello");
-
-      const { result: events } = renderHook(() =>
-        useConversationEvents(defaultContext.conversationId),
-      );
-      act(() => {
-        events.current.emit({
-          type: "submission-success",
-          payload: {
-            messageId: baseConversationMessage.message.id,
-            data: { "message-input": "hello" },
-          },
-        });
-      });
-
-      await waitFor(() => {
-        expect(screen.getByTestId("field-message-input")).toHaveValue("hello");
-      });
-    });
-
     it("should not clear when submission-success is for a different message", async () => {
       const user = userEvent.setup();
       const uiElements = [createUIElement({ id: "message-input" })];
 
       renderForm({
         uiElements,
-        composerResetMode: "clearOnSuccess",
       });
 
       const input = screen.getByTestId("field-message-input");
@@ -847,7 +814,6 @@ describe("DynamicForm", () => {
 
       renderForm({
         uiElements,
-        composerResetMode: "clearOnSuccess",
       });
 
       await user.type(
@@ -869,7 +835,6 @@ describe("DynamicForm", () => {
 
       renderForm({
         uiElements,
-        composerResetMode: "clearOnSuccess",
       });
 
       await user.type(screen.getByTestId("field-judgment-input"), text);

@@ -68,7 +68,6 @@ export const ConversationFormRenderer: React.FC<ConversationFormRendererProps> =
         workflowStatus,
         handleNext,
         isReadOnly,
-        composerResetMode,
         isCliInputDisabled,
         onFocusComposer,
         onGoalPmAction,
@@ -291,9 +290,6 @@ export const ConversationFormRenderer: React.FC<ConversationFormRendererProps> =
               isSubmittable={isSubmittable}
               secondActions={getSecondActions(fieldContext)}
               status={status}
-              composerResetMode={
-                formResolution?.composerResetMode ?? composerResetMode
-              }
               onNext={onNext}
               conversationMessage={conversationMessage}
               uiHints={uiHints}

@@ -78,7 +78,6 @@ interface DynamicFormProps {
   conversationMessage: ConversationMessage;
   status?: SaveStatus;
   uiHints?: UIHints;
-  composerResetMode?: "preserve" | "clearOnSuccess";
 }
 
 // Generate Zod schema from UIElements
@@ -673,7 +672,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   status = "draft",
   showSkeleton,
   uiHints,
-  composerResetMode = "preserve",
 }) => {
   const { on } = useConversationEvents(context.conversationId);
   const uiElements = React.useMemo(
@@ -1135,15 +1133,12 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
       });
 
       setFailedSubmission(false);
-      if (composerResetMode === "clearOnSuccess") {
-        clearComposerForSubmission();
-      }
+      clearComposerForSubmission();
 
       onNext(payload, options);
     },
     [
       onNext,
-      composerResetMode,
       clearComposerForSubmission,
       setFailedSubmission,
       trackSubmitSuccess,

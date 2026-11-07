@@ -52,7 +52,6 @@ export interface ConversationFormResolution {
   disabled: boolean;
   /** Completion evidence from the owner, never temporary command readiness. */
   isSubmitted: boolean;
-  composerResetMode?: "preserve" | "clearOnSuccess";
   submit: (data: Record<string, FormValue>) => Promise<void>;
 }
 

@@ -158,7 +158,6 @@ interface ConversationContextValue {
 
   // Read-only mode
   isReadOnly: boolean;
-  composerResetMode: "preserve" | "clearOnSuccess";
 
   /**
    * When true, all conversation input surfaces (forms, secondary action
@@ -201,7 +200,6 @@ interface ConversationProviderProps {
   renderNestedUserMessages?: boolean;
   scrollPolicy: ConversationScrollPolicy;
   readOnly?: boolean;
-  composerResetMode?: "preserve" | "clearOnSuccess";
   hideAnalysisAction?: boolean;
   navigate?: (url: string) => void;
   onDirectTrigger?: (message: CreateUserMessage) => Promise<void>;
@@ -540,7 +538,6 @@ export const ConversationProvider: React.FC<ConversationProviderProps> = ({
   renderNestedUserMessages = false,
   scrollPolicy,
   readOnly = false,
-  composerResetMode = "preserve",
   hideAnalysisAction = false,
   navigate,
   onDirectTrigger,
@@ -869,7 +866,6 @@ export const ConversationProvider: React.FC<ConversationProviderProps> = ({
         isGeneratingResponse: false,
         suggestionDecisions,
         isReadOnly: readOnly,
-        composerResetMode,
         isCliInputDisabled,
         selectedMachineId:
           cliResult.type === "ready" ? cliResult.machine.machineId : null,
@@ -930,7 +926,6 @@ export const ConversationProvider: React.FC<ConversationProviderProps> = ({
 
       // Read-only mode
       isReadOnly: readOnly,
-      composerResetMode,
       isCliInputDisabled,
       selectedMachineId:
         cliResult.type === "ready" ? cliResult.machine.machineId : null,
@@ -978,7 +973,6 @@ export const ConversationProvider: React.FC<ConversationProviderProps> = ({
     animationType,
     suggestionDecisions,
     readOnly,
-    composerResetMode,
     isCliInputDisabled,
     cliResult,
     hideAnalysisAction,
