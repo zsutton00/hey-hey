@@ -1,4 +1,8 @@
-import { LocalPromptType, type LocalRunEvalPromptPayload } from '@hey-hey/contracts/agent-bridge';
+import {
+  SessionRole,
+  LocalPromptType,
+  type LocalRunEvalPromptPayload,
+} from '@hey-hey/contracts/agent-bridge';
 import { LocalReasoningEffort } from '../../shared/agent-bridge-contract/contract';
 import type { EvalModelSetting } from '@hey-hey/contracts/api/models';
 import type { RegisteredChildLaunchRequest } from '../../run/child-agent-launcher';
@@ -91,6 +95,7 @@ const runRecordedAttempts = async (
             runId: session.agentic_session_id,
             caseInputId: attempt.caseInput.id,
             attemptId: attempt.attemptId,
+            repeat: attempt.repeat ?? null,
             error: describeFailure(error),
           });
           throw error;
@@ -114,6 +119,7 @@ const runRecordedAttempts = async (
     maxConcurrentAttempts: payload.settings.maxConcurrentAttempts,
     attemptTimeLimitSeconds: payload.settings.attemptTimeLimitSeconds ?? null,
     attemptTokenLimit: payload.settings.attemptTokenLimit ?? null,
+    repeatsPerAttempt: payload.settings.repeatsPerAttempt ?? null,
   });
   const tally = await runEvalAttempts(
     {
@@ -139,6 +145,7 @@ const runRecordedAttempts = async (
  */
 export const runEvalHandler: UserLaunchablePromptTypeHandler<LocalRunEvalPromptPayload> = {
   id: 'run_eval',
+  sessionRole: SessionRole.Review,
   promptType: LocalPromptType.RunEval,
   service: 'optional',
   launchEntity: 'required',

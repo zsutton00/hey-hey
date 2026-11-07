@@ -254,6 +254,7 @@ export const EvalCaseRow: React.FC<EvalCaseRowProps> = ({
             run={run}
             attempt={attempt}
             row={row}
+            repeat={null}
           />
         </Box>
       </Collapse>

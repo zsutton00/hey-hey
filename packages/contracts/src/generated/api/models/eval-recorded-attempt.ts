@@ -25,7 +25,7 @@ import type { EvalResolvedExecution } from './eval-resolved-execution.js';
 import type { EvalRunCaseInput } from './eval-run-case-input.js';
 
 /**
- * One case x configuration attempt as recorded for the coordinator.
+ * One attempt at a case, configuration and repeat as recorded for the coordinator.
  * @export
  * @interface EvalRecordedAttempt
  */
@@ -66,4 +66,10 @@ export interface EvalRecordedAttempt {
      * @memberof EvalRecordedAttempt
      */
     'configuration': EvalConfiguration;
+    /**
+     * 1-based repeat this attempt is, copied from its attempt report. Absent when the attempt report has none.
+     * @type {number}
+     * @memberof EvalRecordedAttempt
+     */
+    'repeat'?: number;
 }

@@ -12,7 +12,7 @@ import {
   isProjectAssistantEnabled,
   runHandlerOf,
   formatElapsed,
-  progressEntries,
+  repeatCellView,
   toConfiguration,
   toLaunchSettings,
 } from "./evalRunView";
@@ -115,9 +115,10 @@ describe("toConfiguration with a run-level handler", () => {
 });
 
 describe("toLaunchSettings", () => {
-  it("defaults to 3 at once and leaves both limits out (no limit)", () => {
+  it("defaults to 3 at once and one repeat, and leaves both limits out (no limit)", () => {
     expect(toLaunchSettings(defaultRunSettings())).toEqual({
       maxConcurrentAttempts: 3,
+      repeatsPerAttempt: 1,
     });
   });
 
@@ -127,12 +128,23 @@ describe("toLaunchSettings", () => {
         concurrency: 2,
         timeLimit: { kind: "preset", value: 15 },
         tokenLimit: { kind: "custom", value: 50_000 },
+        repeats: 5,
       }),
     ).toEqual({
       maxConcurrentAttempts: 2,
       attemptTimeLimitSeconds: 900,
       attemptTokenLimit: 50_000,
+      repeatsPerAttempt: 5,
     });
+  });
+
+  it("accepts 1 to 10 repeats and nothing else", () => {
+    const withRepeats = (repeats: number | null) =>
+      toLaunchSettings({ ...defaultRunSettings(), repeats });
+    expect(withRepeats(10)?.repeatsPerAttempt).toBe(10);
+    expect(withRepeats(0)).toBeNull();
+    expect(withRepeats(11)).toBeNull();
+    expect(withRepeats(null)).toBeNull();
   });
 
   it("is incomplete while a custom limit or concurrency is unset", () => {
@@ -261,53 +273,72 @@ describe("attemptCellView", () => {
   });
 });
 
-describe("progressEntries", () => {
-  it("logs each start and end in time order", () => {
-    const entries = progressEntries(
-      [
-        attempt("a", {
-          status: EvalAttemptStatus.Completed,
-          startedAt: "2026-10-22T10:00:00.000Z",
-          completedAt: "2026-10-22T10:05:00.000Z",
-        }),
-        attempt("b", {
-          status: EvalAttemptStatus.Error,
-          startedAt: "2026-10-22T10:00:01.000Z",
-          completedAt: "2026-10-22T10:01:00.000Z",
-          error: { message: "boom" },
-        }),
-        attempt("c", {
-          status: EvalAttemptStatus.Stopped,
-          stopReason: EvalAttemptStopReason.TimeLimit,
-          startedAt: "2026-10-22T10:00:02.000Z",
-          completedAt: "2026-10-22T10:15:02.000Z",
-        }),
-        attempt("d", { status: EvalAttemptStatus.Queued }),
-      ],
-      settings,
-    );
-    expect(entries.map((e) => `${e.kind}:${e.attempt.id}`)).toEqual([
-      "started:a",
-      "started:b",
-      "started:c",
-      "error:b",
-      "finished:a",
-      "stopped:c",
-    ]);
+describe("repeatCellView", () => {
+  const judged = (recognized: boolean) => ({
+    checkResults: [],
+    quality: [],
+    recognition: { recognized, explanation: "" },
+    createdAt: "2026-10-22T10:05:00.000Z",
   });
 
-  it("keeps an end without a recorded time after its start", () => {
-    const entries = progressEntries(
+  it("counts a cell's repeats and names what is running, stopped or errored", () => {
+    const view = repeatCellView(
       [
-        attempt("a", {
+        attempt("r1", {
+          repeat: 1,
+          status: EvalAttemptStatus.Completed,
+          automatedAssessment: judged(true),
+        }),
+        attempt("r2", {
+          repeat: 2,
+          status: EvalAttemptStatus.Completed,
+          automatedAssessment: judged(false),
+        }),
+        attempt("r3", {
+          repeat: 3,
+          status: EvalAttemptStatus.Running,
+          startedAt: "2026-10-22T10:08:00.000Z",
+        }),
+        attempt("r4", {
+          repeat: 4,
           status: EvalAttemptStatus.Stopped,
-          stopReason: EvalAttemptStopReason.User,
-          startedAt: "2026-10-22T10:00:00.000Z",
+          stopReason: EvalAttemptStopReason.TimeLimit,
+        }),
+        attempt("r5", {
+          repeat: 5,
+          status: EvalAttemptStatus.Error,
+          error: { message: "boom" },
         }),
       ],
       settings,
+      NOW,
+      "coordinator",
     );
-    expect(entries.map((e) => e.kind)).toEqual(["started", "stopped"]);
+    expect(view).toEqual({
+      total: 5,
+      ended: 4,
+      queued: 0,
+      running: [{ repeat: 3, elapsedMs: 120_000, phase: null }],
+      correct: 1,
+      assessed: 2,
+      stopped: [
+        {
+          repeat: 4,
+          stop: { reason: EvalAttemptStopReason.TimeLimit, limit: "15 min" },
+        },
+      ],
+      errored: [{ repeat: 5, message: "boom", sessionId: "target-session" }],
+    });
+  });
+
+  it("reads attempts recorded without a repeat as repeat 1", () => {
+    const view = repeatCellView(
+      [attempt("old", { status: EvalAttemptStatus.Error })],
+      settings,
+      NOW,
+      null,
+    );
+    expect(view.errored[0]?.repeat).toBe(1);
   });
 });
 

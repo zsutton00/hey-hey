@@ -66,6 +66,12 @@ export interface EvalAttemptReportPayloadAllOf {
      */
     'configuration': EvalConfiguration;
     /**
+     * 1-based repeat this attempt is. Absent on attempts recorded before repeats existed, which are read as repeat 1.
+     * @type {number}
+     * @memberof EvalAttemptReportPayloadAllOf
+     */
+    'repeat'?: number;
+    /**
      * Absent on attempts recorded before run-level handler selection existed.
      * @type {EvalResolvedExecution}
      * @memberof EvalAttemptReportPayloadAllOf

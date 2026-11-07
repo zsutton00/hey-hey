@@ -5884,6 +5884,13 @@ export const controllerActionRuntimeSchema = {
               type: 'integer',
               minimum: 1,
             },
+            repeatsPerAttempt: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 10,
+              description:
+                'How many separate fresh attempts the run makes for each case and configuration. Absent on runs recorded before repeats existed, which are read as 1.\n',
+            },
           },
         },
         cases: {
@@ -6108,7 +6115,8 @@ export const controllerActionRuntimeSchema = {
             'Recorded case x configuration attempts. Each carries its case input and configuration.',
           items: {
             type: 'object',
-            description: 'One case x configuration attempt as recorded for the coordinator.',
+            description:
+              'One attempt at a case, configuration and repeat as recorded for the coordinator.',
             required: [
               'attemptId',
               'caseInput',
@@ -6198,6 +6206,13 @@ export const controllerActionRuntimeSchema = {
                       'Distinct preparation setting, present only when it differs from the target.',
                   },
                 },
+              },
+              repeat: {
+                type: 'integer',
+                minimum: 1,
+                maximum: 10,
+                description:
+                  '1-based repeat this attempt is, copied from its attempt report. Absent when the attempt report has none.\n',
               },
             },
           },

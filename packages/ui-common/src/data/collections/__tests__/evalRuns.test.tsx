@@ -416,6 +416,48 @@ describe("run_eval start payload", () => {
     },
   );
 
+  it("expects every repeat and orders attempts by repeat, then case, then setup", () => {
+    const cases = ["case-a", "case-b"].map((id) => ({ ...caseInput, id }));
+    const setups = ["setup-a", "setup-b"].map((id) => ({
+      ...configuration,
+      id,
+    }));
+    const run = runReport(EvalRunStatus.Queued);
+    run.payload = {
+      ...run.payload,
+      cases,
+      configurations: setups,
+      settings: { maxConcurrentAttempts: 3, repeatsPerAttempt: 2 },
+    };
+    const attempts = [1, 2].flatMap((repeat) =>
+      cases.flatMap((c) =>
+        setups.map((setup) => {
+          const attempt = attemptReport("QUEUED");
+          attempt.id = `${c.id}/${setup.id}/${repeat}`;
+          attempt.payload = {
+            ...attempt.payload,
+            caseInputId: c.id,
+            configuration: setup,
+            repeat,
+          };
+          return attempt;
+        }),
+      ),
+    );
+
+    const payload = buildRunEvalStartPayload(
+      run,
+      [...attempts].reverse(),
+      "Run the eval",
+    );
+    expect(
+      payload.attempts.map((attempt) => [attempt.attemptId, attempt.repeat]),
+    ).toEqual(attempts.map((attempt) => [attempt.id, attempt.payload.repeat]));
+    expect(() =>
+      buildRunEvalStartPayload(run, attempts.slice(0, 4), "Run the eval"),
+    ).toThrow(/recorded 8 attempts but 4/);
+  });
+
   it("refuses to start with attempts missing", () => {
     expect(() =>
       buildRunEvalStartPayload(runReport("QUEUED"), [], "Run the eval"),

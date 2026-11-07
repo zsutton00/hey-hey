@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EvalAttemptReport, EvalRunReport } from "@hey-hey/ui-common/data";
@@ -8,14 +15,27 @@ const mockUseEvalRun = vi.fn();
 const mockUseEvalAttemptOutput = vi.fn();
 const mockStart = vi.fn();
 const mockStop = vi.fn();
+const mockUseEvalHumanReviews = vi.fn();
+const mockSaveReview = vi.fn();
+const mockUpdateProposal = vi.fn();
+const mockReport = vi.fn();
 let mockSessionError: string | null = null;
 let mockLocationState: unknown = null;
+let mockSelectedAttempt: string | null = null;
 
 vi.mock("react-router-dom", () => ({
   useNavigate: () => mockNavigate,
   useLocation: () => ({ state: mockLocationState }),
   useParams: () => ({ projectId: "p1", evalId: "eval-1", runId: "run-1" }),
 }));
+
+vi.mock("nuqs", async () => {
+  const { useState } = await vi.importActual<typeof import("react")>("react");
+  return {
+    parseAsString: {},
+    useQueryState: () => useState<string | null>(mockSelectedAttempt),
+  };
+});
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -32,12 +52,28 @@ vi.mock("@hey-hey/ui-common/services", () => ({
   WebPathService: {
     agentSession: (p: { projectId: string; agentSessionId: string }) =>
       `/projects/${p.projectId}/resolve-agent-session-by-id/${p.agentSessionId}`,
-    evalRunResults: (p: { projectId: string; evalId: string; runId: string }) =>
-      `/projects/${p.projectId}/evals/${p.evalId}/runs/${p.runId}/results`,
+    proposal: (p: { projectId: string; proposalId: string }) =>
+      `/projects/${p.projectId}/proposals/${p.proposalId}`,
+    task: (p: { projectId: string; taskId: string }) =>
+      `/projects/${p.projectId}/tasks/${p.taskId}`,
+    designDoc: (p: { projectId: string; designDocId: string }) =>
+      `/projects/${p.projectId}/design-docs/${p.designDocId}`,
   },
 }));
 
 vi.mock("@hey-hey/ui-common/components", () => ({
+  CreateProposal: () => <div data-testid="create-proposal" />,
+  DeleteProposal: () => <div data-testid="delete-proposal" />,
+  UpdateProposal: (props: { renderMode?: string }) => {
+    mockUpdateProposal(props);
+    return <div data-testid="update-proposal">{props.renderMode}</div>;
+  },
+  Report: (props: { evaluationOutput?: boolean }) => {
+    mockReport(props);
+    return <div data-testid="report" />;
+  },
+  isPlaceholderEntityId: (id: string) =>
+    !id || id === "00000000-0000-0000-0000-000000000000",
   useMachineResolution: () => ({
     machines: [],
     isReady: true,
@@ -49,7 +85,12 @@ vi.mock("@hey-hey/ui-common/components", () => ({
   ModelSelectorMachineSelection: () => <div data-testid="machine-picker" />,
 }));
 
-vi.mock("@hey-hey/ui-common/data", () => ({
+vi.mock("@hey-hey/ui-common/data", async (importOriginal) => ({
+  runRepeats: (await importOriginal<typeof import("@hey-hey/ui-common/data")>())
+    .runRepeats,
+  attemptRepeat: (
+    await importOriginal<typeof import("@hey-hey/ui-common/data")>()
+  ).attemptRepeat,
   evalRunName: (run: { payload: { name?: string } }) =>
     run.payload.name ?? "generated name",
   useRenameEvalRun: () => ({ mutate: vi.fn(), isPending: false }),
@@ -61,6 +102,13 @@ vi.mock("@hey-hey/ui-common/data", () => ({
   useEvalRun: (...args: unknown[]) => mockUseEvalRun(...args),
   useEvalAttemptOutput: (...args: unknown[]) =>
     mockUseEvalAttemptOutput(...args),
+  useEvalHumanReviews: (...args: unknown[]) => mockUseEvalHumanReviews(...args),
+  useSaveEvalHumanReview: () => ({
+    mutate: mockSaveReview,
+    isPending: false,
+    error: null,
+  }),
+  useService: () => ({ data: { name: "hey-hey" } }),
   useEvalRunSession: () => ({
     start: mockStart,
     stop: mockStop,
@@ -116,8 +164,22 @@ const run = (
       status,
       judgeSetup: { provider: "claude", model: "claude-opus-5-5" },
       cases: [
-        { id: "case-1", title: "Maintenance case" },
-        { id: "case-2", title: "Mobile view" },
+        {
+          id: "case-1",
+          evalCaseId: "eval-case-1",
+          title: "Maintenance case",
+          grading: {
+            expectations: "Update the existing mockup.",
+            checks: [{ id: "no-direct", description: "No direct changes" }],
+            rubric: [],
+          },
+        },
+        {
+          id: "case-2",
+          evalCaseId: "eval-case-2",
+          title: "Mobile view",
+          grading: { expectations: "Do nothing.", checks: [], rubric: [] },
+        },
       ],
       configurations: [setupA, setupB, setupC],
       settings,
@@ -172,6 +234,31 @@ const mixedAttempts = [
   attempt("waiting", "case-2", setupC, { status: "QUEUED" }),
 ];
 
+const endedAttempts = [
+  attempt("finished", "case-1", setupA, {
+    status: "COMPLETED",
+    judgedOutput: "SAVED-OUTPUT",
+    attemptProviderSessionIds: ["provider-first"],
+    automatedAssessment: {
+      judgeSessionId: "judge-agent-session",
+      checkResults: [{ checkId: "no-direct", passed: true }],
+      recognition: { recognized: true, explanation: "Found the mockup." },
+      quality: [],
+      createdAt: "2026-10-22T10:20:00.000Z",
+    },
+    measurements: [
+      {
+        scope: "TARGET_HANDLER",
+        elapsedMs: 400_000,
+        inputTokens: 100_000,
+        outputTokens: 12_000,
+        toolCalls: 35,
+      },
+    ],
+  }),
+  attempt("unmeasured", "case-1", setupB, { status: "COMPLETED" }),
+];
+
 const givenRun = (
   report: EvalRunReport,
   attempts: EvalAttemptReport[],
@@ -193,15 +280,26 @@ describe("EvalRunPage", () => {
     vi.clearAllMocks();
     mockSessionError = null;
     mockLocationState = null;
+    mockSelectedAttempt = null;
     mockUseEvalAttemptOutput.mockReturnValue({
       data: {
         messages: [],
-        proposals: [{ id: "proposal" }],
+        proposals: [
+          {
+            id: "proposal",
+            action: "UPDATE",
+            targetEntityType: "TASK",
+            targetEntityId: "mockup-1",
+            applicationEligible: false,
+          },
+        ],
         reports: [{ id: "report" }],
       },
       error: null,
       hasRecordedConversation: true,
     });
+    mockUseEvalHumanReviews.mockReturnValue({ data: [] });
+    mockSaveReview.mockResolvedValue({ id: "review-1" });
     mockStop.mockResolvedValue(true);
     mockStart.mockResolvedValue({ ok: true });
   });
@@ -261,20 +359,20 @@ describe("EvalRunPage", () => {
     expect(screen.getByTestId("eval-run-background-hint")).toBeInTheDocument();
   });
 
-  it("logs each attempt start and end in the progress list", () => {
+  it("is the progress itself: no log, comparison or results link while running", () => {
     givenRun(run("RUNNING"), mixedAttempts);
     render(<EvalRunPage />);
+    expect(screen.getByTestId("eval-run-stop")).toBeInTheDocument();
+    expect(screen.getByTestId("eval-run-rename")).toBeInTheDocument();
+    expect(screen.getByTestId("eval-run-progress-summary")).toHaveTextContent(
+      "eval.run.page.statusRunning",
+    );
+    expect(screen.queryByTestId("eval-run-progress")).not.toBeInTheDocument();
     expect(
-      screen.getByTestId("eval-run-progress-started-finished"),
-    ).toBeInTheDocument();
+      screen.queryByTestId("eval-results-comparison"),
+    ).not.toBeInTheDocument();
     expect(
-      screen.getByTestId("eval-run-progress-error-failed"),
-    ).toHaveTextContent("provider unavailable");
-    expect(
-      screen.getByTestId("eval-run-progress-stopped-time-limited"),
-    ).toHaveTextContent("eval.run.progress.stopped.TIME_LIMIT");
-    expect(
-      screen.queryByTestId("eval-run-progress-started-waiting"),
+      screen.queryByTestId("eval-run-view-results"),
     ).not.toBeInTheDocument();
   });
 
@@ -289,35 +387,100 @@ describe("EvalRunPage", () => {
     );
   });
 
-  it("shows a stopped run's unfinished attempts as stopped, without Stop run", () => {
-    givenRun(run("STOPPED"), [
-      attempt("finished", "case-1", setupA, { status: "COMPLETED" }),
-      attempt("halted", "case-1", setupB, {
-        status: "STOPPED",
-        stopReason: "USER",
-      }),
-    ]);
+  it("shows an ended run's comparison above its case rows on the same page", () => {
+    givenRun(run("STOPPED"), endedAttempts);
     render(<EvalRunPage />);
-    expect(cell("case-1", "setup-b")).toHaveAttribute("data-state", "stopped");
-    expect(cell("case-1", "setup-b")).toHaveTextContent(
-      "eval.run.cell.stopped.USER",
-    );
+
     expect(screen.queryByTestId("eval-run-stop")).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("eval-run-background-hint"),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("eval-run-view-results"));
-    expect(mockNavigate).toHaveBeenCalledWith(
-      "/projects/p1/evals/eval-1/runs/run-1/results",
+    expect(screen.getByTestId("eval-run-rename")).toBeInTheDocument();
+    expect(screen.queryByTestId("eval-attempt-grid")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("eval-results-overhead")).toBeNull();
+
+    const comparison = screen.getByTestId("eval-results-comparison");
+    const cases = screen.getByTestId("eval-case-toggle-finished");
+    expect(
+      comparison.compareDocumentPosition(cases) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId("eval-results-setup-setup-a-recognition"),
+    ).toHaveTextContent("1 / 1");
+  });
+
+  it("shows anything not reported as not reported, never 0", () => {
+    givenRun(run("FINISHED"), endedAttempts);
+    render(<EvalRunPage />);
+    expect(
+      screen.getByTestId("eval-results-setup-setup-b-tokens"),
+    ).toHaveTextContent("eval.results.notReported");
+    expect(
+      screen.getByTestId("eval-results-setup-setup-b-tool-calls"),
+    ).toHaveTextContent("eval.results.notReported");
+  });
+
+  it("expands a case row to its session ids, links and read-only evaluation output", () => {
+    givenRun(run("FINISHED"), endedAttempts);
+    render(<EvalRunPage />);
+    fireEvent.click(screen.getByTestId("eval-case-toggle-finished"));
+
+    const detail = screen.getByTestId("eval-attempt-detail-finished");
+    expect(
+      within(detail).getByTestId("eval-attempt-provider-ids"),
+    ).toHaveTextContent("provider-first");
+    expect(
+      within(detail).getByTestId("eval-open-judge-session"),
+    ).toHaveAttribute("href", expect.stringContaining("judge-agent-session"));
+    expect(screen.getByTestId("update-proposal")).toHaveTextContent(
+      "evaluation-output",
+    );
+    expect(mockReport).toHaveBeenCalledWith(
+      expect.objectContaining({ evaluationOutput: true }),
+    );
+    expect(
+      screen.getByTestId("eval-output-live-item-proposal"),
+    ).toHaveAttribute("href", "/projects/p1/tasks/mockup-1");
+    expect(screen.getByTestId("eval-rubric-recognition")).toHaveTextContent(
+      "Found the mockup.",
+    );
+    expect(screen.getByTestId("eval-check-no-direct")).toHaveTextContent(
+      "No direct changes",
     );
   });
 
-  it("offers results only once the run has ended", () => {
-    givenRun(run("RUNNING"), mixedAttempts);
+  it("saves a person's review beside the automated assessment", async () => {
+    givenRun(run("FINISHED"), endedAttempts);
     render(<EvalRunPage />);
+    fireEvent.click(screen.getByTestId("eval-case-toggle-finished"));
+
+    fireEvent.click(screen.getByRole("radio", { name: /3 Stars/i }));
+    fireEvent.click(screen.getByTestId("eval-human-review-save"));
+
+    await waitFor(() =>
+      expect(mockSaveReview).toHaveBeenCalledWith(
+        expect.objectContaining({ attemptId: "finished", score: 3 }),
+      ),
+    );
+    expect(screen.getByTestId("eval-rubric-recognition")).toBeInTheDocument();
+  });
+
+  it("brings the comparison in on the same page when the run ends", () => {
+    givenRun(run("RUNNING"), endedAttempts);
+    const { rerender } = render(<EvalRunPage />);
+    expect(screen.getByTestId("eval-run-stop")).toBeInTheDocument();
     expect(
-      screen.queryByTestId("eval-run-view-results"),
+      screen.queryByTestId("eval-results-comparison"),
     ).not.toBeInTheDocument();
+
+    givenRun(run("FINISHED"), endedAttempts);
+    rerender(<EvalRunPage />);
+
+    expect(screen.getByTestId("eval-results-comparison")).toBeInTheDocument();
+    expect(screen.queryByTestId("eval-run-stop")).not.toBeInTheDocument();
+    expect(screen.getByTestId("eval-run-rename")).toBeInTheDocument();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it("offers to start a recorded run that never started, with the earlier error", async () => {
@@ -339,6 +502,117 @@ describe("EvalRunPage", () => {
       projectId: "p1",
       runId: "run-1",
       machineId: "machine-1",
+    });
+  });
+
+  describe("with repeats", () => {
+    const repeated = (status: string) =>
+      run(status, { maxConcurrentAttempts: 3, repeatsPerAttempt: 3 });
+    const judgedRepeat = (id: string, repeat: number, recognized: boolean) =>
+      attempt(id, "case-1", setupA, {
+        repeat,
+        status: "COMPLETED",
+        automatedAssessment: {
+          checkResults: [{ checkId: "no-direct", passed: recognized }],
+          recognition: { recognized, explanation: "" },
+          quality: [{ key: "q", name: "Q", score: recognized ? 4 : 2 }],
+          createdAt: "2026-10-22T10:20:00.000Z",
+        },
+      });
+
+    it("counts every repeat while running and shows a cell's progress through them", () => {
+      givenRun(repeated("RUNNING"), [
+        judgedRepeat("r1", 1, true),
+        attempt("r2", "case-1", setupA, {
+          repeat: 2,
+          status: "RUNNING",
+          startedAt: "2026-10-22T10:20:00.000Z",
+        }),
+        attempt("r3", "case-1", setupA, {
+          repeat: 3,
+          status: "ERROR",
+          error: { message: "provider unavailable" },
+        }),
+      ]);
+      render(<EvalRunPage />);
+
+      expect(screen.getByTestId("eval-run-progress-summary")).toHaveTextContent(
+        '"ended":2,"total":18',
+      );
+      expect(screen.getByTestId("eval-run-settings-summary")).toHaveTextContent(
+        'eval.run.page.repeatsSummary {"count":3}',
+      );
+      expect(cell("case-1", "setup-a")).toHaveAttribute("data-state", "error");
+      expect(cell("case-1", "setup-a")).toHaveTextContent(
+        '"ended":2,"total":3',
+      );
+      expect(cell("case-1", "setup-a")).toHaveTextContent(
+        '"correct":1,"assessed":1',
+      );
+      expect(cell("case-1", "setup-a")).toHaveTextContent(
+        "provider unavailable",
+      );
+      expect(
+        screen.getByTestId("eval-attempt-cell-case-1-setup-a-open-session-3"),
+      ).toHaveAttribute("href", expect.stringContaining("session-r3"));
+    });
+
+    it("summarises each case's repeats and opens any repeat with its own review", () => {
+      givenRun(repeated("FINISHED"), [
+        judgedRepeat("r1", 1, true),
+        judgedRepeat("r2", 2, false),
+        attempt("r3", "case-1", setupA, {
+          repeat: 3,
+          status: "STOPPED",
+          stopReason: "TIME_LIMIT",
+        }),
+      ]);
+      render(<EvalRunPage />);
+
+      const row = "eval-repeat-case-setup-a-case-1";
+      expect(screen.getByTestId(`${row}-recognition`)).toHaveTextContent(
+        '"recognized":1,"assessed":2',
+      );
+      expect(screen.getByTestId(`${row}-quality`)).toHaveTextContent(
+        'eval.results.qualitySpread {"mean":"3.0","spread":"1.0"}',
+      );
+      expect(screen.getByTestId(`${row}-checks`)).toHaveTextContent("1 / 2");
+      expect(screen.getByTestId(`${row}-excluded`)).toHaveTextContent(
+        'eval.results.repeats.excludedStopped {"repeat":3',
+      );
+      expect(
+        screen.getByTestId("eval-results-setup-setup-a-stopped"),
+      ).toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId(`${row}-toggle`));
+      expect(screen.getByTestId("eval-repeat-row-r2")).toHaveAttribute(
+        "data-weak",
+        "true",
+      );
+      expect(screen.getByTestId("eval-repeat-open-session-r1")).toHaveAttribute(
+        "href",
+        expect.stringContaining("session-r1"),
+      );
+
+      fireEvent.click(screen.getByTestId("eval-repeat-row-r2"));
+      expect(screen.getByTestId("eval-attempt-detail-r2")).toBeInTheDocument();
+      expect(screen.getByTestId("eval-human-review-form")).toHaveTextContent(
+        'eval.results.review.titleRepeat {"repeat":2}',
+      );
+    });
+
+    it("opens the repeat a deep link names, with its review headed by repeat", () => {
+      mockSelectedAttempt = "r2";
+      givenRun(repeated("FINISHED"), [
+        judgedRepeat("r1", 1, true),
+        judgedRepeat("r2", 2, false),
+      ]);
+      render(<EvalRunPage />);
+
+      expect(screen.getByTestId("eval-attempt-detail-r2")).toBeInTheDocument();
+      expect(screen.getByTestId("eval-human-review-form")).toHaveTextContent(
+        'eval.results.review.titleRepeat {"repeat":2}',
+      );
     });
   });
 

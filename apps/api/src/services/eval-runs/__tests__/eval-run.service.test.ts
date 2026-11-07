@@ -361,7 +361,63 @@ describe('EvalRunService.launch', () => {
     expect(runDto.payload.settings).toEqual({
       maxConcurrentAttempts: 5,
       attemptTokenLimit: 20000,
+      repeatsPerAttempt: 1,
     });
+  });
+
+  it('records one fresh attempt per case, setup and repeat, repeat by repeat', async () => {
+    const { service, prisma, reports, sessions } = build();
+    const otherCase = { ...caseRecord, id: crypto.randomUUID() };
+    prisma.db.task.findMany.mockResolvedValue([caseRecord, otherCase]);
+
+    await service.launch(ORG, PROJECT, USER, EVAL_ID, {
+      ...request,
+      evalCaseIds: [CASE_ID, otherCase.id],
+      settings: { repeatsPerAttempt: 3 },
+    } as never);
+
+    const [runCall, ...attemptCalls] =
+      reports.createWithIdInTransaction.mock.calls;
+    expect(runCall![3].payload.settings).toEqual({
+      maxConcurrentAttempts: 3,
+      repeatsPerAttempt: 3,
+    });
+    const caseIds = runCall![3].payload.cases.map(
+      (caseInput: { id: string }) => caseInput.id,
+    );
+    expect(attemptCalls).toHaveLength(2 * 2 * 3);
+    const attempts = attemptCalls.map(([, , , dto]) => dto.payload);
+    expect(
+      attempts.map((attempt) => [
+        attempt.repeat,
+        attempt.caseInputId,
+        attempt.configuration.id,
+      ]),
+    ).toEqual(
+      [1, 2, 3].flatMap((repeat) =>
+        caseIds.flatMap((caseId: string) =>
+          [CONFIG_A.id, CONFIG_B.id].map((configId) => [
+            repeat,
+            caseId,
+            configId,
+          ]),
+        ),
+      ),
+    );
+    const targetSessions = attempts.map((attempt) => attempt.targetSessionId);
+    expect(new Set(targetSessions).size).toBe(12);
+    expect(sessions.createInTransaction).toHaveBeenCalledTimes(13);
+  });
+
+  it('accepts ten repeats', async () => {
+    const { service, reports } = build();
+    await service.launch(ORG, PROJECT, USER, EVAL_ID, {
+      ...request,
+      settings: { repeatsPerAttempt: 10 },
+    } as never);
+    expect(reports.createWithIdInTransaction.mock.calls).toHaveLength(
+      1 + 2 * 10,
+    );
   });
 
   it('records the trimmed name a run is launched with and none otherwise', async () => {
@@ -649,6 +705,8 @@ describe('EvalRunService.launch', () => {
       'a fractional time limit',
       { ...request, settings: { attemptTimeLimitSeconds: 1.5 } },
     ],
+    ['zero repeats', { ...request, settings: { repeatsPerAttempt: 0 } }],
+    ['eleven repeats', { ...request, settings: { repeatsPerAttempt: 11 } }],
   ])('rejects %s', async (_name, body) => {
     const { service, reports, sessions } = build();
     await expect(
@@ -819,6 +877,52 @@ describe('EvalRunService.assertStartRun', () => {
     await expect(service.assertStartRun(input(startRequest()))).resolves.toBe(
       true,
     );
+  });
+
+  it('accepts a start of a repeated run only with each attempt’s recorded repeat', async () => {
+    const { service, prisma } = recorded();
+    const repeatedSettings = { ...SETTINGS, repeatsPerAttempt: 2 };
+    prisma.db.report.findFirst.mockResolvedValue({
+      ...runRow,
+      payload: { ...runRow.payload, settings: repeatedSettings },
+    });
+    const secondId = '99999999-9999-4999-8999-999999999999';
+    prisma.db.report.findMany.mockResolvedValue(
+      [attemptId, secondId].map((id, index) => ({
+        id,
+        payload: {
+          caseInputId: caseInput.id,
+          configuration: CONFIG_A,
+          repeat: index + 1,
+          execution,
+          targetSessionId: `target-session-${index + 1}`,
+          targetConversationId: `target-conversation-${index + 1}`,
+        },
+      })),
+    );
+    const attempts = [attemptId, secondId].map((id, index) => ({
+      ...recordedAttempt,
+      attemptId: id,
+      repeat: index + 1,
+      targetSessionId: `target-session-${index + 1}`,
+      targetConversationId: `target-conversation-${index + 1}`,
+    }));
+
+    await expect(
+      service.assertStartRun(
+        input(startRequest({ settings: repeatedSettings, attempts })),
+      ),
+    ).resolves.toBe(true);
+    await expect(
+      service.assertStartRun(
+        input(
+          startRequest({
+            settings: repeatedSettings,
+            attempts: attempts.slice(0, 1),
+          }),
+        ),
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('ignores starts of sessions that are not eval runs', async () => {

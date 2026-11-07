@@ -44,7 +44,7 @@ import type { EvalResolvedExecution } from './eval-resolved-execution.js';
 
 /**
  * @type EvalAttemptReportPayload
- * Payload for EVAL_ATTEMPT reports, one per case and configuration. The report id is the attempt\'s identity; parentReportId is the run report. Status is updated in place. The attempt\'s output is whatever its target session wrote while the attempt was in flight. The target session is referenced by id only and never attached, so deleting the session does not delete the attempt.
+ * Payload for EVAL_ATTEMPT reports, one per case, configuration and repeat. The report id is the attempt\'s identity; parentReportId is the run report. Status is updated in place. The attempt\'s output is whatever its target session wrote while the attempt was in flight. The target session is referenced by id only and never attached, so deleting the session does not delete the attempt.
  * @export
  */
 export interface EvalAttemptReportPayload extends BaseReportPayload, EvalAttemptReportPayloadAllOf {

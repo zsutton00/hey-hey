@@ -53,7 +53,9 @@ export {
   filterEntityStars,
 } from "./collections/entityStars";
 export {
+  attemptRepeat,
   buildRunEvalStartPayload,
+  runRepeats,
   isEvalAttemptReport,
   isEvalHumanReviewReport,
   type EvalAttemptOutput,

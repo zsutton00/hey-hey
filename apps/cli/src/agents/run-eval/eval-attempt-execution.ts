@@ -165,6 +165,8 @@ export class EvalAttemptExecution {
     let workspace: EvalWorkspace | undefined;
     this.logger.info('run_eval.attempt.run_started', {
       runId: attempt.targetSessionId,
+      attemptId: attempt.attemptId,
+      repeat: attempt.repeat ?? null,
       handlerId: execution.handler,
       projectAssistantPrepares: execution.projectAssistantPrepares,
     });

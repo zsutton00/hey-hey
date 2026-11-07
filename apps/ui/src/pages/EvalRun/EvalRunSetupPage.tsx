@@ -266,7 +266,8 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
     ),
     t,
   );
-  const attemptCount = approvedCases.length * selectedSetups.length;
+  const repeats = settings.repeats ?? 1;
+  const attemptCount = approvedCases.length * selectedSetups.length * repeats;
   const canRun =
     !isSubmitting &&
     selectedSetups.length > 0 &&
@@ -360,6 +361,7 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
     count: selectedSetups.length,
   });
   const attemptsLabel = t("eval.run.attempts", { count: attemptCount });
+  const repeated = repeats > 1;
 
   return (
     <>
@@ -492,11 +494,18 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
           sx={{ mt: 1 }}
           data-testid="eval-run-attempt-count"
         >
-          {t("eval.run.setup.attemptCount", {
-            cases: casesLabel,
-            configurations: configurationsLabel,
-            attempts: attemptsLabel,
-          })}
+          {repeated
+            ? t("eval.run.setup.attemptCountRepeats", {
+                cases: casesLabel,
+                configurations: configurationsLabel,
+                repeats: t("eval.run.repeats", { count: repeats }),
+                attempts: attemptsLabel,
+              })
+            : t("eval.run.setup.attemptCount", {
+                cases: casesLabel,
+                configurations: configurationsLabel,
+                attempts: attemptsLabel,
+              })}
         </Typography>
       </Box>
 
@@ -524,7 +533,11 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
             sx={{ mb: 1 }}
             data-testid="eval-run-live-project-note"
           >
-            {t("eval.run.setup.liveProjectNote")}
+            {t(
+              repeated
+                ? "eval.run.setup.liveProjectNoteRepeats"
+                : "eval.run.setup.liveProjectNote",
+            )}
           </Alert>
           <Alert
             severity="info"
@@ -544,7 +557,7 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
           disabled={!canRun}
           data-testid="eval-run-start"
         >
-          {t("eval.run.setup.run")}
+          {t("eval.run.setup.runAttempts", { attempts: attemptsLabel })}
         </Button>
       </Box>
       {launchError && (

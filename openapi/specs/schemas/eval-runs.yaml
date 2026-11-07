@@ -5,7 +5,7 @@ EvalRunStatus:
 
 EvalAttemptStatus:
   type: string
-  description: Lifecycle of one case x configuration attempt.
+  description: Lifecycle of one attempt at a case, configuration and repeat.
   enum: [QUEUED, PREPARING, RUNNING, JUDGING, COMPLETED, ERROR, STOPPED]
 
 EvalAttemptStopReason:
@@ -29,6 +29,14 @@ EvalRunSettings:
     attemptTokenLimit:
       type: integer
       minimum: 1
+    repeatsPerAttempt:
+      type: integer
+      minimum: 1
+      maximum: 10
+      description: >
+        How many separate fresh attempts the run makes for each case and
+        configuration. Absent on runs recorded before repeats existed, which
+        are read as 1.
 
 EvalMeasurementScope:
   type: string
@@ -331,7 +339,7 @@ EvalRunCaseInput:
 
 EvalRecordedAttempt:
   type: object
-  description: One case x configuration attempt as recorded for the coordinator.
+  description: One attempt at a case, configuration and repeat as recorded for the coordinator.
   required:
     [
       attemptId,
@@ -359,6 +367,13 @@ EvalRecordedAttempt:
       $ref: "#/EvalRunCaseInput"
     configuration:
       $ref: "#/EvalConfiguration"
+    repeat:
+      type: integer
+      minimum: 1
+      maximum: 10
+      description: >
+        1-based repeat this attempt is, copied from its attempt report. Absent
+        when the attempt report has none.
 
 EvalAttemptError:
   type: object
@@ -560,6 +575,11 @@ LaunchEvalRunRequest:
         attemptTokenLimit:
           type: integer
           minimum: 1
+        repeatsPerAttempt:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: Separate fresh attempts per case and configuration. Omitted means 1.
 
 EvalRunReportPayload:
   description: >
@@ -666,7 +686,7 @@ EvalRecordedChanges:
 
 EvalAttemptReportPayload:
   description: >
-    Payload for EVAL_ATTEMPT reports, one per case and configuration. The
+    Payload for EVAL_ATTEMPT reports, one per case, configuration and repeat. The
     report id is the attempt's identity; parentReportId is the run report.
     Status is updated in place. The attempt's output is whatever its target
     session wrote while the attempt was in flight. The target session is
@@ -688,6 +708,11 @@ EvalAttemptReportPayload:
           description: Id of the EvalRunCaseInput recorded in the run report's cases.
         configuration:
           $ref: "#/EvalConfiguration"
+        repeat:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: 1-based repeat this attempt is. Absent on attempts recorded before repeats existed, which are read as repeat 1.
         execution:
           allOf:
             - $ref: "#/EvalResolvedExecution"

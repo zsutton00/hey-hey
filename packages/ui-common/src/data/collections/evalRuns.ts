@@ -189,9 +189,43 @@ export function evalAttemptOutputQueryOptions(
   });
 }
 
-/** Number of attempts launch recorded: one per case and configuration. */
+/** Repeats per case and configuration. Runs recorded before repeats count as 1. */
+export const runRepeats = (run: EvalRunReport): number =>
+  run.payload.settings.repeatsPerAttempt ?? 1;
+
+/** Which repeat an attempt is. Attempts recorded before repeats are repeat 1. */
+export const attemptRepeat = (attempt: EvalAttemptReport): number =>
+  attempt.payload.repeat ?? 1;
+
+/** Number of attempts launch recorded: one per case, configuration and repeat. */
 export const expectedAttemptCount = (run: EvalRunReport): number =>
-  run.payload.cases.length * run.payload.configurations.length;
+  run.payload.cases.length *
+  run.payload.configurations.length *
+  runRepeats(run);
+
+/**
+ * Launch order: repeat by repeat, then case, then configuration, as recorded
+ * on the run. Independent of createdAt, which ties within one transaction.
+ */
+function inLaunchOrder(
+  run: EvalRunReport,
+  attempts: EvalAttemptReport[],
+): EvalAttemptReport[] {
+  const casePosition = new Map(run.payload.cases.map((c, i) => [c.id, i]));
+  const configurationPosition = new Map(
+    run.payload.configurations.map((c, i) => [c.id, i]),
+  );
+  const position = (attempt: EvalAttemptReport): number[] => [
+    attemptRepeat(attempt),
+    casePosition.get(attempt.payload.caseInputId) ?? -1,
+    configurationPosition.get(attempt.payload.configuration.id) ?? -1,
+  ];
+  return [...attempts].sort((left, right) => {
+    const a = position(left);
+    const b = position(right);
+    return a[0]! - b[0]! || a[1]! - b[1]! || a[2]! - b[2]!;
+  });
+}
 
 export function evalAttemptsQueryOptions(
   organizationId: string,
@@ -384,7 +418,8 @@ export function buildRunEvalStartPayload(
     );
   }
   const cases = new Map(run.payload.cases.map((c) => [c.id, c]));
-  const recordedAttempts: EvalRecordedAttempt[] = attempts.map((attempt) => {
+  const ordered = inLaunchOrder(run, attempts);
+  const recordedAttempts: EvalRecordedAttempt[] = ordered.map((attempt) => {
     const caseInput = cases.get(attempt.payload.caseInputId);
     if (!caseInput) {
       throw new Error(
@@ -410,6 +445,9 @@ export function buildRunEvalStartPayload(
       targetConversationId,
       caseInput,
       configuration: attempt.payload.configuration,
+      ...(attempt.payload.repeat !== undefined
+        ? { repeat: attempt.payload.repeat }
+        : {}),
     };
   });
   return {

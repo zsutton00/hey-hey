@@ -755,10 +755,10 @@ export const REPORT_SCHEMAS = {
   },
   EVAL_ATTEMPT: {
     description:
-      "Payload for EVAL_ATTEMPT reports, one per case and configuration. The report id is the attempt's identity; parentReportId is the run report. Status is updated in place. The attempt's output is whatever its target session wrote while the attempt was in flight. The target session is referenced by id only and never attached, so deleting the session does not delete the attempt.",
+      "Payload for EVAL_ATTEMPT reports, one per case, configuration and repeat. The report id is the attempt's identity; parentReportId is the run report. Status is updated in place. The attempt's output is whatever its target session wrote while the attempt was in flight. The target session is referenced by id only and never attached, so deleting the session does not delete the attempt.",
     schema: {
       description:
-        "Payload for EVAL_ATTEMPT reports, one per case and configuration. The report id is the attempt's identity; parentReportId is the run report. Status is updated in place. The attempt's output is whatever its target session wrote while the attempt was in flight. The target session is referenced by id only and never attached, so deleting the session does not delete the attempt.\n",
+        "Payload for EVAL_ATTEMPT reports, one per case, configuration and repeat. The report id is the attempt's identity; parentReportId is the run report. Status is updated in place. The attempt's output is whatever its target session wrote while the attempt was in flight. The target session is referenced by id only and never attached, so deleting the session does not delete the attempt.\n",
       allOf: [
         {
           type: 'object',
@@ -952,6 +952,13 @@ export const REPORT_SCHEMAS = {
                 },
               },
             },
+            repeat: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 10,
+              description:
+                '1-based repeat this attempt is. Absent on attempts recorded before repeats existed, which are read as repeat 1.',
+            },
             execution: {
               allOf: [
                 {
@@ -1023,7 +1030,8 @@ export const REPORT_SCHEMAS = {
             },
             status: {
               type: 'string',
-              description: 'Lifecycle of one case x configuration attempt.',
+              description:
+                'Lifecycle of one attempt at a case, configuration and repeat.',
               enum: [
                 'QUEUED',
                 'PREPARING',
@@ -2043,6 +2051,13 @@ export const REPORT_SCHEMAS = {
                 attemptTokenLimit: {
                   type: 'integer',
                   minimum: 1,
+                },
+                repeatsPerAttempt: {
+                  type: 'integer',
+                  minimum: 1,
+                  maximum: 10,
+                  description:
+                    'How many separate fresh attempts the run makes for each case and configuration. Absent on runs recorded before repeats existed, which are read as 1.\n',
                 },
               },
             },

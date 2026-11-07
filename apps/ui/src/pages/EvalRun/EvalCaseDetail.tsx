@@ -508,6 +508,8 @@ export interface EvalCaseDetailProps {
   run: EvalRunReport;
   attempt: EvalAttemptReport;
   row: CaseRow;
+  /** Which repeat this is when the run made several; null otherwise. */
+  repeat: number | null;
 }
 
 /** The specifics of one case attempt, shown when its row is expanded. */
@@ -517,6 +519,7 @@ export const EvalCaseDetail: React.FC<EvalCaseDetailProps> = ({
   run,
   attempt,
   row,
+  repeat,
 }) => (
   <Box sx={{ p: 2 }} data-testid={`eval-attempt-detail-${attempt.id}`}>
     <AttemptExecutionSummary attempt={attempt} />
@@ -545,6 +548,7 @@ export const EvalCaseDetail: React.FC<EvalCaseDetailProps> = ({
             projectId={projectId}
             evalId={run.payload.evalId}
             attempt={attempt}
+            repeat={repeat}
           />
         </Stack>
       </Grid>
