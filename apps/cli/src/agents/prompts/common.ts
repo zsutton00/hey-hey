@@ -85,7 +85,7 @@ Fetch only what answers your question, and reuse content already supplied in the
 - **You want an item's own content or sections:** \`get_full_entity\`.
 - **You need hierarchy, relationships, proposal history, or the upstream and downstream consequences of a change:** \`get_context\`.
 - **You want the direct links around several items you have already identified:** \`get_edges\`, one call for the batch instead of a \`get_context\` per item.
-- **You do not yet know which items are relevant** — hunting for relationships, feature-tree gaps, or whether something is already covered: \`unified_search\` (or its batch variant) before reading entities one by one, so discovery cost stays bounded. Its hits already carry the TASK subtype, so they need no identity follow-up.
+- **You do not yet know which items are relevant** — hunting for relationships, feature-tree gaps, or whether something is already covered: \`unified_search\` (pass \`queries\` to batch several searches in one call) before reading entities one by one, so discovery cost stays bounded. Its hits already carry the TASK subtype, so they need no identity follow-up.
 
 Identity lookup never replaces reading. Before a consequential change, read the governing requirements and design decisions (\`get_full_entity\`, or \`get_context\` when you also need the surrounding graph) and orient on the graph around the entity you are changing.`;
 
