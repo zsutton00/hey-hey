@@ -61,8 +61,6 @@ export const en = {
   "localSetup.pairing.createPasskey": "Create passkey",
   "localSetup.pairing.tryAgain": "Try creating passkey again",
   "localSetup.pairing.cancel": "Cancel",
-  "localSetup.pairing.signInNote":
-    "You will also use this passkey to sign in to Hey Hey. Removing it later also disconnects it from this computer.",
   "localSetup.progress.title": "Connecting your computer",
   "localSetup.progress.explanation":
     "Hey Hey is getting set up on this computer. This page continues on its own.",
@@ -297,8 +295,6 @@ export const en = {
   [KEYS.common.yes]: "Yes",
   [KEYS.common.no]: "No",
   [KEYS.common.unknown]: "Unknown",
-  [KEYS.common.retry]: "Retry",
-  [KEYS.common.retrying]: "Retrying...",
   [KEYS.common.noItemsFound]: "No items found",
   [KEYS.common.notAvailable]: "Not available",
   [KEYS.common.active]: "Active",
