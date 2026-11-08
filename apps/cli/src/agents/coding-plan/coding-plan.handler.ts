@@ -1,4 +1,5 @@
 import {
+  SessionRole,
   LocalPromptType,
   type LocalPromptDesignDocInput,
   type LocalStartupSessionPromptPayload,
@@ -96,6 +97,7 @@ type CodingPlanHandler = UserLaunchablePromptTypeHandler<LocalStartupSessionProm
 
 export const codingPlanHandler: CodingPlanHandler = {
   id: 'startup_session',
+  sessionRole: SessionRole.Planning,
   promptType: 'startup_session',
   service: 'required',
   launchEntity: 'required',

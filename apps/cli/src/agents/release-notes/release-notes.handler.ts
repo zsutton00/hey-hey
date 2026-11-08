@@ -1,5 +1,6 @@
 import type { AgenticSession } from '../../session/types';
 import {
+  SessionRole,
   AgentSessionConfigProjectReportV1TypeEnum,
   AgentSessionConfigProjectReportV1VersionEnum,
   LocalPromptType,
@@ -68,6 +69,7 @@ const readReportConfig = (config: AgenticSession['config']): AgentSessionConfigP
  */
 export class ReleaseNotesHandler implements PromptTypeHandler<ReleaseNotesHandlerPayload> {
   public readonly id = 'release_notes';
+  public readonly sessionRole = SessionRole.Research;
   public readonly promptType = LocalPromptType.ReleaseNotes;
   public readonly service = 'required';
   public readonly launchEntity = 'none';

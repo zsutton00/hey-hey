@@ -1,3 +1,4 @@
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import type { LocalChildTaskUpdatesPromptPayload } from '../../shared/agent-bridge-contract/index';
 import type { PromptTypeHandler } from '../prompt-type-handler';
 import { buildChildTaskUpdatesPrompt } from '../prompts/child-task-updates';
@@ -5,6 +6,7 @@ import { buildStartingMessage as buildStartingMessageForPromptType } from '../pr
 
 export const childTaskUpdatesHandler: PromptTypeHandler<LocalChildTaskUpdatesPromptPayload> = {
   id: 'child_task_updates',
+  sessionRole: SessionRole.Planning,
   promptType: 'child_task_updates',
   service: 'required',
   launchEntity: 'none',

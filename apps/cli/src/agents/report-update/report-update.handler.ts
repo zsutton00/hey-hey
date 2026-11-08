@@ -1,3 +1,4 @@
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import type {
   LocalReportUpdatePromptPayload,
   LocalReportUpdateResponse,
@@ -53,6 +54,7 @@ const patchReport = async (
 
 export const reportUpdateHandler: PromptTypeHandler<LocalReportUpdatePromptPayload> = {
   id: 'report_update',
+  sessionRole: SessionRole.Planning,
   promptType: 'report_update',
   service: 'required',
   launchEntity: 'none',

@@ -5,7 +5,7 @@ import {
   SystemMessageDataTypeEnum,
 } from '@hey-hey/contracts/api/models';
 import type { UpdateMessageDto } from '../../shared/api';
-import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type {
   AssistantCompleteEvent,
   CreateMessageBody as RunCreateMessageBody,
@@ -253,6 +253,7 @@ const runnerFailureAction = (error: unknown): CompletionAction | null => {
 const createRepositoryAnalysisHandler =
   (): PromptTypeHandler<RepositoryAnalysisHandlerPayload> => ({
     id: 'repository-analysis',
+    sessionRole: SessionRole.Research,
     promptType: LocalPromptType.RepositoryGrounding,
     service: 'required',
     launchEntity: 'none',

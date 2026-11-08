@@ -2,7 +2,7 @@ import { reportChangedFilesTool } from '../submission-tools/report-changed-files
 import type { AgenticSession } from '../../session/types';
 import type { LocalFreeFormPromptPayload } from '../../shared/agent-bridge-contract/index';
 import type { Prepared } from '../../shared/agent-bridge-contract/contract';
-import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import {
   completionResponseHooks,
   changedFileReportingDuty,
@@ -36,6 +36,7 @@ import { submitCodingConversationReadinessTool } from './submit-readiness-tool';
 type CodingConversationDeclaration<TPayload extends CodingConversationPreparedPayload> = Pick<
   UserLaunchablePromptTypeHandler<TPayload>,
   | 'id'
+  | 'sessionRole'
   | 'handsOffOrdinaryReplies'
   | 'promptType'
   | 'service'
@@ -209,6 +210,7 @@ export const freeFormHandler = createCodingConversationHandler<
 >({
   mode: 'launch',
   id: 'free_form',
+  sessionRole: SessionRole.Implementation,
   handsOffOrdinaryReplies: true,
   promptType: LocalPromptType.FreeForm,
   service: 'required',
@@ -240,6 +242,7 @@ export const codingFreeformHandler =
   createCodingConversationHandler<CodingConversationPreparedPayload>({
     mode: 'follow_up',
     id: 'coding_freeform',
+    sessionRole: SessionRole.Implementation,
     promptType: LocalPromptType.CodingFreeform,
     service: 'required',
     launchEntity: 'none',

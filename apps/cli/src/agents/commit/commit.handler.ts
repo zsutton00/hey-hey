@@ -1,7 +1,7 @@
 import path from 'node:path';
 
 import { ReportAudience, ReportType } from '../../shared/api/index';
-import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { LocalCommitPromptPayload } from '../../shared/agent-bridge-contract/runtime-types';
 import type { Prepared } from '../../shared/agent-bridge-contract/contract';
 import type { AgenticSession } from '../../session/types';
@@ -131,6 +131,7 @@ export const decideReadOnlyCommitPermission = async (
 
 export class CommitHandler implements UserLaunchablePromptTypeHandler<LocalCommitPromptPayload> {
   public readonly id = 'commit';
+  public readonly sessionRole = SessionRole.Implementation;
   public readonly promptType = LocalPromptType.Commit;
   public readonly service = 'required';
   public readonly launchEntity = 'none';

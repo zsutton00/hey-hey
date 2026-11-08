@@ -1,3 +1,4 @@
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import type { LocalDesignDocRefinerPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import type {
   PromptTypeHandler,
@@ -35,6 +36,7 @@ type EnrichedPayload = LocalDesignDocRefinerPromptPayload & {
 
 export const designDocRefinerHandler: PromptTypeHandler<LocalDesignDocRefinerPromptPayload> = {
   id: 'design_doc_refiner',
+  sessionRole: SessionRole.Planning,
   promptType: 'design_doc_refiner',
   service: 'required',
   launchEntity: 'required',

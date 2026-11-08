@@ -1,4 +1,5 @@
 import { BrowserMcpAccess } from '../agents/browser-tools/browser-mcp-access';
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import { browserHarness } from '../browser/__tests__/browser-test-support';
 import { NOOP_LOGGER } from '../server/logger';
 import { describe, expect, it, vi } from 'vitest';
@@ -29,6 +30,7 @@ const handler: PromptTypeHandler<unknown> = {
   service: 'required',
   launchEntity: 'none',
   implementationReadiness: 'gated_and_clarifiable',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],

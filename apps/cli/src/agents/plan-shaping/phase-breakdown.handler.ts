@@ -46,6 +46,7 @@
 
 import type { AgenticSession } from '../../session/types';
 import {
+  SessionRole,
   LocalPromptType,
   type PlanShapingPhaseBreakdownPromptPayload,
 } from '@hey-hey/contracts/agent-bridge';
@@ -153,6 +154,7 @@ const renderPhaseBreakdownPrompt = (
  */
 export class PlanShapingPhaseBreakdownHandler implements UserLaunchablePromptTypeHandler<PlanShapingPhaseBreakdownPromptPayload> {
   public readonly id = 'plan_shaping_phase_breakdown';
+  public readonly sessionRole = SessionRole.Planning;
   public readonly promptType = LocalPromptType.PlanShapingPhaseBreakdown;
   public readonly service = 'optional';
   public readonly launchEntity = 'required';

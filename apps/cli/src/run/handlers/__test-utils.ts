@@ -2,6 +2,7 @@
  * Shared test factories for handler tests.
  */
 
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import { vi } from 'vitest';
 import { stampCreateBody, stampUpdateData } from '../message-poster';
 import type {
@@ -265,6 +266,7 @@ export const defaultTestTurnHandler: PromptTypeHandler<unknown> = {
     'goal_pm_routing_v1',
   ],
   emitLegacyStartupPlanUiElement: true,
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],

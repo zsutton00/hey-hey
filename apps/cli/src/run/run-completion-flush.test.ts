@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import {
   createTestRunEventPublisher,
   createTestMessagePoster,
@@ -35,6 +36,7 @@ const handlerStub: PromptTypeHandler<unknown> = {
   service: 'required',
   launchEntity: 'none',
   implementationReadiness: 'none',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'subagent',
   providerSessionCountsForContext: false,
   reports: [],
@@ -417,6 +419,7 @@ describe('Run.flushPendingCompletion', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'provider_session',
       providerSessionCountsForContext: true,
       reports: [],

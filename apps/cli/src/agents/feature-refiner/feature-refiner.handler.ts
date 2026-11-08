@@ -1,3 +1,4 @@
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import type { LocalFeatureRefinerPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import {
   defaultAddUserMessage,
@@ -43,6 +44,7 @@ type EnrichedPayload = LocalFeatureRefinerPromptPayload & {
 export const featureRefinerHandler: UserLaunchablePromptTypeHandler<LocalFeatureRefinerPromptPayload> =
   {
     id: 'feature_refiner',
+    sessionRole: SessionRole.Planning,
     promptType: 'feature_refiner',
     service: 'required',
     launchEntity: 'required',

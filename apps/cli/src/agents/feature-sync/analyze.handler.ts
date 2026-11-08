@@ -17,7 +17,7 @@
  * to gather what it needs.
  */
 
-import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { LocalFeatureSyncAnalyzePromptPayload } from '../../shared/agent-bridge-contract/runtime-types';
 import { ReportAudience, ReportType } from '../../shared/api/index';
 import {
@@ -46,6 +46,7 @@ interface EnrichedFeatureSyncAnalyzePromptPayload extends LocalFeatureSyncAnalyz
 export const featureSyncAnalyzeHandler: UserLaunchablePromptTypeHandler<LocalFeatureSyncAnalyzePromptPayload> =
   {
     id: 'feature_sync_analyze',
+    sessionRole: SessionRole.Planning,
     promptType: LocalPromptType.FeatureSyncAnalyze,
     service: 'required',
     launchEntity: 'required',

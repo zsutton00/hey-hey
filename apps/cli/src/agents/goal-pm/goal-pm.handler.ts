@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  SessionRole,
   EntityType,
   LocalPromptType,
   WorkflowName,
@@ -275,6 +276,7 @@ const resolveCanonicalGoal = async (
 
 export class GoalPmHandler implements UserLaunchablePromptTypeHandler<LocalGoalPmPromptPayload> {
   public readonly id = 'goal_pm';
+  public readonly sessionRole = SessionRole.Planning;
   public readonly promptType = LocalPromptType.GoalPm;
   public readonly service = 'optional';
   public readonly launchEntity = 'required_goal';

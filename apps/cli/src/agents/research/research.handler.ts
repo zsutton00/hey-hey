@@ -1,5 +1,5 @@
 import type { AgenticSession } from '../../session/types';
-import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { LocalResearchPromptPayload } from '../../shared/agent-bridge-contract/index';
 import type {
   LocalWorktreeStateByService,
@@ -31,6 +31,7 @@ type EnrichedPayload = LocalResearchPromptPayload & {
 
 export const researchHandler: UserLaunchablePromptTypeHandler<LocalResearchPromptPayload> = {
   id: 'research',
+  sessionRole: SessionRole.Research,
   promptType: LocalPromptType.Research,
   service: 'required',
   launchEntity: 'required',

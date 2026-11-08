@@ -1,3 +1,4 @@
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import { ProposalReconciliationSubmission } from './reconciliation-submission';
 import type { LocalProposalRefinerPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import type {
@@ -23,6 +24,7 @@ const reconciliationSubmission = new ProposalReconciliationSubmission();
 
 export const proposalRefinerHandler: PromptTypeHandler<LocalProposalRefinerPromptPayload> = {
   id: 'proposal_refiner',
+  sessionRole: SessionRole.Planning,
   promptType: 'proposal_refiner',
   // Agent fix starts the refiner from a proposal, which has no repository.
   service: 'optional',

@@ -1,6 +1,7 @@
 import type { AssistantCompleteEvent } from '../../run/types';
 import type { AgenticSession } from '../../session/types';
 import {
+  SessionRole,
   LocalPromptType,
   type WorkTrackerImportCompletion,
   type WorkTrackerImportRequest,
@@ -44,6 +45,7 @@ class WorkTrackerImportHandler implements PromptTypeHandler<WorkTrackerImportReq
   readonly mcpToolUseCase = 'work_tracker_import' as const;
   readonly omitServiceContextNote = true;
   readonly reports = [];
+  readonly sessionRole = SessionRole.Research;
   readonly id: string;
 
   constructor(

@@ -1,4 +1,4 @@
-import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { ProjectReportScope, ProjectReportSubject } from '@hey-hey/contracts/api/models';
 import { PROJECT_REPORT_SECTION_MCP_TOOLS } from '../mcp-server-config';
 import type { PromptTypeHandler } from '../prompt-type-handler';
@@ -34,6 +34,7 @@ export interface ProjectReportSectionPayload {
  */
 export const projectReportSectionHandler: PromptTypeHandler<ProjectReportSectionPayload> = {
   id: PROJECT_REPORT_SECTION_HANDLER_ID,
+  sessionRole: SessionRole.Research,
   promptType: LocalPromptType.ProjectReport,
   service: 'optional',
   launchEntity: 'none',

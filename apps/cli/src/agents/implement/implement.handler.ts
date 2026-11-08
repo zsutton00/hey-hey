@@ -20,7 +20,7 @@ import {
  * trigger and the next user reply resumes.
  */
 
-import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { LocalImplementPromptPayload } from '../../shared/agent-bridge-contract/runtime-types';
 import { ExtendedUIFieldType, ReportAudience, ReportType } from '@hey-hey/contracts/api/models';
 import { renderStartupPlanMarkdown, type StartupPlanRenderable } from '../../agent-runtime/index';
@@ -222,6 +222,7 @@ export const implementHandler: UserLaunchablePromptTypeHandler<LocalImplementPro
   ...completionResponseHooks,
   ...changedFileReportingDuty,
   id: 'implement',
+  sessionRole: SessionRole.Implementation,
   promptType: LocalPromptType.Implement,
   service: 'required',
   launchEntity: 'none',

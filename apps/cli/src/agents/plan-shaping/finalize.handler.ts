@@ -9,6 +9,7 @@
  */
 
 import {
+  SessionRole,
   LocalPromptType,
   type PlanShapingFinalizePromptPayload,
 } from '@hey-hey/contracts/agent-bridge';
@@ -22,6 +23,7 @@ import { taskIdFromHandlerContext } from '../run-entity';
 export const planShapingFinalizeHandler: UserLaunchablePromptTypeHandler<PlanShapingFinalizePromptPayload> =
   {
     id: 'plan_shaping_finalize',
+    sessionRole: SessionRole.Planning,
     promptType: LocalPromptType.PlanShapingFinalize,
     service: 'optional',
     launchEntity: 'required',

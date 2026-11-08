@@ -14,7 +14,7 @@ import type {
   AgentSessionRunner,
 } from '../agents/providers/session-runner';
 import type { PromptTypeHandler } from '../agents/prompt-type-handler';
-import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { toInternalRunPromptRequest } from '../shared/agent-bridge-contract/contract';
 import { NOOP_LOGGER } from '../server/logger';
 import { NewSessionRunner } from './runners/new-session-runner';
@@ -81,6 +81,7 @@ it.each(['claude', 'codex', 'opencode'] as const)(
       service: 'optional',
       launchEntity: 'required',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'provider_session',
       providerSessionCountsForContext: true,
       reports: [],

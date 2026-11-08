@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import {
   EvalCaseMockupChecklistKindEnum,
   ReadRestriction,
@@ -194,6 +194,7 @@ const buildEvalJudgePrompt = (payload: EvalJudgePayload): string => {
 /** Child-only judge for eval attempts: may record uncertainty, returns one JSON assessment. */
 export const evalJudgeHandler: PromptTypeHandler<EvalJudgePayload> = {
   id: EVAL_JUDGE_HANDLER_ID,
+  sessionRole: SessionRole.Review,
   promptType: LocalPromptType.RunEval,
   service: 'optional',
   launchEntity: 'none',

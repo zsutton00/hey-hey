@@ -1,3 +1,4 @@
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import type { LocalCodeReviewPromptPayload } from '../../shared/agent-bridge-contract/index';
 import { ReportAudience, ReportType } from '../../shared/api/index';
 import type {
@@ -72,6 +73,7 @@ const reviewAddUserMessage = (): string | null => null;
 
 export const reviewHandler: UserLaunchablePromptTypeHandler<LocalCodeReviewPromptPayload> = {
   id: 'code_review',
+  sessionRole: SessionRole.Review,
   promptType: 'code_review',
   service: 'required',
   launchEntity: 'none',

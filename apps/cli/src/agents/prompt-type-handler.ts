@@ -2,7 +2,6 @@ import type { ProceduralProvider } from '../run/runners/procedural-provider';
 import type { ReadRestriction } from '@hey-hey/contracts/api/models';
 import type { FullEntityContextDto } from '@hey-hey/contracts/api/models';
 import type { EvalAttemptExecution } from './run-eval/eval-attempt-execution';
-import { projectModeSettingsJsonSchema } from '@hey-hey/contracts/agent-bridge/custom/project-mode-contract.schema';
 import type { ImplementRuntimeSelection, SessionRole } from '@hey-hey/contracts/agent-bridge';
 import type { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../session/types';
@@ -425,7 +424,13 @@ export interface ReportSpec {
 }
 
 export interface PromptTypeHandler<TPayload> {
+  /**
+   * The work this handler's provider session does, selecting session-role
+   * guidance. Every handler declares this or `resolveSessionRole`; the
+   * registry rejects one that declares neither.
+   */
   readonly sessionRole?: SessionRole;
+  /** Resolves the role from Run-owned captured state when it is chosen at launch. */
   resolveSessionRole?(session: AgenticSession): SessionRole;
   /**
    * Stable identity of this logical agent. A Run persists this value as the
@@ -888,14 +893,20 @@ export interface UserLaunchablePromptTypeHandler<
   addUserMessage(payload: TPayload): string | null;
 }
 
+/** Whether the handler states its session role, as every provider-session handler must. */
+export function declaresSessionRole<TPayload>(handler: PromptTypeHandler<TPayload>): boolean {
+  return handler.sessionRole !== undefined || handler.resolveSessionRole !== undefined;
+}
+
 /** Resolve only the executing handler; selected modes never set a Run-wide role. */
 export function resolveHandlerSessionRole<TPayload>(
   handler: PromptTypeHandler<TPayload>,
   session: AgenticSession,
 ): SessionRole {
-  return (
-    handler.resolveSessionRole?.(session) ??
-    handler.sessionRole ??
-    projectModeSettingsJsonSchema.properties.sessionRole.default
-  );
+  const role = handler.resolveSessionRole?.(session) ?? handler.sessionRole;
+  if (role === undefined) {
+    throw new Error(`Handler '${handler.id}' does not declare a session role.`);
+  }
+
+  return role;
 }

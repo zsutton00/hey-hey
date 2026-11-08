@@ -9,7 +9,7 @@
  * (`featureSyncIterateActions`) re-validate the payload.
  */
 
-import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { LocalFeatureSyncIteratePromptPayload } from '../../shared/agent-bridge-contract/runtime-types';
 import { turnUserMessageBlock, type UserLaunchablePromptTypeHandler } from '../prompt-type-handler';
 import { buildIteratePrompt } from './prompts';
@@ -18,6 +18,7 @@ import { iterateSubmissionTools } from './submission-tools';
 export const featureSyncIterateHandler: UserLaunchablePromptTypeHandler<LocalFeatureSyncIteratePromptPayload> =
   {
     id: 'feature_sync_iterate',
+    sessionRole: SessionRole.Planning,
     promptType: LocalPromptType.FeatureSyncIterate,
     service: 'required',
     launchEntity: 'required',

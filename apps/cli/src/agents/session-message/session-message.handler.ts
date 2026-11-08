@@ -1,4 +1,4 @@
-import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { SessionMessageInput } from '@hey-hey/contracts/api/models';
 import { completionResponseHooks } from '../completion-reconciliation/message-mapper';
 import type { PromptTypeHandler } from '../prompt-type-handler';
@@ -7,6 +7,7 @@ import type { PromptTypeHandler } from '../prompt-type-handler';
 export const sessionMessageHandler: PromptTypeHandler<SessionMessageInput> = {
   ...completionResponseHooks,
   id: 'session_message',
+  sessionRole: SessionRole.Research,
   promptType: LocalPromptType.SessionMessage,
   service: 'optional',
   launchEntity: 'none',

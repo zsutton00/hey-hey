@@ -14,6 +14,7 @@
  */
 
 import {
+  SessionRole,
   LocalPromptType,
   type LocalValidationWalkthroughPromptPayload,
 } from '@hey-hey/contracts/agent-bridge';
@@ -24,6 +25,7 @@ import { buildValidationWalkthroughPrompt } from './prompts';
 export const validationWalkthroughHandler: PromptTypeHandler<LocalValidationWalkthroughPromptPayload> =
   {
     id: 'validation_walkthrough',
+    sessionRole: SessionRole.Review,
     promptType: LocalPromptType.ValidationWalkthrough,
     service: 'required',
     launchEntity: 'required',

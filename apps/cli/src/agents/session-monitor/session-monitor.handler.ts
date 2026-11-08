@@ -1,6 +1,10 @@
 import type { AgenticSession } from '../../session/types';
 import { z } from 'zod';
-import { LocalPromptType, type SessionMonitorPromptPayload } from '@hey-hey/contracts/agent-bridge';
+import {
+  SessionRole,
+  LocalPromptType,
+  type SessionMonitorPromptPayload,
+} from '@hey-hey/contracts/agent-bridge';
 import {
   ReportAudience,
   ReportEntityRelation,
@@ -55,6 +59,7 @@ const buildDeferralPayload = (input: {
 
 export class SessionMonitorHandler implements PromptTypeHandler<SessionMonitorPromptPayload> {
   public readonly id = 'session_monitor';
+  public readonly sessionRole = SessionRole.Review;
   public readonly promptType = LocalPromptType.SessionMonitor;
   public readonly service = 'required';
   public readonly launchEntity = 'required';

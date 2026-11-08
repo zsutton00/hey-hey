@@ -24,6 +24,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import {
   createTestRunEventPublisher,
   createTestMessagePoster,
@@ -71,6 +72,7 @@ const visualPreviewHandler: PromptTypeHandler<unknown> = {
   service: 'optional',
   launchEntity: 'none',
   implementationReadiness: 'none',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],
@@ -83,6 +85,7 @@ const phaseBreakdownHandler: PromptTypeHandler<unknown> = {
   service: 'optional',
   launchEntity: 'required',
   implementationReadiness: 'none',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   providerSessionStart: 'fresh',

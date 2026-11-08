@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  SessionRole,
   LocalPromptType,
   OpenItemsTriageMode,
   type OpenItemsTriagePromptPayload,
@@ -31,6 +32,7 @@ type TriagePayload = OpenItemsTriagePromptPayload & { triageInput?: TriageInput 
 
 export class OpenItemsTriageHandler implements UserLaunchablePromptTypeHandler<TriagePayload> {
   public readonly id = 'open_items_triage';
+  public readonly sessionRole = SessionRole.Review;
   public readonly promptType = LocalPromptType.OpenItemsTriage;
   public readonly service = 'optional';
   public readonly launchEntity = 'required';

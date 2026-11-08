@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import {
   createTestRunEventPublisher,
   createTestMessagePoster,
@@ -28,6 +29,7 @@ const handlerStub: PromptTypeHandler<unknown> = {
   service: 'required',
   launchEntity: 'required',
   implementationReadiness: 'gated_and_clarifiable',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],
@@ -274,6 +276,7 @@ describe('Run turn-end context size publication', () => {
       service: 'required',
       launchEntity: 'required',
       implementationReadiness: 'gated',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: true,
       subagentConfig: { mcpAllowedTools: [], builtinAllowedTools: [], adapterId: 'coding-plan' },

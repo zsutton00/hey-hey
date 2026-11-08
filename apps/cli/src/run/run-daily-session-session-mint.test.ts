@@ -17,6 +17,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import {
   createTestRunEventPublisher,
   createTestMessagePoster,
@@ -54,6 +55,7 @@ const dailySessionStub: PromptTypeHandler<unknown> = {
   service: 'optional',
   launchEntity: 'none',
   implementationReadiness: 'none',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   providerSessionLifetime: 'turn',

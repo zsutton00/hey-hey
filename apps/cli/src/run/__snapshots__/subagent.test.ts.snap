@@ -1,7 +1,7 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`SubAgent — unified runtime contract > captures the complete registered code_review child prompt 1`] = `
-"## Session-role guidance (implementation)
+"## Session-role guidance (review)
 
 ### Task
 Follow the reviewed requirements.
@@ -132,7 +132,7 @@ Inspect @[task:20000000-0000-4000-8000-000000000002|Fixed task]."
 `;
 
 exports[`SubAgent — unified runtime contract > captures the complete registered final_assessment child prompt 1`] = `
-"## Session-role guidance (implementation)
+"## Session-role guidance (review)
 
 ### Task
 Follow the reviewed requirements.
@@ -451,7 +451,7 @@ Rules:
 `;
 
 exports[`SubAgent — unified runtime contract > captures the complete registered research child prompt 1`] = `
-"## Session-role guidance (implementation)
+"## Session-role guidance (research)
 
 ### Task
 Follow the reviewed requirements.
