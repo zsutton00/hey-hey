@@ -196,6 +196,9 @@ export function LocalPairingScreen({
               : t("localSetup.pairing.createPasskey")}
         </button>
       </div>
+      <p data-testid="local-pairing-signin-note">
+        {t("localSetup.pairing.signInNote")}
+      </p>
     </div>
   );
 }

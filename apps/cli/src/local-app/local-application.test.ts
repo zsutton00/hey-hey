@@ -244,6 +244,20 @@ describe('local application installation and return visits', () => {
     expect(config.services.ui.environment.VITE_LOCAL_AGENT_PORT).toBe('4100');
   });
 
+  it('serves the installed web app and API from one address', async () => {
+    const installation = await storage.prepare(release, models);
+    const { composeConfiguration, devWebEnvironment, LOCAL_WEB_ORIGIN } = await import('./compose');
+    const ui = composeConfiguration(installation, await storage.secrets(), 4100).services.ui;
+
+    expect(ui.environment['API_PROXY_TARGET']).toBe('http://api:3000');
+    expect(ui.environment['VITE_API_URL']).toBe('/api/v1');
+    expect(new URL(ui.environment['VITE_WS_URL'] ?? '').host).toBe(new URL(LOCAL_WEB_ORIGIN).host);
+
+    const dev = devWebEnvironment(4100);
+    expect(dev['VITE_API_URL']).toBe('/api/v1');
+    expect(new URL(dev['VITE_WS_URL'] ?? '').host).toBe(new URL(LOCAL_WEB_ORIGIN).host);
+  });
+
   it('reconfigures a running UI that does not know the bridge port, keeping data and secrets', async () => {
     await storage.prepare(release, models);
     const before = await storage.secrets();

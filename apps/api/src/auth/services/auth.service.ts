@@ -7,7 +7,6 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { OrganizationId, UserId } from 'src/types';
-import { ACCESS_TOKEN_EXPIRES_IN } from '../oauth/oauth.constants';
 import {
   AuthResponseDto,
   AccountDefaultOrganizationDto,
@@ -16,9 +15,6 @@ import {
   ChangeCurrentPasswordDto,
   ChangePasswordDto,
   LoginDto,
-  LocalBootstrapResponseDto,
-  LocalCliCredentialsResponseDto,
-  LocalSetupStatusDto,
   OrganizationRole,
   PasswordChangeRequiredDto,
   PasswordRecoveryAcknowledgementDto,
@@ -41,11 +37,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../../services/email.service';
 import { PasswordRecoveryThrottleService } from './password-recovery-throttle.service';
 import { PasswordChangeCredentialKind } from '../password-change-credential.types';
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { isLocalApplication } from '../../deployment-environment';
-import { RedisService } from '../../core/redis/redis.service';
 import { isLocalAccountEmail } from '../local-account';
-import { LocalDefaultProjectService } from '../../services/local-default-project.service';
 
 export const PASSWORD_RECOVERY_ACKNOWLEDGEMENT =
   'If an eligible account exists, recovery instructions will be sent.' as const;
@@ -69,202 +62,9 @@ export class AuthService {
     private prisma: PrismaService,
     private emailService: EmailService,
     private passwordRecoveryThrottleService: PasswordRecoveryThrottleService,
-    private redisService: RedisService,
-    private localDefaultProjectService: LocalDefaultProjectService,
     private credentialProfile: CredentialProfileService,
     private userAccessTokenValidator: UserAccessTokenValidatorService,
   ) {}
-
-  async createLocalHandoff(
-    installationSecret: string | undefined,
-  ): Promise<LocalBootstrapResponseDto> {
-    this.assertLocalInstallationSecret(installationSecret);
-    const user =
-      await this.userService.createLocalBootstrapUser(installationSecret);
-    const handoffToken = randomBytes(32).toString('base64url');
-    const handoffKey = this.localHandoffKey(handoffToken);
-    await this.redisService
-      .getClient()
-      .set(handoffKey, user.id, 'EX', 120, 'NX');
-    this.logger.log('Local browser handoff issued', { userId: user.id });
-    return { handoffToken, expiresInSeconds: 120 };
-  }
-
-  async issueLocalCliCredentials(
-    installationSecret: string | undefined,
-  ): Promise<LocalCliCredentialsResponseDto> {
-    this.assertLocalInstallationSecret(installationSecret);
-    const user =
-      await this.userService.createLocalBootstrapUser(installationSecret);
-    const tokens = await this.generateTokensForUserId(user.id as UserId);
-    this.logger.log('Local CLI credentials issued', { userId: user.id });
-    return {
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-      expiresInSeconds: ACCESS_TOKEN_EXPIRES_IN,
-    };
-  }
-
-  async completeLocalHandoff(
-    handoffToken: string,
-    requestMetadata: BrowserSessionRequestMetadata,
-  ): Promise<EstablishedBrowserSession> {
-    this.assertLocalApplication();
-    if (!/^[A-Za-z0-9_-]{40,64}$/.test(handoffToken)) {
-      throw new UnauthorizedException('Local browser handoff expired');
-    }
-    const userId = await this.redisService
-      .getClient()
-      .getdel(this.localHandoffKey(handoffToken));
-    if (!userId) {
-      throw new UnauthorizedException('Local browser handoff expired');
-    }
-    const user = await this.userService.findForAuthentication(userId);
-    if (!user || !isLocalAccountEmail(user.email) || !user.isActive) {
-      throw new UnauthorizedException('Local browser handoff is unavailable');
-    }
-    return this.establishBrowserSession(userId as UserId, requestMetadata);
-  }
-
-  async updateLocalDisplayName(
-    userId: UserId,
-    name: string,
-  ): Promise<LocalSetupStatusDto> {
-    this.assertLocalApplication();
-    await this.userService.updateLocalDisplayName(userId, name);
-    // Pairing's first grant needs a project, so the name save creates it.
-    await this.localDefaultProjectService.ensure(
-      userId,
-      await this.localOrganizationId(userId),
-    );
-    return this.getLocalStatus(userId);
-  }
-
-  async getLocalStatus(userId: UserId): Promise<LocalSetupStatusDto> {
-    this.assertLocalApplication();
-    const user = await this.userService.findForAuthentication(userId);
-    if (!user || !isLocalAccountEmail(user.email)) {
-      throw new UnauthorizedException('Local account is unavailable');
-    }
-    const machines = await this.prisma.db.machine.findMany({
-      where: { userId, revokedAt: null },
-      select: {
-        id: true,
-        authorizationProtocolVersion: true,
-        authorizationState: true,
-        controllerCredentials: { select: { revokedAt: true } },
-      },
-    });
-    const organizationId = await this.localOrganizationId(userId);
-    const hasProjects =
-      (await this.localDefaultProjectService.findDefault(organizationId)) !==
-      null;
-    const setupProjectId =
-      await this.localDefaultProjectService.findUnfinished(organizationId);
-    const connected = await Promise.all(
-      machines.map((machine) =>
-        this.redisService
-          .getClient()
-          .exists(`machine:presence:${machine.id}`)
-          .then((count) => count === 1),
-      ),
-    );
-    const machineConnected = connected.some(Boolean);
-    const executionReady = machines.some(
-      (machine, index) =>
-        connected[index] === true &&
-        machine.authorizationProtocolVersion === 2 &&
-        machine.authorizationState === 'READY' &&
-        machine.controllerCredentials.some(
-          (credential) => !credential.revokedAt,
-        ),
-    );
-    return {
-      nameComplete: user.name.trim().length > 0,
-      browserSession: true,
-      machineConnected,
-      executionReady,
-      hasProjects,
-      setupProjectId,
-    } satisfies LocalSetupStatusDto;
-  }
-
-  /** A local installation's account belongs to exactly one organization. */
-  private async localOrganizationId(userId: UserId): Promise<OrganizationId> {
-    const membership = await this.prisma.db.organizationMember.findFirstOrThrow(
-      {
-        where: { userId, isActive: true },
-        select: { organizationId: true },
-      },
-    );
-    return membership.organizationId as OrganizationId;
-  }
-
-  private async establishBrowserSession(
-    userId: UserId,
-    requestMetadata: BrowserSessionRequestMetadata,
-  ): Promise<EstablishedBrowserSession> {
-    const user = await this.userService.findForAuthentication(userId);
-    if (!user || !user.isActive) {
-      throw new UnauthorizedException('Local account is unavailable');
-    }
-    const userWithOrgs =
-      await this.userService.getUserWithOrganizations(userId);
-    const orgMemberships = [
-      ...(await this.organizationService.getUserMemberships(userId)),
-    ].sort((left, right) =>
-      left.organizationId.localeCompare(right.organizationId),
-    );
-    const localUserResponse = {
-      ...userWithOrgs,
-      isLocalAccount: true,
-    };
-    return this.browserSessionService.establish(
-      {
-        userId,
-        user: localUserResponse,
-        claims: {
-          email: user.email,
-          name: user.name,
-          orgMemberships: orgMemberships.map((membership) => ({
-            orgId: membership.organizationId,
-            role: membership.role,
-          })),
-          isDevAdmin: false,
-          devAdminMode: false,
-          isLocalAccount: true,
-        },
-      },
-      requestMetadata,
-    );
-  }
-
-  private assertLocalInstallationSecret(
-    installationSecret: string | undefined,
-  ): asserts installationSecret is string {
-    this.assertLocalApplication();
-    const expected = process.env.LOCAL_INSTALLATION_SECRET;
-    if (
-      !expected ||
-      !installationSecret ||
-      Buffer.byteLength(expected) !== Buffer.byteLength(installationSecret) ||
-      !timingSafeEqual(Buffer.from(expected), Buffer.from(installationSecret))
-    ) {
-      throw new UnauthorizedException('Local machine authority is required');
-    }
-  }
-
-  private assertLocalApplication(): void {
-    if (!isLocalApplication()) {
-      throw new UnauthorizedException(
-        'Local application access is unavailable',
-      );
-    }
-  }
-
-  private localHandoffKey(token: string): string {
-    return `local:browser-handoff:${createHash('sha256').update(token).digest('hex')}`;
-  }
 
   getAccountDefaultOrganization(
     accessToken: string | undefined,

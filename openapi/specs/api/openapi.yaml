@@ -27718,7 +27718,10 @@ components:
             Required when the claim began in SHARED_NEW mode and rejected
             otherwise. Fresh account proof, answering a challenge issued for
             registering an account passkey, authorizing the credential's
-            sign-in eligibility.
+            sign-in eligibility. A local deployment may omit it for a
+            SHARED_NEW claim only when the acting session is the one the CLI
+            opened on this computer and the account has no passkey yet; every
+            other proofless SHARED_NEW completion is rejected.
 
     MachineEnrollmentLocalApprovalProof:
       type: string

@@ -149,8 +149,6 @@ describeDatabase('Account passkeys over HTTP', () => {
       prisma,
       {} as never,
       {} as never,
-      {} as never,
-      {} as never,
       profile,
       validator,
     );

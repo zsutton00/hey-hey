@@ -71,11 +71,19 @@ type PairingStepId =
 
 export type PairingJourney = "first-machine" | "existing-machine";
 
+/**
+ * How the passkey is enrolled. A parent that knows it is the local first use
+ * asks for one new passkey that both pairs the computer and signs the person
+ * in, authorized by the CLI-opened session instead of account proof.
+ */
+export type ClaimEnrollment = "controller-only" | "first-use-shared-new";
+
 interface ClaimMachineProps {
   initialCode: string | null;
   completionActionLabel?: string;
   onCompletionAction?: () => void;
   journey?: PairingJourney;
+  enrollment?: ClaimEnrollment;
   authorizationTarget?: {
     machineId: string;
     machineName: string;
@@ -180,6 +188,7 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
   completionActionLabel = "Continue",
   onCompletionAction,
   journey = "first-machine",
+  enrollment = "controller-only",
   authorizationTarget,
   localApprovalSecret = null,
   localAgents = null,
@@ -227,6 +236,7 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
     cadence: ControllerDeviceGrantCadence,
   ): { firstLocalGrant?: { cadence: ControllerDeviceGrantCadence } } =>
     localHandoff ? { firstLocalGrant: { cadence } } : {};
+  const firstUseSharedNew = enrollment === "first-use-shared-new";
   const abandonClaim = useAbandonMachineEnrollmentClaim();
   const beginClaim = useBeginMachineEnrollmentClaim();
   const completeClaim = useCompleteMachineEnrollmentClaim();
@@ -423,7 +433,7 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
         organizationId: validatedClaimContext.organization.id,
         userCode: normalizedCode,
         controllerLabel: normalizedLabel,
-        ...(shareForSignIn
+        ...(shareForSignIn || firstUseSharedNew
           ? { enrollmentMode: MachineEnrollmentMode.SharedNew }
           : {}),
         ...firstLocalGrantRequest(cadence),
@@ -556,7 +566,7 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
     const sharedForSignIn =
       claim.enrollmentMode === MachineEnrollmentMode.SharedNew;
     let accountProof: AccountProofDto | undefined;
-    if (sharedForSignIn) {
+    if (sharedForSignIn && !firstUseSharedNew) {
       if (signInProofKind === "password" && signInProofPassword === "") {
         setPasskeyRetryMessage(
           "Enter your account password, or choose an existing passkey, to also use this passkey for sign-in.",
@@ -667,6 +677,9 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
           organizationId: validatedClaimContext.organization.id,
           userCode: normalizeEnrollmentCode(code),
           controllerLabel: claim.controllerLabel,
+          ...(firstUseSharedNew
+            ? { enrollmentMode: MachineEnrollmentMode.SharedNew }
+            : {}),
           ...firstLocalGrantRequest(localGrantCadence),
         };
         const recovered = await beginClaim.mutate(recoveryRequest);

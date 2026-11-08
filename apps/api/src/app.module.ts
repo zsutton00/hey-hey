@@ -204,6 +204,8 @@ import { ProjectReportLaunchService } from './services/project-reports/project-r
 import { MetricsModule } from './core/metrics/metrics.module';
 import { TypeSafeJevModule } from './services/typesafe-jev/typesafe-jev.module';
 import { ReadRestrictionModule } from './read-restriction/read-restriction.module';
+import { LocalApplicationModule } from './local/local-application.module';
+import { isLocalApplication } from './deployment-environment';
 
 @Module({
   imports: [
@@ -250,6 +252,8 @@ import { ReadRestrictionModule } from './read-restriction/read-restriction.modul
     MachineEffectAdmissionModule,
     AgentOperationModule,
     TypeSafeJevModule,
+    // Local-only routes and rules never enter a hosted provider graph.
+    ...(isLocalApplication() ? [LocalApplicationModule] : []),
   ],
   controllers: [
     WorkspaceSkillsController,

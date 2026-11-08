@@ -8,6 +8,7 @@ import { initializeBrowserApiRuntime } from "@hey-hey/ui-common/clients";
 import { clearAuthToken } from "@hey-hey/ui-common/services";
 import "@hey-hey/ui-common/i18n";
 import LoginRoute from "./LoginRoute";
+import HomeRoute from "./HomeRoute";
 
 class TestCredential {
   id = "AQ";
@@ -49,13 +50,15 @@ function Destination() {
   );
 }
 
-function renderLogin(target = "/projects?tab=docs#requirements") {
+function renderLogin(
+  target = "/projects?tab=docs#requirements",
+  pathname = "/login",
+) {
   return render(
-    <MemoryRouter
-      initialEntries={[{ pathname: "/login", state: { from: target } }]}
-    >
+    <MemoryRouter initialEntries={[{ pathname, state: { from: target } }]}>
       <AuthProvider>
         <Routes>
+          <Route path="/" element={<HomeRoute />} />
           <Route path="/login" element={<LoginRoute />} />
           <Route path="/projects" element={<Destination />} />
           <Route path="/home" element={<Destination />} />
@@ -164,5 +167,14 @@ describe("deployment login", () => {
     renderLogin();
     expect(await screen.findByLabelText(/Email Address/)).toBeInTheDocument();
     expect(screen.queryByTestId("local-login")).not.toBeInTheDocument();
+  });
+
+  it("takes a local owner from the home page to the workspace instead of the hosted landing page", async () => {
+    globalThis.mswServer.use(
+      http.post("*/auth/refresh", () => HttpResponse.json({ data: session })),
+    );
+    renderLogin("", "/");
+    expect(await screen.findByTestId("destination")).toHaveTextContent("/home");
+    expect(screen.queryByText(/request access/i)).not.toBeInTheDocument();
   });
 });

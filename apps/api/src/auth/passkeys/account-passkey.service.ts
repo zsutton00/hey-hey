@@ -1,8 +1,10 @@
 import { randomBytes } from 'node:crypto';
 import {
   BadRequestException,
+  Inject,
   Injectable,
   Logger,
+  Optional,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -45,6 +47,10 @@ import {
   type AccountRemovalRevocation,
 } from '../../services/controller-management/controller-management.service';
 import { isLocalApplication } from '../../deployment-environment';
+import {
+  FIRST_PASSKEY_AUTHORITY,
+  type FirstPasskeyAuthority,
+} from './first-passkey-authority';
 
 /** Ceremony lifetime for every account passkey challenge. */
 export const ACCOUNT_PASSKEY_CHALLENGE_TTL_MS = 5 * 60 * 1000;
@@ -95,12 +101,20 @@ export class AccountPasskeyService {
     private readonly browserSessionService: BrowserSessionService,
     private readonly proofThrottle: AccountProofThrottleService,
     private readonly controllerManagement: ControllerManagementService,
+    @Optional()
+    @Inject(FIRST_PASSKEY_AUTHORITY)
+    private readonly firstPasskeyAuthority?: FirstPasskeyAuthority,
   ) {
     this.rpId = requiredConfig(configService, 'ACCOUNT_PASSKEY_RP_ID');
     this.origin = requiredConfig(configService, 'ACCOUNT_PASSKEY_ORIGIN');
     if (new URL(this.origin).origin !== this.origin) {
       throw new Error('ACCOUNT_PASSKEY_ORIGIN must be an origin');
     }
+  }
+
+  /** True only where local composition registered the first-passkey rule. */
+  get acceptsFirstPasskeyWithoutProof(): boolean {
+    return this.firstPasskeyAuthority !== undefined;
   }
 
   async list(userId: UserId): Promise<AccountPasskeyListDto> {
@@ -283,7 +297,7 @@ export class AccountPasskeyService {
     actor: AccountPasskeyActor,
     credential: SharedEnrollmentCredential,
     name: string,
-    proof: AccountProofDto,
+    proof: AccountProofDto | undefined,
     requestMetadata: BrowserSessionRequestMetadata,
     stageControllerEnrollment: (
       tx: AnyTransactionClient,
@@ -320,22 +334,28 @@ export class AccountPasskeyService {
       aaguid: string;
     },
     name: string,
-    proof: AccountProofDto,
+    proof: AccountProofDto | undefined,
     requestMetadata: BrowserSessionRequestMetadata,
     afterCreate?: (
       tx: AnyTransactionClient,
       accountPasskeyId: string,
     ) => Promise<void>,
   ): Promise<EstablishedBrowserSession> {
-    const proofPasskey = await this.verifyAccountProof(actor, proof, {
-      purpose: AccountPasskeyChallengePurpose.ProofRegister,
-    });
+    const authority =
+      proof === undefined ? this.requiredFirstPasskeyAuthority() : undefined;
+    const proofPasskey =
+      proof === undefined
+        ? undefined
+        : await this.verifyAccountProof(actor, proof, {
+            purpose: AccountPasskeyChallengePurpose.ProofRegister,
+          });
 
-    return this.replaceSessionsAfterChange(
+    const session = await this.replaceSessionsAfterChange(
       actor,
       'passkey_added',
       requestMetadata,
       async (tx) => {
+        await authority?.assertFirstPasskeyAllowed(tx, actor);
         if (proofPasskey) {
           await this.recordPasskeyUse(
             tx,
@@ -368,6 +388,15 @@ export class AccountPasskeyService {
         await afterCreate?.(tx, created.id);
       },
     );
+    await authority?.firstPasskeyEnrolled(actor);
+    return session;
+  }
+
+  private requiredFirstPasskeyAuthority(): FirstPasskeyAuthority {
+    if (!this.firstPasskeyAuthority) {
+      throw new UnauthorizedException('Account proof is required');
+    }
+    return this.firstPasskeyAuthority;
   }
 
   async remove(

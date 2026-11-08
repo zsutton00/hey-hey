@@ -45,7 +45,10 @@ describe('SharedEnrollmentClaimService', () => {
       | 'failStaging'
     >
   >;
-  let passkeys: { addVerifiedSharedPasskey: jest.Mock };
+  let passkeys: {
+    addVerifiedSharedPasskey: jest.Mock;
+    acceptsFirstPasskeyWithoutProof: boolean;
+  };
   let service: SharedEnrollmentClaimService;
 
   beforeEach(() => {
@@ -62,6 +65,7 @@ describe('SharedEnrollmentClaimService', () => {
       failStaging: jest.fn().mockRejectedValue(new Error('staging-failed')),
     };
     passkeys = {
+      acceptsFirstPasskeyWithoutProof: false,
       addVerifiedSharedPasskey: jest.fn(
         async (_actor, _credential, _name, _proof, _meta, stage) => {
           await stage('tx', 'account-passkey-1');
@@ -91,6 +95,7 @@ describe('SharedEnrollmentClaimService', () => {
       [{ orgId: ORGANIZATION_ID }],
       '192.0.2.1',
       MachineEnrollmentMode.SHARED_NEW,
+      false,
     );
     expect(passkeys.addVerifiedSharedPasskey).toHaveBeenCalledWith(
       actor,

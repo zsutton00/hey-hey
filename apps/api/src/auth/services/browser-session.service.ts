@@ -51,7 +51,7 @@ import { isLocalApplication } from '../../deployment-environment';
 
 const REQUIRED_ACCESS_TTL_SECONDS = 900;
 const REQUIRED_INACTIVITY_TTL_SECONDS = 7 * 24 * 60 * 60;
-const REQUIRED_ABSOLUTE_TTL_SECONDS = 30 * 24 * 60 * 60;
+export const REQUIRED_ABSOLUTE_TTL_SECONDS = 30 * 24 * 60 * 60;
 const REFRESH_SECRET_BYTES = 32;
 const MAX_IP_ADDRESS_LENGTH = 45;
 const MAX_USER_AGENT_LENGTH = 512;
