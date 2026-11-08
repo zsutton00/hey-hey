@@ -1,3 +1,6 @@
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { JevInput, JevResult } from '../../jev/client';
 import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
@@ -226,14 +229,29 @@ describe('createContextTrimmer', () => {
       { loadedEntityContext: loadedProject, payload: {} },
       'no_focal_work',
     ],
-  ])('logs why it does not trim when %s', async (_name, overrides, reason) => {
-    const { input, warn } = makeInput(overrides);
+  ])('logs and traces why it does not trim when %s', async (_name, overrides, reason) => {
+    const attemptLogDir = await mkdtemp(path.join(os.tmpdir(), 'get-context-log-'));
+    try {
+      const { input, warn } = makeInput({ ...overrides, attemptLogDir });
 
-    expect(await createContextTrimmer(input)).toBeUndefined();
-    expect(warn).toHaveBeenCalledWith(
-      'local.platform_mcp_proxy.get_context_trim.disabled',
-      expect.objectContaining({ reason }),
-    );
+      expect(await createContextTrimmer(input)).toBeUndefined();
+      expect(warn).toHaveBeenCalledWith(
+        'local.platform_mcp_proxy.get_context_trim.disabled',
+        expect.objectContaining({ reason }),
+      );
+      const files = await readdir(attemptLogDir);
+      expect(files).toHaveLength(1);
+      const record: unknown = JSON.parse(
+        await readFile(path.join(attemptLogDir, files[0] ?? ''), 'utf8'),
+      );
+      expect(record).toMatchObject({
+        outcome: 'not_started',
+        promptType: LocalPromptType.ProjectAssistant,
+        reason,
+      });
+    } finally {
+      await rm(attemptLogDir, { recursive: true, force: true });
+    }
   });
 
   it('ranks a planned task against the plan it belongs to', async () => {

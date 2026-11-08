@@ -22,7 +22,8 @@ export interface GetContextEntryRecord {
  * written to a local development file to compare runs, never to the structured logger. Sizes
  * are characters of the result text, not tokens.
  */
-export interface GetContextAttemptRecord {
+export interface GetContextNarrowedRecord {
+  outcome: 'narrowed';
   at: string;
   /** Total Jev cost of this call in USD, from the token counts and the rates above. */
   costUsd: number;
@@ -39,14 +40,43 @@ export interface GetContextAttemptRecord {
   entries: GetContextEntryRecord[];
 }
 
-/** Writes one file per call; the random suffix keeps concurrent or repeated calls apart. */
+/** A `get_context` call returned as the platform sent it, and why. */
+export interface GetContextPassedThroughRecord {
+  outcome: 'passed_through';
+  at: string;
+  focalEntityId: string;
+  focal: Focal;
+  model: string;
+  reason: string;
+  fields: Record<string, unknown>;
+  /** Empty when the call gave up before asking Jev. */
+  jevCalls: RecordedJevCall[];
+}
+
+/** A Turn whose `get_context` results are never narrowed, and why. Written once per Turn. */
+export interface GetContextNotStartedRecord {
+  outcome: 'not_started';
+  at: string;
+  promptType: string;
+  focalEntityId: string | null;
+  reason: string;
+  fields: Record<string, unknown>;
+}
+
+export type GetContextAttemptRecord =
+  | GetContextNarrowedRecord
+  | GetContextPassedThroughRecord
+  | GetContextNotStartedRecord;
+
+/** Writes one file per call or Turn; the random suffix keeps concurrent or repeated ones apart. */
 export const writeGetContextAttemptRecord = async (
   dir: string,
   record: GetContextAttemptRecord,
 ): Promise<string> => {
   await mkdir(dir, { recursive: true });
   const stamp = record.at.replace(/[:.]/g, '-');
-  const file = path.join(dir, `${stamp}-${record.focalEntityId}-${randomUUID()}.json`);
+  const subject = record.focalEntityId ?? 'no-focal';
+  const file = path.join(dir, `${stamp}-${record.outcome}-${subject}-${randomUUID()}.json`);
   await writeFile(file, `${JSON.stringify(record, null, 2)}\n`, 'utf8');
   return file;
 };

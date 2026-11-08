@@ -39,7 +39,7 @@ export interface GetContextTrimmerConfig {
   logger: ServerLogger;
   model?: string;
   cutoffs?: Cutoffs;
-  /** Where each narrowed get_context call writes its development trace; null writes none. */
+  /** Where each get_context call writes its development trace, narrowed or not; null writes none. */
   attemptLogDir?: string | null;
 }
 
@@ -85,22 +85,40 @@ export class GetContextTrimmer implements DecisionModelResultNarrower {
    * The `get_context` tool result with its non-ancestor entries abbreviated by relevance to
    * the focal work. Whatever prevents that (a Decision Model failure, a result of another shape) logs
    * its cause and returns the upstream result itself: a helper that cannot help must not
-   * block the session.
+   * block the session. Either way the call leaves a development trace.
    */
   public async trimResult(upstream: JsonValue): Promise<JsonValue> {
+    const recorder = recordJevCalls(this.config.decisionModel);
     try {
-      return await this.trim(upstream);
+      return await this.trim(upstream, recorder);
     } catch (error) {
+      let reason: string;
+      let fields: Record<string, unknown>;
       if (error instanceof Untrimmed) {
+        reason = error.reason;
+        fields = error.fields;
         this.config.logger.warn('local.platform_mcp_proxy.get_context_trim.untrimmed', {
-          reason: error.reason,
-          ...error.fields,
+          reason,
+          ...fields,
         });
       } else {
+        reason = 'unexpected_error';
+        fields = { error: error instanceof Error ? (error.stack ?? error.message) : String(error) };
         this.config.logger.error('local.platform_mcp_proxy.get_context_trim.failed', {
           errorName: error instanceof Error ? error.name : 'unknown',
         });
       }
+
+      await this.writeAttempt({
+        outcome: 'passed_through',
+        at: new Date().toISOString(),
+        focalEntityId: this.config.focalEntityId,
+        focal: this.config.focal,
+        model: this.model,
+        reason,
+        fields,
+        jevCalls: recorder.calls,
+      });
       return upstream;
     }
   }
@@ -251,7 +269,10 @@ export class GetContextTrimmer implements DecisionModelResultNarrower {
     return this.trimEdgesResult(upstream);
   }
 
-  private async trim(upstream: JsonValue): Promise<JsonValue> {
+  private async trim(
+    upstream: JsonValue,
+    recorder: ReturnType<typeof recordJevCalls>,
+  ): Promise<JsonValue> {
     if (!isJsonObject(upstream)) throw new Untrimmed('tool_result_not_object');
     if (upstream['isError'] === true) throw new Untrimmed('upstream_error_result');
     if ('structuredContent' in upstream) throw new Untrimmed('structured_content_present');
@@ -276,9 +297,10 @@ export class GetContextTrimmer implements DecisionModelResultNarrower {
 
     const slots = slotsOf(parsed.data, this.config.focalEntityId);
     const candidates = slots.flatMap(({ candidate }) => (candidate ? [candidate] : []));
-    if (candidates.length === 0) throw new Untrimmed('no_candidates');
+    if (candidates.length === 0) {
+      throw new Untrimmed('no_candidates', { slotCount: slots.length });
+    }
 
-    const recorder = recordJevCalls(this.config.decisionModel);
     const judged = await judge(
       recorder.evaluator,
       this.model,
@@ -337,6 +359,7 @@ export class GetContextTrimmer implements DecisionModelResultNarrower {
       outputTokens: judged.usage.outputTokens,
     });
     await this.writeAttempt({
+      outcome: 'narrowed',
       at: new Date().toISOString(),
       costUsd: jevCostUsd(judged.usage),
       inputTokens: judged.usage.inputTokens,
@@ -354,7 +377,7 @@ export class GetContextTrimmer implements DecisionModelResultNarrower {
     return { ...upstream, content: [{ ...block, text: trimmedText }] };
   }
 
-  /** A trace that cannot be written must not undo a narrowing that succeeded. */
+  /** A trace that cannot be written must not change the result the agent receives. */
   private async writeAttempt(record: GetContextAttemptRecord): Promise<void> {
     const dir = this.config.attemptLogDir;
     if (!dir) {

@@ -499,6 +499,7 @@ describe('GetContextTrimmer', () => {
 
       expect(files).toHaveLength(1);
       const record = JSON.parse(await readFile(path.join(dir, files[0] ?? ''), 'utf8')) as {
+        outcome: string;
         focalEntityId: string;
         rawResultChars: number;
         narrowedResultChars: number;
@@ -508,13 +509,14 @@ describe('GetContextTrimmer', () => {
         jevCalls: Array<{ input: { questions: Record<string, unknown> } }>;
         entries: Array<{ tier: string; judgedByDecisionModel: boolean; text: string }>;
       };
+      expect(record.outcome).toBe('narrowed');
       expect(record.focalEntityId).toBe(FOCAL_ID);
       expect(record.rawResultChars).toBe(JSON.stringify(contextBody).length);
       expect(record.narrowedResultChars).toBe(textOf(result).length);
       expect(record.tierCounts).toEqual({ full: 1, short: 2, index: 3 });
       expect(record.inputTokens).toBe(100);
       expect(record.costUsd).toBeCloseTo(0.0000042, 10);
-      expect(Object.keys(record)[1]).toBe('costUsd');
+      expect(Object.keys(record)[2]).toBe('costUsd');
       expect(record.jevCalls).toHaveLength(1);
       expect(Object.keys(record.jevCalls[0]?.input.questions ?? {})).not.toContainEqual(
         expect.stringContaining('conflict'),
@@ -534,7 +536,7 @@ describe('GetContextTrimmer', () => {
       expect(await readdir(dir)).toHaveLength(2);
     });
 
-    it('writes nothing when the call passes through unchanged or no directory is set', async () => {
+    it('writes why a call passed through unchanged, and nothing when no directory is set', async () => {
       const dir = await newDir();
       const failing = vi.fn(
         (): Promise<JevResult> =>
@@ -543,7 +545,16 @@ describe('GetContextTrimmer', () => {
       const { trimmer } = await tracedTrimmer(dir, failing as ReturnType<typeof answerFrom>);
       const upstream = toolResult(contextBody);
       expect(await trimmer.trimResult(upstream)).toBe(upstream);
-      expect(await readdir(dir)).toHaveLength(0);
+      const files = await readdir(dir);
+      expect(files).toHaveLength(1);
+      const record: unknown = JSON.parse(await readFile(path.join(dir, files[0] ?? ''), 'utf8'));
+      expect(record).toMatchObject({
+        outcome: 'passed_through',
+        focalEntityId: FOCAL_ID,
+        reason: 'decision_model_failed',
+        fields: { failureCode: 'TIMEOUT' },
+        jevCalls: [expect.anything()],
+      });
 
       const { trimmer: untraced } = await tracedTrimmer(null);
       await expect(untraced.trimResult(toolResult(contextBody))).resolves.toBeDefined();
