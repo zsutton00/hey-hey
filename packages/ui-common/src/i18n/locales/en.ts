@@ -1670,11 +1670,13 @@ export const en = {
     "Shown read-only, as saved when the attempt ran.",
   "eval.results.sessions.target": "Attempt session (what the handler did)",
   "eval.results.sessions.noTarget": "No attempt session was recorded.",
+  "eval.results.sessions.title": "Provider Sessions",
+  "eval.results.sessions.agent": "Agent",
   "eval.results.sessions.judge": "Judge",
-  "eval.results.sessions.info": "Info",
-  "eval.results.sessions.attemptProvider": "Attempt provider ids",
   "eval.results.sessions.openJudge": "Open judge session",
-  "eval.results.sessions.judged": "Given to the judge ({{count}} characters)",
+  "eval.results.sessions.viewInput": "View input",
+  "eval.results.sessions.inputModalTitle": "Input given to the judge",
+  "eval.results.sessions.copyCommand": "Copy resume command",
   "eval.results.sessions.judgedNone":
     "Nothing was given to the judge: the attempt ended before judging started.",
   "eval.results.attempt.ran":

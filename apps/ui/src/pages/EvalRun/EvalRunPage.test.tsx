@@ -83,6 +83,15 @@ vi.mock("@hey-hey/ui-common/components", () => ({
   }),
   resolveAgentBridgeRecoveryState: () => ({ type: "loading" }),
   ModelSelectorMachineSelection: () => <div data-testid="machine-picker" />,
+  FunctionalDialog: ({
+    open,
+    children,
+    "data-testid": testId,
+  }: {
+    open: boolean;
+    children: React.ReactNode;
+    "data-testid"?: string;
+  }) => (open ? <div data-testid={testId}>{children}</div> : null),
 }));
 
 vi.mock("@hey-hey/ui-common/data", async (importOriginal) => ({
@@ -239,6 +248,7 @@ const endedAttempts = [
     status: "COMPLETED",
     judgedOutput: "SAVED-OUTPUT",
     attemptProviderSessionIds: ["provider-first"],
+    judgeProviderSessionId: "judge-provider-session",
     automatedAssessment: {
       judgeSessionId: "judge-agent-session",
       checkResults: [{ checkId: "no-direct", passed: true }],
@@ -428,7 +438,7 @@ describe("EvalRunPage", () => {
 
     const detail = screen.getByTestId("eval-attempt-detail-finished");
     expect(
-      within(detail).getByTestId("eval-attempt-provider-ids"),
+      within(detail).getByTestId("eval-attempt-sessions"),
     ).toHaveTextContent("provider-first");
     expect(
       within(detail).getByTestId("eval-open-judge-session"),
@@ -448,6 +458,103 @@ describe("EvalRunPage", () => {
     expect(screen.getByTestId("eval-check-no-direct")).toHaveTextContent(
       "No direct changes",
     );
+  });
+
+  it("lists provider sessions as rows with resume commands, not-reported ids and the judge input modal", () => {
+    const sessionsRun = {
+      id: "run-2",
+      organizationId: "org",
+      projectId: "p1",
+      title: "Run sessions",
+      createdAt: "2026-10-22T10:00:00.000Z",
+      payload: {
+        reportType: "EVAL_RUN",
+        evalId: "eval-1",
+        status: "FINISHED",
+        judgeSetup: { provider: "claude", model: "claude-opus-5-5" },
+        cases: [
+          {
+            id: "case-1",
+            evalCaseId: "eval-case-1",
+            title: "Case",
+            grading: { expectations: "Do the thing.", checks: [], rubric: [] },
+          },
+        ],
+        configurations: [
+          {
+            id: "setup-rotated",
+            target: { provider: "claude", model: "opus" },
+          },
+          {
+            id: "setup-no-command",
+            target: { provider: "opencode", model: "m" },
+          },
+          { id: "setup-bare", target: { provider: "codex", model: "m" } },
+        ],
+        settings: { maxConcurrentAttempts: 3 },
+        coordinatorAgentSessionId: "coordinator",
+        coordinatorConversationId: "coordinator-conversation",
+      },
+    } as unknown as EvalRunReport;
+    const [setupRotated, setupNoCommand, setupBare] =
+      sessionsRun.payload.configurations;
+
+    const rotated = attempt("rotated", "case-1", setupRotated, {
+      status: "COMPLETED",
+      attemptProviderSessionIds: ["provider-a", "provider-b", "pending_c"],
+      judgeProviderSessionId: "judge-session-1",
+      judgedOutput: "WHAT THE JUDGE SAW",
+      automatedAssessment: {
+        judgeSessionId: "judge-agent-rotated",
+        checkResults: [],
+        recognition: { recognized: true, explanation: "ok" },
+        quality: [],
+        createdAt: "2026-10-22T10:20:00.000Z",
+      },
+    });
+    const noCommand = attempt("no-command", "case-1", setupNoCommand, {
+      status: "COMPLETED",
+      attemptProviderSessionIds: ["provider-opencode"],
+    });
+    const bare = attempt("bare", "case-1", setupBare, {
+      status: "COMPLETED",
+    });
+
+    givenRun(sessionsRun, [rotated, noCommand, bare]);
+    render(<EvalRunPage />);
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-rotated"));
+    const rotatedDetail = screen.getByTestId("eval-attempt-detail-rotated");
+    expect(rotatedDetail).toHaveTextContent("provider-a");
+    expect(rotatedDetail).toHaveTextContent("provider-b");
+    expect(rotatedDetail).not.toHaveTextContent("pending_c");
+    expect(rotatedDetail).toHaveTextContent("claude --resume provider-a");
+    expect(rotatedDetail).toHaveTextContent("claude --resume provider-b");
+    expect(rotatedDetail).toHaveTextContent("claude --resume judge-session-1");
+
+    fireEvent.click(within(rotatedDetail).getByTestId("eval-judge-view-input"));
+    expect(screen.getByTestId("eval-judge-input-modal")).toHaveTextContent(
+      "WHAT THE JUDGE SAW",
+    );
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-no-command"));
+    const noCommandDetail = screen.getByTestId(
+      "eval-attempt-detail-no-command",
+    );
+    expect(noCommandDetail).toHaveTextContent("provider-opencode");
+    expect(noCommandDetail).not.toHaveTextContent("resume");
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-bare"));
+    const bareDetail = screen.getByTestId("eval-attempt-detail-bare");
+    expect(
+      within(bareDetail).getByTestId("eval-attempt-sessions"),
+    ).toHaveTextContent("eval.results.notReported");
+    expect(
+      within(bareDetail).getByTestId("eval-attempt-judged-none"),
+    ).toBeInTheDocument();
+    expect(
+      within(bareDetail).queryByTestId("eval-judge-view-input"),
+    ).not.toBeInTheDocument();
   });
 
   it("saves a person's review beside the automated assessment", async () => {

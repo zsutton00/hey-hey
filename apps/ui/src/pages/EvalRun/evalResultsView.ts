@@ -251,6 +251,24 @@ export const compareSetups = (
     compareSetup(configuration, attempts),
   );
 
+/**
+ * The command that resumes a provider session in its own tool, or null when
+ * the provider has none (for example OpenCode).
+ */
+export const resumeCommandFor = (
+  provider: string,
+  providerSessionId: string,
+): string | null => {
+  switch (provider) {
+    case "claude":
+      return `claude --resume ${providerSessionId}`;
+    case "codex":
+      return `codex resume ${providerSessionId}`;
+    default:
+      return null;
+  }
+};
+
 /** Check descriptions recorded on the run for the attempt's case. */
 export const checkDescriptions = (
   run: EvalRunReport,

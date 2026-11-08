@@ -536,6 +536,7 @@ export const EvalCaseDetail: React.FC<EvalCaseDetailProps> = ({
     <AttemptSessions
       attempt={attempt}
       judgeSessionHref={row.judgeSessionHref}
+      judgeProvider={run.payload.judgeSetup.provider}
     />
     <WorkBreakdown rows={row.breakdown} />
     <Grid container spacing={2}>
