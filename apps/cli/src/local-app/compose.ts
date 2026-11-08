@@ -3,6 +3,7 @@ import type { Installation, InstallationSecrets } from './installation-store';
 export const LOCAL_PROJECT = 'heyhey-local';
 /** The browser, not the API, is the WebAuthn origin: passkeys are bound to the local web app. */
 export const LOCAL_WEB_ORIGIN = 'http://localhost:5173';
+export const LOCAL_WEB_WS_URL = 'ws://localhost:5173';
 export const LOCAL_WEB_RP_ID = 'localhost';
 export const LOCAL_BROWSER_TOKEN_ISSUER = 'urn:heyhey:local';
 /** UI container variable the web app reads at runtime to find the bridge. */
@@ -84,6 +85,12 @@ export function composeConfiguration(
           API_HOST: 'localhost',
           API_PORT: '3000',
           API_PROTOCOL: 'http',
+          // One address for pages, API calls and live updates, so sign-in,
+          // pairing and session cookies share one origin and passkey scope.
+          API_PROXY_TARGET: 'http://api:3000',
+          VITE_DEPLOYMENT: 'local',
+          VITE_API_URL: '/api/v1',
+          VITE_WS_URL: LOCAL_WEB_WS_URL,
           [LOCAL_AGENT_PORT_VARIABLE]: String(bridgePort),
         },
         healthcheck: ready('http://127.0.0.1:5173/'),
@@ -243,4 +250,21 @@ SELECT 'CREATE DATABASE heyhey_graph_search OWNER graph_search' WHERE NOT EXISTS
 CREATE EXTENSION IF NOT EXISTS vector VERSION '0.8.7';
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 `;
+}
+
+/**
+ * Vite dev server environment for `heyhey local dev`. The browser talks only to the dev server,
+ * which proxies the API and live updates while keeping the browser's own origin, so sign-in,
+ * pairing and session cookies share one origin as they do in the installed stack.
+ */
+export function devWebEnvironment(bridgePort: number): Record<string, string> {
+  return {
+    NODE_ENV: 'development',
+    VITE_DEPLOYMENT: 'local',
+    VITE_API_URL: '/api/v1',
+    VITE_WS_URL: LOCAL_WEB_WS_URL,
+    VITE_API_PROXY_TARGET: 'http://localhost:3000',
+    VITE_API_PROXY_KEEP_BROWSER_ORIGIN: 'true',
+    [LOCAL_AGENT_PORT_VARIABLE]: String(bridgePort),
+  };
 }

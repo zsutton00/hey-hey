@@ -83,7 +83,7 @@ const OrganizationHomePage = lazyNamed(
   "OrganizationHomePage",
 );
 const Contact = lazy(() => import("./pages/Contact"));
-const Login = lazy(() => import("./pages/Login"));
+const Login = lazy(() => import("./pages/LoginRoute"));
 const RequestAccessPage = lazyNamed(
   () => import("./pages/RequestAccess/RequestAccessPage"),
   "RequestAccessPage",

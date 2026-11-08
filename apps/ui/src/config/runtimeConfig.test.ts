@@ -1,5 +1,9 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { getApiBaseUrl, getWsUrl } from "@hey-hey/ui-common/services";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  getApiBaseUrl,
+  getWsUrl,
+  getDeployment,
+} from "@hey-hey/ui-common/services";
 
 const resetRuntimeConfig = () => {
   delete window.__HEY_HEY_RUNTIME_CONFIG__;
@@ -7,6 +11,7 @@ const resetRuntimeConfig = () => {
 
 afterEach(() => {
   resetRuntimeConfig();
+  vi.unstubAllEnvs();
 });
 
 describe("runtimeConfig", () => {
@@ -41,5 +46,25 @@ describe("runtimeConfig", () => {
 
     expect(getApiBaseUrl()).toBe("http://localhost:3000/api/v1");
     expect(getWsUrl()).toBe("ws://localhost:3000");
+  });
+});
+
+describe("deployment selection", () => {
+  it("defaults to hosted even when the browser is on localhost", () => {
+    vi.stubEnv("VITE_DEPLOYMENT", "");
+    expect(getDeployment()).toBe("hosted");
+  });
+
+  it("uses the source-mode flag when runtime configuration is absent", () => {
+    vi.stubEnv("VITE_DEPLOYMENT", "local");
+    expect(getDeployment()).toBe("local");
+  });
+
+  it("lets container configuration override the build-time flag", () => {
+    vi.stubEnv("VITE_DEPLOYMENT", "local");
+    window.__HEY_HEY_RUNTIME_CONFIG__ = { deployment: "hosted" };
+    expect(getDeployment()).toBe("hosted");
+    window.__HEY_HEY_RUNTIME_CONFIG__ = { deployment: "local" };
+    expect(getDeployment()).toBe("local");
   });
 });
