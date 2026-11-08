@@ -785,6 +785,43 @@ describe("ClaimMachine", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("first-use local pairing creates one shared passkey without asking for account proof", async () => {
+    const secret = Buffer.alloc(32, 7).toString("base64url");
+    const session = { accessToken: "fresh" };
+    mocks.beginMutate.mockResolvedValue({
+      ...beginResult,
+      enrollmentMode: "SHARED_NEW",
+    });
+    mocks.completeMutate.mockResolvedValue({ ...completeResult, session });
+    render(
+      <ClaimMachine
+        initialCode="BCDFG-HJKLM"
+        localApprovalSecret={secret}
+        enrollment="first-use-shared-new"
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("local-pairing-create-passkey")).toBeEnabled(),
+    );
+    expect(mocks.beginMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ enrollmentMode: "SHARED_NEW" }),
+    );
+    expect(screen.getByTestId("local-pairing-signin-note")).toBeVisible();
+    expect(
+      screen.queryByTestId("settings-machine-claim-sign-in-password"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("local-pairing-create-passkey"));
+
+    await waitFor(() => expect(mocks.completeMutate).toHaveBeenCalled());
+    expect(mocks.requestProof).not.toHaveBeenCalled();
+    expect(mocks.completeMutate.mock.calls[0]![0]).not.toHaveProperty(
+      "accountProof",
+    );
+    expect(mocks.acceptSession).toHaveBeenCalledWith(session);
+  });
+
   it("shows the awaiting-local-confirmation result without treating the machine as active", async () => {
     render(<ClaimMachine initialCode={null} />);
     advancePastCliStep();

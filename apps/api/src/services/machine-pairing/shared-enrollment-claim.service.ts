@@ -31,7 +31,8 @@ export interface SharedClaimCompletion {
  * enrollment ceremony becomes an account sign-in passkey and this claim's
  * staged controller credential in a single transaction, which also replaces
  * the acting browser session. Account proof is verified against the account,
- * never inferred from the enrollment. Staging never activates the controller
+ * never inferred from the enrollment. Only where local composition registers
+ * the first-passkey rule may it be omitted, for the account's first passkey. Staging never activates the controller
  * and issues no grant: the computer still confirms locally.
  */
 @Injectable()
@@ -40,6 +41,13 @@ export class SharedEnrollmentClaimService {
     private readonly claims: MachineEnrollmentClaimService,
     private readonly accountPasskeys: AccountPasskeyService,
   ) {}
+
+  async isSharedClaim(enrollmentId: string): Promise<boolean> {
+    return (
+      (await this.claims.enrollmentModeOf(enrollmentId)) ===
+      MachineEnrollmentMode.SHARED_NEW
+    );
+  }
 
   async completeSharedClaim(
     input: CompleteMachineEnrollmentClaimRequestDto,
@@ -55,6 +63,7 @@ export class SharedEnrollmentClaimService {
       memberships,
       sourceAddress,
       MachineEnrollmentMode.SHARED_NEW,
+      this.accountPasskeys.acceptsFirstPasskeyWithoutProof,
     );
     const { verified, enrollment } = prepared;
 
@@ -72,7 +81,7 @@ export class SharedEnrollmentClaimService {
           aaguid: verified.credentialAaguid,
         },
         enrollment.controllerLabel!.slice(0, 100),
-        input.accountProof!,
+        input.accountProof,
         requestMetadata,
         (tx, accountPasskeyId) =>
           this.claims.stageVerifiedCredential(

@@ -353,6 +353,7 @@ export function LocalSetupPage(): React.JSX.Element {
         {pairingStarted && pairing ? (
           <ClaimMachine
             initialCode={pairing.code}
+            enrollment="first-use-shared-new"
             localApprovalSecret={pairing.approvalSecret}
             localAgents={pairing.agents}
             onLocalPasskeyCreated={handlePasskeyCreated}

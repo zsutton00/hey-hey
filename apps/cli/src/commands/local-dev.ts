@@ -5,8 +5,8 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import {
   DEV_INFRASTRUCTURE_ENDPOINTS,
-  LOCAL_AGENT_PORT_VARIABLE,
   LOCAL_WEB_ORIGIN,
+  devWebEnvironment,
   devComposeConfiguration,
   localApiEnvironment,
   provisioningSql,
@@ -135,13 +135,7 @@ export async function runLocalDevCommand(): Promise<boolean> {
         'ui',
         join(root, 'apps', 'ui'),
         ['exec', 'vite', '--port', '5173', '--strictPort'],
-        {
-          NODE_ENV: 'development',
-          // The browser calls the API directly, as the installed web app does, so origins match.
-          VITE_API_URL: 'http://localhost:3000/api/v1',
-          VITE_API_PROXY_TARGET: 'http://localhost:3000',
-          [LOCAL_AGENT_PORT_VARIABLE]: String(bridgePort),
-        },
+        devWebEnvironment(bridgePort),
         logDirectory,
       ),
     );

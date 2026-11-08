@@ -134,7 +134,12 @@ export class MachineEnrollmentClaimController {
     request: Request,
     response: Response,
   ): Promise<CompleteMachineEnrollmentClaimResponseDto> {
-    if (body.accountProof === undefined) {
+    const sharedClaim =
+      body.accountProof !== undefined ||
+      (await this.sharedEnrollmentClaimService.isSharedClaim(
+        body.enrollmentId,
+      ));
+    if (!sharedClaim) {
       return this.machineEnrollmentClaimService.completeClaim(
         body,
         user.userId,

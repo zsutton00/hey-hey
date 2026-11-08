@@ -56,10 +56,6 @@ describe('AuthController', () => {
       getJwks: jest.fn(),
       getAccountDefaultOrganization: jest.fn(),
       setAccountDefaultOrganization: jest.fn(),
-      createLocalHandoff: jest.fn(),
-      completeLocalHandoff: jest.fn(),
-      updateLocalDisplayName: jest.fn(),
-      getLocalStatus: jest.fn(),
     };
 
     // INTENT: Mock Express Response to test cookie setting behavior
@@ -125,45 +121,6 @@ describe('AuthController', () => {
       preference.organizationId,
     );
     expect(mockResponse.cookie).not.toHaveBeenCalled();
-  });
-
-  it('requires the local same-origin browser boundary before consuming a handoff', async () => {
-    jest
-      .spyOn(authService, 'completeLocalHandoff')
-      .mockResolvedValue(mockEstablishedSession);
-    mockRequest.headers = {
-      ...mockRequest.headers,
-      origin: 'http://localhost:5173',
-      'sec-fetch-site': 'same-site',
-    };
-
-    await controller.localHandoff(
-      { handoffToken: 'a'.repeat(43) },
-      mockRequest as Request,
-      mockResponse as Response,
-    );
-
-    expect(authService.completeLocalHandoff).toHaveBeenCalledWith(
-      'a'.repeat(43),
-      expect.objectContaining({ userAgent: 'test-browser/1.0' }),
-    );
-    expect(mockResponse.cookie).toHaveBeenCalled();
-  });
-
-  it('rejects a website origin before local handoff or bootstrap', async () => {
-    mockRequest.headers = {
-      ...mockRequest.headers,
-      origin: 'https://attacker.example',
-      'sec-fetch-site': 'cross-site',
-    };
-    await expect(
-      controller.localHandoff(
-        { handoffToken: 'a'.repeat(43) },
-        mockRequest as Request,
-        mockResponse as Response,
-      ),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
-    expect(authService.completeLocalHandoff).not.toHaveBeenCalled();
   });
 
   it('does not save a default from an untrusted browser origin', () => {

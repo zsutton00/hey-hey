@@ -173,6 +173,9 @@ export function LocalPairingScreen({
           {t("localSetup.pairing.cancel")}
         </button>
       </div>
+      <p data-testid="local-pairing-signin-note">
+        {t("localSetup.pairing.signInNote")}
+      </p>
     </div>
   );
 }
