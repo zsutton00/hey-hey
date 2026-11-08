@@ -14,6 +14,7 @@ import { UnifiedSearchService } from '../../services/unified-search/unified-sear
 import { HelpService } from '../../services/help.service';
 import { SearchCacheService } from '../tools/search-cache.service';
 import { UnifiedSearchResult } from '@hey-hey/contracts/api/models';
+import { buildMatchParagraphs } from '../../services/unified-search/match-paragraphs';
 
 type SearchResult = z.infer<typeof searchResultOutput>;
 
@@ -483,8 +484,9 @@ describe('SearchToolsProvider', () => {
         makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
       )) as SearchResult;
 
-      expect(result.results[0]!.snippet.length).toBeLessThanOrEqual(300);
-      expect(result.results[0]!.snippet.endsWith('…')).toBe(true);
+      const { snippet } = result.results[0]!;
+      expect(snippet!.length).toBeLessThanOrEqual(300);
+      expect(snippet!.endsWith('…')).toBe(true);
     });
 
     it('falls back to topologySummary when content is absent', async () => {
@@ -592,7 +594,7 @@ describe('SearchToolsProvider', () => {
     });
 
     it.each([true, false])(
-      'returns match paragraphs independently of snippet (spans: %s)',
+      'returns match paragraphs in place of the snippet, keeping the snippet only without them (spans: %s)',
       async (withSpans) => {
         const matchParagraphs = [
           {
@@ -617,9 +619,10 @@ describe('SearchToolsProvider', () => {
         if (withSpans) {
           expect(hit.matchParagraphs).toEqual(matchParagraphs);
           expect(hit).not.toHaveProperty('matchText');
-          expect(hit.snippet).toContain('Different display text');
+          expect(hit).not.toHaveProperty('snippet');
         } else {
           expect(hit).not.toHaveProperty('matchParagraphs');
+          expect(hit.snippet).toContain('Different display text');
         }
       },
     );
@@ -895,7 +898,7 @@ describe('SearchToolsProvider', () => {
         Array.from({ length: count }, (_, i) =>
           makeResult({
             entityId: `${prefix}-${i}`,
-            title: 't'.repeat(300),
+            title: 't'.repeat(1000),
             content: 'x'.repeat(1000),
           }),
         );
@@ -916,7 +919,7 @@ describe('SearchToolsProvider', () => {
 
         const { result, length } = await run({ query: 'wide' });
 
-        expect(length).toBeLessThanOrEqual(32_000);
+        expect(length).toBeLessThanOrEqual(48_000);
         expect(result.results.length).toBeLessThan(50);
         expect(result.total).toBe(result.results.length);
         expect(result.hasMore).toBe(true);
@@ -948,7 +951,7 @@ describe('SearchToolsProvider', () => {
           queries: ['a', 'b', 'c', 'd', 'e'],
         });
 
-        expect(length).toBeLessThanOrEqual(32_000);
+        expect(length).toBeLessThanOrEqual(48_000);
         expect(result.groups.map((group: any) => group.query)).toEqual([
           'a',
           'b',
@@ -963,6 +966,123 @@ describe('SearchToolsProvider', () => {
           expect(group.omittedForSize).toBe(50 - group.results.length);
         }
         expect(unifiedSearchResultOutput.safeParse(result).success).toBe(true);
+      });
+    });
+
+    describe('compact hits through the real paragraph builder', () => {
+      const words = ['token', 'refresh', 'retry', 'monitor', 'failed'];
+      const paragraph = (length: number, seed: number) =>
+        Array.from(
+          { length: Math.ceil(length / 6) },
+          (_, i) => words[(i + seed) % 5],
+        )
+          .join(' ')
+          .slice(0, length);
+      const realisticHit = (id: string, lengths: number[]) => {
+        const text = lengths.map(paragraph).join('\n\n');
+        const spans = [...text.matchAll(/retry/g)].slice(0, 6).map((m, k) => ({
+          start: m.index,
+          end: m.index + 5,
+          strength: 0.9 - k * 0.1,
+        }));
+        return makeResult({
+          entityId: id,
+          title: `Retry failed attempts in task monitor ${id}`,
+          content: text,
+          embeddings: { matchParagraphs: buildMatchParagraphs(text, spans) },
+        });
+      };
+      const shapes = [
+        [400, 700, 900, 500],
+        [300, 1200, 600],
+        [800, 350, 1500, 400],
+        [500, 500, 500],
+        [400, 6000, 900],
+      ];
+      const batch = async (queryCount: number, perQuery: number) => {
+        (mockSearchService.search as jest.Mock).mockImplementation(
+          async (_org, _project, request) =>
+            makeSearchResponse(
+              Array.from({ length: perQuery }, (_, i) =>
+                realisticHit(
+                  `${request.query}-${i}`,
+                  shapes[i % shapes.length]!,
+                ),
+              ),
+            ),
+        );
+        const result = (await provider.unifiedSearch(
+          {
+            queries: Array.from({ length: queryCount }, (_, i) => `q${i}`),
+            limit: perQuery,
+            offset: 0,
+          } as any,
+          dummyContext as any,
+          makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
+        )) as any;
+        return result;
+      };
+
+      it('returns all eight requested hits for each of four typical batched queries', async () => {
+        const result = await batch(4, 8);
+
+        expect(result.groups.map((g: any) => g.results.length)).toEqual([
+          8, 8, 8, 8,
+        ]);
+        for (const group of result.groups) {
+          expect(group).not.toHaveProperty('omittedForSize');
+          for (const hit of group.results) {
+            expect(hit).not.toHaveProperty('snippet');
+            for (const p of hit.matchParagraphs) {
+              expect(p.text.length).toBeLessThanOrEqual(300);
+              for (const span of p.matchSpans) {
+                expect(p.text.slice(span.start, span.end)).toBe('retry');
+              }
+            }
+          }
+        }
+        expect(unifiedSearchResultOutput.safeParse(result).success).toBe(true);
+      });
+
+      it('still cuts from the end and reports omittedForSize when a batch is oversized', async () => {
+        const result = await batch(5, 50);
+
+        expect(JSON.stringify(result).length).toBeLessThanOrEqual(48_000);
+        for (const group of result.groups) {
+          expect(group.results.length).toBeGreaterThan(0);
+          expect(group.hasMore).toBe(true);
+          expect(group.omittedForSize).toBe(50 - group.results.length);
+        }
+      });
+
+      it('admits responses between the former 32,000 and new 48,000 character limits', async () => {
+        const result = await batch(4, 8);
+        const length = JSON.stringify(result).length;
+
+        // Typical compact batches are well under the former limit; a larger
+        // body of plain hits must still pass until 48,000.
+        expect(length).toBeLessThanOrEqual(48_000);
+        (mockSearchService.search as jest.Mock).mockResolvedValue(
+          makeSearchResponse(
+            Array.from({ length: 30 }, (_, i) =>
+              makeResult({
+                entityId: `plain-${i}`,
+                title: 't'.repeat(1000),
+                content: 'x'.repeat(1000),
+              }),
+            ),
+          ),
+        );
+        const plain = (await provider.unifiedSearch(
+          { query: 'plain', limit: 30, offset: 0 } as any,
+          dummyContext as any,
+          makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
+        )) as any;
+        const plainLength = JSON.stringify(plain).length;
+        expect(plainLength).toBeGreaterThan(32_000 - 1);
+        expect(plainLength).toBeLessThanOrEqual(48_000);
+        expect(plain.results).toHaveLength(30);
+        expect(plain).not.toHaveProperty('omittedForSize');
       });
     });
 

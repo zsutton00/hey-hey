@@ -572,10 +572,10 @@ UnifiedMatchParagraph:
   properties:
     text:
       type: string
-      description: Paragraph text exactly as indexed.
+      description: Paragraph text exactly as indexed. A paragraph longer than the excerpt cap is cut to a contiguous window around its strongest match, with no ellipses added.
     matchSpans:
       type: array
-      description: Matched spans inside this paragraph, clipped to it, with end-exclusive UTF-16 code-unit offsets relative to the paragraph text.
+      description: Matched spans inside this paragraph, clipped to it, with end-exclusive UTF-16 code-unit offsets relative to this text (the window, when cut).
       items:
         $ref: "../embeddings/openapi.yaml#/components/schemas/MatchSpan"
   additionalProperties: false
@@ -586,7 +586,7 @@ UnifiedEmbeddingsSearchResult:
     matchParagraphs:
       type: array
       maxItems: 3
-      description: Up to 3 blank-line paragraphs of the indexed text containing the strongest matched spans, in document order. A standalone heading is included with the paragraph beneath it. Omitted when the hit reports no spans.
+      description: Up to 3 excerpts of blank-line paragraphs of the indexed text, each bounded in length, containing the strongest matched spans, in document order. A standalone heading is included with the paragraph beneath it. Omitted when the hit reports no spans.
       items:
         $ref: "#/UnifiedMatchParagraph"
     id:

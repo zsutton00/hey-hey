@@ -28,7 +28,7 @@ import type { UnifiedMatchParagraph } from './unified-match-paragraph.js';
  */
 export interface UnifiedEmbeddingsSearchResult {
     /**
-     * Up to 3 blank-line paragraphs of the indexed text containing the strongest matched spans, in document order. A standalone heading is included with the paragraph beneath it. Omitted when the hit reports no spans.
+     * Up to 3 excerpts of blank-line paragraphs of the indexed text, each bounded in length, containing the strongest matched spans, in document order. A standalone heading is included with the paragraph beneath it. Omitted when the hit reports no spans.
      * @type {Array<UnifiedMatchParagraph>}
      * @memberof UnifiedEmbeddingsSearchResult
      */

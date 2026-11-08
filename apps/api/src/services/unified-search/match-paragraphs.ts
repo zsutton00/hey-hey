@@ -3,6 +3,8 @@ import type { MatchSpan } from 'src/generated/embeddings';
 
 export const MAX_MATCH_PARAGRAPHS = 3;
 export const OPENING_SNIPPET_LENGTH = 300;
+/** Longest matched excerpt, in UTF-16 code units; chosen by measuring hit sizes against the batch budget. */
+export const MAX_MATCH_PARAGRAPH_LENGTH = 300;
 
 /** The opening of an entity's indexed text, so a hit never carries the whole document. */
 export function openingSnippet(text: string): string {
@@ -62,6 +64,53 @@ function splitParagraphs(text: string): Block[] {
   return paragraphs;
 }
 
+const isHighSurrogate = (unit: number) => unit >= 0xd800 && unit <= 0xdbff;
+const isLowSurrogate = (unit: number) => unit >= 0xdc00 && unit <= 0xdfff;
+
+/**
+ * A window of at most MAX_MATCH_PARAGRAPH_LENGTH around the paragraph's
+ * strongest span (earliest on ties), shifted to use available context and
+ * never splitting a surrogate pair.
+ */
+function windowAround(
+  text: string,
+  paragraph: Block,
+  spans: readonly MatchSpan[],
+): Block {
+  const length = paragraph.end - paragraph.start;
+  if (length <= MAX_MATCH_PARAGRAPH_LENGTH) {
+    return paragraph;
+  }
+
+  const strongest = spans.reduce((best, span) =>
+    span.strength > best.strength ||
+    (span.strength === best.strength && span.start < best.start)
+      ? span
+      : best,
+  );
+  const spanStart = strongest.start + paragraph.start;
+  const spanEnd = strongest.end + paragraph.start;
+  const centered =
+    Math.floor((spanStart + spanEnd) / 2) -
+    Math.floor(MAX_MATCH_PARAGRAPH_LENGTH / 2);
+  const preferredStart =
+    spanEnd - spanStart >= MAX_MATCH_PARAGRAPH_LENGTH ? spanStart : centered;
+  let start = Math.min(
+    Math.max(preferredStart, paragraph.start),
+    paragraph.end - MAX_MATCH_PARAGRAPH_LENGTH,
+  );
+  let end = start + MAX_MATCH_PARAGRAPH_LENGTH;
+
+  if (start > paragraph.start && isLowSurrogate(text.charCodeAt(start))) {
+    start += 1;
+  }
+  if (end < paragraph.end && isHighSurrogate(text.charCodeAt(end - 1))) {
+    end -= 1;
+  }
+
+  return { start, end };
+}
+
 function clipSpans(spans: MatchSpan[], paragraph: Block): MatchSpan[] {
   return spans
     .filter((span) => span.start < paragraph.end && span.end > paragraph.start)
@@ -103,8 +152,16 @@ export function buildMatchParagraphs(
     .slice(0, MAX_MATCH_PARAGRAPHS)
     .sort((a, b) => a.index - b.index);
 
-  return strongest.map(({ paragraph, matchSpans }) => ({
-    text: text.slice(paragraph.start, paragraph.end),
-    matchSpans,
-  }));
+  return strongest.map(({ paragraph, matchSpans }) => {
+    const window = windowAround(text, paragraph, matchSpans);
+    const offset = window.start - paragraph.start;
+
+    return {
+      text: text.slice(window.start, window.end),
+      matchSpans: clipSpans(matchSpans, {
+        start: offset,
+        end: window.end - paragraph.start,
+      }),
+    };
+  });
 }

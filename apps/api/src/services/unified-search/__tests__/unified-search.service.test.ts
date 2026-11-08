@@ -25,6 +25,7 @@ import { EntitySummaryService } from '../../entity-summary/entity-summary.servic
 import { EntityRelationshipResolverService } from '../../relationships/entity-relationship-resolver.service';
 import { PlanLineageBoostService } from '../plan-lineage-boost.service';
 import { UnifiedSearchService } from '../unified-search.service';
+import { MAX_MATCH_PARAGRAPH_LENGTH } from '../match-paragraphs';
 import { createMockPrismaService } from '../../../utils/testUtils';
 import { PrismaService } from '../../../prisma/prisma.service';
 
@@ -458,6 +459,102 @@ describe('UnifiedSearchService', () => {
 
     expect(embeddings).not.toHaveProperty('matchParagraphs');
     expect(embeddings).not.toHaveProperty('text');
+  });
+
+  describe('long paragraphs', () => {
+    const cap = MAX_MATCH_PARAGRAPH_LENGTH;
+    const filler = (length: number, seed: string) =>
+      seed.repeat(Math.ceil(length / seed.length)).slice(0, length);
+    const longText = (before: number, word: string, after: number) =>
+      `${filler(before, 'lorem ipsum ')}${word}${filler(after, ' dolor sit')}`;
+
+    it.each([
+      ['beginning', 0],
+      ['middle', 2_500],
+      ['end', 5_000],
+    ])(
+      'bounds a 6,000-character paragraph to a window containing a match at the %s',
+      async (_label, position) => {
+        const text = longText(position, 'NEEDLE', 5_994 - position);
+        const embeddings = await searchWithSpans(text, [
+          { start: position, end: position + 6, strength: 0.9 },
+        ]);
+
+        const [paragraph] = embeddings.matchParagraphs!;
+        expect(paragraph!.text.length).toBe(cap);
+        expect(text).toContain(paragraph!.text);
+        expect(matchedWords(embeddings.matchParagraphs)).toEqual([['NEEDLE']]);
+        expect(paragraph!.matchSpans).toEqual([
+          expect.objectContaining({ strength: 0.9 }),
+        ]);
+      },
+    );
+
+    it('centers on the strongest span, breaking ties by earliest position, and clips the weaker span', async () => {
+      const text = longText(1_000, 'FIRST', 1_000) + 'SECOND' + filler(50, 'x');
+      const first = 1_000;
+      const second = text.indexOf('SECOND');
+      const embeddings = await searchWithSpans(text, [
+        { start: second, end: second + 6, strength: 0.8 },
+        { start: first, end: first + 5, strength: 0.8 },
+      ]);
+
+      expect(matchedWords(embeddings.matchParagraphs)).toEqual([['FIRST']]);
+    });
+
+    it('keeps every span inside the window and rebases them', async () => {
+      const text = longText(1_000, 'ALPHA', 40) + 'BETA' + filler(1_000, 'y ');
+      const alpha = 1_000;
+      const beta = text.indexOf('BETA');
+      const far = text.length - 10;
+      const embeddings = await searchWithSpans(text, [
+        { start: alpha, end: alpha + 5, strength: 0.9 },
+        { start: beta, end: beta + 4, strength: 0.5 },
+        { start: far, end: far + 5, strength: 0.4 },
+      ]);
+
+      expect(matchedWords(embeddings.matchParagraphs)).toEqual([
+        ['ALPHA', 'BETA'],
+      ]);
+    });
+
+    it('clips a strongest span longer than the cap to the window', async () => {
+      const text = filler(2_000, 'wide ');
+      const embeddings = await searchWithSpans(text, [
+        { start: 100, end: 1_900, strength: 0.9 },
+      ]);
+
+      const [paragraph] = embeddings.matchParagraphs!;
+      expect(paragraph!.text).toBe(text.slice(100, 100 + cap));
+      expect(paragraph!.matchSpans).toEqual([
+        { start: 0, end: cap, strength: 0.9 },
+      ]);
+    });
+
+    it.each([1_000, 1_002])(
+      'never splits an emoji at the window boundaries (match at %i)',
+      async (position) => {
+        const text = '😀'.repeat(1_000);
+        const embeddings = await searchWithSpans(text, [
+          { start: position, end: position + 2, strength: 0.9 },
+        ]);
+
+        const [paragraph] = embeddings.matchParagraphs!;
+        expect(paragraph!.text.length).toBeLessThanOrEqual(cap);
+        expect(paragraph!.text).toMatch(/^(?:😀)+$/u);
+        expect(text).toContain(paragraph!.text);
+        expect(matchedWords(embeddings.matchParagraphs)).toEqual([['😀']]);
+      },
+    );
+
+    it('leaves a paragraph at the cap intact', async () => {
+      const text = filler(cap, 'abc ');
+      const embeddings = await searchWithSpans(text, [
+        { start: 10, end: 14, strength: 0.5 },
+      ]);
+
+      expect(embeddings.matchParagraphs?.[0]?.text).toBe(text);
+    });
   });
 
   it('routes semantic intent to embeddings search', async () => {

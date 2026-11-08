@@ -30,7 +30,7 @@ import {
 } from './mcp-tool.utils';
 import {
   ENVELOPE_ALLOWANCE,
-  RESPONSE_CHARACTER_BUDGET,
+  SEARCH_RESPONSE_CHARACTER_BUDGET,
 } from './response-budget';
 import { SearchCacheService } from './search-cache.service';
 import {
@@ -290,7 +290,12 @@ const searchResultItem = z.object({
   id: z.string().describe('Entity ID'),
   type: z.string().describe('Entity type'),
   title: z.string().describe('Entity title or summary'),
-  snippet: z.string().describe('Relevant text snippet'),
+  snippet: z
+    .string()
+    .optional()
+    .describe(
+      'Opening text of the hit. Omitted when matchParagraphs is present, since those carry the relevant text.',
+    ),
   matchParagraphs: z
     .array(
       z.object({
@@ -306,7 +311,7 @@ const searchResultItem = z.object({
     )
     .optional()
     .describe(
-      'Up to 3 paragraphs containing the strongest matches, in document order. Each matchSpans offset is an end-exclusive UTF-16 code-unit offset into that paragraph text. Omitted when the hit reports no spans.',
+      'Up to 3 excerpts of paragraphs containing the strongest matches, in document order; a long paragraph is cut to a window around its strongest match. Each matchSpans offset is an end-exclusive UTF-16 code-unit offset into that excerpt text. Omitted when the hit reports no spans.',
     ),
   score: z.number().describe('Relevance score'),
   taskType: z
@@ -445,7 +450,7 @@ function fitSearchPagesToBudget<T extends SearchPage>(pages: T[]): T[] {
         sizes[index]!.reduce((pageSum, size) => pageSum + size, 0),
       0,
     );
-  while (total > RESPONSE_CHARACTER_BUDGET) {
+  while (total > SEARCH_RESPONSE_CHARACTER_BUDGET) {
     const largest = Math.max(...kept);
     if (largest <= 1) break;
     const index = kept.lastIndexOf(largest);
@@ -467,9 +472,13 @@ function fitSearchPagesToBudget<T extends SearchPage>(pages: T[]): T[] {
 }
 
 function mapResult(item: UnifiedSearchResult) {
-  const snippet =
-    truncate(item.content, MAX_SNIPPET_LENGTH) ||
-    truncate(item.topologySummary, MAX_SNIPPET_LENGTH);
+  const matchParagraphs = item.embeddings?.matchParagraphs;
+  const hasMatchParagraphs =
+    matchParagraphs !== undefined && matchParagraphs.length > 0;
+  const snippet = hasMatchParagraphs
+    ? undefined
+    : truncate(item.content, MAX_SNIPPET_LENGTH) ||
+      truncate(item.topologySummary, MAX_SNIPPET_LENGTH);
 
   const meta = item.embeddings?.metadata as CanonicalTaskMetadata | undefined;
   const isFeature = meta?.taskType === 'FEATURE';
@@ -478,11 +487,9 @@ function mapResult(item: UnifiedSearchResult) {
     id: item.entityId ?? '',
     type: item.entityType ?? '',
     title: item.title ?? '',
-    snippet,
+    ...(snippet === undefined ? {} : { snippet }),
     score: item.score ?? 0,
-    ...(item.embeddings?.matchParagraphs !== undefined
-      ? { matchParagraphs: item.embeddings.matchParagraphs }
-      : {}),
+    ...(matchParagraphs === undefined ? {} : { matchParagraphs }),
     // Surface the task subtype straight from the search metadata so callers
     // can tell a feature/bug/goal hit from a standard one without a follow-up
     // lookup; omit it entirely when the search data carries no subtype.
@@ -665,7 +672,7 @@ export class SearchToolsProvider {
     description:
       'Search across content types (tasks, design docs, plans, and messages) ' +
       'in a project. Returns ranked results with relevance scores and text ' +
-      'snippets for context. Provide EITHER `query` (a single search, ' +
+      'matched text excerpts (a snippet only for hits without them) for context. Provide EITHER `query` (a single search, ' +
       'returning a flat { results, total, hasMore }) OR `queries` (a batch of ' +
       'up to 5 searches run in one call, returning { groups } — one ordered ' +
       'group per input query so you can correlate results back to the query ' +
@@ -684,7 +691,7 @@ export class SearchToolsProvider {
       'check whether a phrase exists: results are only entities containing ' +
       'the literal query (no near matches), and an empty result means none ' +
       'does; matched positions are returned in the result spans. The response stays within ' +
-      'an 8,000-token estimated budget: when it would not fit, ranked ' +
+      'a 12,000-token estimated budget shared across the batch: when it would not fit, ranked ' +
       'results are cut from the end, hasMore is true, and omittedForSize ' +
       'says how many were cut — repeat the query with limit no larger than ' +
       'total and page through it with offset in steps of that limit.',

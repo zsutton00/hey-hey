@@ -25,13 +25,13 @@ import type { MatchSpan } from './match-span.js';
  */
 export interface UnifiedMatchParagraph {
     /**
-     * Paragraph text exactly as indexed.
+     * Paragraph text exactly as indexed. A paragraph longer than the excerpt cap is cut to a contiguous window around its strongest match, with no ellipses added.
      * @type {string}
      * @memberof UnifiedMatchParagraph
      */
     'text': string;
     /**
-     * Matched spans inside this paragraph, clipped to it, with end-exclusive UTF-16 code-unit offsets relative to the paragraph text.
+     * Matched spans inside this paragraph, clipped to it, with end-exclusive UTF-16 code-unit offsets relative to this text (the window, when cut).
      * @type {Array<MatchSpan>}
      * @memberof UnifiedMatchParagraph
      */
