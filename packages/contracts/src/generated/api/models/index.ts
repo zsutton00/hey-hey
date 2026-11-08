@@ -1088,6 +1088,8 @@ export * from './eval-recognition-result.js';
 export * from './eval-recorded-attempt.js';
 export * from './eval-recorded-changes.js';
 export * from './eval-recorded-file-change.js';
+export * from './eval-recorded-tool-call.js';
+export * from './eval-recorded-tool-calls.js';
 export * from './eval-resolved-execution.js';
 export * from './eval-rubric-dimension.js';
 export * from './eval-run-case-input.js';

@@ -33,6 +33,9 @@ import type { EvalMeasurement } from './eval-measurement.js';
 import type { EvalRecordedChanges } from './eval-recorded-changes.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { EvalRecordedToolCalls } from './eval-recorded-tool-calls.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { EvalResolvedExecution } from './eval-resolved-execution.js';
 
 /**
@@ -149,6 +152,12 @@ export interface EvalAttemptReportPayloadAllOf {
      * @memberof EvalAttemptReportPayloadAllOf
      */
     'recordedChanges'?: EvalRecordedChanges;
+    /**
+     * The tested agent\'s own tool calls, without results. Absent on attempts recorded before tool calls were kept.
+     * @type {EvalRecordedToolCalls}
+     * @memberof EvalAttemptReportPayloadAllOf
+     */
+    'recordedToolCalls'?: EvalRecordedToolCalls;
     /**
      * The exact text the judge was given to assess: the saved research for research alone, otherwise the handler\'s reply. Absent when judging never started. The judge runs as an isolated child inside the run\'s coordinator session and has no session of its own, so this is the record of what it looked at.
      * @type {string}

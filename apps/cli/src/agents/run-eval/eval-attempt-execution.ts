@@ -7,6 +7,7 @@ import {
   type EvalMeasurement,
   type EvalCost,
   type EvalRecordedChanges,
+  type EvalRecordedToolCalls,
 } from '@hey-hey/contracts/api/models';
 import { SessionCostReader } from '../../provider-usage/session-cost';
 import type { AgenticSession } from '../../session/types';
@@ -14,6 +15,7 @@ import type { LocalAgentService } from '../../server/local-agent-service';
 import type { RunStore } from '../../run-store/run-store';
 import { EvalWorkspaces, type EvalWorkspace } from './eval-workspace';
 import { EvalTargetFailure, type EvalTargetResult } from './eval-runner';
+import { recordToolCalls, UNAVAILABLE_TOOL_CALLS } from './eval-recorded-tool-calls';
 import { assessedOutputText, codeChangesOutputText } from './eval-assessed-output';
 import { captureChangesSinceCommit } from '../../git/diff';
 import { buildEvalFirstTurn } from './eval-handler-launch';
@@ -65,6 +67,19 @@ export class EvalAttemptExecution {
     }
 
     return this.costReader.read(latest.providerSession.provider, latest.providerSession.sessionId);
+  }
+
+  /** The calls the Run retained so far; unavailable when they cannot be read. Never throws. */
+  private async readToolCalls(runId: string): Promise<EvalRecordedToolCalls> {
+    try {
+      const result = await this.store?.getRunResult(runId);
+
+      return recordToolCalls(result?.toolCalls);
+    } catch (error) {
+      this.logger.warn('run_eval.attempt.tool_calls_read_failed', { runId, error });
+
+      return UNAVAILABLE_TOOL_CALLS;
+    }
   }
 
   private service?: LocalAgentService;
@@ -277,6 +292,7 @@ export class EvalAttemptExecution {
           { cause: error },
         );
       });
+      const recordedToolCalls = recordToolCalls(result?.toolCalls);
       this.logger.info('run_eval.attempt.usage_read', {
         runId: attempt.targetSessionId,
         provider: setting.provider,
@@ -325,7 +341,7 @@ export class EvalAttemptExecution {
       ) {
         throw new EvalTargetFailure(
           `${execution.handler} failed before producing an answer; the attempt's conversation records the reason.`,
-          { ...result?.usage, cost: testedCost, researchMeasurements },
+          { ...result?.usage, cost: testedCost, researchMeasurements, recordedToolCalls },
         );
       }
       const assessedText = settled
@@ -339,18 +355,30 @@ export class EvalAttemptExecution {
       ) {
         throw new EvalTargetFailure(
           'Project Assistant research ended without saving a research report.',
-          { ...result?.usage, cost: testedCost, researchMeasurements },
+          { ...result?.usage, cost: testedCost, researchMeasurements, recordedToolCalls },
         );
       }
       return {
         assistantCompleted: completed,
         ...(completed && assessedText !== undefined ? { outputText: assessedText } : {}),
         usage: result?.usage ?? {},
+        recordedToolCalls,
         cost: testedCost,
         ...(researchMeasurements.length > 0 ? { researchMeasurements } : {}),
         handlerElapsedMs: Math.max(0, Date.now() - startedAt - preparation.elapsedMs),
         budgetExhausted,
       };
+    } catch (error) {
+      if (error instanceof EvalTargetFailure) {
+        throw error;
+      }
+      // Whatever the Run made before the error stays on the attempt.
+      const recordedToolCalls = await this.readToolCalls(attempt.targetSessionId);
+      throw new EvalTargetFailure(
+        error instanceof Error ? error.message : String(error),
+        { recordedToolCalls },
+        error,
+      );
     } finally {
       this.logger.info('run_eval.attempt.run_settled', {
         runId: attempt.targetSessionId,

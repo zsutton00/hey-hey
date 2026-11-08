@@ -73,7 +73,7 @@ const runRecordedAttempts = async (
         onWorkspaceSettled: (settled) => recorder.updateAttempt(attempt.attemptId, settled),
       });
     },
-    async judge(attempt, outputText, judgeSignal) {
+    async judge(attempt, output, judgeSignal) {
       let judgeSessionId: string | undefined;
       const result = await launcher
         .launchRegistered(EVAL_JUDGE_HANDLER_ID, {
@@ -86,7 +86,7 @@ const runRecordedAttempts = async (
           onExecutionCreated: async (child) => {
             judgeSessionId = child.agentic_session_id;
           },
-          payload: { caseInput: attempt.caseInput, outputText },
+          payload: { caseInput: attempt.caseInput, ...output },
           signal: judgeSignal,
           ...toLaunchSettings(payload.judgeSetup),
         })

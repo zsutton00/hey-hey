@@ -124,7 +124,11 @@ describe('runEvalAttempts', () => {
       { ...ports, judge },
     );
 
-    expect(judge).toHaveBeenCalledWith(expect.anything(), 'THE-SAVED-RESEARCH', expect.anything());
+    expect(judge).toHaveBeenCalledWith(
+      expect.anything(),
+      { outputText: 'THE-SAVED-RESEARCH' },
+      expect.anything(),
+    );
     const patches = attempts.get('a')!;
     expect(patches.find((patch) => patch.status === 'JUDGING')).toMatchObject({
       judgedOutput: 'THE-SAVED-RESEARCH',
