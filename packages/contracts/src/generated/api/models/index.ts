@@ -2226,6 +2226,8 @@ export * from './organizations-organization-id-projects-project-id-work-item-typ
 export * from './organizations-organization-id-projects-project-id-work-item-types-get200-response-all-of.js';
 export * from './organizations-organization-id-projects-project-id-work-item-types-post201-response.js';
 export * from './organizations-organization-id-projects-project-id-work-item-types-post201-response-all-of.js';
+export * from './organizations-organization-id-projects-project-id-work-item-types-type-key-canonical-comparison-get200-response.js';
+export * from './organizations-organization-id-projects-project-id-work-item-types-type-key-canonical-comparison-get200-response-all-of.js';
 export * from './organizations-organization-id-projects-project-id-work-item-types-type-key-cascade-impact-get200-response.js';
 export * from './organizations-organization-id-projects-project-id-work-item-types-type-key-cascade-impact-get200-response-all-of.js';
 export * from './organizations-organization-id-projects-project-id-work-item-types-type-key-get200-response.js';
@@ -3980,6 +3982,7 @@ export * from './work-item-structured-mockup-width-flexible.js';
 export * from './work-item-system-response.js';
 export * from './work-item-type.js';
 export * from './work-item-type-archive-request-dto.js';
+export * from './work-item-type-canonical-comparison-dto.js';
 export * from './work-item-type-capabilities.js';
 export * from './work-item-type-cascade-delete-updates-payload.js';
 export * from './work-item-type-cascade-impact-conflict-dto.js';

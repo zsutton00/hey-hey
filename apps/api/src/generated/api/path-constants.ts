@@ -158,6 +158,7 @@ export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEM_TYPES_GUI
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEM_TYPES_TYPEKEY_PATH = '/organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEM_TYPES_TYPEKEY_CASCADE_IMPACT_PATH = '/organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/cascade-impact';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEM_TYPES_TYPEKEY_RESET_PATH = '/organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/reset';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEM_TYPES_TYPEKEY_CANONICAL_COMPARISON_PATH = '/organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/canonical-comparison';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEM_TYPES_TYPEKEY_SECTION_CONTENT_IMPACT_PATH = '/organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/section-content-impact';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEM_TYPES_TYPEKEY_TRACKING_LINK_REVOCATION_IMPACT_PATH = '/organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/tracking-link-revocation-impact';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_METRICS_PATH = '/organizations/{organizationId}/projects/metrics';
