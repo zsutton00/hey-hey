@@ -2,8 +2,9 @@
 // writes them; reformatting them on commit would make every regeneration drift.
 const GENERATED = [
   'apps/api/src/generated/',
+  'apps/api/schemas/events/',
   'apps/api/src/contracts/repository-feature-enrichment-runtime-schema.ts',
-  'apps/api/src/mcp/tools/report-schemas.generated.ts'
+  'apps/api/src/mcp/tools/report-schemas.generated.ts',
 ];
 
 const isGenerated = (file) =>
