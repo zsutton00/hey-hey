@@ -45,7 +45,6 @@ import {
   WorkStatus,
 } from '@hey-hey/contracts/api/models';
 import {
-  MatchSpan,
   SearchRequest as EmbeddingsSearchRequest,
   SearchResponse as EmbeddingsSearchResponse,
   SearchFilters as EmbeddingsSearchFiltersContract,
@@ -68,6 +67,7 @@ import {
   isRefining as isWorkItemRefining,
 } from 'src/utils/work-item.util';
 import { EmbeddingsClientService } from '../embeddings-client.service';
+import { buildMatchParagraphs, openingSnippet } from './match-paragraphs';
 import { GraphsClientService } from '../graphs-client.service';
 import { DesignDocService } from '../design-doc/design-doc.service';
 import { InitiativeService } from '../initiatives/initiative.service';
@@ -142,23 +142,6 @@ const ENTITY_TYPES_WITH_CANONICAL_STATUS: ApiEntityType[] = [
   ApiEntityType.Initiative,
   ApiEntityType.DesignDoc,
 ];
-
-function isMatchSpanArray(value: unknown): value is MatchSpan[] {
-  return (
-    Array.isArray(value) &&
-    value.every(
-      (span: unknown) =>
-        typeof span === 'object' &&
-        span !== null &&
-        'start' in span &&
-        typeof span.start === 'number' &&
-        'end' in span &&
-        typeof span.end === 'number' &&
-        'strength' in span &&
-        typeof span.strength === 'number',
-    )
-  );
-}
 
 @Injectable()
 export class UnifiedSearchService {
@@ -2731,13 +2714,23 @@ export class UnifiedSearchService {
           metadata: this.stripEmbeddingsMetadata(
             item.metadata as UnifiedEmbeddingsSearchResult['metadata'],
           ),
-          ...(isMatchSpanArray(item.matchSpans) && typeof item.text === 'string'
-            ? { matchSpans: item.matchSpans, text: item.text }
-            : {}),
+          ...this.toMatchParagraphs(item.text, item.matchSpans),
           chunkIndex: item.chunkIndex,
           matchType: item.matchType,
         })),
     };
+  }
+
+  private toMatchParagraphs(
+    text: unknown,
+    spans: unknown,
+  ): Pick<UnifiedEmbeddingsSearchResult, 'matchParagraphs'> {
+    if (typeof text !== 'string') {
+      return {};
+    }
+
+    const matchParagraphs = buildMatchParagraphs(text, spans);
+    return matchParagraphs ? { matchParagraphs } : {};
   }
 
   private buildEmbeddingsContentMap(
@@ -2750,7 +2743,7 @@ export class UnifiedSearchService {
         return;
       }
       if (!contentByEntityId.has(metadata.id)) {
-        contentByEntityId.set(metadata.id, item.text);
+        contentByEntityId.set(metadata.id, openingSnippet(item.text));
       }
     });
     return contentByEntityId;

@@ -592,15 +592,19 @@ describe('SearchToolsProvider', () => {
     });
 
     it.each([true, false])(
-      'returns exact match text independently of snippet (spans: %s)',
+      'returns match paragraphs independently of snippet (spans: %s)',
       async (withSpans) => {
-        const matchText = 'A 😀 matching passage';
-        const matchSpans = [{ start: 2, end: 4, strength: 0.9 }];
+        const matchParagraphs = [
+          {
+            text: 'A 😀 matching passage',
+            matchSpans: [{ start: 2, end: 4, strength: 0.9 }],
+          },
+        ];
         (mockSearchService.search as jest.Mock).mockResolvedValue(
           makeSearchResponse([
             makeResult({
               content: 'Different display text '.repeat(30),
-              embeddings: withSpans ? { text: matchText, matchSpans } : {},
+              embeddings: withSpans ? { matchParagraphs } : {},
             }),
           ]),
         );
@@ -611,13 +615,11 @@ describe('SearchToolsProvider', () => {
         )) as SearchResult;
         const hit = searchResultOutput.parse(result).results[0]!;
         if (withSpans) {
-          expect(hit.matchSpans).toEqual(matchSpans);
-          expect(hit.matchText).toBe(matchText);
-          expect(hit.matchText!.slice(2, 4)).toBe('😀');
-          expect(hit.snippet).not.toBe(matchText);
-        } else {
-          expect(hit).not.toHaveProperty('matchSpans');
+          expect(hit.matchParagraphs).toEqual(matchParagraphs);
           expect(hit).not.toHaveProperty('matchText');
+          expect(hit.snippet).toContain('Different display text');
+        } else {
+          expect(hit).not.toHaveProperty('matchParagraphs');
         }
       },
     );

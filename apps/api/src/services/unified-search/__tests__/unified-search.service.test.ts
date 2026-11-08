@@ -6,6 +6,7 @@ import { HttpStatus } from '@nestjs/common';
 import {
   EntityType as ApiEntityType,
   UnifiedBatchSearchRequest,
+  UnifiedMatchParagraph,
   UnifiedSearchPlanLineageMode,
   UnifiedSearchRequest,
 } from '@hey-hey/contracts/api/models';
@@ -343,69 +344,121 @@ describe('UnifiedSearchService', () => {
     },
   );
 
+  const searchWithSpans = async (text: string, matchSpans: unknown) => {
+    embeddingsClient.searchEmbeddingsWithUserTokenPost.mockResolvedValue(
+      JSON.parse(
+        JSON.stringify({
+          success: true,
+          results: 1,
+          data: [
+            {
+              id: 'task-1_chunk_0',
+              text,
+              matchSpans,
+              similarity: 0.8,
+              metadata: { id: 'task-1', type: 'task' },
+            },
+          ],
+        }),
+      ),
+    );
+    taskService.findManyByIds.mockResolvedValue(new Map());
+    const result = await service.search(
+      organizationId,
+      projectId,
+      { intent: 'semantic', query: 'passage' },
+      userToken,
+    );
+    const hit = result.results?.find((item) => item.entityId === 'task-1');
+    expect(hit).toBeDefined();
+    return hit!.embeddings!;
+  };
+
+  const matchedWords = (paragraphs: UnifiedMatchParagraph[] | undefined) =>
+    paragraphs?.map((paragraph) =>
+      paragraph.matchSpans.map((span) =>
+        paragraph.text.slice(span.start, span.end),
+      ),
+    );
+
+  it('returns the matching paragraphs with paragraph-relative spans instead of the whole text', async () => {
+    const text = 'Intro alpha.\n\nMiddle 😀 beta.\n\nOutro gamma.';
+    const embeddings = await searchWithSpans(text, [
+      { start: 6, end: 11, strength: 0.7 },
+      { start: text.indexOf('😀'), end: text.indexOf('😀') + 2, strength: 0.9 },
+    ]);
+
+    expect(embeddings).not.toHaveProperty('text');
+    expect(embeddings).not.toHaveProperty('matchSpans');
+    expect(embeddings.matchParagraphs?.map((p) => p.text)).toEqual([
+      'Intro alpha.',
+      'Middle 😀 beta.',
+    ]);
+    expect(matchedWords(embeddings.matchParagraphs)).toEqual([
+      ['alpha'],
+      ['😀'],
+    ]);
+  });
+
+  it('keeps the 3 paragraphs with the strongest spans, in document order', async () => {
+    const paragraphs = ['p0 hit', 'p1 hit', 'p2 hit', 'p3 hit', 'p4 hit'];
+    const text = paragraphs.join('\n\n');
+    const strengths = [0.2, 0.9, 0.5, 0.95, 0.8];
+    const embeddings = await searchWithSpans(
+      text,
+      strengths.map((strength, index) => {
+        const start = text.indexOf(paragraphs[index]!) + 3;
+        return { start, end: start + 3, strength };
+      }),
+    );
+
+    expect(embeddings.matchParagraphs?.map((p) => p.text)).toEqual([
+      'p1 hit',
+      'p3 hit',
+      'p4 hit',
+    ]);
+  });
+
+  it('joins a standalone heading to its paragraph and clips spans that cross paragraphs', async () => {
+    const text =
+      '# Heading\n\nBody one ends.\n\nNext starts here.\n\nUnrelated.';
+    const start = text.indexOf('ends');
+    const end = text.indexOf('starts') + 'starts'.length;
+    const embeddings = await searchWithSpans(text, [
+      { start, end, strength: 0.6 },
+    ]);
+
+    expect(embeddings.matchParagraphs).toEqual([
+      {
+        text: '# Heading\n\nBody one ends.',
+        matchSpans: [{ start: 20, end: 25, strength: 0.6 }],
+      },
+      {
+        text: 'Next starts here.',
+        matchSpans: [{ start: 0, end: 11, strength: 0.6 }],
+      },
+    ]);
+    expect(matchedWords(embeddings.matchParagraphs)).toEqual([
+      ['ends.'],
+      ['Next starts'],
+    ]);
+  });
+
   it.each([
-    {
-      text: 'matching passage',
-      matchSpans: [{ start: 0, end: 8, strength: 0.8 }],
-      expectedSlice: 'matching',
-    },
-    {
-      text: 'A 😀 passage',
-      matchSpans: [{ start: 2, end: 4, strength: 0.9 }],
-      expectedSlice: '😀',
-    },
-    { text: 'no positions', matchSpans: undefined },
-    {
-      text: 'malformed positions',
-      matchSpans: [{ start: 'bad', end: 4, strength: 0.8 }],
-    },
-  ])(
-    'preserves paired match text and spans: $text',
-    async ({ text, matchSpans, expectedSlice }) => {
-      embeddingsClient.searchEmbeddingsWithUserTokenPost.mockResolvedValue(
-        JSON.parse(
-          JSON.stringify({
-            success: true,
-            results: 2,
-            data: [
-              {
-                id: 'task-1_chunk_0',
-                text: 'Different display chunk',
-                similarity: 0.9,
-                metadata: { id: 'task-1', type: 'task' },
-              },
-              {
-                id: 'task-1_chunk_1',
-                text,
-                matchSpans,
-                similarity: 0.8,
-                metadata: { id: 'task-1', type: 'task' },
-              },
-            ],
-          }),
-        ),
-      );
-      taskService.findManyByIds.mockResolvedValue(new Map());
-      const result = await service.search(
-        organizationId,
-        projectId,
-        { intent: 'semantic', query: 'passage' },
-        userToken,
-      );
-      const hit = result.results?.find((item) => item.entityId === 'task-1');
-      expect(hit).toBeDefined();
-      if (expectedSlice !== undefined) {
-        expect(hit?.embeddings).toMatchObject({ text, matchSpans });
-        const span = hit!.embeddings!.matchSpans![0]!;
-        expect(hit!.embeddings!.text!.slice(span.start, span.end)).toBe(
-          expectedSlice,
-        );
-      } else {
-        expect(hit?.embeddings).not.toHaveProperty('matchSpans');
-        expect(hit?.embeddings).not.toHaveProperty('text');
-      }
-    },
-  );
+    ['no spans', undefined],
+    ['non-numeric offsets', [{ start: 'bad', end: 4, strength: 0.8 }]],
+    ['negative start', [{ start: -1, end: 4, strength: 0.8 }]],
+    ['fractional offsets', [{ start: 0.5, end: 4, strength: 0.8 }]],
+    ['reversed offsets', [{ start: 4, end: 2, strength: 0.8 }]],
+    ['out-of-range end', [{ start: 0, end: 999, strength: 0.8 }]],
+    ['strength above 1', [{ start: 0, end: 4, strength: 1.5 }]],
+    ['strength below -1', [{ start: 0, end: 4, strength: -2 }]],
+  ])('returns no paragraphs for %s', async (_label, matchSpans) => {
+    const embeddings = await searchWithSpans('some passage text', matchSpans);
+
+    expect(embeddings).not.toHaveProperty('matchParagraphs');
+    expect(embeddings).not.toHaveProperty('text');
+  });
 
   it('routes semantic intent to embeddings search', async () => {
     const infoLog = jest.spyOn((service as any).logger, 'log');
@@ -581,8 +634,8 @@ describe('UnifiedSearchService', () => {
       'title-hit',
       'body-hit',
     ]);
-    expect(result.results?.[0]?.embeddings?.matchSpans).toEqual([
-      { start: 0, end: 6, strength: 1 },
+    expect(result.results?.[0]?.embeddings?.matchParagraphs).toEqual([
+      { text: 'needle', matchSpans: [{ start: 0, end: 6, strength: 1 }] },
     ]);
   });
 
@@ -1278,34 +1331,56 @@ describe('UnifiedSearchService', () => {
     expect(result.results?.[0]?.title).toBe('Graph Task');
   });
 
-  it('uses embeddings text as content when present', async () => {
-    embeddingsClient.searchEmbeddingsWithUserTokenPost.mockResolvedValue({
-      success: true,
-      query: 'semantic',
-      results: 1,
-      data: [
-        {
-          id: 'vec-1',
-          text: 'Embeddings content',
-          similarity: 0.8,
-          metadata: { id: 'entity-1', type: 'task' },
-        },
-      ],
-    } as any);
+  describe('content from embeddings hits', () => {
+    const opening = 'Opening paragraph. '.repeat(20);
+    const unmatchedTail = 'UNMATCHED-TAIL-SENTINEL';
+    const longText = `${opening}\n\n${'Filler. '.repeat(200)}${unmatchedTail}`;
 
-    const request: UnifiedSearchRequest = {
-      intent: 'semantic',
-      query: 'semantic',
-    };
+    beforeEach(() => {
+      embeddingsClient.searchEmbeddingsWithUserTokenPost.mockResolvedValue({
+        success: true,
+        query: 'semantic',
+        results: 1,
+        data: [
+          {
+            id: 'vec-1',
+            text: longText,
+            similarity: 0.8,
+            metadata: { id: 'entity-1', type: 'task' },
+          },
+        ],
+      } as any);
+    });
 
-    const result = await service.search(
-      organizationId,
-      projectId,
-      request,
-      userToken,
-    );
+    function expectOpeningSnippetOnly(content: string | undefined): void {
+      expect(content?.startsWith(longText.slice(0, 200))).toBe(true);
+      expect(content?.length).toBeLessThanOrEqual(300);
+      expect(content).not.toContain(unmatchedTail);
+    }
 
-    expect(result.results?.[0]?.content).toBe('Embeddings content');
+    it('returns only an opening snippet in single search', async () => {
+      const result = await service.search(
+        organizationId,
+        projectId,
+        { intent: 'semantic', query: 'semantic' },
+        userToken,
+      );
+
+      expectOpeningSnippetOnly(result.results?.[0]?.content);
+      expect(JSON.stringify(result)).not.toContain(unmatchedTail);
+    });
+
+    it('returns only an opening snippet in batch search', async () => {
+      const result = await service.batchSearch(
+        organizationId,
+        projectId,
+        { queries: [{ intent: 'semantic', query: 'semantic' }] },
+        userToken,
+      );
+
+      expectOpeningSnippetOnly(result.results?.[0]?.content);
+      expect(JSON.stringify(result)).not.toContain(unmatchedTail);
+    });
   });
 
   it('uses embeddings name as title and strips metadata title', async () => {

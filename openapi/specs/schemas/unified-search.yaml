@@ -566,17 +566,29 @@ UnifiedGraphSearchResponse:
         additionalProperties: true
   additionalProperties: false
 
+UnifiedMatchParagraph:
+  type: object
+  required: [text, matchSpans]
+  properties:
+    text:
+      type: string
+      description: Paragraph text exactly as indexed.
+    matchSpans:
+      type: array
+      description: Matched spans inside this paragraph, clipped to it, with end-exclusive UTF-16 code-unit offsets relative to the paragraph text.
+      items:
+        $ref: "../embeddings/openapi.yaml#/components/schemas/MatchSpan"
+  additionalProperties: false
+
 UnifiedEmbeddingsSearchResult:
   type: object
   properties:
-    matchSpans:
+    matchParagraphs:
       type: array
-      description: Matched spans with end-exclusive UTF-16 code-unit offsets into text. Present together with text, or both omitted.
+      maxItems: 3
+      description: Up to 3 blank-line paragraphs of the indexed text containing the strongest matched spans, in document order. A standalone heading is included with the paragraph beneath it. Omitted when the hit reports no spans.
       items:
-        $ref: "../embeddings/openapi.yaml#/components/schemas/MatchSpan"
-    text:
-      type: string
-      description: Exact source text indexed by matchSpans. UTF-16 code-unit offsets are valid only against this string, not the result content. Present together with matchSpans, or both omitted.
+        $ref: "#/UnifiedMatchParagraph"
     id:
       type: string
     similarity:
