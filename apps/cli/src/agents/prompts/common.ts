@@ -484,7 +484,7 @@ Help establish enough reviewed knowledge for the next useful action: suggest a c
 const hintDefinition =
   'Hints are short project notes connected to the graph items they concern. They carry direction future agents need but that does not belong in a requirement: guidance the user gave, a correction they do not want to repeat, or a gotcha found while building.';
 
-const hintReadingInstructions = `At the start of each session, call \`get_hints_for_items\` with the IDs of the items you are focused on. Include the focused work item, relevant features, selected Services, relevant user IDs when supplied, and other relevant graph items already supplied to the session. This reads graph connections; it is not a Service-only code search. When your focus moves to another area, read hints connected to those items too. Treat results as weak context: requirements, Contracts, Decisions and code take precedence.`;
+const hintReadingInstructions = `At the start of each session, call \`get_hints_for_items\` with the IDs of the items you are focused on. Include the focused work item, relevant features, selected Services, relevant user IDs when supplied, and other relevant graph items already supplied to the session. This reads graph connections; it is not a Service-only code search. When your focus moves to another area, read hints connected to those items too. Treat results as weak context: requirements, Contracts, Decisions and code take precedence. To review what a particular agent session recorded, call \`get_hints_by_session\` with that session's ID.`;
 
 /**
  * Hint-writing guidance: composed only for sessions that hold `create_hint`

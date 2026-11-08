@@ -13,6 +13,8 @@ import {
   FindHintsByConnectedItemsRequest,
   FindHintsByConnectedItemsResponse,
   Hint,
+  HintOriginEntityType,
+  ListProjectHintsResponse,
   HintConnectionInput,
   EntityNeighborhoodResponse,
   IncidentEdgesRequest,
@@ -155,6 +157,27 @@ export class GraphsClientService {
         organizationId,
         projectId,
         request,
+        this.userAuthConfig(userToken),
+      ),
+    );
+    return response.data;
+  }
+
+  async findHintsByOrigin(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    originEntityType: HintOriginEntityType,
+    originEntityId: string,
+    userToken: string,
+  ): Promise<ListProjectHintsResponse> {
+    const response = await firstValueFrom<
+      AxiosResponse<ListProjectHintsResponse>
+    >(
+      this.hintsService.findHintsByOrigin(
+        organizationId,
+        projectId,
+        originEntityType,
+        originEntityId,
         this.userAuthConfig(userToken),
       ),
     );

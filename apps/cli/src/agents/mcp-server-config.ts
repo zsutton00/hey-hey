@@ -290,7 +290,10 @@ export const HINT_WRITE_MCP_TOOLS: readonly string[] = [
   'add_hint_connection',
   'delete_hint',
 ];
-export const HINT_READ_MCP_TOOLS: readonly string[] = ['get_hints_for_items'];
+export const HINT_READ_MCP_TOOLS: readonly string[] = [
+  'get_hints_for_items',
+  'get_hints_by_session',
+];
 
 /**
  * Sessions that do open-ended work get hints. Curated surfaces (reports,

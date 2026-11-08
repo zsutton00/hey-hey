@@ -957,6 +957,44 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /organizations/{organizationId}/projects/{projectId}/hints/by-origin:
+    get:
+      tags:
+        - Hints
+      summary: Find live hints written by one originating record
+      operationId: findHintsByOrigin
+      description: >
+        Returns each live hint whose origin is the given entity type and ID,
+        with all of its connections and strengths. Retired hints are never
+        returned, and a hint with a different origin type is never matched even
+        when the ID is the same. Callers filter by the visibility of each
+        returned connection endpoint.
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+        - name: originEntityType
+          in: query
+          required: true
+          schema:
+            $ref: "../schemas/hints.yaml#/HintOriginEntityType"
+        - name: originEntityId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Live hints with the given origin
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/hints.yaml#/ListProjectHintsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /organizations/{organizationId}/projects/{projectId}/hints/{hintId}:
     get:
       tags:
