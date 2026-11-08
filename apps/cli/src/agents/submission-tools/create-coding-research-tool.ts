@@ -460,6 +460,7 @@ export class CodingResearchTool implements PassThroughSubmissionToolDeclaration 
         uncertainties: parsedUncertainties.data,
       }),
       writtenAt: this.now(),
+      handoff: true,
     });
 
     return {

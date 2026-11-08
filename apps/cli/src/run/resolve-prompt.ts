@@ -539,13 +539,21 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
     runState.previousProviderSession
   ) {
     const prior = runState.previousProviderSession;
-    const previousContext = `## Previous phase (${prior.promptType})\n\n${prior.lastMessage}`;
-    resolvedPrompt = `${previousContext}\n\n---\n\n${resolvedPrompt}`;
-    if (providerPromptState.segments) {
-      providerPromptState.segments = {
-        ...providerPromptState.segments,
-        dynamicContext: `${previousContext}\n\n---\n\n${providerPromptState.segments.dynamicContext}`,
-      };
+    // A phase that wrote a handoff memo has already passed on what the next
+    // phase needs; its last reply only restates it. The memo block is only
+    // rendered when a provider session mints, so skip the reply only then.
+    const priorHandedOff =
+      providerSessionWillMint &&
+      runState.memos.some((memo) => memo.handoff === true && memo.source === prior.promptType);
+    if (!priorHandedOff) {
+      const previousContext = `## Previous phase (${prior.promptType})\n\n${prior.lastMessage}`;
+      resolvedPrompt = `${previousContext}\n\n---\n\n${resolvedPrompt}`;
+      if (providerPromptState.segments) {
+        providerPromptState.segments = {
+          ...providerPromptState.segments,
+          dynamicContext: `${previousContext}\n\n---\n\n${providerPromptState.segments.dynamicContext}`,
+        };
+      }
     }
     consumedPreviousProviderSession = true;
   }

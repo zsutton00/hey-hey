@@ -60,11 +60,15 @@ export interface ProviderSessionHistoryEntry {
  *   (rendered as the sub-section label in the prompt block).
  * - `content` — the rendered memo body.
  * - `writtenAt` — ISO timestamp the memo was appended.
+ * - `handoff` — the memo is the producing phase's handoff to the next phase.
+ *   A new provider session then receives the memo instead of that phase's
+ *   last reply, which only restates it.
  */
 export interface RunMemo {
   source: string;
   content: string;
   writtenAt: string;
+  handoff?: true;
 }
 
 /**

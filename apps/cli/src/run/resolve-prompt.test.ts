@@ -2021,6 +2021,36 @@ describe('resolvePrompt — memo block prepend', () => {
     expect(userIdx).toBeGreaterThan(summaryIdx);
   });
 
+  it('gives a new session the handoff memo instead of the handing-off phase last reply', async () => {
+    registerHandler(`${PROMPT_TYPE}_handoff`, { buildPrompt: () => 'SYSTEM' });
+
+    const result = await callResolve({
+      runState: makeRunState({
+        isFirstTurn: false,
+        currentPromptType: `${PROMPT_TYPE}_handoff`,
+        previousProviderSession: {
+          promptType: 'project_assistant',
+          lastMessage: 'reply restating research',
+          completedAt: '2026-04-26T05:00:00.000Z',
+        },
+        memos: [
+          {
+            source: 'project_assistant',
+            content: 'research handoff',
+            writtenAt: '2026-04-26T04:00:00.000Z',
+            handoff: true,
+          },
+        ],
+      }),
+      input: makeInput({ promptType: `${PROMPT_TYPE}_handoff`, userMessage: 'follow-up' }),
+      providerSessionDecision: 'agent-transition-mint',
+    });
+
+    expect(result.resolvedPrompt).toContain('research handoff');
+    expect(result.resolvedPrompt).not.toContain('reply restating research');
+    expect(result.consumedPreviousProviderSession).toBe(true);
+  });
+
   it('does not inject the memo block for subagent-owned promptTypes', async () => {
     registerHandler('commit', {
       runnerKind: 'subagent',
