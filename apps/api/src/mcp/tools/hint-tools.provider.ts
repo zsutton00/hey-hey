@@ -27,6 +27,7 @@ import {
 
 export const CREATE_HINT_TOOL_NAME = 'create_hint';
 export const ADD_HINT_CONNECTION_TOOL_NAME = 'add_hint_connection';
+export const UPDATE_HINT_TOOL_NAME = 'update_hint';
 export const DELETE_HINT_TOOL_NAME = 'delete_hint';
 export const GET_HINTS_FOR_ITEMS_TOOL_NAME = 'get_hints_for_items';
 export const GET_HINTS_BY_SESSION_TOOL_NAME = 'get_hints_by_session';
@@ -79,6 +80,16 @@ const addHintConnectionParameters = z.object({
     .describe('Project the hint belongs to. Inferred from X-Project-ID.'),
   hintId: z.string().uuid().describe('ID of the existing hint'),
   connection: connectionTargetSchema,
+});
+
+const updateHintParameters = z.object({
+  projectId: z
+    .string()
+    .uuid()
+    .optional()
+    .describe('Project the hint belongs to. Inferred from X-Project-ID.'),
+  hintId: z.string().uuid().describe('ID of the hint to correct'),
+  text: z.string().min(1).max(1000).describe('The corrected hint, short.'),
 });
 
 const deleteHintParameters = z.object({
@@ -264,6 +275,45 @@ export class HintWriteToolsProvider {
         error: error instanceof Error ? error.message : String(error),
       });
       return toolError('add hint connection', error);
+    }
+  }
+
+  @Tool({
+    name: UPDATE_HINT_TOOL_NAME,
+    description:
+      'Correct the text of a live hint that is partly wrong or out of date. ' +
+      'Its connections and origin are kept unchanged. Delete the hint ' +
+      'instead when nothing salvageable remains. Only hints you could read ' +
+      'can be corrected.',
+    parameters: updateHintParameters,
+    outputSchema: hintOutput,
+  })
+  async updateHint(
+    params: z.infer<typeof updateHintParameters>,
+    _context: Context,
+    request: Request,
+  ): Promise<z.infer<typeof hintOutput> | CallToolResult> {
+    const requestor = resolveRequestor(params, request);
+    if (!isRequestor(requestor)) return requestor;
+
+    this.logger.log('update_hint called', {
+      projectId: requestor.projectId,
+      hintId: params.hintId,
+    });
+    try {
+      const hint = await this.hintService.updateHintText(
+        requestor,
+        params.hintId,
+        params.text,
+      );
+      return { hint };
+    } catch (error) {
+      this.logger.warn('update_hint failed', {
+        projectId: requestor.projectId,
+        hintId: params.hintId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return toolError('update hint', error);
     }
   }
 

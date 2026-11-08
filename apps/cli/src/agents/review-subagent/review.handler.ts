@@ -10,6 +10,7 @@ import type {
   RecentUserReply,
   UserLaunchablePromptTypeHandler,
 } from '../prompt-type-handler';
+import { HINT_REVIEW_MCP_TOOLS } from '../mcp-server-config';
 import { buildReviewPrompt } from '../prompts/review';
 import { buildStartingMessage as buildStartingMessageForPromptType } from '../prompts/starting-message';
 import { CREATE_REPORT_TOOL_NAME } from '../submission-tools/create-report-tool';
@@ -26,6 +27,7 @@ type EnrichedCodeReviewPromptPayload = LocalCodeReviewPromptPayload & {
   _worktreeState?: LocalWorktreeStateByService;
   _touchedFiles?: readonly string[];
   _integrationContext?: ReviewIntegrationContext;
+  _sessionId?: string;
 };
 
 /**
@@ -52,6 +54,9 @@ export const REVIEW_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
   'search_features',
   'search_design_docs',
   'get_hints_for_items',
+  'get_hints_by_session',
+  // Hints are the one thing Review may change: it corrects or deletes the target session's hints.
+  ...HINT_REVIEW_MCP_TOOLS,
 ];
 
 /** Inspection and checks run inside the provider's read-only filesystem boundary. */
@@ -110,6 +115,7 @@ export const reviewHandler: UserLaunchablePromptTypeHandler<LocalCodeReviewPromp
     const enriched: EnrichedCodeReviewPromptPayload = {
       ...payload,
       _recentUserReplies: recentUserReplies,
+      _sessionId: run.agentic_session_id,
       ...(services.length > 0 ? { _services: services } : {}),
       ...(run.launchServiceId ? { _launchServiceId: run.launchServiceId } : {}),
       ...(run.worktreeState ? { _worktreeState: run.worktreeState } : {}),
@@ -131,6 +137,7 @@ export const reviewHandler: UserLaunchablePromptTypeHandler<LocalCodeReviewPromp
     const enriched = payload as EnrichedCodeReviewPromptPayload;
     return buildReviewPrompt({
       touchedFiles: enriched._touchedFiles ?? [],
+      ...(enriched._sessionId ? { sessionId: enriched._sessionId } : {}),
       services: enriched._services,
       launchServiceId: enriched._launchServiceId,
       worktreeState: enriched._worktreeState,

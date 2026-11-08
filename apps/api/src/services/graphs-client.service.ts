@@ -128,6 +128,25 @@ export class GraphsClientService {
     return response.data;
   }
 
+  async updateHintText(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    hintId: string,
+    text: string,
+    userToken: string,
+  ): Promise<Hint> {
+    const response = await firstValueFrom<AxiosResponse<Hint>>(
+      this.hintsService.updateHintText(
+        organizationId,
+        projectId,
+        hintId,
+        { text },
+        this.userAuthConfig(userToken),
+      ),
+    );
+    return response.data;
+  }
+
   async retireHint(
     organizationId: OrganizationId,
     projectId: ProjectId,

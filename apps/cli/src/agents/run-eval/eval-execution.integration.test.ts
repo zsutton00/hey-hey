@@ -1,3 +1,4 @@
+import { MAX_RECORDED_ARGUMENT_CHARS } from './eval-recorded-tool-calls';
 import { SessionTokenUsageReader } from '../../provider-usage/session-token-usage';
 import type { TokenUsage } from '../../session/types';
 import { WorkflowAboutReader } from '../submission-tools/search-messages-proxy';
@@ -836,6 +837,66 @@ describe('settled eval usage evidence', () => {
     expect(result.budgetExhausted).toBe(false);
   });
 
+  it("records the tested agent's tool calls in order without results, bounded and without repeats", async () => {
+    const h = await makeHarness();
+    h.runPrompt.mockImplementationOnce(async () => {
+      const at = new Date().toISOString();
+      const search = {
+        toolName: 'unified_search',
+        toolUseId: 'use-1',
+        timestamp: at,
+        providerSessionId: null,
+        input: { queries: ['alpha'] },
+        result: 'SECRET-RESULT',
+      };
+      await h.runStore.addToolUsage(AGENT_SESSION_ID, [
+        search,
+        // A lifecycle event repeating the same call.
+        search,
+        {
+          toolName: 'get_full_entity',
+          toolUseId: 'use-2',
+          timestamp: at,
+          providerSessionId: null,
+          input: { text: 'x'.repeat(MAX_RECORDED_ARGUMENT_CHARS * 2) },
+        },
+        // A delegated child's call is not the tested handler's own.
+        {
+          toolName: 'child_tool',
+          toolUseId: 'use-3',
+          timestamp: at,
+          providerSessionId: 'child-session',
+          input: {},
+        },
+      ]);
+      return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+    });
+    const result = await h.execution.execute(coordinator, attempt('agent_search'), {
+      signal: new AbortController().signal,
+    });
+    expect(result.recordedToolCalls?.state).toBe('COLLECTED');
+    expect(result.recordedToolCalls?.calls.map((call) => call.toolName)).toEqual([
+      'unified_search',
+      'get_full_entity',
+    ]);
+    expect(result.recordedToolCalls?.calls[0]).toMatchObject({
+      arguments: JSON.stringify({ queries: ['alpha'] }),
+      origin: 'RUN_OBSERVED',
+      truncated: false,
+    });
+    expect(result.recordedToolCalls?.calls[1]).toMatchObject({ truncated: true });
+    expect(result.recordedToolCalls?.calls[1]?.arguments).toHaveLength(MAX_RECORDED_ARGUMENT_CHARS);
+    expect(JSON.stringify(result.recordedToolCalls)).not.toContain('SECRET-RESULT');
+  });
+
+  it('reports tool calls as unavailable, not empty, when the Run retained none', async () => {
+    const h = await makeHarness();
+    const result = await h.execution.execute(coordinator, attempt('agent_search'), {
+      signal: new AbortController().signal,
+    });
+    expect(result.recordedToolCalls).toEqual({ state: 'UNAVAILABLE', calls: [] });
+  });
+
   it('isolates an unreadable result from a concurrent sibling attempt', async () => {
     const h = await makeHarness();
     const first = attempt('agent_search');
@@ -1043,7 +1104,7 @@ describe('free-form coding attempt bound to a workspace directory', () => {
     await expect(handler('Bash', { command: 'pnpm install' })).resolves.toMatchObject({
       behavior: 'allow',
     });
-    for (const graphWrite of ['create_edge', 'delete_hint', 'update_edge']) {
+    for (const graphWrite of ['create_edge', 'delete_hint', 'update_hint', 'update_edge']) {
       await expect(handler(`mcp__heyhey-platform__${graphWrite}`, {})).resolves.toMatchObject({
         behavior: 'deny',
       });

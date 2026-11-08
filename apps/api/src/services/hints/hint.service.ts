@@ -151,6 +151,44 @@ export class HintService {
     return toHintView(hint);
   }
 
+  async updateHintText(
+    requestor: HintRequestor,
+    hintId: string,
+    text: string,
+  ): Promise<HintView> {
+    this.logger.log('Updating hint text', {
+      projectId: requestor.projectId,
+      hintId,
+    });
+    await this.assertProjectAccess(requestor);
+    const existing = await this.graphsClient.getHint(
+      requestor.organizationId,
+      requestor.projectId,
+      hintId,
+      requestor.token,
+    );
+    // A caller may only correct a hint it could have read.
+    await this.assertVisible(
+      requestor,
+      existing.connections.map((c) => ({
+        id: c.targetNodeId,
+        entityType: c.targetEntityType,
+      })),
+    );
+    const hint = await this.graphsClient.updateHintText(
+      requestor.organizationId,
+      requestor.projectId,
+      hintId,
+      text,
+      requestor.token,
+    );
+    this.logger.log('Updated hint text', {
+      projectId: requestor.projectId,
+      hintId,
+    });
+    return toHintView(hint);
+  }
+
   async retireHint(requestor: HintRequestor, hintId: string): Promise<void> {
     this.logger.log('Retiring hint', {
       projectId: requestor.projectId,

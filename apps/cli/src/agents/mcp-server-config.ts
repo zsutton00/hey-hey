@@ -290,6 +290,11 @@ export const HINT_WRITE_MCP_TOOLS: readonly string[] = [
   'add_hint_connection',
   'delete_hint',
 ];
+/**
+ * Review corrects or deletes the hints its target session wrote. It is not an open-ended session,
+ * so it gets only these tools and not the rest of `HINT_WRITE_MCP_TOOLS`.
+ */
+export const HINT_REVIEW_MCP_TOOLS: readonly string[] = ['update_hint', 'delete_hint'];
 export const HINT_READ_MCP_TOOLS: readonly string[] = [
   'get_hints_for_items',
   'get_hints_by_session',
