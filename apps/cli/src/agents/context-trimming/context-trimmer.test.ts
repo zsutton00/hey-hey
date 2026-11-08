@@ -560,6 +560,74 @@ describe('GetContextTrimmer', () => {
       await expect(untraced.trimResult(toolResult(contextBody))).resolves.toBeDefined();
     });
 
+    it('writes one get_edges trace per call, narrowed or passed through, with sizes and both results', async () => {
+      const dir = await newDir();
+      const log = makeLogger();
+      const edgesTrimmer = (evaluate: ReturnType<typeof answerFrom>) =>
+        new GetContextTrimmer({
+          decisionModel: { evaluate },
+          focal,
+          focalEntityId: FOCAL_ID,
+          logger: log.logger,
+          edgesAttemptLogDir: dir,
+        });
+      const edge = {
+        createdAt: '2026-01-01T00:00:00.000Z',
+        direction: 'out',
+        edgeType: 'RELATED_TO',
+        otherEndpoint: { displayName: 'Edge endpoint', entityId: 'other', entityType: 'TASK' },
+        reasoning: 'Edge rationale text.',
+      };
+      const upstream = {
+        structuredContent: { edgesByEntity: { [FOCAL_ID]: [edge], 'other-seed': [edge] } },
+      } satisfies JsonValue;
+
+      const narrowed = await edgesTrimmer(
+        answerFrom({ 'edge:other-seed:0': { implements: 0.02, informs: 0.03 } }),
+      ).trimEdgesResult(upstream);
+      const failing = vi.fn(
+        (): Promise<JevResult> =>
+          Promise.resolve({ ok: false, failure: { code: 'TIMEOUT', message: 'slow' } }),
+      );
+      await edgesTrimmer(failing as ReturnType<typeof answerFrom>).trimEdgesResult(upstream);
+
+      const files = (await readdir(dir)).sort();
+      expect(files).toHaveLength(2);
+      const records = await Promise.all(
+        files.map(
+          async (file) =>
+            JSON.parse(await readFile(path.join(dir, file), 'utf8')) as Record<string, unknown>,
+        ),
+      );
+      const narrowedRecord = records.find((record) => record['outcome'] === 'narrowed');
+      expect(narrowedRecord).toMatchObject({
+        focalEntityId: FOCAL_ID,
+        rawResultChars: JSON.stringify(upstream.structuredContent).length,
+        narrowedResultChars: JSON.stringify(
+          (narrowed as { structuredContent: unknown }).structuredContent,
+        ).length,
+        tierCounts: { full: 1, short: 0, index: 1 },
+        inputTokens: 100,
+        jevCalls: [expect.anything()],
+        rawResult: expect.stringContaining('Edge rationale text.'),
+        entries: [
+          expect.objectContaining({ seedId: FOCAL_ID, judgedByDecisionModel: false }),
+          expect.objectContaining({
+            seedId: 'other-seed',
+            tier: 'index',
+            judgedByDecisionModel: true,
+          }),
+        ],
+      });
+      expect(records.find((record) => record['outcome'] === 'passed_through')).toMatchObject({
+        reason: 'decision_model_failed',
+        fields: { failureCode: 'TIMEOUT' },
+        jevCalls: [expect.anything()],
+      });
+      const logged = JSON.stringify([...log.debug.mock.calls, ...log.warn.mock.calls]);
+      expect(logged).not.toContain('Edge rationale text.');
+    });
+
     it('returns the narrowed result with a safe warning when the trace cannot be written', async () => {
       const dir = await newDir();
       const blocker = path.join(dir, 'file');

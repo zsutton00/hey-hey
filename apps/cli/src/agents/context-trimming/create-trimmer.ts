@@ -11,7 +11,7 @@ import {
 } from '../project-assistant/nearest-parent-feature';
 import { allSectionsText, workItemFocal } from './entity-focal';
 import { GetContextTrimmer, type DecisionModel } from './context-trimmer';
-import { writeGetContextAttemptRecord } from './get-context-attempt-log';
+import { writeGraphResultAttemptRecord } from './get-context-attempt-log';
 
 /** The handlers whose `get_context` results are trimmed: Project Assistant and Feature Sync. */
 const TRIMMED_PROMPT_TYPES: ReadonlySet<string> = new Set([
@@ -87,6 +87,8 @@ export interface CreateContextTrimmerInput {
   logger: ServerLogger;
   /** Where get_context attempts write development traces; null or absent writes none. */
   attemptLogDir?: string | null;
+  /** Where get_edges attempts write development traces; null or absent writes none. */
+  edgesAttemptLogDir?: string | null;
 }
 
 /**
@@ -105,7 +107,7 @@ const recordNotStarted = async (
   }
 
   try {
-    await writeGetContextAttemptRecord(input.attemptLogDir, {
+    await writeGraphResultAttemptRecord(input.attemptLogDir, {
       outcome: 'not_started',
       at: new Date().toISOString(),
       promptType: input.promptType,
@@ -195,5 +197,6 @@ export const createContextTrimmer = async (
     ),
     logger: input.logger,
     ...(input.attemptLogDir ? { attemptLogDir: input.attemptLogDir } : {}),
+    ...(input.edgesAttemptLogDir ? { edgesAttemptLogDir: input.edgesAttemptLogDir } : {}),
   });
 };

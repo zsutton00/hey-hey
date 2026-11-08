@@ -5703,6 +5703,7 @@ export class Run {
       deps: this.handlerDeps,
       logger: this.logger,
       attemptLogDir: jevLogsDir ? path.join(jevLogsDir, 'get-context') : null,
+      edgesAttemptLogDir: jevLogsDir ? path.join(jevLogsDir, 'get-edges') : null,
     });
     const platformMcpProxy = new TurnPlatformMcpProxy({
       runId: this.runId,

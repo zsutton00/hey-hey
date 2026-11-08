@@ -68,10 +68,62 @@ export type GetContextAttemptRecord =
   | GetContextPassedThroughRecord
   | GetContextNotStartedRecord;
 
+/** One edge of the narrowed `get_edges` result and how it was decided. */
+export interface GetEdgesEntryRecord {
+  seedId: string;
+  position: number;
+  tier: Tier;
+  /** Jev's relevance for the edge; absent when an edge of the focal work or an ancestor was kept without asking. */
+  relevance?: number;
+  judgedByDecisionModel: boolean;
+  /** What Jev was shown for a judged edge, or the edge itself when it was kept without asking. */
+  text: string;
+}
+
+/**
+ * Everything one narrowed `get_edges` call saw and decided, including entity text, written to a
+ * local development file like the `get_context` record. Sizes are characters of the result JSON.
+ */
+export interface GetEdgesNarrowedRecord {
+  outcome: 'narrowed';
+  at: string;
+  costUsd: number;
+  inputTokens: number;
+  outputTokens: number;
+  focalEntityId: string;
+  focal: Focal;
+  model: string;
+  jevCalls: RecordedJevCall[];
+  rawResultChars: number;
+  narrowedResultChars: number;
+  tierCounts: Record<Tier, number>;
+  decisionModelDurationMs: number;
+  entries: GetEdgesEntryRecord[];
+  /** The result the agent would get without narrowing. */
+  rawResult: string;
+  /** The result the agent got. */
+  narrowedResult: string;
+}
+
+/** A `get_edges` call returned as the platform sent it, and why. */
+export interface GetEdgesPassedThroughRecord {
+  outcome: 'passed_through';
+  at: string;
+  focalEntityId: string;
+  focal: Focal;
+  model: string;
+  reason: string;
+  fields: Record<string, unknown>;
+  /** Empty when the call gave up before asking Jev. */
+  jevCalls: RecordedJevCall[];
+}
+
+export type GetEdgesAttemptRecord = GetEdgesNarrowedRecord | GetEdgesPassedThroughRecord;
+
 /** Writes one file per call or Turn; the random suffix keeps concurrent or repeated ones apart. */
-export const writeGetContextAttemptRecord = async (
+export const writeGraphResultAttemptRecord = async (
   dir: string,
-  record: GetContextAttemptRecord,
+  record: GetContextAttemptRecord | GetEdgesAttemptRecord,
 ): Promise<string> => {
   await mkdir(dir, { recursive: true });
   const stamp = record.at.replace(/[:.]/g, '-');
