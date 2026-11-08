@@ -28,7 +28,7 @@ export interface RepeatSummaryRowProps {
   /** The repeat the page's deep link names, when it belongs to this case and setup. */
   selectedAttemptId: string | null;
   onToggle: () => void;
-  onSelect: (attemptId: string) => void;
+  onSelect: (attemptId: string | null) => void;
 }
 
 /** One case under one setup, summarised over its repeats, expanding to each repeat. */
@@ -55,9 +55,6 @@ export const RepeatSummaryRow: React.FC<RepeatSummaryRowProps> = ({
   const selected = repeats.find(
     ({ row }) => row.attemptId === selectedAttemptId,
   );
-  const selectedAttempt = selected
-    ? attemptsById.get(selected.row.attemptId)
-    : undefined;
   const firstRow = repeats[0]?.row;
   const excludedNames = [
     ...summary.errored.map((entry: ExcludedRepeat) =>
@@ -187,19 +184,20 @@ export const RepeatSummaryRow: React.FC<RepeatSummaryRowProps> = ({
             repeats={repeats}
             selectedAttemptId={selected?.row.attemptId ?? null}
             onSelect={onSelect}
+            renderDetail={({ row, repeat }) => {
+              const attempt = attemptsById.get(row.attemptId);
+              return attempt ? (
+                <EvalCaseDetail
+                  organizationId={organizationId}
+                  projectId={projectId}
+                  run={run}
+                  attempt={attempt}
+                  row={row}
+                  repeat={repeat}
+                />
+              ) : null;
+            }}
           />
-          {selected && selectedAttempt && (
-            <Box sx={{ mt: 2, borderTop: 1, borderColor: "divider" }}>
-              <EvalCaseDetail
-                organizationId={organizationId}
-                projectId={projectId}
-                run={run}
-                attempt={selectedAttempt}
-                row={selected.row}
-                repeat={selected.repeat}
-              />
-            </Box>
-          )}
         </Box>
       </Collapse>
     </Box>

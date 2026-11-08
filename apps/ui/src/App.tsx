@@ -332,9 +332,9 @@ const EvalRunPage = lazyNamed(
   () => import("./pages/EvalRun/EvalRunPage"),
   "EvalRunPage",
 );
-const EvalResultsPage = lazyNamed(
-  () => import("./pages/EvalRun/EvalResultsPage"),
-  "EvalResultsPage",
+const EvalRunResultsRedirect = lazyNamed(
+  () => import("./pages/EvalRun/EvalRunResultsRedirect"),
+  "EvalRunResultsRedirect",
 );
 const TaskRedirectPage = lazyNamed(
   () => import("./pages/Task/TaskRedirectPage"),
@@ -607,7 +607,7 @@ export const router = createBrowserRouter(
         />
         <Route
           path="projects/:projectId/evals/:evalId/runs/:runId/results"
-          element={withProtectedRoute(<EvalResultsPage />)}
+          element={withProtectedRoute(<EvalRunResultsRedirect />)}
         />
         <Route
           path="projects/:projectId/goals"

@@ -307,7 +307,6 @@ export interface PathService {
   goal(params: GoalParams): string;
   evalRunSetup(params: EvalRunSetupParams): string;
   evalRun(params: EvalRunParams): string;
-  evalRunResults(params: EvalRunParams): string;
   feature(params: FeatureParams): string;
   designDoc(params: DesignDocParams): string;
   agentSession(params: AgentSessionParams): string;
@@ -446,10 +445,6 @@ const defaultPathService: PathService = {
 
   evalRun(params: EvalRunParams): string {
     return `/projects/${params.projectId}/evals/${params.evalId}/runs/${params.runId}`;
-  },
-
-  evalRunResults(params: EvalRunParams): string {
-    return `${this.evalRun(params)}/results`;
   },
 
   feature(params: FeatureParams): string {
@@ -830,13 +825,6 @@ export class WebPathService {
    */
   static evalRun(params: EvalRunParams): string {
     return getPathService().evalRun(params);
-  }
-
-  /**
-   * Generate the path of one finished Eval run's results page
-   */
-  static evalRunResults(params: EvalRunParams): string {
-    return getPathService().evalRunResults(params);
   }
 
   /**

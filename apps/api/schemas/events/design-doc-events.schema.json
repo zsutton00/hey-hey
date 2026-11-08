@@ -7436,6 +7436,10 @@
         },
         "attemptTokenLimit": {
           "type": "number"
+        },
+        "repeatsPerAttempt": {
+          "type": "number",
+          "description": "How many separate fresh attempts the run makes for each case and configuration. Absent on runs recorded before repeats existed, which are read as 1."
         }
       },
       "required": ["maxConcurrentAttempts"],
@@ -7708,6 +7712,10 @@
         },
         "configuration": {
           "$ref": "#/definitions/EvalConfiguration"
+        },
+        "repeat": {
+          "type": "number",
+          "description": "1-based repeat this attempt is, copied from its attempt report. Absent when the attempt report has none."
         }
       },
       "required": [
@@ -7718,7 +7726,7 @@
         "caseInput",
         "configuration"
       ],
-      "description": "One case x configuration attempt as recorded for the coordinator."
+      "description": "One attempt at a case, configuration and repeat as recorded for the coordinator."
     },
     "EvalResolvedExecution": {
       "type": "object",
@@ -21531,6 +21539,10 @@
             "configuration": {
               "$ref": "#/definitions/EvalConfiguration"
             },
+            "repeat": {
+              "type": "number",
+              "description": "1-based repeat this attempt is. Absent on attempts recorded before repeats existed, which are read as repeat 1."
+            },
             "execution": {
               "$ref": "#/definitions/EvalResolvedExecution",
               "description": "Absent on attempts recorded before run-level handler selection existed."
@@ -22786,7 +22798,7 @@
         },
         {}
       ],
-      "description": "Lifecycle of one case x configuration attempt."
+      "description": "Lifecycle of one attempt at a case, configuration and repeat."
     },
     "EvalAttemptStopReason": {
       "anyOf": [

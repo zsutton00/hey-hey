@@ -1579,7 +1579,8 @@ export const en = {
   "eval.results.repeats.col.session": "Session",
   "eval.results.repeats.openSession": "Open session",
   "eval.results.repeats.weak": "Stands out as weak",
-  "eval.results.repeats.select": "Show repeat {{repeat}}",
+  "eval.results.repeats.expand": "Show repeat {{repeat}}",
+  "eval.results.repeats.collapse": "Hide repeat {{repeat}}",
   "eval.results.repeats.stopped": "Stopped",
   "eval.results.cases.title": "Cases",
   "eval.results.cases.help":
@@ -1661,7 +1662,7 @@ export const en = {
   "eval.results.sessions.noTarget": "No attempt session was recorded.",
   "eval.results.sessions.judge": "Judge",
   "eval.results.sessions.info": "Info",
-  "eval.results.sessions.attemptProvider": "Attempt provider id",
+  "eval.results.sessions.attemptProvider": "Attempt provider ids",
   "eval.results.sessions.openJudge": "Open judge session",
   "eval.results.sessions.judged": "Given to the judge ({{count}} characters)",
   "eval.results.sessions.judgedNone":

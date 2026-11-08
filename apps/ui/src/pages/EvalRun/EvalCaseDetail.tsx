@@ -470,14 +470,18 @@ const WorkBreakdown: React.FC<{ rows: WorkBreakdownRow[] }> = ({ rows }) => {
 const ExpectedVersusResult: React.FC<{
   row: CaseRow;
   organizationId: string;
-}> = ({ row, organizationId }) => {
+  /** A repeat sits under its case, which already shows what was expected. */
+  isRepeat: boolean;
+}> = ({ row, organizationId, isRepeat }) => {
   const { t } = useTranslation();
   return (
     <Box sx={{ mb: 2 }} data-testid="eval-expected-vs-result">
-      <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-        <b>{t("eval.results.detail.expected")}:</b>{" "}
-        {row.expectation ?? t("eval.results.detail.noExpectation")}
-      </Typography>
+      {!isRepeat && (
+        <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+          <b>{t("eval.results.detail.expected")}:</b>{" "}
+          {row.expectation ?? t("eval.results.detail.noExpectation")}
+        </Typography>
+      )}
       {row.coding && (
         <CodingStartPoint
           organizationId={organizationId}
@@ -488,7 +492,7 @@ const ExpectedVersusResult: React.FC<{
         <b>{t("eval.results.detail.result")}:</b>{" "}
         {row.recognitionExplanation ?? t("eval.results.detail.noResult")}
       </Typography>
-      {row.evalCaseHref && (
+      {!isRepeat && row.evalCaseHref && (
         <Box sx={{ mt: 0.5 }}>
           <SpaLink
             href={row.evalCaseHref}
@@ -523,7 +527,11 @@ export const EvalCaseDetail: React.FC<EvalCaseDetailProps> = ({
 }) => (
   <Box sx={{ p: 2 }} data-testid={`eval-attempt-detail-${attempt.id}`}>
     <AttemptExecutionSummary attempt={attempt} />
-    <ExpectedVersusResult row={row} organizationId={organizationId} />
+    <ExpectedVersusResult
+      row={row}
+      organizationId={organizationId}
+      isRepeat={repeat !== null}
+    />
     {row.coding && <CodingAttemptResults coding={row.coding} />}
     <AttemptSessions
       attempt={attempt}

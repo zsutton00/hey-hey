@@ -60,8 +60,6 @@ vi.mock("@hey-hey/ui-common/services", () => ({
     returnToProject: (projectId: string) => `/projects/${projectId}`,
     evalRun: (p: { projectId: string; evalId: string; runId: string }) =>
       `/projects/${p.projectId}/evals/${p.evalId}/runs/${p.runId}`,
-    evalRunResults: (p: { projectId: string; evalId: string; runId: string }) =>
-      `/projects/${p.projectId}/evals/${p.evalId}/runs/${p.runId}/results`,
   },
 }));
 
@@ -191,10 +189,7 @@ describe("EvalPage", () => {
     expect(mockNavigate).toHaveBeenCalledWith(
       "/projects/p1/evals/eval-1/runs/run-1",
     );
-    fireEvent.click(screen.getByTestId("eval-run-results-link-run-1"));
-    expect(mockNavigate).toHaveBeenCalledWith(
-      "/projects/p1/evals/eval-1/runs/run-1/results",
-    );
+    expect(row.querySelectorAll("a")).toHaveLength(1);
     fireEvent.click(screen.getByTestId("eval-new-run"));
     expect(mockNavigate).toHaveBeenCalledWith(
       "/projects/p1/evals/eval-1/runs/new",
