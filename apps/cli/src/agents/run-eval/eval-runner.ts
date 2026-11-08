@@ -48,6 +48,7 @@ export type EvalAttemptPatch = Partial<
     EvalAttemptReportPayload,
     | 'attemptProviderSessionIds'
     | 'judgeProviderSessionId'
+    | 'judgeSessionId'
     | 'status'
     | 'stopReason'
     | 'error'

@@ -725,7 +725,13 @@ export class EntityContextService {
         candidateEntityCount: selection.candidateEntityCount,
         omittedEntityCount: selection.omittedEntityCount,
       };
-      result.agentSessions = auxiliary.agentSessions ?? [];
+      result.agentSessions = await this.visibility.filterVisible(
+        auxiliary.agentSessions ?? [],
+        (session) => ({
+          entityType: session.entityType,
+          entityId: session.entityId,
+        }),
+      );
     }
     if (wantHierarchy) {
       result.featureHierarchy = featureHierarchy;

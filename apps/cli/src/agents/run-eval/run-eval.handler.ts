@@ -85,6 +85,7 @@ const runRecordedAttempts = async (
           },
           onExecutionCreated: async (child) => {
             judgeSessionId = child.agentic_session_id;
+            await recorder.updateAttempt(attempt.attemptId, { judgeSessionId });
           },
           payload: { caseInput: attempt.caseInput, ...output },
           signal: judgeSignal,
