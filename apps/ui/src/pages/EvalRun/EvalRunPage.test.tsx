@@ -7,6 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import type React from "react";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EvalAttemptReport, EvalRunReport } from "@hey-hey/ui-common/data";
 
@@ -22,6 +23,14 @@ const mockReport = vi.fn();
 let mockSessionError: string | null = null;
 let mockLocationState: unknown = null;
 let mockSelectedAttempt: string | null = null;
+
+const mockReadTranscript = vi.fn();
+const RAW_SESSION = JSON.stringify({
+  type: "user",
+  uuid: "11111111-1111-4111-8111-111111111111",
+  message: { role: "user", content: "Fix the bug" },
+});
+const mockTranscripts: Record<string, unknown> = {};
 
 vi.mock("react-router-dom", () => ({
   useNavigate: () => mockNavigate,
@@ -118,6 +127,22 @@ vi.mock("@hey-hey/ui-common/data", async (importOriginal) => ({
     error: null,
   }),
   useService: () => ({ data: { name: "hey-hey" } }),
+  useProviderSessionTranscript: () => {
+    const [state, setState] = useState<unknown>({ status: "idle" });
+    return {
+      state,
+      read: (target: { providerSessionId: string }) => {
+        mockReadTranscript(target);
+        setState(
+          mockTranscripts[target.providerSessionId] ?? {
+            status: "unavailable",
+            reason: "SESSION_FILE_NOT_FOUND",
+          },
+        );
+      },
+      reset: () => setState({ status: "idle" }),
+    };
+  },
   useEvalRunSession: () => ({
     start: mockStart,
     stop: mockStop,
@@ -555,6 +580,95 @@ describe("EvalRunPage", () => {
     expect(
       within(bareDetail).queryByTestId("eval-judge-view-input"),
     ).not.toBeInTheDocument();
+  });
+
+  it("reads one provider session's raw text on demand and explains an unavailable one", () => {
+    mockTranscripts["provider-a"] = {
+      status: "available",
+      text: RAW_SESSION,
+      truncated: false,
+    };
+    const readable = attempt("readable", "case-1", setupA, {
+      status: "COMPLETED",
+      attemptProviderSessionIds: ["provider-a", "provider-missing"],
+    });
+    givenRun(run("FINISHED"), [readable]);
+    render(<EvalRunPage />);
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-readable"));
+    fireEvent.click(screen.getByTestId("eval-attempt-read-session-0"));
+    expect(mockReadTranscript).toHaveBeenCalledWith(
+      expect.objectContaining({
+        runId: "session-readable",
+        providerSessionId: "provider-a",
+      }),
+    );
+    const content = () =>
+      screen.getByTestId("eval-session-transcript-content").textContent;
+    expect(content()).toBe("> Fix the bug");
+
+    fireEvent.click(screen.getByTestId("eval-session-view-raw"));
+    expect(content()).toBe(RAW_SESSION);
+
+    fireEvent.click(screen.getByTestId("eval-attempt-read-session-1"));
+    expect(
+      screen.getByTestId("eval-session-transcript-unavailable"),
+    ).toHaveTextContent(
+      "eval.results.sessions.unavailable.SESSION_FILE_NOT_FOUND",
+    );
+    expect(
+      screen.getByTestId("eval-attempt-read-session-0"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the tool calls an attempt made, and says so when they could not be collected", () => {
+    const withCalls = attempt("with-calls", "case-1", setupA, {
+      status: "COMPLETED",
+      recordedToolCalls: {
+        state: "COLLECTED",
+        calls: [
+          {
+            toolName: "unified_search",
+            arguments: '{"queries":["alpha"]}',
+            origin: "RUN_OBSERVED",
+            truncated: false,
+          },
+          {
+            toolName: "get_full_entity",
+            arguments: '{"id":"x"}',
+            origin: "RUN_OBSERVED",
+            truncated: true,
+          },
+        ],
+        omittedCalls: 3,
+      },
+    });
+    const unreadable = attempt("unreadable", "case-1", setupB, {
+      status: "COMPLETED",
+      recordedToolCalls: { state: "UNAVAILABLE", calls: [] },
+    });
+    givenRun(run("FINISHED"), [withCalls, unreadable]);
+    render(<EvalRunPage />);
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-with-calls"));
+    const detail = screen.getByTestId("eval-attempt-detail-with-calls");
+    const calls = within(detail).getAllByTestId("eval-tool-call");
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toHaveTextContent("1. unified_search");
+    expect(calls[0]).toHaveTextContent('{"queries":["alpha"]}');
+    expect(calls[1]).toHaveTextContent("2. get_full_entity");
+    expect(
+      within(detail).getByTestId("eval-tool-calls-omitted"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-unreadable"));
+    const unavailable = screen.getByTestId("eval-attempt-detail-unreadable");
+    expect(
+      within(unavailable).getByTestId("eval-tool-calls-unavailable"),
+    ).toBeInTheDocument();
+    expect(within(unavailable).queryAllByTestId("eval-tool-call")).toHaveLength(
+      0,
+    );
   });
 
   it("saves a person's review beside the automated assessment", async () => {

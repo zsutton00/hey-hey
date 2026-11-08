@@ -19,6 +19,10 @@ import { FunctionalDialog } from "@hey-hey/ui-common/components";
 import type { EvalAttemptReport } from "@hey-hey/ui-common/data";
 import { resumeCommandFor } from "./evalResultsView";
 import { SpaLink } from "./SpaLink";
+import {
+  ReadSessionButton,
+  asTranscriptProviderId,
+} from "./ProviderSessionTranscript";
 
 const CopyCommand: React.FC<{ command: string }> = ({ command }) => {
   const { t } = useTranslation();
@@ -116,9 +120,24 @@ export const AttemptSessions: React.FC<{
     (id) => !id.startsWith("pending_"),
   );
   const judgeId = attempt.payload.judgeProviderSessionId ?? null;
+  const attemptRunId = attempt.payload.targetSessionId ?? null;
+  const judgeRunId =
+    attempt.payload.automatedAssessment?.judgeSessionId ?? null;
+  const attemptProviderId = asTranscriptProviderId(attemptProvider);
+  const judgeProviderId = asTranscriptProviderId(judgeProvider);
 
   const judgeActions = (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+      {judgeId && judgeRunId && judgeProviderId && (
+        <ReadSessionButton
+          testId="eval-judge-read-session"
+          target={{
+            runId: judgeRunId,
+            providerId: judgeProviderId,
+            providerSessionId: judgeId,
+          }}
+        />
+      )}
       {judgeSessionHref && (
         <SpaLink href={judgeSessionHref} testId="eval-open-judge-session">
           {t("eval.results.sessions.openJudge")}
@@ -158,6 +177,18 @@ export const AttemptSessions: React.FC<{
               id={id}
               command={id ? resumeCommandFor(attemptProvider, id) : null}
               testId={`eval-attempt-session-row-${index}`}
+              actions={
+                id && attemptRunId && attemptProviderId ? (
+                  <ReadSessionButton
+                    testId={`eval-attempt-read-session-${index}`}
+                    target={{
+                      runId: attemptRunId,
+                      providerId: attemptProviderId,
+                      providerSessionId: id,
+                    }}
+                  />
+                ) : undefined
+              }
             />
           ))}
           <ProviderSessionRow

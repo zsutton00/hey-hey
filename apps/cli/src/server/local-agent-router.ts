@@ -27,6 +27,8 @@ import { createReposRouter } from './routes/repos';
 import { createBrowserStartPageRouter } from './routes/browser-start-page';
 import { createMockupPageRouter } from './routes/mockup-page';
 import { createRunBrowserOpenRouter } from './routes/run-browser-open';
+import { createRunProviderSessionTranscriptRouter } from './routes/run-provider-session-transcript';
+import { ClaudeSessionReader } from '../provider-transcripts/claude-session-reader';
 import { createStagedBrowserTabOpenRouter } from './routes/staged-browser-tab-open';
 import { createRunChangedFileDetailRouter } from './routes/run-changed-file-detail';
 import { createSubmissionToolsRouter } from './routes/submission-tools';
@@ -107,6 +109,19 @@ export class LocalAgentRouter {
         logger,
         restoreCoordinator: runReadRestoreCoordinator,
         ...this.dependencies.toolCalls,
+      }),
+    );
+    this.app.use(
+      '/api/local/runs',
+      requestContext.middleware({ logger: logger.child({ component: 'http' }) }),
+      createRunProviderSessionTranscriptRouter({
+        allowedOrigins,
+        keyPairStore,
+        restoreCoordinator: runReadRestoreCoordinator,
+        claudeSessions: new ClaudeSessionReader({
+          logger: logger.child({ component: 'provider-transcripts.claude' }),
+        }),
+        logger: logger.child({ component: 'route.run-provider-session-transcript' }),
       }),
     );
     // Browser routes own their admission middleware.

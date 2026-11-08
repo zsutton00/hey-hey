@@ -1238,6 +1238,16 @@ export class Run {
     return this.session.provider_session_id ?? null;
   }
 
+  /** Whether the provider session belongs to this Run: its current session or a history member. */
+  public ownsProviderSession(providerSessionId: string): boolean {
+    return (
+      this.providerSessionId === providerSessionId ||
+      (this.session.provider_session_history ?? []).some(
+        (entry) => entry.providerSessionId === providerSessionId,
+      )
+    );
+  }
+
   /**
    * The provider session the context gauge and the default Context read
    * address: the latest history member whose owning handler counts for
