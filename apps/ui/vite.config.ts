@@ -141,8 +141,7 @@ export default defineConfig(({ mode }) => {
         plugins: [
           {
             name: "trace-chunks",
-            async generateBundle(_options, bundle) {
-              const fs = await import("node:fs");
+            generateBundle(_options, bundle) {
               const lines: string[] = [];
               for (const [fileName, chunk] of Object.entries(bundle)) {
                 if (chunk.type === "chunk") {
@@ -156,7 +155,11 @@ export default defineConfig(({ mode }) => {
                   }
                 }
               }
-              fs.writeFileSync("dist/chunk-manifest.txt", lines.join("\n"));
+              this.emitFile({
+                type: "asset",
+                fileName: "chunk-manifest.txt",
+                source: lines.join("\n"),
+              });
             },
           },
         ],
