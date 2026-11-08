@@ -1,4 +1,11 @@
-import { Alert, Button, Stack, Typography } from "@mui/material";
+import {
+  Alert,
+  Button,
+  Divider,
+  Paper,
+  Stack,
+  Typography,
+} from "@mui/material";
 import React from "react";
 import { DiffRenderer } from "../../SuggestedContent/DiffRenderer";
 import type { PermissionDecision } from "../../AgentSession/runtime/types";
@@ -455,6 +462,17 @@ const decisionLabel = (decision: PermissionDecision): string =>
         ? "Always approved"
         : "Whitelisted";
 
+const approvalExplanation = (toolName: string): string => {
+  switch (toolName) {
+    case "SandboxNetworkAccess":
+      return "Approving lets the agent connect to that host.";
+    case "WebSearch":
+      return "Approving lets the agent run that search.";
+    default:
+      return `Approving lets the agent make that ${toolName} request.`;
+  }
+};
+
 /**
  * One card for several same-tool requests: a row per request with its own
  * decision, plus approve/deny for every row still undecided. A group decision
@@ -546,66 +564,106 @@ const GroupedPermissionRequestField: React.FC<
     decisionFor(row) !== null ||
     rowStates[row.requestId]?.delivery === "in-flight";
 
-  return (
-    <Stack spacing={2} data-testid={`permission-request-field-${config.field}`}>
-      <Typography
-        variant="subtitle2"
-        data-testid={`permission-request-summary-${permissionRequest.id}`}
-      >
-        {`${permissionRequest.permissionType}: ${String(rows.length)} requests`}
-      </Typography>
+  const requestCountLabel = `${String(rows.length)} ${
+    rows.length === 1 ? "request" : "requests"
+  }`;
 
-      <Stack spacing={1}>
-        {rows.map((row) => {
-          const decision = decisionFor(row);
-          const rowState = rowStates[row.requestId];
-          return (
+  return (
+    <Paper
+      variant="outlined"
+      sx={{ overflow: "hidden" }}
+      data-testid={`permission-request-field-${config.field}`}
+    >
+      <Stack spacing={0.5} sx={{ p: 2 }}>
+        <Typography
+          variant="subtitle1"
+          sx={{ fontWeight: 600 }}
+          data-testid={`permission-request-summary-${permissionRequest.id}`}
+        >
+          {`${permissionRequest.permissionType} · ${requestCountLabel}`}
+        </Typography>
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          data-testid={`permission-request-explanation-${permissionRequest.id}`}
+        >
+          {approvalExplanation(permissionRequest.permissionType)}
+        </Typography>
+      </Stack>
+
+      {rows.map((row) => {
+        const decision = decisionFor(row);
+        const rowState = rowStates[row.requestId];
+        return (
+          <React.Fragment key={row.requestId}>
+            <Divider />
             <Stack
-              key={row.requestId}
-              spacing={0.5}
+              spacing={1}
+              sx={{ p: 2 }}
               data-testid={`permission-request-row-${row.requestId}`}
             >
-              <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
-                {row.description}
-              </Typography>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Button
-                  size="small"
-                  variant={decision === "approve" ? "contained" : "outlined"}
-                  color="success"
-                  disabled={isRowLocked(row)}
-                  onClick={() => {
-                    void submitRow(row.requestId, "approve");
+              <Stack
+                direction="row"
+                spacing={2}
+                alignItems="center"
+                justifyContent="space-between"
+                flexWrap="wrap"
+                useFlexGap
+              >
+                <Typography
+                  variant="body1"
+                  sx={{
+                    fontFamily: "monospace",
+                    fontWeight: 500,
+                    overflowWrap: "anywhere",
+                    minWidth: 0,
+                    flex: 1,
                   }}
-                  data-testid={`permission-request-approve-${row.requestId}`}
                 >
-                  Approve
-                </Button>
-                <Button
-                  size="small"
-                  variant={decision === "deny" ? "contained" : "outlined"}
-                  color="error"
-                  disabled={isRowLocked(row)}
-                  onClick={() => {
-                    void submitRow(row.requestId, "deny");
-                  }}
-                  data-testid={`permission-request-deny-${row.requestId}`}
-                >
-                  Deny
-                </Button>
-                {decision ? (
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    data-testid={`permission-request-submitted-decision-${row.requestId}`}
+                  {row.description}
+                </Typography>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  {decision ? (
+                    <Typography
+                      variant="body2"
+                      color={
+                        decision === "deny" ? "error.main" : "success.main"
+                      }
+                      sx={{ fontWeight: 600 }}
+                      data-testid={`permission-request-submitted-decision-${row.requestId}`}
+                    >
+                      {`${decisionLabel(decision)}${
+                        !row.decision && rowState
+                          ? ` (${DELIVERY_STATE_LABEL[rowState.delivery]})`
+                          : ""
+                      }`}
+                    </Typography>
+                  ) : null}
+                  <Button
+                    size="small"
+                    variant={decision === "approve" ? "contained" : "outlined"}
+                    color="success"
+                    disabled={isRowLocked(row)}
+                    onClick={() => {
+                      void submitRow(row.requestId, "approve");
+                    }}
+                    data-testid={`permission-request-approve-${row.requestId}`}
                   >
-                    {`${decisionLabel(decision)}${
-                      !row.decision && rowState
-                        ? ` (${DELIVERY_STATE_LABEL[rowState.delivery]})`
-                        : ""
-                    }`}
-                  </Typography>
-                ) : null}
+                    Approve
+                  </Button>
+                  <Button
+                    size="small"
+                    variant={decision === "deny" ? "contained" : "outlined"}
+                    color="error"
+                    disabled={isRowLocked(row)}
+                    onClick={() => {
+                      void submitRow(row.requestId, "deny");
+                    }}
+                    data-testid={`permission-request-deny-${row.requestId}`}
+                  >
+                    Deny
+                  </Button>
+                </Stack>
               </Stack>
               {rowState?.error ? (
                 <Alert
@@ -616,12 +674,30 @@ const GroupedPermissionRequestField: React.FC<
                 </Alert>
               ) : null}
             </Stack>
-          );
-        })}
-      </Stack>
+          </React.Fragment>
+        );
+      })}
 
+      <Divider />
       {undecidedRows.length > 0 ? (
-        <Stack direction="row" spacing={1} justifyContent="flex-start">
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="center"
+          flexWrap="wrap"
+          useFlexGap
+          sx={{ p: 2, bgcolor: "action.hover" }}
+          data-testid={`permission-request-group-actions-${permissionRequest.id}`}
+        >
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ flex: 1, minWidth: 0 }}
+          >
+            {`Applies to the ${String(undecidedRows.length)} ${
+              undecidedRows.length === 1 ? "request" : "requests"
+            } not yet decided`}
+          </Typography>
           <Button
             variant="outlined"
             color="success"
@@ -645,8 +721,17 @@ const GroupedPermissionRequestField: React.FC<
             Deny all
           </Button>
         </Stack>
-      ) : null}
-    </Stack>
+      ) : (
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{ p: 2, bgcolor: "action.hover" }}
+          data-testid={`permission-request-all-decided-${permissionRequest.id}`}
+        >
+          All requests decided
+        </Typography>
+      )}
+    </Paper>
   );
 };
 

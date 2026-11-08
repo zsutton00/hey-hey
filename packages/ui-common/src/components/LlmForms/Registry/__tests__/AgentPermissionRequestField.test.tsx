@@ -284,6 +284,13 @@ describe("AgentPermissionRequestField", () => {
       />,
     );
 
+    expect(
+      screen.getByTestId("permission-request-summary-request-1").textContent,
+    ).toBe("WebSearch · 3 requests");
+    expect(
+      screen.getByTestId("permission-request-explanation-request-1")
+        .textContent,
+    ).toBe("Approving lets the agent run that search.");
     expect(screen.getByText("alpha")).toBeTruthy();
     expect(screen.getByText("beta")).toBeTruthy();
     expect(screen.getByText("gamma")).toBeTruthy();
