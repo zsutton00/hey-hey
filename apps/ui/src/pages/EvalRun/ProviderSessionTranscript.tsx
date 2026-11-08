@@ -68,8 +68,7 @@ export const ReadSessionButton: React.FC<{
       <FunctionalDialog
         open={open}
         onClose={close}
-        maxWidth="lg"
-        fullWidth
+        fullScreen
         data-testid="eval-session-transcript-modal"
         closeControl={
           <IconButton onClick={close} size="small" aria-label="Close">
@@ -78,7 +77,10 @@ export const ReadSessionButton: React.FC<{
         }
       >
         <DialogTitle>{t("eval.results.sessions.transcriptTitle")}</DialogTitle>
-        <DialogContent dividers>
+        <DialogContent
+          dividers
+          sx={{ display: "flex", flexDirection: "column", minHeight: 0 }}
+        >
           {(state.status === "idle" || state.status === "loading") && (
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <CircularProgress size={16} />
@@ -137,7 +139,8 @@ export const ReadSessionButton: React.FC<{
                 component="pre"
                 sx={{
                   m: 0,
-                  maxHeight: 520,
+                  flex: 1,
+                  minHeight: 0,
                   overflow: "auto",
                   whiteSpace: "pre-wrap",
                   wordBreak: "break-word",
