@@ -3512,6 +3512,7 @@ export * from './unified-graph-search-filters.js';
 export * from './unified-graph-search-options.js';
 export * from './unified-graph-search-response.js';
 export * from './unified-graph-search-result.js';
+export * from './unified-match-paragraph.js';
 export * from './unified-relationship-weight.js';
 export * from './unified-search200-response.js';
 export * from './unified-search200-response-all-of.js';
