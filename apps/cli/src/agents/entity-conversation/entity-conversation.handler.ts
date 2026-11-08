@@ -6,6 +6,7 @@ import {
 } from '../completion-reconciliation/message-mapper';
 import {
   EntityType,
+  SessionRole,
   type LocalEntityConversationPromptPayload,
   type LocalEntityConversationEntity,
 } from '@hey-hey/contracts/agent-bridge';
@@ -240,6 +241,7 @@ export interface EntityConversationHandlerDependencies {
 
 export class EntityConversationHandler implements UserLaunchablePromptTypeHandler<LocalEntityConversationPromptPayload> {
   public readonly id = 'entity_conversation';
+  public readonly sessionRole = SessionRole.Research;
   public readonly promptType = 'entity_conversation' as const;
   public readonly service = 'optional';
   public readonly launchEntity = 'required';
