@@ -595,6 +595,7 @@ export class SubAgent {
     }
     const mcpContext = {
       inert: session.inert === true,
+      searchScope: session.searchScope,
       readRestriction: readRestrictionFor({ inert: session.inert }) ?? handler.readRestriction,
       ...(session.contextMetadata?.projectId
         ? { projectId: session.contextMetadata.projectId }

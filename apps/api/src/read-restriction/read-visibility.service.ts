@@ -1,4 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import type {
+  EvalAttemptReportPayload,
+  EvalRunReportPayload,
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReadPolicyContext } from './read-policy';
 
@@ -22,6 +26,31 @@ function proposedWorkItemType(updates: unknown): string | undefined {
   return hasStringType(updates) ? updates.type : undefined;
 }
 
+/** The session ids a stored eval run or attempt report payload names. */
+/** Attempts recorded before `judgeSessionId` existed name their judge only inside the assessment. */
+function assessmentJudgeSessionId(
+  assessment: object | null | undefined,
+): unknown {
+  return assessment && 'judgeSessionId' in assessment
+    ? assessment.judgeSessionId
+    : undefined;
+}
+
+function evalSessionIdsOf(
+  payload: EvalRunReportPayload | EvalAttemptReportPayload,
+): string[] {
+  const ids =
+    payload.reportType === 'EVAL_RUN'
+      ? [payload.coordinatorAgentSessionId]
+      : [
+          payload.targetSessionId,
+          payload.judgeSessionId,
+          assessmentJudgeSessionId(payload.automatedAssessment),
+        ];
+
+  return ids.filter((id): id is string => typeof id === 'string');
+}
+
 export interface EntityRef {
   readonly entityType: string;
   readonly entityId: string;
@@ -42,15 +71,19 @@ export class ReadVisibilityService {
 
     if (
       policy.excludedTaskTypes.length === 0 &&
-      policy.excludedReportTypes.length === 0
+      policy.excludedReportTypes.length === 0 &&
+      !policy.hidesEvalSessions
     ) {
       return hidden;
     }
 
     const taskIds = this.idsOfType(refs, 'TASK');
     const reportIds = this.idsOfType(refs, 'REPORT');
+    const sessionIds = policy.hidesEvalSessions
+      ? this.idsOfType(refs, 'AGENT_SESSION')
+      : [];
 
-    const [tasks, reports] = await Promise.all([
+    const [tasks, reports, evalSessionIds] = await Promise.all([
       taskIds.length > 0 && policy.excludedTaskTypes.length > 0
         ? this.prisma.db.task.findMany({
             where: {
@@ -69,10 +102,14 @@ export class ReadVisibilityService {
             select: { id: true },
           })
         : [],
+      this.evalSessionIdsAmong(sessionIds),
     ]);
 
     for (const row of [...tasks, ...reports]) {
       hidden.add(row.id);
+    }
+    for (const id of evalSessionIds) {
+      hidden.add(id);
     }
 
     return hidden;
@@ -134,9 +171,53 @@ export class ReadVisibilityService {
     }
   }
 
+  /**
+   * The sessions an eval run recorded: its coordinator, each attempt's target and each judge.
+   * They are found through the run's own reports, so sessions carry no marker.
+   */
+  private async evalSessionIdsAmong(
+    sessionIds: readonly string[],
+  ): Promise<string[]> {
+    if (sessionIds.length === 0) {
+      return [];
+    }
+
+    const recorded = (path: string[]) =>
+      sessionIds.map((id) => ({ payload: { path, equals: id } }));
+    const reports = await this.prisma.db.report.findMany({
+      where: {
+        OR: [
+          {
+            reportType: 'EVAL_RUN',
+            OR: recorded(['coordinatorAgentSessionId']),
+          },
+          {
+            reportType: 'EVAL_ATTEMPT',
+            OR: [
+              ...recorded(['targetSessionId']),
+              ...recorded(['judgeSessionId']),
+              ...recorded(['automatedAssessment', 'judgeSessionId']),
+            ],
+          },
+        ],
+      },
+      select: { payload: true },
+    });
+
+    const recordedIds = new Set(
+      reports.flatMap(({ payload }) =>
+        evalSessionIdsOf(
+          payload as unknown as EvalRunReportPayload | EvalAttemptReportPayload,
+        ),
+      ),
+    );
+
+    return sessionIds.filter((id) => recordedIds.has(id));
+  }
+
   private idsOfType(
     refs: readonly EntityRef[],
-    type: 'TASK' | 'REPORT',
+    type: 'TASK' | 'REPORT' | 'AGENT_SESSION',
   ): string[] {
     return [
       ...new Set(

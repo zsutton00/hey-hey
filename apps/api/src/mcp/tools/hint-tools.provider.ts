@@ -27,8 +27,10 @@ import {
 
 export const CREATE_HINT_TOOL_NAME = 'create_hint';
 export const ADD_HINT_CONNECTION_TOOL_NAME = 'add_hint_connection';
+export const UPDATE_HINT_TOOL_NAME = 'update_hint';
 export const DELETE_HINT_TOOL_NAME = 'delete_hint';
 export const GET_HINTS_FOR_ITEMS_TOOL_NAME = 'get_hints_for_items';
+export const GET_HINTS_BY_SESSION_TOOL_NAME = 'get_hints_by_session';
 
 // The firing logic owns strength changes; new connections start equal.
 const INITIAL_CONNECTION_STRENGTH = 1;
@@ -80,6 +82,16 @@ const addHintConnectionParameters = z.object({
   connection: connectionTargetSchema,
 });
 
+const updateHintParameters = z.object({
+  projectId: z
+    .string()
+    .uuid()
+    .optional()
+    .describe('Project the hint belongs to. Inferred from X-Project-ID.'),
+  hintId: z.string().uuid().describe('ID of the hint to correct'),
+  text: z.string().min(1).max(1000).describe('The corrected hint, short.'),
+});
+
 const deleteHintParameters = z.object({
   projectId: z
     .string()
@@ -100,6 +112,18 @@ const getHintsForItemsParameters = z.object({
     .min(1)
     .max(MAX_HINT_READ_ITEMS)
     .describe('IDs of the items you are focused on'),
+});
+
+const getHintsBySessionParameters = z.object({
+  projectId: z
+    .string()
+    .uuid()
+    .optional()
+    .describe('Project to read hints from. Inferred from X-Project-ID.'),
+  sessionId: z
+    .string()
+    .uuid()
+    .describe('ID of the agent session whose hints to read'),
 });
 
 const hintViewSchema = z.object({
@@ -255,6 +279,45 @@ export class HintWriteToolsProvider {
   }
 
   @Tool({
+    name: UPDATE_HINT_TOOL_NAME,
+    description:
+      'Correct the text of a live hint that is partly wrong or out of date. ' +
+      'Its connections and origin are kept unchanged. Delete the hint ' +
+      'instead when nothing salvageable remains. Only hints you could read ' +
+      'can be corrected.',
+    parameters: updateHintParameters,
+    outputSchema: hintOutput,
+  })
+  async updateHint(
+    params: z.infer<typeof updateHintParameters>,
+    _context: Context,
+    request: Request,
+  ): Promise<z.infer<typeof hintOutput> | CallToolResult> {
+    const requestor = resolveRequestor(params, request);
+    if (!isRequestor(requestor)) return requestor;
+
+    this.logger.log('update_hint called', {
+      projectId: requestor.projectId,
+      hintId: params.hintId,
+    });
+    try {
+      const hint = await this.hintService.updateHintText(
+        requestor,
+        params.hintId,
+        params.text,
+      );
+      return { hint };
+    } catch (error) {
+      this.logger.warn('update_hint failed', {
+        projectId: requestor.projectId,
+        hintId: params.hintId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return toolError('update hint', error);
+    }
+  }
+
+  @Tool({
     name: DELETE_HINT_TOOL_NAME,
     description:
       'Delete a hint that is wrong, duplicated or no longer applies. It stops ' +
@@ -330,6 +393,43 @@ export class HintReadToolsProvider {
         error: error instanceof Error ? error.message : String(error),
       });
       return toolError('read hints', error);
+    }
+  }
+
+  @Tool({
+    name: GET_HINTS_BY_SESSION_TOOL_NAME,
+    description:
+      'Read the live hints a given agent session wrote. Hints connected to ' +
+      'an item you cannot see are not returned. Hints that came from a ' +
+      'message rather than a session are not returned.',
+    parameters: getHintsBySessionParameters,
+    outputSchema: hintsOutput,
+  })
+  async getHintsBySession(
+    params: z.infer<typeof getHintsBySessionParameters>,
+    _context: Context,
+    request: Request,
+  ): Promise<z.infer<typeof hintsOutput> | CallToolResult> {
+    const requestor = resolveRequestor(params, request);
+    if (!isRequestor(requestor)) return requestor;
+
+    this.logger.log('get_hints_by_session called', {
+      projectId: requestor.projectId,
+      sessionId: params.sessionId,
+    });
+    try {
+      const hints: HintView[] = await this.hintService.findHintsByOriginSession(
+        requestor,
+        params.sessionId,
+      );
+      return { hints };
+    } catch (error) {
+      this.logger.warn('get_hints_by_session failed', {
+        projectId: requestor.projectId,
+        sessionId: params.sessionId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return toolError('read hints by session', error);
     }
   }
 }

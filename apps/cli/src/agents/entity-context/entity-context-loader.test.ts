@@ -295,6 +295,7 @@ describe('EntityContextLoader', () => {
         projectId: PROJECT_ID,
         entityType: CanonicalEntityType.AgentSession,
         entityId: AGENT_SESSION_ID,
+        groupRelationships: true,
       });
       expect(context).toMatchObject({
         kind: 'agent_session',
@@ -415,6 +416,7 @@ describe('EntityContextLoader', () => {
       projectId: PROJECT_ID,
       entityType: CanonicalEntityType.Task,
       entityId: AGENT_SESSION_ID,
+      groupRelationships: true,
     });
     expect(readAgentSession).not.toHaveBeenCalled();
   });
@@ -455,6 +457,7 @@ describe('EntityContextLoader', () => {
         projectId: PROJECT_ID,
         entityType: canonicalEntityType,
         entityId,
+        groupRelationships: true,
       });
       if (entityType === RunEntityType.Project) {
         expect(findOneProject).toHaveBeenCalledWith({

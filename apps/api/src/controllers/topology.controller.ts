@@ -12,6 +12,7 @@ import {
   Post,
   Query,
   ServiceUnavailableException,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -47,6 +48,8 @@ import {
   TopologySubfacetDto,
   TopologySubfacetSummarizationRunDto,
   UnifiedGraphSearchResponse,
+  ConnectedEntitiesRequest,
+  ConnectedEntitiesResponse,
 } from '@hey-hey/contracts/api/models';
 import { TopologyGraphResponse } from '../generated/graphs';
 import {
@@ -1761,6 +1764,40 @@ export class TopologyQueryController {
       resolvedProjectId,
       userToken,
     );
+  }
+
+  @Post('connected-entities')
+  @ApiOperation({
+    summary: 'List the entities connected to the given entities',
+    description:
+      'Returns the given entities with everything that links to or mentions them. IDs only.',
+  })
+  @ApiParam({ name: 'organizationId', description: 'Organization ID' })
+  @ApiParam({ name: 'projectId', description: 'Project ID' })
+  async getConnectedEntities(
+    @CurrentOrganization() organizationIdFromParams: OrganizationId,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('projectId') projectId: string,
+    @Body() body: ConnectedEntitiesRequest,
+    @AuthToken() userToken: string | null,
+  ): Promise<ConnectedEntitiesResponse> {
+    if (!userToken) {
+      throw new UnauthorizedException('Authentication token not found');
+    }
+
+    const organizationId = this.resolveOrganizationId(
+      organizationIdFromParams,
+      user,
+    );
+    const resolvedProjectId = this.resolveProjectId(projectId);
+
+    const { entityIds } = await this.graphsClientService.resolveSearchExclusion(
+      organizationId,
+      resolvedProjectId,
+      { entityIds: body.entityIds, depth: body.depth },
+      userToken,
+    );
+    return { entityIds };
   }
 
   @Get('entity-graph')

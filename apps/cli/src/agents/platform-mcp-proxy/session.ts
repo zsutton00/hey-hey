@@ -1,4 +1,6 @@
 import { isInertPlatformToolAllowed } from '../../run/inert-execution-policy';
+import { withSearchScope } from './search-scope';
+import { mentionsHiddenEntity, withoutHiddenEntities } from './hidden-entities';
 import type { McpSessionContext } from '../mcp-server-config';
 import type { ServerLogger } from '../../server/logger';
 import type { ActivePlatformToolCatalog } from './catalog';
@@ -203,6 +205,8 @@ const mismatchText = (input: { toolName: string; promptType: string; active: boo
 
 export class PlatformMcpProxySession {
   private readonly inertGroupIds = new Set<string>();
+  /** Entities connected to an inert eval attempt's own case; no read may return or open them. */
+  private readonly hiddenEntityIds: ReadonlySet<string> | undefined;
 
   private readonly proposalGroupFinalizationGuard: ProposalGroupFinalizationGuard;
   private protocolVersion: McpProtocolVersion = '2024-11-05';
@@ -211,6 +215,8 @@ export class PlatformMcpProxySession {
     private readonly runtime: PlatformMcpProxyRuntime,
     private readonly forwarder: PlatformMcpForwarder,
   ) {
+    const searchScope = runtime.context.inert ? runtime.context.searchScope : undefined;
+    this.hiddenEntityIds = searchScope ? new Set(searchScope.hiddenEntityIds) : undefined;
     this.proposalGroupFinalizationGuard = new ProposalGroupFinalizationGuard(
       forwarder,
       runtime.context,
@@ -431,6 +437,23 @@ export class PlatformMcpProxySession {
         params['arguments'] = { ...args, ragEnabled: false, applicationEligible: false };
       } else if (normalizedName === 'create_report' || normalizedName === 'update_report') {
         params['arguments'] = { ...args, ragEnabled: false };
+      } else if (normalizedName === 'unified_search' && this.runtime.context.searchScope) {
+        params['arguments'] = withSearchScope(args, this.runtime.context.searchScope);
+      }
+      if (this.hiddenEntityIds && mentionsHiddenEntity(args, this.hiddenEntityIds)) {
+        // Looks exactly like a missing entity, so the refusal reveals nothing about the case.
+        this.runtime.logger?.debug('local.platform_mcp_proxy.tool_call.hidden_entity_refused', {
+          runId: this.runtime.runId,
+          turnId: this.runtime.turnId,
+          normalizedName,
+        });
+        return {
+          statusCode: 200,
+          body: success(request.id, {
+            content: [{ type: 'text', text: 'Entity not found.' }],
+            isError: true,
+          }),
+        };
       }
     }
     const normalizedRequest = { ...request, params };
@@ -506,6 +529,12 @@ export class PlatformMcpProxySession {
           result: await this.runtime.graphResultNarrower.narrowEdgesResult(forwarded.result),
         };
       }
+    }
+    if (this.hiddenEntityIds && 'result' in response) {
+      response = {
+        ...response,
+        result: withoutHiddenEntities(response.result, this.hiddenEntityIds),
+      };
     }
     return {
       statusCode: 200,

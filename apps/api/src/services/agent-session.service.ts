@@ -1,3 +1,4 @@
+import { ReadVisibilityService } from '../read-restriction/read-visibility.service';
 import { isSerializableWorkflowState } from '../workflows/conversation-workflow-state';
 import { resolveAncestorPlanWorkItem } from './plan/resolve-plan-work-item';
 import { parseProjectReportSessionConfig } from 'src/contracts/project-report-session-config';
@@ -444,7 +445,11 @@ export class AgentSessionService {
     private readonly workItemTypeRegistry?: WorkItemTypeRegistryService,
     @Optional()
     private readonly projectModeEligibility?: ProjectModeEligibilityService,
-  ) {}
+  ) {
+    this.visibility = new ReadVisibilityService(prisma);
+  }
+
+  private readonly visibility: ReadVisibilityService;
 
   async resolveStartRunConversationBinding(params: {
     organizationId: OrganizationId;
@@ -1455,6 +1460,8 @@ export class AgentSessionService {
   ): Promise<AgentSessionDto> {
     const { includeService = false, includeUser = false, projectId } = options;
     let dto: AgentSessionDto;
+
+    await this.visibility.assertVisible('AGENT_SESSION', agentSessionId);
 
     if (includeService) {
       const session = await this.findOneWithServiceSummary(

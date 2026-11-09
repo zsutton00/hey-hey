@@ -273,9 +273,11 @@ export const buildRunMcpSessionContext = (
     | 'launchServiceId'
     | 'services'
     | 'inert'
+    | 'searchScope'
   >,
 ): McpSessionContext => ({
   inert: session.inert === true,
+  searchScope: session.searchScope,
   projectId: session.contextMetadata.projectId,
   conversationId: session.conversationId,
   serviceId: session.launchServiceId,
@@ -1236,6 +1238,16 @@ export class Run {
    */
   get providerSessionId(): string | null {
     return this.session.provider_session_id ?? null;
+  }
+
+  /** Whether the provider session belongs to this Run: its current session or a history member. */
+  public ownsProviderSession(providerSessionId: string): boolean {
+    return (
+      this.providerSessionId === providerSessionId ||
+      (this.session.provider_session_history ?? []).some(
+        (entry) => entry.providerSessionId === providerSessionId,
+      )
+    );
   }
 
   /**
@@ -5703,6 +5715,7 @@ export class Run {
       deps: this.handlerDeps,
       logger: this.logger,
       attemptLogDir: jevLogsDir ? path.join(jevLogsDir, 'get-context') : null,
+      edgesAttemptLogDir: jevLogsDir ? path.join(jevLogsDir, 'get-edges') : null,
     });
     const platformMcpProxy = new TurnPlatformMcpProxy({
       runId: this.runId,

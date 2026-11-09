@@ -24,6 +24,18 @@ import type {
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
+/**
+ * Limits an inert eval attempt's `unified_search` so it cannot find material about its own case:
+ * only items created before the case, and nothing connected to the entities named here (the case,
+ * its Eval, the case's proposals and their conversations). `hiddenEntityIds` is everything connected
+ * to those entities, resolved once at attempt start; every other platform read hides or refuses it.
+ */
+export interface EvalSearchScope {
+  readonly createdBefore: string;
+  readonly excludeConnectedTo: readonly string[];
+  readonly hiddenEntityIds: readonly string[];
+}
+
 export interface LocalPendingRunContext {
   projectId: string;
   serviceIds?: string[];
@@ -61,6 +73,8 @@ export interface LocalCreateRunRequest {
   reasoningEffort?: StartRunPromptPayloadReasoningEffortEnum;
   fastMode?: boolean;
   inert?: boolean;
+  /** Only valid on an inert Run: limits what its `unified_search` can find about its own eval case. */
+  searchScope?: EvalSearchScope;
   /** Internal standalone Project Assistant admission using the consumer's normal policy. */
   projectAssistantConsumerHandlerId?: string;
   /** Internal cancellation, including materialization before a Run is active. */

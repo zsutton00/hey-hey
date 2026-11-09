@@ -1,5 +1,3 @@
-import { z } from 'zod';
-
 import { DEFAULT_JEV_MODEL } from '../../jev/client';
 import {
   DEFAULT_WORDING,
@@ -14,6 +12,11 @@ import {
 import { RunEntityReferenceEntityTypeEnum as RunEntityType } from '@hey-hey/contracts/agent-bridge';
 import type { MaterializedWorkItemSection } from '@hey-hey/contracts/api/models';
 import { firstSentence } from '../context-trimming/get-context-result';
+import {
+  formatRequirementLine,
+  requirementsDocumentSchema,
+  type RequirementRecord,
+} from '../entity-context/feature-requirements';
 import type { EntityContextLoader } from '../entity-context/entity-context-loader';
 import type { LoadedEntityPromptContext } from '../entity-context/types';
 import type { NearestParentFeatureRequest } from './nearest-parent-feature';
@@ -42,19 +45,6 @@ export interface FilteredParentRequirements {
 }
 
 export const REQUIREMENTS_SECTION_KEY = 'requirements';
-
-const recordSchema = z
-  .object({
-    id: z.string().min(1),
-    statement: z.string(),
-    fulfilledBy: z.array(
-      z.object({ entityId: z.string(), entityType: z.string(), entityTitle: z.string() }),
-    ),
-  })
-  .passthrough();
-const recordsSchema = z.array(recordSchema);
-
-type RequirementRecord = z.infer<typeof recordSchema>;
 
 /** Why the starting load stays unfiltered; never carries entity content. */
 export class ParentRequirementsUnfiltered extends Error {
@@ -120,17 +110,9 @@ const readRecords = async (
     projectId: request.projectId,
     readRestriction: request.readRestriction,
   });
-  const parsed = recordsSchema.safeParse(loaded.context.content?.requirementsSection?.records);
+  const parsed = requirementsDocumentSchema.safeParse(loaded.context.content?.requirementsSection);
   if (!parsed.success) throw new ParentRequirementsUnfiltered('requirements_malformed');
-  return parsed.data;
-};
-
-const renderFull = (record: RequirementRecord): string => {
-  const citations = record.fulfilledBy.map(
-    (citation) => `@[${citation.entityType}:${citation.entityId}|${citation.entityTitle}]`,
-  );
-  const fulfilled = citations.length > 0 ? ` (fulfilled by ${citations.join(', ')})` : '';
-  return `- ${record.statement.trim()}${fulfilled}`;
+  return parsed.data.records;
 };
 
 const renderTitle = (record: RequirementRecord): string => `- ${firstSentence(record.statement)}`;
@@ -199,7 +181,7 @@ export const filterParentRequirements = async (
   }
 
   const lines = records.map((record, position) =>
-    full.has(position) ? renderFull(record) : renderTitle(record),
+    full.has(position) ? formatRequirementLine(record) : renderTitle(record),
   );
   const titleCount = records.length - full.size;
   const note =

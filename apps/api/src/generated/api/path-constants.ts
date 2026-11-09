@@ -123,6 +123,7 @@ export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_SEARCH_PATH = '/org
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_SEARCH_BATCH_PATH = '/organizations/{organizationId}/projects/{projectId}/search/batch';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_TOPOLOGY_ENTITY_SUMMARIES_PATH = '/organizations/{organizationId}/projects/{projectId}/topology/entity-summaries';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_TOPOLOGY_ENTITY_GRAPH_PATH = '/organizations/{organizationId}/projects/{projectId}/topology/entity-graph';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_TOPOLOGY_CONNECTED_ENTITIES_PATH = '/organizations/{organizationId}/projects/{projectId}/topology/connected-entities';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_TOPOLOGY_GRAPH_TOPOLOGY_PATH = '/organizations/{organizationId}/projects/{projectId}/topology/graph-topology';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_TOPOLOGY_SUBFACETS_PATH = '/organizations/{organizationId}/projects/{projectId}/topology/subfacets';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_TOPOLOGY_CATEGORY_SUMMARIES_PATH = '/organizations/{organizationId}/projects/{projectId}/topology/category-summaries';

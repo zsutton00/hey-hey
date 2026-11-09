@@ -9,6 +9,7 @@ import {
   HintConnectionEndpointEntityType,
   HintConnectionInput,
   HintOrigin,
+  HintOriginEntityType,
 } from '../../generated/graphs';
 import { GraphsClientService } from '../graphs-client.service';
 import type { OrganizationId, ProjectId } from '../../types';
@@ -150,6 +151,44 @@ export class HintService {
     return toHintView(hint);
   }
 
+  async updateHintText(
+    requestor: HintRequestor,
+    hintId: string,
+    text: string,
+  ): Promise<HintView> {
+    this.logger.log('Updating hint text', {
+      projectId: requestor.projectId,
+      hintId,
+    });
+    await this.assertProjectAccess(requestor);
+    const existing = await this.graphsClient.getHint(
+      requestor.organizationId,
+      requestor.projectId,
+      hintId,
+      requestor.token,
+    );
+    // A caller may only correct a hint it could have read.
+    await this.assertVisible(
+      requestor,
+      existing.connections.map((c) => ({
+        id: c.targetNodeId,
+        entityType: c.targetEntityType,
+      })),
+    );
+    const hint = await this.graphsClient.updateHintText(
+      requestor.organizationId,
+      requestor.projectId,
+      hintId,
+      text,
+      requestor.token,
+    );
+    this.logger.log('Updated hint text', {
+      projectId: requestor.projectId,
+      hintId,
+    });
+    return toHintView(hint);
+  }
+
   async retireHint(requestor: HintRequestor, hintId: string): Promise<void> {
     this.logger.log('Retiring hint', {
       projectId: requestor.projectId,
@@ -202,6 +241,32 @@ export class HintService {
       { nodeIds: nodeIds as unknown as Set<string> },
       requestor.token,
     );
+    return this.visibleHintViews(requestor, hints);
+  }
+
+  async findHintsByOriginSession(
+    requestor: HintRequestor,
+    sessionId: string,
+  ): Promise<HintView[]> {
+    this.logger.log('Reading hints by origin session', {
+      projectId: requestor.projectId,
+      sessionId,
+    });
+    await this.assertProjectAccess(requestor);
+    const { hints } = await this.graphsClient.findHintsByOrigin(
+      requestor.organizationId,
+      requestor.projectId,
+      HintOriginEntityType.AgentSession,
+      sessionId,
+      requestor.token,
+    );
+    return this.visibleHintViews(requestor, hints);
+  }
+
+  private async visibleHintViews(
+    requestor: HintRequestor,
+    hints: Hint[],
+  ): Promise<HintView[]> {
     const targets = new Map<string, HintItemRef>();
     for (const connection of hints.flatMap((h) => h.connections)) {
       const ref = {

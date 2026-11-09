@@ -1661,16 +1661,44 @@ export const en = {
   "eval.results.work.TARGET_PREPARATION":
     "Project Assistant research (not in the figures above)",
   "eval.results.work.TARGET_HANDLER": "Handler (the tested work)",
+  "eval.results.toolCalls.title": "Tool calls the agent made",
+  "eval.results.toolCalls.unavailable":
+    "Tool calls could not be collected for this attempt. That does not mean the agent made none.",
+  "eval.results.toolCalls.truncated": "arguments cut",
+  "eval.results.toolCalls.omitted": "{{count}} further calls are not shown.",
   "eval.results.attempt.produced": "What this attempt produced",
   "eval.results.attempt.savedNote":
     "Shown read-only, as saved when the attempt ran.",
   "eval.results.sessions.target": "Attempt session (what the handler did)",
   "eval.results.sessions.noTarget": "No attempt session was recorded.",
+  "eval.results.sessions.title": "Provider Sessions",
+  "eval.results.sessions.agent": "Agent",
   "eval.results.sessions.judge": "Judge",
-  "eval.results.sessions.info": "Info",
-  "eval.results.sessions.attemptProvider": "Attempt provider ids",
   "eval.results.sessions.openJudge": "Open judge session",
-  "eval.results.sessions.judged": "Given to the judge ({{count}} characters)",
+  "eval.results.sessions.viewInput": "View input",
+  "eval.results.sessions.inputModalTitle": "Input given to the judge",
+  "eval.results.sessions.copyCommand": "Copy resume command",
+  "eval.results.sessions.readSession": "Read session",
+  "eval.results.sessions.transcriptTitle": "Provider session",
+  "eval.results.sessions.transcriptLoading":
+    "Reading the session from this computer…",
+  "eval.results.sessions.transcriptTruncated":
+    "This session is larger than the size limit, so only its beginning is shown.",
+  "eval.results.sessions.transcriptCopy": "Copy session text",
+  "eval.results.sessions.viewReadable": "Readable",
+  "eval.results.sessions.viewRaw": "Raw file",
+  "eval.results.sessions.unavailable.PROVIDER_NOT_SUPPORTED":
+    "Reading this provider's session is not supported yet.",
+  "eval.results.sessions.unavailable.SESSION_NOT_IN_RUN":
+    "This session does not belong to the attempt's Run on this computer.",
+  "eval.results.sessions.unavailable.SESSION_FILE_NOT_FOUND":
+    "The provider's stored session was not found on this computer. It may have been deleted, or the attempt ran elsewhere.",
+  "eval.results.sessions.unavailable.SESSION_FILE_UNREADABLE":
+    "The provider's stored session could not be read.",
+  "eval.results.sessions.unavailable.NOT_ON_THIS_COMPUTER":
+    "The CLI that ran this attempt is not on this computer, so its session cannot be read here.",
+  "eval.results.sessions.unavailable.READ_FAILED":
+    "The session could not be read. Try again.",
   "eval.results.sessions.judgedNone":
     "Nothing was given to the judge: the attempt ended before judging started.",
   "eval.results.attempt.ran":

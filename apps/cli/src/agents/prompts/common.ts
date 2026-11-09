@@ -79,13 +79,13 @@ Pay close attention to the user's request. When the user asks about "related" en
 
 ## Choosing the Smallest Read
 
-Fetch only what answers your question, and reuse content already supplied in the prompt or the focal projection when it is sufficient.
+Reuse what the prompt already gives you, such as the focal entity's context, instead of reloading it. For anything else you rely on, read the content, not just the title. The bullets below pick the smallest tool that does it.
 
 - **You have an ID but no title, or know an ID is a work item but not whether it is a Feature, Bug, Standard Task or another type:** \`get_entity_identities\` returns only \`title\`, \`status\` and \`itemType\`. Every pair needs an \`entityType\`; pass \`entityType: "TASK"\` when the work-item subtype is unknown, e.g. \`{ entityType: "TASK", entityId }\` — work-item type keys alias TASK and \`itemType\` reports the real subtype. It cannot look up an ID with no type.
 - **You want an item's own content or sections:** \`get_full_entity\`.
 - **You need hierarchy, relationships, proposal history, or the upstream and downstream consequences of a change:** \`get_context\`.
 - **You want the direct links around several items you have already identified:** \`get_edges\`, one call for the batch instead of a \`get_context\` per item.
-- **You do not yet know which items are relevant** — hunting for relationships, feature-tree gaps, or whether something is already covered: \`unified_search\` (pass \`queries\` to batch several searches in one call) before reading entities one by one, so discovery cost stays bounded. Its hits already carry the TASK subtype, so they need no identity follow-up.
+- **You do not yet know which items are relevant** — hunting for relationships, feature-tree gaps, or whether something is already covered: \`unified_search\` (pass \`queries\` to batch several searches in one call) before reading entities one by one. Its hits already carry the TASK subtype, so they need no identity follow-up.
 
 Identity lookup never replaces reading. Before a consequential change, read the governing requirements and design decisions (\`get_full_entity\`, or \`get_context\` when you also need the surrounding graph) and orient on the graph around the entity you are changing.`;
 
@@ -399,10 +399,10 @@ const ephemeralAgentIterationGuidance = `When updating or iterating on existing 
  */
 const deferredMcpTools = `## Deferred MCP Tools Are Not Disconnected
 
-MCP tools listed as "deferred" or behind "still connecting" reminders are not disconnected — they are lazy-loaded via \`ToolSearch\`. The platform MCP server is connected; the tool schemas just have not been fetched yet.
+MCP tools listed as "deferred" or behind "still connecting" reminders are not disconnected — they are lazy-loaded via \`ToolSearch\`. The platform MCP server is normally connected; the tool schemas just have not been fetched yet.
 
-- Never tell the user a platform tool is unavailable because MCP is reconnecting or disconnected. Call \`ToolSearch\` with \`select:<tool_name>\` to load the schema, then invoke the tool normally.
-- "Still connecting" reminders refer to session bootstrap and resolve in seconds; they are not steady-state status.`;
+- A deferred or "still connecting" tool is not unavailable. Call \`ToolSearch\` with \`select:<tool_name>\` to load the schema, then invoke it normally. "Still connecting" resolves in seconds.
+- If the harness reports a server disconnected, or \`ToolSearch\` finds no match after connecting, tell the user the capability is unavailable and why. Don't keep retrying.`;
 
 /** Only Claude defers MCP tools behind `ToolSearch`; an unspecified provider keeps the guidance. */
 const providerDefersMcpTools = (provider: AgentProviderId | undefined): boolean =>
@@ -484,7 +484,7 @@ Help establish enough reviewed knowledge for the next useful action: suggest a c
 const hintDefinition =
   'Hints are short project notes connected to the graph items they concern. They carry direction future agents need but that does not belong in a requirement: guidance the user gave, a correction they do not want to repeat, or a gotcha found while building.';
 
-const hintReadingInstructions = `At the start of each session, call \`get_hints_for_items\` with the IDs of the items you are focused on. Include the focused work item, relevant features, selected Services, relevant user IDs when supplied, and other relevant graph items already supplied to the session. This reads graph connections; it is not a Service-only code search. When your focus moves to another area, read hints connected to those items too. Treat results as weak context: requirements, Contracts, Decisions and code take precedence.`;
+const hintReadingInstructions = `At the start of each session, call \`get_hints_for_items\` with the IDs of the items you are focused on. Include the focused work item, relevant features, selected Services, relevant user IDs when supplied, and other relevant graph items already supplied to the session. This reads graph connections; it is not a Service-only code search. When your focus moves to another area, read hints connected to those items too. Treat results as weak context: requirements, Contracts, Decisions and code take precedence. To review what a particular agent session recorded, call \`get_hints_by_session\` with that session's ID.`;
 
 /**
  * Hint-writing guidance: composed only for sessions that hold `create_hint`
@@ -503,6 +503,8 @@ Record a new hint with \`create_hint\`. Hint text cannot be edited in place: rep
 - At the end of coding work, write hints for gotchas that neither the code nor the task makes obvious.
 
 Delete a hint with \`delete_hint\` when it is wrong, duplicated or no longer applies; leave one that was merely not useful to you.
+
+Project direction goes in a hint, which every future agent sees; private memory is only for facts about the user.
 
 Write the direction itself ("Feature names are never used as identity; use Feature IDs"), never how it was said. Connect the hint to what it is relevant to, typically the focused item and its owning feature. In a project with established requirements, raise input that contradicts them with the user instead of recording it.`;
 

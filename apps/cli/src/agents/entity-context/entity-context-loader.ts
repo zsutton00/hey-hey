@@ -569,6 +569,7 @@ export class EntityContextLoader {
         projectId: input.projectId,
         entityType,
         entityId: input.runEntity.entityId,
+        groupRelationships: true,
       });
     } catch (error) {
       this.logger.error('entity_context.load.canonical_context_read_failed', {

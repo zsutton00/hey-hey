@@ -42,6 +42,7 @@ pub fn router(enabled: bool, auth: Authenticator) -> Router {
         .route("/organizations/{organizationId}/projects/{projectId}/work-item-project-readiness", post(work_item_readiness), Policy::User)
         .route("/organizations/{organizationId}/projects/{projectId}/design-doc-project-readiness", post(design_doc_readiness), Policy::User)
         .route("/organizations/{organizationId}/projects/{projectId}/traversal", post(traverse), Policy::User)
+        .route("/organizations/{organizationId}/projects/{projectId}/search-exclusions", post(pending), Policy::User)
         .route("/organizations/{organizationId}/projects/{projectId}/incident-edges", post(incident), Policy::User)
         .route("/organizations/{organizationId}/projects/{projectId}/entity-neighborhood", post(neighborhood), Policy::User)
         .route("/organizations/{organizationId}/projects/{projectId}/topology", get(topology), Policy::User)

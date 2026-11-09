@@ -41,6 +41,7 @@ import { WebPathService } from "@hey-hey/ui-common/services";
 
 import { AttemptExecutionSummary } from "./AttemptExecutionSummary";
 import { AttemptSessions } from "./AttemptSessions";
+import { AttemptToolCalls } from "./AttemptToolCalls";
 
 import { CodingAttemptResults, CodingStartPoint } from "./CodingAttemptResults";
 import { EvalHumanReviewForm } from "./EvalHumanReviewForm";
@@ -536,8 +537,10 @@ export const EvalCaseDetail: React.FC<EvalCaseDetailProps> = ({
     <AttemptSessions
       attempt={attempt}
       judgeSessionHref={row.judgeSessionHref}
+      judgeProvider={run.payload.judgeSetup.provider}
     />
     <WorkBreakdown rows={row.breakdown} />
+    <AttemptToolCalls attempt={attempt} />
     <Grid container spacing={2}>
       {!row.coding && (
         <Grid size={{ xs: 12, md: 6 }}>

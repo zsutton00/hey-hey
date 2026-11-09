@@ -12,6 +12,7 @@ import {
   type UserLaunchablePromptTypeHandler,
 } from '../prompt-type-handler';
 import { EVAL_JUDGE_HANDLER_ID, parseEvalJudgeOutput } from './eval-judge.handler';
+import { EvalCaseSearchScope } from './eval-case-search-scope';
 import { EvalReportRecorder } from './eval-report-recorder';
 import { runEvalAttempts, type EvalRunnerPorts, type EvalRunTally } from './eval-runner';
 const EVAL_WORK_ITEM_TYPE_KEY = 'EVAL' as const;
@@ -58,6 +59,13 @@ const runRecordedAttempts = async (
     organizationId: session.contextMetadata.organizationId,
     evalRunId: payload.evalRunId,
   });
+  const caseSearchScope = new EvalCaseSearchScope(
+    {
+      organizationId: session.contextMetadata.organizationId,
+      projectId: session.contextMetadata.projectId,
+    },
+    { accessToken: await deps.auth.getAccessToken(), apiBaseUrl: deps.apiBaseUrl },
+  );
   const launcher = deps.childAgentLauncher;
   const ports: EvalRunnerPorts = {
     recorder,
@@ -66,14 +74,17 @@ const runRecordedAttempts = async (
       if (!deps.evalAttemptExecution) {
         throw new Error('Eval attempt execution is unavailable.');
       }
+      const searchScope = await caseSearchScope.read(attempt.caseInput.evalCaseId);
+
       return deps.evalAttemptExecution.execute(session, attempt, {
         ...options,
+        searchScope,
         onProviderSessionIds: (ids) =>
           recorder.updateAttempt(attempt.attemptId, { attemptProviderSessionIds: ids }),
         onWorkspaceSettled: (settled) => recorder.updateAttempt(attempt.attemptId, settled),
       });
     },
-    async judge(attempt, outputText, judgeSignal) {
+    async judge(attempt, output, judgeSignal) {
       let judgeSessionId: string | undefined;
       const result = await launcher
         .launchRegistered(EVAL_JUDGE_HANDLER_ID, {
@@ -85,8 +96,9 @@ const runRecordedAttempts = async (
           },
           onExecutionCreated: async (child) => {
             judgeSessionId = child.agentic_session_id;
+            await recorder.updateAttempt(attempt.attemptId, { judgeSessionId });
           },
-          payload: { caseInput: attempt.caseInput, outputText },
+          payload: { caseInput: attempt.caseInput, ...output },
           signal: judgeSignal,
           ...toLaunchSettings(payload.judgeSetup),
         })

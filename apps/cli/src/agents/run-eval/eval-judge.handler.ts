@@ -5,9 +5,11 @@ import {
   ReadRestriction,
   type EvalAutomatedAssessment,
   type EvalCaseCoding,
+  type EvalRecordedToolCalls,
   type EvalRunCaseInput,
 } from '@hey-hey/contracts/api/models';
 import type { PromptTypeHandler } from '../prompt-type-handler';
+import { toolCallsEvidenceText } from './eval-recorded-tool-calls';
 
 export const EVAL_JUDGE_HANDLER_ID = 'eval_judge';
 
@@ -18,6 +20,8 @@ export interface EvalJudgePayload {
    * changes, never the chat reply. The judge never sees the target's context.
    */
   outputText: string;
+  /** The tested agent's own tool calls, in order, without results. Absent when not collected. */
+  toolCalls?: EvalRecordedToolCalls;
 }
 
 const judgeOutputSchema = z.object({
@@ -154,7 +158,7 @@ const checklistShape = (caseInput: EvalRunCaseInput): string => {
 };
 
 const buildEvalJudgePrompt = (payload: EvalJudgePayload): string => {
-  const { caseInput, outputText } = payload;
+  const { caseInput, outputText, toolCalls } = payload;
   const { target, grading } = caseInput;
   return [
     'You are judging one attempt from an agent evaluation. You have no tools. Judge only the evidence below.',
@@ -177,6 +181,10 @@ const buildEvalJudgePrompt = (payload: EvalJudgePayload): string => {
     '',
     "## The agent's output",
     outputText,
+    '',
+    '## Tool calls the agent made',
+    'Evidence of what the agent did, in order, with arguments and without results. No particular tool or sequence is required or preferred; equivalent routes are equally valid. Use it to see whether the agent noticed what the situation called for.',
+    toolCallsEvidenceText(toolCalls),
     '',
     '## How to judge',
     '- Answer every check: passed or not, with a short explanation citing the output.',

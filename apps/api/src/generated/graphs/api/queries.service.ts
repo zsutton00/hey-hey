@@ -25,6 +25,8 @@ import { FeatureProjectConnectionResponse } from '../model/featureProjectConnect
 import { IncidentEdgesRequest } from '../model/incidentEdgesRequest';
 import { IncidentEdgesResponse } from '../model/incidentEdgesResponse';
 import { ProvenanceLineageResponse } from '../model/provenanceLineageResponse';
+import { SearchExclusionRequest } from '../model/searchExclusionRequest';
+import { SearchExclusionResponse } from '../model/searchExclusionResponse';
 import { SearchRequest } from '../model/searchRequest';
 import { SearchResponse } from '../model/searchResponse';
 import { TopologyGraphResponse } from '../model/topologyGraphResponse';
@@ -677,6 +679,99 @@ export class QueriesService {
             withCredentials: this.configuration.withCredentials,
             ...readIncidentEdgesOpts?.config,
             headers: { ...headers, ...readIncidentEdgesOpts?.config?.headers },
+          },
+        );
+      }),
+    );
+  }
+  /**
+   * Resolve the entities connected to given entities
+   * Returns the entities to hide from search for the given entities. Follows only links that point at the given entities, mentions of them, conversations about them and proposals targeting them, and expands each excluded proposal and conversation to its whole conversation. Never follows the given entities\&#39; own outgoing links, structural edges or Project, User and Stub nodes.
+   * @param organizationId Organization identifier
+   * @param projectId Project identifier
+   * @param searchExclusionRequest
+   * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
+   * @param reportProgress flag to report request and response progress.
+   * @param {*} [resolveSearchExclusionOpts.config] Override http request option.
+   */
+  public resolveSearchExclusion(
+    organizationId: string,
+    projectId: string,
+    searchExclusionRequest: SearchExclusionRequest,
+    resolveSearchExclusionOpts?: { config?: AxiosRequestConfig },
+  ): Observable<AxiosResponse<SearchExclusionResponse>>;
+  public resolveSearchExclusion(
+    organizationId: string,
+    projectId: string,
+    searchExclusionRequest: SearchExclusionRequest,
+    resolveSearchExclusionOpts?: { config?: AxiosRequestConfig },
+  ): Observable<any> {
+    if (organizationId === null || organizationId === undefined) {
+      throw new Error(
+        'Required parameter organizationId was null or undefined when calling resolveSearchExclusion.',
+      );
+    }
+
+    if (projectId === null || projectId === undefined) {
+      throw new Error(
+        'Required parameter projectId was null or undefined when calling resolveSearchExclusion.',
+      );
+    }
+
+    if (
+      searchExclusionRequest === null ||
+      searchExclusionRequest === undefined
+    ) {
+      throw new Error(
+        'Required parameter searchExclusionRequest was null or undefined when calling resolveSearchExclusion.',
+      );
+    }
+
+    let headers = { ...this.defaultHeaders };
+
+    let accessTokenObservable: Observable<any> = of(null);
+
+    // authentication (BearerAuth) required
+    if (typeof this.configuration.accessToken === 'function') {
+      accessTokenObservable = from(
+        Promise.resolve(this.configuration.accessToken()),
+      );
+    } else if (this.configuration.accessToken) {
+      accessTokenObservable = from(
+        Promise.resolve(this.configuration.accessToken),
+      );
+    }
+    // to determine the Accept header
+    let httpHeaderAccepts: string[] = ['application/json'];
+    const httpHeaderAcceptSelected: string | undefined =
+      this.configuration.selectHeaderAccept(httpHeaderAccepts);
+    if (httpHeaderAcceptSelected != undefined) {
+      headers['Accept'] = httpHeaderAcceptSelected;
+    }
+
+    // to determine the Content-Type header
+    const consumes: string[] = ['application/json'];
+    const httpContentTypeSelected: string | undefined =
+      this.configuration.selectHeaderContentType(consumes);
+    if (httpContentTypeSelected != undefined) {
+      headers['Content-Type'] = httpContentTypeSelected;
+    }
+    return accessTokenObservable.pipe(
+      switchMap((accessToken) => {
+        if (accessToken) {
+          headers['Authorization'] = `Bearer ${accessToken}`;
+        }
+
+        return this.httpClient.post<SearchExclusionResponse>(
+          `${this.basePath}/organizations/${encodeURIComponent(String(organizationId))}/projects/${encodeURIComponent(String(projectId))}/search-exclusions`,
+          searchExclusionRequest,
+          {
+            withCredentials: this.configuration.withCredentials,
+            ...resolveSearchExclusionOpts?.config,
+            headers: {
+              ...headers,
+              ...resolveSearchExclusionOpts?.config?.headers,
+            },
           },
         );
       }),

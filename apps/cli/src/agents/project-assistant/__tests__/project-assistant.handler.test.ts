@@ -527,8 +527,20 @@ describe('projectAssistantHandler — recent report startup context', () => {
       },
     } as unknown as PromptTypeHandlerContext;
     const requirementRecords = [
-      { id: 'r1', statement: 'Keep the key local. Never send it anywhere.', fulfilledBy: [] },
-      { id: 'r2', statement: 'Export reports as PDF. Include charts.', fulfilledBy: [] },
+      {
+        id: 'r1',
+        statement: 'Keep the key local. Never send it anywhere.',
+        designedBy: [],
+        fulfilledBy: [],
+        contracts: [],
+      },
+      {
+        id: 'r2',
+        statement: 'Export reports as PDF. Include charts.',
+        designedBy: [],
+        fulfilledBy: [],
+        contracts: [],
+      },
     ];
     const makeFilter = (
       evaluate: ReturnType<typeof jevJudging>,

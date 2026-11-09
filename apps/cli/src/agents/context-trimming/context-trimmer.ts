@@ -25,9 +25,11 @@ import {
   type Slot,
 } from './get-context-result';
 import {
-  writeGetContextAttemptRecord,
+  writeGraphResultAttemptRecord,
   type GetContextAttemptRecord,
   type GetContextEntryRecord,
+  type GetEdgesAttemptRecord,
+  type GetEdgesEntryRecord,
 } from './get-context-attempt-log';
 import { edgeIndex, edgeSlotsOf, edgesResultSchema, type EdgeSlot } from './get-edges-result';
 
@@ -41,6 +43,8 @@ export interface GetContextTrimmerConfig {
   cutoffs?: Cutoffs;
   /** Where each get_context call writes its development trace, narrowed or not; null writes none. */
   attemptLogDir?: string | null;
+  /** Where each get_edges call writes its development trace, narrowed or not; null writes none. */
+  edgesAttemptLogDir?: string | null;
 }
 
 /** Provider-neutral interface used by the graph-result wrapper. */
@@ -129,6 +133,7 @@ export class GetContextTrimmer implements DecisionModelResultNarrower {
 
   /** Narrow direct graph edges with the same context-selection judgment as get_context. */
   public async trimEdgesResult(upstream: JsonValue): Promise<JsonValue> {
+    const recorder = recordJevCalls(this.config.decisionModel);
     try {
       if (!isJsonObject(upstream) || upstream['isError'] === true) {
         throw new Untrimmed('upstream_error_or_invalid_result');
@@ -168,7 +173,7 @@ export class GetContextTrimmer implements DecisionModelResultNarrower {
       if (candidates.length === 0) throw new Untrimmed('no_candidates');
 
       const judged = await judge(
-        this.config.decisionModel,
+        recorder.evaluator,
         this.model,
         CONTEXT_SELECTION,
         this.config.focal,
@@ -176,10 +181,16 @@ export class GetContextTrimmer implements DecisionModelResultNarrower {
         DEFAULT_WORDING,
       );
       if (!judged.ok) {
-        throw new Untrimmed('decision_model_failed', { failureCode: judged.failure.code });
+        throw new Untrimmed('decision_model_failed', {
+          failureCode: judged.failure.code,
+          ...(judged.failure.providerStatus !== undefined
+            ? { providerStatus: judged.failure.providerStatus }
+            : {}),
+        });
       }
       const judgmentById = new Map(judged.judgments.map((judgment) => [judgment.id, judgment]));
       const tierCounts: Record<Tier, number> = { full: 0, short: 0, index: 0 };
+      const records: GetEdgesEntryRecord[] = [];
       const entriesBySeed = new Map<
         string,
         Array<{ entry: JsonValue; tier: Tier; score: number }>
@@ -190,6 +201,13 @@ export class GetContextTrimmer implements DecisionModelResultNarrower {
         if (rawEntry === undefined) throw new Untrimmed('unrecognized_edges_shape');
         if (!slot.candidate) {
           tierCounts.full += 1;
+          records.push({
+            seedId: slot.seedId,
+            position: slot.position,
+            tier: 'full',
+            judgedByDecisionModel: false,
+            text: JSON.stringify(rawEntry),
+          });
           const entries = entriesBySeed.get(slot.seedId) ?? [];
           entries.push({ entry: rawEntry, tier: 'full', score: 1 });
           entriesBySeed.set(slot.seedId, entries);
@@ -199,6 +217,14 @@ export class GetContextTrimmer implements DecisionModelResultNarrower {
         if (!judgment) throw new Error('Decision Model omitted an edge judgment.');
         const tier = tierOf(judgment, this.cutoffs);
         tierCounts[tier] += 1;
+        records.push({
+          seedId: slot.seedId,
+          position: slot.position,
+          tier,
+          relevance: judgment.relevance,
+          judgedByDecisionModel: true,
+          text: slot.candidate.text,
+        });
         const entry = tier === 'index' ? edgeIndex(slot.entry) : rawEntry;
         const entries = entriesBySeed.get(slot.seedId) ?? [];
         entries.push({ entry, tier, score: judgment.relevance });
@@ -216,7 +242,8 @@ export class GetContextTrimmer implements DecisionModelResultNarrower {
       );
       const narrowed: JsonObject = { ...original, edgesByEntity };
       const resultText = JSON.stringify(narrowed);
-      const rawSize = JSON.stringify(original).length;
+      const rawText = JSON.stringify(original);
+      const rawSize = rawText.length;
       this.config.logger.debug('local.platform_mcp_proxy.get_edges_trim.trimmed', {
         rawSize,
         narrowedSize: resultText.length,
@@ -225,6 +252,24 @@ export class GetContextTrimmer implements DecisionModelResultNarrower {
         decisionModelDurationMs: judged.durationMs,
         inputTokens: judged.usage.inputTokens,
         outputTokens: judged.usage.outputTokens,
+      });
+      await this.writeEdgesAttempt({
+        outcome: 'narrowed',
+        at: new Date().toISOString(),
+        costUsd: jevCostUsd(judged.usage),
+        inputTokens: judged.usage.inputTokens,
+        outputTokens: judged.usage.outputTokens,
+        decisionModelDurationMs: judged.durationMs,
+        rawResultChars: rawSize,
+        narrowedResultChars: resultText.length,
+        tierCounts,
+        focalEntityId: this.config.focalEntityId,
+        model: this.model,
+        focal: this.config.focal,
+        jevCalls: recorder.calls,
+        entries: records,
+        rawResult: rawText,
+        narrowedResult: resultText,
       });
       if (isStructured) {
         const content = upstream['content'];
@@ -251,16 +296,33 @@ export class GetContextTrimmer implements DecisionModelResultNarrower {
         ? { ...upstream, content: [{ ...block, text: resultText }] }
         : upstream;
     } catch (error) {
+      let reason: string;
+      let fields: Record<string, unknown>;
       if (error instanceof Untrimmed) {
+        reason = error.reason;
+        fields = error.fields;
         this.config.logger.warn('local.platform_mcp_proxy.get_edges_trim.untrimmed', {
-          reason: error.reason,
-          ...error.fields,
+          reason,
+          ...fields,
         });
       } else {
+        reason = 'unexpected_error';
+        fields = { error: error instanceof Error ? (error.stack ?? error.message) : String(error) };
         this.config.logger.error('local.platform_mcp_proxy.get_edges_trim.failed', {
           errorName: error instanceof Error ? error.name : 'unknown',
         });
       }
+
+      await this.writeEdgesAttempt({
+        outcome: 'passed_through',
+        at: new Date().toISOString(),
+        focalEntityId: this.config.focalEntityId,
+        focal: this.config.focal,
+        model: this.model,
+        reason,
+        fields,
+        jevCalls: recorder.calls,
+      });
       return upstream;
     }
   }
@@ -377,20 +439,31 @@ export class GetContextTrimmer implements DecisionModelResultNarrower {
     return { ...upstream, content: [{ ...block, text: trimmedText }] };
   }
 
+  private writeAttempt(record: GetContextAttemptRecord): Promise<void> {
+    return this.writeTrace(this.config.attemptLogDir, 'get_context_trim', record);
+  }
+
+  private writeEdgesAttempt(record: GetEdgesAttemptRecord): Promise<void> {
+    return this.writeTrace(this.config.edgesAttemptLogDir, 'get_edges_trim', record);
+  }
+
   /** A trace that cannot be written must not change the result the agent receives. */
-  private async writeAttempt(record: GetContextAttemptRecord): Promise<void> {
-    const dir = this.config.attemptLogDir;
+  private async writeTrace(
+    dir: string | null | undefined,
+    eventPrefix: 'get_context_trim' | 'get_edges_trim',
+    record: GetContextAttemptRecord | GetEdgesAttemptRecord,
+  ): Promise<void> {
     if (!dir) {
       return;
     }
 
     try {
-      const file = await writeGetContextAttemptRecord(dir, record);
-      this.config.logger.debug('local.platform_mcp_proxy.get_context_trim.attempt_logged', {
+      const file = await writeGraphResultAttemptRecord(dir, record);
+      this.config.logger.debug(`local.platform_mcp_proxy.${eventPrefix}.attempt_logged`, {
         file,
       });
     } catch (error) {
-      this.config.logger.warn('local.platform_mcp_proxy.get_context_trim.attempt_log_failed', {
+      this.config.logger.warn(`local.platform_mcp_proxy.${eventPrefix}.attempt_log_failed`, {
         errorName: error instanceof Error ? error.name : 'unknown',
       });
     }

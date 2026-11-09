@@ -23437,6 +23437,10 @@
               "type": "string",
               "description": "Real provider session id of the child that judged this attempt. Never a pending placeholder."
             },
+            "judgeSessionId": {
+              "type": ["string", "null"],
+              "description": "Agent Session of the judge, recorded as soon as it is created so a running judge is already known as an eval session. The finished assessment repeats it."
+            },
             "measurements": {
               "type": "array",
               "items": {
@@ -23457,6 +23461,10 @@
             "recordedChanges": {
               "$ref": "#/definitions/EvalRecordedChanges",
               "description": "Present for coding attempts once their changes were saved."
+            },
+            "recordedToolCalls": {
+              "$ref": "#/definitions/EvalRecordedToolCalls",
+              "description": "The tested agent\\'s own tool calls, without results. Absent on attempts recorded before tool calls were kept."
             },
             "judgedOutput": {
               "type": [
@@ -24970,6 +24978,79 @@
         {
           "type": "string",
           "const": "deleted"
+        },
+        {}
+      ]
+    },
+    "EvalRecordedToolCalls": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "$ref": "#/definitions/EvalRecordedToolCallsStateEnum"
+        },
+        "calls": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/EvalRecordedToolCall"
+          },
+          "description": "Empty when state is UNAVAILABLE."
+        },
+        "omittedCalls": {
+          "type": "number",
+          "description": "Number of further calls left out once the list reached its cap."
+        }
+      },
+      "required": ["state", "calls"],
+      "description": "The tool calls one attempt made, in order. UNAVAILABLE means they could not be collected, which is different from COLLECTED with no calls."
+    },
+    "EvalRecordedToolCallsStateEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "COLLECTED"
+        },
+        {
+          "type": "string",
+          "const": "UNAVAILABLE"
+        },
+        {}
+      ]
+    },
+    "EvalRecordedToolCall": {
+      "type": "object",
+      "properties": {
+        "toolName": {
+          "type": "string"
+        },
+        "arguments": {
+          "type": "string",
+          "description": "Serialized arguments the agent passed, cut to a fixed size when large."
+        },
+        "origin": {
+          "$ref": "#/definitions/EvalRecordedToolCallOriginEnum",
+          "description": "RUN_OBSERVED calls come from the Run\\'s retained tool usage. INTERCEPTED is reserved for calls the CLI answered itself without performing them."
+        },
+        "agentText": {
+          "type": "string",
+          "description": "Text the agent wrote with an INTERCEPTED call."
+        },
+        "truncated": {
+          "type": "boolean",
+          "description": "True when arguments were cut."
+        }
+      },
+      "required": ["toolName", "origin", "truncated"],
+      "description": "One tool call an attempt\\'s tested agent made. The call\\'s result is never kept. Evidence only; never shown to the tested agent or other attempts."
+    },
+    "EvalRecordedToolCallOriginEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "RUN_OBSERVED"
+        },
+        {
+          "type": "string",
+          "const": "INTERCEPTED"
         },
         {}
       ]

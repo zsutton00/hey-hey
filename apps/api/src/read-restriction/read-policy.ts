@@ -23,6 +23,8 @@ const EVAL_GRADING_REPORT_TYPES = [
 export interface ReadPolicy {
   readonly excludedTaskTypes: readonly string[];
   readonly excludedReportTypes: readonly PrismaReportType[];
+  /** Whether the sessions an eval run records (coordinator, attempts, judges) are hidden. */
+  readonly hidesEvalSessions: boolean;
   /** Stable identity of the effective exclusions, for scoping caches. */
   readonly scope: string;
 }
@@ -30,10 +32,12 @@ export interface ReadPolicy {
 const buildPolicy = (
   excludedTaskTypes: readonly string[],
   excludedReportTypes: readonly PrismaReportType[],
+  hidesEvalSessions = false,
 ): ReadPolicy => ({
   excludedTaskTypes,
   excludedReportTypes,
-  scope: `tasks:${[...excludedTaskTypes].sort().join(',')}|reports:${[...excludedReportTypes].sort().join(',')}`,
+  hidesEvalSessions,
+  scope: `tasks:${[...excludedTaskTypes].sort().join(',')}|reports:${[...excludedReportTypes].sort().join(',')}|sessions:${hidesEvalSessions}`,
 });
 
 export const UNRESTRICTED_READ_POLICY: ReadPolicy = buildPolicy([], []);
@@ -43,7 +47,7 @@ export function readPolicyFor(
   restriction: ReadRestriction | undefined,
 ): ReadPolicy {
   if (restriction === ReadRestriction.EvalTarget) {
-    return buildPolicy(EVAL_DEFINITION_TYPES, EVAL_GRADING_REPORT_TYPES);
+    return buildPolicy(EVAL_DEFINITION_TYPES, EVAL_GRADING_REPORT_TYPES, true);
   }
 
   if (restriction === ReadRestriction.EvalJudge) {

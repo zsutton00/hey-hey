@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod/v4';
 import { SessionValidationError } from '../session/errors';
+import type { EvalSearchScope } from '../shared/agent-bridge-contract/runtime-types';
 import { resolveBaseDir } from '../session/paths';
 import type {
   AgenticSession,
@@ -211,12 +212,39 @@ class RunMetadataMigrationRequiredError extends SessionValidationError {
   }
 }
 
+const evalSearchScopeSchema = z.object({
+  createdBefore: z.string(),
+  excludeConnectedTo: z.array(z.string()),
+  hiddenEntityIds: z.array(z.string()),
+});
+
+const sameSearchScope = (
+  left: EvalSearchScope | undefined,
+  right: EvalSearchScope | undefined,
+): boolean => {
+  if (!left || !right) {
+    return left === right;
+  }
+
+  return (
+    left.createdBefore === right.createdBefore &&
+    left.excludeConnectedTo.length === right.excludeConnectedTo.length &&
+    left.excludeConnectedTo.every((id, index) => id === right.excludeConnectedTo[index])
+  );
+};
+
 const legacyPlanRunEntitySchema = z.object({ entityType: z.literal('PLAN') }).passthrough();
 
 const parseRunMetadata = (text: string): AgenticSession => {
   const parsed = JSON.parse(text) as Record<string, unknown>;
   if (parsed['inert'] !== undefined && typeof parsed['inert'] !== 'boolean') {
     throw new SessionValidationError('Persisted Run inertness must be boolean.');
+  }
+  if (
+    parsed['searchScope'] !== undefined &&
+    !evalSearchScopeSchema.safeParse(parsed['searchScope']).success
+  ) {
+    throw new SessionValidationError('Persisted Run search scope is invalid.');
   }
   if (!Object.hasOwn(parsed, 'entity')) {
     throw new SessionValidationError('Persisted Run metadata is missing entity.');
@@ -401,6 +429,24 @@ const toTransientAgenticSessionEvent = (
   ...(input.payload !== undefined ? { payload: input.payload } : {}),
   ...(input.payload_ref !== undefined ? { payload_ref: input.payload_ref } : {}),
 });
+
+const toolUsageEntrySchema = z.object({
+  providerSessionId: z.string().nullish(),
+  toolName: z.string(),
+  toolUseId: z.string(),
+  input: z.looseObject({}).optional(),
+});
+
+/** One call the tested agent made, as retained by the Run. Results are never kept. */
+export interface RunToolCall {
+  toolName: string;
+  input?: object;
+}
+
+export type RunResult = Pick<SubAgentResult, 'assistantCompleted' | 'outputText' | 'usage'> & {
+  /** Absent when the Run retained none, which cannot be told apart from collection being off. */
+  toolCalls?: RunToolCall[];
+};
 
 export class RunStore {
   private readonly unavailableUsageRuns = new Set<string>();
@@ -982,9 +1028,7 @@ export class RunStore {
   }
 
   /** Reads retained evidence without preparing, promoting, or rewriting the Run. */
-  public async getRunResult(
-    runId: string,
-  ): Promise<Pick<SubAgentResult, 'assistantCompleted' | 'outputText' | 'usage'> | null> {
+  public async getRunResult(runId: string): Promise<RunResult | null> {
     const run = await this.getRunMetadata(runId);
     if (!run) {
       return null;
@@ -992,6 +1036,7 @@ export class RunStore {
 
     const bytes = await this.readCompatibleMember(runId, 'toolUsage');
     const tools = bytes ? z.array(z.json()).parse(JSON.parse(new TextDecoder().decode(bytes))) : [];
+    const toolCalls = bytes ? this.ownToolCalls(run, tools) : undefined;
     const latest = run.latestTurn;
     const assistantCompleted = latest?.state === 'settled' && latest.outcome === 'COMPLETED';
     const answer = run.finalAssistantMessage;
@@ -1009,7 +1054,43 @@ export class RunStore {
           : {}),
         ...(tools.length > 0 ? { toolCalls: tools.length } : {}),
       },
+      ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
     };
+  }
+
+  /**
+   * The tested agent's own calls in order, without results. A lifecycle event
+   * that repeats a call is dropped, and so are calls by delegated children,
+   * whose provider sessions are not in the Run's history.
+   */
+  private ownToolCalls(run: AgenticSession, entries: unknown[]): RunToolCall[] {
+    const ownSessions = new Set(
+      [
+        run.provider_session_id,
+        ...(run.provider_session_history ?? []).map((h) => h.providerSessionId),
+      ].filter((id): id is string => !!id),
+    );
+    const seen = new Set<string>();
+    const calls: RunToolCall[] = [];
+    for (const raw of entries) {
+      const parsed = toolUsageEntrySchema.safeParse(raw);
+      if (!parsed.success) {
+        continue;
+      }
+      const entry = parsed.data;
+      const source = entry.providerSessionId ?? null;
+      if (source !== null && !ownSessions.has(source)) {
+        continue;
+      }
+      const key = JSON.stringify([source, entry.toolUseId]);
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      calls.push({ toolName: entry.toolName, ...(entry.input ? { input: entry.input } : {}) });
+    }
+
+    return calls;
   }
 
   public updateRunLatestTurn(
@@ -1115,6 +1196,12 @@ export class RunStore {
         if (input.inert !== undefined && input.inert !== (existing.inert ?? false)) {
           throw new SessionValidationError('Run inertness cannot change after creation.');
         }
+        if (
+          input.searchScope !== undefined &&
+          !sameSearchScope(input.searchScope, existing.searchScope)
+        ) {
+          throw new SessionValidationError('Run search scope cannot change after creation.');
+        }
         if (!sameRunEntity(existing.entity, parsedEntity.data)) {
           throw new SessionValidationError(
             'A Run with this agent session id already exists with a different entity.',
@@ -1138,6 +1225,7 @@ export class RunStore {
       const baseEntry = {
         agentic_session_id: agenticSessionId,
         inert: input.inert ?? false,
+        ...(input.searchScope ? { searchScope: input.searchScope } : {}),
         ...(input.workspaceBound ? { workspaceBound: true } : {}),
         entity: parsedEntity.data,
         services: input.services,

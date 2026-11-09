@@ -2,9 +2,12 @@ import type { OAuthClient } from '../auth/index';
 import { extractOrganizationIdFromToken } from '../auth/index';
 import type { ReadRestriction } from '@hey-hey/contracts/api/models';
 import { readRestrictionFor, readRestrictionHeaders } from '../shared/api/read-restriction';
+import type { EvalSearchScope } from '../shared/agent-bridge-contract/runtime-types';
 
 export interface McpSessionContext {
   readonly inert?: boolean;
+  /** Limits what an inert eval attempt's `unified_search` can find about its own case. */
+  readonly searchScope?: EvalSearchScope | undefined;
   /** Overrides what `inert` implies, for executions restricted without being inert (the judge). */
   readonly readRestriction?: ReadRestriction | undefined;
   projectId?: string | undefined;
@@ -290,7 +293,15 @@ export const HINT_WRITE_MCP_TOOLS: readonly string[] = [
   'add_hint_connection',
   'delete_hint',
 ];
-export const HINT_READ_MCP_TOOLS: readonly string[] = ['get_hints_for_items'];
+/**
+ * Review corrects or deletes the hints its target session wrote. It is not an open-ended session,
+ * so it gets only these tools and not the rest of `HINT_WRITE_MCP_TOOLS`.
+ */
+export const HINT_REVIEW_MCP_TOOLS: readonly string[] = ['update_hint', 'delete_hint'];
+export const HINT_READ_MCP_TOOLS: readonly string[] = [
+  'get_hints_for_items',
+  'get_hints_by_session',
+];
 
 /**
  * Sessions that do open-ended work get hints. Curated surfaces (reports,

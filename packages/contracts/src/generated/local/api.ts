@@ -21,4 +21,5 @@ export * from './apis/run-attachments-api.js';
 export * from './apis/run-browser-api.js';
 export * from './apis/run-changed-file-detail-api.js';
 export * from './apis/run-changed-files-inventory-api.js';
+export * from './apis/run-provider-session-transcript-api.js';
 export * from './apis/run-tool-calls-latest-turn-api.js';

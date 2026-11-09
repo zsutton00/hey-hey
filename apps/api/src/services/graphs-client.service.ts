@@ -13,12 +13,16 @@ import {
   FindHintsByConnectedItemsRequest,
   FindHintsByConnectedItemsResponse,
   Hint,
+  HintOriginEntityType,
+  ListProjectHintsResponse,
   HintConnectionInput,
   EntityNeighborhoodResponse,
   IncidentEdgesRequest,
   IncidentEdgesResponse,
   ProjectionDeletionCommand,
   ProjectionDeletionResult,
+  SearchExclusionRequest,
+  SearchExclusionResponse,
   SearchRequest,
   SearchResponse,
   StructuredGraphReadRequest,
@@ -126,6 +130,25 @@ export class GraphsClientService {
     return response.data;
   }
 
+  async updateHintText(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    hintId: string,
+    text: string,
+    userToken: string,
+  ): Promise<Hint> {
+    const response = await firstValueFrom<AxiosResponse<Hint>>(
+      this.hintsService.updateHintText(
+        organizationId,
+        projectId,
+        hintId,
+        { text },
+        this.userAuthConfig(userToken),
+      ),
+    );
+    return response.data;
+  }
+
   async retireHint(
     organizationId: OrganizationId,
     projectId: ProjectId,
@@ -155,6 +178,27 @@ export class GraphsClientService {
         organizationId,
         projectId,
         request,
+        this.userAuthConfig(userToken),
+      ),
+    );
+    return response.data;
+  }
+
+  async findHintsByOrigin(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    originEntityType: HintOriginEntityType,
+    originEntityId: string,
+    userToken: string,
+  ): Promise<ListProjectHintsResponse> {
+    const response = await firstValueFrom<
+      AxiosResponse<ListProjectHintsResponse>
+    >(
+      this.hintsService.findHintsByOrigin(
+        organizationId,
+        projectId,
+        originEntityType,
+        originEntityId,
         this.userAuthConfig(userToken),
       ),
     );
@@ -255,6 +299,25 @@ export class GraphsClientService {
       });
       throw error;
     }
+  }
+
+  async resolveSearchExclusion(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    request: SearchExclusionRequest,
+    userToken: string,
+  ): Promise<SearchExclusionResponse> {
+    const response = await firstValueFrom<
+      AxiosResponse<SearchExclusionResponse>
+    >(
+      this.queriesService.resolveSearchExclusion(
+        organizationId,
+        projectId,
+        request,
+        this.userAuthConfig(userToken),
+      ),
+    );
+    return response.data;
   }
 
   async checkFeatureProjectConnection(

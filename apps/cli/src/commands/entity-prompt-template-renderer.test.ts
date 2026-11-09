@@ -63,24 +63,30 @@ const context = (): FullEntityContextDto => ({
     priority: 'HIGH',
     dueDate: '2026-08-21',
   },
-  relatedEntities: [
+  groupedRelatedEntities: [
     {
       entityId: 'related-z',
       entityType: 'TASK',
       displayName: 'Related $& \\{{literal}}',
-      relationship: 'related-to',
+      relationships: [{ relationship: 'related-to' }],
     },
     {
       entityId: 'related-a',
       entityType: 'PLAN',
       displayName: 'Related A',
-      relationship: 'depends-on',
-      via: [
+      relationships: [
+        { relationship: 'depends-on' },
+        { relationship: 'mentions' },
         {
-          entityId: 'pivot-z',
-          entityType: 'TASK',
-          displayName: 'Pivot Z',
           relationship: 'parent',
+          via: [
+            {
+              entityId: 'pivot-z',
+              entityType: 'TASK',
+              displayName: 'Pivot Z',
+              relationship: 'parent',
+            },
+          ],
         },
       ],
     },
@@ -206,46 +212,43 @@ describe('renderEntityPromptTemplate', () => {
       );
 
       expect(first).toBe(second);
-      expect(Array.isArray(JSON.parse(first))).toBe(true);
+      if (path !== 'entity.sections') {
+        expect(Array.isArray(JSON.parse(first))).toBe(true);
+      }
     }
 
-    expect(JSON.parse(renderEntityPromptTemplate('{{entity.sections}}', 'V1', input()))).toEqual([
-      {
-        id: 'section-acceptance',
-        key: 'acceptanceCriteria',
-        order: -1,
-        materializedMarkdown: 'Acceptance $& \\{{literal}}',
-        crdtSnapshotSeq: 7,
-      },
-      {
-        id: 'section-description',
-        key: 'description',
-        order: 0,
-        materializedMarkdown: 'Authoritative description {{literal}}',
-      },
-    ]);
+    expect(renderEntityPromptTemplate('{{entity.sections}}', 'V1', input())).toBe(
+      '### Acceptance Criteria\nAcceptance $& \\{{literal}}\n\n' +
+        '### Description\nAuthoritative description {{literal}}',
+    );
     expect(
       JSON.parse(renderEntityPromptTemplate('{{context.relatedEntities}}', 'V1', input())),
     ).toEqual([
       {
-        entityId: 'related-z',
-        entityType: 'TASK',
-        displayName: 'Related $& \\{{literal}}',
-        relationship: 'related-to',
-      },
-      {
         entityId: 'related-a',
         entityType: 'PLAN',
         displayName: 'Related A',
-        relationship: 'depends-on',
-        via: [
+        relationships: [
+          { relationship: 'depends-on' },
+          { relationship: 'mentions' },
           {
-            entityId: 'pivot-z',
-            entityType: 'TASK',
-            displayName: 'Pivot Z',
             relationship: 'parent',
+            via: [
+              {
+                entityId: 'pivot-z',
+                entityType: 'TASK',
+                displayName: 'Pivot Z',
+                relationship: 'parent',
+              },
+            ],
           },
         ],
+      },
+      {
+        entityId: 'related-z',
+        entityType: 'TASK',
+        displayName: 'Related $& \\{{literal}}',
+        relationships: [{ relationship: 'related-to' }],
       },
     ]);
     expect(
@@ -328,29 +331,39 @@ describe('renderEntityPromptTemplate', () => {
 
   it('prioritizes semantic, parent, then pivot-derived entities and bounds via provenance', () => {
     const renderInput = input();
-    renderInput.context.relatedEntities = [
+    renderInput.context.groupedRelatedEntities = [
       {
         entityId: 'pivot',
         entityType: 'TASK',
         displayName: 'Pivot',
-        relationship: 'sibling-via-parent',
-        via: Array.from({ length: 7 }, (_, index) => ({
-          entityId: `via-${index}`,
-          entityType: 'TASK',
-          displayName: `Via ${index}`,
-          relationship: 'parent' as const,
-        })),
+        relationships: [
+          {
+            relationship: 'sibling-via-parent',
+            via: Array.from({ length: 7 }, (_, index) => ({
+              entityId: `via-${index}`,
+              entityType: 'TASK',
+              displayName: `Via ${index}`,
+              relationship: 'parent' as const,
+            })),
+          },
+        ],
       },
-      { entityId: 'parent', entityType: 'TASK', displayName: 'Parent', relationship: 'parent' },
+      {
+        entityId: 'parent',
+        entityType: 'TASK',
+        displayName: 'Parent',
+        relationships: [{ relationship: 'parent' }],
+      },
       {
         entityId: 'semantic',
         entityType: 'TASK',
         displayName: 'Semantic',
-        relationship: 'depends-on',
-        source: 'agent',
-        reasoning: 'Required first',
         status: 'ACTIVE',
         taskType: 'STANDARD',
+        relationships: [
+          { relationship: 'depends-on', source: 'agent', reasoning: 'Required first' },
+          { relationship: 'mentions', source: 'system' },
+        ],
       },
     ];
 
@@ -363,21 +376,23 @@ describe('renderEntityPromptTemplate', () => {
       'pivot',
     ]);
     expect(rendered[0]).toMatchObject({
-      source: 'agent',
-      reasoning: 'Required first',
       status: 'ACTIVE',
       taskType: 'STANDARD',
+      relationships: [
+        { relationship: 'depends-on', source: 'agent', reasoning: 'Required first' },
+        { relationship: 'mentions', source: 'system' },
+      ],
     });
-    expect(rendered[2].via).toHaveLength(5);
+    expect(rendered[2].relationships[0].via).toHaveLength(5);
   });
 
   it('keeps non-proposal collections within 32 KiB as valid UTF-8 JSON arrays of whole entries', () => {
     const renderInput = input();
-    renderInput.context.relatedEntities = Array.from({ length: 20 }, (_, index) => ({
+    renderInput.context.groupedRelatedEntities = Array.from({ length: 20 }, (_, index) => ({
       entityId: `related-${String(index).padStart(2, '0')}`,
       entityType: 'TASK',
       displayName: `Entity ${index} ${'🙂'.repeat(700)}`,
-      relationship: 'related-to' as const,
+      relationships: [{ relationship: 'related-to' as const }],
     }));
 
     const rendered = renderEntityPromptTemplate('{{context.relatedEntities}}', 'V1', renderInput);
@@ -391,12 +406,12 @@ describe('renderEntityPromptTemplate', () => {
 
   it('drops an individually oversized multibyte entry without splitting it', () => {
     const renderInput = input();
-    renderInput.context.relatedEntities = [
+    renderInput.context.groupedRelatedEntities = [
       {
         entityId: 'oversized',
         entityType: 'TASK',
         displayName: '🙂'.repeat(9_000),
-        relationship: 'related-to',
+        relationships: [{ relationship: 'related-to' }],
       },
     ];
 
@@ -405,11 +420,11 @@ describe('renderEntityPromptTemplate', () => {
 
   it('shares the 128 KiB allowance across repeated structured substitutions in template order', () => {
     const renderInput = input();
-    renderInput.context.relatedEntities = Array.from({ length: 30 }, (_, index) => ({
+    renderInput.context.groupedRelatedEntities = Array.from({ length: 30 }, (_, index) => ({
       entityId: `related-${String(index).padStart(2, '0')}`,
       entityType: 'TASK',
       displayName: `Entity ${index} ${'x'.repeat(1400)}`,
-      relationship: 'related-to' as const,
+      relationships: [{ relationship: 'related-to' as const }],
     }));
     const separator = '\n---collection---\n';
     const rendered = renderEntityPromptTemplate(
@@ -431,7 +446,7 @@ describe('renderEntityPromptTemplate', () => {
   it('fails closed when complete empty arrays cannot fit in the aggregate allowance', () => {
     const template = Array(65_537).fill('{{context.relatedEntities}}').join('');
     const renderInput = input();
-    renderInput.context.relatedEntities = [];
+    renderInput.context.groupedRelatedEntities = [];
 
     expect(() => renderEntityPromptTemplate(template, 'V1', renderInput)).toThrow(
       'structured substitutions exceed the aggregate byte limit',
@@ -470,7 +485,7 @@ describe('renderEntityPromptTemplate', () => {
 
   it('renders present empty structured collections and fails closed for missing ones', () => {
     const emptyInput = input();
-    emptyInput.context.relatedEntities = [];
+    emptyInput.context.groupedRelatedEntities = [];
     expect(
       renderEntityPromptTemplate(
         '{{context.relatedEntities}}',
@@ -481,7 +496,7 @@ describe('renderEntityPromptTemplate', () => {
 
     const missingInput = input();
     const missingContext = { ...missingInput.context };
-    delete missingContext.relatedEntities;
+    delete missingContext.groupedRelatedEntities;
     missingInput.context = missingContext;
     expect(() =>
       renderEntityPromptTemplate(
@@ -556,7 +571,7 @@ describe('renderEntityPromptTemplate', () => {
       const empty = input();
       empty.context = {
         ...empty.context,
-        relatedEntities: [],
+        groupedRelatedEntities: [],
         proposals: [],
         content: { sections: { description: '' } },
       };
@@ -642,7 +657,7 @@ describe('renderEntityPromptTemplate', () => {
       it('falls back or omits sections when the values are absent or empty', () => {
         const sparse = input();
         sparse.entity = { ...entity(), name: 'Add conditional blocks', sections: [] };
-        sparse.context = { ...context(), relatedEntities: [], proposals: [] };
+        sparse.context = { ...context(), groupedRelatedEntities: [], proposals: [] };
 
         expect(render(template, sparse)).toBe(
           [
@@ -718,5 +733,108 @@ describe('saved report values', () => {
     expect(() =>
       renderEntityPromptTemplate('{{reports.CODING_RESEARCH.latest.body}}', 'V1', withReports()),
     ).toThrow(/not supported/);
+  });
+});
+
+describe('entity.sections as readable markdown', () => {
+  const cite = (entityType: string, entityId: string, entityTitle: string) => ({
+    entityType,
+    entityId,
+    entityTitle,
+  });
+  const featureWith = (sections: { key: string; order: number; markdown: string }[]) => ({
+    ...entity(),
+    type: 'FEATURE',
+    sections: sections.map(({ key, order, markdown }) => ({
+      id: `section-${key}`,
+      key,
+      order,
+      materializedMarkdown: markdown,
+      materializedProposalId: asProposalId('11111111-1111-4111-8111-111111111111'),
+    })),
+  });
+  const render = (e: unknown) =>
+    renderEntityPromptTemplate('{{entity.sections}}', 'V1', {
+      ...input(),
+      entity: e as TaskResponseDto,
+    });
+  const requirements = JSON.stringify({
+    records: [
+      {
+        id: 'r1',
+        statement: 'Ungrouped one.',
+        designedBy: [cite('DESIGN_DOC', 'd1', 'Doc')],
+        fulfilledBy: [cite('TASK', 't1', 'Task')],
+        contracts: [cite('CONTRACT', 'c1', 'Contract')],
+      },
+      {
+        id: 'r2',
+        statement: 'Alpha one.',
+        group: 'Alpha',
+        designedBy: [],
+        fulfilledBy: [],
+        contracts: [],
+      },
+      { id: 'r3', statement: 'Ungrouped two.', designedBy: [], fulfilledBy: [], contracts: [] },
+      {
+        id: 'r4',
+        statement: 'Alpha two.',
+        group: 'Alpha',
+        designedBy: [],
+        fulfilledBy: [],
+        contracts: [],
+      },
+    ],
+  });
+
+  it('writes requirements as grouped lines with citation mentions and no stored JSON', () => {
+    const rendered = render(
+      featureWith([
+        { key: 'description', order: 0, markdown: 'About.' },
+        { key: 'requirements', order: 1, markdown: requirements },
+      ]),
+    );
+
+    expect(rendered).toBe(
+      [
+        '### Description\nAbout.',
+        '### Requirements\nRequirement ids for edits: `get_full_entity`.',
+        '- Ungrouped one. — designed by @[DESIGN_DOC:d1|Doc]; fulfilled by @[TASK:t1|Task]; contracted by @[CONTRACT:c1|Contract]\n- Ungrouped two.',
+        '#### Alpha\n- Alpha one.\n- Alpha two.',
+      ].join('\n\n'),
+    );
+    expect(rendered).not.toMatch(/[{"]/u);
+  });
+
+  it('falls back to raw text for a malformed requirements section only', () => {
+    const rendered = render(
+      featureWith([
+        { key: 'description', order: 0, markdown: 'About.' },
+        { key: 'requirements', order: 1, markdown: '{"records":[{"id":1}]}' },
+      ]),
+    );
+
+    expect(rendered).toBe('### Description\nAbout.\n\n### Requirements\n{"records":[{"id":1}]}');
+  });
+
+  it('cuts an over-budget requirements section at whole lines', () => {
+    const records = Array.from({ length: 600 }, (_, index) => ({
+      id: `r${String(index)}`,
+      statement: `Requirement number ${String(index)} ${'x'.repeat(80)}`,
+      designedBy: [],
+      fulfilledBy: [],
+      contracts: [],
+    }));
+    const rendered = render(
+      featureWith([{ key: 'requirements', order: 0, markdown: JSON.stringify({ records }) }]),
+    );
+
+    expect(Buffer.byteLength(rendered, 'utf8')).toBeLessThanOrEqual(32 * 1024);
+    const lines = rendered.split('\n').filter((line) => line.startsWith('- '));
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines.length).toBeLessThan(600);
+    for (const line of lines) {
+      expect(line).toMatch(/^- Requirement number \d+ x{80}$/u);
+    }
   });
 });

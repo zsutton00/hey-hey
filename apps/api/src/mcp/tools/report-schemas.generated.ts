@@ -1144,6 +1144,19 @@ export const REPORT_SCHEMAS = {
               description:
                 'Real provider session id of the child that judged this attempt. Never a pending placeholder.',
             },
+            judgeSessionId: {
+              anyOf: [
+                {
+                  type: 'string',
+                  format: 'uuid',
+                  description:
+                    'Agent Session of the judge, recorded as soon as it is created so a running judge is already known as an eval session. The finished assessment repeats it.\n',
+                },
+                {
+                  type: 'null',
+                },
+              ],
+            },
             measurements: {
               type: 'array',
               description:
@@ -1412,6 +1425,67 @@ export const REPORT_SCHEMAS = {
               ],
               description:
                 'Present for coding attempts once their changes were saved.',
+            },
+            recordedToolCalls: {
+              allOf: [
+                {
+                  type: 'object',
+                  additionalProperties: false,
+                  description:
+                    'The tool calls one attempt made, in order. UNAVAILABLE means they could not be collected, which is different from COLLECTED with no calls.\n',
+                  required: ['state', 'calls'],
+                  properties: {
+                    state: {
+                      type: 'string',
+                      enum: ['COLLECTED', 'UNAVAILABLE'],
+                    },
+                    calls: {
+                      type: 'array',
+                      description: 'Empty when state is UNAVAILABLE.',
+                      items: {
+                        type: 'object',
+                        additionalProperties: false,
+                        description:
+                          "One tool call an attempt's tested agent made. The call's result is never kept. Evidence only; never shown to the tested agent or other attempts.\n",
+                        required: ['toolName', 'origin', 'truncated'],
+                        properties: {
+                          toolName: {
+                            type: 'string',
+                          },
+                          arguments: {
+                            type: 'string',
+                            description:
+                              'Serialized arguments the agent passed, cut to a fixed size when large.',
+                          },
+                          origin: {
+                            type: 'string',
+                            enum: ['RUN_OBSERVED', 'INTERCEPTED'],
+                            description:
+                              "RUN_OBSERVED calls come from the Run's retained tool usage. INTERCEPTED is reserved for calls the CLI answered itself without performing them.\n",
+                          },
+                          agentText: {
+                            type: 'string',
+                            description:
+                              'Text the agent wrote with an INTERCEPTED call.',
+                          },
+                          truncated: {
+                            type: 'boolean',
+                            description: 'True when arguments were cut.',
+                          },
+                        },
+                      },
+                    },
+                    omittedCalls: {
+                      type: 'integer',
+                      minimum: 1,
+                      description:
+                        'Number of further calls left out once the list reached its cap.',
+                    },
+                  },
+                },
+              ],
+              description:
+                "The tested agent's own tool calls, without results. Absent on attempts recorded before tool calls were kept.\n",
             },
             judgedOutput: {
               anyOf: [

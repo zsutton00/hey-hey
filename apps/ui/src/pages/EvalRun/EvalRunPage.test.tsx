@@ -7,6 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import type React from "react";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EvalAttemptReport, EvalRunReport } from "@hey-hey/ui-common/data";
 
@@ -22,6 +23,14 @@ const mockReport = vi.fn();
 let mockSessionError: string | null = null;
 let mockLocationState: unknown = null;
 let mockSelectedAttempt: string | null = null;
+
+const mockReadTranscript = vi.fn();
+const RAW_SESSION = JSON.stringify({
+  type: "user",
+  uuid: "11111111-1111-4111-8111-111111111111",
+  message: { role: "user", content: "Fix the bug" },
+});
+const mockTranscripts: Record<string, unknown> = {};
 
 vi.mock("react-router-dom", () => ({
   useNavigate: () => mockNavigate,
@@ -83,6 +92,15 @@ vi.mock("@hey-hey/ui-common/components", () => ({
   }),
   resolveAgentBridgeRecoveryState: () => ({ type: "loading" }),
   ModelSelectorMachineSelection: () => <div data-testid="machine-picker" />,
+  FunctionalDialog: ({
+    open,
+    children,
+    "data-testid": testId,
+  }: {
+    open: boolean;
+    children: React.ReactNode;
+    "data-testid"?: string;
+  }) => (open ? <div data-testid={testId}>{children}</div> : null),
 }));
 
 vi.mock("@hey-hey/ui-common/data", async (importOriginal) => ({
@@ -109,6 +127,22 @@ vi.mock("@hey-hey/ui-common/data", async (importOriginal) => ({
     error: null,
   }),
   useService: () => ({ data: { name: "hey-hey" } }),
+  useProviderSessionTranscript: () => {
+    const [state, setState] = useState<unknown>({ status: "idle" });
+    return {
+      state,
+      read: (target: { providerSessionId: string }) => {
+        mockReadTranscript(target);
+        setState(
+          mockTranscripts[target.providerSessionId] ?? {
+            status: "unavailable",
+            reason: "SESSION_FILE_NOT_FOUND",
+          },
+        );
+      },
+      reset: () => setState({ status: "idle" }),
+    };
+  },
   useEvalRunSession: () => ({
     start: mockStart,
     stop: mockStop,
@@ -239,6 +273,7 @@ const endedAttempts = [
     status: "COMPLETED",
     judgedOutput: "SAVED-OUTPUT",
     attemptProviderSessionIds: ["provider-first"],
+    judgeProviderSessionId: "judge-provider-session",
     automatedAssessment: {
       judgeSessionId: "judge-agent-session",
       checkResults: [{ checkId: "no-direct", passed: true }],
@@ -428,7 +463,7 @@ describe("EvalRunPage", () => {
 
     const detail = screen.getByTestId("eval-attempt-detail-finished");
     expect(
-      within(detail).getByTestId("eval-attempt-provider-ids"),
+      within(detail).getByTestId("eval-attempt-sessions"),
     ).toHaveTextContent("provider-first");
     expect(
       within(detail).getByTestId("eval-open-judge-session"),
@@ -447,6 +482,192 @@ describe("EvalRunPage", () => {
     );
     expect(screen.getByTestId("eval-check-no-direct")).toHaveTextContent(
       "No direct changes",
+    );
+  });
+
+  it("lists provider sessions as rows with resume commands, not-reported ids and the judge input modal", () => {
+    const sessionsRun = {
+      id: "run-2",
+      organizationId: "org",
+      projectId: "p1",
+      title: "Run sessions",
+      createdAt: "2026-10-22T10:00:00.000Z",
+      payload: {
+        reportType: "EVAL_RUN",
+        evalId: "eval-1",
+        status: "FINISHED",
+        judgeSetup: { provider: "claude", model: "claude-opus-5-5" },
+        cases: [
+          {
+            id: "case-1",
+            evalCaseId: "eval-case-1",
+            title: "Case",
+            grading: { expectations: "Do the thing.", checks: [], rubric: [] },
+          },
+        ],
+        configurations: [
+          {
+            id: "setup-rotated",
+            target: { provider: "claude", model: "opus" },
+          },
+          {
+            id: "setup-no-command",
+            target: { provider: "opencode", model: "m" },
+          },
+          { id: "setup-bare", target: { provider: "codex", model: "m" } },
+        ],
+        settings: { maxConcurrentAttempts: 3 },
+        coordinatorAgentSessionId: "coordinator",
+        coordinatorConversationId: "coordinator-conversation",
+      },
+    } as unknown as EvalRunReport;
+    const [setupRotated, setupNoCommand, setupBare] =
+      sessionsRun.payload.configurations;
+
+    const rotated = attempt("rotated", "case-1", setupRotated, {
+      status: "COMPLETED",
+      attemptProviderSessionIds: ["provider-a", "provider-b", "pending_c"],
+      judgeProviderSessionId: "judge-session-1",
+      judgedOutput: "WHAT THE JUDGE SAW",
+      automatedAssessment: {
+        judgeSessionId: "judge-agent-rotated",
+        checkResults: [],
+        recognition: { recognized: true, explanation: "ok" },
+        quality: [],
+        createdAt: "2026-10-22T10:20:00.000Z",
+      },
+    });
+    const noCommand = attempt("no-command", "case-1", setupNoCommand, {
+      status: "COMPLETED",
+      attemptProviderSessionIds: ["provider-opencode"],
+    });
+    const bare = attempt("bare", "case-1", setupBare, {
+      status: "COMPLETED",
+    });
+
+    givenRun(sessionsRun, [rotated, noCommand, bare]);
+    render(<EvalRunPage />);
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-rotated"));
+    const rotatedDetail = screen.getByTestId("eval-attempt-detail-rotated");
+    expect(rotatedDetail).toHaveTextContent("provider-a");
+    expect(rotatedDetail).toHaveTextContent("provider-b");
+    expect(rotatedDetail).not.toHaveTextContent("pending_c");
+    expect(rotatedDetail).toHaveTextContent("claude --resume provider-a");
+    expect(rotatedDetail).toHaveTextContent("claude --resume provider-b");
+    expect(rotatedDetail).toHaveTextContent("claude --resume judge-session-1");
+
+    fireEvent.click(within(rotatedDetail).getByTestId("eval-judge-view-input"));
+    expect(screen.getByTestId("eval-judge-input-modal")).toHaveTextContent(
+      "WHAT THE JUDGE SAW",
+    );
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-no-command"));
+    const noCommandDetail = screen.getByTestId(
+      "eval-attempt-detail-no-command",
+    );
+    expect(noCommandDetail).toHaveTextContent("provider-opencode");
+    expect(noCommandDetail).not.toHaveTextContent("resume");
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-bare"));
+    const bareDetail = screen.getByTestId("eval-attempt-detail-bare");
+    expect(
+      within(bareDetail).getByTestId("eval-attempt-sessions"),
+    ).toHaveTextContent("eval.results.notReported");
+    expect(
+      within(bareDetail).getByTestId("eval-attempt-judged-none"),
+    ).toBeInTheDocument();
+    expect(
+      within(bareDetail).queryByTestId("eval-judge-view-input"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("reads one provider session's raw text on demand and explains an unavailable one", () => {
+    mockTranscripts["provider-a"] = {
+      status: "available",
+      text: RAW_SESSION,
+      truncated: false,
+    };
+    const readable = attempt("readable", "case-1", setupA, {
+      status: "COMPLETED",
+      attemptProviderSessionIds: ["provider-a", "provider-missing"],
+    });
+    givenRun(run("FINISHED"), [readable]);
+    render(<EvalRunPage />);
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-readable"));
+    fireEvent.click(screen.getByTestId("eval-attempt-read-session-0"));
+    expect(mockReadTranscript).toHaveBeenCalledWith(
+      expect.objectContaining({
+        runId: "session-readable",
+        providerSessionId: "provider-a",
+      }),
+    );
+    const content = () =>
+      screen.getByTestId("eval-session-transcript-content").textContent;
+    expect(content()).toBe("> Fix the bug");
+
+    fireEvent.click(screen.getByTestId("eval-session-view-raw"));
+    expect(content()).toBe(RAW_SESSION);
+
+    fireEvent.click(screen.getByTestId("eval-attempt-read-session-1"));
+    expect(
+      screen.getByTestId("eval-session-transcript-unavailable"),
+    ).toHaveTextContent(
+      "eval.results.sessions.unavailable.SESSION_FILE_NOT_FOUND",
+    );
+    expect(
+      screen.getByTestId("eval-attempt-read-session-0"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the tool calls an attempt made, and says so when they could not be collected", () => {
+    const withCalls = attempt("with-calls", "case-1", setupA, {
+      status: "COMPLETED",
+      recordedToolCalls: {
+        state: "COLLECTED",
+        calls: [
+          {
+            toolName: "unified_search",
+            arguments: '{"queries":["alpha"]}',
+            origin: "RUN_OBSERVED",
+            truncated: false,
+          },
+          {
+            toolName: "get_full_entity",
+            arguments: '{"id":"x"}',
+            origin: "RUN_OBSERVED",
+            truncated: true,
+          },
+        ],
+        omittedCalls: 3,
+      },
+    });
+    const unreadable = attempt("unreadable", "case-1", setupB, {
+      status: "COMPLETED",
+      recordedToolCalls: { state: "UNAVAILABLE", calls: [] },
+    });
+    givenRun(run("FINISHED"), [withCalls, unreadable]);
+    render(<EvalRunPage />);
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-with-calls"));
+    const detail = screen.getByTestId("eval-attempt-detail-with-calls");
+    const calls = within(detail).getAllByTestId("eval-tool-call");
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toHaveTextContent("1. unified_search");
+    expect(calls[0]).toHaveTextContent('{"queries":["alpha"]}');
+    expect(calls[1]).toHaveTextContent("2. get_full_entity");
+    expect(
+      within(detail).getByTestId("eval-tool-calls-omitted"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-unreadable"));
+    const unavailable = screen.getByTestId("eval-attempt-detail-unreadable");
+    expect(
+      within(unavailable).getByTestId("eval-tool-calls-unavailable"),
+    ).toBeInTheDocument();
+    expect(within(unavailable).queryAllByTestId("eval-tool-call")).toHaveLength(
+      0,
     );
   });
 
