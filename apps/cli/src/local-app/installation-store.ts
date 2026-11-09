@@ -2,7 +2,12 @@ import { chmod, mkdir, readFile, writeFile, rename, unlink } from 'node:fs/promi
 import { generateKeyPairSync, randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { z } from 'zod/v4';
-import { releaseManifestSchema, type ReleaseManifest } from '../release/release-manifest';
+import { START_OVER_INSTRUCTIONS } from './compose';
+import {
+  releaseIdentitySchema,
+  type ReleaseIdentity,
+  type ReleaseManifest,
+} from '../release/release-manifest';
 
 const secretSchema = z.strictObject({
   admin: z.string().regex(/^[a-f0-9]{64}$/),
@@ -17,12 +22,12 @@ export type InstallationSecrets = z.infer<typeof secretSchema>;
 
 // Not strict: installations written before models were downloaded still carry a `modelDirectory`.
 const installationSchema = z.object({
-  release: releaseManifestSchema,
+  release: releaseIdentitySchema,
 });
 export type Installation = z.infer<typeof installationSchema>;
 const updateConsentSchema = z.strictObject({
-  from: releaseManifestSchema,
-  target: releaseManifestSchema,
+  from: releaseIdentitySchema,
+  target: releaseIdentitySchema,
 });
 
 export class InstallationStore {
@@ -47,7 +52,7 @@ export class InstallationStore {
         return undefined;
       }
       throw new Error(
-        'Local installation identity is unreadable. Restore installation.json from backup before retrying; do not remove data.',
+        `Hey Hey Local cannot read ${join(this.directory, 'installation.json')}, so it will not start and nothing has been changed or removed. If you have a copy of that file, put it back and run \`heyhey local\` again. If you have no copy: ${START_OVER_INSTRUCTIONS}`,
       );
     }
   }
@@ -115,12 +120,12 @@ export class InstallationStore {
       return secretSchema.parse(JSON.parse(await readFile(path, 'utf8')));
     } catch {
       throw new Error(
-        'Restore protected local secrets.json from backup before retrying. Existing secrets will never be replaced.',
+        `Hey Hey Local's secrets file ${join(this.directory, 'secrets.json')} is missing or unreadable. Your local data is still there, but it is locked with those secrets, so Hey Hey will not create new ones over it. If you have a copy of that file, put it back and run \`heyhey local\` again. If you have no copy, the existing local data cannot be opened; ${START_OVER_INSTRUCTIONS}`,
       );
     }
   }
 
-  async recordUpdate(from: ReleaseManifest, target: ReleaseManifest): Promise<void> {
+  async recordUpdate(from: ReleaseIdentity, target: ReleaseIdentity): Promise<void> {
     await this.atomicWrite('update-consent.json', { from, target });
   }
 

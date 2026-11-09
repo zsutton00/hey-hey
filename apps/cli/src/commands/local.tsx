@@ -1,4 +1,4 @@
-import type { ReleaseManifest } from '../release/release-manifest';
+import type { ReleaseIdentity } from '../release/release-manifest';
 import { LOCAL_WEB_ORIGIN, LOCAL_WEB_RP_ID } from '../local-app/compose';
 import { ReleasePackage } from '../local-app/release-package';
 import { ModelFiles } from '../local-app/model-files';
@@ -20,6 +20,7 @@ import { KeyPairStore } from '../credentials/index';
 import { runPairCommand } from './pair';
 import { LocalApprovalSecret } from '../auth/local-approval';
 import { PairServerCommand } from './pair-server';
+import { LocalPairingStateReader, type LocalPairingState } from './local-pairing-state';
 import { resolvePairingUrl } from './pairing-web-url';
 import { CodingAgentDetector } from '../local-app/coding-agent-detection';
 import type { LocalCodingAgentDetectionDto } from '../shared/api/index';
@@ -176,6 +177,16 @@ class LocalPairingPageReopener {
   }
 }
 
+function describePairingState(state: LocalPairingState): string {
+  if (state === 'recognised') {
+    return 'remembered machine recognised by this installation. Reconnecting without pairing.';
+  }
+  if (state === 'not-recognised') {
+    return 'remembered machine not recognised by this installation (it was reinstalled or reset). Starting first-time pairing; the old record is replaced only once pairing succeeds.';
+  }
+  return 'no remembered machine. Starting first-time pairing.';
+}
+
 function restoreEnvironment(name: string, original: string | undefined): void {
   if (original === undefined) {
     delete process.env[name];
@@ -186,7 +197,7 @@ function restoreEnvironment(name: string, original: string | undefined): void {
 
 export async function continueLocalApplication(
   storage: InstallationStore,
-  release: ReleaseManifest,
+  release: ReleaseIdentity,
   navigation: LocalApplicationNavigation,
   bridgePort: number,
   onStopping: () => void,
@@ -210,15 +221,14 @@ export async function continueLocalApplication(
     const handoffToken = await createLocalHandoff(secrets.admin);
     await storeLocalCliCredentials(secrets.admin);
     const keyPairStore = new KeyPairStore();
-    const currentMachineId = await keyPairStore.loadCurrentMachineId();
+    const pairingState = await new LocalPairingStateReader(
+      keyPairStore,
+      'http://localhost:3000/api/v1',
+    ).read();
     console.log(
-      `Pairing state: keychain namespace "${keyPairStore.getAccountNamespace()}", current machine ID ${currentMachineId ?? 'none'}. ${
-        currentMachineId
-          ? 'Treating this computer as already paired; no new pairing will be started.'
-          : 'Starting a first-time pairing.'
-      }`,
+      `Pairing state: keychain namespace "${keyPairStore.getAccountNamespace()}", ${describePairingState(pairingState)}`,
     );
-    if (currentMachineId) {
+    if (pairingState === 'recognised') {
       await openLocalPage(
         localWebUrl(handoffToken),
         'Could not open the local setup page automatically.',
@@ -239,6 +249,7 @@ export async function continueLocalApplication(
     const paired = await runPairCommand({
       keyPairStore,
       localApproval,
+      ...(pairingState === 'not-recognised' ? { rememberedMachineUnrecognized: true } : {}),
       // The printed fallback carries the code but never the approval secret.
       getPairingUrl: (userCode) => resolvePairingUrl(userCode),
       onBrowserHandoff: (userCode) => {

@@ -1,6 +1,12 @@
 import type { Installation, InstallationSecrets } from './installation-store';
 
 export const LOCAL_PROJECT = 'heyhey-local';
+
+/**
+ * The only way past lost installation identity or secrets is to discard the local data, which the
+ * CLI never does itself. This tells the person how to choose that deliberately.
+ */
+export const START_OVER_INSTRUCTIONS = `to start over with an empty installation, which permanently deletes your local Hey Hey data, run \`docker rm -f $(docker ps -aq --filter label=com.docker.compose.project=${LOCAL_PROJECT})\`, then \`docker volume rm $(docker volume ls -q --filter label=com.docker.compose.project=${LOCAL_PROJECT})\`, move the application folder aside, and run \`heyhey local\`.`;
 /** The browser, not the API, is the WebAuthn origin: passkeys are bound to the local web app. */
 export const LOCAL_WEB_ORIGIN = 'http://localhost:5173';
 export const LOCAL_WEB_WS_URL = 'ws://localhost:5173';

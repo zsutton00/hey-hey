@@ -1,5 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { runLocalCommand } from './local';
+import { runPairCommand } from './pair';
+import { LocalApprovalSecret } from '../auth/local-approval';
 import { KeyPairStore } from '../credentials';
 import { accountNamespace } from '../credentials/keypair';
 import { CredentialStore } from '../credentials/store';
@@ -10,7 +12,15 @@ const fakeJwt = [
   'signature',
 ].join('.');
 
-const mocks = vi.hoisted(() => ({ server: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  server: vi.fn(),
+  pairingState: vi.fn<() => Promise<'recognised' | 'not-recognised' | 'none'>>(),
+}));
+vi.mock('./local-pairing-state', () => ({
+  LocalPairingStateReader: class {
+    read = mocks.pairingState;
+  },
+}));
 vi.mock('../local-app/local-application', () => ({
   LocalApplication: class {
     state = {
@@ -55,16 +65,18 @@ afterEach(() => {
 
 const unset = undefined;
 it.each([
-  { machineId: null, origin: unset, rpId: unset },
-  { machineId: 'existing-machine', origin: unset, rpId: unset },
-  { machineId: null, origin: 'https://custom.example', rpId: unset },
-  { machineId: 'existing-machine', origin: unset, rpId: 'custom.example' },
-])(
-  'keeps local environment through delayed bridge startup (%j)',
-  async ({ machineId, origin, rpId }) => {
+  { pairingState: 'none', origin: unset, rpId: unset },
+  { pairingState: 'recognised', origin: unset, rpId: unset },
+  { pairingState: 'not-recognised', origin: unset, rpId: unset },
+  { pairingState: 'none', origin: 'https://custom.example', rpId: unset },
+  { pairingState: 'recognised', origin: unset, rpId: 'custom.example' },
+] as const)(
+  'keeps local environment through delayed bridge startup and pairs only when needed (%j)',
+  async ({ pairingState, origin, rpId }) => {
+    vi.mocked(runPairCommand).mockClear();
+    mocks.pairingState.mockResolvedValue(pairingState);
     vi.stubEnv('HEYHEY_CONTROLLER_ORIGIN', origin);
     vi.stubEnv('HEYHEY_CONTROLLER_RP_ID', rpId);
-    vi.spyOn(KeyPairStore.prototype, 'loadCurrentMachineId').mockResolvedValue(machineId);
     vi.stubEnv('HEYHEY_API_URL', undefined);
     vi.stubEnv('HEYHEY_WEB_ORIGIN', 'https://previous.example');
     vi.spyOn(process, 'stdin', 'get').mockReturnValue(
@@ -118,5 +130,19 @@ it.each([
     expect(process.env['HEYHEY_WEB_ORIGIN']).toBe('https://previous.example');
     expect(process.env['HEYHEY_CONTROLLER_ORIGIN']).toBe(origin);
     expect(process.env['HEYHEY_CONTROLLER_RP_ID']).toBe(rpId);
+    if (pairingState === 'recognised') {
+      expect(runPairCommand).not.toHaveBeenCalled();
+    } else {
+      // A stale record gets the same first-time local pairing, with approval, as a new user.
+      expect(runPairCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          localApproval: expect.any(LocalApprovalSecret),
+          onBrowserHandoff: expect.any(Function),
+        }),
+      );
+      expect(vi.mocked(runPairCommand).mock.calls[0]![0]!.rememberedMachineUnrecognized).toBe(
+        pairingState === 'not-recognised' ? true : undefined,
+      );
+    }
   },
 );

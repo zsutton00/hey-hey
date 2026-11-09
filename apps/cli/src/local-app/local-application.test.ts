@@ -8,10 +8,15 @@ import { LocalApplication } from './local-application';
 import { ReleaseSource } from './release-source';
 import { ReleasePackage } from './release-package';
 import { InstallationStore } from './installation-store';
+import { START_OVER_INSTRUCTIONS } from './compose';
 import { DockerBoundary, type ObservedContainer } from './docker-boundary';
 import { SERVICE_IMAGES } from './compose';
 import { DEFAULT_LOCAL_BRIDGE_PORT, resolveLocalBridgePort } from './local-port';
-import { RELEASE_PLATFORMS, type ReleaseManifest } from '../release/release-manifest';
+import {
+  RELEASE_PLATFORMS,
+  releaseIdentitySchema,
+  type ReleaseManifest,
+} from '../release/release-manifest';
 
 const image = (name: string) => ({
   reference: `example.test/heyhey/${name}@sha256:${'a'.repeat(64)}`,
@@ -233,7 +238,7 @@ describe('local application installation and return visits', () => {
     expect(docker.calls.some((args) => args.includes('pull'))).toBe(true);
     expect(docker.calls.some((args) => args.includes('migrate'))).toBe(true);
     const persisted = await storage.read();
-    expect(persisted?.release).toEqual(release);
+    expect(persisted?.release).toEqual(releaseIdentitySchema.parse(release));
     const secrets = await storage.secrets();
     const returned = new InstallationStore(storage.directory);
     expect(await returned.secrets()).toEqual(secrets);
@@ -241,6 +246,20 @@ describe('local application installation and return visits', () => {
       expect((await stat(join(storage.directory, name))).mode & 0o777).toBe(0o600);
     }
     expect((await stat(storage.directory)).mode & 0o777).toBe(0o700);
+  });
+
+  it('keeps using an installation saved before model files were pinned', async () => {
+    await storage.prepare(release);
+    const { models: _models, ...identity } = release;
+    await writeFile(
+      join(storage.directory, 'installation.json'),
+      JSON.stringify({ release: identity, modelDirectory: '/old/models' }),
+    );
+    docker.observed = containers(false);
+    const app = application();
+    await app.run();
+    expect(app.state.kind).toBe('ready');
+    expect(docker.calls.some((args) => args.includes('up'))).toBe(true);
   });
 
   it('starts a stopped installation without reinstalling images or replacing secrets', async () => {
@@ -504,7 +523,8 @@ describe('local application installation and return visits', () => {
     const app = application();
     await app.run();
     await app.retry();
-    expect(recoveryMessage(app)).toContain('Restore installation.json');
+    // The person is told how to proceed even without a backup, and the CLI deletes nothing.
+    expect(recoveryMessage(app)).toContain(START_OVER_INSTRUCTIONS);
     expect(mutated()).toEqual([]);
     expect(await storage.read()).toBeUndefined();
     expect(docker.calls.some((args) => args[0] === 'volume' && args.includes('rm'))).toBe(false);
@@ -631,12 +651,14 @@ describe('local application installation and return visits', () => {
     const app = application();
     await app.run();
     await app.retry();
-    expect(recoveryMessage(app)).toContain('Restore protected');
+    expect(recoveryMessage(app)).toContain('secrets.json');
+    expect(recoveryMessage(app)).toContain(START_OVER_INSTRUCTIONS);
     expect(await readFile(join(storage.directory, 'secrets.json'), 'utf8')).toBe('damaged');
     expect(mutated()).toEqual([]);
     await writeFile(join(storage.directory, 'installation.json'), 'damaged');
     await app.retry();
-    expect(recoveryMessage(app)).toContain('identity is unreadable');
+    expect(recoveryMessage(app)).toContain('installation.json');
+    expect(recoveryMessage(app)).toContain(START_OVER_INSTRUCTIONS);
   });
 
   it('generates only pinned images, loopback app ports, private databases and no hosted credentials', async () => {
@@ -741,7 +763,10 @@ class FixturePackage extends ReleasePackage {
     return this.availableRelease;
   }
   override async install(target: ReleaseManifest): Promise<void> {
-    expect(await storage.updateConsent()).toEqual({ from: release, target });
+    expect(await storage.updateConsent()).toEqual({
+      from: releaseIdentitySchema.parse(release),
+      target: releaseIdentitySchema.parse(target),
+    });
     this.installed.push(target);
   }
 }
@@ -791,12 +816,14 @@ it('records coordinated consent before package install, then repairs a partial i
   const updated = application();
   await updated.run();
   expect(updated.state.kind).toBe('recovery');
-  expect((await storage.read())?.release).toEqual(release);
+  expect((await storage.read())?.release).toEqual(releaseIdentitySchema.parse(release));
   expect(fetch).not.toHaveBeenCalled();
   docker.failMigration = false;
   await updated.retry();
   expect(updated.state.kind).toBe('ready');
-  expect((await storage.read())?.release).toEqual(packages.availableRelease);
+  expect((await storage.read())?.release).toEqual(
+    releaseIdentitySchema.parse(packages.availableRelease),
+  );
   const stoppedAt = docker.calls.findIndex((args) => args.includes('stop'));
   expect(stoppedAt).toBeGreaterThanOrEqual(0);
   expect(stoppedAt).toBeLessThan(docker.calls.findIndex((args) => args.includes('pull')));

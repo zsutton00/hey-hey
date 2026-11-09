@@ -282,6 +282,61 @@ describe('runPairCommand', () => {
     );
   });
 
+  describe('when the remembered machine is not recognised by a recreated installation', () => {
+    const STALE_MACHINE_ID = '00000000-0000-4000-8000-0000000000aa';
+
+    const rememberStaleMachine = async (deps: ReturnType<typeof makeDeps>) => {
+      await deps.keyPairStore.setCurrentMachineId(STALE_MACHINE_ID);
+      await deps.keyPairStore.storePrivateKey(
+        STALE_MACHINE_ID,
+        makeGeneratedKeyPair().privateKeyPem,
+      );
+      await deps.keyPairStore.storeMachineCredential(STALE_MACHINE_ID, 'stale-credential');
+      vi.mocked(deps.keyPairStore.setCurrentMachineId).mockClear();
+      const createExistingMachineControllerEnrollment = vi.fn();
+      deps.existingMachineClient = {
+        createExistingMachineControllerEnrollment,
+        inspectMachineControllers: vi.fn(),
+        reconcileMachineControllers: vi.fn(),
+        revokeMachineControllerLocally: vi.fn(),
+      };
+      return createExistingMachineControllerEnrollment;
+    };
+
+    it('opens first-machine pairing and replaces the record only once it succeeds', async () => {
+      const deps = makeDeps({ rememberedMachineUnrecognized: true });
+      const upgrade = await rememberStaleMachine(deps);
+
+      await expect(runPairCommand(deps)).resolves.toBe(true);
+
+      expect(upgrade).not.toHaveBeenCalled();
+      expect(deps.machinesApi.createMachineEnrollment).toHaveBeenCalledTimes(1);
+      expect(await deps.keyPairStore.loadCurrentMachineId()).toBe(MACHINE_ID);
+      expect(deps.keyPairStore.deleteMachineCredential).not.toHaveBeenCalled();
+    });
+
+    it('leaves the previous record untouched when the new pairing fails, so retry is safe', async () => {
+      const deps = makeDeps({ rememberedMachineUnrecognized: true });
+      await rememberStaleMachine(deps);
+      deps.machinesApi.confirmMachineEnrollment = vi
+        .fn()
+        .mockRejectedValue(new Error('interrupted'));
+
+      await expect(runPairCommand(deps)).resolves.toBe(false);
+
+      expect(await deps.keyPairStore.loadCurrentMachineId()).toBe(STALE_MACHINE_ID);
+      expect(await deps.keyPairStore.loadMachineCredential(STALE_MACHINE_ID)).toBe(
+        'stale-credential',
+      );
+
+      deps.machinesApi.confirmMachineEnrollment = vi
+        .fn()
+        .mockResolvedValue(makeActivationResponse());
+      await expect(runPairCommand(deps)).resolves.toBe(true);
+      expect(await deps.keyPairStore.loadCurrentMachineId()).toBe(MACHINE_ID);
+    });
+  });
+
   it('generates the key before opening unauthenticated enrollment and sends only enrollment fields', async () => {
     const deps = makeDeps();
 

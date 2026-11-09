@@ -11,9 +11,10 @@ import {
   LOCAL_AGENT_PORT_VARIABLE,
   provisioningSql,
   SERVICE_IMAGES,
+  START_OVER_INSTRUCTIONS,
 } from './compose';
 import { resolveLocalBridgePort } from './local-port';
-import type { ReleaseManifest } from '../release/release-manifest';
+import type { ReleaseIdentity, ReleaseManifest } from '../release/release-manifest';
 
 export interface LocalApplicationNavigation {
   url: string;
@@ -40,14 +41,14 @@ export type LocalState =
 
 export function assertObservedRelease(
   containers: ObservedContainer[],
-  release: ReleaseManifest,
+  release: ReleaseIdentity,
 ): void {
   assertObservedReleases(containers, [release]);
 }
 
 function assertObservedReleases(
   containers: ObservedContainer[],
-  releases: [ReleaseManifest, ...ReleaseManifest[]],
+  releases: [ReleaseIdentity, ...ReleaseIdentity[]],
 ): void {
   const [release] = releases;
   const seen = new Set<string>();
@@ -78,7 +79,7 @@ export class LocalApplication extends EventEmitter {
   private busy = false;
   private consent = false;
   private offered: ReleaseManifest | undefined;
-  private offeredFrom: ReleaseManifest | undefined;
+  private offeredFrom: ReleaseIdentity | undefined;
   private disclosed: DisclosedOwner[] = [];
   private declined = false;
 
@@ -333,7 +334,7 @@ export class LocalApplication extends EventEmitter {
       }
       if (!installation && (observed.length > 0 || (await this.docker.hasPersistentStorage()))) {
         throw new Error(
-          'Local containers or persistent volumes exist without installation identity. Restore installation.json from backup before retrying. Data is preserved.',
+          `Hey Hey Local found its Docker containers or data volumes, but not the installation record that belongs to them, so it stopped without changing anything. If you have a copy of installation.json, put it back in the application folder and run \`heyhey local\` again. If you have no copy: ${START_OVER_INSTRUCTIONS}`,
         );
       }
       if (!installation && !this.consent) {
@@ -385,7 +386,7 @@ export class LocalApplication extends EventEmitter {
           steps.push('Application images downloaded');
         }
         let modelsDownloaded = false;
-        await this.models.ensure(release, () => {
+        await this.models.ensure(release.models, () => {
           modelsDownloaded = true;
           progress('Downloading search model');
         });

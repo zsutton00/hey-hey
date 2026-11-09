@@ -67,6 +67,12 @@ export interface PairCommandDependencies {
   onCeremonyStep?: (step: MachineEnrollmentCeremonyStep) => void;
   /** First-time `heyhey local` only; never used for controller upgrades or recovery. */
   localApproval?: LocalApprovalSecret;
+  /**
+   * The remembered machine is not known to this backend (installation recreated or reset), so
+   * open a first-machine enrollment instead of upgrading it. The old keychain record stays until
+   * the new enrollment is confirmed, which then replaces the current machine.
+   */
+  rememberedMachineUnrecognized?: boolean;
   log: (message: string) => void;
   logError: (message: string) => void;
 }
@@ -232,6 +238,7 @@ export const resolvePairDependencies = (
   ...(dependencies.onBrowserHandoff ? { onBrowserHandoff: dependencies.onBrowserHandoff } : {}),
   ...(dependencies.onCeremonyStep ? { onCeremonyStep: dependencies.onCeremonyStep } : {}),
   ...(dependencies.localApproval ? { localApproval: dependencies.localApproval } : {}),
+  ...(dependencies.rememberedMachineUnrecognized ? { rememberedMachineUnrecognized: true } : {}),
   log: dependencies.log ?? console.log,
   logError: dependencies.logError ?? console.error,
 });
@@ -287,7 +294,14 @@ export const pairMachine = async (
     });
   }
 
-  const existingMachineId = await deps.keyPairStore.loadCurrentMachineId();
+  const rememberedMachineId = await deps.keyPairStore.loadCurrentMachineId();
+  if (rememberedMachineId && deps.rememberedMachineUnrecognized) {
+    deps.logger.debug('pair.existing_machine.unrecognized_fresh_enrollment', {
+      machineId: rememberedMachineId,
+      reason: 'backend_does_not_recognize_remembered_machine',
+    });
+  }
+  const existingMachineId = deps.rememberedMachineUnrecognized ? null : rememberedMachineId;
   if (existingMachineId) {
     const [machineCredential, privateKey] = await Promise.all([
       deps.keyPairStore.loadMachineCredential(existingMachineId),
