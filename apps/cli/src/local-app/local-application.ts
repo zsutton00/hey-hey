@@ -3,7 +3,8 @@ import { ReleasePackage } from './release-package';
 import { EventEmitter } from 'node:events';
 import { StructuredServerLogger } from '../server/logger';
 import { ReleaseSource, sameRelease } from './release-source';
-import { InstallationStore, checkModels } from './installation-store';
+import { InstallationStore } from './installation-store';
+import type { ModelFiles } from './model-files';
 import { DockerBoundary, type ObservedContainer } from './docker-boundary';
 import {
   composeConfiguration,
@@ -85,7 +86,7 @@ export class LocalApplication extends EventEmitter {
     readonly releases: ReleaseSource,
     readonly storage: InstallationStore,
     readonly docker: DockerBoundary,
-    private readonly modelDirectory: string,
+    private readonly models: ModelFiles,
     private readonly platform: NodeJS.Platform = process.platform,
     private readonly packages?: ReleasePackage,
     /** Resolved once; the bridge listens here and the UI container is told the same value. */
@@ -339,9 +340,7 @@ export class LocalApplication extends EventEmitter {
         this.show({ kind: 'installation' });
         return;
       }
-      progress('Checking graph/search model files');
-      await checkModels(installation?.modelDirectory ?? this.modelDirectory);
-      installation ??= await this.storage.prepare(release, this.modelDirectory);
+      installation ??= await this.storage.prepare(release);
       // Recheck the persisted winner if another terminal prepared installation concurrently.
       if (!sameRelease(installation.release, release)) {
         throw new Error('Installation release changed. Use the matching CLI release, then retry.');
@@ -359,7 +358,7 @@ export class LocalApplication extends EventEmitter {
           progress('Updating the web app bridge port');
           const secrets = await this.storage.secrets();
           await this.storage.writeCompose(
-            composeConfiguration(installation, secrets, this.bridgePort),
+            composeConfiguration(installation, secrets, this.bridgePort, this.models.directory),
           );
           await this.docker.recreateUi(this.storage.composePath);
         }
@@ -368,7 +367,12 @@ export class LocalApplication extends EventEmitter {
       } else {
         progress('Preparing protected local storage');
         const secrets = await this.storage.secrets();
-        const config = composeConfiguration(installation, secrets, this.bridgePort);
+        const config = composeConfiguration(
+          installation,
+          secrets,
+          this.bridgePort,
+          this.models.directory,
+        );
         await this.storage.writeCompose(config);
         steps.push('Local storage created');
         if (updating) {
@@ -379,6 +383,14 @@ export class LocalApplication extends EventEmitter {
           progress('Downloading matching application images');
           await this.docker.pull(this.storage.composePath);
           steps.push('Application images downloaded');
+        }
+        let modelsDownloaded = false;
+        await this.models.ensure(release, () => {
+          modelsDownloaded = true;
+          progress('Downloading search model');
+        });
+        if (modelsDownloaded) {
+          steps.push('Search model downloaded');
         }
         progress('Starting PostgreSQL and Redis');
         await this.docker.startDatabase(this.storage.composePath);

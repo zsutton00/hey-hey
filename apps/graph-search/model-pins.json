@@ -1,0 +1,16 @@
+{
+  "repository": "Snowflake/snowflake-arctic-embed-s",
+  "revision": "e596f507467533e48a2e17c007f0e1dacc837b33",
+  "files": {
+    "modelQuantized": {
+      "file": "model_quantized.onnx",
+      "path": "onnx/model_quantized.onnx",
+      "sha256": "f93ff225320628d2e88baf2a395cae791b0e3b27edf5c70bf7b312a4d3260c14"
+    },
+    "tokenizer": {
+      "file": "tokenizer.json",
+      "path": "tokenizer.json",
+      "sha256": "91f1def9b9391fdabe028cd3f3fcc4efd34e5d1f08c3bf2de513ebb5911a1854"
+    }
+  }
+}

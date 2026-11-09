@@ -11,6 +11,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod/v4';
+import { modelsFromPins } from '../src/release/model-pins';
 import {
   RELEASE_PLATFORMS,
   releaseManifestSchema,
@@ -21,6 +22,8 @@ const cliRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const { version } = z
   .object({ version: z.string() })
   .parse(JSON.parse(readFileSync(path.join(cliRoot, 'package.json'), 'utf8')));
+
+const MODEL_PINS_FILE = path.join(cliRoot, '..', 'graph-search', 'model-pins.json');
 
 const [digestsFile, outfile = path.join(cliRoot, 'release-manifest.json')] = process.argv.slice(2);
 if (!digestsFile) {
@@ -49,6 +52,7 @@ const manifest: ReleaseManifest = releaseManifestSchema.parse({
     postgres: withPlatforms(references.postgres),
     redis: withPlatforms(references.redis),
   },
+  models: modelsFromPins(MODEL_PINS_FILE),
 });
 
 writeFileSync(outfile, `${JSON.stringify(manifest, null, 2)}\n`);

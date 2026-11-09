@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join, relative as relativePath } from 'node:path';
+import { createHash } from 'node:crypto';
+import { ModelFiles } from './model-files';
 import { LocalApplication } from './local-application';
 import { ReleaseSource } from './release-source';
 import { ReleasePackage } from './release-package';
@@ -15,6 +17,13 @@ const image = (name: string) => ({
   reference: `example.test/heyhey/${name}@sha256:${'a'.repeat(64)}`,
   platforms: [...RELEASE_PLATFORMS],
 });
+const sha256 = (content: Buffer) => createHash('sha256').update(content).digest('hex');
+const MODEL_CONTENT = {
+  'model_quantized.onnx': Buffer.from('model fixture'),
+  'tokenizer.json': Buffer.from('{"tokenizer":true}'),
+};
+const modelUrl = (file: string) =>
+  `https://huggingface.co/Snowflake/snowflake-arctic-embed-s/resolve/${'1'.repeat(40)}/${file}`;
 const release = {
   schemaVersion: 1,
   cliVersion: '1.2.3',
@@ -24,6 +33,18 @@ const release = {
     graphSearch: image('graph-search'),
     postgres: image('postgres'),
     redis: image('redis'),
+  },
+  models: {
+    modelQuantized: {
+      file: 'model_quantized.onnx',
+      url: modelUrl('onnx/model_quantized.onnx'),
+      sha256: sha256(MODEL_CONTENT['model_quantized.onnx']),
+    },
+    tokenizer: {
+      file: 'tokenizer.json',
+      url: modelUrl('tokenizer.json'),
+      sha256: sha256(MODEL_CONTENT['tokenizer.json']),
+    },
   },
 } satisfies ReleaseManifest;
 function containers(
@@ -148,11 +169,14 @@ function recoveryMessage(app: LocalApplication): string {
 }
 
 let directory: string;
-let models: string;
+let models: ModelFiles;
+let fakeNetwork: Map<string, Buffer | Error>;
+let downloads: string[];
 let docker: FakeDocker;
 let storage: InstallationStore;
 let source: ReleaseSource;
 const application = () => new LocalApplication(source, storage, docker, models, 'darwin');
+const MODEL_FILES = Object.keys(MODEL_CONTENT) as (keyof typeof MODEL_CONTENT)[];
 const mutated = () =>
   docker.calls.filter(
     (args) =>
@@ -161,13 +185,24 @@ const mutated = () =>
 
 beforeEach(async () => {
   directory = await mkdtemp(join(tmpdir(), 'heyhey-local-test-'));
-  models = join(directory, 'models');
-  await mkdir(models);
-  await writeFile(join(models, 'model_quantized.onnx'), 'fixture');
-  await writeFile(join(models, 'tokenizer.json'), '{}');
+  fakeNetwork = new Map<string, Buffer | Error>([
+    [release.models.modelQuantized.url, MODEL_CONTENT['model_quantized.onnx']],
+    [release.models.tokenizer.url, MODEL_CONTENT['tokenizer.json']],
+  ]);
+  downloads = [];
+  // Only the network is faked; hashing, atomic writes and orchestration are production code.
+  const download = (url: string) => {
+    downloads.push(url);
+    const body = fakeNetwork.get(url);
+    if (body instanceof Error || body === undefined) {
+      return Promise.reject(body ?? new Error('host unreachable'));
+    }
+    return Promise.resolve(new Response(new Uint8Array(body)));
+  };
   await writeFile(join(directory, 'release.json'), JSON.stringify(release));
   source = new ReleaseSource(join(directory, 'release.json'), release.cliVersion);
   storage = new InstallationStore(join(directory, 'installation'));
+  models = new ModelFiles(join(storage.directory, 'models'), undefined, download);
   docker = new FakeDocker();
   vi.stubEnv('HEYHEY_SERVER_PORT', '');
   vi.stubGlobal(
@@ -209,7 +244,7 @@ describe('local application installation and return visits', () => {
   });
 
   it('starts a stopped installation without reinstalling images or replacing secrets', async () => {
-    await storage.prepare(release, models);
+    await storage.prepare(release);
     const before = await storage.secrets();
     docker.observed = containers(false);
     const app = application();
@@ -221,7 +256,7 @@ describe('local application installation and return visits', () => {
   });
 
   it('checks a running installation without pulling, migrating or starting anything', async () => {
-    await storage.prepare(release, models);
+    await storage.prepare(release);
     docker.observed = containers(true);
     const app = application();
     await app.run();
@@ -238,16 +273,22 @@ describe('local application installation and return visits', () => {
   });
 
   it('writes the bridge port into the UI container configuration', async () => {
-    const installation = await storage.prepare(release, models);
+    const installation = await storage.prepare(release);
     const { composeConfiguration } = await import('./compose');
-    const config = composeConfiguration(installation, await storage.secrets(), 4100);
+    const config = composeConfiguration(
+      installation,
+      await storage.secrets(),
+      4100,
+      '/fixture/models',
+    );
     expect(config.services.ui.environment.VITE_LOCAL_AGENT_PORT).toBe('4100');
   });
 
   it('serves the installed web app and API from one address', async () => {
-    const installation = await storage.prepare(release, models);
+    const installation = await storage.prepare(release);
     const { composeConfiguration, devWebEnvironment, LOCAL_WEB_ORIGIN } = await import('./compose');
-    const ui = composeConfiguration(installation, await storage.secrets(), 4100).services.ui;
+    const ui = composeConfiguration(installation, await storage.secrets(), 4100, '/fixture/models')
+      .services.ui;
 
     expect(ui.environment['API_PROXY_TARGET']).toBe('http://api:3000');
     expect(ui.environment['VITE_API_URL']).toBe('/api/v1');
@@ -259,7 +300,7 @@ describe('local application installation and return visits', () => {
   });
 
   it('reconfigures a running UI that does not know the bridge port, keeping data and secrets', async () => {
-    await storage.prepare(release, models);
+    await storage.prepare(release);
     const before = await storage.secrets();
     docker.observed = containers(true, release, 3847);
     const app = new LocalApplication(source, storage, docker, models, 'darwin', undefined, 4100);
@@ -291,7 +332,7 @@ describe('local application installation and return visits', () => {
   it('rejects both stored and observed release mismatches before mutation, including retry', async () => {
     const other = structuredClone(release);
     other.cliVersion = '1.2.2';
-    await storage.prepare(other, models);
+    await storage.prepare(other);
     const before = await readFile(join(storage.directory, 'secrets.json'), 'utf8');
     const app = application();
     await app.run();
@@ -307,7 +348,7 @@ describe('local application installation and return visits', () => {
   it.each(['version', 'digest', 'unknown'] as const)(
     'rejects an observed %s mismatch even with matching storage',
     async (mismatch) => {
-      await storage.prepare(release, models);
+      await storage.prepare(release);
       docker.observed = containers(false);
       const container = docker.observed[0];
       if (!container?.Config.Labels) {
@@ -469,17 +510,122 @@ describe('local application installation and return visits', () => {
     expect(docker.calls.some((args) => args[0] === 'volume' && args.includes('rm'))).toBe(false);
   });
 
-  it('reports missing model files before creating storage or pulling images', async () => {
-    models = join(directory, 'missing-models');
+  it('downloads the pinned model files with the images on first install and never asks about them', async () => {
+    const app = application();
+    await app.install();
+    expect(app.state.kind).toBe('ready');
+    expect(downloads.sort()).toEqual(
+      [release.models.modelQuantized.url, release.models.tokenizer.url].sort(),
+    );
+    for (const file of MODEL_FILES) {
+      expect(await readFile(join(storage.directory, 'models', file))).toEqual(MODEL_CONTENT[file]);
+    }
+    const mounted = JSON.parse(await readFile(storage.composePath, 'utf8')).services['graph-search']
+      .volumes[0].source;
+    expect(mounted).toBe(join(storage.directory, 'models'));
+    expect(
+      (await readdir(join(storage.directory, 'models'))).filter((name) =>
+        name.endsWith('.download'),
+      ),
+    ).toEqual([]);
+  });
+
+  it('does not download model files that are already present and verified', async () => {
+    await application().install();
+    downloads.length = 0;
+    docker.observed = containers(false);
+    const app = application();
+    await app.run();
+    expect(app.state.kind).toBe('ready');
+    expect(downloads).toEqual([]);
+  });
+
+  it('replaces a corrupt or partial model file and never mounts it unverified', async () => {
+    await application().install();
+    const target = join(storage.directory, 'models', 'tokenizer.json');
+    await writeFile(target, '{"tok');
+    docker.observed = containers(false);
+    downloads.length = 0;
+    const app = application();
+    await app.run();
+    expect(app.state.kind).toBe('ready');
+    expect(downloads).toEqual([release.models.tokenizer.url]);
+    expect(await readFile(target)).toEqual(MODEL_CONTENT['tokenizer.json']);
+  });
+
+  it('reports a checksum mismatch, discards the download and starts nothing', async () => {
+    fakeNetwork.set(release.models.tokenizer.url, Buffer.from('tampered'));
+    const app = application();
+    await app.install();
+    expect(recoveryMessage(app)).toContain('tokenizer.json');
+    expect(recoveryMessage(app)).toContain('checksum');
+    expect(docker.calls.some((args) => args.includes('up'))).toBe(false);
+    expect(await readdir(join(storage.directory, 'models'))).not.toContain('tokenizer.json');
+  });
+
+  it('shows a recovery naming the failed download and retries it without removing anything', async () => {
+    fakeNetwork.set(release.models.modelQuantized.url, new Error('getaddrinfo ENOTFOUND'));
+    const app = application();
+    await app.install();
+    expect(recoveryMessage(app)).toContain('model_quantized.onnx');
+    expect(recoveryMessage(app)).toContain('huggingface.co');
+    expect(recoveryMessage(app)).toContain('Retry will try again');
+    const before = await storage.secrets();
+    fakeNetwork.set(release.models.modelQuantized.url, MODEL_CONTENT['model_quantized.onnx']);
+    await app.retry();
+    expect(app.state.kind).toBe('ready');
+    expect(await storage.secrets()).toEqual(before);
+    expect(docker.calls.flat()).not.toContain('down');
+    expect(docker.calls.flat()).not.toContain('rm');
+  });
+
+  it('verifies and uses HEYHEY_LOCAL_MODEL_DIR without downloading', async () => {
+    const override = join(directory, 'override');
+    await mkdir(override);
+    for (const file of MODEL_FILES) {
+      await writeFile(join(override, file), MODEL_CONTENT[file]);
+    }
+    models = new ModelFiles(join(storage.directory, 'models'), override);
+    const app = application();
+    await app.install();
+    expect(app.state.kind).toBe('ready');
+    expect(downloads).toEqual([]);
+    const mounted = JSON.parse(await readFile(storage.composePath, 'utf8')).services['graph-search']
+      .volumes[0].source;
+    expect(mounted).toBe(override);
+  });
+
+  it('resolves a relative HEYHEY_LOCAL_MODEL_DIR once so verification and the mount use the same files', async () => {
+    const override = join(directory, 'relative-models');
+    await mkdir(override);
+    for (const file of MODEL_FILES) {
+      await writeFile(join(override, file), MODEL_CONTENT[file]);
+    }
+    const relative = relativePath(process.cwd(), override);
+    expect(isAbsolute(relative)).toBe(false);
+    models = new ModelFiles(join(storage.directory, 'models'), relative);
+    const app = application();
+    await app.install();
+    expect(app.state.kind).toBe('ready');
+    expect(models.directory).toBe(override);
+    const mounted = JSON.parse(await readFile(storage.composePath, 'utf8')).services['graph-search']
+      .volumes[0].source;
+    expect(mounted).toBe(override);
+  });
+
+  it('rejects override files that do not match the release', async () => {
+    const override = join(directory, 'override');
+    await mkdir(override);
+    await writeFile(join(override, 'model_quantized.onnx'), 'wrong');
+    models = new ModelFiles(join(storage.directory, 'models'), override);
     const app = application();
     await app.install();
     expect(recoveryMessage(app)).toContain('HEYHEY_LOCAL_MODEL_DIR');
-    expect(await storage.read()).toBeUndefined();
-    expect(mutated()).toEqual([]);
+    expect(docker.calls.some((args) => args.includes('up'))).toBe(false);
   });
 
   it('does not replace a damaged durable identity or missing secrets', async () => {
-    await storage.prepare(release, models);
+    await storage.prepare(release);
     await writeFile(join(storage.directory, 'secrets.json'), 'damaged');
     docker.observed = containers(false);
     const app = application();
@@ -494,12 +640,13 @@ describe('local application installation and return visits', () => {
   });
 
   it('generates only pinned images, loopback app ports, private databases and no hosted credentials', async () => {
-    const installation = await storage.prepare(release, models);
+    const installation = await storage.prepare(release);
     const { composeConfiguration } = await import('./compose');
     const config = composeConfiguration(
       installation,
       await storage.secrets(),
       DEFAULT_LOCAL_BRIDGE_PORT,
+      '/fixture/models',
     );
     const expectedImages = Object.values(release.images).map((image) => image.reference);
     for (const service of Object.values(config.services)) {
@@ -524,7 +671,7 @@ describe('local application installation and return visits', () => {
   });
 
   it('dev mode runs only pinned infrastructure on loopback and derives the API configuration from the installed definition', async () => {
-    const installation = await storage.prepare(release, models);
+    const installation = await storage.prepare(release);
     const secrets = await storage.secrets();
     const {
       composeConfiguration,
@@ -532,12 +679,18 @@ describe('local application installation and return visits', () => {
       localApiEnvironment,
       DEV_INFRASTRUCTURE_ENDPOINTS,
     } = await import('./compose');
-    const installed = composeConfiguration(installation, secrets, DEFAULT_LOCAL_BRIDGE_PORT);
+    const installed = composeConfiguration(
+      installation,
+      secrets,
+      DEFAULT_LOCAL_BRIDGE_PORT,
+      '/fixture/models',
+    );
     const dev = devComposeConfiguration(
       installation,
       secrets,
       DEFAULT_LOCAL_BRIDGE_PORT,
       '/flyway',
+      '/fixture/models',
     );
 
     expect(dev.name).toBe(installed.name);
@@ -594,7 +747,7 @@ class FixturePackage extends ReleasePackage {
 }
 
 it('offers the complete newer fixture release without mutation; declining keeps the matched installation usable', async () => {
-  await storage.prepare(release, models);
+  await storage.prepare(release);
   docker.observed = containers(true);
   const packages = new FixturePackage();
   const app = new LocalApplication(source, storage, docker, models, 'darwin', packages);
@@ -614,7 +767,7 @@ it('offers the complete newer fixture release without mutation; declining keeps 
 });
 
 it('records coordinated consent before package install, then repairs a partial image update on retry without removing data', async () => {
-  await storage.prepare(release, models);
+  await storage.prepare(release);
   docker.observed = containers(true);
   const packages = new FixturePackage();
   const app = new LocalApplication(source, storage, docker, models, 'darwin', packages);
@@ -655,7 +808,7 @@ it('records coordinated consent before package install, then repairs a partial i
 
 it('does not reuse update consent for a different source release or start a partial, unconsented release', async () => {
   const older = { ...release, cliVersion: '1.2.2' };
-  await storage.prepare(older, models);
+  await storage.prepare(older);
   await storage.recordUpdate({ ...release, cliVersion: '1.2.1' }, release);
   docker.observed = [...containers(false, older).slice(0, 2), ...containers(false).slice(2)];
   const app = application();
@@ -671,7 +824,7 @@ it('does not reuse update consent for a different source release or start a part
 });
 
 it('lets a matched installation decline a newer release even when another terminal cannot report work', async () => {
-  await storage.prepare(release, models);
+  await storage.prepare(release);
   docker.observed = containers(true);
   await mkdir(join(storage.directory, 'bridges'));
   await writeFile(join(storage.directory, 'bridges', 'unreadable-owner.json'), 'invalid');
@@ -685,7 +838,7 @@ it('lets a matched installation decline a newer release even when another termin
 
 it('rejects duplicated or manually altered containers during a consented update before any launch', async () => {
   const older = { ...release, cliVersion: '1.2.2' };
-  await storage.prepare(older, models);
+  await storage.prepare(older);
   await storage.recordUpdate(older, release);
   docker.observed = [...containers(false, older), ...containers(false).slice(0, 1)];
   const app = application();

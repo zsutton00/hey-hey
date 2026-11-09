@@ -1,6 +1,7 @@
 import type { ReleaseManifest } from '../release/release-manifest';
 import { LOCAL_WEB_ORIGIN, LOCAL_WEB_RP_ID } from '../local-app/compose';
 import { ReleasePackage } from '../local-app/release-package';
+import { ModelFiles } from '../local-app/model-files';
 import { useEffect, useState } from 'react';
 import { homedir } from 'node:os';
 import { realpath } from 'node:fs/promises';
@@ -352,7 +353,7 @@ export async function runLocalCommand(args: string[]): Promise<boolean> {
     ),
     storage,
     new DockerBoundary(),
-    process.env['HEYHEY_LOCAL_MODEL_DIR'] ?? '',
+    new ModelFiles(join(storage.directory, 'models'), process.env['HEYHEY_LOCAL_MODEL_DIR']),
     process.platform,
     packages,
   );

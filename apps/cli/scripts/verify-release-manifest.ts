@@ -9,6 +9,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod/v4';
+import { isDeepStrictEqual } from 'node:util';
+import { modelsFromPins } from '../src/release/model-pins';
 import { parseManifestForVersion } from '../src/release/release-manifest';
 
 const cliRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -30,4 +32,9 @@ try {
   );
 }
 
-parseManifestForVersion(manifestJson, version);
+const manifest = parseManifestForVersion(manifestJson, version);
+if (!isDeepStrictEqual(manifest.models, modelsFromPins(path.join(cliRoot, '..', 'graph-search', 'model-pins.json')))) {
+  throw new Error(
+    'Release manifest model pins differ from apps/graph-search/model-pins.json. Regenerate the manifest.',
+  );
+}

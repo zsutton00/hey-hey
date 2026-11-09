@@ -25,6 +25,7 @@ vi.mock('../local-app/local-application', () => ({
 }));
 vi.mock('../local-app/installation-store', () => ({
   InstallationStore: class {
+    readonly directory = '/fixture/local-application';
     async secrets() {
       return { admin: 'test-secret' };
     }

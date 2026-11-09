@@ -21,8 +21,9 @@ export function composeConfiguration(
   installation: Installation,
   secrets: InstallationSecrets,
   bridgePort: number,
+  modelDirectory: string,
 ) {
-  const { release, modelDirectory } = installation;
+  const { release } = installation;
   const image = (name: keyof typeof release.images) => release.images[name].reference;
   const labels = { 'dev.heyhey.cli-version': release.cliVersion };
   const apiEnvironment = localApiEnvironment(secrets, CONTAINER_ENDPOINTS);
@@ -206,8 +207,9 @@ export function devComposeConfiguration(
   secrets: InstallationSecrets,
   bridgePort: number,
   flywayDirectory: string,
+  modelDirectory: string,
 ) {
-  const installed = composeConfiguration(installation, secrets, bridgePort);
+  const installed = composeConfiguration(installation, secrets, bridgePort, modelDirectory);
   const { postgres, redis, api } = installed.services;
   const graphSearch = installed.services['graph-search'];
   const dev = DEV_INFRASTRUCTURE_ENDPOINTS;

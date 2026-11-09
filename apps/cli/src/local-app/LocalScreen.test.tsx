@@ -167,6 +167,18 @@ it('renders the reviewed CLI version and exact image set and defaults an update 
           schemaVersion: 1,
           cliVersion: '9.8.7',
           images: { api: image, ui: image, graphSearch: image, postgres: image, redis: image },
+          models: {
+            modelQuantized: {
+              file: 'model_quantized.onnx',
+              url: `https://huggingface.co/Snowflake/snowflake-arctic-embed-s/resolve/${'1'.repeat(40)}/onnx/model_quantized.onnx`,
+              sha256: 'a'.repeat(64),
+            },
+            tokenizer: {
+              file: 'tokenizer.json',
+              url: `https://huggingface.co/Snowflake/snowflake-arctic-embed-s/resolve/${'1'.repeat(40)}/tokenizer.json`,
+              sha256: 'b'.repeat(64),
+            },
+          },
         },
       }}
       selected={0}

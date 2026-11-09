@@ -27,6 +27,7 @@ import {
 } from '../agents/providers/provider-owner.test-support';
 import { LocalAgentEndpoint } from '../server/local-base-url';
 import { SubmissionToolRegistry } from '../agents/submission-tools/registry';
+import { ModelFiles } from './model-files';
 import { ToolRuleStore } from '../session/tool-rules';
 
 const { spawn } = vi.hoisted(() => ({ spawn: vi.fn() }));
@@ -44,6 +45,18 @@ const release = {
   schemaVersion: 1,
   cliVersion: '1.2.3',
   images: { api: image, ui: image, graphSearch: image, postgres: image, redis: image },
+  models: {
+    modelQuantized: {
+      file: 'model_quantized.onnx',
+      url: `https://huggingface.co/Snowflake/snowflake-arctic-embed-s/resolve/${'1'.repeat(40)}/onnx/model_quantized.onnx`,
+      sha256: 'a'.repeat(64),
+    },
+    tokenizer: {
+      file: 'tokenizer.json',
+      url: `https://huggingface.co/Snowflake/snowflake-arctic-embed-s/resolve/${'1'.repeat(40)}/tokenizer.json`,
+      sha256: 'b'.repeat(64),
+    },
+  },
 } satisfies ReleaseManifest;
 class FakeDocker extends DockerBoundary {
   calls: string[][] = [];
@@ -61,7 +74,7 @@ beforeEach(async () => {
   spawn.mockReset();
   directory = await mkdtemp(join(tmpdir(), 'heyhey-stop-test-'));
   storage = new InstallationStore(directory);
-  await storage.prepare(release, directory);
+  await storage.prepare(release);
   docker = new FakeDocker();
 });
 afterEach(async () => {
@@ -98,7 +111,10 @@ function work(owners: ReturnType<typeof createTestLocalAgentServerRuntimeOwners>
   return run;
 }
 const application = () =>
-  new LocalApplication(new ReleaseSource('unused', release.cliVersion), storage, docker, directory);
+  new LocalApplication(new ReleaseSource('unused', release.cliVersion), storage,
+    docker,
+    new ModelFiles(join(directory, 'models')),
+  );
 
 it('discloses authoritative work from two terminals, cancels safely, and re-discloses concurrent work before any shutdown', async () => {
   const first = await terminal(),

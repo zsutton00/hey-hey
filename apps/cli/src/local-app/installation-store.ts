@@ -1,6 +1,6 @@
-import { chmod, mkdir, readFile, writeFile, stat, rename, unlink } from 'node:fs/promises';
+import { chmod, mkdir, readFile, writeFile, rename, unlink } from 'node:fs/promises';
 import { generateKeyPairSync, randomBytes } from 'node:crypto';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { z } from 'zod/v4';
 import { releaseManifestSchema, type ReleaseManifest } from '../release/release-manifest';
 
@@ -15,9 +15,9 @@ const secretSchema = z.strictObject({
 });
 export type InstallationSecrets = z.infer<typeof secretSchema>;
 
-const installationSchema = z.strictObject({
+// Not strict: installations written before models were downloaded still carry a `modelDirectory`.
+const installationSchema = z.object({
   release: releaseManifestSchema,
-  modelDirectory: z.string().min(1),
 });
 export type Installation = z.infer<typeof installationSchema>;
 const updateConsentSchema = z.strictObject({
@@ -52,7 +52,7 @@ export class InstallationStore {
     }
   }
 
-  async prepare(release: ReleaseManifest, modelDirectory: string): Promise<Installation> {
+  async prepare(release: ReleaseManifest): Promise<Installation> {
     const existing = await this.read();
     if (existing) {
       await this.secrets();
@@ -61,7 +61,7 @@ export class InstallationStore {
     await mkdir(this.directory, { recursive: true, mode: 0o700 });
     await chmod(this.directory, 0o700);
     await this.createSecrets();
-    const installation = { release, modelDirectory: resolve(modelDirectory) };
+    const installation = { release };
     try {
       await writeFile(join(this.directory, 'installation.json'), JSON.stringify(installation), {
         flag: 'wx',
@@ -153,21 +153,5 @@ export class InstallationStore {
   async writeCompose(config: unknown, path: string = this.composePath): Promise<void> {
     await writeFile(path, JSON.stringify(config, null, 2), { mode: 0o600 });
     await chmod(path, 0o600);
-  }
-}
-
-export async function checkModels(directory: string): Promise<void> {
-  for (const file of ['model_quantized.onnx', 'tokenizer.json']) {
-    try {
-      const info = await stat(join(directory, file));
-      if (info.isFile() && info.size > 0) {
-        continue;
-      }
-    } catch {
-      /* Report the missing deployment dependency without downloading it. */
-    }
-    throw new Error(
-      `Graph/search needs ${file}. Set HEYHEY_LOCAL_MODEL_DIR to a directory containing the Arctic Embed S model and tokenizer, then retry.`,
-    );
   }
 }

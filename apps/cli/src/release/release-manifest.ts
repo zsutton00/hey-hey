@@ -22,6 +22,20 @@ const releaseImageSchema = z.strictObject({
   platforms: platformsSchema,
 });
 
+const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/, 'Model checksum must be 64 lowercase hex');
+
+const modelFileSchema = (file: string) =>
+  z.strictObject({
+    file: z.literal(file),
+    url: z
+      .string()
+      .regex(
+        /^https:\/\/huggingface\.co\/Snowflake\/snowflake-arctic-embed-s\/resolve\/[a-f0-9]{40}\/[A-Za-z0-9._/-]+$/,
+        'Model URL must be pinned to a 40-character revision',
+      ),
+    sha256: sha256Schema,
+  });
+
 /**
  * The single version source for one CLI release: install, matching checks and
  * update offers read this file and never resolve image tags on their own.
@@ -37,9 +51,14 @@ export const releaseManifestSchema = z.strictObject({
     postgres: releaseImageSchema,
     redis: releaseImageSchema,
   }),
+  models: z.strictObject({
+    modelQuantized: modelFileSchema('model_quantized.onnx'),
+    tokenizer: modelFileSchema('tokenizer.json'),
+  }),
 });
 
 export type ReleaseManifest = z.infer<typeof releaseManifestSchema>;
+export type ReleaseModelFile = ReleaseManifest['models']['modelQuantized'];
 export type ReleaseImageName = keyof ReleaseManifest['images'];
 
 /** Parses manifest JSON from the packaged file; throws a readable error if it is not a valid release. */

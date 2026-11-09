@@ -235,6 +235,18 @@ describe('ServerCommand against a local application', () => {
     schemaVersion: 1,
     cliVersion: '1.2.3',
     images: { api: image, ui: image, graphSearch: image, postgres: image, redis: image },
+    models: {
+      modelQuantized: {
+        file: 'model_quantized.onnx',
+        url: `https://huggingface.co/Snowflake/snowflake-arctic-embed-s/resolve/${'1'.repeat(40)}/onnx/model_quantized.onnx`,
+        sha256: 'a'.repeat(64),
+      },
+      tokenizer: {
+        file: 'tokenizer.json',
+        url: `https://huggingface.co/Snowflake/snowflake-arctic-embed-s/resolve/${'1'.repeat(40)}/tokenizer.json`,
+        sha256: 'b'.repeat(64),
+      },
+    },
   } satisfies ReleaseManifest;
   const containers = (services: string[]): ObservedContainer[] =>
     services.map((service) => ({
@@ -263,7 +275,7 @@ describe('ServerCommand against a local application', () => {
     localApplicationServices?: readonly string[],
   ) => {
     directory = await mkdtemp(join(tmpdir(), 'heyhey-server-test-'));
-    await new InstallationStore(directory).prepare(release, directory);
+    await new InstallationStore(directory).prepare(release);
     vi.spyOn(DockerBoundary.prototype, 'inspect').mockResolvedValue(containers(running));
     const health = vi.spyOn(DockerBoundary.prototype, 'health').mockResolvedValue(undefined);
     const localServer = createServer();

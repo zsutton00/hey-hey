@@ -28,6 +28,12 @@ export function sameRelease(left: ReleaseManifest, right: ReleaseManifest): bool
       Object.entries(right.images).some(
         ([otherName, other]) => name === otherName && image.reference === other.reference,
       ),
+    ) &&
+    Object.entries(left.models).every(([name, model]) =>
+      Object.entries(right.models).some(
+        ([otherName, other]) =>
+          name === otherName && model.url === other.url && model.sha256 === other.sha256,
+      ),
     )
   );
 }

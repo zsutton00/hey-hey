@@ -12,7 +12,8 @@ import {
   provisioningSql,
 } from '../local-app/compose';
 import { DockerBoundary } from '../local-app/docker-boundary';
-import { InstallationStore, checkModels } from '../local-app/installation-store';
+import { InstallationStore } from '../local-app/installation-store';
+import { ModelFiles } from '../local-app/model-files';
 import { LocalLifecycleOwners } from '../local-app/lifecycle-owners';
 import { assertObservedRelease } from '../local-app/local-application';
 import { resolveLocalBridgePort } from '../local-app/local-port';
@@ -87,7 +88,10 @@ export async function runLocalDevCommand(): Promise<boolean> {
       throw new Error('No local installation found. Run heyhey local once to install it.');
     }
     const { release } = installation;
-    await checkModels(installation.modelDirectory);
+    const modelDirectory = await new ModelFiles(
+      join(storage.directory, 'models'),
+      process.env['HEYHEY_LOCAL_MODEL_DIR'],
+    ).ensure(release);
     const secrets = await storage.secrets();
     const bridgePort = resolveLocalBridgePort();
 
@@ -110,6 +114,7 @@ export async function runLocalDevCommand(): Promise<boolean> {
           secrets,
           bridgePort,
           join(root, 'apps', 'api', 'db', 'flyway'),
+          modelDirectory,
         ),
         devPath,
       );

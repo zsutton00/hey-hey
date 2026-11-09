@@ -21,10 +21,22 @@ it('routes API RedisService, event publisher/subscriber and graph/search to the 
         postgres: image,
         redis: image,
       },
+      models: {
+        modelQuantized: {
+          file: 'model_quantized.onnx',
+          url: `https://huggingface.co/Snowflake/snowflake-arctic-embed-s/resolve/${'1'.repeat(40)}/onnx/model_quantized.onnx`,
+          sha256: 'a'.repeat(64),
+        },
+        tokenizer: {
+          file: 'tokenizer.json',
+          url: `https://huggingface.co/Snowflake/snowflake-arctic-embed-s/resolve/${'1'.repeat(40)}/tokenizer.json`,
+          sha256: 'b'.repeat(64),
+        },
+      },
     }),
   );
   const config = composeConfiguration(
-    { release, modelDirectory: '/fixture/models' },
+    { release },
     {
       admin: 'a'.repeat(64),
       api: 'b'.repeat(64),
@@ -35,6 +47,7 @@ it('routes API RedisService, event publisher/subscriber and graph/search to the 
       signingKey: 'fixture-signing-key',
     },
     4100,
+    '/fixture/models',
   );
   const clients: Redis[] = [];
   // Keep the actual ioredis configuration parser; replace only connection I/O.
