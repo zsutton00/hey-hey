@@ -3888,6 +3888,198 @@ describe('EntityContextService', () => {
     //
     // Canonical Task and DesignDoc seeds carry their own content body.
 
+    describe('archived items in the agent view', () => {
+      const featureId = '123e4567-e89b-42d3-a456-426614174d00';
+      const archivedPlanId = '123e4567-e89b-42d3-a456-426614174d01';
+      const completedPlanId = '123e4567-e89b-42d3-a456-426614174d02';
+      const supersededTaskId = '123e4567-e89b-42d3-a456-426614174d03';
+      const archivedSessionId = '123e4567-e89b-42d3-a456-426614174d04';
+      const liveSessionId = '123e4567-e89b-42d3-a456-426614174d05';
+      const archivedFeatureId = '123e4567-e89b-42d3-a456-426614174d06';
+      const liveFeatureId = '123e4567-e89b-42d3-a456-426614174d07';
+      const archivedIds = new Set([
+        archivedPlanId,
+        archivedSessionId,
+        archivedFeatureId,
+      ]);
+
+      const citation = (entityId: string, title: string) => ({
+        entityType: 'TASK',
+        entityId,
+        entityTitle: title,
+      });
+      const storedRequirements = JSON.stringify({
+        records: [
+          {
+            id: '123e4567-e89b-42d3-a456-426614174d10',
+            statement: 'Only archived fulfills this',
+            designedBy: [],
+            fulfilledBy: [citation(archivedPlanId, 'Archived plan')],
+            contracts: [],
+          },
+          {
+            id: '123e4567-e89b-42d3-a456-426614174d11',
+            statement: 'Mixed fulfillers',
+            designedBy: [],
+            fulfilledBy: [
+              citation(archivedPlanId, 'Archived plan'),
+              citation(completedPlanId, 'Completed plan'),
+            ],
+            contracts: [],
+          },
+        ],
+      });
+
+      const related = (entityId: string, status: string) => ({
+        entityId,
+        entityType: 'PLAN',
+        displayName: `plan ${entityId}`,
+        status,
+        relationship: 'mentions' as const,
+      });
+      const hierarchyEntry = (id: string) => ({
+        id,
+        name: `feature ${id}`,
+        relationshipType: 'structural' as const,
+        relationship: 'ancestor' as const,
+        distance: 1,
+      });
+
+      function arrange(relatedEntities = defaultRelated) {
+        mockTaskService.findPersistedByOrganization.mockResolvedValue(
+          makeSeedRow({ id: featureId, type: WORK_ITEM_TYPE_KEYS.Feature }),
+        );
+        (mockPrisma.db as any).taskSection.findMany.mockResolvedValue([
+          {
+            key: 'requirements',
+            order: 0,
+            materializedMarkdown: storedRequirements,
+          },
+        ]);
+        (mockPrisma.db.task.findMany as jest.Mock).mockImplementation(
+          async (args: { where: { archivedAt?: unknown; id?: any } }) =>
+            args.where.archivedAt && args.where.id
+              ? (args.where.id.in as string[])
+                  .filter((id) => archivedIds.has(id))
+                  .map((id) => ({ id }))
+              : [],
+        );
+        (mockPrisma.db.designDoc.findMany as jest.Mock).mockResolvedValue([]);
+        (mockPrisma.db.service.findMany as jest.Mock).mockResolvedValue([]);
+        mockGraphsClient.getEntityNeighborhood.mockResolvedValue(
+          makeNeighborhood({
+            relatedEntities,
+            agentSessions: [
+              {
+                entityId: archivedSessionId,
+                entityType: 'AGENT_SESSION',
+                displayName: 'archived session',
+                status: 'COMPLETED',
+              },
+              {
+                entityId: liveSessionId,
+                entityType: 'AGENT_SESSION',
+                displayName: 'live session',
+                status: 'COMPLETED',
+              },
+            ],
+          }),
+        );
+        jest
+          .spyOn(service as any, 'buildFeatureHierarchy')
+          .mockResolvedValue([
+            hierarchyEntry(archivedFeatureId),
+            hierarchyEntry(liveFeatureId),
+          ]);
+      }
+
+      const defaultRelated = [
+        related(archivedPlanId, 'ARCHIVED'),
+        related(completedPlanId, 'COMPLETED'),
+        related(supersededTaskId, 'SUPERSEDED'),
+      ];
+
+      const read = (flags: Record<string, unknown>) =>
+        service.getFullEntityContext(
+          testIds.organization,
+          testIds.project,
+          'TASK' as EntityType,
+          featureId,
+          'test-token',
+          flags,
+        );
+
+      it('hides archived neighbors and citations but keeps other statuses', async () => {
+        arrange();
+
+        const result = await read({ groupRelationships: true });
+
+        const relatedIds = result.relatedEntities?.map((e) => e.entityId);
+        expect(relatedIds).toEqual(
+          expect.arrayContaining([completedPlanId, supersededTaskId]),
+        );
+        expect(relatedIds).not.toContain(archivedPlanId);
+        expect(result.agentSessions?.map((s) => s.entityId)).toEqual([
+          liveSessionId,
+        ]);
+        expect(result.featureHierarchy?.map((f) => f.id)).toEqual([
+          liveFeatureId,
+        ]);
+
+        const [onlyArchived, mixed] =
+          result.content!.requirementsSection!.records;
+        expect(onlyArchived.statement).toBe('Only archived fulfills this');
+        expect(onlyArchived.fulfilledBy).toEqual([]);
+        expect(mixed.fulfilledBy.map((c) => c.entityId)).toEqual([
+          completedPlanId,
+        ]);
+        expect(JSON.parse(result.content!.sections!.requirements)).toEqual(
+          result.content!.requirementsSection,
+        );
+      });
+
+      it('leaves the UI read unfiltered and the stored section unchanged', async () => {
+        arrange();
+
+        const result = await read({});
+
+        expect(result.relatedEntities?.map((e) => e.entityId)).toContain(
+          archivedPlanId,
+        );
+        expect(result.agentSessions?.map((s) => s.entityId)).toContain(
+          archivedSessionId,
+        );
+        expect(result.featureHierarchy?.map((f) => f.id)).toContain(
+          archivedFeatureId,
+        );
+        expect(result.content!.sections!.requirements).toBe(storedRequirements);
+        expect(
+          result.content!.requirementsSection!.records[0].fulfilledBy,
+        ).toHaveLength(1);
+      });
+
+      it('does not let archived items use up the selection limit', async () => {
+        const liveIds = Array.from(
+          { length: 2 },
+          (_, i) => `123e4567-e89b-42d3-a456-4266141750${i}0`,
+        );
+        arrange([
+          related(archivedPlanId, 'ARCHIVED'),
+          ...liveIds.map((id) => related(id, 'ACTIVE')),
+        ]);
+
+        const result = await read({
+          groupRelationships: true,
+          relatedEntitySelection: { maxEntities: 2 },
+        });
+
+        expect(result.relatedEntities?.map((e) => e.entityId).sort()).toEqual(
+          [...liveIds].sort(),
+        );
+        expect(result.relatedEntitySelection?.omittedEntityCount).toBe(0);
+      });
+    });
+
     describe('canonical content body', () => {
       const stepId = '123e4567-e89b-42d3-a456-426614174c00';
       const backingTaskId = '123e4567-e89b-42d3-a456-426614174c01';
