@@ -1,7 +1,7 @@
 import type {
   OpenItemRef,
   PromoteGroupToGoalRequest,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId, UserId } from '../../../types';
 import type { TaskService } from '../../tasks/task.service';
 import type { GoalTracksService } from '../../tasks/goal-tracks.service';

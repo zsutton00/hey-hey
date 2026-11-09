@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import {
   createTestRunEventPublisher,
   createTestMessagePoster,
@@ -31,6 +32,7 @@ const handlerA: PromptTypeHandler<unknown> = {
   service: 'required',
   launchEntity: 'none',
   implementationReadiness: 'gated_and_clarifiable',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],
@@ -43,6 +45,7 @@ const handlerB: PromptTypeHandler<unknown> = {
   service: 'optional',
   launchEntity: 'required',
   implementationReadiness: 'none',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],
@@ -55,6 +58,7 @@ const handlerC: PromptTypeHandler<unknown> = {
   service: 'required',
   launchEntity: 'required',
   implementationReadiness: 'gated_and_clarifiable',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],
@@ -63,6 +67,7 @@ const handlerC: PromptTypeHandler<unknown> = {
 
 const missingIdHandler = {
   promptType: 'debug',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],
@@ -72,6 +77,7 @@ const missingIdHandler = {
 const subagentHandler = {
   id: 'commit',
   promptType: 'commit',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'subagent',
   providerSessionCountsForContext: false,
   reports: [],

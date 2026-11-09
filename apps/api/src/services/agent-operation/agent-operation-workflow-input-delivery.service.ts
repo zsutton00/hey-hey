@@ -1,4 +1,4 @@
-import type { MessageResponseDto } from '../../generated';
+import type { MessageResponseDto } from '@hey-hey/contracts/api/models';
 import {
   Injectable,
   Logger,
@@ -124,9 +124,7 @@ export class AgentOperationWorkflowInputDeliveryService
     const delivery = await this.claimNext();
     if (!delivery) return;
     try {
-      if (
-        delivery.kind === AgentOperationWorkflowInputKind.START_RUN_KICKOFF
-      ) {
+      if (delivery.kind === AgentOperationWorkflowInputKind.START_RUN_KICKOFF) {
         await this.recoverUndatedKickoff(delivery);
       }
       const message = await this.messageService.getMessage(
@@ -138,9 +136,7 @@ export class AgentOperationWorkflowInputDeliveryService
       if (!message || message.type !== 'USER' || !isTimelineMessage(message)) {
         throw new Error('WORKFLOW_INPUT_MESSAGE_MISSING');
       }
-      if (
-        delivery.kind === AgentOperationWorkflowInputKind.START_RUN_KICKOFF
-      ) {
+      if (delivery.kind === AgentOperationWorkflowInputKind.START_RUN_KICKOFF) {
         await this.deliverStartRunKickoff(delivery, message);
         await this.markStartRunKickoffDelivered(delivery);
       } else {

@@ -4,6 +4,7 @@ import type { McpSessionContext } from '../mcp-server-config';
 import type { ServerLogger } from '../../server/logger';
 import type { ActivePlatformToolCatalog } from './catalog';
 import type { PlatformMcpForwarder } from './forwarder';
+import type { DecisionModelResultNarrower } from '../context-trimming/context-trimmer';
 import {
   PlatformMcpProxySession,
   type JsonRpcRequest,
@@ -24,6 +25,7 @@ export interface TurnPlatformMcpProxyInput {
   catalog: ActivePlatformToolCatalog;
   activeHandlerPromptType: string;
   logger?: ServerLogger;
+  graphResultNarrower?: DecisionModelResultNarrower;
 }
 
 export interface PlatformMcpProxyMount {
@@ -41,6 +43,7 @@ export class TurnPlatformMcpProxy {
   readonly activeHandlerPromptType: string;
   readonly token: string;
   readonly logger: ServerLogger | undefined;
+  readonly graphResultNarrower: DecisionModelResultNarrower | undefined;
 
   private closed = false;
   private reportingRepair = false;
@@ -56,6 +59,7 @@ export class TurnPlatformMcpProxy {
     this.catalog = input.catalog;
     this.activeHandlerPromptType = input.activeHandlerPromptType;
     this.logger = input.logger;
+    this.graphResultNarrower = input.graphResultNarrower;
     this.token = randomUUID();
   }
 
@@ -121,6 +125,7 @@ export class TurnPlatformMcpProxy {
         catalog: this.catalog,
         activeHandlerPromptType: this.activeHandlerPromptType,
         active: this.active,
+        ...(this.graphResultNarrower ? { graphResultNarrower: this.graphResultNarrower } : {}),
         ...(this.logger ? { logger: this.logger } : {}),
       },
       forwarder,

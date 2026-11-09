@@ -9,8 +9,8 @@ import {
   createRegistryWithArchivedSystemType,
   createWarmWorkItemTypeRegistryWithCustomTypes,
 } from '../../../test/setup/work-item-type-registry.fixture';
-import { TaskSectionKey } from '../../generated/model/taskSectionKey';
-import { EntityType } from '../../generated/model/entityType';
+import { TaskSectionKey } from '@hey-hey/contracts/api/models';
+import { EntityType } from '@hey-hey/contracts/api/models';
 import { guidanceTokenForType } from '../tools/work-item-guidance-token';
 import { AUTHORING_ROOT_PROOF } from '../tools/authoring-guidance';
 

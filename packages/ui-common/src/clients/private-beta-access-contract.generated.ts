@@ -2,28 +2,28 @@
 // Source of truth: openapi/specs/schemas/private-beta-access.yaml.
 
 export const privateBetaAccessRequestFieldConstraints = {
-  "name": {
-    "minLength": 1,
-    "maxLength": 120
+  name: {
+    minLength: 1,
+    maxLength: 120,
   },
-  "workEmail": {
-    "minLength": 3,
-    "maxLength": 254
+  workEmail: {
+    minLength: 3,
+    maxLength: 254,
   },
-  "organizationName": {
-    "minLength": 1,
-    "maxLength": 200
+  organizationName: {
+    minLength: 1,
+    maxLength: 200,
   },
-  "teamSize": {
-    "minimum": 1,
-    "maximum": 10000
+  teamSize: {
+    minimum: 1,
+    maximum: 10000,
   },
-  "productContext": {
-    "minLength": 1,
-    "maxLength": 2000
+  productContext: {
+    minLength: 1,
+    maxLength: 2000,
   },
-  "accessRationale": {
-    "minLength": 1,
-    "maxLength": 2000
-  }
+  accessRationale: {
+    minLength: 1,
+    maxLength: 2000,
+  },
 } as const;

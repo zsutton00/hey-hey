@@ -5,7 +5,7 @@ export const buildRepositoryPlacementPrompt = (payload: RepositoryPlacementPromp
     '# Existing-project imported root placement',
     '',
     'Suggest one parent for every proposed root. Treat the proposed hierarchy and every existing Feature as immutable.',
-    'Use only unified_search and get_context to discover the current project Feature graph. Search narrowly, then orient only on promising Features. Do not enumerate or preload the whole graph.',
+    'Use only the read tools (unified_search, get_context, get_full_entity, get_edges, get_entity_identities) to discover the current project Feature graph. Search narrowly, then orient only on promising Features. Do not enumerate or preload the whole graph.',
     'A target may be PROJECT_ROOT or an active existing FEATURE in this project. Never target a proposed child, non-Feature entity, archived entity, or pending proposal.',
     'Do not create, edit, link, re-parent, or otherwise mutate project entities. These are suggestions for editable review.',
     '',

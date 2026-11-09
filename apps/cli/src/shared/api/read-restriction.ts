@@ -1,5 +1,5 @@
-import { ReadRestriction } from './generated/api';
-import { Configuration, type ConfigurationParameters } from './generated/configuration';
+import { ReadRestriction } from '@hey-hey/contracts/api/models';
+import { Configuration, type ConfigurationParameters } from '@hey-hey/contracts/api/configuration';
 
 /** Header the platform API reads to decide which records a request may discover and read. */
 export const READ_RESTRICTION_HEADER = 'X-Read-Restriction';

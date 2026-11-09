@@ -9,11 +9,6 @@ import { CreateReportProxy } from './submission-tools/create-report-proxy';
 import { CreateReportTool } from './submission-tools/create-report-tool';
 import { suggestFeatureVerificationTool } from './submission-tools/suggest-feature-verification-tool';
 import { RunSubagentsTool } from './submission-tools/run-subagents-tool';
-import {
-  CONTEXT_SEARCH_HOP_LIMITS,
-  CONTEXT_SEARCH_MAX_RESULTS,
-  type ContextGatheringDeps,
-} from './project-assistant/context-gathering';
 import type { SubmissionToolDeclaration } from './submission-tools/types';
 import { ReportEmissionEvents } from './submission-tools/report-emission-events';
 import { SubmissionToolRegistry } from './submission-tools/registry';
@@ -23,10 +18,9 @@ import { SessionMonitorEvaluationStore } from './session-monitor';
 import { EntityContextLoader } from './entity-context/entity-context-loader';
 import { AgentStartupPromptInput } from '../commands/agent-startup-prompt-input';
 import { PlanSubmissionAdmissionClient } from './plan-shaping/plan-submission-admission.client';
-import { createJevClient, DEFAULT_JEV_MODEL, type JevClient } from '../jev/client';
-import { DEFAULT_WORDING } from '../jev/scenarios';
-import { createLiveSearchExecutor } from '../jev/search';
-import { createLiveReader } from '../jev/traversal';
+import { raiseUncertaintyTool } from './submission-tools/raise-uncertainty-tool';
+import { createJevClient, type JevClient } from '../jev/client';
+import type { DecisionModel } from './context-trimming/context-trimmer';
 
 export interface AgentApplicationRuntimeDependencies {
   runStore?: RunStore;
@@ -47,24 +41,11 @@ const readRunSubagentsSwitch = (): boolean => {
   throw new Error(`HEYHEY_RUN_SUBAGENTS must be 'on' or 'off', got '${value}'.`);
 };
 
-/** What Project Assistant gathers into its prompt over the live project graph; built only with a Jev key. */
-const createContextGathering = (
-  client: JevClient,
-  auth: SubmissionToolAuth,
-  apiBaseUrl: string,
-): ContextGatheringDeps => ({
-  jev: { client, model: DEFAULT_JEV_MODEL, wording: DEFAULT_WORDING },
-  limits: CONTEXT_SEARCH_HOP_LIMITS,
-  maxResultsPerSearch: CONTEXT_SEARCH_MAX_RESULTS,
-  executorFor: (project) => createLiveSearchExecutor({ auth, apiBaseUrl, ...project }),
-  readerFor: (project, focal, known) =>
-    createLiveReader(focal, { auth, apiBaseUrl, ...project }, known),
-  traceLogDir: path.join(resolveJevLogsDir(), 'gather'),
-});
-
 /** Owns prompt handlers, submission tools, and their shared agent-side state. */
 export class AgentApplicationRuntime {
   public readonly jevClient: JevClient | undefined;
+  public readonly decisionModel: DecisionModel | undefined;
+  public readonly isDecisionModelEnabled: () => Promise<boolean>;
   public readonly auth: SubmissionToolAuth;
   public readonly reportEmissionEvents = new ReportEmissionEvents();
   public readonly submissionToolRegistry = new SubmissionToolRegistry();
@@ -84,6 +65,8 @@ export class AgentApplicationRuntime {
 
   public constructor(dependencies: AgentApplicationRuntimeDependencies) {
     this.jevClient = createJevClient(process.env, dependencies.logger.child({ component: 'jev' }));
+    this.decisionModel = this.jevClient;
+    this.isDecisionModelEnabled = dependencies.isJevEnabled;
     const fetchImpl = dependencies.fetchImpl ?? fetch;
     this.runSubagentsTool = readRunSubagentsSwitch() ? new RunSubagentsTool() : null;
     this.auth = new SubmissionToolAuth(dependencies.oauthClient);
@@ -113,20 +96,16 @@ export class AgentApplicationRuntime {
       logger: dependencies.logger.child({ component: 'startup-prompt-input' }),
       entityContextLoader: this.entityContextLoader,
     });
+    const jevLogsDir = resolveJevLogsDir();
     this.promptTypeRegistry = new PromptTypeRegistry({
       createReportProxy: this.createReportProxy,
       runSubagentsTool: this.runSubagentsTool,
       ...(this.jevClient
         ? {
-            contextGathering: createContextGathering(
-              this.jevClient,
-              this.auth,
-              dependencies.apiBaseUrl,
-            ),
             parentRequirements: {
               jevClient: this.jevClient,
               entityContextLoader: this.entityContextLoader,
-              attemptLogDir: path.join(resolveJevLogsDir(), 'parent-requirements'),
+              attemptLogDir: jevLogsDir ? path.join(jevLogsDir, 'parent-requirements') : null,
             },
             isJevEnabled: dependencies.isJevEnabled,
           }
@@ -146,6 +125,7 @@ export class AgentApplicationRuntime {
     this.baseSubmissionTools = [
       new CreateReportTool(this.createReportProxy, undefined, dependencies.logger),
       suggestFeatureVerificationTool,
+      raiseUncertaintyTool,
     ];
   }
 }

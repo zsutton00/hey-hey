@@ -33,8 +33,8 @@ import {
   PromptTypeResponseDto,
   WorkflowName,
   SystemMessageResponseType,
-} from '../../../generated';
-import { LocalPromptType } from '../../../generated/local';
+} from '@hey-hey/contracts/api/models';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
 
 const WorkflowState = PromptTypeResponseDto.WorkflowStateEnum;
 import { createMutableContextHandle } from '../../../utils/mutable-context';

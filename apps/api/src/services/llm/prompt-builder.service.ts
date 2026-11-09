@@ -4,7 +4,7 @@ import {
   ConversationResponseDto,
   InitiativeResponseDto,
   ProjectResponseDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ConversationId,
   InitiativeId,

@@ -1,0 +1,170 @@
+name: Release CLI
+run-name: CLI release — ${{ github.ref_name }}
+
+# Publishes one CLI version with the exact images already built and verified by a
+# "Build images" run on the same commit. Nothing is rebuilt here: the candidate
+# run's release-manifest.json is the one that ships. Tags the images with the CLI
+# version, publishes npm, then runs anonymous checks.
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: Run ID of the successful "Build images" run (target All) on this exact commit
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cli-release
+  cancel-in-progress: false
+
+env:
+  REGISTRY_OWNER: ghcr.io/zsutton00
+
+jobs:
+  approve:
+    # The protected environment holds the required-reviewer approval.
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Require a release branch
+        env:
+          REF: ${{ github.ref }}
+        run: '[[ "$REF" == refs/heads/release/?* ]]'
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - id: version
+        run: echo "version=$(node -p "require('./apps/cli/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Refuse to overwrite an existing release
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if npm view "@hey-hey/cli@$VERSION" version >/dev/null 2>&1; then
+            echo "@hey-hey/cli@$VERSION is already published" >&2
+            exit 1
+          fi
+      - name: Require a successful candidate run for this exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.candidate_run_id }}
+        run: |
+          set -euo pipefail
+          run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID")"
+          [ "$(jq -r .path <<<"$run")" = ".github/workflows/publish-images.yml" ] || { echo "Run $RUN_ID is not a Build images run" >&2; exit 1; }
+          [ "$(jq -r .conclusion <<<"$run")" = "success" ] || { echo "Run $RUN_ID did not succeed" >&2; exit 1; }
+          [ "$(jq -r .head_sha <<<"$run")" = "$GITHUB_SHA" ] || { echo "Run $RUN_ID built a different commit than $GITHUB_SHA" >&2; exit 1; }
+
+  publish:
+    needs: approve
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      actions: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-manifest-${{ github.sha }}
+          path: ${{ runner.temp }}/candidate
+          run-id: ${{ inputs.candidate_run_id }}
+          github-token: ${{ github.token }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tag the candidate images with the CLI version
+        env:
+          VERSION: ${{ needs.approve.outputs.version }}
+        run: |
+          set -euo pipefail
+          manifest="$RUNNER_TEMP/candidate/release-manifest.json"
+          [ "$(jq -r .cliVersion "$manifest")" = "$VERSION" ] || { echo "Candidate manifest is for a different CLI version" >&2; exit 1; }
+          for image in api ui graphSearch; do
+            reference="$(jq -r --arg i "$image" '.images[$i].reference' "$manifest")"
+            docker buildx imagetools create -t "${reference%@*}:$VERSION" "$reference"
+          done
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile --filter @hey-hey/cli...
+      - name: Publish to npm with the candidate manifest
+        working-directory: apps/cli
+        run: |
+          cp "$RUNNER_TEMP/candidate/release-manifest.json" release-manifest.json
+          npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-manifest
+          path: ${{ runner.temp }}/candidate/release-manifest.json
+
+  verify-pull:
+    needs: publish
+    name: Anonymous pull on ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    permissions: {}
+    strategy:
+      matrix:
+        include:
+          - { platform: linux/amd64, runner: ubuntu-latest }
+          - { platform: linux/arm64, runner: ubuntu-24.04-arm }
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-manifest
+      - name: Pull every manifest image without registry credentials
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          # No login step runs in this job; make sure no credentials exist.
+          rm -f "$HOME/.docker/config.json"
+          for reference in $(jq -r '.images[].reference' release-manifest.json); do
+            docker pull --platform "$PLATFORM" "$reference"
+          done
+
+  verify-install:
+    needs: [approve, publish]
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-manifest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install the published package and compare its manifest
+        env:
+          VERSION: ${{ needs.approve.outputs.version }}
+        run: |
+          set -euo pipefail
+          scratch="$(mktemp -d)"
+          cd "$scratch"
+          for attempt in $(seq 1 12); do
+            npm install "@hey-hey/cli@$VERSION" && break
+            sleep 10
+          done
+          [ "$(npx --no-install heyhey --version)" = "$VERSION" ]
+          cmp node_modules/@hey-hey/cli/release-manifest.json "$GITHUB_WORKSPACE/release-manifest.json"
+          [ "$(jq -r .cliVersion node_modules/@hey-hey/cli/release-manifest.json)" = "$VERSION" ]

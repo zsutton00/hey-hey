@@ -3,7 +3,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
-import type { FutureRevisionContent } from 'src/generated';
+import type { FutureRevisionContent } from '@hey-hey/contracts/api/models';
 import type { Prisma } from '@prisma/client';
 import {
   materializeFutureRevision,

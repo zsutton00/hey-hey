@@ -24,6 +24,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import {
   createTestRunEventPublisher,
   createTestMessagePoster,
@@ -71,6 +72,7 @@ const visualPreviewHandler: PromptTypeHandler<unknown> = {
   service: 'optional',
   launchEntity: 'none',
   implementationReadiness: 'none',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],
@@ -83,6 +85,7 @@ const phaseBreakdownHandler: PromptTypeHandler<unknown> = {
   service: 'optional',
   launchEntity: 'required',
   implementationReadiness: 'none',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   providerSessionStart: 'fresh',
@@ -493,9 +496,7 @@ describe('per-turn discard awaits the runner before the next queued turn starts'
     // events we care about are in.
     releaseDiscard();
     await Promise.all([firstTurn, secondTurn]);
-    for (let i = 0; i < 200 && !events.includes('runPrompt:2'); i += 1) {
-      await new Promise<void>((resolve) => setImmediate(resolve));
-    }
+    await vi.waitFor(() => expect(events).toContain('runPrompt:2'));
 
     expect(events.slice(0, 4)).toEqual([
       'runPrompt:1',

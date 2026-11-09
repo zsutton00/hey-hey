@@ -14,7 +14,7 @@ import {
   FlowContext,
   FlowUserMessage,
 } from '../types/flow-internal.types';
-import { SystemMessageData, WorkflowName } from '../generated';
+import { SystemMessageData, WorkflowName } from '@hey-hey/contracts/api/models';
 import { WorkflowDurationOptions } from '@temporalio/workflow';
 import { ContextPatch } from '../utils/mutable-context';
 
@@ -365,6 +365,20 @@ export type PendingUserMessageMutableState =
  * Contains only what's needed to resume workflow execution
  */
 export interface SerializableWorkflowState {
+  executionOwner?: 'CLI' | 'TEMPORAL';
+  localOnboarding?: {
+    agentSessionId: string;
+    pending?: {
+      requestId: string;
+      prompt: string;
+      attempts: number;
+      kind?: 'NEXT_STEPS';
+    };
+    nextStepsComplete?: boolean;
+    acceptedRequestId?: string;
+    triggeringUserMessage?: FlowUserMessage;
+    userMessages?: Array<Pick<FlowUserMessage, 'id' | 'nodeId' | 'data'>>;
+  };
   // Workflow orchestration state
   step: WorkflowStep;
   phase: WorkflowPhase;

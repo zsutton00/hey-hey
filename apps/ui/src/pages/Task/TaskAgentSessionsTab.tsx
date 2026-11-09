@@ -1,7 +1,7 @@
 import type {
   ContextRelatedEntityDto,
   WorkStatus,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { unifiedApiClient } from "@hey-hey/ui-common/clients";
 import React, { useCallback } from "react";
 import { PaginatedCodingSessionsFeed } from "../../components/Activity/PaginatedCodingSessionsFeed";

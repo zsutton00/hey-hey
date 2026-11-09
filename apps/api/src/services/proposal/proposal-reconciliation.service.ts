@@ -1,4 +1,4 @@
-import { ProposalReconciliationSuggestion } from 'src/generated';
+import { ProposalReconciliationSuggestion } from '@hey-hey/contracts/api/models';
 import { ProposalReconciliationCandidatePipe } from '../../pipes/proposal-reconciliation-candidate.pipe';
 import { ConflictException, Inject, Injectable, Logger } from '@nestjs/common';
 import type {
@@ -20,7 +20,7 @@ import type {
   UpdateDesignDocDto,
   WorkItemChangeSetValidationRequest,
   ProjectedWorkItemChangeSetResponse,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 import {
   fieldPathToPointer,
@@ -877,6 +877,7 @@ export class ProposalReconciliationService {
         category: edge.category ?? 'meta',
         direction: edge.direction ?? null,
         predicate: edge.predicate ?? null,
+        transitionRole: edge.transitionRole ?? null,
         reasoning: edge.reasoning,
         metadata: edge.metadata ?? null,
       },

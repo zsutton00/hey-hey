@@ -7,13 +7,21 @@ import {
   MachineEnrollmentClaimService,
 } from './machine-enrollment-claim.service';
 import { SimpleWebAuthnRegistrationVerifier } from './machine-enrollment-webauthn-verifier';
+import { AccountPasskeyModule } from '../../auth/passkeys/account-passkey.module';
+import { SharedEnrollmentClaimService } from './shared-enrollment-claim.service';
 import { ControllerAuthorizationModule } from '../controller-authorization/controller-authorization.module';
 
 @Module({
-  imports: [ConfigModule, PrismaModule, ControllerAuthorizationModule],
+  imports: [
+    ConfigModule,
+    PrismaModule,
+    ControllerAuthorizationModule,
+    AccountPasskeyModule,
+  ],
   controllers: [MachineEnrollmentClaimController],
   providers: [
     MachineEnrollmentClaimService,
+    SharedEnrollmentClaimService,
     {
       provide: MACHINE_ENROLLMENT_WEBAUTHN_VERIFIER,
       useClass: SimpleWebAuthnRegistrationVerifier,

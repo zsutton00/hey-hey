@@ -4,6 +4,8 @@ import { PlatformMcpForwarder } from './forwarder';
 import { PlatformMcpProxySession, type JsonRpcRequest } from './session';
 import { createTestOAuthClient } from '../../auth/oauth-client.test-support';
 import type { ServerLogger } from '../../server/logger';
+import type { DecisionModelResultNarrower } from '../context-trimming/context-trimmer';
+import type { EvalSearchScope } from '../../shared/agent-bridge-contract/runtime-types';
 
 const makeLogger = (): { logger: ServerLogger; warn: ReturnType<typeof vi.fn> } => {
   const warn = vi.fn();
@@ -33,18 +35,25 @@ const makeSession = (
   forward: PlatformMcpForwarder['forward'],
   logger?: ServerLogger,
   inert = false,
+  graphResultNarrower?: DecisionModelResultNarrower,
+  searchScope?: EvalSearchScope,
 ) =>
   new PlatformMcpProxySession(
     {
       runId: 'run-1',
       turnId: 'turn-1',
-      context: { projectId: 'project-1', ...(inert ? { inert: true } : {}) },
+      context: {
+        projectId: 'project-1',
+        ...(inert ? { inert: true } : {}),
+        ...(searchScope ? { searchScope } : {}),
+      },
       catalog: new ActivePlatformToolCatalog({
         useCase: 'general',
-        additionalTools: ['create_design_doc'],
+        additionalTools: ['create_design_doc', 'get_context', 'get_edges'],
       }),
       activeHandlerPromptType: 'entity_conversation',
       active: true,
+      ...(graphResultNarrower ? { graphResultNarrower } : {}),
       ...(logger ? { logger } : {}),
     },
     makeForwarder(forward),
@@ -66,6 +75,61 @@ const snapshotResult = (members: Array<{ memberId: string; prerequisiteMemberIds
 });
 
 describe('PlatformMcpProxySession', () => {
+  it.each(['get_context', 'get_edges'])(
+    'narrows successful %s results after forwarding',
+    async (name) => {
+      const upstream = { content: [{ type: 'text', text: '{"full":true}' }] };
+      const forward = vi.fn<PlatformMcpForwarder['forward']>().mockResolvedValue({
+        jsonrpc: '2.0',
+        id: 1,
+        result: upstream,
+      });
+      const graphResultNarrower: DecisionModelResultNarrower = {
+        narrowContextResult: vi.fn(async (result) => ({ result, narrowed: true })),
+        narrowEdgesResult: vi.fn(async (result) => ({ result, narrowed: true })),
+      };
+      const proxy = makeSession(forward, undefined, false, graphResultNarrower);
+
+      const response = await proxy.handle({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name, arguments: {} },
+      });
+
+      expect(response.body).toMatchObject({ result: { narrowed: true } });
+      expect(
+        name === 'get_context'
+          ? graphResultNarrower.narrowContextResult
+          : graphResultNarrower.narrowEdgesResult,
+      ).toHaveBeenCalledWith(upstream);
+    },
+  );
+
+  it('passes upstream MCP errors through without asking the Decision Model', async () => {
+    const upstream = { isError: true, content: [{ type: 'text', text: 'failure' }] };
+    const forward = vi.fn<PlatformMcpForwarder['forward']>().mockResolvedValue({
+      jsonrpc: '2.0',
+      id: 1,
+      result: upstream,
+    });
+    const graphResultNarrower: DecisionModelResultNarrower = {
+      narrowContextResult: vi.fn(async (result) => result),
+      narrowEdgesResult: vi.fn(async (result) => result),
+    };
+    const proxy = makeSession(forward, undefined, false, graphResultNarrower);
+
+    const response = await proxy.handle({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'get_edges', arguments: {} },
+    });
+
+    expect(response.body).toMatchObject({ result: upstream });
+    expect(graphResultNarrower.narrowEdgesResult).not.toHaveBeenCalled();
+  });
+
   it.each(['create_work_item', 'edit_work_item', 'create_design_doc'])(
     'overrides supplied output eligibility for inert %s calls',
     async (name) => {
@@ -99,6 +163,231 @@ describe('PlatformMcpProxySession', () => {
       );
     },
   );
+
+  describe('unified_search scope of an eval attempt', () => {
+    const CUTOFF = '2026-03-01T00:00:00.000Z';
+    const SCOPE: EvalSearchScope = {
+      createdBefore: CUTOFF,
+      excludeConnectedTo: ['case-id', 'eval-id', 'proposal-id', 'conversation-id'],
+      hiddenEntityIds: [],
+    };
+    const EXCLUDE = { entityIds: SCOPE.excludeConnectedTo, depth: 1 };
+
+    const searchWith = async (
+      args: Record<string, unknown>,
+      inert = true,
+      scope: EvalSearchScope | null = SCOPE,
+    ) => {
+      const forward = vi.fn<PlatformMcpForwarder['forward']>().mockResolvedValue({
+        jsonrpc: '2.0',
+        id: 1,
+        result: { content: [] },
+      });
+      const proxy = makeSession(forward, undefined, inert, undefined, scope ?? undefined);
+      await proxy.handle({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'unified_search', arguments: args as never },
+      });
+
+      return forward.mock.calls[0]?.[0].params?.['arguments'];
+    };
+
+    it.each([
+      ['a single query', { query: 'retry' }],
+      ['a batch', { queries: ['retry', 'backoff'], entityTypes: ['MESSAGE'] }],
+    ])('adds the cutoff and the exclusion to %s', async (_label, args) => {
+      expect(await searchWith(args)).toEqual({
+        ...args,
+        createdBefore: CUTOFF,
+        excludeConnected: EXCLUDE,
+      });
+    });
+
+    it('keeps an earlier agent date', async () => {
+      const args = { query: 'retry', createdBefore: '2026-01-01T00:00:00.000Z' };
+      expect(await searchWith(args)).toEqual({ ...args, excludeConnected: EXCLUDE });
+    });
+
+    it('replaces a later agent date with the cutoff', async () => {
+      const args = { queries: ['retry'], createdBefore: '2026-06-01T00:00:00.000Z' };
+      expect(await searchWith(args)).toEqual({
+        ...args,
+        createdBefore: CUTOFF,
+        excludeConnected: EXCLUDE,
+      });
+    });
+
+    it('replaces an exclusion the agent supplied', async () => {
+      const args = { query: 'retry', excludeConnected: { entityIds: ['anything'], depth: 2 } };
+      expect(await searchWith(args)).toEqual({
+        query: 'retry',
+        createdBefore: CUTOFF,
+        excludeConnected: EXCLUDE,
+      });
+    });
+
+    it('leaves searches of Runs without a scope unchanged', async () => {
+      const args = { query: 'retry' };
+      expect(await searchWith(args, true, null)).toEqual(args);
+    });
+
+    it('leaves searches of Runs that are not inert unchanged', async () => {
+      const args = { query: 'retry', excludeConnected: { entityIds: ['agent-own'] } };
+      expect(await searchWith(args, false)).toEqual(args);
+    });
+  });
+
+  describe('reads of an eval attempt about its own case', () => {
+    const CASE_CONVERSATION = '6f0c2b1e-7d42-4c1a-9a51-0d5c1e2f3a4b';
+    const MENTIONING_FEATURE = '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d';
+    const UNRELATED_TASK = '9e8d7c6b-5a4f-4e3d-8c2b-1a0f9e8d7c6b';
+    const SCOPE: EvalSearchScope = {
+      createdBefore: '2026-03-01T00:00:00.000Z',
+      excludeConnectedTo: ['case-id'],
+      hiddenEntityIds: ['case-id', CASE_CONVERSATION, MENTIONING_FEATURE],
+    };
+    const text = (payload: unknown) => ({
+      content: [{ type: 'text', text: JSON.stringify(payload) }],
+    });
+
+    const call = async (
+      name: string,
+      args: Record<string, unknown>,
+      upstream: unknown,
+      inert = true,
+    ) => {
+      const forward = vi.fn<PlatformMcpForwarder['forward']>().mockResolvedValue({
+        jsonrpc: '2.0',
+        id: 1,
+        result: upstream as never,
+      });
+      const proxy = makeSession(forward, undefined, inert, undefined, SCOPE);
+      const response = await proxy.handle({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name, arguments: args as never },
+      });
+      const result = response.body && 'result' in response.body ? response.body.result : undefined;
+
+      return { forward, result };
+    };
+
+    it.each([
+      [
+        'get_context from the case conversation',
+        'get_context',
+        { entityId: CASE_CONVERSATION, entityType: 'CONVERSATION' },
+      ],
+      [
+        'get_full_entity of an item mentioning the case',
+        'get_full_entity',
+        { entities: [{ entityType: 'TASK', entityId: MENTIONING_FEATURE }] },
+      ],
+    ])('refuses %s as not found without asking the platform', async (_label, name, args) => {
+      const { forward, result } = await call(name, args, text({}));
+
+      expect(forward).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        content: [{ type: 'text', text: 'Entity not found.' }],
+        isError: true,
+      });
+    });
+
+    it('drops hidden items from get_context related items and attached sessions', async () => {
+      const upstream = text({
+        entityId: UNRELATED_TASK,
+        relatedEntities: [
+          {
+            entityId: MENTIONING_FEATURE,
+            entityType: 'TASK',
+            displayName: 'Agent Evaluations notes',
+          },
+          {
+            entityId: 'b1b2b3b4-0000-4000-8000-000000000001',
+            entityType: 'TASK',
+            displayName: 'Kept',
+          },
+        ],
+        agentSessions: [
+          { entityId: CASE_CONVERSATION, entityType: 'CONVERSATION', displayName: 'Authoring' },
+        ],
+      });
+      const { result } = await call(
+        'get_context',
+        { entityId: UNRELATED_TASK, entityType: 'TASK' },
+        upstream,
+      );
+
+      expect(result).toEqual(
+        text({
+          entityId: UNRELATED_TASK,
+          relatedEntities: [
+            {
+              entityId: 'b1b2b3b4-0000-4000-8000-000000000001',
+              entityType: 'TASK',
+              displayName: 'Kept',
+            },
+          ],
+          agentSessions: [],
+        }),
+      );
+    });
+
+    describe('get_edges', () => {
+      const KEPT_TASK = 'b1b2b3b4-0000-4000-8000-000000000002';
+      const edge = (edgeType: string, entityId: string, displayName: string) => ({
+        direction: 'in',
+        edgeType,
+        otherEndpoint: { entityType: 'TASK', entityId, displayName, taskType: 'FEATURE' },
+        createdAt: '2026-02-01T00:00:00.000Z',
+      });
+      const payload = (edges: unknown[]) => ({
+        edgesByEntity: { [UNRELATED_TASK]: edges },
+        omittedEntities: [],
+      });
+      const upstreamEdges = [
+        edge('RELATED_TO', MENTIONING_FEATURE, 'Notes on the eval case'),
+        edge('DEPENDS_ON', KEPT_TASK, 'Kept'),
+      ];
+      const keptEdges = [edge('DEPENDS_ON', KEPT_TASK, 'Kept')];
+      const args = { entities: [{ entityType: 'TASK', entityId: UNRELATED_TASK }] };
+
+      it('drops edges whose far end is hidden from JSON text', async () => {
+        const { result } = await call('get_edges', args, text(payload(upstreamEdges)));
+
+        expect(result).toEqual(text(payload(keptEdges)));
+      });
+
+      it('drops edges whose far end is hidden from structured content', async () => {
+        const upstream = {
+          ...text(payload(upstreamEdges)),
+          structuredContent: payload(upstreamEdges),
+        };
+        const { result } = await call('get_edges', args, upstream);
+
+        expect(result).toEqual({
+          ...text(payload(keptEdges)),
+          structuredContent: payload(keptEdges),
+        });
+      });
+    });
+
+    it('leaves reads of Runs that are not inert unchanged', async () => {
+      const upstream = text({ entityId: CASE_CONVERSATION });
+      const { forward, result } = await call(
+        'get_context',
+        { entityId: CASE_CONVERSATION, entityType: 'CONVERSATION' },
+        upstream,
+        false,
+      );
+
+      expect(forward).toHaveBeenCalled();
+      expect(result).toEqual(upstream);
+    });
+  });
 
   it('refuses unknown tools during inert execution before forwarding', async () => {
     const forward = vi.fn<PlatformMcpForwarder['forward']>();

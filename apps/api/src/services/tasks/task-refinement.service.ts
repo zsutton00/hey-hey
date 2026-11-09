@@ -15,7 +15,7 @@ import {
   TaskResponseDto,
   TaskSectionUpdateSource,
   WorkItemSectionInput,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OrganizationId, ProjectId, TaskId, UserId } from '../../types';
 import {

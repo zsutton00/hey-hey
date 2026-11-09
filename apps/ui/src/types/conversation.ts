@@ -9,7 +9,7 @@ import type {
   ConversationResponseDto,
   CreateUserMessage,
   MessageResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import type { SecondAction } from "@hey-hey/ui-common/components";
 
 type FormValue = Parameters<SecondAction["onExecute"]>[0][string];

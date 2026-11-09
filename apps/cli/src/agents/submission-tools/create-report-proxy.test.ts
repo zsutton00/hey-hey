@@ -20,11 +20,11 @@ import { SubmissionToolAuth } from './submission-tool-auth';
 import { createTestOAuthClient as createProviderTestOAuthClient } from '../../auth/oauth-client.test-support';
 import { jointDecision } from '../feature-sync/__tests__/feature-sync-decision.fixtures';
 import type { Run } from '../../run/run';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type {
   ProjectReportCoverage,
   ProjectReportEvidenceReference,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import { serializeProjectReportPreparedEvidence } from '../project-report/project-report-submission';
 import type { ProjectReportEvidenceResult } from '../project-report/project-report-evidence-reader';
 import {
@@ -1238,7 +1238,7 @@ describe('creation-time report usage', () => {
     expect(read).toHaveBeenCalledTimes(1);
   });
 
-  it('captures usage on the structured research path without changing its handoff', async () => {
+  it('captures usage on the self-research path without changing its handoff', async () => {
     const { run, body, proxy, snapshotter } = setup();
     const tool = new CodingResearchTool(proxy, () => '2026-11-01T00:00:00.000Z', snapshotter);
     await tool.execute({
@@ -1246,18 +1246,19 @@ describe('creation-time report usage', () => {
       run,
       args: {
         frame: { focalId: 'focal', nodes: [] },
-        analysis: 'Written research handoff',
+        analysis: 'Subagent-parent research handoff',
         summary: 'Research summary',
         provenance: { discoveryCalls: [], edgesTraversed: [] },
         updates: [],
         readinessEvidence: [],
+        uncertainties: [],
       },
     });
     expect(body(0)).toMatchObject({
       reportType: 'CODING_RESEARCH',
       payload: {
         summary: 'Research summary',
-        analysis: 'Written research handoff',
+        analysis: 'Subagent-parent research handoff',
         frame: { focalId: 'focal', nodes: [] },
       },
       usage: { inputTokens: 33, toolCalls: 2 },
@@ -1327,6 +1328,27 @@ describe('creation-time report usage', () => {
     expect(registry.get(child.token)).toBeNull();
     expect(registry.get(parent.token)).not.toBeNull();
   });
+
+  it.each([
+    ['FEATURE_SYNC', { reportType: 'FEATURE_SYNC', summary: 'Drift' }],
+    ['FEATURE_SYNC_HANDOFF', { reportType: 'FEATURE_SYNC_HANDOFF', summary: 'Handoff' }],
+  ])(
+    'snapshots usage in the same write for %s, and still saves when unmeasurable',
+    async (reportType, payload) => {
+      const { tool, run, body, read } = setup();
+      const submitSync = () =>
+        tool.execute({
+          runId: run.runId,
+          run,
+          args: { reportType, audience: 'PROJECT_VISIBLE', payload },
+        });
+      await submitSync();
+      expect(body(0).usage).toMatchObject({ inputTokens: 33, coverage: 'complete' });
+      read.mockRejectedValue(new Error('Unreadable native session'));
+      await submitSync();
+      expect(body(1)).not.toHaveProperty('usage');
+    },
+  );
 
   it('creates the report without usage when collection fails, and never collects for a skipped IMPLEMENT', async () => {
     const { submit, body, read, tool, run, fetchImpl } = setup();

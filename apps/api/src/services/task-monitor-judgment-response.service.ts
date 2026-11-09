@@ -4,7 +4,7 @@ import {
   TaskMonitorJudgmentRequestedSystemMessageData,
   TaskMonitorJudgmentResolvedCommand,
   UserMessageData,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ConversationId,
@@ -59,10 +59,7 @@ export class TaskMonitorJudgmentResponseService {
       },
     });
 
-    if (
-      !requestMessage ||
-      !isJudgmentRequestData(requestMessage.data)
-    ) {
+    if (!requestMessage || !isJudgmentRequestData(requestMessage.data)) {
       throw new BadRequestException(
         'requestMessageId must identify a JUDGMENT_REQUESTED Message in this project',
       );
@@ -170,8 +167,7 @@ export class TaskMonitorJudgmentResponseService {
           userId: params.userId,
           data: { comment: params.context.command.judgment.conclusion },
           conversationId: params.context.conversationId,
-          parentMessageId:
-            params.context.command.judgment.requestMessageId,
+          parentMessageId: params.context.command.judgment.requestMessageId,
         },
         params.organizationId,
         'task-monitor-command',

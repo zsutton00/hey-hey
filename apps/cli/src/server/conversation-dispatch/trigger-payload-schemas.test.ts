@@ -4,8 +4,8 @@ import {
   LocalPromptType,
   PlanCombinationAggressiveness,
   PlanShapingValidationMode,
-} from '../../shared/agent-bridge-contract/generated/api';
-import { WorkflowName } from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
+import { WorkflowName } from '@hey-hey/contracts/api/models';
 import {
   LocalReasoningEffort,
   LocalRunProvider,
@@ -729,6 +729,39 @@ describe('validateTriggerPayload', () => {
 
       expect(validateUserMessageTriggerPayload(payload, promptTypeRegistry)).toEqual(payload);
     });
+
+    it.each([true, false])(
+      'preserves whether a Task Monitor requests a worktree (%s)',
+      (enabled) => {
+        const payload = {
+          handlerPromptType: LocalPromptType.TaskMonitor,
+          userMessage: '',
+          attachments: [],
+          taskMonitorPayload: {
+            monitorId: '11111111-1111-4111-8111-111111111111',
+            cause: 'CONTINUE',
+            correlationId: '22222222-2222-4222-8222-222222222222',
+            launchConfig: {
+              taskId: '33333333-3333-4333-8333-333333333333',
+              method: 'plan',
+              provider: 'codex',
+              model: 'gpt-5.6',
+              reasoningEffort: 'medium',
+              worktree: { enabled, branch: 'task-monitor/decision' },
+            },
+          },
+        };
+        const parsed = validateUserMessageTriggerPayload(payload, promptTypeRegistry);
+        if (enabled) {
+          expect(parsed).toHaveProperty(
+            'taskMonitorPayload.launchConfig.worktree',
+            payload.taskMonitorPayload.launchConfig.worktree,
+          );
+        } else {
+          expect(parsed).not.toHaveProperty('taskMonitorPayload.launchConfig.worktree');
+        }
+      },
+    );
 
     it('rejects a Task Monitor follow-up that omits its typed lifecycle payload', () => {
       expectRejection(

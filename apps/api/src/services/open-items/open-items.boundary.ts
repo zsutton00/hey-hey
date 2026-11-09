@@ -22,7 +22,7 @@ import type {
   SetOpenItemGoalDisclosureRequest,
   PromoteGroupToGoalRequest,
   UngroupOpenItemsRequest,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { openItemsJsonSchemas } from 'src/generated/open-items.schemas';
 import { OpenItemsValidationException } from './open-items.errors';
 

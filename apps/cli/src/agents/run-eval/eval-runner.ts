@@ -4,8 +4,9 @@ import type {
   EvalCost,
   EvalMeasurement,
   EvalRecordedAttempt,
+  EvalRecordedToolCalls,
   EvalRunSettings,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { SubAgentUsage } from '../../run/subagent';
 
 /** What one target child produced. */
@@ -18,6 +19,8 @@ export interface EvalTargetResult {
   usage: SubAgentUsage;
   /** The tested agent's cost, read after its Run settled. */
   cost?: EvalCost;
+  /** The tested agent's own tool calls, without results. */
+  recordedToolCalls?: EvalRecordedToolCalls;
 }
 
 /** A target failure that still carries what the failed attempt measured. */
@@ -27,9 +30,11 @@ export class EvalTargetFailure extends Error {
     public readonly measured: SubAgentUsage & {
       cost?: EvalCost;
       researchMeasurements?: EvalMeasurement[];
+      recordedToolCalls?: EvalRecordedToolCalls;
     },
+    cause?: unknown,
   ) {
-    super(message);
+    super(message, { cause });
   }
 }
 
@@ -43,6 +48,7 @@ export type EvalAttemptPatch = Partial<
     EvalAttemptReportPayload,
     | 'attemptProviderSessionIds'
     | 'judgeProviderSessionId'
+    | 'judgeSessionId'
     | 'status'
     | 'stopReason'
     | 'error'
@@ -51,6 +57,8 @@ export type EvalAttemptPatch = Partial<
     | 'measurements'
     | 'automatedAssessment'
     | 'judgedOutput'
+    | 'recordedChanges'
+    | 'recordedToolCalls'
     | 'summary'
   >
 >;
@@ -67,10 +75,10 @@ export interface EvalRunnerPorts {
     attempt: EvalRecordedAttempt,
     options: { signal: AbortSignal; tokenBudget?: number; onTokenLimit?: () => void },
   ): Promise<EvalTargetResult>;
-  /** Judges a finished attempt's output against its recorded checks and rubric. */
+  /** Judges an output against the case's recorded checks and rubric. */
   judge(
     attempt: EvalRecordedAttempt,
-    outputText: string,
+    output: { outputText: string; toolCalls?: EvalRecordedToolCalls },
     signal: AbortSignal,
   ): Promise<EvalJudgeResult>;
   now(): Date;
@@ -167,16 +175,21 @@ export const runEvalAttempts = async (
         });
       } catch (error) {
         const elapsedMs = ports.now().getTime() - startedAt.getTime();
-        const { cost, researchMeasurements, ...usage } =
+        const { cost, researchMeasurements, recordedToolCalls, ...usage } =
           error instanceof EvalTargetFailure ? error.measured : {};
         measurements.push(...(researchMeasurements ?? []));
         measurements.push(toMeasurement('TARGET_HANDLER', elapsedMs, usage, cost));
+        const retained = recordedToolCalls ? { recordedToolCalls } : {};
         if (stopped.reason !== null) {
           tally.stopped += 1;
-          await finish({ status: 'STOPPED', stopReason: stopped.reason });
+          await finish({ status: 'STOPPED', stopReason: stopped.reason, ...retained });
         } else {
           tally.errored += 1;
-          await finish({ status: 'ERROR', error: { message: errorMessage(error) } });
+          await finish({
+            status: 'ERROR',
+            error: { message: errorMessage(error) },
+            ...retained,
+          });
         }
         return;
       }
@@ -191,12 +204,16 @@ export const runEvalAttempts = async (
       );
       if (target.budgetExhausted) stopped.reason ??= 'TOKEN_LIMIT';
       const summary = target.outputText ? { outputText: target.outputText } : undefined;
+      const retainedToolCalls = target.recordedToolCalls
+        ? { recordedToolCalls: target.recordedToolCalls }
+        : {};
       if (stopped.reason !== null) {
         tally.stopped += 1;
         await finish({
           status: 'STOPPED',
           stopReason: stopped.reason,
           ...(summary ? { summary } : {}),
+          ...retainedToolCalls,
         });
         return;
       }
@@ -206,6 +223,7 @@ export const runEvalAttempts = async (
           status: 'ERROR',
           error: { message: 'The target ended without a completed answer.' },
           ...(summary ? { summary } : {}),
+          ...retainedToolCalls,
         });
         return;
       }
@@ -215,9 +233,17 @@ export const runEvalAttempts = async (
         measurements,
         judgedOutput: target.outputText,
         summary,
+        ...retainedToolCalls,
       });
       try {
-        const judged = await ports.judge(attempt, target.outputText, controller.signal);
+        const judged = await ports.judge(
+          attempt,
+          {
+            outputText: target.outputText,
+            ...(target.recordedToolCalls ? { toolCalls: target.recordedToolCalls } : {}),
+          },
+          controller.signal,
+        );
         tally.completed += 1;
         await finish({ status: 'COMPLETED', automatedAssessment: judged.assessment, summary });
       } catch (error) {

@@ -20,17 +20,15 @@ import { renderCodingResearchMemo } from '../prompts/coding-research-memo';
 
 import { z } from 'zod';
 import type { Run } from '../../run/run';
-import { CodingResearchReportPayloadReportTypeEnum } from '../../shared/api/generated/api';
+import { CodingResearchSelfResearchReportPayloadReportTypeEnum as CodingResearchReportPayloadReportTypeEnum } from '@hey-hey/contracts/api/models';
 import type {
+  CodingResearchUncertainty,
   CodingResearchReadinessEvidence,
   CodingResearchProvenance,
   CodingResearchReportPayload,
   CodingResearchUpdate,
-} from '../../shared/api/generated/api';
-import {
-  LocalAgentSearchEntityType,
-  type LocalPromptType,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/api/models';
+import { LocalAgentSearchEntityType, type LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type {
   LocalResearchUpdate,
   LocalResearchUpdateTarget,
@@ -192,43 +190,137 @@ const codingResearchReadinessEvidenceValidatorArray = z
   .array(codingResearchReadinessEvidenceValidator)
   .max(8);
 
-const CREATE_CODING_RESEARCH_INPUT_SCHEMA = {
+const codingResearchUncertaintySchema = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    frame: {
-      type: 'object',
-      description: 'The ResearchOutput frame adjacency list.',
-    },
-    analysis: {
+    category: {
       type: 'string',
-      minLength: 1,
-      description: 'User-facing markdown synthesis: what the graph implies for the focal task.',
+      enum: ['lack_of_evidence', 'conflict', 'ambiguity', 'not_implemented'],
     },
-    summary: {
-      type: 'string',
-      minLength: 1,
-      description: '50–100 word handoff to the coding agent summarising the key findings.',
-    },
-    provenance: {
-      ...codingResearchProvenanceSchema,
-      description: 'Audit trail: every discovery call made and every edge traversed.',
-    },
-    updates: {
+    severity: { type: 'string', enum: ['low', 'medium', 'high'] },
+    statement: { type: 'string', minLength: 1 },
+    references: {
       type: 'array',
-      description: 'Required advisory reconciliation candidates; use [] when none were found.',
-      items: codingResearchUpdateSchema,
-    },
-    readinessEvidence: {
-      type: 'array',
-      maxItems: 8,
-      description:
-        'Bounded evidence for consequential unresolved behavior, lifecycle, authority, security, isolation, or integration decisions. Use [] when none are evidenced.',
-      items: codingResearchReadinessEvidenceSchema,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          entityType: {
+            type: 'string',
+            enum: [
+              'ARTIFACT',
+              'INITIATIVE',
+              'PROJECT',
+              'TASK',
+              'MESSAGE',
+              'CONVERSATION',
+              'DESIGN_DOC',
+              'AGENT_SESSION',
+              'VALIDATION_SESSION',
+              'SERVICE',
+              'REPORT',
+              'PROPOSAL',
+              'IMPLEMENTATION_HINT',
+              'USER',
+            ],
+          },
+          entityId: { type: 'string', minLength: 1 },
+          title: { type: 'string', minLength: 1 },
+        },
+        required: ['entityType', 'entityId', 'title'],
+      },
     },
   },
-  required: ['frame', 'analysis', 'summary', 'provenance', 'updates', 'readinessEvidence'],
+  required: ['category', 'severity', 'statement', 'references'],
 } as const;
+
+const codingResearchUncertaintiesValidator: z.ZodType<CodingResearchUncertainty[]> = z.array(
+  z
+    .object({
+      category: z.enum(['lack_of_evidence', 'conflict', 'ambiguity', 'not_implemented']),
+      severity: z.enum(['low', 'medium', 'high']),
+      statement: z.string().min(1),
+      references: z.array(
+        z
+          .object({
+            entityType: z.enum([
+              'ARTIFACT',
+              'INITIATIVE',
+              'PROJECT',
+              'TASK',
+              'MESSAGE',
+              'CONVERSATION',
+              'DESIGN_DOC',
+              'AGENT_SESSION',
+              'VALIDATION_SESSION',
+              'SERVICE',
+              'REPORT',
+              'PROPOSAL',
+              'IMPLEMENTATION_HINT',
+              'USER',
+            ]),
+            entityId: z.string().min(1),
+            title: z.string().min(1),
+          })
+          .strict(),
+      ),
+    })
+    .strict(),
+);
+
+const createCodingResearchInputSchema = (format: 'SELF_RESEARCH' | 'SUBAGENT_PARENT') =>
+  ({
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      frame: {
+        type: 'object',
+        description: 'The ResearchOutput frame adjacency list.',
+      },
+      analysis: {
+        type: 'string',
+        minLength: 1,
+        description: 'User-facing markdown synthesis: what the graph implies for the focal task.',
+      },
+      summary: {
+        type: 'string',
+        minLength: 1,
+        description: '50–100 word handoff to the coding agent summarising the key findings.',
+      },
+      provenance: {
+        ...codingResearchProvenanceSchema,
+        description: 'Audit trail: every discovery call made and every edge traversed.',
+      },
+      updates: {
+        type: 'array',
+        description: 'Required advisory reconciliation candidates; use [] when none were found.',
+        items: codingResearchUpdateSchema,
+      },
+      readinessEvidence: {
+        type: 'array',
+        maxItems: 8,
+        description:
+          'Bounded evidence for consequential unresolved behavior, lifecycle, authority, security, isolation, or integration decisions. Use [] when none are evidenced.',
+        items: codingResearchReadinessEvidenceSchema,
+      },
+      ...(format === 'SELF_RESEARCH'
+        ? { uncertainties: { type: 'array', items: codingResearchUncertaintySchema } }
+        : {}),
+    },
+    required:
+      format === 'SELF_RESEARCH'
+        ? [
+            'frame',
+            'analysis',
+            'summary',
+            'provenance',
+            'updates',
+            'readinessEvidence',
+            'uncertainties',
+          ]
+        : ['frame', 'analysis', 'summary', 'provenance', 'updates', 'readinessEvidence'],
+  }) as const;
 
 export class CodingResearchTool implements PassThroughSubmissionToolDeclaration {
   public readonly kind = 'pass_through' as const;
@@ -239,20 +331,19 @@ export class CodingResearchTool implements PassThroughSubmissionToolDeclaration 
     '(ResearchOutput adjacency list), `analysis` (synthesis prose), a 50–100 word ' +
     '`summary` handoff for the coding agent, and the required advisory `updates` array ' +
     '(use an empty array when no candidate was found).';
-  public readonly inputSchema = CREATE_CODING_RESEARCH_INPUT_SCHEMA as unknown as Record<
-    string,
-    unknown
-  >;
   private readonly now: () => string;
   private readonly reportTool: CreateReportTool;
+  public readonly inputSchema: Record<string, unknown>;
 
   public constructor(
     proxy: CreateReportProxy,
     now: () => string = () => new Date().toISOString(),
     usageSnapshotter = new ReportUsageSnapshotter(),
+    private readonly format: 'SELF_RESEARCH' | 'SUBAGENT_PARENT' = 'SELF_RESEARCH',
   ) {
     this.now = now;
     this.reportTool = new CreateReportTool(proxy, now, undefined, undefined, usageSnapshotter);
+    this.inputSchema = createCodingResearchInputSchema(format);
   }
 
   public readonly execute = async (ctx: SubmissionToolExecuteContext) => {
@@ -274,6 +365,7 @@ export class CodingResearchTool implements PassThroughSubmissionToolDeclaration 
     const provenance = ctx.args['provenance'];
     const updates = ctx.args['updates'];
     const readinessEvidence = ctx.args['readinessEvidence'];
+    const uncertainties = ctx.args['uncertainties'];
 
     if (typeof analysisRaw !== 'string' || analysisRaw.length === 0) {
       throw new Error('create_coding_research wrapper: analysis must be a non-empty string');
@@ -313,20 +405,40 @@ export class CodingResearchTool implements PassThroughSubmissionToolDeclaration 
       );
     }
 
+    const parsedUncertainties =
+      this.format === 'SELF_RESEARCH'
+        ? codingResearchUncertaintiesValidator.safeParse(uncertainties)
+        : { success: true as const, data: [] as CodingResearchUncertainty[] };
+    if (!parsedUncertainties.success) {
+      throw new Error(
+        'create_coding_research wrapper: uncertainties must be typed evidence entries',
+      );
+    }
+
     const platformUpdates: CodingResearchUpdate[] = parsedUpdates.data.map((update) => ({
       ...update,
       targets: update.targets.map((target) => ({ ...target })),
     }));
 
-    const reportPayload: CodingResearchReportPayload = {
-      reportType: CodingResearchReportPayloadReportTypeEnum.CodingResearch,
-      summary,
-      frame: parsedFrame.data,
-      analysis,
-      provenance: parsedProvenance.data,
-      updates: platformUpdates,
-      readinessEvidence: parsedReadinessEvidence.data,
-    };
+    const reportPayload: CodingResearchReportPayload =
+      this.format === 'SUBAGENT_PARENT'
+        ? {
+            reportType: CodingResearchReportPayloadReportTypeEnum.CodingResearch,
+            format: 'SUBAGENT_PARENT',
+            summary,
+            analysis,
+          }
+        : {
+            reportType: CodingResearchReportPayloadReportTypeEnum.CodingResearch,
+            format: 'SELF_RESEARCH',
+            summary,
+            frame: parsedFrame.data,
+            analysis,
+            provenance: parsedProvenance.data,
+            updates: platformUpdates,
+            readinessEvidence: parsedReadinessEvidence.data,
+            uncertainties: parsedUncertainties.data,
+          };
 
     const platformArgs: Record<string, unknown> = {
       reportType: 'CODING_RESEARCH',
@@ -341,8 +453,14 @@ export class CodingResearchTool implements PassThroughSubmissionToolDeclaration 
     // producer appends directly — there is no end-of-phase lifecycle hook.
     run.appendMemo({
       source: phase,
-      content: renderCodingResearchMemo(reportPayload),
+      content: renderCodingResearchMemo(reportPayload, {
+        frame: parsedFrame.data,
+        updates: platformUpdates,
+        readinessEvidence: parsedReadinessEvidence.data,
+        uncertainties: parsedUncertainties.data,
+      }),
       writtenAt: this.now(),
+      handoff: true,
     });
 
     return {

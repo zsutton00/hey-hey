@@ -1,4 +1,4 @@
-import type { LLMPromptResponseDto } from "@hey-hey/ui-common/api";
+import type { LLMPromptResponseDto } from "@hey-hey/contracts/api";
 import { apiClient } from "@hey-hey/ui-common/clients";
 import { KEYS } from "@hey-hey/ui-common/i18n";
 import BackIcon from "@mui/icons-material/ArrowBack";

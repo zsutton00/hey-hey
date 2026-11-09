@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   Alert,
   Box,
@@ -12,9 +12,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import type {
-  PrivateBetaDisclosureRequirementDto,
-} from "@hey-hey/ui-common/api";
+import type { PrivateBetaDisclosureRequirementDto } from "@hey-hey/contracts/api";
 import { usePrivateBetaDisclosure } from "@hey-hey/ui-common/data";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -25,6 +23,14 @@ import {
 } from "../Legal/legalContent";
 import { PRIVATE_BETA_DISCLOSURE_ROUTE } from "../../components/PrivateBetaDisclosureGate";
 import { resolveAuthReturnTarget } from "../../utils/authReturnTarget";
+
+const WELCOME_PATH = "/welcome";
+
+/** Accepting the Terms always continues to /welcome, keeping any /welcome target's query (local setup carries its project). */
+const destinationAfterAcceptance = (returnTarget: string): string =>
+  new URL(returnTarget, "https://app.local").pathname === WELCOME_PATH
+    ? returnTarget
+    : WELCOME_PATH;
 
 const documentKeyByKind: Record<
   PrivateBetaDisclosureRequirementDto["documentKind"],
@@ -53,26 +59,26 @@ interface DisclosureStatusShape {
 }
 
 const hasCurrentTermsAcceptance = (
-  data: DisclosureStatusShape | null | undefined
+  data: DisclosureStatusShape | null | undefined,
 ): boolean => {
   const termsRequirement = data?.requiredDocuments?.find(
-    (requirement) => requirement.documentKind === "TERMS"
+    (requirement) => requirement.documentKind === "TERMS",
   );
 
   return Boolean(
     termsRequirement &&
-      data?.recordedAcceptances?.some(
-        (acceptance) =>
-          acceptance.documentKind === termsRequirement.documentKind &&
-          acceptance.version === termsRequirement.version &&
-          acceptance.effectiveDate === termsRequirement.effectiveDate &&
-          acceptance.actionType === termsRequirement.actionType
-      )
+    data?.recordedAcceptances?.some(
+      (acceptance) =>
+        acceptance.documentKind === termsRequirement.documentKind &&
+        acceptance.version === termsRequirement.version &&
+        acceptance.effectiveDate === termsRequirement.effectiveDate &&
+        acceptance.actionType === termsRequirement.actionType,
+    ),
   );
 };
 
 const hasMatchingPublishedRequirements = (
-  requirements: PrivateBetaDisclosureRequirementDto[]
+  requirements: PrivateBetaDisclosureRequirementDto[],
 ): boolean =>
   requirements.length === DISCLOSURE_REQUIREMENTS.length &&
   DISCLOSURE_REQUIREMENTS.every((localRequirement) =>
@@ -82,8 +88,8 @@ const hasMatchingPublishedRequirements = (
           localRequirement.documentKey &&
         serverRequirement.version === localRequirement.version &&
         serverRequirement.effectiveDate === localRequirement.effectiveDate &&
-        serverRequirement.actionType === localRequirement.actionType
-    )
+        serverRequirement.actionType === localRequirement.actionType,
+    ),
   );
 
 export const PrivateBetaDisclosurePage = () => {
@@ -93,35 +99,38 @@ export const PrivateBetaDisclosurePage = () => {
   const [checked, setChecked] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<Error | null>(null);
+  const acceptingRef = useRef(false);
   const returnTarget = resolveAuthReturnTarget(location);
 
   const serverRequirements = disclosure.data?.requiredDocuments;
   const requirements = useMemo(
     () =>
       (serverRequirements ?? []).filter(
-        (requirement) => requirement.documentKind === "TERMS"
+        (requirement) => requirement.documentKind === "TERMS",
       ),
-    [serverRequirements]
+    [serverRequirements],
   );
   const publicationReady = useMemo(
     () =>
       requirements.every((requirement) =>
         Boolean(
-          getPublishedLegalDocument(documentKeyByKind[requirement.documentKind])
-        )
+          getPublishedLegalDocument(
+            documentKeyByKind[requirement.documentKind],
+          ),
+        ),
       ),
-    [requirements]
+    [requirements],
   );
   const requirementsAligned = hasMatchingPublishedRequirements(requirements);
   const isRequirementAccepted = (
-    requirement: PrivateBetaDisclosureRequirementDto
+    requirement: PrivateBetaDisclosureRequirementDto,
   ): boolean =>
     disclosure.data?.recordedAcceptances.some(
       (acceptance) =>
         acceptance.documentKind === requirement.documentKind &&
         acceptance.version === requirement.version &&
         acceptance.effectiveDate === requirement.effectiveDate &&
-        acceptance.actionType === requirement.actionType
+        acceptance.actionType === requirement.actionType,
     ) ?? false;
   const allRequirementsAccepted = requirements.every(isRequirementAccepted);
   const termsAccepted = hasCurrentTermsAcceptance(disclosure.data);
@@ -129,6 +138,7 @@ export const PrivateBetaDisclosurePage = () => {
   useEffect(() => {
     if (
       termsAccepted &&
+      !acceptingRef.current &&
       location.pathname === PRIVATE_BETA_DISCLOSURE_ROUTE
     ) {
       navigate(returnTarget, { replace: true });
@@ -147,8 +157,8 @@ export const PrivateBetaDisclosurePage = () => {
     return (
       <Box component="main" sx={{ maxWidth: 720, mx: "auto", px: 3, py: 8 }}>
         <Alert severity="error" sx={{ mb: 2 }}>
-          We couldn’t load the current Terms. Product access
-          remains blocked until they can be verified.
+          We couldn’t load the current Terms. Product access remains blocked
+          until they can be verified.
         </Alert>
         <Button variant="contained" onClick={() => void disclosure.refetch()}>
           Refresh Terms
@@ -172,6 +182,7 @@ export const PrivateBetaDisclosurePage = () => {
     event.preventDefault();
     setSubmissionError(null);
     setIsSubmitting(true);
+    acceptingRef.current = true;
 
     try {
       if (!allRequirementsAccepted && !checked) {
@@ -192,15 +203,14 @@ export const PrivateBetaDisclosurePage = () => {
       const updatedStatus = await disclosure.refetch();
       if (!hasCurrentTermsAcceptance(updatedStatus)) {
         throw new Error(
-          "The Terms were submitted, but the account is not complete yet."
+          "The Terms were submitted, but the account is not complete yet.",
         );
       }
-      navigate(returnTarget, { replace: true });
+      navigate(destinationAfterAcceptance(returnTarget), { replace: true });
     } catch (error) {
+      acceptingRef.current = false;
       setSubmissionError(
-        error instanceof Error
-          ? error
-          : new Error("Terms submission failed.")
+        error instanceof Error ? error : new Error("Terms submission failed."),
       );
       if (isStaleVersionError(error instanceof Error ? error : null)) {
         await disclosure.refetch();
@@ -277,8 +287,7 @@ export const PrivateBetaDisclosurePage = () => {
                   disabled={allRequirementsAccepted || isSubmitting}
                   onChange={(event) => setChecked(event.target.checked)}
                   inputProps={{
-                    "aria-label":
-                      "Agree to the current Terms",
+                    "aria-label": "Agree to the current Terms",
                   }}
                 />
               }

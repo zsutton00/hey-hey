@@ -10,6 +10,7 @@ import type {
   RepositoryGroundingScope,
 } from "../../../api";
 import { RepositoryGroundingAction, WorkflowReviewAction } from "../../../api";
+import { toOpenApiServiceId } from "../../../clients/contractIdentifierAdapters";
 import type { FormValue } from "../../LlmForms/types";
 import {
   isFeatureListValue,
@@ -129,7 +130,7 @@ const projectRepositoryGroundingSubmission = (
 
   const prerequisites: RepositoryGroundingPrerequisites = {
     entryMode: value.entryMode === "new" ? "new_project" : "existing_project",
-    serviceId: value.serviceId,
+    serviceId: toOpenApiServiceId(value.serviceId),
     confirmedServiceBrief: value.brief.trim(),
     machineId: value.machineId,
   };

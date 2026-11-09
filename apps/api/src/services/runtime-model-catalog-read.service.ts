@@ -9,7 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   CliReadResponseDto,
   CliReadRuntimeModelCatalogGetRequest,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { MachineId, OrganizationId, ProjectId, UserId } from '../types';
 import { ExecutionGrantService } from './controller-authorization/execution-grant.service';
 import { CliReadEmitter } from '../core/websockets/cli-read-emitter.service';

@@ -3,7 +3,7 @@ import {
   SystemMessageData,
   SystemMessageResponseType,
   UIElement,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../prisma/prisma.service';
 
 // Type definitions for the enhanced schema

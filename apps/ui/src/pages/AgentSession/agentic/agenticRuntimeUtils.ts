@@ -2,7 +2,7 @@ import type { AgentProvider } from "@hey-hey/ui-common/agent-sessions-runtime";
 import {
   ConversationStartRunRequestDtoProviderEnum,
   type AgentSessionDtoProviderEnum,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 
 const PROVIDER_VALUES = new Set<string>(
   Object.values(ConversationStartRunRequestDtoProviderEnum),

@@ -2,7 +2,7 @@ import { Alert, Box, CircularProgress } from "@mui/material";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import type { TaskResponseDto } from "@hey-hey/ui-common/api";
+import type { TaskResponseDto } from "@hey-hey/contracts/api";
 import { useWorkItem } from "@hey-hey/ui-common/data";
 
 import { DetailPageContainer } from "../../components/Layout";

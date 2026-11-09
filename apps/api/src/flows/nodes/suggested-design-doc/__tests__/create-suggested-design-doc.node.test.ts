@@ -10,7 +10,10 @@ import {
   IntermediateSystemMessageData,
   SuggestedDesignDocFlowContext,
 } from '../../../../types/flow-internal.types';
-import { DesignDocResponseDto, DesignDocTemplate } from '../../../../generated';
+import {
+  DesignDocResponseDto,
+  DesignDocTemplate,
+} from '@hey-hey/contracts/api/models';
 
 describe('CreateSuggestedDesignDocNode', () => {
   let node: CreateSuggestedDesignDocNode;

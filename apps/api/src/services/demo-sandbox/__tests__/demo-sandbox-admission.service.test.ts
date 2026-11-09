@@ -10,6 +10,47 @@ import {
   DEMO_SYSTEM_USER_ID,
   DEMO_TERMS_DOCUMENT,
 } from '../demo-sandbox.constants';
+import { createPersistedGraphCopyIntent } from '../template-graph-copy-intent';
+
+const readinessFeatureIds = [
+  '128754cc-10ca-4ff3-9fe5-3e6ae4b41fc3',
+  '6a0f1d2e-3b4c-4d5e-8f60-718293a4b5c6',
+];
+const readinessWorkItems = [
+  {
+    id: readinessFeatureIds[0]!,
+    typeKey: 'FEATURE',
+    parentTaskId: null,
+  },
+  {
+    id: readinessFeatureIds[1]!,
+    typeKey: 'FEATURE',
+    parentTaskId: readinessFeatureIds[0]!,
+  },
+  {
+    id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+    typeKey: 'STANDARD',
+    parentTaskId: readinessFeatureIds[0]!,
+  },
+  {
+    id: '550e8400-e29b-41d4-a716-446655440001',
+    typeKey: 'BUG',
+    parentTaskId: null,
+  },
+  {
+    id: '550e8400-e29b-41d4-a716-446655440002',
+    typeKey: 'CUSTOM_CHECKLIST',
+    parentTaskId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+  },
+];
+const persistedReadinessIntent = createPersistedGraphCopyIntent(
+  {
+    id: '550e8400-e29b-41d4-a716-446655440003',
+    snapshot: { nodes: [], edges: [] },
+  },
+  readinessWorkItems,
+  [],
+);
 
 const input = {
   botCheckToken: 'widget-token',
@@ -89,6 +130,7 @@ function setup() {
       updateMany: jest.fn(),
     },
     demoSandboxProgramState: { findUniqueOrThrow: jest.fn() },
+    demoGraphCopyIntent: { findUnique: jest.fn() },
     demoTemplate: { findFirstOrThrow: jest.fn() },
     user: { create: jest.fn(), findUniqueOrThrow: jest.fn() },
     organizationMember: { create: jest.fn() },
@@ -163,6 +205,9 @@ function setup() {
   db.demoSandbox.count.mockResolvedValue(0);
   db.demoSandbox.findFirst.mockResolvedValue(null);
   db.demoSandbox.findUnique.mockResolvedValue(null);
+  db.demoGraphCopyIntent.findUnique.mockResolvedValue({
+    command: persistedReadinessIntent,
+  });
   db.demoTemplate.findFirstOrThrow.mockResolvedValue({
     projectId: 'template-project',
     repositoryUrl: 'https://github.com/example/template',
@@ -805,16 +850,23 @@ describe('DemoSandboxAdmissionService', () => {
     const realReadiness = (
       t: ReturnType<typeof setup>,
       checkFeatureProjectConnection: jest.Mock,
+      checkWorkItemProjectReadiness: jest.Mock,
     ) => {
       t.db.demoSandbox.findUnique.mockResolvedValue({
         organizationId: 'org-new',
         projectId: 'project-new',
-        readinessFeatureIds: ['copied-feature', 'copied-feature-2'],
+        readinessFeatureIds,
         provisioningDeadline: new Date(Date.now() + 120_000),
+      });
+      t.db.demoGraphCopyIntent.findUnique.mockResolvedValue({
+        command: persistedReadinessIntent,
       });
       const readiness = new DemoSandboxReadinessService(
         { db: t.db } as never,
-        { checkFeatureProjectConnection } as unknown as GraphsClientService,
+        {
+          checkFeatureProjectConnection,
+          checkWorkItemProjectReadiness,
+        } as unknown as GraphsClientService,
         () => 'scoped-token',
       );
       t.readiness.waitUntilConnected.mockImplementation(
@@ -822,20 +874,27 @@ describe('DemoSandboxAdmissionService', () => {
       );
     };
 
-    it('withholds activation while only some features are connected, then activates on the full set', async () => {
+    it('withholds activation until both the feature and work-item sets pass', async () => {
       const t = setup();
       const checkFeatureProjectConnection = jest
         .fn()
-        .mockResolvedValueOnce({ connectedCount: 1 })
-        .mockResolvedValue({ connectedCount: 2 });
-      realReadiness(t, checkFeatureProjectConnection);
+        .mockResolvedValue({ connectedCount: readinessFeatureIds.length });
+      const checkWorkItemProjectReadiness = jest
+        .fn()
+        .mockResolvedValueOnce({ verifiedCount: 2 })
+        .mockResolvedValue({ verifiedCount: readinessWorkItems.length });
+      realReadiness(
+        t,
+        checkFeatureProjectConnection,
+        checkWorkItemProjectReadiness,
+      );
 
       await t.service.provision(input, context());
       await jest.advanceTimersByTimeAsync(0);
       expect(t.db.organizationMember.create).not.toHaveBeenCalled();
       expect(t.db.demoSandbox.updateMany).toHaveBeenLastCalledWith({
         where: { id: 'sandbox-new', status: DemoSandboxStatus.PROVISIONING },
-        data: { connectedFeatureCount: 1 },
+        data: { connectedFeatureCount: readinessFeatureIds.length },
       });
       await jest.advanceTimersByTimeAsync(1_000);
 
@@ -845,20 +904,28 @@ describe('DemoSandboxAdmissionService', () => {
       expect(checkFeatureProjectConnection).toHaveBeenLastCalledWith(
         'org-new',
         'project-new',
-        { featureIds: ['copied-feature', 'copied-feature-2'] },
+        { featureIds: readinessFeatureIds },
         'scoped-token',
       );
+      expect(checkWorkItemProjectReadiness).toHaveBeenCalledTimes(2);
     });
 
     it.each(['partial', 'unavailable'])(
       'discards safely when Graph stays %s through the deadline',
       async (state) => {
         const t = setup();
-        const checkFeatureProjectConnection =
+        const checkFeatureProjectConnection = jest
+          .fn()
+          .mockResolvedValue({ connectedCount: readinessFeatureIds.length });
+        const checkWorkItemProjectReadiness =
           state === 'partial'
-            ? jest.fn().mockResolvedValue({ connectedCount: 1 })
+            ? jest.fn().mockResolvedValue({ verifiedCount: 2 })
             : jest.fn().mockRejectedValue(new Error('Graph unavailable'));
-        realReadiness(t, checkFeatureProjectConnection);
+        realReadiness(
+          t,
+          checkFeatureProjectConnection,
+          checkWorkItemProjectReadiness,
+        );
 
         await t.service.provision(input, context());
         await jest.advanceTimersByTimeAsync(120_000);

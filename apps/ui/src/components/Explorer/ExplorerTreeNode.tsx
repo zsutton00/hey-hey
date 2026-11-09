@@ -1,7 +1,7 @@
 import React, { useCallback } from "react";
 import { Box, Typography, Chip } from "@mui/material";
 import { getStatusColorMapping } from "@hey-hey/ui-common";
-import { TargetEntityType } from "@hey-hey/ui-common/api";
+import { TargetEntityType } from "@hey-hey/contracts/api";
 import { WebPathService } from "@hey-hey/ui-common/services";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";

@@ -1,11 +1,11 @@
 import { proposalsClient } from "@hey-hey/ui-common/clients";
-import type { ProposalResponseDto } from "@hey-hey/ui-common/api";
+import type { ProposalResponseDto } from "@hey-hey/contracts/api";
 import {
   ProposalAction as ProposalActionEnum,
   ProposalStatus as ProposalStatusEnum,
   ProposalType as ProposalTypeEnum,
   TargetEntityType as TargetEntityTypeEnum,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { ProposalList } from "@hey-hey/ui-common/components";
 import {
   Alert,
@@ -116,19 +116,16 @@ export const ProposalsTab: React.FC<ProposalsTabProps> = ({
 
     try {
       const offset = (page - 1) * PAGE_SIZE;
-      const response =
-        await proposalsClient.listProposals(
-          {
-            organizationId,
-            projectId,
-            type: typeFilter || undefined,
-            action: actionFilter || undefined,
-            status: statusFilter || undefined,
-            targetEntityType: targetTypeFilter || undefined,
-            limit: PAGE_SIZE,
-            offset,
-          },
-        );
+      const response = await proposalsClient.listProposals({
+        organizationId,
+        projectId,
+        type: typeFilter || undefined,
+        action: actionFilter || undefined,
+        status: statusFilter || undefined,
+        targetEntityType: targetTypeFilter || undefined,
+        limit: PAGE_SIZE,
+        offset,
+      });
 
       const body = response.data as {
         data?: { data: ProposalResponseDto[]; total: number };
@@ -200,7 +197,12 @@ export const ProposalsTab: React.FC<ProposalsTabProps> = ({
             alignItems: "center",
           }}
         >
-          <Box sx={{ flex: { md: "0 0 150px" }, width: { xs: "100%", md: "auto" } }}>
+          <Box
+            sx={{
+              flex: { md: "0 0 150px" },
+              width: { xs: "100%", md: "auto" },
+            }}
+          >
             <FormControl fullWidth size="small">
               <InputLabel>Status</InputLabel>
               <Select
@@ -222,7 +224,12 @@ export const ProposalsTab: React.FC<ProposalsTabProps> = ({
             </FormControl>
           </Box>
 
-          <Box sx={{ flex: { md: "0 0 150px" }, width: { xs: "100%", md: "auto" } }}>
+          <Box
+            sx={{
+              flex: { md: "0 0 150px" },
+              width: { xs: "100%", md: "auto" },
+            }}
+          >
             <FormControl fullWidth size="small">
               <InputLabel>Type</InputLabel>
               <Select
@@ -244,7 +251,12 @@ export const ProposalsTab: React.FC<ProposalsTabProps> = ({
             </FormControl>
           </Box>
 
-          <Box sx={{ flex: { md: "0 0 150px" }, width: { xs: "100%", md: "auto" } }}>
+          <Box
+            sx={{
+              flex: { md: "0 0 150px" },
+              width: { xs: "100%", md: "auto" },
+            }}
+          >
             <FormControl fullWidth size="small">
               <InputLabel>Action</InputLabel>
               <Select
@@ -266,7 +278,12 @@ export const ProposalsTab: React.FC<ProposalsTabProps> = ({
             </FormControl>
           </Box>
 
-          <Box sx={{ flex: { md: "0 0 170px" }, width: { xs: "100%", md: "auto" } }}>
+          <Box
+            sx={{
+              flex: { md: "0 0 170px" },
+              width: { xs: "100%", md: "auto" },
+            }}
+          >
             <FormControl fullWidth size="small">
               <InputLabel>Target Type</InputLabel>
               <Select
@@ -289,7 +306,12 @@ export const ProposalsTab: React.FC<ProposalsTabProps> = ({
             </FormControl>
           </Box>
 
-          <Box sx={{ flex: { md: "0 0 150px" }, width: { xs: "100%", md: "auto" } }}>
+          <Box
+            sx={{
+              flex: { md: "0 0 150px" },
+              width: { xs: "100%", md: "auto" },
+            }}
+          >
             <FormControl fullWidth size="small">
               <InputLabel>Sort</InputLabel>
               <Select

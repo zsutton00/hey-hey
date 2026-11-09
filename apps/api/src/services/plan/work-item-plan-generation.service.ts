@@ -11,7 +11,7 @@ import {
   EntityType,
   ProposalStatus,
 } from '@prisma/client';
-import { AgentSessionDto, WorkStatus } from '../../generated';
+import { AgentSessionDto, WorkStatus } from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   ConversationId,

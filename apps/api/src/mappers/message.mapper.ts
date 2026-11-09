@@ -4,7 +4,7 @@ import {
   ProposalResponseDto,
   MessageRecordDto,
   SystemMessageData,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { MessageQueryResult } from 'src/services/types';
 import { MessageId, UserId, WorkflowId } from 'src/types';
 import { MessageResponseUtil } from 'src/utils/message-response.util';

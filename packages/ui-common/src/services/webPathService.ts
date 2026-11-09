@@ -307,7 +307,6 @@ export interface PathService {
   goal(params: GoalParams): string;
   evalRunSetup(params: EvalRunSetupParams): string;
   evalRun(params: EvalRunParams): string;
-  evalRunResults(params: EvalRunParams): string;
   feature(params: FeatureParams): string;
   designDoc(params: DesignDocParams): string;
   agentSession(params: AgentSessionParams): string;
@@ -319,6 +318,7 @@ export interface PathService {
   service(params: ServiceParams): string;
   organizationService(params: OrganizationServiceParams): string;
   createProjectReport(projectId: string): string;
+  projectReportHistory(projectId: string): string;
   report(params: ReportParams): string;
   organizationReport(params: OrganizationReportParams): string;
   artifact(params: ArtifactParams): string;
@@ -447,10 +447,6 @@ const defaultPathService: PathService = {
     return `/projects/${params.projectId}/evals/${params.evalId}/runs/${params.runId}`;
   },
 
-  evalRunResults(params: EvalRunParams): string {
-    return `${this.evalRun(params)}/results`;
-  },
-
   feature(params: FeatureParams): string {
     return `/projects/${params.projectId}/features/${params.featureId}`;
   },
@@ -503,6 +499,10 @@ const defaultPathService: PathService = {
 
   createProjectReport(projectId: string): string {
     return `/projects/${projectId}/reports/new`;
+  },
+
+  projectReportHistory(projectId: string): string {
+    return `/projects/${projectId}/reports`;
   },
 
   report(params: ReportParams): string {
@@ -828,13 +828,6 @@ export class WebPathService {
   }
 
   /**
-   * Generate the path of one finished Eval run's results page
-   */
-  static evalRunResults(params: EvalRunParams): string {
-    return getPathService().evalRunResults(params);
-  }
-
-  /**
    * Generate feature detail path
    */
   static feature(params: FeatureParams): string {
@@ -910,6 +903,10 @@ export class WebPathService {
    */
   static createProjectReport(projectId: string): string {
     return getPathService().createProjectReport(projectId);
+  }
+
+  static projectReportHistory(projectId: string): string {
+    return getPathService().projectReportHistory(projectId);
   }
 
   static report(params: ReportParams): string {

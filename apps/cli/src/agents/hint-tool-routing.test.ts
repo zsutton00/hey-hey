@@ -31,6 +31,11 @@ describe('hint tool routing', () => {
     }
   });
 
+  it('offers reading hints by session wherever hints are read', () => {
+    expect(HINT_READ_MCP_TOOLS).toContain('get_hints_by_session');
+    expect(resolveMcpToolNames({ useCase: 'coding' })).toContain('get_hints_by_session');
+  });
+
   it('keeps curated report, monitor and evidence-gathering surfaces free of hint tools', () => {
     for (const useCase of [
       'project_report',

@@ -45,9 +45,9 @@ import {
   Influence,
   UpdateDesignDocDto,
   UpdateDesignDocResponseDto,
-} from 'src/generated';
-import { CreateDesignDocLinkDto } from 'src/generated/model/createDesignDocLinkDto';
-import { DesignDocLinkResponseDto } from 'src/generated/model/designDocLinkResponseDto';
+} from '@hey-hey/contracts/api/models';
+import { CreateDesignDocLinkDto } from '@hey-hey/contracts/api/models';
+import { DesignDocLinkResponseDto } from '@hey-hey/contracts/api/models';
 
 @Controller('api/v1/organizations/:organizationId/design-docs')
 @UseGuards(JwtAuthGuard, OrganizationGuard, ProjectAccessGuard)

@@ -55,6 +55,7 @@ export const pollHealth = async (
 
     try {
       const response = await fetch(`${baseUrl}/health`, { signal });
+      signal.throwIfAborted();
       if (response.ok) {
         // The opencode serve SPA server returns 200 OK with text/html for
         // unmatched routes (including /health). Accept any 2xx response
@@ -68,12 +69,23 @@ export const pollHealth = async (
         .catch(() => '(failed to read body)')
         .then((t) => t.slice(0, 200));
     } catch (err) {
+      signal.throwIfAborted();
       lastError = err instanceof Error ? err.message : String(err);
     }
 
-    await new Promise<void>((resolve) => {
-      const t = setTimeout(resolve, pollIntervalMs);
-      signal.addEventListener('abort', () => clearTimeout(t), { once: true });
+    await new Promise<void>((resolve, reject) => {
+      const onAbort = () => {
+        clearTimeout(timeout);
+        reject(new Error('Health check aborted'));
+      };
+      const timeout = setTimeout(() => {
+        signal.removeEventListener('abort', onAbort);
+        resolve();
+      }, pollIntervalMs);
+      signal.addEventListener('abort', onAbort, { once: true });
+      if (signal.aborted) {
+        onAbort();
+      }
     });
   }
 
@@ -138,109 +150,158 @@ export const describeOpenCodeCredentialSources = (
 };
 
 export class OpenCodeServerProcess {
+  public baseUrl = '';
+  private exited = false;
+  private spawnFailed = false;
+  private stopping: Promise<void> | undefined;
+
   private constructor(
-    public readonly baseUrl: string,
     public readonly directory: string,
     private readonly child: ChildProcess,
-  ) {}
+  ) {
+    child.once('exit', () => {
+      this.exited = true;
+    });
+    child.on('error', () => {
+      if (child.pid === undefined) {
+        this.spawnFailed = true;
+      }
+    });
+  }
 
   public static async launch(input: {
     directory: string;
     signal?: AbortSignal;
     containment?: ProviderProcessContainment;
+    onSpawn?: (process: OpenCodeServerProcess) => void;
   }): Promise<OpenCodeServerProcess> {
-    const binary = resolveOpencodeBinary();
-    const args = ['serve', '--port', '0', '--hostname', '127.0.0.1'];
-    const launch = buildOpenCodeSpawnCommand(binary, args, input.containment);
-
+    input.signal?.throwIfAborted();
+    const launch = buildOpenCodeSpawnCommand(
+      resolveOpencodeBinary(),
+      ['serve', '--port', '0', '--hostname', '127.0.0.1'],
+      input.containment,
+    );
     const child = spawn(launch.command, launch.args, {
       cwd: input.directory,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: launch.env,
     });
+    const handle = new OpenCodeServerProcess(input.directory, child);
+    try {
+      input.onSpawn?.(handle);
+      await handle.waitForReadiness(input.signal ?? new AbortController().signal);
+      return handle;
+    } catch (error) {
+      // A rejected launch must never leave an unowned live process behind.
+      await handle.stop();
+      throw error;
+    }
+  }
 
-    let baseUrl: string | null = null;
+  private async waitForReadiness(signal: AbortSignal): Promise<void> {
     let stdoutBuffer = '';
     let stderrBuffer = '';
-
-    const startupPromise = new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(
-          new Error(
-            `OpenCode server startup timed out after ${STARTUP_OUTPUT_TIMEOUT_MS}ms. stderr: ${stderrBuffer.slice(-500)}`,
-          ),
-        );
-      }, STARTUP_OUTPUT_TIMEOUT_MS);
-
-      const onData = (chunk: Buffer) => {
-        stdoutBuffer += chunk.toString('utf8');
-        const match = stdoutBuffer.match(/listening on (http:\/\/[^:]+:(\d+))/);
-        if (match && match[1]) {
-          baseUrl = match[1];
-          clearTimeout(timeout);
-          child.stdout?.off('data', onData);
-          resolve();
-        }
-      };
-
-      child.stdout?.on('data', onData);
-
-      child.stderr?.on('data', (chunk: Buffer) => {
-        stderrBuffer += chunk.toString('utf8');
-      });
-
-      child.on('error', (err) => {
-        clearTimeout(timeout);
-        reject(new Error(`Failed to spawn opencode serve: ${err.message}`, { cause: err }));
-      });
-
-      child.on('exit', (code) => {
-        if (!baseUrl) {
-          clearTimeout(timeout);
+    let cleanup = () => {};
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(
+            new Error(
+              `OpenCode server startup timed out after ${STARTUP_OUTPUT_TIMEOUT_MS}ms. stderr: ${stderrBuffer.slice(-500)}`,
+            ),
+          );
+        }, STARTUP_OUTPUT_TIMEOUT_MS);
+        const onData = (chunk: Buffer) => {
+          stdoutBuffer += chunk.toString('utf8');
+          const match = stdoutBuffer.match(/listening on (http:\/\/[^:]+:(\d+))/);
+          if (match?.[1]) {
+            this.baseUrl = match[1];
+            resolve();
+          }
+        };
+        const onStderr = (chunk: Buffer) => {
+          stderrBuffer += chunk.toString('utf8');
+        };
+        const onError = (error: Error) =>
+          reject(new Error(`Failed to spawn opencode serve: ${error.message}`, { cause: error }));
+        const onExit = (code: number | null) =>
           reject(
             new Error(
               `OpenCode server exited with code ${String(code)} before reporting its URL. stderr: ${stderrBuffer.slice(-500)}`,
             ),
           );
+        const onAbort = () => reject(new Error('OpenCode server startup aborted'));
+        cleanup = () => {
+          clearTimeout(timeout);
+          this.child.stdout?.off('data', onData);
+          this.child.stderr?.off('data', onStderr);
+          this.child.off('error', onError);
+          this.child.off('exit', onExit);
+          signal.removeEventListener('abort', onAbort);
+          this.child.stdout?.resume();
+          this.child.stderr?.resume();
+        };
+        this.child.stdout?.on('data', onData);
+        this.child.stderr?.on('data', onStderr);
+        this.child.once('error', onError);
+        this.child.once('exit', onExit);
+        signal.addEventListener('abort', onAbort, { once: true });
+        if (signal.aborted) {
+          onAbort();
         }
       });
-
-      input.signal?.addEventListener('abort', () => {
-        clearTimeout(timeout);
-        reject(new Error('OpenCode server startup aborted'));
-      });
-    });
-
-    try {
-      await startupPromise;
-    } catch (error) {
-      child.kill('SIGTERM');
-      throw error;
+    } finally {
+      cleanup();
     }
-
-    if (!baseUrl) {
-      child.kill('SIGTERM');
-      throw new Error('OpenCode server base URL was not resolved after startup');
-    }
-
-    await pollHealth(baseUrl, input.signal ?? new AbortController().signal);
-    return new OpenCodeServerProcess(baseUrl, input.directory, child);
+    signal.throwIfAborted();
+    await pollHealth(this.baseUrl, signal);
   }
 
-  public async stop(): Promise<void> {
-    this.child.kill('SIGTERM');
-    // Give the process a graceful window, then force-kill.
-    await new Promise<void>((resolve) => {
-      const t = setTimeout(() => {
-        if (!this.child.killed) {
-          this.child.kill('SIGKILL');
-        }
-        resolve();
+  public stop(): Promise<void> {
+    this.stopping ??= this.finishStop().catch((error: unknown) => {
+      this.stopping = undefined;
+      throw error;
+    });
+    return this.stopping;
+  }
+
+  private async finishStop(): Promise<void> {
+    if (await this.terminate('SIGTERM')) {
+      return;
+    }
+    if (!(await this.terminate('SIGKILL'))) {
+      throw new Error(
+        'OpenCode process exit could not be confirmed after SIGKILL. Retry shutdown.',
+      );
+    }
+  }
+
+  private terminate(signal: NodeJS.Signals): Promise<boolean> {
+    if (
+      this.exited ||
+      this.spawnFailed ||
+      this.child.exitCode !== null ||
+      this.child.signalCode !== null
+    ) {
+      return Promise.resolve(true);
+    }
+    return new Promise<boolean>((resolve, reject) => {
+      const onExit = () => {
+        clearTimeout(timeout);
+        resolve(true);
+      };
+      const timeout = setTimeout(() => {
+        this.child.off('exit', onExit);
+        resolve(false);
       }, 5_000);
-      this.child.on('exit', () => {
-        clearTimeout(t);
-        resolve();
-      });
+      this.child.once('exit', onExit);
+      try {
+        this.child.kill(signal);
+      } catch (error) {
+        clearTimeout(timeout);
+        this.child.off('exit', onExit);
+        reject(error);
+      }
     });
   }
 }

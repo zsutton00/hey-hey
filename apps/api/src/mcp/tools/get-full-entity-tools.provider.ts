@@ -8,7 +8,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AgentEdgeClientService } from '../../services/agent-edge-client.service';
 import { WorkItemTypeRegistryService } from '../../services/tasks/work-item-type-registry.service';
 import { TaskService } from '../../services/tasks/task.service';
-import type { FeatureRequirementsSection } from '../../generated/model/featureRequirementsSection';
+import type { FeatureRequirementsSection } from '@hey-hey/contracts/api/models';
 import {
   FeatureRequirementsReadError,
   readFeatureRequirementsSection,
@@ -30,6 +30,11 @@ const SUPPORTED_TYPES = [
   'SERVICE',
   'IMPLEMENTATION_HINT',
 ] as const;
+
+const DEDICATED_READ_TOOLS: Record<string, string> = {
+  AGENT_SESSION: 'get_agent_session',
+  REPORT: 'get_report_body',
+};
 
 type SupportedEntityType = (typeof SUPPORTED_TYPES)[number];
 
@@ -135,6 +140,8 @@ export class GetFullEntityToolsProvider {
       'Any registered project work-item type key is accepted as an alias of TASK. ' +
       'Search tools (unified_search, task_search, plan_search, etc.) return truncated snippets — ' +
       'use them to find entities first, then call get_full_entity to read complete content ' +
+      '(for only a title or item type use get_entity_identities; for hierarchy, relationships ' +
+      'or proposal history use get_context) ' +
       'including all sections and replacement metadata. Every full record preserves the ' +
       'requested entity and reports whether lifecycle state and direct successor topology agree. ' +
       'Returns a JSON object keyed by entityId. Unknown or not-found IDs produce a null value ' +
@@ -167,6 +174,9 @@ export class GetFullEntityToolsProvider {
       this.resolveHandlerKey(entityType, projectId),
     );
     if (handlerKeys.some((key) => key === undefined)) {
+      const invalidTypes = params.entities
+        .filter((_, index) => handlerKeys[index] === undefined)
+        .map(({ entityType }) => entityType);
       const acceptedTypes = [
         ...new Set([
           ...SUPPORTED_TYPES,
@@ -186,8 +196,19 @@ export class GetFullEntityToolsProvider {
         content: [
           {
             type: 'text',
-            text:
+            text: [
               'Invalid entityType. Accepted types: ' + acceptedTypes.join(', '),
+              ...[
+                ...new Set(
+                  invalidTypes
+                    .filter((entityType) => DEDICATED_READ_TOOLS[entityType])
+                    .map(
+                      (entityType) =>
+                        `${entityType} is read with ${DEDICATED_READ_TOOLS[entityType]}, not get_full_entity.`,
+                    ),
+                ),
+              ],
+            ].join(' '),
           },
         ],
       };

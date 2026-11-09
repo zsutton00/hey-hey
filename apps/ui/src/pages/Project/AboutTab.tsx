@@ -17,8 +17,8 @@ import {
   useTopologyEntitySummaries,
   useArtifacts,
 } from "@hey-hey/ui-common/data";
-import { ArtifactType } from "@hey-hey/ui-common/api";
-import type { TopologySummaryCategory } from "@hey-hey/ui-common/api";
+import { ArtifactType } from "@hey-hey/contracts/api";
+import type { TopologySummaryCategory } from "@hey-hey/contracts/api";
 import {
   CategoryList,
   EntityList,
@@ -39,17 +39,17 @@ export const AboutTab: React.FC<AboutTabProps> = ({ projectId }) => {
   // Subtab state management
   const [view, setView] = useQueryState(
     "view",
-    parseAsString.withDefault("insights")
+    parseAsString.withDefault("insights"),
   );
 
   // URL state management with nuqs for topology navigation
   const [categoryParam, setCategoryParam] = useQueryState(
     "category",
-    parseAsString.withDefault("")
+    parseAsString.withDefault(""),
   );
   const [selectedSubfacetId, setSelectedSubfacetId] = useQueryState(
     "subfacet",
-    parseAsString.withDefault("")
+    parseAsString.withDefault(""),
   );
 
   const selectedCategory = (categoryParam ||
@@ -59,8 +59,8 @@ export const AboutTab: React.FC<AboutTabProps> = ({ projectId }) => {
   const viewMode: ViewMode = selectedSubfacetId
     ? "entities"
     : selectedCategory
-    ? "subfacets"
-    : "categories";
+      ? "subfacets"
+      : "categories";
 
   // Fetch insights for Insights tab
   const {
@@ -160,7 +160,6 @@ export const AboutTab: React.FC<AboutTabProps> = ({ projectId }) => {
                 ))}
               </Stack>
             )}
-
           </>
         )}
 

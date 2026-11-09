@@ -3,7 +3,7 @@ import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SharedBrowserDisabledError } from '../../browser/project-browser-manager';
 import type { Run } from '../../run/run';
-import { LocalRunBrowserOpenErrorCode } from '../../shared/local-agent-api/generated/api';
+import { LocalRunBrowserOpenErrorCode } from '@hey-hey/contracts/local';
 import { NOOP_LOGGER } from '../logger';
 import { RunReadPreparationError } from '../run-read-preparation-error';
 import { createRunBrowserOpenRouter } from './run-browser-open';

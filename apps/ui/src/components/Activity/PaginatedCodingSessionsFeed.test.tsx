@@ -7,7 +7,7 @@ import {
   MessageStatus,
   MessageType,
   type PaginatedAgentSessionItemDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { usePaginatedAgentSessions } from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import { render, screen } from "@testing-library/react";

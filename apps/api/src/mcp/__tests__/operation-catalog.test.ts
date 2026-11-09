@@ -1,4 +1,4 @@
-import { McpOperationCatalogEntry } from '../../generated';
+import { McpOperationCatalogEntry } from '@hey-hey/contracts/api/models';
 import {
   getMcpOperationCatalogEntry,
   listMcpOperationCatalogEntries,

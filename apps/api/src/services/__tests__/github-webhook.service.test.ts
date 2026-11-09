@@ -2,7 +2,7 @@ import { GitHubWebhookService } from '../integrations/github-webhook.service';
 import { ConfigEncryptionService } from '../config-encryption.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OrganizationId } from '../../types';
-import { IntegrationType } from '../../generated';
+import { IntegrationType } from '@hey-hey/contracts/api/models';
 import { createServiceTestingModule } from '../../../test/setup/testing-module.factory';
 
 // Mock Octokit

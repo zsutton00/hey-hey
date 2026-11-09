@@ -8,11 +8,11 @@ import type {
   OrganizationAccountLifecycleDto,
   OrganizationDirectoryPageDto,
   OrganizationReactivationSuccess,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   OrganizationDirectorySortBy,
   OrganizationDirectorySortOrder,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { AdminGuard } from '../../auth/guards/admin.guard';
 import { OrganizationGuard } from '../../auth/guards/organization.guard';
 import { OrganizationId, UserId } from '../../types';

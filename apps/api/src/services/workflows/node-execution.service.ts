@@ -25,7 +25,7 @@ import {
   SystemMessageData,
   SystemMessageResponseType,
   UserMessage,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ConversationId,
   MessageId,

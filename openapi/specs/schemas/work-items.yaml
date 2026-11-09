@@ -336,6 +336,31 @@ WorkItemGraphAggregateResponseDto:
     participation:
       $ref: "#/WorkItemGraphParticipationResponseDto"
 
+UxFlowMembership:
+  type: object
+  additionalProperties: false
+  required: [diagramId, diagramName, elementId]
+  properties:
+    diagramId:
+      type: string
+      format: uuid
+    diagramName:
+      type: string
+    elementId:
+      type: string
+      format: uuid
+      description: The Diagram element that canonically references the work item.
+
+UxFlowMembershipResponseDto:
+  type: object
+  additionalProperties: false
+  required: [flows]
+  properties:
+    flows:
+      type: array
+      items:
+        $ref: "#/UxFlowMembership"
+
 WorkItemGraphParticipationType:
   type: string
   enum: [GUARANTEES, IMPLEMENTS, CONSUMES]

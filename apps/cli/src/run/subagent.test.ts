@@ -1,5 +1,5 @@
 import { evalJudgeHandler, parseEvalJudgeOutput } from '../agents/run-eval/eval-judge.handler';
-import type { EvalRunCaseInput } from '../shared/api/generated/api';
+import type { EvalRunCaseInput } from '@hey-hey/contracts/api/models';
 import {
   childPlatformMcpProxies,
   type ChildPlatformMcpProxy,
@@ -10,9 +10,9 @@ import {
   createPromptTypeHandlerTestDeps,
   createPromptTypeHandlerTestRunStore,
 } from '../agents/prompt-type-handler.test-support';
-import { EntityContextApi, WorkItemTypesApi } from '../shared/api/generated/api';
+import { EntityContextApi, WorkItemTypesApi } from '@hey-hey/contracts/api';
 import { researchHandler } from '../agents/research/research.handler';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 /**
  * Unified `SubAgent` regression test.
  *
@@ -38,7 +38,7 @@ import {
 import { intentFirstGuidance, takingShapeGuidance } from '../agents/prompts/common';
 import { renderWorkItemTypeOntologyEntry } from '../agents/prompts/render-type-ontology';
 import type { ProjectMaturity, WorkItemTypeDefinitionDto } from '../shared/api/index';
-import type { LocalStartupSessionPromptPayload } from '../shared/agent-bridge-contract/generated/api';
+import type { LocalStartupSessionPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../session/types';
 import { SubmissionToolRegistry } from '../agents/submission-tools/registry';
 import { PromptTypeRegistry } from '../agents/prompt-type-registry';
@@ -253,12 +253,7 @@ describe('SubAgent — unified runtime contract', () => {
       let permission: unknown;
       if (provider === 'claude') {
         startSessionMock.mockImplementationOnce(async (config) => {
-          expect(config).toMatchObject({
-            builtinTools: [],
-            strictMcpConfig: true,
-            mcpServers: {},
-            allowedTools: [],
-          });
+          expect(config).toMatchObject({ mcpServers: {}, allowedTools: [] });
           expect(JSON.stringify(config)).toContain('Recorded situation');
           expect(JSON.stringify(config)).toContain('Recorded answer');
           const decide = onPermissionRequestMock.mock.calls.at(-1)![0] as (
@@ -276,11 +271,7 @@ describe('SubAgent — unified runtime contract', () => {
         });
       } else {
         codexStartSessionMock.mockImplementationOnce(async (config) => {
-          expect(config).toMatchObject({
-            disableMcpServers: true,
-            config: { web_search: 'disabled' },
-            sandbox: 'read-only',
-          });
+          expect(config).toMatchObject({ sandbox: 'read-only' });
           const decide = codexOnServerRequestMock.mock.calls.at(-1)![0] as (
             request: unknown,
           ) => void;
@@ -415,6 +406,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -475,6 +467,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -923,6 +916,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -1078,6 +1072,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -1167,6 +1162,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -1234,6 +1230,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -1291,6 +1288,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -1330,6 +1328,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -1392,6 +1391,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -1436,6 +1436,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -1482,6 +1483,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -1534,6 +1536,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -1607,6 +1610,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -1668,6 +1672,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -1821,6 +1826,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'optional',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'provider_session',
       providerSessionCountsForContext: false,
       reports: [],

@@ -197,6 +197,26 @@ describe('GetFullEntityToolsProvider', () => {
       }
       expect(mockTaskService.findOneByOrganization).not.toHaveBeenCalled();
     });
+
+    it.each([
+      ['AGENT_SESSION', 'get_agent_session'],
+      ['REPORT', 'get_report_body'],
+    ])(
+      'redirects %s reads to %s while rejecting the call',
+      async (entityType, toolName) => {
+        const result = await provider.getFullEntity(
+          { entities: [{ entityType, entityId: ENTITY_ID }] },
+          {} as any,
+          makeRequest(),
+        );
+
+        expect(result.isError).toBe(true);
+        expect((result as any).content[0].text).toContain(
+          `${entityType} is read with ${toolName}, not get_full_entity.`,
+        );
+        expect(mockTaskService.findOneByOrganization).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('response budgeting', () => {

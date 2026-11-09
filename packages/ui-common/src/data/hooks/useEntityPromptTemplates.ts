@@ -19,6 +19,7 @@ import {
   type ProposalResponseDto,
 } from "../../api";
 import { proposalsClient } from "../../clients/serviceClients";
+import { toOpenApiProjectId } from "../../clients/contractIdentifierAdapters";
 import {
   entityPromptTemplateCatalogQueryOptions,
   entityPromptTemplateEffectiveQueryOptions,
@@ -119,7 +120,7 @@ export function useCreateEntityPromptTemplateChangeProposal(
       const identity = { organizationId, projectId, templateKey, selector };
       const updates: EntityPromptTemplateUpsertUpdatesPayload = {
         operation: EntityPromptTemplateUpsertUpdatesPayloadOperationEnum.Upsert,
-        projectId,
+        projectId: toOpenApiProjectId(projectId),
         selector,
         syntaxVersion,
         content,
@@ -164,7 +165,7 @@ export function useCreateEntityPromptTemplateRetirementProposal(
       const identity = { organizationId, projectId, templateKey, selector };
       const updates: EntityPromptTemplateRetireUpdatesPayload = {
         operation: EntityPromptTemplateRetireUpdatesPayloadOperationEnum.Retire,
-        projectId,
+        projectId: toOpenApiProjectId(projectId),
         selector,
         expectedEffectiveRevision,
       };
@@ -291,7 +292,7 @@ export function useEntityPromptTemplateCatalog(
   return {
     catalog:
       identity && query.isFetched && !query.error
-        ? { projectId: identity.projectId, templates }
+        ? { projectId: toOpenApiProjectId(identity.projectId), templates }
         : null,
     data: templates,
     isLoading: query.isLoading,

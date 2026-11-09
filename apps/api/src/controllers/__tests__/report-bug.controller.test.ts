@@ -1,6 +1,7 @@
 import { ReportBugController } from '../report-bug.controller';
 import type { ReportBugService } from 'src/services/report-bug.service';
 import type { UserId } from 'src/types';
+import type { ReportBugRequestDto } from '@hey-hey/contracts/api/models';
 
 describe('ReportBugController', () => {
   it('forwards the authenticated user and exact report contract', async () => {
@@ -17,7 +18,7 @@ describe('ReportBugController', () => {
       productLocation: '/projects/project-1/features/feature-1',
       correlationId: 'correlation-123',
       diagnosticConsent: true,
-    };
+    } satisfies ReportBugRequestDto;
     const userId = '55555555-5555-4555-8555-555555555555' as UserId;
 
     await expect(controller.reportBug(input, userId)).resolves.toEqual({

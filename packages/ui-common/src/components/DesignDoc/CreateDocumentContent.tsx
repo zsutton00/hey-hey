@@ -22,6 +22,11 @@ import {
 } from "../../data/hooks";
 import { useUserIdentity } from "../../hooks";
 import {
+  toOpenApiConversationId,
+  toOpenApiMessageId,
+  toOpenApiProjectId,
+} from "../../clients/contractIdentifierAdapters";
+import {
   DesignDocTemplate,
   type CreateDesignDocLinkDto,
   type CreateSuggestedDesignDocResponseDto,
@@ -58,8 +63,7 @@ type CreateDocumentContentSuggestedProps = CreateDocumentContentBaseProps & {
 };
 
 export type CreateDocumentContentProps =
-  | CreateDocumentContentBlankProps
-  | CreateDocumentContentSuggestedProps;
+  CreateDocumentContentBlankProps | CreateDocumentContentSuggestedProps;
 
 const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
   {
@@ -87,7 +91,7 @@ const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
 ];
 
 export const CreateDocumentContent: React.FC<CreateDocumentContentProps> = (
-  props
+  props,
 ) => {
   const {
     projectId,
@@ -130,7 +134,7 @@ export const CreateDocumentContent: React.FC<CreateDocumentContentProps> = (
         });
       }
     },
-    [linkedEntity, organizationId]
+    [linkedEntity, organizationId],
   );
 
   const { mutate: createAdr, isPending: isCreatingAdr } = useCreateAdr({
@@ -254,11 +258,11 @@ export const CreateDocumentContent: React.FC<CreateDocumentContentProps> = (
         request: {
           suggestionId,
           name: title.trim(),
-          projectId,
+          projectId: toOpenApiProjectId(projectId),
           description: summary,
           template: resolveSuggestedTemplate(),
-          sourceConversationId,
-          sourceMessageId,
+          sourceConversationId: toOpenApiConversationId(sourceConversationId),
+          sourceMessageId: toOpenApiMessageId(sourceMessageId),
           trigger,
         },
       });
@@ -417,7 +421,7 @@ export const CreateDocumentContent: React.FC<CreateDocumentContentProps> = (
               rows={4}
               placeholder={t(
                 "documents.summaryPlaceholder",
-                "Provide a brief description or initial content..."
+                "Provide a brief description or initial content...",
               )}
             />
           </Stack>

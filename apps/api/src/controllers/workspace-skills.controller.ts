@@ -18,7 +18,7 @@ import {
 } from '../auth/decorators/current-user.decorator';
 import { ControllerBindingOriginGuard } from '../common/guards/controller-binding-origin.guard';
 import { readControllerBindingSecret } from '../services/controller-authorization/controller-binding-cookie.service';
-import { CliReadWorkspaceSkillsListRequest } from '../generated';
+import { CliReadWorkspaceSkillsListRequest } from '@hey-hey/contracts/api/models';
 import { MachineId, OrganizationId, ProjectId, UserId } from '../types';
 import { WorkspaceSkillsReadService } from '../services/workspace-skills-read.service';
 

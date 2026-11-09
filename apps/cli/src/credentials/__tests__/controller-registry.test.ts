@@ -1,3 +1,4 @@
+import { asOrganizationId, asUserId } from '../../test-utils/contract-ids';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -16,8 +17,8 @@ const makeEntry = (machineId: string): ControllerRegistryEntry => ({
   osFamily: 'linux',
   cliVersion: '2.2.2',
   authorizationProtocolVersion: 2,
-  accountId: 'account-1',
-  organizationId: 'organization-1',
+  accountId: asUserId('account-1'),
+  organizationId: asOrganizationId('organization-1'),
   controllerLabel: 'Alice laptop',
   controllerCredentialId: `credential-${machineId}`,
   controllerCredentialPublicKey: {

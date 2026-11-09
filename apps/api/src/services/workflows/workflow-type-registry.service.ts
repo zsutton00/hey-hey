@@ -1,4 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  INestApplicationContext,
+  Logger,
+  Optional,
+} from '@nestjs/common';
+import { onboardingExecutionOwner } from './onboarding-execution-owner';
 import { Client } from '@temporalio/client';
 import {
   ConversationId,
@@ -16,7 +23,10 @@ import {
 import { StartConversationFlowWorkflowInput } from '../../workflows/conversation-flow.workflow';
 import { errorToLoggable } from 'src/utils/logging.util';
 import { v4 as uuidv4 } from 'uuid';
-import { CreateConversationDto, WorkflowName } from 'src/generated';
+import {
+  CreateConversationDto,
+  WorkflowName,
+} from '@hey-hey/contracts/api/models';
 
 export interface WorkflowConfig {
   // Local string-literal subset rather than the canonical WorkflowAboutType
@@ -62,7 +72,12 @@ export class WorkflowTypeRegistryService {
   private readonly workflowConfigs: Map<WorkflowName, WorkflowConfig> =
     new Map();
 
-  constructor(@InjectTemporalClient() private readonly temporalClient: Client) {
+  constructor(
+    @InjectTemporalClient() private readonly temporalClient: Client,
+    @Optional()
+    @Inject('APP_CONTEXT')
+    private readonly appContext?: INestApplicationContext,
+  ) {
     this.initializeWorkflowConfigs();
   }
 
@@ -426,6 +441,48 @@ export class WorkflowTypeRegistryService {
     additionalContext?: WorkflowAdditionalContext<TWorkflowName>,
   ): Promise<string> {
     const workflowId = (workflowIdOverride ?? uuidv4()) as WorkflowId;
+    if (onboardingExecutionOwner(workflowName) === 'CLI') {
+      if (!this.appContext) {
+        throw new Error('Application context is required for local onboarding');
+      }
+      const { ConversationWorkflowService } = await import(
+        './conversation-workflow.service'
+      );
+      const conversations = this.appContext.get(ConversationWorkflowService, {
+        strict: false,
+      });
+      if (conversationId) {
+        const resumed = await conversations.startConversationWorkflow(
+          conversationId,
+          organizationId,
+          userId,
+          additionalContext
+            ? Object.fromEntries(Object.entries(additionalContext))
+            : undefined,
+        );
+        if (!resumed.workflowId) {
+          throw new Error('Saved local onboarding has no workflow binding');
+        }
+        return resumed.workflowId;
+      } else {
+        await conversations.createConversation(
+          {
+            projectId,
+            organizationId,
+            workflowId,
+            workflowName: 'onboarding',
+            workflowAboutType,
+            workflowAboutId,
+            initiatedBy: userId ? 'USER' : 'SYSTEM',
+            title: title ?? 'Project Onboarding',
+            context: additionalContext ?? {},
+          },
+          organizationId,
+          { userId },
+        );
+      }
+      return workflowId;
+    }
     const config = this.getWorkflowConfig(workflowName);
 
     if (!config) {

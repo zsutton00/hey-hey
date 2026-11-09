@@ -1,5 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { SystemMessageResponseType, UIElement } from 'src/generated';
+import {
+  SystemMessageResponseType,
+  UIElement,
+} from '@hey-hey/contracts/api/models';
 import { AgentSessionService } from 'src/services/agent-session.service';
 import { DesignDocService } from 'src/services/design-doc/design-doc.service';
 import { InitiativeService } from 'src/services/initiatives/initiative.service';

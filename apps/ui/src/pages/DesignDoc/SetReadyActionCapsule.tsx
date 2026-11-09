@@ -1,4 +1,4 @@
-import type { DesignDocResponseDto } from "@hey-hey/ui-common/api";
+import type { DesignDocResponseDto } from "@hey-hey/contracts/api";
 import { CapsuleAction } from "@hey-hey/ui-common/components";
 import { useUpdateDesignDoc } from "@hey-hey/ui-common/data";
 import ReadyIcon from "@mui/icons-material/CheckCircleOutline";

@@ -646,6 +646,7 @@ describe('PresentationOwner', () => {
         intentFirst: false,
         remoteToolCallViewing: true,
         jevEnabled: true,
+        heyHeyContextReminder: false,
         jevKeyDefined: true,
       });
       owner.dispatch({ kind: 'back' });
@@ -663,6 +664,7 @@ describe('PresentationOwner', () => {
         intentFirst: true,
         remoteToolCallViewing: true,
         jevEnabled: true,
+        heyHeyContextReminder: false,
         jevKeyDefined: true,
       });
 
@@ -673,6 +675,7 @@ describe('PresentationOwner', () => {
         intentFirst: false,
         remoteToolCallViewing: true,
         jevEnabled: true,
+        heyHeyContextReminder: false,
         jevKeyDefined: true,
       });
       owner.dispose();
@@ -685,6 +688,9 @@ describe('PresentationOwner', () => {
       flushFrame();
       expect(owner.getSnapshot().optionsRow).toBe('intent-first');
       owner.dispatch({ kind: 'move-selection', delta: 1 });
+      owner.dispatch({ kind: 'move-selection', delta: 1 });
+      flushFrame();
+      expect(owner.getSnapshot().optionsRow).toBe('hey-hey-context-reminder');
       owner.dispatch({ kind: 'move-selection', delta: 1 });
       flushFrame();
       expect(owner.getSnapshot().optionsRow).toBe('jev');
@@ -707,6 +713,7 @@ describe('PresentationOwner', () => {
         intentFirst: false,
         remoteToolCallViewing: false,
         jevEnabled: true,
+        heyHeyContextReminder: false,
         jevKeyDefined: true,
       });
       owner.dispose();
@@ -714,6 +721,7 @@ describe('PresentationOwner', () => {
 
     it('flips the Jev on its own row', async () => {
       const { owner, fake } = openOptions(false);
+      owner.dispatch({ kind: 'move-selection', delta: 1 });
       owner.dispatch({ kind: 'move-selection', delta: 1 });
       owner.dispatch({ kind: 'move-selection', delta: 1 });
       owner.dispatch({ kind: 'activate-selection' });
@@ -725,6 +733,26 @@ describe('PresentationOwner', () => {
         intentFirst: false,
         remoteToolCallViewing: true,
         jevEnabled: false,
+        heyHeyContextReminder: false,
+        jevKeyDefined: true,
+      });
+      owner.dispose();
+    });
+
+    it('flips the Hey Hey context reminder on its own row', async () => {
+      const { owner, fake } = openOptions(false);
+      owner.dispatch({ kind: 'move-selection', delta: 1 });
+      owner.dispatch({ kind: 'move-selection', delta: 1 });
+      owner.dispatch({ kind: 'activate-selection' });
+      await settle();
+      expect(fake.setHeyHeyContextReminder).toHaveBeenLastCalledWith(true);
+      expect(fake.setIntentFirst).not.toHaveBeenCalled();
+      expect(fake.setRemoteToolCallViewing).not.toHaveBeenCalled();
+      expect(owner.getSnapshot().options).toEqual({
+        intentFirst: false,
+        remoteToolCallViewing: true,
+        jevEnabled: true,
+        heyHeyContextReminder: true,
         jevKeyDefined: true,
       });
       owner.dispose();
@@ -740,6 +768,7 @@ describe('PresentationOwner', () => {
       }
       created.owner.dispatch({ kind: 'activate-selection' });
       flushFrame();
+      created.owner.dispatch({ kind: 'move-selection', delta: 1 });
       created.owner.dispatch({ kind: 'move-selection', delta: 1 });
       created.owner.dispatch({ kind: 'move-selection', delta: 1 });
       created.owner.dispatch({ kind: 'activate-selection' });
@@ -773,6 +802,7 @@ describe('PresentationOwner', () => {
         intentFirst: false,
         remoteToolCallViewing: true,
         jevEnabled: true,
+        heyHeyContextReminder: false,
         jevKeyDefined: true,
       });
       owner.dispose();

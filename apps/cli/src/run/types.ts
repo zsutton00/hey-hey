@@ -14,15 +14,15 @@ import type {
   UpdateMessageDto,
   ReportType,
 } from '../shared/api/index';
-import type { AgentQuestionPayload } from '../shared/api/generated/api';
+import type { AgentQuestionPayload } from '@hey-hey/contracts/api/models';
 import {
   AgentSessionCurrentState,
   type AgentSessionCurrentState as AgentSessionCurrentStateType,
   type ConversationPhase,
   type SubmitExecutableUserMessageRequestDto,
   type SubmitExternalAgentCompletionRequestDto,
-} from '../shared/api/generated/api';
-import type { LocalPromptType } from '../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/api/models';
+import type { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { SubmissionToolAction } from '../agents/submission-tools/types';
 import type { OnCompleteDeps } from '../agents/prompt-type-handler';
 import type { ServerLogger } from '../server/logger';
@@ -69,6 +69,7 @@ type NormalizedEventKind =
   | 'diff'
   | 'permission'
   | 'permission_decision_recorded'
+  | 'permission_group_item_added'
   | 'agent_question'
   | 'question_answered'
   | 'tool_use'
@@ -99,7 +100,6 @@ export interface AssistantCompleteEvent extends NormalizedEventBase {
  * the generated Agent Session current-state contract. */
 const PROVIDER_PHASE_VALUES = [
   'starting',
-  'gathering_context',
   'thinking',
   'writing',
   'idle',
@@ -116,7 +116,6 @@ export const PROVIDER_PHASE_TO_AGENT_SESSION_CURRENT_STATE: Record<
   AgentSessionCurrentStateType
 > = {
   starting: AgentSessionCurrentState.Starting,
-  gathering_context: AgentSessionCurrentState.GatheringContext,
   thinking: AgentSessionCurrentState.Thinking,
   writing: AgentSessionCurrentState.Writing,
   idle: AgentSessionCurrentState.Idle,
@@ -134,19 +133,21 @@ export interface ProcessingStatusEvent extends NormalizedEventBase {
 const CONVERSATION_PHASE_VALUES = [
   'idle',
   'starting',
-  'gathering_context',
   'thinking',
   'writing',
   'awaiting_approval',
   'reviewing',
 ] as const satisfies readonly ConversationPhase[];
 
-export const isConversationPhase = (value: unknown): value is ConversationPhase =>
+/** The conversation phases the CLI itself produces: provider phases, plus review. */
+export type ObservedConversationPhase = (typeof CONVERSATION_PHASE_VALUES)[number];
+
+export const isConversationPhase = (value: unknown): value is ObservedConversationPhase =>
   typeof value === 'string' && (CONVERSATION_PHASE_VALUES as readonly string[]).includes(value);
 
 export interface ConversationPhaseEvent extends NormalizedEventBase {
   kind: 'conversation_phase';
-  phase: ConversationPhase;
+  phase: ObservedConversationPhase;
 }
 
 export interface DiffEvent extends NormalizedEventBase {
@@ -204,6 +205,15 @@ export interface PermissionDecisionRecordedEvent extends NormalizedEventBase {
   userId?: string;
 }
 
+/** A same-tool request joined an open permission card. */
+export interface PermissionGroupItemAddedEvent extends NormalizedEventBase {
+  kind: 'permission_group_item_added';
+  cardRequestId: string;
+  cardDescription: string;
+  requestId: string;
+  description: string;
+}
+
 export interface AgentQuestionEvent extends NormalizedEventBase {
   kind: 'agent_question';
   requestId: string;
@@ -231,6 +241,7 @@ export type NormalizedEvent =
   | DiffEvent
   | PermissionEvent
   | PermissionDecisionRecordedEvent
+  | PermissionGroupItemAddedEvent
   | AgentQuestionEvent
   | QuestionAnsweredEvent
   | ToolUseEvent

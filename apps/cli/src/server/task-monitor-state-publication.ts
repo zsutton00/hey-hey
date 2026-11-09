@@ -6,7 +6,7 @@ import type {
   TaskMonitorStateStore,
 } from '../agents/task-monitor/state-machine/machine';
 import type { MachineSnapshot } from '../state-machine';
-import type { TaskMonitorStateProjection } from '../shared/api/generated/api';
+import type { TaskMonitorStateProjection } from '@hey-hey/contracts/api/models';
 import type { PlatformWebSocketManager } from './platform-ws';
 import type { ServerLogger } from './logger';
 import { COORDINATOR_RECOVERY_GUIDANCE } from '../agents/task-monitor/task-monitor-coordinator-recovery';

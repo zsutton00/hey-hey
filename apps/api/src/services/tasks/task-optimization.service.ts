@@ -20,9 +20,9 @@ import {
   TaskPriority,
   WorkStatus,
   InsightData,
-} from '../../generated';
-import { ArtifactType } from '../../generated/model/artifactType';
-import { TaskOriginalArtifactData } from '../../generated/model/taskOriginalArtifactData';
+} from '@hey-hey/contracts/api/models';
+import { ArtifactType } from '@hey-hey/contracts/api/models';
+import { TaskOriginalArtifactData } from '@hey-hey/contracts/api/models';
 import { OrganizationId, TaskId } from '../../types';
 import { TaskService } from './task.service';
 import {
@@ -142,15 +142,13 @@ class TaskArtifactServiceAdapter
   private artifactDataIsOriginalTaskData(
     data: ArtifactResponseDto['data'],
   ): data is TaskOriginalArtifactData {
-    return (
-      (data as TaskOriginalArtifactData)?.type === ArtifactType.TaskOriginal
-    );
+    return data?.type === ArtifactType.TaskOriginal;
   }
 
   private artifactDataIsInsightData(
     data: ArtifactResponseDto['data'],
   ): data is InsightData {
-    return (data as TaskOriginalArtifactData)?.type === ArtifactType.Insight;
+    return data?.type === ArtifactType.Insight;
   }
 
   private extractOriginalTaskData(
@@ -189,7 +187,7 @@ class TaskArtifactServiceAdapter
       );
       const parsed = JSON.parse(data.content);
       return {
-        type: 'INSIGHT',
+        type: 'TASK_ORIGINAL',
         taskType:
           parsed.taskType === WORK_ITEM_TYPE_KEYS.Bug
             ? TaskOriginalArtifactData.TaskTypeEnum.Bug

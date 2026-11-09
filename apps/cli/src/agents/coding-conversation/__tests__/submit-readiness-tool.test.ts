@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Run } from '../../../run/run';
 import { SubmissionToolCorrectableError } from '../../submission-tools/types';
 import { submitCodingConversationReadinessTool } from '../submit-readiness-tool';
+import { homePageBlockedFinding } from '../../implementation-readiness/__tests__/readiness-finding.fixture';
 
 const disposition = {
   state: 'REVIEW_REQUIRED',
@@ -12,13 +13,7 @@ const disposition = {
     sourceRevision: 'sha256:source',
     capturedAt: '2026-09-17T19:00:00.000Z',
   },
-  finding: {
-    affectedSourceContext: 'Task context',
-    unresolvedDecision: 'Who owns the write?',
-    consequentialInventionRisk: 'The implementation would invent ownership.',
-    boundedEvidence: [{ category: 'ownership', statement: 'The task leaves ownership open.' }],
-    answerKind: 'Name the owner.',
-  },
+  finding: homePageBlockedFinding,
   resolution: { kind: 'NONE' },
 };
 

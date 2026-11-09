@@ -5,8 +5,8 @@ import {
   InitiativeResponseDto,
   QAPairData,
   TaskResponseDto,
-} from 'src/generated';
-import { DesignDocLinkResponseDto } from 'src/generated/model/designDocLinkResponseDto';
+} from '@hey-hey/contracts/api/models';
+import { DesignDocLinkResponseDto } from '@hey-hey/contracts/api/models';
 import type {
   ConversationId,
   DesignDocId,

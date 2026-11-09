@@ -2,13 +2,13 @@ import { createHash } from 'node:crypto';
 import type {
   ImplementationReadinessSourceSnapshot,
   ReadinessFocalEntityType,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { AgentStartupPromptInputResult } from '../../commands/agent-startup-prompt-input';
 import type { LoadedEntityPromptContext } from '../entity-context/types';
 import {
   RunEntityReferenceEntityTypeEnum as RunEntityType,
   type RunEntityReference,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import { canonicalizeJson, type CanonicalJsonValue } from '../../shared/canonical-json';
 
 export interface ReadinessSourceRevisionInput {

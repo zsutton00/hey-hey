@@ -2,7 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { WebsocketGateway } from '../../../core/websockets/websocket.gateway';
 import { MachineId, UserId } from '../../../types';
-import { MachineSecurityEventType } from '../../../generated';
+import { MachineSecurityEventType } from '@hey-hey/contracts/api/models';
 import { MachineSecurityEventService } from '../machine-security-event.service';
 import * as TestUtils from '../../../utils/testUtils';
 

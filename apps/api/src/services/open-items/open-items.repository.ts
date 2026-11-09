@@ -5,7 +5,7 @@ import type {
   OpenItemLineageEntry,
   OpenItemPresentation,
   OpenItemGoalTrackedWorkFilter,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId, UserId } from 'src/types';

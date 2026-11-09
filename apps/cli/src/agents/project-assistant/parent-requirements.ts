@@ -1,5 +1,3 @@
-import { z } from 'zod';
-
 import { DEFAULT_JEV_MODEL } from '../../jev/client';
 import {
   DEFAULT_WORDING,
@@ -11,9 +9,14 @@ import {
   type Focal,
   type JevEvaluator,
 } from '../../jev/scenarios';
-import { RunEntityReferenceEntityTypeEnum as RunEntityType } from '../../shared/agent-bridge-contract/generated/api';
-import type { MaterializedWorkItemSection } from '../../shared/api/generated';
+import { RunEntityReferenceEntityTypeEnum as RunEntityType } from '@hey-hey/contracts/agent-bridge';
+import type { MaterializedWorkItemSection } from '@hey-hey/contracts/api/models';
 import { firstSentence } from '../context-trimming/get-context-result';
+import {
+  formatRequirementLine,
+  requirementsDocumentSchema,
+  type RequirementRecord,
+} from '../entity-context/feature-requirements';
 import type { EntityContextLoader } from '../entity-context/entity-context-loader';
 import type { LoadedEntityPromptContext } from '../entity-context/types';
 import type { NearestParentFeatureRequest } from './nearest-parent-feature';
@@ -22,8 +25,11 @@ import type { NearestParentFeatureRequest } from './nearest-parent-feature';
 export interface ParentRequirementsFilter {
   jevClient: JevEvaluator;
   entityContextLoader: Pick<EntityContextLoader, 'load'>;
-  /** Where each attempt's full Jev input and output, and the loads before and after, are written. */
-  attemptLogDir: string;
+  /**
+   * Where each attempt's full Jev input and output, and the loads before and after, are written.
+   * Null when there is no development checkout to write into (an installed CLI); nothing is written.
+   */
+  attemptLogDir: string | null;
   model?: string;
 }
 
@@ -40,19 +46,6 @@ export interface FilteredParentRequirements {
 
 export const REQUIREMENTS_SECTION_KEY = 'requirements';
 
-const recordSchema = z
-  .object({
-    id: z.string().min(1),
-    statement: z.string(),
-    fulfilledBy: z.array(
-      z.object({ entityId: z.string(), entityType: z.string(), entityTitle: z.string() }),
-    ),
-  })
-  .passthrough();
-const recordsSchema = z.array(recordSchema);
-
-type RequirementRecord = z.infer<typeof recordSchema>;
-
 /** Why the starting load stays unfiltered; never carries entity content. */
 export class ParentRequirementsUnfiltered extends Error {
   public constructor(
@@ -64,16 +57,10 @@ export class ParentRequirementsUnfiltered extends Error {
   }
 }
 
-/** Reasons that are a normal outcome of the focal's type, not a failure; logged at info. */
-export const EXPECTED_UNFILTERED_REASONS: ReadonlySet<string> = new Set(['focal_not_a_task']);
-
 const sectionText = (sections: readonly MaterializedWorkItemSection[], key: string): string =>
   sections.find((section) => section.key === key)?.materializedMarkdown.trim() ?? '';
 
-/** Only plain work (tasks, bugs, ...) is judged here; features, mockups and diagrams are not. */
-const NON_TASK_TYPES: ReadonlySet<string> = new Set(['FEATURE', 'mockup', 'DIAGRAM']);
-
-const taskFocalOf = (
+const focalOf = (
   loaded: LoadedEntityPromptContext,
   parent: { name: string; sections: readonly MaterializedWorkItemSection[] },
 ): Focal => {
@@ -81,25 +68,35 @@ const taskFocalOf = (
     throw new ParentRequirementsUnfiltered('focal_not_a_work_item');
   }
   const { entity } = loaded;
-  if (NON_TASK_TYPES.has(entity.type)) {
-    throw new ParentRequirementsUnfiltered('focal_not_a_task', { focalType: entity.type });
-  }
   const sections = entity.sections ?? [];
-  return {
-    kind: 'task',
-    name: entity.name,
-    description: sectionText(sections, 'description'),
-    acceptanceCriteria: sectionText(sections, 'acceptanceCriteria'),
-    parent: {
-      kind: 'feature',
-      name: parent.name,
-      description: [...parent.sections]
-        .sort((a, b) => a.order - b.order)
-        .map((section) => section.materializedMarkdown.trim())
-        .filter((markdown) => markdown.length > 0)
-        .join('\n\n'),
-    },
+  const name = entity.name;
+  const description = sectionText(sections, 'description');
+  const framing = {
+    kind: 'feature' as const,
+    name: parent.name,
+    description: [...parent.sections]
+      .sort((a, b) => a.order - b.order)
+      .map((section) => section.materializedMarkdown.trim())
+      .filter((markdown) => markdown.length > 0)
+      .join('\n\n'),
   };
+
+  switch (entity.type) {
+    case 'FEATURE':
+      return { kind: 'feature', name, description };
+    case 'mockup':
+      return { kind: 'mockup', name, description, parent: framing };
+    case 'DIAGRAM':
+      return { kind: 'diagram', name, description, elements: [], parent: framing };
+    default:
+      return {
+        kind: 'task',
+        name,
+        description,
+        acceptanceCriteria: sectionText(sections, 'acceptanceCriteria'),
+        parent: framing,
+      };
+  }
 };
 
 const readRecords = async (
@@ -113,17 +110,9 @@ const readRecords = async (
     projectId: request.projectId,
     readRestriction: request.readRestriction,
   });
-  const parsed = recordsSchema.safeParse(loaded.context.content?.requirementsSection?.records);
+  const parsed = requirementsDocumentSchema.safeParse(loaded.context.content?.requirementsSection);
   if (!parsed.success) throw new ParentRequirementsUnfiltered('requirements_malformed');
-  return parsed.data;
-};
-
-const renderFull = (record: RequirementRecord): string => {
-  const citations = record.fulfilledBy.map(
-    (citation) => `@[${citation.entityType}:${citation.entityId}|${citation.entityTitle}]`,
-  );
-  const fulfilled = citations.length > 0 ? ` (fulfilled by ${citations.join(', ')})` : '';
-  return `- ${record.statement.trim()}${fulfilled}`;
+  return parsed.data.records;
 };
 
 const renderTitle = (record: RequirementRecord): string => `- ${firstSentence(record.statement)}`;
@@ -139,7 +128,7 @@ export const filterParentRequirements = async (
   loaded: LoadedEntityPromptContext,
   filter: ParentRequirementsFilter,
 ): Promise<FilteredParentRequirements> => {
-  const focal = taskFocalOf(loaded, parent);
+  const focal = focalOf(loaded, parent);
   const focalEntityId = loaded.focalEntity.entityId;
   const records = await readRecords(request, parent.id, filter);
   if (records.length === 0) throw new ParentRequirementsUnfiltered('no_requirements');
@@ -192,7 +181,7 @@ export const filterParentRequirements = async (
   }
 
   const lines = records.map((record, position) =>
-    full.has(position) ? renderFull(record) : renderTitle(record),
+    full.has(position) ? formatRequirementLine(record) : renderTitle(record),
   );
   const titleCount = records.length - full.size;
   const note =

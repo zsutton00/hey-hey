@@ -9,7 +9,7 @@ import {
   CliSettingsRequestDto,
   CliSettingsResponseDto,
   WebSocketCliSettingsRequestEvent,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { MachineId, OrganizationId, ProjectId, UserId } from '../../types';
 import { TriggerEnvelopeSigner } from './trigger-envelope-signer.service';
 import { WebsocketGateway } from './websocket.gateway';
@@ -197,7 +197,7 @@ export class CliSettingsEmitter {
 
   public error(
     request: CliSettingsEnvelopeBody & { requestId?: string },
-    code: CliSettingsErrorCode,
+    code: z.infer<typeof genericErrorCodes>,
     message: string,
   ): CliSettingsDailySessionErrorResponseDto {
     return {

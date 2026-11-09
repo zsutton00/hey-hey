@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ExecutionGrantService } from './controller-authorization/execution-grant.service';
 import { CliReadEmitter } from '../core/websockets/cli-read-emitter.service';
 import { MachineId, OrganizationId, ProjectId, UserId } from '../types';
-import type { CliReadRuntimeModelCatalogGetRequest } from '../generated';
+import type { CliReadRuntimeModelCatalogGetRequest } from '@hey-hey/contracts/api/models';
 jest.mock('../core/websockets/websocket.gateway', () => ({
   WebsocketGateway: class {},
 }));

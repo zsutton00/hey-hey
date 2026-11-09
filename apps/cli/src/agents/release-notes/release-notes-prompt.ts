@@ -1,5 +1,5 @@
-import type { RunCreatePayloadReleaseNotes } from '../../shared/agent-bridge-contract/generated/api';
-import type { ProjectReportPayload } from '../../shared/api/generated/api';
+import type { RunCreatePayloadReleaseNotes } from '@hey-hey/contracts/agent-bridge';
+import type { ProjectReportPayload } from '@hey-hey/contracts/api/models';
 import type { ProjectReportEvidenceResult } from '../project-report/project-report-evidence-reader';
 import type { ProjectReportRequestProjection } from '../project-report/project-report-request-reader';
 import type { ReleaseNotesRepository } from './release-notes-git';

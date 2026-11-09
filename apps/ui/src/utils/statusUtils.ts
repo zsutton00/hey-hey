@@ -1,9 +1,9 @@
-import type { AdrStatus, WorkStatus } from "@hey-hey/ui-common/api";
+import type { AdrStatus, WorkStatus } from "@hey-hey/contracts/api";
 import {
   BrainstormStatus,
   DecisionStatus,
   DesignDocTemplate,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 
 /**
  * Get user-friendly label for work status

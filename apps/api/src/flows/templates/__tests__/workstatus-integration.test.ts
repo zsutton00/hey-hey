@@ -1,4 +1,4 @@
-import { WorkStatus } from '../../../generated';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { getCurrentSectionFromStatus } from '../../../utils/work-item.util';
 
 const getTaskCurrentLevel = getCurrentSectionFromStatus;

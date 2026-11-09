@@ -12,7 +12,7 @@ import {
 
 /** Collect before presentation hides CARRIER messages or relocates their attachments. */
 export const collectConversationProposals = (
-  messages: readonly MessageResponseDto[] = []
+  messages: readonly MessageResponseDto[] = [],
 ): ProposalResponseDto[] => {
   const proposals = new Map<string, ProposalResponseDto>();
   const visit = (message: MessageResponseDto): void => {
@@ -37,42 +37,42 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
 const getTargetWorkItemType = (
-  proposal: ProposalResponseDto
+  proposal: ProposalResponseDto,
 ): string | null => {
+  const rawUpdates: unknown = proposal.updates;
   if (
     proposal.targetEntityType !== TargetEntityType.Task ||
-    !isRecord(proposal.updates)
+    !isRecord(rawUpdates)
   ) {
     return null;
   }
-  return typeof proposal.updates.type === "string"
-    ? proposal.updates.type
-    : null;
+  const type = rawUpdates["type"];
+  return typeof type === "string" ? type : null;
 };
 
 export const useConversationProposalInteraction = (
-  messages: readonly MessageResponseDto[] | undefined
+  messages: readonly MessageResponseDto[] | undefined,
 ): MessageInteractionContext => {
   const proposals = useMemo(
     () => collectConversationProposals(messages),
-    [messages]
+    [messages],
   );
   const subscribeToProposals = useCallback(
     (onChange: () => void) => {
       const unsubscribe = proposals.map(({ id }) => subscribe(id, onChange));
       return () => unsubscribe.forEach((stop) => stop());
     },
-    [proposals]
+    [proposals],
   );
   // A primitive snapshot stays stable until a subscribed proposal's cached decision changes.
   const getSnapshot = useCallback(
     () => proposals.map(({ id }) => getEntry(id)?.lifecycle ?? "").join("|"),
-    [proposals]
+    [proposals],
   );
   const cachedSnapshot = useSyncExternalStore(
     subscribeToProposals,
     getSnapshot,
-    getSnapshot
+    getSnapshot,
   );
   return useMemo(() => {
     const cachedLifecycles = cachedSnapshot.split("|");
@@ -84,8 +84,8 @@ export const useConversationProposalInteraction = (
           cachedLifecycles[index] === "applied"
             ? ProposalStatus.Approved
             : cachedLifecycles[index] === "rejected"
-            ? ProposalStatus.Rejected
-            : proposal.status,
+              ? ProposalStatus.Rejected
+              : proposal.status,
       })),
     };
     // Stage readiness debug: all conversation proposals, including hidden carriers and groups.

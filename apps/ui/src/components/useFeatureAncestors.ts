@@ -1,4 +1,4 @@
-import type { FeatureHierarchyEntryDto } from "@hey-hey/ui-common/api";
+import type { FeatureHierarchyEntryDto } from "@hey-hey/contracts/api";
 import { useFeatureLookup } from "@hey-hey/ui-common/data";
 import { useMemo } from "react";
 

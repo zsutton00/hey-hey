@@ -20,7 +20,7 @@ import addFormats from 'ajv-formats';
 import type {
   ApiErrorResponse,
   CreateReportCompletedAttemptError,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import { reportErrorSchemas } from '../../shared/api/generated/report-error-schemas';
 import { extractOrganizationIdFromToken } from '../../auth/index';
 import { NOOP_LOGGER, type ServerLogger } from '../../server/logger';

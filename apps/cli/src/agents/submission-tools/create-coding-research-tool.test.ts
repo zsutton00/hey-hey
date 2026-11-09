@@ -56,6 +56,7 @@ const makeArgs = (overrides?: Record<string, unknown>): Record<string, unknown> 
   provenance: SAMPLE_PROVENANCE,
   updates: SAMPLE_UPDATES,
   readinessEvidence: [],
+  uncertainties: [],
   ...overrides,
 });
 
@@ -81,6 +82,7 @@ describe('createCodingResearchTool', () => {
     expect(schema.required).toContain('provenance');
     expect(schema.required).toContain('updates');
     expect(schema.required).toContain('readinessEvidence');
+    expect(schema.required).toContain('uncertainties');
     expect(schema.properties).not.toHaveProperty('reportType');
     expect(schema.properties).not.toHaveProperty('audience');
   });
@@ -107,12 +109,14 @@ describe('createCodingResearchTool', () => {
         audience: 'PROJECT_VISIBLE',
         payload: {
           reportType: 'CODING_RESEARCH',
+          format: 'SELF_RESEARCH',
           summary: args['summary'],
           frame: SAMPLE_FRAME,
           analysis: args['analysis'],
           provenance: SAMPLE_PROVENANCE,
           updates: SAMPLE_UPDATES,
           readinessEvidence: [],
+          uncertainties: [],
         },
       }),
       conversationId: 'conv-test',
@@ -137,9 +141,50 @@ describe('createCodingResearchTool', () => {
     const memo = vi.mocked(run.appendMemo).mock.calls[0]![0] as RunMemo;
     expect(memo.source).toBe('project_assistant');
     expect(memo.writtenAt).toBe(FIXED_NOW);
-    expect(memo.content).toContain(JSON.stringify(SAMPLE_FRAME, null, 2));
+    expect(memo.content.split(JSON.stringify(SAMPLE_FRAME, null, 2))).toHaveLength(2);
+    expect(memo.content).not.toContain('Research evidence from child handoffs');
     expect(memo.content).toContain(JSON.stringify(SAMPLE_UPDATES, null, 2));
     expect(memo.content).toContain(args['analysis'] as string);
+  });
+
+  it('persists the parent-authored subagent-parent report and retains research evidence for the next handler', async () => {
+    const proxy = makeCreateReportProxy();
+    vi.mocked(proxy.create).mockResolvedValue({
+      content: makePlatformContent('report-cr-written'),
+      reportId: 'report-cr-written',
+    });
+    const tool = new CodingResearchTool(proxy, () => FIXED_NOW, undefined, 'SUBAGENT_PARENT');
+    const run = makeRun();
+    const analysis = [
+      'The parent reviewed child evidence and wrote this analysis.',
+      '',
+      '## Uncertainties',
+      '',
+      '- **conflict · medium** — Two project sources disagree. — References: @[task:task-abc|Task one]',
+    ].join('\n');
+
+    await tool.execute({
+      runId: 'run-written',
+      args: makeArgs({ analysis }),
+      run,
+    });
+
+    expect(proxy.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        args: expect.objectContaining({
+          payload: {
+            reportType: 'CODING_RESEARCH',
+            format: 'SUBAGENT_PARENT',
+            summary: expect.any(String),
+            analysis,
+          },
+        }),
+      }),
+    );
+    const memo = vi.mocked(run.appendMemo).mock.calls[0]![0] as RunMemo;
+    expect(memo.content).not.toContain('Research evidence from child handoffs');
+    expect(memo.content.split(JSON.stringify(SAMPLE_FRAME, null, 2))).toHaveLength(2);
+    expect(memo.content).toContain(analysis);
   });
 
   it('persists an explicit empty updates array without adding a placeholder candidate', async () => {

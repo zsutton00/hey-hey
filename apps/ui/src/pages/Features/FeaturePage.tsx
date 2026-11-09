@@ -20,7 +20,7 @@ import {
   type EntityContextDtoProposalsInner,
   type FeatureTag,
   type TaskResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   type GraphConversationLaunchInput,
   useEntityConversationLauncher,

@@ -4,6 +4,7 @@ import { installLocalhostResolution } from './network/localhost-resolution';
 import { version } from '../package.json';
 import type { ServerCommandOptions } from './commands/server';
 import { StorageFailureError, validateKey } from './credentials/store';
+import { setTerminalTitle, type TerminalEnvironment } from './shared/terminal-title';
 
 const HELP_TEXT = `Usage: heyhey [command] [options]
 
@@ -12,6 +13,7 @@ opens the menu (machine actions, local sessions, Debug); otherwise it prints
 line output.
 
 Commands:
+  local         Install, start or check the durable local application
   run-retention Configure automatic cleanup of completed Runs
   machine-history Inspect durable state and transition evidence for a machine instance
   credential    Manage provider credentials
@@ -143,6 +145,13 @@ if (profileFlagIndex !== -1) {
   }
 }
 
+const terminalEnvironment: TerminalEnvironment = hasLocalFlag
+  ? 'local'
+  : hasStagingFlag
+    ? 'staging'
+    : 'production';
+setTerminalTitle(terminalEnvironment, process.env['HEYHEY_PROFILE']);
+
 const args = process.argv.slice(2).filter((arg, index) => {
   if (
     arg === '--local' ||
@@ -257,6 +266,15 @@ const run = async (): Promise<void> => {
     const { runMachineHistoryCommand } = await import('./commands/machine-history');
     const ok = await runMachineHistoryCommand(args.slice(1));
     if (!ok) process.exitCode = 1;
+    return;
+  }
+
+  if (command === 'local') {
+    const { runLocalCommand } = await import('./commands/local');
+    const ok = await runLocalCommand(args.slice(1));
+    if (!ok) {
+      process.exitCode = 1;
+    }
     return;
   }
 

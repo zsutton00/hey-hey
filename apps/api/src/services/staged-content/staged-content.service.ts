@@ -21,7 +21,7 @@ import {
   StageOperationResult,
   WorkflowName,
   WorkStatus,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ConversationId,
   InitiativeId,

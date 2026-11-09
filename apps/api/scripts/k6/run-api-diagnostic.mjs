@@ -124,9 +124,7 @@ function parseDeploymentContext(raw) {
   try {
     context = JSON.parse(raw);
   } catch {
-    throw new Error(
-      'Deployment context must contain one JSON object',
-    );
+    throw new Error('Deployment context must contain one JSON object');
   }
 
   if (
@@ -146,13 +144,23 @@ function parseDeploymentContext(raw) {
     'baseUrl',
     'browserOrigin',
   ]) {
-    if (typeof context[field] !== 'string' || context[field].trim().length === 0) {
-      throw new Error(
-        `Deployment context is missing required field: ${field}`,
-      );
+    if (
+      typeof context[field] !== 'string' ||
+      context[field].trim().length === 0
+    ) {
+      throw new Error(`Deployment context is missing required field: ${field}`);
     }
   }
 
+  const selectedEnvironment = process.env.API_DIAGNOSTIC_ENVIRONMENT;
+  if (
+    selectedEnvironment &&
+    context.deploymentEnvironment !== selectedEnvironment
+  ) {
+    throw new Error(
+      'Deployment context does not match the selected diagnostic environment',
+    );
+  }
   return context;
 }
 
@@ -162,7 +170,10 @@ function readDeploymentContext() {
     try {
       return parseDeploymentContext(readFileSync(file, 'utf8'));
     } catch (error) {
-      if (error instanceof Error && error.message.startsWith('Deployment context')) {
+      if (
+        error instanceof Error &&
+        error.message.startsWith('Deployment context')
+      ) {
         throw error;
       }
       throw new Error(
@@ -399,7 +410,8 @@ const environmentId =
 const configurationId =
   deploymentContext?.configurationId ?? required('K6_CONFIGURATION_ID');
 const deploymentEnvironment =
-  deploymentContext?.deploymentEnvironment ?? required('DEPLOYMENT_ENVIRONMENT');
+  deploymentContext?.deploymentEnvironment ??
+  required('DEPLOYMENT_ENVIRONMENT');
 const repetitions = positiveInteger('K6_REPETITIONS', 3, MIN_REPETITIONS);
 const outputRoot = resolve(
   process.env.K6_OUTPUT_ROOT?.trim() || 'artifacts/api-diagnostic',

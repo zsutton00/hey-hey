@@ -75,6 +75,28 @@ const SAMPLE_CANDIDATES: Record<Scenario['id'], Candidate[]> = {
       text: 'Report Viewer: shows the report next to the diff.',
     },
   ],
+  context_selection: [
+    {
+      id: 'review_requirement',
+      kind: 'requirement',
+      text: 'Each change is explained in plain language with a link to its source.',
+    },
+    {
+      id: 'review_ancestor',
+      kind: 'ancestor',
+      text: 'Agent Sessions: durable containers for AI-assisted work.',
+    },
+    {
+      id: 'inline_comments',
+      kind: 'sibling',
+      text: 'Inline Comments: a reviewer leaves comments on a changed line.',
+    },
+    {
+      id: 'edge_change_explanation',
+      kind: 'linked',
+      text: 'Change Explanation (TASK STANDARD; DEPENDS_ON; out): Provides the typed report that explains a change to the reviewer.',
+    },
+  ],
   edges: [
     {
       id: 'edge_1',
@@ -139,7 +161,7 @@ const printJudgments = (scenario: Scenario, judgments: readonly unknown[]): void
     return;
   }
   console.table(
-    (judgments as { id: string; relevance: number; conflict: number }[]).map((judgment) => ({
+    (judgments as { id: string; relevance: number }[]).map((judgment) => ({
       ...judgment,
       tier: tierOf(judgment, JEV_CUTOFFS),
     })),

@@ -11,7 +11,6 @@ import {
   HttpCode,
   HttpStatus,
   Logger,
-  NotImplementedException,
   Param,
   Post,
   Put,
@@ -22,7 +21,6 @@ import {
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
-  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -41,10 +39,8 @@ import {
   CreateArtifactDto,
   PaginatedArtifactsDto,
   QueryArtifactsDto,
-  SemanticSearchDto,
-  SemanticSearchResponseDto,
   UpdateArtifactDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 
 @ApiTags('Artifacts')
 @ApiBearerAuth()
@@ -205,83 +201,6 @@ export class ArtifactController {
     return this.artifactTypedService.delete(id, organizationId);
   }
 
-  @Post('search')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Semantic Search',
-    description: 'Search artifact objects using semantic similarity',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Search completed successfully',
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid search parameters',
-  })
-  async semanticSearch(
-    @CurrentUser() user: AuthenticatedUser,
-    @CurrentOrganization() organizationId: OrganizationId,
-    @Body() searchDto: SemanticSearchDto,
-  ): Promise<SemanticSearchResponseDto> {
-    this.logger.log(
-      `User ${user.userId} performing semantic search: "${searchDto.query}" in org: ${organizationId}`,
-    );
-    return this.artifactTypedService.semanticSearch(searchDto, organizationId);
-  }
-
-  @Get('search/simple')
-  @ApiOperation({
-    summary: 'Simple Search',
-    description: 'Simple search using query parameters',
-  })
-  @ApiQuery({
-    name: 'q',
-    description: 'Search query',
-    example: 'JWT authentication',
-  })
-  @ApiQuery({
-    name: 'projectId',
-    description: 'Filter by project ID',
-    required: false,
-  })
-  @ApiQuery({
-    name: 'maxResults',
-    description: 'Maximum results to return',
-    required: false,
-    example: 10,
-  })
-  @ApiQuery({
-    name: 'threshold',
-    description: 'Similarity threshold (0.0-1.0)',
-    required: false,
-    example: 0.15,
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Search completed successfully',
-  })
-  async simpleSearch(
-    @CurrentUser() user: AuthenticatedUser,
-    @CurrentOrganization() organizationId: OrganizationId,
-    @Query('q') query: string,
-    @Query('projectId') projectId?: ProjectId,
-    @Query('maxResults') _maxResults?: number,
-    @Query('threshold') threshold?: number,
-  ): Promise<SemanticSearchResponseDto> {
-    this.logger.log(
-      `User ${user.userId} performing simple search: "${query}" in org: ${organizationId}`,
-    );
-
-    const searchDto: SemanticSearchDto = {
-      query,
-      projectId,
-      threshold: threshold || 0.15,
-    };
-
-    return this.artifactTypedService.semanticSearch(searchDto, organizationId);
-  }
-
   @Get('project/:projectId/summary')
   @ApiOperation({
     summary: 'Project Artifact Summary',
@@ -408,46 +327,5 @@ export class ArtifactController {
       hierarchy: relatedObjects,
       totalInHierarchy: relatedObjects.length,
     };
-  }
-
-  @Get(':id/similar')
-  @ApiOperation({
-    summary: 'Find Similar Artifacts',
-    description:
-      'Find artifact objects similar to the given one using embeddings',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'Artifact object ID',
-    example: 'uuid-string',
-  })
-  @ApiQuery({
-    name: 'limit',
-    description: 'Maximum number of similar objects to return',
-    required: false,
-    example: 5,
-  })
-  @ApiQuery({
-    name: 'threshold',
-    description: 'Similarity threshold (0.0-1.0)',
-    required: false,
-    example: 0.3,
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Similar objects retrieved successfully',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Artifact object not found',
-  })
-  async findSimilar(
-    @CurrentUser() user: AuthenticatedUser,
-    @CurrentOrganization() organizationId: OrganizationId,
-    @Param('id') id: string,
-    @Query('limit') limit?: number,
-    @Query('threshold') threshold?: number,
-  ): Promise<SemanticSearchResponseDto> {
-    throw new NotImplementedException('Semantic search not yet implemented');
   }
 }

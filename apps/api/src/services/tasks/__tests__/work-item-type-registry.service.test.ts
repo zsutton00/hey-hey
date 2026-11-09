@@ -1,4 +1,4 @@
-import { SessionRole } from '../../../generated/model/sessionRole';
+import { SessionRole } from '@hey-hey/contracts/api/models';
 import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
@@ -11,18 +11,18 @@ import {
 import { BadRequestException } from '@nestjs/common';
 import { InMemoryMessageBus } from '../../../core/events/in-memory-message-bus.service';
 import type { PrismaService } from '../../../prisma/prisma.service';
-import { EntityType } from '../../../generated/model/entityType';
-import { ReportType } from '../../../generated/model/reportType';
-import { TaskSectionKey } from '../../../generated/model/taskSectionKey';
-import { WorkItemTypeLifecycleStatus } from '../../../generated/model/workItemTypeLifecycleStatus';
-import { WorkItemTypeGuidancePurpose } from '../../../generated/model/workItemTypeGuidancePurpose';
-import { WorkItemTypeEffectiveSource } from '../../../generated/model/workItemTypeEffectiveSource';
+import { EntityType } from '@hey-hey/contracts/api/models';
+import { ReportType } from '@hey-hey/contracts/api/models';
+import { TaskSectionKey } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeLifecycleStatus } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeGuidancePurpose } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeEffectiveSource } from '@hey-hey/contracts/api/models';
 
-import { WorkStatus } from '../../../generated/model/workStatus';
-import type { WorkItemConfigKind } from '../../../generated/model/workItemConfigKind';
-import { AgentEdgeType } from '../../../generated/model/agentEdgeType';
-import { WorkItemIconKey } from '../../../generated/model/workItemIconKey';
-import type { WorkItemTypeDefinitionDto } from '../../../generated/model/workItemTypeDefinitionDto';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
+import type { WorkItemConfigKind } from '@hey-hey/contracts/api/models';
+import { AgentEdgeType } from '@hey-hey/contracts/api/models';
+import { WorkItemIconKey } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeDefinitionDto } from '@hey-hey/contracts/api/models';
 import { EVENT_TYPES } from '../../../core/events/types/event.types';
 import type { OrganizationId, ProjectId } from '../../../types';
 import { WorkItemTypeRegistryService } from '../work-item-type-registry.service';

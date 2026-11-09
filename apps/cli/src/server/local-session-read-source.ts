@@ -16,8 +16,8 @@
  * others or reaches the Run that raised the change.
  */
 
-import type { RunEntityReference } from '../shared/agent-bridge-contract/generated/api';
-import type { AgentSessionCurrentState } from '../shared/api/generated/api';
+import type { RunEntityReference } from '@hey-hey/contracts/agent-bridge';
+import type { AgentSessionCurrentState } from '@hey-hey/contracts/api/models';
 import type { LoadedEntityPromptContext } from '../agents/entity-context/types';
 import type { Run, RunEntityContextLoadStatus } from '../run/run';
 import type { RunRegistry } from '../run/run-registry';
@@ -133,6 +133,13 @@ export class LocalSessionReadSource {
   }
 
   /** Registered Runs holding active work: the Runs a shutdown would stop mid-work. */
+  public activeRunIds(): string[] {
+    return this.dependencies.runRegistry
+      .list()
+      .filter((run) => run.hasActiveWork)
+      .map((run) => run.runId);
+  }
+
   public activeWorkCount(): number {
     return this.dependencies.runRegistry.list().filter((run) => run.hasActiveWork).length;
   }

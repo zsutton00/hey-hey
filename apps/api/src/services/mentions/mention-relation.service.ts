@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ArtifactRelationType, EntityType } from '@prisma/client';
-import { MessageCreatedEvent } from 'src/generated/model/messageCreatedEvent';
+import { MessageCreatedEvent } from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { WorkflowAboutType } from 'src/types';
 import { workflowAboutTypeToEntityType } from 'src/utils/workflow-about-type.util';

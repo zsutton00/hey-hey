@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { ReportType as PrismaReportType } from '@prisma/client';
-import { ReadRestriction } from '../../generated';
+import { ReadRestriction } from '@hey-hey/contracts/api/models';
 import {
   ReadPolicyContext,
   readPolicyFor,

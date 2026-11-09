@@ -1,5 +1,5 @@
 import { WorkItemTypeRegistryService } from '../../services/tasks/work-item-type-registry.service';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Tool, Context } from '@rekog/mcp-nest';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
@@ -8,17 +8,17 @@ import {
   EntityContextService,
   type FullEntityContextDto,
 } from '../../services/entity-context/entity-context.service';
-import { EdgeSource } from '../../generated/model/edgeSource';
-import { EntityType as EntityTypeEnum } from '../../generated/model/entityType';
-import type { ContextProposalSummaryDto } from '../../generated/model/contextProposalSummaryDto';
-import type { EntityContextDtoProposalsInner } from '../../generated/model/entityContextDtoProposalsInner';
-import { ContextProposalFieldChangeDto } from '../../generated/model/contextProposalFieldChangeDto';
-import { ProposalAction } from '../../generated/model/proposalAction';
-import { ProposalDetail } from '../../generated/model/proposalDetail';
-import { ProposalStatus } from '../../generated/model/proposalStatus';
-import { ProposalType } from '../../generated/model/proposalType';
-import { TargetEntityType } from '../../generated/model/targetEntityType';
-import type { FeatureRequirementsSection } from '../../generated/model/featureRequirementsSection';
+import { EdgeSource } from '@hey-hey/contracts/api/models';
+import { EntityType as EntityTypeEnum } from '@hey-hey/contracts/api/models';
+import type { ContextProposalSummaryDto } from '@hey-hey/contracts/api/models';
+import type { EntityContextDtoProposalsInner } from '@hey-hey/contracts/api/models';
+import { ContextProposalFieldChangeDto } from '@hey-hey/contracts/api/models';
+import { ProposalAction } from '@hey-hey/contracts/api/models';
+import { ProposalDetail } from '@hey-hey/contracts/api/models';
+import { ProposalStatus } from '@hey-hey/contracts/api/models';
+import { ProposalType } from '@hey-hey/contracts/api/models';
+import { TargetEntityType } from '@hey-hey/contracts/api/models';
+import type { FeatureRequirementsSection } from '@hey-hey/contracts/api/models';
 import { validateFeatureRequirementsSection } from '../../services/tasks/feature-requirements-section.validator';
 import { AgentEdgeClientService } from '../../services/agent-edge-client.service';
 import { ProposalApprovalService } from '../../services/proposal/proposal-approval.service';
@@ -31,7 +31,9 @@ import {
   mcpError,
   resolveProjectId,
 } from './mcp-tool.utils';
+import { MCP_RELATED_ENTITY_SELECTION } from '../../services/entity-context/related-entity-selection';
 import { admitWholeRecords, SIZE_BUDGET_REASON } from './response-budget';
+import { SearchReceiptStore } from './search-receipt.store';
 
 const GET_CONTEXT_TOOL_NAME = 'get_context';
 const MAX_CONTEXT_SEEDS = 5;
@@ -160,6 +162,38 @@ const relatedEntityViaSchema = z.object({
   relationship: relationshipValueSchema,
 });
 
+const entityRelationshipSchema = z.object({
+  relationship: relationshipValueSchema.describe(
+    'Relationship between the seed entity and this entity. Direction ' +
+      'is encoded in the value (supersedes vs superseded-by, mentions ' +
+      'vs mentioned-by); sibling-via-parent surfaces tasks reached only ' +
+      'through an excluded parent feature; proposed-together is the ' +
+      'symmetric, system-emitted edge between entities co-authored by ' +
+      'the same approved proposal.',
+  ),
+  source: z
+    .enum([EdgeSource.System, EdgeSource.Agent, EdgeSource.User])
+    .optional()
+    .describe(
+      'Origin of the relationship: system, agent or user. Omitted when ' +
+        'every relationship in this response has the same origin.',
+    ),
+  via: z
+    .array(relatedEntityViaSchema)
+    .optional()
+    .describe(
+      'Path from the seed when reached through an excluded pivot ' +
+        '(e.g. a parent feature). Absent for direct relationships.',
+    ),
+  reasoning: z
+    .string()
+    .optional()
+    .describe(
+      'Written rationale for this relationship. Absent when none was ' +
+        'written.',
+    ),
+});
+
 const relatedEntitySchema = z.object({
   entityId: z.string(),
   entityType: z.string(),
@@ -171,36 +205,10 @@ const relatedEntitySchema = z.object({
     .string()
     .optional()
     .describe('Resolved work-item type key for TASK entries.'),
-  source: z
-    .enum([EdgeSource.System, EdgeSource.Agent, EdgeSource.User])
-    .optional()
-    .describe(
-      'Origin of the relationship: system for platform-derived graph ' +
-        'relationships, agent for AI-authored edges, or user for ' +
-        'human-authored edges.',
-    ),
-  relationship: relationshipValueSchema.describe(
-    'Relationship between the seed entity and this entity. Direction ' +
-      'is encoded in the value (supersedes vs superseded-by, mentions ' +
-      'vs mentioned-by); sibling-via-parent surfaces tasks reached only ' +
-      'through an excluded parent feature; proposed-together is the ' +
-      'symmetric, system-emitted edge between entities co-authored by ' +
-      'the same approved proposal.',
-  ),
-  via: z
-    .array(relatedEntityViaSchema)
-    .optional()
-    .describe(
-      'Path from the seed when reached through an excluded pivot ' +
-        '(e.g. a parent feature). Empty/absent for direct relationships.',
-    ),
-  reasoning: z
-    .string()
-    .optional()
-    .describe(
-      'Natural language rationale recorded on create_edge. Present ' +
-        'only for agent-authored relationships.',
-    ),
+  relationships: z
+    .array(entityRelationshipSchema)
+    .min(1)
+    .describe('Every relationship this entity has to the seed.'),
 });
 
 const agentSessionEntrySchema = z.object({
@@ -453,6 +461,13 @@ const futureProposalDependenciesSchema = z.discriminatedUnion('status', [
 ]);
 
 export const getContextOutput = z.object({
+  searchReceiptId: z
+    .string()
+    .uuid()
+    .optional()
+    .describe(
+      'Fresh short-lived receipt proving this project context read ran in the current agent session. Pass it to create_work_item in this project; it can be reused for several creations until it expires.',
+    ),
   entityId: z.string(),
   entityType: z.string(),
   taskType: z
@@ -477,12 +492,22 @@ export const getContextOutput = z.object({
   relatedEntities: z
     .array(relatedEntitySchema)
     .describe(
-      'Entities related to the seed within a 2-hop traversal, in a ' +
-        'single flat list with the relationship inline on each entry. ' +
+      'Entities related to the seed within a 2-hop traversal, one entry ' +
+        'per entity with all of its relationships listed on it. ' +
         'Workflow flow edges are excluded from this meta relationship ' +
         'surface; workflow fulfillment links remain visible as meta links. ' +
         'Features live in featureHierarchy; agent sessions live in ' +
         'agentSessions.',
+    ),
+  relatedEntitySelection: z
+    .object({
+      candidateEntityCount: z.number().int().min(0),
+      omittedEntityCount: z.number().int().min(0),
+    })
+    .describe(
+      'Boundary of relatedEntities: distinct candidates within the ' +
+        'traversal you may read, and how many were left out. Not a claim ' +
+        'about the whole project.',
     ),
   agentSessions: z
     .array(agentSessionEntrySchema)
@@ -548,7 +573,16 @@ const getContextBatchItemOutput = z.union([
 
 export const getContextResultOutput = z.union([
   getContextOutput,
-  z.object({ items: z.array(getContextBatchItemOutput) }),
+  z.object({
+    items: z.array(getContextBatchItemOutput),
+    searchReceiptId: z
+      .string()
+      .uuid()
+      .optional()
+      .describe(
+        'Fresh short-lived receipt for this batch context read. Pass it to create_work_item in this project and agent session; it can be reused for several creations until it expires.',
+      ),
+  }),
 ]);
 
 type GetContextBatchItem = z.infer<typeof getContextBatchItemOutput>;
@@ -622,6 +656,7 @@ export class GetContextToolsProvider {
     private readonly agentEdgeClient: AgentEdgeClientService,
     private readonly proposalApprovalService: ProposalApprovalService,
     private readonly workItemTypeRegistry: WorkItemTypeRegistryService,
+    @Optional() private readonly searchReceipts?: SearchReceiptStore,
   ) {}
 
   private async loadFutureProposalDependencies(
@@ -688,18 +723,21 @@ export class GetContextToolsProvider {
     description:
       'Returns orientation context for an entity: its proposal history (what ' +
       'created or modified it and why), the entities it relates to within ' +
-      '2 hops (relatedEntities — flat list, with each relationship inline ' +
-      'on the entry), the agent sessions attached to it (agentSessions), ' +
+      '2 hops (relatedEntities — one entry per entity, with all of its ' +
+      'relationships listed on the entry), the agent sessions attached to it (agentSessions), ' +
       'and its placement in the product feature hierarchy. ' +
       'Any registered work-item type key aliases TASK. ' +
       'The featureHierarchy shows where the entity sits within the product — ' +
       'e.g. UI → Web UI → Design → Colors — enumerating ancestor features ' +
       '(above it), sibling features (at the same level), and descendant ' +
       'features (below it), each with a distance indicating how many hops away. ' +
-      'Call this proactively to orient yourself: when starting work on an ' +
-      'unfamiliar entity, when checking upstream or downstream consequences ' +
-      'of a change before making edits, and when answering questions about ' +
-      'how an entity relates to the broader project. Provide either one ' +
+      'Use this when you need hierarchy, relationships, proposal history, or ' +
+      'the upstream and downstream consequences of a change before making ' +
+      'edits, and when answering how an entity relates to the broader ' +
+      'project. For a missing title or item type use get_entity_identities, ' +
+      "for an item's own content use get_full_entity, for direct links " +
+      'around several known items use get_edges, and to discover relevant ' +
+      'items use unified_search. Provide either one ' +
       'entityId/entityType seed for the unchanged singular response, or ' +
       '`seeds` with up to five known entities for ordered, independently ' +
       'successful or failing Context results. Batch results are returned ' +
@@ -715,6 +753,18 @@ export class GetContextToolsProvider {
     _context: Context,
     request: Request,
   ): Promise<GetContextResultOutput | CallToolResult> {
+    const auth = extractAuthContext({}, request);
+    if (!isAuthContext(auth)) return auth;
+    const projectId = resolveProjectId(params, request);
+    if (!isProjectId(projectId)) return projectId;
+    const receiptScope = this.searchReceipts?.resolveScope(request, projectId);
+    if (!receiptScope) {
+      return (
+        this.searchReceipts?.missingSessionError() ??
+        mcpError('Search receipt storage is unavailable.')
+      );
+    }
+
     const hasSingle =
       params.entityId !== undefined ||
       params.entityType !== undefined ||
@@ -741,7 +791,11 @@ export class GetContextToolsProvider {
     }
 
     if (!hasBatch) {
-      return this.loadSingleContext(params as ContextSeed, request);
+      const result = await this.loadSingleContext(
+        params as ContextSeed,
+        request,
+      );
+      return this.addContextReceipt(result, receiptScope, params);
     }
 
     const startedAt = performance.now();
@@ -786,6 +840,11 @@ export class GetContextToolsProvider {
         (entry) => JSON.stringify(entry).length,
       ),
     };
+    const responseWithReceipt = await this.addContextReceipt(
+      response,
+      receiptScope,
+      params,
+    );
     this.logger.log('get_context batch completed', {
       mode: 'batch',
       seedCount: items.length,
@@ -794,14 +853,40 @@ export class GetContextToolsProvider {
       omittedCount: response.items.filter((item) => 'omitted' in item).length,
       wallTimeMs: performance.now() - startedAt,
       serverWorkMs: durationsMs.reduce((sum, duration) => sum + duration, 0),
-      responseBytes: Buffer.byteLength(JSON.stringify(response), 'utf8'),
+      responseBytes: Buffer.byteLength(
+        JSON.stringify(responseWithReceipt),
+        'utf8',
+      ),
       resultSize: response.items.reduce(
         (sum, item) =>
           sum + countContextEntries('result' in item ? item.result : undefined),
         0,
       ),
     });
-    return response;
+    return responseWithReceipt;
+  }
+
+  private async addContextReceipt<T extends object>(
+    result: T | CallToolResult,
+    scope: { agentSessionId: string; projectId: string },
+    input: unknown,
+  ): Promise<T | CallToolResult> {
+    if ('isError' in result && result.isError === true) return result;
+    if (!this.searchReceipts)
+      return mcpError('Search receipt storage is unavailable.');
+    try {
+      const searchReceiptId = await this.searchReceipts.issue(
+        scope,
+        'get_context',
+        input,
+      );
+      return { ...result, searchReceiptId };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return mcpError(
+        `Unable to issue project-graph search receipt: ${message}`,
+      );
+    }
   }
 
   private async loadSingleContext(
@@ -865,7 +950,12 @@ export class GetContextToolsProvider {
         entityType,
         entityId,
         token ?? null,
-        { relatedEntityDepth: 2, proposalDetail: ProposalDetail.Summary },
+        {
+          relatedEntityDepth: 2,
+          relatedEntitySelection: MCP_RELATED_ENTITY_SELECTION,
+          groupRelationships: true,
+          proposalDetail: ProposalDetail.Summary,
+        },
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -906,7 +996,11 @@ export class GetContextToolsProvider {
       proposalDetail: ProposalDetail.Summary,
       olderProposalsOmitted: fullContext.olderProposalsOmitted ?? false,
       proposals,
-      relatedEntities: fullContext.relatedEntities ?? [],
+      relatedEntities: fullContext.groupedRelatedEntities ?? [],
+      relatedEntitySelection: fullContext.relatedEntitySelection ?? {
+        candidateEntityCount: 0,
+        omittedEntityCount: 0,
+      },
       agentSessions: fullContext.agentSessions ?? [],
       featureHierarchy: fullContext.featureHierarchy ?? [],
       ...(fullContext.planContext !== undefined

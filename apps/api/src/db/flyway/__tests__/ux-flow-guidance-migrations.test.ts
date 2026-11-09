@@ -109,3 +109,31 @@ it('keeps JSON dollar quotes from forming Flyway placeholders', () => {
     expect(sql).not.toMatch(/\$\{/);
   }
 });
+
+it('appends transition role guidance once to canonical Diagram standards and canonical-derived project copies', () => {
+  const transitionRoles = migration(
+    'V2026.11.03.224337__teach_diagram_transition_roles.sql',
+  );
+  for (const rule of [
+    'PRIMARY_PROGRESSION',
+    'ERROR_PATH',
+    'RECOVERY',
+    'RETURN',
+    '"transitionRole": null',
+    'leave `transitionRole` out',
+    'Never infer it from a label',
+    'several `PRIMARY_PROGRESSION` transitions',
+    'In a `UX_FLOW` Diagram every transition must declare a role',
+    'Every UX flow transition also needs a `transitionRole`',
+  ]) {
+    expect(transitionRoles).toContain(rule);
+  }
+  expect(transitionRoles).toContain('UPDATE work_item_type_template');
+  expect(transitionRoles).toContain('UPDATE work_item_type\n');
+  expect(
+    transitionRoles.match(/position\('## Transition roles' IN/g),
+  ).toHaveLength(4);
+  expect(transitionRoles).toContain(
+    "position('## Connecting elements to the project' IN writing_standards->>'create') > 0",
+  );
+});

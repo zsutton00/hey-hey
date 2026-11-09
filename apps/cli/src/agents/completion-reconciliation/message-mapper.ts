@@ -1,4 +1,4 @@
-import type { UpdateMessageDto, VerifyFeatureElement } from '../../shared/api/generated/api';
+import type { UpdateMessageDto, VerifyFeatureElement } from '@hey-hey/contracts/api/models';
 import type { UserLaunchablePromptTypeHandler } from '../prompt-type-handler';
 import type { CompletionResponse, FeatureVerificationSuggestion } from './schemas';
 import { isStructuredCompletionResponse, parseCompletionResponse } from './parser';

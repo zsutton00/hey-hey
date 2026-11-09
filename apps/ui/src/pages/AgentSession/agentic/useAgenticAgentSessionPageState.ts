@@ -1,10 +1,10 @@
-import type { RunAttachmentReference } from "@hey-hey/ui-common/api";
+import type { RunAttachmentReference } from "@hey-hey/contracts/api";
 import {
   AgentSessionType,
   type LocalPromptPlanInput,
   EntityType,
   WorkflowName,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { WebPathService } from "@hey-hey/ui-common";
 import { getTaskSectionContent } from "@hey-hey/ui-common/utils";
 import {

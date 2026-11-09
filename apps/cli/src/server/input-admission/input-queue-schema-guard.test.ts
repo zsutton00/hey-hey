@@ -5,7 +5,7 @@ import { z } from 'zod/v4';
 import { mkdtemp, readdir, readFile, rm, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { NOOP_LOGGER } from '../logger';
 import { INPUT_QUEUE_SCHEMA_VERSION } from './input-admission-codec';
 import { InputAdmissionStore } from './input-admission-store';

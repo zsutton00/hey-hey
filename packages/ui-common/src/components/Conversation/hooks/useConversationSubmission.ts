@@ -21,6 +21,7 @@ import type {
 } from "../../../types/conversation";
 import { isVersionConflictError } from "../../../types/conversation";
 import { createVersionAwareUserMessage } from "../../../utils/conversationVersionHelpers";
+import { toOpenApiMessageId } from "../../../clients/contractIdentifierAdapters";
 import { useRetryWithBackoff } from "../../../hooks/useRetryWithBackoff";
 import { logVersionInfo } from "../../../utils/versionUtils";
 import type { FormValue } from "../../LlmForms/types";
@@ -503,7 +504,7 @@ export const useConversationSubmission = ({
         type: MessageType.User,
         conversationId: activeConversation.id,
         status: MessageStatus.Completed,
-        parentMessageId: messageId,
+        parentMessageId: toOpenApiMessageId(messageId),
       };
 
       setIsSubmitting(true);

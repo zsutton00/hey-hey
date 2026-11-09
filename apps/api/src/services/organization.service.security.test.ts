@@ -5,7 +5,7 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { OrganizationService } from './organization.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrganizationRole } from '@prisma/client';
-import { BulkInviteToOrganizationDto } from '../generated';
+import { BulkInviteToOrganizationDto } from '@hey-hey/contracts/api/models';
 import { SecurityLoggerService } from './security-logger.service';
 import { ApiKeyService } from './api-key.service';
 import { ProjectService } from './project.service';

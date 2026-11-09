@@ -4,7 +4,7 @@ import {
   getProposalOutput,
 } from '../tools/proposal-tools.provider';
 import { AGENT_EDGE_TYPES } from '../tools/agent-edge-vocabulary';
-import { ProposalEdgeType } from '../../generated/model/proposalEdgeType';
+import { ProposalEdgeType } from '@hey-hey/contracts/api/models';
 
 // proposalEdgeDeclarationSchema (the create_work_item MCP boundary) exposes
 // the full canonical AGENT_EDGE_TYPES set. Raw create_edge is narrower — it

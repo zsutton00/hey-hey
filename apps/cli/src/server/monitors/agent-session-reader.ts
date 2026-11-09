@@ -6,7 +6,7 @@ import {
   AgentSessionConfigV1VersionEnum,
   AgentSessionConfigV2TypeEnum,
   AgentSessionConfigV2VersionEnum,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { ServerLogger } from '../logger';
 import type { PlatformAuthContext } from '../platform-auth-context';
 

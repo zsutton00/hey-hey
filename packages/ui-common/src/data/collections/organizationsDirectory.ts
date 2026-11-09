@@ -11,6 +11,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { captureRequestOptions } from "../core/requestInitiator";
 import { dataLayerQueryPolicy } from "../query/queryPolicy";
 import { z } from "zod";
+import { toOpenApiOrganizationId } from "../../clients/contractIdentifierAdapters";
 
 export const ORGANIZATION_DIRECTORY_DEFAULT_LIMIT = 25;
 export const ORGANIZATION_DIRECTORY_MAX_LIMIT = 100;
@@ -52,43 +53,46 @@ export const organizationKeys = {
       },
     ] as const,
 };
-const organizationDirectoryRowSchema: z.ZodType<OrganizationDirectoryRowDto> =
-  z.object({
+const organizationDirectoryRowSchema = z
+  .object({
     id: z.string(),
     name: z.string(),
     createdAt: z.string(),
     memberCount: z.number().int().nonnegative(),
     subscriptionType: z.nativeEnum(
-      OrganizationDirectoryRowDtoSubscriptionTypeEnum
+      OrganizationDirectoryRowDtoSubscriptionTypeEnum,
     ),
     accessStatus: z.nativeEnum(OrganizationDirectoryRowDtoAccessStatusEnum),
-  });
+  })
+  .transform((row): OrganizationDirectoryRowDto => ({
+    ...row,
+    id: toOpenApiOrganizationId(row.id),
+  }));
 
-const organizationDirectoryPageSchema: z.ZodType<OrganizationDirectoryPageDto> =
-  z.object({
-    organizations: z.array(organizationDirectoryRowSchema),
-    totalCount: z.number().int().nonnegative(),
-    nextCursor: z.string().nullable(),
-  });
+const organizationDirectoryPageSchema = z.object({
+  organizations: z.array(organizationDirectoryRowSchema),
+  totalCount: z.number().int().nonnegative(),
+  nextCursor: z.string().nullable(),
+});
 
 const organizationDirectoryResponseSchema = z.object({
   data: organizationDirectoryPageSchema,
 });
 
 export const parseOrganizationsDirectoryResponse = (
-  payload: unknown
+  payload: unknown,
 ): OrganizationDirectoryPageDto => {
   const result = organizationDirectoryResponseSchema.safeParse(payload);
   if (!result.success) {
     throw new Error(
-      "Organizations directory response does not match the generated contract."
+      "Organizations directory response does not match the generated contract.",
     );
   }
   return result.data.data;
 };
 
 export const organizationsDirectoryQueryOptions = (
-  query: OrganizationsDirectoryQuery = {}
+  query: OrganizationsDirectoryQuery = {},
 ) => {
   const queryKey = organizationKeys.directory(query);
   return queryOptions({
@@ -98,7 +102,7 @@ export const organizationsDirectoryQueryOptions = (
       const { cacheScope: _cacheScope, ...params } = queryKey[1];
       const response = await unifiedApiClient.listOrganizationDirectory(
         { ...params, name: params.name || undefined },
-        captureRequestOptions()
+        captureRequestOptions(),
       );
       return parseOrganizationsDirectoryResponse(response.data);
     },

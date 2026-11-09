@@ -1,5 +1,5 @@
-import type { SessionRole } from '../shared/agent-bridge-contract/generated/api';
-import type { RunAttachmentReference } from '../shared/agent-bridge-contract/generated/api';
+import type { SessionRole } from '@hey-hey/contracts/agent-bridge';
+import type { RunAttachmentReference } from '@hey-hey/contracts/agent-bridge';
 /**
  * Turn — one user-message → assistant-complete cycle on a Run.
  *

@@ -1,4 +1,7 @@
-import { EntityType, ActivityCorrelationLinkType } from 'src/generated';
+import {
+  EntityType,
+  ActivityCorrelationLinkType,
+} from '@hey-hey/contracts/api/models';
 import {
   GraphRelationship,
   RelationshipType as GraphRelationshipType,
@@ -31,8 +34,7 @@ export function buildGraphTitleHints(
     putEntityTitle(titles, entity, extractGraphSearchResultTitle(result));
   });
 
-  collectGraphRelationships(response).forEach((relationship) => {
-  });
+  collectGraphRelationships(response).forEach((relationship) => {});
 
   return titles;
 }

@@ -15,7 +15,7 @@ vi.mock('../../agents/providers/session-runner-config', () => ({
 }));
 
 const platform = vi.hoisted(() => ({ project: vi.fn(), settle: vi.fn() }));
-vi.mock('../../shared/api/generated/api', async (importOriginal) => ({
+vi.mock('@hey-hey/contracts/api', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   ProjectsApi: class {
     projectInputExecution = platform.project;

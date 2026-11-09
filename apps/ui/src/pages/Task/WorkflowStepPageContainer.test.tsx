@@ -1,6 +1,6 @@
 import { WORK_ITEM_TYPE_KEYS } from "../../types/workItemTypes";
-import type { TaskResponseDto } from "@hey-hey/ui-common/api";
-import { TaskPriority, WorkStatus } from "@hey-hey/ui-common/api";
+import type { TaskResponseDto } from "@hey-hey/contracts/api";
+import { TaskPriority, WorkStatus } from "@hey-hey/contracts/api";
 import { act, render, screen } from "@testing-library/react";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";

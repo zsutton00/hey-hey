@@ -1,7 +1,7 @@
 import type {
   AgentSessionCurrentState,
   AgentSessionCurrentStateObservation,
-} from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { RunEventPublisher } from '../server/run-event-publisher';
 import type { ServerLogger } from '../server/logger';
 import { PROVIDER_PHASE_TO_AGENT_SESSION_CURRENT_STATE, type ProviderPhase } from './types';
@@ -27,7 +27,16 @@ const createProviderPhaseCurrentStateObservation = (input: {
     ...(input.observedAt ? { observedAt: input.observedAt } : {}),
   });
 
+export type ApprovalReleaseReason =
+  | 'decision_delivered'
+  | 'question_answered'
+  | 'turn_settled'
+  | 'cleanup'
+  | 'new_turn';
+
 export class AgentSessionCurrentStateOwner {
+  /** True while a permission request or question is open; provider activity cannot replace it. */
+  private approvalHeld = false;
   private providerPhase: ProviderPhase | null = null;
   private pendingPlanReport: { reportId: string; turnId: string } | null = null;
   private pendingTerminalAssistantMessage: { messageId: string; turnId: string } | null = null;
@@ -57,6 +66,20 @@ export class AgentSessionCurrentStateOwner {
   }
 
   public observeProviderPhase(phase: ProviderPhase): void {
+    if (phase === 'awaiting_approval') {
+      this.approvalHeld = true;
+    } else if (this.approvalHeld) {
+      if (phase === 'thinking' || phase === 'writing') {
+        this.logger.debug('local.run.current_state.provider_phase_ignored_during_approval', {
+          runId: this.runId,
+          agentSessionId: this.agentSessionId,
+          providerPhase: phase,
+        });
+        return;
+      }
+      this.releaseApproval(phase === 'starting' ? 'new_turn' : 'turn_settled', phase);
+    }
+
     if (phase === 'starting') {
       if (this.persistedPlanAwaitingReview) {
         this.persistedPlanAwaitingReview = false;
@@ -78,6 +101,14 @@ export class AgentSessionCurrentStateOwner {
 
     this.providerPhase = phase;
     this.publishEffectiveState();
+  }
+
+  /** Ends the approval hold and publishes the resumed phase without waiting for the provider. */
+  public resolveApproval(reason: 'decision_delivered' | 'question_answered'): void {
+    if (this.approvalHeld) {
+      this.releaseApproval(reason, 'thinking');
+    }
+    this.observeProviderPhase('thinking');
   }
 
   public observePersistedPlanReady(reportId: string, turnId: string): void {
@@ -110,9 +141,16 @@ export class AgentSessionCurrentStateOwner {
 
   public settleTurn(preserveAwaitingApproval = false): void {
     if (preserveAwaitingApproval) {
+      this.approvalHeld = true;
       this.providerPhase = 'awaiting_approval';
       this.publishEffectiveState();
       return;
+    }
+    if (this.approvalHeld) {
+      this.releaseApproval(
+        'turn_settled',
+        this.persistedPlanAwaitingReview ? 'plan_ready' : 'idle',
+      );
     }
     if (this.persistedPlanAwaitingReview) {
       this.publishPlanReady();
@@ -124,11 +162,24 @@ export class AgentSessionCurrentStateOwner {
   }
 
   public cleanup(runtimeStateActive: boolean): void {
+    if (this.approvalHeld) {
+      this.releaseApproval('cleanup', 'idle');
+    }
     if (runtimeStateActive && !this.persistedPlanAwaitingReview) {
       this.clearPendingPlanEvidence();
       this.observeProviderPhase('idle');
     }
     this.providerPhase = null;
+  }
+
+  private releaseApproval(reason: ApprovalReleaseReason, nextPhase: string): void {
+    this.approvalHeld = false;
+    this.logger.info('local.run.current_state.awaiting_approval_released', {
+      runId: this.runId,
+      agentSessionId: this.agentSessionId,
+      reason,
+      nextPhase,
+    });
   }
 
   private publishEffectiveState(): void {

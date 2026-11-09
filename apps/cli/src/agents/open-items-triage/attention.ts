@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { EntityType } from '../../shared/api/generated/api';
-import type { LocalOpenItemsTriageItem } from '../../shared/agent-bridge-contract/generated';
+import { EntityType } from '@hey-hey/contracts/api/models';
+import type { LocalOpenItemsTriageItem } from '@hey-hey/contracts/agent-bridge';
 
 export const TRIAGE_CAPS = {
   attentionPages: 20,

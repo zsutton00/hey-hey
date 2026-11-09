@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { z } from 'zod';
-import { RepositoryFeatureEnrichmentChoice } from '../../../generated';
+import { RepositoryFeatureEnrichmentChoice } from '@hey-hey/contracts/api/models';
 import {
   FlowUserMessage,
   MutableContextHandle,

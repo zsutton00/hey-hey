@@ -1,4 +1,7 @@
-import type { EntityType, OpenItemLineageEntry } from 'src/generated';
+import type {
+  EntityType,
+  OpenItemLineageEntry,
+} from '@hey-hey/contracts/api/models';
 import type {
   OpenItemGroupRow,
   OpenItemRow,

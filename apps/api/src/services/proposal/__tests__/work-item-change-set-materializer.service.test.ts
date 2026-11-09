@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { createTestId } from 'src/utils/testUtils';
 import { ProposalReconciliationService } from '../proposal-reconciliation.service';
 import { WorkItemTypeRegistryService } from '../../tasks/work-item-type-registry.service';
@@ -1321,6 +1322,86 @@ describe('WorkItemChangeSetMaterializerService', () => {
     });
   });
 
+  describe('relationship decisions on ordinary task proposals', () => {
+    const targetId = '123e4567-e89b-42d3-a456-426614174301';
+    const predecessorId = '123e4567-e89b-42d3-a456-426614174302';
+    const consumerEdgeId = '123e4567-e89b-42d3-a456-426614174303';
+    const retainedEdgeId = '123e4567-e89b-42d3-a456-426614174304';
+    const decisions = [
+      {
+        relationship: { refType: 'existing', id: consumerEdgeId },
+        decision: 'remove',
+      },
+      {
+        relationship: { refType: 'existing', id: retainedEdgeId },
+        decision: 'retain',
+        reason: 'Consumer B has not migrated yet.',
+      },
+    ];
+    const supersedes = {
+      edgeType: 'SUPERSEDES',
+      targetEntityType: 'TASK',
+      targetEntityId: predecessorId,
+    };
+
+    it('carries decisions and their operations on the generic path next to a SUPERSEDES declaration', () => {
+      const { service } = createService();
+
+      const request = service.taskProposalChangeSet({
+        id: '123e4567-e89b-42d3-a456-426614174305',
+        action: 'UPDATE',
+        targetEntityType: 'TASK',
+        targetEntityId: targetId,
+        updates: { relationshipDecisions: decisions },
+        edges: [supersedes],
+      } as any);
+
+      expect(request).not.toBeNull();
+      expect(request?.relationshipDecisions).toHaveLength(2);
+      expect(request?.operations).toContainEqual({
+        op: 'relationship.delete',
+        ref: { refType: 'existing', id: consumerEdgeId },
+      });
+      expect(request?.operations).not.toContainEqual(
+        expect.objectContaining({
+          ref: { refType: 'existing', id: retainedEdgeId },
+        }),
+      );
+      // The replacement itself is never written as a raw relationship.
+      expect(JSON.stringify(request?.operations)).not.toContain('SUPERSEDES');
+    });
+
+    it('keeps a SUPERSEDES-only proposal on the proposal-edge protocol as before', () => {
+      const { service } = createService();
+
+      expect(
+        service.taskProposalChangeSet({
+          id: '123e4567-e89b-42d3-a456-426614174306',
+          action: 'UPDATE',
+          targetEntityType: 'TASK',
+          targetEntityId: targetId,
+          updates: { name: 'Successor' },
+          edges: [supersedes],
+        } as any),
+      ).toBeNull();
+    });
+
+    it('refuses to drop decisions when another edge needs the proposal-edge protocol', () => {
+      const { service } = createService();
+
+      expect(() =>
+        service.taskProposalChangeSet({
+          id: '123e4567-e89b-42d3-a456-426614174307',
+          action: 'UPDATE',
+          targetEntityType: 'TASK',
+          targetEntityId: targetId,
+          updates: { relationshipDecisions: decisions },
+          edges: [{ ...supersedes, edgeType: 'BLOCKS' }],
+        } as any),
+      ).toThrow(/proposal-edge protocol/);
+    });
+  });
+
   it('preserves an admitted legacy LOOP predicate during canonical change-set normalization', () => {
     const { service } = createService();
 
@@ -1752,6 +1833,66 @@ describe('WorkItemChangeSetMaterializerService', () => {
       undefined,
       'materialization-1',
     );
+  });
+
+  it('carries a reviewed transition role into the Graph create and update requests', async () => {
+    const { service } = createService();
+    const agentEdgeClient = (service as any).agentEdgeClient;
+    const mappings = {
+      workItems: {
+        'existing:screen-welcome': 'screen-welcome',
+        'existing:screen-profile': 'screen-profile',
+      },
+      relationships: { 'temporary:edge-role': 'edge-role' },
+    };
+    agentEdgeClient.create.mockResolvedValue({ id: 'edge-role' });
+
+    await (service as any).applyOperation(
+      {
+        proposalId: 'proposal-1',
+        organizationId: 'organization-1',
+        projectId: 'project-1',
+      },
+      'materialization-1',
+      {
+        op: 'relationship.create',
+        ref: { refType: 'temporary', tempId: 'edge-role' },
+        source: { refType: 'existing', id: 'screen-welcome' },
+        target: { refType: 'existing', id: 'screen-profile' },
+        edgeType: 'STANDARD',
+        category: 'flow',
+        direction: 'forward',
+        transitionRole: 'ERROR_PATH',
+      },
+      mappings,
+      0,
+      'claim-1',
+    );
+    expect(agentEdgeClient.create).toHaveBeenCalledWith(
+      'organization-1',
+      'project-1',
+      expect.objectContaining({
+        id: 'edge-role',
+        transitionRole: 'ERROR_PATH',
+      }),
+      undefined,
+      'materialization-1',
+    );
+
+    const toUpdate = (operation: Record<string, unknown>) =>
+      (service as any).toUpdateAgentEdgeDto(
+        { op: 'relationship.update', ...operation },
+        mappings,
+        'proposal-1',
+      );
+    expect(toUpdate({ transitionRole: 'RECOVERY' })).toMatchObject({
+      transitionRole: 'RECOVERY',
+    });
+    expect(toUpdate({ transitionRole: null })).toHaveProperty(
+      'transitionRole',
+      null,
+    );
+    expect(toUpdate({ reasoning: 'Reworded' }).transitionRole).toBeUndefined();
   });
 
   it('runs task update post-commit effects after applying a durable update', async () => {
@@ -4949,6 +5090,530 @@ describe('materializer persistence and Graph adapter boundary', () => {
       expect(db.taskDependency).toBeUndefined();
     },
   );
+});
+
+describe('grouped feature update that rewrites its own requirements', () => {
+  const FEATURE_ID = '00000000-0000-4000-8000-0000000000f1';
+  const CONTRACT_ID = '00000000-0000-4000-8000-0000000000c1';
+  const PROJECT_ID = '123e4567-e89b-42d3-a456-426614174003';
+  const RECORD_ID = '00000000-0000-4000-8000-0000000000a1';
+  const PARENT_ID = '00000000-0000-4000-8000-0000000000b1';
+  const params = {
+    proposalId: 'proposal-2',
+    organizationId: 'organization-1',
+    projectId: PROJECT_ID,
+  };
+  const requirementsFor = (statement: string) =>
+    JSON.stringify({
+      records: [
+        {
+          id: RECORD_ID,
+          statement,
+          designedBy: [],
+          fulfilledBy: [],
+          contracts: [
+            {
+              entityType: 'CONTRACT',
+              entityId: CONTRACT_ID,
+              entityTitle: 'Explicit Run compaction settlement',
+            },
+          ],
+        },
+      ],
+    });
+
+  async function setup(
+    options: {
+      storedRequirements?: string;
+      updates?: Record<string, unknown>;
+      failRelationshipCreateOnce?: boolean;
+      contractCreatedByMemberOne?: boolean;
+    } = {},
+  ) {
+    const { service, prisma } = createService();
+    const db = prisma.db as any;
+    let clock = 1_000;
+    const tick = () => new Date(clock++);
+    const sections = new Map<string, any>([
+      [
+        `${FEATURE_ID}:requirements`,
+        {
+          id: `${FEATURE_ID}:requirements`,
+          taskId: FEATURE_ID,
+          key: 'requirements',
+          order: 0,
+          materializedMarkdown:
+            options.storedRequirements ?? requirementsFor('Original statement'),
+          updatedAt: tick(),
+        },
+      ],
+    ]);
+    const task = {
+      id: FEATURE_ID,
+      type: 'FEATURE',
+      name: 'Action Capsule',
+      status: 'BACKLOG',
+      projectId: PROJECT_ID,
+      initiativeId: null,
+      serviceRelations: [],
+    };
+    // The reviewed proposal row is persisted (and approved) after the feature
+    // was last written, exactly as in a sequential group approval.
+    const reviewedContent = requirementsFor('Reviewed statement');
+    const proposal = {
+      id: params.proposalId,
+      action: 'UPDATE',
+      targetEntityType: 'TASK',
+      targetEntityId: FEATURE_ID,
+      projectId: PROJECT_ID,
+      updates: options.updates ?? {
+        name: 'Action Capsule (revised)',
+        sections: [{ key: 'requirements', content: reviewedContent }],
+      },
+      edges: [
+        {
+          targetEntityId: CONTRACT_ID,
+          targetEntityType: 'TASK',
+          edgeType: 'DEPENDS_ON',
+          description: 'Cites the new Contract.',
+        },
+      ],
+      updatedAt: tick(),
+    };
+    const edges = new Map<string, any>();
+    db.$transaction.mockImplementation(async (callback: any) => callback(db));
+    db.$queryRaw = jest.fn().mockResolvedValue([]);
+    db.workItemChangeSetMaterialization.findMany.mockResolvedValue([
+      { id: 'materialization-0', status: 'APPLYING' },
+      { id: 'materialization-1', status: 'APPLYING' },
+    ]);
+    db.workItemTypeCascadeExecution = {
+      findFirst: jest.fn().mockResolvedValue(null),
+    };
+    const history: any[] = [];
+    db.taskSectionHistory = {
+      findFirst: jest.fn(async () => history[history.length - 1] ?? null),
+      create: jest.fn(async ({ data }: any) => {
+        history.push({ ...data, id: `history-${history.length + 1}` });
+      }),
+    };
+    db.proposal.findUnique = jest.fn(async ({ select }: any) =>
+      select.updatedAt && !select.updates
+        ? { updatedAt: proposal.updatedAt }
+        : proposal,
+    );
+    const rows = new Map<string, any>([
+      [FEATURE_ID, task],
+      [PARENT_ID, { ...task, id: PARENT_ID, type: 'FEATURE' }],
+    ]);
+    if (!options.contractCreatedByMemberOne) {
+      rows.set(CONTRACT_ID, { ...task, id: CONTRACT_ID, type: 'CONTRACT' });
+    }
+    db.task = {
+      findFirst: jest.fn(async ({ where }: any = {}) =>
+        where?.id ? (rows.get(where.id) ?? null) : task,
+      ),
+      findUniqueOrThrow: jest.fn(async ({ where }: any = {}) => {
+        const row = where?.id ? rows.get(where.id) : task;
+        if (!row) throw new Error('Task row not found');
+        return row;
+      }),
+      findMany: jest.fn(async ({ where }: any) =>
+        [...rows.values()].filter((row) => where.id.in.includes(row.id)),
+      ),
+      create: jest.fn(async ({ data }: any) => {
+        const row = { serviceRelations: [], ...data };
+        rows.set(row.id, row);
+        return row;
+      }),
+      update: jest.fn(async ({ where, data }: any) =>
+        Object.assign(rows.get(where.id) ?? task, data),
+      ),
+    };
+    db.taskSection = {
+      findFirst: jest.fn(
+        async ({ where }: any) =>
+          sections.get(`${where.taskId}:${where.key}`) ?? null,
+      ),
+      findMany: jest.fn(async ({ where }: any) =>
+        [...sections.values()].filter(
+          (s) =>
+            s.taskId === where.taskId &&
+            (!where.key?.in || where.key.in.includes(s.key)),
+        ),
+      ),
+      upsert: jest.fn(async ({ where, create }: any) => {
+        const id = `${where.taskId_key.taskId}:${where.taskId_key.key}`;
+        if (!sections.has(id)) {
+          sections.set(id, { id, ...create, updatedAt: tick() });
+        }
+        return sections.get(id);
+      }),
+      create: jest.fn(async ({ data }: any) => {
+        sections.set(`${data.taskId}:${data.key}`, {
+          ...data,
+          updatedAt: tick(),
+        });
+      }),
+      update: jest.fn(async ({ where, data }: any) => {
+        const row = sections.get(where.id);
+        Object.assign(row, data, { updatedAt: tick() });
+        return row;
+      }),
+    };
+    const registry = await createWarmWorkItemTypeRegistry();
+    const taskService = Object.assign(Object.create(TaskService.prototype), {
+      logger: new Logger('TaskServiceBoundary'),
+      workItemTypeRegistry: registry,
+      taskSectionSchemaValidators: new TaskSectionSchemaValidatorRegistry(),
+      workItemParentageValidator: new WorkItemParentageValidator(registry),
+      publishTaskCreatedEvent: jest.fn(),
+      publishTaskUpdatedEvent: jest.fn(),
+      publishTaskContentChangedEvent: jest.fn(),
+      rollUpCanonicalPlanHierarchy: jest.fn(),
+    });
+    (service as any).taskService = taskService;
+    (service as any).workItemTypeRegistry = registry;
+    const transport = {
+      getAgentEdge: jest.fn((_org, _project, id) =>
+        edges.has(id)
+          ? of({ data: edges.get(id) })
+          : throwError(() => ({ response: { status: 404 } })),
+      ),
+      createAgentEdgesBatch: jest.fn((_org, _project, request) =>
+        defer(() => {
+          if (options.failRelationshipCreateOnce) {
+            options.failRelationshipCreateOnce = false;
+            throw new Error('Graph unavailable (interrupted after the writes)');
+          }
+          const results = request.edges.map((dto: any, index: number) => {
+            const row = { ...dto, createdAt: '', updatedAt: '' };
+            edges.set(dto.id, row);
+            return { index, success: true, edge: row };
+          });
+          return of({ data: { results } });
+        }),
+      ),
+    };
+    (service as any).agentEdgeClient = new AgentEdgeClientService(
+      transport as any,
+      prisma as any,
+    );
+    const request = service.taskProposalChangeSet(proposal as any)!;
+    const revision = service.validationRevision(request);
+    const intent = JSON.parse(
+      JSON.stringify({
+        id: 'materialization-1',
+        proposalId: params.proposalId,
+        rootWorkItemId: FEATURE_ID,
+        operationSet: request,
+        validationRevision: revision,
+        priorProjectionRevision: revision,
+        workItemIdMappings: { [`existing:${FEATURE_ID}`]: FEATURE_ID },
+        relationshipIdMappings: Object.fromEntries(
+          request.operations
+            .filter((operation) => operation.op === 'relationship.create')
+            .map((operation: any) => [
+              `temporary:${operation.ref.tempId}`,
+              randomUUID(),
+            ]),
+        ),
+        priorProjection: {
+          schemaVersion: 'work-item-change-set-projection.v1',
+          projection: projectionFor(FEATURE_ID),
+        },
+        targetProjection: {
+          schemaVersion: 'work-item-change-set-projection.v1',
+          projection: projectionFor(FEATURE_ID),
+        },
+        affectedWorkItemIds: [FEATURE_ID],
+        affectedRelationshipIds: [],
+        checkpoints: request.operations.map((operation, operationIndex) => ({
+          id: `checkpoint-${operationIndex}`,
+          operationIndex,
+          operationKind: operation.op,
+          validationRevision: revision,
+        })),
+      }),
+    );
+    // Member one of the group: the Contract that the feature update cites.
+    const contractProposal = {
+      id: 'proposal-1',
+      action: 'CREATE',
+      targetEntityType: 'TASK',
+      targetEntityId: CONTRACT_ID,
+      projectId: PROJECT_ID,
+      updates: {
+        name: 'Explicit Run compaction settlement',
+        type: 'CONTRACT',
+        parentTaskId: FEATURE_ID,
+        sections: [{ key: 'description', content: 'A guaranteed outcome.' }],
+      },
+      edges: [],
+      updatedAt: tick(),
+    };
+    const contractRequest = service.taskProposalChangeSet(
+      contractProposal as any,
+    )!;
+    const contractRevision = service.validationRevision(contractRequest);
+    const contractIntent = JSON.parse(
+      JSON.stringify({
+        id: 'materialization-0',
+        proposalId: contractProposal.id,
+        rootWorkItemId: CONTRACT_ID,
+        operationSet: contractRequest,
+        validationRevision: contractRevision,
+        priorProjectionRevision: contractRevision,
+        workItemIdMappings: { 'temporary:root': CONTRACT_ID },
+        relationshipIdMappings: {},
+        priorProjection: {
+          schemaVersion: 'work-item-change-set-projection.v1',
+          projection: projectionFor(CONTRACT_ID),
+        },
+        targetProjection: {
+          schemaVersion: 'work-item-change-set-projection.v1',
+          projection: projectionFor(CONTRACT_ID),
+        },
+        affectedWorkItemIds: [CONTRACT_ID],
+        affectedRelationshipIds: [],
+        checkpoints: contractRequest.operations.map(
+          (operation, operationIndex) => ({
+            id: `contract-checkpoint-${operationIndex}`,
+            operationIndex,
+            operationKind: operation.op,
+            validationRevision: contractRevision,
+          }),
+        ),
+      }),
+    );
+    return {
+      service,
+      db,
+      history,
+      sections,
+      edges,
+      rows,
+      intent,
+      contractIntent,
+      request,
+      reviewedContent,
+      tick,
+    };
+  }
+
+  it('applies the approved requirements once, with the cited relationship, from the original approval', async () => {
+    const {
+      service,
+      db,
+      history,
+      sections,
+      edges,
+      intent,
+      request,
+      reviewedContent,
+    } = await setup();
+
+    expect(request.operations.map((operation) => operation.op)).toEqual([
+      'workItem.update',
+      'section.replace',
+      'relationship.create',
+    ]);
+
+    await (service as any).applyPreparedIntent(params, intent, 'claim-1');
+
+    expect(
+      sections.get(`${FEATURE_ID}:requirements`).materializedMarkdown,
+    ).toBe(reviewedContent);
+    const completed =
+      db.workItemChangeSetMaterializationCheckpoint.update.mock.calls
+        .map(([args]: any) => args)
+        .filter((args: any) => args.data.status === 'COMPLETED');
+    expect(completed).toHaveLength(3);
+    expect(history).toHaveLength(1);
+    expect([...edges.values()]).toHaveLength(1);
+    expect([...edges.values()][0]).toMatchObject({
+      sourceNodeId: FEATURE_ID,
+      targetNodeId: CONTRACT_ID,
+      type: 'DEPENDS_ON',
+    });
+  });
+
+  it('still requires reconciliation, and keeps the user edit, when requirements change outside the proposal after review', async () => {
+    const { service, db, sections, intent, tick } = await setup();
+    const external = requirementsFor('Edited by a person after review');
+    const row = sections.get(`${FEATURE_ID}:requirements`);
+    row.materializedMarkdown = external;
+    row.updatedAt = tick();
+
+    await expect(
+      (service as any).applyPreparedIntent(params, intent, 'claim-1'),
+    ).rejects.toThrow(
+      'FEATURE requirements changed after this proposal was prepared',
+    );
+
+    expect(
+      sections.get(`${FEATURE_ID}:requirements`).materializedMarkdown,
+    ).toBe(external);
+    expect(db.taskSection.update).not.toHaveBeenCalled();
+  });
+
+  it('enacts a Contract CREATE and then the dependent feature UPDATE from their original approvals', async () => {
+    const {
+      service,
+      rows,
+      sections,
+      edges,
+      history,
+      intent,
+      contractIntent,
+      reviewedContent,
+    } = await setup({ contractCreatedByMemberOne: true });
+    expect(rows.has(CONTRACT_ID)).toBe(false);
+
+    await (service as any).applyPreparedIntent(
+      { ...params, proposalId: 'proposal-1' },
+      contractIntent,
+      'claim-1',
+    );
+    expect(rows.get(CONTRACT_ID)).toMatchObject({ type: 'CONTRACT' });
+
+    await (service as any).applyPreparedIntent(params, intent, 'claim-1');
+
+    expect(
+      sections.get(`${FEATURE_ID}:requirements`).materializedMarkdown,
+    ).toBe(reviewedContent);
+    expect(history).toHaveLength(1);
+    expect([...edges.values()]).toHaveLength(1);
+    expect([...edges.values()][0]).toMatchObject({
+      sourceNodeId: FEATURE_ID,
+      targetNodeId: CONTRACT_ID,
+      type: 'DEPENDS_ON',
+    });
+  });
+
+  it('lets a reparenting update replace requirements that cite the new parent', async () => {
+    const reviewedContent = requirementsFor('Reviewed statement');
+    const citesNewParent = JSON.stringify({
+      records: [
+        {
+          id: RECORD_ID,
+          statement: 'Original statement',
+          designedBy: [],
+          fulfilledBy: [
+            {
+              entityType: 'TASK',
+              entityId: PARENT_ID,
+              entityTitle: 'New parent',
+            },
+          ],
+          contracts: [],
+        },
+      ],
+    });
+    const { service, sections, intent, request } = await setup({
+      storedRequirements: citesNewParent,
+      updates: {
+        parentTaskId: PARENT_ID,
+        sections: [{ key: 'requirements', content: reviewedContent }],
+      },
+    });
+    expect(request.operations.map((operation) => operation.op)).toContain(
+      'section.replace',
+    );
+
+    await (service as any).applyPreparedIntent(params, intent, 'claim-1');
+
+    expect(
+      sections.get(`${FEATURE_ID}:requirements`).materializedMarkdown,
+    ).toBe(reviewedContent);
+  });
+
+  it('does not replay completed writes over a newer user edit when an interrupted approval resumes', async () => {
+    const { service, db, history, sections, edges, intent, tick } = await setup(
+      { failRelationshipCreateOnce: true },
+    );
+
+    await expect(
+      (service as any).applyPreparedIntent(params, intent, 'claim-1'),
+    ).rejects.toThrow();
+    const reviewed = sections.get(
+      `${FEATURE_ID}:requirements`,
+    ).materializedMarkdown;
+    expect(reviewed).toContain('Reviewed statement');
+    expect(edges.size).toBe(0);
+
+    // A person edits the feature after the interruption.
+    const edited = requirementsFor('Edited by a person after the interruption');
+    const row = sections.get(`${FEATURE_ID}:requirements`);
+    row.materializedMarkdown = edited;
+    row.updatedAt = tick();
+
+    // The retry resumes from the persisted checkpoints.
+    const completedIndexes = new Set(
+      db.workItemChangeSetMaterializationCheckpoint.update.mock.calls
+        .map(([args]: any) => args)
+        .filter((args: any) => args.data.status === 'COMPLETED')
+        .map(
+          (args: any) =>
+            args.where.materializationId_operationIndex.operationIndex,
+        ),
+    );
+    expect([...completedIndexes].sort()).toEqual([0, 1]);
+    const resumed = {
+      ...intent,
+      checkpoints: intent.checkpoints.map((checkpoint: any) => ({
+        ...checkpoint,
+        status: completedIndexes.has(checkpoint.operationIndex)
+          ? 'COMPLETED'
+          : checkpoint.status,
+      })),
+    };
+
+    await (service as any).applyPreparedIntent(params, resumed, 'claim-1');
+
+    expect(
+      sections.get(`${FEATURE_ID}:requirements`).materializedMarkdown,
+    ).toBe(edited);
+    expect(history).toHaveLength(1);
+    expect(edges.size).toBe(1);
+  });
+
+  it('reports the field, code, reason and layer of a genuine conflict to the approver', async () => {
+    const { service, sections, intent, tick } = await setup();
+    const row = sections.get(`${FEATURE_ID}:requirements`);
+    row.materializedMarkdown = requirementsFor('Edited by a person');
+    row.updatedAt = tick();
+    jest.spyOn(service as any, 'prepareIntent').mockResolvedValue(intent);
+    jest
+      .spyOn(service as any, 'claimPreparedIntent')
+      .mockResolvedValue({ ...intent, claimToken: 'claim-1' });
+    jest.spyOn(service as any, 'assertRecoverableIntent').mockImplementation();
+    jest
+      .spyOn(service as any, 'markIntentRecoverableFailure')
+      .mockResolvedValue(undefined);
+
+    const failure = await service
+      .materializeApprovedChangeSet({
+        ...params,
+        organizationId: params.organizationId as OrganizationId,
+        projectId: params.projectId as ProjectId,
+      })
+      .catch((error) => error);
+
+    expect(failure).toBeInstanceOf(ConflictException);
+    expect(failure.getResponse().diagnostic).toMatchObject({
+      issueCount: 1,
+      issues: [
+        {
+          field: 'sections.requirements.content',
+          code: 'CHECKPOINT_APPLICATION_FAILED',
+          reason: expect.stringContaining('FEATURE requirements changed'),
+          layer: 'structural',
+        },
+      ],
+      correlationId: expect.any(String),
+    });
+  });
 });
 
 describe('WorkItemChangeSetMaterializerService dependency injection', () => {

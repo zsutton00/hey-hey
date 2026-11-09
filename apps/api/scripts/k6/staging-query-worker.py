@@ -16,12 +16,18 @@ RETURN currentQuery, toString(currentQueryElapsedTime), toString(currentQueryCpu
 toString(currentQueryWaitTime), currentQueryAllocatedBytes, pageHits, pageFaults LIMIT 50"""
 
 
+ENVIRONMENT = os.environ.get('API_DIAGNOSTIC_ENVIRONMENT', 'staging')
+if ENVIRONMENT not in ('staging', 'production'):
+    raise RuntimeError('Invalid diagnostic environment')
+PROJECT = 'hey-hey' if ENVIRONMENT == 'production' else 'hey-hey-staging'
+
+
 def main():
     cgroup = open('/proc/self/cgroup').read().strip()
-    if 'hey-hey-staging.slice' in cgroup:
+    if ENVIRONMENT == 'staging' and 'hey-hey-staging.slice' in cgroup:
         raise RuntimeError('Collector must run outside staging slice')
     # Setup only, before baseline. No query client starts in the container.
-    password = subprocess.check_output(['docker', 'exec', 'hey-hey-staging-neo4j-1',
+    password = subprocess.check_output(['docker', 'exec', PROJECT + '-neo4j-1',
                                        'cat', '/run/secrets/neo4j_password']).strip()
     headers = {'Authorization': 'Basic ' + base64.b64encode(b'neo4j:' + password).decode(),
                'Content-Type': 'application/json'}

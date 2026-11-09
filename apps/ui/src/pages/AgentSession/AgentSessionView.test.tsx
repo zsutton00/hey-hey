@@ -1,7 +1,7 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { AgentSessionStatus, AgentSessionType } from "@hey-hey/ui-common/api";
+import { AgentSessionStatus, AgentSessionType } from "@hey-hey/contracts/api";
 
 const agentSession = {
   id: "session-1",

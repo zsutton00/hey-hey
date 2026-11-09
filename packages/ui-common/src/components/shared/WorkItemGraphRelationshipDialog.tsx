@@ -14,6 +14,7 @@ import {
   AgentEdgeType,
   type AgentEdgeCategory,
   type ProjectedWorkItemRelationship,
+  type WorkflowTransitionRole,
   type WorkItemTypeGraphRelationshipDeclaration,
 } from "../../api";
 
@@ -23,6 +24,7 @@ export interface WorkItemGraphRelationshipDialogValue {
   direction?: AgentEdgeDirection;
   predicate?: string | null;
   actionLabel?: string | null;
+  transitionRole?: WorkflowTransitionRole | null;
   reasoning?: string | null;
   metadata?: Readonly<Record<string, unknown>> | null;
 }
@@ -32,9 +34,21 @@ export interface WorkItemGraphRelationshipDialogProps {
   declarations: readonly WorkItemTypeGraphRelationshipDeclaration[];
   relationship?: ProjectedWorkItemRelationship | null;
   actionLabelRequired?: boolean;
+  transitionRoleRequired?: boolean;
   onCancel: () => void;
   onCommit: (value: WorkItemGraphRelationshipDialogValue) => void;
 }
+
+const TRANSITION_ROLE_OPTIONS: readonly {
+  value: WorkflowTransitionRole | "";
+  label: string;
+}[] = [
+  { value: "", label: "Unclassified" },
+  { value: "PRIMARY_PROGRESSION", label: "Primary progression" },
+  { value: "ERROR_PATH", label: "Error path" },
+  { value: "RECOVERY", label: "Recovery" },
+  { value: "RETURN", label: "Return" },
+];
 
 function declarationFor(
   declarations: readonly WorkItemTypeGraphRelationshipDeclaration[],
@@ -61,6 +75,7 @@ export const WorkItemGraphRelationshipDialog: FC<
   declarations,
   relationship,
   actionLabelRequired = false,
+  transitionRoleRequired = false,
   onCancel,
   onCommit,
 }) => {
@@ -68,11 +83,15 @@ export const WorkItemGraphRelationshipDialog: FC<
   const [direction, setDirection] = useState<AgentEdgeDirection | "">("");
   const [predicate, setPredicate] = useState("");
   const [actionLabel, setActionLabel] = useState("");
+  const [transitionRole, setTransitionRole] = useState<
+    WorkflowTransitionRole | ""
+  >("");
   const [label, setLabel] = useState("");
   const [description, setDescription] = useState("");
   const [reasoning, setReasoning] = useState("");
   const [editedLabel, setEditedLabel] = useState(false);
   const [editedActionLabel, setEditedActionLabel] = useState(false);
+  const [editedTransitionRole, setEditedTransitionRole] = useState(false);
   const [editedDescription, setEditedDescription] = useState(false);
   const [editedReasoning, setEditedReasoning] = useState(false);
 
@@ -86,6 +105,8 @@ export const WorkItemGraphRelationshipDialog: FC<
     setPredicate(relationship?.predicate ?? "");
     setActionLabel(relationship?.actionLabel ?? "");
     setEditedActionLabel(false);
+    setTransitionRole(relationship?.transitionRole ?? "");
+    setEditedTransitionRole(false);
     setLabel(
       typeof relationship?.metadata?.label === "string"
         ? relationship.metadata.label
@@ -118,7 +139,8 @@ export const WorkItemGraphRelationshipDialog: FC<
     (!predicateRequired || predicate.trim().length > 0) &&
     (!actionLabelRequired ||
       !actionLabelAllowed ||
-      actionLabel.trim().length > 0);
+      actionLabel.trim().length > 0) &&
+    (!transitionRoleRequired || !actionLabelAllowed || transitionRole !== "");
 
   const commit = () => {
     if (!selectedDeclaration || !canCommit) return;
@@ -133,6 +155,14 @@ export const WorkItemGraphRelationshipDialog: FC<
     const committedActionLabel = actionLabelAllowed
       ? actionLabel.trim() || (editedActionLabel ? null : undefined)
       : changedType && relationship?.actionLabel
+        ? null
+        : undefined;
+    const submitsTransitionRole = editedTransitionRole || changedType;
+    const committedTransitionRole = actionLabelAllowed
+      ? submitsTransitionRole
+        ? transitionRole || (editedTransitionRole ? null : undefined)
+        : undefined
+      : changedType && relationship?.transitionRole
         ? null
         : undefined;
     const editedMetadata = editedLabel || editedDescription;
@@ -161,6 +191,9 @@ export const WorkItemGraphRelationshipDialog: FC<
         : {}),
       ...(committedActionLabel !== undefined
         ? { actionLabel: committedActionLabel }
+        : {}),
+      ...(committedTransitionRole !== undefined
+        ? { transitionRole: committedTransitionRole }
         : {}),
       ...(committedReasoning !== undefined
         ? { reasoning: committedReasoning }
@@ -192,6 +225,7 @@ export const WorkItemGraphRelationshipDialog: FC<
               setPredicate("");
               if (nextDeclaration?.category !== "flow") {
                 setActionLabel("");
+                setTransitionRole("");
               }
             }}
             inputProps={{ "data-testid": "work-item-graph-relationship-type" }}
@@ -250,6 +284,36 @@ export const WorkItemGraphRelationshipDialog: FC<
                 "data-testid": "work-item-graph-relationship-action-label",
               }}
             />
+          )}
+          {actionLabelAllowed && (
+            <TextField
+              select
+              label="Transition role"
+              required={transitionRoleRequired}
+              value={transitionRole}
+              onChange={(event) => {
+                setTransitionRole(
+                  event.target.value as WorkflowTransitionRole | "",
+                );
+                setEditedTransitionRole(true);
+              }}
+              slotProps={{
+                htmlInput: {
+                  "data-testid": "work-item-graph-relationship-transition-role",
+                },
+              }}
+            >
+              {TRANSITION_ROLE_OPTIONS.filter(
+                (option) => !transitionRoleRequired || option.value !== "",
+              ).map((option) => (
+                <MenuItem
+                  key={option.value || "unclassified"}
+                  value={option.value}
+                >
+                  {option.label}
+                </MenuItem>
+              ))}
+            </TextField>
           )}
           <TextField
             label="Label"

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from "react";
-import { WorkStatus } from "@hey-hey/ui-common/api";
+import { WorkStatus } from "@hey-hey/contracts/api";
 import {
   useFeatureHierarchy,
   useFeatureDocumentContent,
@@ -15,7 +15,7 @@ export const ExplorerFeatureQuery: React.FC<ExplorerWorkItemQueryProps> = ({
 }) => {
   const hierarchy = useFeatureHierarchy(
     organizationId,
-    enabled ? projectId : ""
+    enabled ? projectId : "",
   );
   const ids = enabled ? hierarchy.roots.map((node) => node.feature.id) : [];
   const { entries } = useFeatureDocumentContent(
@@ -23,7 +23,7 @@ export const ExplorerFeatureQuery: React.FC<ExplorerWorkItemQueryProps> = ({
     projectId,
     ids,
     undefined,
-    "metadata"
+    "metadata",
   );
   const workItems = useMemo(
     () =>
@@ -42,7 +42,7 @@ export const ExplorerFeatureQuery: React.FC<ExplorerWorkItemQueryProps> = ({
               : [];
           })
         : [],
-    [enabled, hierarchy.roots, entries]
+    [enabled, hierarchy.roots, entries],
   );
   const failure = ids
     .map((id) => entries.get(id))

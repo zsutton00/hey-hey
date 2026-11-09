@@ -7,7 +7,7 @@ import {
   LocalPromptType,
   PhaseBreakdownPlan,
   PlanShapingApprovedVisual,
-} from '../generated/local';
+} from '@hey-hey/contracts/agent-bridge/models';
 import type {
   PlanGenerationStageReviewPayload,
   PlanGenerationVisualPreviewEntry,
@@ -47,7 +47,7 @@ import type {
   RepositoryPlacementRetryableFailure,
   RepositoryPlacementTerminalFailure,
   PlanShapingFeatureSyncItemDecision,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import type {
   InitiativeSummary,
   PlanGapCategory as ApiPlanGapCategory,
@@ -64,7 +64,7 @@ import type {
 } from '../services/agents/mastra-client.service';
 import { InitiativeDraft } from '../services/initiatives/types';
 import type { FeatureGenerationResponse } from '../flows/utils/shared-schemas';
-import type { FeatureTag } from '../generated/model/featureTag';
+import type { FeatureTag } from '@hey-hey/contracts/api/models';
 import type { ModelSelectionCriteria } from '../services/llm/llm-types';
 import type {
   AgentSessionId,
@@ -1872,6 +1872,7 @@ type BaseFlowContext = {
    * Never add non-ID values here!
    */
   flowId: string;
+  onboardingExecutionOwner?: 'CLI';
   lastIntent?: Intent;
   lastClassification?: FlowClassificationSnapshot;
   lastSystemMessageId?: MessageId; // Track the last system message for parentMessageId linking

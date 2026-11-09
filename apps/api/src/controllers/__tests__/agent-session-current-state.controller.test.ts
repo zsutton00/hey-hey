@@ -8,7 +8,9 @@ const SESSION_A = '33333333-3333-4333-8333-333333333333';
 describe('AgentSessionCurrentStateController', () => {
   it('rejects duplicate identities instead of silently deduplicating them', async () => {
     const readService = { readAuthorized: jest.fn() };
-    const controller = new AgentSessionCurrentStateController(readService as any);
+    const controller = new AgentSessionCurrentStateController(
+      readService as any,
+    );
 
     await expect(
       controller.batchReadCurrentState(
@@ -39,7 +41,9 @@ describe('AgentSessionCurrentStateController', () => {
     const readService = {
       readAuthorized: jest.fn().mockResolvedValue(items),
     };
-    const controller = new AgentSessionCurrentStateController(readService as any);
+    const controller = new AgentSessionCurrentStateController(
+      readService as any,
+    );
 
     await expect(
       controller.batchReadCurrentState(

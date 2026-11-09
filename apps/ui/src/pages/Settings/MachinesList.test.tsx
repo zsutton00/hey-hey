@@ -4,7 +4,7 @@ import {
   MachineExecutionReadinessState,
   type ControllerInventoryResponseDto,
   type MachineDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   useControllerInventory,
   useRevokeMachine,
@@ -169,7 +169,9 @@ describe("MachinesList", () => {
     );
     useRevokeMachineMock.mockReturnValue(buildMutationReturn());
     render(<MachinesList />);
-    expect(screen.queryByTestId("revoke-machine-dialog")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("revoke-machine-dialog"),
+    ).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("settings-remove-agent-bridge"));
     const dialog = screen.getByTestId("revoke-machine-dialog");
     expect(dialog).toBeInTheDocument();

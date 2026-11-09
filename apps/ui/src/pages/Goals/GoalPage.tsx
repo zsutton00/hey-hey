@@ -20,7 +20,7 @@ import {
   type WorkItemTypeDefinitionDto,
   WorkStatus,
   WorkflowName,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import type {
   EntityDependency,
   EntityListItemProps,

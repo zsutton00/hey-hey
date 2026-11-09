@@ -1,7 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ContextRelatedEntityDto, FeatureHierarchyEntryDto } from "@hey-hey/ui-common/api";
+import type {
+  ContextRelatedEntityDto,
+  FeatureHierarchyEntryDto,
+} from "@hey-hey/contracts/api";
 
 const mockUseProject = vi.fn();
 const mockUseFullEntityContext = vi.fn();
@@ -16,7 +19,8 @@ vi.mock("@hey-hey/ui-common/data", () => ({
     resolveAncestry: () => ({ ancestors: [], complete: false }),
   }),
   useProject: (...args: unknown[]) => mockUseProject(...args),
-  useFullEntityContext: (...args: unknown[]) => mockUseFullEntityContext(...args),
+  useFullEntityContext: (...args: unknown[]) =>
+    mockUseFullEntityContext(...args),
 }));
 
 vi.mock("../../components/TaskMonitorResponsiveWorkspace", () => ({
@@ -42,7 +46,11 @@ vi.mock("../../components/Layout", () => ({
   }) => (
     <nav data-testid="task-monitor-breadcrumbs">
       {items.map((item) => (
-        <a key={item.label} href={item.to} data-current={item.isCurrent || undefined}>
+        <a
+          key={item.label}
+          href={item.to}
+          data-current={item.isCurrent || undefined}
+        >
           {item.label}
         </a>
       ))}
@@ -108,20 +116,20 @@ describe("TaskMonitorPage", () => {
         organizationId="org-1"
         projectId="project-1"
         monitorId="monitor-1"
-        task={{
-          id: "monitor-1",
-          name: "Release monitor",
-          type: "TASK_MONITOR",
-        } as never}
+        task={
+          {
+            id: "monitor-1",
+            name: "Release monitor",
+            type: "TASK_MONITOR",
+          } as never
+        }
       />,
     );
 
     expect(screen.getByTestId("task-monitor-breadcrumbs")).toHaveTextContent(
       "ProjectsHey HeyProject ChromeTask MonitoringQ2 RolloutRelease monitor",
     );
-    expect(screen.getByText("Q2 Rollout")).not.toHaveAttribute(
-      "data-current",
-    );
+    expect(screen.getByText("Q2 Rollout")).not.toHaveAttribute("data-current");
     expect(screen.getByRole("link", { name: "Q2 Rollout" })).toHaveAttribute(
       "href",
       "/projects/project-1/plans/plan-1",
@@ -190,11 +198,13 @@ describe("TaskMonitorPage", () => {
         organizationId="org-1"
         projectId="project-1"
         monitorId="monitor-1"
-        task={{
-          id: "monitor-1",
-          name: "Release monitor",
-          type: "TASK_MONITOR",
-        } as never}
+        task={
+          {
+            id: "monitor-1",
+            name: "Release monitor",
+            type: "TASK_MONITOR",
+          } as never
+        }
       />,
     );
 
@@ -205,23 +215,35 @@ describe("TaskMonitorPage", () => {
     expect(screen.queryByText("Unrelated Plan")).not.toBeInTheDocument();
   });
 
-  it.each([undefined, []])("keeps the monitor current without a related Plan (%s)", (relatedEntities) => {
-    mockUseFullEntityContext.mockReturnValue({
-      data: { featureHierarchy, relatedEntities },
-    });
+  it.each([undefined, []])(
+    "keeps the monitor current without a related Plan (%s)",
+    (relatedEntities) => {
+      mockUseFullEntityContext.mockReturnValue({
+        data: { featureHierarchy, relatedEntities },
+      });
 
-    render(
-      <TaskMonitorPage
-        organizationId="org-1"
-        projectId="project-1"
-        monitorId="monitor-1"
-        task={{ id: "monitor-1", name: "Release monitor", type: "TASK_MONITOR" } as never}
-      />,
-    );
+      render(
+        <TaskMonitorPage
+          organizationId="org-1"
+          projectId="project-1"
+          monitorId="monitor-1"
+          task={
+            {
+              id: "monitor-1",
+              name: "Release monitor",
+              type: "TASK_MONITOR",
+            } as never
+          }
+        />,
+      );
 
-    expect(screen.getByTestId("task-monitor-breadcrumbs")).toHaveTextContent(
-      "ProjectsHey HeyProject ChromeTask MonitoringRelease monitor",
-    );
-    expect(screen.getByText("Release monitor")).toHaveAttribute("data-current", "true");
-  });
+      expect(screen.getByTestId("task-monitor-breadcrumbs")).toHaveTextContent(
+        "ProjectsHey HeyProject ChromeTask MonitoringRelease monitor",
+      );
+      expect(screen.getByText("Release monitor")).toHaveAttribute(
+        "data-current",
+        "true",
+      );
+    },
+  );
 });

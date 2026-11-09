@@ -9,7 +9,7 @@ export interface MemberActionability {
 }
 
 export const getMemberActionability = (
-  member: ProposalGroupMemberSnapshot
+  member: ProposalGroupMemberSnapshot,
 ): MemberActionability => {
   switch (member.executionState) {
     case ProposalGroupMemberExecutionState.PendingApproval:

@@ -1,5 +1,5 @@
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated';
-import type { LocalDailySessionPromptPayload } from '../../shared/agent-bridge-contract/generated/api';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import type { LocalDailySessionPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import type {
   PrepareResult,
   PromptTypeHandlerDeps,
@@ -27,6 +27,7 @@ const emptyCoachInput = (): DailySessionCoachPromptInput => ({
 export const dailySessionCoachHandler: UserLaunchablePromptTypeHandler<LocalDailySessionPromptPayload> =
   {
     id: 'daily_session_coach',
+    sessionRole: SessionRole.Research,
     promptType: LocalPromptType.DailySession,
     service: 'optional',
     launchEntity: 'none',

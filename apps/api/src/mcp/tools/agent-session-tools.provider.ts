@@ -1,3 +1,4 @@
+import { ReadVisibilityService } from '../../read-restriction/read-visibility.service';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Tool, Context } from '@rekog/mcp-nest';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
@@ -9,8 +10,8 @@ import type {
   GetAgentSessionError,
   GetAgentSessionRequest,
   GetAgentSessionResponse,
-} from '../../generated';
-import { GetAgentSessionErrorCode } from '../../generated';
+} from '@hey-hey/contracts/api/models';
+import { GetAgentSessionErrorCode } from '@hey-hey/contracts/api/models';
 import { AgentSessionService } from '../../services/agent-session.service';
 import {
   AgentSessionHistoryCursorError,
@@ -158,7 +159,11 @@ export class AgentSessionToolsProvider {
     private readonly prisma: PrismaService,
     private readonly agentSessionService: AgentSessionService,
     private readonly messageService: MessageService,
-  ) {}
+  ) {
+    this.visibility = new ReadVisibilityService(prisma);
+  }
+
+  private readonly visibility: ReadVisibilityService;
 
   @Tool({
     name: 'get_agent_session',
@@ -380,7 +385,7 @@ export class AgentSessionToolsProvider {
       offset: number;
     },
   ): Promise<AgentSessionRow[]> {
-    const rows = await this.prisma.db.agentSession.findMany({
+    const candidates = await this.prisma.db.agentSession.findMany({
       where: {
         organizationId,
         projectId,
@@ -404,7 +409,12 @@ export class AgentSessionToolsProvider {
       skip: opts.offset,
     });
 
-    return rows;
+    // Sessions an evaluated attempt must not see are dropped after paging, so a restricted
+    // page can hold fewer rows than the limit; an unrestricted page is never short.
+    return this.visibility.filterVisible(candidates, (session) => ({
+      entityType: 'AGENT_SESSION',
+      entityId: session.id,
+    }));
   }
 
   /**

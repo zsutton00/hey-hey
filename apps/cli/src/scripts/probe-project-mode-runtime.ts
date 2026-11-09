@@ -14,10 +14,7 @@ import type {
   LocalCreateRunRequest,
   LocalRunPromptRequest,
 } from '../shared/agent-bridge-contract/contract';
-import {
-  LocalPromptType,
-  type AgentSessionConfig,
-} from '../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType, type AgentSessionConfig } from '@hey-hey/contracts/agent-bridge';
 import { AgentOutputEvents } from '../server/agent-output-events';
 import { LocalAgentInfrastructure } from '../server/local-agent-infrastructure';
 import { EntityReportIndex } from '../server/reports/entity-report-index';

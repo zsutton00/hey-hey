@@ -20,6 +20,11 @@ import {
   type ProjectResponseDto,
   type MessageResponseDto,
 } from "../../../../api";
+import {
+  toOpenApiConversationId,
+  toOpenApiOrganizationId,
+  toOpenApiProjectId,
+} from "../../../../clients/contractIdentifierAdapters";
 import type { ConversationMessage } from "../../../../types/conversation";
 import type { WorkflowState } from "../../../../types/WorkflowState";
 import type { ConversationFormResolver } from "../conversationFormTypes";
@@ -30,7 +35,6 @@ type RenderOptions = {
   isSubmitting?: boolean;
   animationType?: "fun" | "minimal";
   readOnly?: boolean;
-  composerResetMode?: "preserve" | "clearOnSuccess";
   agentSessionId?: string;
   taskMonitorId?: string;
   conversationFormResolver?: ConversationFormResolver;
@@ -272,8 +276,8 @@ export const createMockProject = (
   overrides: Partial<ProjectResponseDto> = {},
 ): ProjectResponseDto => ({
   maturity: ProjectMaturity.Established,
-  id: "test-project-id",
-  organizationId: "test-org-id",
+  id: toOpenApiProjectId("test-project-id"),
+  organizationId: toOpenApiOrganizationId("test-org-id"),
   name: "Test Project",
   description: "Test Description",
   status: "ACTIVE" as ProjectResponseDto["status"],
@@ -288,10 +292,10 @@ export const createMockConversation = (
   overrides: Partial<ConversationResponseDto> = {},
 ): ConversationResponseDto => ({
   restricted: true,
-  id: "test-conversation-id",
+  id: toOpenApiConversationId("test-conversation-id"),
   createdBy: null,
-  projectId: "test-project-id",
-  organizationId: "test-org-id",
+  projectId: toOpenApiProjectId("test-project-id"),
+  organizationId: toOpenApiOrganizationId("test-org-id"),
   title: "Test Conversation",
   status: ConversationStatus.Started,
   initiatedBy: InitiationType.User,
@@ -320,7 +324,6 @@ export const renderWithConversationProvider = async (
     isSubmitting = false,
     animationType = "fun",
     readOnly = false,
-    composerResetMode = "preserve",
     agentSessionId,
     taskMonitorId,
     conversationFormResolver,
@@ -468,7 +471,6 @@ export const renderWithConversationProvider = async (
             project={project}
             animationType={animationType}
             readOnly={readOnly}
-            composerResetMode={composerResetMode}
             agentSessionId={agentSessionId}
             taskMonitorId={taskMonitorId}
             conversationFormResolver={conversationFormResolver}

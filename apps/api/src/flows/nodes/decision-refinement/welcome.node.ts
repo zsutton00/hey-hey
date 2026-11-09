@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { UIElement } from '../../../generated';
+import { UIElement } from '@hey-hey/contracts/api/models';
 import { DesignDocService } from '../../../services/design-doc/design-doc.service';
 import { getCurrentSectionForTemplate } from '../../../types/design-doc.types';
 import {

@@ -25,6 +25,7 @@ import type { ProjectRole } from "../../api";
 import { usePermissions, useProjectCapabilities } from "../../hooks";
 import { CardHeader } from "../CardHeader";
 import { MemberList, type MemberRow } from "./MemberList";
+import { isLocalAccountEmail } from "../../utils";
 import {
   InviteByEmailDialog,
   type InviteByEmailError,
@@ -76,7 +77,7 @@ export const ProjectMembersPanel: React.FC<ProjectMembersPanelProps> = ({
   } = useProjectMembers(organizationId, projectId);
 
   const projectMemberIds = useMemo(
-    () => new Set(projectMembers.map((m) => m.userId)),
+    () => new Set<string>(projectMembers.map((m) => m.userId)),
     [projectMembers],
   );
 
@@ -356,7 +357,9 @@ export const ProjectMembersPanel: React.FC<ProjectMembersPanelProps> = ({
         scope={removingMember?.scope ?? "project"}
         memberName={
           removingMember?.member.user?.name ||
-          removingMember?.member.user?.email ||
+          (isLocalAccountEmail(removingMember?.member.user?.email ?? "")
+            ? "Local account"
+            : removingMember?.member.user?.email) ||
           "this member"
         }
         onClose={handleCloseRemove}

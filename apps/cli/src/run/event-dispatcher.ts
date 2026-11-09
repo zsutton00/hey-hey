@@ -17,6 +17,7 @@ import { handleConversationPhase } from './handlers/conversation-phase';
 import { handleDiff } from './handlers/diff';
 import { handlePermission } from './handlers/permission';
 import { handlePermissionDecisionRecorded } from './handlers/permission-decision-recorded';
+import { handlePermissionGroupItemAdded } from './handlers/permission-group-item-added';
 import { handleAgentQuestion } from './handlers/agent-question';
 import { handleQuestionAnswered } from './handlers/question-answered';
 import { handleToolResult, handleToolUse } from './handlers/tool-use';
@@ -62,6 +63,9 @@ export class EventDispatcher {
           break;
         case 'permission_decision_recorded':
           await handlePermissionDecisionRecorded(event, ctx, this.dependencies);
+          break;
+        case 'permission_group_item_added':
+          await handlePermissionGroupItemAdded(event, ctx, this.dependencies);
           break;
         case 'agent_question':
           await handleAgentQuestion(event, ctx, this.dependencies);

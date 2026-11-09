@@ -1,4 +1,4 @@
-import type { FeatureRequirementsSection } from 'src/generated';
+import type { FeatureRequirementsSection } from '@hey-hey/contracts/api/models';
 import { FeatureRequirementAuthoringService } from '../../../tasks/feature-requirement-authoring.service';
 import { validateFeatureRequirementsSection } from '../../../tasks/feature-requirements-section.validator';
 import type { Load, ProjectionRule, RuleContext } from '../projection-rule';
@@ -21,6 +21,8 @@ const CONTRACT_PARTICIPATION_EDGE_TYPES = [
   'IMPLEMENTS',
   'CONSUMES',
 ];
+
+const FLOW_EDGE_TYPES = ['STANDARD', 'CONDITIONAL', 'LOOP'];
 
 type RelationshipOp = RequestFacts['relationshipOps'][number];
 
@@ -132,6 +134,33 @@ export const relationshipEndpointsRule: ProjectionRule<RefsScope> = {
           REFERENTIAL,
         );
       }
+    }
+  },
+};
+
+export const relationshipTransitionRoleRule: ProjectionRule<RefsScope> = {
+  id: 'relationship.transitionRole',
+  appliesTo(facts) {
+    const refs = unique(
+      facts.relationshipOps
+        .filter((operation) => operation.setsTransitionRole)
+        .map(({ ref }) => ref),
+    );
+    return refs.length > 0 ? { refs } : null;
+  },
+  // Stored edges are hydrated by `relationship.existence`.
+  loads: () => [],
+  check(state, scope, ctx) {
+    for (const key of scope.refs) {
+      const edge = state.relationships.get(key);
+      if (!edge || edge.deleted || !edge.transitionRole) continue;
+      if (FLOW_EDGE_TYPES.includes(edge.edgeType)) continue;
+      ctx.addIssue(
+        `relationships.${key}.transitionRole`,
+        'transition_role_requires_flow_relationship',
+        'A transition role is only allowed on STANDARD, CONDITIONAL, and LOOP relationships.',
+        'structural',
+      );
     }
   },
 };

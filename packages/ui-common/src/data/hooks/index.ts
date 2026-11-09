@@ -308,6 +308,9 @@ export { useIntegrations } from "./useIntegrations";
 // Service hooks
 export { useCreateService } from "./useCreateService";
 export { useProjectReports } from "./useProjectReports";
+export { useProjectReportHistory } from "./useProjectReportHistory";
+export { useProjectReportUsageTrends } from "./useProjectReportUsageTrends";
+export type { UseProjectReportUsageTrendsReturn } from "./useProjectReportUsageTrends";
 export { useProjectReportPreview } from "./useProjectReportPreview";
 export {
   useCreateProjectReportRequest,
@@ -325,6 +328,7 @@ export {
   useEvalRun,
   useEvalRuns,
   useLaunchEvalRun,
+  useRenameEvalRun,
   useSaveEvalHumanReview,
 } from "./useEvalRuns";
 export type {
@@ -435,6 +439,8 @@ export { useImplementationHints } from "./useImplementationHints";
 
 // Machines hooks
 export { useUserPairedMachines } from "./useUserPairedMachines";
+export { useAccountPasskeys } from "./useAccountPasskeys";
+export type { UseAccountPasskeysReturn } from "./useAccountPasskeys";
 export type {
   UseUserPairedMachinesOptions,
   UseUserPairedMachinesReturn,

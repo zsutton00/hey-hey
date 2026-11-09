@@ -1,5 +1,5 @@
 import { resolveHandlerSessionRole } from '../prompt-type-handler';
-import { SessionRole } from '../../shared/agent-bridge-contract/generated/api';
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import { PromptTypeRegistry } from '../prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../prompt-type-registry.test-support';
 import { describe, expect, it } from 'vitest';
@@ -10,8 +10,8 @@ import type {
   AgentSessionConfig,
   ProjectModeSnapshot,
   RunCreatePayloadProjectMode,
-} from '../../shared/agent-bridge-contract/generated/api';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { createPromptTypeHandlerTestDeps } from '../prompt-type-handler.test-support';
 import { buildProjectModePrompt, projectModeHandler, validateProjectModeConfig } from './index';
 
@@ -305,7 +305,7 @@ describe('handler-owned roles', () => {
         ),
       ).toBe(SessionRole.Research);
       const { resolveSessionRole: _resolver, ...childHandler } = projectModeHandler;
-      expect(resolveHandlerSessionRole(childHandler, session)).toBe(SessionRole.Implementation);
+      expect(() => resolveHandlerSessionRole(childHandler, session)).toThrow(/does not declare/);
       // Reconstructing from persisted JSON does not consult the mutable MODE.
       const resumed = makeSession(JSON.parse(JSON.stringify(captured)));
       expect(resolveHandlerSessionRole(projectModeHandler, resumed)).toBe(sessionRole);

@@ -3,7 +3,7 @@ import type {
   ActivityActorScopeDto,
   ActivityMetricContinuationDto,
   ProjectMetricIdentity,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId, UserId } from 'src/types';
 
 export const PROJECT_METRIC_IDENTITIES = [

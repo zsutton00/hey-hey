@@ -1,8 +1,8 @@
-import type { DesignDocResponseDto, AdrStatus } from "@hey-hey/ui-common/api";
+import type { DesignDocResponseDto, AdrStatus } from "@hey-hey/contracts/api";
 import {
   AdrStatus as AdrStatusValues,
   DesignDocTemplate,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   AdrEditor,
   BrainstormEditor,

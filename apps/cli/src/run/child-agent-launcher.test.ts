@@ -1,13 +1,13 @@
 import { SubmissionToolRegistry } from '../agents/submission-tools/registry';
 import { reviewHandler } from '../agents/review-subagent/review.handler';
-import { mentionFormatReminder } from '../agents/prompts/common';
+import { heyHeyContextReminder } from '../agents/prompts/common';
 import { createPromptTypeHandlerTestDeps } from '../agents/prompt-type-handler.test-support';
 import { describe, expect, it, vi } from 'vitest';
 import { ChildAgentLauncher, type ChildAgentLauncherDependencies } from './child-agent-launcher';
 import { researchHandler } from '../agents/research/research.handler';
 import { agentSearchHandler } from '../agents/agent-search/agent-search.handler';
 import type { AgenticSession } from '../session/types';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 
 const harness = vi.hoisted(() => ({
   construct: vi.fn(),
@@ -38,8 +38,11 @@ vi.mock('../agents/run-scope', () => ({
   resolveServiceBindingsForIds: harness.resolveBindings,
 }));
 
-const makeLauncher = () =>
+const makeLauncher = (heyHeyContextReminderEnabled = true) =>
   new ChildAgentLauncher({
+    machineOptionsStore: {
+      isHeyHeyContextReminderEnabled: vi.fn(async () => heyHeyContextReminderEnabled),
+    },
     handlerDeps: createPromptTypeHandlerTestDeps(),
     promptTypeRegistry: {
       getChildHandler: (id: string) => (id === researchHandler.id ? researchHandler : undefined),
@@ -118,6 +121,19 @@ describe('ChildAgentLauncher', () => {
     );
   });
 
+  it('omits the Hey Hey reminder from child prompts when its option is off', async () => {
+    harness.construct.mockClear();
+    await makeLauncher(false).launch({
+      parentSession: session,
+      handler: reviewHandler,
+      payload: { userMessage: 'Inspect this change.' },
+      signal: new AbortController().signal,
+    });
+
+    const prompt = harness.construct.mock.calls.at(-1)?.[0].prompt;
+    expect(prompt).not.toContain(heyHeyContextReminder);
+  });
+
   it('prepares independent Review once and preserves its file scope and recent user decisions', async () => {
     harness.construct.mockClear();
     const signal = new AbortController().signal;
@@ -148,8 +164,8 @@ describe('ChildAgentLauncher', () => {
     const supplied = harness.construct.mock.calls.at(-1)?.[0];
     expect(supplied.prompt).toContain('/repo/change.ts');
     expect(supplied.prompt).toContain('Keep the public behavior.');
-    expect(supplied.prompt.endsWith(mentionFormatReminder)).toBe(true);
-    expect(supplied.prompt.split(mentionFormatReminder)).toHaveLength(2);
+    expect(supplied.prompt.endsWith(heyHeyContextReminder)).toBe(true);
+    expect(supplied.prompt.split(heyHeyContextReminder)).toHaveLength(2);
 
     // A Run/eval already owns preparation. The launcher renders that enriched
     // payload without repeating preparation or fetching its context again.

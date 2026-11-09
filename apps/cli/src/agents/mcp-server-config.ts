@@ -1,10 +1,13 @@
 import type { OAuthClient } from '../auth/index';
 import { extractOrganizationIdFromToken } from '../auth/index';
-import type { ReadRestriction } from '../shared/api/generated/api';
+import type { ReadRestriction } from '@hey-hey/contracts/api/models';
 import { readRestrictionFor, readRestrictionHeaders } from '../shared/api/read-restriction';
+import type { EvalSearchScope } from '../shared/agent-bridge-contract/runtime-types';
 
 export interface McpSessionContext {
   readonly inert?: boolean;
+  /** Limits what an inert eval attempt's `unified_search` can find about its own case. */
+  readonly searchScope?: EvalSearchScope | undefined;
   /** Overrides what `inert` implies, for executions restricted without being inert (the judge). */
   readonly readRestriction?: ReadRestriction | undefined;
   projectId?: string | undefined;
@@ -39,6 +42,7 @@ export const FUTURE_REVISION_MCP_TOOLS: readonly string[] = [
 ];
 
 export type McpToolUseCase =
+  | 'local_onboarding'
   | 'coding'
   | 'general'
   | 'planning'
@@ -104,6 +108,7 @@ const MCP_TOOL_LIST: readonly McpTool[] = [
   { name: 'search_features', useCases: ['coding', 'general'] },
   { name: 'task_search', useCases: ['coding', 'general'] },
   { name: 'unified_search', useCases: ['coding', 'general'] },
+  { name: 'get_entity_identities', useCases: ['coding', 'general'] },
   { name: 'update_edge', useCases: ['coding', 'general'] },
   { name: 'update_proposal', useCases: ['coding', 'general'] },
 ];
@@ -115,6 +120,21 @@ export const CODING_MCP_TOOLS: readonly string[] = MCP_TOOL_LIST.filter((t) =>
 export const GENERAL_MCP_TOOLS: readonly string[] = MCP_TOOL_LIST.filter((t) =>
   t.useCases.includes('general'),
 ).map((t) => t.name);
+
+/**
+ * The read tools the shared platform prompt tells every agent to choose between
+ * ("Choosing the Smallest Read"). Every surface with a graph read surface must
+ * admit all of them, so no session is advised to call a tool it cannot reach.
+ * Surfaces that are structurally tool-free (monitors, repository grounding, work
+ * tracker import, eval judging) stay empty by contract and are the only exception.
+ */
+export const SHARED_READ_MCP_TOOLS: readonly string[] = [
+  'get_entity_identities',
+  'get_full_entity',
+  'get_context',
+  'get_edges',
+  'unified_search',
+];
 
 /**
  * Tools the planner must not reach: it surfaces a reviewable plan, it does
@@ -155,7 +175,8 @@ export const PLANNING_MCP_TOOLS: readonly string[] = CODING_MCP_TOOLS.filter(
  *
  * Deliberately a curated read-only list rather than a filter of the coding
  * base: the plan-shaping family must NOT inherit the coding toolkit
- * (`create_work_item`, `edit_work_item`, `create_edge`, the searches, …).
+ * (`create_work_item`, `edit_work_item`, `create_edge`, the task/feature/design-doc
+ * searches, …); it keeps only the shared read tools every agent is told to use.
  * `create_report` is not listed here — plan-shaping agents reach it via
  * the run-scoped `create_report` submission tool wrapper, which publishes the
  * report-emission lifecycle event and appends to the report chain. The platform
@@ -168,8 +189,7 @@ export const PLANNING_MCP_TOOLS: readonly string[] = CODING_MCP_TOOLS.filter(
  */
 export const PLAN_SHAPING_MCP_TOOLS: readonly string[] = [
   'get_authoring_guidance',
-  'get_full_entity',
-  'get_context',
+  ...SHARED_READ_MCP_TOOLS,
   'get_diagram',
   'get_work_item_type_guidance_batch',
   'get_tool_guidance',
@@ -192,6 +212,7 @@ export const RESEARCH_MCP_TOOLS: readonly string[] = [
   'get_diagram',
   'get_work_item_type_guidance_batch',
   'unified_search',
+  'get_entity_identities',
   'search_features',
   'task_search',
   'search_design_docs',
@@ -204,7 +225,7 @@ export const RESEARCH_MCP_TOOLS: readonly string[] = [
  */
 const REPOSITORY_GROUNDING_MCP_TOOLS: readonly string[] = [];
 
-export const REPOSITORY_PLACEMENT_MCP_TOOLS: readonly string[] = ['unified_search', 'get_context'];
+export const REPOSITORY_PLACEMENT_MCP_TOOLS: readonly string[] = [...SHARED_READ_MCP_TOOLS];
 
 export const PROJECT_ASSISTANT_EDGE_MCP_TOOLS: readonly string[] = ['create_edge', 'delete_edge'];
 
@@ -248,6 +269,7 @@ export const PROJECT_REPORT_MCP_TOOLS: readonly string[] = [
   'get_context',
   'get_edges',
   'unified_search',
+  'get_entity_identities',
   'task_search',
   'search_features',
   'list_reports_by_entity',
@@ -271,7 +293,15 @@ export const HINT_WRITE_MCP_TOOLS: readonly string[] = [
   'add_hint_connection',
   'delete_hint',
 ];
-export const HINT_READ_MCP_TOOLS: readonly string[] = ['get_hints_for_items'];
+/**
+ * Review corrects or deletes the hints its target session wrote. It is not an open-ended session,
+ * so it gets only these tools and not the rest of `HINT_WRITE_MCP_TOOLS`.
+ */
+export const HINT_REVIEW_MCP_TOOLS: readonly string[] = ['update_hint', 'delete_hint'];
+export const HINT_READ_MCP_TOOLS: readonly string[] = [
+  'get_hints_for_items',
+  'get_hints_by_session',
+];
 
 /**
  * Sessions that do open-ended work get hints. Curated surfaces (reports,

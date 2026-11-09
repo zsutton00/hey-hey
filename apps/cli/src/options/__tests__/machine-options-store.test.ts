@@ -22,6 +22,7 @@ describe('MachineOptionsStore', () => {
       intentFirst: false,
       remoteToolCallViewing: true,
       jevEnabled: true,
+      heyHeyContextReminder: false,
     });
   });
 
@@ -34,6 +35,7 @@ describe('MachineOptionsStore', () => {
       intentFirst: true,
       remoteToolCallViewing: true,
       jevEnabled: true,
+      heyHeyContextReminder: false,
     });
     await expect(store.isRemoteToolCallViewingEnabled()).resolves.toBe(true);
   });
@@ -47,6 +49,7 @@ describe('MachineOptionsStore', () => {
       intentFirst: true,
       remoteToolCallViewing: false,
       jevEnabled: true,
+      heyHeyContextReminder: false,
     });
     await expect(store.isRemoteToolCallViewingEnabled()).resolves.toBe(false);
   });
@@ -60,6 +63,7 @@ describe('MachineOptionsStore', () => {
       intentFirst: false,
       remoteToolCallViewing: false,
       jevEnabled: false,
+      heyHeyContextReminder: false,
     });
     await expect(store.isJevEnabled()).resolves.toBe(false);
     await expect(new MachineOptionsStore({ filePath }).isJevEnabled()).resolves.toBe(false);
@@ -76,6 +80,7 @@ describe('MachineOptionsStore', () => {
       intentFirst: true,
       remoteToolCallViewing: false,
       jevEnabled: true,
+      heyHeyContextReminder: false,
     });
   });
 
@@ -89,13 +94,30 @@ describe('MachineOptionsStore', () => {
       intentFirst: true,
       remoteToolCallViewing: false,
       jevEnabled: true,
+      heyHeyContextReminder: false,
     });
     expect(JSON.parse(await fs.readFile(filePath, 'utf8'))).toEqual({
       version: 1,
       intentFirst: true,
       remoteToolCallViewing: false,
       jevEnabled: true,
+      heyHeyContextReminder: false,
     });
+  });
+
+  it('defaults the Hey Hey reminder off and persists both explicit choices', async () => {
+    const store = new MachineOptionsStore({ filePath });
+    await expect(store.isHeyHeyContextReminderEnabled()).resolves.toBe(false);
+
+    await store.update({ heyHeyContextReminder: true });
+    await expect(
+      new MachineOptionsStore({ filePath }).isHeyHeyContextReminderEnabled(),
+    ).resolves.toBe(true);
+
+    await store.update({ heyHeyContextReminder: false });
+    await expect(
+      new MachineOptionsStore({ filePath }).isHeyHeyContextReminderEnabled(),
+    ).resolves.toBe(false);
   });
 
   it('keeps the value saved under the old Jev parent feature filter name', async () => {
@@ -113,6 +135,7 @@ describe('MachineOptionsStore', () => {
       intentFirst: true,
       remoteToolCallViewing: true,
       jevEnabled: false,
+      heyHeyContextReminder: false,
     });
   });
 

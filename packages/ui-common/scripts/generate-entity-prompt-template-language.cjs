@@ -1,6 +1,8 @@
 const fs = require("fs");
 const path = require("path");
 const yaml = require("js-yaml");
+const prettier = require("prettier");
+const parserSource = require("../../../scripts/entity-prompt-template-parser-source.cjs");
 const { resolveOpenapiRoot } = require("../../../scripts/openapi-source.cjs");
 
 const outputPath = path.resolve(
@@ -168,6 +170,7 @@ function normalizeLanguages(source) {
     languages[syntaxVersion] = {
       supportedPaths,
       authoring: entry.authoring,
+      conditionalBlocks: entry.conditionalBlocks,
       pathFamilies: rawPathFamilies.map((family, index) =>
         normalizePathFamily(family, index, syntaxVersion),
       ),
@@ -190,7 +193,8 @@ function render(languages, fixturePath) {
       fixturePath,
     )} in the OpenAPI repository.`,
     "",
-    'import type { EntityPromptTemplateSyntaxVersion, EntityPromptTemplateAuthoringMetadataDto } from "../api";',
+    'import { EntityPromptTemplateSyntaxVersion } from "@hey-hey/contracts/api/models";',
+    'import type { EntityPromptTemplateAuthoringMetadataDto } from "@hey-hey/contracts/api/models";',
     "",
     "export interface EntityPromptTemplatePathFamilyMetadata {",
     "  readonly template: string;",
@@ -199,6 +203,12 @@ function render(languages, fixturePath) {
     "",
     "export interface EntityPromptTemplateLanguageMetadata {",
     "  readonly authoring: EntityPromptTemplateAuthoringMetadataDto;",
+    "  readonly conditionalBlocks: {",
+    "    readonly ifKeyword: string;",
+    "    readonly elseKeyword: string;",
+    "    readonly endIfKeyword: string;",
+    '    readonly absentValueBehavior: "TREAT_AS_FALSE";',
+    "  };",
     "  readonly supportedPaths: readonly string[];",
     "  readonly pathFamilies: readonly EntityPromptTemplatePathFamilyMetadata[];",
     "}",
@@ -209,14 +219,24 @@ function render(languages, fixturePath) {
     "  EntityPromptTemplateLanguageMetadata",
     ">;",
     "",
+    parserSource,
   ].join("\n");
 }
 
-const openApiRoot = resolveOpenapiRoot();
-const fixturePath = findFixture(openApiRoot);
-const languages = normalizeLanguages(readFixture(fixturePath));
-fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-fs.writeFileSync(outputPath, render(languages, fixturePath));
-console.log(
-  `Generated ${path.relative(process.cwd(), outputPath)} from ${fixturePath}`,
-);
+async function main() {
+  const openApiRoot = resolveOpenapiRoot();
+  const fixturePath = findFixture(openApiRoot);
+  const languages = normalizeLanguages(readFixture(fixturePath));
+  const options = await prettier.resolveConfig(outputPath);
+  const source = await prettier.format(render(languages, fixturePath), {
+    ...options,
+    filepath: outputPath,
+  });
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.writeFileSync(outputPath, source);
+  console.log(
+    `Generated ${path.relative(process.cwd(), outputPath)} from ${fixturePath}`,
+  );
+}
+
+main();

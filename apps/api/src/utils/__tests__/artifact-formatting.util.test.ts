@@ -3,7 +3,11 @@ import {
   formatArtifactsForPrompt,
   reconstructConversationFromQaPairs,
 } from '../artifact-formatting.util';
-import { ArtifactResponseDto, QAPairData, InsightData } from '../../generated';
+import {
+  ArtifactResponseDto,
+  QAPairData,
+  InsightData,
+} from '@hey-hey/contracts/api/models';
 
 describe('artifact-formatting.util', () => {
   describe('formatArtifactForPrompt', () => {

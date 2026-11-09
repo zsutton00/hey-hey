@@ -1,6 +1,9 @@
 import { isEmpty } from 'lodash';
 import { MessageStatus } from 'src/constants/message-status.constants';
-import { MessageResponseDto, SystemMessageData } from 'src/generated';
+import {
+  MessageResponseDto,
+  SystemMessageData,
+} from '@hey-hey/contracts/api/models';
 import { MessageQueryResult, MessageWithRelations } from 'src/services/types';
 import {
   hasUiElements,

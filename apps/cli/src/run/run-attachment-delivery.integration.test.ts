@@ -14,7 +14,7 @@ import type {
   AgentSessionRunner,
 } from '../agents/providers/session-runner';
 import type { PromptTypeHandler } from '../agents/prompt-type-handler';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated/api';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { toInternalRunPromptRequest } from '../shared/agent-bridge-contract/contract';
 import { NOOP_LOGGER } from '../server/logger';
 import { NewSessionRunner } from './runners/new-session-runner';
@@ -30,7 +30,7 @@ import type { Run } from './run';
 import { InputAdmissionOwner } from '../server/input-admission/input-admission-owner';
 import { InputAdmissionLifecycle } from '../server/input-admission/admission-lifecycle';
 import { storedInput } from '../server/input-admission/input-admission-codec';
-import { ProjectsApi } from '../shared/api/generated/api';
+import { ProjectsApi } from '@hey-hey/contracts/api';
 import type {
   LocalRunPromptRequest,
   SendMessageOptions,
@@ -81,6 +81,7 @@ it.each(['claude', 'codex', 'opencode'] as const)(
       service: 'optional',
       launchEntity: 'required',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'provider_session',
       providerSessionCountsForContext: true,
       reports: [],
@@ -116,7 +117,6 @@ it.each(['claude', 'codex', 'opencode'] as const)(
     const facade = createTestSessionRunnerFacade({
       runPrompt: send,
       resumeSession: send,
-      promptOnce: vi.fn(),
       getContextUsage: vi.fn(),
     } satisfies AgentSessionRunner);
     const runnerPicker = createTestRunnerPicker((ctx) =>

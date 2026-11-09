@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgenticSession } from '../session/types';
-import type { LocalStartupSessionPromptPayload } from '../shared/agent-bridge-contract/generated/api';
+import type { LocalStartupSessionPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import type { PromptTypeHandlerDeps } from './prompt-type-handler';
 import { codingPlanHandler } from './coding-plan/coding-plan.handler';
 import { featureSyncAnalyzeHandler } from './feature-sync/analyze.handler';

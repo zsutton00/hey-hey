@@ -11,8 +11,8 @@ import {
   SecondaryActionConfig,
   SecondaryActionHandler,
   UIElement,
-} from 'src/generated';
-import { ArtifactResponseDto } from 'src/generated';
+} from '@hey-hey/contracts/api/models';
+import { ArtifactResponseDto } from '@hey-hey/contracts/api/models';
 import { ArtifactService } from 'src/services/artifacts/artifact.service';
 import { DesignDocService } from 'src/services/design-doc/design-doc.service';
 import { MessageContentExtractor } from 'src/utils/message-content-extractor';

@@ -18,7 +18,8 @@ const makeController = (overrides: Record<string, unknown> = {}) => ({
   credentialPublicKeyX: Buffer.alloc(32, 1),
   credentialPublicKeyY: Buffer.alloc(32, 2),
   controllerLabel: 'Browser passkey',
-  credentialFingerprint: 'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
+  credentialFingerprint:
+    'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
   createdAt: new Date('2026-08-16T10:00:00.000Z'),
   lastUsedAt: null,
   credentialBackupEligible: true,
@@ -181,9 +182,9 @@ describe('ControllerManagementService', () => {
     await expect(
       service.createExistingMachineControllerEnrollment(params),
     ).rejects.toBeInstanceOf(UnauthorizedException);
-    expect(challengeService.consumeControllerProofChallenge).toHaveBeenCalledTimes(
-      2,
-    );
+    expect(
+      challengeService.consumeControllerProofChallenge,
+    ).toHaveBeenCalledTimes(2);
   });
 
   it('returns revoked controller credential IDs as a JSON array', async () => {

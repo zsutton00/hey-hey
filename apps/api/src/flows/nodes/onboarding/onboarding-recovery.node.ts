@@ -9,7 +9,7 @@ import {
 import { FeatureFlagService } from '../../../services/feature-flag/feature-flag.service';
 import { ContextResolutionService } from '../../../context/services/context-resolution.service';
 import { ContextType, ContextScope } from '../../../context/interfaces';
-import { OrganizationRole } from '../../../generated';
+import { OrganizationRole } from '@hey-hey/contracts/api/models';
 import { ContextAuthContext } from 'src/auth/types';
 import { MutableContext } from 'src/utils/mutable-context';
 

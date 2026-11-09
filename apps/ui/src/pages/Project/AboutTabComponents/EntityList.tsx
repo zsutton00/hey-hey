@@ -15,7 +15,7 @@ import { useNavigate } from "react-router-dom";
 import type {
   TopologyEntitySummaryDto,
   TopologyEntitySummarySubfacetDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { WebPathService } from "@hey-hey/ui-common";
 
 export interface EntityListProps {

@@ -35,8 +35,8 @@ vi.mock("motion/react", () => ({
   },
 }));
 
-vi.mock("@hey-hey/ui-common/api", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@hey-hey/ui-common/api")>()),
+vi.mock("@hey-hey/contracts/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@hey-hey/contracts/api")>()),
   TargetEntityType: { Service: "SERVICE" },
 }));
 

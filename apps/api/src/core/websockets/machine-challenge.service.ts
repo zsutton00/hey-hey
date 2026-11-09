@@ -2,7 +2,7 @@ import * as crypto from 'crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MachineId, UserId } from '../../types';
-import { AuthorizationProtocolVersion } from '../../generated';
+import { AuthorizationProtocolVersion } from '@hey-hey/contracts/api/models';
 
 /**
  * The stored-machine fields the gateway needs to run a challenge-response:

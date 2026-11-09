@@ -1,4 +1,4 @@
-import { Influence } from '../../generated';
+import { Influence } from '@hey-hey/contracts/api/models';
 
 /**
  * Internal InitiativeDraft interface with influences as a required field

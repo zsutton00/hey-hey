@@ -1,10 +1,14 @@
 /* This file is generated from OpenAPI by scripts/generate-workflow-review-schemas.js. */
 import { z } from 'zod';
-import type { CodingPlanVersion, CodingPlanEmissionInput } from '../shared/api/generated/api';
+import type { CodingPlanVersion } from '@hey-hey/contracts/api/models';
 
 // Zod optional output includes undefined, which exactOptionalPropertyTypes rejects for the OpenAPI types.
-type OptionalKeys<T> = { [K in keyof T]-?: object extends Pick<T, K> ? K : never }[keyof T];
-type ZodShaped<T> = Omit<T, OptionalKeys<T>> & { [K in OptionalKeys<T>]?: T[K] | undefined };
+type OptionalKeys<T> = { [K in keyof T]-?: {} extends Pick<T, K> ? K : never }[keyof T];
+type ZodShaped<T> = T extends readonly (infer U)[]
+  ? ZodShaped<U>[]
+  : T extends object
+    ? Omit<T, OptionalKeys<T>> & { [K in OptionalKeys<T>]?: ZodShaped<T[K]> | undefined }
+    : T;
 
 const CodingPromptStartupSourceTypeSchema = z.enum([
   'evidenceItem',
@@ -37,6 +41,13 @@ export const CodingPlanDiscrepancySchema = z.intersection(
   z
     .object({
       sourceField: z.string().min(1),
+      suspectedImpact: z.string().optional(),
+      findingId: z.string().min(1).optional(),
+      category: z.enum(['implementation', 'project_context']).optional(),
+      userDirection: z.string().optional(),
+      disposition: z.enum(['open', 'accepted', 'repair_planned', 'withdrawn']).optional(),
+      implementationFollowThrough: z.string().optional(),
+      withdrawalEvidence: z.string().optional(),
     })
     .passthrough(),
 );
@@ -77,6 +88,17 @@ export const ImplementPromptPayloadSchema = z
     userMessage: z.string().optional(),
   })
   .strict();
+
+export const CodingPlanEmittedDiscrepancySchema = z.intersection(
+  CodingPlanDiscrepancySchema,
+  z
+    .object({
+      findingId: z.string().min(1),
+      category: z.enum(['implementation', 'project_context']),
+      disposition: z.enum(['open', 'accepted', 'repair_planned', 'withdrawn']),
+    })
+    .passthrough(),
+);
 
 const CodingPlanIssueResolutionSchema = z
   .object({
@@ -121,13 +143,7 @@ export const CodingPlanEmissionInputSchema = z
         (items) => new Set(items.map((item) => JSON.stringify(item))).size === items.length,
         'Array items must be unique',
       ),
-    discrepancies: z.array(CodingPlanDiscrepancySchema).optional(),
-  })
-  .strict() satisfies z.ZodType<ZodShaped<CodingPlanEmissionInput>>;
-
-export const CodingPlanQuestionSchema = z
-  .object({
-    question: z.string().min(1),
+    discrepancies: z.array(CodingPlanEmittedDiscrepancySchema),
   })
   .strict();
 
@@ -360,3 +376,116 @@ export const OnboardingPlanStageProposalReviewUserSubmissionSchema = z.union([
   OnboardingPlanStageProposalReviewRefineSubmissionSchema,
   OnboardingPlanStageProposalReviewApprovedSubmissionSchema,
 ]);
+
+const ImplementationReadinessStateSchema = z.enum(['CLEAR', 'REVIEW_REQUIRED', 'DISMISSED']);
+
+const ReadinessFocalEntityTypeSchema = z.enum(['TASK', 'FEATURE', 'DESIGN_DOC', 'PLAN']);
+
+const ImplementationReadinessSourceSnapshotSchema = z
+  .object({
+    runId: z.string().min(1),
+    focalEntityId: z.string().min(1),
+    focalEntityType: ReadinessFocalEntityTypeSchema,
+    sourceRevision: z.string().min(1),
+    capturedAt: z.string().datetime({ offset: true }),
+  })
+  .strict();
+
+const ImplementationReadinessSourceEntityTypeSchema = z.enum([
+  'TASK',
+  'FEATURE',
+  'DESIGN_DOC',
+  'PLAN',
+  'CONTRACT',
+  'SERVICE',
+]);
+
+const ImplementationReadinessItemReferenceSchema = z
+  .object({
+    entityType: ImplementationReadinessSourceEntityTypeSchema,
+    entityId: z.string().uuid(),
+    title: z.string().min(1),
+  })
+  .strict();
+
+const ImplementationReadinessTrailEntrySchema = z
+  .object({
+    source: ImplementationReadinessItemReferenceSchema,
+    explanation: z.string().min(1),
+  })
+  .strict();
+
+const ImplementationReadinessFixStepStateSchema = z.enum(['DONE', 'REMAINING', 'USER_DECISION']);
+
+const ImplementationReadinessFixStepSchema = z
+  .object({
+    owner: ImplementationReadinessItemReferenceSchema,
+    action: z.string().min(1),
+    state: ImplementationReadinessFixStepStateSchema,
+  })
+  .strict();
+
+const ImplementationReadinessEvidenceCategorySchema = z.enum([
+  'behavior',
+  'ownership',
+  'data_lifecycle',
+  'authority',
+  'security',
+  'isolation',
+  'integration',
+]);
+
+const ImplementationReadinessEvidenceSchema = z
+  .object({
+    category: ImplementationReadinessEvidenceCategorySchema,
+    statement: z.string().min(1),
+    sourceRef: z.string().min(1).optional(),
+  })
+  .strict();
+
+const ImplementationReadinessFindingSchema = z
+  .object({
+    requestedOutcome: z.string().min(1),
+    reasoningTrail: z.array(ImplementationReadinessTrailEntrySchema).min(2).max(4),
+    problem: z.string().min(1),
+    failureScenario: z.array(z.string().min(1)).min(2).max(8),
+    fixSteps: z.array(ImplementationReadinessFixStepSchema).min(1).max(8),
+    userRequest: z.string().min(1),
+    boundedEvidence: z.array(ImplementationReadinessEvidenceSchema).min(1).max(8),
+  })
+  .strict();
+
+const ImplementationReadinessNoResolutionSchema = z
+  .object({
+    kind: z.literal('NONE'),
+  })
+  .strict();
+
+const ImplementationReadinessRunResolutionSchema = z
+  .object({
+    kind: z.literal('DISMISSED'),
+    runId: z.string().min(1),
+    sourceRevision: z.string().min(1),
+    resolvedAt: z.string().datetime({ offset: true }),
+  })
+  .strict();
+
+const ImplementationReadinessResolutionSchema = z.union([
+  ImplementationReadinessNoResolutionSchema,
+  ImplementationReadinessRunResolutionSchema,
+]);
+
+const ImplementationReadinessAuthoredDispositionSchema = z
+  .object({
+    state: ImplementationReadinessStateSchema,
+    sourceSnapshot: ImplementationReadinessSourceSnapshotSchema,
+    finding: ImplementationReadinessFindingSchema.nullable(),
+    resolution: ImplementationReadinessResolutionSchema,
+  })
+  .strict();
+
+export const ImplementationReadinessOutcomeWorkflowAnswerSchema = z
+  .object({
+    disposition: ImplementationReadinessAuthoredDispositionSchema,
+  })
+  .strict();

@@ -126,7 +126,6 @@ const wire = (args: WireArgs) => {
   const sessionRunner = {
     runPrompt,
     resumeSession,
-    promptOnce: vi.fn(),
     getContextUsage: vi.fn(),
   } as AgentSessionRunner;
   const ownership = createTestRunOwnership();

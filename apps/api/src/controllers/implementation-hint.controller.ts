@@ -30,7 +30,7 @@ import {
   AppendImplementationHintVersionDto,
   CreateImplementationHintDto,
   UpdateImplementationHintDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   CreateHintFileReferenceDto,
   FilePathMatchMode,

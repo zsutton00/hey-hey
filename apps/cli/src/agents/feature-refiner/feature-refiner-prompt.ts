@@ -3,7 +3,7 @@ import type {
   ContextRelatedEntityDto,
   AgentSessionEntryDto,
   ProposalResponseDto,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import { jsonOnlyInstructions } from '../prompts/common';
 
 const formatFeature = (feature: FeatureRefinerPromptInput['feature']): string => {

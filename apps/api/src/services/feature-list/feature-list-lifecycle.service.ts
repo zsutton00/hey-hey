@@ -13,7 +13,7 @@ import {
   RepositoryPlacementStrategySubmission,
   TaskPriority,
   WorkStatus,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { buildFlowRequestorContext } from '../proposal/flow-requestor-context';
 import { ProposalApprovalService } from '../proposal/proposal-approval.service';
 import { ProposalGroupAuthoringService } from '../proposal/proposal-group-authoring.service';
@@ -23,6 +23,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../auth/strategies/jwt.strategy';
 import type { StampedCreateProposalDto } from '../proposal/proposal.types';
 import type { RequestorContext } from '../../mcp/tools/requestor-context';
+import { EMPTY_FEATURE_REQUIREMENTS_CONTENT } from '../tasks/feature-requirements-reader';
 import { WORK_ITEM_TYPE_KEYS } from '../tasks/work-item-type-keys';
 import type { FeatureGenerationResponse } from '../../flows/utils/shared-schemas';
 import type {
@@ -215,7 +216,7 @@ export class FeatureListLifecycleService {
           childMember.memberId,
           {
             expectedRevision: snapshot.currentRevision,
-            prerequisiteMemberIds: new Set([rootMember.memberId]),
+            prerequisiteMemberIds: [rootMember.memberId],
           },
         );
       }
@@ -690,6 +691,13 @@ export class FeatureListLifecycleService {
           result.executionState !== 'APPLIED'),
     );
     if (rejectedDecisions.length > 0) {
+      this.logger.error(
+        'Feature-list grouped approval did not apply every member',
+        {
+          groupId: state.proposalGroupId,
+          failures: rejectedDecisions,
+        },
+      );
       throw new Error(
         `Feature-list grouped approval failed for ${rejectedDecisions.length} member(s).`,
       );
@@ -1032,11 +1040,10 @@ export class FeatureListLifecycleService {
         root.proposalGroupMemberId,
         {
           expectedRevision: revision,
-          prerequisiteMemberIds: new Set(
+          prerequisiteMemberIds:
             holder && parentTaskId === holder.reservedFeatureId
               ? [holder.memberId]
               : [],
-          ),
         },
       );
       revision = snapshot.currentRevision;
@@ -1107,6 +1114,11 @@ export class FeatureListLifecycleService {
           key: 'description',
           content: args.description,
           order: 0,
+        },
+        {
+          key: 'requirements',
+          content: EMPTY_FEATURE_REQUIREMENTS_CONTENT,
+          order: 1,
         },
       ],
       ...(args.parentTaskId ? { parentTaskId: args.parentTaskId } : {}),

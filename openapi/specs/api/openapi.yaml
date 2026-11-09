@@ -120,6 +120,56 @@ tags:
     description: MCP operations
 
 paths:
+  /organizations/{organizationId}/projects/{projectId}/project-report-history:
+    get:
+      operationId: listProjectReportHistory
+      tags:
+        - ProjectReports
+      description: >-
+        Read the caller's durable project report history: their queued, running, failed and completed
+        requests with the latest attempt, plus saved project reports no request of theirs links to.
+        Newest first; a completed request and its report appear once.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Authorized result
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ProjectReportHistoryPageDto"
+        "403":
+          description: Project access has been revoked
   /organizations/{organizationId}/projects/{projectId}/project-report-requests:
     post:
       operationId: createProjectReportRequest
@@ -591,6 +641,162 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+
+  /auth/local/bootstrap:
+    post:
+      summary: Prepare local account access
+      description: >-
+        Local-deployment-only machine operation. The CLI proves authority with
+        its installation secret. The server idempotently creates the ordinary
+        local user and organization in existing identity storage and returns a
+        short-lived, one-use browser handoff token. The token is exchanged from
+        the approved local UI origin and is never persisted by the UI.
+      operationId: startLocalBootstrap
+      tags: [Auth]
+      security: []
+      parameters:
+        - in: header
+          name: X-HeyHey-Local-Secret
+          required: true
+          description: Installation secret held by the local CLI.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Local account is ready for a one-use browser handoff.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LocalBootstrapResponseDto"
+        "401":
+          description: Local installation authority is invalid or unavailable.
+
+  /auth/local/cli-credentials:
+    post:
+      summary: Issue local CLI credentials
+      description: >-
+        Local-deployment-only machine operation. The CLI proves authority with
+        its installation secret and receives its own access and refresh tokens
+        for the ordinary local user, so it never needs the browser login. The
+        tokens are stored only in the CLI credential store.
+      operationId: issueLocalCliCredentials
+      tags: [Auth]
+      security: []
+      parameters:
+        - in: header
+          name: X-HeyHey-Local-Secret
+          required: true
+          description: Installation secret held by the local CLI.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Credentials for the local CLI.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LocalCliCredentialsResponseDto"
+        "401":
+          description: Local installation authority is invalid or unavailable.
+
+  /auth/local/handoff:
+    post:
+      summary: Exchange one-use local browser handoff
+      description: >-
+        Exchanges a short-lived token issued to the local CLI for the existing
+        server-owned browser session. The token can be consumed once, and the
+        request must come from the local application's approved UI origin.
+      operationId: completeLocalHandoff
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocalHandoffRequestDto"
+      responses:
+        "200":
+          description: Browser session established with HttpOnly refresh continuity.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BrowserSessionResponseDto"
+        "401":
+          description: Handoff expired, already consumed, or from an untrusted origin.
+
+  /auth/local/name:
+    patch:
+      summary: Save local account display name
+      description: >-
+        Saves the display name on the automatically created local user. This is
+        personalization only and does not authenticate or authorize the caller.
+      operationId: saveLocalDisplayName
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocalNameRequestDto"
+      responses:
+        "200":
+          description: Local display name saved.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LocalSetupStatusDto"
+        "401":
+          description: Local browser session or same-origin authority is unavailable.
+
+  /auth/local/status:
+    get:
+      summary: Read local account and machine status
+      description: >-
+        Returns separate observed facts for display-name completion, browser
+        session, live machine connection and controller-ready execution. A
+        connected machine alone does not authorize host actions.
+      operationId: getLocalSetupStatus
+      tags: [Auth]
+      responses:
+        "200":
+          description: Current local setup and machine state.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LocalSetupStatusDto"
+        "401":
+          description: Local browser session is unavailable.
 
   /auth/password-recovery:
     post:
@@ -1134,6 +1340,333 @@ paths:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "401":
           description: The browser session or current password is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
+  /auth/toggle-dev-admin:
+    patch:
+      summary: Toggle dev-admin mode
+      description: >-
+        Switches dev-admin mode for a user with dev-admin privileges. Issues no
+        credentials; the browser renews its session to receive access that
+        reflects the new mode.
+      operationId: toggleDevAdminMode
+      tags: [Auth]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Dev-admin mode toggled
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/DevAdminModeDto"
+        "403":
+          description: User does not have dev-admin privileges
+
+  /auth/passkeys:
+    get:
+      summary: List the signed-in account's passkeys
+      description: Returns only passkeys owned by the signed-in account. Controller credentials are never listed.
+      operationId: listAccountPasskeys
+      tags: [Auth]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AccountPasskeyListDto"
+        "401":
+          description: Authentication or account proof failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+    post:
+      summary: Add a passkey to the signed-in account
+      description: >-
+        Verifies the registration answering this session's registration
+        challenge together with fresh account proof, then in one transaction
+        stores the passkey, advances the account's authorization revision,
+        ends every earlier browser session for the account and establishes
+        exactly one fresh session for the acting browser. Refresh continuity
+        stays in HttpOnly cookies. A failure changes nothing.
+      operationId: registerAccountPasskey
+      tags: [Auth]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountPasskeyRegistrationDto"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BrowserSessionResponseDto"
+        "400":
+          description: The registration is malformed or the passkey is already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "401":
+          description: Authentication or account proof failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
+  /auth/passkeys/registration/options:
+    post:
+      summary: Start adding a passkey
+      description: Issues a single-use registration challenge bound to the signed-in account and acting browser session.
+      operationId: startAccountPasskeyRegistration
+      tags: [Auth]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AccountPasskeyRegistrationOptionsDto"
+        "401":
+          description: Authentication or account proof failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
+  /auth/passkeys/proof/options:
+    post:
+      summary: Start passkey account proof
+      description: >-
+        Issues a single-use assertion challenge that proves account ownership
+        for exactly one operation (adding a passkey, or removing the named
+        passkey). It cannot be used to sign in or for another operation.
+      operationId: startAccountPasskeyProof
+      tags: [Auth]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountPasskeyProofOptionsRequestDto"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AccountPasskeyAssertionOptionsDto"
+        "401":
+          description: Authentication or account proof failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: The account has no passkey to prove with, or the removal target is not owned by the account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
+  /auth/passkeys/sign-in/options:
+    post:
+      summary: Start passkey sign-in
+      description: Issues a single-use discoverable-credential sign-in challenge.
+      operationId: startAccountPasskeySignIn
+      tags: [Auth]
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AccountPasskeyAssertionOptionsDto"
+
+  /auth/passkeys/sign-in:
+    post:
+      summary: Sign in with a passkey
+      description: >-
+        Verifies the assertion answering a sign-in challenge and establishes the
+        same browser session as password sign-in, including organization
+        selection. Refresh continuity stays in HttpOnly cookies. Failures are
+        generic.
+      operationId: completeAccountPasskeySignIn
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountPasskeySignInDto"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BrowserSessionResponseDto"
+        "401":
+          description: Authentication or account proof failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
+  /auth/passkeys/{passkeyId}:
+    patch:
+      summary: Rename an account passkey
+      description: Changes only the display name of a passkey owned by the signed-in account.
+      operationId: renameAccountPasskey
+      tags: [Auth]
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: passkeyId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountPasskeyRenameDto"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AccountPasskeyDto"
+        "401":
+          description: Authentication or account proof failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: Passkey not found for this account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
+  /auth/passkeys/{passkeyId}/removal:
+    post:
+      summary: Remove an account passkey
+      description: >-
+        Verifies fresh account proof bound to this removal, then in one
+        transaction removes the passkey, advances the account's authorization
+        revision, ends every earlier browser session for the account and
+        establishes exactly one fresh session for the acting browser. A failure
+        changes nothing.
+      operationId: removeAccountPasskey
+      tags: [Auth]
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: passkeyId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountPasskeyRemovalDto"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BrowserSessionResponseDto"
+        "401":
+          description: Authentication or account proof failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: Passkey not found for this account
           content:
             application/json:
               schema:
@@ -1755,7 +2288,12 @@ paths:
       operationId: getAdminProjectHints
       tags: [DebugAdmin]
       summary: List live graph Hints for platform admins
-      description: Read-only project listing. Returns no hints when the deployment Hints switch is off. Separate from agent connected-item retrieval and legacy implementation hints.
+      description: >-
+        Read-only project listing with connected item titles and types resolved
+        for items the caller can see. Filters apply over the whole list; a hint
+        matches when any connection matches the type and strength filters, and
+        a matching hint keeps all its connections. Separate from agent
+        connected-item retrieval and legacy implementation hints.
       parameters:
         - name: organizationId
           in: path
@@ -1765,6 +2303,25 @@ paths:
           in: path
           required: true
           schema: { type: string, format: uuid }
+        - name: search
+          in: query
+          required: false
+          description: Matches hint text or the title of a connected item the caller can see.
+          schema: { type: string }
+        - name: itemTypes
+          in: query
+          required: false
+          description: Connected item types (work-item type keys or entity types). Repeat the param for an OR-set.
+          schema:
+            type: array
+            items: { type: string }
+          style: form
+          explode: true
+        - name: minStrength
+          in: query
+          required: false
+          description: Minimum connection strength.
+          schema: { type: number, format: double, minimum: 0 }
       responses:
         "200":
           description: Live project hints with connections and strengths.
@@ -1777,7 +2334,7 @@ paths:
                     required: [data]
                     properties:
                       data:
-                        $ref: "../schemas/hints.yaml#/ListProjectHintsResponse"
+                        $ref: "../schemas/hints.yaml#/AdminProjectHintsResponse"
         "403":
           description: Admin access required.
 
@@ -2859,6 +3416,18 @@ paths:
             Graph traversal depth used only for relatedEntities and
             agentSessions. UI callers use the default one-hop neighborhood;
             agent callers may request two hops for broader orientation.
+        - name: groupRelationships
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: >
+            Agent view. Adds groupedRelatedEntities (one entry per related
+            entity carrying all of its relationships) and returns
+            featureHierarchy with one entry per feature, relationship type
+            and direction. relatedEntities is unchanged. Selection, ranking
+            and limits are identical to the default response.
         - name: includeFeatureHierarchy
           in: query
           required: false
@@ -3256,6 +3825,120 @@ paths:
                         type: array
                         items:
                           $ref: "#/components/schemas/ReportDto"
+        "400":
+          description: Invalid query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "401":
+          description: Authentication required.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
+  /organizations/{organizationId}/projects/{projectId}/reports/usage-trends:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Organization ID
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+    get:
+      summary: Get approximate agent usage trends for a project
+      description: >
+        Aggregates the usage snapshots stored on retained, user-visible
+        project reports into per-execution trends. Each execution counts once
+        using its latest snapshot; averages use complete executions only.
+        A parent's snapshot already includes the research sub-agents it
+        launched, so their separate reports are not counted again. Provider,
+        model and effort filters select breakdown contributions: an execution
+        matches when one contribution matches every selected filter, and only
+        matching contributions' figures count. Buckets use UTC boundaries.
+      operationId: getProjectReportUsageTrends
+      tags: [Reports]
+      parameters:
+        - name: from
+          in: query
+          required: true
+          description: Inclusive UTC start of the period.
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: true
+          description: Exclusive UTC end of the period.
+          schema:
+            type: string
+            format: date-time
+        - name: granularity
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/ReportUsageTrendGranularity"
+        - name: reportKinds
+          in: query
+          required: false
+          description: Repeated filter on execution kind.
+          schema:
+            type: array
+            items:
+              $ref: "#/components/schemas/ReportUsageTrendKind"
+          style: form
+          explode: true
+        - name: providers
+          in: query
+          required: false
+          description: Repeated filter on provider; use 'unknown' for executions with no provider.
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - name: models
+          in: query
+          required: false
+          description: Repeated filter on model; matches executions where any breakdown entry used the model.
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - name: efforts
+          in: query
+          required: false
+          description: Repeated filter on actual effort; use 'unknown' for executions with no recorded effort.
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+      responses:
+        "200":
+          description: Usage trends returned successfully.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReportUsageTrends"
         "400":
           description: Invalid query parameters.
           content:
@@ -4003,6 +4686,56 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/UnifiedGraphSearchResponse"
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
+  /organizations/{organizationId}/projects/{projectId}/topology/connected-entities:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Organization ID
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+    post:
+      summary: List the entities connected to the given entities
+      description: >-
+        Returns the given entities together with the entities that link to or
+        mention them, and every message in any given conversation. Links the
+        given entities make themselves and structural hubs such as the project
+        or a parent feature are not followed. Returns IDs only.
+      operationId: getTopologyConnectedEntities
+      tags: [Topology]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConnectedEntitiesRequest"
+      responses:
+        "200":
+          description: Connected entities resolved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ConnectedEntitiesResponse"
         "400":
           description: Invalid request parameters
           content:
@@ -4818,6 +5551,11 @@ paths:
                     - $ref: "../schemas/agent-edges.yaml#/WorkflowEdgeActionLabel"
                   nullable: true
                   description: Optional plain-language action that triggers this flow transition.
+                transitionRole:
+                  allOf:
+                    - $ref: "../schemas/agent-edges.yaml#/WorkflowTransitionRole"
+                  nullable: true
+                  description: Optional explicit meaning of this flow transition (primary progression, error path or recovery); omitted means unclassified.
                 metadata:
                   type: object
                   additionalProperties: true
@@ -5002,6 +5740,11 @@ paths:
                     - $ref: "../schemas/agent-edges.yaml#/WorkflowEdgeActionLabel"
                   nullable: true
                   description: Optional plain-language action that triggers this flow transition; set null to clear it.
+                transitionRole:
+                  allOf:
+                    - $ref: "../schemas/agent-edges.yaml#/WorkflowTransitionRole"
+                  nullable: true
+                  description: Optional explicit meaning of this flow transition (primary progression, error path or recovery); omitted means unclassified; set null to clear it.
                 metadata:
                   type: object
                   additionalProperties: true
@@ -5818,6 +6561,52 @@ paths:
         "404":
           description: Work item not found in the requested project.
 
+  /organizations/{organizationId}/projects/{projectId}/work-items/{workItemId}/ux-flows:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: workItemId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: List the UX flows that include a work item
+      description: >
+        Returns the live UX flow Diagrams in the project that have an element
+        canonically referencing the work item, with the matching element id.
+        Archived Diagrams and elements are excluded. The result is empty when
+        the work item belongs to no UX flow.
+      operationId: organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGet
+      tags: [Tasks]
+      responses:
+        "200":
+          description: UX flows that include the work item.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/UxFlowMembershipResponseDto"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Work item not found in the requested project.
+
   /organizations/{organizationId}/projects/{projectId}/work-items/{taskId}/plan-generation:
     parameters:
       - name: organizationId
@@ -6628,8 +7417,7 @@ paths:
         list endpoint returns. This registry-backed read is the source of
         truth for opening the edit page: callers use the generated
         WorkItemTypeSummaryDto/WorkItemTypeDefinitionDto shape directly,
-        including lifecycle, owning-project, canonical template key, accepted
-        template revision, latest available template revision, and
+        including lifecycle, owning project, effective source, and
         schema-backed section metadata such as `kind` and `schemaRef`.
       operationId: organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyGet
       tags: [WorkItemTypes]
@@ -6879,6 +7667,46 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "404": { description: Work-item type not found. }
+
+  /organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/canonical-comparison:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: typeKey
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      summary: Read a canonical override next to the current canonical definition
+      description: >
+        Return the project's effective definition and the current canonical
+        definition for the same key, both complete and unmodified, so a caller
+        can show how the override differs. Read-only: nothing is merged,
+        created, or changed. Only available for a type whose effective source
+        is a canonical override.
+      operationId: organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet
+      tags: [WorkItemTypes]
+      responses:
+        "200":
+          description: The effective override and the current canonical definition.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/WorkItemTypeCanonicalComparisonDto"
+        "401": { description: Unauthorized }
+        "404": { description: Work-item type not found. }
+        "409": { description: The type is not a project override of a canonical type. }
 
   /organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/section-content-impact:
     parameters:
@@ -9876,6 +10704,50 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
 
+  /organizations/{organizationId}/projects/{projectId}/onboarding/conversations/{conversationId}/local-step:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: conversationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: advanceLocalOnboarding
+      tags: [Conversations]
+      summary: Advance the CLI-owned onboarding execution
+      description: The admitted CLI owner reads durable work or submits the result of its exact saved provider request. Repeated results return canonical progress without repeating effects. This endpoint grants no host execution authority.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/conversations.yaml#/LocalOnboardingStepRequest"
+      responses:
+        "200":
+          description: Canonical durable progress
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "../schemas/conversations.yaml#/LocalOnboardingStepResponse"
+        "409":
+          description: The execution owner or provider request is stale
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiErrorResponse" }
+
   /organizations/{organizationId}/projects/{projectId}/onboarding/conversations/{conversationId}/replies:
     parameters:
       - name: organizationId
@@ -9901,7 +10773,7 @@ paths:
       summary: Admit a reply to the canonical onboarding workflow
       description: >-
         Validates and records one reply for the route-scoped active onboarding
-        Temporal conversation, together with its durable workflow-continuation
+        conversation, together with its durable execution-owner continuation
         obligation. This operation grants no local-execution or CLI authority.
       requestBody:
         required: true
@@ -9911,7 +10783,7 @@ paths:
               $ref: "#/components/schemas/SubmitOnboardingReplyRequestDto"
       responses:
         "202":
-          description: Reply and durable Temporal continuation accepted
+          description: Reply and durable execution-owner continuation accepted
           content:
             application/json:
               schema:
@@ -9966,7 +10838,7 @@ paths:
       summary: Admit a reply to a repository import workflow
       description: >-
         Validates and records one reply for the route-scoped active repository-import
-        Temporal conversation, together with its durable workflow-continuation obligation.
+        conversation, together with its durable execution-owner continuation obligation.
         Qualifying persisted pre-cutover onboarding imports are admitted through the
         repository-import compatibility boundary. This operation grants no local-execution
         or CLI authority.
@@ -9978,7 +10850,7 @@ paths:
               $ref: "#/components/schemas/SubmitRepositoryImportReplyRequestDto"
       responses:
         "202":
-          description: Reply and durable Temporal continuation accepted
+          description: Reply and durable execution-owner continuation accepted
           content:
             application/json:
               schema:
@@ -10033,7 +10905,7 @@ paths:
       summary: Admit a reply to a work-tracker import workflow
       description: >-
         Validates and records one reply for the route-scoped active work-tracker-import
-        Temporal conversation, together with its durable workflow-continuation obligation.
+        conversation, together with its durable execution-owner continuation obligation.
         This operation grants no local-execution or CLI authority.
       requestBody:
         required: true
@@ -10043,7 +10915,7 @@ paths:
               $ref: "#/components/schemas/SubmitWorkTrackerImportReplyRequestDto"
       responses:
         "202":
-          description: Reply and durable Temporal continuation accepted
+          description: Reply and durable execution-owner continuation accepted
           content:
             application/json:
               schema:
@@ -10704,6 +11576,15 @@ paths:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
           description: Agent Session, conversation, workflow node, trigger, or action mismatch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "422":
+          description: >-
+            The payload does not satisfy the selected action's schema. Nothing
+            is recorded and the pending trigger stays open for a corrected
+            resubmission.
           content:
             application/json:
               schema:
@@ -12748,102 +13629,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
 
-  /organizations/{organizationId}/artifacts/search:
-    parameters:
-      - name: organizationId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-        description: Organization ID
-    post:
-      summary: Semantic Search
-      description: Search artifact objects using semantic similarity
-      operationId: semanticSearchArtifacts
-      tags: [Search]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SemanticSearchDto"
-      responses:
-        "200":
-          description: Search completed successfully
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/ApiResponse"
-                  - type: object
-                    properties:
-                      data:
-                        $ref: "#/components/schemas/SemanticSearchResponseDto"
-        "400":
-          description: Invalid search parameters
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
-
-  /organizations/{organizationId}/artifacts/search/simple:
-    parameters:
-      - name: organizationId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-        description: Organization ID
-    get:
-      summary: Simple Search
-      description: Simple search using query parameters
-      operationId: simpleSearchArtifacts
-      tags: [Search]
-      parameters:
-        - name: q
-          in: query
-          required: true
-          schema:
-            type: string
-          description: Search query
-          example: "JWT authentication"
-        - name: projectId
-          in: query
-          schema:
-            type: string
-            format: uuid
-          description: Filter by project ID
-        - name: maxResults
-          in: query
-          schema:
-            type: integer
-            default: 10
-            minimum: 1
-            maximum: 100
-          description: Maximum results to return
-        - name: threshold
-          in: query
-          schema:
-            type: number
-            default: 0.15
-            minimum: 0.0
-            maximum: 1.0
-          description: Similarity threshold (0.0-1.0)
-      responses:
-        "200":
-          description: Search completed successfully
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/ApiResponse"
-                  - type: object
-                    properties:
-                      data:
-                        $ref: "#/components/schemas/SemanticSearchResponseDto"
-
   /organizations/{organizationId}/artifacts/project/{projectId}/summary:
     parameters:
       - name: organizationId
@@ -12878,64 +13663,6 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/ProjectArtifactSummaryDto"
-
-  /organizations/{organizationId}/artifacts/{id}/similar:
-    parameters:
-      - name: organizationId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-        description: Organization ID
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-        description: Artifact ID
-
-    get:
-      summary: Find Similar Artifacts
-      description: Find artifact objects similar to the given one using embeddings
-      operationId: findSimilarArtifacts
-      tags: [Artifacts]
-      parameters:
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 5
-            minimum: 1
-            maximum: 20
-          description: Maximum number of similar objects to return
-        - name: threshold
-          in: query
-          schema:
-            type: number
-            default: 0.3
-            minimum: 0.0
-            maximum: 1.0
-          description: Similarity threshold (0.0-1.0)
-      responses:
-        "200":
-          description: Similar objects retrieved successfully
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/ApiResponse"
-                  - type: object
-                    properties:
-                      data:
-                        $ref: "#/components/schemas/SemanticSearchResponseDto"
-        "404":
-          description: Artifact not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
 
   # =============================================
   # Tag Management Routes
@@ -20689,6 +21416,8 @@ paths:
           description: Not found
         "401":
           description: Unauthorized
+        "409":
+          description: expectedVersion no longer matches the report; nothing was written.
     delete:
       operationId: deleteReport
       summary: Delete a report
@@ -24260,6 +24989,14 @@ components:
       $ref: "../schemas/project-reports.yaml#/ProjectReportAttempt"
     ProjectReportRequestDto:
       $ref: "../schemas/project-reports.yaml#/ProjectReportRequestDto"
+    ProjectReportHistoryRequestEntry:
+      $ref: "../schemas/project-reports.yaml#/ProjectReportHistoryRequestEntry"
+    ProjectReportHistorySavedReportEntry:
+      $ref: "../schemas/project-reports.yaml#/ProjectReportHistorySavedReportEntry"
+    ProjectReportHistoryEntry:
+      $ref: "../schemas/project-reports.yaml#/ProjectReportHistoryEntry"
+    ProjectReportHistoryPageDto:
+      $ref: "../schemas/project-reports.yaml#/ProjectReportHistoryPageDto"
     RetryProjectReportRequestDto:
       $ref: "../schemas/project-reports.yaml#/RetryProjectReportRequestDto"
     ProjectReportPreviewRequestDto:
@@ -24311,6 +25048,37 @@ components:
       $ref: "../schemas/unified-search.yaml#/UnifiedSearchRequest"
     UnifiedSearchResponse:
       $ref: "../schemas/unified-search.yaml#/UnifiedSearchResponse"
+    ConnectedEntitiesRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - entityIds
+      properties:
+        entityIds:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: string
+            format: uuid
+          description: Entities whose connected entities are listed.
+        depth:
+          type: integer
+          minimum: 1
+          maximum: 2
+          default: 1
+          description: How many link hops from the given entities are followed.
+    ConnectedEntitiesResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - entityIds
+      properties:
+        entityIds:
+          type: array
+          items:
+            type: string
+          description: Distinct connected entities, including the given ones.
     UnifiedGraphSearchResponse:
       $ref: "../schemas/unified-search.yaml#/UnifiedGraphSearchResponse"
     UnifiedBatchGraphSearchOptions:
@@ -24790,6 +25558,12 @@ components:
       $ref: "../schemas/entity-context.yaml#/PlanContextEntryDto"
     ContextRelatedEntityDto:
       $ref: "../schemas/entity-context.yaml#/ContextRelatedEntityDto"
+    ContextGroupedRelatedEntityDto:
+      $ref: "../schemas/entity-context.yaml#/ContextGroupedRelatedEntityDto"
+    ContextEntityRelationshipDto:
+      $ref: "../schemas/entity-context.yaml#/ContextEntityRelationshipDto"
+    RelatedEntitySelectionDto:
+      $ref: "../schemas/entity-context.yaml#/RelatedEntitySelectionDto"
     RelatedEntityViaDto:
       $ref: "../schemas/entity-context.yaml#/RelatedEntityViaDto"
     RelationshipValue:
@@ -24856,6 +25630,20 @@ components:
       $ref: "../schemas/reports.yaml#/ReportSortBy"
     ReportSortOrder:
       $ref: "../schemas/reports.yaml#/ReportSortOrder"
+    ReportUsageTrendKind:
+      $ref: "../schemas/reports.yaml#/ReportUsageTrendKind"
+    ReportUsageTrendGranularity:
+      $ref: "../schemas/reports.yaml#/ReportUsageTrendGranularity"
+    ReportUsageTrendAverages:
+      $ref: "../schemas/reports.yaml#/ReportUsageTrendAverages"
+    ReportUsageTrendTotals:
+      $ref: "../schemas/reports.yaml#/ReportUsageTrendTotals"
+    ReportUsageTrendBucket:
+      $ref: "../schemas/reports.yaml#/ReportUsageTrendBucket"
+    ReportUsageTrendOptions:
+      $ref: "../schemas/reports.yaml#/ReportUsageTrendOptions"
+    ReportUsageTrends:
+      $ref: "../schemas/reports.yaml#/ReportUsageTrends"
     FileTouchIndexEntryDto:
       $ref: "../schemas/reports.yaml#/FileTouchIndexEntryDto"
     FileTouchIndexEntriesDto:
@@ -25014,6 +25802,20 @@ components:
     # Auth schemas
     AccountDefaultOrganizationDto:
       $ref: ../schemas/auth.yaml#/AccountDefaultOrganizationDto
+    LocalBootstrapResponseDto:
+      $ref: ../schemas/auth.yaml#/LocalBootstrapResponseDto
+    LocalCliCredentialsResponseDto:
+      $ref: ../schemas/auth.yaml#/LocalCliCredentialsResponseDto
+    LocalHandoffRequestDto:
+      $ref: ../schemas/auth.yaml#/LocalHandoffRequestDto
+    LocalNameRequestDto:
+      $ref: ../schemas/auth.yaml#/LocalNameRequestDto
+    LocalSetupStatusDto:
+      $ref: ../schemas/auth.yaml#/LocalSetupStatusDto
+    LocalCodingAgentAvailability:
+      $ref: ../schemas/auth.yaml#/LocalCodingAgentAvailability
+    LocalCodingAgentDetectionDto:
+      $ref: ../schemas/auth.yaml#/LocalCodingAgentDetectionDto
     SetAccountDefaultOrganizationDto:
       $ref: ../schemas/auth.yaml#/SetAccountDefaultOrganizationDto
     LoginDto:
@@ -25048,6 +25850,32 @@ components:
       $ref: "../schemas/auth.yaml#/OnboardBetaUserResponseDto"
     PlatformAdminAccessDto:
       $ref: "../schemas/auth.yaml#/PlatformAdminAccessDto"
+    AccountPasskeyDto:
+      $ref: "../schemas/auth.yaml#/AccountPasskeyDto"
+    AccountPasskeyListDto:
+      $ref: "../schemas/auth.yaml#/AccountPasskeyListDto"
+    AccountPasskeyRegistrationOptionsDto:
+      $ref: "../schemas/auth.yaml#/AccountPasskeyRegistrationOptionsDto"
+    AccountPasskeyAssertionOptionsDto:
+      $ref: "../schemas/auth.yaml#/AccountPasskeyAssertionOptionsDto"
+    AccountPasskeyProofOptionsRequestDto:
+      $ref: "../schemas/auth.yaml#/AccountPasskeyProofOptionsRequestDto"
+    AccountPasskeyRegistrationCredentialDto:
+      $ref: "../schemas/auth.yaml#/AccountPasskeyRegistrationCredentialDto"
+    AccountPasskeyAssertionCredentialDto:
+      $ref: "../schemas/auth.yaml#/AccountPasskeyAssertionCredentialDto"
+    AccountProofDto:
+      $ref: "../schemas/auth.yaml#/AccountProofDto"
+    AccountPasskeySignInDto:
+      $ref: "../schemas/auth.yaml#/AccountPasskeySignInDto"
+    AccountPasskeyRegistrationDto:
+      $ref: "../schemas/auth.yaml#/AccountPasskeyRegistrationDto"
+    AccountPasskeyRenameDto:
+      $ref: "../schemas/auth.yaml#/AccountPasskeyRenameDto"
+    AccountPasskeyRemovalDto:
+      $ref: "../schemas/auth.yaml#/AccountPasskeyRemovalDto"
+    DevAdminModeDto:
+      $ref: "../schemas/auth.yaml#/DevAdminModeDto"
 
     # Private beta access schemas
     PrivateBetaAccessRequestId:
@@ -25528,6 +26356,10 @@ components:
       $ref: "../schemas/conversations.yaml#/OnboardingPlanStageProposalReviewPayload"
     OnboardingPlanStageProposalReviewUserSubmission:
       $ref: "../schemas/conversations.yaml#/OnboardingPlanStageProposalReviewUserSubmission"
+    LocalOnboardingStepRequest:
+      $ref: "../schemas/conversations.yaml#/LocalOnboardingStepRequest"
+    LocalOnboardingStepResponse:
+      $ref: "../schemas/conversations.yaml#/LocalOnboardingStepResponse"
     SubmitOnboardingReplyRequestDto:
       $ref: "../schemas/conversations.yaml#/SubmitOnboardingReplyRequestDto"
     SubmitRepositoryImportReplyRequestDto:
@@ -25580,6 +26412,8 @@ components:
       $ref: "../schemas/controller-authorization.yaml#/ControllerInstallationId"
     ControllerAuthorizationCadence:
       $ref: "../schemas/controller-authorization.yaml#/ControllerAuthorizationCadence"
+    ControllerDeviceGrantCadence:
+      $ref: "../schemas/controller-authorization.yaml#/ControllerDeviceGrantCadence"
     ControllerDeviceGrantScope:
       $ref: "../schemas/controller-authorization.yaml#/ControllerDeviceGrantScope"
     ControllerDeviceGrantDescriptor:
@@ -25875,6 +26709,12 @@ components:
       $ref: "../schemas/mcp.yaml#/GetAgentSessionErrorCode"
     GetAgentSessionError:
       $ref: "../schemas/mcp.yaml#/GetAgentSessionError"
+    GetEntityIdentitiesRequest:
+      $ref: "../schemas/mcp.yaml#/GetEntityIdentitiesRequest"
+    GetEntityIdentity:
+      $ref: "../schemas/mcp.yaml#/GetEntityIdentity"
+    GetEntityIdentitiesResponse:
+      $ref: "../schemas/mcp.yaml#/GetEntityIdentitiesResponse"
     McpToolEntry:
       $ref: "../schemas/mcp.yaml#/McpToolEntry"
     McpToolCatalogResponse:
@@ -25982,6 +26822,8 @@ components:
         - controllerCredentialFingerprint
         - backupEligible
         - backupState
+        - controllerCredentialPublicKey
+        - registrationChallenge
         - confirmationNonce
         - expiresAt
       properties:
@@ -26064,6 +26906,21 @@ components:
             Single-use server nonce that the machine must include in its
             canonical signed confirmation object.
           example: "Y29uZmlybWF0aW9uLW5vbmNlLTEyMw"
+        controllerCredentialPublicKey:
+          $ref: "#/components/schemas/ControllerCredentialPublicKey"
+          description: >-
+            Verified controller public key. The local approval proof covers the
+            SHA-256 of its SubjectPublicKeyInfo, so the API cannot substitute it.
+        registrationChallenge:
+          type: string
+          minLength: 43
+          maxLength: 128
+          pattern: "^[A-Za-z0-9_-]+$"
+          description: The WebAuthn registration challenge the claim was verified against.
+        localApprovalProof:
+          $ref: "#/components/schemas/MachineEnrollmentLocalApprovalProof"
+        firstLocalGrant:
+          $ref: "#/components/schemas/FirstLocalGrantIntent"
         expiresAt:
           type: string
           format: date-time
@@ -26138,6 +26995,33 @@ components:
           pattern: "^[A-Za-z0-9_-]+$"
           description: Single-use nonce returned by the ready poll response.
           example: "Y29uZmlybWF0aW9uLW5vbmNlLTEyMw"
+        firstLocalGrant:
+          $ref: "#/components/schemas/FirstLocalGrantConfirmationDto"
+
+    FirstLocalGrantConfirmationDto:
+      type: object
+      additionalProperties: false
+      required:
+        - issuedAtMs
+        - grantDescriptorHash
+      properties:
+        issuedAtMs:
+          type: integer
+          format: int64
+          description: >-
+            Activation time the CLI chose as the start of the grant window. The
+            API accepts it only within a short window around its own clock.
+        grantDescriptorHash:
+          type: string
+          pattern: "^[a-f0-9]{64}$"
+          description: >-
+            Lowercase hex SHA-256 of the RFC 8785 ControllerDeviceGrantDescriptor
+            the CLI derived from the ready claim's FirstLocalGrantIntent, the
+            controller credential and issuedAtMs.
+      description: >-
+        Present only when the CLI verified the local approval proof for the
+        ready claim's FirstLocalGrantIntent. The API issues the first grant only
+        for this exact descriptor; without it, activation issues no grant.
 
     ConfirmMachineEnrollmentResponseDto:
       type: object
@@ -26174,6 +27058,8 @@ components:
           example: 2
         activatedBinding:
           $ref: "#/components/schemas/MachineEnrollmentActivatedBindingDto"
+        firstLocalGrant:
+          $ref: "#/components/schemas/FirstLocalGrantActivationDto"
 
     MachineEnrollmentActivatedBindingDto:
       type: object
@@ -26484,6 +27370,156 @@ components:
           maxLength: 128
           description: User-visible label for the controller being enrolled.
           example: "Zac's browser"
+        enrollmentMode:
+          $ref: "#/components/schemas/MachineEnrollmentMode"
+        firstLocalGrant:
+          $ref: "#/components/schemas/FirstLocalGrantRequestDto"
+
+    MachineEnrollmentMode:
+      type: string
+      enum:
+        - CONTROLLER_ONLY
+        - SHARED_NEW
+      description: >-
+        How the credential created by this claim is used. CONTROLLER_ONLY
+        (default) creates a controller credential only. SHARED_NEW creates one
+        discoverable ES256 credential in a single ceremony that is explicitly
+        enrolled both as an account sign-in passkey and as this computer's
+        controller. Sign-in eligibility never grants execution authority: the
+        computer still confirms locally and verifies controller proof itself.
+        The mode is fixed when the claim begins and is returned unchanged on
+        recoverable retries.
+
+    FirstLocalGrantRequestDto:
+      type: object
+      additionalProperties: false
+      required:
+        - cadence
+      properties:
+        cadence:
+          $ref: "#/components/schemas/ControllerDeviceGrantCadence"
+      description: >-
+        First-time `heyhey local` pairing only. The duration the person chose
+        for this browser to drive this computer, or UNTIL_REVOKED for a grant
+        with no expiry. The claim's passkey challenge
+        then commits to a FirstLocalGrantIntent for the account's default
+        project, so the same passkey approval can also create the first grant.
+        Requesting it confers nothing by itself: the grant is issued only if the
+        originating CLI verifies the local approval proof and signs the grant
+        descriptor hash in its confirmation. Repeating begin-claim with a
+        different cadence re-issues the unconsumed challenge.
+
+    FirstLocalGrantIntent:
+      type: object
+      additionalProperties: false
+      required:
+        - version
+        - enrollmentId
+        - machineId
+        - userId
+        - organizationId
+        - projectId
+        - controllerInstallationId
+        - cadence
+        - policyRevision
+        - allowedActionTypes
+        - allowedActionCategories
+        - target
+        - issuedAtMs
+        - nonce
+      properties:
+        version:
+          type: integer
+          enum:
+            - 1
+        enrollmentId:
+          type: string
+          format: uuid
+        machineId:
+          $ref: "#/components/schemas/MachineId"
+        userId:
+          $ref: "#/components/schemas/UserId"
+        organizationId:
+          $ref: "#/components/schemas/OrganizationId"
+        projectId:
+          type: string
+          format: uuid
+          description: The default project the first authorization belongs to.
+        controllerInstallationId:
+          $ref: "#/components/schemas/ControllerInstallationId"
+        cadence:
+          $ref: "#/components/schemas/ControllerDeviceGrantCadence"
+        policyRevision:
+          type: integer
+          format: int32
+          minimum: 1
+        allowedActionTypes:
+          $ref: "#/components/schemas/CurrentAgentOperations"
+        allowedActionCategories:
+          type: array
+          minItems: 1
+          maxItems: 7
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/HostActionCategory"
+        target:
+          $ref: "#/components/schemas/FirstLocalGrantTarget"
+        issuedAtMs:
+          type: integer
+          format: int64
+          description: When the claim's challenge was issued.
+        nonce:
+          type: string
+          minLength: 43
+          maxLength: 43
+          pattern: "^[A-Za-z0-9_-]{43}$"
+          description: Unpadded base64url 256-bit nonce.
+      description: >-
+        What one first-time local passkey registration authorizes, before the
+        credential exists. The WebAuthn registration challenge is the unpadded
+        base64url of the 32 nonce bytes followed by
+        SHA-256("heyhey-first-local-grant-v1" || 0x00 || RFC 8785 JSON of this
+        intent). The grant window starts at activation: once the credential
+        exists, these fields, its identifier and the CLI-signed activation time
+        determine the ordinary ControllerDeviceGrantDescriptor exactly.
+
+    FirstLocalGrantTarget:
+      type: object
+      additionalProperties: false
+      required:
+        - kind
+        - id
+      properties:
+        kind:
+          type: string
+          enum:
+            - CLI_READ
+        id:
+          $ref: "#/components/schemas/MachineId"
+      description: >-
+        The initial exact authorization context: a machine-addressed CLI read.
+        It is separate from the reusable grant scope in the descriptor.
+
+    FirstLocalGrantActivationDto:
+      type: object
+      additionalProperties: false
+      required:
+        - authorizationId
+        - grantId
+        - grantDescriptor
+      properties:
+        authorizationId:
+          type: string
+          format: uuid
+        grantId:
+          type: string
+          format: uuid
+        grantDescriptor:
+          $ref: "#/components/schemas/ControllerDeviceGrantDescriptor"
+      description: >-
+        The first grant issued atomically with activation because the CLI's
+        signed confirmation named its descriptor hash. The CLI recomputes and
+        compares the hash before installing the grant in its own store.
 
     AbandonMachineEnrollmentClaimRequestDto:
       $ref: "../schemas/machines.yaml#/AbandonMachineEnrollmentClaimRequestDto"
@@ -26571,8 +27607,12 @@ components:
           format: date-time
           description: Absolute timestamp at which the enrollment expires.
           example: "2026-08-11T18:05:00.000Z"
+        enrollmentMode:
+          $ref: "#/components/schemas/MachineEnrollmentMode"
         registrationOptions:
           $ref: "#/components/schemas/MachineEnrollmentWebAuthnRegistrationOptionsDto"
+        firstLocalGrant:
+          $ref: "#/components/schemas/FirstLocalGrantIntent"
 
     BeginMachineEnrollmentAwaitingConfirmationDto:
       type: object
@@ -26742,7 +27782,11 @@ components:
           type: string
           enum:
             - preferred
-          description: A discoverable credential is preferred.
+            - required
+          description: >-
+            A discoverable credential is preferred for controller-only claims
+            and required for SHARED_NEW claims, so the credential can also
+            sign in to the account.
           example: "preferred"
 
     CompleteMachineEnrollmentClaimRequestDto:
@@ -26762,6 +27806,37 @@ components:
           $ref: "#/components/schemas/OrganizationId"
         credential:
           $ref: "#/components/schemas/MachineEnrollmentWebAuthnRegistrationCredentialDto"
+        localApprovalProof:
+          $ref: "#/components/schemas/MachineEnrollmentLocalApprovalProof"
+        accountProof:
+          allOf:
+            - $ref: "#/components/schemas/AccountProofDto"
+          description: >-
+            Required when the claim began in SHARED_NEW mode and rejected
+            otherwise. Fresh account proof, answering a challenge issued for
+            registering an account passkey, authorizing the credential's
+            sign-in eligibility. A local deployment may omit it for a
+            SHARED_NEW claim only when the acting session is the one the CLI
+            opened on this computer and the account has no passkey yet; every
+            other proofless SHARED_NEW completion is rejected.
+
+    MachineEnrollmentLocalApprovalProof:
+      type: string
+      minLength: 43
+      maxLength: 43
+      pattern: "^[A-Za-z0-9_-]{43}$"
+      description: >-
+        Unpadded base64url HMAC-SHA-256 that a first-time `heyhey local`
+        pairing page computes from the one-time local approval secret it
+        received from the CLI. The message is the UTF-8 newline-joined list of
+        "heyhey-local-approval-v2", the enrollment, account, organization and
+        controller credential identifiers, the lowercase hex SHA-256 of the
+        credential's SubjectPublicKeyInfo, and the registration challenge. The
+        challenge commits to any FirstLocalGrantIntent. The API stores it
+        opaquely with the claim and returns it only to the device-secret poll;
+        it confers no API-side authority. Only the originating CLI can verify
+        it.
+      example: "q2X0n3H5bJ1m8Qe6p4T9wVZ7cA0kL2sD5fG8hJ1mN3o"
 
     MachineEnrollmentWebAuthnRegistrationCredentialDto:
       type: object
@@ -26882,6 +27957,13 @@ components:
           maxLength: 128
           description: User-visible label retained for the controller credential.
           example: "Zac's browser"
+        session:
+          allOf:
+            - $ref: "#/components/schemas/BrowserSessionResponseDto"
+          description: >-
+            Present only for SHARED_NEW. Adding sign-in eligibility replaces
+            every earlier browser session; this is the single fresh session for
+            the acting browser.
 
     MachineEnrollmentClaimFailureCode:
       type: string
@@ -27770,13 +28852,6 @@ components:
     PaginatedArtifactsDto:
       $ref: "../schemas/artifacts.yaml#/PaginatedArtifactsDto"
 
-    SemanticSearchDto:
-      $ref: "../schemas/artifacts.yaml#/SemanticSearchDto"
-    SearchResultDto:
-      $ref: "../schemas/artifacts.yaml#/SearchResultDto"
-    SemanticSearchResponseDto:
-      $ref: "../schemas/artifacts.yaml#/SemanticSearchResponseDto"
-
     QueryArtifactsDto:
       $ref: "../schemas/artifacts.yaml#/QueryArtifactsDto"
     ProjectArtifactSummaryDto:
@@ -28391,6 +29466,10 @@ components:
       $ref: "../schemas/work-items.yaml#/WorkItemGraphLayoutNodeRef"
     WorkItemGraphAggregateResponseDto:
       $ref: "../schemas/work-items.yaml#/WorkItemGraphAggregateResponseDto"
+    UxFlowMembership:
+      $ref: "../schemas/work-items.yaml#/UxFlowMembership"
+    UxFlowMembershipResponseDto:
+      $ref: "../schemas/work-items.yaml#/UxFlowMembershipResponseDto"
     WorkItemGraphDerivedReference:
       $ref: "../schemas/work-items.yaml#/WorkItemGraphDerivedReference"
     WorkItemGraphParticipationType:
@@ -28532,6 +29611,8 @@ components:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeEffectiveSource"
     WorkItemTypeSummaryDto:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeSummaryDto"
+    WorkItemTypeCanonicalComparisonDto:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeCanonicalComparisonDto"
     WorkItemTypeEditRequestDto:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeEditRequestDto"
     WorkItemTypeSectionContentImpactDto:
@@ -30633,6 +31714,14 @@ components:
       $ref: "../schemas/eval-runs.yaml#/EvalCaseGrading"
     EvalRunSettings:
       $ref: "../schemas/eval-runs.yaml#/EvalRunSettings"
+    EvalCaseCoding:
+      $ref: "../schemas/eval-runs.yaml#/EvalCaseCoding"
+    EvalCaseCodingCommit:
+      $ref: "../schemas/eval-runs.yaml#/EvalCaseCodingCommit"
+    EvalCaseMockupChecklist:
+      $ref: "../schemas/eval-runs.yaml#/EvalCaseMockupChecklist"
+    EvalCaseMockupChecklistItem:
+      $ref: "../schemas/eval-runs.yaml#/EvalCaseMockupChecklistItem"
     EvalRunCaseInput:
       $ref: "../schemas/eval-runs.yaml#/EvalRunCaseInput"
     EvalRecordedAttempt:

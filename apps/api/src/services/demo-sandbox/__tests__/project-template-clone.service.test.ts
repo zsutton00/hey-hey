@@ -6,7 +6,10 @@ import { DemoTemplateGraphService } from '../template-graph.service';
 import { DomainEventPublisher } from '../../../core/events/domain-event-publisher';
 import { OutboxStore } from '../../outbox-store.service';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { TemplateGraphSnapshot } from '../../../generated/graphs';
+import {
+  TemplateGraphCopyCommand,
+  TemplateGraphSnapshot,
+} from '../../../generated/graphs';
 import { ProjectApprovalPolicyService } from '../../proposal/project-approval-policy.service';
 import { evaluatePermissions } from '../../proposal/permission-evaluation';
 import { ProjectId } from '../../../types';
@@ -396,10 +399,10 @@ describe('ProjectTemplateCloneService', () => {
       expect(child.sourceConversationId).toBeNull();
       expect(f.state.task).toHaveLength(4);
       const command = f.state.demoGraphCopyIntent![0]!.command as {
-        snapshot: TemplateGraphSnapshot;
+        graphCommand: TemplateGraphCopyCommand;
       };
-      expect(command.snapshot.nodes).toHaveLength(3);
-      expect(command.snapshot.edges).toHaveLength(1);
+      expect(command.graphCommand.snapshot.nodes).toHaveLength(3);
+      expect(command.graphCommand.snapshot.edges).toHaveLength(1);
       expect(warning).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
@@ -599,18 +602,35 @@ describe('ProjectTemplateCloneService', () => {
     const intent = f.state.demoGraphCopyIntent![0]!;
     expect(intent.id).toBe(result.graphCopyIntentId);
     expect(JSON.stringify(intent.command)).toContain(result.idMap.get(f.child));
+    expect(intent.command).toMatchObject({
+      readinessWorkItems: result.copiedWorkItems,
+      readinessDesignDocs: result.copiedDesignDocs,
+    });
     expect(JSON.stringify(intent.command)).not.toContain(
       f.snapshot.edges[0]!.id,
     );
   });
 
-  it('reports exactly the FEATURE tasks it copied, including one added to the template just before the clone', async () => {
+  it('captures every copied work-item identity, type and remapped parent from the clone', async () => {
     const f = fixture();
     const source = f.state.task!.find((row) => row.id === f.feature)!;
     // Added after admission started, e.g. by a template editor; it is copied,
     // so readiness must wait for it too.
     const late = { ...source, id: randomUUID() };
     f.state.task!.push(late);
+    const bug = {
+      ...source,
+      id: randomUUID(),
+      type: 'BUG',
+      parentTaskId: null,
+    };
+    const custom = {
+      ...source,
+      id: randomUUID(),
+      type: 'CUSTOM_CHECKLIST',
+      parentTaskId: f.child,
+    };
+    f.state.task!.push(bug, custom);
     for (const section of f.state.taskSection!.filter(
       (row) => row.taskId === f.feature,
     )) {
@@ -631,6 +651,30 @@ describe('ProjectTemplateCloneService', () => {
     expect(sourceFeatures).toContain(late.id);
     expect([...result.copiedFeatureIds].sort()).toEqual(
       sourceFeatures.map((id) => result.idMap.get(id)!).sort(),
+    );
+    expect(result.copiedWorkItems).toEqual(
+      expect.arrayContaining([
+        {
+          id: result.idMap.get(f.feature),
+          typeKey: 'FEATURE',
+          parentTaskId: null,
+        },
+        {
+          id: result.idMap.get(f.child),
+          typeKey: 'STANDARD',
+          parentTaskId: result.idMap.get(f.feature),
+        },
+        {
+          id: result.idMap.get(bug.id as string),
+          typeKey: 'BUG',
+          parentTaskId: null,
+        },
+        {
+          id: result.idMap.get(custom.id as string),
+          typeKey: 'CUSTOM_CHECKLIST',
+          parentTaskId: result.idMap.get(f.child),
+        },
+      ]),
     );
     for (const id of result.copiedFeatureIds) {
       expect(f.state.task!.find((row) => row.id === id)?.projectId).toBe(

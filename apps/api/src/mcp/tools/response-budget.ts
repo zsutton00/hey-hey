@@ -9,6 +9,15 @@ export const CHARACTERS_PER_TOKEN = 4;
 export const RESPONSE_CHARACTER_BUDGET =
   RESPONSE_TOKEN_BUDGET * CHARACTERS_PER_TOKEN;
 
+/**
+ * Unified search shares one larger budget across a batch of queries, so
+ * compact hits fit more requested results. It exceeds the documented provider
+ * display cap above; other read tools keep RESPONSE_CHARACTER_BUDGET.
+ */
+export const SEARCH_RESPONSE_TOKEN_BUDGET = 12_000;
+export const SEARCH_RESPONSE_CHARACTER_BUDGET =
+  SEARCH_RESPONSE_TOKEN_BUDGET * CHARACTERS_PER_TOKEN;
+
 export const SIZE_BUDGET_REASON = 'SIZE_BUDGET';
 
 /**

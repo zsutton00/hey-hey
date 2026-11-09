@@ -9,7 +9,7 @@ import { InitiativeArtifactService } from '../initiative-artifact.service';
 import { InitiativeService } from '../initiative.service';
 import { InitiativeDraft } from '../types';
 import { EntityRegistryService } from '../../entity-registry/entity-registry.service';
-import { Influence } from '../../../generated';
+import { Influence } from '@hey-hey/contracts/api/models';
 
 describe('InitiativeService - Influence Extraction', () => {
   let service: InitiativeService;

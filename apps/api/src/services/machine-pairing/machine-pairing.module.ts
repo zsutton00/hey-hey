@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ServerSigningModule } from '../../core/server-signing/server-signing.module';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { DemoSandboxActivityModule } from '../demo-sandbox/demo-sandbox-activity.module';
@@ -14,7 +14,7 @@ import { CurrentControllerMachineEligibilityService } from './current-controller
   imports: [
     PrismaModule,
     ServerSigningModule,
-    WebsocketsModule,
+    forwardRef(() => WebsocketsModule),
     DemoSandboxActivityModule,
   ],
   providers: [

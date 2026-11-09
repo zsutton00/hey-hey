@@ -261,6 +261,55 @@ describe("HTML/CSS work-item sections", () => {
     expect(screen.getByTitle("Visual mockup")).toHaveAttribute("sandbox", "");
   });
 
+  it("puts the visual section first, then attached content, then Purpose", () => {
+    render(
+      <WorkItemReadView
+        {...makeReadViewProps(
+          {
+            status: "resolved",
+            typeKey: "mockup",
+            sections: [
+              { key: "purpose", label: "Purpose", kind: "markdown" },
+              {
+                key: "visual",
+                label: "Visual",
+                kind: "html/css",
+                defaultSizeKey: "panel",
+                sizeProfiles: [
+                  {
+                    key: "panel",
+                    label: "Panel",
+                    breakpoints: [
+                      {
+                        minContainerWidth: 0,
+                        inline: { width: 320, height: 200 },
+                        page: { width: 800, height: 600 },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            purpose: "Why this exists",
+            visual: JSON.stringify({ html: "<main>Preview</main>", css: "" }),
+          },
+        )}
+        afterVisualSections={<div data-testid="attached-flows" />}
+      />,
+    );
+
+    const keys = screen
+      .getAllByTestId(/^(work-item-section|attached-flows)$/)
+      .map(
+        (node) =>
+          node.getAttribute("data-section-key") ??
+          node.getAttribute("data-testid"),
+      );
+    expect(keys).toEqual(["visual", "attached-flows", "purpose"]);
+  });
+
   it("forwards the stored item's identity so a mockup in a Run shows its pencil", () => {
     const readViewProps = makeReadViewProps(
       {
@@ -1178,6 +1227,31 @@ describe("WorkItemReadView requirements section", () => {
       screen.getByTestId("feature-requirements-invalid"),
     ).toBeInTheDocument();
     expect(section.textContent ?? "").not.toContain(requirements);
+  });
+
+  it("shows the empty state for empty requirements even when the section definition declares no schema", () => {
+    const undeclaredSchemaFeature: WorkItemSectionSelection = {
+      status: "resolved",
+      typeKey: "FEATURE",
+      sections: [
+        { key: "description", label: "Description" },
+        { key: "requirements", label: "Requirements" },
+      ],
+    };
+    render(
+      <WorkItemReadView
+        {...makeReadViewProps(undeclaredSchemaFeature, {
+          requirements: JSON.stringify({ records: [] }),
+        })}
+      />,
+      { wrapper },
+    );
+
+    const section = screen.getByTestId("feature-requirements-section");
+    expect(
+      screen.queryByTestId("feature-requirements-invalid"),
+    ).not.toBeInTheDocument();
+    expect(section.textContent ?? "").not.toContain('"records"');
   });
 
   it("shows helper text explaining the boundary with acceptanceCriteria", () => {

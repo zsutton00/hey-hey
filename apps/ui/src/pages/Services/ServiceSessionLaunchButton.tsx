@@ -3,7 +3,7 @@ import {
   type GraphConversationLaunchInput,
   useEntityConversationLauncher,
 } from "@hey-hey/ui-common/components";
-import { EntityType } from "@hey-hey/ui-common/api";
+import { EntityType } from "@hey-hey/contracts/api";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import { Button } from "@mui/material";
 import React, { useCallback, useState } from "react";
@@ -40,7 +40,7 @@ export const ServiceSessionLaunchButton: React.FC<
       }
       return launched;
     },
-    [launcher, serviceId, serviceName]
+    [launcher, serviceId, serviceName],
   );
 
   return (

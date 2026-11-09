@@ -9,7 +9,7 @@ import {
   type FeatureHierarchyEntryDto,
   type PlanContextEntryDto,
   type TaskResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { WebPathService } from "@hey-hey/ui-common/services";
 import type { BreadcrumbItem } from "@hey-hey/ui-common/utils";
 import { PageBreadcrumbs } from "./Layout";
@@ -47,20 +47,21 @@ export interface BreadcrumbFeatureAncestor {
 }
 
 export function getStructuralFeatureAncestors(
-  featureHierarchy: readonly FeatureHierarchyEntryDto[] = []
+  featureHierarchy: readonly FeatureHierarchyEntryDto[] = [],
 ): FeatureHierarchyEntryDto[] {
   return featureHierarchy
     .filter(
       (entry) =>
         entry.relationshipType ===
           FeatureHierarchyEntryDtoRelationshipTypeEnum.Structural &&
-        entry.relationship === FeatureHierarchyEntryDtoRelationshipEnum.Ancestor
+        entry.relationship ===
+          FeatureHierarchyEntryDtoRelationshipEnum.Ancestor,
     )
     .sort((a, b) => (b.distance ?? 0) - (a.distance ?? 0));
 }
 
 export function getTaskBreadcrumbType(
-  task: Pick<TaskBreadcrumbWorkItem, "type">
+  task: Pick<TaskBreadcrumbWorkItem, "type">,
 ): string {
   switch (task.type) {
     case WORK_ITEM_TYPE_KEYS.Feature:
@@ -84,7 +85,7 @@ export function getTaskBreadcrumbType(
 
 function getTaskBreadcrumbLabel(
   task: TaskBreadcrumbWorkItem,
-  registryName?: string
+  registryName?: string,
 ): string {
   return registryName ?? getWorkItemTypeLabel(task.type) ?? "Work item";
 }

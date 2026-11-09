@@ -32,7 +32,7 @@ import {
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import { TopologyApi, Configuration } from "@hey-hey/ui-common/api";
+import { TopologyApi, Configuration } from "@hey-hey/contracts/api";
 import type {
   TopologyCategorySummaryDto,
   TopologySubfacetDto,
@@ -40,7 +40,7 @@ import type {
   TopologyCategorySummarizationRunDto,
   TopologySubfacetConsolidationRunDto,
   TopologySummaryCategory,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { useProjects } from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import { getApiBaseUrl } from "@hey-hey/ui-common/services";

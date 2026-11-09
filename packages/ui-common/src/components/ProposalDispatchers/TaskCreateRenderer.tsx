@@ -40,6 +40,10 @@ import type { ProposalItemStatus } from "./types";
 import { isPlaceholderEntityId } from "./types";
 import { ProposalStateIndicator } from "./ProposalStateIndicator";
 import { ProposalEdges } from "./ProposalEdges";
+import {
+  RelationshipDecisionsReview,
+  supersededIds,
+} from "./RelationshipDecisionsReview";
 import type { ApprovalProgress } from "../../permissions";
 import type { ProposalRenderOverrides } from "./proposalRenderOverrides";
 import { getEntry, setNewEntityId } from "./proposalSelectedStateCache";
@@ -383,6 +387,10 @@ export const TaskCreateRenderer: React.FC<{
     definition: workItemTypeDefinition,
     proposedSections: updates.sections,
   });
+  const isMockupProposal = updates.type === "mockup";
+  const mockupPreviewSections = proposedSections.filter(
+    ({ kind }) => kind === "html/css" || kind === "structured-mockup",
+  );
   const proposedRequirementsSection = proposedSections.find(
     (section) => section.key === "requirements",
   );
@@ -438,91 +446,145 @@ export const TaskCreateRenderer: React.FC<{
           }
         />
       )}
-      {proposedSections.map((section) => (
-        <Stack
-          key={section.key}
-          spacing={0.5}
-          data-testid="task-proposal-section"
-          data-section-key={section.key}
-        >
-          <Typography variant="caption" color="text.secondary">
-            {section.label}
-          </Typography>
-          {section.kind === "json" &&
-          isModeFilesSection({
-            typeKey: updates.type,
-            key: section.key,
-            kind: section.kind,
-          }) ? (
-            <ModeFilesSectionRenderer
-              content={section.proposedValue}
-              mentionConfig={modeMentionConfig}
-            />
-          ) : section.kind === "json" &&
-            isModeSettingsSection({
-              typeKey: updates.type,
-              key: section.key,
-              kind: section.kind,
-            }) ? (
-            <ModeSettingsSectionRenderer content={section.proposedValue} />
-          ) : isImageSectionDefinition(section.definition) ? (
-            <ImageSectionRenderer
-              content={section.proposedValue}
-              label={section.label}
-            />
-          ) : section.kind === "json" &&
-            !(
-              section.key === "requirements" &&
-              proposedRequirementsState !== undefined
-            ) ? (
-            <JsonSectionRenderer content={section.proposedValue} />
-          ) : section.kind === "html/css" ? (
-            <HtmlCssSectionRenderer
-              content={section.proposedValue}
-              definition={section.definition}
-              context="inline"
-              title={`${section.label} proposal preview`}
-              organizationId={proposal.organizationId}
-              projectId={proposal.projectId}
-              mockupSource={{
-                kind: "proposal",
-                proposalId: proposal.id,
-                sectionKey: section.key,
-              }}
-            />
-          ) : section.kind === "structured-mockup" ? (
-            <StructuredMockupSectionRenderer
-              content={section.proposedValue}
-              definition={section.definition}
-              context="inline"
-            />
-          ) : section.key === "requirements" &&
-            proposedRequirementsState !== undefined ? (
-            proposedRequirementsState.status === "invalid" ? (
-              <Alert
-                severity="error"
-                data-testid="feature-requirements-invalid"
-              >
-                {proposedRequirementsState.reason}
-              </Alert>
-            ) : proposedRequirementsState.status === "valid" ? (
-              <StructuredRequirementsView
-                requirements={proposedRequirementsState.records}
-              />
-            ) : (
-              <Typography variant="body2" color="text.secondary">
-                (empty)
+      {isMockupProposal && mockupPreviewSections.length > 0 && (
+        <Stack spacing={1.5} data-testid="mockup-proposal-screen-first">
+          {mockupPreviewSections.map((section) => (
+            <Stack key={section.key} spacing={0.5}>
+              <Typography variant="caption" color="text.secondary">
+                {section.label}
               </Typography>
-            )
-          ) : (
-            <Typography variant="body2" color="text.secondary" component="div">
-              <MarkdownRenderer allowMentionEscapes>
-                {section.proposedContent || "(empty)"}
-              </MarkdownRenderer>
-            </Typography>
-          )}
+              {section.kind === "html/css" ? (
+                <HtmlCssSectionRenderer
+                  content={section.proposedValue}
+                  definition={section.definition}
+                  context="inline"
+                  title={`${section.label} proposal preview`}
+                  organizationId={proposal.organizationId}
+                  projectId={proposal.projectId}
+                  mockupSource={{
+                    kind: "proposal",
+                    proposalId: proposal.id,
+                    sectionKey: section.key,
+                  }}
+                />
+              ) : (
+                <StructuredMockupSectionRenderer
+                  content={section.proposedValue}
+                  definition={section.definition}
+                  context="inline"
+                />
+              )}
+            </Stack>
+          ))}
         </Stack>
-      ))}
+      )}
+      <Box
+        component={isMockupProposal ? "details" : "div"}
+        data-testid={
+          isMockupProposal ? "mockup-proposal-written-sections" : undefined
+        }
+      >
+        {isMockupProposal && (
+          <Box component="summary" sx={{ cursor: "pointer" }}>
+            Written details
+          </Box>
+        )}
+        {proposedSections
+          .filter(
+            ({ kind }) =>
+              !isMockupProposal ||
+              (kind !== "html/css" && kind !== "structured-mockup"),
+          )
+          .map((section) => (
+            <Stack
+              key={section.key}
+              spacing={0.5}
+              data-testid="task-proposal-section"
+              data-section-key={section.key}
+            >
+              <Typography variant="caption" color="text.secondary">
+                {section.label}
+              </Typography>
+              {section.kind === "json" &&
+              isModeFilesSection({
+                typeKey: updates.type,
+                key: section.key,
+                kind: section.kind,
+              }) ? (
+                <ModeFilesSectionRenderer
+                  content={section.proposedValue}
+                  mentionConfig={modeMentionConfig}
+                />
+              ) : section.kind === "json" &&
+                isModeSettingsSection({
+                  typeKey: updates.type,
+                  key: section.key,
+                  kind: section.kind,
+                }) ? (
+                <ModeSettingsSectionRenderer content={section.proposedValue} />
+              ) : isImageSectionDefinition(section.definition) ? (
+                <ImageSectionRenderer
+                  content={section.proposedValue}
+                  label={section.label}
+                />
+              ) : section.kind === "json" &&
+                !(
+                  section.key === "requirements" &&
+                  proposedRequirementsState !== undefined
+                ) ? (
+                <JsonSectionRenderer content={section.proposedValue} />
+              ) : section.kind === "html/css" ? (
+                <HtmlCssSectionRenderer
+                  content={section.proposedValue}
+                  definition={section.definition}
+                  context="inline"
+                  title={`${section.label} proposal preview`}
+                  organizationId={proposal.organizationId}
+                  projectId={proposal.projectId}
+                  mockupSource={{
+                    kind: "proposal",
+                    proposalId: proposal.id,
+                    sectionKey: section.key,
+                  }}
+                />
+              ) : section.kind === "structured-mockup" ? (
+                <StructuredMockupSectionRenderer
+                  content={section.proposedValue}
+                  definition={section.definition}
+                  context="inline"
+                />
+              ) : section.key === "requirements" &&
+                proposedRequirementsState !== undefined ? (
+                proposedRequirementsState.status === "invalid" ? (
+                  <Alert
+                    severity="error"
+                    data-testid="feature-requirements-invalid"
+                  >
+                    {proposedRequirementsState.reason}
+                  </Alert>
+                ) : proposedRequirementsState.status === "valid" ? (
+                  <StructuredRequirementsView
+                    requirements={proposedRequirementsState.records}
+                  />
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    (empty)
+                  </Typography>
+                )
+              ) : (
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  component="div"
+                >
+                  <MarkdownRenderer allowMentionEscapes>
+                    {section.proposedContent || "(empty)"}
+                  </MarkdownRenderer>
+                </Typography>
+              )}
+            </Stack>
+          ))}
+      </Box>
       {proposedServiceIds !== undefined && (
         <Stack spacing={0.5} data-testid="task-proposal-services">
           <Typography variant="caption" color="text.secondary">
@@ -553,6 +615,13 @@ export const TaskCreateRenderer: React.FC<{
         organizationId={proposal.organizationId}
         projectId={proposal.projectId}
       />
+      {proposal.updates.relationshipDecisions && (
+        <RelationshipDecisionsReview
+          decisions={proposal.updates.relationshipDecisions}
+          supersededIds={supersededIds(proposal.edges)}
+          newItemName={proposal.updates.name}
+        />
+      )}
       {siblingProposals && (
         <ProposalEdges
           edges={proposal.edges}

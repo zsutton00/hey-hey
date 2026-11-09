@@ -23,7 +23,7 @@ import {
   CreateAgentSessionDtoProviderEnum,
   SessionMethod,
   WorkflowName,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import { RunCreationCoordinator } from './run-creation-coordinator';
 import { createTestRunRegistryWiring } from '../__tests__/helpers/test-run-registry';
 import { MessageService } from './message.service';

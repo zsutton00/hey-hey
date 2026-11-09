@@ -1,5 +1,5 @@
 import type { WorkItemIconIdentity } from "@hey-hey/ui-common/utils";
-import type { Priority } from "@hey-hey/ui-common/api";
+import type { Priority } from "@hey-hey/contracts/api";
 
 /**
  * Entity types supported in the explorer

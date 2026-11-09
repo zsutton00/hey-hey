@@ -25,7 +25,7 @@ import {
   type TaskResponseDto,
   TargetEntityType,
   type WorkItemTypeDefinitionDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   CapsuleAction,
   DiscussCapsuleAction,

@@ -1,6 +1,7 @@
 import {
   useQuery,
   useQueryClient,
+  type DataTag,
   type QueryKey,
   type UseQueryOptions,
   type UseQueryResult,
@@ -37,9 +38,9 @@ export function useDataLayerQuery<
   TQueryKey extends QueryKey = QueryKey,
 >(
   options: UseQueryOptions<TQueryFnData, Error, TData, TQueryKey> & {
-    queryKey: TQueryKey;
+    queryKey: DataTag<NoInfer<TQueryKey>, TQueryFnData, Error>;
   },
-  hookOptions: DataLayerQueryHookOptions
+  hookOptions: DataLayerQueryHookOptions,
 ): DataLayerQuery<TData> {
   const {
     enabled,
@@ -49,7 +50,8 @@ export function useDataLayerQuery<
     maxCacheAgeMs,
   } = hookOptions;
   const queryClient = useQueryClient();
-  const staleTime = staleTimeMs ?? options.staleTime ?? dataLayerQueryPolicy.staleTime;
+  const staleTime =
+    staleTimeMs ?? options.staleTime ?? dataLayerQueryPolicy.staleTime;
 
   const result = useQuery({
     ...options,
@@ -57,12 +59,16 @@ export function useDataLayerQuery<
     staleTime,
     retryOnMount: shouldRetryOnMount(
       enabled ? queryClient.getQueryState(options.queryKey) : undefined,
-      typeof staleTime === "number" ? staleTime : dataLayerQueryPolicy.staleTime
+      typeof staleTime === "number"
+        ? staleTime
+        : dataLayerQueryPolicy.staleTime,
     ),
     // TanStack consults refetchOnMount only when an observer subscribes, and
     // a Strict Mode replay joins the read that subscription started.
     ...(refetchOnMount ? { refetchOnMount: "always" as const } : {}),
-    ...(refetchOnWindowFocus ? { refetchOnWindowFocus: "always" as const } : {}),
+    ...(refetchOnWindowFocus
+      ? { refetchOnWindowFocus: "always" as const }
+      : {}),
   });
   const state = useCollectionQueryState(result, options.queryKey, enabled, {
     maxCacheAgeMs,

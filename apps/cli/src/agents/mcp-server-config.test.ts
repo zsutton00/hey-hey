@@ -16,6 +16,8 @@ import {
   PROJECT_REPORT_MCP_TOOLS,
   PROJECT_REPORT_SECTION_MCP_TOOLS,
   RESEARCH_MCP_TOOLS,
+  SHARED_READ_MCP_TOOLS,
+  qualifyMcpToolName,
   REPOSITORY_PLACEMENT_MCP_TOOLS,
   SESSION_MONITOR_MCP_TOOLS,
   TASK_MONITOR_MCP_TOOLS,
@@ -104,6 +106,7 @@ describe('buildMcpServerConfig', () => {
       'get_context',
       'get_edges',
       'unified_search',
+      'get_entity_identities',
       'task_search',
       'search_features',
       'list_reports_by_entity',
@@ -189,11 +192,8 @@ describe('buildMcpServerConfig', () => {
       },
     );
 
-    expect(REPOSITORY_PLACEMENT_MCP_TOOLS).toEqual(['unified_search', 'get_context']);
-    expect(result.allowedTools).toEqual([
-      'mcp__heyhey-platform__unified_search',
-      'mcp__heyhey-platform__get_context',
-    ]);
+    expect(REPOSITORY_PLACEMENT_MCP_TOOLS).toEqual(SHARED_READ_MCP_TOOLS);
+    expect(result.allowedTools).toEqual(SHARED_READ_MCP_TOOLS.map(qualifyMcpToolName));
   });
 
   it('omits X-Organization-ID when token has no org claim', async () => {
@@ -596,13 +596,14 @@ describe('buildMcpServerConfig', () => {
           'get_diagram',
           'get_work_item_type_guidance_batch',
           'unified_search',
+          'get_entity_identities',
           'search_features',
           'task_search',
           'search_design_docs',
           ...HINT_TOOLS,
         ].map((tool) => `mcp__heyhey-platform__${tool}`),
       );
-      expect(RESEARCH_MCP_TOOLS).toHaveLength(9);
+      expect(RESEARCH_MCP_TOOLS).toHaveLength(10);
     });
 
     it('contains no mutation, edge, proposal, report, or creation tool names', async () => {

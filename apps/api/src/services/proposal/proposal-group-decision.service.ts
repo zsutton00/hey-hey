@@ -18,7 +18,7 @@ import {
 import type {
   ProposalGroupApproveAllMemberResult,
   ProposalGroupApproveAllResult,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { AnyTransactionClient, PrismaService } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId, ProposalId, UserId } from 'src/types';
 import { evaluatePermissions } from './permission-evaluation';

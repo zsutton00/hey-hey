@@ -1,7 +1,7 @@
 import {
   WorkItemTypeRole,
   type WorkItemTypeDefinitionDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { describe, expect, it } from "vitest";
 import {
   buildWorkItemRoleNavigationGroups,
@@ -14,7 +14,13 @@ const definition = (
   name: string,
   role: WorkItemTypeRole,
 ): WorkItemTypeDefinitionDto =>
-  ({ key, name, role, sections: [], allowedStatuses: [] }) as WorkItemTypeDefinitionDto;
+  ({
+    key,
+    name,
+    role,
+    sections: [],
+    allowedStatuses: [],
+  }) as WorkItemTypeDefinitionDto;
 
 describe("workItemNavigation", () => {
   it("groups only visible registry definitions and counts definitions, not records", () => {
@@ -49,10 +55,7 @@ describe("workItemNavigation", () => {
     const groups = buildWorkItemRoleNavigationGroups(
       new Map([
         ["BUG", definition("BUG", "Bug", WorkItemTypeRole.WorkItem)],
-        [
-          "STANDARD",
-          definition("STANDARD", "Task", WorkItemTypeRole.WorkItem),
-        ],
+        ["STANDARD", definition("STANDARD", "Task", WorkItemTypeRole.WorkItem)],
       ]),
       ["BUG", "STANDARD"],
     );
@@ -76,10 +79,7 @@ describe("workItemNavigation", () => {
     const groups = buildWorkItemRoleNavigationGroups(
       new Map([
         ["BUG", definition("BUG", "Bug", WorkItemTypeRole.WorkItem)],
-        [
-          "STANDARD",
-          definition("STANDARD", "Task", WorkItemTypeRole.WorkItem),
-        ],
+        ["STANDARD", definition("STANDARD", "Task", WorkItemTypeRole.WorkItem)],
       ]),
       ["BUG", "STANDARD"],
     );
@@ -111,10 +111,7 @@ describe("workItemNavigation", () => {
     const groups = buildWorkItemRoleNavigationGroups(
       new Map([
         ["BUG", definition("BUG", "Bug", WorkItemTypeRole.WorkItem)],
-        [
-          "CUSTOM",
-          definition("CUSTOM", "Custom", WorkItemTypeRole.WorkItem),
-        ],
+        ["CUSTOM", definition("CUSTOM", "Custom", WorkItemTypeRole.WorkItem)],
       ]),
       ["BUG", "CUSTOM"],
     );
@@ -130,10 +127,7 @@ describe("workItemNavigation", () => {
 
   it("formats a role tooltip from the visible type labels", () => {
     expect(
-      getWorkItemRoleNavigationTooltip([
-        { label: "Tasks" },
-        { label: "Bugs" },
-      ]),
+      getWorkItemRoleNavigationTooltip([{ label: "Tasks" }, { label: "Bugs" }]),
     ).toBe("Types: Tasks, Bugs");
   });
 });

@@ -1,5 +1,5 @@
 import { Prisma, Proposal } from '@prisma/client';
-import { SystemMessageData } from 'src/generated';
+import { SystemMessageData } from '@hey-hey/contracts/api/models';
 import { ConversationId, MessageId, ProjectId, WorkflowId } from 'src/types';
 
 export type MessageWithRelations = Omit<

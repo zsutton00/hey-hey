@@ -6,7 +6,7 @@ import {
   type JevEvaluator,
   type Wording,
 } from '../scenarios';
-import { excerptEntity, type ExcerptMetadata } from './excerpt';
+import { textForJev } from './entity-text';
 import {
   JEV_MAX_CONCURRENT_REQUESTS,
   JEV_REQUEST_MAX_CHARS,
@@ -14,7 +14,7 @@ import {
   packRequests,
 } from './pack-requests';
 import type { GraphReader, JevFailure, LoadedEntity, WalkUsage } from './types';
-import { withAsk } from './walk';
+import { withAsk } from './with-ask';
 
 export interface ReadCheckInput {
   client: JevEvaluator;
@@ -25,7 +25,6 @@ export interface ReadCheckInput {
   ask: string;
   ids: readonly string[];
   reader: GraphReader;
-  hits?: ReadonlyMap<string, import('./types').TitledRef>;
   /** Overrides {@link JEV_REQUEST_MAX_CHARS}. */
   maxChars?: number;
   /** Cancels the Jev requests; the check then rejects. */
@@ -43,7 +42,6 @@ export interface ReadCheckResult {
     text: string;
     applies: number | null;
     kept: boolean;
-    excerpt?: ExcerptMetadata;
   }[];
   /** Requests Jev failed; every entity in them is in `kept`. */
   failures: { ids: string[]; failure: JevFailure }[];
@@ -52,7 +50,7 @@ export interface ReadCheckResult {
 
 /**
  * Load each entity and ask Jev whether it applies to the focal work and the user's ask. Jev
- * judges whole-paragraph excerpts without Implementation sections; kept excerpts go to the caller.
+ * judges each whole entity without its Implementation section.
  * A failed request keeps every entity it carried and is reported, never retried or guessed.
  * An entity the reader cannot load rejects the whole check.
  */
@@ -60,7 +58,7 @@ export const readCheck = async (input: ReadCheckInput): Promise<ReadCheckResult>
   const { client, model, wording, reader, maxChars = JEV_REQUEST_MAX_CHARS, signal } = input;
   const focal = withAsk(input.focal, input.ask);
   const full = await Promise.all([...new Set(input.ids)].map((id) => reader.read(id)));
-  const loaded = full.map((entity) => excerptEntity(entity, input.hits?.get(entity.id)));
+  const loaded = full.map((entity) => ({ ...entity, text: textForJev(entity.text) }));
   signal?.throwIfAborted();
   const candidates: Candidate[] = loaded.map(({ id, text }) => ({
     id,
@@ -96,9 +94,8 @@ export const readCheck = async (input: ReadCheckInput): Promise<ReadCheckResult>
   return {
     kept: loaded.filter(({ id }) => keep.has(id)),
     dropped,
-    judged: loaded.map(({ id, text, excerpt }) => ({
+    judged: loaded.map(({ id, text }) => ({
       text,
-      ...(excerpt ? { excerpt } : {}),
       id,
       applies: applies.get(id) ?? null,
       kept: keep.has(id),

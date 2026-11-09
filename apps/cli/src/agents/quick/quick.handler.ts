@@ -1,5 +1,5 @@
 import type { AgenticSession } from '../../session/types';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { LocalQuickPromptPayload } from '../../shared/agent-bridge-contract/index';
 import type {
   LocalWorktreeStateByService,
@@ -26,6 +26,7 @@ import { buildStartingMessage as buildStartingMessageForPromptType } from '../pr
 
 export const quickHandler: UserLaunchablePromptTypeHandler<LocalQuickPromptPayload> = {
   id: 'quick',
+  sessionRole: SessionRole.Implementation,
   handsOffOrdinaryReplies: true,
   promptType: LocalPromptType.Quick,
   service: 'required',

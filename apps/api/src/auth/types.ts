@@ -1,4 +1,4 @@
-import { OrganizationRole } from 'src/generated';
+import { OrganizationRole } from '@hey-hey/contracts/api/models';
 import { OrganizationId, ProjectId } from 'src/types';
 
 export interface ContextAuthMembership {

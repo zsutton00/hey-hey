@@ -1,11 +1,6 @@
 import { restrictedConfiguration } from '../../shared/api/read-restriction';
-import {
-  Configuration,
-  TaskSortBy,
-  TaskSortDir,
-  TasksApi,
-  WorkStatus,
-} from '../../shared/api/generated';
+import { Configuration, TasksApi } from '@hey-hey/contracts/api';
+import { TaskSortBy, TaskSortDir, WorkStatus } from '@hey-hey/contracts/api/models';
 import type { DiagramElementText } from '../../jev/scenarios';
 import type { PromptTypeHandlerDeps } from '../prompt-type-handler';
 

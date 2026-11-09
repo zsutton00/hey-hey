@@ -32,7 +32,7 @@ import {
   ReportRelatedEntityType,
   ReportType,
   SystemEventPayload,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { DomainEventPublisher } from 'src/core/events/domain-event-publisher';
 import { SystemLifecycleEvent } from 'src/core/events/types/domain-events';
 import { EVENT_TYPES } from 'src/core/events/types/event.types';

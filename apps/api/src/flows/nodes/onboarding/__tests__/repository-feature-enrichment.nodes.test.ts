@@ -5,7 +5,7 @@ import { repositoryImportFlow } from '../../../templates/repository-import.flow'
 import { createMutableContextHandle } from '../../../../utils/mutable-context';
 import { NodeType } from '../../../../types/flow-internal.types';
 import { REPOSITORY_IMPORT_NODES } from '../../../constants';
-import { RepositoryFeatureEnrichmentChoice } from '../../../../generated';
+import { RepositoryFeatureEnrichmentChoice } from '@hey-hey/contracts/api/models';
 import { createOpenApiRuntimeSchema } from '../../shared/openapi-runtime-schema';
 
 describe('Repository enrichment handoff', () => {

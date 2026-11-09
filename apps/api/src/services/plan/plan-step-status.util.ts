@@ -1,4 +1,4 @@
-import { AdrStatus, WorkStatus } from '../../generated';
+import { AdrStatus, WorkStatus } from '@hey-hey/contracts/api/models';
 
 export type PlanStepStatusValue =
   | 'NOT_STARTED'

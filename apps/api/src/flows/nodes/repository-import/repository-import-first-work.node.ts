@@ -7,8 +7,8 @@ import type {
   RepositoryFirstWorkSuccess,
   RepositoryFirstWorkTerminalFailure,
   RepositoryGroundingSuccess,
-} from 'src/generated';
-import { LocalPromptType } from 'src/generated/local';
+} from '@hey-hey/contracts/api/models';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
   ExternalAgentActionSchemas,

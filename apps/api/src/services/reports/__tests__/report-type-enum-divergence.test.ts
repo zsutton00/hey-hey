@@ -9,7 +9,7 @@ import {
   ReportType as OpenApiReportType,
   AgentSessionType as OpenApiAgentSessionType,
   ProjectReportStatus as OpenApiProjectReportStatus,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 
 const expectEnumParity = <TPrisma extends string, TOpenApi extends string>(
   prismaEnum: Record<string, TPrisma>,

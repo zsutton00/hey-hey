@@ -3,7 +3,7 @@ import { RepoMappingStore, resolveCanonicalDirectory, toServiceId } from '../rep
 import type {
   CliReadWorkspaceSkillsListEnvelopeBody,
   CliReadResponseDto,
-} from '../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type { ServerLogger } from './logger';
 
 /** Owns catalog discovery independently of Run restoration and provider sessions. */

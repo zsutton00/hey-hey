@@ -9,7 +9,7 @@ import { WorkItemChangeSetProjectorService } from '../../proposal/work-item-chan
 import { normalizeDiagramChangeSet } from '../../proposal/diagram-change-set-compatibility';
 import { workItemChangeSetValidationRequestSchema } from '../../proposal/work-item-change-set.schema';
 import type { OrganizationId, ProjectId, TaskId } from '../../../types';
-import type { CreateTaskDto } from '../../../generated';
+import type { CreateTaskDto } from '@hey-hey/contracts/api/models';
 
 function reconciliationStub(completedEffects = new Set<string>()) {
   return {

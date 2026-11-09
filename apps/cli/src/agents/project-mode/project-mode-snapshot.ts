@@ -4,14 +4,14 @@ import addFormats from 'ajv-formats';
 import {
   projectModeSelectionJsonSchema,
   projectModeSnapshotJsonSchema,
-} from '../../generated/project-mode-contract.schema';
+} from '@hey-hey/contracts/agent-bridge/custom/project-mode-contract.schema';
 import type {
   AgentSessionConfig,
   ProjectModeFiles,
   ProjectModeProjectAssistantSetting,
   ProjectModeSelection,
   ProjectModeSnapshot,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 
 export type ValidatedProjectModeSnapshot = Omit<
   Readonly<ProjectModeSnapshot>,

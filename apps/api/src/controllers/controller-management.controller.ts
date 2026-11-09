@@ -33,7 +33,7 @@ import {
   MachineControllerInventoryRequestDto,
   MachineControllerReconciliationRequestDto,
   CreateMachineEnrollmentResponseDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { MachineId, UserId } from '../types';
 import { ControllerManagementService } from '../services/controller-management/controller-management.service';
 import { AuthenticatedMachine } from '../services/machine-pairing/machine-pairing.service';

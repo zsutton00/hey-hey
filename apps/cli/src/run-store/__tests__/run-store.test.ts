@@ -5,7 +5,6 @@ import { normalizeProviderEventPayload } from '../../agents/providers/provider-e
 import { normalizeEvent } from '../../run/normalize';
 import { handleToolUse } from '../../run/handlers/tool-use';
 import { makeTestRun, makeDeps, makeTestTurn } from '../../run/handlers/__test-utils';
-import type { GatherTrace } from '../../jev/trace';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -21,7 +20,7 @@ import {
   AgentSessionConfigV2TypeEnum,
   AgentSessionConfigV2VersionEnum,
   LocalPromptType,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type { CanonicalFileChangeFact } from '../../run/file-change-facts';
 import type { RunChangedFilesDiagnosticEntry } from '../changed-files-diagnostics';
 
@@ -380,6 +379,38 @@ describe('RunStore', () => {
         }),
       ),
     ).rejects.toThrow('Run inertness cannot change');
+  });
+
+  it('keeps an inert Run search scope after a fresh store opens it, and refuses changing it', async () => {
+    const scope = {
+      createdBefore: '2026-03-01T00:00:00.000Z',
+      excludeConnectedTo: ['case-id', 'eval-id', 'proposal-id', 'conversation-id'],
+      hiddenEntityIds: ['case-id', 'eval-id', 'proposal-id', 'conversation-id', 'message-id'],
+    };
+    const run = await store.createRun(createTaskInput({ inert: true, searchScope: scope }));
+    const reopened = new RunStore({ paths: createTempPaths(tempRoot) });
+    await reopened.initialize();
+    expect(await reopened.getRun(run.agentic_session_id)).toMatchObject({
+      searchScope: scope,
+    });
+    await expect(
+      reopened.createRun(
+        createTaskInput({
+          agentic_session_id: run.agentic_session_id,
+          inert: true,
+          searchScope: { ...scope, createdBefore: '2026-04-01T00:00:00.000Z' },
+        }),
+      ),
+    ).rejects.toThrow('search scope cannot change');
+    await expect(
+      reopened.createRun(
+        createTaskInput({
+          agentic_session_id: run.agentic_session_id,
+          inert: true,
+          searchScope: { ...scope, excludeConnectedTo: ['case-id'] },
+        }),
+      ),
+    ).rejects.toThrow('search scope cannot change');
   });
 
   it('preserves attachments when the authoritative completed Run is newer than retention cutoff', async () => {
@@ -2060,11 +2091,7 @@ describe('RunStore', () => {
             filePath: 'src/additional.ts',
             reason: 'Required repair.',
           },
-        ] as unknown as Set<{
-          serviceId: string;
-          filePath: string;
-          reason: string;
-        }>,
+        ],
       };
       await store.updateRunReviewFileScopeRequestPresentations(run.agentic_session_id, [
         { request, messageId: 'message-1' },
@@ -2115,7 +2142,7 @@ describe('RunStore', () => {
         agentType: 'claude' as const,
         timestamp: '2026-10-09T00:00:00.000Z',
         idempotencyToken: 'token-1',
-        files: new Set([{ serviceId: 'svc-1', filePath: 'new.ts', reason: 'Required repair.' }]),
+        files: [{ serviceId: 'svc-1', filePath: 'new.ts', reason: 'Required repair.' }],
       };
       await store.updateRunReviewFileScopeRequestPresentations(run.agentic_session_id, [
         { request, messageId: 'message-1', closed: true },
@@ -2356,40 +2383,6 @@ describe('RunStore', () => {
           content: 'x',
           writtenAt: '2026-04-26T12:00:00.000Z',
         }),
-      ).rejects.toThrow(/Unknown agentic session/);
-    });
-  });
-
-  describe('appendRunGatherTrace', () => {
-    const traceFor = (runId: string, turnId: string): Omit<GatherTrace, 'round'> => ({
-      runId,
-      turnId,
-      focal: { id: 'f', type: 'task', title: 'Focal' },
-      ask: 'Do it',
-      caps: { maxSearches: 8, maxResultsPerSearch: 25, hops: [{ max: 8, minScore: 0 }] },
-      steps: [],
-      expansionFailures: [],
-      returned: [],
-    });
-
-    it('numbers rounds per turn and survives a fresh store load', async () => {
-      const run = await store.createRun(createTaskInput());
-      const id = run.agentic_session_id;
-
-      const first = await store.appendRunGatherTrace(id, traceFor(id, 'turn-1'));
-      const second = await store.appendRunGatherTrace(id, traceFor(id, 'turn-1'));
-      const other = await store.appendRunGatherTrace(id, traceFor(id, 'turn-2'));
-      expect([first.round, second.round, other.round]).toEqual([1, 2, 1]);
-
-      const freshStore = new RunStore({ paths: createTempPaths(tempRoot) });
-      await freshStore.initialize();
-      const reloaded = await freshStore.getRun(id);
-      expect(reloaded!.gatherTraces).toEqual([first, second, other]);
-    });
-
-    it('throws for an unknown run id', async () => {
-      await expect(
-        store.appendRunGatherTrace('does-not-exist', traceFor('does-not-exist', 'turn-1')),
       ).rejects.toThrow(/Unknown agentic session/);
     });
   });

@@ -1,3 +1,4 @@
+import { asOrganizationId, asUserId } from '../test-utils/contract-ids';
 import { MachineEnrollmentCeremony } from './machine-enrollment-ceremony';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
@@ -43,8 +44,8 @@ const makeEntry = (): ControllerRegistryEntry => ({
   osFamily: 'linux',
   cliVersion: '2.2.2',
   authorizationProtocolVersion: 2,
-  accountId: '00000000-0000-4000-8000-000000000002',
-  organizationId: '00000000-0000-4000-8000-000000000003',
+  accountId: asUserId('00000000-0000-4000-8000-000000000002'),
+  organizationId: asOrganizationId('00000000-0000-4000-8000-000000000003'),
   controllerLabel: 'test passkey',
   controllerCredentialId: CONTROLLER_ID,
   controllerCredentialPublicKey: {
@@ -403,8 +404,8 @@ describe('MachineControllerAuthority', () => {
         organizationId: makeEntry().organizationId,
         cadence: 'ONE_DAY',
         policyRevision: 1,
-        allowedActionTypes: new Set(CURRENT_AGENT_OPERATIONS),
-        allowedActionCategories: new Set(['CONVERSATION']),
+        allowedActionTypes: [...CURRENT_AGENT_OPERATIONS],
+        allowedActionCategories: ['CONVERSATION'],
         issuedAtMs: NOW,
         effectiveExpiresAtMs: NOW + ONE_DAY_MS,
       },
@@ -745,8 +746,8 @@ describe('MachineControllerAuthority', () => {
         organizationId: makeEntry().organizationId,
         cadence: 'ONE_DAY',
         policyRevision: 1,
-        allowedActionTypes: new Set(CURRENT_AGENT_OPERATIONS),
-        allowedActionCategories: new Set(['CONVERSATION']),
+        allowedActionTypes: [...CURRENT_AGENT_OPERATIONS],
+        allowedActionCategories: ['CONVERSATION'],
         issuedAtMs: NOW,
         effectiveExpiresAtMs: NOW + ONE_DAY_MS,
       },
@@ -764,8 +765,8 @@ describe('MachineControllerAuthority', () => {
         organizationId: makeEntry().organizationId,
         cadence: 'ONE_DAY',
         policyRevision: 1,
-        allowedActionTypes: new Set(CURRENT_AGENT_OPERATIONS),
-        allowedActionCategories: new Set(['CONVERSATION']),
+        allowedActionTypes: [...CURRENT_AGENT_OPERATIONS],
+        allowedActionCategories: ['CONVERSATION'],
         issuedAtMs: NOW,
         effectiveExpiresAtMs: NOW + ONE_DAY_MS,
       },

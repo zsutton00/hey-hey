@@ -3,8 +3,9 @@ import {
   type AgentSessionLastMessageSummary,
   type ConversationResponseDto,
   type PaginatedAgentSessionItemDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { usePathService } from "@hey-hey/ui-common/context";
+import { toOpenApiConversationId } from "@hey-hey/ui-common/clients";
 import {
   useAgentSessions,
   useConversationMessages,
@@ -57,7 +58,7 @@ const ProposalSessionRow: React.FC<ProposalSessionRowProps> = ({
   const lastMessage: AgentSessionLastMessageSummary | null = message
     ? {
         id: message.id,
-        conversationId: message.conversationId,
+        conversationId: toOpenApiConversationId(message.conversationId),
         type: message.type,
         status: message.status,
         data: message.data,
@@ -123,7 +124,7 @@ const ProposalConversationRow: React.FC<ProposalConversationRowProps> = ({
   const lastMessage: AgentSessionLastMessageSummary | null = message
     ? {
         id: message.id,
-        conversationId: message.conversationId,
+        conversationId: toOpenApiConversationId(message.conversationId),
         type: message.type,
         status: message.status,
         data: message.data,

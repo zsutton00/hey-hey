@@ -1,3 +1,4 @@
+import { asProjectId } from '../test-utils/contract-ids';
 import { describe, expect, it, vi } from 'vitest';
 import {
   AgentSessionCurrentState,
@@ -14,12 +15,13 @@ import {
   type EntityPromptTemplateSelectorDto,
   type FullEntityContextDto,
   type TaskResponseDto,
-} from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import {
   LocalPromptTaskType,
+  LocalPromptType,
   RunEntityReferenceEntityTypeEnum,
   type RunEntityReference,
-} from '../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import { createTestOAuthClient } from '../auth/oauth-client.test-support';
 import { NOOP_LOGGER } from '../server/logger';
 import { SubmissionToolAuth } from '../agents/submission-tools/submission-tool-auth';
@@ -28,6 +30,9 @@ import type {
   ExistingLoadedEntityPromptContext,
   LoadedEntityPromptContext,
 } from '../agents/entity-context/types';
+import type { ReportChainEntry } from '../run/types';
+import type { ReportDto, ReportPayload } from '@hey-hey/contracts/api/models';
+import { EntityReportReader } from './entity-report-reader';
 import type { EntityPromptTemplatesApiClient } from './agent-startup-prompt-input';
 import {
   AgentStartupPromptInput,
@@ -84,7 +89,7 @@ const loadedWorkItem = (type = 'CUSTOM_REVIEW'): ExistingLoadedEntityPromptConte
 const agentSession = (): AgentSessionDto => ({
   id: 'entity-1',
   organizationId: 'organization-1',
-  projectId: 'project-1',
+  projectId: asProjectId('project-1'),
   userId: 'user-1',
   status: AgentSessionStatus.InProgress,
   currentState: AgentSessionCurrentState.Idle,
@@ -577,5 +582,264 @@ describe('AgentStartupPromptInput', () => {
         projectId: 'project-1',
       }),
     ).rejects.toThrow(/selector did not match/);
+  });
+});
+
+describe('AgentStartupPromptInput saved reports', () => {
+  const RESEARCH_TEMPLATE =
+    '{{#if reports.CODING_RESEARCH.latest}}RESEARCH:\n{{reports.CODING_RESEARCH.latest}}' +
+    '{{else}}FULL: {{context.displayName}}{{/if}}';
+
+  const research = (analysis: string, summary = 'Research summary'): ReportPayload => ({
+    reportType: 'CODING_RESEARCH',
+    format: 'SELF_RESEARCH',
+    summary,
+    analysis,
+    frame: { focalId: 'entity-1' },
+    provenance: { discoveryCalls: [], edgesTraversed: [] },
+    updates: [],
+    uncertainties: [],
+  });
+
+  const stored = (
+    id: string,
+    createdAt: string,
+    payload: ReportPayload,
+    ragEnabled = true,
+  ): ReportDto => ({
+    id,
+    organizationId: 'organization-1',
+    reportType: payload.reportType,
+    audience: 'PROJECT_VISIBLE',
+    title: payload.reportType,
+    payload,
+    version: 1,
+    schemaVersion: 1,
+    createdAt,
+    ragEnabled,
+    expiresAt: null,
+    entities: [],
+  });
+
+  const chainEntry = (
+    reportId: string,
+    createdAt: string,
+    reportType: ReportChainEntry['reportType'] = 'CODING_RESEARCH',
+  ): ReportChainEntry => ({
+    createdAt,
+    phase: LocalPromptType.StartupSession,
+    reportId,
+    reportType,
+    summary: 'chain summary',
+    audience: 'EXTERNAL',
+  });
+
+  const createReportOwner = (
+    template: string,
+    reports: ReportDto[],
+    entityType: RunEntityReference['entityType'] = RunEntityReferenceEntityTypeEnum.Task,
+  ) => {
+    const loaded =
+      entityType === RunEntityReferenceEntityTypeEnum.AgentSession
+        ? loadedAgentSession()
+        : loadedWorkItem();
+    const selector = entityPromptTemplateSelectorFor(loaded);
+    const base = createOwner(
+      loaded,
+      selector,
+      effectiveResponse('work-item-custom-review', selector, { scope: 'CANONICAL' }, template, 1),
+    );
+    const listReports = vi.fn((request: { reportType: string }) =>
+      Promise.resolve({
+        data: {
+          data: reports
+            .filter(
+              (report) => report.reportType === request.reportType && report.ragEnabled !== false,
+            )
+            .sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
+        },
+      }),
+    );
+    const getReport = vi.fn((request: { reportId: string }) =>
+      Promise.resolve({ data: { data: reports.find((report) => report.id === request.reportId) } }),
+    );
+    const auth = new SubmissionToolAuth(createTestOAuthClient());
+    const owner = new AgentStartupPromptInput({
+      auth,
+      apiBaseUrl: 'https://api.test.local',
+      logger: NOOP_LOGGER,
+      entityContextLoader: new EntityContextLoader({
+        auth,
+        apiBaseUrl: 'https://api.test.local',
+        logger: NOOP_LOGGER,
+      }),
+      createClient: () =>
+        ({
+          getProjectEntityPromptTemplateCatalog: base.readCatalog,
+          getEffectiveEntityPromptTemplate: base.readEffectiveTemplate,
+        }) as EntityPromptTemplatesApiClient,
+      reportReader: new EntityReportReader({
+        apiBaseUrl: 'https://api.test.local',
+        logger: NOOP_LOGGER,
+        createClient: () => ({ listReports, getReport }) as never,
+      }),
+    });
+    vi.spyOn(EntityContextLoader.prototype, 'load').mockResolvedValue(loaded);
+    return { owner, listReports, getReport, request: { runEntity: loaded.focalEntity } };
+  };
+
+  const scope = { organizationId: 'organization-1', projectId: 'project-1' };
+
+  it('switches from full context to saved research when a later session starts', async () => {
+    const savedReports: ReportDto[] = [];
+    const { owner, request } = createReportOwner(RESEARCH_TEMPLATE, savedReports);
+
+    const first = await owner.resolve({ ...request, ...scope, reportChain: [] });
+    expect(first.renderedInput).toBe('FULL: Authoritative work item');
+
+    // Project Assistant saves research; the next session re-resolves with the cached template.
+    savedReports.push(stored('report-1', '2026-11-02T10:00:00.000Z', research('Deep analysis')));
+    const second = await owner.resolve(
+      {
+        ...request,
+        ...scope,
+        reportChain: [chainEntry('report-1', '2026-11-02T10:00:00.000Z')],
+      },
+      { cachedTemplate: first.template ?? null },
+    );
+    expect(second.renderedInput).toContain('RESEARCH:\n### CODING_RESEARCH report — 2026-11-02');
+    expect(second.renderedInput).toContain('Deep analysis');
+  });
+
+  it('uses the newest report across Runs by time, not by chain position', async () => {
+    const older = stored('report-old', '2026-11-01T10:00:00.000Z', research('Old analysis'));
+    const { owner, request } = createReportOwner('{{reports.CODING_RESEARCH.latest.summary}}', [
+      older,
+      stored('report-new', '2026-11-02T10:00:00.000Z', research('x', 'Newest summary')),
+    ]);
+
+    const result = await owner.resolve({
+      ...request,
+      ...scope,
+      reportChain: [
+        chainEntry('report-new', '2026-11-02T10:00:00.000Z'),
+        chainEntry('report-old', '2026-11-01T10:00:00.000Z'),
+      ],
+    });
+
+    expect(result.renderedInput).toBe('Newest summary');
+  });
+
+  it('skips a newer chain report excluded from knowledge reuse in favor of eligible older research', async () => {
+    const eligible = stored(
+      'report-eligible',
+      '2026-11-01T10:00:00.000Z',
+      research('x', 'Eligible'),
+    );
+    const excluded = stored(
+      'report-excluded',
+      '2026-11-02T10:00:00.000Z',
+      research('x', 'Excluded'),
+      false,
+    );
+    const { owner, request } = createReportOwner('{{reports.CODING_RESEARCH.latest.summary}}', [
+      eligible,
+      excluded,
+    ]);
+
+    const result = await owner.resolve({
+      ...request,
+      ...scope,
+      reportChain: [
+        chainEntry('report-eligible', '2026-11-01T10:00:00.000Z'),
+        chainEntry('report-excluded', '2026-11-02T10:00:00.000Z'),
+      ],
+    });
+
+    expect(result.renderedInput).toBe('Eligible');
+  });
+
+  it('treats a report type the platform does not know as absent instead of failing startup', async () => {
+    const { owner, listReports, request } = createReportOwner(
+      '{{#if reports.UNKNOWN_TYPE.latest}}FOUND{{else}}NONE{{/if}}',
+      [],
+    );
+
+    const result = await owner.resolve({ ...request, ...scope });
+
+    expect(result.renderedInput).toBe('NONE');
+    expect(listReports).not.toHaveBeenCalled();
+  });
+
+  it('reads only referenced report types and nothing when a template has no references', async () => {
+    const reports = [stored('report-1', '2026-11-02T10:00:00.000Z', research('Analysis'))];
+    const plain = createReportOwner('{{context.displayName}}', reports);
+    await plain.owner.resolve({ ...plain.request, ...scope });
+    expect(plain.listReports).not.toHaveBeenCalled();
+    expect(plain.getReport).not.toHaveBeenCalled();
+
+    const referenced = createReportOwner(RESEARCH_TEMPLATE, reports);
+    await referenced.owner.resolve({ ...referenced.request, ...scope });
+    expect(referenced.listReports).toHaveBeenCalledTimes(1);
+    expect(referenced.getReport).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores the task report chain for a non-task focal entity and scopes the read to it', async () => {
+    const { owner, listReports, request } = createReportOwner(
+      RESEARCH_TEMPLATE,
+      [],
+      RunEntityReferenceEntityTypeEnum.AgentSession,
+    );
+
+    const result = await owner.resolve({
+      ...request,
+      ...scope,
+      reportChain: [chainEntry('task-report', '2026-11-02T10:00:00.000Z')],
+    });
+
+    expect(result.renderedInput).toBe('FULL: Authoritative work item');
+    expect(listReports).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'AGENT_SESSION',
+        entityId: 'entity-1',
+        ragEnabled: true,
+      }),
+    );
+  });
+
+  it('never offers evaluation reports as saved context', async () => {
+    const { owner, listReports, request } = createReportOwner(
+      '{{#if reports.EVAL_RUN.latest}}EVAL{{else}}NONE{{/if}}',
+      [],
+    );
+
+    const result = await owner.resolve({
+      ...request,
+      ...scope,
+      reportChain: [chainEntry('eval-1', '2026-11-02T10:00:00.000Z', 'EVAL_RUN')],
+    });
+
+    expect(result.renderedInput).toBe('NONE');
+    expect(listReports).not.toHaveBeenCalled();
+  });
+
+  it('stops startup when a referenced report cannot be read', async () => {
+    const { owner, getReport, request } = createReportOwner(RESEARCH_TEMPLATE, [
+      stored('report-1', '2026-11-02T10:00:00.000Z', research('Analysis')),
+    ]);
+    getReport.mockRejectedValueOnce(new Error('unavailable'));
+
+    await expect(owner.resolve({ ...request, ...scope })).rejects.toMatchObject({
+      name: 'AgentStartupPromptInputError',
+      boundary: 'report_read',
+    });
+  });
+
+  it('fails a selected plain substitution of a missing report instead of rendering empty', async () => {
+    const { owner, request } = createReportOwner('{{reports.CODING_RESEARCH.latest}}', []);
+
+    await expect(owner.resolve({ ...request, ...scope })).rejects.toMatchObject({
+      boundary: 'effective_template_render',
+    });
   });
 });

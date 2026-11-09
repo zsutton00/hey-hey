@@ -1,13 +1,11 @@
-import { FeatureTag } from "@hey-hey/ui-common/api";
+import { FeatureTag } from "@hey-hey/contracts/api";
 import type {
   FeatureListProposalNode,
   SelectOption,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 
 export type NewOrgLandingSectionId =
-  | "project-description"
-  | "followups"
-  | "features";
+  "project-description" | "followups" | "features";
 
 const PROJECT_MATURITY_OPTIONS: SelectOption[] = [
   {
@@ -48,14 +46,11 @@ export const PROJECT_DESCRIPTION_SELECT_OPTIONS = {
 } as const;
 
 export type ProjectDescriptionSelectKey =
-  | "projectMaturity"
-  | "teamSize"
-  | "orgContext";
+  "projectMaturity" | "teamSize" | "orgContext";
 
 export const PROJECT_DESCRIPTION_LABELS = {
   project_concept: "Project Concept",
-  project_maturity:
-    "How would you describe the current state of this project?",
+  project_maturity: "How would you describe the current state of this project?",
   team_size: "What is your team size for this project?",
   org_context: "How does this project relate to your organization?",
 } as const;
@@ -170,7 +165,8 @@ export const FEATURES_TOP_LEVELS: ReadonlyArray<FeatureListProposalNode> = [
       {
         id: "child-dataset-import",
         name: "Dataset import",
-        description: "Point the tool at a folder of images or videos to ingest.",
+        description:
+          "Point the tool at a folder of images or videos to ingest.",
         tag: FeatureTag.Product,
         children: [],
       },
@@ -202,8 +198,7 @@ export const FEATURES_TOP_LEVELS: ReadonlyArray<FeatureListProposalNode> = [
       {
         id: "child-inline-correction",
         name: "Inline correction",
-        description:
-          "Edit captions and tags directly from the review surface.",
+        description: "Edit captions and tags directly from the review surface.",
         tag: FeatureTag.Frontend,
         children: [],
       },

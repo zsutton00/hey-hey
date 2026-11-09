@@ -1,14 +1,14 @@
 import { z } from 'zod';
-import { AgentEdgeCategory } from '../../generated/model/agentEdgeCategory';
-import { AgentEdgeDirection } from '../../generated/model/agentEdgeDirection';
-import { AgentEdgeEndpointEntityType } from '../../generated/model/agentEdgeEndpointEntityType';
-import { AgentEdgeType } from '../../generated/model/agentEdgeType';
-import type { WorkItemTypeCapabilities } from '../../generated/model/workItemTypeCapabilities';
-import { WorkItemTypeGraphAction } from '../../generated/model/workItemTypeGraphAction';
-import type { WorkItemTypeGraphCapability } from '../../generated/model/workItemTypeGraphCapability';
-import { WorkItemTypeGraphEndpointRole } from '../../generated/model/workItemTypeGraphEndpointRole';
-import type { WorkItemTypeGraphReadExpansion } from '../../generated/model/workItemTypeGraphReadExpansion';
-import { WorkItemTypeGraphReadExpansionHop } from '../../generated/model/workItemTypeGraphReadExpansionHop';
+import { AgentEdgeCategory } from '@hey-hey/contracts/api/models';
+import { AgentEdgeDirection } from '@hey-hey/contracts/api/models';
+import { AgentEdgeEndpointEntityType } from '@hey-hey/contracts/api/models';
+import { AgentEdgeType } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeCapabilities } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeGraphAction } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeGraphCapability } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeGraphEndpointRole } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeGraphReadExpansion } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeGraphReadExpansionHop } from '@hey-hey/contracts/api/models';
 
 const workItemTypeGraphEndpointRuleSchema = z
   .object({

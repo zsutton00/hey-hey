@@ -1,5 +1,8 @@
+import { existsSync, readFileSync } from 'node:fs';
+import * as path from 'node:path';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
+import * as ts from 'typescript';
 
 import {
   FEATURE_SYNC_ACTIONS,
@@ -17,27 +20,14 @@ import {
   REPOSITORY_PLACEMENT_ACTIONS,
 } from '../nodes/onboarding/repository-grounding.contract';
 
-import { FeatureSyncAnalyzeActionSchemasDISCREPANCY } from 'src/generated/local/models/FeatureSyncAnalyzeActionSchemasDISCREPANCY';
-import { FeatureSyncAnalyzeActionSchemasNODISCREPANCY } from 'src/generated/local/models/FeatureSyncAnalyzeActionSchemasNODISCREPANCY';
-import { FeatureSyncAnalyzeActionSchemasREADINESSCLEAR } from 'src/generated/local/models/FeatureSyncAnalyzeActionSchemasREADINESSCLEAR';
-import { FeatureSyncAnalyzeActionSchemasREADINESSREVIEWREQUIRED } from 'src/generated/local/models/FeatureSyncAnalyzeActionSchemasREADINESSREVIEWREQUIRED';
-import { FeatureSyncIterateActionSchemasRESOLVED } from 'src/generated/local/models/FeatureSyncIterateActionSchemasRESOLVED';
-import { ImplementActionSchemasDONE } from 'src/generated/local/models/ImplementActionSchemasDONE';
-import { CodingPlanActionSchemasAPPROVED } from 'src/generated/local/models/CodingPlanActionSchemasAPPROVED';
-import { CodingPlanActionSchemasREFINE } from 'src/generated/local/models/CodingPlanActionSchemasREFINE';
-import { FeatureSyncIterateActionSchemasREVISED } from 'src/generated/local/models/FeatureSyncIterateActionSchemasREVISED';
-import { ExternalAgentActionSchemas as GeneratedExternalAgentActionSchemas } from 'src/generated/local/models/ExternalAgentActionSchemas';
-import { RepositoryPlacementActionSchemasRetryableFailure } from 'src/generated/local/models/RepositoryPlacementActionSchemasRetryableFailure';
-import { RepositoryPlacementActionSchemasSuccess } from 'src/generated/local/models/RepositoryPlacementActionSchemasSuccess';
-import { RepositoryPlacementActionSchemasTerminalFailure } from 'src/generated/local/models/RepositoryPlacementActionSchemasTerminalFailure';
-import { WorkflowReviewAction } from 'src/generated';
+import { WorkflowReviewAction } from '@hey-hey/contracts/api/models';
 
 import type { ExternalAgentActionSchemas } from 'src/types/flow-internal.types';
 
 /**
  * Structural drift test for every EXTERNAL_AGENT action registry exported by
  * the flow nodes vs. the generated OpenAPI wrappers under
- * `src/generated/local/models`.
+ * `packages/contracts/src/generated/agent-bridge/models`.
  *
  * The OpenAPI spec models each action declaration as a wrapper carrying
  * `{ action, waitForUser, description }`. When the spec adds a `payload`
@@ -62,21 +52,110 @@ type GeneratedWrapper = {
   readonly getAttributeTypeMap: () => ReadonlyArray<{
     name: string;
     type: string;
+    optional: boolean;
   }>;
 };
 
-type WrapperLike = {
-  getAttributeTypeMap(): Array<{
-    name: string;
-    baseName: string;
-    type: string;
-    format: string;
-  }>;
+const GENERATED_AGENT_BRIDGE_MODELS = path.resolve(
+  __dirname,
+  '../../../../../packages/contracts/src/generated/agent-bridge/models',
+);
+
+const toKebabCase = (name: string): string =>
+  name
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2')
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .replace(/_/g, '-')
+    .toLowerCase();
+
+const readGeneratedAttributes = (
+  modelName: string,
+  visited = new Set<string>(),
+): Array<{ name: string; type: string; optional: boolean }> => {
+  if (visited.has(modelName)) {
+    return [];
+  }
+  visited.add(modelName);
+
+  const modelFileName = `${toKebabCase(modelName)}.ts`;
+  const compactAllOfFileName = modelFileName.replace(
+    /-all-of\.ts$/,
+    'all-of.ts',
+  );
+  const modelPath = [modelFileName, compactAllOfFileName]
+    .map((fileName) => path.join(GENERATED_AGENT_BRIDGE_MODELS, fileName))
+    .find(existsSync);
+  if (!modelPath) {
+    throw new Error(`Generated Agent Bridge model not found: ${modelName}`);
+  }
+  const source = ts.createSourceFile(
+    modelPath,
+    readFileSync(modelPath, 'utf8'),
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const attributes: Array<{ name: string; type: string; optional: boolean }> =
+    [];
+  const inheritedModels: string[] = [];
+
+  for (const statement of source.statements) {
+    if (ts.isInterfaceDeclaration(statement)) {
+      for (const member of statement.members) {
+        if (!ts.isPropertySignature(member) || !member.name || !member.type) {
+          continue;
+        }
+        const name =
+          ts.isIdentifier(member.name) || ts.isStringLiteral(member.name)
+            ? member.name.text
+            : null;
+        if (name) {
+          attributes.push({
+            name,
+            type: member.type.getText(source),
+            optional: member.questionToken !== undefined,
+          });
+        }
+      }
+      for (const clause of statement.heritageClauses ?? []) {
+        if (clause.token !== ts.SyntaxKind.ExtendsKeyword) {
+          continue;
+        }
+        for (const heritage of clause.types) {
+          if (ts.isIdentifier(heritage.expression)) {
+            inheritedModels.push(heritage.expression.text);
+          }
+        }
+      }
+    }
+
+    if (ts.isTypeAliasDeclaration(statement)) {
+      const collectReferences = (node: ts.Node): void => {
+        if (ts.isTypeReferenceNode(node) && ts.isIdentifier(node.typeName)) {
+          inheritedModels.push(node.typeName.text);
+          return;
+        }
+        ts.forEachChild(node, collectReferences);
+      };
+      collectReferences(statement.type);
+    }
+  }
+
+  for (const inheritedModel of inheritedModels) {
+    attributes.push(...readGeneratedAttributes(inheritedModel, visited));
+  }
+
+  const uniqueAttributes = new Map<string, (typeof attributes)[number]>();
+  for (const attribute of attributes) {
+    if (!uniqueAttributes.has(attribute.name)) {
+      uniqueAttributes.set(attribute.name, attribute);
+    }
+  }
+  return [...uniqueAttributes.values()];
 };
 
-const wrap = (cls: WrapperLike & { name: string }): GeneratedWrapper => ({
-  name: cls.name,
-  getAttributeTypeMap: () => cls.getAttributeTypeMap(),
+const wrap = (modelName: string): GeneratedWrapper => ({
+  name: modelName,
+  getAttributeTypeMap: () => readGeneratedAttributes(modelName),
 });
 
 interface RegistryRow {
@@ -100,14 +179,14 @@ const rows: RegistryRow[] = [
     registry: 'featureSyncAnalyze',
     action: FEATURE_SYNC_ACTIONS.NO_DISCREPANCY,
     registrySchemas: featureSyncAnalyzeActions,
-    generatedWrapper: wrap(FeatureSyncAnalyzeActionSchemasNODISCREPANCY),
+    generatedWrapper: wrap('FeatureSyncAnalyzeActionSchemasNODISCREPANCY'),
     pendingTask: null,
   },
   {
     registry: 'featureSyncAnalyze',
     action: FEATURE_SYNC_ACTIONS.DISCREPANCY,
     registrySchemas: featureSyncAnalyzeActions,
-    generatedWrapper: wrap(FeatureSyncAnalyzeActionSchemasDISCREPANCY),
+    generatedWrapper: wrap('FeatureSyncAnalyzeActionSchemasDISCREPANCY'),
     pendingTask: 'D',
     pendingReason:
       'Generated wrapper has no `payload` property yet. Task D adds the spec-side discrepancy payload contract.',
@@ -116,7 +195,7 @@ const rows: RegistryRow[] = [
     registry: 'featureSyncAnalyze',
     action: FEATURE_SYNC_ACTIONS.READINESS_CLEAR,
     registrySchemas: featureSyncAnalyzeActions,
-    generatedWrapper: wrap(FeatureSyncAnalyzeActionSchemasREADINESSCLEAR),
+    generatedWrapper: wrap('FeatureSyncAnalyzeActionSchemasREADINESSCLEAR'),
     pendingTask: null,
   },
   {
@@ -124,7 +203,7 @@ const rows: RegistryRow[] = [
     action: FEATURE_SYNC_ACTIONS.READINESS_REVIEW_REQUIRED,
     registrySchemas: featureSyncAnalyzeActions,
     generatedWrapper: wrap(
-      FeatureSyncAnalyzeActionSchemasREADINESSREVIEWREQUIRED,
+      'FeatureSyncAnalyzeActionSchemasREADINESSREVIEWREQUIRED',
     ),
     pendingTask: null,
   },
@@ -134,14 +213,14 @@ const rows: RegistryRow[] = [
     registry: 'featureSyncIterate',
     action: FEATURE_SYNC_ACTIONS.RESOLVED,
     registrySchemas: featureSyncIterateActions,
-    generatedWrapper: wrap(FeatureSyncIterateActionSchemasRESOLVED),
+    generatedWrapper: wrap('FeatureSyncIterateActionSchemasRESOLVED'),
     pendingTask: null,
   },
   {
     registry: 'featureSyncIterate',
     action: FEATURE_SYNC_ACTIONS.REVISED,
     registrySchemas: featureSyncIterateActions,
-    generatedWrapper: wrap(FeatureSyncIterateActionSchemasREVISED),
+    generatedWrapper: wrap('FeatureSyncIterateActionSchemasREVISED'),
     pendingTask: 'D',
     pendingReason:
       'Generated wrapper has no `payload` property yet. Task D adds the spec-side discrepancy payload contract.',
@@ -152,7 +231,7 @@ const rows: RegistryRow[] = [
     registry: 'featureSyncCodingPlan',
     action: WorkflowReviewAction.Refine,
     registrySchemas: featureSyncCodingPlanActions,
-    generatedWrapper: wrap(CodingPlanActionSchemasREFINE),
+    generatedWrapper: wrap('CodingPlanActionSchemasREFINE'),
     pendingTask: null,
     payloadContract: 'workflow-answer',
   },
@@ -160,7 +239,7 @@ const rows: RegistryRow[] = [
     registry: 'featureSyncCodingPlan',
     action: WorkflowReviewAction.Approved,
     registrySchemas: featureSyncCodingPlanActions,
-    generatedWrapper: wrap(CodingPlanActionSchemasAPPROVED),
+    generatedWrapper: wrap('CodingPlanActionSchemasAPPROVED'),
     pendingTask: null,
     payloadContract: 'workflow-answer',
   },
@@ -169,7 +248,7 @@ const rows: RegistryRow[] = [
     registry: 'featureSyncImplement',
     action: FEATURE_SYNC_ACTIONS.DONE,
     registrySchemas: featureSyncImplementActions,
-    generatedWrapper: wrap(ImplementActionSchemasDONE),
+    generatedWrapper: wrap('ImplementActionSchemasDONE'),
     pendingTask: null,
   },
 
@@ -187,21 +266,21 @@ const rows: RegistryRow[] = [
     registry: 'repositoryPlacement',
     action: REPOSITORY_PLACEMENT_ACTIONS.SUCCESS,
     registrySchemas: repositoryPlacementActions,
-    generatedWrapper: wrap(RepositoryPlacementActionSchemasSuccess),
+    generatedWrapper: wrap('RepositoryPlacementActionSchemasSuccess'),
     pendingTask: null,
   },
   {
     registry: 'repositoryPlacement',
     action: REPOSITORY_PLACEMENT_ACTIONS.RETRYABLE_FAILURE,
     registrySchemas: repositoryPlacementActions,
-    generatedWrapper: wrap(RepositoryPlacementActionSchemasRetryableFailure),
+    generatedWrapper: wrap('RepositoryPlacementActionSchemasRetryableFailure'),
     pendingTask: null,
   },
   {
     registry: 'repositoryPlacement',
     action: REPOSITORY_PLACEMENT_ACTIONS.TERMINAL_FAILURE,
     registrySchemas: repositoryPlacementActions,
-    generatedWrapper: wrap(RepositoryPlacementActionSchemasTerminalFailure),
+    generatedWrapper: wrap('RepositoryPlacementActionSchemasTerminalFailure'),
     pendingTask: null,
   },
 ];
@@ -279,7 +358,7 @@ describe('EXTERNAL_AGENT action schemas — zod ↔ generated payload drift', ()
   });
 
   it('publishes repository placement in the generated CLI action registry', () => {
-    expect(GeneratedExternalAgentActionSchemas.getAttributeTypeMap()).toEqual(
+    expect(wrap('ExternalAgentActionSchemas').getAttributeTypeMap()).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           name: 'repositoryPlacement',
@@ -287,6 +366,14 @@ describe('EXTERNAL_AGENT action schemas — zod ↔ generated payload drift', ()
         }),
       ]),
     );
+  });
+
+  it('keeps OpenAPI-required fields required in shared Agent Bridge models', () => {
+    const userMessage = wrap('RunCreatePayloadFeatureSyncAnalyze')
+      .getAttributeTypeMap()
+      .find((attribute) => attribute.name === 'userMessage');
+
+    expect(userMessage?.optional).toBe(false);
   });
 
   describe.each(rows.map((row) => [formatRowName(row), row] as const))(

@@ -1,17 +1,15 @@
 import { restrictedConfiguration } from '../../shared/api/read-restriction';
 import { z } from 'zod';
+import { ConversationsApi, EntityContextApi, ImplementationHintsApi } from '@hey-hey/contracts/api';
 import {
-  ConversationsApi,
-  EntityContextApi,
   EntityType,
-  ImplementationHintsApi,
   type ImplementationHintDto,
   type MessageRecordDto,
   type ReadRestriction,
-} from '../../shared/api/generated';
+} from '@hey-hey/contracts/api/models';
 import type { EntitySource } from './entity-source';
-import { createGraphReader, type LoadEntitySource } from './graph-reader';
-import type { EntityRef, GraphReader } from './types';
+import type { LoadEntitySource } from './graph-reader';
+import type { EntityRef } from './types';
 
 const citationSchema = z.object({
   entityType: z.string().min(1),
@@ -205,10 +203,3 @@ const requiredData = <T>(data: T | undefined, ref: EntityRef): T => {
   if (data === undefined) throw new Error(`The platform returned no ${ref.kind} ${ref.id}.`);
   return data;
 };
-
-/** A reader over the live project graph. */
-export const createLiveReader = (
-  focal: EntityRef,
-  deps: LiveReaderDeps,
-  known: readonly EntityRef[] = [],
-): GraphReader => createGraphReader(focal, createLiveSourceLoader(deps), known);

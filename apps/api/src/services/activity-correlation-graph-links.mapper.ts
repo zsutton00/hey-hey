@@ -1,4 +1,7 @@
-import { ActivityCorrelationLinkType, EntityType } from 'src/generated';
+import {
+  ActivityCorrelationLinkType,
+  EntityType,
+} from '@hey-hey/contracts/api/models';
 import type {
   GraphRelationship,
   SearchResponse,

@@ -1,6 +1,6 @@
 import React from "react";
-import type { AgentSessionDto, MachineDto } from "@hey-hey/ui-common/api";
-import { AgentSessionType } from "@hey-hey/ui-common/api";
+import type { AgentSessionDto, MachineDto } from "@hey-hey/contracts/api";
+import { AgentSessionType } from "@hey-hey/contracts/api";
 import {
   AgentConversationView,
   LoadingPanel,

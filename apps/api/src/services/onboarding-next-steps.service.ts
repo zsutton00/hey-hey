@@ -12,7 +12,7 @@ import {
 import {
   ProjectExistingWorkIntent,
   ProjectFeatureNextStep,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../prisma/prisma.service';
 import { ArtifactService } from './artifacts/artifact.service';
 import { LLMClientService } from './llm/llm-client.service';
@@ -138,6 +138,40 @@ export class OnboardingNextStepsService {
         error: error instanceof Error ? error.message : String(error),
       });
     }
+  }
+
+  async prepareLocal(
+    source: OnboardingNextStepsSource,
+  ): Promise<string | undefined> {
+    const features = await this.loadTopLevelFeatures(source);
+    if (features.length === 0) {
+      return undefined;
+    }
+    const history = source.conversationId
+      ? await this.loadConversationHistory(source)
+      : '';
+    return this.buildPrompt(features, history);
+  }
+
+  async recordLocal(
+    source: OnboardingNextStepsSource,
+    output: unknown,
+  ): Promise<void> {
+    const features = await this.loadTopLevelFeatures(source);
+    const steps = this.validate(
+      featureNextStepsResponseSchema.parse(output),
+      features,
+    );
+    if (!steps) {
+      throw new Error(
+        'Onboarding next steps must cover the generated Features',
+      );
+    }
+    await this.projectService.recordOnboardingFeatureNextSteps({
+      projectId: source.projectId,
+      organizationId: source.organizationId,
+      featureNextSteps: steps,
+    });
   }
 
   private async loadTopLevelFeatures(

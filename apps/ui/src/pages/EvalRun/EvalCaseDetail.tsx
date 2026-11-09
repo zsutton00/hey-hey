@@ -24,7 +24,7 @@ import {
   ProposalAction,
   TargetEntityType,
   type ProposalResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   CreateProposal,
   DeleteProposal,
@@ -41,12 +41,15 @@ import { WebPathService } from "@hey-hey/ui-common/services";
 
 import { AttemptExecutionSummary } from "./AttemptExecutionSummary";
 import { AttemptSessions } from "./AttemptSessions";
+import { AttemptToolCalls } from "./AttemptToolCalls";
 
+import { CodingAttemptResults, CodingStartPoint } from "./CodingAttemptResults";
 import { EvalHumanReviewForm } from "./EvalHumanReviewForm";
 import {
   automatedAssessment,
   checkDescriptions,
   type CaseRow,
+  type ChecklistView,
   type WorkBreakdownRow,
 } from "./evalResultsView";
 import { formatCost, formatElapsed, formatTokenCount } from "./evalRunView";
@@ -225,10 +228,65 @@ const AttemptOutputs: React.FC<{
   );
 };
 
+const MockupChecklistResults: React.FC<{ checklist: ChecklistView }> = ({
+  checklist,
+}) => {
+  const { t } = useTranslation();
+
+  return (
+    <Box data-testid="eval-mockup-checklist">
+      <Typography variant="caption" color="text.secondary">
+        {t("eval.results.assessment.checklist")}
+      </Typography>
+      <List dense disablePadding>
+        {checklist.items.map((item) => (
+          <ListItem
+            key={item.id}
+            disableGutters
+            data-testid={`eval-checklist-item-${item.id}`}
+          >
+            <ListItemIcon sx={{ minWidth: 28 }}>
+              {item.hit === null ? null : item.hit ? (
+                <CheckIcon
+                  fontSize="small"
+                  color="success"
+                  titleAccess={t("eval.results.assessment.checklistHit")}
+                />
+              ) : (
+                <CloseIcon
+                  fontSize="small"
+                  color="error"
+                  titleAccess={t("eval.results.assessment.checklistMissed")}
+                />
+              )}
+            </ListItemIcon>
+            <ListItemText
+              primary={item.description}
+              secondary={
+                item.explanation ??
+                t("eval.results.assessment.checklistUnanswered")
+              }
+            />
+          </ListItem>
+        ))}
+      </List>
+      {checklist.regressions && (
+        <Typography variant="body2" data-testid="eval-checklist-regressions">
+          {t("eval.results.assessment.regressions")}{" "}
+          {checklist.regressions.length === 0
+            ? t("eval.results.assessment.noRegressions")
+            : checklist.regressions.join("; ")}
+        </Typography>
+      )}
+    </Box>
+  );
+};
+
 const AutomatedAssessment: React.FC<{
   run: EvalRunReport;
   attempt: EvalAttemptReport;
-}> = ({ run, attempt }) => {
+  row: CaseRow;
+}> = ({ run, attempt, row }) => {
   const { t } = useTranslation();
   const assessment = automatedAssessment(attempt);
   if (!assessment) {
@@ -289,6 +347,7 @@ const AutomatedAssessment: React.FC<{
           ))}
         </List>
       )}
+      {row.checklist && <MockupChecklistResults checklist={row.checklist} />}
       <Typography variant="caption" color="text.secondary">
         {t("eval.results.assessment.rubric")}
       </Typography>
@@ -409,19 +468,32 @@ const WorkBreakdown: React.FC<{ rows: WorkBreakdownRow[] }> = ({ rows }) => {
   );
 };
 
-const ExpectedVersusResult: React.FC<{ row: CaseRow }> = ({ row }) => {
+const ExpectedVersusResult: React.FC<{
+  row: CaseRow;
+  organizationId: string;
+  /** A repeat sits under its case, which already shows what was expected. */
+  isRepeat: boolean;
+}> = ({ row, organizationId, isRepeat }) => {
   const { t } = useTranslation();
   return (
     <Box sx={{ mb: 2 }} data-testid="eval-expected-vs-result">
-      <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-        <b>{t("eval.results.detail.expected")}:</b>{" "}
-        {row.expectation ?? t("eval.results.detail.noExpectation")}
-      </Typography>
+      {!isRepeat && (
+        <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+          <b>{t("eval.results.detail.expected")}:</b>{" "}
+          {row.expectation ?? t("eval.results.detail.noExpectation")}
+        </Typography>
+      )}
+      {row.coding && (
+        <CodingStartPoint
+          organizationId={organizationId}
+          startPoint={row.coding.startPoint}
+        />
+      )}
       <Typography variant="body2" sx={{ mt: 0.5, whiteSpace: "pre-wrap" }}>
         <b>{t("eval.results.detail.result")}:</b>{" "}
         {row.recognitionExplanation ?? t("eval.results.detail.noResult")}
       </Typography>
-      {row.evalCaseHref && (
+      {!isRepeat && row.evalCaseHref && (
         <Box sx={{ mt: 0.5 }}>
           <SpaLink
             href={row.evalCaseHref}
@@ -441,6 +513,8 @@ export interface EvalCaseDetailProps {
   run: EvalRunReport;
   attempt: EvalAttemptReport;
   row: CaseRow;
+  /** Which repeat this is when the run made several; null otherwise. */
+  repeat: number | null;
 }
 
 /** The specifics of one case attempt, shown when its row is expanded. */
@@ -450,31 +524,42 @@ export const EvalCaseDetail: React.FC<EvalCaseDetailProps> = ({
   run,
   attempt,
   row,
+  repeat,
 }) => (
   <Box sx={{ p: 2 }} data-testid={`eval-attempt-detail-${attempt.id}`}>
     <AttemptExecutionSummary attempt={attempt} />
-    <ExpectedVersusResult row={row} />
+    <ExpectedVersusResult
+      row={row}
+      organizationId={organizationId}
+      isRepeat={repeat !== null}
+    />
+    {row.coding && <CodingAttemptResults coding={row.coding} />}
     <AttemptSessions
       attempt={attempt}
       judgeSessionHref={row.judgeSessionHref}
+      judgeProvider={run.payload.judgeSetup.provider}
     />
     <WorkBreakdown rows={row.breakdown} />
+    <AttemptToolCalls attempt={attempt} />
     <Grid container spacing={2}>
-      <Grid size={{ xs: 12, md: 6 }}>
-        <AttemptOutputs
-          organizationId={organizationId}
-          projectId={projectId}
-          attempt={attempt}
-        />
-      </Grid>
-      <Grid size={{ xs: 12, md: 6 }}>
+      {!row.coding && (
+        <Grid size={{ xs: 12, md: 6 }}>
+          <AttemptOutputs
+            organizationId={organizationId}
+            projectId={projectId}
+            attempt={attempt}
+          />
+        </Grid>
+      )}
+      <Grid size={{ xs: 12, md: row.coding ? 12 : 6 }}>
         <Stack spacing={3}>
-          <AutomatedAssessment run={run} attempt={attempt} />
+          <AutomatedAssessment run={run} attempt={attempt} row={row} />
           <EvalHumanReviewForm
             organizationId={organizationId}
             projectId={projectId}
             evalId={run.payload.evalId}
             attempt={attempt}
+            repeat={repeat}
           />
         </Stack>
       </Grid>

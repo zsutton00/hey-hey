@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { z } from 'zod';
-import type { PlanConfigurationV1 } from '../../generated/model/planConfigurationV1';
-import { PlanType } from '../../generated/model/planType';
+import type { PlanConfigurationV1 } from '@hey-hey/contracts/api/models';
+import { PlanType } from '@hey-hey/contracts/api/models';
 
 export const PLAN_CONFIGURATION_SCHEMA_REF =
   '#/components/schemas/PlanConfigurationV1';

@@ -1,4 +1,4 @@
-import { RecentActivityCorrelationRecordDto } from 'src/generated';
+import { RecentActivityCorrelationRecordDto } from '@hey-hey/contracts/api/models';
 import {
   ActivityDelta,
   ActivityDeltaItemCompletion,

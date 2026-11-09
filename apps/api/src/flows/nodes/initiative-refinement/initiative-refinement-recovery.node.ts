@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InitiativeService } from '../../../services/initiatives/initiative.service';
-import { SystemMessageResponseType } from '../../../generated';
+import { SystemMessageResponseType } from '@hey-hey/contracts/api/models';
 import {
   NodeResult,
   InitiativeRefinementFlowContext,

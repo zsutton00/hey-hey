@@ -8,9 +8,9 @@ export {
   ProposalAction,
   ProposalStatus,
   TargetEntityType,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 
-export type { PaginatedProposalsResponse as PaginatedProposalsDto } from 'src/generated';
+export type { PaginatedProposalsResponse as PaginatedProposalsDto } from '@hey-hey/contracts/api/models';
 
 export type {
   ProposalPayload,
@@ -39,7 +39,7 @@ import {
   ProposalType,
   TargetEntityType,
   WorkItemTypeRole,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 
 export class RejectProposalDto {
   @ApiPropertyOptional({

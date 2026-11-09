@@ -58,7 +58,7 @@ import {
   ProjectUpdatedEventPayload,
   UpdateProjectDto,
   WorkflowName,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { AnyTransactionClient, PrismaService } from '../prisma/prisma.service';
 import { InjectTemporalClient } from '../prisma/temporal.module';
 import { ensureStringDate } from '../utils/date.util';

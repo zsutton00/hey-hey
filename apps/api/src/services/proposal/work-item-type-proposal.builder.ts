@@ -1,8 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
-import type { WorkItemTypeDefinitionDto } from '../../generated/model/workItemTypeDefinitionDto';
-import { EntityType } from '../../generated/model/entityType';
-import type { WorkItemTypeArchiveRequestDto } from '../../generated/model/workItemTypeArchiveRequestDto';
-import { WorkItemTypeCascadeDeleteUpdatesPayload } from '../../generated/model/workItemTypeCascadeDeleteUpdatesPayload';
+import type { WorkItemTypeDefinitionDto } from '@hey-hey/contracts/api/models';
+import { EntityType } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeArchiveRequestDto } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeCascadeDeleteUpdatesPayload } from '@hey-hey/contracts/api/models';
 import type { RequestorContext } from '../../mcp/tools/requestor-context';
 import type { StampedCreateProposalDto } from './proposal.types';
 

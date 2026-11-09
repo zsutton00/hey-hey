@@ -1,14 +1,14 @@
 import { EvalAttemptExecution } from '../agents/run-eval/eval-attempt-execution';
 import type { AgenticSession } from '../session/types';
-import type { EvalRecordedAttempt } from '../shared/api/generated/api';
-import { TasksApi, EntityContextApi } from '../shared/api/generated';
+import type { EvalRecordedAttempt } from '@hey-hey/contracts/api/models';
+import { TasksApi, EntityContextApi } from '@hey-hey/contracts/api';
 import { z } from 'zod';
 import { AgentStartupPromptInput } from '../commands/agent-startup-prompt-input';
 import { EntityContextLoader } from '../agents/entity-context/entity-context-loader';
 import type { MessagePosterApiClient } from '../run/types';
 import { createTestMonitorProjectContext } from '../run/run.test-support';
 import { createPromptTypeHandlerTestDeps } from '../agents/prompt-type-handler.test-support';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { LocalCreateRunRequest } from '../shared/agent-bridge-contract/runtime-types';
 import { createRunArgsFromSession } from '../run/run-activation';
 import { buildRunMcpSessionContext } from '../run/run';
@@ -242,7 +242,7 @@ import { LocalAgentEndpoint } from './local-base-url';
 import { ToolRuleStore } from '../session/tool-rules';
 import { AgentSessionReader } from './monitors/agent-session-reader';
 import { PlatformAuthContext } from './platform-auth-context';
-import { WorkItemTypesApi, ProjectsApi, ConversationsApi } from '../shared/api/generated';
+import { WorkItemTypesApi, ProjectsApi, ConversationsApi } from '@hey-hey/contracts/api';
 import { CreateReportProxy } from '../agents/submission-tools/create-report-proxy';
 import { CreateReportTool } from '../agents/submission-tools/create-report-tool';
 import { SubmissionToolAuth } from '../agents/submission-tools/submission-tool-auth';
@@ -648,7 +648,14 @@ describe('ordinary Run output boundaries', () => {
               grading: { checks: [], rubric: [], expectations: 'SECRET-EXPECTATIONS' },
             },
           } satisfies EvalRecordedAttempt,
-          { signal: new AbortController().signal },
+          {
+            signal: new AbortController().signal,
+            searchScope: {
+              createdBefore: '2026-01-01T00:00:00.000Z',
+              excludeConnectedTo: [],
+              hiddenEntityIds: [],
+            },
+          },
         );
         expect(result).toMatchObject({ assistantCompleted: true, outputText: 'Evidence answer.' });
         expect(await runStore.getRunMetadata(AGENT_SESSION_ID)).toMatchObject({

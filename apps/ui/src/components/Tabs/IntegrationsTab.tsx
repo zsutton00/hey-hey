@@ -27,7 +27,7 @@ import type {
   IntegrationResponseDto,
   IntegrationConnectionStatus,
   IntegrationType,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { useIntegrations } from "@hey-hey/ui-common/data";
 import { CreateIntegrationDialog } from "../../pages/Integrations/components/CreateIntegrationDialog";
 import { EditIntegrationDialog } from "../../pages/Integrations/components/EditIntegrationDialog";

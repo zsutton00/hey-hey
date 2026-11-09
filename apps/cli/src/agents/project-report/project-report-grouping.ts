@@ -9,7 +9,7 @@
 import type {
   ProjectReportSubject,
   ProjectReportSubjectPlacement,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 
 export type ProjectReportGroupKind = 'PLAN' | 'FEATURE' | 'UNPLACED';
 

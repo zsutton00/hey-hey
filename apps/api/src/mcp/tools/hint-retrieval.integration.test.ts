@@ -36,6 +36,7 @@ function setup() {
   const graph = {
     findHintsByConnectedItems: jest.fn().mockResolvedValue({ hints: [hint] }),
     listProjectHints: jest.fn(),
+    findHintsByOrigin: jest.fn().mockResolvedValue({ hints: [hint] }),
   };
   const access = {
     assertResource: jest.fn(
@@ -92,5 +93,42 @@ describe('MCP connected-Hint retrieval through HintService', () => {
     await expect(
       provider.getHintsForItems({ itemIds: [itemId] }, {} as never, request),
     ).resolves.toEqual({ hints: [] });
+  });
+
+  describe('by originating session', () => {
+    const sessionId = hint.origin.entityId;
+    it('returns the live hints the graph reports for that session', async () => {
+      const { provider, graph } = setup();
+      await expect(
+        provider.getHintsBySession({ sessionId }, {} as never, request),
+      ).resolves.toMatchObject({
+        hints: [{ id: hint.id, origin: hint.origin }],
+      });
+      expect(graph.findHintsByOrigin).toHaveBeenCalledWith(
+        testIds.organization,
+        testIds.project,
+        'AGENT_SESSION',
+        sessionId,
+        'token',
+      );
+      expect(graph.findHintsByConnectedItems).not.toHaveBeenCalled();
+    });
+    it('withholds a hint connected to any item the caller cannot see', async () => {
+      const { provider, graph } = setup();
+      graph.findHintsByOrigin.mockResolvedValue({
+        hints: [
+          {
+            ...hint,
+            connections: [
+              ...hint.connections,
+              { ...hint.connections[0], targetNodeId: hiddenId },
+            ],
+          },
+        ],
+      });
+      await expect(
+        provider.getHintsBySession({ sessionId }, {} as never, request),
+      ).resolves.toEqual({ hints: [] });
+    });
   });
 });

@@ -9,7 +9,7 @@ import {
   IntegrationConnectionStatus,
   IntegrationState,
   IntegrationType,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { IntegrationId, OrganizationId, ProjectId } from '../../types';
 import { GitHubWebhookPayload } from '../../types/webhook.types';
 

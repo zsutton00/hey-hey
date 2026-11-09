@@ -1,4 +1,4 @@
-import { ReportType } from '../../../generated';
+import { ReportType } from '@hey-hey/contracts/api/models';
 import { SCHEMAS, attemptFix } from '../event-replay-repair.registry';
 
 function reportCreatedPayload(reportType: string) {

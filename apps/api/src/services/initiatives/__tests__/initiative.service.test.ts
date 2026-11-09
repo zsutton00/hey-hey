@@ -11,7 +11,7 @@ import {
   WorkStatus,
   Priority,
   InitiativeCreatorType,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   InitiativeId,
   OrganizationId,
@@ -185,9 +185,11 @@ describe('InitiativeService', () => {
       TestUtils.createMockTagService() as unknown as jest.Mocked<TagService>;
     // Augment the mock TagService with methods the helper does not seed but
     // the service relies on.
-    (mockTagService as unknown as {
-      syncInitiativeTags: jest.Mock;
-    }).syncInitiativeTags = jest.fn().mockResolvedValue(undefined);
+    (
+      mockTagService as unknown as {
+        syncInitiativeTags: jest.Mock;
+      }
+    ).syncInitiativeTags = jest.fn().mockResolvedValue(undefined);
     mockInitiativeArtifactService =
       TestUtils.createMockInitiativeArtifactService() as unknown as jest.Mocked<InitiativeArtifactService>;
     mockArtifactService =
@@ -957,9 +959,7 @@ describe('InitiativeService', () => {
           initiativeSection: {
             updateMany: sectionUpdateMany,
           },
-        } as unknown as Parameters<
-          InitiativeService['updateInTransaction']
-        >[0],
+        } as unknown as Parameters<InitiativeService['updateInTransaction']>[0],
         updateMock,
         findFirstMock,
         sectionUpdateMany,

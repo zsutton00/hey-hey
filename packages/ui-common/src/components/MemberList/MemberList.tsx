@@ -17,6 +17,7 @@ import GroupAddIcon from "@mui/icons-material/GroupAdd";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import { usePathService } from "../../contexts";
+import { isLocalAccountEmail } from "../../utils";
 
 export interface MemberRow {
   id: string;
@@ -42,7 +43,7 @@ export interface MemberListProps {
 
 const getInitials = (
   name: string | undefined,
-  email: string | undefined
+  email: string | undefined,
 ): string => {
   const source = name?.trim() || email?.trim() || "";
   if (!source) return "?";
@@ -73,7 +74,7 @@ const MemberRowMenu: React.FC<MemberRowMenuProps> = ({
       event.stopPropagation();
       setAnchorEl(event.currentTarget);
     },
-    []
+    [],
   );
 
   const handleClose = useCallback(() => {
@@ -87,7 +88,7 @@ const MemberRowMenu: React.FC<MemberRowMenuProps> = ({
       setAnchorEl(null);
       onRemoveFromProject?.(member);
     },
-    [member, onRemoveFromProject]
+    [member, onRemoveFromProject],
   );
 
   const handleRemoveFromOrganization = useCallback(
@@ -97,7 +98,7 @@ const MemberRowMenu: React.FC<MemberRowMenuProps> = ({
       setAnchorEl(null);
       onRemoveFromOrganization?.(member);
     },
-    [member, onRemoveFromOrganization]
+    [member, onRemoveFromOrganization],
   );
 
   if (!onRemoveFromProject && !onRemoveFromOrganization) {
@@ -204,6 +205,7 @@ export const MemberList: React.FC<MemberListProps> = ({
             const user = member.user;
             const name = user?.name || "Unknown user";
             const email = user?.email ?? "";
+            const displayedEmail = isLocalAccountEmail(email) ? "" : email;
             const href =
               destination.scope === "organization"
                 ? pathService.organizationUser({
@@ -232,14 +234,14 @@ export const MemberList: React.FC<MemberListProps> = ({
                   "&:hover": { backgroundColor: "action.hover" },
                 }}
               >
-                <Avatar>{getInitials(user?.name, email)}</Avatar>
+                <Avatar>{getInitials(user?.name, displayedEmail)}</Avatar>
                 <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                   <Typography variant="subtitle2" noWrap>
                     {name}
                   </Typography>
-                  {email && (
+                  {displayedEmail && (
                     <Typography variant="body2" color="text.secondary" noWrap>
-                      {email}
+                      {displayedEmail}
                     </Typography>
                   )}
                 </Box>

@@ -6,7 +6,7 @@ import { App } from 'supertest/types';
 import type {
   JevChoiceEvaluationRequestDto,
   JevChoiceEvaluationResponseDto,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { TransformInterceptor } from '../../common/interceptors/transform.interceptor';
 import { TypeSafeJevController } from '../typesafe-jev.controller';
 import { TypeSafeJevService } from '../../services/typesafe-jev/typesafe-jev.service';

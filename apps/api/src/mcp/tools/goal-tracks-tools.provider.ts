@@ -7,7 +7,7 @@ import {
   AttachToGoalResponseDto,
   DetachFromGoalResponseDto,
   EntityType,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { GoalTracksService } from '../../services/tasks/goal-tracks.service';
 import type { ProjectId, TaskId } from '../../types';
 import {
@@ -69,7 +69,7 @@ const detachFromGoalParameters = z.object({
     .string()
     .uuid()
     .describe(
-      'ID of the source task to detach from. The source task\'s type ' +
+      "ID of the source task to detach from. The source task's type " +
         'must be one the work-item config marks as an eligible tracking ' +
         'source (today only GOAL); other types are rejected at the ' +
         'boundary with a type-named 400.',

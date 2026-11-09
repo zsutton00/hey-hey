@@ -35,7 +35,7 @@ import {
   WorkItemTypeLifecycleStatus,
   WorkItemTypeRole,
   WorkStatus,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import type {
   ProposalApprovalFailureDiagnostic,
   ProposalResponseDto,
@@ -49,7 +49,7 @@ import type {
   WorkItemTypeTracking,
   WorkItemTypeWritingStandards,
   WorkItemTypeSessionRoleGuidance,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import {
@@ -86,7 +86,13 @@ import {
   resolveWorkItemIconPresentation,
 } from "@hey-hey/ui-common/utils";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
+import {
+  Link as RouterLink,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
+import { WorkItemTypeComparisonDialog } from "./WorkItemTypeComparisonDialog";
 import { PageBreadcrumbs } from "../../components/Layout";
 import { proposalReviewPath } from "../Proposals/proposalReviewPath";
 import {
@@ -370,6 +376,10 @@ export const WorkItemTypeFormPage: React.FC = () => {
   const [failureDiagnostic, setFailureDiagnostic] =
     useState<ProposalApprovalFailureDiagnostic>();
   const [error, setError] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+  const [compareOpen, setCompareOpen] = useState(
+    searchParams.get("compare") === "1",
+  );
   const [activeTab, setActiveTab] = useState<FormTab>("Overview");
   const [errorTarget, setErrorTarget] = useState<{
     tab: FormTab;
@@ -2612,6 +2622,15 @@ export const WorkItemTypeFormPage: React.FC = () => {
               Reset to canonical
             </Button>
           ) : null}
+          {canResetToCanonical ? (
+            <Button
+              variant="outlined"
+              onClick={() => setCompareOpen(true)}
+              data-testid="wit-form-compare-with-canonical"
+            >
+              Compare with canonical
+            </Button>
+          ) : null}
           {manageWorkItemTypes && canHardDelete ? (
             <Button
               color="error"
@@ -2632,6 +2651,25 @@ export const WorkItemTypeFormPage: React.FC = () => {
           </Button>
         </Stack>
       </form>
+
+      {canResetToCanonical && compareOpen ? (
+        <WorkItemTypeComparisonDialog
+          open
+          onClose={() => setCompareOpen(false)}
+          organizationId={currentOrgId}
+          projectId={projectId}
+          typeKey={resolvedKey}
+          onReset={
+            manageWorkItemTypes
+              ? () => {
+                  setCompareOpen(false);
+                  handleResetToCanonical();
+                }
+              : undefined
+          }
+          resetPending={resetMutation.isPending}
+        />
+      ) : null}
 
       <Dialog
         open={pendingCanonicalDefinition !== null}

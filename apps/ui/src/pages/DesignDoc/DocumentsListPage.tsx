@@ -14,18 +14,13 @@ import AddIcon from "@mui/icons-material/Add";
 import React, { useCallback, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import {
-  Library,
-} from "@hey-hey/ui-common/components";
+import { Library } from "@hey-hey/ui-common/components";
 import { useModalService } from "@hey-hey/ui-common/context";
-import {
-  useProjectLibrary,
-  useProject,
-} from "@hey-hey/ui-common/data";
+import { useProjectLibrary, useProject } from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import { compose } from "@hey-hey/ui-common/i18n";
 import { PageBreadcrumbs } from "../../components/Layout";
-import type { DesignDocLibraryNodeDto } from "@hey-hey/ui-common/api";
+import type { DesignDocLibraryNodeDto } from "@hey-hey/contracts/api";
 import { WebPathService } from "@hey-hey/ui-common/services";
 
 export const DocumentsListPage: React.FC = () => {
@@ -37,14 +32,13 @@ export const DocumentsListPage: React.FC = () => {
 
   const [searchTerm, setSearchTerm] = useState("");
 
-  const {
-    library,
-    isLoading,
-    error,
-    refetch,
-  } = useProjectLibrary(currentOrgId, projectId || "", {
-    enabled: !!currentOrgId && !!projectId,
-  });
+  const { library, isLoading, error, refetch } = useProjectLibrary(
+    currentOrgId,
+    projectId || "",
+    {
+      enabled: !!currentOrgId && !!projectId,
+    },
+  );
 
   const { data: project } = useProject(currentOrgId || "", projectId || "", {
     enabled: !!currentOrgId && !!projectId,
@@ -93,9 +87,7 @@ export const DocumentsListPage: React.FC = () => {
 
     switch (node.type) {
       case "design-doc":
-        navigate(
-          WebPathService.designDoc({ projectId, designDocId: node.id }),
-        );
+        navigate(WebPathService.designDoc({ projectId, designDocId: node.id }));
         return;
       case "initiative":
         navigate(

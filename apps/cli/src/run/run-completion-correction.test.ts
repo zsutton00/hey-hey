@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { PromptTypeHandler } from '../agents/prompt-type-handler';
 import { createOnCompleteTestDeps } from '../agents/prompt-type-handler.test-support';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { NOOP_LOGGER } from '../server/logger';
 import { Turn, type Runner } from '../turn/turn';
 import { handleAssistantComplete } from './handlers/assistant-complete';

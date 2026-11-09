@@ -6,7 +6,7 @@ import {
   ProjectStatus,
   TaskEventUpdateSnapshot,
   UpdateProjectDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { EntityRegistryService } from 'src/services/entity-registry/entity-registry.service';
 import { EntitySummaryService } from 'src/services/entity-summary/entity-summary.service';

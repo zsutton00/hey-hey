@@ -2,7 +2,7 @@ import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
 } from 'src/services/tasks/work-item-type-keys';
-import { Influence } from '../../generated';
+import { Influence } from '@hey-hey/contracts/api/models';
 
 /**
  * Internal TaskDraft interface for task generation

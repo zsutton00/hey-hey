@@ -1,8 +1,9 @@
+import { asConversationId, asProjectId, asServiceId, asWorkflowId } from '../../test-utils/contract-ids';
 import { describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { AssistantCompleteEvent } from '../../run/types';
 import { AgentSessionRunnerError } from '../providers/session-runner';
 import type { AgenticSession } from '../../session/types';
@@ -30,12 +31,12 @@ const bounds: RepositoryAnalysisBounds = {
 
 const payload: RepositoryAnalysisPromptPayload = {
   promptType: LocalPromptType.RepositoryGrounding,
-  projectId: '11111111-1111-4111-8111-111111111111',
-  conversationId: '22222222-2222-4222-8222-222222222222',
-  workflowId: '33333333-3333-4333-8333-333333333333',
+  projectId: asProjectId('11111111-1111-4111-8111-111111111111'),
+  conversationId: asConversationId('22222222-2222-4222-8222-222222222222'),
+  workflowId: asWorkflowId('33333333-3333-4333-8333-333333333333'),
   workflowNodeId: 'repository-grounding-node',
   entryMode: 'existing_project',
-  serviceId: '44444444-4444-4444-8444-444444444444',
+  serviceId: asServiceId('44444444-4444-4444-8444-444444444444'),
   confirmedServiceBrief: 'Customer account management.',
   machineId: '55555555-5555-4555-8555-555555555555',
   scope: { scope: 'comprehensive' },

@@ -14,7 +14,6 @@ import {
   ProjectionDeletionResult,
   SearchRequest,
   SearchResponse,
-  SearchResult,
   StatsResponse,
 } from 'src/generated/embeddings';
 import { DevelopmentService } from 'src/generated/embeddings/api/development.service';
@@ -244,7 +243,7 @@ export class EmbeddingsClientService {
       entityType?: string;
     },
     userToken: string,
-  ): Promise<SearchResult[]> {
+  ): Promise<SearchResponse> {
     if (!this.isEnabled) {
       throw new Error('Embeddings service is disabled');
     }
@@ -296,7 +295,7 @@ export class EmbeddingsClientService {
         ),
       );
 
-      return response.data.data ?? [];
+      return response.data;
     } catch (error) {
       this.logger.error('Failed to search embeddings with user token', {
         error: (error as Error).message,

@@ -1,6 +1,6 @@
 import { useModalState } from "@hey-hey/ui-common/components/Modals";
 import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
-import { DebugEventReplayMode } from "@hey-hey/ui-common/api";
+import { DebugEventReplayMode } from "@hey-hey/contracts/api";
 import { useDebugEventReplay, useOutboxEvents } from "@hey-hey/ui-common/data";
 import {
   Alert,

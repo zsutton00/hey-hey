@@ -1,7 +1,7 @@
 import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import React from "react";
 import { DialogContent, DialogTitle } from "@mui/material";
-import type { ServiceDto } from "@hey-hey/ui-common/api";
+import type { ServiceDto } from "@hey-hey/contracts/api";
 import { CreateServiceForm } from "@hey-hey/ui-common/components/Services";
 
 export interface CreateServiceModalProps {

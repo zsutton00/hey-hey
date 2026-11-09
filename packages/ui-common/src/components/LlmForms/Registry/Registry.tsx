@@ -499,11 +499,13 @@ const preparePlanDocumentInitialValue = ({
     return normalizedBaseValue;
   }
 
-  if (!isRecordPayload(uiElement.payload)) {
+  const rawPayload: unknown = uiElement.payload;
+  if (!isRecordPayload(rawPayload)) {
     return baseValue;
   }
 
-  const payloadEntityId = uiElement.payload["entityId"];
+  const payload = rawPayload;
+  const payloadEntityId = payload["entityId"];
   if (
     typeof payloadEntityId !== "string" ||
     payloadEntityId.trim().length === 0
@@ -511,7 +513,7 @@ const preparePlanDocumentInitialValue = ({
     return baseValue;
   }
 
-  const payloadTemplate = uiElement.payload["template"];
+  const payloadTemplate = payload["template"];
   const normalizedTemplate = normalizePlanDocumentViewTemplate(payloadTemplate);
 
   return {
@@ -1050,6 +1052,7 @@ export const FIELD_REGISTRY: Record<string, FieldRegistryEntry> = {
       AgentPermissionRequestField as unknown as React.FC<FieldComponentProps>,
     getHasContent: () => true,
     shouldShowButtons: () => false,
+    hideSystemMessage: true,
   },
   agent_question: {
     ...getFieldResponseMetadata("agent_question"),

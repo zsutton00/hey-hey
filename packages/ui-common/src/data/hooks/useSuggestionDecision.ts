@@ -5,6 +5,10 @@ import type {
   SuggestionType,
 } from "../../api";
 import { suggestionsClient } from "../../clients/serviceClients";
+import {
+  toOpenApiConversationId,
+  toOpenApiMessageId,
+} from "../../clients/contractIdentifierAdapters";
 import { useMutation } from "../core/useMutation";
 
 export interface SuggestionDecisionVariables {
@@ -24,7 +28,7 @@ export interface UseSuggestionDecisionOptions {
 }
 
 export const useSuggestionDecision = (
-  options: UseSuggestionDecisionOptions = {}
+  options: UseSuggestionDecisionOptions = {},
 ) => {
   const mutationFn = async ({
     organizationId,
@@ -37,20 +41,17 @@ export const useSuggestionDecision = (
   }: SuggestionDecisionVariables): Promise<SuggestionDecisionResponseDto> => {
     const request: SuggestionDecisionRequestDto = {
       accepted,
-      sourceConversationId,
-      sourceMessageId,
+      sourceConversationId: toOpenApiConversationId(sourceConversationId),
+      sourceMessageId: toOpenApiMessageId(sourceMessageId),
       metadata,
     };
 
-    const response =
-      await suggestionsClient.recordSuggestionDecision(
-        {
-          organizationId: organizationId,
-          type: type,
-          suggestionId: suggestionId,
-          suggestionDecisionRequestDto: request,
-        }
-      );
+    const response = await suggestionsClient.recordSuggestionDecision({
+      organizationId: organizationId,
+      type: type,
+      suggestionId: suggestionId,
+      suggestionDecisionRequestDto: request,
+    });
 
     const decision = response.data?.data;
     if (!decision) {

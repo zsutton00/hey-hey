@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AgentEdgeEndpointEntityType } from '../../../generated/graphs';
 import { PendingEdgeService } from '../../../services/proposal/pending-edge.service';
-import { CreateTaskDto } from '../../../generated';
+import { CreateTaskDto } from '@hey-hey/contracts/api/models';
 import { TaskService } from '../../../services/tasks/task.service';
 import {
   ActionNodeBase,

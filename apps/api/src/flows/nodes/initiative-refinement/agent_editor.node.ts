@@ -6,7 +6,7 @@ import {
   SecondaryActionConfig,
   SecondaryActionHandler,
   UIElement,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { ArtifactService } from 'src/services/artifacts/artifact.service';
 import { InitiativeService } from 'src/services/initiatives/initiative.service';
 import { MessageContentExtractor } from 'src/utils/message-content-extractor';

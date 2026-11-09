@@ -11,7 +11,7 @@ import type { WebsocketGateway } from '../../../core/websockets/websocket.gatewa
 import { OpenItemsRepository } from '../open-items.repository';
 import { OpenItemsService } from '../open-items.service';
 import { OpenItemsGoalPromotionService } from '../open-items-goal-promotion.service';
-import type { CreateTaskDto } from '../../../generated';
+import type { CreateTaskDto } from '@hey-hey/contracts/api/models';
 
 const database = process.env.PROJECT_DATABASE_URL;
 const enabled =

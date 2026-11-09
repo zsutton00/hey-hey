@@ -35,7 +35,7 @@ import {
   parseDurableRunEvent,
   type DurableProvider,
 } from './durable-events';
-import type { RunEntityReference } from '../shared/agent-bridge-contract/generated/api';
+import type { RunEntityReference } from '@hey-hey/contracts/agent-bridge';
 
 const RUN_FAMILY_SCHEMA_VERSION = 2;
 

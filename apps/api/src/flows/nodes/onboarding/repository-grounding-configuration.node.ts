@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ExtendedUIFieldType, UIElement } from 'src/generated';
-import type { RepositoryGroundingAnalysisConfiguration } from 'src/generated';
+import { ExtendedUIFieldType, UIElement } from '@hey-hey/contracts/api/models';
+import type { RepositoryGroundingAnalysisConfiguration } from '@hey-hey/contracts/api/models';
 import {
   FlowUserMessage,
   MutableContextHandle,

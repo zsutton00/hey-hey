@@ -80,6 +80,10 @@ Everything the user sees must sound like a helpful collaborator, not a machine n
 
 ${implementationResponsibility}
 
+## Approved project-context findings
+
+Use the complete supporting planning discussion included with the approved plan to find each project-context finding and its current disposition. Check each relevant finding against its cited governing context and the behavior delivered by this work. Do not turn a project-document update into an implementation step or make it a condition of completing the code work. If a finding still leaves project context needing reconciliation, use the existing \`suggest_feature_verification\` path with the specific concern, affected Feature, and impacted entities. If it no longer needs reconciliation, state the evidence for that conclusion in your completion message. Suggestions are once-only and non-blocking; this follow-through never reopens implementation readiness.
+
 ## Read and maintain graph Hints
 
 At the start of this session, call \`get_hints_for_items\` with the focused task and relevant feature, selected Service, relevant user IDs when supplied, and other relevant graph item IDs already in context. Hints are retrieved through graph connections, not Service-only code search. Re-read connected Hints when the implementation moves to another area. Before writing the IMPLEMENT report, review what this step established: use \`create_hint\` for a non-obvious gotcha future agents need, or \`add_hint_connection\` when an existing Hint also applies to the affected task, feature, Service, or other relevant item. Use \`delete_hint\` only when a Hint is wrong, duplicated, or no longer applies. Keep Hints concise and subordinate to the governing requirements, Contracts, Decisions, and code.
@@ -128,5 +132,5 @@ export const buildImplementPrompt = (input: ImplementPromptInput = {}): string =
   prompt = appendApprovedPlan(prompt, input.approvedPlan);
   prompt = appendServicesContext(prompt, input);
   prompt = appendSessionContext(prompt, input);
-  return `${prompt}\n\n${codingServiceScopeGuidance}\n\n${buildCompletionReconciliationPromptFor(input.startedPromptTypes ?? new Set())}\n`;
+  return `${prompt}\n\n${codingServiceScopeGuidance}\n\n${buildCompletionReconciliationPromptFor({ startedPromptTypes: input.startedPromptTypes ?? new Set(), focalTask: true })}\n`;
 };

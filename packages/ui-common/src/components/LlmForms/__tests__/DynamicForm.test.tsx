@@ -44,8 +44,14 @@ vi.mock("../Registry", () => ({
         typeof value === "string" && value.length > 0,
     },
     text: {
-      Component: ({ config, value, onChange }: FieldComponentProps<string>) => (
+      Component: ({
+        config,
+        value,
+        onChange,
+        disabled,
+      }: FieldComponentProps<string>) => (
         <input
+          disabled={disabled}
           data-testid={`field-${config.field}`}
           value={value || ""}
           onChange={(e) => onChange?.(e.target.value)}
@@ -175,8 +181,8 @@ vi.mock("../Registry", () => ({
     return type === "repository_grounding_intent"
       ? "repository_grounding_intent"
       : type === "text_input"
-      ? "text"
-      : type;
+        ? "text"
+        : type;
   },
 }));
 
@@ -285,7 +291,7 @@ describe("DynamicForm", () => {
           feedback: "Keep this approval note",
           decision: "improve",
         },
-      })
+      }),
     ).toEqual({
       "startup-plan-field": {
         action: "APPROVED",
@@ -340,11 +346,11 @@ describe("DynamicForm", () => {
   };
 
   const renderForm = (
-    props: Partial<React.ComponentProps<typeof DynamicForm>>
+    props: Partial<React.ComponentProps<typeof DynamicForm>>,
   ) => render(<DynamicForm {...defaultProps} {...props} />);
 
   const createSecondAction = (
-    overrides: Partial<SecondAction> = {}
+    overrides: Partial<SecondAction> = {},
   ): SecondAction => ({
     type: "skip",
     label: "Skip Step",
@@ -364,8 +370,8 @@ describe("DynamicForm", () => {
       typeof overrides.field === "string"
         ? overrides.field
         : typeof overrides.id === "string"
-        ? overrides.id
-        : "test-field",
+          ? overrides.id
+          : "test-field",
     ...overrides,
   });
 
@@ -383,15 +389,15 @@ describe("DynamicForm", () => {
       expect(screen.getByTestId("dynamic-form")).toBeInTheDocument();
       expect(screen.getByTestId("field-test-field")).toBeInTheDocument();
       expect(
-        screen.getByTestId("registry-field-root-text-test-field")
+        screen.getByTestId("registry-field-root-text-test-field"),
       ).toBeInTheDocument();
       expect(
         screen.getByTestId(
-          "registry-field-root-message-message-1-text-test-field"
-        )
+          "registry-field-root-message-message-1-text-test-field",
+        ),
       ).toBeInTheDocument();
       expect(
-        screen.getByTestId("run-stream-external-reply-submit")
+        screen.getByTestId("run-stream-external-reply-submit"),
       ).toBeInTheDocument();
     });
 
@@ -409,15 +415,15 @@ describe("DynamicForm", () => {
       renderForm({ uiElements });
 
       expect(screen.getByTestId(`field-${fieldId}-value`)).toHaveTextContent(
-        "unanswered"
+        "unanswered",
       );
       expect(
-        screen.getByTestId("run-stream-external-reply-submit")
+        screen.getByTestId("run-stream-external-reply-submit"),
       ).toBeDisabled();
 
       await user.click(screen.getByTestId(`field-${fieldId}-yes`));
       expect(screen.getByTestId(`field-${fieldId}-value`)).toHaveTextContent(
-        "yes"
+        "yes",
       );
       await user.click(screen.getByTestId("run-stream-external-reply-submit"));
 
@@ -426,8 +432,8 @@ describe("DynamicForm", () => {
           {
             [fieldId]: { choice: "yes" },
           },
-          undefined
-        )
+          undefined,
+        ),
       );
     });
 
@@ -470,7 +476,7 @@ describe("DynamicForm", () => {
       const verifyExplanation = screen.getByTestId("verify-feature-field");
       const verifyAction = screen.getByTestId("inline-secondary-verify-action");
       const verifyRoot = screen.getByTestId(
-        "registry-field-root-message-message-1-verify_feature-verify-feature-field"
+        "registry-field-root-message-message-1-verify_feature-verify-feature-field",
       );
       const verifyRootStyle = window.getComputedStyle(verifyRoot);
       expect(verifyRootStyle.borderStyle).toBe("solid");
@@ -480,20 +486,20 @@ describe("DynamicForm", () => {
       expect(verifyRoot).toContainElement(verifyAction);
       expect(
         window.getComputedStyle(verifyAction.parentElement as HTMLElement)
-          .marginTop
+          .marginTop,
       ).toBe("16px");
       expect(
         verifyExplanation.compareDocumentPosition(verifyAction) &
-          Node.DOCUMENT_POSITION_FOLLOWING
+          Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy();
 
       const textAction = screen.getByTestId("inline-secondary-text-action");
       const textFieldRoot = screen.getByTestId(
-        "registry-field-root-text-text-with-action"
+        "registry-field-root-text-text-with-action",
       );
       expect(
         textAction.compareDocumentPosition(textFieldRoot) &
-          Node.DOCUMENT_POSITION_FOLLOWING
+          Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy();
     });
 
@@ -505,7 +511,7 @@ describe("DynamicForm", () => {
       expect(
         screen
           .getByTestId("run-stream-external-reply-submit")
-          .querySelector("svg")
+          .querySelector("svg"),
       ).toBeInTheDocument();
     });
   });
@@ -521,7 +527,7 @@ describe("DynamicForm", () => {
       renderForm({ uiElements });
 
       expect(
-        screen.getByTestId("run-stream-external-reply-submit")
+        screen.getByTestId("run-stream-external-reply-submit"),
       ).toHaveTextContent("Create Initiative");
     });
 
@@ -544,7 +550,7 @@ describe("DynamicForm", () => {
       renderForm({ uiElements });
 
       expect(
-        screen.getByTestId("run-stream-external-reply-submit")
+        screen.getByTestId("run-stream-external-reply-submit"),
       ).toHaveTextContent("Generate Tasks");
     });
 
@@ -559,7 +565,7 @@ describe("DynamicForm", () => {
       expect(
         screen
           .getByTestId("run-stream-external-reply-submit")
-          .querySelector("svg")
+          .querySelector("svg"),
       ).toBeInTheDocument();
     });
 
@@ -569,7 +575,7 @@ describe("DynamicForm", () => {
       expect(
         screen
           .getByTestId("run-stream-external-reply-submit")
-          .querySelector("svg")
+          .querySelector("svg"),
       ).toBeInTheDocument();
     });
 
@@ -585,7 +591,7 @@ describe("DynamicForm", () => {
       expect(
         screen
           .getByTestId("run-stream-external-reply-submit")
-          .querySelector("svg")
+          .querySelector("svg"),
       ).toBeInTheDocument();
     });
 
@@ -601,7 +607,7 @@ describe("DynamicForm", () => {
       expect(
         screen
           .getByTestId("run-stream-external-reply-submit")
-          .querySelector("svg")
+          .querySelector("svg"),
       ).toBeInTheDocument();
     });
   });
@@ -623,14 +629,14 @@ describe("DynamicForm", () => {
         ],
       });
       await user.click(
-        screen.getByRole("button", { name: "Continue with this outline" })
+        screen.getByRole("button", { name: "Continue with this outline" }),
       );
       await user.click(screen.getByTestId("run-stream-external-reply-submit"));
       await waitFor(() =>
         expect(mockOnNext).toHaveBeenCalledWith(
           { repository_feature_enrichment_choice: "SKIP" },
-          undefined
-        )
+          undefined,
+        ),
       );
     });
     it("should call onNext with form data when submitted", async () => {
@@ -651,7 +657,7 @@ describe("DynamicForm", () => {
 
       // Submit the form
       const submitButton = screen.getByTestId(
-        "run-stream-external-reply-submit"
+        "run-stream-external-reply-submit",
       );
       expect(submitButton).toHaveTextContent("Submit Test");
 
@@ -662,7 +668,7 @@ describe("DynamicForm", () => {
           {
             "test-input": "test value",
           },
-          undefined
+          undefined,
         );
       });
     });
@@ -673,7 +679,7 @@ describe("DynamicForm", () => {
       renderForm({ uiElements });
 
       expect(
-        screen.getByTestId("run-stream-external-reply-submit")
+        screen.getByTestId("run-stream-external-reply-submit"),
       ).toBeDisabled();
     });
 
@@ -688,7 +694,7 @@ describe("DynamicForm", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByTestId("run-stream-external-reply-submit")
+          screen.getByTestId("run-stream-external-reply-submit"),
         ).not.toBeDisabled();
       });
     });
@@ -705,7 +711,7 @@ describe("DynamicForm", () => {
       renderForm({ uiElements });
 
       const submitButton = screen.getByTestId(
-        "run-stream-external-reply-submit"
+        "run-stream-external-reply-submit",
       );
       expect(submitButton).not.toBeDisabled();
 
@@ -735,7 +741,7 @@ describe("DynamicForm", () => {
       renderForm({ uiElements, disabled: true });
 
       expect(
-        screen.getByTestId("run-stream-external-reply-submit")
+        screen.getByTestId("run-stream-external-reply-submit"),
       ).toBeDisabled();
     });
 
@@ -746,69 +752,24 @@ describe("DynamicForm", () => {
       renderForm({ uiElements, initialData });
 
       expect(screen.getByTestId("field-test-field")).toHaveValue(
-        "initial value"
+        "initial value",
       );
     });
 
-    it("should clear text fields on submission-success when composerResetMode is clearOnSuccess", async () => {
+    it("should clear text fields on submit", async () => {
       const user = userEvent.setup();
       const uiElements = [createUIElement({ id: "message-input" })];
 
       renderForm({
         uiElements,
-        composerResetMode: "clearOnSuccess",
       });
 
-      const input = screen.getByTestId("field-message-input");
-      await user.type(input, "hello");
-      expect(input).toHaveValue("hello");
+      await user.type(screen.getByTestId("field-message-input"), "hello");
+      await user.click(screen.getByTestId("run-stream-external-reply-submit"));
 
-      const { result: events } = renderHook(() =>
-        useConversationEvents(defaultContext.conversationId)
-      );
-      act(() => {
-        events.current.emit({
-          type: "submission-success",
-          payload: {
-            messageId: baseConversationMessage.message.id,
-            data: { "message-input": "hello" },
-          },
-        });
-      });
-
+      expect(mockOnNext).toHaveBeenCalled();
       await waitFor(() => {
         expect(screen.getByTestId("field-message-input")).toHaveValue("");
-      });
-    });
-
-    it("should preserve text field values when composerResetMode is preserve", async () => {
-      const user = userEvent.setup();
-      const uiElements = [createUIElement({ id: "message-input" })];
-
-      renderForm({
-        uiElements,
-        composerResetMode: "preserve",
-      });
-
-      const input = screen.getByTestId("field-message-input");
-      await user.type(input, "hello");
-      expect(input).toHaveValue("hello");
-
-      const { result: events } = renderHook(() =>
-        useConversationEvents(defaultContext.conversationId)
-      );
-      act(() => {
-        events.current.emit({
-          type: "submission-success",
-          payload: {
-            messageId: baseConversationMessage.message.id,
-            data: { "message-input": "hello" },
-          },
-        });
-      });
-
-      await waitFor(() => {
-        expect(screen.getByTestId("field-message-input")).toHaveValue("hello");
       });
     });
 
@@ -818,7 +779,6 @@ describe("DynamicForm", () => {
 
       renderForm({
         uiElements,
-        composerResetMode: "clearOnSuccess",
       });
 
       const input = screen.getByTestId("field-message-input");
@@ -826,7 +786,7 @@ describe("DynamicForm", () => {
       expect(input).toHaveValue("hello");
 
       const { result: events } = renderHook(() =>
-        useConversationEvents(defaultContext.conversationId)
+        useConversationEvents(defaultContext.conversationId),
       );
       act(() => {
         events.current.emit({
@@ -843,7 +803,7 @@ describe("DynamicForm", () => {
       });
     });
 
-    it("should clear coding_prompt userMessage on submission-success", async () => {
+    it("should clear coding_prompt userMessage on submit", async () => {
       const user = userEvent.setup();
       const uiElements = [
         createUIElement({
@@ -854,66 +814,61 @@ describe("DynamicForm", () => {
 
       renderForm({
         uiElements,
-        composerResetMode: "clearOnSuccess",
       });
 
-      const input = screen.getByTestId("field-coding-prompt-input");
-      await user.type(input, "ship this");
-      expect(input).toHaveValue("ship this");
-
-      const { result: events } = renderHook(() =>
-        useConversationEvents(defaultContext.conversationId)
+      await user.type(
+        screen.getByTestId("field-coding-prompt-input"),
+        "ship this",
       );
-      act(() => {
-        events.current.emit({
-          type: "submission-success",
-          payload: {
-            messageId: baseConversationMessage.message.id,
-            data: {},
-          },
-        });
-      });
+      await user.click(screen.getByTestId("run-stream-external-reply-submit"));
 
       await waitFor(() => {
         expect(screen.getByTestId("field-coding-prompt-input")).toHaveValue("");
       });
     });
 
-    it("should preserve the draft until the matching submission succeeds", async () => {
+    it("should lock the composer while sending, restore on failure, and clear again when a retry succeeds", async () => {
       const user = userEvent.setup();
       const uiElements = [createUIElement({ id: "judgment-input" })];
       const storageKey = "form-draft-test-project-id-test-conversation-id";
+      const text = "Keep this judgment if posting fails";
 
       renderForm({
         uiElements,
-        composerResetMode: "clearOnSuccess",
       });
 
-      const input = screen.getByTestId("field-judgment-input");
-      await user.type(input, "Keep this judgment if posting fails");
+      await user.type(screen.getByTestId("field-judgment-input"), text);
       await waitFor(() => {
         expect(localStorage.getItem(storageKey)).not.toBeNull();
       });
-
       await user.click(screen.getByTestId("run-stream-external-reply-submit"));
 
+      await waitFor(() => {
+        expect(screen.getByTestId("field-judgment-input")).toHaveValue("");
+      });
+      expect(screen.getByTestId("field-judgment-input")).toBeDisabled();
+      expect(screen.getByRole("status")).toHaveTextContent("Sending");
+
       const { result: events } = renderHook(() =>
-        useConversationEvents(defaultContext.conversationId)
+        useConversationEvents(defaultContext.conversationId),
       );
       act(() => {
         events.current.emit({
           type: "submission-error",
           payload: {
             error: new Error("post failed"),
-            data: { "judgment-input": "Keep this judgment if posting fails" },
+            data: { "judgment-input": text },
             parentMessageId: baseConversationMessage.message.id,
           },
         });
       });
 
-      expect(screen.getByTestId("field-judgment-input")).toHaveValue(
-        "Keep this judgment if posting fails"
-      );
+      await waitFor(() => {
+        expect(screen.getByTestId("field-judgment-input")).toHaveValue(text);
+      });
+      expect(screen.getByTestId("field-judgment-input")).not.toBeDisabled();
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+      expect(screen.getByRole("alert")).toBeInTheDocument();
       expect(localStorage.getItem(storageKey)).not.toBeNull();
 
       act(() => {
@@ -921,15 +876,16 @@ describe("DynamicForm", () => {
           type: "submission-success",
           payload: {
             messageId: baseConversationMessage.message.id,
-            data: { "judgment-input": "Keep this judgment if posting fails" },
+            data: { "judgment-input": text },
           },
         });
       });
 
       await waitFor(() => {
-        expect(localStorage.getItem(storageKey)).toBeNull();
         expect(screen.getByTestId("field-judgment-input")).toHaveValue("");
       });
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(localStorage.getItem(storageKey)).toBeNull();
     });
   });
 
@@ -962,14 +918,14 @@ describe("DynamicForm", () => {
           {...defaultProps}
           uiElements={updatedElements}
           initialData={{ field2: "prefilled" }}
-        />
+        />,
       );
 
       await waitFor(() => {
         expect(screen.getByTestId("field-field1")).toHaveValue("hello");
       });
       const streamedField = await waitFor(
-        () => screen.getByTestId("field-field2") as HTMLInputElement
+        () => screen.getByTestId("field-field2") as HTMLInputElement,
       );
       expect(streamedField).toHaveValue("prefilled");
 
@@ -1025,7 +981,7 @@ describe("DynamicForm", () => {
       expect(button).toBeDisabled();
       await user.hover(button.parentElement!);
       expect(
-        await screen.findByText("Approve every proposed stage first.")
+        await screen.findByText("Approve every proposed stage first."),
       ).toBeInTheDocument();
     });
 
@@ -1061,7 +1017,7 @@ describe("DynamicForm", () => {
 
       expect(screen.getByText("Skip Step")).toBeInTheDocument();
       expect(
-        screen.getByTestId("run-stream-external-reply-submit")
+        screen.getByTestId("run-stream-external-reply-submit"),
       ).toHaveTextContent("Continue");
     });
 
@@ -1080,7 +1036,7 @@ describe("DynamicForm", () => {
         "message-input": "hello",
       });
       expect(
-        screen.getByTestId("run-stream-external-reply-submit")
+        screen.getByTestId("run-stream-external-reply-submit"),
       ).toBeInTheDocument();
       expect(screen.getByText("Skip Step")).toBeInTheDocument();
     });
@@ -1126,7 +1082,7 @@ describe("DynamicForm", () => {
       expect(approveButton).toBeDisabled();
 
       const { result: events } = renderHook(() =>
-        useConversationEvents(defaultContext.conversationId)
+        useConversationEvents(defaultContext.conversationId),
       );
       act(() => {
         events.current.emit({
@@ -1164,7 +1120,7 @@ describe("DynamicForm", () => {
       });
       await waitFor(() => {
         expect(
-          screen.queryByTestId("run-stream-external-reply-submit")
+          screen.queryByTestId("run-stream-external-reply-submit"),
         ).not.toBeInTheDocument();
       });
       expect(screen.queryByText("Skip Step")).not.toBeInTheDocument();
@@ -1189,7 +1145,7 @@ describe("DynamicForm", () => {
       renderForm({ uiElements, secondActions: [action] });
 
       const keyboardSubmit = screen.getByTestId(
-        `${"field"}-${fieldId}-keyboard-submit`
+        `${"field"}-${fieldId}-keyboard-submit`,
       );
       await user.click(keyboardSubmit);
       await user.click(keyboardSubmit);
@@ -1219,7 +1175,7 @@ describe("DynamicForm", () => {
       });
 
       await user.click(
-        screen.getByTestId(`${"field"}-${fieldId}-keyboard-submit`)
+        screen.getByTestId(`${"field"}-${fieldId}-keyboard-submit`),
       );
 
       expect(action.onExecute).not.toHaveBeenCalled();

@@ -1,5 +1,5 @@
-import { LocalPromptType } from 'src/generated/local';
-import { WorkflowReviewAction } from 'src/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
+import { WorkflowReviewAction } from '@hey-hey/contracts/api/models';
 import {
   ExternalAgentValidationError,
   FeatureSyncFlowContext,
@@ -275,17 +275,48 @@ describe('FeatureSyncImplementationReadinessReviewNode', () => {
     state: 'REVIEW_REQUIRED' as const,
     sourceSnapshot,
     finding: {
-      affectedSourceContext: 'Task description and design doc',
-      unresolvedDecision: 'Which service owns the state?',
-      consequentialInventionRisk:
-        'The implementation could assign ownership incorrectly.',
+      requestedOutcome: 'You asked for local users to land in their workspace.',
+      reasoningTrail: [
+        {
+          source: {
+            entityType: 'TASK' as const,
+            entityId: 'c9a7158b-4817-4a78-a2f7-671de909ec78',
+            title: 'Home page task',
+          },
+          explanation: 'It reuses the login mechanism.',
+        },
+        {
+          source: {
+            entityType: 'TASK' as const,
+            entityId: '0f5e6126-08ca-4b16-af4e-0e6044cba183',
+            title: 'Login task',
+          },
+          explanation: 'That mechanism is not decided.',
+        },
+      ],
+      problem: 'The home page depends on an undecided mechanism.',
+      failureScenario: [
+        'A local user opens the home page.',
+        'The page has no method to use.',
+      ],
+      fixSteps: [
+        {
+          owner: {
+            entityType: 'TASK' as const,
+            entityId: '0f5e6126-08ca-4b16-af4e-0e6044cba183',
+            title: 'Login task',
+          },
+          action: 'Decide the mechanism.',
+          state: 'USER_DECISION' as const,
+        },
+      ],
+      userRequest: 'Decide the mechanism on the login task.',
       boundedEvidence: [
         {
           category: 'ownership' as const,
-          statement: 'Both services are named without an authoritative choice.',
+          statement: 'The login task lists the mechanism as open.',
         },
       ],
-      answerKind: 'Name the owning service.',
     },
     resolution: { kind: 'NONE' as const },
   };

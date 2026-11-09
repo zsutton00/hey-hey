@@ -14,7 +14,7 @@ import { toServiceId, type RepoMappingStore } from '../../../repo/index';
 import type { RunStore } from '../../../run-store/run-store';
 import type { ServerLogger } from '../../../server/logger';
 import type { AgenticSession } from '../../../session/index';
-import { WorkStatus } from '../../../shared/api/generated/api';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import type { ProjectMaturity, WorkItemTypeDefinitionDto } from '../../../shared/api/index';
 import {
   buildPlatformSystemPrompt,
@@ -853,6 +853,69 @@ describe('session-runner-codex', () => {
     expect(activeMcpPolicy.activeHeyHeyPlatformAllowedTools).toEqual([
       'mcp__heyhey-platform__get_report_schema',
     ]);
+  });
+
+  it('confines a workspace-bound inert session shell to its directory, and keeps an unbound inert session read-only with no shell', async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cli-codex-inert-workspace-'));
+    try {
+      localAgentEndpoint.set('http://127.0.0.1:3847');
+      sdkStartSessionMock.mockImplementation(completedTurn('codex-thread-1'));
+      const runInert = async (workspaceBound: boolean) => {
+        const runner = new CodexAgentSessionRunner({
+          localAgentEndpoint,
+          submissionToolRegistry,
+          runStore: makeRunStore(),
+          repoStore: makeRepoStore(workspaceDir),
+          oauthClient: createProviderTestOAuthClient(),
+        });
+        await runner.runPrompt({
+          session: makeSession({
+            inert: true,
+            ...(workspaceBound ? { workspaceBound: true } : {}),
+            services: [{ id: 'svc-1', path: workspaceDir }],
+            launchServiceId: 'svc-1',
+          }),
+          prompt: 'Add a greeting file.',
+          platformMcpProxyMount: {
+            runId: 'agentic-1',
+            turnId: 'turn-1',
+            token: 'proxy-token',
+            allowedTools: ['mcp__heyhey-platform__get_context'],
+          },
+        });
+        return sdkStartSessionMock.mock.calls.at(-1)?.[0] as {
+          cwd: string;
+          sandbox: string;
+          config: {
+            features: Record<string, boolean>;
+            sandbox_workspace_write?: { writable_roots: string[] };
+          };
+        };
+      };
+
+      const bound = await runInert(true);
+      const canonicalDir = await fs.realpath(workspaceDir);
+      expect(bound.cwd).toBe(canonicalDir);
+      expect(bound.sandbox).toBe('workspace-write');
+      // No writable root beyond the bound directory (the cwd); the shell runs under that sandbox.
+      expect(bound.config.sandbox_workspace_write?.writable_roots).toEqual([]);
+      expect(bound.config.features).toMatchObject({ shell_tool: true });
+      // Every other inert restriction stays on.
+      expect(bound.config.features).toMatchObject({
+        view_image: false,
+        code_mode: false,
+        apps: false,
+        plugins: false,
+        collab: false,
+        memory_tool: false,
+      });
+
+      const unbound = await runInert(false);
+      expect(unbound.sandbox).toBe('read-only');
+      expect(unbound.config.features).toMatchObject({ shell_tool: false, unified_exec: false });
+    } finally {
+      await fs.rm(workspaceDir, { recursive: true, force: true });
+    }
   });
 
   it('starts git-backed write-capable sessions with the Codex Auto sandbox when no Codex permission default is configured', async () => {
@@ -2125,7 +2188,7 @@ describe('session-runner-codex', () => {
     await runner.runPrompt({
       session: makeSession(),
       prompt: firstTurnInput,
-      epistemicCalibration: true,
+      promptDeclarations: { epistemicCalibration: true },
       model: 'gpt-5.6-sol',
     });
 
@@ -2142,7 +2205,7 @@ describe('session-runner-codex', () => {
     await runner.runPrompt({
       session: makeSession({ provider_session_id: 'codex-thread-1' }),
       prompt: followUpInput,
-      epistemicCalibration: true,
+      promptDeclarations: { epistemicCalibration: true },
       model: 'gpt-5.6-sol',
     });
 
@@ -2882,10 +2945,7 @@ describe('session-runner-codex', () => {
       }),
     ).rejects.toMatchObject({ code: 'RUN_FAILED', message: 'Provider transport failed.' });
 
-    expect(error).toHaveBeenCalledWith(
-      'local.runner.codex.run_prompt.failed',
-      expect.anything(),
-    );
+    expect(error).toHaveBeenCalledWith('local.runner.codex.run_prompt.failed', expect.anything());
     expect(
       vi
         .mocked(runStore.appendEvent)
@@ -4121,83 +4181,5 @@ describe('session-runner-codex', () => {
       name: 'AgentSessionRunnerError',
       code: 'RUN_FAILED',
     });
-  });
-});
-
-describe('CodexAgentSessionRunner.promptOnce', () => {
-  const makeRunner = (runStore: RunStore = makeRunStore()) =>
-    new CodexAgentSessionRunner({
-      localAgentEndpoint,
-      submissionToolRegistry,
-      runStore,
-      repoStore: makeRepoStore(),
-      oauthClient: createProviderTestOAuthClient({ success: true, data: 'test-token' }),
-    });
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    sdkEventHandler = null;
-    sdkDisconnectMock.mockResolvedValue(undefined);
-    sdkStartSessionMock.mockImplementation(async () => {
-      sdkEventHandler?.({
-        method: 'item/completed',
-        params: { item: { type: 'agentMessage', text: 'search for jev' } },
-      });
-    });
-  });
-
-  it('returns the agent message from a read-only thread in an empty directory', async () => {
-    const runStore = makeRunStore();
-    const { signal } = new AbortController();
-
-    const answer = await makeRunner(runStore).promptOnce({
-      session: makeSession(),
-      prompt: 'plan searches',
-      model: 'turn-model',
-      reasoningEffort: 'high',
-      signal,
-    });
-
-    expect(answer).toBe('search for jev');
-    const [config, options] = sdkStartSessionMock.mock.calls[0] as [
-      Record<string, unknown>,
-      unknown,
-    ];
-    expect(config).toMatchObject({
-      prompt: 'plan searches',
-      sandbox: 'read-only',
-      model: 'turn-model',
-      effort: 'high',
-    });
-    expect(config).not.toHaveProperty('config');
-    expect(config['cwd']).not.toBe('/tmp/repo');
-    expect(options).toEqual({ signal });
-    expect(sdkDisconnectMock).toHaveBeenCalledTimes(1);
-    expect(runStore.appendEvent).not.toHaveBeenCalled();
-  });
-
-  it('throws the provider error when the turn fails', async () => {
-    sdkStartSessionMock.mockRejectedValue(new Error('model unavailable'));
-
-    await expect(
-      makeRunner().promptOnce({
-        session: makeSession(),
-        prompt: 'plan',
-        signal: new AbortController().signal,
-      }),
-    ).rejects.toThrow('model unavailable');
-    expect(sdkDisconnectMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('throws when the turn produces no agent message', async () => {
-    sdkStartSessionMock.mockResolvedValue(undefined);
-
-    await expect(
-      makeRunner().promptOnce({
-        session: makeSession(),
-        prompt: 'plan',
-        signal: new AbortController().signal,
-      }),
-    ).rejects.toMatchObject({ code: 'RUN_FAILED' });
   });
 });

@@ -11,7 +11,7 @@ import {
   IntegrationState,
   IntegrationConnectionStatus,
   ProjectStatus,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { IntegrationTargetType } from '@prisma/client';
 import {
   OrganizationId,

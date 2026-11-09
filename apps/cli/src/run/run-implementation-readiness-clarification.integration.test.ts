@@ -21,8 +21,8 @@ import type { AgentRunResult, RunPromptArgs } from '../agents/providers/session-
 import { SubmissionToolsHttpController } from '../agents/submission-tools/http-mcp';
 import { RunStore } from '../run-store/run-store';
 import { LocalAgentEndpoint } from '../server/local-base-url';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated/api';
-import type { ImplementationReadinessDisposition } from '../shared/api/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import type { ImplementationReadinessDisposition } from '@hey-hey/contracts/api/models';
 import { createReadinessSourceSnapshotFromStartupInput } from '../agents/implementation-readiness/source-snapshot';
 import { Run, type RunCollaborators } from './run';
 import { RunnerPicker } from './runners/pick-runner';
@@ -36,6 +36,7 @@ import {
   createTestRunRegistry,
   createTestSessionRunnerFacade,
 } from './run.test-support';
+import { homePageBlockedFinding } from '../agents/implementation-readiness/__tests__/readiness-finding.fixture';
 
 /**
  * A free-form Run with no workflow whose launch readiness check saved
@@ -121,19 +122,7 @@ const startupPromptInput: AgentStartupPromptInputResult = {
   },
 };
 
-const makeFinding = (unresolvedDecision: string) => ({
-  affectedSourceContext: 'The task description',
-  unresolvedDecision,
-  consequentialInventionRisk: 'Implementation could place durable state in the wrong service.',
-  boundedEvidence: [
-    {
-      category: 'behavior' as const,
-      statement: 'The task leaves the owning service open.',
-      sourceRef: 'task.description',
-    },
-  ],
-  answerKind: 'Name the authoritative service.',
-});
+const makeFinding = (problem: string) => ({ ...homePageBlockedFinding, problem });
 
 const launchReviewRequired = (): ImplementationReadinessDisposition => {
   const sourceSnapshot = createReadinessSourceSnapshotFromStartupInput({
@@ -329,7 +318,6 @@ const makeHarness = async () => {
     runPrompt: vi.fn((args: RunPromptArgs) => runTurn('mint', args)),
     resumeSession: vi.fn((args: RunPromptArgs) => runTurn('resume', args)),
     discardSession: vi.fn().mockResolvedValue(undefined),
-    promptOnce: vi.fn(),
     getContextUsage: vi.fn().mockResolvedValue({ totalTokens: 0, maxTokens: 0 }),
   });
 
@@ -484,9 +472,9 @@ describe('readiness clarification on a free-form Run with no workflow', () => {
     expect(validation?.isError).not.toBe(true);
     const afterFirst = await harness.persisted();
     expect(afterFirst.readiness?.state).toBe('REVIEW_REQUIRED');
-    expect(afterFirst.readiness?.finding?.unresolvedDecision).toBe(
-      'Which API version owns the write path?',
-    );
+    expect(afterFirst.readiness?.finding).toMatchObject({
+      problem: 'Which API version owns the write path?',
+    });
     expect(afterFirst.promptType).toBe(LocalPromptType.FreeForm);
 
     await harness.reply('v2.');

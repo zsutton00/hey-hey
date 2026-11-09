@@ -1,7 +1,7 @@
 import type {
   AgentSessionServiceScopeRequest,
   PermissionRequestAgentType,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { ResolvedServiceBinding } from '../../shared/agent-bridge-contract/contract';
 
 export interface RequestAgentSessionServiceScopeArgs {

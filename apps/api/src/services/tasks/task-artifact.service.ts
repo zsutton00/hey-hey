@@ -23,7 +23,7 @@ import {
   TaskOriginalArtifactData,
   ArtifactType,
   UpdateArtifactDto,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { OrganizationId, ProjectId, TaskId } from '../../types';
 import { ArtifactService } from '../artifacts/artifact.service';
 

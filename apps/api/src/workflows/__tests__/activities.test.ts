@@ -14,7 +14,7 @@ import {
   SecondaryActionHandler,
   SystemMessageResponseType,
   WorkflowName,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ONBOARDING_NODES,
   SHARED_NODES,

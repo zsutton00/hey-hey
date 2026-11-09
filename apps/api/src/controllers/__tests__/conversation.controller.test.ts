@@ -46,7 +46,7 @@ import {
   SystemMessageData,
   UserMessageData,
   WorkflowName,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { FlowExecutionStatus } from '@prisma/client';
 import { flowContextToSerializableState } from '../../workflows/conversation-workflow-state';
 import * as TestUtils from '../../utils/testUtils';

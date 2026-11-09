@@ -9,6 +9,32 @@
     "inlineSources": true,
     "lib": ["ES2022", "DOM"],
     "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@hey-hey/contracts/api": ["../../packages/contracts/dist/cjs/generated/api/index"],
+      "@hey-hey/contracts/api/models": [
+        "../../packages/contracts/dist/cjs/generated/api/models/index"
+      ],
+      "@hey-hey/contracts/api/*": ["../../packages/contracts/dist/cjs/generated/api/*"],
+      "@hey-hey/contracts/agent-bridge": [
+        "../../packages/contracts/dist/cjs/generated/agent-bridge/index"
+      ],
+      "@hey-hey/contracts/agent-bridge/models": [
+        "../../packages/contracts/dist/cjs/generated/agent-bridge/models/index"
+      ],
+      "@hey-hey/contracts/agent-bridge/runtime-schema": [
+        "../../packages/contracts/dist/cjs/generated/agent-bridge/repository-feature-enrichment-runtime-schema"
+      ],
+      "@hey-hey/contracts/agent-bridge/*": [
+        "../../packages/contracts/dist/cjs/generated/agent-bridge/*"
+      ],
+      "@hey-hey/contracts/local": ["../../packages/contracts/dist/cjs/generated/local/index"],
+      "@hey-hey/contracts/local/models": [
+        "../../packages/contracts/dist/cjs/generated/local/models/index"
+      ],
+      "@hey-hey/contracts/local/*": ["../../packages/contracts/dist/cjs/generated/local/*"],
+      "@hey-hey/contracts/brands": ["../../packages/contracts/dist/cjs/brands"]
+    },
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,

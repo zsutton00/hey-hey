@@ -6,7 +6,7 @@ import type {
   RunCreatePayloadRunEval,
   StartRunPromptPayload,
   AgentSessionConfig,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 
 /**
  * Compile-time contract test for the start-run wire envelope.
@@ -261,6 +261,7 @@ describe('StartRunPromptPayload compile-time contract', () => {
       evalRunId: '22222222-2222-4222-8222-222222222222',
       judgeSetup: { provider: 'claude', model: 'sonnet' },
       settings: { maxConcurrentAttempts: 3 },
+      cases: [],
       attempts: [
         {
           attemptId: '33333333-3333-4333-8333-333333333333',

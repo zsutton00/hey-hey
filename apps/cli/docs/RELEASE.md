@@ -3,9 +3,11 @@
 This is the **manual release runbook** for the CLI. Followed start to finish, it
 takes a clean checkout to a published `@hey-hey/cli` release on the npm registry.
 
-The process is deliberately manual. Automating it in CI off a version tag is a
-known follow-up — see [CI automation](#ci-automation-out-of-scope) below — but
-that work is **out of scope** here. Run these steps by hand for every release.
+Releases are cut by the automated **Release CLI** workflow described at the end, which
+publishes the pinned image set and generates `release-manifest.json`. The procedure
+below documents the npm steps that workflow performs. It is not an independent path:
+`prepack` runs `scripts/verify-release-manifest.ts`, so `npm publish` fails unless a
+valid `release-manifest.json` for the exact package version is present.
 
 The CLI publishes to npm as the scoped package **`@hey-hey/cli`**. The registry
 plus the published `version` is the stable identifier — `npm install @hey-hey/cli`
@@ -43,7 +45,7 @@ pnpm build
 
 This runs the esbuild bundler (`scripts/build.mjs`), which first builds the
 `ui-common` workspace package and then emits the single-file bundle to
-`dist/index.mjs` (ESM, because Ink requires it). The tarball ships only `dist/` (see the `files` field in
+`dist/index.mjs` (ESM, because Ink requires it). The tarball ships `dist/` and `release-manifest.json` (see the `files` field in
 `package.json`), so this build must run before publishing.
 
 ### 3. Publish to npm
@@ -80,9 +82,22 @@ install cleanly, install it into a scratch directory:
 npm install @hey-hey/cli
 ```
 
-## CI automation (out of scope)
+## Automated release (images and package together)
 
-Automating this runbook — having CI build and `npm publish` the release when a
-version tag is pushed — is a deliberate follow-up and is **not** part of this
-procedure. Until that automation exists, every release is cut by hand using the
-steps above.
+Releases are cut by the **Release CLI** workflow (`.github/workflows/release-cli.yml`),
+run manually from a `release/**` branch after the version in `package.json` is bumped.
+It is gated by the protected `release` environment and needs an `NPM_TOKEN` secret.
+
+1. Builds API, UI and graph/search images natively for `linux/amd64` and
+   `linux/arm64`, and merges each into a multi-arch list tagged with the CLI version
+   under `ghcr.io/zsutton00`.
+2. Pins PostgreSQL (pgvector) and Redis upstream images by digest.
+3. Writes `apps/cli/release-manifest.json` (generated, never committed): the CLI version
+   and the digest-pinned reference for each of the five images. Install, matching
+   checks and update offers read this file; nothing resolves image tags on its own.
+4. Publishes `@hey-hey/cli` to npm.
+5. Verifies: every manifest image pulls anonymously on both architectures, and the
+   published package installs, runs `heyhey --version` and ships the same manifest.
+
+Each GHCR package must be set to **public** once, after its first publish, or the
+anonymous pull check fails. Agents is not part of the release set.

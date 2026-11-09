@@ -301,7 +301,10 @@ export class EdgeToolsProvider {
       'links. PROPOSED_TOGETHER is the symmetric, system-emitted ' +
       'co-authorship edge — read-only on the agent surface. Use to ' +
       'discover how entities connect across the hierarchy before ' +
-      'proposing new edges or changes. Project is resolved from the ' +
+      'proposing new edges or changes. Prefer it over get_context when you ' +
+      'only need the direct links around several identified items; use ' +
+      'get_context for hierarchy, proposal history or consequences, and ' +
+      'get_entity_identities for titles. Project is resolved from the ' +
       'X-Project-ID request header.',
     parameters: getEdgesParameters,
     outputSchema: getEdgesOutput,

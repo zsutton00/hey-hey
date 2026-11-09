@@ -6,7 +6,7 @@ import {
   WORKFLOW_FLOW_EDGE_TYPES,
   WORKFLOW_META_EDGE_TYPES,
 } from '../tools/agent-edge-vocabulary';
-import { AgentEdgeType } from '../../generated/model/agentEdgeType';
+import { AgentEdgeType } from '@hey-hey/contracts/api/models';
 import { createEdgeParameters } from '../tools/edge-tools.provider';
 
 // agent-edge-vocabulary.ts is declared as the single source of truth for which

@@ -2,7 +2,7 @@ import {
   CurrentAgentOperation,
   HostActionTargetKind,
   HostAffectingActionType,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { ExecutableFrameAuthorizationService } from '../executable-frame-authorization.service';
 
 const future = new Date(Date.now() + 60_000);

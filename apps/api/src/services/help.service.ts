@@ -9,7 +9,7 @@ import {
   HelpSearchResponse,
   HelpSearchResult,
   HelpTreeResponse,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildHelpTreeItems } from './help-tree.util';
 

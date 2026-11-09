@@ -199,7 +199,7 @@ describe('OpenAPI generation cache', () => {
       'rm -rf src/generated',
     );
     expect(packageJson.scripts['generate:api:unlocked']).toBe(
-      'node scripts/generate-api-atomically.js',
+      'node ../../scripts/require-openapi-staging.cjs && node scripts/generate-api-atomically.js',
     );
 
     const atomicGenerator = readFileSync(
@@ -215,18 +215,15 @@ describe('OpenAPI generation cache', () => {
     );
   });
 
-  it('excludes generated outputs owned by other API surfaces from API post-processing', () => {
+  it('re-exports only canonical API models from the shared contracts package', () => {
     const postProcessor = readFileSync(
       join(__dirname, '../../../scripts/post-process-generated-types.ts'),
       'utf8',
     );
 
     expect(postProcessor).toContain(
-      "['agents', 'api', 'embeddings', 'graphs', 'local']",
+      "export * from '@hey-hey/contracts/api/models';",
     );
-    expect(postProcessor).toContain('NON_API_GENERATED_DIRS.has');
-    expect(postProcessor).toContain(
-      'const result = processDirectory(GENERATED_DIR);',
-    );
+    expect(postProcessor).not.toContain('processDirectory');
   });
 });

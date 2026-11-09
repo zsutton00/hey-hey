@@ -1290,3 +1290,61 @@ describe('non-persisting template draft validation', () => {
     expect(revisionFindMany).not.toHaveBeenCalled();
   });
 });
+
+describe('conditional block validation', () => {
+  const codes = (content: string): string[] =>
+    validateEntityPromptTemplateContent(content, 'V1').map(
+      (issue) => issue.code,
+    );
+
+  it('accepts balanced, nested blocks and templates without blocks', () => {
+    expect(
+      codes(
+        '{{#if entity.name}}a{{#if entity.sections.details}}b{{else}}c{{/if}}{{/if}}',
+      ),
+    ).toEqual([]);
+    expect(codes('{{ entity.name }} \\{{entity.id}}')).toEqual([]);
+  });
+
+  it.each([
+    ['{{#if entity.name}}x', 'UNCLOSED_IF_BLOCK'],
+    ['x{{else}}y', 'UNEXPECTED_ELSE'],
+    ['x{{/if}}', 'UNEXPECTED_END_IF'],
+    ['{{#if entity.name}}a{{else}}b{{else}}c{{/if}}', 'DUPLICATE_ELSE'],
+    ['{{#if}}x{{/if}}', 'MISSING_CONDITION_PATH'],
+    ['{{#if entity.nope}}x{{/if}}', 'UNSUPPORTED_INPUT'],
+    ['{{#if entity.name}}{{entity.nope}}{{/if}}', 'UNSUPPORTED_INPUT'],
+  ])('rejects %j with %s', (content, code) => {
+    expect(codes(content)).toContain(code);
+  });
+});
+
+describe('saved report path validation', () => {
+  const codes = (content: string): string[] =>
+    validateEntityPromptTemplateContent(content, 'V1').map(
+      (issue) => issue.code,
+    );
+
+  it('accepts both report path families for any report type, in values and conditions', () => {
+    expect(
+      codes(
+        '{{reports.CODING_RESEARCH.latest}}{{reports.PLAN.latest.summary}}' +
+          '{{#if reports.FEATURE_SYNC_HANDOFF.latest}}x{{/if}}',
+      ),
+    ).toEqual([]);
+  });
+
+  it.each([
+    '{{reports.latest}}',
+    '{{reports..latest}}',
+    '{{reports.CODING_RESEARCH}}',
+    '{{reports.CODING_RESEARCH.latest.body}}',
+    '{{reports.CODING_RESEARCH.latest.summary.extra}}',
+    '{{reports.CODING_RESEARCH.oldest}}',
+    '{{reports.coding_research.latest}}',
+    '{{reports.<TYPE>.latest}}',
+    '{{#if reports.<TYPE>.latest.summary}}x{{/if}}',
+  ])('rejects malformed report path %j', (content) => {
+    expect(codes(content)).not.toEqual([]);
+  });
+});

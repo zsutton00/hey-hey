@@ -12,10 +12,13 @@ import { ApiTags } from '@nestjs/swagger';
 import {
   UserSettingsDailySessionReplacementRequestV1,
   UserSettingsResponse,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OrganizationGuard } from '../auth/guards/organization.guard';
-import { CurrentOrganization, CurrentUser } from '../auth/decorators/current-user.decorator';
+import {
+  CurrentOrganization,
+  CurrentUser,
+} from '../auth/decorators/current-user.decorator';
 import { OrganizationId, ProjectId, UserId } from '../types';
 import { UserSettingsService } from '../services/user-settings.service';
 
@@ -25,7 +28,9 @@ import { UserSettingsService } from '../services/user-settings.service';
 )
 @UseGuards(JwtAuthGuard, OrganizationGuard, ProjectAccessGuard)
 export class UserSettingsController {
-  public constructor(private readonly userSettingsService: UserSettingsService) {}
+  public constructor(
+    private readonly userSettingsService: UserSettingsService,
+  ) {}
 
   @Get()
   public async get(
@@ -34,7 +39,12 @@ export class UserSettingsController {
     @CurrentOrganization() organizationId: OrganizationId,
     @CurrentUser('userId') userId: UserId,
   ): Promise<UserSettingsResponse> {
-    return this.userSettingsService.get(organizationId, projectId, userId, settingsFamily);
+    return this.userSettingsService.get(
+      organizationId,
+      projectId,
+      userId,
+      settingsFamily,
+    );
   }
 
   @Put()

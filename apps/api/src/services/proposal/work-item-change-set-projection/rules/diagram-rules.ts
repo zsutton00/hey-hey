@@ -5,7 +5,7 @@ import {
   diagramMetadataSchema,
   parseDiagramJson,
 } from '../../../tasks/diagram-metadata';
-import { DiagramKind } from '../../../../generated/model/diagramKind';
+import { DiagramKind } from '@hey-hey/contracts/api/models';
 import {
   parseDiagramGroupsContent,
   reconcileDiagramGroups,
@@ -313,6 +313,14 @@ export const diagramUxFlowRule: ProjectionRule<UxFlowScope> = {
             field,
             'missing_ux_flow_action_label',
             'Every UX flow transition must have a non-empty triggering-action label.',
+            STRUCTURAL,
+          );
+        }
+        if (!relationship.transitionRole) {
+          ctx.addIssue(
+            field.replace(/\.actionLabel$/, '.transitionRole'),
+            'missing_ux_flow_transition_role',
+            'Every UX flow transition must declare a transition role: PRIMARY_PROGRESSION, ERROR_PATH or RECOVERY.',
             STRUCTURAL,
           );
         }

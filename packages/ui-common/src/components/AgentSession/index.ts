@@ -32,6 +32,7 @@ export * from "./agentBridgeRecoveryState";
 export * from "./AgentBridgeRecoveryNotice";
 export * from "./CodingSession";
 export * from "./OpenBrowserCapsuleAction";
+export * from "./ChangedFilesCapsuleAction";
 export * from "./runtime/RunBrowserContext";
 export * from "./ValidationSession";
 export * from "./useValidationLauncher";
@@ -49,6 +50,12 @@ export type {
   BoundDirectTriggerInput,
 } from "./operations/AgentOperationCoordinator";
 export { AgentOperationProvider } from "./operations/AgentOperationProvider";
+export type {
+  AgentSessionLaunchBinding,
+  AgentSessionLaunchRequest,
+  AgentSessionLaunchResult,
+} from "./operations/launchAgentSession";
+export { useLaunchAgentSession } from "./operations/useLaunchAgentSession";
 export {
   useAgentSessionInteractionAccess,
   useAgentSessionInteractionAccessResolver,
@@ -71,3 +78,6 @@ export { ChatSessionPendingPlaceholder } from "./ChatSessionPendingPlaceholder";
 export { useOpenItemsTriageRuntime } from "./useOpenItemsTriageRuntime";
 export type { OpenItemsTriageRunOptions } from "./useOpenItemsTriageRuntime";
 export { OpenItemsTriageResults } from "./OpenItemsTriageResults";
+export { SavedPatchDiffViewer } from "./CollatedFileDiffModal/SavedPatchDiffViewer";
+export type { SavedPatchDiffViewerProps } from "./CollatedFileDiffModal/SavedPatchDiffViewer";
+export { buildDirectTriggerInput } from "./runtime/hooks/directTriggerInput";

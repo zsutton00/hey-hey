@@ -5,10 +5,13 @@ import type {
   EvalCheckDefinition,
   EvalRubricDimension,
   EvalRunCaseInput,
-} from 'src/generated';
-import { RunEntityReference } from 'src/generated';
+} from '@hey-hey/contracts/api/models';
+import { RunEntityReference } from '@hey-hey/contracts/api/models';
 import { normalizeMentionTypeAlias } from '../mentions/mention-type-aliases';
-import { resolveEvalCaseHandlers } from './eval-case-handlers';
+import {
+  resolveEvalCaseCoding,
+  resolveEvalCaseHandlers,
+} from './eval-case-handlers';
 
 export type EvalCaseRecord = {
   id: string;
@@ -136,6 +139,12 @@ export function toEvalRunCaseInput(record: EvalCaseRecord): EvalRunCaseInput {
     section('consumerHandler'),
   );
 
+  const coding = resolveEvalCaseCoding(
+    record.name,
+    handlers.targetHandler,
+    section('coding'),
+  );
+
   const items = parseItems(section('items'));
   const expectations = section('expectations');
   return {
@@ -153,5 +162,6 @@ export function toEvalRunCaseInput(record: EvalCaseRecord): EvalRunCaseInput {
       checks: parseChecks(section('checks')),
       rubric: parseRubric(section('rubric')),
     },
+    ...(coding ? { coding } : {}),
   };
 }

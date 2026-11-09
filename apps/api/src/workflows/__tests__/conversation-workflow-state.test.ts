@@ -1,4 +1,4 @@
-import { QuestionsSystemMessageData } from '../../generated';
+import { QuestionsSystemMessageData } from '@hey-hey/contracts/api/models';
 import * as TestUtils from '../../utils/testUtils';
 import {
   WorkflowPhase,

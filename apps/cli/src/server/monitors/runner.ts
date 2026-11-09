@@ -13,14 +13,14 @@ import type {
   TaskMonitorLaunchConfig,
   TaskMonitorPromptPayload,
   RunContextMetadata,
-} from '../../shared/agent-bridge-contract/generated';
+} from '@hey-hey/contracts/agent-bridge';
 import type { MonitorRunEnsuredResponse } from '../../shared/agent-bridge-contract/contract';
 import {
   AgentSessionConfigV2TypeEnum,
   AgentSessionConfigV2VersionEnum,
   AgentSessionType,
   WorkflowName,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import { DAILY_SESSION_MONITOR_LOG_EVENT } from '../../shared/logging/daily-session';
 import { calculateDelta } from '../../agents/daily-session/delta-calculator';
 import type { TaskMonitorDecisionStore } from '../../agents/task-monitor/task-monitor-decision-store';

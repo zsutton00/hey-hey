@@ -5,7 +5,7 @@ import {
   type DemoSandboxProvisionFailure,
   type DemoSandboxStatusResult,
 } from "@hey-hey/ui-common/data";
-import type { DemoSandboxSetupProgressDto } from "@hey-hey/ui-common/api";
+import type { DemoSandboxSetupProgressDto } from "@hey-hey/contracts/api";
 import { useAuth } from "@hey-hey/ui-common/context";
 import { getBotCheckSiteKey } from "@hey-hey/ui-common/services";
 import { HeyHeyBranding } from "@hey-hey/ui-common/components";

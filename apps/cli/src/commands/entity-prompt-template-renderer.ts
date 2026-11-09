@@ -1,6 +1,7 @@
 import type {
   AgentSessionEntryDto,
-  ContextRelatedEntityDto,
+  ContextEntityRelationshipDto,
+  ContextGroupedRelatedEntityDto,
   EntityPromptTemplateSyntaxVersion,
   FeatureHierarchyEntryDto,
   FullEntityContextDto,
@@ -11,12 +12,24 @@ import type {
   ProposalEdgeDeclaration,
   ProposalResponseDto,
   RelatedEntityViaDto,
-} from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import {
   ENTITY_PROMPT_TEMPLATE_LANGUAGES,
+  parseEntityPromptTemplate,
   type EntityPromptTemplateLanguage,
+  type EntityPromptTemplateNode,
 } from '../shared/api/generated/entity-prompt-template-language';
+import {
+  formatRequirementLine,
+  parseRequirementRecords,
+  type RequirementRecord,
+} from '../agents/entity-context/feature-requirements';
 import type { CurrentEntityDto } from '../agents/entity-context/types';
+import { REQUIREMENTS_SECTION_KEY } from '../agents/project-assistant/parent-requirements';
+import {
+  parseReportPath,
+  type EntityPromptTemplateReports,
+} from './entity-prompt-template-reports';
 
 /** Values which the entity prompt-template validator permits in a substitution. */
 export type EntityPromptTemplateValue = string | number | boolean;
@@ -24,6 +37,8 @@ export type EntityPromptTemplateValue = string | number | boolean;
 export interface EntityPromptTemplateRenderInput {
   entity: CurrentEntityDto;
   context: FullEntityContextDto;
+  /** Newest saved report of each report type the template references. */
+  reports: EntityPromptTemplateReports;
 }
 
 export class EntityPromptTemplateRenderError extends Error {
@@ -35,8 +50,6 @@ export class EntityPromptTemplateRenderError extends Error {
     this.name = 'EntityPromptTemplateRenderError';
   }
 }
-
-const pathPattern = /^[a-z][A-Za-z0-9_]*(?:\.[a-z][A-Za-z0-9_]*)*$/u;
 
 const structuredTemplatePaths = new Set([
   'entity.sections',
@@ -79,24 +92,31 @@ const compareDescendingStrings = (
 const serializeJsonCollection = (collection: readonly object[]): string =>
   JSON.stringify(collection, null, 2);
 
-const serializeWholeEntriesWithinBudget = (
-  collection: readonly object[],
+/** A whole unit of markdown text and what separates it from the entry before it. */
+interface MarkdownEntry {
+  text: string;
+  separator: string;
+}
+
+const serializeMarkdownEntries = (entries: readonly MarkdownEntry[]): string =>
+  entries.map((entry, index) => (index === 0 ? entry.text : entry.separator + entry.text)).join('');
+
+const serializeWholeEntriesWithinBudget = <Entry>(
+  collection: readonly Entry[],
   byteLimit: number,
+  serialize: (entries: readonly Entry[]) => string,
 ): string => {
   let low = 0;
   let high = collection.length;
   while (low < high) {
     const candidate = Math.ceil((low + high) / 2);
-    if (
-      Buffer.byteLength(serializeJsonCollection(collection.slice(0, candidate)), 'utf8') <=
-      byteLimit
-    ) {
+    if (Buffer.byteLength(serialize(collection.slice(0, candidate)), 'utf8') <= byteLimit) {
       low = candidate;
     } else {
       high = candidate - 1;
     }
   }
-  return serializeJsonCollection(collection.slice(0, low));
+  return serialize(collection.slice(0, low));
 };
 
 type JsonLike =
@@ -126,27 +146,78 @@ const canonicalizeProposalUpdates = (updates: ProposalResponseDto['updates']): J
 
 type MaterializedEntitySection = MaterializedDesignDocSection | MaterializedWorkItemSection;
 
-const projectEntitySections = (entity: CurrentEntityDto): object[] | null => {
+const BLOCK_SEPARATOR = '\n\n';
+const LINE_SEPARATOR = '\n';
+const REQUIREMENT_IDS_NOTE = 'Requirement ids for edits: `get_full_entity`.';
+
+const sectionLabel = (key: string): string => {
+  const words = key.replace(/([a-z0-9])([A-Z])/gu, '$1 $2');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+};
+
+/** One entry per requirement line; the label, note and group heading ride on the first line they precede. */
+const requirementEntries = (
+  label: string,
+  records: readonly RequirementRecord[],
+): MarkdownEntry[] => {
+  const header = `${label}${LINE_SEPARATOR}${REQUIREMENT_IDS_NOTE}`;
+  if (records.length === 0) {
+    return [{ text: header, separator: BLOCK_SEPARATOR }];
+  }
+
+  const groups = new Map<string, RequirementRecord[]>();
+  for (const record of records) {
+    const group = record.group ?? '';
+    groups.set(group, [...(groups.get(group) ?? []), record]);
+  }
+  const orderedGroups = [...groups.entries()].sort(([left], [right]) =>
+    left === '' ? -1 : right === '' ? 1 : 0,
+  );
+
+  const entries: MarkdownEntry[] = [];
+  for (const [group, groupRecords] of orderedGroups) {
+    groupRecords.forEach((record, index) => {
+      const line = formatRequirementLine(record);
+      const isFirstOfGroup = index === 0;
+      const heading = isFirstOfGroup && group !== '' ? `#### ${group}${LINE_SEPARATOR}` : '';
+      const leading = entries.length === 0 ? `${header}${BLOCK_SEPARATOR}` : '';
+      entries.push({
+        text: `${leading}${heading}${line}`,
+        separator: isFirstOfGroup ? BLOCK_SEPARATOR : LINE_SEPARATOR,
+      });
+    });
+  }
+  return entries;
+};
+
+const sectionEntries = (section: MaterializedEntitySection): MarkdownEntry[] => {
+  const label = `### ${sectionLabel(section.key)}`;
+  if (section.key === REQUIREMENTS_SECTION_KEY) {
+    const records = parseRequirementRecords(section.materializedMarkdown);
+    if (records !== null) {
+      return requirementEntries(label, records);
+    }
+  }
+  return [
+    {
+      text: `${label}${LINE_SEPARATOR}${section.materializedMarkdown}`,
+      separator: BLOCK_SEPARATOR,
+    },
+  ];
+};
+
+const projectEntitySections = (entity: CurrentEntityDto): MarkdownEntry[] | null => {
   if (!('sections' in entity) || !Array.isArray(entity.sections)) return null;
 
-  const sections = (entity.sections as readonly MaterializedEntitySection[])
-    .map((section) => ({
-      id: section.id,
-      key: section.key,
-      order: section.order,
-      materializedMarkdown: section.materializedMarkdown,
-      ...(section.crdtSnapshotSeq === undefined
-        ? {}
-        : { crdtSnapshotSeq: section.crdtSnapshotSeq }),
-    }))
+  return (entity.sections as readonly MaterializedEntitySection[])
+    .filter((section) => section.materializedMarkdown.trim() !== '')
     .sort(
       (left, right) =>
         compareNumbers(left.order, right.order) ||
         compareStrings(left.key, right.key) ||
         compareStrings(left.id, right.id),
-    );
-
-  return sections;
+    )
+    .flatMap(sectionEntries);
 };
 
 const projectRelatedEntityVia = (via: RelatedEntityViaDto) => ({
@@ -156,50 +227,55 @@ const projectRelatedEntityVia = (via: RelatedEntityViaDto) => ({
   relationship: via.relationship,
 });
 
-const relatedEntityPriority = (entry: ContextRelatedEntityDto): number => {
+const relationshipPriority = (entry: ContextEntityRelationshipDto): number => {
   if ((entry.via?.length ?? 0) > 0 || entry.relationship === 'sibling-via-parent') return 2;
   if (entry.relationship === 'parent') return 1;
   return 0;
 };
 
-const projectRelatedEntities = (context: FullEntityContextDto): object[] | null => {
-  if (!Array.isArray(context.relatedEntities)) return null;
+/** An entity is as close as its closest relationship. */
+const relatedEntityPriority = (entry: ContextGroupedRelatedEntityDto): number =>
+  Math.min(...entry.relationships.map(relationshipPriority));
 
-  const relatedEntities = [...context.relatedEntities]
+const projectRelationship = (entry: ContextEntityRelationshipDto) => ({
+  relationship: entry.relationship,
+  ...(entry.source === undefined ? {} : { source: entry.source }),
+  ...(entry.reasoning === undefined ? {} : { reasoning: entry.reasoning }),
+  ...(entry.via === undefined
+    ? {}
+    : {
+        via: entry.via
+          .map(projectRelatedEntityVia)
+          .sort(
+            (left, right) =>
+              compareStrings(left.entityType, right.entityType) ||
+              compareStrings(left.entityId, right.entityId) ||
+              compareStrings(left.relationship, right.relationship) ||
+              compareStrings(left.displayName, right.displayName),
+          )
+          .slice(0, RELATED_ENTITY_VIA_LIMIT),
+      }),
+});
+
+const projectRelatedEntities = (context: FullEntityContextDto): object[] | null => {
+  if (!Array.isArray(context.groupedRelatedEntities)) return null;
+
+  return [...context.groupedRelatedEntities]
     .sort(
       (left, right) =>
         relatedEntityPriority(left) - relatedEntityPriority(right) ||
         compareStrings(left.entityType, right.entityType) ||
         compareStrings(left.entityId, right.entityId) ||
-        compareStrings(left.relationship, right.relationship) ||
         compareStrings(left.displayName, right.displayName),
     )
-    .map((entry: ContextRelatedEntityDto) => ({
+    .map((entry: ContextGroupedRelatedEntityDto) => ({
       entityId: entry.entityId,
       entityType: entry.entityType,
       displayName: entry.displayName,
-      relationship: entry.relationship,
       ...(entry.status === undefined ? {} : { status: entry.status }),
       ...(entry.taskType === undefined ? {} : { taskType: entry.taskType }),
-      ...(entry.source === undefined ? {} : { source: entry.source }),
-      ...(entry.reasoning === undefined ? {} : { reasoning: entry.reasoning }),
-      ...(entry.via === undefined
-        ? {}
-        : {
-            via: entry.via
-              .map(projectRelatedEntityVia)
-              .sort(
-                (left, right) =>
-                  compareStrings(left.entityType, right.entityType) ||
-                  compareStrings(left.entityId, right.entityId) ||
-                  compareStrings(left.relationship, right.relationship) ||
-                  compareStrings(left.displayName, right.displayName),
-              )
-              .slice(0, RELATED_ENTITY_VIA_LIMIT),
-          }),
+      relationships: entry.relationships.map(projectRelationship),
     }));
-
-  return relatedEntities;
 };
 
 const projectFeatureHierarchy = (context: FullEntityContextDto): object[] | null => {
@@ -315,9 +391,7 @@ const projectProposal = (proposal: NonNullable<FullEntityContextDto['proposals']
   targetEntityId: proposal.targetEntityId,
   targetEntityType: proposal.targetEntityType,
   ...(proposal.title === undefined ? {} : { title: proposal.title }),
-  ...(proposal.eli5 !== undefined
-    ? { eli5: proposal.eli5 }
-    : {}),
+  ...(proposal.eli5 !== undefined ? { eli5: proposal.eli5 } : {}),
   ...('updates' in proposal
     ? { updates: canonicalizeProposalUpdates(proposal.updates) }
     : {
@@ -442,13 +516,11 @@ const projectAgentSessions = (context: FullEntityContextDto): object[] | null =>
  * Proposal requestorContext is intentionally omitted because it is free-form
  * request metadata rather than durable entity context.
  */
-const projectStructuredCollection = (
+const projectJsonCollection = (
   path: string,
   input: EntityPromptTemplateRenderInput,
 ): object[] | null => {
   switch (path) {
-    case 'entity.sections':
-      return projectEntitySections(input.entity);
     case 'context.relatedEntities':
       return projectRelatedEntities(input.context);
     case 'context.featureHierarchy':
@@ -460,6 +532,35 @@ const projectStructuredCollection = (
     default:
       return null;
   }
+};
+
+/** `entity.sections` is markdown; every other structured path is a JSON collection. */
+const serializeStructuredCollection = (
+  path: string,
+  input: EntityPromptTemplateRenderInput,
+  byteLimit: number,
+): string | null => {
+  if (path === 'entity.sections') {
+    const entries = projectEntitySections(input.entity);
+    return entries === null
+      ? null
+      : serializeWholeEntriesWithinBudget(entries, byteLimit, serializeMarkdownEntries);
+  }
+  const collection = projectJsonCollection(path, input);
+  return collection === null
+    ? null
+    : serializeWholeEntriesWithinBudget(collection, byteLimit, serializeJsonCollection);
+};
+
+const isStructuredCollectionPresent = (
+  path: string,
+  input: EntityPromptTemplateRenderInput,
+): boolean => {
+  const collection =
+    path === 'entity.sections'
+      ? projectEntitySections(input.entity)
+      : projectJsonCollection(path, input);
+  return collection !== null && collection.length > 0;
 };
 
 const readEntitySection = (entity: CurrentEntityDto, key: string): string | null => {
@@ -529,16 +630,29 @@ const readContextPath = (
   }
 };
 
+const readReportPath = (
+  reports: EntityPromptTemplateReports,
+  path: string,
+): EntityPromptTemplateValue | null => {
+  const reference = parseReportPath(path);
+  if (!reference) {
+    return null;
+  }
+
+  return reports[reference.reportType]?.[reference.field] ?? null;
+};
+
 const readPath = (
   path: string,
   input: EntityPromptTemplateRenderInput,
 ): EntityPromptTemplateValue | null => {
   if (path.startsWith('entity.')) return readEntityPath(input.entity, path);
   if (path.startsWith('context.')) return readContextPath(input.context, path);
+  if (path.startsWith('reports.')) return readReportPath(input.reports, path);
   return null;
 };
 
-const languageFor = (
+export const entityPromptTemplateLanguageFor = (
   syntaxVersion: EntityPromptTemplateSyntaxVersion,
 ): EntityPromptTemplateLanguage => {
   const languages: Readonly<Record<string, EntityPromptTemplateLanguage>> =
@@ -553,32 +667,13 @@ const languageFor = (
   return language;
 };
 
-const isSupportedPath = (path: string, language: EntityPromptTemplateLanguage): boolean =>
-  pathPattern.test(path) &&
-  (language.supportedPaths.includes(path) ||
-    language.pathFamilies.some((family) => new RegExp(family.pattern, 'u').test(path)));
-
 const renderSubstitution = (
   path: string,
   input: EntityPromptTemplateRenderInput,
   language: EntityPromptTemplateLanguage,
   structuredBudget: { remaining: number },
 ): string => {
-  if (!isSupportedPath(path, language)) {
-    throw new EntityPromptTemplateRenderError(
-      `Entity prompt template path "${path}" is not supported.`,
-      'unsupported_path',
-    );
-  }
-
   if (structuredTemplatePaths.has(path)) {
-    const collection = projectStructuredCollection(path, input);
-    if (collection === null) {
-      throw new EntityPromptTemplateRenderError(
-        `Entity prompt template path "${path}" is missing from the loaded input.`,
-        'missing_path',
-      );
-    }
     if (structuredBudget.remaining < Buffer.byteLength('[]', 'utf8')) {
       throw new EntityPromptTemplateRenderError(
         'Entity prompt template structured substitutions exceed the aggregate byte limit.',
@@ -589,7 +684,13 @@ const renderSubstitution = (
       path === 'context.proposals'
         ? structuredBudget.remaining
         : Math.min(STRUCTURED_COLLECTION_BYTE_LIMIT, structuredBudget.remaining);
-    const rendered = serializeWholeEntriesWithinBudget(collection, perCollectionLimit);
+    const rendered = serializeStructuredCollection(path, input, perCollectionLimit);
+    if (rendered === null) {
+      throw new EntityPromptTemplateRenderError(
+        `Entity prompt template path "${path}" is missing from the loaded input.`,
+        'missing_path',
+      );
+    }
     structuredBudget.remaining = Math.max(
       0,
       structuredBudget.remaining - Buffer.byteLength(rendered, 'utf8'),
@@ -617,17 +718,49 @@ const renderSubstitution = (
   return String(value);
 };
 
+const isPresent = (path: string, input: EntityPromptTemplateRenderInput): boolean => {
+  if (structuredTemplatePaths.has(path)) {
+    return isStructuredCollectionPresent(path, input);
+  }
+
+  const value = readPath(path, input);
+  return value !== null && String(value) !== '';
+};
+
+const renderNodes = (
+  nodes: readonly EntityPromptTemplateNode[],
+  input: EntityPromptTemplateRenderInput,
+  language: EntityPromptTemplateLanguage,
+  structuredBudget: { remaining: number },
+  chunks: string[],
+): void => {
+  for (const node of nodes) {
+    if (node.type === 'text') {
+      chunks.push(node.value);
+    } else if (node.type === 'substitution') {
+      chunks.push(renderSubstitution(node.path, input, language, structuredBudget));
+    } else {
+      const branch = isPresent(node.path, input) ? node.then : node.else;
+      if (branch) {
+        renderNodes(branch, input, language, structuredBudget, chunks);
+      }
+    }
+  }
+};
+
 /**
  * Render one validated entity prompt template without evaluating code or
  * recursively interpreting substituted values. A preceding backslash escapes
- * a literal `{{...}}` sequence.
+ * a literal `{{...}}` sequence. `{{#if path}}...{{else}}...{{/if}}` renders one
+ * branch by testing whether the value is present; only the taken branch is
+ * rendered.
  */
 export const renderEntityPromptTemplate = (
   template: string,
   syntaxVersion: EntityPromptTemplateSyntaxVersion,
   input: EntityPromptTemplateRenderInput,
 ): string => {
-  const language = languageFor(syntaxVersion);
+  const language = entityPromptTemplateLanguageFor(syntaxVersion);
   if (template.length === 0) {
     throw new EntityPromptTemplateRenderError(
       'Entity prompt template content must not be empty.',
@@ -635,59 +768,18 @@ export const renderEntityPromptTemplate = (
     );
   }
 
+  const { nodes, issues } = parseEntityPromptTemplate(template, language);
+  const [firstIssue] = issues;
+  if (firstIssue) {
+    throw new EntityPromptTemplateRenderError(
+      firstIssue.message,
+      firstIssue.code === 'UNSUPPORTED_INPUT' ? 'unsupported_path' : 'syntax',
+    );
+  }
+
   const chunks: string[] = [];
   const structuredBudget = { remaining: STRUCTURED_SUBSTITUTION_AGGREGATE_BYTE_LIMIT };
-  let cursor = 0;
-  while (cursor < template.length) {
-    const open = template.indexOf('{{', cursor);
-    const closeWithoutOpen = template.indexOf('}}', cursor);
-    if (open === -1) {
-      if (closeWithoutOpen !== -1) {
-        throw new EntityPromptTemplateRenderError(
-          'Entity prompt template contains an unexpected closing delimiter.',
-          'syntax',
-        );
-      }
-      chunks.push(template.slice(cursor));
-      break;
-    }
-    if (closeWithoutOpen !== -1 && closeWithoutOpen < open) {
-      throw new EntityPromptTemplateRenderError(
-        'Entity prompt template contains an unexpected closing delimiter.',
-        'syntax',
-      );
-    }
-
-    const escaped = open > 0 && template[open - 1] === '\\';
-    chunks.push(template.slice(cursor, escaped ? open - 1 : open));
-    const close = template.indexOf('}}', open + 2);
-    if (close === -1) {
-      throw new EntityPromptTemplateRenderError(
-        'Entity prompt template contains an unterminated substitution.',
-        'syntax',
-      );
-    }
-
-    const expression = template.slice(open + 2, close).trim();
-    if (!expression || expression.includes('{') || expression.includes('}')) {
-      throw new EntityPromptTemplateRenderError(
-        'Entity prompt template contains malformed substitution syntax.',
-        'syntax',
-      );
-    }
-    if (escaped) {
-      if (!isSupportedPath(expression, language)) {
-        throw new EntityPromptTemplateRenderError(
-          `Entity prompt template path "${expression}" is not supported.`,
-          'unsupported_path',
-        );
-      }
-      chunks.push(`{{${expression}}}`);
-    } else {
-      chunks.push(renderSubstitution(expression, input, language, structuredBudget));
-    }
-    cursor = close + 2;
-  }
+  renderNodes(nodes, input, language, structuredBudget, chunks);
 
   return chunks.join('');
 };

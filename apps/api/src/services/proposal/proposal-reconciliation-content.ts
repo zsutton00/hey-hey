@@ -5,7 +5,7 @@ import type {
   UpdateDesignDocDto,
   WorkItemChangeSetValidationRequest,
   ProposalReconciliationBasis,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 
 /** Full target content keyed by stable existing or change-set-local identity. */
 export function projectReconciliationChangeSet(

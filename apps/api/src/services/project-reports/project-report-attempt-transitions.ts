@@ -1,5 +1,5 @@
 import { Prisma, ProjectReportStatus as DbStatus } from '@prisma/client';
-import type { ProjectReportFailure } from 'src/generated';
+import type { ProjectReportFailure } from '@hey-hey/contracts/api/models';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 
 /**

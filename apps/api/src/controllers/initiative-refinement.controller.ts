@@ -11,7 +11,7 @@ import {
 import { Initiative } from '@prisma/client';
 import { ContextAwareLogger } from 'src/core/logging/context-aware-logger.service';
 import { INITIATIVE_REFINEMENT_NODES } from 'src/flows/constants';
-import { InitiativeResponseDto } from 'src/generated';
+import { InitiativeResponseDto } from '@hey-hey/contracts/api/models';
 import { InitiativeDraft } from 'src/services/initiatives/types';
 import {
   getCurrentSectionFromStatus,

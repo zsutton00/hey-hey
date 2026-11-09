@@ -11,6 +11,7 @@ import {
 } from "../../components/SegmentedToggle";
 import { ProjectHelpProvider } from "../Project/help/ProjectHelpProvider";
 import { isSelectedExistingWorkProject } from "../Project/help/projectSetupRoute";
+import { markProjectGuideOpened } from "../Project/help/projectGuideOpenedStorage";
 
 interface ProjectHelpPageProps {
   organizationId: string;
@@ -47,6 +48,12 @@ export const ProjectHelpPage: React.FC<ProjectHelpPageProps> = ({
   )
     ? (helpSection as ProjectHelpSection)
     : "welcome";
+
+  React.useEffect(() => {
+    if (activeSection === "first-project") {
+      markProjectGuideOpened(projectId);
+    }
+  }, [activeSection, projectId]);
 
   return (
     <ProjectHelpProvider organizationId={organizationId} projectId={projectId}>

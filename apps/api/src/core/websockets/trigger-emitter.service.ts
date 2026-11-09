@@ -27,7 +27,7 @@ import {
   HostActionTargetKind,
   HostAffectingActionType,
   ExecutableEnvelopeAuthorization,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {

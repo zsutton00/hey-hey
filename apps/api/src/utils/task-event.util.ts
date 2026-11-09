@@ -8,7 +8,7 @@ import type {
   TaskPriority,
   TaskEventContentSnapshot as GeneratedTaskEventContentSnapshot,
   TaskEventSectionSnapshot,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import type {
   InitiativeId,
   OrganizationId,

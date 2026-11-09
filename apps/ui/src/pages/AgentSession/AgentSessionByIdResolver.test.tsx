@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AgentSessionType } from "@hey-hey/ui-common/api";
+import { AgentSessionType } from "@hey-hey/contracts/api";
 import { AgentSessionByIdResolver } from "./AgentSessionByIdResolver";
 
 const navigateMock = vi.hoisted(() => vi.fn());

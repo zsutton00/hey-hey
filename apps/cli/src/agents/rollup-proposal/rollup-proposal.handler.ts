@@ -1,3 +1,4 @@
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import { isAxiosError } from 'axios';
 
 import type { LocalRollupProposalPromptPayload } from '../../shared/agent-bridge-contract/runtime-types';
@@ -13,7 +14,8 @@ import type {
   RollupProposalPromptInput,
 } from './rollup-proposal-prompt';
 import { buildRollupProposalPrompt } from './rollup-proposal-prompt';
-import { Configuration, TasksApi, type TaskResponseDto } from '../../shared/api/generated';
+import { Configuration, TasksApi } from '@hey-hey/contracts/api';
+import { type TaskResponseDto } from '@hey-hey/contracts/api/models';
 
 type EnrichedPayload = LocalRollupProposalPromptPayload & {
   _enriched?: RollupProposalPromptInput;
@@ -80,6 +82,7 @@ const readAncestors = async (
 
 export const rollupProposalHandler: PromptTypeHandler<LocalRollupProposalPromptPayload> = {
   id: 'rollup_proposal',
+  sessionRole: SessionRole.Planning,
   promptType: 'rollup_proposal',
   service: 'required',
   launchEntity: 'none',

@@ -15,11 +15,11 @@ import {
   ProjectModeBundleValidationError,
   validateProjectModeConfig,
 } from '../../agents/project-mode';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { LocalAgentApiError } from '../../shared/agent-bridge-contract/errors';
 import { RunAttachmentStore } from '../run-attachment-store';
 import { StagedBrowserTabNotFoundError, type RunTabs } from '../../browser/run-tabs';
-import type { StagedBrowserTabReference } from '../../shared/agent-bridge-contract/generated/api';
+import type { StagedBrowserTabReference } from '@hey-hey/contracts/agent-bridge';
 
 export interface RunCreationCoordinatorDependencies {
   runService: RunService;

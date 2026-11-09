@@ -1,4 +1,4 @@
-import { LocalPromptType } from 'src/generated/local';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
 import {
   AdrRefinementFlowContext,
   FlowContext,
@@ -8,7 +8,7 @@ import { deriveAgentSessionTitle } from '../../services/agent-session-title';
 import { DesignDocService } from '../../services/design-doc/design-doc.service';
 import { DesignDocId } from '../../types/design-doc.types';
 import { INestApplicationContext } from '@nestjs/common';
-import { AgentSessionType } from 'src/generated';
+import { AgentSessionType } from '@hey-hey/contracts/api/models';
 
 import { ADR_REFINEMENT_NODES } from '../constants';
 import { createFlow } from './utils';

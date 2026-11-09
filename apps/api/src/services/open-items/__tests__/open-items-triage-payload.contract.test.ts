@@ -10,7 +10,7 @@ import {
   type OpenItemsTriageItem,
   type OpenItemsTriagePayload,
   type OpenItemsTriageSuggestion,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 
 // Validates the conversation-owned triage reply straight from the OpenAPI
 // source so the exclusivity rules are proven at the contract, not in a copy.

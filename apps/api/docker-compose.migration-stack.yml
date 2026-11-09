@@ -19,7 +19,7 @@ services:
       - cp /source/application.dump /bootstrap/application.dump && cp /source/10-restore-bootstrap.sh /bootstrap/10-restore-bootstrap.sh && chmod 0444 /bootstrap/application.dump && chmod 0555 /bootstrap/10-restore-bootstrap.sh
 
   postgres:
-    image: postgres:13
+    image: pgvector/pgvector:0.8.7-pg17-trixie
     restart: unless-stopped
     logging: *default-logging
     depends_on:
@@ -103,7 +103,7 @@ services:
     command: ["migrate"]
 
   postgres-data-import:
-    image: postgres:13
+    image: postgres:17
     restart: "no"
     logging: *default-logging
     depends_on:
@@ -341,6 +341,10 @@ services:
       CORS_WHITELIST: http://${STACK_HOSTNAME:?Run the migration-stack launcher}:${STACK_UI_PORT},http://${STACK_HOSTNAME:?Run the migration-stack launcher}:${STACK_API_PORT}
       MACHINE_ENROLLMENT_WEBAUTHN_RP_ID: ${STACK_HOSTNAME:?Run the migration-stack launcher}
       MACHINE_ENROLLMENT_WEBAUTHN_ORIGIN: http://${STACK_HOSTNAME:?Run the migration-stack launcher}:${STACK_UI_PORT}
+      ACCOUNT_PASSKEY_RP_ID: ${STACK_HOSTNAME:?Run the migration-stack launcher}
+      ACCOUNT_PASSKEY_ORIGIN: http://${STACK_HOSTNAME:?Run the migration-stack launcher}:${STACK_UI_PORT}
+      BROWSER_TOKEN_ISSUER: http://${STACK_HOSTNAME:?Run the migration-stack launcher}:${STACK_API_PORT}/api
+      BROWSER_TOKEN_AUDIENCE: http://${STACK_HOSTNAME:?Run the migration-stack launcher}:${STACK_UI_PORT}
       JWT_SECRET: ${STACK_JWT_SECRET}
       JWT_ISSUER: http://${STACK_HOSTNAME:?Run the migration-stack launcher}
       SECRET_KEY: ${STACK_SECRET_KEY}
@@ -358,6 +362,18 @@ services:
       start_period: 20s
     ports:
       - "127.0.0.1:${STACK_API_PORT}:3000"
+
+  # One-time projection rebuild. Never part of up/resume: it runs only through
+  # `migration-stack replay`, with the API stopped.
+  event-replay:
+    image: ${COMPOSE_PROJECT_NAME}-api:local
+    profiles: ["replay"]
+    restart: "no"
+    logging: *default-logging
+    entrypoint: ["node", "scripts/migration-stack-replay.js"]
+    environment:
+      PROJECT_DATABASE_URL: postgresql://${STACK_POSTGRES_USER}:${STACK_POSTGRES_PASSWORD}@postgres:5432/${STACK_POSTGRES_DB}?schema=public
+      REDIS_URL: redis://:${STACK_REDIS_PASSWORD}@redis:6379
 
   ui:
     build:

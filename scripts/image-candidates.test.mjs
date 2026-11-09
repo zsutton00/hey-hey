@@ -4,22 +4,11 @@ import fs from "node:fs";
 import { candidateSelection } from "./image-candidate-selection.mjs";
 import { publicationEvidence } from "./image-publication-evidence.mjs";
 const push = {
-  ref: "refs/heads/release/2026-10-24",
   event: "push",
   before: "a".repeat(40),
   revision: "b".repeat(40),
 };
-test("only release branches permit image work, including manual retries", () => {
-  for (const branch of ["main", "dev", "feature/new", "release"])
-    for (const event of ["push", "workflow_dispatch"])
-      assert.throws(() =>
-        candidateSelection({
-          ...push,
-          ref: `refs/heads/${branch}`,
-          event,
-          target: "Both",
-        }),
-      );
+test("manual runs select images regardless of branch", () => {
   assert.deepEqual(
     candidateSelection({ ...push, event: "workflow_dispatch", target: "API" })
       .images,
@@ -35,16 +24,15 @@ test("push selection uses exact endpoints and handles empty and missing history"
     }).images,
     ["ui"],
   );
-  assert.deepEqual(candidateSelection(push, () => ["docs/a.md"]).checks, []);
   assert.deepEqual(
     candidateSelection({ ...push, before: "0".repeat(40) }).images,
-    ["ui", "api"],
+    ["ui", "api", "graph-search"],
   );
   assert.deepEqual(
     candidateSelection(push, () => {
       throw new Error("missing");
     }).images,
-    ["ui", "api"],
+    ["ui", "api", "graph-search"],
   );
   assert.deepEqual(
     candidateSelection(push, () => ["packages/ui-common/src/a.ts"]).targets,
@@ -54,6 +42,7 @@ test("push selection uses exact endpoints and handles empty and missing history"
     assert.deepEqual(candidateSelection(push, () => [file]).images, [
       "ui",
       "api",
+      "graph-search",
     ]);
 });
 test("publication evidence preserves the verified build and refuses missing smoke or digest", () => {
@@ -83,14 +72,13 @@ test("publication evidence preserves the verified build and refuses missing smok
     `${built.intendedRepository}@sha256:${"c".repeat(64)}`,
   );
 });
-test("single workflow publishes after one build and smoke without standalone checks", () => {
+test("single workflow gates publication on one build and smoke", () => {
   const workflow = fs.readFileSync(
     new URL("../.github/workflows/publish-images.yml", import.meta.url),
     "utf8",
   );
   assert.match(workflow, /branches: \["release\/\*\*"\]/);
-  assert.match(workflow, /needs: select/);
-  assert.doesNotMatch(workflow, /needs\.checks|^  checks:|CHECK_COMMAND/m);
+  assert.match(workflow, /needs: select\n/);
   assert.match(workflow, /outputs.images != '\[\]'/);
   assert.match(workflow, /cancel-in-progress: true/);
   assert.equal(
@@ -109,10 +97,23 @@ test("single workflow publishes after one build and smoke without standalone che
   assert.match(workflow, /set -euo pipefail/);
 });
 
-test("manual retries select UI, API or both", () => {
-  const retry = (target) =>
-    candidateSelection({ ...push, event: "workflow_dispatch", target }).images;
-  assert.deepEqual(retry("Both"), ["ui", "api"]);
-  assert.deepEqual(retry("All"), ["ui", "api"]);
-  assert.throws(() => retry("Graph Search"));
+test("manual retries can select graph/search while Both keeps its existing scope", () => {
+  assert.deepEqual(
+    candidateSelection({
+      ...push,
+      event: "workflow_dispatch",
+      target: "Graph Search",
+    }).images,
+    ["graph-search"],
+  );
+  assert.deepEqual(
+    candidateSelection({ ...push, event: "workflow_dispatch", target: "Both" })
+      .images,
+    ["ui", "api"],
+  );
+  assert.deepEqual(
+    candidateSelection({ ...push, event: "workflow_dispatch", target: "All" })
+      .images,
+    ["ui", "api", "graph-search"],
+  );
 });

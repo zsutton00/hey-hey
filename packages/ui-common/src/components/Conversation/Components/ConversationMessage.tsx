@@ -2,6 +2,7 @@ import { Box, Button, Typography, useTheme } from "@mui/material";
 import React, { memo, useMemo } from "react";
 import type {
   AgentSystemMessageData,
+  AgentUncertaintySystemMessageData,
   AnalysisSystemMessageData,
   QuestionsSystemMessageData,
   SystemMessage as SystemMessageType,
@@ -38,6 +39,7 @@ import {
 } from "../../LlmForms/Registry";
 import { getInterstitialTiming } from "./interstitialTiming";
 import { useRetryConversationOpenTrigger } from "../../../data/hooks";
+import { UncertaintyItem } from "../../Uncertainties";
 
 const TERMINAL_CAPACITY_MESSAGE =
   "The provider is temporarily at capacity for the selected model. Please retry.";
@@ -59,6 +61,16 @@ type TaskMonitorSupervisionMessage = SystemMessageType & {
 type TaskMonitorInterventionMessageType = SystemMessageType & {
   data: TaskMonitorInterventionSystemMessageData;
 };
+
+type AgentUncertaintyMessage = SystemMessageType & {
+  data: AgentUncertaintySystemMessageData;
+};
+
+const isAgentUncertaintyMessage = (
+  message: ConversationMessageType["message"],
+): message is AgentUncertaintyMessage =>
+  message.type === MessageType.System &&
+  message.data.type === SystemMessageDataTypeEnum.AgentUncertainty;
 
 const isTaskMonitorSupervisionMessage = (
   message: ConversationMessageType["message"],
@@ -209,6 +221,11 @@ export const ConversationMessage: React.FC<ConversationMessageProps> = memo(
     )
       ? conversationMessage.message.data
       : undefined;
+    const agentUncertaintyData = isAgentUncertaintyMessage(
+      conversationMessage.message,
+    )
+      ? conversationMessage.message.data
+      : undefined;
 
     return (
       <Box
@@ -264,6 +281,13 @@ export const ConversationMessage: React.FC<ConversationMessageProps> = memo(
                 />
               ) : taskMonitorSupervisionData ? (
                 <SupervisionDecisionMessage data={taskMonitorSupervisionData} />
+              ) : agentUncertaintyData ? (
+                <UncertaintyItem
+                  category={agentUncertaintyData.category}
+                  severity={agentUncertaintyData.severity}
+                  statement={agentUncertaintyData.statement}
+                  testId="conversation-agent-uncertainty"
+                />
               ) : (
                 /* Show system response with typing animation */
                 (conversationMessage.message.data?.response ||

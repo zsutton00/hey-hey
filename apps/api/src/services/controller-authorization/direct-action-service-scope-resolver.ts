@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
-import type { UserMessageAdmittedServiceScope } from '../../generated';
+import type { UserMessageAdmittedServiceScope } from '@hey-hey/contracts/api/models';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { MachinePresenceService } from '../../core/websockets/machine-presence.service';
 import type {

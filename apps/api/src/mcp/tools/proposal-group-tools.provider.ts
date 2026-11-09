@@ -6,7 +6,7 @@ import { z } from 'zod';
 import type {
   ProposalGroupAuthoringSnapshot,
   ProposalGroupFinalizationResult,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import type { ConversationId } from '../../types';
 import { ProposalGroupAuthoringService } from '../../services/proposal/proposal-group-authoring.service';
 import { ProposalGroupFinalizationService } from '../../services/proposal/proposal-group-finalization.service';
@@ -240,8 +240,7 @@ export class ProposalGroupToolsProvider {
         params.memberId,
         {
           expectedRevision: params.groupContext.expectedRevision,
-          prerequisiteMemberIds:
-            params.prerequisiteMemberIds as unknown as Set<string>,
+          prerequisiteMemberIds: params.prerequisiteMemberIds,
         },
       );
       this.logMutation(

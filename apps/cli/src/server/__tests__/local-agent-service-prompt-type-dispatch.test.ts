@@ -10,7 +10,7 @@ import {
 } from './helpers/test-run-registry';
 import { StructuredServerLogger, type ServerLogEntry } from '../logger';
 import { LocalAgentApiError } from '../../shared/agent-bridge-contract/errors';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { TriggerPayloadValidationError } from '../conversation-dispatch/trigger-payload-schemas';
 import type {
   MessagesGetMessageApiClient,

@@ -1,4 +1,4 @@
-import { AgentSessionConfigEntityConversationV1EffortEnum } from './generated/api';
+import { AgentSessionConfigEntityConversationV1EffortEnum } from '@hey-hey/contracts/agent-bridge/models';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);

@@ -10,7 +10,7 @@ import { ArtifactService } from '../../artifacts/artifact.service';
 import { StandardPlaceholderRegistry } from '../placeholders';
 import { IPromptBuilderStrategy } from './prompt-builder-strategy.interface';
 import { getResponseGuidance } from './utils';
-import { ArtifactType } from 'src/generated';
+import { ArtifactType } from '@hey-hey/contracts/api/models';
 
 /**
  * Standard prompt building strategy for basic prompt construction

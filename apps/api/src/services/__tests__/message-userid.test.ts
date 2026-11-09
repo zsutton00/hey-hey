@@ -3,7 +3,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../core/redis/redis.service';
 import { DOMAIN_EVENT_PUBLISHER_TOKEN } from '../../core/events/tokens';
 import { MessageStatus } from '../../constants/message-status.constants';
-import { CreateSystemMessage, CreateUserMessage } from '../../generated';
+import {
+  CreateSystemMessage,
+  CreateUserMessage,
+} from '@hey-hey/contracts/api/models';
 import { MentionProcessingService } from '../mentions/mention-processing.service';
 import { ReportService } from '../reports/report.service';
 import * as TestUtils from '../../utils/testUtils';

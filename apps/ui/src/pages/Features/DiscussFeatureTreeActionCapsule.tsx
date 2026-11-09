@@ -5,7 +5,7 @@ import {
   type GraphConversationLaunchInput,
   useFeatureTreeConversationLauncher,
 } from "@hey-hey/ui-common/components";
-import { EntityType } from "@hey-hey/ui-common/api";
+import { EntityType } from "@hey-hey/contracts/api";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import React, { useCallback, useMemo, useState } from "react";
 

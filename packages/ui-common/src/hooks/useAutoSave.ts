@@ -8,6 +8,10 @@ import type {
   DocumentData,
   UpdateArtifactDto,
 } from "../api";
+import {
+  toOpenApiOrganizationId,
+  toOpenApiProjectId,
+} from "../clients/contractIdentifierAdapters";
 
 interface UseAutoSaveOptions {
   projectId: string;
@@ -20,11 +24,11 @@ export const useAutoSave = (
   content: string,
   metadata: ArtifactMetadata,
   artifactId: string | null,
-  options: UseAutoSaveOptions
+  options: UseAutoSaveOptions,
 ) => {
   const { currentOrgId } = useUserIdentity() || {};
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "error">(
-    "saved"
+    "saved",
   );
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -39,7 +43,7 @@ export const useAutoSave = (
     async (
       currentContent: string,
       currentMetadata: ArtifactMetadata,
-      attemptNumber: number = 0
+      attemptNumber: number = 0,
     ) => {
       if (!currentOrgId) return;
 
@@ -74,8 +78,8 @@ export const useAutoSave = (
           const documentTitle = currentMetadata.title || "Untitled Document";
 
           const createDto: CreateArtifactDto = {
-            projectId: options.projectId,
-            organizationId: currentOrgId,
+            projectId: toOpenApiProjectId(options.projectId),
+            organizationId: toOpenApiOrganizationId(currentOrgId),
             type: "DOCUMENT",
             title: documentTitle,
             data: {
@@ -111,7 +115,7 @@ export const useAutoSave = (
       } catch (error) {
         console.error(
           `Auto-save failed (attempt ${attemptNumber + 1}):`,
-          error
+          error,
         );
 
         const errorMsg =
@@ -132,7 +136,7 @@ export const useAutoSave = (
         }
       }
     },
-    [currentOrgId, artifactId, options, maxRetries]
+    [currentOrgId, artifactId, options, maxRetries],
   );
 
   const debouncedSave = useCallback(
@@ -171,7 +175,7 @@ export const useAutoSave = (
         saveDocument(currentContent, currentMetadata, 0);
       }, 2000);
     },
-    [saveDocument]
+    [saveDocument],
   );
 
   // Auto-save when content or metadata changes

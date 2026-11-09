@@ -1,13 +1,14 @@
 import { COORDINATOR_RECOVERY_GUIDANCE } from './task-monitor-coordinator-recovery';
-import type { TaskMonitorCoordinatorValidationFailure } from '../../shared/agent-bridge-contract/generated/api';
+import type { TaskMonitorCoordinatorValidationFailure } from '@hey-hey/contracts/agent-bridge';
 import {
   MessageStatus,
   MessageType,
   SystemMessageDataTypeEnum,
   type CreateSystemMessage,
   type TaskMonitorSupervisionSystemMessageData,
-} from '../../shared/api/generated/api';
-import type { LocalTaskMonitorCoordinatorDecision } from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/api/models';
+import type { LocalTaskMonitorCoordinatorDecision } from '@hey-hey/contracts/agent-bridge';
+import { toOpenApiProjectId } from '../../shared/api/identifierAdapters';
 
 export type TaskMonitorSupervisionMessage = Omit<
   CreateSystemMessage,
@@ -76,7 +77,7 @@ export const toTaskMonitorReviewLifecycleMessage = (
     ...lifecycle,
   };
   return {
-    projectId,
+    projectId: toOpenApiProjectId(projectId),
     type: MessageType.System,
     status: MessageStatus.Completed,
     data,
@@ -88,7 +89,7 @@ export const toTaskMonitorSupervisionMessage = (
   decision: LocalTaskMonitorCoordinatorDecision,
 ): TaskMonitorSupervisionMessage => {
   return {
-    projectId,
+    projectId: toOpenApiProjectId(projectId),
     type: MessageType.System,
     status: MessageStatus.Completed,
     data: toTaskMonitorSupervisionData(decision),
@@ -111,5 +112,10 @@ export const toTaskMonitorRecoveryJudgmentMessage = (
     rationale,
     guidance: COORDINATOR_RECOVERY_GUIDANCE,
   };
-  return { projectId, type: MessageType.System, status: MessageStatus.Completed, data };
+  return {
+    projectId: toOpenApiProjectId(projectId),
+    type: MessageType.System,
+    status: MessageStatus.Completed,
+    data,
+  };
 };

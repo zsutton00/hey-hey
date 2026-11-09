@@ -167,6 +167,7 @@ describe("useEvalRunSession", () => {
       evalRunId: "run-1",
       judgeSetup: runReport(EvalRunStatus.Queued).payload.judgeSetup,
       settings: { maxConcurrentAttempts: 2, attemptTimeLimitSeconds: 900 },
+      cases: runReport(EvalRunStatus.Queued).payload.cases,
       attempts: [
         {
           attemptId: "attempt-1",

@@ -1,13 +1,15 @@
 import {
   ControllerAuthorizationCadence,
+  ControllerDeviceGrantCadence,
   CurrentAgentOperation,
   HostActionCategory,
   HostActionTargetKind,
   HostAffectingActionType,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ControllerAuthorizationCadence as PrismaControllerAuthorizationCadence,
   HostAffectingActionType as PrismaHostAffectingActionType,
+  Prisma,
 } from '@prisma/client';
 
 export const CONTROLLER_DEVICE_POLICY_REVISION = 1;
@@ -19,6 +21,7 @@ export const CONTROLLER_DEVICE_GRANT_TTL_MS = {
   ONE_MONTH: 30 * 24 * 60 * 60 * 1000,
 } as const satisfies Record<ControllerAuthorizationCadence, number>;
 
+/** The bounded cadences a browser authorization request may select. */
 export function toControllerAuthorizationCadence(
   cadence: PrismaControllerAuthorizationCadence,
 ): ControllerAuthorizationCadence | null {
@@ -33,10 +36,21 @@ export function toControllerAuthorizationCadence(
       return ControllerAuthorizationCadence.OneWeek;
     case PrismaControllerAuthorizationCadence.ONE_MONTH:
       return ControllerAuthorizationCadence.OneMonth;
+    case PrismaControllerAuthorizationCadence.UNTIL_REVOKED:
     case PrismaControllerAuthorizationCadence.EVERY_ACTION:
     case PrismaControllerAuthorizationCadence.CURRENT_BROWSER_SESSION:
       return null;
   }
+}
+
+/** Every cadence an issued controller-device grant may carry. */
+export function toControllerDeviceGrantCadence(
+  cadence: PrismaControllerAuthorizationCadence,
+): ControllerDeviceGrantCadence | null {
+  if (cadence === PrismaControllerAuthorizationCadence.UNTIL_REVOKED) {
+    return ControllerDeviceGrantCadence.UntilRevoked;
+  }
+  return toControllerAuthorizationCadence(cadence);
 }
 
 export const CURRENT_AGENT_OPERATIONS = [
@@ -71,6 +85,39 @@ export function getControllerDeviceGrantExpiry(
   cadence: ControllerAuthorizationCadence,
 ): Date {
   return new Date(issuedAt.getTime() + CONTROLLER_DEVICE_GRANT_TTL_MS[cadence]);
+}
+
+/** The expiry a grant of this cadence carries; null for UNTIL_REVOKED. */
+export function getControllerDeviceGrantWindowExpiry(
+  issuedAt: Date,
+  cadence: ControllerDeviceGrantCadence,
+): Date | null {
+  if (cadence === ControllerDeviceGrantCadence.UntilRevoked) {
+    return null;
+  }
+  return getControllerDeviceGrantExpiry(issuedAt, cadence);
+}
+
+/** A grant with no expiry never expires; revocation is its only bound. */
+export function isExecutionGrantExpired(
+  expiresAt: Date | null,
+  nowMs: number,
+): boolean {
+  return expiresAt !== null && expiresAt.getTime() <= nowMs;
+}
+
+/** Prisma filter for grants that have not expired; a null expiry never does. */
+export function executionGrantNotExpired(
+  now: Date,
+): Prisma.ExecutionGrantWhereInput {
+  return { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] };
+}
+
+export function executionGrantExpiryEquals(
+  actual: Date | null,
+  expected: Date | null,
+): boolean {
+  return actual?.getTime() === expected?.getTime();
 }
 
 export const ACTION_BINDINGS: Record<

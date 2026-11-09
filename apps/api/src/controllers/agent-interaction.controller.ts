@@ -21,7 +21,7 @@ import type { UserId } from '../types';
 import type {
   AgentInteractionAdmissionRequest,
   AgentInteractionSettledTurn,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import type { AuthenticatedMachine } from '../services/machine-pairing/machine-pairing.service';
 import { AgentInteractionAdmissionService } from '../services/agent-interaction/agent-interaction-admission.service';
 import {

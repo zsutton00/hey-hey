@@ -1,3 +1,4 @@
+import { asOrganizationId, asUserId } from '../../test-utils/contract-ids';
 import { createHmac } from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -147,12 +148,12 @@ describe('grants paired by an earlier CLI', () => {
           controllerCredentialId: 'credential-1',
           controllerInstallationId: 'installation-1',
           machineId: 'machine-1',
-          userId: 'user-1',
-          organizationId: 'organization-1',
+          userId: asUserId('user-1'),
+          organizationId: asOrganizationId('organization-1'),
           cadence: 'ONE_MONTH',
           policyRevision: 1,
-          allowedActionTypes: new Set(CURRENT_AGENT_OPERATIONS),
-          allowedActionCategories: new Set(['CONVERSATION' as const]),
+          allowedActionTypes: [...CURRENT_AGENT_OPERATIONS],
+          allowedActionCategories: ['CONVERSATION'],
           issuedAtMs: NOW,
           effectiveExpiresAtMs: NOW + ONE_MONTH_MS,
         },

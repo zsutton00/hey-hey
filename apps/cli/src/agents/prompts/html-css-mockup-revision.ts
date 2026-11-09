@@ -1,4 +1,4 @@
-import type { LocalHtmlCssMockupRevisionPromptPayload } from '../../shared/agent-bridge-contract/generated/api';
+import type { LocalHtmlCssMockupRevisionPromptPayload } from '@hey-hey/contracts/agent-bridge';
 
 export interface HtmlCssMockupRevisionPromptInput {
   taskId: string;

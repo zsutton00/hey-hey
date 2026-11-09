@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { InternalRunPromptRequest } from '../../shared/agent-bridge-contract/contract';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
-import type { AgentSessionCurrentState } from '../../shared/api/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import type { AgentSessionCurrentState } from '@hey-hey/contracts/api/models';
 import type { AgenticSession } from '../../session/types';
 import { NOOP_LOGGER } from '../../server/logger';
 import { TaskMonitorManagedTurnRuntime } from '../../server/task-monitor-managed-turn-runtime';

@@ -9,9 +9,11 @@ import {
   useFeatureDocumentContent,
   useFeatureHierarchy,
   useProject,
+  useUserPairedMachines,
 } from "@hey-hey/ui-common/data";
 import { WebPathService } from "@hey-hey/ui-common/services";
 import { getWorkItemSectionContent } from "@hey-hey/ui-common/utils";
+import { useProjectGuideOpened } from "./projectGuideOpenedStorage";
 
 const OVERVIEW_MAX_LENGTH = 160;
 
@@ -57,6 +59,8 @@ export function useHelpDataCapability(
   const { data: project } = useProject(organizationId, projectId, {
     preferStale: true,
   });
+  const { machines } = useUserPairedMachines();
+  const isFirstProjectGuideOpened = useProjectGuideOpened(projectId);
   const savedNextSteps = project?.config?.featureNextSteps;
   const rootIds = useMemo(
     () => roots.map(({ feature }) => feature.id),
@@ -99,6 +103,23 @@ export function useHelpDataCapability(
           : [];
       },
     );
-    return { features, featureNextSteps };
-  }, [roots, entries, projectId, savedNextSteps]);
+    return {
+      features,
+      featureNextSteps,
+      welcomeStepCompletion: {
+        installAgentBridge: machines.length > 0,
+        // Feature completion remains unset until a durable project-wide
+        // conversation-start signal is available.
+        featuresReady: false,
+        readFirstProject: isFirstProjectGuideOpened,
+      },
+    };
+  }, [
+    roots,
+    entries,
+    projectId,
+    savedNextSteps,
+    machines,
+    isFirstProjectGuideOpened,
+  ]);
 }

@@ -1,4 +1,4 @@
-import type { AgentEdgeType } from '../../generated/model/agentEdgeType';
+import type { AgentEdgeType } from '@hey-hey/contracts/api/models';
 
 /**
  * Single source of truth for the agent-authorable edge vocabulary.

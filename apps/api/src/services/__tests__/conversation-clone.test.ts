@@ -20,7 +20,7 @@ import {
   InitiationType,
   SystemMessageResponseType,
   WorkflowName,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { WorkflowSignalHelper } from '../../utils/workflow-signals.helper';
 import { WorkflowTypeRegistryService } from '../workflows/workflow-type-registry.service';
 import { EntityRegistryService } from '../entity-registry/entity-registry.service';

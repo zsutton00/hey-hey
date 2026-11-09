@@ -4,7 +4,7 @@ import {
   Injectable,
   Logger,
 } from '@nestjs/common';
-import { EntityType } from 'src/generated';
+import { EntityType } from '@hey-hey/contracts/api/models';
 import { SearchRequest, SearchResponse } from 'src/generated/graphs';
 import { GraphsClientService } from 'src/services/graphs-client.service';
 import { OrganizationId, ProjectId } from 'src/types';

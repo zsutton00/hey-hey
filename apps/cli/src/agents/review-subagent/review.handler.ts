@@ -1,3 +1,4 @@
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import type { LocalCodeReviewPromptPayload } from '../../shared/agent-bridge-contract/index';
 import { ReportAudience, ReportType } from '../../shared/api/index';
 import type {
@@ -9,8 +10,11 @@ import type {
   RecentUserReply,
   UserLaunchablePromptTypeHandler,
 } from '../prompt-type-handler';
+import { HINT_REVIEW_MCP_TOOLS } from '../mcp-server-config';
 import { buildReviewPrompt } from '../prompts/review';
 import { buildStartingMessage as buildStartingMessageForPromptType } from '../prompts/starting-message';
+import { CREATE_REPORT_TOOL_NAME } from '../submission-tools/create-report-tool';
+import { RAISE_UNCERTAINTY_TOOL_NAME } from '../submission-tools/raise-uncertainty-tool';
 import {
   ReviewIntegrationContextResolver,
   type ReviewIntegrationContext,
@@ -23,6 +27,7 @@ type EnrichedCodeReviewPromptPayload = LocalCodeReviewPromptPayload & {
   _worktreeState?: LocalWorktreeStateByService;
   _touchedFiles?: readonly string[];
   _integrationContext?: ReviewIntegrationContext;
+  _sessionId?: string;
 };
 
 /**
@@ -35,6 +40,7 @@ type EnrichedCodeReviewPromptPayload = LocalCodeReviewPromptPayload & {
 export const REVIEW_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
   // Context / read
   'get_context',
+  'get_edges',
   'get_full_entity',
   'get_agent_sessions',
   'get_report_body',
@@ -42,11 +48,15 @@ export const REVIEW_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
   'list_services',
   // Search
   'unified_search',
+  'get_entity_identities',
   'task_search',
   'plan_search',
   'search_features',
   'search_design_docs',
   'get_hints_for_items',
+  'get_hints_by_session',
+  // Hints are the one thing Review may change: it corrects or deletes the target session's hints.
+  ...HINT_REVIEW_MCP_TOOLS,
 ];
 
 /** Inspection and checks run inside the provider's read-only filesystem boundary. */
@@ -68,6 +78,7 @@ const reviewAddUserMessage = (): string | null => null;
 
 export const reviewHandler: UserLaunchablePromptTypeHandler<LocalCodeReviewPromptPayload> = {
   id: 'code_review',
+  sessionRole: SessionRole.Review,
   promptType: 'code_review',
   service: 'required',
   launchEntity: 'none',
@@ -86,6 +97,8 @@ export const reviewHandler: UserLaunchablePromptTypeHandler<LocalCodeReviewPromp
   ],
   submissionTools: [],
   subagentConfig: {
+    submissionTools: 'run-registered',
+    submissionToolNames: [CREATE_REPORT_TOOL_NAME, RAISE_UNCERTAINTY_TOOL_NAME],
     mcpAllowedTools: REVIEW_SUBAGENT_MCP_ALLOWED_TOOLS,
     builtinAllowedTools: REVIEW_SUBAGENT_BUILTIN_ALLOWED_TOOLS,
     adapterId: 'review-subagent',
@@ -102,6 +115,7 @@ export const reviewHandler: UserLaunchablePromptTypeHandler<LocalCodeReviewPromp
     const enriched: EnrichedCodeReviewPromptPayload = {
       ...payload,
       _recentUserReplies: recentUserReplies,
+      _sessionId: run.agentic_session_id,
       ...(services.length > 0 ? { _services: services } : {}),
       ...(run.launchServiceId ? { _launchServiceId: run.launchServiceId } : {}),
       ...(run.worktreeState ? { _worktreeState: run.worktreeState } : {}),
@@ -123,6 +137,7 @@ export const reviewHandler: UserLaunchablePromptTypeHandler<LocalCodeReviewPromp
     const enriched = payload as EnrichedCodeReviewPromptPayload;
     return buildReviewPrompt({
       touchedFiles: enriched._touchedFiles ?? [],
+      ...(enriched._sessionId ? { sessionId: enriched._sessionId } : {}),
       services: enriched._services,
       launchServiceId: enriched._launchServiceId,
       worktreeState: enriched._worktreeState,

@@ -5,8 +5,7 @@ import {
   ArtifactResponseDto,
   ArtifactSourceType,
   ArtifactType,
-  SearchResultDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { ProjectId } from 'src/types';
 
 @Injectable()
@@ -53,32 +52,6 @@ export class ArtifactAdapter {
    */
   toResponseDtos(artifacts: Artifact[]): ArtifactResponseDto[] {
     return artifacts.map((ko) => this.toResponseDto(ko));
-  }
-
-  /**
-   * Convert artifact object to search result format
-   */
-  toSearchResult(
-    artifact: Artifact,
-    similarity: number,
-    matchType: 'semantic' | 'keyword' | 'hybrid',
-  ): SearchResultDto {
-    return {
-      id: artifact.id,
-      title: artifact.title || undefined,
-      data: artifact.data as unknown as ArtifactData,
-      type: artifact.type,
-      projectId: artifact.projectId as ProjectId,
-      tags: artifact.tags,
-      category: artifact.category || undefined,
-      sourceType: artifact.sourceType as ArtifactSourceType,
-      sourceId: artifact.sourceId,
-      score: similarity,
-      similarity,
-      matchType,
-      createdAt: artifact.createdAt.toISOString(),
-      updatedAt: artifact.updatedAt.toISOString(),
-    };
   }
 
   /**

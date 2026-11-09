@@ -6,8 +6,11 @@ import type {
   ReportSortBy,
   ReportSortOrder,
   ReportType,
+  ReportUsageTrendGranularity,
+  ReportUsageTrendKind,
   ProjectReportPreviewRequestDto,
   ProjectReportRequestDto,
+  ProjectReportHistoryPageDto,
 } from "../../api";
 import { ProjectReportStatus } from "../../api";
 import {
@@ -36,6 +39,15 @@ export interface ProjectReportsFilters {
   sortBy?: ReportSortBy;
   sortOrder?: ReportSortOrder;
 }
+export interface ProjectReportUsageTrendsParams {
+  from: string;
+  to: string;
+  granularity: ReportUsageTrendGranularity;
+  reportKinds: ReportUsageTrendKind[];
+  providers: string[];
+  models: string[];
+  efforts: string[];
+}
 export const reportKeys = {
   root: () => ["reports"] as const,
   all: (org: string) => ["reports", org] as const,
@@ -45,14 +57,51 @@ export const reportKeys = {
     [...reportKeys.all(org), "entityList", project] as const,
   projectList: (org: string, project: string) =>
     [...reportKeys.all(org), "projectList", project] as const,
+  projectUsageTrends: (
+    org: string,
+    project: string,
+    params: ProjectReportUsageTrendsParams,
+  ) => [...reportKeys.all(org), "projectUsageTrends", project, params] as const,
   projectPreview: (
     org: string,
     project: string,
-    request: ProjectReportPreviewRequestDto | null
+    request: ProjectReportPreviewRequestDto | null,
   ) => [...reportKeys.all(org), "projectPreview", project, request] as const,
   projectRequest: (org: string, project: string, id: string) =>
     [...reportKeys.all(org), "projectRequest", project, id] as const,
+  projectHistory: (
+    org: string,
+    project: string,
+    offset: number,
+    limit: number,
+  ) =>
+    [...reportKeys.all(org), "projectHistory", project, offset, limit] as const,
 };
+
+export function projectReportHistoryQueryOptions(
+  organizationId: string,
+  projectId: string,
+  offset: number,
+  limit: number,
+) {
+  const requestOptions = captureRequestOptions();
+  return queryOptions({
+    ...dataLayerQueryPolicy,
+    queryKey: reportKeys.projectHistory(
+      organizationId,
+      projectId,
+      offset,
+      limit,
+    ),
+    queryFn: async ({ signal }): Promise<ProjectReportHistoryPageDto> => {
+      const response = await projectReportsClient.listProjectReportHistory(
+        { organizationId, projectId, offset, limit },
+        { ...requestOptions, signal },
+      );
+      return response.data.data;
+    },
+  });
+}
 export function reportQueryOptions(organizationId: string, reportId: string) {
   const requestOptions = captureRequestOptions();
   return queryOptions({
@@ -61,7 +110,7 @@ export function reportQueryOptions(organizationId: string, reportId: string) {
     queryFn: async ({ signal }) => {
       const response = await unifiedApiClient.getReport(
         { organizationId, reportId },
-        { ...requestOptions, signal }
+        { ...requestOptions, signal },
       );
       return response.data.data ?? null;
     },
@@ -69,7 +118,7 @@ export function reportQueryOptions(organizationId: string, reportId: string) {
 }
 export function reportsQueryOptions(
   organizationId: string,
-  filters: ReportsFilters = {}
+  filters: ReportsFilters = {},
 ) {
   const requestOptions = captureRequestOptions();
   const { projectId, ...params } = filters;
@@ -82,7 +131,7 @@ export function reportsQueryOptions(
     queryFn: async ({ signal }) => {
       const response = await unifiedApiClient.listReports(
         { organizationId, ...filters },
-        { ...requestOptions, signal }
+        { ...requestOptions, signal },
       );
       return response.data.data ?? [];
     },
@@ -91,7 +140,7 @@ export function reportsQueryOptions(
 export function projectReportsQueryOptions(
   organizationId: string,
   projectId: string,
-  filters: ProjectReportsFilters = {}
+  filters: ProjectReportsFilters = {},
 ) {
   const requestOptions = captureRequestOptions();
   const normalized = {
@@ -109,16 +158,44 @@ export function projectReportsQueryOptions(
     queryFn: async ({ signal }) => {
       const response = await unifiedApiClient.listProjectReports(
         { organizationId, projectId, ...normalized },
-        { ...requestOptions, signal }
+        { ...requestOptions, signal },
       );
       return response.data.data ?? [];
+    },
+  });
+}
+export function projectReportUsageTrendsQueryOptions(
+  organizationId: string,
+  projectId: string,
+  params: ProjectReportUsageTrendsParams,
+) {
+  const requestOptions = captureRequestOptions();
+  return queryOptions({
+    ...dataLayerQueryPolicy,
+    queryKey: reportKeys.projectUsageTrends(organizationId, projectId, params),
+    queryFn: async ({ signal }) => {
+      const response = await unifiedApiClient.getProjectReportUsageTrends(
+        {
+          organizationId,
+          projectId,
+          ...params,
+          reportKinds: params.reportKinds.length
+            ? params.reportKinds
+            : undefined,
+          providers: params.providers.length ? params.providers : undefined,
+          models: params.models.length ? params.models : undefined,
+          efforts: params.efforts.length ? params.efforts : undefined,
+        },
+        { ...requestOptions, signal },
+      );
+      return response.data.data ?? null;
     },
   });
 }
 export function projectReportPreviewQueryOptions(
   organizationId: string,
   projectId: string,
-  request: ProjectReportPreviewRequestDto | null
+  request: ProjectReportPreviewRequestDto | null,
 ) {
   const requestOptions = captureRequestOptions();
   return queryOptions({
@@ -128,21 +205,21 @@ export function projectReportPreviewQueryOptions(
       if (!request) throw new Error("A preview request is required");
       const response = await projectReportsClient.previewProjectReportRequest(
         { organizationId, projectId, projectReportPreviewRequestDto: request },
-        { ...requestOptions, signal }
+        { ...requestOptions, signal },
       );
       return response.data.data;
     },
   });
 }
 export const isTerminalProjectReportRequest = (
-  request: ProjectReportRequestDto | undefined
+  request: ProjectReportRequestDto | undefined,
 ) =>
   request?.status === ProjectReportStatus.Completed ||
   request?.status === ProjectReportStatus.Failed;
 export function projectReportRequestQueryOptions(
   organizationId: string,
   projectId: string,
-  requestId: string
+  requestId: string,
 ) {
   const requestOptions = captureRequestOptions();
   return queryOptions({
@@ -151,7 +228,7 @@ export function projectReportRequestQueryOptions(
     queryFn: async ({ signal }) => {
       const response = await projectReportsClient.getProjectReportRequest(
         { organizationId, projectId, requestId },
-        { ...requestOptions, signal }
+        { ...requestOptions, signal },
       );
       return response.data.data;
     },
@@ -160,7 +237,7 @@ export function projectReportRequestQueryOptions(
 function durableReportId(request: ProjectReportRequestDto): string | undefined {
   if (request.status !== ProjectReportStatus.Completed) return undefined;
   const latest = [...request.attempts].sort(
-    (a, b) => b.attemptNumber - a.attemptNumber
+    (a, b) => b.attemptNumber - a.attemptNumber,
   )[0];
   return latest?.reportId;
 }
@@ -180,7 +257,7 @@ export function invalidateCompletedProjectReport(
   queryClient: QueryClient,
   organizationId: string,
   projectId: string,
-  request: ProjectReportRequestDto
+  request: ProjectReportRequestDto,
 ): void {
   const reportId = durableReportId(request);
   if (!reportId) return;
@@ -204,12 +281,12 @@ export function storeProjectReportRequest(
   queryClient: QueryClient,
   organizationId: string,
   projectId: string,
-  request: ProjectReportRequestDto
+  request: ProjectReportRequestDto,
 ): void {
   const queryKey = reportKeys.projectRequest(
     organizationId,
     projectId,
-    request.id
+    request.id,
   );
   void queryClient.cancelQueries({ queryKey, exact: true });
   queryClient.setQueryData(queryKey, request);
@@ -217,6 +294,6 @@ export function storeProjectReportRequest(
     queryClient,
     organizationId,
     projectId,
-    request
+    request,
   );
 }

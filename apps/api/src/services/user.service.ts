@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
@@ -12,8 +13,8 @@ import { Prisma, User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { OrganizationId, PrivateBetaAccessRequestId, UserId } from 'src/types';
-import { RegisterDto, UserResponseDto } from '../generated';
-import type { PrivateBetaAccessProvisioningFailureCode } from '../generated';
+import { RegisterDto, UserResponseDto } from '@hey-hey/contracts/api/models';
+import type { PrivateBetaAccessProvisioningFailureCode } from '@hey-hey/contracts/api/models';
 import { AnyTransactionClient, PrismaService } from '../prisma/prisma.service';
 import { BrowserSessionRequestMetadata } from '../auth/browser-session.types';
 import {
@@ -22,7 +23,11 @@ import {
   PasswordChangeCredentialIssuer,
 } from '../auth/password-change-credential.types';
 import { OrganizationService } from './organization.service';
-import { AccountEntitlementService } from './account-entitlement.service';
+import {
+  AccountEntitlementService,
+  type AccountEntitlementAuditMetadata,
+} from './account-entitlement.service';
+import { isLocalAccountEmail } from '../auth/local-account';
 import { toPrivateBetaProvisioningError } from './private-beta-provisioning-error';
 
 export interface BetaOnboardingRequestState {
@@ -76,6 +81,7 @@ const AUTHENTICATION_USER_SELECT = {
   isDevAdmin: true,
   devAdminMode: true,
   isDemoUser: true,
+  authorizationRevision: true,
   memberships: {
     select: { organizationId: true, role: true, isActive: true },
   },
@@ -161,6 +167,97 @@ export class UserService {
     });
 
     return result;
+  }
+
+  async createLocalBootstrapUser(installationSecret: string): Promise<User> {
+    const localIdentity = crypto
+      .createHmac('sha256', installationSecret)
+      .update('heyhey-local-identity-v1')
+      .digest('hex');
+    const email = `local-${localIdentity}@local.invalid`;
+    const existingUser = await this.prisma.db.user.findUnique({
+      where: { email },
+    });
+    if (existingUser) {
+      await this.ensureLocalAccountEntitlement(existingUser.id as UserId);
+      return existingUser;
+    }
+
+    const passwordHash = await bcrypt.hash(
+      crypto.randomBytes(32).toString('base64url'),
+      12,
+    );
+
+    return this.prisma.db.$transaction(async (tx: AnyTransactionClient) => {
+      // The lock function returns void, which Prisma cannot read through $queryRaw.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${email}))`;
+      const existing = await tx.user.findUnique({ where: { email } });
+      if (existing) {
+        return existing;
+      }
+
+      const user = await tx.user.create({
+        data: { email, name: '', passwordHash },
+      });
+      const organization =
+        await this.organizationService.createOrganizationWithTransaction(
+          tx,
+          {
+            name: 'My Hey Hey',
+            description: 'Local Hey Hey workspace',
+            slug: `heyhey-local-${localIdentity.slice(0, 24)}`,
+          },
+          user.id as UserId,
+        );
+      await this.accountEntitlementService.createBetaAtAdmissionInTransaction(
+        tx,
+        organization.id as OrganizationId,
+        this.localEntitlementAudit(user.id as UserId),
+      );
+
+      this.logger.log('Local account bootstrap completed', {
+        userId: user.id,
+      });
+      return user;
+    });
+  }
+
+  /** Repairs local installations created before their organization had an entitlement. */
+  private async ensureLocalAccountEntitlement(userId: UserId): Promise<void> {
+    const membership = await this.prisma.db.organizationMember.findFirstOrThrow(
+      {
+        where: { userId, isActive: true },
+        select: { organizationId: true },
+      },
+    );
+    await this.accountEntitlementService.createBetaAtAdmission(
+      membership.organizationId as OrganizationId,
+      this.localEntitlementAudit(userId),
+    );
+  }
+
+  private localEntitlementAudit(
+    userId: UserId,
+  ): AccountEntitlementAuditMetadata {
+    return { actor: userId, reason: 'LOCAL_INSTALLATION' };
+  }
+
+  async updateLocalDisplayName(userId: UserId, name: string): Promise<User> {
+    const displayName = name.trim();
+    if (displayName.length === 0 || displayName.length > 100) {
+      throw new BadRequestException('Name must contain 1 to 100 characters');
+    }
+    const user = await this.prisma.db.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+    if (!user || !isLocalAccountEmail(user.email)) {
+      throw new NotFoundException('Local account not found');
+    }
+    return this.prisma.db.user.update({
+      where: { id: userId },
+      data: { name: displayName },
+    });
   }
 
   async validatePassword(user: User, password: string): Promise<boolean> {

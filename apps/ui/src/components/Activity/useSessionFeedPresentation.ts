@@ -1,4 +1,4 @@
-import type { PaginatedAgentSessionItemDto } from "@hey-hey/ui-common/api";
+import type { PaginatedAgentSessionItemDto } from "@hey-hey/contracts/api";
 import { useRef } from "react";
 
 type Item = PaginatedAgentSessionItemDto;

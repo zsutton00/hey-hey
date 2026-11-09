@@ -14,7 +14,7 @@ import type {
 } from '../../../../types/flow-internal.types';
 import { createMutableContextHandle } from '../../../../utils/mutable-context';
 import { ONBOARDING_NODES, REPOSITORY_IMPORT_NODES } from '../../../constants';
-import { RepositoryFeatureEnrichmentChoice } from '../../../../generated';
+import { RepositoryFeatureEnrichmentChoice } from '@hey-hey/contracts/api/models';
 import {
   RepositoryImportEnrichmentChoiceNode,
   ENRICHMENT_CHOICE_FIELD,

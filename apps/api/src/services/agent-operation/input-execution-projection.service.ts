@@ -18,7 +18,7 @@ import type {
   MessageRecordDto,
   WebSocketConversationReductionEvent,
   ConversationControlCancelInput,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import type {
   OrganizationId,
   ProjectId,

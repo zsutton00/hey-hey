@@ -1,10 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ProjectAssistantPolicy, PromptTypeHandler } from '../../prompt-type-handler';
 import type { ProjectAssistantConfig } from '../../../shared/agent-bridge-contract/contract';
-import {
-  LocalPromptType,
-  type RunEntityReference,
-} from '../../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType, type RunEntityReference } from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../../../session/types';
 import {
   resolveProjectAssistantBootstrap,

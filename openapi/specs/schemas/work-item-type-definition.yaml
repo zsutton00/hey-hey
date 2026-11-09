@@ -2183,6 +2183,22 @@ WorkItemTypeSummaryDto:
     effectiveSource:
       $ref: "#/WorkItemTypeEffectiveSource"
 
+WorkItemTypeCanonicalComparisonDto:
+  type: object
+  additionalProperties: false
+  description: >
+    Read-only reference for comparing a project's canonical override with the
+    current canonical definition of the same key. Both definitions are complete
+    and unmodified; consumers display them and never merge them.
+  required:
+    - effective
+    - canonical
+  properties:
+    effective:
+      $ref: "#/WorkItemTypeSummaryDto"
+    canonical:
+      $ref: "#/WorkItemTypeDefinitionDto"
+
 WorkItemTypeGuidancePurpose:
   type: string
   enum: [maintenance, role]

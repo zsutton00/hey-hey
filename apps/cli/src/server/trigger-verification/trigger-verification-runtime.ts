@@ -12,11 +12,11 @@ import type { LocalAgentService } from '../local-agent-service';
 import type { ServerLogger } from '../logger';
 import type { MonitorProjectContext } from '../monitors/project-context';
 import type { PlatformDeliveryContext, PlatformWebSocketEvent } from '../platform-ws';
-import type { MonitorCommandAcknowledgement } from '../../shared/agent-bridge-contract/generated/api';
+import type { MonitorCommandAcknowledgement } from '@hey-hey/contracts/agent-bridge';
 import type {
   AgentOperationDispatchAcknowledgement,
   AuthorityReductionAcknowledgement,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { MachineControllerAuthority } from '../../auth/machine-controller-authority';
 import { TaskMonitorStateMachineInputAdapter } from '../state-machine-input-adapter';
 import { extractUserIdFromToken } from '../../auth';

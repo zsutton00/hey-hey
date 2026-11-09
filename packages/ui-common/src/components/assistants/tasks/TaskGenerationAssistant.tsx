@@ -21,6 +21,10 @@ import {
   InitiationType as InitiationTypeEnum,
   ConversationStatus as ConversationStatusEnum,
 } from "../../../api";
+import {
+  toOpenApiOrganizationId,
+  toOpenApiProjectId,
+} from "../../../clients/contractIdentifierAdapters";
 import { useUserIdentity } from "../../../hooks/useUserIdentity";
 import { useConversation } from "../../../data/hooks/useConversation";
 import { useCreateConversation } from "../../../data/hooks/useCreateConversation";
@@ -103,8 +107,8 @@ export const TaskGenerationAssistant: React.FC<
       throw new Error("Missing parent id");
     }
     return {
-      projectId,
-      organizationId,
+      projectId: toOpenApiProjectId(projectId),
+      organizationId: toOpenApiOrganizationId(organizationId),
       initiatedBy: InitiationTypeEnum.User,
       status: ConversationStatusEnum.Started,
       workflowName: WorkflowName.TaskGeneration,

@@ -1,4 +1,4 @@
-import type { RepositoryFirstWorkCompletion } from '../../shared/agent-bridge-contract/generated/api';
+import type { RepositoryFirstWorkCompletion } from '@hey-hey/contracts/agent-bridge';
 import {
   createAgentBridgeRuntimeValidator,
   formatRuntimeSchemaErrors,

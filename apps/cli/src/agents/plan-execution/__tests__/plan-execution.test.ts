@@ -15,7 +15,7 @@ const minimalPayload = (): LocalPlanExecutionPromptPayload => ({
   plan: {
     responseType: 'startup_plan_v1',
     sessionTitle: 'Add widget to dashboard',
-    requiredServiceIds: ['svc-1'] as unknown as Set<string>,
+    requiredServiceIds: ['svc-1'],
     primaryImplementations: [
       {
         title: 'Dashboard widget',

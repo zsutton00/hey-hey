@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { isQaPairData } from 'src/utils/artifact-formatting.util';
 import { errorToLoggable } from 'src/utils/logging.util';
-import { ArtifactData } from '../../generated';
+import { ArtifactData } from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OrganizationId } from '../../types';
 import { ArtifactDataValidators } from './artifact-data.validators';

@@ -1,4 +1,4 @@
-import { AgentSessionOutputAttentionState } from "@hey-hey/ui-common/api";
+import { AgentSessionOutputAttentionState } from "@hey-hey/contracts/api";
 import {
   useAcknowledgeAgentSessionOutputAttention,
   useAgentSessionOutputAttentions,
@@ -9,8 +9,7 @@ import { logger } from "../../utils/logger";
 const ACKNOWLEDGMENT_RETRY_DELAYS_MS = [0, 250, 1_000] as const;
 
 const isDocumentVisible = (): boolean =>
-  typeof document !== "undefined" &&
-  document.visibilityState === "visible";
+  typeof document !== "undefined" && document.visibilityState === "visible";
 
 type AcknowledgmentRuntime = {
   agentSessionId: string | null | undefined;

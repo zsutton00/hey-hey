@@ -25,6 +25,7 @@ LocalPromptType:
     - debug
     - research
     - run_eval
+    - local_onboarding
     - quick
     - daily_session
     - rollup_proposal
@@ -327,6 +328,7 @@ RunCreatePayload:
     - $ref: "#/RunCreatePayloadDebug"
     - $ref: "#/RunCreatePayloadResearch"
     - $ref: "#/RunCreatePayloadRunEval"
+    - $ref: "#/RunCreatePayloadLocalOnboarding"
     - $ref: "#/RunCreatePayloadQuick"
     - $ref: "#/RunCreatePayloadProjectMode"
     - $ref: "#/RunCreatePayloadDailySession"
@@ -373,6 +375,7 @@ RunCreatePayload:
       debug: "#/RunCreatePayloadDebug"
       research: "#/RunCreatePayloadResearch"
       run_eval: "#/RunCreatePayloadRunEval"
+      local_onboarding: "#/RunCreatePayloadLocalOnboarding"
       quick: "#/RunCreatePayloadQuick"
       project_mode: "#/RunCreatePayloadProjectMode"
       daily_session: "#/RunCreatePayloadDailySession"
@@ -1169,3 +1172,17 @@ RunCreatePayloadReleaseNotes:
   description: >-
     Launches a RELEASE_NOTES project report request. Unlike project_report, the run is bound to every active
     project Service repository and has read-only git and file access to them.
+
+RunCreatePayloadLocalOnboarding:
+  type: object
+  additionalProperties: false
+  required: [promptType, userMessage, conversationId]
+  properties:
+    promptType:
+      type: string
+      enum: [local_onboarding]
+    userMessage:
+      type: string
+    conversationId:
+      type: string
+      format: uuid

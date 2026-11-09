@@ -1,3 +1,7 @@
+import {
+  EvalCaseCodingSection,
+  isFreeFormEvalCase,
+} from "./EvalCaseCodingSection";
 import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import {
   Box,
@@ -23,7 +27,7 @@ import {
   type PlanContextEntryDto,
   type TaskResponseDto,
   type WorkItemTypeDefinitionDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   CapsuleAction,
   DependentFutures,
@@ -31,6 +35,7 @@ import {
   EntityGrid,
   EntityListItem,
   InteractionComponent,
+  MockupUxFlows,
   WorkItemEditor,
   WorkItemMetadata,
   WorkItemReadView,
@@ -630,14 +635,37 @@ export const TaskPageView: React.FC<TaskPageViewProps> = ({
                           },
                         }}
                         content={
-                          <WorkItemReadView
-                            htmlCssRenderingContext="page"
-                            sections={
-                              task.sections as
-                                MaterializedWorkItemSection[] | undefined
-                            }
-                            sectionSelection={workItemSectionSelection}
-                          />
+                          <>
+                            <WorkItemReadView
+                              htmlCssRenderingContext="page"
+                              afterVisualSections={
+                                task.type === "mockup" ? (
+                                  <MockupUxFlows
+                                    organizationId={organizationId}
+                                    projectId={projectId}
+                                    mockupId={task.id}
+                                  />
+                                ) : undefined
+                              }
+                              sections={
+                                task.sections as
+                                  MaterializedWorkItemSection[] | undefined
+                              }
+                              sectionSelection={workItemSectionSelection}
+                              renderSection={(section, value) =>
+                                task.type === "EVAL_CASE" &&
+                                section.key === "coding" ? (
+                                  value && isFreeFormEvalCase(task.sections) ? (
+                                    <EvalCaseCodingSection
+                                      content={value}
+                                      organizationId={organizationId}
+                                      projectId={projectId}
+                                    />
+                                  ) : null
+                                ) : undefined
+                              }
+                            />
+                          </>
                         }
                         sidebar={
                           <Box>

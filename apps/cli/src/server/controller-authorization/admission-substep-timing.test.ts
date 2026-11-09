@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { asOrganizationId, asUserId } from '../../test-utils/contract-ids';
 import { KeyPairStore } from '../../credentials';
 import type { PlatformStore } from '../../credentials/platforms/types';
 import { StructuredServerLogger } from '../logger';
@@ -19,12 +20,12 @@ const grantInput = {
     controllerCredentialId: 'credential-1',
     controllerInstallationId: 'installation-1',
     machineId: 'machine-1',
-    userId: 'user-1',
-    organizationId: 'organization-1',
+    userId: asUserId('user-1'),
+    organizationId: asOrganizationId('organization-1'),
     cadence: 'FIVE_MINUTES' as const,
     policyRevision: 4,
-    allowedActionTypes: new Set(CURRENT_AGENT_OPERATIONS),
-    allowedActionCategories: new Set(['TASK_MONITOR' as const, 'CLI_READ' as const]),
+    allowedActionTypes: [...CURRENT_AGENT_OPERATIONS],
+    allowedActionCategories: ['TASK_MONITOR' as const, 'CLI_READ' as const],
     issuedAtMs: 1_700_000_000_000,
     effectiveExpiresAtMs: 1_700_000_300_000,
   },

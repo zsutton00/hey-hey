@@ -69,7 +69,7 @@ const mount = () =>
     <MemoryRouter>
       <ProjectReportsOverview organizationId="org" projectId="project" />
       <Location />
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 const ready = (reports: ReportDto[]) => ({
   reports,
@@ -92,67 +92,50 @@ describe("ProjectReportsOverview", () => {
     }).parentElement?.parentElement;
     expect(header).toBeDefined();
     expect(header).toContainElement(
-      screen.getByTestId("project-report-create-route")
+      screen.getByTestId("project-report-create-route"),
     );
     expect(header).not.toContainElement(
-      screen.getByTestId("project-report-history")
+      screen.getByTestId("project-report-history"),
     );
     expect(
       screen
         .getByTestId("project-report-latest")
         .compareDocumentPosition(screen.getByTestId("project-report-history")) &
-        Node.DOCUMENT_POSITION_FOLLOWING
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     fireEvent.click(screen.getByTestId("project-report-create-route"));
     expect(screen.getByTestId("location")).toHaveTextContent(
-      "/projects/project/reports/new"
+      "/projects/project/reports/new",
     );
   });
-  it("pages history independently and opens an older identity without replacing latest", () => {
+  it("navigates to a project history page without replacing the latest report", () => {
     query.mockImplementation((_org, _project, options) =>
       ready(
         options.limit === 1
           ? [makeReport("latest")]
           : options.offset === 0
-          ? Array.from({ length: 9 }, (_, i) => makeReport(`old-${i}`))
-          : [makeReport("older")]
-      )
+            ? Array.from({ length: 9 }, (_, i) => makeReport(`old-${i}`))
+            : [makeReport("older")],
+      ),
     );
     mount();
     const latestRow = screen.getByTestId("project-report-latest");
     expect(latestRow).toHaveTextContent("Latest week");
     expect(latestRow).toHaveTextContent("Summary");
     expect(latestRow).toHaveTextContent(
-      "9/24/2026 – 10/1/2026 · Created 10/1/2026"
+      "9/24/2026 – 10/1/2026 · Created 10/1/2026",
+    );
+    expect(screen.getByTestId("project-report-history")).toHaveAttribute(
+      "href",
+      "/projects/project/reports",
     );
     fireEvent.click(screen.getByTestId("project-report-history"));
-    const historyEntries = screen.getAllByTestId(
-      "project-report-history-entry"
-    );
-    expect(historyEntries).toHaveLength(8);
-    expect(historyEntries[0]).toHaveTextContent(
-      "9/24/2026 – 10/1/2026 · Created 10/1/2026"
-    );
-    expect(historyEntries[0]).not.toHaveTextContent("Summary");
-    fireEvent.click(screen.getByRole("button", { name: "Older" }));
-    expect(query).toHaveBeenCalledWith(
-      "org",
-      "project",
-      expect.objectContaining({
-        types: [ReportType.ProjectReport],
-        sortBy: "createdAt",
-        sortOrder: "DESC",
-        limit: 9,
-        offset: 8,
-      })
-    );
-    fireEvent.click(screen.getByTestId("project-report-history-entry"));
     expect(screen.getByTestId("location")).toHaveTextContent(
-      "/projects/project/reports/older"
+      "/projects/project/reports",
     );
     expect(screen.getByTestId("project-report-latest")).toHaveAttribute(
       "data-report-id",
-      "latest"
+      "latest",
     );
   });
   it("keeps start and end times for a report period of exactly 24 hours", () => {
@@ -163,11 +146,11 @@ describe("ProjectReportsOverview", () => {
           windowStart: "2026-10-01T00:00:00Z",
           windowEnd: "2026-10-02T00:00:00Z",
         }),
-      ])
+      ]),
     );
     mount();
     expect(screen.getByTestId("project-report-latest")).toHaveTextContent(
-      "10/1/2026, 12:00:00 AM – 10/2/2026, 12:00:00 AM · Created 10/2/2026"
+      "10/1/2026, 12:00:00 AM – 10/2/2026, 12:00:00 AM · Created 10/2/2026",
     );
   });
   it("formats the report period and creation date in the report timezone", () => {
@@ -179,11 +162,11 @@ describe("ProjectReportsOverview", () => {
           windowEnd: "2026-10-04T00:30:00Z",
           timeZone: "America/Los_Angeles",
         }),
-      ])
+      ]),
     );
     mount();
     expect(screen.getByTestId("project-report-latest")).toHaveTextContent(
-      "9/30/2026 – 10/3/2026 · Created 9/30/2026"
+      "9/30/2026 – 10/3/2026 · Created 9/30/2026",
     );
   });
   it("offers creation in the empty state", () => {
@@ -192,16 +175,16 @@ describe("ProjectReportsOverview", () => {
     expect(screen.getByText("No project reports yet.")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("project-report-create-route"));
     expect(screen.getByTestId("location")).toHaveTextContent(
-      "/projects/project/reports/new"
+      "/projects/project/reports/new",
     );
   });
   it("rejects metadata from another project without displaying its title", () => {
     query.mockReturnValue(
-      ready([{ ...makeReport("latest"), projectId: "other" }])
+      ready([{ ...makeReport("latest"), projectId: "other" }]),
     );
     mount();
     expect(
-      screen.getByText("The latest report metadata is unavailable.")
+      screen.getByText("The latest report metadata is unavailable."),
     ).toBeInTheDocument();
     expect(screen.queryByText("Latest week")).not.toBeInTheDocument();
   });
@@ -209,7 +192,7 @@ describe("ProjectReportsOverview", () => {
     query.mockReturnValue(ready([makeReport("latest", { summary: "  " })]));
     mount();
     expect(
-      screen.getByText("The latest report metadata is unavailable.")
+      screen.getByText("The latest report metadata is unavailable."),
     ).toBeInTheDocument();
     expect(screen.queryByText("Latest week")).not.toBeInTheDocument();
   });
@@ -217,7 +200,7 @@ describe("ProjectReportsOverview", () => {
     query.mockReturnValue({ ...ready([]), isFetched: false, isLoading: true });
     const view = mount();
     expect(
-      screen.getByLabelText("Loading project reports")
+      screen.getByLabelText("Loading project reports"),
     ).toBeInTheDocument();
     query.mockReturnValue({
       ...ready([]),
@@ -227,13 +210,13 @@ describe("ProjectReportsOverview", () => {
     view.rerender(
       <MemoryRouter>
         <ProjectReportsOverview organizationId="org" projectId="project" />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     expect(
-      screen.getByText("Could not load project reports.")
+      screen.getByText("Could not load project reports."),
     ).toBeInTheDocument();
     expect(
-      screen.queryByTestId("project-report-latest")
+      screen.queryByTestId("project-report-latest"),
     ).not.toBeInTheDocument();
   });
 });

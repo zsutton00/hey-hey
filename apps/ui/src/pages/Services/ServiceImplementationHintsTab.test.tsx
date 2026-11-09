@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ImplementationHintDto } from "@hey-hey/ui-common/api";
+import type { ImplementationHintDto } from "@hey-hey/contracts/api";
 import { ServiceImplementationHintsTab } from "./ServiceImplementationHintsTab";
 
 const useHints = vi.hoisted(() => vi.fn());

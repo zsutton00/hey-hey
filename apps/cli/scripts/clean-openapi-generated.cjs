@@ -1,6 +1,12 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
+if (process.env.HEY_HEY_OPENAPI_STAGING !== '1') {
+  throw new Error(
+    'Generated output cleanup is only allowed in coordinator-owned staging.',
+  );
+}
+
 const repositoryRoot = path.resolve(__dirname, '..');
 const generatedPaths = [
   'src/generated/task-monitor-contract.schema.ts',

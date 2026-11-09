@@ -8,7 +8,7 @@ import {
   NodeType,
   TaskGenerationFlowContext,
 } from '../../../../types/flow-internal.types';
-import { TasksSystemMessageData } from '../../../../generated';
+import { TasksSystemMessageData } from '@hey-hey/contracts/api/models';
 import { DesignDocId, TaskId } from '../../../../types';
 import { createMutableContextHandle } from '../../../../utils/mutable-context';
 

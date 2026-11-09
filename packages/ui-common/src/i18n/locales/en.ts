@@ -14,6 +14,127 @@ import { KEYS } from "../keys";
 import { compose, patterns } from "../compose";
 
 export const en = {
+  "localLogin.title": "Welcome back",
+  "localLogin.note": "Use your passkey to continue where you left off.",
+  "localLogin.continuing": "Continuing where you left off…",
+  "localLogin.signIn": "Sign in with passkey",
+  "localLogin.failed": "Passkey sign-in failed. Please try again.",
+  "localLogin.unsupported":
+    "This browser does not support passkeys. Open Hey Hey in a browser that supports passkeys.",
+
+  "localSetup.pairing.eyebrow": "LOCAL SETUP · CONNECT",
+  "localSetup.pairing.signInNote":
+    "This passkey is also your Hey Hey sign-in passkey. Removing it later also disconnects this computer.",
+  "localSetup.pairing.title": "Let Hey Hey work with your coding agents",
+  "localSetup.pairing.purpose":
+    "You're creating a passkey so Hey Hey can work with the coding agents on this computer. Your browser will ask you to approve it once.",
+  "localSetup.pairing.privacy":
+    "No data ever leaves this computer. Hey Hey runs here, on your machine.",
+  "localSetup.pairing.computer": "This computer",
+  "localSetup.pairing.agents.heading": "Coding agents found on this computer",
+  "localSetup.pairing.agents.claude": "Claude Code",
+  "localSetup.pairing.agents.codex": "Codex",
+  "localSetup.pairing.agents.opencode": "OpenCode",
+  "localSetup.pairing.agents.installed": "Installed",
+  "localSetup.pairing.agents.notFound": "Not found",
+  "localSetup.pairing.agents.checkFailed": "Couldn't check",
+  "localSetup.pairing.agents.noneFound":
+    "No coding agents were found. Install Claude Code, Codex or OpenCode, then run heyhey local again.",
+  "localSetup.pairing.agents.unreported":
+    "This page didn't receive the list of coding agents. Run heyhey local again to see them.",
+  "localSetup.pairing.technical.heading": "Technical details",
+  "localSetup.pairing.technical.os": "Operating system",
+  "localSetup.pairing.technical.cliVersion": "CLI version",
+  "localSetup.pairing.technical.fingerprint": "Key fingerprint",
+  "localSetup.pairing.technical.account": "Account",
+  "localSetup.pairing.technical.organization": "Organization",
+  "localSetup.pairing.technical.passkeyName": "Passkey name",
+  "localSetup.pairing.duration.heading":
+    "Allow this browser to use this computer for",
+  "localSetup.pairing.duration.ONE_DAY": "1 day",
+  "localSetup.pairing.duration.ONE_WEEK": "1 week",
+  "localSetup.pairing.duration.ONE_MONTH": "1 month",
+  "localSetup.pairing.duration.UNTIL_REVOKED": "Until I revoke it",
+  "localSetup.pairing.duration.permission":
+    "This browser may drive this computer until this time ends or you revoke access. The same passkey approval connects this computer and grants access for your first project.",
+  "localSetup.pairing.preparing": "Getting ready…",
+  "localSetup.pairing.createPasskey": "Create passkey",
+  "localSetup.pairing.tryAgain": "Try creating passkey again",
+  "localSetup.pairing.cancel": "Cancel",
+  "localSetup.progress.title": "Connecting your computer",
+  "localSetup.progress.explanation":
+    "Hey Hey is getting set up on this computer. This page continues on its own.",
+  "localSetup.progress.terminalHint":
+    "If your terminal asks you to confirm, confirm it there. Keep it open.",
+  "localSetup.progress.failed":
+    "We couldn't finish connecting your computer. Try again, and if it keeps happening run heyhey local again.",
+  "localSetup.progress.retry": "Try again",
+  "onboarding.local.runtimeUnavailable":
+    "The saved runtime is unavailable on this computer. Restore that provider to resume onboarding.",
+  "onboarding.runtime.lowCostGuidance":
+    "A low-cost model is enough for onboarding.",
+  "onboarding.runtime.ownPlanGuidance":
+    "Choose which machine and model will run onboarding. It uses your own coding plan; a low-cost model is enough.",
+  "onboarding.runtime.loading": "Preparing your project…",
+  "onboarding.runtime.projectUnavailable":
+    "Your setup project is unavailable. Run heyhey local again to resume setup.",
+  "onboarding.local.loadFailed": "We couldn't load your onboarding session.",
+  "onboarding.local.connected": "Connected",
+  "newOrgLanding.advance.start": "Start setting up your project",
+  "common.retry": "Try again",
+  "common.retrying": "Trying again…",
+  "usageTrends.title": "Usage Trends",
+  "usageTrends.from": "From",
+  "usageTrends.to": "To",
+  "usageTrends.groupBy": "Group by",
+  "usageTrends.granularity.day": "Day",
+  "usageTrends.granularity.week": "Week",
+  "usageTrends.granularity.month": "Month",
+  "usageTrends.reportKind": "Report kind",
+  "usageTrends.kind.RESEARCH": "Research",
+  "usageTrends.kind.IMPLEMENTATION": "Implementation",
+  "usageTrends.kind.REVIEW": "Review",
+  "usageTrends.provider": "Provider",
+  "usageTrends.model": "Model",
+  "usageTrends.effort": "Effort",
+  "usageTrends.unknown": "Unknown",
+  "usageTrends.weekOf": "Week of {{date}}",
+  "usageTrends.scope":
+    "{{count}} unique executions \u00b7 all matching \u00b7 no sampling \u00b7 UTC",
+  "usageTrends.approximate":
+    "Figures are approximate. Each execution is measured when its last report was written, so they are meant for comparing periods, not as exact usage.",
+  "usageTrends.noCompleteMeasurements":
+    "No matching execution has a complete measurement yet, so averages are not available. Counts and totals below show what was measured.",
+  "usageTrends.avgTokens": "Average tokens per execution",
+  "usageTrends.inputShort": "input",
+  "usageTrends.outputShort": "output",
+  "usageTrends.avgToolCalls": "Average tool calls per execution",
+  "usageTrends.measuredTotals": "Measured totals",
+  "usageTrends.totalInput": "Input tokens: {{value}}",
+  "usageTrends.totalCache":
+    "incl. cache read {{read}}, cache creation {{creation}}",
+  "usageTrends.totalOutput": "Output tokens: {{value}}",
+  "usageTrends.totalToolCalls": "Tool calls: {{value}}",
+  "usageTrends.coverage": "Complete measurements",
+  "usageTrends.completeOf": "{{complete}} of {{total}}",
+  "usageTrends.partialUnavailable":
+    "{{partial}} partial \u00b7 {{unavailable}} unavailable",
+  "usageTrends.tokenChart": "Average tokens per execution",
+  "usageTrends.toolChart": "Average tool calls per execution",
+  "usageTrends.input": "Input",
+  "usageTrends.output": "Output",
+  "usageTrends.toolCallsLabel": "Tool calls",
+  "usageTrends.bucket": "Period",
+  "usageTrends.completeMatching": "Complete / matching",
+  "usageTrends.avgInput": "Avg input",
+  "usageTrends.avgOutput": "Avg output",
+  "usageTrends.avgToolCallsShort": "Avg tool calls",
+  "usageTrends.footnote":
+    "Averages use the {{count}} executions with complete measurements. Partial and unavailable executions are counted above but excluded from averages. Input includes cached tokens.",
+  "usageTrends.invalidPeriod": "Choose a start date on or before the end date.",
+  "usageTrends.error": "Usage trends could not be loaded.",
+  "usageTrends.empty":
+    "No agent executions with usage measurements match this period and these filters.",
   "demo.start.checking": "Checking for your demo…",
   "demo.start.resumeError":
     "We couldn't check for your demo. Please try again.",
@@ -174,8 +295,6 @@ export const en = {
   [KEYS.common.yes]: "Yes",
   [KEYS.common.no]: "No",
   [KEYS.common.unknown]: "Unknown",
-  [KEYS.common.retry]: "Retry",
-  [KEYS.common.retrying]: "Retrying...",
   [KEYS.common.noItemsFound]: "No items found",
   [KEYS.common.notAvailable]: "Not available",
   [KEYS.common.active]: "Active",
@@ -1290,6 +1409,16 @@ export const en = {
   "eval.run.evalLoadError": "Couldn't load this Eval.",
   "eval.run.setup.crumb": "New run",
   "eval.run.setup.title": "New run",
+  "eval.run.setup.name": "Name (optional)",
+  "eval.run.setup.nameHint":
+    "Left blank, this run is shown as “{{generated}}”. You can rename it later from its page.",
+  "eval.run.name.projectAssistantPrepares": "Project Assistant prepares",
+  "eval.run.name.projectAssistantOff": "Project Assistant off",
+  "eval.run.rename.action": "Rename",
+  "eval.run.rename.label": "Run name",
+  "eval.run.rename.save": "Save",
+  "eval.run.rename.cancel": "Cancel",
+  "eval.run.rename.error": "Could not rename the run: {{message}}",
   "eval.run.setup.configurations": "Configurations",
   "eval.run.setup.noConfigurations":
     "Add the model and reasoning setups you want to compare.",
@@ -1306,6 +1435,13 @@ export const en = {
   "eval.run.setup.casesError": "Couldn't load the approved cases.",
   "eval.run.setup.attemptCount":
     "{{cases}} × {{configurations}} = {{attempts}}, each in a fresh session.",
+  "eval.run.setup.attemptCountRepeats":
+    "{{cases}} × {{configurations}} × {{repeats}} = {{attempts}}, each in a fresh session.",
+  "eval.run.setup.runAttempts": "Run {{attempts}}",
+  "eval.run.setup.liveProjectNoteRepeats":
+    "Runs against the project as it is now, so later repeats may see items that changed during the run. The cases, items, and settings used are saved with the run; the rest of the project is not.",
+  "eval.run.repeats_one": "{{count}} repeat",
+  "eval.run.repeats_other": "{{count}} repeats",
   "eval.run.setup.runsOn": "Runs on",
   "eval.run.setup.liveProjectNote":
     "Runs against the project as it is now. The cases, items, and settings used are saved with the run; the rest of the project is not.",
@@ -1322,6 +1458,9 @@ export const en = {
   "eval.run.setup.dialog.cancel": "Cancel",
   "eval.run.settings.title": "Run settings",
   "eval.run.settings.concurrency": "Attempts at once",
+  "eval.run.settings.repeats": "Repeats per case and setup",
+  "eval.run.settings.repeatsNote":
+    "Each repeat is a separate fresh attempt that can't see the others. Up to 10. The run page shows how often each setup got it right and how much its scores varied.",
   "eval.run.settings.timeLimit": "Time limit per attempt",
   "eval.run.settings.tokenLimit": "Token limit per attempt",
   "eval.run.settings.noLimit": "No limit",
@@ -1343,6 +1482,7 @@ export const en = {
   "eval.run.handler.entity_conversation": "Entity conversation",
   "eval.run.handler.feature_sync_analyze": "Feature sync",
   "eval.run.handler.agent_search": "Agent search",
+  "eval.run.handler.free_form": "Coding (free form)",
   "eval.run.settings.projectAssistant":
     "Project Assistant prepares the handler",
   "eval.run.settings.projectAssistantNote":
@@ -1352,11 +1492,18 @@ export const en = {
   "eval.run.page.attempts": "Attempts",
   "eval.run.page.progressSummary":
     "{{cases}} × {{configurations}} · {{ended}} of {{total}} ended",
+  "eval.run.page.statusRunning": "Running · {{ended}} of {{total}} ended",
+  "eval.run.page.statusFinished": "Finished",
+  "eval.run.page.statusFinishedWithErrors_one": "Finished with {{count}} error",
+  "eval.run.page.statusFinishedWithErrors_other":
+    "Finished with {{count}} errors",
+  "eval.run.page.statusStopped": "Stopped",
   "eval.run.page.backgroundHint":
     "You can leave this page; the run keeps going.",
   "eval.run.page.stop": "Stop run",
   "eval.run.page.settingsSummary":
     "{{concurrency}} at once · Time limit: {{time}} · Token limit: {{tokens}} · Handler: {{handler}} · Project Assistant: {{projectAssistant}}",
+  "eval.run.page.repeatsSummary": "{{count}} repeats per case and setup",
   "eval.run.page.projectAssistantOn": "on",
   "eval.run.page.projectAssistantOff": "off",
   "eval.run.page.projectAssistantAlone": "research only",
@@ -1392,30 +1539,16 @@ export const en = {
   "eval.run.cell.missing": "Not recorded",
   "eval.run.cell.proposals_one": "{{count}} proposal",
   "eval.run.cell.proposals_other": "{{count}} proposals",
+  "eval.run.cell.repeatsEnded": "{{ended}} of {{total}} ended",
+  "eval.run.cell.repeatsRunning": "{{count}} running",
+  "eval.run.cell.repeatsQueued": "Waiting · {{count}} repeats queued",
+  "eval.run.cell.repeatRunning": "Repeat {{repeat}} · {{status}}",
+  "eval.run.cell.correctSoFar": "{{correct}} / {{assessed}} correct so far",
+  "eval.run.cell.repeatDetail": "Repeat {{repeat}} · {{detail}}",
   "eval.run.cell.reports_one": "{{count}} report",
   "eval.run.cell.reports_other": "{{count}} reports",
-  "eval.run.progress.title": "Progress",
-  "eval.run.progress.empty": "No attempts have started yet.",
-  "eval.run.progress.started": "{{setup}} on “{{case}}” started.",
-  "eval.run.progress.finished": "{{setup}} on “{{case}}” finished.",
-  "eval.run.progress.error":
-    "{{setup}} on “{{case}}” ended with an error: {{message}}. Other attempts continue.",
-  "eval.run.progress.errorNoMessage":
-    "{{setup}} on “{{case}}” ended with an error. Other attempts continue.",
-  "eval.run.progress.stopped.USER":
-    "{{setup}} on “{{case}}” stopped: the run was stopped.",
-  "eval.run.progress.stopped.TIME_LIMIT":
-    "{{setup}} on “{{case}}” stopped: reached {{limit}} time limit.",
-  "eval.run.progress.stopped.TOKEN_LIMIT":
-    "{{setup}} on “{{case}}” stopped: reached {{limit}} token limit.",
   "eval.output.badge": "Evaluation output · can't be approved",
-  "eval.run.page.viewResults": "View results",
-  "eval.page.runs.results": "Results",
-  "eval.results.crumb": "Results",
   "eval.results.title": "Compare setups",
-  "eval.results.notFinished":
-    "This run hasn't finished yet. Results appear here once every attempt has ended.",
-  "eval.results.backToRun": "Back to run",
   "eval.results.notReported": "not reported",
   "eval.results.partial": "{{value}} ({{reported}} of {{total}} reported)",
   "eval.results.averagesNote":
@@ -1432,9 +1565,29 @@ export const en = {
   "eval.results.columns.cost": "Cost per attempt",
   "eval.results.errors_one": "{{count}} error",
   "eval.results.errors_other": "{{count}} errors",
-  "eval.results.overhead": "Coordinator: {{coordinator}} (not included above)",
-  "eval.results.overheadMeasures":
-    "{{elapsed}} · {{tokens}} tokens · {{toolCalls}} tool calls",
+  "eval.results.stopped_one": "{{count}} stopped",
+  "eval.results.stopped_other": "{{count}} stopped",
+  "eval.results.qualitySpread": "{{mean}} ± {{spread}}",
+  "eval.results.repeats.correct": "{{recognized}} / {{assessed}} correct",
+  "eval.results.repeats.label": "Repeat {{repeat}}",
+  "eval.results.repeats.help":
+    "Each row is one case run with one setup, summarised over its repeats: correct out of finished attempts, average quality ± spread (standard deviation), and checks passed. Errored and stopped repeats are named and left out of the averages. The arrow lists every repeat; select one to see its specifics and review it.",
+  "eval.results.repeats.excludedError":
+    "Repeat {{repeat}} errored: {{message}}",
+  "eval.results.repeats.excludedErrorNoMessage": "Repeat {{repeat}} errored",
+  "eval.results.repeats.excludedStopped":
+    "Repeat {{repeat}} stopped ({{reason}})",
+  "eval.results.repeats.stopReason.USER": "the run was stopped",
+  "eval.results.repeats.stopReason.TIME_LIMIT": "time limit",
+  "eval.results.repeats.stopReason.TOKEN_LIMIT": "token limit",
+  "eval.results.repeats.leftOut": "left out of averages",
+  "eval.results.repeats.col.repeat": "Repeat",
+  "eval.results.repeats.col.session": "Session",
+  "eval.results.repeats.openSession": "Open session",
+  "eval.results.repeats.weak": "Stands out as weak",
+  "eval.results.repeats.expand": "Show repeat {{repeat}}",
+  "eval.results.repeats.collapse": "Hide repeat {{repeat}}",
+  "eval.results.repeats.stopped": "Stopped",
   "eval.results.cases.title": "Cases",
   "eval.results.cases.help":
     "Each row is one case run with one setup. The case name opens that attempt's session; the arrow opens the specifics. Recognition says whether the agent correctly decided what the case needed, including correctly doing nothing when no work was needed.",
@@ -1461,6 +1614,45 @@ export const en = {
   "eval.results.detail.result": "Result",
   "eval.results.detail.noResult": "The judge hasn't assessed this attempt.",
   "eval.results.detail.openEvalCase": "Open the Eval Case",
+  "eval.results.coding.startedFrom": "Started from {{service}} at {{sha}}",
+  "eval.results.coding.changes": "Changes made",
+  "eval.results.coding.savedNote": "Saved before the workspace was removed.",
+  "eval.results.coding.noChanges": "The attempt changed no files.",
+  "eval.results.coding.notSaved": "The changes were not saved.",
+  "eval.results.coding.notSavedYet":
+    "The changes are saved when the attempt ends.",
+  "eval.results.coding.changed": "changed",
+  "eval.results.coding.new": "new",
+  "eval.results.coding.deleted": "deleted",
+  "eval.results.coding.lines": "+{{added}} −{{removed}}",
+  "eval.results.coding.linesAdded": "+{{added}}",
+  "eval.results.coding.showDiff": "Show diff",
+  "eval.results.coding.hideDiff": "Hide diff",
+  "eval.results.coding.errorCell": "Error · {{message}}",
+  "eval.results.coding.othersContinued": "Other attempts continued",
+  "eval.case.coding.heading": "Coding",
+  "eval.case.coding.service": "Service",
+  "eval.case.coding.openService": "Open service",
+  "eval.case.coding.commit": "Pinned commit",
+  "eval.case.coding.knownGood": "Known-good change",
+  "eval.case.coding.knownBad": "Known-bad change",
+  "eval.case.coding.viewDiff": "View diff",
+  "eval.case.coding.hideDiff": "Hide diff",
+  "eval.case.coding.hiddenNote":
+    "Hidden from the evaluated agent. Each run keeps a copy of this section as it was at launch.",
+  "eval.case.coding.diffSummary_one":
+    "{{count}} file · +{{added}} −{{removed}}",
+  "eval.case.coding.diffSummary_other":
+    "{{count}} files · +{{added}} −{{removed}}",
+  "eval.case.coding.checklist.heading": "Mockup checklist",
+  "eval.case.coding.checklist.from": "From",
+  "eval.case.coding.checklist.openMockup": "Open Mockup",
+  "eval.case.coding.checklist.kind.NEW": "new",
+  "eval.case.coding.checklist.kind.UPDATE": "update",
+  "eval.case.coding.checklist.note.NEW": "every control is checked.",
+  "eval.case.coding.checklist.note.UPDATE":
+    "only the changed parts are checked, and anything that used to work and now breaks is flagged.",
+  "eval.case.coding.invalid": "The Coding section can't be read.",
   "eval.results.work.scope": "Work done",
   "eval.results.usage.cacheRead": "Cache read: {{value}}",
   "eval.results.usage.cacheCreation": "Cache creation: {{value}}",
@@ -1469,16 +1661,44 @@ export const en = {
   "eval.results.work.TARGET_PREPARATION":
     "Project Assistant research (not in the figures above)",
   "eval.results.work.TARGET_HANDLER": "Handler (the tested work)",
+  "eval.results.toolCalls.title": "Tool calls the agent made",
+  "eval.results.toolCalls.unavailable":
+    "Tool calls could not be collected for this attempt. That does not mean the agent made none.",
+  "eval.results.toolCalls.truncated": "arguments cut",
+  "eval.results.toolCalls.omitted": "{{count}} further calls are not shown.",
   "eval.results.attempt.produced": "What this attempt produced",
   "eval.results.attempt.savedNote":
     "Shown read-only, as saved when the attempt ran.",
   "eval.results.sessions.target": "Attempt session (what the handler did)",
   "eval.results.sessions.noTarget": "No attempt session was recorded.",
+  "eval.results.sessions.title": "Provider Sessions",
+  "eval.results.sessions.agent": "Agent",
   "eval.results.sessions.judge": "Judge",
-  "eval.results.sessions.info": "Info",
-  "eval.results.sessions.attemptProvider": "Attempt provider id",
   "eval.results.sessions.openJudge": "Open judge session",
-  "eval.results.sessions.judged": "Given to the judge ({{count}} characters)",
+  "eval.results.sessions.viewInput": "View input",
+  "eval.results.sessions.inputModalTitle": "Input given to the judge",
+  "eval.results.sessions.copyCommand": "Copy resume command",
+  "eval.results.sessions.readSession": "Read session",
+  "eval.results.sessions.transcriptTitle": "Provider session",
+  "eval.results.sessions.transcriptLoading":
+    "Reading the session from this computer…",
+  "eval.results.sessions.transcriptTruncated":
+    "This session is larger than the size limit, so only its beginning is shown.",
+  "eval.results.sessions.transcriptCopy": "Copy session text",
+  "eval.results.sessions.viewReadable": "Readable",
+  "eval.results.sessions.viewRaw": "Raw file",
+  "eval.results.sessions.unavailable.PROVIDER_NOT_SUPPORTED":
+    "Reading this provider's session is not supported yet.",
+  "eval.results.sessions.unavailable.SESSION_NOT_IN_RUN":
+    "This session does not belong to the attempt's Run on this computer.",
+  "eval.results.sessions.unavailable.SESSION_FILE_NOT_FOUND":
+    "The provider's stored session was not found on this computer. It may have been deleted, or the attempt ran elsewhere.",
+  "eval.results.sessions.unavailable.SESSION_FILE_UNREADABLE":
+    "The provider's stored session could not be read.",
+  "eval.results.sessions.unavailable.NOT_ON_THIS_COMPUTER":
+    "The CLI that ran this attempt is not on this computer, so its session cannot be read here.",
+  "eval.results.sessions.unavailable.READ_FAILED":
+    "The session could not be read. Try again.",
   "eval.results.sessions.judgedNone":
     "Nothing was given to the judge: the attempt ended before judging started.",
   "eval.results.attempt.ran":
@@ -1509,7 +1729,16 @@ export const en = {
   "eval.results.assessment.recognized": "Correct",
   "eval.results.assessment.notRecognized": "Missed",
   "eval.results.assessment.unscored": "not scored",
+  "eval.results.assessment.checklist": "Mockup checklist",
+  "eval.results.assessment.checklistHit": "Hit",
+  "eval.results.assessment.checklistMissed": "Missed",
+  "eval.results.assessment.checklistUnanswered": "Not judged",
+  "eval.results.assessment.regressions": "Broken by this change:",
+  "eval.results.assessment.noRegressions":
+    "Nothing that worked before is broken.",
+  "eval.results.cases.checklistCount": "Checklist {{hits}} / {{total}}",
   "eval.results.review.title": "Your review",
+  "eval.results.review.titleRepeat": "Your review of repeat {{repeat}}",
   "eval.results.review.score": "Score out of 5",
   "eval.results.review.scoreValue": "{{score}} / 5",
   "eval.results.review.comment": "Comment",

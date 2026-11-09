@@ -2,7 +2,7 @@ import type {
   FeatureRequirementRecord,
   FeatureRequirementStoredCitation,
   FeatureRequirementsSection,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { validateFeatureRequirementsSection } from './feature-requirements-section.validator';
 
 export type FeatureRequirementsReadState =

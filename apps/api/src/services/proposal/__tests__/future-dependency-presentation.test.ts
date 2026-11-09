@@ -1,5 +1,5 @@
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
-import type { FutureRevisionMutation } from 'src/generated';
+import type { FutureRevisionMutation } from '@hey-hey/contracts/api/models';
 import type { Proposal } from '@prisma/client';
 import {
   readDependencyPresentation,

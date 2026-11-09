@@ -15,8 +15,9 @@ import {
   AbandonMachineEnrollmentClaimRequestDto,
   BeginMachineEnrollmentClaimRequestDto,
   CompleteMachineEnrollmentClaimRequestDto,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { OrganizationId, UserId } from '../../../types';
+import { firstLocalGrantChallenge } from '../first-local-grant';
 import {
   MACHINE_ENROLLMENT_ACCOUNT_FAILURE_LIMIT,
   MachineEnrollmentClaimService,
@@ -72,6 +73,8 @@ interface TestRow {
   browserBindingCredentialHash?: string | null;
   browserBindingIssuedAt?: Date | null;
   browserBindingExpiresAt?: Date | null;
+  requestedCadence?: string | null;
+  localApprovalProof?: string | null;
 }
 
 const makeCredential = (
@@ -99,6 +102,7 @@ const makeAbandonInput = (): AbandonMachineEnrollmentClaimRequestDto => ({
 
 const makeVerified = (): VerifiedMachineEnrollmentCredential => ({
   credentialId: 'credential-id',
+  credentialPublicKey: Buffer.alloc(77, 4),
   credentialPublicKeyX: Buffer.alloc(32, 1),
   credentialPublicKeyY: Buffer.alloc(32, 2),
   credentialAaguid: Buffer.alloc(16, 3),
@@ -332,6 +336,147 @@ describe('MachineEnrollmentClaimService', () => {
     expect(result.userId).toBe(row.claimantUserId);
     expect(row.webauthnChallenge).toBe(result.registrationOptions.challenge);
     expect(result.machineKeyFingerprint).toBe(`sha256:${'b'.repeat(64)}`);
+  });
+
+  describe('shared enrollment mode', () => {
+    const beginShared = () =>
+      service.beginClaim(
+        makeBeginInput({ enrollmentMode: 'SHARED_NEW' }),
+        USER_ID,
+        [{ orgId: ORGANIZATION_ID }],
+        '192.0.2.1',
+        { email: 'zac@example.com', name: 'Zac' },
+      );
+
+    it('requires a discoverable credential and keeps the mode on retry', async () => {
+      const first = await beginShared();
+      if (first.state !== 'claimable') {
+        throw new Error('Expected claimable response');
+      }
+      expect(first.enrollmentMode).toBe('SHARED_NEW');
+      expect(first.registrationOptions.authenticatorSelection.residentKey).toBe(
+        'required',
+      );
+
+      const retry = await service.beginClaim(
+        makeBeginInput(),
+        USER_ID,
+        [{ orgId: ORGANIZATION_ID }],
+        '192.0.2.1',
+        { email: 'zac@example.com', name: 'Zac' },
+      );
+      if (retry.state !== 'claimable') {
+        throw new Error('Expected claimable response');
+      }
+      expect(retry.enrollmentMode).toBe('SHARED_NEW');
+      expect(retry.registrationOptions.challenge).toBe(
+        first.registrationOptions.challenge,
+      );
+    });
+
+    it('does not let the controller-only completion stage a shared claim', async () => {
+      await beginShared();
+
+      await expect(
+        service.completeClaim(
+          makeCredential(),
+          USER_ID,
+          [{ orgId: ORGANIZATION_ID }],
+          '192.0.2.1',
+        ),
+      ).rejects.toMatchObject({
+        response: { code: 'MACHINE_ENROLLMENT_CLIENT_INCOMPATIBLE' },
+      });
+      expect(row.state).toBe(MachineEnrollmentState.BROWSER_CLAIMED);
+      expect(row.credentialId).toBeNull();
+    });
+
+    it('defaults to a controller-only claim with a preferred credential', async () => {
+      const result = await service.beginClaim(
+        makeBeginInput(),
+        USER_ID,
+        [{ orgId: ORGANIZATION_ID }],
+        '192.0.2.1',
+        { email: 'zac@example.com', name: 'Zac' },
+      );
+      if (result.state !== 'claimable') {
+        throw new Error('Expected claimable response');
+      }
+      expect(result.enrollmentMode).toBe('CONTROLLER_ONLY');
+      expect(
+        result.registrationOptions.authenticatorSelection.residentKey,
+      ).toBe('preferred');
+    });
+  });
+
+  describe('first-time local duration', () => {
+    const PROJECT_ID = '66666666-6666-4666-8666-666666666666';
+    const begin = (
+      firstLocalGrant?: BeginMachineEnrollmentClaimRequestDto['firstLocalGrant'],
+    ) =>
+      service.beginClaim(
+        makeBeginInput(firstLocalGrant ? { firstLocalGrant } : {}),
+        USER_ID,
+        [{ orgId: ORGANIZATION_ID }],
+        '::ffff:192.0.2.1',
+        { email: 'zac@example.com', name: 'Zac' },
+      );
+
+    beforeEach(() => {
+      prismaDb.project = {
+        findFirst: jest.fn(async () => ({ id: PROJECT_ID })),
+      };
+    });
+
+    it('commits the passkey challenge to the chosen duration and re-issues it when the duration changes', async () => {
+      const first = await begin({ cadence: 'ONE_MONTH' });
+      if (first.state !== 'claimable' || !first.firstLocalGrant) {
+        throw new Error('Expected a claim with a first grant intent');
+      }
+      expect(first.firstLocalGrant).toMatchObject({
+        cadence: 'ONE_MONTH',
+        projectId: PROJECT_ID,
+        enrollmentId: ENROLLMENT_ID,
+        machineId: MACHINE_ID,
+        userId: USER_ID,
+        organizationId: ORGANIZATION_ID,
+        controllerInstallationId: row.controllerInstallationId,
+        target: { kind: 'CLI_READ', id: MACHINE_ID },
+      });
+      expect(first.registrationOptions.challenge).toBe(
+        firstLocalGrantChallenge(first.firstLocalGrant),
+      );
+      expect(row.requestedCadence).toBe('ONE_MONTH');
+
+      const second = await begin({ cadence: 'EIGHT_HOURS' });
+      if (second.state !== 'claimable' || !second.firstLocalGrant) {
+        throw new Error('Expected a re-issued first grant intent');
+      }
+      expect(second.firstLocalGrant.cadence).toBe('EIGHT_HOURS');
+      expect(second.registrationOptions.challenge).not.toBe(
+        first.registrationOptions.challenge,
+      );
+      expect(second.registrationOptions.challenge).toBe(
+        firstLocalGrantChallenge(second.firstLocalGrant),
+      );
+      expect(row.requestedCadence).toBe('EIGHT_HOURS');
+    });
+
+    it('keeps an ordinary random challenge when no duration is requested', async () => {
+      const result = await begin();
+      expect(result).not.toHaveProperty('firstLocalGrant');
+      expect(row.requestedCadence).toBeNull();
+    });
+
+    it('rejects a duration outside the closed cadence set as an incompatible client', async () => {
+      const error = await begin({ cadence: 'EVERY_ACTION' } as never).catch(
+        (failure: unknown) => failure,
+      );
+      expect(
+        (error as MachineEnrollmentClaimFailedException).getResponse(),
+      ).toMatchObject({ code: MACHINE_ENROLLMENT_CLIENT_INCOMPATIBLE });
+      expect(row.state).toBe(MachineEnrollmentState.PENDING);
+    });
   });
 
   it('resumes the same claimant with the original ceremony material', async () => {
@@ -822,6 +967,54 @@ describe('MachineEnrollmentClaimService', () => {
     expect(row.credentialPublicKeyX).toEqual(Buffer.alloc(32, 1));
     expect(row.credentialPublicKeyY).toEqual(Buffer.alloc(32, 2));
     expect(row.credentialAaguid).toEqual(Buffer.alloc(16, 3));
+    expect(row.localApprovalProof).toBeNull();
+  });
+
+  it('stores a local approval proof opaquely with the claim', async () => {
+    await service.beginClaim(
+      makeBeginInput(),
+      USER_ID,
+      [{ orgId: ORGANIZATION_ID }],
+      '192.0.2.1',
+      { email: 'zac@example.com', name: 'Zac' },
+    );
+    const localApprovalProof = 'q'.repeat(43);
+
+    const result = await service.completeClaim(
+      { ...makeCredential(), localApprovalProof },
+      USER_ID,
+      [{ orgId: ORGANIZATION_ID }],
+      '192.0.2.1',
+    );
+
+    expect(result.state).toBe('awaiting-machine-confirmation');
+    expect(row.localApprovalProof).toBe(localApprovalProof);
+    expect(JSON.stringify(result)).not.toContain(localApprovalProof);
+  });
+
+  it('rejects a proof that is not a contract-shaped local approval proof', async () => {
+    await service.beginClaim(
+      makeBeginInput(),
+      USER_ID,
+      [{ orgId: ORGANIZATION_ID }],
+      '192.0.2.1',
+      { email: 'zac@example.com', name: 'Zac' },
+    );
+
+    const error = await service
+      .completeClaim(
+        { ...makeCredential(), localApprovalProof: 'not+base64url' },
+        USER_ID,
+        [{ orgId: ORGANIZATION_ID }],
+        '192.0.2.1',
+      )
+      .catch((failure: unknown) => failure);
+
+    expect(
+      (error as MachineEnrollmentClaimFailedException).getResponse(),
+    ).toMatchObject({ code: MACHINE_ENROLLMENT_CLIENT_INCOMPATIBLE });
+    expect(row.state).toBe(MachineEnrollmentState.BROWSER_CLAIMED);
+    expect(row.localApprovalProof ?? null).toBeNull();
   });
 
   it('stores only a pending browser-binding hash while local confirmation is outstanding', async () => {

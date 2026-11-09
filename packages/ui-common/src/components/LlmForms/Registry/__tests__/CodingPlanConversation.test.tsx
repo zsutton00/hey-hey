@@ -410,6 +410,45 @@ describe("conversational planning controls", () => {
     expect(screen.queryByTestId("coding-plan-discrepancies")).toBeNull();
   });
 
+  it("shows Project context separately from severity, with direction and follow-through", () => {
+    render(
+      <CodingPlanDiscrepancyField
+        config={{
+          field: "issue",
+          type: "coding_plan_discrepancy",
+          payload: {
+            sourceRef: { sourceType: "task", sourceId: "hidden-task-id" },
+            sourceExcerpt: "The recorded promise.",
+            discrepancyText: "The plan departs from the recorded requirement.",
+            reasoning: "Reconcile the requirement.",
+            severity: "medium",
+            findingId: "f1",
+            category: "project_context",
+            disposition: "repair_planned",
+            userDirection: "Proceed, we will fix it afterwards.",
+            implementationFollowThrough:
+              "Verify the requirement is reconciled.",
+          },
+        }}
+        context={context}
+      />,
+    );
+    expect(screen.getByRole("img", { name: "Project context" })).toBeVisible();
+    expect(
+      screen.getByTestId("coding-plan-discrepancy-category"),
+    ).toHaveTextContent("Project context");
+    expect(
+      screen.getByRole("img", { name: "Medium severity" }),
+    ).toHaveAttribute("data-testid", "WarningIcon");
+    expect(screen.getByText("Repair planned")).toBeVisible();
+    expect(
+      screen.getByText("Proceed, we will fix it afterwards."),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Verify the requirement is reconciled."),
+    ).toBeVisible();
+  });
+
   it.each([
     {
       severity: "high",

@@ -1,4 +1,5 @@
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import { localOnboardingHandler } from './local-onboarding/local-onboarding.handler';
 import { agentSearchHandler } from './agent-search/agent-search.handler';
 import { childTaskUpdatesHandler } from './child-task-updates/child-task-updates.handler';
 import { codingFreeformHandler, freeFormHandler } from './coding-conversation';
@@ -35,7 +36,6 @@ import {
   planShapingFeatureSyncIterateHandler,
 } from './plan-shaping-feature-sync';
 import { planShapingFeatureSyncDiscussHandler } from './plan-shaping-feature-sync/discuss.handler';
-import type { ContextGatheringDeps } from './project-assistant/context-gathering';
 import type { ParentRequirementsFilter } from './project-assistant/parent-requirements';
 import { ProjectAssistantHandler } from './project-assistant/project-assistant.handler';
 import type { RunSubagentsTool } from './submission-tools/run-subagents-tool';
@@ -43,7 +43,7 @@ import { projectReportHandler } from './project-report/project-report.handler';
 import { releaseNotesHandler } from './release-notes/release-notes.handler';
 import { projectReportSectionHandler } from './project-report/project-report-section.handler';
 import { projectModeHandler } from './project-mode';
-import type { PromptTypeHandler } from './prompt-type-handler';
+import { declaresSessionRole, type PromptTypeHandler } from './prompt-type-handler';
 import { proposalRefinerHandler } from './proposal-refiner/proposal-refiner.handler';
 import { reportUpdateHandler } from './report-update/report-update.handler';
 import { researchHandler } from './research';
@@ -60,7 +60,6 @@ import { reviewHandler } from './review-subagent/review.handler';
 import { rollupProposalHandler } from './rollup-proposal/rollup-proposal.handler';
 import { runEvalHandler } from './run-eval';
 import { evalJudgeHandler } from './run-eval/eval-judge.handler';
-import { evalPreparationHandler } from './run-eval/eval-preparation.handler';
 import { EVAL_CONSUMER_HANDLER_IDS, EVAL_TARGET_HANDLER_IDS } from './run-eval/eval-targets';
 import { SessionMonitorHandler } from './session-monitor';
 import { setSplittingHandler } from './set-splitting/set-splitting.handler';
@@ -84,9 +83,7 @@ export interface PromptTypeRegistryDependencies {
   runSubagentsTool?: RunSubagentsTool | null;
   /** Defined only with a Jev key; Project Assistant then filters its parent feature load. */
   parentRequirements?: ParentRequirementsFilter;
-  /** Defined only with a Jev key; Project Assistant then gathers context into its prompt before its session starts. */
-  contextGathering?: ContextGatheringDeps;
-  /** The machine's Jev switch, read on every Project Assistant prepare; off disables both Jev uses above. */
+  /** The machine's Jev switch, read on every Project Assistant prepare; off disables the filter. */
   isJevEnabled?: () => Promise<boolean>;
 }
 
@@ -106,9 +103,9 @@ const createHandlerBuilders = (
   admissionClient: PlanSubmissionAdmissionClient,
   runSubagentsTool: RunSubagentsTool | null | undefined,
   parentRequirements: ParentRequirementsFilter | undefined,
-  contextGathering: ContextGatheringDeps | undefined,
   isJevEnabled: (() => Promise<boolean>) | undefined,
 ): readonly BuilderSpec[] => [
+  staticHandler(LocalPromptType.LocalOnboarding, localOnboardingHandler),
   staticHandler(LocalPromptType.StartupSession, codingPlanHandler),
   staticHandler(LocalPromptType.PlanExecution, planExecutionHandler),
   staticHandler(LocalPromptType.FinalAssessment, finalAssessmentHandler),
@@ -199,7 +196,6 @@ const createHandlerBuilders = (
         createReportProxy,
         runSubagentsTool,
         parentRequirements,
-        contextGathering,
         isJevEnabled,
       ),
   },
@@ -213,10 +209,18 @@ const createHandlerBuilders = (
  * declare a child configuration and are never dispatched by prompt type.
  */
 const CHILD_ONLY_HANDLERS: readonly PromptTypeHandler<unknown>[] = [
-  evalPreparationHandler,
   projectReportSectionHandler,
   evalJudgeHandler,
 ];
+
+/** Every handler states its session role; none inherits one. */
+function assertDeclaresSessionRole(handler: PromptTypeHandler<unknown>): void {
+  if (!declaresSessionRole(handler)) {
+    throw new Error(
+      `PromptTypeRegistry: handler '${handler.id}' must declare sessionRole or resolveSessionRole.`,
+    );
+  }
+}
 
 export class PromptTypeRegistry {
   private readonly handlersByPromptType = new Map<string, PromptTypeHandler<unknown>>();
@@ -231,7 +235,6 @@ export class PromptTypeRegistry {
       dependencies.planSubmissionAdmissionClient,
       dependencies.runSubagentsTool,
       dependencies.parentRequirements,
-      dependencies.contextGathering,
       dependencies.isJevEnabled,
     );
 
@@ -251,6 +254,8 @@ export class PromptTypeRegistry {
       if (this.handlersById.has(handler.id)) {
         throw new Error(`PromptTypeRegistry: duplicate handler id '${handler.id}'.`);
       }
+
+      assertDeclaresSessionRole(handler);
 
       registeredPromptTypes.add(promptType);
       this.handlersByPromptType.set(promptType, handler);
@@ -272,6 +277,7 @@ export class PromptTypeRegistry {
           `PromptTypeRegistry: child-only handler '${handler.id}' must declare a child configuration.`,
         );
       }
+      assertDeclaresSessionRole(handler);
       this.childOnlyHandlersById.set(handler.id, handler);
     }
 

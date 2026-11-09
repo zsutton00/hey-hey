@@ -15,18 +15,21 @@ import type {
   LocalPickRepoDirectoryResponse,
   LocalRunBrowserOpenRequest,
   LocalRunBrowserOpenSuccessResponse,
+  LocalRunProviderSessionTranscriptRequest,
+  LocalRunProviderSessionTranscriptResult,
   LocalStagedBrowserTabOpenRequest,
   LocalStagedBrowserTabOpenSuccessResponse,
   LocalServiceRepoBinding,
   LocalSetRepoBindingResponse,
-} from "../../../local-agent-api/generated/api";
+} from "@hey-hey/contracts/local";
 import {
   CliReadErrorCode as LocalCliReadErrorCode,
   LocalRunAttachmentOpenAction,
   LocalRunAttachmentOpenErrorCode,
   LocalRunBrowserOpenErrorCode,
+  LocalRunProviderSessionTranscriptErrorCode,
   LocalStagedBrowserTabOpenErrorCode,
-} from "../../../local-agent-api/generated/api";
+} from "@hey-hey/contracts/local";
 
 const DEFAULT_LOCAL_CLI_PORT = 3847;
 const STAGING_LOCAL_CLI_PORT = 3849;
@@ -307,6 +310,36 @@ const readRunBrowserOpenError = async (
   );
 };
 
+/** A typed rejection from the loopback provider session transcript read. */
+export class LocalRunProviderSessionTranscriptError extends Error {
+  public constructor(
+    message: string,
+    public readonly code: LocalRunProviderSessionTranscriptErrorCode | null,
+  ) {
+    super(message);
+    this.name = "LocalRunProviderSessionTranscriptError";
+  }
+}
+
+const isTranscriptErrorCode = (
+  value: unknown,
+): value is LocalRunProviderSessionTranscriptErrorCode =>
+  typeof value === "string" &&
+  Object.values(LocalRunProviderSessionTranscriptErrorCode).some(
+    (code) => code === value,
+  );
+
+const isTranscriptResult = (
+  value: unknown,
+  runId: string,
+  providerSessionId: string,
+): value is LocalRunProviderSessionTranscriptResult =>
+  isRecord(value) &&
+  value.runId === runId &&
+  value.providerSessionId === providerSessionId &&
+  (value.state === "unavailable" ||
+    (value.state === "available" && typeof value.text === "string"));
+
 /** A typed rejection from the loopback Open browser route used before a Run exists. */
 export class LocalStagedBrowserTabOpenError extends Error {
   public constructor(
@@ -574,6 +607,11 @@ export interface DirectoryBindingApi {
   openStagedBrowserTab(
     body: LocalStagedBrowserTabOpenRequest,
   ): Promise<LocalStagedBrowserTabOpenSuccessResponse>;
+  /** Raw provider session text from this computer; transient, never cache it. */
+  readRunProviderSessionTranscript(
+    runId: string,
+    body: LocalRunProviderSessionTranscriptRequest,
+  ): Promise<LocalRunProviderSessionTranscriptResult>;
 }
 
 export const createDirectoryBindingApi = (
@@ -759,6 +797,35 @@ export const createDirectoryBindingApi = (
     return { runId, url: payload.url };
   },
 
+  async readRunProviderSessionTranscript(
+    runId: string,
+    body: LocalRunProviderSessionTranscriptRequest,
+  ): Promise<LocalRunProviderSessionTranscriptResult> {
+    const response = await fetch(
+      `${baseUrl}/api/local/runs/${encodeURIComponent(
+        runId,
+      )}/provider-sessions/transcript`,
+      {
+        method: "POST",
+        cache: "no-store",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    );
+    if (!response.ok) {
+      const { message, code } = await readBrowserOpenFailure(response);
+      throw new LocalRunProviderSessionTranscriptError(
+        message,
+        isTranscriptErrorCode(code) ? code : null,
+      );
+    }
+    const payload: unknown = await response.json();
+    if (!isTranscriptResult(payload, runId, body.providerSessionId)) {
+      throw new Error("The local CLI returned an invalid session result.");
+    }
+    return payload;
+  },
+
   async openStagedBrowserTab(
     body: LocalStagedBrowserTabOpenRequest,
   ): Promise<LocalStagedBrowserTabOpenSuccessResponse> {
@@ -796,13 +863,11 @@ export async function resolveWalkthroughSource(
   runId: string,
   machineId: string,
   excerpt: import("../../../api").ChangeWalkthroughExcerpt,
-): Promise<
-  import("../../../local-agent-api/generated/api").LocalWalkthroughSourceLocation
-> {
+): Promise<import("@hey-hey/contracts/local").LocalWalkthroughSourceLocation> {
   const body = {
     machineId,
     excerpt,
-  } satisfies import("../../../local-agent-api/generated/api").LocalWalkthroughSourceRequest;
+  } satisfies import("@hey-hey/contracts/local").LocalWalkthroughSourceRequest;
   const response = await fetch(
     baseUrl +
       "/api/local/runs/" +

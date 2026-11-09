@@ -19,7 +19,7 @@ import type {
   FutureCompletionDependency,
   FutureCompletionBlocker,
   WorkStatus,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { futureRevisionMutationSchema } from 'src/generated/future-revision.schema';
 import { ORDINARY_PROPOSAL_VISIBILITY_WHERE } from './proposal-visibility';
 import type { WorkItemTypeRegistryService } from '../tasks/work-item-type-registry.service';

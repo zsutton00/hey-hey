@@ -1,7 +1,7 @@
 import type {
   WorkItemChangeSetIdentity,
   WorkItemChangeSetValidationRequest,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   nodeKey,
   relKey,
@@ -28,6 +28,8 @@ export interface RequestFacts {
     edgeType?: string;
     source?: NodeKey;
     target?: NodeKey;
+    /** An update that sets (not clears) a transition role. */
+    setsTransitionRole?: boolean;
   }[];
   layoutOps: { op: 'replace' | 'clear'; root: NodeKey }[];
   hasLayoutBoundary: boolean;
@@ -48,6 +50,14 @@ export function namedExistingIds(
   };
   visit(request.root);
   for (const boundary of request.layoutBoundary ?? []) visit(boundary);
+  // Hydrating a decided relationship's recorded endpoints loads the incident
+  // relationships the decision's operation needs to resolve against.
+  for (const decision of request.relationshipDecisions ?? []) {
+    if (decision.original) {
+      ids.add(decision.original.source.id);
+      ids.add(decision.original.target.id);
+    }
+  }
   for (const operation of request.operations) {
     switch (operation.op) {
       case 'workItem.create':
@@ -195,6 +205,7 @@ export function deriveRequestFacts(
           ...(operation.edgeType ? { edgeType: operation.edgeType } : {}),
           ...(operation.source ? { source: nodeKey(operation.source) } : {}),
           ...(operation.target ? { target: nodeKey(operation.target) } : {}),
+          ...(operation.transitionRole ? { setsTransitionRole: true } : {}),
         });
         break;
       case 'relationship.delete':

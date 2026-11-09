@@ -453,6 +453,52 @@ export class UnifiedApiClient {
     return this.clients.auth.changeCurrentPassword(...args);
   }
 
+  toggleDevAdminMode(...args: Parameters<AuthApi["toggleDevAdminMode"]>) {
+    return this.clients.auth.toggleDevAdminMode(...args);
+  }
+
+  listAccountPasskeys(...args: Parameters<AuthApi["listAccountPasskeys"]>) {
+    return this.clients.auth.listAccountPasskeys(...args);
+  }
+
+  startAccountPasskeyRegistration(
+    ...args: Parameters<AuthApi["startAccountPasskeyRegistration"]>
+  ) {
+    return this.clients.auth.startAccountPasskeyRegistration(...args);
+  }
+
+  registerAccountPasskey(
+    ...args: Parameters<AuthApi["registerAccountPasskey"]>
+  ) {
+    return this.clients.auth.registerAccountPasskey(...args);
+  }
+
+  startAccountPasskeyProof(
+    ...args: Parameters<AuthApi["startAccountPasskeyProof"]>
+  ) {
+    return this.clients.auth.startAccountPasskeyProof(...args);
+  }
+
+  renameAccountPasskey(...args: Parameters<AuthApi["renameAccountPasskey"]>) {
+    return this.clients.auth.renameAccountPasskey(...args);
+  }
+
+  removeAccountPasskey(...args: Parameters<AuthApi["removeAccountPasskey"]>) {
+    return this.clients.auth.removeAccountPasskey(...args);
+  }
+
+  startAccountPasskeySignIn(
+    ...args: Parameters<AuthApi["startAccountPasskeySignIn"]>
+  ) {
+    return this.clients.auth.startAccountPasskeySignIn(...args);
+  }
+
+  completeAccountPasskeySignIn(
+    ...args: Parameters<AuthApi["completeAccountPasskeySignIn"]>
+  ) {
+    return this.clients.auth.completeAccountPasskeySignIn(...args);
+  }
+
   onboardBetaUser(...args: Parameters<DebugAdminApi["onboardBetaUser"]>) {
     return this.clients.debugAdmin.onboardBetaUser(...args);
   }
@@ -530,18 +576,6 @@ export class UnifiedApiClient {
     return this.clients.artifacts.deleteArtifact(...args);
   }
 
-  semanticSearchArtifacts(
-    ...args: Parameters<SearchApi["semanticSearchArtifacts"]>
-  ) {
-    return this.clients.search.semanticSearchArtifacts(...args);
-  }
-
-  simpleSearchArtifacts(
-    ...args: Parameters<SearchApi["simpleSearchArtifacts"]>
-  ) {
-    return this.clients.search.simpleSearchArtifacts(...args);
-  }
-
   semanticSearch(...args: Parameters<EntitiesApi["semanticSearch"]>) {
     return this.clients.entities.semanticSearch(...args);
   }
@@ -554,12 +588,6 @@ export class UnifiedApiClient {
     ...args: Parameters<ArtifactsApi["getProjectArtifactSummary"]>
   ) {
     return this.clients.artifacts.getProjectArtifactSummary(...args);
-  }
-
-  findSimilarArtifacts(
-    ...args: Parameters<ArtifactsApi["findSimilarArtifacts"]>
-  ) {
-    return this.clients.artifacts.findSimilarArtifacts(...args);
   }
 
   // Design Docs methods
@@ -913,7 +941,32 @@ export class UnifiedApiClient {
     options?: AxiosRequestConfig,
   ) {
     return this.clients.tasks.organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdGraphGet(
-      params,
+      {
+        organizationId: params.organizationId,
+        projectId: params.projectId,
+        workItemId: params.workItemId,
+        ...(params.incidentRelationshipTypes === undefined
+          ? {}
+          : {
+              incidentRelationshipTypes: Array.from(
+                params.incidentRelationshipTypes,
+              ),
+            }),
+      },
+      options,
+    );
+  }
+
+  async getUxFlowsForWorkItem(
+    params: { organizationId: string; projectId: string; workItemId: string },
+    options?: AxiosRequestConfig,
+  ) {
+    return this.clients.tasks.organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdUxFlowsGet(
+      {
+        organizationId: params.organizationId,
+        projectId: params.projectId,
+        workItemId: params.workItemId,
+      },
       options,
     );
   }
@@ -985,8 +1038,9 @@ export class UnifiedApiClient {
           ? {}
           : { parentTaskId: parentTaskIdParam }),
         ...(params.parentTaskIds
-          ? { parentTaskIds: new Set(params.parentTaskIds) }
+          ? { parentTaskIds: Array.from(new Set(params.parentTaskIds)) }
           : {}),
+        ...(params.taskIds ? { taskIds: params.taskIds } : {}),
         ...(params.includeDescendants
           ? { includeDescendants: params.includeDescendants }
           : {}),
@@ -996,7 +1050,6 @@ export class UnifiedApiClient {
         ...(params.includeTrackedWorkSummary === undefined
           ? {}
           : { includeTrackedWorkSummary: params.includeTrackedWorkSummary }),
-        ...(params.taskIds ? { taskIds: new Set(params.taskIds) } : {}),
         ...(statusParam === undefined ? {} : { status: statusParam }),
         ...(params.includeDesignDocCounts === undefined
           ? {}
@@ -1228,6 +1281,12 @@ export class UnifiedApiClient {
 
   listProjectReports(...args: Parameters<ReportsApi["listProjectReports"]>) {
     return this.clients.reports.listProjectReports(...args);
+  }
+
+  getProjectReportUsageTrends(
+    ...args: Parameters<ReportsApi["getProjectReportUsageTrends"]>
+  ) {
+    return this.clients.reports.getProjectReportUsageTrends(...args);
   }
 
   deleteReport(...args: Parameters<ReportsApi["deleteReport"]>) {

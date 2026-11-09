@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { vi } from 'vitest';
 
 import type { TaskMonitorMachineEffect } from '../agents/task-monitor/state-machine/events';
-import type { MonitorCommandBody1 as MonitorCommandBody } from '../shared/agent-bridge-contract/generated/api';
+import type { MonitorCommandBody1 as MonitorCommandBody } from '@hey-hey/contracts/agent-bridge';
 import { TaskMonitorStartRuntime } from './task-monitor-start';
 import { TaskMonitorCoordinatorRunner } from './monitors/runner';
 import { createTestLocalAgentServerRuntimeOwners } from './local-agent-server-runtime.test-support';

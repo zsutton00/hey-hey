@@ -4,7 +4,7 @@ import {
   type WorkItemTypeCapabilities,
   type WorkItemTypeDefinitionDto,
   type WorkItemTypeSummaryDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 
 export type WorkItemSectionSelection =
   | {

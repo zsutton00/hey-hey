@@ -1,7 +1,10 @@
 import { Logger } from '@nestjs/common';
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
-import { SessionRole, type ProjectModeSettings } from '../../generated';
-import { projectModeSettingsJsonSchema } from '../../generated/project-mode-contract.schema';
+import {
+  SessionRole,
+  type ProjectModeSettings,
+} from '@hey-hey/contracts/api/models';
+import { projectModeSettingsJsonSchema } from '@hey-hey/contracts/agent-bridge/custom/project-mode-contract.schema';
 
 export const PROJECT_MODE_SETTINGS_SECTION_KEY = 'settings';
 export const PROJECT_MODE_SETTINGS_SCHEMA_REF =

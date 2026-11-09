@@ -16,7 +16,7 @@ import {
   ReportBugsApi,
   SecondaryActionsApi,
   TasksApi,
-} from '../../api/generated/index';
+} from '@hey-hey/contracts/api';
 import type {
   ArtifactsApi,
   AuthApi,
@@ -34,7 +34,7 @@ import type {
   StarsApi,
   TagsApi,
   WorkflowsApi,
-} from '../../api/generated/index';
+} from '@hey-hey/contracts/api';
 import type {
   AttachToGoalDto,
   DetachFromGoalDto,
@@ -48,7 +48,7 @@ import type {
   TaskSortDir,
   CreateSuggestedTaskRequestDto,
   WorkItemGraphParticipationType,
-} from '../../api/generated/index';
+} from '@hey-hey/contracts/api/models';
 import axios, { type AxiosRequestConfig } from 'axios';
 import {
   createApiRuntime,
@@ -438,14 +438,6 @@ export class UnifiedApiClient {
     return this.clients.artifacts.deleteArtifact(...args);
   }
 
-  semanticSearchArtifacts(...args: Parameters<SearchApi['semanticSearchArtifacts']>) {
-    return this.clients.search.semanticSearchArtifacts(...args);
-  }
-
-  simpleSearchArtifacts(...args: Parameters<SearchApi['simpleSearchArtifacts']>) {
-    return this.clients.search.simpleSearchArtifacts(...args);
-  }
-
   semanticSearch(...args: Parameters<EntitiesApi['semanticSearch']>) {
     return this.clients.entities.semanticSearch(...args);
   }
@@ -456,10 +448,6 @@ export class UnifiedApiClient {
 
   getProjectArtifactSummary(...args: Parameters<ArtifactsApi['getProjectArtifactSummary']>) {
     return this.clients.artifacts.getProjectArtifactSummary(...args);
-  }
-
-  findSimilarArtifacts(...args: Parameters<ArtifactsApi['findSimilarArtifacts']>) {
-    return this.clients.artifacts.findSimilarArtifacts(...args);
   }
 
   // Design Docs methods
@@ -750,8 +738,14 @@ export class UnifiedApiClient {
     },
     options?: AxiosRequestConfig,
   ) {
+    const { incidentRelationshipTypes, ...request } = params;
     return this.clients.tasks.organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdGraphGet(
-      params,
+      {
+        ...request,
+        ...(incidentRelationshipTypes === undefined
+          ? {}
+          : { incidentRelationshipTypes: Array.from(incidentRelationshipTypes) }),
+      },
       options,
     );
   }
@@ -815,7 +809,9 @@ export class UnifiedApiClient {
         projectId: params.projectId,
         ...(params.initiativeId === undefined ? {} : { initiativeId: params.initiativeId }),
         ...(parentTaskIdParam === undefined ? {} : { parentTaskId: parentTaskIdParam }),
-        ...(params.parentTaskIds ? { parentTaskIds: new Set(params.parentTaskIds) } : {}),
+        ...(params.parentTaskIds
+          ? { parentTaskIds: Array.from(new Set(params.parentTaskIds)) }
+          : {}),
         ...(params.includeDescendants ? { includeDescendants: params.includeDescendants } : {}),
         ...(params.includeTrackedEntities === undefined
           ? {}
@@ -823,7 +819,7 @@ export class UnifiedApiClient {
         ...(params.includeTrackedWorkSummary === undefined
           ? {}
           : { includeTrackedWorkSummary: params.includeTrackedWorkSummary }),
-        ...(params.taskIds ? { taskIds: new Set(params.taskIds) } : {}),
+        ...(params.taskIds ? { taskIds: Array.from(new Set(params.taskIds)) } : {}),
         ...(statusParam === undefined ? {} : { status: statusParam }),
         ...(params.includeDesignDocCounts === undefined
           ? {}

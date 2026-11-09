@@ -203,6 +203,22 @@ ControllerAuthorizationCadence:
     fixed by the selected cadence; assertion challenges remain independently
     single-use and valid for two minutes.
 
+ControllerDeviceGrantCadence:
+  type: string
+  enum:
+    - FIVE_MINUTES
+    - EIGHT_HOURS
+    - ONE_DAY
+    - ONE_WEEK
+    - ONE_MONTH
+    - UNTIL_REVOKED
+  description: >-
+    Cadence of an issued controller-device grant. The five bounded values are
+    the ControllerAuthorizationCadence a browser may request. UNTIL_REVOKED is
+    a grant with no expiry that stays valid until it is revoked; only
+    first-time `heyhey local` pairing creates one, and no browser authorization
+    request may ask for it.
+
 CanonicalControllerAuthorizationIntent:
   type: object
   additionalProperties: false
@@ -451,7 +467,7 @@ ControllerDeviceGrantDescriptor:
     organizationId:
       $ref: "./common.yaml#/OrganizationId"
     cadence:
-      $ref: "#/ControllerAuthorizationCadence"
+      $ref: "#/ControllerDeviceGrantCadence"
     policyRevision:
       type: integer
       format: int32
@@ -471,10 +487,15 @@ ControllerDeviceGrantDescriptor:
     effectiveExpiresAtMs:
       type: integer
       format: int64
+      nullable: true
+      description: >-
+        Effective expiry, fixed by the cadence. Null exactly when the cadence
+        is UNTIL_REVOKED.
   description: >-
     Immutable descriptor hashed by
     CanonicalControllerAuthorizationIntent.grantDescriptorHash. Every cadence
-    creates one reusable controller-device window with this effective expiry.
+    creates one reusable controller-device window; a bounded cadence has this
+    effective expiry and UNTIL_REVOKED has none.
 
 BoundedGrantReference:
   type: object
@@ -694,7 +715,10 @@ ActiveControllerAuthorizationGrantDto:
     effectiveExpiresAtMs:
       type: integer
       format: int64
-      description: Authoritative server-side expiry of the matching grant.
+      nullable: true
+      description: >-
+        Authoritative server-side expiry of the matching grant, or null for an
+        UNTIL_REVOKED grant.
 
 ResolveControllerAuthorizationResponseDto:
   oneOf:

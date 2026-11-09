@@ -24,7 +24,7 @@ import {
   HostActionTargetKind,
   HostAffectingActionType,
   RuntimeModelCatalogHostActionPreparation,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { canonicalizeJcs } from '../../../core/websockets/trigger-canonicalization';
 import { OrganizationId, ProjectId, UserId } from '../../../types';
 import { ControllerAssertionVerifierService } from '../controller-assertion-verifier.service';
@@ -607,7 +607,7 @@ describe('ControllerAuthorizationService', () => {
         {
           type: 'public-key',
           id: 'controller-credential',
-          transports: new Set(['internal']),
+          transports: ['internal'],
         },
       ],
     });

@@ -1,4 +1,4 @@
-import type { PrivateBetaAccessRequestReviewDto } from "@hey-hey/ui-common/api";
+import type { PrivateBetaAccessRequestReviewDto } from "@hey-hey/contracts/api";
 import {
   Alert,
   Box,

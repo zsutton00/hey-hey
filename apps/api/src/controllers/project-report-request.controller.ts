@@ -28,14 +28,16 @@ import {
   type ProjectReportContextBatchRequestDto,
   type ProjectReportContextBatchResponseDto,
   type ProjectReportContextPageDto,
+  type ProjectReportHistoryPageDto,
   type ProjectReportPreviewDto,
   type ProjectReportPreviewRequestDto,
   type ProjectReportRequestDto,
   type RetryProjectReportRequestDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId, UserId } from 'src/types';
 import { ProjectReportActivityService } from 'src/services/project-reports/project-report-activity.service';
 import { ProjectReportContextService } from 'src/services/project-reports/project-report-context.service';
+import { ProjectReportHistoryService } from 'src/services/project-reports/project-report-history.service';
 import { ProjectReportLaunchService } from 'src/services/project-reports/project-report-launch.service';
 import { ProjectReportRequestService } from 'src/services/project-reports/project-report-request.service';
 import {
@@ -46,18 +48,34 @@ import {
 } from './project-report-request.validation';
 
 @UseGuards(JwtAuthGuard, OrganizationGuard, ProjectAccessGuard)
-@Controller(
-  'api/v1/organizations/:organizationId/projects/:projectId/project-report-requests',
-)
+@Controller('api/v1/organizations/:organizationId/projects/:projectId')
 export class ProjectReportRequestController {
   constructor(
     private readonly requests: ProjectReportRequestService,
     private readonly activity: ProjectReportActivityService,
     private readonly context: ProjectReportContextService,
     private readonly launch: ProjectReportLaunchService,
+    private readonly history: ProjectReportHistoryService,
   ) {}
 
-  @Post('preview')
+  @Get('project-report-history')
+  listHistory(
+    @CurrentOrganization() organizationId: OrganizationId,
+    @Param('projectId', ParseUUIDPipe) projectId: ProjectId,
+    @CurrentUser('userId') userId: UserId,
+    @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
+    @Query('offset', new DefaultValuePipe(0), ParseIntPipe) offset: number,
+  ): Promise<ProjectReportHistoryPageDto> {
+    return this.history.list(
+      organizationId,
+      projectId,
+      userId,
+      Math.min(Math.max(limit, 1), 200),
+      Math.max(offset, 0),
+    );
+  }
+
+  @Post('project-report-requests/preview')
   preview(
     @CurrentOrganization() organizationId: OrganizationId,
     @Param('projectId', ParseUUIDPipe) projectId: ProjectId,
@@ -67,7 +85,7 @@ export class ProjectReportRequestController {
     return this.activity.preview(organizationId, projectId, userId, input);
   }
 
-  @Post()
+  @Post('project-report-requests')
   async create(
     @CurrentOrganization() organizationId: OrganizationId,
     @Param('projectId', ParseUUIDPipe) projectId: ProjectId,
@@ -84,7 +102,7 @@ export class ProjectReportRequestController {
     return this.requests.get(organizationId, projectId, userId, request.id);
   }
 
-  @Get(':requestId')
+  @Get('project-report-requests/:requestId')
   get(
     @CurrentOrganization() organizationId: OrganizationId,
     @Param('projectId', ParseUUIDPipe) projectId: ProjectId,
@@ -94,7 +112,7 @@ export class ProjectReportRequestController {
     return this.requests.get(organizationId, projectId, userId, requestId);
   }
 
-  @Post(':requestId/retry')
+  @Post('project-report-requests/:requestId/retry')
   async retry(
     @CurrentOrganization() organizationId: OrganizationId,
     @Param('projectId', ParseUUIDPipe) projectId: ProjectId,
@@ -113,7 +131,7 @@ export class ProjectReportRequestController {
     return this.requests.get(organizationId, projectId, userId, requestId);
   }
 
-  @Get(':requestId/activity')
+  @Get('project-report-requests/:requestId/activity')
   async activityPage(
     @CurrentOrganization() organizationId: OrganizationId,
     @Param('projectId', ParseUUIDPipe) projectId: ProjectId,
@@ -144,7 +162,7 @@ export class ProjectReportRequestController {
     );
   }
 
-  @Get(':requestId/context')
+  @Get('project-report-requests/:requestId/context')
   async contextPage(
     @CurrentOrganization() organizationId: OrganizationId,
     @Param('projectId', ParseUUIDPipe) projectId: ProjectId,
@@ -174,7 +192,7 @@ export class ProjectReportRequestController {
     });
   }
 
-  @Post(':requestId/context\\:batch')
+  @Post('project-report-requests/:requestId/context\\:batch')
   @HttpCode(HttpStatus.OK)
   async contextBatch(
     @CurrentOrganization() organizationId: OrganizationId,

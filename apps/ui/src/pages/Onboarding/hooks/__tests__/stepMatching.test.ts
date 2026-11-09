@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { ConversationStatus } from "@hey-hey/ui-common/api";
-import type { StepDto, ConversationResponseDto } from "@hey-hey/ui-common/api";
+import { ConversationStatus } from "@hey-hey/contracts/api";
+import type { StepDto, ConversationResponseDto } from "@hey-hey/contracts/api";
 
 // Test the step matching logic in isolation
 describe("Step Matching Logic", () => {

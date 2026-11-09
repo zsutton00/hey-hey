@@ -1,7 +1,7 @@
 import Ajv, { type ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
 import { z } from 'zod';
-import { taskMonitorExecutionDefinitionJsonSchema } from '../../generated/task-monitor-contract.schema';
+import { taskMonitorExecutionDefinitionJsonSchema } from '@hey-hey/contracts/agent-bridge/custom/task-monitor-contract.schema';
 import {
   AgentSessionConfigV2TypeEnum,
   AgentSessionConfigV2VersionEnum,
@@ -9,11 +9,11 @@ import {
   TaskMonitorReviewMode,
   type ReportPayload,
   type TaskMonitorExecutionDefinition,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type {
   SessionMonitorSettledTurnEvidence,
   TaskMonitorPlanGuidance,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import { TaskMonitorPlanContext } from '../../server/task-monitor-plan-context';
 import type { PromptTypeHandlerDeps } from '../prompt-type-handler';
 import type { TaskMonitorCoordinationLocalState } from './task-monitor-coordination';
@@ -411,14 +411,16 @@ export const loadTaskMonitorCanonicalEvidence = async (
           input.accessToken,
         )
       ).data
-      : null;
+    : null;
   if (
     session &&
     (session.id !== currentNode.agentSessionId ||
       session.organizationId !== input.organizationId ||
       session.projectId !== input.projectId)
   ) {
-    throw new Error('Selected Agent Session identity or ownership did not match the execution plan.');
+    throw new Error(
+      'Selected Agent Session identity or ownership did not match the execution plan.',
+    );
   }
   const serviceIds = session ? [...new Set(session.serviceIds ?? [])] : [];
   const selectedSession = (() => {

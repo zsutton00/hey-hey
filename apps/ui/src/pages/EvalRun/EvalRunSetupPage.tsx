@@ -15,6 +15,7 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  TextField,
   Typography,
 } from "@mui/material";
 import React, { useCallback, useMemo, useState } from "react";
@@ -26,7 +27,7 @@ import {
   type ConversationStartRunRequestDtoProviderEnum,
   type ConversationStartRunRequestDtoReasoningEffortEnum,
   type EvalModelSetting,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   RuntimeModelSelector,
   listEfforts,
@@ -36,6 +37,7 @@ import {
   type RuntimeModelCatalogSource,
 } from "@hey-hey/ui-common/components";
 import {
+  generateEvalRunName,
   useEvalRunSession,
   useLaunchEvalRun,
   useWorkItems,
@@ -224,6 +226,7 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
   const [judgeDraft, setJudgeDraft] =
     useState<DraftSelection>(DEFAULT_JUDGE_SETUP);
   const [launchError, setLaunchError] = useState<string | null>(null);
+  const [name, setName] = useState("");
 
   // Approval is the only runnable marker, as on the Eval page.
   const {
@@ -253,7 +256,18 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
     [setups],
   );
   const launchSettings = toLaunchSettings(settings);
-  const attemptCount = approvedCases.length * selectedSetups.length;
+  const generatedName = generateEvalRunName(
+    selectedSetups.map((setup) =>
+      toConfiguration(
+        setup.setting,
+        settings.projectAssistantEnabled,
+        settings.handler,
+      ),
+    ),
+    t,
+  );
+  const repeats = settings.repeats ?? 1;
+  const attemptCount = approvedCases.length * selectedSetups.length * repeats;
   const canRun =
     !isSubmitting &&
     selectedSetups.length > 0 &&
@@ -294,6 +308,7 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
         projectId,
         evalId,
         request: {
+          ...(name.trim() ? { name: name.trim() } : {}),
           evalCaseIds: approvedCases.map((evalCase) => evalCase.id),
           configurations: selectedSetups.map((setup) =>
             toConfiguration(
@@ -331,6 +346,7 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
     launch,
     launchSettings,
     machine.machineId,
+    name,
     navigate,
     organizationId,
     projectId,
@@ -345,12 +361,30 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
     count: selectedSetups.length,
   });
   const attemptsLabel = t("eval.run.attempts", { count: attemptCount });
+  const repeated = repeats > 1;
 
   return (
     <>
       <Typography variant="h5" component="h1" sx={{ mb: 3 }}>
         {t("eval.run.setup.title")}
       </Typography>
+
+      <Box sx={{ mb: 3 }}>
+        <TextField
+          fullWidth
+          size="small"
+          label={t("eval.run.setup.name")}
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          disabled={isSubmitting}
+          helperText={
+            name.trim() || !generatedName
+              ? undefined
+              : t("eval.run.setup.nameHint", { generated: generatedName })
+          }
+          slotProps={{ htmlInput: { "data-testid": "eval-run-name-input" } }}
+        />
+      </Box>
 
       <Box data-testid="eval-run-config-picker">
         <Typography variant="subtitle1" component="h2" sx={{ mb: 1 }}>
@@ -460,11 +494,18 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
           sx={{ mt: 1 }}
           data-testid="eval-run-attempt-count"
         >
-          {t("eval.run.setup.attemptCount", {
-            cases: casesLabel,
-            configurations: configurationsLabel,
-            attempts: attemptsLabel,
-          })}
+          {repeated
+            ? t("eval.run.setup.attemptCountRepeats", {
+                cases: casesLabel,
+                configurations: configurationsLabel,
+                repeats: t("eval.run.repeats", { count: repeats }),
+                attempts: attemptsLabel,
+              })
+            : t("eval.run.setup.attemptCount", {
+                cases: casesLabel,
+                configurations: configurationsLabel,
+                attempts: attemptsLabel,
+              })}
         </Typography>
       </Box>
 
@@ -492,7 +533,11 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
             sx={{ mb: 1 }}
             data-testid="eval-run-live-project-note"
           >
-            {t("eval.run.setup.liveProjectNote")}
+            {t(
+              repeated
+                ? "eval.run.setup.liveProjectNoteRepeats"
+                : "eval.run.setup.liveProjectNote",
+            )}
           </Alert>
           <Alert
             severity="info"
@@ -512,7 +557,7 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
           disabled={!canRun}
           data-testid="eval-run-start"
         >
-          {t("eval.run.setup.run")}
+          {t("eval.run.setup.runAttempts", { attempts: attemptsLabel })}
         </Button>
       </Box>
       {launchError && (

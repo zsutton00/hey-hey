@@ -1,7 +1,7 @@
 import { repositoryImportAnalysis } from './repository-grounding-review.mapper';
 import { Injectable, Logger } from '@nestjs/common';
-import type { RepositoryFeatureEnrichmentRequest } from 'src/generated';
-import { LocalPromptType } from 'src/generated/local';
+import type { RepositoryFeatureEnrichmentRequest } from '@hey-hey/contracts/api/models';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
 import {
   AgentHandoffNodeBase,
   ExternalAgentTriggerMessage,

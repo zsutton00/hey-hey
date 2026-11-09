@@ -8,7 +8,7 @@ import {
   LocalStagedBrowserTabOpenErrorCode,
   type LocalStagedBrowserTabOpenErrorResponse,
   type LocalStagedBrowserTabOpenSuccessResponse,
-} from '../../shared/local-agent-api/generated/api';
+} from '@hey-hey/contracts/local';
 import { NOOP_LOGGER, type ServerLogger } from '../logger';
 import { browserStartPageUrl } from './browser-start-page';
 import {

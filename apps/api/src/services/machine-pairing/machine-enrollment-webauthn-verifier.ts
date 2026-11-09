@@ -11,10 +11,12 @@ import {
   cose,
 } from '@simplewebauthn/server/helpers';
 import * as crypto from 'node:crypto';
-import { MachineEnrollmentWebAuthnRegistrationCredentialDto } from '../../generated';
+import { MachineEnrollmentWebAuthnRegistrationCredentialDto } from '@hey-hey/contracts/api/models';
 
 export interface VerifiedMachineEnrollmentCredential {
   credentialId: string;
+  /** COSE-encoded public key exactly as verified from the attestation. */
+  credentialPublicKey: Buffer;
   credentialPublicKeyX: Buffer;
   credentialPublicKeyY: Buffer;
   credentialAaguid: Buffer;
@@ -164,6 +166,7 @@ export class SimpleWebAuthnRegistrationVerifier
     const credentialPublicKey = Buffer.from(verifiedCredential.publicKey);
     return {
       credentialId,
+      credentialPublicKey,
       credentialPublicKeyX: Buffer.from(x),
       credentialPublicKeyY: Buffer.from(y),
       credentialAaguid: Buffer.from(parsed.aaguid),

@@ -2,7 +2,7 @@ import {
   WorkflowName,
   type LocalGoalPmPromptPayload,
   type LocalGoalPmRoutingResponse,
-} from '../../shared/agent-bridge-contract/generated';
+} from '@hey-hey/contracts/agent-bridge';
 
 const buildRoutingShapes = (hasEligibleConversations: boolean): string => {
   const options: LocalGoalPmRoutingResponse['options'] = [

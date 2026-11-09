@@ -1,17 +1,11 @@
 import { restrictedConfiguration } from '../../shared/api/read-restriction';
 import { z } from 'zod';
-import {
-  EntityContextApi,
-  EntityType,
-  ProposalsApi,
-  SessionRole,
-  WorkItemTypesApi,
-  TasksApi,
-} from '../../shared/api/generated/api';
+import { EntityContextApi, ProposalsApi, WorkItemTypesApi, TasksApi } from '@hey-hey/contracts/api';
+import { EntityType, SessionRole } from '@hey-hey/contracts/api/models';
 import type {
   FullEntityContextDto,
   WorkItemTypeDefinitionDto,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { AgenticSession } from '../../session/types';
 import type { PromptTypeHandler, PromptTypeHandlerDeps } from '../prompt-type-handler';
 import { resolveHandlerSessionRole } from '../prompt-type-handler';

@@ -1,4 +1,4 @@
-import { LocalPromptType } from '../../../shared/agent-bridge-contract/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import {
   DEFAULT_DAILY_SESSION_LAUNCH,
   DEFAULT_DAILY_SESSION_SETTINGS_INPUT,

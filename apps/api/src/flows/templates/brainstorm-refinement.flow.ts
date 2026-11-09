@@ -1,4 +1,4 @@
-import { LocalPromptType } from 'src/generated/local';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
 import {
   BrainstormRefinementFlowContext,
   FlowContext,
@@ -8,7 +8,7 @@ import { deriveAgentSessionTitle } from '../../services/agent-session-title';
 import { DesignDocService } from '../../services/design-doc/design-doc.service';
 import { DesignDocId } from '../../types/design-doc.types';
 import { INestApplicationContext } from '@nestjs/common';
-import { AgentSessionType, WorkflowName } from 'src/generated';
+import { AgentSessionType, WorkflowName } from '@hey-hey/contracts/api/models';
 
 import { BRAINSTORM_REFINEMENT_NODES } from '../constants';
 import { createFlow } from './utils';

@@ -97,7 +97,7 @@ import {
   MonitorCommandRejectionStage,
   ServiceRepoBinding,
   WebSocketCliSettingsRequestEvent,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import type {
   EvalAttemptUpdatedEvent,
   EvalRunUpdatedEvent,
@@ -683,7 +683,7 @@ export class WebsocketGateway
           {
             userId,
             expiresAt: accessContext.expiresAt,
-            sessionId: accessContext.sessionId,
+            sessionId: accessContext.browserSessionId,
             authorizationVersion: accessContext.authorizationVersion,
           },
         );

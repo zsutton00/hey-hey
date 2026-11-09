@@ -1,9 +1,9 @@
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import {
   ExtendedUIFieldType,
   MessageStatus,
   SystemMessageDataTypeEnum,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { UpdateMessageDto } from '../../shared/api';
 import type { AssistantCompleteEvent } from '../../run/types';
 import type { AgenticSession } from '../../session/types';
@@ -43,6 +43,7 @@ const invalidAction = (): CompletionAction => ({
 
 class RepositoryFirstWorkHandler implements PromptTypeHandler<RepositoryFirstWorkPromptPayload> {
   readonly id = 'repository-first-work';
+  readonly sessionRole = SessionRole.Research;
   readonly promptType = LocalPromptType.RepositoryFirstWork;
   readonly service = 'required';
   readonly launchEntity = 'none';

@@ -1,11 +1,11 @@
 import { BadRequestException, Logger } from '@nestjs/common';
-import { ProposalEdgeEndpointMode } from 'src/generated/model/proposalEdgeEndpointMode';
+import { ProposalEdgeEndpointMode } from '@hey-hey/contracts/api/models';
 import type { Prisma } from '@prisma/client';
 import type {
   CreateProposalDto,
   Influence,
   ProposalEdgeDeclaration,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { EntityType as PrismaEntityType } from '@prisma/client';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId } from 'src/types';

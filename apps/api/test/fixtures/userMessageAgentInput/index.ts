@@ -38,6 +38,7 @@ import {
   UserMessageDataDesignDocRefiner,
   UserMessageDataEntityConversation,
   UserMessageDataFeatureRefiner,
+  UserMessageDataLocalOnboarding,
   UserMessageDataFeatureSyncAnalyze,
   UserMessageDataFeatureSyncIterate,
   UserMessageDataFeatureTreeConversation,
@@ -183,6 +184,12 @@ const freeForm: UserMessageDataFreeForm = {
   promptType: 'free_form',
   userMessage: msg('free_form'),
   startupInput: { task: 'fixture' },
+};
+
+const localOnboarding: UserMessageDataLocalOnboarding = {
+  promptType: 'local_onboarding',
+  userMessage: msg('local_onboarding'),
+  conversationId: 'fixture-conversation',
 };
 
 const dailySession: UserMessageDataDailySession = {
@@ -416,6 +423,7 @@ export const PROMPT_TYPE_FIXTURES: readonly AgentInputFixture[] = [
   promptArm('entity_conversation', entityConversation),
   promptArm('set_splitting', setSplitting),
   promptArm('free_form', freeForm),
+  promptArm('local_onboarding', localOnboarding),
   promptArm('daily_session', dailySession),
   promptArm('rollup_proposal', rollupProposal),
   promptArm('task_refiner', taskRefiner),

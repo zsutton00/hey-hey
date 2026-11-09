@@ -23,7 +23,7 @@ import {
   type AgentStartupPromptInputRequest,
 } from '../commands/agent-startup-prompt-input';
 import { LocalAgentApiError } from '../shared/agent-bridge-contract/errors';
-import { buildServiceContextNote, mentionFormatReminder } from '../agents/prompts/common';
+import { buildServiceContextNote, heyHeyContextReminder } from '../agents/prompts/common';
 import { renderReportChainBlock } from '../agents/prompts/report-chain';
 import { resolveAgentProviderId } from '../agents/providers/provider-config';
 import { renderMemoBlock } from '../agents/prompts/memo-block';
@@ -31,8 +31,8 @@ import { createReadinessSourceSnapshotFromStartupInput } from '../agents/impleme
 import { resolvePromptString } from '../agents/prompts/resolve';
 import { buildStartingMessage } from '../agents/prompts/starting-message';
 import type { SessionRoleGuidance } from '../agents/session-role-guidance/session-role-guidance';
-import type { WorkItemTypeDefinitionDto } from '../shared/api/generated/api';
-import type { FullEntityContextDto } from '../shared/api/generated';
+import type { WorkItemTypeDefinitionDto } from '@hey-hey/contracts/api/models';
+import type { FullEntityContextDto } from '@hey-hey/contracts/api/models';
 import type { ReportChainEntry } from './types';
 import type { RecoverableTurnCheckpoint } from '../session/types';
 import type {
@@ -87,6 +87,12 @@ export interface ResolvePromptRunState {
    */
   reportChain: ReadonlyArray<Readonly<ReportChainEntry>>;
   /**
+   * Every report in the Run's chain, of any type, at the same instant as
+   * `reportChain`. Entity templates read saved reports from it; unlike
+   * `reportChain` it is never shown as the appended handoff block.
+   */
+  reportHistory?: ReadonlyArray<Readonly<ReportChainEntry>>;
+  /**
    * The Run's accumulating, never-consumed memo list at Turn-construction
    * time. Prepended on provider-session mint for `provider_session` handlers
    * (after `previousProviderSession`, before the report chain) so each newly
@@ -119,6 +125,8 @@ export interface ResolvePromptArgs {
   runState: ResolvePromptRunState;
   input: InternalRunPromptRequest;
   handlerDeps: PromptTypeHandlerDeps;
+  /** Saved machine-wide choice, read for each Turn. Missing means off. */
+  heyHeyContextReminderEnabled?: boolean;
   /** The Turn this prompt is for; handlers that record work done during `prepare` key it by this. */
   turnId: string;
   /** The Run's abort signal, read when `prepare` needs it. */
@@ -302,6 +310,7 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
         organizationId,
         projectId,
         readRestriction: handlerDeps.readRestriction,
+        ...(runState.reportHistory?.length ? { reportChain: runState.reportHistory } : {}),
       };
       loadedStartupPromptInputThisTurn = true;
       startupPromptInput = runState.startupPromptTemplate
@@ -361,29 +370,6 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
     }
   }
 
-  // Re-renders a handler's narrowed Context with the Run's already-selected template. Only the
-  // rendered block changes; the loaded Context, template and its provenance stay canonical.
-  const replaceStartupContext = (replacement: FullEntityContextDto): void => {
-    const current = startupPromptInputResult;
-    if (!current?.template) {
-      return;
-    }
-
-    const renderedInput = renderStartupPromptTemplate(
-      current.template,
-      { entity: current.loadedEntityContext.entity, context: replacement },
-      handlerDeps.logger,
-    );
-    handlerDeps.logger.info('local.run.prompt.startup_context_replaced', {
-      runId: run.agentic_session_id,
-      promptType: handler.promptType,
-      outcome: 'narrowed',
-      beforeBytes: Buffer.byteLength(current.renderedInput),
-      afterBytes: Buffer.byteLength(renderedInput),
-    });
-    startupPromptInputResult = { ...current, renderedInput };
-  };
-
   const prepareForPrompt = async (): Promise<unknown> => {
     const prepareResult =
       handler.prepare && !child?.prepared
@@ -427,9 +413,6 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
       // Workspace reconciliation changed a resume into a new projection cycle.
       // Prepare again with that cycle's fresh context before rendering it.
       return prepareForPrompt();
-    }
-    if (prepareResult.startupContextReplacement) {
-      replaceStartupContext(prepareResult.startupContextReplacement);
     }
     const effectivePayload =
       child && reconciledPayload !== null && typeof reconciledPayload === 'object'
@@ -546,15 +529,31 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
   // next phase in ordinary provider sessions. Children retain their existing
   // explicit reports and never inherit previous provider output.
   let consumedPreviousProviderSession = false;
-  if (!isSubagentOwned && !child && resolvedPrompt && runState.previousProviderSession) {
+  // A resumed provider session already holds that output in its history.
+  const providerSessionResumes = args.providerSessionDecision === 'resume';
+  if (
+    !isSubagentOwned &&
+    !child &&
+    !providerSessionResumes &&
+    resolvedPrompt &&
+    runState.previousProviderSession
+  ) {
     const prior = runState.previousProviderSession;
-    const previousContext = `## Previous phase (${prior.promptType})\n\n${prior.lastMessage}`;
-    resolvedPrompt = `${previousContext}\n\n---\n\n${resolvedPrompt}`;
-    if (providerPromptState.segments) {
-      providerPromptState.segments = {
-        ...providerPromptState.segments,
-        dynamicContext: `${previousContext}\n\n---\n\n${providerPromptState.segments.dynamicContext}`,
-      };
+    // A phase that wrote a handoff memo has already passed on what the next
+    // phase needs; its last reply only restates it. The memo block is only
+    // rendered when a provider session mints, so skip the reply only then.
+    const priorHandedOff =
+      providerSessionWillMint &&
+      runState.memos.some((memo) => memo.handoff === true && memo.source === prior.promptType);
+    if (!priorHandedOff) {
+      const previousContext = `## Previous phase (${prior.promptType})\n\n${prior.lastMessage}`;
+      resolvedPrompt = `${previousContext}\n\n---\n\n${resolvedPrompt}`;
+      if (providerPromptState.segments) {
+        providerPromptState.segments = {
+          ...providerPromptState.segments,
+          dynamicContext: `${previousContext}\n\n---\n\n${providerPromptState.segments.dynamicContext}`,
+        };
+      }
     }
     consumedPreviousProviderSession = true;
   }
@@ -625,22 +624,20 @@ export const resolvePrompt = async (args: ResolvePromptArgs): Promise<ResolvePro
     }
   }
 
-  // Re-state the entity-mention HARD STOP at the very tail of every per-turn
-  // prompt — after the report-chain/last-turn prepends and any transform — so
-  // it is the most recent instruction the agent reads before replying. The
-  // full rule is delivered once in the session system prompt; this keeps it
-  // from being forgotten as context fills, including in isolated children.
-  if (resolvedPrompt) {
-    resolvedPrompt = `${resolvedPrompt}\n\n${mentionFormatReminder}`;
+  // Re-state the opt-in orientation reminder at the very tail of every
+  // per-turn prompt — after the report-chain/last-turn prepends and any
+  // transform — so it is the most recent instruction before the agent replies.
+  if (resolvedPrompt && args.heyHeyContextReminderEnabled) {
+    resolvedPrompt = `${resolvedPrompt}\n\n${heyHeyContextReminder}`;
     if (providerPromptState.segments) {
       providerPromptState.segments = providerPromptState.segments.userInput
         ? {
             ...providerPromptState.segments,
-            userInput: `${providerPromptState.segments.userInput}\n\n${mentionFormatReminder}`,
+            userInput: `${providerPromptState.segments.userInput}\n\n${heyHeyContextReminder}`,
           }
         : {
             ...providerPromptState.segments,
-            dynamicContext: `${providerPromptState.segments.dynamicContext}\n\n${mentionFormatReminder}`,
+            dynamicContext: `${providerPromptState.segments.dynamicContext}\n\n${heyHeyContextReminder}`,
           };
     }
   }

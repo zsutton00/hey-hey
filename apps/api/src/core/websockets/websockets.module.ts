@@ -13,6 +13,7 @@ import { WebsocketGateway } from './websocket.gateway';
 import { MachinePresenceService } from './machine-presence.service';
 import { WebsocketAuthorizationService } from './websocket-authorization.service';
 import { WebsocketUserConnectionLifecycleService } from './websocket-user-connection-lifecycle.service';
+import { BrowserSessionEvictionService } from './browser-session-eviction.service';
 import { CliReadEmitter } from './cli-read-emitter.service';
 import { CliSettingsEmitter } from './cli-settings-emitter.service';
 import { OrganizationConnectionEvictionService } from './organization-connection-eviction.service';
@@ -42,6 +43,7 @@ import { WorkflowModule } from '../../services/workflows/workflow.module';
     MachinePresenceService,
     WebsocketAuthorizationService,
     WebsocketUserConnectionLifecycleService,
+    BrowserSessionEvictionService,
     CliReadEmitter,
     CliSettingsEmitter,
     OrganizationConnectionEvictionService,
@@ -60,6 +62,7 @@ import { WorkflowModule } from '../../services/workflows/workflow.module';
     MachinePresenceService,
     WebsocketAuthorizationService,
     WebsocketUserConnectionLifecycleService,
+    BrowserSessionEvictionService,
     CliReadEmitter,
     CliSettingsEmitter,
     OrganizationConnectionEvictionService,

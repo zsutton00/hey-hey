@@ -3,7 +3,7 @@ import {
   RelationshipValue,
   WorkStatus,
   type ContextRelatedEntityDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TaskAgentSessionsTab } from "./TaskAgentSessionsTab";
@@ -16,7 +16,8 @@ const mockUseAgentSessions = vi.fn();
 const mockPaginatedFeed = vi.fn();
 const mockDeleteAgentSession = vi.fn();
 
-vi.mock("@hey-hey/ui-common/clients", () => ({
+vi.mock("@hey-hey/ui-common/clients", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@hey-hey/ui-common/clients")>()),
   unifiedApiClient: {
     deleteAgentSession: (...args: unknown[]) => mockDeleteAgentSession(...args),
   },

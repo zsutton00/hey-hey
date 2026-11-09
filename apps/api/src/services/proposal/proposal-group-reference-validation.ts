@@ -8,7 +8,7 @@ import type { Proposal, ProposalGroupDependency } from '@prisma/client';
 import type {
   ProposalEdgeDeclaration,
   ProposalGroupValidationIssue,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 
 export interface ProposalGroupReference {
   entityId: string;

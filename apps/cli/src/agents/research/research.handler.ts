@@ -1,5 +1,5 @@
 import type { AgenticSession } from '../../session/types';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { LocalResearchPromptPayload } from '../../shared/agent-bridge-contract/index';
 import type {
   LocalWorktreeStateByService,
@@ -31,6 +31,7 @@ type EnrichedPayload = LocalResearchPromptPayload & {
 
 export const researchHandler: UserLaunchablePromptTypeHandler<LocalResearchPromptPayload> = {
   id: 'research',
+  sessionRole: SessionRole.Research,
   promptType: LocalPromptType.Research,
   service: 'required',
   launchEntity: 'required',
@@ -52,6 +53,7 @@ export const researchHandler: UserLaunchablePromptTypeHandler<LocalResearchPromp
       'get_diagram',
       'get_work_item_type_guidance_batch',
       'unified_search',
+      'get_entity_identities',
       'list_services',
     ],
     builtinAllowedTools: ['Read', 'Glob', 'Grep', 'WebSearch', 'WebFetch'],

@@ -84,7 +84,17 @@ export const TaskPreviewCard = ({
       </Stack>
 
       <Collapse in={expanded}>
-        <Box maxWidth="1200px">
+        <Box
+          maxWidth="1200px"
+          data-testid="task-preview-card-body"
+          sx={{
+            // Keep the whole card within two-thirds of the viewport: the
+            // header and padding take ~5rem, the body scrolls in the rest.
+            maxHeight: "calc(66.667dvh - 5rem)",
+            overflowY: "auto",
+            overscrollBehavior: "contain",
+          }}
+        >
           <Stack spacing={1.5} sx={{ mt: 1.5 }}>
             {description ? (
               <Stack spacing={0.5}>

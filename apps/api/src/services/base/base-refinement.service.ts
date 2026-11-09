@@ -9,7 +9,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { WorkItemTypeConfigService } from '../../config/work-item-type.config';
 import { OrganizationId, UserId } from '../../types';
-import { ConversationResponseDto } from '../../generated';
+import { ConversationResponseDto } from '@hey-hey/contracts/api/models';
 import {
   ContentUpdates,
   EntityType,

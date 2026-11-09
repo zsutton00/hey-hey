@@ -6,7 +6,7 @@ import {
   FeatureSyncDiscrepancyEntityTypeEnum,
   LocalPromptType,
   type FeatureSyncDiscrepancy,
-} from '../../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type {
   LocalFeatureSyncAnalyzePromptPayload,
   LocalFeatureSyncIteratePromptPayload,
@@ -21,6 +21,7 @@ import { featureSyncIterateHandler } from '../iterate.handler';
 import {
   FEATURE_SYNC_ACTIONS,
   submitReadinessTool,
+  parseReadinessDispositionForSubmission,
   submitDiscrepanciesTool,
   submitNoDiscrepancyTool,
   submitResolvedTool,
@@ -28,6 +29,7 @@ import {
 } from '../submission-tools';
 import { SubmissionToolCorrectableError } from '../../submission-tools/types';
 import { readinessClassificationFixtures } from './readiness-classification.fixtures';
+import { homePageBlockedFinding, legacyReadinessFinding } from '../../implementation-readiness/__tests__/readiness-finding.fixture';
 
 const makePayload = (
   userMessage = '',
@@ -1240,15 +1242,7 @@ describe('feature-sync submission tools', () => {
         disposition: {
           state: 'REVIEW_REQUIRED',
           sourceSnapshot,
-          finding: {
-            affectedSourceContext: 'Task and service boundary',
-            unresolvedDecision: 'Which service owns the state?',
-            consequentialInventionRisk: 'Implementation could place state in the wrong service.',
-            boundedEvidence: [
-              { category: 'behavior', statement: 'The source leaves two observable outcomes.' },
-            ],
-            answerKind: 'Name the owning service.',
-          },
+          finding: homePageBlockedFinding,
           resolution: { kind: 'NONE' },
         },
       }),
@@ -1320,13 +1314,7 @@ describe('feature-sync submission tools', () => {
               sourceRevision: 'sha256:source-1',
               capturedAt: '2026-09-17T20:00:00.000Z',
             },
-            finding: {
-              affectedSourceContext: 'Task and service boundary',
-              unresolvedDecision: 'Which service owns the state?',
-              consequentialInventionRisk: 'State could be written by the wrong service.',
-              boundedEvidence: [{ category: 'ownership', statement: 'Ownership is not settled.' }],
-              answerKind: 'Name the owning service.',
-            },
+            finding: homePageBlockedFinding,
             resolution: {
               kind: 'DISMISSED',
               runId: 'run-1',
@@ -1336,6 +1324,62 @@ describe('feature-sync submission tools', () => {
           },
         }),
         run: makeRun(),
+      }),
+    ).toThrow(SubmissionToolCorrectableError);
+  });
+
+  it('rejects an incomplete explanation with field-level corrections, then accepts the corrected finding', () => {
+    const disposition = (finding: unknown) => ({
+      state: 'REVIEW_REQUIRED',
+      sourceSnapshot: {
+        runId: 'run-1',
+        focalEntityId: 'task-123',
+        focalEntityType: 'TASK',
+        sourceRevision: 'sha256:source-1',
+        capturedAt: '2026-09-17T20:00:00.000Z',
+      },
+      finding,
+      resolution: { kind: 'NONE' },
+    });
+    const incomplete = {
+      ...homePageBlockedFinding,
+      reasoningTrail: homePageBlockedFinding.reasoningTrail.slice(0, 1),
+      fixSteps: [{ action: 'Decide the mechanism', state: 'USER_DECISION' }],
+    };
+
+    let thrown: unknown;
+    try {
+      parseReadinessDispositionForSubmission(disposition(incomplete));
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(SubmissionToolCorrectableError);
+    const fields = (thrown as SubmissionToolCorrectableError).findings.map((f) => f.field);
+    expect(fields).toEqual(
+      expect.arrayContaining([
+        '/disposition/finding/reasoningTrail',
+        '/disposition/finding/fixSteps/0/owner',
+      ]),
+    );
+
+    const accepted = parseReadinessDispositionForSubmission(disposition(homePageBlockedFinding));
+    expect(accepted.finding).toEqual(homePageBlockedFinding);
+  });
+
+  it('rejects a finding in the earlier layout when authored fresh', () => {
+    expect(() =>
+      parseReadinessDispositionForSubmission({
+        state: 'REVIEW_REQUIRED',
+        sourceSnapshot: {
+          runId: 'run-1',
+          focalEntityId: 'task-123',
+          focalEntityType: 'TASK',
+          sourceRevision: 'sha256:source-1',
+          capturedAt: '2026-09-17T20:00:00.000Z',
+        },
+        finding: legacyReadinessFinding,
+        resolution: { kind: 'NONE' },
       }),
     ).toThrow(SubmissionToolCorrectableError);
   });
@@ -1386,11 +1430,13 @@ describe('feature-sync submission tools', () => {
                 { type: 'null' },
                 {
                   required: [
-                    'affectedSourceContext',
-                    'unresolvedDecision',
-                    'consequentialInventionRisk',
+                    'requestedOutcome',
+                    'reasoningTrail',
+                    'problem',
+                    'failureScenario',
+                    'fixSteps',
+                    'userRequest',
                     'boundedEvidence',
-                    'answerKind',
                   ],
                   properties: {
                     boundedEvidence: {

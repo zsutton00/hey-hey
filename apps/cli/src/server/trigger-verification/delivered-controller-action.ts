@@ -1,7 +1,4 @@
-import type {
-  AgentTrigger,
-  MonitorCommandBody1,
-} from '../../shared/agent-bridge-contract/generated/api';
+import type { AgentTrigger, MonitorCommandBody1 } from '@hey-hey/contracts/agent-bridge';
 import type {
   ExecutableEnvelopeAuthorization,
   HostActionAdmissionRequest,
@@ -12,7 +9,7 @@ import type {
   ControllerStartInputs,
   ControllerMessageInputs,
   HostActionPreparation,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 
 type AuthorityIncreasingControlKind = V2ConversationControlBody['kind'];
 

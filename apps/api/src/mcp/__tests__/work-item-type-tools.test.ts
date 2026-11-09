@@ -1,12 +1,12 @@
-import { SessionRole } from '../../generated/model/sessionRole';
+import { SessionRole } from '@hey-hey/contracts/api/models';
 import { NotFoundException } from '@nestjs/common';
 import {
   getWorkItemTypeGuidanceBatchOutput,
   getWorkItemTypeGuidanceBatchParameters,
 } from '../tools/work-item-type-tools.provider';
-import { WorkItemTypeEffectiveSource } from '../../generated/model/workItemTypeEffectiveSource';
-import { WorkItemTypeLifecycleStatus } from '../../generated/model/workItemTypeLifecycleStatus';
-import { WorkItemTypeGuidancePurpose } from '../../generated/model/workItemTypeGuidancePurpose';
+import { WorkItemTypeEffectiveSource } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeLifecycleStatus } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeGuidancePurpose } from '@hey-hey/contracts/api/models';
 import type { ProjectService } from '../../services/project.service';
 import type { WorkItemTypeRegistryService } from '../../services/tasks/work-item-type-registry.service';
 import {

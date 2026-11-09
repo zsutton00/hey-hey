@@ -14,14 +14,14 @@ import { AgentSessionRunnerError } from '../agents/providers/session-runner';
 import type { RepoMappingStore } from '../repo/index';
 import type { RunStore } from '../run-store/run-store';
 import type { InternalRunPromptRequest } from '../shared/agent-bridge-contract/contract';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../session/types';
 import { Run, type RunArgs, type RunCollaborators } from './run';
 import type { RunnerContext } from './runners/types';
 import { Turn, type Runner } from '../turn/turn';
 import type { RunEventPublisher } from '../server/run-event-publisher';
 import { TaskMonitorManagedTurnRuntime } from '../server/task-monitor-managed-turn-runtime';
-import type { AgentSessionServiceScopeRequest } from '../shared/api/generated/api';
+import type { AgentSessionServiceScopeRequest } from '@hey-hey/contracts/api/models';
 
 const makeSession = (): AgenticSession =>
   ({

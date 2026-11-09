@@ -39,6 +39,7 @@ import { InteractionComponent } from "./InteractionComponent/InteractionComponen
 import { EntityStarToggle } from "./Entity/EntityStarToggle";
 import { DesignDocReadView } from "./shared";
 import { WorkItemReadView } from "./shared/WorkItemReadView";
+import { MockupUxFlows } from "./shared/UxFlowFromMockup";
 import {
   selectWorkItemSections,
   type ResolvedWorkItemSectionSelection,
@@ -151,7 +152,7 @@ const TaskEntityViewer: React.FC<{
     useWorkItemTypeByKey(
       resolvedOrganizationId,
       resolvedProjectId,
-      entity.type
+      entity.type,
     );
   const sectionSelection = useMemo(
     () =>
@@ -160,7 +161,7 @@ const TaskEntityViewer: React.FC<{
         definition: workItemTypeDefinition,
         isFetched: isWorkItemTypeFetched,
       }),
-    [entity.type, isWorkItemTypeFetched, workItemTypeDefinition]
+    [entity.type, isWorkItemTypeFetched, workItemTypeDefinition],
   );
   return (
     <InteractionComponent
@@ -179,6 +180,15 @@ const TaskEntityViewer: React.FC<{
         sections={entity.sections}
         sectionSelection={sectionSelection}
         htmlCssRenderingContext="page"
+        afterVisualSections={
+          entity.type === "mockup" ? (
+            <MockupUxFlows
+              organizationId={resolvedOrganizationId}
+              projectId={resolvedProjectId}
+              mockupId={entity.id}
+            />
+          ) : undefined
+        }
       />
     </InteractionComponent>
   );
@@ -441,7 +451,7 @@ export const EntityViewer: React.FC<EntityViewerProps> = (props) => {
 };
 
 export const EntityViewerLoader: React.FC<EntityViewerLoaderProps> = (
-  props
+  props,
 ) => {
   const [viewStack, setViewStack] = useState<EntityViewerRoute[]>([]);
   const [activeView, setActiveView] = useState<EntityViewerRoute>(props);
@@ -490,7 +500,7 @@ export const EntityViewerLoader: React.FC<EntityViewerLoaderProps> = (
         entityType === EntityTypeEnum.Conversation &&
         activeView.source === "lookup" &&
         !!projectId,
-    }
+    },
   );
 
   const messageQuery = useMessage(organizationId, projectId, entityId, {
@@ -512,7 +522,7 @@ export const EntityViewerLoader: React.FC<EntityViewerLoaderProps> = (
       enabled:
         entityType === EntityTypeEnum.Conversation &&
         !!resolvedConversationProjectId,
-    }
+    },
   );
 
   const missingProjectIdError =
@@ -521,10 +531,10 @@ export const EntityViewerLoader: React.FC<EntityViewerLoaderProps> = (
     !projectId
       ? "Project ID is required to load conversation details."
       : activeView.source === "lookup" &&
-        entityType === EntityTypeEnum.Message &&
-        !projectId
-      ? "Project ID is required to load message details."
-      : null;
+          entityType === EntityTypeEnum.Message &&
+          !projectId
+        ? "Project ID is required to load message details."
+        : null;
 
   const isLoading =
     activeView.source === "entity"

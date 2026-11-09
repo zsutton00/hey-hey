@@ -9,6 +9,11 @@ import {
   WorkStatus,
 } from "../../api";
 import { platformClient } from "../../clients/serviceClients";
+import {
+  toOpenApiInitiativeId,
+  toOpenApiOrganizationId,
+  toOpenApiProjectId,
+} from "../../clients/contractIdentifierAdapters";
 import { applySectionInputsToMaterialized } from "../../utils/workItemSections";
 import { initiativeKeys } from "../collections/initiatives";
 import type { MutationCallbacks } from "../core/types";
@@ -117,9 +122,9 @@ function optimisticInitiative(
   const { sections, ...rest } = input;
   return {
     ...rest,
-    id,
-    organizationId,
-    originatingProjectId: projectId,
+    id: toOpenApiInitiativeId(id),
+    organizationId: toOpenApiOrganizationId(organizationId),
+    originatingProjectId: toOpenApiProjectId(projectId),
     sections: applySectionInputsToMaterialized(undefined, sections),
     status: input.status ?? WorkStatus.Backlog,
     priority: input.priority ?? Priority.Medium,

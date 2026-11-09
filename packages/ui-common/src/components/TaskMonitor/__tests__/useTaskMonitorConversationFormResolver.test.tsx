@@ -25,7 +25,7 @@ vi.mock("../../../data/hooks", () => ({
 }));
 
 const createAwaitingJudgmentMessage = (
-  overrides: Partial<MessageResponseDto> = {}
+  overrides: Partial<MessageResponseDto> = {},
 ): ConversationMessage => ({
   message: {
     id: "judgment-request-message",
@@ -66,11 +66,13 @@ describe("useTaskMonitorConversationFormResolver", () => {
         projectId: "project-1",
         monitorId: "monitor-1",
         selectedMachineId: "machine-1",
-      })
+      }),
     );
 
     expect(
-      result.current(createAwaitingJudgmentMessage({ awaitingResponse: false }))
+      result.current(
+        createAwaitingJudgmentMessage({ awaitingResponse: false }),
+      ),
     ).toBeNull();
   });
 
@@ -82,7 +84,7 @@ describe("useTaskMonitorConversationFormResolver", () => {
         projectId: "project-1",
         monitorId: " monitor-1 ",
         selectedMachineId: "machine-1",
-      })
+      }),
     );
 
     const resolution = result.current(message);
@@ -90,14 +92,15 @@ describe("useTaskMonitorConversationFormResolver", () => {
       throw new Error("Expected an owner-resolved judgment form.");
     }
 
-    expect(resolution.responseDeclarations).toEqual([{
-      ownership: "exclusive",
-      currentFieldId: TASK_MONITOR_JUDGMENT_FIELD_ID,
-      submissionKind: "owner-command",
-    }]);
+    expect(resolution.responseDeclarations).toEqual([
+      {
+        ownership: "exclusive",
+        currentFieldId: TASK_MONITOR_JUDGMENT_FIELD_ID,
+        submissionKind: "owner-command",
+      },
+    ]);
     expect(resolution.disabled).toBe(false);
     expect(resolution.isSubmitted).toBe(false);
-    expect(resolution.composerResetMode).toBe("clearOnSuccess");
     expect(resolution.uiElements).toEqual([
       expect.objectContaining({
         id: TASK_MONITOR_JUDGMENT_FIELD_ID,
@@ -137,7 +140,7 @@ describe("useTaskMonitorConversationFormResolver", () => {
         projectId: "project-1",
         monitorId: " ",
         selectedMachineId: null,
-      })
+      }),
     );
 
     const resolution = result.current(createAwaitingJudgmentMessage());
@@ -156,7 +159,7 @@ describe("useTaskMonitorConversationFormResolver", () => {
         projectId: "project-1",
         monitorId: "monitor-1",
         selectedMachineId: "machine-1",
-      })
+      }),
     );
     const resolution = result.current(createAwaitingJudgmentMessage());
     if (!resolution) {
@@ -167,7 +170,7 @@ describe("useTaskMonitorConversationFormResolver", () => {
       await expect(
         resolution.submit({
           [TASK_MONITOR_JUDGMENT_FIELD_ID]: "Choose the safer behavior.",
-        })
+        }),
       ).rejects.toThrow("The judgment is no longer current.");
     });
   });

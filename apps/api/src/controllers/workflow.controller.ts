@@ -40,8 +40,8 @@ import { getWorkflowStatus } from '../workflows/conversation-flow.workflow';
 import {
   PromptTypeResponseDto as PromptTypeResponseModel,
   WorkflowName,
-} from '../generated';
-import { LocalPromptType } from '../generated/local';
+} from '@hey-hey/contracts/api/models';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
 
 type WorkflowStateValue = PromptTypeResponseModel.WorkflowStateEnum;
 const WORKFLOW_STATE_VALUES: readonly WorkflowStateValue[] = [

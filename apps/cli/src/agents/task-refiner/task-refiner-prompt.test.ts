@@ -16,7 +16,7 @@ const makeInput = (overrides?: Partial<TaskRefinerPromptInput>): TaskRefinerProm
 describe('buildTaskRefinerPrompt', () => {
   it('uses entity-independent conditional focal orientation', () => {
     const result = buildTaskRefinerPrompt(makeInput());
-    expect(result).toContain('get_context');
+    expect(result).toContain('as described in Choosing the Smallest Read');
     expect(result).toContain('Do not reload that same focal entity by default');
     expect(result).toContain('user requests fresh state');
     expect(result).toContain('different referenced entity');

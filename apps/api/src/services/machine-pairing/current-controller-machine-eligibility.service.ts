@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { CurrentControllerMachineEligibilityState } from '../../generated';
+import { CurrentControllerMachineEligibilityState } from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MachineId, UserId } from '../../types';
 

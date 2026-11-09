@@ -4,7 +4,6 @@ README.md
 api.module.ts
 api/api.ts
 api/development.service.ts
-api/embeddings.service.ts
 api/monitoring.service.ts
 api/organizationLifecycle.service.ts
 api/search.service.ts
@@ -28,9 +27,6 @@ model/debugResponseDataVocabulary.ts
 model/debugServiceConfigEntry.ts
 model/debugStatistics.ts
 model/embeddingMetadata.ts
-model/embeddingRequest.ts
-model/embeddingResponse.ts
-model/embeddingResponseData.ts
 model/errorResponse.ts
 model/errorResponseDetails.ts
 model/getDebugEntity200Response.ts

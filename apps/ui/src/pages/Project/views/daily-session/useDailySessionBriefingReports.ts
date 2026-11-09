@@ -7,7 +7,7 @@ import {
   ReportType,
   type NotificationDto,
   type ReportDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 const MAX_AVAILABLE_BRIEFINGS = 10;

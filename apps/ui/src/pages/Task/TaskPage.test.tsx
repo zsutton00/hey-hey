@@ -5,13 +5,13 @@ import type {
   TaskResponseDto,
   WorkItemTypeDefinitionDto,
   WorkItemTypeSummaryDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   TaskPriority,
   TargetEntityType,
   WorkItemTypeRole,
   WorkStatus,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   act,
   fireEvent,
@@ -188,9 +188,18 @@ vi.mock("@hey-hey/ui-common/components", () => ({
     mockWorkItemMetadata(props);
     return <div data-testid="work-item-metadata" />;
   },
-  WorkItemReadView: (props: unknown) => {
+  MockupUxFlows: ({ mockupId }: { mockupId: string }) => (
+    <div data-testid="mockup-ux-flows" data-mockup-id={mockupId} />
+  ),
+  WorkItemReadView: (props: { afterVisualSections?: React.ReactNode }) => {
     mockWorkItemReadView(props);
-    return <div data-testid="work-item-read-view" />;
+    return (
+      <div data-testid="work-item-read-view">
+        <div data-testid="mockup-section" />
+        {props.afterVisualSections}
+        <div data-testid="purpose-section" />
+      </div>
+    );
   },
   WorkItemEntityFilters: () => null,
   useFilteredWorkItems: <T,>(items: T[]) => items,
@@ -698,6 +707,17 @@ describe("TaskPage data debug tab", () => {
 
     renderTaskPage("/projects/project-1/initiatives/initiative-1/tasks/task-1");
 
+    const flows = screen.getByTestId("mockup-ux-flows");
+    expect(flows).toHaveAttribute("data-mockup-id", mockHierarchyTask.id);
+    expect(screen.queryByTestId("open-in-ux-flow")).toBeNull();
+    expect(
+      screen.getByTestId("mockup-section").compareDocumentPosition(flows) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      flows.compareDocumentPosition(screen.getByTestId("purpose-section")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "Show Context" }),
     ).toBeInTheDocument();

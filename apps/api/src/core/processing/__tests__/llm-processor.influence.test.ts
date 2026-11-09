@@ -15,7 +15,7 @@ import {
   ArtifactSourceType,
   ArtifactType,
   ArtifactStatus,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { ArtifactInsight } from '../../../flows/utils/shared-schemas';
 import * as TestUtils from '../../../utils/testUtils';
 

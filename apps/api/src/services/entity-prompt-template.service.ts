@@ -27,10 +27,10 @@ import type {
   EntityPromptTemplateUpsertUpdatesPayload,
   EntityPromptTemplateValidationIssueDto,
   EntityPromptTemplateValidationMetadataDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ENTITY_PROMPT_TEMPLATE_LANGUAGES,
-  type EntityPromptTemplateLanguage,
+  parseEntityPromptTemplate,
 } from '../generated/entity-prompt-template-language';
 import type { OrganizationId, ProjectId } from '../types';
 import { PrismaService, AnyTransactionClient } from '../prisma/prisma.service';
@@ -170,19 +170,8 @@ export const ENTITY_PROMPT_TEMPLATE_LANGUAGE_CATALOG: EntityPromptTemplateLangua
     malformedSubstitutions: [
       ...entityPromptTemplateLanguage.malformedSubstitutions,
     ],
+    conditionalBlocks: { ...entityPromptTemplateLanguage.conditionalBlocks },
   };
-
-const TEMPLATE_INPUT_PATH_PATTERN = /^[A-Za-z][A-Za-z0-9_.-]*$/;
-
-const isSupportedTemplateInputPath = (
-  inputPath: string,
-  language: EntityPromptTemplateLanguage,
-): boolean =>
-  TEMPLATE_INPUT_PATH_PATTERN.test(inputPath) &&
-  (language.supportedPaths.includes(inputPath) ||
-    language.pathFamilies.some((family) =>
-      new RegExp(family.pattern, 'u').test(inputPath),
-    ));
 
 export function validateEntityPromptTemplateContent(
   content: string,
@@ -212,55 +201,9 @@ export function validateEntityPromptTemplateContent(
     return issues;
   }
 
-  let cursor = 0;
-  while (cursor < content.length) {
-    const openingIndex = content.indexOf('{{', cursor);
-    const closingIndex = content.indexOf('}}', cursor);
-
-    if (
-      closingIndex !== -1 &&
-      (openingIndex === -1 || closingIndex < openingIndex)
-    ) {
-      issues.push({
-        code: 'UNMATCHED_CLOSING_DELIMITER',
-        path: 'content',
-        message: 'Template input expressions must start with {{.',
-      });
-      cursor = closingIndex + 2;
-      continue;
-    }
-
-    if (openingIndex === -1) {
-      break;
-    }
-
-    const expressionEnd = content.indexOf('}}', openingIndex + 2);
-    if (expressionEnd === -1) {
-      issues.push({
-        code: 'UNMATCHED_OPENING_DELIMITER',
-        path: 'content',
-        message: 'Template input expressions must end with }}.',
-      });
-      break;
-    }
-
-    const inputPath = content.slice(openingIndex + 2, expressionEnd).trim();
-    if (!TEMPLATE_INPUT_PATH_PATTERN.test(inputPath)) {
-      issues.push({
-        code: 'INVALID_INPUT_SYNTAX',
-        path: 'content',
-        message:
-          'Template inputs must be dotted paths containing letters, numbers, underscores, hyphens, or periods.',
-      });
-    } else if (!isSupportedTemplateInputPath(inputPath, language)) {
-      issues.push({
-        code: 'UNSUPPORTED_INPUT',
-        path: 'content',
-        message: `Template input ${inputPath} is not supported for entity prompt templates.`,
-      });
-    }
-
-    cursor = expressionEnd + 2;
+  const { issues: parseIssues } = parseEntityPromptTemplate(content, language);
+  for (const issue of parseIssues) {
+    issues.push({ code: issue.code, path: 'content', message: issue.message });
   }
 
   return issues;

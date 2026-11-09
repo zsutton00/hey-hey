@@ -2,8 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import type {
   RepositoryPlacementRequest,
   RepositoryPlacementSuccess,
-} from 'src/generated';
-import { LocalPromptType } from 'src/generated/local';
+} from '@hey-hey/contracts/api/models';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
 import {
   FeatureListLifecycleService,
   RepositoryPlacementValidationError,

@@ -1,14 +1,17 @@
 import { buildActivityResponsibilities } from './knowledge-responsibilities';
-import { buildCompletionReconciliationPromptFor } from '../completion-reconciliation/prompts/common';
+import {
+  buildCompletionReconciliationPromptFor,
+  type CompletionReconciliationInput,
+} from '../completion-reconciliation/prompts/common';
 import type {
   LocalCodingFreeformPromptPayload,
   LocalFreeFormPromptPayload,
   Prepared,
 } from '../../shared/agent-bridge-contract/index';
 import type {
-  ImplementationReadinessFinding,
+  ImplementationReadinessStoredFinding,
   ImplementationReadinessSourceSnapshot,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import {
   buildServicesContextBlock,
   codingServiceScopeGuidance,
@@ -40,7 +43,7 @@ export type CodingConversationMode =
       kind: 'launch';
       implementationReadinessSourceSnapshot?: ImplementationReadinessSourceSnapshot | null;
       /** The pending REVIEW_REQUIRED finding this launch's user message clarifies. */
-      readinessClarification?: { finding: ImplementationReadinessFinding | null };
+      readinessClarification?: { finding: ImplementationReadinessStoredFinding | null };
     }
   | {
       kind: 'follow_up';
@@ -136,7 +139,7 @@ const buildFollowUpFraming = (payload: CodingConversationPreparedPayload): strin
 
 ${buildPriorContextLine(payload)}
 
-You have full access to this session's tooling: code search and reads, entity context retrieval (\`get_context\`, \`unified_search\`), proposal and edge creation, and any other tools available in this run. Use them as the user's question requires — read code before answering questions about it, fetch entity context before reasoning about project structure, and propose mutations through the normal proposal flow when the user asks for changes.`;
+You have full access to this session's tooling: code search and reads, entity reads and search (\`get_full_entity\`, \`get_context\`, \`unified_search\`), proposal and edge creation, and any other tools available in this run. Use them as the user's question requires — read code before answering questions about it, fetch entity context before reasoning about project structure, and propose mutations through the normal proposal flow when the user asks for changes.`;
 };
 
 const CONVERSATION_GUIDELINES = `## Behavioral Guidelines
@@ -152,7 +155,7 @@ const CONVERSATION_GUIDELINES = `## Behavioral Guidelines
 
 Before responding, resolve every reference the user provides:
 - **File paths and code locations** (e.g. \`src/foo/bar.ts\`, \`path/to/file.ts:42\`) — read the file.
-- **@-mentions** in the task context or user messages (\`@[task:...|...]\`, \`@[design_doc:...|...]\`, etc.) — fetch them via \`get_context\` or the appropriate tool so you understand what the user is pointing at.
+- **@-mentions** in the task context or user messages (\`@[task:...|...]\`, \`@[design_doc:...|...]\`, etc.) — read what the user is pointing at with the smallest read that answers it: \`get_full_entity\` for content, \`get_entity_identities\` when you only need the title or item type, \`get_context\` when you also need hierarchy or relationships.
 - **URLs, issue numbers, or external references** — fetch or look them up when you have a tool that can.
 
 Do not guess at the contents of a referenced file or entity. Read it first, then respond.`;
@@ -165,16 +168,19 @@ Answer the user's question conversationally and direct them back to the pending 
 
 const buildTaskScopeBlock = (taskId: string): string => `## Task scope
 
-The active entity for this session is the TASK \`${taskId}\`. This is fixed — do not search for the task or guess its identity. Pass this id directly to \`get_context\` and other tools that take a task id.`;
+The active entity for this session is the TASK \`${taskId}\`. This is fixed — do not search for the task or guess its identity. Pass this id directly to the tools that take a task id.`;
+
+const describeOpenFinding = (finding: ImplementationReadinessStoredFinding): string =>
+  'requestedOutcome' in finding
+    ? `${finding.problem} (what was asked of the user: ${finding.userRequest})`
+    : `${finding.unresolvedDecision} (answer needed: ${finding.answerKind})`;
 
 const buildReadinessClarification = (
-  finding: ImplementationReadinessFinding | null,
+  finding: ImplementationReadinessStoredFinding | null,
 ): string => `## Readiness clarification
 
 Your earlier readiness check on this Run is waiting on the user, and their message is their answer.${
-  finding
-    ? ` The open decision was: ${finding.unresolvedDecision} (answer needed: ${finding.answerKind}).`
-    : ''
+  finding ? ` The open problem was: ${describeOpenFinding(finding)}` : ''
 }
 
 Reassess with their answer before using code-capable tools. If no consequential decision remains unresolved, call \`submit_implementation_readiness\` with a \`CLEAR\` disposition (the canonical source binding below, \`finding: null\`, \`resolution: { "kind": "NONE" }\`), then continue with the request. Otherwise follow the preflight below with a new \`REVIEW_REQUIRED\` finding.`;
@@ -191,7 +197,7 @@ ${implementationReadinessDecisionGuidance}
 - If the evidence is empty, describes only routine implementation discovery, or preserves a conditional hazard whose triggering path is not established, continue with the user's request without asking about those details.
 - When emitting the structured response, do not use code-capable tools in the same turn. The response is rendered as a read-only review field so the user can clarify the source context.
 
-The structured response must be a single fenced JSON object with \`responseType: "implementation_readiness_v1"\`, a \`REVIEW_REQUIRED\` disposition, the affected source context, unresolved decision, consequential invention risk, bounded evidence, and the kind of answer needed. Use \`resolution: { "kind": "NONE" }\`. Copy the canonical source binding below exactly; set \`capturedAt\` to the current ISO-8601 time.
+The structured response must be a single fenced JSON object with \`responseType: "implementation_readiness_v1"\`, a \`REVIEW_REQUIRED\` disposition, a plain-language finding that follows the field descriptions of \`submit_implementation_readiness\`. Use \`resolution: { "kind": "NONE" }\`. Copy the canonical source binding below exactly; set \`capturedAt\` to the current ISO-8601 time.
 
 ${
   sourceSnapshot
@@ -217,15 +223,22 @@ Example response shape:
       "capturedAt": "<current ISO-8601 time>"
     },
     "finding": {
-      "affectedSourceContext": "<task, feature, design doc, or plan context>",
-      "unresolvedDecision": "<one consequential decision>",
-      "consequentialInventionRisk": "<what implementation would otherwise invent>",
+      "requestedOutcome": "<what the user asked for, in ordinary words>",
+      "reasoningTrail": [
+        { "source": { "entityType": "TASK", "entityId": "<full id>", "title": "<real title>" }, "explanation": "<what it told you>" },
+        { "source": { "entityType": "TASK", "entityId": "<full id>", "title": "<real title>" }, "explanation": "<why that led to the problem>" }
+      ],
+      "problem": "<the problem in one sentence>",
+      "failureScenario": ["<a normal situation>", "<what happens next>", "<the concrete failure>"],
+      "fixSteps": [
+        { "owner": { "entityType": "TASK", "entityId": "<full id>", "title": "<real title>" }, "action": "<what must happen>", "state": "USER_DECISION" }
+      ],
+      "userRequest": "<the one thing you need from the user>",
       "boundedEvidence": [{
         "category": "behavior",
         "statement": "<bounded evidence statement>",
         "sourceRef": "<memo or source reference>"
-      }],
-      "answerKind": "<the kind of clarification needed>"
+      }]
     },
     "resolution": { "kind": "NONE" }
   }
@@ -242,7 +255,7 @@ A readiness response replaces the completion JSON below for that turn.`;
 export const buildCodingConversationPrompt = (
   payload: CodingConversationPreparedPayload,
   mode: CodingConversationMode,
-  startedPromptTypes: ReadonlySet<string> = new Set(),
+  completion: CompletionReconciliationInput = { startedPromptTypes: new Set(), focalTask: true },
 ): string => {
   const sections: string[] = [];
 
@@ -274,6 +287,6 @@ export const buildCodingConversationPrompt = (
     sections.push(buildReadinessPreflight(mode.implementationReadinessSourceSnapshot));
   }
 
-  sections.push(buildCompletionReconciliationPromptFor(startedPromptTypes));
+  sections.push(buildCompletionReconciliationPromptFor(completion));
   return sections.join('\n\n');
 };

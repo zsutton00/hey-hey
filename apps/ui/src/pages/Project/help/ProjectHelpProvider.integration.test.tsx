@@ -15,6 +15,7 @@ import { DailySessionBriefing } from "../views/daily-session/DailySessionBriefin
 
 const mocks = vi.hoisted(() => ({
   intent: "selected" as string | undefined,
+  bridgeConnected: false,
   features: [] as { id: string; name: string }[],
   existing: null as { id: string } | null,
   loading: false,
@@ -24,6 +25,9 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@hey-hey/ui-common/data", async (original) => ({
   ...(await original<typeof import("@hey-hey/ui-common/data")>()),
+  useUserPairedMachines: () => ({
+    machines: [{ active: mocks.bridgeConnected, revokedAt: null }],
+  }),
   useProject: () => ({
     isFetched: true,
     data: {
@@ -92,6 +96,7 @@ describe.each(["help", "daily"] as const)(
     beforeEach(() => {
       vi.clearAllMocks();
       mocks.intent = "selected";
+      mocks.bridgeConnected = false;
       mocks.features = [];
       mocks.existing = null;
       mocks.loading = false;
@@ -102,6 +107,21 @@ describe.each(["help", "daily"] as const)(
         return null;
       });
     });
+    it.each(["selected", "declined"])(
+      "marks a live bridge connected after the %s onboarding route",
+      (intent) => {
+        mocks.intent = intent;
+        const view = mount();
+        expect(
+          screen.queryByTestId("help-bridge-connected"),
+        ).not.toBeInTheDocument();
+        view.unmount();
+        mocks.bridgeConnected = true;
+        mount();
+        expect(screen.getByTestId("help-bridge-connected")).toBeInTheDocument();
+        expect(mocks.create).not.toHaveBeenCalled();
+      },
+    );
     it("starts a dedicated import from the real button with Show me how hidden", async () => {
       mount();
       expect(

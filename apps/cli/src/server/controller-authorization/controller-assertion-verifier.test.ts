@@ -1,3 +1,4 @@
+import { asOrganizationId, asProjectId, asUserId } from '../../test-utils/contract-ids';
 import crypto from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { canonicalizeJson } from '../../shared/canonical-json';
@@ -39,12 +40,12 @@ const makeGrantDescriptor = (id = credentialId, installationId = 'installation-1
   controllerCredentialId: id,
   controllerInstallationId: installationId,
   machineId,
-  userId,
-  organizationId,
+  userId: asUserId(userId),
+  organizationId: asOrganizationId(organizationId),
   cadence: 'FIVE_MINUTES' as const,
   policyRevision: 1,
-  allowedActionTypes: new Set(CURRENT_AGENT_OPERATIONS),
-  allowedActionCategories: new Set(['CONVERSATION' as const]),
+  allowedActionTypes: [...CURRENT_AGENT_OPERATIONS],
+  allowedActionCategories: ['CONVERSATION' as const],
   issuedAtMs: now - 1_000,
   effectiveExpiresAtMs: now + 299_000,
 });
@@ -64,9 +65,9 @@ const makeIntent = (
   controllerCredentialId: id,
   controllerInstallationId: installationId,
   machineId,
-  userId,
-  organizationId,
-  projectId,
+  userId: asUserId(userId),
+  organizationId: asOrganizationId(organizationId),
+  projectId: asProjectId(projectId),
   cadence: 'FIVE_MINUTES',
   policyRevision: 1,
   effectiveGrantExpiresAtMs: now + 299_000,
@@ -74,8 +75,8 @@ const makeIntent = (
   actionCategory: context.actionCategory,
   actionType: context.actionType,
   actionPayloadHash: context.actionPayloadHash,
-  allowedActionTypes: new Set(CURRENT_AGENT_OPERATIONS),
-  allowedActionCategories: new Set(['CONVERSATION']),
+  allowedActionTypes: [...CURRENT_AGENT_OPERATIONS],
+  allowedActionCategories: ['CONVERSATION' as const],
   target: context.target,
   agentSessionId: null,
   taskMonitorId: null,
@@ -165,7 +166,7 @@ describe('ControllerAssertionVerifier', () => {
     const substitutedDescriptor = makeEvidence(intent, keyPair.privateKey);
     substitutedDescriptor.grantDescriptor = {
       ...substitutedDescriptor.grantDescriptor,
-      allowedActionCategories: new Set(['CLI_READ']),
+      allowedActionCategories: ['CLI_READ' as const],
     };
     await expect(verifier.verify(substitutedDescriptor, context)).resolves.toEqual({
       ok: false,

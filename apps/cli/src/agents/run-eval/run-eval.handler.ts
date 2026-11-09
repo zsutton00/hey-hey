@@ -1,9 +1,10 @@
 import {
+  SessionRole,
   LocalPromptType,
   type LocalRunEvalPromptPayload,
-} from '../../shared/agent-bridge-contract/generated';
+} from '@hey-hey/contracts/agent-bridge';
 import { LocalReasoningEffort } from '../../shared/agent-bridge-contract/contract';
-import type { EvalModelSetting } from '../../shared/api/generated/api';
+import type { EvalModelSetting } from '@hey-hey/contracts/api/models';
 import type { RegisteredChildLaunchRequest } from '../../run/child-agent-launcher';
 import {
   defaultAddUserMessage,
@@ -11,6 +12,7 @@ import {
   type UserLaunchablePromptTypeHandler,
 } from '../prompt-type-handler';
 import { EVAL_JUDGE_HANDLER_ID, parseEvalJudgeOutput } from './eval-judge.handler';
+import { EvalCaseSearchScope } from './eval-case-search-scope';
 import { EvalReportRecorder } from './eval-report-recorder';
 import { runEvalAttempts, type EvalRunnerPorts, type EvalRunTally } from './eval-runner';
 const EVAL_WORK_ITEM_TYPE_KEY = 'EVAL' as const;
@@ -57,6 +59,13 @@ const runRecordedAttempts = async (
     organizationId: session.contextMetadata.organizationId,
     evalRunId: payload.evalRunId,
   });
+  const caseSearchScope = new EvalCaseSearchScope(
+    {
+      organizationId: session.contextMetadata.organizationId,
+      projectId: session.contextMetadata.projectId,
+    },
+    { accessToken: await deps.auth.getAccessToken(), apiBaseUrl: deps.apiBaseUrl },
+  );
   const launcher = deps.childAgentLauncher;
   const ports: EvalRunnerPorts = {
     recorder,
@@ -65,13 +74,17 @@ const runRecordedAttempts = async (
       if (!deps.evalAttemptExecution) {
         throw new Error('Eval attempt execution is unavailable.');
       }
+      const searchScope = await caseSearchScope.read(attempt.caseInput.evalCaseId);
+
       return deps.evalAttemptExecution.execute(session, attempt, {
         ...options,
+        searchScope,
         onProviderSessionIds: (ids) =>
           recorder.updateAttempt(attempt.attemptId, { attemptProviderSessionIds: ids }),
+        onWorkspaceSettled: (settled) => recorder.updateAttempt(attempt.attemptId, settled),
       });
     },
-    async judge(attempt, outputText, judgeSignal) {
+    async judge(attempt, output, judgeSignal) {
       let judgeSessionId: string | undefined;
       const result = await launcher
         .launchRegistered(EVAL_JUDGE_HANDLER_ID, {
@@ -83,15 +96,18 @@ const runRecordedAttempts = async (
           },
           onExecutionCreated: async (child) => {
             judgeSessionId = child.agentic_session_id;
+            await recorder.updateAttempt(attempt.attemptId, { judgeSessionId });
           },
-          payload: { caseInput: attempt.caseInput, outputText },
+          payload: { caseInput: attempt.caseInput, ...output },
           signal: judgeSignal,
           ...toLaunchSettings(payload.judgeSetup),
         })
         .catch((error: unknown) => {
           deps.logger.error('run_eval.attempt.judge_failed', {
             runId: session.agentic_session_id,
+            caseInputId: attempt.caseInput.id,
             attemptId: attempt.attemptId,
+            repeat: attempt.repeat ?? null,
             error: describeFailure(error),
           });
           throw error;
@@ -107,6 +123,7 @@ const runRecordedAttempts = async (
       };
     },
   };
+  await deps.evalAttemptExecution?.sweepWorkspaces();
   deps.logger.info('run_eval.started', {
     runId: session.agentic_session_id,
     evalRunId: payload.evalRunId,
@@ -114,9 +131,14 @@ const runRecordedAttempts = async (
     maxConcurrentAttempts: payload.settings.maxConcurrentAttempts,
     attemptTimeLimitSeconds: payload.settings.attemptTimeLimitSeconds ?? null,
     attemptTokenLimit: payload.settings.attemptTokenLimit ?? null,
+    repeatsPerAttempt: payload.settings.repeatsPerAttempt ?? null,
   });
   const tally = await runEvalAttempts(
-    { attempts: payload.attempts, settings: payload.settings, signal },
+    {
+      attempts: payload.attempts,
+      settings: payload.settings,
+      signal,
+    },
     ports,
   );
   deps.logger.info('run_eval.ended', {
@@ -135,6 +157,7 @@ const runRecordedAttempts = async (
  */
 export const runEvalHandler: UserLaunchablePromptTypeHandler<LocalRunEvalPromptPayload> = {
   id: 'run_eval',
+  sessionRole: SessionRole.Review,
   promptType: LocalPromptType.RunEval,
   service: 'optional',
   launchEntity: 'required',

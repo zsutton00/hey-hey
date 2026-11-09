@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { ReactFlowProvider, type NodeProps } from "reactflow";
+import { WorkStatus } from "../../../api";
 import { describe, expect, it } from "vitest";
 import {
   ExecutionGraphNode,
@@ -22,7 +23,7 @@ const states: ExecutionGraphNodeState[] = [
 const nodeProps = (
   state: ExecutionGraphNodeState,
   selected: boolean,
-  animateCurrentTask = true
+  animateCurrentTask = true,
 ): NodeProps<ExecutionGraphNodeData> => ({
   id: state,
   type: "executionGraphNode",
@@ -47,11 +48,11 @@ describe("ExecutionGraphNode", () => {
     render(
       <ReactFlowProvider>
         <ExecutionGraphNode {...nodeProps(state, false)} />
-      </ReactFlowProvider>
+      </ReactFlowProvider>,
     );
     expect(screen.getByTestId("execution-graph-node")).toHaveAttribute(
       "data-node-state",
-      state
+      state,
     );
   });
 
@@ -59,24 +60,24 @@ describe("ExecutionGraphNode", () => {
     const { rerender } = render(
       <ReactFlowProvider>
         <ExecutionGraphNode {...nodeProps("active", false)} />
-      </ReactFlowProvider>
+      </ReactFlowProvider>,
     );
     expect(screen.getByTestId("execution-graph-node")).toHaveAttribute(
       "data-selected",
-      "false"
+      "false",
     );
     rerender(
       <ReactFlowProvider>
         <ExecutionGraphNode {...nodeProps("idle", true)} />
-      </ReactFlowProvider>
+      </ReactFlowProvider>,
     );
     expect(screen.getByTestId("execution-graph-node")).toHaveAttribute(
       "data-node-state",
-      "idle"
+      "idle",
     );
     expect(screen.getByTestId("execution-graph-node")).toHaveAttribute(
       "data-selected",
-      "true"
+      "true",
     );
   });
 
@@ -87,7 +88,7 @@ describe("ExecutionGraphNode", () => {
         <ReactFlowProvider>
           <ExecutionGraphNode {...nodeProps("idle", true)} />
         </ReactFlowProvider>
-      </ThemeProvider>
+      </ThemeProvider>,
     );
 
     expect(screen.getByTestId("execution-graph-node")).toHaveStyle({
@@ -101,7 +102,7 @@ describe("ExecutionGraphNode", () => {
         <ReactFlowProvider>
           <ExecutionGraphNode {...nodeProps("idle", true)} />
         </ReactFlowProvider>
-      </ThemeProvider>
+      </ThemeProvider>,
     );
 
     expect(screen.getAllByTestId("execution-graph-node")[1]).toHaveStyle({
@@ -122,7 +123,7 @@ describe("ExecutionGraphNode", () => {
         <ReactFlowProvider>
           <ExecutionGraphNode {...nodeProps("active", false)} />
         </ReactFlowProvider>
-      </ThemeProvider>
+      </ThemeProvider>,
     );
 
     const card = screen.getByTestId("execution-graph-node");
@@ -137,7 +138,7 @@ describe("ExecutionGraphNode", () => {
     render(
       <ReactFlowProvider>
         <ExecutionGraphNode {...nodeProps("active", false, false)} />
-      </ReactFlowProvider>
+      </ReactFlowProvider>,
     );
 
     expect(screen.getByTestId("execution-graph-node")).toHaveStyle({
@@ -164,7 +165,7 @@ describe("ExecutionGraphNode", () => {
             },
           }}
         />
-      </ReactFlowProvider>
+      </ReactFlowProvider>,
     );
 
     const card = screen.getByTestId("execution-graph-node");
@@ -174,5 +175,31 @@ describe("ExecutionGraphNode", () => {
     expect(screen.getByText("TASK")).toBeInTheDocument();
     expect(screen.getByText("Plan rationale")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
+  });
+
+  it.each([
+    [WorkStatus.Verifying, "VERIFYING"],
+    [WorkStatus.Cancelled, "CANCELLED"],
+    [WorkStatus.Superseded, "SUPERSEDED"],
+    [WorkStatus.Archived, "ARCHIVED"],
+    [WorkStatus.OnHold, "ON HOLD"],
+    [WorkStatus.Backlog, "BACKLOG"],
+    [WorkStatus.Completed, "COMPLETED"],
+  ])("labels a %s task with its real status", (status, label) => {
+    const props = nodeProps("eligible", false);
+    render(
+      <ReactFlowProvider>
+        <ExecutionGraphNode
+          {...props}
+          data={{
+            ...props.data,
+            node: { ...props.data.node, taskStatus: status },
+          }}
+        />
+      </ReactFlowProvider>,
+    );
+
+    expect(screen.getByText(label)).toBeInTheDocument();
+    expect(screen.queryByText("NOT STARTED")).not.toBeInTheDocument();
   });
 });

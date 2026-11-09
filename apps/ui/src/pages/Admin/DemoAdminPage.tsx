@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { DemoSandboxProgramDto } from "@hey-hey/ui-common/api";
+import type { DemoSandboxProgramDto } from "@hey-hey/contracts/api";
 import { useOrganization } from "@hey-hey/ui-common/context";
 import { useDemoSandboxAdmin, useProjects } from "@hey-hey/ui-common/data";
 import {

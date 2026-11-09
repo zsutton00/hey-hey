@@ -10,7 +10,7 @@ import {
   rankEntityTitleMatch,
 } from '../entity-registry.service';
 import { OrganizationId } from '../../../types';
-import { EntitySearchResult } from 'src/generated';
+import { EntitySearchResult } from '@hey-hey/contracts/api/models';
 import { EntityType, Prisma } from '@prisma/client';
 import { NON_ARTIFACT_ENTITY_TYPES } from '../entity-registry.constants';
 

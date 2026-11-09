@@ -2,8 +2,8 @@ import { z } from 'zod';
 import {
   AgentSessionCurrentState,
   AgentSessionOutputAttentionState,
-} from '../../shared/api/generated/api';
-import type { LocalOpenItemsTriageItem } from '../../shared/agent-bridge-contract/generated';
+} from '@hey-hey/contracts/api/models';
+import type { LocalOpenItemsTriageItem } from '@hey-hey/contracts/agent-bridge';
 import type { PromptTypeHandlerDeps } from '../prompt-type-handler';
 import { envelopeSchema } from './input-schemas';
 import { itemKey } from './attention';

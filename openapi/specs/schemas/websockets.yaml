@@ -33,6 +33,7 @@ WebSocketMessageCreatedEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - messageId
       properties:
         type:
@@ -47,6 +48,7 @@ WebSocketMessageUpdatedEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - messageId
       properties:
         type:
@@ -67,6 +69,7 @@ WebSocketMessageRealtimeEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - messageId
         - requestId
         - sequence
@@ -132,6 +135,7 @@ WebSocketMessageDeletedEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - messageId
       properties:
         type:
@@ -146,6 +150,7 @@ WebSocketConversationCreatedEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - projectId
         - conversationId
       properties:
@@ -162,6 +167,7 @@ WebSocketConversationUpdatedEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - previousVersion
         - newVersion
         - changeType
@@ -215,6 +221,7 @@ WebSocketConversationStatusChangedEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - previousStatus
         - newStatus
         - projectId
@@ -234,6 +241,8 @@ WebSocketProjectCreatedEvent:
   allOf:
     - $ref: "#/WebSocketEvent"
     - type: object
+      required:
+        - type
       properties:
         type:
           type: string
@@ -243,6 +252,8 @@ WebSocketProjectUpdatedEvent:
   allOf:
     - $ref: "#/WebSocketEvent"
     - type: object
+      required:
+        - type
       properties:
         type:
           type: string
@@ -259,6 +270,7 @@ WebSocketProjectStatusChangedEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - previousStatus
         - newStatus
       properties:
@@ -277,6 +289,7 @@ WebSocketTaskCreatedEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - taskId
       properties:
         type:
@@ -294,6 +307,7 @@ WebSocketTaskUpdatedEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - taskId
         - changedBy
       properties:
@@ -335,6 +349,7 @@ WebSocketTaskStatusChangedEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - taskId
         - previousStatus
         - newStatus
@@ -360,6 +375,7 @@ WebSocketInitiativeCreatedEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - initiativeId
       properties:
         type:
@@ -374,6 +390,7 @@ WebSocketInitiativeUpdatedEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - initiativeId
         - changedBy
       properties:
@@ -423,6 +440,7 @@ WebSocketInitiativeStatusChangedEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - initiativeId
         - previousStatus
         - newStatus
@@ -445,6 +463,7 @@ WebSocketDesignDocCreatedEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - designDocId
       properties:
         type:
@@ -459,6 +478,7 @@ WebSocketDesignDocUpdatedEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - designDocId
         - changedBy
       properties:
@@ -497,6 +517,7 @@ WebSocketDesignDocStatusChangedEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - designDocId
         - previousStatus
         - newStatus
@@ -519,6 +540,8 @@ WebSocketSystemNotificationEvent:
     - $ref: "#/WebSocketEvent"
     - $ref: "./notifications.yaml#/NotificationPushEventPayload"
     - type: object
+      required:
+        - type
       properties:
         type:
           type: string
@@ -539,6 +562,7 @@ WebSocketAgentSessionCreatedEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - agentSessionId
       properties:
         type:
@@ -553,6 +577,7 @@ WebSocketAgentSessionDeletedEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - agentSessionId
       properties:
         type:
@@ -567,6 +592,7 @@ WebSocketAgentSessionStatusChangedEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - agentSessionId
         - previousStatus
         - newStatus
@@ -592,6 +618,7 @@ WebSocketProposalApprovedEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - proposalId
         - targetEntityId
         - targetEntityType
@@ -621,6 +648,7 @@ WebSocketProposalGroupLifecycleEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - projectId
         - groupId
         - revision
@@ -629,6 +657,9 @@ WebSocketProposalGroupLifecycleEvent:
         type:
           type: string
           enum: ["proposal_group.lifecycle"]
+        projectId:
+          type: string
+          description: Associated project ID for this project-scoped group event
         groupId:
           type: string
           format: uuid
@@ -675,6 +706,7 @@ WebSocketAgentSessionCurrentStateChangedEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - projectId
         - agentSessionId
         - currentState
@@ -765,6 +797,7 @@ WebSocketAgentSessionContextSizeChangedEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - projectId
         - agentSessionId
         - contextSize
@@ -833,6 +866,7 @@ WebSocketConversationPhaseChangedEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - projectId
         - conversationId
         - phase
@@ -870,6 +904,7 @@ WebSocketAgentSessionOutputAttentionChangedEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - projectId
         - userId
         - agentSessionId
@@ -984,6 +1019,7 @@ WebSocketMachineRepoBindingsEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - machineId
         - bindings
       properties:
@@ -1053,6 +1089,7 @@ WebSocketConversationTriggerEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - envelope
       properties:
         type:
@@ -1071,6 +1108,7 @@ WebSocketConversationControlEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - envelope
       properties:
         type:
@@ -1092,6 +1130,7 @@ WebSocketConversationReductionEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - envelope
       properties:
         type:
@@ -1108,6 +1147,7 @@ WebSocketAuthorityReductionEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - envelope
       properties:
         type:
@@ -1124,6 +1164,7 @@ WebSocketMonitorCommandEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - projectId
         - envelope
       properties:
@@ -1145,6 +1186,7 @@ WebSocketMonitorReductionEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - projectId
         - envelope
       properties:
@@ -1162,6 +1204,7 @@ WebSocketCliReadRequestEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - envelope
       properties:
         type:
@@ -1180,6 +1223,7 @@ WebSocketApplicationEffectEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - envelope
       properties:
         type:
@@ -1196,6 +1240,7 @@ WebSocketExactActionEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - envelope
       properties:
         type:
@@ -2306,6 +2351,7 @@ WebSocketCliSettingsRequestEvent:
     - $ref: "#/WebSocketEvent"
     - type: object
       required:
+        - type
         - envelope
       properties:
         type:
@@ -3269,25 +3315,32 @@ CliReadWorkspaceSkillsListSuccessResponseDto:
 CliReadWorkspaceSkillsListErrorResponseDto:
   $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadWorkspaceSkillsListErrorResponseDto"
 
-
 ConversationControlCancelInput:
   type: object
   additionalProperties: false
-  required: [kind, conversationId, agentSessionId, operationId, operationFingerprint, messageId]
+  required:
+    [
+      kind,
+      conversationId,
+      agentSessionId,
+      operationId,
+      operationFingerprint,
+      messageId,
+    ]
   properties:
     kind:
       type: string
       enum: [cancel_input]
     conversationId:
-      $ref: './common.yaml#/ConversationId'
+      $ref: "./common.yaml#/ConversationId"
     agentSessionId:
-      $ref: './common.yaml#/AgentSessionId'
+      $ref: "./common.yaml#/AgentSessionId"
     operationId:
-      $ref: './agent-operation.yaml#/AgentOperationId'
+      $ref: "./agent-operation.yaml#/AgentOperationId"
     operationFingerprint:
-      $ref: './agent-operation.yaml#/AgentOperationFingerprint'
+      $ref: "./agent-operation.yaml#/AgentOperationFingerprint"
     messageId:
-      $ref: './common.yaml#/MessageId'
+      $ref: "./common.yaml#/MessageId"
   description: Signed authority reduction for exactly one input; never aborts active execution.
 
 WebSocketOpenItemsChangedEvent:

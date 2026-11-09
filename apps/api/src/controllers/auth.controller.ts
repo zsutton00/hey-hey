@@ -22,6 +22,7 @@ import {
   AccountDefaultOrganizationDto,
   SetAccountDefaultOrganizationDto,
   BrowserAuthResponseDto,
+  DevAdminModeDto,
   BrowserSessionResponseDto,
   ChangeCurrentPasswordDto,
   ChangePasswordDto,
@@ -31,7 +32,7 @@ import {
   PasswordRecoveryRequestDto,
   RefreshBrowserSessionDto,
   RegisterDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
@@ -49,8 +50,6 @@ import {
 import { CorsConfig } from '../common/config/cors.config';
 import { clearDemoBindingCookie } from '../services/demo-sandbox/demo-binding-cookie';
 import { OrganizationId } from '../types';
-
-const LEGACY_REFRESH_TTL_MILLISECONDS = 7 * 24 * 60 * 60 * 1000;
 
 @ApiTags('Authentication')
 @Controller('api/v1/auth')
@@ -391,7 +390,7 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description: 'Dev-admin mode toggled successfully',
-    type: 'AuthResponseDto',
+    type: 'DevAdminModeDto',
   })
   @ApiResponse({
     status: 403,
@@ -399,30 +398,8 @@ export class AuthController {
   })
   async toggleDevAdminMode(
     @CurrentUser() user: AuthenticatedUser,
-    @Res({ passthrough: true }) response: Response,
-  ): Promise<AuthResponseDto> {
-    const authResponse = await this.authService.toggleDevAdminMode(user.userId);
-    this.setLegacyAuthCookies(response, authResponse);
-    return authResponse;
-  }
-
-  private setLegacyAuthCookies(
-    response: Response,
-    authResponse: AuthResponseDto,
-  ): void {
-    const expiresIn = requiredExpiresIn(
-      authResponse.expiresIn,
-      'Access-token expiry is missing or invalid',
-    );
-
-    response.cookie(ACCESS_COOKIE_NAME, authResponse.accessToken, {
-      ...cookieAttributes('/'),
-      maxAge: expiresIn * 1000,
-    });
-    response.cookie(REFRESH_COOKIE_NAME, authResponse.refreshToken, {
-      ...cookieAttributes('/'),
-      maxAge: LEGACY_REFRESH_TTL_MILLISECONDS,
-    });
+  ): Promise<DevAdminModeDto> {
+    return this.authService.toggleDevAdminMode(user.userId);
   }
 
   private clearBrowserSessionCookies(response: Response): void {

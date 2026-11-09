@@ -8,15 +8,15 @@ Produced by `npm run analyze:unused` (`scripts/find-unused-spec-content.js`); re
 
 ## Generation time (generator runs only, `npm run measure:generation`)
 
-| Generation | Before (s) | After (s) |
-|---|---|---|
-| API service models (typescript-nestjs, API spec) | 565.1 | 468.1 |
-| UI Common / CLI client (typescript-axios, API spec) | 398.7 | 242.1 |
-| Graph Java events client | 54.5 | 34.6 |
-| Embeddings Python events models | 47.2 | 25.0 |
-| Embeddings own spec | 28.3 | 1.0 |
-| Others (validation, agent-bridge, local, Graph Spring) | 40.7 | 29.6 |
-| **Total** | **1134.5** | **800.4** |
+| Generation                                             | Before (s) | After (s) |
+| ------------------------------------------------------ | ---------- | --------- |
+| API service models (typescript-nestjs, API spec)       | 565.1      | 468.1     |
+| UI Common / CLI client (typescript-axios, API spec)    | 398.7      | 242.1     |
+| Graph Java events client                               | 54.5       | 34.6      |
+| Embeddings Python events models                        | 47.2       | 25.0      |
+| Embeddings own spec                                    | 28.3       | 1.0       |
+| Others (validation, agent-bridge, local, Graph Spring) | 40.7       | 29.6      |
+| **Total**                                              | **1134.5** | **800.4** |
 
 The "before" run overlapped with other jobs on the machine, so the small entries are noisy.
 
@@ -24,7 +24,7 @@ The "before" run overlapped with other jobs on the machine, so the small entries
 
 Listed below with the handler file. Some are called from outside the repos (webhooks, health, MCP, admin tools), so they may be needed. Nothing here was removed.
 
-## Operations with a server handler but no caller (85)
+## Operations with a server handler but no caller (84)
 
 - `api` GET /organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId}/context (getProjectReportContextPage) [ProjectReports] — specs/api/openapi.yaml:374
   handler: src/controllers/project-report-request.controller.ts
@@ -176,8 +176,6 @@ Listed below with the handler file. Some are called from outside the repos (webh
   handler: src/controllers/machine.controller.ts
 - `api` POST /machines/{machineId}/security-events (reportMachineSecurityEvents) [Machines] — specs/api/openapi.yaml:23129
   handler: src/controllers/machine.controller.ts
-- `embeddings` POST /embeddings (createEmbedding) [Embeddings] — specs/embeddings/openapi.yaml:105
-  handler: debug/jwks_example.py, embedding_service/api/embeddings.py, embedding_service/integrations/github_service.py
 - `embeddings` POST /orgs/{organizationId}/projects/{projectId}/embeddings/search/structured (structuredSearchEmbeddings) [Search] — specs/embeddings/openapi.yaml:333
   handler: embedding_service/api/search.py, tests/test_api.py
 - `embeddings` POST /orgs/{organizationId}/projects/{projectId}/embeddings/search/batch (searchEmbeddingsOrgBatch) [Search] — specs/embeddings/openapi.yaml:581
@@ -232,9 +230,7 @@ Listed below with the handler file. Some are called from outside the repos (webh
 
 ## Operations held by a pinned consumer (0)
 
-
 ## Operations with unknown status (0)
-
 
 ## Unused definitions (23)
 
@@ -407,9 +403,7 @@ Listed below with the handler file. Some are called from outside the repos (webh
 
 ## Operations held by a pinned consumer (0)
 
-
 ## Operations with unknown status (0)
-
 
 ## Unused definitions (23)
 
@@ -571,4 +565,3 @@ Listed below with the handler file. Some are called from outside the repos (webh
 - specs/paths/entities.yaml
 - specs/paths/help.yaml
 - specs/paths/report-bugs.yaml
-

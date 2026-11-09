@@ -12,6 +12,10 @@ import {
 import { alpha } from "@mui/material/styles";
 import { useMemo, type MouseEvent } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
+import {
+  getStatusColorMapping,
+  getStatusLabel,
+} from "../../../utils/statusUtils";
 import { renderMentionsAsText } from "../../../utils/mentionFormatting";
 import { EntityIcon } from "../../Entity/EntityIcon";
 import { renderInlineMentions } from "../../SmarterTextAreaCard/renderInlineMentions";
@@ -40,11 +44,13 @@ type StateChipColor =
   | "error"
   | "success"
   | "warning"
+  | "primary"
+  | "info"
   | "ready"
   | "active";
 
 const statePresentation = (
-  state: ExecutionGraphNodeState
+  state: ExecutionGraphNodeState,
 ): {
   label: string;
   color: StateChipColor;
@@ -138,7 +144,14 @@ const ExecutionGraphCard = ({
 }) => {
   const theme = useTheme();
   const { node } = data;
-  const presentation = statePresentation(node.state);
+  const statePresentationForNode = statePresentation(node.state);
+  const presentation = node.taskStatus
+    ? {
+        ...statePresentationForNode,
+        label: getStatusLabel(node.taskStatus).toUpperCase(),
+        color: getStatusColorMapping(node.taskStatus),
+      }
+    : statePresentationForNode;
   const emphasized = presentation.emphasized;
   const currentTask = node.state === "active";
   const blocked = node.state === "blocked";
@@ -156,20 +169,21 @@ const ExecutionGraphCard = ({
     theme.palette.mode === "dark" ? "grey.800" : "grey.50";
   const currentTaskPulse = useMemo(
     () => createCurrentTaskPulse(theme.palette.warning.main),
-    [theme.palette.warning.main]
+    [theme.palette.warning.main],
   );
   const emphasizedStatusBackground =
     node.state === "active"
-      ? theme.palette.active?.main ?? theme.palette.primary.main
+      ? (theme.palette.active?.main ?? theme.palette.primary.main)
       : theme.palette.mode === "dark"
-      ? theme.palette.grey[200]
-      : theme.palette.common.white;
+        ? theme.palette.grey[200]
+        : theme.palette.common.white;
   const emphasizedStatusColor =
     node.state === "active"
-      ? theme.palette.active?.contrastText ?? theme.palette.primary.contrastText
+      ? (theme.palette.active?.contrastText ??
+        theme.palette.primary.contrastText)
       : theme.palette.mode === "dark"
-      ? theme.palette.grey[900]
-      : theme.palette.text.primary;
+        ? theme.palette.grey[900]
+        : theme.palette.text.primary;
 
   return (
     <Card
@@ -188,27 +202,28 @@ const ExecutionGraphCard = ({
         borderColor: currentTask
           ? "warning.main"
           : emphasized
-          ? "primary.main"
-          : "divider",
+            ? "primary.main"
+            : "divider",
         backgroundColor: selected
           ? selectedBackground
           : emphasized
-          ? "primary.main"
-          : blocked
-          ? blockedBackground
-          : defaultBackground,
+            ? "primary.main"
+            : blocked
+              ? blockedBackground
+              : defaultBackground,
         color: selected
           ? selectedTextColor
           : emphasized
-          ? "primary.contrastText"
-          : "text.primary",
+            ? "primary.contrastText"
+            : "text.primary",
         outline: currentTask
           ? `2px solid ${theme.palette.warning.main}`
           : "none",
         outlineOffset: currentTask ? 2 : 0,
-        animation: currentTask && data.animateCurrentTask
-          ? `${currentTaskPulse} 1.8s ease-in-out infinite`
-          : "none",
+        animation:
+          currentTask && data.animateCurrentTask
+            ? `${currentTaskPulse} 1.8s ease-in-out infinite`
+            : "none",
         "&:hover": { boxShadow: 4 },
         position: "relative",
         zIndex: 10,
@@ -274,8 +289,8 @@ const ExecutionGraphCard = ({
                 color: selected
                   ? selectedTextColor
                   : emphasized
-                  ? "attention.contrastText"
-                  : "text.secondary",
+                    ? "attention.contrastText"
+                    : "text.secondary",
                 fontStyle: "italic",
                 display: "-webkit-box",
                 WebkitLineClamp: 5,
@@ -312,11 +327,12 @@ const ExecutionGraphCard = ({
                 sx={{
                   fontSize: "0.8rem",
                   height: 24,
-                  ...(emphasized && !selected && {
-                    backgroundColor: "transparent",
-                    color: "common.white",
-                    borderColor: "common.white",
-                  }),
+                  ...(emphasized &&
+                    !selected && {
+                      backgroundColor: "transparent",
+                      color: "common.white",
+                      borderColor: "common.white",
+                    }),
                   ...(selected && {
                     backgroundColor: "transparent",
                     color: selectedTextColor,
@@ -341,8 +357,8 @@ const ExecutionGraphCard = ({
                   color: selected
                     ? selectedTextColor
                     : emphasized
-                    ? "primary.contrastText"
-                    : "text.primary",
+                      ? "primary.contrastText"
+                      : "text.primary",
                 }}
               >
                 {notice.text}

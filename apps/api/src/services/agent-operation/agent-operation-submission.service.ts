@@ -21,7 +21,7 @@ import {
   SystemMessageData,
   UserMessageData,
   UserMessageAdmittedServiceScope,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   AnyTransactionClient,
   PrismaService,

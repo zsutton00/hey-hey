@@ -1,9 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { JevInput, JevResult } from '../../jev/client';
 import type { Focal } from '../../jev/scenarios';
 import type { ServerLogger } from '../../server/logger';
 import type { JsonValue } from '../platform-mcp-proxy/session';
-import { GetContextTrimmer, type JevResponseCache } from './context-trimmer';
+import { GetContextTrimmer } from './context-trimmer';
 
 const FOCAL_ID = 'focal-task';
 const focal: Focal = {
@@ -21,21 +24,13 @@ const focal: Focal = {
 interface Score {
   implements: number;
   informs: number;
-  conflict: number;
 }
 
-/** Answers every relevance and conflict question from the score keyed by candidate id. */
+/** Answers every relevance question from the score keyed by candidate id. */
 const answerFrom = (scores: Record<string, Score>) =>
   vi.fn((input: JevInput): Promise<JevResult> => {
     const answers: Extract<JevResult, { ok: true }>['answers'] = {};
     for (const [questionId, question] of Object.entries(input.questions)) {
-      if (question.type === 'noul') {
-        answers[questionId] = {
-          type: 'noul',
-          noul: scores[questionId.replace('conflict:', '')]?.conflict ?? 0,
-        };
-        continue;
-      }
       const score = scores[questionId];
       if (!score) return Promise.reject(new Error(`No score for ${questionId}`));
       const rest = (1 - score.implements - score.informs) / 2;
@@ -76,10 +71,8 @@ const related = (name: string, relationship = 'related-to', reasoning?: string) 
   entityId: `id-${name}`,
   entityType: 'TASK',
   displayName: name,
-  relationship,
   status: 'COMPLETED',
-  via: [{ kind: 'edge' }],
-  ...(reasoning ? { reasoning } : {}),
+  relationships: [{ relationship, via: [{ kind: 'edge' }], ...(reasoning ? { reasoning } : {}) }],
 });
 
 const contextBody = {
@@ -115,12 +108,12 @@ const contextBody = {
 };
 
 const scores: Record<string, Score> = {
-  'hierarchy:1': { implements: 0.3, informs: 0.4, conflict: 0.1 },
-  'related:0': { implements: 0.9, informs: 0.05, conflict: 0.1 },
-  'related:1': { implements: 0.2, informs: 0.45, conflict: 0.1 },
-  'related:2': { implements: 0.05, informs: 0.05, conflict: 0.1 },
-  'related:3': { implements: 0.0, informs: 0.0, conflict: 0.8 },
-  'session:0': { implements: 0.1, informs: 0.1, conflict: 0.1 },
+  'hierarchy:1': { implements: 0.3, informs: 0.4 },
+  'related:0': { implements: 0.9, informs: 0.05 },
+  'related:1': { implements: 0.2, informs: 0.45 },
+  'related:2': { implements: 0.05, informs: 0.05 },
+  'related:3': { implements: 0.0, informs: 0.0 },
+  'session:0': { implements: 0.1, informs: 0.1 },
 };
 
 const toolResult = (body: unknown, pretty = false): JsonValue => ({
@@ -137,21 +130,135 @@ const textOf = (result: JsonValue): string => {
 
 const makeTrimmer = (
   evaluate: ReturnType<typeof answerFrom>,
-  overrides: { cache?: JevResponseCache; focalEntityId?: string } = {},
+  overrides: { focalEntityId?: string; ancestorEntityIds?: ReadonlySet<string> } = {},
 ) => {
   const log = makeLogger();
   const trimmer = new GetContextTrimmer({
-    client: { evaluate },
+    decisionModel: { evaluate },
     focal,
     focalEntityId: overrides.focalEntityId ?? FOCAL_ID,
-    cache: overrides.cache ?? new Map<string, Extract<JevResult, { ok: true }>>(),
+    ...(overrides.ancestorEntityIds ? { ancestorEntityIds: overrides.ancestorEntityIds } : {}),
     logger: log.logger,
   });
   return { trimmer, ...log };
 };
 
 describe('GetContextTrimmer', () => {
-  it('abbreviates entries by tier, forces conflicts to full, orders by relevance, and keeps the rest', async () => {
+  it('narrows get_edges with the shared relevance judgment and keeps focal/ancestor seeds whole', async () => {
+    const edge = {
+      createdAt: '2026-01-01T00:00:00.000Z',
+      direction: 'out',
+      edgeType: 'RELATED_TO',
+      otherEndpoint: {
+        displayName: 'Long title retained for discovery',
+        entityId: 'other-entity',
+        entityType: 'TASK',
+        taskType: 'STANDARD',
+      },
+      reasoning: 'The complete link rationale.',
+    };
+    const evaluate = answerFrom({
+      'edge:other-seed:0': { implements: 0.02, informs: 0.03 },
+    });
+    const { trimmer, debug } = makeTrimmer(evaluate, {
+      ancestorEntityIds: new Set(['ancestor-seed']),
+    });
+    const upstream: JsonValue = {
+      structuredContent: {
+        edgesByEntity: {
+          [FOCAL_ID]: [edge],
+          'ancestor-seed': [edge],
+          'other-seed': [edge],
+        },
+        omittedEntities: [],
+      },
+      content: [],
+    };
+
+    const narrowed = await trimmer.trimEdgesResult(upstream);
+    const structured = (
+      narrowed as { structuredContent: { edgesByEntity: Record<string, unknown[]> } }
+    ).structuredContent;
+
+    expect(structured.edgesByEntity[FOCAL_ID]).toEqual([edge]);
+    expect(structured.edgesByEntity['ancestor-seed']).toEqual([edge]);
+    expect(structured.edgesByEntity['other-seed']).toEqual([
+      expect.objectContaining({
+        otherEndpoint: expect.objectContaining({
+          entityId: 'other-entity',
+          displayName: 'Long title retained for discovery',
+        }),
+      }),
+    ]);
+    expect(evaluate).toHaveBeenCalledOnce();
+    expect(evaluate.mock.calls[0]?.[0]).toMatchObject({
+      state: {
+        edges: {
+          'edge:other-seed:0': expect.stringContaining(
+            'Long title retained for discovery (TASK STANDARD; RELATED_TO; out): The complete link rationale.',
+          ),
+        },
+      },
+    });
+    expect(debug).toHaveBeenCalledWith(
+      'local.platform_mcp_proxy.get_edges_trim.trimmed',
+      expect.objectContaining({
+        candidateCount: 1,
+        decisionModelDurationMs: 30,
+        inputTokens: 100,
+        outputTokens: 20,
+      }),
+    );
+  });
+
+  it('returns an unrecognized get_edges result unchanged without judging it', async () => {
+    const evaluate = answerFrom({});
+    const { trimmer, warn } = makeTrimmer(evaluate);
+    const upstream: JsonValue = {
+      structuredContent: { edgesByEntity: { seed: [{ wrong: true }] } },
+    };
+
+    expect(await trimmer.trimEdgesResult(upstream)).toBe(upstream);
+    expect(evaluate).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      'local.platform_mcp_proxy.get_edges_trim.untrimmed',
+      expect.objectContaining({ reason: 'unrecognized_edges_shape' }),
+    );
+  });
+
+  it('returns the original get_edges result when the Decision Model fails', async () => {
+    const evaluate = vi.fn(
+      (): Promise<JevResult> =>
+        Promise.resolve({ ok: false, failure: { code: 'TIMEOUT', message: 'Timed out.' } }),
+    );
+    const { trimmer, warn } = makeTrimmer(evaluate);
+    const upstream = {
+      structuredContent: {
+        edgesByEntity: {
+          seed: [
+            {
+              createdAt: '2026-01-01T00:00:00.000Z',
+              direction: 'out',
+              edgeType: 'RELATED_TO',
+              otherEndpoint: {
+                displayName: 'Related item',
+                entityId: 'related-item',
+                entityType: 'TASK',
+              },
+            },
+          ],
+        },
+      },
+    } satisfies JsonValue;
+
+    expect(await trimmer.trimEdgesResult(upstream)).toBe(upstream);
+    expect(warn).toHaveBeenCalledWith(
+      'local.platform_mcp_proxy.get_edges_trim.untrimmed',
+      expect.objectContaining({ reason: 'decision_model_failed', failureCode: 'TIMEOUT' }),
+    );
+  });
+
+  it('abbreviates entries by tier, orders by relevance, and keeps the rest', async () => {
     const { trimmer, debug } = makeTrimmer(answerFrom(scores));
 
     const parsed = parsedBody(await trimmer.trimResult(toolResult(contextBody)));
@@ -171,36 +278,35 @@ describe('GetContextTrimmer', () => {
     });
     expect(parsed['relatedEntities']).toEqual([
       contextBody.relatedEntities[0],
-      contextBody.relatedEntities[3],
       {
         entityId: 'id-Middle',
         entityType: 'TASK',
         displayName: 'Middle',
         status: 'COMPLETED',
-        relationship: 'mentions',
+        relationships: [{ relationship: 'mentions', summary: 'Mentioned once.' }],
         relationToFocal: 'informs',
-        summary: 'Mentioned once.',
       },
       { entityId: 'id-Low', entityType: 'TASK', displayName: 'Low' },
+      { entityId: 'id-Hidden-conflict', entityType: 'TASK', displayName: 'Hidden-conflict' },
     ]);
     expect(parsed['agentSessions']).toEqual([
       { entityId: 'sess', entityType: 'AGENT_SESSION', displayName: 'Session' },
     ]);
-    expect(parsed['contextTrimmed']).toMatch(/^4 entries were abbreviated/);
+    expect(parsed['contextTrimmed']).toMatch(/^5 entries were abbreviated/);
     expect(debug).toHaveBeenCalledWith(
       'local.platform_mcp_proxy.get_context_trim.trimmed',
       expect.objectContaining({
         candidateCount: 6,
-        tierCounts: { full: 2, short: 2, index: 2 },
+        tierCounts: { full: 1, short: 2, index: 3 },
+        decisionModelDurationMs: 30,
         inputTokens: 100,
         outputTokens: 20,
-        cacheHit: false,
       }),
     );
   });
 
   it('never asks Jev about a requirement the focal task fulfils, and keeps it in full', async () => {
-    const evaluate = answerFrom({ 'requirement:1': { implements: 0, informs: 0, conflict: 0 } });
+    const evaluate = answerFrom({ 'requirement:1': { implements: 0, informs: 0 } });
     const { trimmer } = makeTrimmer(evaluate);
     const body = {
       entityId: 'seed',
@@ -229,7 +335,7 @@ describe('GetContextTrimmer', () => {
     const parsed = parsedBody(await trimmer.trimResult(toolResult(body)));
 
     const [{ questions }] = evaluate.mock.calls[0] as [JevInput];
-    expect(Object.keys(questions).sort()).toEqual(['conflict:requirement:1', 'requirement:1']);
+    expect(Object.keys(questions).sort()).toEqual(['requirement:1']);
     const { content } = parsed as { content: { requirementsSection: { records: unknown[] } } };
     expect(content.requirementsSection.records).toEqual([
       body.content.requirementsSection.records[0],
@@ -253,25 +359,48 @@ describe('GetContextTrimmer', () => {
     expect(evaluate).not.toHaveBeenCalled();
   });
 
-  it('reuses earlier answers for an identical call and asks again when an entry changes', async () => {
+  it('evaluates each call directly, including repeated and changed results', async () => {
     const evaluate = answerFrom(scores);
-    const cache: JevResponseCache = new Map();
-    const first = makeTrimmer(evaluate, { cache });
-    await first.trimmer.trimResult(toolResult(contextBody));
-    const second = makeTrimmer(evaluate, { cache });
-
-    await second.trimmer.trimResult(toolResult(contextBody));
-
-    expect(evaluate).toHaveBeenCalledTimes(1);
-    expect(second.debug).toHaveBeenCalledWith(
+    const { trimmer, debug } = makeTrimmer(evaluate);
+    await trimmer.trimResult(toolResult(contextBody));
+    await trimmer.trimResult(toolResult(contextBody));
+    expect(evaluate).toHaveBeenCalledTimes(2);
+    expect(debug).toHaveBeenLastCalledWith(
       'local.platform_mcp_proxy.get_context_trim.trimmed',
-      expect.objectContaining({ cacheHit: true, inputTokens: 0, outputTokens: 0 }),
+      expect.objectContaining({ inputTokens: 100, outputTokens: 20 }),
     );
 
-    await second.trimmer.trimResult(
+    await trimmer.trimResult(
       toolResult({ ...contextBody, relatedEntities: [related('High', 'depends-on', 'Edited.')] }),
     );
-    expect(evaluate).toHaveBeenCalledTimes(2);
+    expect(evaluate).toHaveBeenCalledTimes(3);
+  });
+
+  it('keeps each relationship reason of an abbreviated entity', async () => {
+    const { trimmer } = makeTrimmer(
+      answerFrom({
+        ...scores,
+        'related:0': { implements: 0.2, informs: 0.45 },
+      }),
+    );
+    const twoReasons = {
+      ...related('Two'),
+      relationships: [
+        { relationship: 'depends-on', reasoning: 'Needed first. Detail follows.' },
+        { relationship: 'mentions', reasoning: 'Cited in the plan. More.' },
+      ],
+    };
+
+    const parsed = parsedBody(
+      await trimmer.trimResult(toolResult({ ...contextBody, relatedEntities: [twoReasons] })),
+    );
+
+    expect(
+      (parsed['relatedEntities'] as Array<{ relationships: unknown }>)[0]?.relationships,
+    ).toEqual([
+      { relationship: 'depends-on', summary: 'Needed first.' },
+      { relationship: 'mentions', summary: 'Cited in the plan.' },
+    ]);
   });
 
   it('returns the upstream result and logs the cause when Jev fails', async () => {
@@ -287,12 +416,12 @@ describe('GetContextTrimmer', () => {
 
     expect(await trimmer.trimResult(upstream)).toBe(upstream);
     expect(warn).toHaveBeenCalledWith('local.platform_mcp_proxy.get_context_trim.untrimmed', {
-      reason: 'jev_failed',
+      reason: 'decision_model_failed',
       failureCode: 'TIMEOUT',
     });
   });
 
-  it('does not cache a failure', async () => {
+  it('evaluates again after a failure', async () => {
     const evaluate = vi
       .fn<(input: JevInput) => Promise<JevResult>>()
       .mockResolvedValueOnce({ ok: false, failure: { code: 'PROVIDER_ERROR', message: 'x' } })
@@ -360,5 +489,184 @@ describe('GetContextTrimmer', () => {
     const logged = JSON.stringify([...debug.mock.calls, ...warn.mock.calls, ...error.mock.calls]);
     expect(logged).not.toContain('Sibling does things');
     expect(logged).not.toContain('Needed first');
+  });
+
+  describe('development trace', () => {
+    const dirs: string[] = [];
+    afterEach(async () => {
+      await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+    });
+
+    const tracedTrimmer = async (attemptLogDir: string | null, evaluate = answerFrom(scores)) => {
+      const log = makeLogger();
+      const trimmer = new GetContextTrimmer({
+        decisionModel: { evaluate },
+        focal,
+        focalEntityId: FOCAL_ID,
+        logger: log.logger,
+        attemptLogDir,
+      });
+      return { trimmer, evaluate, ...log };
+    };
+    const newDir = async () => {
+      const dir = await mkdtemp(path.join(os.tmpdir(), 'get-context-log-'));
+      dirs.push(dir);
+      return dir;
+    };
+
+    it('writes one file per narrowed call with sizes, tiers and entry decisions', async () => {
+      const dir = await newDir();
+      const { trimmer } = await tracedTrimmer(dir);
+
+      const result = await trimmer.trimResult(toolResult(contextBody));
+      const files = await readdir(dir);
+
+      expect(files).toHaveLength(1);
+      const record = JSON.parse(await readFile(path.join(dir, files[0] ?? ''), 'utf8')) as {
+        outcome: string;
+        focalEntityId: string;
+        rawResultChars: number;
+        narrowedResultChars: number;
+        tierCounts: unknown;
+        inputTokens: number;
+        costUsd: number;
+        jevCalls: Array<{ input: { questions: Record<string, unknown> } }>;
+        entries: Array<{ tier: string; judgedByDecisionModel: boolean; text: string }>;
+      };
+      expect(record.outcome).toBe('narrowed');
+      expect(record.focalEntityId).toBe(FOCAL_ID);
+      expect(record.rawResultChars).toBe(JSON.stringify(contextBody).length);
+      expect(record.narrowedResultChars).toBe(textOf(result).length);
+      expect(record.tierCounts).toEqual({ full: 1, short: 2, index: 3 });
+      expect(record.inputTokens).toBe(100);
+      expect(record.costUsd).toBeCloseTo(0.0000042, 10);
+      expect(Object.keys(record)[2]).toBe('costUsd');
+      expect(record.jevCalls).toHaveLength(1);
+      expect(Object.keys(record.jevCalls[0]?.input.questions ?? {})).not.toContainEqual(
+        expect.stringContaining('conflict'),
+      );
+      expect(record.entries.every((entry) => entry.judgedByDecisionModel)).toBe(true);
+      expect(record.entries.some((entry) => entry.text.includes('Needed first'))).toBe(true);
+    });
+
+    it('judges and writes separately for repeated identical calls', async () => {
+      const dir = await newDir();
+      const { trimmer, evaluate } = await tracedTrimmer(dir);
+
+      await trimmer.trimResult(toolResult(contextBody));
+      await trimmer.trimResult(toolResult(contextBody));
+
+      expect(evaluate).toHaveBeenCalledTimes(2);
+      expect(await readdir(dir)).toHaveLength(2);
+    });
+
+    it('writes why a call passed through unchanged, and nothing when no directory is set', async () => {
+      const dir = await newDir();
+      const failing = vi.fn(
+        (): Promise<JevResult> =>
+          Promise.resolve({ ok: false, failure: { code: 'TIMEOUT', message: 'slow' } }),
+      );
+      const { trimmer } = await tracedTrimmer(dir, failing as ReturnType<typeof answerFrom>);
+      const upstream = toolResult(contextBody);
+      expect(await trimmer.trimResult(upstream)).toBe(upstream);
+      const files = await readdir(dir);
+      expect(files).toHaveLength(1);
+      const record: unknown = JSON.parse(await readFile(path.join(dir, files[0] ?? ''), 'utf8'));
+      expect(record).toMatchObject({
+        outcome: 'passed_through',
+        focalEntityId: FOCAL_ID,
+        reason: 'decision_model_failed',
+        fields: { failureCode: 'TIMEOUT' },
+        jevCalls: [expect.anything()],
+      });
+
+      const { trimmer: untraced } = await tracedTrimmer(null);
+      await expect(untraced.trimResult(toolResult(contextBody))).resolves.toBeDefined();
+    });
+
+    it('writes one get_edges trace per call, narrowed or passed through, with sizes and both results', async () => {
+      const dir = await newDir();
+      const log = makeLogger();
+      const edgesTrimmer = (evaluate: ReturnType<typeof answerFrom>) =>
+        new GetContextTrimmer({
+          decisionModel: { evaluate },
+          focal,
+          focalEntityId: FOCAL_ID,
+          logger: log.logger,
+          edgesAttemptLogDir: dir,
+        });
+      const edge = {
+        createdAt: '2026-01-01T00:00:00.000Z',
+        direction: 'out',
+        edgeType: 'RELATED_TO',
+        otherEndpoint: { displayName: 'Edge endpoint', entityId: 'other', entityType: 'TASK' },
+        reasoning: 'Edge rationale text.',
+      };
+      const upstream = {
+        structuredContent: { edgesByEntity: { [FOCAL_ID]: [edge], 'other-seed': [edge] } },
+      } satisfies JsonValue;
+
+      const narrowed = await edgesTrimmer(
+        answerFrom({ 'edge:other-seed:0': { implements: 0.02, informs: 0.03 } }),
+      ).trimEdgesResult(upstream);
+      const failing = vi.fn(
+        (): Promise<JevResult> =>
+          Promise.resolve({ ok: false, failure: { code: 'TIMEOUT', message: 'slow' } }),
+      );
+      await edgesTrimmer(failing as ReturnType<typeof answerFrom>).trimEdgesResult(upstream);
+
+      const files = (await readdir(dir)).sort();
+      expect(files).toHaveLength(2);
+      const records = await Promise.all(
+        files.map(
+          async (file) =>
+            JSON.parse(await readFile(path.join(dir, file), 'utf8')) as Record<string, unknown>,
+        ),
+      );
+      const narrowedRecord = records.find((record) => record['outcome'] === 'narrowed');
+      expect(narrowedRecord).toMatchObject({
+        focalEntityId: FOCAL_ID,
+        rawResultChars: JSON.stringify(upstream.structuredContent).length,
+        narrowedResultChars: JSON.stringify(
+          (narrowed as { structuredContent: unknown }).structuredContent,
+        ).length,
+        tierCounts: { full: 1, short: 0, index: 1 },
+        inputTokens: 100,
+        jevCalls: [expect.anything()],
+        rawResult: expect.stringContaining('Edge rationale text.'),
+        entries: [
+          expect.objectContaining({ seedId: FOCAL_ID, judgedByDecisionModel: false }),
+          expect.objectContaining({
+            seedId: 'other-seed',
+            tier: 'index',
+            judgedByDecisionModel: true,
+          }),
+        ],
+      });
+      expect(records.find((record) => record['outcome'] === 'passed_through')).toMatchObject({
+        reason: 'decision_model_failed',
+        fields: { failureCode: 'TIMEOUT' },
+        jevCalls: [expect.anything()],
+      });
+      const logged = JSON.stringify([...log.debug.mock.calls, ...log.warn.mock.calls]);
+      expect(logged).not.toContain('Edge rationale text.');
+    });
+
+    it('returns the narrowed result with a safe warning when the trace cannot be written', async () => {
+      const dir = await newDir();
+      const blocker = path.join(dir, 'file');
+      await writeFile(blocker, 'x');
+      const { trimmer, warn, debug } = await tracedTrimmer(path.join(blocker, 'sub'));
+
+      const parsed = parsedBody(await trimmer.trimResult(toolResult(contextBody)));
+
+      expect(parsed['contextTrimmed']).toMatch(/entries were abbreviated/);
+      expect(warn).toHaveBeenCalledWith(
+        'local.platform_mcp_proxy.get_context_trim.attempt_log_failed',
+        { errorName: expect.any(String) },
+      );
+      const logged = JSON.stringify([...debug.mock.calls, ...warn.mock.calls]);
+      expect(logged).not.toContain('Needed first');
+    });
   });
 });

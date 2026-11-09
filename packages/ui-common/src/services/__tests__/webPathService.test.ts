@@ -34,9 +34,15 @@ describe("webPathService", () => {
   });
 
   it("builds the project Agents Coding destination with stable query ordering", () => {
-    expect(
-      WebPathService.projectAgentsCoding({ projectId: "project-1" }),
-    ).toBe("/projects/project-1?view=coding&tab=agents");
+    expect(WebPathService.projectAgentsCoding({ projectId: "project-1" })).toBe(
+      "/projects/project-1?view=coding&tab=agents",
+    );
+  });
+
+  it("builds the project report history destination", () => {
+    expect(WebPathService.projectReportHistory("project-1")).toBe(
+      "/projects/project-1/reports",
+    );
   });
 
   it("uses an injected project Agents Coding path service override", () => {
@@ -49,9 +55,9 @@ describe("webPathService", () => {
 
     setPathService(override);
 
-    expect(
-      WebPathService.projectAgentsCoding({ projectId: "project-1" }),
-    ).toBe("/custom/projects/project-1?destination=agents-coding");
+    expect(WebPathService.projectAgentsCoding({ projectId: "project-1" })).toBe(
+      "/custom/projects/project-1?destination=agents-coding",
+    );
   });
 
   it("uses an injected path service override", () => {
@@ -266,25 +272,26 @@ describe("webPathService", () => {
         entityId: "task-1",
         returnTo:
           "/organizations/organization-1/activity?metric=TASK_COMPLETED&projectIds=project-1&windowStart=2026-03-01T00%3A00%3A00.000Z&windowEnd=2026-03-02T00%3A00%3A00.000Z&limit=25&offset=50",
-      })
+      }),
     ).toBe(
-      "/projects/project-2/activities/TASK-task-1?returnTo=%2Forganizations%2Forganization-1%2Factivity%3Fmetric%3DTASK_COMPLETED%26projectIds%3Dproject-1%26windowStart%3D2026-03-01T00%253A00%253A00.000Z%26windowEnd%3D2026-03-02T00%253A00%253A00.000Z%26limit%3D25%26offset%3D50"
+      "/projects/project-2/activities/TASK-task-1?returnTo=%2Forganizations%2Forganization-1%2Factivity%3Fmetric%3DTASK_COMPLETED%26projectIds%3Dproject-1%26windowStart%3D2026-03-01T00%253A00%253A00.000Z%26windowEnd%3D2026-03-02T00%253A00%253A00.000Z%26limit%3D25%26offset%3D50",
     );
   });
 
-  it.each(["https://example.com", "//example.com/path", "projects/project-1/activity"])(
-    "rejects unsafe Activity detail return paths: %s",
-    (returnTo) => {
-      expect(() =>
-        WebPathService.activityDetail({
-          projectId: "project-1",
-          entityType: "TASK",
-          entityId: "task-1",
-          returnTo,
-        })
-      ).toThrow("internal application path");
-    }
-  );
+  it.each([
+    "https://example.com",
+    "//example.com/path",
+    "projects/project-1/activity",
+  ])("rejects unsafe Activity detail return paths: %s", (returnTo) => {
+    expect(() =>
+      WebPathService.activityDetail({
+        projectId: "project-1",
+        entityType: "TASK",
+        entityId: "task-1",
+        returnTo,
+      }),
+    ).toThrow("internal application path");
+  });
 
   it("builds stable organization Activity filter paths", () => {
     expect(
@@ -303,9 +310,9 @@ describe("webPathService", () => {
         sinceLastVisit: false,
         limit: 25,
         offset: 50,
-      })
+      }),
     ).toBe(
-      "/organizations/organization-1/activity?projectId=project-1&userId=user-1&entityType=PLAN%2CTASK&activityMode=ALL&activityType=NOTIFICATION%2CVIEWED&source=REPORT%2CSYSTEM&serviceId=service-1&since=2026-03-01T00%3A00%3A00.000Z&until=2026-03-02T00%3A00%3A00.000Z&affectsMe=true&sinceLastVisit=false&limit=25&offset=50"
+      "/organizations/organization-1/activity?projectId=project-1&userId=user-1&entityType=PLAN%2CTASK&activityMode=ALL&activityType=NOTIFICATION%2CVIEWED&source=REPORT%2CSYSTEM&serviceId=service-1&since=2026-03-01T00%3A00%3A00.000Z&until=2026-03-02T00%3A00%3A00.000Z&affectsMe=true&sinceLastVisit=false&limit=25&offset=50",
     );
   });
 
@@ -320,9 +327,9 @@ describe("webPathService", () => {
           windowEnd: "2026-03-02T00:00:00.000Z",
           actorScope: { mode: "ORGANIZATION" },
         },
-      })
+      }),
     ).toBe(
-      "/organizations/organization-1/activity?metric=TASK_COMPLETED&projectIds=project-2&projectIds=project-1&windowStart=2026-03-01T00%3A00%3A00.000Z&windowEnd=2026-03-02T00%3A00%3A00.000Z&actorScope=ORGANIZATION"
+      "/organizations/organization-1/activity?metric=TASK_COMPLETED&projectIds=project-2&projectIds=project-1&windowStart=2026-03-01T00%3A00%3A00.000Z&windowEnd=2026-03-02T00%3A00%3A00.000Z&actorScope=ORGANIZATION",
     );
   });
 
@@ -347,13 +354,17 @@ describe("webPathService", () => {
   it("uses the same canonical href for public conversation links and ownership resolution", () => {
     const params = { projectId: "project-1", conversationId: "conversation-1" };
     expect(WebPathService.conversation(params)).toBe(
-      "/projects/project-1/resolve-agent-session/conversation-1"
+      "/projects/project-1/resolve-agent-session/conversation-1",
     );
-    expect(WebPathService.conversation(params)).toBe(WebPathService.resolveAgentSession(params));
+    expect(WebPathService.conversation(params)).toBe(
+      WebPathService.resolveAgentSession(params),
+    );
     expect(WebPathService.sessionlessConversation(params)).toBe(
-      "/projects/project-1/sessionless-conversations/conversation-1"
+      "/projects/project-1/sessionless-conversations/conversation-1",
     );
-    expect(WebPathService.sessionlessConversation(params)).not.toBe(WebPathService.conversation(params));
+    expect(WebPathService.sessionlessConversation(params)).not.toBe(
+      WebPathService.conversation(params),
+    );
   });
 
   it("builds conversation-based agent-session resolver paths", () => {

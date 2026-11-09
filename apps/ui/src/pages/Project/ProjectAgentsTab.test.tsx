@@ -28,6 +28,7 @@ const mockConversations = vi.fn();
 const mockAutomation = vi.fn();
 const mockCosts = vi.fn();
 const mockUsage = vi.fn();
+const mockUsageTrends = vi.fn();
 
 vi.mock("nuqs", () => ({
   parseAsStringLiteral: () => ({ withDefault: () => ({}) }),
@@ -70,6 +71,10 @@ vi.mock("./views", () => ({
   UsageView: (props: unknown) => {
     mockUsage(props);
     return <div>Usage panel</div>;
+  },
+  UsageTrendsView: (props: unknown) => {
+    mockUsageTrends(props);
+    return <div>Usage trends panel</div>;
   },
 }));
 
@@ -115,6 +120,7 @@ describe("ProjectAgentsTab", () => {
       "evals",
       "costs",
       "usage",
+      "usage-trends",
     ]);
     expect(mockEvalList).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -168,6 +174,7 @@ describe("ProjectAgentsTab", () => {
           { value: "automation", label: "Automation" },
           { value: "costs", label: "Costs" },
           { value: "usage", label: "Usage" },
+          { value: "usage-trends", label: "Usage Trends" },
         ],
         value: "agent-sessions",
       }),
@@ -279,5 +286,17 @@ describe("ProjectAgentsTab", () => {
     });
     expect(screen.getByText("Usage panel")).toBeInTheDocument();
     expect(screen.queryByText("Costs panel")).not.toBeInTheDocument();
+  });
+
+  it("restores Usage Trends from a direct link without showing provider Usage", () => {
+    mockQueryState.agentsSubTab = "usage-trends";
+    renderTab();
+
+    expect(mockUsageTrends).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      projectId: "project-1",
+    });
+    expect(screen.getByText("Usage trends panel")).toBeInTheDocument();
+    expect(screen.queryByText("Usage panel")).not.toBeInTheDocument();
   });
 });

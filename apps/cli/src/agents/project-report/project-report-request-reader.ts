@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ProjectReportsApiAxiosParamCreator } from '@hey-hey/contracts/api';
 import {
   ActivityCorrelationActivityType,
   ActivityCorrelationSource,
@@ -7,9 +8,8 @@ import {
   ProjectReportLaunchConfigEffortEnum,
   ProjectReportProvider,
   ProjectReportStatus,
-  ProjectReportsApiAxiosParamCreator,
   type ProjectReportRequestDto,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { ServerLogger } from '../../server/logger';
 
 export type ProjectReportRequestProjection = Pick<

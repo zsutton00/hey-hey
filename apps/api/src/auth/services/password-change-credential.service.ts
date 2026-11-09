@@ -2,7 +2,10 @@ import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-import { BrowserAuthResponseDto, OrganizationRole } from '../../generated';
+import {
+  BrowserAuthResponseDto,
+  OrganizationRole,
+} from '@hey-hey/contracts/api/models';
 import {
   AnyTransactionClient,
   PrismaService,

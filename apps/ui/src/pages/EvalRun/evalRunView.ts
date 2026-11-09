@@ -9,8 +9,10 @@ import {
   type EvalModelSetting,
   type EvalRunSettings,
   type LaunchEvalRunRequestSettings,
-} from "@hey-hey/ui-common/api";
-import type { EvalAttemptReport } from "@hey-hey/ui-common/data";
+} from "@hey-hey/contracts/api";
+import { attemptRepeat, type EvalAttemptReport } from "@hey-hey/ui-common/data";
+
+import { automatedAssessment } from "./evalResultsView";
 
 /** The judge a new run starts with; the person starting the run can change it. */
 export const DEFAULT_JUDGE_SETUP = {
@@ -20,6 +22,7 @@ export const DEFAULT_JUDGE_SETUP = {
 } satisfies EvalModelSetting;
 
 export const DEFAULT_CONCURRENCY = 3;
+export const MAX_REPEATS = 10;
 
 /** One step of a per-attempt limit: none, a preset, or a custom value. */
 export type LimitChoice =
@@ -47,6 +50,8 @@ export interface RunSettingsDraft {
   handler: EvalTargetHandlerKey | null;
   /** Whether Project Assistant prepares the handler first, as in real use. Not offered for Project Assistant alone. */
   projectAssistantEnabled: boolean;
+  /** Separate fresh attempts per case and setup; null while not a whole number. */
+  repeats: number | null;
 }
 
 export const defaultRunSettings = (): RunSettingsDraft => ({
@@ -55,7 +60,11 @@ export const defaultRunSettings = (): RunSettingsDraft => ({
   tokenLimit: { kind: "none" },
   handler: null,
   projectAssistantEnabled: true,
+  repeats: 1,
 });
+
+export const isValidRepeats = (value: number | null): value is number =>
+  isPositiveInteger(value) && (value as number) <= MAX_REPEATS;
 
 const limitValue = (choice: LimitChoice): number | null | undefined =>
   choice.kind === "none" ? undefined : choice.value;
@@ -71,6 +80,7 @@ export const toLaunchSettings = (
   draft: RunSettingsDraft,
 ): LaunchEvalRunRequestSettings | null => {
   if (!isPositiveInteger(draft.concurrency)) return null;
+  if (!isValidRepeats(draft.repeats)) return null;
   const minutes = limitValue(draft.timeLimit);
   const tokens = limitValue(draft.tokenLimit);
   if (minutes !== undefined && !isPositiveInteger(minutes)) return null;
@@ -81,6 +91,7 @@ export const toLaunchSettings = (
       ? { attemptTimeLimitSeconds: (minutes as number) * 60 }
       : {}),
     ...(tokens !== undefined ? { attemptTokenLimit: tokens as number } : {}),
+    repeatsPerAttempt: draft.repeats,
   };
 };
 
@@ -271,49 +282,79 @@ export const attemptCellView = (
   }
 };
 
-export type ProgressEntry =
-  | { kind: "started"; at: string; attempt: EvalAttemptReport }
-  | { kind: "finished"; at: string; attempt: EvalAttemptReport }
-  | {
-      kind: "error";
-      at: string;
-      attempt: EvalAttemptReport;
-      message: string | null;
-    }
-  | { kind: "stopped"; at: string; attempt: EvalAttemptReport; stop: StopView };
+/** Progress through one case and setup's repeats while the run is going. */
+export interface RepeatCellView {
+  total: number;
+  ended: number;
+  queued: number;
+  running: {
+    repeat: number;
+    elapsedMs: number | null;
+    phase: "preparing" | "judging" | null;
+  }[];
+  /** Judged repeats that recognised the need, out of those judged so far. */
+  correct: number;
+  assessed: number;
+  stopped: { repeat: number; stop: StopView }[];
+  errored: {
+    repeat: number;
+    message: string | null;
+    sessionId: string | null;
+  }[];
+}
 
-/**
- * One entry per attempt start and end, oldest first, derived from the
- * attempts' recorded times. An attempt that ended without a recorded end
- * time still gets its end entry, placed just after its start.
- */
-export const progressEntries = (
+export const repeatCellView = (
   attempts: readonly EvalAttemptReport[],
   settings: EvalRunSettings,
-): ProgressEntry[] => {
-  const entries: ProgressEntry[] = [];
-  for (const attempt of attempts) {
-    const { startedAt, completedAt, status } = attempt.payload;
-    if (startedAt) entries.push({ kind: "started", at: startedAt, attempt });
-    if (!isAttemptEnded(attempt)) continue;
-    const at = completedAt ?? startedAt ?? attempt.createdAt;
-    if (status === EvalAttemptStatus.Completed) {
-      entries.push({ kind: "finished", at, attempt });
-    } else if (status === EvalAttemptStatus.Error) {
-      entries.push({
-        kind: "error",
-        at,
-        attempt,
-        message: attemptErrorMessage(attempt),
+  now: number,
+  coordinatorSessionId: string | null,
+): RepeatCellView => {
+  const view: RepeatCellView = {
+    total: attempts.length,
+    ended: 0,
+    queued: 0,
+    running: [],
+    correct: 0,
+    assessed: 0,
+    stopped: [],
+    errored: [],
+  };
+  const ordered = [...attempts].sort(
+    (left, right) => attemptRepeat(left) - attemptRepeat(right),
+  );
+
+  for (const attempt of ordered) {
+    const repeat = attemptRepeat(attempt);
+    const cell = attemptCellView(attempt, settings, now, coordinatorSessionId);
+    if (isAttemptEnded(attempt)) {
+      view.ended += 1;
+    }
+
+    if (cell.kind === "queued") {
+      view.queued += 1;
+    } else if (cell.kind === "running") {
+      view.running.push({
+        repeat,
+        elapsedMs: cell.elapsedMs,
+        phase: cell.phase,
+      });
+    } else if (cell.kind === "stopped") {
+      view.stopped.push({ repeat, stop: cell.stop });
+    } else if (cell.kind === "error") {
+      view.errored.push({
+        repeat,
+        message: cell.message,
+        sessionId: cell.sessionId,
       });
     } else {
-      entries.push({
-        kind: "stopped",
-        at,
-        attempt,
-        stop: stopView(attempt, settings),
-      });
+      const assessment = automatedAssessment(attempt);
+      if (assessment) {
+        view.assessed += 1;
+        if (assessment.recognition.recognized) {
+          view.correct += 1;
+        }
+      }
     }
   }
-  return entries.sort((a, b) => a.at.localeCompare(b.at));
+  return view;
 };

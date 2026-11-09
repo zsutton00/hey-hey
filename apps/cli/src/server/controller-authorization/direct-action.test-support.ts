@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { vi } from 'vitest';
 import { hashControllerAction } from '../../shared/api/generated/controller-action-contract';
-import type { HostActionPreparation } from '../../shared/api/generated/api';
+import type { HostActionPreparation } from '@hey-hey/contracts/api/models';
 import type { ExecutableEnvelopeAuthorization } from './types';
 import { CURRENT_AGENT_OPERATIONS, CURRENT_AGENT_OPERATION_CATEGORY } from './types';
 import {
@@ -15,6 +15,12 @@ import { ExecutionGrantStore } from './execution-grant-store';
 import { TriggerVerifier } from '../trigger-verification/verify';
 import { canonicalizeJson } from '../trigger-verification/jcs';
 import { NOOP_LOGGER } from '../logger';
+import {
+  toOpenApiMachineId,
+  toOpenApiOrganizationId,
+  toOpenApiProjectId,
+  toOpenApiUserId,
+} from '../../shared/api/identifierAdapters';
 
 export const directActionIds = {
   machineId: '77777777-7777-4777-8777-777777777777',
@@ -39,13 +45,13 @@ export function directActionHarness(action: HostActionPreparation) {
     scope: 'controller_device_window' as const,
     controllerCredentialId: directActionIds.controllerId,
     controllerInstallationId: directActionIds.installationId,
-    machineId: directActionIds.machineId,
-    userId: directActionIds.userId,
-    organizationId: directActionIds.organizationId,
+    machineId: toOpenApiMachineId(directActionIds.machineId),
+    userId: toOpenApiUserId(directActionIds.userId),
+    organizationId: toOpenApiOrganizationId(directActionIds.organizationId),
     cadence: 'FIVE_MINUTES' as const,
     policyRevision: 1,
-    allowedActionTypes: new Set(CURRENT_AGENT_OPERATIONS),
-    allowedActionCategories: new Set(categories),
+    allowedActionTypes: [...CURRENT_AGENT_OPERATIONS],
+    allowedActionCategories: categories,
     issuedAtMs: now - 1000,
     effectiveExpiresAtMs: now + 299000,
   };
@@ -54,10 +60,10 @@ export function directActionHarness(action: HostActionPreparation) {
     authorizationId: crypto.randomUUID(),
     controllerCredentialId: directActionIds.controllerId,
     controllerInstallationId: directActionIds.installationId,
-    machineId: directActionIds.machineId,
-    userId: directActionIds.userId,
-    organizationId: directActionIds.organizationId,
-    projectId: directActionIds.projectId,
+    machineId: toOpenApiMachineId(directActionIds.machineId),
+    userId: toOpenApiUserId(directActionIds.userId),
+    organizationId: toOpenApiOrganizationId(directActionIds.organizationId),
+    projectId: toOpenApiProjectId(directActionIds.projectId),
     cadence: 'FIVE_MINUTES' as const,
     policyRevision: 1,
     effectiveGrantExpiresAtMs: descriptor.effectiveExpiresAtMs,
@@ -68,8 +74,8 @@ export function directActionHarness(action: HostActionPreparation) {
     actionCategory: action.actionCategory,
     actionType: action.actionType,
     actionPayloadHash: hashControllerAction(action),
-    allowedActionTypes: new Set(CURRENT_AGENT_OPERATIONS),
-    allowedActionCategories: new Set(categories),
+    allowedActionTypes: [...CURRENT_AGENT_OPERATIONS],
+    allowedActionCategories: categories,
     target: { kind: action.targetKind, id: action.targetId, revision: null },
     agentSessionId: action.targetKind === 'AGENT_SESSION' ? action.targetId : null,
     taskMonitorId: action.targetKind === 'TASK_MONITOR' ? action.targetId : null,
@@ -118,9 +124,9 @@ export function directActionHarness(action: HostActionPreparation) {
       read: async () => ({
         controllers: [
           {
-            machineId: directActionIds.machineId,
-            accountId: directActionIds.userId,
-            organizationId: directActionIds.organizationId,
+            machineId: toOpenApiMachineId(directActionIds.machineId),
+            accountId: toOpenApiUserId(directActionIds.userId),
+            organizationId: toOpenApiOrganizationId(directActionIds.organizationId),
             authorizationProtocolVersion: 2,
             controllerCredentialId: directActionIds.controllerId,
             controllerCredentialPublicKey: { kty: 'EC', crv: 'P-256', x: jwk.x!, y: jwk.y! },
@@ -153,7 +159,10 @@ export function directActionHarness(action: HostActionPreparation) {
   });
   const frame = <TBody extends object>(
     type:
-      'cli.read.request' | 'trigger.control' | 'trigger.conversation' | 'trigger.monitor_command',
+      | 'cli.read.request'
+      | 'trigger.control'
+      | 'trigger.conversation'
+      | 'trigger.monitor_command',
     body: TBody,
     conversationId: string,
   ) => {

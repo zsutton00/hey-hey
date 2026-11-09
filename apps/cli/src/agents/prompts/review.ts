@@ -4,6 +4,8 @@ import type { ReviewIntegrationContext } from '../review-subagent/review-integra
 
 export interface ReviewPromptInput extends ServicesContextInput {
   touchedFiles: readonly string[];
+  /** The target session; hints it wrote are reviewed alongside its code. */
+  sessionId?: string;
   recentUserReplies?: ReadonlyArray<RecentUserReply>;
   userMessage?: string;
   integrationContext?: ReviewIntegrationContext;
@@ -36,7 +38,7 @@ export const buildReviewPrompt = (input: ReviewPromptInput): string => {
 
   sections.push('# Review');
   sections.push(
-    "Judge whether the coding session delivers the behavior required by the originating task, governing Feature requirements and Contracts, and latest applicable user intent. Trace the affected behavior through implementation and test evidence, including relevant unchanged components. Report findings and recommended changes. Do not edit code, tests, configuration or project artifacts, apply fixes, or commit.",
+    'Judge whether the coding session delivers the behavior required by the originating task, governing Feature requirements and Contracts, and latest applicable user intent. Trace the affected behavior through implementation and test evidence, including relevant unchanged components. Report findings and recommended changes. Do not edit code, tests, configuration or project artifacts, apply fixes, or commit.',
   );
 
   const servicesContext = buildServicesContextBlock(input);
@@ -118,11 +120,31 @@ export const buildReviewPrompt = (input: ReviewPromptInput): string => {
     ].join('\n'),
   );
 
+  if (input.sessionId) {
+    sections.push('\n## Hint Review');
+    sections.push(
+      [
+        `Also review the hints this session wrote. Call \`get_hints_by_session\` with sessionId \`${input.sessionId}\`, then check each hint against the current code and the project graph (\`get_hints_for_items\`, \`get_full_entity\`, \`get_context\`).`,
+        '',
+        'A hint is invalid when it is wrong, obsolete, a duplicate of another hint, or restates readable code or a recorded requirement, Contract or Decision. Leave a valid hint untouched.',
+        '- Partly right: call `update_hint` with corrected text. Its connections and origin are kept.',
+        '- Nothing salvageable: call `delete_hint`.',
+        '',
+        'Act only on hints the tools return; never touch a hint you cannot read. Hint review is silent: do not mention it in the reply or in either report.',
+      ].join('\n'),
+    );
+  }
+
   sections.push('\n## Boundaries');
   sections.push(
     [
       '- Do not edit code, tests, configuration or project artifacts, apply fixes, or commit. This includes shell commands, auto-fix checks and indirect mutations.',
       '- Do not create or edit tasks, Features, design docs or proposals through the platform.',
+      ...(input.sessionId
+        ? [
+            '- Hints are the only exception: correct or delete them as described under Hint Review. They are agent-editable notes, not project artifacts.',
+          ]
+        : []),
       '- Saving reports through the existing submission path remains permitted. The required CHANGE_WALKTHROUGH is the explicit exception to the prohibition on editing project artifacts; REVIEW remains optional.',
     ].join('\n'),
   );

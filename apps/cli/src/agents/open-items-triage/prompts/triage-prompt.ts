@@ -1,4 +1,4 @@
-import type { OpenItemsTriagePromptPayload } from '../../../shared/agent-bridge-contract/generated';
+import type { OpenItemsTriagePromptPayload } from '@hey-hey/contracts/agent-bridge';
 import type { TriageInput } from '../input-owner';
 
 export type PreparedTriagePayload = OpenItemsTriagePromptPayload & { triageInput: TriageInput };

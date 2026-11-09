@@ -1,16 +1,12 @@
-import type { ReadRestriction } from '../shared/api/generated/api';
-import type { FullEntityContextDto } from '../shared/api/generated';
+import type { ProceduralProvider } from '../run/runners/procedural-provider';
+import type { ReadRestriction } from '@hey-hey/contracts/api/models';
+import type { FullEntityContextDto } from '@hey-hey/contracts/api/models';
 import type { EvalAttemptExecution } from './run-eval/eval-attempt-execution';
-import { projectModeSettingsJsonSchema } from '../generated/project-mode-contract.schema';
-import type {
-  ImplementRuntimeSelection,
-  SessionRole,
-} from '../shared/agent-bridge-contract/generated/api';
-import type { LocalPromptType } from '../shared/agent-bridge-contract/generated';
+import type { ImplementRuntimeSelection, SessionRole } from '@hey-hey/contracts/agent-bridge';
+import type { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../session/types';
 import type { AgentProviderId } from './providers/provider-config';
 import type { RunStore } from '../run-store/run-store';
-import type { PreparationRecords } from './preparation-records';
 import type { ReportAudience, ReportType, UpdateMessageDto } from '../shared/api/index';
 import type {
   AssistantDeltaEvent,
@@ -41,9 +37,9 @@ import type { TaskMonitorDecisionStore } from './task-monitor/task-monitor-decis
 import type { SessionMonitorEvaluationStore } from './session-monitor';
 import type { LoadedEntityPromptContext } from './entity-context/types';
 import type {
-  ImplementationReadinessFinding,
+  ImplementationReadinessStoredFinding,
   ImplementationReadinessSourceSnapshot,
-} from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { ResponseTypeToken } from './response-dispatch';
 import type {
   AgentStartupPromptInput,
@@ -52,6 +48,7 @@ import type {
   AgentStartupPromptTemplateProvenance,
 } from '../commands/agent-startup-prompt-input';
 import type { RepositoryResearchCapability } from './providers/session-runner';
+import type { DecisionModel } from './context-trimming/context-trimmer';
 
 export type { RecentUserReply };
 
@@ -65,15 +62,6 @@ export type { RecentUserReply };
  * resolver. Always present on the resolver-built context — empty when no
  * user messages fall in the trigger's window.
  */
-/** The input a runner hands to the provider; `parts` keep the boundaries of separate segments. */
-export interface ProviderInputRecord {
-  runId: string;
-  turnId: string;
-  payload: unknown;
-  logger: ServerLogger;
-  parts: { name: string; text: string }[];
-}
-
 export interface PromptTypeHandlerContext {
   /** Agentic Run identity used to correlate handler diagnostics across a Turn. */
   runId?: string;
@@ -102,7 +90,7 @@ export interface PromptTypeHandlerContext {
    * the fresh assessment can resolve it, whether or not the provider session
    * still holds the earlier exchange.
    */
-  implementationReadinessClarification?: { finding: ImplementationReadinessFinding | null };
+  implementationReadinessClarification?: { finding: ImplementationReadinessStoredFinding | null };
   recentUserReplies: ReadonlyArray<RecentUserReply>;
   /**
    * `parentMessageId` of the trigger message that started this Turn, computed
@@ -143,8 +131,6 @@ export interface PromptTypeHandlerContext {
 
 export interface PromptTypeHandlerDeps {
   evalAttemptExecution?: EvalAttemptExecution;
-  /** Where `prepare` records its work; handlers never touch the run store directly. */
-  preparationRecords: PreparationRecords;
   fetchImpl: typeof fetch;
   auth: SubmissionToolAuth;
   apiBaseUrl: string;
@@ -160,23 +146,13 @@ export interface PromptTypeHandlerDeps {
   sessionMonitorEvaluationStore: SessionMonitorEvaluationStore;
   /** Authoritative first-turn entity startup-input owner. */
   startupPromptInput: AgentStartupPromptInput;
+  /** Optional model used to narrow graph reads at the shared platform proxy boundary. */
+  decisionModel?: DecisionModel;
+  /** Existing CLI-wide model switch, read while preparing each eligible Turn. */
+  isDecisionModelEnabled?: () => Promise<boolean>;
   /** Shared launcher for handlers that fan work out to registered child handlers. */
   childAgentLauncher: Pick<ChildAgentLauncher, 'launchRegistered' | 'resolveChildHandler'>;
-  /**
-   * One-off, tool-free model call on the Run's own provider, model and effort.
-   * Cancelled by the Turn's abort signal; rejects on failure. The Run sets
-   * `startPhase` when the call begins and `endPhase` when it settles; an
-   * omitted phase leaves the Run's state unchanged.
-   */
-  promptOnce(args: {
-    prompt: string;
-    startPhase?: ProviderPhase;
-    endPhase?: ProviderPhase;
-  }): Promise<string>;
 }
-
-/** Handler deps the application owns; the Run binds `promptOnce` to itself. */
-export type PromptTypeHandlerBaseDeps = Omit<PromptTypeHandlerDeps, 'promptOnce'>;
 
 export type { AgentStartupPromptInputResult, AgentStartupPromptTemplate };
 
@@ -254,12 +230,6 @@ export interface OnCompleteDeps {
 export interface PrepareResult<TPayload> {
   payload: TPayload;
   sessionContext?: Record<string, unknown>;
-  /**
-   * A relevance-narrowed copy of the loaded entity Context. The resolver re-renders it with the
-   * template already selected for the Run and delivers that block to this Turn's provider instead
-   * of the original one. The canonical loaded Context itself is never changed.
-   */
-  startupContextReplacement?: FullEntityContextDto;
 }
 
 export interface ResolveAdditionalAllowedToolsArgs<TPayload> {
@@ -442,6 +412,7 @@ export interface SubagentConfig {
  * (task B4) asserts each `required` variant landed before the turn ends.
  */
 export interface ProceduralRunContext {
+  provider: ProceduralProvider;
   session: AgenticSession;
   deps: PromptTypeHandlerDeps;
 }
@@ -453,7 +424,13 @@ export interface ReportSpec {
 }
 
 export interface PromptTypeHandler<TPayload> {
+  /**
+   * The work this handler's provider session does, selecting session-role
+   * guidance. Every handler declares this or `resolveSessionRole`; the
+   * registry rejects one that declares neither.
+   */
   readonly sessionRole?: SessionRole;
+  /** Resolves the role from Run-owned captured state when it is chosen at launch. */
   resolveSessionRole?(session: AgenticSession): SessionRole;
   /**
    * Stable identity of this logical agent. A Run persists this value as the
@@ -646,7 +623,7 @@ export interface PromptTypeHandler<TPayload> {
   /** Persist an actionable, terminal result when this handler cannot start its Turn. */
   onStartupFailure?(
     payload: TPayload,
-    context: { session: AgenticSession; deps: PromptTypeHandlerBaseDeps },
+    context: { session: AgenticSession; deps: PromptTypeHandlerDeps },
     message: string,
   ): Promise<void>;
 
@@ -815,14 +792,6 @@ export interface PromptTypeHandler<TPayload> {
   transformInput?(userMessage: string): string | null;
 
   /**
-   * Called by the provider-session runners with the exact input handed to the
-   * provider, after all prompt assembly, and before the provider call. Lets a
-   * handler keep a verbatim copy of what its agent received. A failure here
-   * fails the Turn, so implementations must only throw on a real write error.
-   */
-  recordProviderInput?(record: ProviderInputRecord): Promise<void>;
-
-  /**
    * Async post-completion hook. Called after the message update has been
    * posted successfully. Use for side effects that require API calls
    * (e.g. report creation). Failures here do not block the message.
@@ -853,17 +822,6 @@ export interface PromptTypeHandler<TPayload> {
    * handler can close the workflow with a typed `invalid_completion` result.
    */
   getCompletionAction?(event: AssistantCompleteEvent, payload?: unknown): CompletionAction | null;
-
-  /**
-   * Returns a user-facing notice when a completion with no recognised
-   * response type left the Turn's required output unsaved. The notice leads
-   * the ordinary reply; the Turn still completes so the user can retry.
-   */
-  getUnsavedOutputNotice?(
-    event: AssistantCompleteEvent,
-    payload: unknown,
-    saved: { codingPlanElementTypes: readonly string[] },
-  ): string | null;
 
   /**
    * Maps a provider-runner failure into an EXTERNAL_AGENT action when the
@@ -935,14 +893,20 @@ export interface UserLaunchablePromptTypeHandler<
   addUserMessage(payload: TPayload): string | null;
 }
 
+/** Whether the handler states its session role, as every provider-session handler must. */
+export function declaresSessionRole<TPayload>(handler: PromptTypeHandler<TPayload>): boolean {
+  return handler.sessionRole !== undefined || handler.resolveSessionRole !== undefined;
+}
+
 /** Resolve only the executing handler; selected modes never set a Run-wide role. */
 export function resolveHandlerSessionRole<TPayload>(
   handler: PromptTypeHandler<TPayload>,
   session: AgenticSession,
 ): SessionRole {
-  return (
-    handler.resolveSessionRole?.(session) ??
-    handler.sessionRole ??
-    projectModeSettingsJsonSchema.properties.sessionRole.default
-  );
+  const role = handler.resolveSessionRole?.(session) ?? handler.sessionRole;
+  if (role === undefined) {
+    throw new Error(`Handler '${handler.id}' does not declare a session role.`);
+  }
+
+  return role;
 }

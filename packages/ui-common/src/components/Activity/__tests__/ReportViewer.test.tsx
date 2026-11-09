@@ -1,6 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { ReportAudience, ReportType, type ReportDto } from "../../../api";
+import {
+  ReportAudience,
+  ReportType,
+  type CodingResearchReportPayload,
+  type ReportDto,
+} from "../../../api";
 import { ReportViewer } from "../../Reports/ReportViewer";
 import { StandardReportContent } from "../../Reports/viewer";
 import type { EvidencePipelineReportPayload } from "../../Reports/viewer/evidencePipelineTypes";
@@ -25,6 +30,7 @@ const reportFixture: ReportDto = {
 };
 
 const evidencePipelinePayload = {
+  reportType: "EVIDENCE_PIPELINE",
   plannerInput: {
     messageCount: 4,
     optionKeys: ["scope", "services"],
@@ -139,6 +145,46 @@ const evidencePipelineReportFixture: ReportDto = {
   entities: [],
 };
 
+const codingResearchPayload: CodingResearchReportPayload = {
+  reportType: "CODING_RESEARCH",
+  format: "SELF_RESEARCH",
+  summary: "The summary remains in the report card.",
+  analysis: "Detailed analysis stays behind its disclosure.",
+  uncertainties: [
+    {
+      category: "lack_of_evidence",
+      severity: "medium",
+      statement: "The report still has an unresolved question.",
+      references: [],
+    },
+  ],
+};
+
+const codingResearchReportFixture: ReportDto = {
+  ...reportFixture,
+  id: "report-coding-research",
+  reportType: ReportType.CodingResearch,
+  title: "Coding Research Report",
+  payload: codingResearchPayload,
+};
+
+const codingResearchWrittenReportFixture: ReportDto = {
+  ...codingResearchReportFixture,
+  id: "report-coding-research-written",
+  payload: {
+    reportType: "CODING_RESEARCH",
+    format: "SUBAGENT_PARENT",
+    summary: "The written report summary remains in the report card.",
+    analysis: [
+      "Analysis remains in the report card.",
+      "",
+      "## Uncertainties",
+      "",
+      "- **ambiguity · high** — A written report has an unresolved question. — References: none",
+    ].join("\n"),
+  },
+};
+
 describe("ReportViewer", () => {
   it("renders report frame with title, type and version", () => {
     render(<ReportViewer report={reportFixture} />);
@@ -182,6 +228,35 @@ describe("ReportViewer", () => {
 
     expect(screen.getByTestId("custom-prefix-report-42")).toBeInTheDocument();
   });
+
+  it.each([
+    ["structured", codingResearchReportFixture],
+    ["written", codingResearchWrittenReportFixture],
+  ])(
+    "renders %s open questions outside the report card while analysis stays collapsed",
+    (_, report) => {
+      render(<ReportViewer report={report} />);
+
+      const reportCard = screen.getByTestId(`report-viewer-${report.id}`);
+      const openQuestions = screen.getByTestId(
+        `report-viewer-${report.id}-coding-research-uncertainties`,
+      );
+
+      expect(reportCard).not.toContainElement(openQuestions);
+      expect(reportCard.nextElementSibling).toBe(openQuestions);
+      expect(openQuestions).toHaveTextContent("Open questions");
+      expect(
+        screen.getByTestId(
+          `report-viewer-${report.id}-coding-research-summary`,
+        ),
+      ).toBeVisible();
+      expect(
+        screen.getByTestId(
+          `report-viewer-${report.id}-coding-research-analysis-toggle`,
+        ),
+      ).toHaveAttribute("aria-expanded", "false");
+    },
+  );
 
   it("renders evidence pipeline planner input and search steps", () => {
     render(<ReportViewer report={evidencePipelineReportFixture} />);

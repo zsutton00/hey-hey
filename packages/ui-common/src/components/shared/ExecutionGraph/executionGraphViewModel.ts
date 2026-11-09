@@ -1,3 +1,5 @@
+import type { WorkStatus } from "../../../api";
+
 export type ExecutionGraphNodeState =
   | "idle"
   | "eligible"
@@ -24,6 +26,8 @@ export interface ExecutionGraphViewModelNode {
   title: string;
   summary?: string;
   state: ExecutionGraphNodeState;
+  /** When set, the chip shows this Task status instead of the generic state label. */
+  taskStatus?: WorkStatus;
   entityType?: string;
   metadata: ExecutionGraphMetadataBadge[];
   notices?: ExecutionGraphNotice[];

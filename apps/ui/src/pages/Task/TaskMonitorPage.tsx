@@ -5,7 +5,7 @@ import {
   EntityType,
   RelationshipValue,
   type TaskResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { useFullEntityContext, useProject } from "@hey-hey/ui-common/data";
 
 import { TaskBreadcrumbs } from "../../components/TaskBreadcrumbs";

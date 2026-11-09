@@ -1,4 +1,4 @@
-import type { PlanShapingApprovedVisual } from '../../shared/agent-bridge-contract/generated/api';
+import type { PlanShapingApprovedVisual } from '@hey-hey/contracts/agent-bridge';
 
 const MENTION_TYPE: Record<PlanShapingApprovedVisual['entityType'], string> = {
   MOCKUP: 'mockup',

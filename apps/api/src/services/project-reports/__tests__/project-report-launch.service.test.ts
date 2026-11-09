@@ -2,7 +2,7 @@ import {
   MachineExecutionReadinessState,
   type ConversationStartRunRequestDto,
   type ProjectReportRequestDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId, UserId } from 'src/types';
 import { AgentSessionService } from 'src/services/agent-session.service';

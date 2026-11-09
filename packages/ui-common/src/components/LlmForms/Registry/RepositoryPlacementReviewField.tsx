@@ -18,6 +18,7 @@ import type {
   RepositoryPlacementReviewRoot,
   TaskResponseDto,
 } from "../../../api";
+import { toOpenApiTaskId } from "../../../clients/contractIdentifierAdapters";
 import { FeaturePicker } from "../../Features/FeaturePicker";
 import { useFeatureLookup } from "../../../data/hooks/useFeatureHierarchy";
 import { useFeatureDocumentContent } from "../../../data/hooks/useFeatureDocumentContent";
@@ -28,7 +29,7 @@ import type {
 } from "./types";
 
 const isReviewPayload = (
-  payload: unknown
+  payload: unknown,
 ): payload is RepositoryPlacementReviewPayload =>
   typeof payload === "object" &&
   payload !== null &&
@@ -37,7 +38,7 @@ const isReviewPayload = (
 
 const targetsMatch = (
   first: RepositoryPlacementCompletionTarget,
-  second: RepositoryPlacementCompletionTarget
+  second: RepositoryPlacementCompletionTarget,
 ): boolean =>
   first.kind === second.kind &&
   (first.kind === "PROJECT_ROOT" ||
@@ -46,13 +47,13 @@ const targetsMatch = (
 
 const getKnownLineage = (
   payload: RepositoryPlacementReviewPayload,
-  target: RepositoryPlacementCompletionTarget
+  target: RepositoryPlacementCompletionTarget,
 ): RepositoryPlacementLineageFeature[] | undefined => {
   if (target.kind === "PROJECT_ROOT") return [];
 
   for (const reviewRoot of payload.roots) {
     const targetIndex = reviewRoot.selectedParentLineage.findIndex(
-      ({ featureId }) => featureId === target.featureId
+      ({ featureId }) => featureId === target.featureId,
     );
     if (targetIndex >= 0) {
       return reviewRoot.selectedParentLineage.slice(0, targetIndex + 1);
@@ -70,7 +71,7 @@ type LineageLoadState =
 function resolveCachedLineage(
   id: string,
   lookup: ReturnType<typeof useFeatureLookup>,
-  entries: ReturnType<typeof useFeatureDocumentContent>["entries"]
+  entries: ReturnType<typeof useFeatureDocumentContent>["entries"],
 ): LineageLoadState {
   const ancestry = lookup.resolveAncestry(id);
   if (!ancestry.complete) return { status: "error" };
@@ -89,10 +90,10 @@ function resolveCachedLineage(
     }
     const parentId = lookup.get(feature.id)?.parentTaskId;
     lineage.push({
-      featureId: feature.id,
+      featureId: toOpenApiTaskId(feature.id),
       name: feature.name,
       tag: entry.data.tag,
-      ...(parentId ? { parentFeatureId: parentId } : {}),
+      ...(parentId ? { parentFeatureId: toOpenApiTaskId(parentId) } : {}),
     });
   }
   return loading ? { status: "loading" } : { status: "ready", lineage };
@@ -254,9 +255,9 @@ export const RepositoryPlacementReviewField: React.FC<
         (value?.payload.overrides ?? []).map((override) => [
           override.rootKey,
           override.target,
-        ])
+        ]),
       ),
-    [value]
+    [value],
   );
   const readOnly = disabled || isSubmitted;
 
@@ -268,17 +269,17 @@ export const RepositoryPlacementReviewField: React.FC<
           payload &&
           !getKnownLineage(payload, target)
             ? [target.featureId]
-            : []
-        )
+            : [],
+        ),
       ),
     ],
-    [overridesByRoot, payload]
+    [overridesByRoot, payload],
   );
   const requestedIds = [
     ...new Set(
       lineageIds.flatMap((id) =>
-        lookup.resolveAncestry(id).ancestors.map((feature) => feature.id)
-      )
+        lookup.resolveAncestry(id).ancestors.map((feature) => feature.id),
+      ),
     ),
   ];
   const { entries } = useFeatureDocumentContent(
@@ -286,7 +287,7 @@ export const RepositoryPlacementReviewField: React.FC<
     context.projectId,
     requestedIds,
     undefined,
-    "metadata"
+    "metadata",
   );
   const loadedLineages = useMemo(() => {
     const result: Record<string, LineageLoadState> = {};
@@ -332,14 +333,14 @@ export const RepositoryPlacementReviewField: React.FC<
   const changeParent = (rootKey: string, featureId: string | null) => {
     if (!value) return;
     const target: RepositoryPlacementCompletionTarget = featureId
-      ? { kind: "EXISTING_FEATURE", featureId }
+      ? { kind: "EXISTING_FEATURE", featureId: toOpenApiTaskId(featureId) }
       : { kind: "PROJECT_ROOT" };
     onChange?.({
       ...value,
       payload: {
         ...value.payload,
         overrides: value.payload.overrides.map((override) =>
-          override.rootKey === rootKey ? { ...override, target } : override
+          override.rootKey === rootKey ? { ...override, target } : override,
         ),
       },
     });
@@ -369,7 +370,7 @@ export const RepositoryPlacementReviewField: React.FC<
           (loadedLineage?.status === "ready" ? loadedLineage.lineage : []);
         const lineageStatus = knownLineage
           ? "ready"
-          : loadedLineage?.status ?? "loading";
+          : (loadedLineage?.status ?? "loading");
         return (
           <RootReview
             key={review.root.rootKey}

@@ -59,6 +59,54 @@ describe('GraphsClientService projection deletion', () => {
     );
   });
 
+  it('checks work-item readiness with the scoped service token', async () => {
+    const request: import('src/generated/graphs').WorkItemProjectReadinessRequest =
+      {
+        workItems: [
+          {
+            id: '128754cc-10ca-4ff3-9fe5-3e6ae4b41fc3',
+            typeKey: 'CUSTOM_CHECKLIST',
+            parentTaskId: '',
+          },
+        ],
+      };
+    const response = { verifiedCount: 1 };
+    const queries = {
+      checkWorkItemProjectReadiness: jest
+        .fn()
+        .mockReturnValue(of({ data: response })),
+    };
+    const service = new GraphsClientService(
+      queries as never,
+      {} as never,
+      {} as never,
+      passThroughReadScope as never,
+    );
+
+    await expect(
+      service.checkWorkItemProjectReadiness(
+        'org' as never,
+        'project' as never,
+        request,
+        'scoped-token',
+      ),
+    ).resolves.toEqual(response);
+    expect(queries.checkWorkItemProjectReadiness).toHaveBeenCalledWith(
+      'org',
+      'project',
+      request,
+      {
+        config: {
+          headers: {
+            Authorization: 'Bearer scoped-token',
+            'X-API-Auth': 'Bearer scoped-token',
+            'Content-Type': 'application/json',
+          },
+        },
+      },
+    );
+  });
+
   it('reads generated incident groups with authentication and without traversal', async () => {
     const request: import('src/generated/graphs').IncidentEdgesRequest = {
       seedEntityIds: ['123e4567-e89b-42d3-a456-426614174099'],

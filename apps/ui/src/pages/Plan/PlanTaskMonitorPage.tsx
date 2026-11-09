@@ -1,5 +1,5 @@
 import { createNavigationLineageEntry } from "@hey-hey/ui-common";
-import type { TaskResponseDto } from "@hey-hey/ui-common/api";
+import type { TaskResponseDto } from "@hey-hey/contracts/api";
 import {
   CanonicalPageBoundary,
   createCanonicalPageDescriptor,
@@ -31,8 +31,7 @@ export const PlanTaskMonitorPage = () => {
     resolvedMonitorId,
     {
       projectId: resolvedProjectId,
-      enabled:
-        !!organizationId && !!resolvedProjectId && !!resolvedMonitorId,
+      enabled: !!organizationId && !!resolvedProjectId && !!resolvedMonitorId,
     },
   );
 
@@ -70,10 +69,7 @@ export const PlanTaskMonitorPage = () => {
           gap: 2,
         }}
       >
-        <CircularProgress
-          size={40}
-          data-testid="plan-task-monitor-loading"
-        />
+        <CircularProgress size={40} data-testid="plan-task-monitor-loading" />
         <Typography variant="body1" color="text.secondary">
           Loading Task Monitor...
         </Typography>

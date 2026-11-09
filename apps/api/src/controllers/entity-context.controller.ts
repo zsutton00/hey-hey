@@ -23,7 +23,7 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OrganizationGuard } from '../auth/guards/organization.guard';
 import type { OrganizationId, ProjectId } from '../types';
-import { EntityType } from '../generated/model/entityType';
+import { EntityType } from '@hey-hey/contracts/api/models';
 import {
   EntityContextService,
   type ActiveGoalsResponseDto,
@@ -39,7 +39,7 @@ import type { TaskId } from '../types';
 import {
   ProposalDetail,
   type ProposalDetail as ProposalDetailType,
-} from '../generated/model/proposalDetail';
+} from '@hey-hey/contracts/api/models';
 
 const LIST_FEATURES_DEFAULT_LIMIT = 200;
 const LIST_FEATURES_MAX_LIMIT = 500;
@@ -99,6 +99,15 @@ export class EntityContextController {
       'Defaults to one hop.',
   })
   @ApiQuery({
+    name: 'groupRelationships',
+    required: false,
+    type: Boolean,
+    description:
+      'Agent view: adds groupedRelatedEntities (one entry per entity with ' +
+      'all its relationships) and lists each feature once per relationship ' +
+      'type and direction. Defaults to false.',
+  })
+  @ApiQuery({
     name: 'includeFeatureHierarchy',
     required: false,
     type: Boolean,
@@ -147,6 +156,7 @@ export class EntityContextController {
     @Query('includeAvailableMcpTools') includeAvailableMcpTools?: string,
     @Query('proposalDetail') proposalDetail?: string,
     @Query('includePlan') includePlan?: string,
+    @Query('groupRelationships') groupRelationships?: string,
   ): Promise<FullEntityContextDto> {
     const entityType = this.parseEntityType(entityTypeRaw);
 
@@ -159,6 +169,7 @@ export class EntityContextController {
         includeAvailableMcpTools,
       ),
       relatedEntityDepth: this.parseRelatedEntityDepth(relatedEntityDepth),
+      groupRelationships: this.parseBooleanQuery(groupRelationships),
       proposalDetail: this.parseProposalDetail(proposalDetail),
     };
 

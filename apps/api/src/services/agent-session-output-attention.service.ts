@@ -2,7 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   AgentSessionOutputAttentionBatchItemDto,
   AgentSessionOutputAttentionState,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { OrganizationId, ProjectId, UserId } from 'src/types';
 import { AgentSessionOutputAttentionProjection } from './agent-session-output-attention-projection.service';
@@ -46,7 +46,9 @@ export class AgentSessionOutputAttentionService {
       },
     });
     const identities = sessions.map(this.toIdentity);
-    const byId = new Map(identities.map((identity) => [identity.agentSessionId, identity]));
+    const byId = new Map(
+      identities.map((identity) => [identity.agentSessionId, identity]),
+    );
     const entries = await this.projection.readMany(identities);
 
     this.logger.log('[output-attention] authorized batch read', {
@@ -60,7 +62,9 @@ export class AgentSessionOutputAttentionService {
       const identity = byId.get(agentSessionId);
       if (!identity) return [];
       const entry = entries.get(agentSessionId);
-      return [entry ? this.projection.toItem(entry) : this.toNoneItem(identity)];
+      return [
+        entry ? this.projection.toItem(entry) : this.toNoneItem(identity),
+      ];
     });
   }
 
@@ -122,7 +126,9 @@ export class AgentSessionOutputAttentionService {
       state,
     });
     if (result.outcome === 'schema_mismatch') {
-      throw new Error('Agent Session output-attention projection schema mismatch');
+      throw new Error(
+        'Agent Session output-attention projection schema mismatch',
+      );
     }
     return this.projection.toItem(
       result.outcome === 'transition' ? result.transition.entry : result.entry,

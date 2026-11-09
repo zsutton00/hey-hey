@@ -2,7 +2,7 @@ import {
   ProjectMaturity,
   ProjectStatus,
   type ProjectResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
@@ -18,8 +18,8 @@ vi.mock("@hey-hey/ui-common/components", () => ({
   },
 }));
 
-vi.mock("../../NewOrgLanding/OrientationContent", () => ({
-  OrientationContent: ({
+vi.mock("../../NewOrgLanding/WelcomeSteps", () => ({
+  WelcomeSteps: ({
     cta,
     heading,
   }: {

@@ -7,7 +7,7 @@ import {
   ProjectStatus,
   ReportType,
   type ReportDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { DailySessionBriefing } from "./DailySessionBriefing";
 import type { UseDailySessionBriefingReportsReturn } from "./useDailySessionBriefingReports";
 

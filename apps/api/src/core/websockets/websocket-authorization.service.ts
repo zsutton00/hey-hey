@@ -1,6 +1,7 @@
 import { ProjectAccessService } from '../../auth/services/project-access.service';
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { executionGrantNotExpired } from '../../services/controller-authorization/controller-authorization-operations';
 import { AccountEntitlementService } from '../../services/account-entitlement.service';
 import {
   ConversationId,
@@ -184,7 +185,7 @@ export class WebsocketAuthorizationService {
           machineId: request.machineId,
           userId: request.userId,
           organizationId: machine.organizationId,
-          expiresAt: { gt: now },
+          AND: [executionGrantNotExpired(now)],
           suspendedAt: null,
           terminalAt: null,
           revokedAt: null,

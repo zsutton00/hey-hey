@@ -1,10 +1,8 @@
 import { useModalState } from "../Modals/useModalState";
 import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import type { RunAttachmentReference } from "../../api";
-import CodeIcon from "@mui/icons-material/Code";
 import CommitIcon from "@mui/icons-material/Commit";
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
-import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { Box, Alert, Button, Stack } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
 import { useNavigate } from "react-router-dom";
@@ -49,7 +47,10 @@ import { resolveAgentSessionMetadata } from "./resolveAgentSessionMetadata";
 import { useServices } from "../../data/hooks/useServices";
 import { OpenBrowserCapsuleAction } from "./OpenBrowserCapsuleAction";
 import { RunBrowserProvider } from "./runtime/RunBrowserContext";
-import { CollatedFileDiffModalContainer } from "./CollatedFileDiffModal/CollatedFileDiffModalContainer";
+import {
+  ChangedFilesCapsuleAction,
+  useChangedFilesCapsule,
+} from "./ChangedFilesCapsuleAction";
 import {
   FollowupActionModal,
   type FollowupActionSubmission,
@@ -92,14 +93,8 @@ import {
   CODE_REVIEW_SURFACE_ID,
   COMMIT_SURFACE_ID,
 } from "./surfaceSelectionMemory";
-import {
-  useRemoteChangedFilesCount,
-  type RemoteChangedFilesCountState,
-} from "./runtime/hooks/useRemoteChangedFilesCount";
+import type { RemoteChangedFilesCountState } from "./runtime/hooks/useRemoteChangedFilesCount";
 import type { UnavailableOutcome } from "./codingSessionFeedback";
-import { useRemoteChangedFilesInventory } from "./runtime/hooks/useRemoteChangedFilesInventory";
-import { useTurnCompletionRevision } from "./runtime/hooks/useTurnCompletionRevision";
-import { useAgentSessionCurrentState } from "../../data/hooks/useAgentSessionCurrentState";
 
 type CodingSessionStickyTop =
   | number
@@ -121,53 +116,6 @@ const readCodingSessionProjectModeSelection = (
   config?.type === AgentSessionConfigV2TypeEnum.CodingSession
     ? config.projectModeSelection
     : undefined;
-
-type ChangedFilesActionState =
-  | { kind: "available"; count: number }
-  | {
-      kind: "unavailable-with-reason";
-      feedback: Extract<UnavailableOutcome, { presentationScope: "action" }>;
-    };
-
-const resolveChangedFilesActionState = (
-  state: RemoteChangedFilesCountState,
-  retry: () => void,
-): ChangedFilesActionState | null => {
-  if (state.status === "success" && state.count > 0) {
-    return { kind: "available", count: state.count };
-  }
-  if (state.status === "loading" && state.previousFailure) {
-    return {
-      kind: "unavailable-with-reason",
-      feedback: {
-        status: "unavailable",
-        presentationScope: "action",
-        reason: state.previousFailure.reason,
-        errorCode: state.previousFailure.errorCode,
-        retryable: state.previousFailure.retryable,
-        failureIdentity: state.previousFailure.failureIdentity,
-        retry,
-        isRetrying: true,
-      },
-    };
-  }
-  if (state.status === "unavailable") {
-    return {
-      kind: "unavailable-with-reason",
-      feedback: {
-        status: "unavailable",
-        presentationScope: "action",
-        reason: state.error,
-        errorCode: state.errorCode,
-        retryable: state.retryable,
-        failureIdentity: state.failureIdentity,
-        retry,
-        isRetrying: false,
-      },
-    };
-  }
-  return null;
-};
 
 const codingSessionConversationRegionSx = (theme: Theme) => ({
   width: "100%",
@@ -446,7 +394,6 @@ const CodingSessionActive = memo(
     const [actionFailure, setActionFailure] =
       useState<ActionFailureState | null>(null);
     const actionFailureGenerationRef = useRef(0);
-    const [diffModalOpen, setDiffModalOpen] = useState(false);
     const [reviewModalOpen, setReviewModalOpen, reviewModalOpenOwnerKey] =
       useModalState(false);
     const [commitModalOpen, setCommitModalOpen, commitModalOpenOwnerKey] =
@@ -968,7 +915,7 @@ const CodingSessionActive = memo(
       retryInit();
     }, [retryInit]);
 
-    const remoteChangedFiles = useRemoteChangedFilesCount({
+    const changedFilesCapsule = useChangedFilesCapsule({
       organizationId,
       projectId,
       agentSessionId,
@@ -976,36 +923,9 @@ const CodingSessionActive = memo(
       enabled:
         agentSession.status !== AgentSessionStatus.NotStarted &&
         Boolean(agentSession.conversationId),
+      canonicalCurrentState: agentSession.currentState,
     });
-    const changedFilesActionState = resolveChangedFilesActionState(
-      remoteChangedFiles,
-      remoteChangedFiles.retry,
-    );
-    const remoteChangedFilesInventory = useRemoteChangedFilesInventory({
-      organizationId,
-      projectId,
-      agentSessionId,
-      runId,
-      open: diffModalOpen,
-    });
-    const retryChangedFiles = remoteChangedFiles.retry;
-    const retryChangedFilesInventory = remoteChangedFilesInventory.retry;
-    const conversationCurrentState = useAgentSessionCurrentState(
-      organizationId,
-      projectId,
-      agentSessionId,
-      { canonicalCurrentState: agentSession.currentState },
-    ).currentState;
-    const refreshChangedFilesAtTurnBoundary = useCallback(() => {
-      retryChangedFiles();
-      if (diffModalOpen) {
-        retryChangedFilesInventory();
-      }
-    }, [diffModalOpen, retryChangedFiles, retryChangedFilesInventory]);
-    useTurnCompletionRevision(
-      conversationCurrentState,
-      refreshChangedFilesAtTurnBoundary,
-    );
+    const remoteChangedFiles = changedFilesCapsule.count;
     const deviceBlockedReason = interactionAccess.isDeviceEnabled
       ? null
       : interactionAccess.unavailable.message;
@@ -1069,15 +989,6 @@ const CodingSessionActive = memo(
             { presentationScope: "action" }
           >)
         : undefined;
-    const handleOpenDiffModal = useCallback(() => setDiffModalOpen(true), []);
-    const handleChangedFilesActionClick = useCallback(() => {
-      if (changedFilesActionState?.kind === "available") {
-        handleOpenDiffModal();
-      }
-      // The unavailable branch is handled by the action-owned feedback
-      // surface and never opens the changed-files view or starts another read.
-    }, [changedFilesActionState, handleOpenDiffModal]);
-    const handleCloseDiffModal = useCallback(() => setDiffModalOpen(false), []);
     const handleReview = useCallback(() => {
       if (interactionAccess.isDeviceEnabled) setReviewModalOpen(true);
     }, [interactionAccess]);
@@ -1282,43 +1193,6 @@ const CodingSessionActive = memo(
               order={40}
             />
           ) : null}
-          {changedFilesActionState ? (
-            <CapsuleAction
-              behavior="click"
-              id="view-diffs"
-              label={
-                changedFilesActionState.kind === "available"
-                  ? changedFilesActionState.count === 1
-                    ? "1 file"
-                    : `${String(changedFilesActionState.count)} files`
-                  : "Files"
-              }
-              icon={
-                changedFilesActionState.kind === "available"
-                  ? CodeIcon
-                  : WarningAmberIcon
-              }
-              iconStyle={
-                changedFilesActionState.kind === "unavailable-with-reason"
-                  ? { backgroundColor: "transparent", color: "text.secondary" }
-                  : undefined
-              }
-              textColor={
-                changedFilesActionState.kind === "unavailable-with-reason"
-                  ? "text.secondary"
-                  : undefined
-              }
-              feedback={
-                changedFilesActionState.kind === "unavailable-with-reason"
-                  ? changedFilesActionState.feedback
-                  : undefined
-              }
-              onClick={handleChangedFilesActionClick}
-              actionGroup="page"
-              tier="page"
-              order={100}
-            />
-          ) : null}
           <SessionContextUsageCapsules
             providerSessionId={latestProviderSessionId}
             provider={provider}
@@ -1330,25 +1204,13 @@ const CodingSessionActive = memo(
             contextTokens={contextSize?.totalTokens}
             contextWindowTokens={contextSize?.maxTokens}
           />
-          <CollatedFileDiffModalContainer
-            open={diffModalOpen}
-            onClose={handleCloseDiffModal}
-            entries={remoteChangedFilesInventory.entries ?? []}
-            readState={
-              remoteChangedFilesInventory.status === "success"
-                ? { status: "ready" }
-                : remoteChangedFilesInventory.status === "unavailable"
-                  ? {
-                      status: "error",
-                      message: remoteChangedFilesInventory.error,
-                    }
-                  : { status: "loading" }
-            }
-            onRetry={remoteChangedFilesInventory.retry}
+          <ChangedFilesCapsuleAction
+            capsule={changedFilesCapsule}
             organizationId={organizationId}
             projectId={projectId}
             agentSessionId={agentSessionId}
             runId={runId}
+            order={100}
           />
           <ModalWorkOwner.Provider value={reviewModalOpenOwnerKey}>
             <FollowupActionModal

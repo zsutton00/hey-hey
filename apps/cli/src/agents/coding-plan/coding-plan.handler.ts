@@ -1,8 +1,9 @@
 import {
+  SessionRole,
   LocalPromptType,
   type LocalPromptDesignDocInput,
   type LocalStartupSessionPromptPayload,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type {
   LocalWorktreeStateByService,
   ResolvedServiceBinding,
@@ -21,9 +22,6 @@ import {
   latestCodingPlanVersion,
   renderCodingPlanConversation,
 } from './conversation-context';
-
-export const CODING_PLAN_NOT_SAVED_MESSAGE =
-  "The plan wasn't saved, so it can't be approved yet. Reply to try saving it again.";
 
 /**
  * Restricted MCP tool allowlist for the coding-plan subagent. The planner may
@@ -45,6 +43,7 @@ export const CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
   'list_services',
   // Search
   'unified_search',
+  'get_entity_identities',
   'task_search',
   'plan_search',
   'search_features',
@@ -98,6 +97,7 @@ type CodingPlanHandler = UserLaunchablePromptTypeHandler<LocalStartupSessionProm
 
 export const codingPlanHandler: CodingPlanHandler = {
   id: 'startup_session',
+  sessionRole: SessionRole.Planning,
   promptType: 'startup_session',
   service: 'required',
   launchEntity: 'required',
@@ -116,7 +116,7 @@ export const codingPlanHandler: CodingPlanHandler = {
   // the new subagent prompt instead of forwarding only the raw user message.
   rebuildPromptOnUserMessage: true,
   reports: [],
-  excludedBaseSubmissionTools: ['create_report'],
+  excludedBaseSubmissionTools: ['create_report', 'raise_uncertainty'],
   submissionTools: [...codingPlanSubmissionTools],
   subagentConfig: {
     mcpAllowedTools: CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS,
@@ -261,15 +261,6 @@ export const codingPlanHandler: CodingPlanHandler = {
         ? { planDesignDocReference: enriched._planDesignDocReference }
         : {}),
     });
-  },
-
-  // Before any plan exists, a turn must save a plan, a discrepancy or a
-  // question through its tools. Otherwise the plan likely went to chat text
-  // because the tools were unavailable; the reply says so and the user can retry.
-  getUnsavedOutputNotice(_event, payload, saved) {
-    if (saved.codingPlanElementTypes.length > 0) return null;
-    if ((payload as EnrichedCodingPlanPromptPayload | undefined)?._hasSavedPlanVersion) return null;
-    return CODING_PLAN_NOT_SAVED_MESSAGE;
   },
 
   // The rebuilt prompt already carries persisted replies and any unsaved current feedback.

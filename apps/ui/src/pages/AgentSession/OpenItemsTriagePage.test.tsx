@@ -7,7 +7,7 @@ import {
   OpenItemsTriageMode,
   type AgentSessionDto,
   type OpenItemsTriagePromoteGroupSuggestion,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import type {
   TriageApplicationCoordinator,
   TriageApplicationPorts,

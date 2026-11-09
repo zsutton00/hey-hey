@@ -11,7 +11,7 @@ import {
   MessageResponseDto,
   MessageStatus,
   SystemMessageResponseType,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { QUEUE_SERVICE_TOKEN } from '../../queue/queue.module';
 import { DOMAIN_EVENT_PUBLISHER_TOKEN } from '../../events/tokens';
 import { EventRouter } from '../../events/event-router';

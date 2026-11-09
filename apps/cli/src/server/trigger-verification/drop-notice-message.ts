@@ -15,6 +15,7 @@ import { MessageStatus, MessageType, SystemMessageDataTypeEnum } from '../../sha
 import type { SystemMessageData } from '../../shared/api/index';
 import type { MessagePoster } from '../../run/message-poster';
 import type { CreateMessageBody } from '../../run/types';
+import { toOpenApiProjectId } from '../../shared/api/identifierAdapters';
 
 /**
  * Drop reasons that are actionable enough to surface to the user. The other
@@ -104,7 +105,7 @@ const postSystemNotice = async (
   const dto: CreateMessageBody = {
     type: MessageType.System,
     status: MessageStatus.Completed,
-    projectId: ctx.projectId,
+    projectId: toOpenApiProjectId(ctx.projectId),
     data,
     createdAt: new Date().toISOString(),
   };

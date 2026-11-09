@@ -1,3 +1,4 @@
+import type { LocalApplicationNavigation } from '../local-app/local-application';
 /**
  * The immutable state the presentation owner publishes once per frame. View
  * models are pure functions of this state; nothing here is read from a Run,
@@ -88,7 +89,12 @@ export interface RuntimeTarget {
 }
 
 /** The rows on the Options screen, in display order. */
-export const OPTIONS_ROWS = ['intent-first', 'remote-tool-call-viewing', 'jev'] as const;
+export const OPTIONS_ROWS = [
+  'intent-first',
+  'remote-tool-call-viewing',
+  'hey-hey-context-reminder',
+  'jev',
+] as const;
 export type OptionsRow = (typeof OPTIONS_ROWS)[number];
 
 export interface PresentationState {
@@ -116,6 +122,7 @@ export interface PresentationState {
   readonly viewport: Viewport;
   readonly nowMs: number;
   readonly webOrigin: string;
+  readonly localApplication?: LocalApplicationNavigation;
   readonly target: RuntimeTarget;
   readonly color: boolean;
 }

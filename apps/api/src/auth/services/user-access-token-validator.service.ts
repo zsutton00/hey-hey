@@ -1,17 +1,25 @@
 import { Injectable } from '@nestjs/common';
-import { OrganizationRole } from '../../generated';
+import { OrganizationRole } from '@hey-hey/contracts/api/models';
 import { UserService } from '../../services/user.service';
 import { OrganizationId, UserId } from '../../types';
 import type { AuthenticatedUser, JwtPayload } from '../strategies/jwt.strategy';
 import { JwtKeysService } from './jwt-keys.service';
 import { AccountEntitlementService } from '../../services/account-entitlement.service';
 import { DemoSandboxActivityService } from '../../services/demo-sandbox/demo-sandbox-activity.service';
+import { PrismaService } from '../../prisma/prisma.service';
+import {
+  BROWSER_ACCESS_TOKEN_USE,
+  CredentialProfileService,
+  OAUTH_ACCESS_TOKEN_USE,
+} from '../credential-profile';
 
 export interface ValidatedBrowserAccessContext extends AuthenticatedUser {
   expiresAt: Date;
-  sessionId?: string;
-  authorizationVersion?: number;
 }
+
+type CredentialBinding =
+  | { kind: 'browser'; sessionId: string; authorizationVersion: number }
+  | { kind: 'oauth' };
 
 @Injectable()
 export class UserAccessTokenValidatorService {
@@ -20,6 +28,8 @@ export class UserAccessTokenValidatorService {
     private readonly jwtKeysService: JwtKeysService,
     private readonly accountEntitlementService: AccountEntitlementService,
     private readonly demoSandboxActivity: DemoSandboxActivityService,
+    private readonly prisma: PrismaService,
+    private readonly credentialProfile: CredentialProfileService,
   ) {}
 
   async verifyAndValidate(
@@ -37,14 +47,7 @@ export class UserAccessTokenValidatorService {
       throw new Error('Token expiration is invalid');
     }
 
-    return {
-      ...user,
-      expiresAt,
-      ...(payload.sid !== undefined ? { sessionId: payload.sid } : {}),
-      ...(payload.authz_version !== undefined
-        ? { authorizationVersion: payload.authz_version }
-        : {}),
-    };
+    return { ...user, expiresAt };
   }
 
   async validate(
@@ -55,9 +58,6 @@ export class UserAccessTokenValidatorService {
       throw new Error('Token subject is missing');
     }
 
-    // Legacy browser access tokens have no purpose claim. Keep accepting them
-    // until the browser-session cutover makes token_use mandatory, but reject
-    // every currently scoped credential.
     if (payload.type) {
       throw new Error('Scoped token cannot be used for authentication');
     }
@@ -66,10 +66,19 @@ export class UserAccessTokenValidatorService {
       throw new Error('System token cannot authenticate a browser user');
     }
 
+    const binding = this.credentialBinding(payload);
     const userId = payload.sub as UserId;
     const user = await this.userService.findForAuthentication(userId);
     if (!user || !user.isActive) {
       throw new Error('User not found or inactive');
+    }
+
+    if (binding.kind === 'browser') {
+      await this.assertBrowserSessionCurrent(
+        userId,
+        binding,
+        user.authorizationRevision,
+      );
     }
 
     const { currentOrgId } = this.extractOrgContext(payload);
@@ -112,7 +121,87 @@ export class UserAccessTokenValidatorService {
         })),
       isDevAdmin: payload.isDevAdmin ?? user.isDevAdmin ?? false,
       devAdminMode: payload.devAdminMode ?? user.devAdminMode ?? false,
+      ...(payload.isLocalAccount === true ? { isLocalAccount: true } : {}),
+      ...(binding.kind === 'browser'
+        ? {
+            browserSessionId: binding.sessionId,
+            authorizationVersion: binding.authorizationVersion,
+          }
+        : {}),
     };
+  }
+
+  /**
+   * Accept only credentials issued for this deployment's profile: browser
+   * access bound to a session and authorization revision, or native OAuth
+   * access. Unscoped legacy tokens and other deployments' tokens are rejected
+   * even when correctly signed.
+   */
+  private credentialBinding(payload: JwtPayload): CredentialBinding {
+    if (payload.iss !== this.credentialProfile.issuer) {
+      throw new Error('Token issuer does not match this deployment');
+    }
+
+    if (payload.token_use === BROWSER_ACCESS_TOKEN_USE) {
+      if (
+        !audienceMatches(payload.aud, this.credentialProfile.browserAudience)
+      ) {
+        throw new Error('Token audience does not match this deployment');
+      }
+      if (typeof payload.sid !== 'string' || payload.sid.length === 0) {
+        throw new Error('Browser token is missing its session binding');
+      }
+      if (
+        !Number.isSafeInteger(payload.authz_version) ||
+        (payload.authz_version as number) < 0
+      ) {
+        throw new Error('Browser token is missing its authorization revision');
+      }
+      return {
+        kind: 'browser',
+        sessionId: payload.sid,
+        authorizationVersion: payload.authz_version as number,
+      };
+    }
+
+    if (payload.token_use === OAUTH_ACCESS_TOKEN_USE) {
+      if (!audienceMatches(payload.aud, this.credentialProfile.oauthAudience)) {
+        throw new Error('Token audience does not match this deployment');
+      }
+      return { kind: 'oauth' };
+    }
+
+    throw new Error('Token purpose is not accepted');
+  }
+
+  private async assertBrowserSessionCurrent(
+    userId: UserId,
+    binding: { sessionId: string; authorizationVersion: number },
+    currentAuthorizationRevision: number,
+  ): Promise<void> {
+    if (binding.authorizationVersion !== currentAuthorizationRevision) {
+      throw new Error('Browser session authorization is out of date');
+    }
+
+    const session = await this.prisma.db.browserSessionFamily.findUnique({
+      where: { sessionId: binding.sessionId },
+      select: {
+        userId: true,
+        revokedAt: true,
+        inactivityExpiresAt: true,
+        absoluteExpiresAt: true,
+      },
+    });
+    const now = Date.now();
+    if (
+      !session ||
+      session.userId !== userId ||
+      session.revokedAt !== null ||
+      session.inactivityExpiresAt.getTime() <= now ||
+      session.absoluteExpiresAt.getTime() <= now
+    ) {
+      throw new Error('Browser session is no longer active');
+    }
   }
 
   private extractOrgContext(payload: JwtPayload): {
@@ -149,4 +238,13 @@ export class UserAccessTokenValidatorService {
       orgMemberships: normalizedMemberships,
     };
   }
+}
+
+function audienceMatches(
+  audience: string | string[] | undefined,
+  expected: string,
+): boolean {
+  return Array.isArray(audience)
+    ? audience.length === 1 && audience[0] === expected
+    : audience === expected;
 }

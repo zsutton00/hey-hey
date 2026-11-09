@@ -5,9 +5,9 @@ import {
 import { GetToolGuidanceToolsProvider } from '../tools/get-tool-guidance-tools.provider';
 import { AUTHORING_ROOT_PROOF } from '../tools/authoring-guidance';
 
-import { TaskSectionKey } from '../../generated/model/taskSectionKey';
-import { EntityType } from '../../generated/model/entityType';
-import { WorkStatus } from '../../generated/model/workStatus';
+import { TaskSectionKey } from '@hey-hey/contracts/api/models';
+import { EntityType } from '@hey-hey/contracts/api/models';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import {
   STANDARD_WRITING_GUIDANCE,
   createWarmWorkItemTypeRegistry,

@@ -1,7 +1,7 @@
 import type {
   OrganizationAccountLifecycleDto,
   OrganizationReactivationSuccess,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import type { OrganizationId, UserId } from '../types';
 
 /**

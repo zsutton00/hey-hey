@@ -44,8 +44,11 @@ import {
   ReportSortBy,
   ReportSortOrder,
   ReportType,
+  ReportUsageTrendGranularity,
+  ReportUsageTrendKind,
+  ReportUsageTrends,
   UpdateReportDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ListReportsFilters,
   ReportService,
@@ -430,6 +433,97 @@ export class ProjectReportsController {
     };
 
     return this.reportService.findAll(organizationId, filters);
+  }
+
+  @Get('usage-trends')
+  @ApiOperation({
+    operationId: 'getProjectReportUsageTrends',
+    summary: 'Get approximate agent usage trends for a project',
+    description:
+      'Aggregates the usage snapshots stored on retained, user-visible ' +
+      'project reports into per-execution trends. Each execution counts ' +
+      'once using its latest snapshot; averages use complete executions only.',
+  })
+  @ApiParam({ name: 'organizationId', description: 'Organization ID' })
+  @ApiParam({
+    name: 'projectId',
+    description: 'Project ID',
+    type: 'string',
+    format: 'uuid',
+  })
+  @ApiQuery({ name: 'from', required: true, type: String })
+  @ApiQuery({ name: 'to', required: true, type: String })
+  @ApiQuery({
+    name: 'granularity',
+    required: true,
+    enum: Object.values(ReportUsageTrendGranularity),
+  })
+  @ApiQuery({
+    name: 'reportKinds',
+    required: false,
+    type: String,
+    isArray: true,
+    enum: Object.values(ReportUsageTrendKind),
+  })
+  @ApiQuery({ name: 'providers', required: false, type: String, isArray: true })
+  @ApiQuery({ name: 'models', required: false, type: String, isArray: true })
+  @ApiQuery({ name: 'efforts', required: false, type: String, isArray: true })
+  async getProjectReportUsageTrends(
+    @CurrentOrganization() organizationId: OrganizationId,
+    @Param('projectId', ParseUUIDPipe) projectId: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+    @Query('granularity') granularity: string,
+    @Query('reportKinds') reportKinds?: string | string[],
+    @Query('providers') providers?: string | string[],
+    @Query('models') models?: string | string[],
+    @Query('efforts') efforts?: string | string[],
+  ): Promise<ReportUsageTrends> {
+    const kinds = this.repeatedQuery(reportKinds);
+
+    for (const kind of kinds) {
+      if (!Object.values<string>(ReportUsageTrendKind).includes(kind)) {
+        throw new BadRequestException(
+          `reportKinds contains invalid value ${kind}`,
+        );
+      }
+    }
+
+    if (
+      !Object.values<string>(ReportUsageTrendGranularity).includes(granularity)
+    ) {
+      throw new BadRequestException('granularity must be day, week or month');
+    }
+
+    return this.reportService.getUsageTrends(organizationId, projectId, {
+      from: this.parseDate(from, 'from'),
+      to: this.parseDate(to, 'to'),
+      granularity: granularity as ReportUsageTrendGranularity,
+      reportKinds: kinds as ReportUsageTrendKind[],
+      providers: this.repeatedQuery(providers),
+      models: this.repeatedQuery(models),
+      efforts: this.repeatedQuery(efforts),
+    });
+  }
+
+  private repeatedQuery(raw: string | string[] | undefined): string[] {
+    if (raw === undefined) {
+      return [];
+    }
+
+    return Array.isArray(raw) ? raw : [raw];
+  }
+
+  private parseDate(value: string | undefined, fieldName: string): Date {
+    const parsed = new Date(value ?? '');
+
+    if (Number.isNaN(parsed.getTime())) {
+      throw new BadRequestException(
+        `${fieldName} must be a valid ISO timestamp`,
+      );
+    }
+
+    return parsed;
   }
 
   @Get('file-touches/by-file')

@@ -31,175 +31,177 @@ export const REPORT_SCHEMAS = {
             },
           },
         },
-      ],
-      type: 'object',
-      required: ['reportType', 'summary', 'targetRunId', 'groups'],
-      properties: {
-        reportType: {
-          type: 'string',
-          enum: ['CHANGE_WALKTHROUGH'],
-        },
-        summary: {
-          type: 'string',
-        },
-        targetRunId: {
-          type: 'string',
-          format: 'uuid',
-          description:
-            'Host-stamped reviewed Run identity whose resolved Service workspaces supply source authority.',
-        },
-        groups: {
-          type: 'array',
-          items: {
-            type: 'object',
-            required: ['title', 'changes'],
-            properties: {
-              title: {
-                type: 'string',
-              },
-              changes: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  required: [
-                    'title',
-                    'context',
-                    'walkthrough',
-                    'behavioralConsequence',
-                  ],
-                  properties: {
-                    title: {
-                      type: 'string',
-                    },
-                    context: {
-                      type: 'string',
-                    },
-                    walkthrough: {
-                      type: 'array',
-                      items: {
-                        type: 'object',
-                        required: ['excerpt', 'explanation'],
-                        properties: {
-                          excerpt: {
+        {
+          type: 'object',
+          required: ['reportType', 'summary', 'targetRunId', 'groups'],
+          properties: {
+            reportType: {
+              type: 'string',
+              enum: ['CHANGE_WALKTHROUGH'],
+            },
+            summary: {
+              type: 'string',
+            },
+            targetRunId: {
+              type: 'string',
+              format: 'uuid',
+              description:
+                'Host-stamped reviewed Run identity whose resolved Service workspaces supply source authority.',
+            },
+            groups: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['title', 'changes'],
+                properties: {
+                  title: {
+                    type: 'string',
+                  },
+                  changes: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      required: [
+                        'title',
+                        'context',
+                        'walkthrough',
+                        'behavioralConsequence',
+                      ],
+                      properties: {
+                        title: {
+                          type: 'string',
+                        },
+                        context: {
+                          type: 'string',
+                        },
+                        walkthrough: {
+                          type: 'array',
+                          items: {
                             type: 'object',
-                            required: [
-                              'serviceId',
-                              'file',
-                              'startLine',
-                              'endLine',
-                              'language',
-                              'code',
-                              'sourceVersion',
-                              'verification',
-                            ],
+                            required: ['excerpt', 'explanation'],
                             properties: {
-                              serviceId: {
-                                type: 'string',
-                                format: 'uuid',
-                              },
-                              file: {
-                                type: 'string',
-                                minLength: 1,
-                                description:
-                                  'Normalized repository-relative POSIX path with no absolute, dot, parent, empty or backslash segments. Invalid references are retained as UNRESOLVED.',
-                              },
-                              startLine: {
-                                type: 'integer',
-                                minimum: 1,
-                              },
-                              endLine: {
-                                type: 'integer',
-                                minimum: 1,
-                                description:
-                                  'Inclusive end, at least startLine. Invalid ranges are UNRESOLVED.',
-                              },
-                              language: {
-                                type: 'string',
-                              },
-                              code: {
-                                type: 'string',
-                                description:
-                                  'Exact literal lines joined with newline, excluding the final line separator.',
-                              },
-                              sourceVersion: {
-                                oneOf: [
-                                  {
-                                    type: 'object',
-                                    additionalProperties: false,
-                                    required: ['kind'],
-                                    properties: {
-                                      kind: {
-                                        type: 'string',
-                                        enum: ['WORKSPACE'],
-                                      },
-                                    },
-                                  },
-                                  {
-                                    type: 'object',
-                                    additionalProperties: false,
-                                    required: ['kind', 'revision'],
-                                    properties: {
-                                      kind: {
-                                        type: 'string',
-                                        enum: ['GIT'],
-                                      },
-                                      revision: {
-                                        type: 'string',
-                                        pattern:
-                                          '^[0-9a-f]{40}([0-9a-f]{24})?$',
-                                        description:
-                                          'Immutable full Git commit object ID.',
-                                      },
-                                    },
-                                  },
+                              excerpt: {
+                                type: 'object',
+                                required: [
+                                  'serviceId',
+                                  'file',
+                                  'startLine',
+                                  'endLine',
+                                  'language',
+                                  'code',
+                                  'sourceVersion',
+                                  'verification',
                                 ],
+                                properties: {
+                                  serviceId: {
+                                    type: 'string',
+                                    format: 'uuid',
+                                  },
+                                  file: {
+                                    type: 'string',
+                                    minLength: 1,
+                                    description:
+                                      'Normalized repository-relative POSIX path with no absolute, dot, parent, empty or backslash segments. Invalid references are retained as UNRESOLVED.',
+                                  },
+                                  startLine: {
+                                    type: 'integer',
+                                    minimum: 1,
+                                  },
+                                  endLine: {
+                                    type: 'integer',
+                                    minimum: 1,
+                                    description:
+                                      'Inclusive end, at least startLine. Invalid ranges are UNRESOLVED.',
+                                  },
+                                  language: {
+                                    type: 'string',
+                                  },
+                                  code: {
+                                    type: 'string',
+                                    description:
+                                      'Exact literal lines joined with newline, excluding the final line separator.',
+                                  },
+                                  sourceVersion: {
+                                    oneOf: [
+                                      {
+                                        type: 'object',
+                                        additionalProperties: false,
+                                        required: ['kind'],
+                                        properties: {
+                                          kind: {
+                                            type: 'string',
+                                            enum: ['WORKSPACE'],
+                                          },
+                                        },
+                                      },
+                                      {
+                                        type: 'object',
+                                        additionalProperties: false,
+                                        required: ['kind', 'revision'],
+                                        properties: {
+                                          kind: {
+                                            type: 'string',
+                                            enum: ['GIT'],
+                                          },
+                                          revision: {
+                                            type: 'string',
+                                            pattern:
+                                              '^[0-9a-f]{40}([0-9a-f]{24})?$',
+                                            description:
+                                              'Immutable full Git commit object ID.',
+                                          },
+                                        },
+                                      },
+                                    ],
+                                  },
+                                  verification: {
+                                    description:
+                                      'Host-computed evidence at submission time. Revalidate before opening current source.',
+                                    oneOf: [
+                                      {
+                                        type: 'object',
+                                        additionalProperties: false,
+                                        required: ['status', 'checkedAt'],
+                                        properties: {
+                                          status: {
+                                            type: 'string',
+                                            enum: ['VERIFIED'],
+                                          },
+                                          checkedAt: {
+                                            type: 'string',
+                                            format: 'date-time',
+                                          },
+                                        },
+                                      },
+                                      {
+                                        type: 'object',
+                                        additionalProperties: false,
+                                        required: ['status', 'reason'],
+                                        properties: {
+                                          status: {
+                                            type: 'string',
+                                            enum: ['UNRESOLVED'],
+                                          },
+                                          reason: {
+                                            type: 'string',
+                                            minLength: 1,
+                                          },
+                                        },
+                                      },
+                                    ],
+                                  },
+                                },
                               },
-                              verification: {
-                                description:
-                                  'Host-computed evidence at submission time. Revalidate before opening current source.',
-                                oneOf: [
-                                  {
-                                    type: 'object',
-                                    additionalProperties: false,
-                                    required: ['status', 'checkedAt'],
-                                    properties: {
-                                      status: {
-                                        type: 'string',
-                                        enum: ['VERIFIED'],
-                                      },
-                                      checkedAt: {
-                                        type: 'string',
-                                        format: 'date-time',
-                                      },
-                                    },
-                                  },
-                                  {
-                                    type: 'object',
-                                    additionalProperties: false,
-                                    required: ['status', 'reason'],
-                                    properties: {
-                                      status: {
-                                        type: 'string',
-                                        enum: ['UNRESOLVED'],
-                                      },
-                                      reason: {
-                                        type: 'string',
-                                        minLength: 1,
-                                      },
-                                    },
-                                  },
-                                ],
+                              explanation: {
+                                type: 'string',
                               },
                             },
                           },
-                          explanation: {
-                            type: 'string',
-                          },
+                        },
+                        behavioralConsequence: {
+                          type: 'string',
                         },
                       },
-                    },
-                    behavioralConsequence: {
-                      type: 'string',
                     },
                   },
                 },
@@ -207,38 +209,29 @@ export const REPORT_SCHEMAS = {
             },
           },
         },
-      },
+      ],
     },
   },
   CODING_RESEARCH: {
     description:
-      'Payload for CODING_RESEARCH reports emitted by the Project Assistant subagent. `summary` (from BaseReportPayload) is the 50–100 word handoff for the coding agent. `analysis` is the user-facing markdown synthesis of what the graph implies for the task. `frame` is the ResearchOutput adjacency-list object. `provenance` records every discovery call and edge traversal made during the investigation.',
+      'Payload for CODING_RESEARCH reports. The `format` discriminator records whether Project Assistant researched alone (`SELF_RESEARCH`) or was the parent of research subagents (`SUBAGENT_PARENT`).',
     schema: {
       description:
-        'Payload for CODING_RESEARCH reports emitted by the Project Assistant subagent. `summary` (from BaseReportPayload) is the 50–100 word handoff for the coding agent. `analysis` is the user-facing markdown synthesis of what the graph implies for the task. `frame` is the ResearchOutput adjacency-list object. `provenance` records every discovery call and edge traversal made during the investigation.\n',
-      allOf: [
+        'Payload for CODING_RESEARCH reports. The `format` discriminator records whether Project Assistant researched alone (`SELF_RESEARCH`) or was the parent of research subagents (`SUBAGENT_PARENT`).\n',
+      oneOf: [
         {
           type: 'object',
           description:
-            'Common base shape every ReportPayload variant inherits via `allOf`. Defines the `summary` field that every report carries: a 50-100 word phase handoff capturing what the next agent needs to know to pick up — not a transcript of what happened this turn. Variants compose this base with their own type-specific shape and contribute their own discriminator + required fields; the `summary` requirement flows in from this base.\n',
-          required: ['summary'],
-          properties: {
-            summary: {
-              type: 'string',
-              minLength: 1,
-              description:
-                '50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run.\n',
-            },
-          },
-        },
-        {
-          type: 'object',
+            'Project Assistant research result from a run where Project Assistant did the research itself, with no research subagents.',
           required: [
             'reportType',
+            'format',
+            'summary',
             'analysis',
             'frame',
             'provenance',
             'updates',
+            'uncertainties',
           ],
           additionalProperties: false,
           properties: {
@@ -246,12 +239,17 @@ export const REPORT_SCHEMAS = {
               type: 'string',
               enum: ['CODING_RESEARCH'],
             },
-            summary: {},
+            format: {
+              type: 'string',
+              enum: ['SELF_RESEARCH'],
+            },
+            summary: {
+              type: 'string',
+              minLength: 1,
+            },
             analysis: {
               type: 'string',
               minLength: 1,
-              description:
-                'User-facing markdown synthesis of what the graph implies for the focal task.',
             },
             frame: {
               type: 'object',
@@ -430,6 +428,107 @@ export const REPORT_SCHEMAS = {
                   },
                 },
               },
+            },
+            uncertainties: {
+              type: 'array',
+              description:
+                'Evidence uncertainties; an empty array means none were found.',
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                required: ['category', 'severity', 'statement', 'references'],
+                properties: {
+                  category: {
+                    type: 'string',
+                    enum: [
+                      'lack_of_evidence',
+                      'conflict',
+                      'ambiguity',
+                      'not_implemented',
+                    ],
+                    description:
+                      'lack_of_evidence means relevant project sources do not establish the point; conflict means relevant sources make incompatible claims; ambiguity means one source reasonably supports more than one reading; not_implemented means evidence shows the expected behavior is absent.\n',
+                  },
+                  severity: {
+                    type: 'string',
+                    enum: ['low', 'medium', 'high'],
+                    description:
+                      'Evidence impact: low is peripheral and needs little qualification; medium weakens a material detail and requires a qualified answer; high prevents a reliable answer to a central part of the ask.\n',
+                  },
+                  statement: {
+                    type: 'string',
+                    minLength: 1,
+                  },
+                  references: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      additionalProperties: false,
+                      required: ['entityType', 'entityId', 'title'],
+                      properties: {
+                        entityType: {
+                          type: 'string',
+                          enum: [
+                            'ARTIFACT',
+                            'INITIATIVE',
+                            'PROJECT',
+                            'TASK',
+                            'MESSAGE',
+                            'CONVERSATION',
+                            'DESIGN_DOC',
+                            'AGENT_SESSION',
+                            'VALIDATION_SESSION',
+                            'SERVICE',
+                            'REPORT',
+                            'PROPOSAL',
+                            'IMPLEMENTATION_HINT',
+                            'USER',
+                          ],
+                          description:
+                            "Entity type for canonical entities. `USER` is used in proposal influence rows to attribute a change to the human who authored it (resolved to the user's display name on snapshot); users are not stored in the entity registry.",
+                        },
+                        entityId: {
+                          type: 'string',
+                          minLength: 1,
+                        },
+                        title: {
+                          type: 'string',
+                          minLength: 1,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        {
+          type: 'object',
+          description:
+            'Project Assistant research result from a run where Project Assistant is the parent of research subagents. The parent authors the visible summary and analysis, including its headed uncertainty section; children provide evidence to the parent and do not author the report.',
+          required: ['reportType', 'format', 'summary', 'analysis'],
+          additionalProperties: false,
+          properties: {
+            reportType: {
+              type: 'string',
+              enum: ['CODING_RESEARCH'],
+            },
+            format: {
+              type: 'string',
+              enum: ['SUBAGENT_PARENT'],
+            },
+            summary: {
+              type: 'string',
+              minLength: 1,
+              description:
+                '50–100 word handoff derived from the opening paragraph of analysis.',
+            },
+            analysis: {
+              type: 'string',
+              minLength: 1,
+              description:
+                'Markdown handoff authored by the Project Assistant parent. Any uncertainty section is headed `Uncertainties` and uses the shared entry convention; child handoffs remain source evidence and are not copied into the visible report as child-authored sections.',
             },
           },
         },
@@ -656,10 +755,10 @@ export const REPORT_SCHEMAS = {
   },
   EVAL_ATTEMPT: {
     description:
-      "Payload for EVAL_ATTEMPT reports, one per case and configuration. The report id is the attempt's identity; parentReportId is the run report. Status is updated in place. The attempt's output is whatever its target session wrote while the attempt was in flight. The target session is referenced by id only and never attached, so deleting the session does not delete the attempt.",
+      "Payload for EVAL_ATTEMPT reports, one per case, configuration and repeat. The report id is the attempt's identity; parentReportId is the run report. Status is updated in place. The attempt's output is whatever its target session wrote while the attempt was in flight. The target session is referenced by id only and never attached, so deleting the session does not delete the attempt.",
     schema: {
       description:
-        "Payload for EVAL_ATTEMPT reports, one per case and configuration. The report id is the attempt's identity; parentReportId is the run report. Status is updated in place. The attempt's output is whatever its target session wrote while the attempt was in flight. The target session is referenced by id only and never attached, so deleting the session does not delete the attempt.\n",
+        "Payload for EVAL_ATTEMPT reports, one per case, configuration and repeat. The report id is the attempt's identity; parentReportId is the run report. Status is updated in place. The attempt's output is whatever its target session wrote while the attempt was in flight. The target session is referenced by id only and never attached, so deleting the session does not delete the attempt.\n",
       allOf: [
         {
           type: 'object',
@@ -737,6 +836,7 @@ export const REPORT_SCHEMAS = {
                                 'entity_conversation',
                                 'project_assistant',
                                 'feature_sync_analyze',
+                                'free_form',
                               ],
                             },
                           ],
@@ -807,6 +907,7 @@ export const REPORT_SCHEMAS = {
                                     'entity_conversation',
                                     'project_assistant',
                                     'feature_sync_analyze',
+                                    'free_form',
                                   ],
                                 },
                               ],
@@ -851,6 +952,13 @@ export const REPORT_SCHEMAS = {
                 },
               },
             },
+            repeat: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 10,
+              description:
+                '1-based repeat this attempt is. Absent on attempts recorded before repeats existed, which are read as repeat 1.',
+            },
             execution: {
               allOf: [
                 {
@@ -873,6 +981,7 @@ export const REPORT_SCHEMAS = {
                         'entity_conversation',
                         'project_assistant',
                         'feature_sync_analyze',
+                        'free_form',
                       ],
                     },
                     consumerHandler: {
@@ -906,8 +1015,12 @@ export const REPORT_SCHEMAS = {
                     assessedOutput: {
                       type: 'string',
                       description:
-                        'Which output the judge assesses for an attempt.',
-                      enum: ['RESEARCH_REPORT', 'HANDLER_REPLY'],
+                        'Which output the judge assesses for an attempt. CODE_CHANGES is the recorded changes of a coding attempt, not its chat reply.\n',
+                      enum: [
+                        'RESEARCH_REPORT',
+                        'HANDLER_REPLY',
+                        'CODE_CHANGES',
+                      ],
                     },
                   },
                 },
@@ -917,7 +1030,8 @@ export const REPORT_SCHEMAS = {
             },
             status: {
               type: 'string',
-              description: 'Lifecycle of one case x configuration attempt.',
+              description:
+                'Lifecycle of one attempt at a case, configuration and repeat.',
               enum: [
                 'QUEUED',
                 'PREPARING',
@@ -1029,6 +1143,19 @@ export const REPORT_SCHEMAS = {
               type: 'string',
               description:
                 'Real provider session id of the child that judged this attempt. Never a pending placeholder.',
+            },
+            judgeSessionId: {
+              anyOf: [
+                {
+                  type: 'string',
+                  format: 'uuid',
+                  description:
+                    'Agent Session of the judge, recorded as soon as it is created so a running judge is already known as an eval session. The finished assessment repeats it.\n',
+                },
+                {
+                  type: 'null',
+                },
+              ],
             },
             measurements: {
               type: 'array',
@@ -1204,6 +1331,36 @@ export const REPORT_SCHEMAS = {
                             },
                           },
                         },
+                        checklistResults: {
+                          type: 'array',
+                          description:
+                            'Coding attempts with a Mockup checklist only: one answer per checklist item, hit or missed, judged from the saved changes.\n',
+                          items: {
+                            type: 'object',
+                            required: ['itemId', 'hit', 'explanation'],
+                            properties: {
+                              itemId: {
+                                type: 'string',
+                                description:
+                                  'The Mockup checklist item this answers.',
+                              },
+                              hit: {
+                                type: 'boolean',
+                              },
+                              explanation: {
+                                type: 'string',
+                              },
+                            },
+                          },
+                        },
+                        regressions: {
+                          type: 'array',
+                          description:
+                            'Coding attempts for an UPDATE checklist only: what used to work and the change now breaks.\n',
+                          items: {
+                            type: 'string',
+                          },
+                        },
                         createdAt: {
                           type: 'string',
                           format: 'date-time',
@@ -1216,6 +1373,119 @@ export const REPORT_SCHEMAS = {
                   type: 'null',
                 },
               ],
+            },
+            recordedChanges: {
+              allOf: [
+                {
+                  type: 'object',
+                  additionalProperties: false,
+                  description:
+                    'Everything a coding attempt changed, saved before its workspace was removed.',
+                  required: ['files'],
+                  properties: {
+                    files: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        additionalProperties: false,
+                        description:
+                          'One file a coding attempt changed relative to its pinned commit.',
+                        required: [
+                          'path',
+                          'status',
+                          'additions',
+                          'deletions',
+                          'patch',
+                        ],
+                        properties: {
+                          path: {
+                            type: 'string',
+                          },
+                          status: {
+                            type: 'string',
+                            enum: ['added', 'modified', 'deleted'],
+                          },
+                          additions: {
+                            type: 'integer',
+                            minimum: 0,
+                          },
+                          deletions: {
+                            type: 'integer',
+                            minimum: 0,
+                          },
+                          patch: {
+                            type: 'string',
+                            description: 'Unified diff of the file.',
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              ],
+              description:
+                'Present for coding attempts once their changes were saved.',
+            },
+            recordedToolCalls: {
+              allOf: [
+                {
+                  type: 'object',
+                  additionalProperties: false,
+                  description:
+                    'The tool calls one attempt made, in order. UNAVAILABLE means they could not be collected, which is different from COLLECTED with no calls.\n',
+                  required: ['state', 'calls'],
+                  properties: {
+                    state: {
+                      type: 'string',
+                      enum: ['COLLECTED', 'UNAVAILABLE'],
+                    },
+                    calls: {
+                      type: 'array',
+                      description: 'Empty when state is UNAVAILABLE.',
+                      items: {
+                        type: 'object',
+                        additionalProperties: false,
+                        description:
+                          "One tool call an attempt's tested agent made. The call's result is never kept. Evidence only; never shown to the tested agent or other attempts.\n",
+                        required: ['toolName', 'origin', 'truncated'],
+                        properties: {
+                          toolName: {
+                            type: 'string',
+                          },
+                          arguments: {
+                            type: 'string',
+                            description:
+                              'Serialized arguments the agent passed, cut to a fixed size when large.',
+                          },
+                          origin: {
+                            type: 'string',
+                            enum: ['RUN_OBSERVED', 'INTERCEPTED'],
+                            description:
+                              "RUN_OBSERVED calls come from the Run's retained tool usage. INTERCEPTED is reserved for calls the CLI answered itself without performing them.\n",
+                          },
+                          agentText: {
+                            type: 'string',
+                            description:
+                              'Text the agent wrote with an INTERCEPTED call.',
+                          },
+                          truncated: {
+                            type: 'boolean',
+                            description: 'True when arguments were cut.',
+                          },
+                        },
+                      },
+                    },
+                    omittedCalls: {
+                      type: 'integer',
+                      minimum: 1,
+                      description:
+                        'Number of further calls left out once the list reached its cap.',
+                    },
+                  },
+                },
+              ],
+              description:
+                "The tested agent's own tool calls, without results. Absent on attempts recorded before tool calls were kept.\n",
             },
             judgedOutput: {
               anyOf: [
@@ -1338,6 +1608,12 @@ export const REPORT_SCHEMAS = {
               description: 'Lifecycle of an eval run as a whole.',
               enum: ['QUEUED', 'RUNNING', 'FINISHED', 'STOPPED'],
             },
+            name: {
+              type: 'string',
+              minLength: 1,
+              description:
+                'User-chosen name of the run. Absent means the run is shown by a name generated from what it recorded. Blank is never stored.\n',
+            },
             judgeSetup: {
               type: 'object',
               required: ['provider', 'model'],
@@ -1368,6 +1644,7 @@ export const REPORT_SCHEMAS = {
                             'entity_conversation',
                             'project_assistant',
                             'feature_sync_analyze',
+                            'free_form',
                           ],
                         },
                       ],
@@ -1496,6 +1773,7 @@ export const REPORT_SCHEMAS = {
                           'entity_conversation',
                           'project_assistant',
                           'feature_sync_analyze',
+                          'free_form',
                         ],
                       },
                       consumerHandler: {
@@ -1570,6 +1848,102 @@ export const REPORT_SCHEMAS = {
                       },
                     },
                   },
+                  coding: {
+                    type: 'object',
+                    additionalProperties: false,
+                    description:
+                      "Coding section of an Eval Case whose handler is `free_form`. For the runner, coordinator and judge only; never passed to the target. Valid exactly when the case's handler is `free_form`; checked at approval and at launch, and recorded with each run.\n",
+                    required: ['serviceId', 'pinnedCommit'],
+                    properties: {
+                      serviceId: {
+                        type: 'string',
+                        format: 'branded-ServiceId',
+                        pattern:
+                          '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+                        description:
+                          'Unique identifier for a service (branded type)',
+                        example: '550e8400-e29b-41d4-a716-446655440015',
+                        'x-typescript-type': 'ServiceId',
+                        'x-brand': 'ServiceId',
+                        'x-semantic-type': 'resource-identifier',
+                      },
+                      pinnedCommit: {
+                        type: 'object',
+                        additionalProperties: false,
+                        description: 'The commit a coding attempt starts from.',
+                        required: ['sha', 'shortMessage'],
+                        properties: {
+                          sha: {
+                            type: 'string',
+                            pattern: '^[0-9a-f]{40}$',
+                            description: 'Full 40-character commit SHA.',
+                          },
+                          shortMessage: {
+                            type: 'string',
+                            minLength: 1,
+                            description:
+                              'First line of the commit message, shown for recognition.',
+                          },
+                        },
+                      },
+                      knownGoodDiff: {
+                        type: 'string',
+                        minLength: 1,
+                        description:
+                          'Optional reference for the judge: a change that satisfies the case. Never passed to the target.\n',
+                      },
+                      knownBadDiff: {
+                        type: 'string',
+                        minLength: 1,
+                        description:
+                          'Optional reference for the judge: a change that plausibly looks right but fails the case. Never passed to the target.\n',
+                      },
+                      mockupChecklist: {
+                        type: 'object',
+                        additionalProperties: false,
+                        description:
+                          'What a coding case built from a Mockup is judged against. For a NEW Mockup the items cover every control; for an UPDATE only the parts that changed.\n',
+                        required: ['mockupId', 'kind', 'items'],
+                        properties: {
+                          mockupId: {
+                            type: 'string',
+                            format: 'uuid',
+                            description:
+                              "The source Mockup, which must be in the case's project.",
+                          },
+                          kind: {
+                            type: 'string',
+                            enum: ['NEW', 'UPDATE'],
+                          },
+                          items: {
+                            type: 'array',
+                            minItems: 1,
+                            items: {
+                              type: 'object',
+                              additionalProperties: false,
+                              description:
+                                'One observable outcome to check in a Mockup-derived coding attempt.',
+                              required: ['id', 'description'],
+                              properties: {
+                                id: {
+                                  type: 'string',
+                                  minLength: 1,
+                                  description:
+                                    'Unique within the checklist; the judge answers by this id.',
+                                },
+                                description: {
+                                  type: 'string',
+                                  minLength: 1,
+                                  description:
+                                    'The outcome to check, written as observable behavior.',
+                                },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
                 },
               },
             },
@@ -1615,6 +1989,7 @@ export const REPORT_SCHEMAS = {
                                   'entity_conversation',
                                   'project_assistant',
                                   'feature_sync_analyze',
+                                  'free_form',
                                 ],
                               },
                             ],
@@ -1685,6 +2060,7 @@ export const REPORT_SCHEMAS = {
                                       'entity_conversation',
                                       'project_assistant',
                                       'feature_sync_analyze',
+                                      'free_form',
                                     ],
                                   },
                                 ],
@@ -1749,6 +2125,13 @@ export const REPORT_SCHEMAS = {
                 attemptTokenLimit: {
                   type: 'integer',
                   minimum: 1,
+                },
+                repeatsPerAttempt: {
+                  type: 'integer',
+                  minimum: 1,
+                  maximum: 10,
+                  description:
+                    'How many separate fresh attempts the run makes for each case and configuration. Absent on runs recorded before repeats existed, which are read as 1.\n',
                 },
               },
             },
@@ -2285,14 +2668,6 @@ export const REPORT_SCHEMAS = {
               ],
               not: {
                 type: 'object',
-                properties: {
-                  decisionGroups: {
-                    type: 'array',
-                  },
-                  schemaVersion: {
-                    type: 'integer',
-                  },
-                },
                 anyOf: [
                   {
                     required: ['decisionGroups'],
@@ -2409,17 +2784,6 @@ export const REPORT_SCHEMAS = {
               required: ['reportType', 'decisionGroups'],
               not: {
                 type: 'object',
-                properties: {
-                  discrepancies: {
-                    type: 'array',
-                  },
-                  reconciliationOptions: {
-                    type: 'array',
-                  },
-                  schemaVersion: {
-                    type: 'integer',
-                  },
-                },
                 anyOf: [
                   {
                     required: ['discrepancies'],

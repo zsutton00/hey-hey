@@ -1,5 +1,5 @@
 import { condition } from '@temporalio/workflow';
-import { SystemMessageResponseType } from '../../generated';
+import { SystemMessageResponseType } from '@hey-hey/contracts/api/models';
 import {
   AgentExecutionResultPayload,
   NodeType,

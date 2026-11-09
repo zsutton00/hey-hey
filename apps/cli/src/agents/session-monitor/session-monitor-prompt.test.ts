@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type {
   FeatureSyncDecisionReportPayloadV1,
   FeatureSyncDecisionReportPayloadV2,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { SessionMonitorEvaluationContext } from './session-monitor-evaluation-store';
-import { buildSessionMonitorPrompt, type SessionMonitorPromptInput } from './session-monitor-prompt';
+import {
+  buildSessionMonitorPrompt,
+  type SessionMonitorPromptInput,
+} from './session-monitor-prompt';
 
 const groupedDecisionReport = {
   reportType: 'FEATURE_SYNC_DECISION',

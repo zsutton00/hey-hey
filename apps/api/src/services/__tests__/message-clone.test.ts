@@ -17,7 +17,7 @@ import {
   UserId,
 } from '../../types';
 import { MessageStatus } from '../../constants/message-status.constants';
-import { SystemMessageResponseType } from '../../generated';
+import { SystemMessageResponseType } from '@hey-hey/contracts/api/models';
 import * as uuid from 'uuid';
 
 const { testIds } = TestUtils;

@@ -7,7 +7,7 @@ import {
   WorkStatus,
   type AgentEdgeResponseDto,
   type TaskResponseDto,
-} from '../../shared/api/generated';
+} from '@hey-hey/contracts/api/models';
 import type { AgenticSession } from '../../session/types';
 import type { ServerLogger } from '../../server/logger';
 import type { SubmissionToolAuth } from '../submission-tools/submission-tool-auth';
@@ -129,7 +129,7 @@ describe('ReviewIntegrationContextResolver', () => {
     );
     expect(setup.listTasks).toHaveBeenCalledWith(
       expect.objectContaining({
-        taskIds: new Set(['dependency-cross-service']),
+        taskIds: ['dependency-cross-service'],
         includeServiceRelations: true,
       }),
     );
@@ -153,7 +153,7 @@ describe('ReviewIntegrationContextResolver', () => {
 
     await expect(setup.instance.resolve(run(['service-a']))).resolves.toBeNull();
     expect(setup.listTasks).toHaveBeenCalledWith(
-      expect.objectContaining({ taskIds: new Set(['same-service', 'archived-cross-service']) }),
+      expect.objectContaining({ taskIds: ['same-service', 'archived-cross-service'] }),
     );
   });
 

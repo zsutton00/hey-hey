@@ -6,7 +6,7 @@ import {
   ContextScope,
   ContextType,
 } from '../../../../context/interfaces';
-import { OrganizationRole } from '../../../../generated';
+import { OrganizationRole } from '@hey-hey/contracts/api/models';
 import { errorToLoggable } from '../../../../utils/logging.util';
 import { PlaceholderContextUtils } from '../base/placeholder-context';
 import type { PlaceholderContext } from '../base/placeholder-types';

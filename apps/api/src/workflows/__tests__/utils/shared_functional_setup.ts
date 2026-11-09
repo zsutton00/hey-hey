@@ -79,7 +79,7 @@ import { InitiativeRefinementRecoveryNode } from '../../../flows/nodes/initiativ
 import { InitiativeRefinementWelcomeNode } from '../../../flows/nodes/initiative-refinement/initiative-refinement-welcome.node';
 import { initiativeRefinementFlow } from '../../../flows/templates/initiative-refinement.flow';
 import { onboardingFlow } from '../../../flows/templates/onboarding.flow';
-import { CreateProjectDto } from '../../../generated';
+import { CreateProjectDto } from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { MastraClientService } from '../../../services/agents/mastra-client.service';
 import { ApiKeyService } from '../../../services/api-key.service';

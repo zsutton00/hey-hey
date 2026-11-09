@@ -2,7 +2,7 @@ import { Alert, Box, CircularProgress, Typography } from "@mui/material";
 import React, { useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import type { TaskResponseDto } from "@hey-hey/ui-common/api";
+import type { TaskResponseDto } from "@hey-hey/contracts/api";
 import { useWorkItem } from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 

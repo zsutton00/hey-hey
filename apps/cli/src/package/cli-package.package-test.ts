@@ -126,7 +126,7 @@ describe('published artifact shape', () => {
   it('is the package bin and main, executable, with a node hashbang', async () => {
     expect(pkg.bin['heyhey']).toBe('dist/index.mjs');
     expect(pkg.main).toBe('dist/index.mjs');
-    expect(pkg.files).toEqual(['dist']);
+    expect(pkg.files).toEqual(expect.arrayContaining(['dist', 'release-manifest.json']));
     const source = await readFile(artifact, 'utf8');
     expect(source.startsWith('#!/usr/bin/env node\n')).toBe(true);
     if (process.platform !== 'win32') {

@@ -1,8 +1,8 @@
 import { renderHook, act } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import { useOnboardingState } from "../useOnboardingState";
-import { ConversationStatus } from "@hey-hey/ui-common/api";
-import type { StepDto, ConversationResponseDto } from "@hey-hey/ui-common/api";
+import { ConversationStatus } from "@hey-hey/contracts/api";
+import type { StepDto, ConversationResponseDto } from "@hey-hey/contracts/api";
 
 describe("useOnboardingState", () => {
   const mockSteps: StepDto[] = [

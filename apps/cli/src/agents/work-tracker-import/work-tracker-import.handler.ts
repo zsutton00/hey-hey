@@ -1,16 +1,17 @@
 import type { AssistantCompleteEvent } from '../../run/types';
 import type { AgenticSession } from '../../session/types';
 import {
+  SessionRole,
   LocalPromptType,
   type WorkTrackerImportCompletion,
   type WorkTrackerImportRequest,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import {
   MessageStatus,
   SystemMessageDataTypeEnum,
   type UpdateMessageDto,
   type WorkTrackerImportCompletion as WorkTrackerConversationCompletion,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type {
   CompletionAction,
   CompletionValidationResult,
@@ -44,6 +45,7 @@ class WorkTrackerImportHandler implements PromptTypeHandler<WorkTrackerImportReq
   readonly mcpToolUseCase = 'work_tracker_import' as const;
   readonly omitServiceContextNote = true;
   readonly reports = [];
+  readonly sessionRole = SessionRole.Research;
   readonly id: string;
 
   constructor(

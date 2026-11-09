@@ -17,7 +17,7 @@ import type {
   SystemMessageData,
   TaskResponseDto,
   TasksSystemMessageData,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { materializedSectionsToContentMap } from 'src/utils/work-item-section.util';
 import { TaskService } from 'src/services/tasks/task.service';
 import { TaskDraft } from 'src/services/tasks/types';

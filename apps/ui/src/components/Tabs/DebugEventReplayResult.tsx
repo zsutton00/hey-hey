@@ -1,4 +1,4 @@
-import type { DebugEventReplayResultDto } from "@hey-hey/ui-common/api";
+import type { DebugEventReplayResultDto } from "@hey-hey/contracts/api";
 import { Alert, Chip, Paper, Stack, Typography } from "@mui/material";
 import React from "react";
 
@@ -27,7 +27,11 @@ const resultChipColor = (
 export const DebugEventReplayResult: React.FC<DebugEventReplayResultProps> = ({
   result,
 }) => (
-  <Paper data-testid="debug-event-replay-result" sx={{ p: 2 }} variant="outlined">
+  <Paper
+    data-testid="debug-event-replay-result"
+    sx={{ p: 2 }}
+    variant="outlined"
+  >
     <Stack spacing={1}>
       <Stack
         alignItems={{ sm: "center", xs: "flex-start" }}

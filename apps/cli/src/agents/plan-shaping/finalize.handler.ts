@@ -9,9 +9,10 @@
  */
 
 import {
+  SessionRole,
   LocalPromptType,
   type PlanShapingFinalizePromptPayload,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import { ReportAudience, ReportType } from '../../shared/api/index';
 import { turnUserMessageBlock, type UserLaunchablePromptTypeHandler } from '../prompt-type-handler';
 import { buildFinalizePrompt } from './prompts';
@@ -22,6 +23,7 @@ import { taskIdFromHandlerContext } from '../run-entity';
 export const planShapingFinalizeHandler: UserLaunchablePromptTypeHandler<PlanShapingFinalizePromptPayload> =
   {
     id: 'plan_shaping_finalize',
+    sessionRole: SessionRole.Planning,
     promptType: LocalPromptType.PlanShapingFinalize,
     service: 'optional',
     launchEntity: 'required',

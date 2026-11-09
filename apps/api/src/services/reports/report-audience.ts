@@ -1,5 +1,5 @@
 import { ReportAudience as PrismaReportAudience } from '@prisma/client';
-import { ReportAudience } from 'src/generated';
+import { ReportAudience } from '@hey-hey/contracts/api/models';
 
 export const USER_VISIBLE_PERSISTED_REPORT_AUDIENCES: PrismaReportAudience[] = [
   PrismaReportAudience.PROJECT_VISIBLE,

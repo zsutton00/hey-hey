@@ -8,6 +8,11 @@ import {
   type TaskMonitorExecutionDefinition,
   type TaskResponseDto,
 } from "../../../api";
+import {
+  toOpenApiOrganizationId,
+  toOpenApiProjectId,
+  toOpenApiUserId,
+} from "../../../clients/contractIdentifierAdapters";
 
 export const firstTaskId = "11111111-1111-4111-8111-111111111111";
 export const secondTaskId = "22222222-2222-4222-8222-222222222222";
@@ -52,17 +57,17 @@ export const createTask = (
   id,
   name,
   type: "STANDARD",
-  organizationId: "org-1",
-  projectId: "project-1",
+  organizationId: toOpenApiOrganizationId("org-1"),
+  projectId: toOpenApiProjectId("project-1"),
   status,
   source: TaskSource.User,
 });
 
 export const createSession = (): AgentSessionDto => ({
   id: sessionId,
-  organizationId: "org-1",
-  projectId: "project-1",
-  userId: "user-1",
+  organizationId: toOpenApiOrganizationId("org-1"),
+  projectId: toOpenApiProjectId("project-1"),
+  userId: toOpenApiUserId("user-1"),
   status: AgentSessionStatus.InProgress,
   currentState: AgentSessionCurrentState.Idle,
   conversationId: null,

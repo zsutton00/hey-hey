@@ -1,5 +1,5 @@
 import { WORK_ITEM_TYPE_KEYS } from "../types/workItemTypes";
-import type { TaskResponseDto } from "@hey-hey/ui-common/api";
+import type { TaskResponseDto } from "@hey-hey/contracts/api";
 import { WebPathService } from "@hey-hey/ui-common/services";
 import { describe, expect, it } from "vitest";
 
@@ -11,7 +11,7 @@ const buildTask = (overrides: Partial<TaskResponseDto> = {}): TaskResponseDto =>
     name: "Current Task",
     type: WORK_ITEM_TYPE_KEYS.Standard,
     ...overrides,
-  } as TaskResponseDto);
+  }) as TaskResponseDto;
 
 describe("buildTaskBreadcrumbItems", () => {
   it("renders project → task when no plan or parent is provided", () => {
@@ -53,7 +53,7 @@ describe("buildTaskBreadcrumbItems", () => {
         type: "feature",
         entityId: "feature-chrome",
         to: "/projects/project-1/features/feature-chrome",
-      }
+      },
     );
   });
 
@@ -70,7 +70,7 @@ describe("buildTaskBreadcrumbItems", () => {
 
     const planItem = items.find((item) => item.entityId === "plan-7");
     expect(planItem?.to).toBe(
-      WebPathService.plan({ projectId: "project-1", planId: "plan-7" })
+      WebPathService.plan({ projectId: "project-1", planId: "plan-7" }),
     );
     expect(planItem?.label).toBe("Q2 Rollout");
 
@@ -96,7 +96,7 @@ describe("buildTaskBreadcrumbItems", () => {
 
     const planIndex = items.findIndex((item) => item.entityId === "plan-7");
     const parentIndex = items.findIndex(
-      (item) => item.entityId === "task-parent"
+      (item) => item.entityId === "task-parent",
     );
     expect(parentIndex).toBe(planIndex + 1);
   });
@@ -116,13 +116,13 @@ describe("buildTaskBreadcrumbItems", () => {
     });
 
     expect(
-      items.filter((item) => item.entityId === "feature-chrome")
+      items.filter((item) => item.entityId === "feature-chrome"),
     ).toHaveLength(1);
     expect(items.find((item) => item.entityId === "feature-chrome")?.kind).toBe(
-      "feature"
+      "feature",
     );
     expect(items.find((item) => item.entityId === "task-1")?.kind).toBe(
-      "entity"
+      "entity",
     );
   });
 
@@ -145,10 +145,10 @@ describe("buildTaskBreadcrumbItems", () => {
     });
 
     expect(items.find((item) => item.entityId === "workflow-1")?.type).toBe(
-      "diagram"
+      "diagram",
     );
     expect(items.find((item) => item.entityId === "step-1")?.type).toBe(
-      "diagram_element"
+      "diagram_element",
     );
   });
 

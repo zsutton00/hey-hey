@@ -7,7 +7,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { OrganizationId, ProjectId, UserId } from 'src/types';
 import { ContextAuthContext, ContextAuthMembership } from '../types';
-import { OrganizationRole } from 'src/generated';
+import { OrganizationRole } from '@hey-hey/contracts/api/models';
 import { errorToLoggable } from 'src/utils/logging.util';
 
 export interface JWK {

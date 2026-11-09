@@ -131,14 +131,12 @@ describe('quickHandler', () => {
 
     expect(systemPrompt).toContain('You are in a Task Only coding session.');
     expect(systemPrompt).toContain('## Repository edit authority');
-    expect(systemPrompt).toContain('Mentions of a Service or repository');
+    expect(systemPrompt).toContain('You may inspect code in any project Service');
+    expect(systemPrompt).toContain('it does not authorize edits, commits, or mutating commands');
     expect(systemPrompt).toContain(
-      'do not authorize inspection, edits, commits, or mutating commands',
+      "changes to another selected Service require that Service's explicit corresponding worktree path",
     );
-    expect(systemPrompt).toContain(
-      "requires that repository's explicit corresponding worktree path",
-    );
-    expect(systemPrompt).toContain('Never use, inspect, or edit its host or main checkout');
+    expect(systemPrompt).toContain('Never use its host or main checkout as a fallback location');
     expect(systemPrompt).toContain(
       "The user's kickoff prompt takes precedence. Treat the canonical focal entity projection as context for that prompt.",
     );

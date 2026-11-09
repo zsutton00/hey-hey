@@ -1,5 +1,5 @@
-import { SubmitWorkflowAnswerRequestDto } from '../../../generated';
-import { WorkflowName } from '../../../generated/model/workflowName';
+import { SubmitWorkflowAnswerRequestDto } from '@hey-hey/contracts/api/models';
+import { WorkflowName } from '@hey-hey/contracts/api/models';
 import {
   AgentOperationWorkflowAnswerService,
   buildWorkflowAnswerEvidenceData,

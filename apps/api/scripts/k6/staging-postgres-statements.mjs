@@ -1,7 +1,9 @@
+import { recordingScope } from './recording-scope.mjs';
 import { spawn } from 'node:child_process';
 
 // SQL text never crosses the SSH boundary. Fingerprints/counters only.
-const command = `timeout 20s docker exec -i hey-hey-staging-postgres-1 sh -c 'PGPASSWORD="$(cat /run/secrets/postgres_password)" exec psql -X -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atq -v ON_ERROR_STOP=1'`;
+const { project } = recordingScope();
+const command = `timeout 20s docker exec -i ${project}-postgres-1 sh -c 'PGPASSWORD="$(cat /run/secrets/postgres_password)" exec psql -X -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atq -v ON_ERROR_STOP=1'`;
 const integerCounters = [
   'calls',
   'rows',

@@ -14,7 +14,7 @@ import { MachineCredentialGuard } from '../auth/guards/machine-credential.guard'
 import {
   SubmitExternalAgentCompletionRequestDto,
   SubmitExternalAgentCompletionResponseDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { ExternalAgentCompletionService } from '../services/external-agent-completion/external-agent-completion.service';
 import type { AuthenticatedMachine } from '../services/machine-pairing/machine-pairing.service';
 import { AgentSessionId, OrganizationId, ProjectId } from '../types';

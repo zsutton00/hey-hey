@@ -1,3 +1,13 @@
+import { DockerBoundary } from '../local-app/docker-boundary';
+import {
+  type LocalApplicationNavigation,
+  assertObservedRelease,
+} from '../local-app/local-application';
+import { sameRelease } from '../local-app/release-source';
+import type { ReleaseManifest } from '../release/release-manifest';
+import { SERVICE_IMAGES } from '../local-app/compose';
+import { LocalLifecycleOwners, type LocalBridgeLifecycle } from '../local-app/lifecycle-owners';
+import { InstallationStore } from '../local-app/installation-store';
 import { LocalAgentServerBootstrap, type LocalTerminalOutput } from '../server/local-agent-server';
 import type { LocalAgentServerRuntime } from '../server/local-agent-server-runtime';
 import {
@@ -9,6 +19,16 @@ import { PairingRequiredStartupRecovery } from './pairing-required-startup-recov
 import { PlatformUnavailableStartupPresenter } from './platform-unavailable-startup-presenter';
 
 export interface ServerCommandOptions {
+  localApplicationDirectory?: string;
+  localApplicationRelease?: ReleaseManifest;
+  localApplicationNavigation?: LocalApplicationNavigation;
+  /**
+   * Compose services that must be running before connecting. Defaults to the full installed
+   * stack. Only `heyhey local dev` sets this: it runs the API and UI from source, so their
+   * containers are intentionally absent and only the infrastructure containers exist.
+   */
+  localApplicationServices?: readonly string[];
+  onLocalApplicationStopping?: () => void;
   preferredPort?: number;
   enableDailySession?: boolean;
   /** Set when a presentation owns the terminal; diagnostics then stay off stdout. */
@@ -44,6 +64,10 @@ export class TerminationSignalWaiter {
     });
   }
 
+  public cancel(): void {
+    this.handleSignal();
+  }
+
   private readonly handleSignal = (): void => {
     process.off('SIGINT', this.handleSignal);
     process.off('SIGTERM', this.handleSignal);
@@ -66,6 +90,7 @@ export interface ServerCommandPresentation {
   presentPlatformUnavailable(error: PlatformUnavailableStartupError): Promise<void>;
   presentStartupFailure(message: string): Promise<void>;
   serverStarted(server: LocalAgentServerRuntime): void;
+  dispose?(): void;
   waitForExit(): Promise<void>;
 }
 
@@ -100,6 +125,10 @@ class ConsoleServerCommandPresentation implements ServerCommandPresentation {
   public waitForExit(): Promise<void> {
     return this.terminationSignals.wait();
   }
+
+  public dispose(): void {
+    this.terminationSignals.cancel();
+  }
 }
 
 /** Owns the foreground server command lifecycle from startup through shutdown. */
@@ -117,9 +146,55 @@ export class ServerCommand {
 
   public async run(options: ServerCommandOptions = {}): Promise<boolean> {
     let localServer: LocalAgentServerRuntime | null = null;
+    let localBridge: LocalBridgeLifecycle | undefined;
+    const start = async () => {
+      if (!options.localApplicationDirectory) {
+        return this.serverStarter.start(options);
+      }
+      const owners = new LocalLifecycleOwners(
+        new InstallationStore(options.localApplicationDirectory),
+      );
+      return owners.exclusive(async () => {
+        const installation = await owners.storage.read();
+        if (
+          !installation ||
+          !options.localApplicationRelease ||
+          !sameRelease(installation.release, options.localApplicationRelease)
+        ) {
+          throw new Error(
+            'Local release changed before connection. Run heyhey local again to review the matching release.',
+          );
+        }
+        const update = await owners.storage.updateConsent();
+        if (update && !sameRelease(update.target, options.localApplicationRelease)) {
+          throw new Error(
+            `A coordinated update to CLI ${update.target.cliVersion} is pending. Run heyhey local with that release to finish it before connecting.`,
+          );
+        }
+        const docker = new DockerBoundary();
+        const observed = await docker.inspect();
+        assertObservedRelease(observed, options.localApplicationRelease);
+        const expectedServices = options.localApplicationServices ?? Object.keys(SERVICE_IMAGES);
+        if (
+          observed.length !== expectedServices.length ||
+          observed.some((container) => !container.State.Running)
+        ) {
+          throw new Error('Local application stopped before connection. Run heyhey local again.');
+        }
+        await docker.health([...expectedServices]);
+        const server = await this.serverStarter.start(options);
+        try {
+          localBridge = await owners.register(server, options.onLocalApplicationStopping);
+          return server;
+        } catch (error) {
+          await server.close();
+          throw error;
+        }
+      });
+    };
     try {
       try {
-        localServer = await this.serverStarter.start(options);
+        localServer = await start();
       } catch (error) {
         if (
           !(error instanceof StartupReadinessError) ||
@@ -129,10 +204,12 @@ export class ServerCommand {
         }
         const recovered = await this.presentation.recoverPairing(error.outcome);
         if (!recovered) return false;
-        localServer = await this.serverStarter.start(options);
+        localServer = await start();
       }
       this.presentation.serverStarted(localServer);
-      await this.presentation.waitForExit();
+      await (localBridge
+        ? Promise.race([this.presentation.waitForExit(), localServer.whenClosed])
+        : this.presentation.waitForExit());
       return true;
     } catch (error) {
       if (error instanceof PlatformUnavailableStartupError) {
@@ -143,9 +220,28 @@ export class ServerCommand {
       await this.presentation.presentStartupFailure(message);
       return false;
     } finally {
+      this.presentation.dispose?.();
       if (localServer) {
-        await localServer.close().catch(() => undefined);
+        try {
+          if (localBridge) {
+            await localBridge.stop();
+          } else {
+            await localServer.close();
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          await this.presentation.presentStartupFailure(
+            `Bridge cleanup failed: ${message}. New work is blocked. ` +
+              'Keep this terminal open and run heyhey local stop in another terminal to retry.',
+          );
+          if (!localBridge) {
+            throw error;
+          }
+          // Keep the owner reachable until a lifecycle command completes cleanup.
+          await localServer.whenClosed;
+        }
       }
+      await localBridge?.close();
     }
   }
 }

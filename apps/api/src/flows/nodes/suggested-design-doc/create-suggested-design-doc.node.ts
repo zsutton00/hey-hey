@@ -10,12 +10,12 @@ import {
   ProcessLlmResult,
   SuggestedDesignDocFlowContext,
 } from 'src/types/flow-internal.types';
-import { DesignDocParentEntityType } from 'src/generated';
+import { DesignDocParentEntityType } from '@hey-hey/contracts/api/models';
 import type {
   DesignDocResponseDto,
   MessageResponseDto,
   SystemMessageData,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { DesignDocService } from 'src/services/design-doc/design-doc.service';
 import { ConversationService } from 'src/services/conversation.service';
 import { MessageService } from 'src/services/message.service';

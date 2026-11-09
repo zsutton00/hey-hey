@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { ExtendedUIFieldType, UIElement } from '../generated';
+import { ExtendedUIFieldType, UIElement } from '@hey-hey/contracts/api/models';
 import { OnboardingFeatureListReviewUserSubmissionSchema } from '../generated/workflow-review.schemas';
 import {
   hasRepositoryGroundingTypedAnswers,

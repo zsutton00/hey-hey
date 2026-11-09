@@ -8,7 +8,10 @@ import { ActivityQueryService } from '../activity-query.service';
 import { AcceptedEvidenceSelectorService } from '../../project-metrics/accepted-evidence-selector.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { WorkItemTypeRegistryService } from '../../tasks/work-item-type-registry.service';
-import { ActivityHistoryFilterDto, ProjectMetricIdentity } from 'src/generated';
+import {
+  ActivityHistoryFilterDto,
+  ProjectMetricIdentity,
+} from '@hey-hey/contracts/api/models';
 import { OrganizationId, ProjectId, UserId } from 'src/types';
 import { ActivityCorrelationRecordDraft } from '../activity-correlation.types';
 

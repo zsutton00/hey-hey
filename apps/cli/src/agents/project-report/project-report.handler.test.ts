@@ -8,7 +8,7 @@ import {
   AgentSessionConfigProjectReportV1VersionEnum,
   LocalPromptType,
   type RunCreatePayloadProjectReport,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import {
   ActivityCorrelationActivityType,
   ActivityCorrelationSource,
@@ -17,7 +17,7 @@ import {
   ProjectReportStatus,
   type ProjectReportProvider,
   type ProjectReportRequestDto,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import {
   createPromptTypeHandlerTestAuth,
   createPromptTypeHandlerTestDeps,
@@ -832,7 +832,7 @@ describe('projectReportHandler', () => {
     }
     expect(projectReportSectionHandler.childConfig).toMatchObject({
       submissionTools: 'run-registered',
-      submissionToolNames: ['read_evidence_shard'],
+      submissionToolNames: ['read_evidence_shard', 'raise_uncertainty'],
       builtinAllowedTools: [],
       codexSandboxMode: 'read-only',
     });

@@ -33,7 +33,7 @@ import {
   type EvalRunSettings,
   type LaunchEvalRunRequest,
   type ReportDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import type {
   AgentSessionId,
@@ -48,6 +48,8 @@ import { ReportService } from '../reports/report.service';
 import { WORK_ITEM_TYPE_KEYS } from '../tasks/work-item-type-keys';
 import { toEvalRunCaseInput } from './eval-case-input.mapper';
 import {
+  assertEvalCaseMockupExists,
+  assertEvalCaseServiceExists,
   assertEvaluableRunHandler,
   resolveEvalExecution,
 } from './eval-case-handlers';
@@ -57,6 +59,7 @@ const UUID_PATTERN =
 
 export const EVAL_RUN_HANDLER_PROMPT_TYPE = 'run_eval';
 export const DEFAULT_MAX_CONCURRENT_ATTEMPTS = 3;
+export const MAX_REPEATS_PER_ATTEMPT = 10;
 
 type RecordedRun = {
   runId: string;
@@ -92,12 +95,13 @@ export class EvalRunService {
     evalId: string,
     request: LaunchEvalRunRequest,
   ): Promise<ReportDto> {
+    const configurations = request.configurations ?? [];
     this.logger.log('Launching eval run', {
       organizationId,
       projectId,
       evalId,
       caseCount: request.evalCaseIds.length,
-      configurationCount: request.configurations.length,
+      configurationCount: configurations.length,
     });
     this.assertRequestShape(request);
     this.assertDistinct(
@@ -105,7 +109,7 @@ export class EvalRunService {
       'evalCaseIds must not repeat a case',
     );
     this.assertDistinct(
-      request.configurations.map((configuration) => configuration.id),
+      configurations.map((configuration) => configuration.id),
       'configurations must have distinct ids',
     );
 
@@ -156,8 +160,34 @@ export class EvalRunService {
     const caseInputs = request.evalCaseIds.map((id) =>
       toEvalRunCaseInput(casesById.get(id)!),
     );
+    for (const caseInput of caseInputs) {
+      await assertEvalCaseServiceExists(
+        caseInput.title,
+        caseInput.coding,
+        async (serviceId) =>
+          (await this.prisma.db.service.count({
+            where: { id: serviceId, organizationId, projectId },
+          })) > 0,
+      );
+      await assertEvalCaseMockupExists(
+        caseInput.title,
+        caseInput.coding,
+        async (mockupId) =>
+          (await this.prisma.db.task.count({
+            where: {
+              id: mockupId,
+              organizationId,
+              projectId,
+              type: WORK_ITEM_TYPE_KEYS.Mockup,
+            },
+          })) > 0,
+      );
+    }
 
     const settings = this.resolveSettings(request.settings);
+    const repeats = settings.repeatsPerAttempt ?? 1;
+    const attemptCount = caseInputs.length * configurations.length * repeats;
+    const repeatSummary = repeats > 1 ? `, ${repeats} repeats each` : '';
 
     const { agentSessionId, conversationId } = await this.prepareSession(
       organizationId,
@@ -168,14 +198,16 @@ export class EvalRunService {
     const preparedSessionIds: AgentSessionId[] = [agentSessionId];
 
     const runId = randomUUID();
+    const name = request.name?.trim();
     const runPayload = {
       reportType: ReportType.EvalRun,
-      summary: `Eval run of ${caseInputs.length} case(s) across ${request.configurations.length} setup(s) on ${evalItem.name}`,
+      ...(name ? { name } : {}),
+      summary: `Eval run of ${caseInputs.length} case(s) across ${configurations.length} setup(s)${repeatSummary} on ${evalItem.name}`,
       evalId,
       status: 'QUEUED',
       judgeSetup: request.judgeSetup,
       cases: caseInputs,
-      configurations: request.configurations,
+      configurations,
       settings,
       coordinatorAgentSessionId: agentSessionId,
       coordinatorConversationId: conversationId,
@@ -185,38 +217,43 @@ export class EvalRunService {
       organizationId,
       preparedSessionIds,
       async () => {
+        // Repeat-major order, so early attempts cover every case and setup.
         const attemptPayloads: EvalAttemptReportPayload[] = [];
-        for (const caseInput of caseInputs) {
-          for (const configuration of request.configurations) {
-            const summary = `${caseInput.title} on ${configuration.target.model}`;
-            const execution = resolveEvalExecution(
-              caseInput.target,
-              configuration.target.handlerConfig,
-            );
-            const target = await this.prepareSession(
-              organizationId,
-              projectId,
-              userId,
-              {
-                title: `Eval attempt: ${summary}`,
-                conversationTitle: 'Eval attempt',
-              },
-              caseInput.target,
-              configuration,
-              execution,
-            );
-            preparedSessionIds.push(target.agentSessionId);
-            attemptPayloads.push({
-              reportType: ReportType.EvalAttempt,
-              summary,
-              caseInputId: caseInput.id,
-              configuration,
-              execution,
-              status: 'QUEUED',
-              measurements: [],
-              targetSessionId: target.agentSessionId,
-              targetConversationId: target.conversationId,
-            } satisfies EvalAttemptReportPayload);
+        for (let repeat = 1; repeat <= repeats; repeat++) {
+          for (const caseInput of caseInputs) {
+            for (const configuration of configurations) {
+              const repeatLabel = repeats > 1 ? ` · repeat ${repeat}` : '';
+              const summary = `${caseInput.title} on ${configuration.target.model}${repeatLabel}`;
+              const execution = resolveEvalExecution(
+                caseInput.target,
+                configuration.target.handlerConfig,
+              );
+              const target = await this.prepareSession(
+                organizationId,
+                projectId,
+                userId,
+                {
+                  title: `Eval attempt: ${summary}`,
+                  conversationTitle: 'Eval attempt',
+                },
+                caseInput.target,
+                configuration,
+                execution,
+              );
+              preparedSessionIds.push(target.agentSessionId);
+              attemptPayloads.push({
+                reportType: ReportType.EvalAttempt,
+                summary,
+                caseInputId: caseInput.id,
+                configuration,
+                repeat,
+                execution,
+                status: 'QUEUED',
+                measurements: [],
+                targetSessionId: target.agentSessionId,
+                targetConversationId: target.conversationId,
+              } satisfies EvalAttemptReportPayload);
+            }
           }
         }
         return this.prisma.db.$transaction(async (client) => {
@@ -246,7 +283,7 @@ export class EvalRunService {
     this.logger.log('Launched eval run', {
       evalId,
       runId,
-      attemptCount: caseInputs.length * request.configurations.length,
+      attemptCount,
       agentSessionId,
       conversationId,
     });
@@ -407,6 +444,7 @@ export class EvalRunService {
   private resolveSettings(
     requested: LaunchEvalRunRequest['settings'],
   ): EvalRunSettings {
+    const repeats = requested?.repeatsPerAttempt ?? 1;
     const settings: EvalRunSettings = {
       maxConcurrentAttempts:
         requested?.maxConcurrentAttempts ?? DEFAULT_MAX_CONCURRENT_ATTEMPTS,
@@ -416,6 +454,7 @@ export class EvalRunService {
       ...(requested?.attemptTokenLimit !== undefined
         ? { attemptTokenLimit: requested.attemptTokenLimit }
         : {}),
+      repeatsPerAttempt: repeats,
     };
     const isPositiveInteger = (value: number | undefined): boolean =>
       value === undefined || (Number.isInteger(value) && value >= 1);
@@ -426,6 +465,15 @@ export class EvalRunService {
     ) {
       throw new BadRequestException(
         'Run settings must be whole numbers of at least 1',
+      );
+    }
+    if (
+      !Number.isInteger(repeats) ||
+      repeats < 1 ||
+      repeats > MAX_REPEATS_PER_ATTEMPT
+    ) {
+      throw new BadRequestException(
+        `Repeats per case and setup must be a whole number from 1 to ${MAX_REPEATS_PER_ATTEMPT}`,
       );
     }
     return settings;
@@ -597,6 +645,7 @@ export class EvalRunService {
           execution: attempt.execution!,
           targetSessionId: attempt.targetSessionId!,
           targetConversationId: attempt.targetConversationId!,
+          ...(attempt.repeat !== undefined ? { repeat: attempt.repeat } : {}),
         };
       }),
     };
@@ -622,10 +671,10 @@ export class EvalRunService {
         'evalCaseIds must be a non-empty list of case ids',
       );
     }
+    const configurations = request.configurations ?? [];
     if (
-      !Array.isArray(request.configurations) ||
-      request.configurations.length === 0 ||
-      !request.configurations.every(
+      configurations.length === 0 ||
+      !configurations.every(
         (configuration) =>
           isUuid(configuration?.id) &&
           configuration.target?.provider &&
@@ -639,7 +688,7 @@ export class EvalRunService {
     if (!request.judgeSetup?.provider || !request.judgeSetup?.model) {
       throw new BadRequestException('judgeSetup requires a provider and model');
     }
-    for (const configuration of request.configurations) {
+    for (const configuration of configurations) {
       assertEvaluableRunHandler(configuration.target.handlerConfig);
     }
   }

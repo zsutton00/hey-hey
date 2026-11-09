@@ -15,7 +15,7 @@ import {
   MachineControllerAuthenticationProofDto,
   MachineControllerInventoryRequestDto,
   MachineControllerReconciliationRequestDto,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ControllerManagementAlreadyRevokedException,
   ControllerManagementInvalidStateException,
@@ -62,6 +62,8 @@ type StoredControllerCredential = {
   credentialBackupState: boolean;
   revokedAt: Date | null;
 };
+
+export type AccountRemovalRevocation = RevocationResult;
 
 type RevocationResult = {
   machineId: MachineId;
@@ -119,15 +121,18 @@ export class ControllerManagementService {
             sourceAddress: params.sourceAddress ?? '',
           },
         );
-      this.logger.log('Existing-machine controller enrollment opened', machineEnrollmentDiagnostic('creation', {
-        machineId: params.machineId,
-        userId: params.machine.userId,
-        enrollmentId: result.enrollmentId,
-        organizationId: machine.organizationId ?? undefined,
-        reasonCode: 'controller_enrollment_opened',
-        state: 'pending',
-        decision: 'created',
-      }));
+      this.logger.log(
+        'Existing-machine controller enrollment opened',
+        machineEnrollmentDiagnostic('creation', {
+          machineId: params.machineId,
+          userId: params.machine.userId,
+          enrollmentId: result.enrollmentId,
+          organizationId: machine.organizationId ?? undefined,
+          reasonCode: 'controller_enrollment_opened',
+          state: 'pending',
+          decision: 'created',
+        }),
+      );
       return result;
     } catch (error) {
       if (error instanceof ExistingMachineEnrollmentRejectedException) {
@@ -387,12 +392,10 @@ export class ControllerManagementService {
       }
 
       const revokedAt = new Date();
-      const controllerUpdate = await tx.machineControllerCredential.updateMany(
-        {
-          where: { id: controller.id, revokedAt: null },
-          data: { revokedAt },
-        },
-      );
+      const controllerUpdate = await tx.machineControllerCredential.updateMany({
+        where: { id: controller.id, revokedAt: null },
+        data: { revokedAt },
+      });
       if (controllerUpdate.count !== 1) {
         throw new ControllerManagementAlreadyRevokedException();
       }
@@ -405,10 +408,9 @@ export class ControllerManagementService {
         data: { revokedAt },
       });
 
-      const activeControllerCount =
-        await tx.machineControllerCredential.count({
-          where: { machineId: params.machineId, revokedAt: null },
-        });
+      const activeControllerCount = await tx.machineControllerCredential.count({
+        where: { machineId: params.machineId, revokedAt: null },
+      });
       const enrollmentState =
         activeControllerCount === 0
           ? ControllerEnrollmentEligibilityState.ControllerEnrollmentRequired
@@ -440,6 +442,35 @@ export class ControllerManagementService {
       } satisfies RevocationResult;
     });
 
+    return this.publishReduction(result);
+  }
+
+  /**
+   * Delivers the signed authority reduction for controllers revoked by an
+   * account-passkey removal. Delivery is best effort per controller: the
+   * database already rejects the authority, and a machine that missed the
+   * live frame reconciles on reconnect.
+   */
+  async publishAccountRemovalReductions(
+    results: readonly AccountRemovalRevocation[],
+  ): Promise<void> {
+    for (const result of results) {
+      try {
+        await this.publishReduction(result);
+      } catch (error) {
+        this.logger.warn('Account removal reduction delivery failed', {
+          machineId: result.machineId,
+          controllerCredentialId: result.controllerCredentialId,
+          reasonCode: 'delivery_failed',
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  }
+
+  private async publishReduction(
+    result: RevocationResult,
+  ): Promise<ControllerRevocationResponseDto> {
     const inventory = await this.readInventoryAfterRevocation(
       result.machineId,
       result.userId,
@@ -454,25 +485,27 @@ export class ControllerManagementService {
       enrollmentState: result.enrollmentState,
       executionReadiness: inventory.executionReadiness,
     } satisfies ControllerRevocationReductionBodyDto;
-    const reductionFrame = this.triggerEnvelopeSigner.signControllerRevocationReduction(
-      event,
-      result.machineId,
-      result.userId,
-    );
+    const reductionFrame =
+      this.triggerEnvelopeSigner.signControllerRevocationReduction(
+        event,
+        result.machineId,
+        result.userId,
+      );
 
     let delivered = false;
     try {
       if (result.organizationId) {
-        const acknowledgement = await this.websocketGateway.emitAuthorityReductionWithAck(
-          {
-            type: 'trigger.authority_reduction',
-            timestamp: new Date().toISOString(),
-            organizationId: result.organizationId,
-            userId: result.userId,
-            envelope: reductionFrame,
-          } satisfies WebSocketAuthorityReductionEvent,
-          AUTHORITY_REDUCTION_ACK_TIMEOUT_MS,
-        );
+        const acknowledgement =
+          await this.websocketGateway.emitAuthorityReductionWithAck(
+            {
+              type: 'trigger.authority_reduction',
+              timestamp: new Date().toISOString(),
+              organizationId: result.organizationId,
+              userId: result.userId,
+              envelope: reductionFrame,
+            } satisfies WebSocketAuthorityReductionEvent,
+            AUTHORITY_REDUCTION_ACK_TIMEOUT_MS,
+          );
         delivered = acknowledgement?.status === 'APPLIED';
       }
     } catch (error) {
@@ -556,7 +589,10 @@ export class ControllerManagementService {
   }
 
   private toControllerPublicKey(
-    controller: Pick<StoredControllerCredential, 'credentialPublicKeyX' | 'credentialPublicKeyY'>,
+    controller: Pick<
+      StoredControllerCredential,
+      'credentialPublicKeyX' | 'credentialPublicKeyY'
+    >,
   ): ControllerCredentialPublicKey {
     return {
       kty: 'EC',
@@ -569,7 +605,9 @@ export class ControllerManagementService {
   private resolveEnrollmentState(
     machine: Pick<
       StoredMachine,
-      'authorizationProtocolVersion' | 'authorizationState' | 'controllerCredentials'
+      | 'authorizationProtocolVersion'
+      | 'authorizationState'
+      | 'controllerCredentials'
     >,
   ): ControllerEnrollmentEligibilityState {
     if (machine.authorizationProtocolVersion !== 2) {
@@ -578,7 +616,9 @@ export class ControllerManagementService {
     if (machine.authorizationState === 'CONTROLLER_ENROLLMENT_REQUIRED') {
       return ControllerEnrollmentEligibilityState.ControllerEnrollmentRequired;
     }
-    if (machine.controllerCredentials.some((controller) => !controller.revokedAt)) {
+    if (
+      machine.controllerCredentials.some((controller) => !controller.revokedAt)
+    ) {
       return ControllerEnrollmentEligibilityState.Ready;
     }
     return ControllerEnrollmentEligibilityState.NoController;
@@ -666,15 +706,17 @@ export class ControllerManagementService {
     }
   }
 
-  private normalizeKnownControllerIds(
-    ids: string[],
-  ): string[] {
+  private normalizeKnownControllerIds(ids: string[]): string[] {
     if (!Array.isArray(ids) || ids.length > 128) {
-      throw new UnauthorizedException('Invalid controller reconciliation input');
+      throw new UnauthorizedException(
+        'Invalid controller reconciliation input',
+      );
     }
     for (const id of ids) this.assertCredentialId(id);
     if (new Set(ids).size !== ids.length) {
-      throw new UnauthorizedException('Invalid controller reconciliation input');
+      throw new UnauthorizedException(
+        'Invalid controller reconciliation input',
+      );
     }
     return ids;
   }
@@ -686,7 +728,9 @@ export class ControllerManagementService {
       value.length > 1024 ||
       !/^[A-Za-z0-9_-]+$/.test(value)
     ) {
-      throw new UnauthorizedException('Invalid controller credential identifier');
+      throw new UnauthorizedException(
+        'Invalid controller credential identifier',
+      );
     }
   }
 
@@ -711,10 +755,7 @@ export class ControllerManagementService {
   }
 
   private decodeBase64(value: string, byteLength: number): Buffer {
-    if (
-      typeof value !== 'string' ||
-      !/^[A-Za-z0-9+/]+={0,2}$/.test(value)
-    ) {
+    if (typeof value !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) {
       throw new UnauthorizedException('Invalid or expired machine proof');
     }
     const decoded = Buffer.from(value, 'base64');

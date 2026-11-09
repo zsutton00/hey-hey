@@ -13,6 +13,10 @@ import {
   InitiationType as InitiationTypeEnum,
 } from "../../api";
 import { useConversationByWorkflow } from "../../data/hooks/useConversationByWorkflow";
+import {
+  toOpenApiOrganizationId,
+  toOpenApiProjectId,
+} from "../../clients/contractIdentifierAdapters";
 import { useCreateConversation } from "../../data/hooks/useCreateConversation";
 import type { LogCategory } from "../../utils/logger";
 import { log } from "../../utils/logger";
@@ -51,7 +55,7 @@ export const TaskPrioritizationWorkflow: React.FC<
     "task-prioritization",
     {
       enabled: !!organizationId && !!projectId,
-    }
+    },
   );
 
   // Update error state if fetch fails
@@ -60,7 +64,7 @@ export const TaskPrioritizationWorkflow: React.FC<
       setError(
         fetchError instanceof Error
           ? fetchError.message
-          : "Failed to fetch existing conversation"
+          : "Failed to fetch existing conversation",
       );
     }
   }, [fetchError]);
@@ -68,8 +72,8 @@ export const TaskPrioritizationWorkflow: React.FC<
   // Build conversation DTO
   const buildConversationDto = useCallback(
     (): CreateConversationDto => ({
-      projectId,
-      organizationId,
+      projectId: toOpenApiProjectId(projectId),
+      organizationId: toOpenApiOrganizationId(organizationId),
       initiatedBy: InitiationTypeEnum.User,
       status: ConversationStatusEnum.Started,
       workflowName: "task-prioritization",
@@ -77,7 +81,7 @@ export const TaskPrioritizationWorkflow: React.FC<
       title: `Task Prioritization`,
       context: {},
     }),
-    [projectId, organizationId]
+    [projectId, organizationId],
   );
 
   // Create conversation mutation
@@ -99,7 +103,7 @@ export const TaskPrioritizationWorkflow: React.FC<
         "Failed to create task prioritization conversation",
         {
           error: err instanceof Error ? err.message : String(err),
-        }
+        },
       );
     },
   });

@@ -12,7 +12,7 @@ import {
   InsightData,
   TaskOriginalArtifactData,
   InitiativeArtifactData,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 
 // Type guard utilities (recreated from local types)
 export function isQAPairData(data: ArtifactData): data is QAPairData {

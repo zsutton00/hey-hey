@@ -26,6 +26,7 @@ import { PaymentEntitlementReconciliationService } from '../services/payment-ent
 import { OrganizationAccountLifecycleOwner } from '../services/organization-account-lifecycle.owner';
 import { OrganizationAccountLifecycleService } from '../services/organization-account-lifecycle.service';
 import { ProjectService } from '../services/project.service';
+import { LocalDefaultProjectService } from '../services/local-default-project.service';
 import { SecurityLoggerService } from '../services/security-logger.service';
 import { TagService } from '../services/tag.service';
 import { TaskService } from '../services/tasks/task.service';
@@ -80,6 +81,7 @@ import { TemplateGraphService } from 'src/generated/graphs/api/templateGraph.ser
 import { AgentEdgesService as GraphsAgentEdgesService } from 'src/generated/graphs/api/agentEdges.service';
 import { HintsService as GraphsHintsService } from 'src/generated/graphs/api/hints.service';
 import { HintService } from 'src/services/hints/hint.service';
+import { AdminHintListingService } from 'src/services/hints/admin-hint-listing.service';
 import { AgentEdgeClientService } from 'src/services/agent-edge-client.service';
 import { ProjectModeEligibilityService } from 'src/services/tasks/project-mode-eligibility.service';
 import { PlanDesignDocLinksService } from 'src/services/design-doc/plan-design-doc-links.service';
@@ -126,6 +128,7 @@ import { ActivitySleepService } from 'src/services/activity-correlation/activity
 import { ActivityQueryService } from 'src/services/activity-correlation/activity-query.service';
 import { ProjectReportActivityService } from 'src/services/project-reports/project-report-activity.service';
 import { ProjectReportContextService } from 'src/services/project-reports/project-report-context.service';
+import { ProjectReportHistoryService } from 'src/services/project-reports/project-report-history.service';
 import { ProjectReportPlacementService } from 'src/services/project-reports/project-report-placement.service';
 import { ProjectReportRequestService } from 'src/services/project-reports/project-report-request.service';
 import { ProjectReportSessionOutcomeListener } from 'src/services/project-reports/project-report-session-outcome.listener';
@@ -165,6 +168,7 @@ export const DOMAIN_SERVICES: Provider[] = [
   ActivityQueryService,
   ProjectReportActivityService,
   ProjectReportContextService,
+  ProjectReportHistoryService,
   ProjectReportPlacementService,
   ProjectReportRequestService,
   ProjectReportSessionOutcomeListener,
@@ -198,6 +202,7 @@ export const DOMAIN_SERVICES: Provider[] = [
   GraphsAgentEdgesService,
   GraphsHintsService,
   HintService,
+  AdminHintListingService,
   FeatureFlagService,
   EntityGraphEmbeddingMappingService,
   EntityRegistryService,
@@ -223,6 +228,7 @@ export const DOMAIN_SERVICES: Provider[] = [
   EmailService,
   PrivateBetaAccessNotificationService,
   ProjectService,
+  LocalDefaultProjectService,
   ReportService,
   ReportRetentionService,
   SecurityLoggerService,
@@ -317,6 +323,7 @@ export const DOMAIN_EXPORTS = [
   ActivityQueryService,
   ProjectReportActivityService,
   ProjectReportContextService,
+  ProjectReportHistoryService,
   ProjectReportPlacementService,
   ProjectReportRequestService,
   ProjectReportSessionOutcomeListener,
@@ -345,6 +352,7 @@ export const DOMAIN_EXPORTS = [
   GraphsAgentEdgesService,
   GraphsHintsService,
   HintService,
+  AdminHintListingService,
   FeatureFlagService,
   EntityGraphEmbeddingMappingService,
   EntityRegistryService,
@@ -364,6 +372,7 @@ export const DOMAIN_EXPORTS = [
   EmailService,
   PrivateBetaAccessNotificationService,
   ProjectService,
+  LocalDefaultProjectService,
   ReportService,
   SecurityLoggerService,
   TagService,

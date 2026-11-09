@@ -8,7 +8,7 @@ import {
   InitiationType,
   InitiativeResponseDto,
   WorkflowName,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { ConversationService } from '../../../services/conversation.service';
 import { InitiativeService } from '../../../services/initiatives/initiative.service';
 import { InitiativeDraft } from '../../../services/initiatives/types';
@@ -92,7 +92,7 @@ When generating initiatives, you SHOULD include an "influences" array for each i
 - entityId: The UUID of the entity that influenced your choice
 - entityType: The type of that same entity (as provided in the evidence)
 - reasoning: Explanation of how this entity influenced the initiative
-- reasonType: Type of influence (e.g., "previous_conversation", "related_initiative", "depends_on", "similar_to", "blocks", "references")
+- reasonType: exactly one of "explicit_mention" (the user or evidence named this entity), "implied" (the evidence suggests it without naming it), or "derived" (you inferred it from the evidence). No other value is accepted.
 
 Example influences structure:
 "influences": [
@@ -100,7 +100,7 @@ Example influences structure:
     "entityId": "message_uuid_here",
     "entityType": "MESSAGE",
     "reasoning": "Initiative generation context informed this initiative priority",
-    "reasonType": "previous_conversation"
+    "reasonType": "implied"
   }
 ]
 
@@ -125,7 +125,7 @@ EXAMPLE JSON STRUCTURE:
           "entityId": "example-message-id",
           "entityType": "MESSAGE",
           "reasoning": "User requirements informed this initiative scope",
-          "reasonType": "previous_conversation"
+          "reasonType": "implied"
         }
       ]
     }

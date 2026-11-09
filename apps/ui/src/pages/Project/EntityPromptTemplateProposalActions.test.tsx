@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
-import type { ProposalResponseDto } from "@hey-hey/ui-common/api";
+import type { ProposalResponseDto } from "@hey-hey/contracts/api";
 import { EntityPromptTemplateProposalActions } from "./EntityPromptTemplateProposalActions";
 
 vi.mock("@hey-hey/ui-common/data", () => ({
@@ -16,7 +16,7 @@ vi.mock("@hey-hey/ui-common/data", () => ({
 const makeProposal = (
   id: string,
   status: string,
-  content = "Rejected candidate"
+  content = "Rejected candidate",
 ): ProposalResponseDto =>
   ({
     id,
@@ -26,7 +26,7 @@ const makeProposal = (
       operation: "UPSERT",
       content,
     },
-  } as ProposalResponseDto);
+  }) as ProposalResponseDto;
 
 describe("EntityPromptTemplateProposalActions", () => {
   it("renders proposal links and restores rejected content", async () => {
@@ -43,27 +43,27 @@ describe("EntityPromptTemplateProposalActions", () => {
         templateKey="entity_context"
         selector={{ entityType: "WORK_ITEM", workItemTypeKey: "FEATURE" }}
         onReviseRejected={onReviseRejected}
-      />
+      />,
     );
 
     const proposalLinks = screen.getAllByTestId(
-      "entity-prompt-template-proposal-link"
+      "entity-prompt-template-proposal-link",
     );
     expect(proposalLinks).toHaveLength(2);
     expect(
-      screen.getByTestId("entity-prompt-template-pending-proposal-notice")
+      screen.getByTestId("entity-prompt-template-pending-proposal-notice"),
     ).toHaveTextContent(
-      "There is a current proposal. Either accept or reject it before making further edits."
+      "There is a current proposal. Either accept or reject it before making further edits.",
     );
     expect(proposalLinks[0]).toHaveAttribute(
       "href",
-      "/projects/project-1/proposals/pending-proposal"
+      "/projects/project-1/proposals/pending-proposal",
     );
     expect(
-      screen.queryByTestId("standard-proposal-detail")
+      screen.queryByTestId("standard-proposal-detail"),
     ).not.toBeInTheDocument();
     await user.click(
-      screen.getByTestId("entity-prompt-template-revise-rejected")
+      screen.getByTestId("entity-prompt-template-revise-rejected"),
     );
     expect(onReviseRejected).toHaveBeenCalledWith("Rejected candidate");
   });
@@ -78,10 +78,10 @@ describe("EntityPromptTemplateProposalActions", () => {
         templateKey="entity_context"
         selector={{ entityType: "WORK_ITEM", workItemTypeKey: "FEATURE" }}
         onReviseRejected={vi.fn()}
-      />
+      />,
     );
     expect(
-      screen.getByTestId("entity-prompt-template-proposals-error")
+      screen.getByTestId("entity-prompt-template-proposals-error"),
     ).toHaveTextContent("proposal service unavailable");
   });
 
@@ -96,14 +96,14 @@ describe("EntityPromptTemplateProposalActions", () => {
         selector={{ entityType: "WORK_ITEM", workItemTypeKey: "FEATURE" }}
         onReviseRejected={vi.fn()}
         onPendingOperationChange={onPendingOperationChange}
-      />
+      />,
     );
 
     await waitFor(() =>
       expect(onPendingOperationChange).toHaveBeenCalledWith(
         "pending-proposal",
-        "UPSERT"
-      )
+        "UPSERT",
+      ),
     );
   });
 });

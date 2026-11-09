@@ -11,7 +11,7 @@ import {
   type CliReadRunChangedFilesInventorySuccessResponseDto,
   type LocalRunChangedFileDetailRequest,
   type LocalRunChangedFilesInventoryRequest,
-} from '../../shared/local-agent-api/generated/api';
+} from '@hey-hey/contracts/local';
 import { NOOP_LOGGER, type ServerLogger } from '../logger';
 import { RunChangedFilesContextError, type RunChangedFilesReader } from '../run-changed-files';
 import { RunReadPreparationError, type RunReadRestoreCoordinator } from '../restore-persisted-runs';

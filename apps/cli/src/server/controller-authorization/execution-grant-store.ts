@@ -49,12 +49,14 @@ const ACTION_CATEGORIES = new Set([
   'APPLICATION_EFFECT',
   'EXACT_ACTION',
 ]);
-const CONTROLLER_AUTHORIZATION_CADENCE_TTL_MS = new Map([
+// A null lifetime is UNTIL_REVOKED: the grant has no expiry.
+const CONTROLLER_AUTHORIZATION_CADENCE_TTL_MS = new Map<string, number | null>([
   ['FIVE_MINUTES', 5 * 60 * 1000],
   ['EIGHT_HOURS', 8 * 60 * 60 * 1000],
   ['ONE_DAY', 24 * 60 * 60 * 1000],
   ['ONE_WEEK', 7 * 24 * 60 * 60 * 1000],
   ['ONE_MONTH', 30 * 24 * 60 * 60 * 1000],
+  ['UNTIL_REVOKED', null],
 ]);
 const LEGACY_CONTROLLER_AUTHORIZATION_CADENCES = new Set([
   'EVERY_ACTION',
@@ -93,7 +95,7 @@ const hasValidGrantBase = (value: Record<string, unknown>): boolean => {
     categories.length > 0 &&
     categories.every((category) => isString(category) && ACTION_CATEGORIES.has(category)) &&
     isNumber(value['issuedAtMs']) &&
-    isNumber(value['effectiveExpiresAtMs']) &&
+    (value['effectiveExpiresAtMs'] === null || isNumber(value['effectiveExpiresAtMs'])) &&
     isString(value['descriptorHash']) &&
     /^[a-f0-9]{64}$/u.test(value['descriptorHash']) &&
     isSha256Fingerprint(value['controllerCredentialFingerprint']) &&
@@ -122,11 +124,26 @@ const hasValidStoredCadenceLifetime = (value: Record<string, unknown>): boolean 
   if (!isString(cadence)) return false;
   if (LEGACY_CONTROLLER_AUTHORIZATION_CADENCES.has(cadence)) return true;
   const ttlMs = CONTROLLER_AUTHORIZATION_CADENCE_TTL_MS.get(cadence);
+  if (ttlMs === undefined) return false;
+  if (ttlMs === null) return value['effectiveExpiresAtMs'] === null;
   return (
-    ttlMs !== undefined &&
     isNumber(value['issuedAtMs']) &&
     isNumber(value['effectiveExpiresAtMs']) &&
     value['effectiveExpiresAtMs'] - value['issuedAtMs'] === ttlMs
+  );
+};
+
+const hasValidDescriptorExpiry = (
+  descriptor: { issuedAtMs: number; effectiveExpiresAtMs: number | null },
+  cadenceTtlMs: number | null,
+  now: number,
+): boolean => {
+  if (cadenceTtlMs === null) return descriptor.effectiveExpiresAtMs === null;
+  return (
+    descriptor.effectiveExpiresAtMs !== null &&
+    Number.isSafeInteger(descriptor.effectiveExpiresAtMs) &&
+    descriptor.effectiveExpiresAtMs > now &&
+    descriptor.effectiveExpiresAtMs - descriptor.issuedAtMs === cadenceTtlMs
   );
 };
 
@@ -465,11 +482,7 @@ export class ExecutionGrantStore {
       const cadenceTtlMs = CONTROLLER_AUTHORIZATION_CADENCE_TTL_MS.get(descriptor.cadence);
       if (cadenceTtlMs === undefined)
         throw new Error('Removed controller authorization cadence cannot be persisted.');
-      if (
-        !Number.isSafeInteger(descriptor.effectiveExpiresAtMs) ||
-        descriptor.effectiveExpiresAtMs <= now ||
-        descriptor.effectiveExpiresAtMs - descriptor.issuedAtMs !== cadenceTtlMs
-      )
+      if (!hasValidDescriptorExpiry(descriptor, cadenceTtlMs, now))
         throw new Error('Grant expiry is invalid.');
       if (!Number.isSafeInteger(descriptor.issuedAtMs) || descriptor.issuedAtMs > now)
         throw new Error('Grant issue time is invalid.');
@@ -538,7 +551,7 @@ export class ExecutionGrantStore {
         current.revoked ||
         current.suspended ||
         current.terminal ||
-        current.effectiveExpiresAtMs <= this.now()
+        (current.effectiveExpiresAtMs !== null && current.effectiveExpiresAtMs <= this.now())
       ) {
         throw new Error('GRANT_NOT_ACTIVE');
       }

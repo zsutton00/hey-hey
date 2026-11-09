@@ -9,6 +9,7 @@ import { promisify } from 'node:util';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   countChangedFilesInPaths,
+  captureChangesSinceCommit,
   getGitDiff,
   listGitChangedFilePathsExcludingIgnored,
 } from './diff';
@@ -326,5 +327,145 @@ describe('countChangedFilesInPaths', () => {
       paths: ['anything.txt'],
     });
     expect(count).toBe(0);
+  });
+});
+
+describe('captureChangesSinceCommit', () => {
+  it('reports a rename as a deletion plus an addition with correct line counts', async () => {
+    const repo = await createTempRepo();
+    const body = 'line1\nline2\nline3\nline4\n';
+    await writeFile(repo, 'old.txt', body);
+    await runGit(repo, ['add', '.']);
+    await runGit(repo, ['commit', '-qm', 'base']);
+    const commit = await runGit(repo, ['rev-parse', 'HEAD']);
+    await runGit(repo, ['mv', 'old.txt', 'new.txt']);
+
+    const files = await captureChangesSinceCommit({ repoPath: repo, commit });
+
+    expect(
+      files.map(({ path: file, status, additions, deletions }) => ({
+        file,
+        status,
+        additions,
+        deletions,
+      })),
+    ).toEqual([
+      { file: 'new.txt', status: 'added', additions: 4, deletions: 0 },
+      { file: 'old.txt', status: 'deleted', additions: 0, deletions: 4 },
+    ]);
+  });
+
+  it('counts hunk lines that look like diff headers, and handles new, deleted, empty and binary files', async () => {
+    const repo = await createTempRepo();
+    await writeFile(repo, 'q.sql', 'keep\n-- drop me\nkeep2\n');
+    await writeFile(repo, 'gone.txt', 'a\nb\n');
+    await runGit(repo, ['add', '.']);
+    await runGit(repo, ['commit', '-qm', 'base']);
+    const commit = await runGit(repo, ['rev-parse', 'HEAD']);
+    await writeFile(repo, 'q.sql', 'keep\n++plus\nkeep2\n');
+    await fs.rm(path.join(repo, 'gone.txt'));
+    await writeFile(repo, 'fresh.txt', 'x\ny\n');
+    await writeFile(repo, 'empty.txt', '');
+    await fs.writeFile(path.join(repo, 'blob.bin'), Buffer.from([0, 1, 2, 0, 255]));
+
+    const files = await captureChangesSinceCommit({ repoPath: repo, commit });
+    const byPath = Object.fromEntries(
+      files.map(({ path: file, status, additions, deletions }) => [
+        file,
+        { status, additions, deletions },
+      ]),
+    );
+
+    expect(byPath).toEqual({
+      'q.sql': { status: 'modified', additions: 1, deletions: 1 },
+      'gone.txt': { status: 'deleted', additions: 0, deletions: 2 },
+      'fresh.txt': { status: 'added', additions: 2, deletions: 0 },
+      'empty.txt': { status: 'added', additions: 0, deletions: 0 },
+      'blob.bin': { status: 'added', additions: 0, deletions: 0 },
+    });
+  });
+  it('runs nothing the checkout configured when it saves changes', async () => {
+    const repo = await createTempRepo();
+    const planted = await fs.mkdtemp(path.join(os.tmpdir(), 'heyhey-planted-'));
+    tempRoots.push(planted);
+    const script = path.join(planted, 'plant.sh');
+    await fs.writeFile(script, `#!/bin/sh\ntouch "${planted}/ran-$(basename "$0")-$$"\nexit 0\n`);
+    await fs.chmod(script, 0o755);
+    await writeFile(repo, '.gitattributes', '*.txt diff=planted\n*.dat filter=planted\n');
+    await writeFile(repo, 'a.txt', 'one\n');
+    await writeFile(repo, 'b.dat', 'one\n');
+    await runGit(repo, ['add', '.']);
+    await runGit(repo, ['commit', '-qm', 'base']);
+    const commit = await runGit(repo, ['rev-parse', 'HEAD']);
+    await runGit(repo, ['config', 'diff.external', script]);
+    await runGit(repo, ['config', 'diff.planted.textconv', script]);
+    await runGit(repo, ['config', 'core.fsmonitor', script]);
+    await runGit(repo, ['config', 'core.hooksPath', planted]);
+    await runGit(repo, ['config', 'filter.planted.clean', script]);
+    await runGit(repo, ['config', 'filter.planted.required', 'true']);
+    await writeFile(repo, 'a.txt', 'two\n');
+    await writeFile(repo, 'b.dat', 'two\n');
+    await writeFile(repo, 'new.txt', 'fresh\n');
+
+    const files = await captureChangesSinceCommit({ repoPath: repo, commit });
+
+    expect(await fs.readdir(planted)).toEqual(['plant.sh']);
+    expect(
+      files.map(({ path: file, status, additions, deletions }) => ({
+        file,
+        status,
+        additions,
+        deletions,
+      })),
+    ).toEqual([
+      { file: 'a.txt', status: 'modified', additions: 1, deletions: 1 },
+      { file: 'b.dat', status: 'modified', additions: 1, deletions: 1 },
+      { file: 'new.txt', status: 'added', additions: 1, deletions: 0 },
+    ]);
+  });
+
+  it('runs no filter the checkout defines through an included configuration file', async () => {
+    const repo = await createTempRepo();
+    const planted = await fs.mkdtemp(path.join(os.tmpdir(), 'heyhey-planted-'));
+    tempRoots.push(planted);
+    const script = path.join(planted, 'plant.sh');
+    await fs.writeFile(script, `#!/bin/sh\ntouch "${planted}/ran-$$"\ncat\n`);
+    await fs.chmod(script, 0o755);
+    // The filter is defined two includes deep, one of them conditional.
+    const innermost = path.join(planted, 'innermost.cfg');
+    const middle = path.join(planted, 'middle.cfg');
+    const outer = path.join(planted, 'outer.cfg');
+    await fs.writeFile(innermost, `[filter "planted"]\n\tclean = ${script}\n\trequired = true\n`);
+    await fs.writeFile(middle, `[include]\n\tpath = ${innermost}\n`);
+    await fs.writeFile(outer, `[includeIf "onbranch:main"]\n\tpath = ${middle}\n`);
+    await writeFile(repo, '.gitattributes', '*.dat filter=planted\n');
+    await writeFile(repo, 'b.dat', 'one\n');
+    await runGit(repo, ['add', '.']);
+    await runGit(repo, ['commit', '-qm', 'base']);
+    const commit = await runGit(repo, ['rev-parse', 'HEAD']);
+    await runGit(repo, ['config', 'include.path', outer]);
+    await writeFile(repo, 'b.dat', 'two\n');
+
+    const files = await captureChangesSinceCommit({ repoPath: repo, commit });
+
+    expect(await fs.readdir(planted)).not.toContainEqual(expect.stringMatching(/^ran-/));
+    expect(files.map(({ path: file, status }) => ({ file, status }))).toEqual([
+      { file: 'b.dat', status: 'modified' },
+    ]);
+  });
+
+  it('records a new file whose name looks like a git option without acting on it', async () => {
+    const repo = await createTempRepo();
+    await writeFile(repo, 'base.txt', 'base\n');
+    await runGit(repo, ['add', '.']);
+    await runGit(repo, ['commit', '-qm', 'base']);
+    const commit = await runGit(repo, ['rev-parse', 'HEAD']);
+    const outside = path.join(os.tmpdir(), `heyhey-option-${Date.now()}`);
+    await writeFile(repo, `--output=${outside}`, 'x\n');
+
+    const files = await captureChangesSinceCommit({ repoPath: repo, commit });
+
+    expect(files.map((file) => file.path)).toEqual([`--output=${outside}`]);
+    await expect(fs.stat(outside)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 });

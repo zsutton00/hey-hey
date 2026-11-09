@@ -4,8 +4,8 @@ import type {
   FeatureRequirementContractCitation,
   FeatureRequirementDesignCitation,
   FeatureRequirementFulfillmentCitation,
-} from '../../generated';
-import type { FeatureRequirementsSection } from '../../generated/model/featureRequirementsSection';
+} from '@hey-hey/contracts/api/models';
+import type { FeatureRequirementsSection } from '@hey-hey/contracts/api/models';
 import { featureRequirementsJsonSchema } from '../../generated/feature-requirements.schema';
 import { canonicalize } from './feature-requirement-authoring.schemas';
 

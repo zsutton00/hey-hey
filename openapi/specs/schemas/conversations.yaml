@@ -4298,7 +4298,20 @@ SystemMessageData:
         - TASK_MONITOR_LAUNCH_RECOVERY
         - TASK_MONITOR_SUPERVISION
         - CARRIER
+        - AGENT_UNCERTAINTY
       description: Type identifier for system message data
+    severity:
+      type: string
+      enum: [low, medium, high]
+      description: Severity for AGENT_UNCERTAINTY messages.
+    category:
+      type: string
+      enum: [lack_of_evidence, conflict, ambiguity, not_implemented, question]
+      description: Single category for AGENT_UNCERTAINTY messages.
+    statement:
+      type: string
+      minLength: 1
+      description: Structured uncertainty statement, separate from assistant response text.
     proposalSuggestion:
       $ref: "./proposals.yaml#/ProposalReconciliationSuggestion"
     flowId:
@@ -4411,6 +4424,47 @@ SystemMessageData:
       TASK_MONITOR_LAUNCH_RECOVERY: "#/TaskMonitorLaunchRecoverySystemMessageData"
       TASK_MONITOR_SUPERVISION: "#/TaskMonitorSupervisionSystemMessageData"
       CARRIER: "#/CarrierSystemMessageData"
+      AGENT_UNCERTAINTY: "#/AgentUncertaintySystemMessageData"
+
+AgentUncertaintyToolInput:
+  type: object
+  additionalProperties: false
+  required: [severity, category, statement]
+  properties:
+    severity:
+      type: string
+      enum: [low, medium, high]
+    category:
+      type: string
+      enum: [lack_of_evidence, conflict, ambiguity, not_implemented, question]
+    statement:
+      type: string
+      minLength: 1
+      pattern: ".*\\S.*"
+
+AgentUncertaintySystemMessageData:
+  type: object
+  additionalProperties: true
+  required: [type, severity, category, statement]
+  properties:
+    type:
+      type: string
+      enum: [AGENT_UNCERTAINTY]
+    severity:
+      type: string
+      enum: [low, medium, high]
+    category:
+      type: string
+      enum: [lack_of_evidence, conflict, ambiguity, not_implemented, question]
+    statement:
+      type: string
+      minLength: 1
+      pattern: ".*\\S.*"
+    providerSessionId:
+      type: string
+    promptHandler:
+      type: string
+  x-discriminator-value: AGENT_UNCERTAINTY
 
 UIHint:
   type: object
@@ -6342,7 +6396,38 @@ AgentRequestPermissionPayload:
       format: date-time
       nullable: true
       description: ISO timestamp of when the decision was recorded
+    groupedRequests:
+      type: array
+      description: >
+        Present when this card lists several same-tool requests. Each entry
+        carries its own decision. The first entry is the request described by
+        permissionRequest, decision and decidedAt.
+      items:
+        $ref: "#/AgentGroupedPermissionRequest"
   description: Structured payload for permission-request UI elements
+
+AgentGroupedPermissionRequest:
+  type: object
+  required:
+    - requestId
+    - description
+  properties:
+    requestId:
+      type: string
+      description: Permission request id this entry answers
+    description:
+      type: string
+      description: What this request is for, such as a search query or network host
+    decision:
+      type: string
+      enum: [approve, always_approve, whitelist, deny]
+      nullable: true
+      description: The user's decision for this request, once recorded
+    decidedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: ISO timestamp of when this request's decision was recorded
 
 AgentQuestionOption:
   type: object
@@ -6825,7 +6910,7 @@ CodingPromptStartupPlanPayload:
 CodingPlanEmissionInput:
   type: object
   additionalProperties: false
-  required: [markdown, requiredServiceIds]
+  required: [markdown, requiredServiceIds, discrepancies]
   properties:
     markdown:
       type: string
@@ -6840,19 +6925,9 @@ CodingPlanEmissionInput:
         format: uuid
     discrepancies:
       type: array
-      description: Complete discrepancy list for this plan version. A replacement plan re-lists the discrepancies that still hold.
+      description: Complete finding list for this plan version; use an empty array when there are none. A replacement plan re-lists the findings that still apply with their current direction, disposition and follow-through.
       items:
-        $ref: "#/CodingPlanDiscrepancy"
-
-CodingPlanQuestion:
-  type: object
-  additionalProperties: false
-  required: [question]
-  properties:
-    question:
-      type: string
-      minLength: 1
-      description: One question the user must answer before planning can continue, shown verbatim in the conversation.
+        $ref: "#/CodingPlanEmittedDiscrepancy"
 
 CodingPlanVersion:
   type: object
@@ -6867,7 +6942,10 @@ CodingPlanVersion:
     requiredServiceIds:
       $ref: "#/CodingPlanEmissionInput/properties/requiredServiceIds"
     discrepancies:
-      $ref: "#/CodingPlanEmissionInput/properties/discrepancies"
+      type: array
+      description: Findings persisted with this plan version. Historical versions may omit the finding metadata.
+      items:
+        $ref: "#/CodingPlanDiscrepancy"
 
 CodingPlanVersionApproval:
   type: object
@@ -6954,7 +7032,45 @@ CodingPlanDiscrepancy:
         sourceField:
           type: string
           minLength: 1
-  description: One evidence-bearing, individually replyable planning issue.
+        suspectedImpact:
+          type: string
+          description: A material inference that is not established by observation.
+        findingId:
+          type: string
+          minLength: 1
+          description: Stable identity that a finding keeps across replacement plan versions.
+        category:
+          type: string
+          enum: [implementation, project_context]
+          description: Kind of concern, independent of severity. project_context marks a conflict with recorded requirements, Contracts, designs or other governing context.
+        userDirection:
+          type: string
+          description: The direction or assent the user gave about this finding.
+        disposition:
+          type: string
+          enum: [open, accepted, repair_planned, withdrawn]
+          description: Current state of the finding. Assent changes the disposition and never removes the finding.
+        implementationFollowThrough:
+          type: string
+          description: What implementation must address or verify for this finding.
+        withdrawalEvidence:
+          type: string
+          description: Evidence that a withdrawn finding was mistaken or moot.
+  description: One evidence-bearing planning issue.
+
+CodingPlanEmittedDiscrepancy:
+  allOf:
+    - $ref: "#/CodingPlanDiscrepancy"
+    - type: object
+      required: [findingId, category, disposition]
+      properties:
+        findingId:
+          $ref: "#/CodingPlanDiscrepancy/allOf/1/properties/findingId"
+        category:
+          $ref: "#/CodingPlanDiscrepancy/allOf/1/properties/category"
+        disposition:
+          $ref: "#/CodingPlanDiscrepancy/allOf/1/properties/disposition"
+  description: A finding as emitted with a new plan version; carries the required finding metadata.
 
 CodingPlanConversationalApproval:
   type: object
@@ -8373,6 +8489,7 @@ UserMessageAgentInput:
     - $ref: "#/UserMessageDataValidationWalkthrough"
     - $ref: "#/UserMessageDataCodingFreeform"
     - $ref: "#/UserMessageDataWorkflowDefined"
+    - $ref: "#/UserMessageDataLocalOnboarding"
     - $ref: "#/UserMessageDataFeatureTreeConversation"
     - $ref: "#/UserMessageDataTaskMonitor"
   discriminator:
@@ -9691,7 +9808,6 @@ PlanGapContinueRevisingPayload:
   allOf:
     - $ref: "#/SecondaryActionPayload"
     - type: object
-      required: []
       properties: {}
   description: Payload for continuing plan gap discovery revisions
   x-discriminator-value: plan_gap_continue_revising
@@ -9700,7 +9816,6 @@ PlanApprovalContinueRevisingPayload:
   allOf:
     - $ref: "#/SecondaryActionPayload"
     - type: object
-      required: []
       properties: {}
   description: Payload for continuing plan approval revisions
   x-discriminator-value: plan_approval_continue_revising
@@ -9709,7 +9824,6 @@ PlanGenerationStageReviewContinueRevisingPayload:
   allOf:
     - $ref: "#/SecondaryActionPayload"
     - type: object
-      required: []
       properties: {}
   description: Payload for continuing local plan-generation proposed-stages revisions
   x-discriminator-value: plan_generation_stage_review_continue_revising
@@ -9718,7 +9832,6 @@ PlanGenerationStageReviewApproveAllPayload:
   allOf:
     - $ref: "#/SecondaryActionPayload"
     - type: object
-      required: []
       properties: {}
   description: Payload for approving all local plan-generation proposed stages
   x-discriminator-value: plan_generation_stage_review_approve_all
@@ -9727,7 +9840,6 @@ PlanGenerationStepReviewContinueRevisingPayload:
   allOf:
     - $ref: "#/SecondaryActionPayload"
     - type: object
-      required: []
       properties: {}
   description: Payload for continuing local plan-generation proposed-steps revisions
   x-discriminator-value: plan_generation_step_review_continue_revising
@@ -9736,7 +9848,6 @@ PlanGenerationStepReviewApproveAllPayload:
   allOf:
     - $ref: "#/SecondaryActionPayload"
     - type: object
-      required: []
       properties: {}
   description: Payload for approving all local plan-generation proposed steps
   x-discriminator-value: plan_generation_step_review_approve_all
@@ -9745,7 +9856,6 @@ PlanGenerationVisualPreviewApprovePayload:
   allOf:
     - $ref: "#/SecondaryActionPayload"
     - type: object
-      required: []
       properties: {}
   description: Payload for approving the complete visual-preview proposal set.
   x-discriminator-value: plan_generation_visual_preview_approve
@@ -9754,7 +9864,6 @@ PlanGenerationVisualPreviewContinueRevisingPayload:
   allOf:
     - $ref: "#/SecondaryActionPayload"
     - type: object
-      required: []
       properties: {}
   description: Payload for revising the visual-preview proposal set.
   x-discriminator-value: plan_generation_visual_preview_continue_revising
@@ -9763,7 +9872,6 @@ PlanGenerationJourneyMapApprovePayload:
   allOf:
     - $ref: "#/SecondaryActionPayload"
     - type: object
-      required: []
       properties: {}
   description: Payload for approving the JourneyMap on the plan-generation journey-review gate and kicking off plan creation. This discriminator payload is intentionally empty.
   x-discriminator-value: plan_generation_journey_map_approve
@@ -9772,7 +9880,6 @@ PlanGenerationJourneyMapContinueRevisingPayload:
   allOf:
     - $ref: "#/SecondaryActionPayload"
     - type: object
-      required: []
       properties: {}
   description: Payload for continuing JourneyMap revisions on the plan-generation journey-review gate. The free-form feedback the user typed into the review textarea is carried via the field's element payload, not this discriminator payload; this payload is intentionally empty.
   x-discriminator-value: plan_generation_journey_map_continue_revising
@@ -9781,7 +9888,6 @@ RefineStageValidationChoicePickValidationOnPayload:
   allOf:
     - $ref: "#/SecondaryActionPayload"
     - type: object
-      required: []
       properties: {}
   description: Payload for opting into the post-creation validation pass on the refine-stage validation-choice gate. The submission discriminator carries the user's choice; the payload itself is intentionally empty.
   x-discriminator-value: refine_stage_validation_choice_pick_validation_on
@@ -9790,7 +9896,6 @@ RefineStageValidationChoicePickValidationOffPayload:
   allOf:
     - $ref: "#/SecondaryActionPayload"
     - type: object
-      required: []
       properties: {}
   description: Payload for skipping the post-creation validation pass on the refine-stage validation-choice gate. The submission discriminator carries the user's choice; the payload itself is intentionally empty.
   x-discriminator-value: refine_stage_validation_choice_pick_validation_off
@@ -9799,7 +9904,6 @@ PlanShapingFeatureSyncReviewDonePayload:
   allOf:
     - $ref: "#/SecondaryActionPayload"
     - type: object
-      required: []
       properties: {}
   description: Payload for the "Done with Feature Sync" gate exit. Declares the review finished and advances to stage proposal without approving any proposal; DRAFT proposals still pending are recorded as dismissed via the rejection pipeline. This discriminator payload is intentionally empty.
   x-discriminator-value: plan_shaping_feature_sync_review_done
@@ -9808,7 +9912,6 @@ PlanShapingFeatureSyncReviewRequestRevisionsPayload:
   allOf:
     - $ref: "#/SecondaryActionPayload"
     - type: object
-      required: []
       properties: {}
   description: Payload for requesting revisions on the feature-sync review gate. The free-form revision text the user typed is carried via the field's element payload, not this discriminator payload; this payload is intentionally empty.
   x-discriminator-value: plan_shaping_feature_sync_review_request_revisions
@@ -9864,7 +9967,6 @@ PlanServicesAnalyzePayload:
   allOf:
     - $ref: "#/SecondaryActionPayload"
     - type: object
-      required: []
       properties: {}
   description: Payload for requesting services analysis
   x-discriminator-value: plan_service_analyze
@@ -10226,8 +10328,70 @@ SecondaryActionConfig:
       description: Whether the action is disabled
       example: false
     payload:
-      allOf:
-        - $ref: "#/SecondaryActionPayload"
+      oneOf:
+        - $ref: "#/AdrContentApplyPayload"
+        - $ref: "#/InitiativeContentApplyPayload"
+        - $ref: "#/TaskContentApplyPayload"
+        - $ref: "#/ContentApplyPayload"
+        - $ref: "#/TaskGenerationPayload"
+        - $ref: "#/CodingPromptAcceptPayload"
+        - $ref: "#/NextStepPayload"
+        - $ref: "#/SuggestedActionPayload"
+        - $ref: "#/SuggestedAgentActionPayload"
+        - $ref: "#/RelatedEntitiesPayload"
+        - $ref: "#/CompleteOnboardingPayload"
+        - $ref: "#/PlanGapContinueRevisingPayload"
+        - $ref: "#/PlanApprovalContinueRevisingPayload"
+        - $ref: "#/PlanStageContinueRevisingPayload"
+        - $ref: "#/PlanServicesAnalyzePayload"
+        - $ref: "#/FeatureListContinueRevisingPayload"
+        - $ref: "#/PlanGenerationStageReviewContinueRevisingPayload"
+        - $ref: "#/PlanGenerationStageReviewApproveAllPayload"
+        - $ref: "#/PlanGenerationStepReviewContinueRevisingPayload"
+        - $ref: "#/PlanGenerationStepReviewApproveAllPayload"
+        - $ref: "#/PlanGenerationVisualPreviewApprovePayload"
+        - $ref: "#/PlanGenerationVisualPreviewContinueRevisingPayload"
+        - $ref: "#/PlanGenerationJourneyMapApprovePayload"
+        - $ref: "#/PlanGenerationJourneyMapContinueRevisingPayload"
+        - $ref: "#/RefineStageValidationChoicePickValidationOnPayload"
+        - $ref: "#/RefineStageValidationChoicePickValidationOffPayload"
+        - $ref: "#/PlanShapingFeatureSyncReviewDonePayload"
+        - $ref: "#/PlanShapingFeatureSyncReviewRequestRevisionsPayload"
+        - $ref: "#/ImplementationReadinessReplyActionPayload"
+        - $ref: "#/ImplementationReadinessDismissActionPayload"
+      discriminator:
+        propertyName: handlerType
+        mapping:
+          adr_content_apply: "#/AdrContentApplyPayload"
+          initiative_content_apply: "#/InitiativeContentApplyPayload"
+          task_content_apply: "#/TaskContentApplyPayload"
+          content_apply: "#/ContentApplyPayload"
+          task_generation_generate: "#/TaskGenerationPayload"
+          coding_prompt_accept: "#/CodingPromptAcceptPayload"
+          next_step: "#/NextStepPayload"
+          suggested_action: "#/SuggestedActionPayload"
+          suggested_agent_action: "#/SuggestedAgentActionPayload"
+          related_entities: "#/RelatedEntitiesPayload"
+          complete_onboarding: "#/CompleteOnboardingPayload"
+          plan_gap_continue_revising: "#/PlanGapContinueRevisingPayload"
+          plan_approval_continue_revising: "#/PlanApprovalContinueRevisingPayload"
+          plan_stage_continue_revising: "#/PlanStageContinueRevisingPayload"
+          plan_service_analyze: "#/PlanServicesAnalyzePayload"
+          feature_list_continue_revising: "#/FeatureListContinueRevisingPayload"
+          plan_generation_stage_review_continue_revising: "#/PlanGenerationStageReviewContinueRevisingPayload"
+          plan_generation_stage_review_approve_all: "#/PlanGenerationStageReviewApproveAllPayload"
+          plan_generation_step_review_continue_revising: "#/PlanGenerationStepReviewContinueRevisingPayload"
+          plan_generation_step_review_approve_all: "#/PlanGenerationStepReviewApproveAllPayload"
+          plan_generation_visual_preview_approve: "#/PlanGenerationVisualPreviewApprovePayload"
+          plan_generation_visual_preview_continue_revising: "#/PlanGenerationVisualPreviewContinueRevisingPayload"
+          plan_generation_journey_map_approve: "#/PlanGenerationJourneyMapApprovePayload"
+          plan_generation_journey_map_continue_revising: "#/PlanGenerationJourneyMapContinueRevisingPayload"
+          refine_stage_validation_choice_pick_validation_on: "#/RefineStageValidationChoicePickValidationOnPayload"
+          refine_stage_validation_choice_pick_validation_off: "#/RefineStageValidationChoicePickValidationOffPayload"
+          plan_shaping_feature_sync_review_done: "#/PlanShapingFeatureSyncReviewDonePayload"
+          plan_shaping_feature_sync_review_request_revisions: "#/PlanShapingFeatureSyncReviewRequestRevisionsPayload"
+          implementation_readiness_reply: "#/ImplementationReadinessReplyActionPayload"
+          implementation_readiness_dismiss: "#/ImplementationReadinessDismissActionPayload"
       description: Structured data payload for the action handler
   description: Configuration for a secondary action button
 
@@ -10553,3 +10717,45 @@ AgentTriggerWorkTrackerImport:
       minLength: 1
     payload:
       $ref: "./work-tracker-import.yaml#/WorkTrackerImportRequest"
+
+LocalOnboardingStepRequest:
+  type: object
+  additionalProperties: false
+  required: [agentSessionId]
+  properties:
+    agentSessionId:
+      type: string
+      format: uuid
+    requestId:
+      type: string
+      format: uuid
+    outputText:
+      type: string
+      description: Provider output for the exact saved request. Validated against the node schema before use.
+LocalOnboardingStepResponse:
+  type: object
+  additionalProperties: false
+  required: [state]
+  properties:
+    state:
+      type: string
+      enum: [WAITING_FOR_USER, PROVIDER_REQUIRED, COMPLETED]
+    requestId:
+      type: string
+      format: uuid
+    prompt:
+      type: string
+      description: Canonical server-authored prompt, including the node output schema.
+
+UserMessageDataLocalOnboarding:
+  allOf:
+    - $ref: "#/UserMessageDataBase"
+    - type: object
+      required: [promptType, conversationId]
+      properties:
+        promptType:
+          type: string
+          enum: [local_onboarding]
+        conversationId:
+          type: string
+          format: uuid

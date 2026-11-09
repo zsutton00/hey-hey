@@ -14,7 +14,7 @@ import {
   WorkStatus,
   Priority,
   InitiativeCreatorType,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { OrganizationId, ConversationId, InitiativeId } from '../../../types';
 
 const { testIds } = TestUtils;

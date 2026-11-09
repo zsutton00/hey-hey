@@ -2,7 +2,7 @@ import {
   type ContextRelatedEntityDto,
   EntityType,
   RelationshipValue,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { render, screen } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter } from "react-router-dom";

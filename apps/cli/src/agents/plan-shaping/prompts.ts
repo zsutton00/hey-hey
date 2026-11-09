@@ -23,7 +23,7 @@ import {
   type PlanShapingApprovedVisual,
   type PlanShapingValidationMode,
   type ServiceNote,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import { futureRevisionAuthoring } from '../prompts/common';
 import type { AgentProviderId } from '../providers/provider-config';
 import { withSubmissionToolTerminationSuffix } from '../submission-tools/prompt-suffix';

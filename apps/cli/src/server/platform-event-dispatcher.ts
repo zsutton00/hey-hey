@@ -10,7 +10,7 @@ import type {
 } from './platform-ws';
 import type { ReportInfluenceRuntime } from './reports/report-influence-runtime';
 import type { TriggerVerificationRuntime } from './trigger-verification/trigger-verification-runtime';
-import type { AgentOperationDispatchAcknowledgement } from '../shared/api/generated/api';
+import type { AgentOperationDispatchAcknowledgement } from '@hey-hey/contracts/api/models';
 
 export interface PlatformEventDispatcherDependencies {
   platformWebSocketManager: PlatformWebSocketManager;

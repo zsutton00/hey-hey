@@ -1,7 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
-import { ReportType, type ChangeWalkthroughReportPayload } from 'src/generated';
+import {
+  ReportType,
+  type ChangeWalkthroughReportPayload,
+} from '@hey-hey/contracts/api/models';
 import { REPORT_SCHEMAS } from 'src/mcp/tools/report-schemas.generated';
 
 const validate = addFormats(

@@ -12,7 +12,7 @@ import {
   parseDiagramGroupsContent,
   validateDiagramGroups,
 } from './diagram-groups';
-import type { WorkItemTypeSectionDefinition } from '../../generated/model/workItemTypeSectionDefinition';
+import type { WorkItemTypeSectionDefinition } from '@hey-hey/contracts/api/models';
 import {
   TASK_MONITOR_EXECUTION_DEFINITION_SCHEMA_REF,
   validateTaskMonitorExecutionDefinitionContent,
@@ -49,6 +49,10 @@ import {
   IMAGE_SECTION_CONTENT_SCHEMA_REF,
   validateImageSectionContent,
 } from './image-section-content.validator';
+import {
+  EVAL_CASE_CODING_SCHEMA_REF,
+  validateEvalCaseCodingContent,
+} from './eval-case-coding.validator';
 import {
   FEATURE_REQUIREMENTS_SCHEMA_REF,
   validateFeatureRequirementsSection,
@@ -278,6 +282,19 @@ export class TaskSectionSchemaValidatorRegistry {
           const result = validateImageSectionContent(content);
           return result.success
             ? result
+            : {
+                success: false,
+                code: 'invalid_json_section',
+                message: result.message,
+              };
+        },
+      ],
+      [
+        EVAL_CASE_CODING_SCHEMA_REF,
+        (content: unknown): TaskSectionSchemaValidationResult => {
+          const result = validateEvalCaseCodingContent(content);
+          return result.success
+            ? { success: true, canonicalContent: result.canonicalContent }
             : {
                 success: false,
                 code: 'invalid_json_section',

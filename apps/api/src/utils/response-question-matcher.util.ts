@@ -2,17 +2,17 @@ import { Logger } from '@nestjs/common';
 import { ContextAwareLogger } from 'src/core/logging/context-aware-logger.service';
 import {
   ArtifactType,
-  CodingPromptUserMessage,
+  CodingPromptUserMessageAllOf,
   ExtendedUIFieldType,
   OnboardingFeatureListReviewUserSubmission,
   OnboardingPlanStageProposalReviewUserSubmission,
   PlanApprovalUserMessage,
   PlanStageProposalUserMessage,
   QAPairData,
-  SuggestedActionUserMessage,
+  SuggestedActionUserMessageAllOf,
   SystemMessageData,
   UIElement,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { isQuestionSystemMessageData } from './type-checks';
 
 export interface QuestionAnswerPair
@@ -146,9 +146,7 @@ function extractFeatureListReviewText(value: unknown): string | undefined {
     parts.push(overall);
   }
 
-  for (const [section, feedback] of Object.entries(
-    value.payload.sections,
-  )) {
+  for (const [section, feedback] of Object.entries(value.payload.sections)) {
     const trimmed = feedback.trim();
     if (trimmed) {
       parts.push(`${section}: ${trimmed}`);
@@ -167,8 +165,8 @@ const RESPONSE_TEXT_EXTRACTORS: Record<string, ResponseTextExtractor> = {
   [PlanStageProposalUserMessage.TypeEnum.PlanStageProposal]:
     extractPlanStageProposalText,
   [PlanApprovalUserMessage.TypeEnum.PlanApproval]: extractUserMessageText,
-  [CodingPromptUserMessage.TypeEnum.CodingPrompts]: extractUserMessageText,
-  [SuggestedActionUserMessage.TypeEnum.SuggestedActions]:
+  [CodingPromptUserMessageAllOf.TypeEnum.CodingPrompts]: extractUserMessageText,
+  [SuggestedActionUserMessageAllOf.TypeEnum.SuggestedActions]:
     extractUserMessageText,
 };
 

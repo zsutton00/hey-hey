@@ -968,6 +968,133 @@ describe('PendingEdgeService', () => {
     });
   });
 
+  describe('applyDeclaredSupersession', () => {
+    const declaration = {
+      targetEntityId: entityB,
+      targetEntityType: 'TASK',
+      edgeType: 'SUPERSEDES',
+      description: 'A replaces B',
+    };
+
+    function arrangeGraph() {
+      const recorded: Array<Record<string, unknown>> = [];
+      const findIncident = jest.fn(async () => recorded);
+      mockAgentEdgeClient.createBatch.mockImplementation(
+        async (_org: unknown, _project: unknown, dtos: any[]) =>
+          dtos.map((dto, index) => {
+            recorded.push({
+              id: dto.id,
+              type: 'SUPERSEDES',
+              sourceNodeId: dto.sourceNodeId,
+              targetNodeId: dto.targetNodeId,
+            });
+            return { index, success: true, edge: dto };
+          }),
+      );
+      Object.assign(mockAgentEdgeClient, { findIncident });
+      Object.assign(mockTaskService, {
+        runUpdatePostCommit: jest.fn().mockResolvedValue(undefined),
+      });
+      (mockPrisma.db as any).$transaction = jest.fn(
+        async (callback: (tx: typeof mockTx) => unknown) => callback(mockTx),
+      );
+      return { recorded, findIncident };
+    }
+
+    it('still publishes the lineage on retry after the status change committed but Graph failed', async () => {
+      const { recorded } = arrangeGraph();
+      const proposal = makeProposal({ edges: [declaration] });
+      mockTx.task.findFirst
+        .mockResolvedValueOnce({
+          id: entityB,
+          name: 'Predecessor',
+          status: 'ACTIVE',
+          type: 'STANDARD',
+          initiativeId: testIds.initiative,
+        })
+        .mockResolvedValueOnce({ id: entityA, name: 'Successor' })
+        // The retry finds the committed status.
+        .mockResolvedValue({
+          id: entityB,
+          name: 'Predecessor',
+          status: 'SUPERSEDED',
+          type: 'STANDARD',
+          initiativeId: testIds.initiative,
+        });
+      mockAgentEdgeClient.createBatch.mockResolvedValueOnce([
+        { index: 0, success: false, error: 'Graph unavailable' },
+      ]);
+
+      await expect(
+        service.applyDeclaredSupersession(proposal as any, entityA),
+      ).rejects.toThrow('Failed to materialize 1 proposal edge');
+      expect(recorded).toHaveLength(0);
+      expect(mockTaskService.updateInTransaction).toHaveBeenCalledTimes(1);
+
+      // Explicit retry: the predecessor is already superseded, yet the
+      // missing lineage is published rather than silently skipped.
+      await service.applyDeclaredSupersession(proposal as any, entityA);
+
+      expect(mockTaskService.updateInTransaction).toHaveBeenCalledTimes(1);
+      expect(recorded).toEqual([
+        expect.objectContaining({
+          type: 'SUPERSEDES',
+          sourceNodeId: entityB,
+          targetNodeId: entityA,
+        }),
+      ]);
+    });
+
+    it('does not duplicate lineage when the same approval is executed again', async () => {
+      const { recorded } = arrangeGraph();
+      const proposal = makeProposal({ edges: [declaration] });
+      mockTx.task.findFirst
+        .mockResolvedValueOnce({
+          id: entityB,
+          name: 'Predecessor',
+          status: 'ACTIVE',
+          type: 'STANDARD',
+          initiativeId: testIds.initiative,
+        })
+        .mockResolvedValueOnce({ id: entityA, name: 'Successor' })
+        .mockResolvedValue({
+          id: entityB,
+          name: 'Predecessor',
+          status: 'SUPERSEDED',
+          type: 'STANDARD',
+          initiativeId: testIds.initiative,
+        });
+
+      await service.applyDeclaredSupersession(proposal as any, entityA);
+      await service.applyDeclaredSupersession(proposal as any, entityA);
+
+      expect(recorded).toHaveLength(1);
+      expect(mockAgentEdgeClient.createBatch).toHaveBeenCalledTimes(1);
+      expect(mockTaskService.updateInTransaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('fails instead of completing when Graph does not report the published lineage', async () => {
+      const { recorded } = arrangeGraph();
+      mockAgentEdgeClient.createBatch.mockImplementation(
+        async (_o: unknown, _p: unknown, dtos: unknown[]) =>
+          dtos.map((dto, index) => ({ index, success: true, edge: dto })),
+      );
+      const proposal = makeProposal({ edges: [declaration] });
+      mockTx.task.findFirst.mockResolvedValue({
+        id: entityB,
+        name: 'Predecessor',
+        status: 'SUPERSEDED',
+        type: 'STANDARD',
+        initiativeId: testIds.initiative,
+      });
+
+      await expect(
+        service.applyDeclaredSupersession(proposal as any, entityA),
+      ).rejects.toThrow('was not published');
+      expect(recorded).toHaveLength(0);
+    });
+  });
+
   describe('cleanupForProposal', () => {
     it('deletes pending edges referencing proposal as source or target', async () => {
       mockTx.pendingProposalEdge.deleteMany.mockResolvedValue({ count: 3 });

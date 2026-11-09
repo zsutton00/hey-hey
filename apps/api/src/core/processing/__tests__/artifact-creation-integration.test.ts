@@ -10,7 +10,7 @@ import {
   MessageResponseDto,
   QAPairData,
   QuestionsSystemMessageData,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { ArtifactService } from '../../../services/artifacts/artifact.service';
 import { DesignDocService } from '../../../services/design-doc/design-doc.service';
 import { InitiativeService } from '../../../services/initiatives/initiative.service';

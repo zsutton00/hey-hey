@@ -17,7 +17,7 @@ import {
 import type { MachineEnrollmentActivationResponse } from '../auth/machine-enrollment-confirmation';
 import type { Run } from '../run/run';
 import type { LocalAgentOutputEvent } from '../run/types';
-import type { AgentSessionCurrentState } from '../shared/api/generated/api';
+import type { AgentSessionCurrentState } from '@hey-hey/contracts/api/models';
 import { DiagnosticFeed } from '../server/diagnostic-feed';
 import {
   ConversationTitleReadError,
@@ -159,7 +159,12 @@ const journey = (
   });
   const machineActions = new ControlledMachineActions();
   const optionsStore = {
-    saved: { intentFirst: false, remoteToolCallViewing: true, jevEnabled: true },
+    saved: {
+      intentFirst: false,
+      remoteToolCallViewing: true,
+      jevEnabled: true,
+      heyHeyContextReminder: false,
+    },
     read() {
       return Promise.resolve({ ...this.saved });
     },
@@ -168,6 +173,7 @@ const journey = (
         intentFirst: boolean;
         remoteToolCallViewing: boolean;
         jevEnabled: boolean;
+        heyHeyContextReminder: boolean;
       }>,
     ) {
       this.saved = { ...this.saved, ...patch };
@@ -460,6 +466,7 @@ describe('terminal journeys (real sources, owner and Ink)', () => {
       intentFirst: true,
       remoteToolCallViewing: true,
       jevEnabled: true,
+      heyHeyContextReminder: false,
     });
     expect(j.frame()).toMatch(/Intent-first \(experimental\) +On +Enter to turn off/u);
 
@@ -468,6 +475,7 @@ describe('terminal journeys (real sources, owner and Ink)', () => {
       intentFirst: false,
       remoteToolCallViewing: true,
       jevEnabled: true,
+      heyHeyContextReminder: false,
     });
     expect(j.frame()).toMatch(/Intent-first \(experimental\) +Off/u);
 
@@ -476,14 +484,20 @@ describe('terminal journeys (real sources, owner and Ink)', () => {
       intentFirst: false,
       remoteToolCallViewing: false,
       jevEnabled: true,
+      heyHeyContextReminder: false,
     });
     expect(j.frame()).toMatch(/Remote tool-call viewing +Off +Enter to turn on/u);
+
+    await j.press(KEY.down, KEY.enter);
+    expect(j.optionsStore.saved.heyHeyContextReminder).toBe(true);
+    expect(j.frame()).toMatch(/Hey Hey context reminder +On +Enter to turn off/u);
 
     await j.press(KEY.down, KEY.enter);
     expect(j.optionsStore.saved).toEqual({
       intentFirst: false,
       remoteToolCallViewing: false,
       jevEnabled: false,
+      heyHeyContextReminder: true,
     });
     expect(j.frame()).toMatch(/Jev +Off +Enter to turn on/u);
 

@@ -1,3 +1,5 @@
+import { ReadVisibilityService } from '../read-restriction/read-visibility.service';
+import { isSerializableWorkflowState } from '../workflows/conversation-workflow-state';
 import { resolveAncestorPlanWorkItem } from './plan/resolve-plan-work-item';
 import { parseProjectReportSessionConfig } from 'src/contracts/project-report-session-config';
 import {
@@ -76,7 +78,7 @@ import {
   UserResponseDto,
   WorkflowName,
   WorkItemTypeLifecycleStatus,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { ConversationWorkflowService } from './workflows/conversation-workflow.service';
 import { ConversationService } from './conversation.service';
 import { DEFAULT_AGENT_SESSION_TITLE } from './agent-session-title';
@@ -121,7 +123,7 @@ import { TaskSectionSchemaValidatorRegistry } from './tasks/task-section-schema-
 import { WorkItemTypeRegistryService } from './tasks/work-item-type-registry.service';
 import { ProjectModeEligibilityService } from './tasks/project-mode-eligibility.service';
 import { resolveProjectModeEligibleWorkItemTypeKeys } from './tasks/project-mode-eligible-types';
-import type { WorkItemTypeSectionDefinition } from '../generated/model/workItemTypeSectionDefinition';
+import type { WorkItemTypeSectionDefinition } from '@hey-hey/contracts/api/models';
 import { isQualifyingLegacyRepositoryImportExecution } from '../workflows/repository-import-legacy-compatibility';
 
 type AgentSessionWithDates = AgentSession & {
@@ -443,7 +445,11 @@ export class AgentSessionService {
     private readonly workItemTypeRegistry?: WorkItemTypeRegistryService,
     @Optional()
     private readonly projectModeEligibility?: ProjectModeEligibilityService,
-  ) {}
+  ) {
+    this.visibility = new ReadVisibilityService(prisma);
+  }
+
+  private readonly visibility: ReadVisibilityService;
 
   async resolveStartRunConversationBinding(params: {
     organizationId: OrganizationId;
@@ -1454,6 +1460,8 @@ export class AgentSessionService {
   ): Promise<AgentSessionDto> {
     const { includeService = false, includeUser = false, projectId } = options;
     let dto: AgentSessionDto;
+
+    await this.visibility.assertVisible('AGENT_SESSION', agentSessionId);
 
     if (includeService) {
       const session = await this.findOneWithServiceSummary(
@@ -5046,7 +5054,14 @@ export class AgentSessionService {
         currentNode: execution.currentNode,
         flowState: execution.flowState,
       });
-    if (!conversation || (!isDedicatedImport && !isLegacyImport)) {
+    const isLocalOnboarding =
+      conversation?.workflowName === WorkflowName.Onboarding &&
+      isSerializableWorkflowState(execution?.flowState) &&
+      execution.flowState.executionOwner === 'CLI';
+    if (
+      !conversation ||
+      (!isDedicatedImport && !isLegacyImport && !isLocalOnboarding)
+    ) {
       this.logger.warn('Existing workflow Agent Session binding rejected', {
         organizationId,
         projectId,
@@ -5061,6 +5076,7 @@ export class AgentSessionService {
     // Work-tracker imports run on the paired CLI without a repository workspace.
     if (
       conversation.workflowName !== WorkflowName.WorkTrackerImport &&
+      !isLocalOnboarding &&
       !params.launchServiceId
     ) {
       throw new BadRequestException(

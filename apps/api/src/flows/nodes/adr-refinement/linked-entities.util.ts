@@ -7,7 +7,7 @@ import type {
   InitiativeSummary,
   TaskSummary,
 } from 'src/flows/utils/shared-schemas';
-import type { DesignDocLinkResponseDto } from 'src/generated/model/designDocLinkResponseDto';
+import type { DesignDocLinkResponseDto } from '@hey-hey/contracts/api/models';
 import { TaskSummaryTaskTypeEnum } from 'src/generated/agents/models/TaskSummary';
 import type { DesignDocId } from 'src/types/design-doc.types';
 import type { OrganizationId } from 'src/types';

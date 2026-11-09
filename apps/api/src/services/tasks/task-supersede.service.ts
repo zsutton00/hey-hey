@@ -15,7 +15,7 @@ import {
   SupersedeTaskDto,
   UpdateTaskResponseDto,
   WorkStatus,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type { RequestorContext } from 'src/mcp/tools/requestor-context';
 import { OrganizationId, ProjectId, TaskId, UserId } from 'src/types';
 import { PrismaService } from 'src/prisma/prisma.service';

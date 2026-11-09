@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated';
-import type { VerifyFeaturePromptPayload } from '../../shared/agent-bridge-contract/generated';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import type { VerifyFeaturePromptPayload } from '@hey-hey/contracts/agent-bridge';
 import { completionResponseHooks } from '../completion-reconciliation/message-mapper';
 import { ENTITY_CONVERSATION_ALLOWED_TOOLS } from '../entity-conversation/entity-conversation.handler';
 import {
@@ -47,6 +47,7 @@ export class VerifyFeatureHandler implements UserLaunchablePromptTypeHandler<Ver
   // The id owns the provider session, so a swap with entity_conversation
   // rotates it once instead of resuming a transcript with other instructions.
   public readonly id = 'verify_feature';
+  public readonly sessionRole = SessionRole.Review;
   public readonly promptType = LocalPromptType.VerifyFeature;
   public readonly service = 'optional';
   public readonly launchEntity = 'required';

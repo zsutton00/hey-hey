@@ -17,8 +17,8 @@ import {
   type SubmissionToolDeclaration,
   type SubmissionToolInputSchema,
 } from '../submission-tools/types';
-import { implementationReadinessDispositionSchema } from '../implementation-readiness/session-context';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { authoredImplementationReadinessDispositionSchema } from '../implementation-readiness/session-context';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 
 export const FEATURE_SYNC_ACTIONS = {
   NO_DISCREPANCY: 'NO_DISCREPANCY',
@@ -105,24 +105,105 @@ const readinessResolutionInputSchema = {
   ],
 } as const;
 
+const readinessItemReferenceInputSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['entityType', 'entityId', 'title'],
+  properties: {
+    entityType: { type: 'string', enum: ['TASK', 'FEATURE', 'DESIGN_DOC', 'PLAN', 'CONTRACT', 'SERVICE'] },
+    entityId: {
+      type: 'string',
+      format: 'uuid',
+      description: 'Full id of a project item you actually read. Never invent one.',
+    },
+    title: { type: 'string', minLength: 1, description: 'The item’s real title.' },
+  },
+} as const;
+
 const readinessFindingInputSchema = {
   type: 'object',
   additionalProperties: false,
+  description:
+    'A plain-language explanation for a reader who has not followed your analysis. Use ordinary words and define any technical term the first time it appears.',
   required: [
-    'affectedSourceContext',
-    'unresolvedDecision',
-    'consequentialInventionRisk',
+    'requestedOutcome',
+    'reasoningTrail',
+    'problem',
+    'failureScenario',
+    'fixSteps',
+    'userRequest',
     'boundedEvidence',
-    'answerKind',
   ],
   properties: {
-    affectedSourceContext: { type: 'string', minLength: 1 },
-    unresolvedDecision: { type: 'string', minLength: 1 },
-    consequentialInventionRisk: { type: 'string', minLength: 1 },
+    requestedOutcome: {
+      type: 'string',
+      minLength: 1,
+      description: 'What the user asked for, in ordinary language.',
+    },
+    reasoningTrail: {
+      type: 'array',
+      minItems: 2,
+      maxItems: 4,
+      description:
+        'Short ordered trail from the request to the problem. Each entry names a real task or document you consulted.',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['source', 'explanation'],
+        properties: {
+          source: readinessItemReferenceInputSchema,
+          explanation: {
+            type: 'string',
+            minLength: 1,
+            description: 'One plain sentence: what this item told you and why it led to the next step.',
+          },
+        },
+      },
+    },
+    problem: { type: 'string', minLength: 1, description: 'The problem in one sentence.' },
+    failureScenario: {
+      type: 'array',
+      minItems: 2,
+      maxItems: 8,
+      description:
+        'Ordered steps that start in a normal situation and end in the concrete failure.',
+      items: { type: 'string', minLength: 1 },
+    },
+    fixSteps: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 8,
+      description: 'Ordered steps that resolve the problem.',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['owner', 'action', 'state'],
+        properties: {
+          owner: {
+            ...readinessItemReferenceInputSchema,
+            description:
+              'The item that owns this step. When another item owns the missing decision, name that item, not the one being implemented.',
+          },
+          action: { type: 'string', minLength: 1, description: 'What must happen, in plain words.' },
+          state: {
+            type: 'string',
+            enum: ['DONE', 'REMAINING', 'USER_DECISION'],
+            description:
+              'DONE: already complete. REMAINING: work to do, no user decision needed. USER_DECISION: the user must decide first.',
+          },
+        },
+      },
+    },
+    userRequest: {
+      type: 'string',
+      minLength: 1,
+      description: 'The one specific thing you need from the user.',
+    },
     boundedEvidence: {
       type: 'array',
       minItems: 1,
       maxItems: 8,
+      description: 'Supporting evidence kept with the finding; not shown as its own section.',
       items: {
         type: 'object',
         additionalProperties: false,
@@ -145,7 +226,6 @@ const readinessFindingInputSchema = {
         },
       },
     },
-    answerKind: { type: 'string', minLength: 1 },
   },
 } as const;
 
@@ -199,7 +279,8 @@ const FRESH_RESOLUTION_CORRECTION =
 export const correctReadinessArgumentFinding: NonNullable<
   SubmissionToolDeclaration['correctArgumentFinding']
 > = (finding) =>
-  finding.field === '/disposition/resolution' || finding.field.startsWith('/disposition/resolution/')
+  finding.field === '/disposition/resolution' ||
+  finding.field.startsWith('/disposition/resolution/')
     ? { ...finding, correction: FRESH_RESOLUTION_CORRECTION }
     : finding;
 
@@ -209,7 +290,7 @@ const jsonPointer = (path: ReadonlyArray<string | number>): string =>
     .join('/')}`;
 
 export const parseReadinessDispositionForSubmission = (value: unknown) => {
-  const parsed = implementationReadinessDispositionSchema.safeParse(value);
+  const parsed = authoredImplementationReadinessDispositionSchema.safeParse(value);
   if (parsed.success && parsed.data.state !== 'DISMISSED') return parsed.data;
 
   if (parsed.success) {

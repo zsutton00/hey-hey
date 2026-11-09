@@ -8,7 +8,6 @@ import {
 } from './configuration';
 
 import { DevelopmentService } from './api/development.service';
-import { EmbeddingsService } from './api/embeddings.service';
 import { MonitoringService } from './api/monitoring.service';
 import { OrganizationLifecycleService } from './api/organizationLifecycle.service';
 import { SearchService } from './api/search.service';
@@ -18,14 +17,12 @@ import { SearchService } from './api/search.service';
   imports: [HttpModule],
   exports: [
     DevelopmentService,
-    EmbeddingsService,
     MonitoringService,
     OrganizationLifecycleService,
     SearchService,
   ],
   providers: [
     DevelopmentService,
-    EmbeddingsService,
     MonitoringService,
     OrganizationLifecycleService,
     SearchService,

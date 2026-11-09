@@ -15,7 +15,7 @@ import type {
   ProjectReportPayload,
   ProjectReportRequestDto,
   RetryProjectReportRequestDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId, UserId } from 'src/types';
 import { ProjectAccessService } from 'src/auth/services/project-access.service';
@@ -527,7 +527,7 @@ export class ProjectReportRequestService {
     return stored;
   }
 
-  private toDto(row: RequestWithAttempts): ProjectReportRequestDto {
+  toDto(row: RequestWithAttempts): ProjectReportRequestDto {
     const submission = {
       kind: row.kind,
       ...(row.serviceIds == null

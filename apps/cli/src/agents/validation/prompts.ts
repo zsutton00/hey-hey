@@ -12,7 +12,7 @@
  * explicit (no Bash, no HTTP, no platform mutations).
  */
 
-import { LocalValidationWalkthroughPromptPayloadScopeEnum } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalValidationWalkthroughPromptPayloadScopeEnum } from '@hey-hey/contracts/agent-bridge';
 
 type ValidationWalkthroughScope =
   (typeof LocalValidationWalkthroughPromptPayloadScopeEnum)[keyof typeof LocalValidationWalkthroughPromptPayloadScopeEnum];

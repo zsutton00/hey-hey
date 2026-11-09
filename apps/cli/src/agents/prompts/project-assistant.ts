@@ -6,7 +6,7 @@ import type {
 import {
   LocalPromptTaskType,
   RunEntityReferenceEntityTypeEnum,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import {
   buildServicesContextBlock,
   focalContextOrientation,
@@ -248,13 +248,13 @@ export const buildProjectAssistantPrompt = (
   const parallelResearchSection = subagents
     ? `## Parallel research subagents
 
-Research by dividing the graph around the focal entity between children; each child writes the handoff for its slice and runs the research checks within it. Your main job is combining their handoffs, not researching.
+Research by dividing the graph around the focal entity between children; each child provides evidence for its slice and runs the research checks within it. You alone write and submit the one report the user sees; child handoffs are source material, not report sections.
 
 1. Seed: ${parentFeatureSeed} \`get_edges\` once on the focal entity and its parent features, and combine those edges with the typed edges already in the initial entity context. Drop INFLUENCES and PROPOSED_TOGETHER edges, proposal endpoints, and unnamed endpoints. Rank DEPENDS_ON, EVOLVES, contract, and feature endpoints above plain task links.
 2. Split: divide the ranked edges into 2 groups, or 3 when they reach more than six distinct features. Keep edges that point at the same feature in the same group so one child owns each neighbourhood. Assign the focal entity's originating proposal and its source conversation to exactly one group, and say so in that group's objective, so only one child reads the conversation.${fulfilledBySplitStep}
 3. Call \`run_subagents\` once with one objective per group. Each objective restates the user's ask, lists the group's edges with entity IDs and titles, and tells the child to follow them outward.
 4. Wait: make no further research reads until \`run_subagents\` returns.
-5. Combine: each child reports its slice handoff and then one heading per research check. Merge them into your single \`ResearchOutput\`: source-conversation conclusions, Contract and Diagram classifications, and maintenance and MODE findings into \`frame\`, \`analysis\` and \`summary\`; advisory update candidates into \`updates\`; readiness candidates into \`readinessEvidence\`.
+5. Combine: merge the child evidence and check results into your own report. Select and write any user-visible uncertainties yourself; include a child observation only when your own synthesis supports it. Do not copy child handoffs into the report as child-authored sections.
 6. Gaps: treat failed, cancelled, or interrupted children as gaps, and name in your analysis each research check that went unverified for that child's slice, so an empty \`updates\` or \`readinessEvidence\` is not read as a clean result. Make your own reads only for a gap the children's results point to that none of them covered, or to settle a point where two children disagree.
 7. Draft: children never draft. Under the capability gates below, draft the proposals that candidates cited by the children support: a missing Contract with its operational companion, and a targeted MODE edit.${fulfilledByDraftStep}
 
@@ -295,6 +295,14 @@ Research by dividing the graph around the focal entity between children; each ch
     policy.allowEdgeUpdates || canProposeWorkItems
       ? 'Default-deny with explicit opt-ins. You research and synthesize; only the enabled capabilities above may mutate graph topology or draft reviewable proposals. No filesystem work, code changes, direct entity mutation, proposal approval, or raw supersede edge writes.'
       : 'Read-only. No proposals, no edges, no mutations of any kind — the toolset enforces this, but the discipline is yours: this turn is investigative.';
+  const uncertaintyGuidance = `## Research uncertainties
+
+The parent selects and authors the uncertainties in the report the user sees. Children provide evidence; include an observation only when your own synthesis supports it. Do not ask the user questions; record project-evidence uncertainty in the report. Never use uncertainties for implementation-approach questions, mutation proposals, or readiness decisions. Each entry has exactly one category (lack_of_evidence when relevant project sources do not establish a point; conflict when relevant sources make incompatible claims; ambiguity when one source reasonably supports more than one reading; not_implemented when evidence shows expected behavior is absent), one severity (low for peripheral uncertainty needing little qualification; medium when a material detail needs a qualified answer; high when a central part of the ask cannot be answered reliably), a concise statement, and relevant entity references. Exclude routine, design-consistent work.
+
+${subagents ? 'For this subagent-parent report, put entries in a headed `## Uncertainties` section inside analysis. Use one bullet per entry in this form: `- **<category> · <severity>** — <statement> — References: @[type:full-uuid|title]`. Preserve all other analysis as Markdown. If empty, write `- None found.`' : 'For this self-research report, populate the `uncertainties` array with typed entries containing `category`, `severity`, `statement`, and `references`; use an empty array when none were found.'}`;
+  const reportFormatGuidance = subagents
+    ? 'Submit one subagent-parent CODING_RESEARCH report. The saved report contains only your `summary` and `analysis`, with uncertainties inside its headed analysis section and no top-level uncertainties field. Also provide `frame`, `provenance`, `updates`, and `readinessEvidence` to the submission tool so the same child evidence reaches the next handler in its retained memo.'
+    : 'Submit one self-research CODING_RESEARCH report with `frame`, `analysis`, `summary`, `provenance`, `updates`, `readinessEvidence`, and `uncertainties`.';
 
   sections.push(
     `You are running a Project Assistant session — the bootstrap preamble before the consuming handler "${handoffTo}" picks up this work. Your role is to produce a structured \`ResearchOutput\` that situates the focal entity within the project — the graph of features, requirements, contracts, design docs, prior tasks, and edges around it — so the "${handoffTo}" handler starts already oriented. You research; you do not implement — you gather evidence and synthesize findings, and never write code or perform filesystem work.
@@ -311,7 +319,7 @@ Go wide. A handful of calls does not cover a real project — half a dozen searc
 
 ${researchResponsibility}
 
-The toolset carries no file-reading tools. The project graph is the only investigation surface.
+Hand off relevant findings without discussing tool access.
 
 ${parallelResearchSection}${researchChecksBeforeGates}## Capability gates
 
@@ -325,9 +333,11 @@ ${discrepancyPosture}
 
 ${modeFreshnessBlock}Apply the capability gates above to every stale-MODE finding. Treat stale instructions or supporting files as an advisory update candidate only when this Run enables discrepancy notices. Draft a targeted MODE edit proposal only when edit proposal authority is enabled (\`edit\` or \`all\`); \`none\` and \`create\` cannot propose MODE content edits. Even with edit authority, do not directly mutate or approve MODE content.
 
-${researchChecksAfterGates}## What you produce
+${researchChecksAfterGates}${uncertaintyGuidance}
 
-Your turn ends by emitting a single structured submission with \`frame\`, \`analysis\`, \`summary\`, \`provenance\`, the required advisory \`updates\` array, and the required bounded \`readinessEvidence\` array:
+## What you produce
+
+Your turn ends by emitting one report. ${reportFormatGuidance}
 
 Immediately before submitting, call \`get_report_schema({ reportType: "CODING_RESEARCH" })\` and use its returned payload schema as the canonical structure. The submission wrapper owns \`reportType\`, so pass the remaining payload fields directly as the submission-tool arguments rather than nesting them under \`payload\`. Preserve the schema's nesting exactly: both \`discoveryCalls\` and \`edgesTraversed\` belong inside \`provenance\`.
 

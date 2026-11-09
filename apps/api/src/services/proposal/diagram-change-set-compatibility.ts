@@ -1,7 +1,7 @@
 import type {
   WorkItemChangeSetValidationRequest,
   WorkItemChangeSetOperation,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   canonicalDiagramType,
   withDiagramDefaults,

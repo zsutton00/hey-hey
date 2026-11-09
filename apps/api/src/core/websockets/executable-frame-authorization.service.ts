@@ -8,7 +8,7 @@ import {
   BoundedGrantReference,
   CurrentAgentOperation,
   ExecutableEnvelopeAuthorization,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ExecutionGrantScope as PrismaExecutionGrantScope,
   HostActionTargetKind as PrismaHostActionTargetKind,
@@ -17,6 +17,10 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { canonicalizeJcs } from './trigger-canonicalization';
 import { isRemovedControllerAuthorizationCadence } from '../../services/controller-authorization/controller-authorization-cadence';
+import {
+  executionGrantNotExpired,
+  isExecutionGrantExpired,
+} from '../../services/controller-authorization/controller-authorization-operations';
 import {
   AgentSessionId,
   MachineId,
@@ -218,7 +222,7 @@ export class ExecutableFrameAuthorizationService {
         { projectId: request.projectId, ...narrowTarget },
       ],
       allowedActions: { has: actionType },
-      expiresAt: { gt: now },
+      AND: [executionGrantNotExpired(now)],
       suspendedAt: null,
       terminalAt: null,
       revokedAt: null,
@@ -338,7 +342,7 @@ export class ExecutableFrameAuthorizationService {
       !!machine &&
       !isRemovedControllerAuthorizationCadence(authorization.cadence) &&
       !isRemovedControllerAuthorizationCadence(grant.cadence) &&
-      grant.expiresAt > now &&
+      !isExecutionGrantExpired(grant.expiresAt, now.getTime()) &&
       grant.suspendedAt === null &&
       grant.terminalAt === null &&
       grant.revokedAt === null &&

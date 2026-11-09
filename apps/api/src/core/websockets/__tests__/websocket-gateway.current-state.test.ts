@@ -5,7 +5,7 @@ import {
   ConversationPhaseObservation,
   WebSocketAgentSessionCurrentStateChangedEvent,
   WebSocketSubscriptionRequest,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { AgentSessionService } from '../../../services/agent-session.service';
 import { PendingTriggerService } from '../../../services/workflows/pending-trigger.service';
 import { UserAccessTokenValidatorService } from '../../../auth/services/user-access-token-validator.service';

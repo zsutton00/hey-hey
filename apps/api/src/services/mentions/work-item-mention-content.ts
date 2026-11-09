@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import type { WorkItemTypeSectionDefinition } from '../../generated/model/workItemTypeSectionDefinition';
+import type { WorkItemTypeSectionDefinition } from '@hey-hey/contracts/api/models';
 import { inspectFeatureRequirementsSection } from '../tasks/feature-requirements-reader';
 import { resolveWorkItemSectionContentKind } from '../tasks/task-section-schema-validator.registry';
 import { WORK_ITEM_TYPE_KEYS } from '../tasks/work-item-type-keys';

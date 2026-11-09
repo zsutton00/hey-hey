@@ -15,7 +15,7 @@
 
 import type { ReportChainEntry } from '../../run/types';
 import type { ReportType } from '../../shared/api/index';
-import type { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import type { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { ServerLogger } from '../logger';
 
 /** Sentinel phase value for entries seeded from a prior task scope. */

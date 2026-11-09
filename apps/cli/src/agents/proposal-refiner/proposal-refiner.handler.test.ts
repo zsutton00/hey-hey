@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { proposalRefinerHandler } from './proposal-refiner.handler';
-import type { LocalProposalRefinerPromptPayload } from '../../shared/agent-bridge-contract/generated/api';
+import type { LocalProposalRefinerPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import type { PromptTypeHandlerDeps } from '../prompt-type-handler';
 import type { AgenticSession } from '../../session/types';
 

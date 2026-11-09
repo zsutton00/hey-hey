@@ -3,8 +3,8 @@ import {
   canonicalContextSchema,
   workItemEntitySchema,
 } from '../agents/entity-context/entity-context-loader';
-import type { TaskResponseDto } from '../shared/api/generated/api';
-import type { TaskMonitorPlanGuidance } from '../shared/agent-bridge-contract/generated/api';
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
+import type { TaskMonitorPlanGuidance } from '@hey-hey/contracts/agent-bridge';
 import { loadPlanDesignDoc } from './load-plan-design-doc';
 import type { ServerLogger } from './logger';
 

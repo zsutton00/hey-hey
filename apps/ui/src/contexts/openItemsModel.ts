@@ -1,7 +1,7 @@
 import {
   AgentSessionType,
   type OpenItemGoalTrackedWorkFilter,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import type {
   EntityActivation,
   EntityActivationType,

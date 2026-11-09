@@ -1,13 +1,13 @@
 import type {
   LocalHtmlCssMockupRevisionAnnotation,
   LocalHtmlCssMockupRevisionPromptPayload,
-} from '../../shared/agent-bridge-contract/generated/api';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type {
   TaskResponseDto,
   WorkItemHtmlCssAnnotation,
   WorkItemHtmlCssSectionContent,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type {
   PrepareResult,
   PromptTypeHandler,
@@ -86,6 +86,7 @@ const assertSelectedAnnotationIsCurrent = (
 export const htmlCssMockupRevisionHandler: PromptTypeHandler<LocalHtmlCssMockupRevisionPromptPayload> =
   {
     id: 'html_css_mockup_revision',
+    sessionRole: SessionRole.Planning,
     promptType: LocalPromptType.HtmlCssMockupRevision,
     service: 'required',
     launchEntity: 'none',

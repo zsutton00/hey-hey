@@ -1,7 +1,7 @@
 import {
   DesignDocParentEntityType,
   type DesignDocResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { useDesignDoc, useWorkItem } from "@hey-hey/ui-common/data";
 import { compose } from "@hey-hey/ui-common/i18n";
 import { WebPathService } from "@hey-hey/ui-common/services";

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import type { ServiceDto } from '../../shared/api/generated/api';
+import type { ServiceDto } from '@hey-hey/contracts/api/models';
 import type { ServerLogger } from '../../server/logger';
 import type { SubmissionToolAuth } from '../submission-tools/submission-tool-auth';
 

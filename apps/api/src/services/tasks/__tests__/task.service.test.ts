@@ -1,4 +1,4 @@
-import { ReadRestriction } from 'src/generated';
+import { ReadRestriction } from '@hey-hey/contracts/api/models';
 import {
   ReadPolicyContext,
   readPolicyFor,
@@ -13,7 +13,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { DomainEventPublisher } from '../../../core/events/domain-event-publisher';
 import { DOMAIN_EVENT_PUBLISHER_TOKEN } from '../../../core/events/tokens';
 import { EVENT_TYPES } from '../../../core/events/types/event.types';
-import { CreateTaskDto, UpdateTaskDto } from '../../../generated';
+import { CreateTaskDto, UpdateTaskDto } from '@hey-hey/contracts/api/models';
 import {
   TaskDependencyRelationType,
   TaskDependencySourceType,
@@ -35,9 +35,9 @@ import {
   createWarmWorkItemTypeRegistryWithCustomTypes,
   type CustomTypeRowSpec,
 } from '../../../../test/setup/work-item-type-registry.fixture';
-import { TaskSectionKey } from '../../../generated/model/taskSectionKey';
-import type { TaskMonitorExecutionDefinition } from '../../../generated/model/taskMonitorExecutionDefinition';
-import { TaskMonitorReviewMode } from '../../../generated/model/taskMonitorReviewMode';
+import { TaskSectionKey } from '@hey-hey/contracts/api/models';
+import type { TaskMonitorExecutionDefinition } from '@hey-hey/contracts/api/models';
+import { TaskMonitorReviewMode } from '@hey-hey/contracts/api/models';
 import { AgentEdgeCategory } from '../../../generated/graphs/model/agentEdgeCategory';
 import { AgentEdgeDirection } from '../../../generated/graphs/model/agentEdgeDirection';
 import { AgentEdgeEndpointEntityType } from '../../../generated/graphs/model/agentEdgeEndpointEntityType';

@@ -98,11 +98,15 @@ describe('BrowserSessionService', () => {
       signToken,
       verifyToken,
     } as unknown as JwtKeysService;
-    const invalidateSession = jest.fn(() => {
+    const invalidateSession = jest.fn((_sessionId: string) => {
       expect(committed).toBe(true);
     });
     const moduleRef = {
-      get: jest.fn().mockReturnValue({ invalidateSession }),
+      get: jest.fn().mockReturnValue({
+        evictSessions: jest.fn(async (sessionIds: string[]) => {
+          sessionIds.forEach((sessionId) => invalidateSession(sessionId));
+        }),
+      }),
     };
     const values = { ...policy, ...configOverrides };
     const configService = {
@@ -122,6 +126,11 @@ describe('BrowserSessionService', () => {
         prisma,
         jwtKeysService,
         accountEntitlementService,
+        {
+          issuer: 'https://hosted.test/api',
+          browserAudience: 'https://hosted.test',
+          oauthAudience: 'https://hosted.test:oauth',
+        } as never,
         moduleRef as never,
       ),
       familyCreate,

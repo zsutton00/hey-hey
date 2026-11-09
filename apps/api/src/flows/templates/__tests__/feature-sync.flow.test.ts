@@ -1,7 +1,7 @@
 import { featureSyncFlow } from '../feature-sync.flow';
 import { FEATURE_SYNC_NODES } from '../../constants/node-ids';
 import { FEATURE_SYNC_ACTIONS } from '../../nodes/feature-sync/schemas';
-import { WorkflowReviewAction } from 'src/generated';
+import { WorkflowReviewAction } from '@hey-hey/contracts/api/models';
 import type {
   NodeRoutingConfig,
   TransitionDefinition,
@@ -75,10 +75,16 @@ describe('featureSyncFlow', () => {
 
   it('routes readiness review actions without changing structural reconciliation routes', () => {
     expect(
-      getTransition(FEATURE_SYNC_NODES.IMPLEMENTATION_READINESS_REVIEW, 'implementation_readiness_reply').nextNodeId,
+      getTransition(
+        FEATURE_SYNC_NODES.IMPLEMENTATION_READINESS_REVIEW,
+        'implementation_readiness_reply',
+      ).nextNodeId,
     ).toBe(FEATURE_SYNC_NODES.ANALYZE);
     expect(
-      getTransition(FEATURE_SYNC_NODES.IMPLEMENTATION_READINESS_REVIEW, 'implementation_readiness_dismiss').nextNodeId,
+      getTransition(
+        FEATURE_SYNC_NODES.IMPLEMENTATION_READINESS_REVIEW,
+        'implementation_readiness_dismiss',
+      ).nextNodeId,
     ).toBe(FEATURE_SYNC_NODES.CODING_PLAN);
   });
 
@@ -102,8 +108,10 @@ describe('featureSyncFlow', () => {
     expect(refineTransition.parkOnUserResponse).not.toBe(true);
 
     expect(
-      getTransition(FEATURE_SYNC_NODES.CODING_PLAN, WorkflowReviewAction.Approved)
-        .nextNodeId,
+      getTransition(
+        FEATURE_SYNC_NODES.CODING_PLAN,
+        WorkflowReviewAction.Approved,
+      ).nextNodeId,
     ).toBe(FEATURE_SYNC_NODES.IMPLEMENT);
   });
 

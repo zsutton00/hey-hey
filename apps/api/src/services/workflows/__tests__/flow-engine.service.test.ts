@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-import { LocalPromptType } from 'src/generated/local';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
 import { NodeExecutionService } from '../node-execution.service';
 import { PromptBuilderService } from '../../llm/prompt-builder.service';
 import { IntentDetectorService } from '../../intent-detector.service';
@@ -24,7 +24,7 @@ import {
   QuestionsSystemMessageData,
   SystemMessageData,
   SystemMessageResponseType,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { createServiceTestingModule } from '../../../../test/setup/testing-module.factory';
 import * as TestUtils from '../../../utils/testUtils';
 

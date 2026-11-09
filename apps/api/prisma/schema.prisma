@@ -24,6 +24,9 @@ model User {
   isDevAdmin                            Boolean                           @default(false) @map("is_dev_admin")
   mustChangePassword                    Boolean                           @default(false) @map("must_change_password")
   isDemoUser                            Boolean                           @default(false) @map("is_demo_user")
+  authorizationRevision                 Int                               @default(0) @map("authorization_revision")
+  accountPasskeys                       AccountPasskey[]
+  accountPasskeyChallenges              AccountPasskeyChallenge[]
   demoSandboxes                         DemoSandbox[]
   flowExecutions                        FlowExecution[]
   llmPromptResponses                    LLMPromptResponse[]
@@ -92,6 +95,46 @@ model BrowserSessionFamily {
   @@index([absoluteExpiresAt])
   @@index([revokedAt])
   @@map("browser_session_families")
+}
+
+model AccountPasskey {
+  id           String    @id @default(uuid())
+  userId       String    @map("user_id")
+  credentialId String    @unique @map("credential_id") @db.VarChar(1024)
+  publicKey    Bytes     @map("public_key")
+  signCount    BigInt    @default(0) @map("sign_count")
+  transports   String[]  @default([])
+  deviceType   String    @map("device_type") @db.VarChar(32)
+  backedUp     Boolean   @map("backed_up")
+  aaguid       String?   @db.VarChar(64)
+  name         String    @db.VarChar(100)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  lastUsedAt   DateTime? @map("last_used_at")
+  revokedAt    DateTime? @map("revoked_at")
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  controllerCredentials MachineControllerCredential[]
+  pendingEnrollments    PendingMachineEnrollment[]
+
+  @@index([userId])
+  @@index([userId, revokedAt])
+  @@map("account_passkeys")
+}
+
+model AccountPasskeyChallenge {
+  id               String    @id @default(uuid())
+  challenge        String    @unique @db.VarChar(128)
+  purpose          String    @db.VarChar(32)
+  userId           String?   @map("user_id")
+  browserSessionId String?   @map("browser_session_id")
+  targetPasskeyId  String?   @map("target_passkey_id")
+  rpId             String    @map("rp_id") @db.VarChar(255)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  expiresAt        DateTime  @map("expires_at")
+  consumedAt       DateTime? @map("consumed_at")
+  user             User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("account_passkey_challenges")
 }
 
 model RefreshGeneration {
@@ -4130,6 +4173,7 @@ enum ControllerAuthorizationCadence {
   ONE_DAY
   ONE_WEEK
   ONE_MONTH
+  UNTIL_REVOKED
 
   @@map("controller_authorization_cadence")
 }
@@ -4192,10 +4236,17 @@ model PendingMachineEnrollment {
   localOutcomeConsumedAt        DateTime?                 @map("local_outcome_consumed_at")
   lastPolledAt                  DateTime?                 @map("last_polled_at")
   confirmationNonce             String?                   @map("confirmation_nonce")
+  // Opaque first-time `heyhey local` approval proof; only the originating CLI can verify it.
+  localApprovalProof            String?                   @map("local_approval_proof") @db.VarChar(43)
+  // First-time `heyhey local` only: the duration chosen for the first grant.
+  requestedCadence              ControllerAuthorizationCadence? @map("requested_cadence")
+  enrollmentMode                String                    @default("CONTROLLER_ONLY") @map("enrollment_mode") @db.VarChar(16)
+  accountPasskeyId              String?                   @map("account_passkey_id")
   updatedAt                     DateTime                  @updatedAt @map("updated_at")
 
   claimantUser               User?                           @relation("PendingMachineEnrollmentClaimant", fields: [claimantUserId], references: [id], onDelete: Cascade)
   claimantOrganization       Organization?                   @relation(fields: [claimantOrganizationId], references: [id], onDelete: Cascade)
+  accountPasskey             AccountPasskey?                 @relation(fields: [accountPasskeyId], references: [id], onDelete: Restrict)
   claimFailures              MachineEnrollmentClaimFailure[]
   activeControllerCredential MachineControllerCredential?
 
@@ -4298,7 +4349,9 @@ model MachineControllerCredential {
   lastUsedAt               DateTime? @map("last_used_at")
   revokedAt                DateTime? @map("revoked_at")
   enrollmentId             String    @unique @map("enrollment_id")
+  accountPasskeyId         String?   @map("account_passkey_id")
 
+  accountPasskey            AccountPasskey?            @relation(fields: [accountPasskeyId], references: [id], onDelete: Restrict)
   machine                   Machine                    @relation(fields: [machineId], references: [id], onDelete: Cascade)
   user                      User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization              Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -4311,6 +4364,7 @@ model MachineControllerCredential {
   @@index([userId, revokedAt], map: "machine_controller_credentials_user_revoked_at_idx")
   @@index([organizationId, revokedAt], map: "machine_controller_credentials_organization_revoked_at_idx")
   @@index([controllerInstallationId, machineId, revokedAt], map: "machine_controller_credentials_installation_machine_revoked_idx")
+  @@index([accountPasskeyId, revokedAt], map: "machine_controller_credentials_account_passkey_idx")
   @@map("machine_controller_credentials")
 }
 
@@ -4428,7 +4482,7 @@ model ExecutionGrant {
   selectedWorkFingerprint  String?                        @map("selected_work_fingerprint") @db.VarChar(64)
   policyFingerprint        String?                        @map("policy_fingerprint") @db.VarChar(64)
   issuedAt                 DateTime                       @map("issued_at")
-  expiresAt                DateTime                       @map("expires_at")
+  expiresAt                DateTime?                      @map("expires_at")
   suspendedAt              DateTime?                      @map("suspended_at")
   terminalAt               DateTime?                      @map("terminal_at")
   revokedAt                DateTime?                      @map("revoked_at")

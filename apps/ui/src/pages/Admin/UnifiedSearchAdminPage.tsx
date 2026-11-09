@@ -46,7 +46,7 @@ import type {
   UnifiedSearchResult,
   UnifiedGraphSearchResult,
   UnifiedEmbeddingsSearchResult,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { useQueryState, parseAsString } from "nuqs";
 
 export const UnifiedSearchAdminPage: React.FC = () => {

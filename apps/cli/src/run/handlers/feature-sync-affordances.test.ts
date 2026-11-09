@@ -7,7 +7,7 @@ import {
   SystemMessageDataTypeEnum,
   type UpdateMessageDto,
 } from '../../shared/api/index';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { FEATURE_SYNC_ACTIONS } from '../../agents/feature-sync/submission-tools';
 import { addDataToMessage } from './feature-sync-affordances';
 

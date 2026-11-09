@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { QAPairData } from '../../../generated/model/qAPairData';
-import { RequirementData } from '../../../generated/model/requirementData';
+import { QAPairData } from '@hey-hey/contracts/api/models';
+import { RequirementData } from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ArtifactDataValidators } from '../artifact-data.validators';
 import {

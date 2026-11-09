@@ -33,7 +33,7 @@ describe("conversationVersionHelpers", () => {
       const result = createVersionAwareUserMessage(
         mockFormData,
         "parent-msg-123",
-        mockConversation
+        mockConversation,
       );
 
       expect(result.data).toEqual(mockFormData);
@@ -62,7 +62,7 @@ describe("conversationVersionHelpers", () => {
       const result = createVersionAwareUserMessage(
         mockFormData,
         "parent-msg-123",
-        nonVersionedConversation
+        nonVersionedConversation,
       );
 
       expect(result.data).toEqual(mockFormData);
@@ -81,7 +81,7 @@ describe("conversationVersionHelpers", () => {
       const result = createVersionAwareUserMessage(
         mockFormData,
         "parent-msg-123",
-        null
+        null,
       );
 
       expect(result.data).toEqual(mockFormData);
@@ -95,7 +95,7 @@ describe("conversationVersionHelpers", () => {
       const result = createVersionAwareUserMessage(
         mockFormData,
         "parent-msg-123",
-        undefined
+        undefined,
       );
 
       expect(result.data).toEqual(mockFormData);
@@ -111,7 +111,7 @@ describe("conversationVersionHelpers", () => {
       const result = createVersionAwareUserMessage(
         emptyFormData,
         "parent-msg-123",
-        mockConversation
+        mockConversation,
       );
 
       expect(result.data).toEqual(emptyFormData);
@@ -130,7 +130,7 @@ describe("conversationVersionHelpers", () => {
       const result = createVersionAwareUserMessage(
         mockFormData,
         "parent-msg-123",
-        conversationWithZeroVersion
+        conversationWithZeroVersion,
       );
 
       expect(result.expectedVersion).toBe(0);
@@ -154,7 +154,7 @@ describe("conversationVersionHelpers", () => {
       const result = createVersionAwareUserMessage(
         complexFormData,
         "parent-msg-123",
-        mockConversation
+        mockConversation,
       );
 
       expect(result.content).toEqual(complexFormData);
@@ -236,12 +236,12 @@ describe("conversationVersionHelpers", () => {
     it("should call conversation update with latest conversation data", () => {
       handleVersionConflictUpdate(
         mockVersionConflictError,
-        mockConversationUpdate
+        mockConversationUpdate,
       );
 
       expect(mockConversationUpdate).toHaveBeenCalledTimes(1);
       expect(mockConversationUpdate).toHaveBeenCalledWith(
-        mockVersionConflictError.latestConversation
+        mockVersionConflictError.latestConversation,
       );
     });
 
@@ -261,7 +261,7 @@ describe("conversationVersionHelpers", () => {
       handleVersionConflictUpdate(minimalError, mockConversationUpdate);
 
       expect(mockConversationUpdate).toHaveBeenCalledWith(
-        minimalError.latestConversation
+        minimalError.latestConversation,
       );
     });
 
@@ -302,7 +302,7 @@ describe("conversationVersionHelpers", () => {
       handleVersionConflictUpdate(complexError, mockConversationUpdate);
 
       expect(mockConversationUpdate).toHaveBeenCalledWith(
-        complexError.latestConversation
+        complexError.latestConversation,
       );
     });
 
@@ -314,11 +314,11 @@ describe("conversationVersionHelpers", () => {
 
       handleVersionConflictUpdate(
         mockVersionConflictError,
-        alternativeCallback
+        alternativeCallback,
       );
 
       expect(alternativeCallback).toHaveBeenCalledWith(
-        mockVersionConflictError.latestConversation
+        mockVersionConflictError.latestConversation,
       );
     });
 
@@ -333,7 +333,7 @@ describe("conversationVersionHelpers", () => {
       }).toThrow("Callback error");
 
       expect(throwingCallback).toHaveBeenCalledWith(
-        mockVersionConflictError.latestConversation
+        mockVersionConflictError.latestConversation,
       );
     });
 
@@ -347,11 +347,11 @@ describe("conversationVersionHelpers", () => {
       // The helper should support async callbacks
       const result = handleVersionConflictUpdate(
         mockVersionConflictError,
-        asyncCallback
+        asyncCallback,
       );
 
       expect(asyncCallback).toHaveBeenCalledWith(
-        mockVersionConflictError.latestConversation
+        mockVersionConflictError.latestConversation,
       );
 
       // If the helper supports async, this should work
@@ -379,7 +379,7 @@ describe("conversationVersionHelpers", () => {
       const userMessage = createVersionAwareUserMessage(
         formData,
         "parent-msg-123",
-        originalConversation
+        originalConversation,
       );
 
       expect(userMessage.expectedVersion).toBe(5);
@@ -401,7 +401,7 @@ describe("conversationVersionHelpers", () => {
       handleVersionConflictUpdate(versionConflictError, mockUpdate);
 
       expect(mockUpdate).toHaveBeenCalledWith(
-        versionConflictError.latestConversation
+        versionConflictError.latestConversation,
       );
 
       // Verify update logic
@@ -423,7 +423,7 @@ describe("conversationVersionHelpers", () => {
       const userMessage = createVersionAwareUserMessage(
         formData,
         "parent-msg-123",
-        legacyConversation
+        legacyConversation,
       );
 
       // Should not include expectedVersion for legacy conversations
@@ -445,12 +445,12 @@ describe("conversationVersionHelpers", () => {
       const userMessage = createVersionAwareUserMessage(
         minimalFormData,
         "",
-        minimalConversation
+        minimalConversation,
       );
 
       expect(userMessage.expectedVersion).toBe(0);
       expect(userMessage.content).toEqual({});
-      expect(userMessage.parentMessageId).toBe("");
+      expect(userMessage.parentMessageId).toBeNull();
 
       // Version comparison should work with zero
       expect(shouldUpdateConversationVersion(1, 0)).toBe(true);
@@ -488,7 +488,7 @@ describe("conversationVersionHelpers", () => {
           createVersionAwareUserMessage(
             formData,
             `parent-${index}`,
-            conversation
+            conversation,
           );
         }).not.toThrow();
       });
@@ -508,7 +508,7 @@ describe("conversationVersionHelpers", () => {
       const result = createVersionAwareUserMessage(
         formData,
         "parent-msg",
-        malformedConversation
+        malformedConversation,
       );
 
       // Should handle gracefully - implementation depends on hasVersionInfo logic

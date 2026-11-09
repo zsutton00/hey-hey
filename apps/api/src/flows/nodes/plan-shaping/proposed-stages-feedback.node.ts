@@ -6,7 +6,7 @@ import {
   SecondaryActionConfig,
   SecondaryActionHandler,
   UIElement,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   FlowUserMessage,
   PlanFromDesignDocFlowContext,

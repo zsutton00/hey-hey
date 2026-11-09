@@ -27,7 +27,7 @@ import {
   ProjectMemberResponseDto,
   ProjectResponseDto,
   UpdateProjectDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { PROJECT_CONTROLLER_PATH } from '../generated/api/path-constants';
 import { ProjectService } from '../services/project.service';
 import {

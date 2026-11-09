@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { EntityType } from 'src/generated';
+import { EntityType } from '@hey-hey/contracts/api/models';
 import { ActivityCorrelationService } from '../activity-correlation.service';
 
 // This test exists to make the (entityType, entityId) polymorphic schema for

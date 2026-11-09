@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 // Generated from OpenAPI by scripts/generate-activity-history-contract.cjs.
 export const activityHistoryFilterSchema = {
   "type": "object",

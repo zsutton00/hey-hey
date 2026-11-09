@@ -1,6 +1,6 @@
 import { projectFeatureListSubmission } from "./Registry/featureListSubmission";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Box, Stack } from "@mui/material";
+import { Alert, Box, Stack, Typography } from "@mui/material";
 import React, { useCallback, useMemo } from "react";
 import { Controller, useForm, useWatch, type Resolver } from "react-hook-form";
 import type { BaseSyntheticEvent } from "react";
@@ -78,7 +78,6 @@ interface DynamicFormProps {
   conversationMessage: ConversationMessage;
   status?: SaveStatus;
   uiHints?: UIHints;
-  composerResetMode?: "preserve" | "clearOnSuccess";
 }
 
 // Generate Zod schema from UIElements
@@ -673,7 +672,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   status = "draft",
   showSkeleton,
   uiHints,
-  composerResetMode = "preserve",
 }) => {
   const { on } = useConversationEvents(context.conversationId);
   const uiElements = React.useMemo(
@@ -871,6 +869,67 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     reset(defaultValues, { keepDirtyValues: true, keepDefaultValues: true });
   }, [defaultValues, reset]);
 
+  // Each submission replaces the snapshot, so a failure restores exactly what
+  // that submission sent.
+  const pendingSubmissionRef = React.useRef<{
+    values: Record<string, FormValue>;
+  } | null>(null);
+  const [hasFailedSubmission, setHasFailedSubmission] = React.useState(false);
+  const hasFailedSubmissionRef = React.useRef(false);
+  // Locks the composer from submit until the send succeeds or fails, so a
+  // failure restores into a box nobody has typed in.
+  const [isSendingReply, setIsSendingReply] = React.useState(false);
+  const fieldsDisabled = disabled || isSendingReply;
+
+  const setFailedSubmission = React.useCallback((failed: boolean) => {
+    hasFailedSubmissionRef.current = failed;
+    setHasFailedSubmission(failed);
+  }, []);
+
+  const clearComposerFields = React.useCallback(() => {
+    const values: Record<string, FormValue> = {};
+    uiElements.forEach((uiElement) => {
+      const registryType = getRegistryType(uiElement);
+      if (registryType === "textarea" || registryType === "text") {
+        values[uiElement.id] = getValues(uiElement.id);
+        setValue(uiElement.id, "");
+        return;
+      }
+
+      if (registryType === "coding_prompt") {
+        const currentValue = getValues(uiElement.id);
+        values[uiElement.id] = currentValue;
+        const clearedValue: CodingPromptUserMessage = isCodingPromptFormValue(
+          currentValue,
+        )
+          ? { ...currentValue, userMessage: "" }
+          : {
+              type: CodingPromptUserMessageTypeEnum.CodingPrompts,
+              nextAction: CodingPromptUserMessageNextActionEnum.Accept,
+              userMessage: "",
+              serviceId: undefined,
+              selectedHintIds: [],
+            };
+        setValue(uiElement.id, clearedValue);
+      }
+    });
+    return values;
+  }, [getValues, setValue, uiElements]);
+
+  const clearComposerForSubmission = React.useCallback(() => {
+    pendingSubmissionRef.current = { values: clearComposerFields() };
+    setIsSendingReply(true);
+  }, [clearComposerFields]);
+
+  const restoreComposerValues = React.useCallback(
+    (values: Record<string, FormValue>) => {
+      Object.entries(values).forEach(([fieldId, value]) => {
+        setValue(fieldId, value);
+      });
+    },
+    [setValue],
+  );
+
   React.useEffect(() => {
     const unsubscribeSuccess = on("submission-success", (event) => {
       if (event.type !== "submission-success") {
@@ -898,68 +957,47 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         console.error("Failed to clear form draft:", error);
       }
 
-      if (composerResetMode !== "clearOnSuccess") {
+      // A retry after a failed send (e.g. a version conflict) restored the
+      // text; the message is now sent, so clear it again.
+      if (hasFailedSubmissionRef.current) {
+        clearComposerFields();
+      }
+
+      pendingSubmissionRef.current = null;
+      setIsSendingReply(false);
+      setFailedSubmission(false);
+    });
+
+    const unsubscribeError = on("submission-error", (event) => {
+      if (
+        event.type !== "submission-error" ||
+        event.payload.parentMessageId !== conversationMessage.message.id
+      ) {
         return;
       }
 
-      log.info("dynamic_form", "Clearing composer on submission success", {
-        conversationId: context.conversationId,
-        messageId: eventMessageId,
-        fieldCount: uiElements.length,
-      });
+      const pending = pendingSubmissionRef.current;
+      if (!pending) {
+        return;
+      }
 
-      const clearedFieldIds: string[] = [];
-      uiElements.forEach((uiElement) => {
-        const registryType = getRegistryType(uiElement);
-        if (registryType === "textarea" || registryType === "text") {
-          setValue(uiElement.id, "");
-          clearedFieldIds.push(uiElement.id);
-          return;
-        }
-
-        if (registryType === "coding_prompt") {
-          const currentValue = getValues(uiElement.id);
-          const clearedValue: CodingPromptUserMessage = isCodingPromptFormValue(
-            currentValue,
-          )
-            ? {
-                ...currentValue,
-                userMessage: "",
-              }
-            : {
-                type: CodingPromptUserMessageTypeEnum.CodingPrompts,
-                nextAction: CodingPromptUserMessageNextActionEnum.Accept,
-                userMessage: "",
-                serviceId: undefined,
-                selectedHintIds: [],
-              };
-
-          setValue(uiElement.id, clearedValue);
-          clearedFieldIds.push(uiElement.id);
-        }
-      });
-
-      log.info("dynamic_form", "Composer clear applied", {
-        conversationId: context.conversationId,
-        messageId: eventMessageId,
-        clearedFieldIds,
-        registryTypes: uiElements.map((uiElement) =>
-          getRegistryType(uiElement),
-        ),
-      });
+      pendingSubmissionRef.current = null;
+      restoreComposerValues(pending.values);
+      setIsSendingReply(false);
+      setFailedSubmission(true);
     });
 
     return () => {
       unsubscribeSuccess();
+      unsubscribeError();
     };
   }, [
-    composerResetMode,
     context.conversationId,
     conversationMessage.message.id,
-    getValues,
     on,
-    setValue,
-    uiElements,
+    restoreComposerValues,
+    clearComposerFields,
+    setFailedSubmission,
   ]);
 
   // Watch all form values to determine if any content has been entered
@@ -1094,10 +1132,15 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         elementText: "next",
       });
 
+      setFailedSubmission(false);
+      clearComposerForSubmission();
+
       onNext(payload, options);
     },
     [
       onNext,
+      clearComposerForSubmission,
+      setFailedSubmission,
       trackSubmitSuccess,
       trackUI,
       uiElements,
@@ -1238,6 +1281,12 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
       data-testid="dynamic-form"
     >
       <Stack spacing={3}>
+        {hasFailedSubmission && (
+          <Alert severity="error" role="alert">
+            Your message was not sent. Your text has been restored so you can
+            try again.
+          </Alert>
+        )}
         {allInlineActions.length > 0 && (
           <Box sx={{ mb: 2 }}>
             {allInlineActions.map((action) => (
@@ -1401,9 +1450,9 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                           conversationMessage={conversationMessage}
                           inlineReports={inlineReports}
                           value={value}
-                          onChange={disabled ? () => {} : onChange}
+                          onChange={fieldsDisabled ? () => {} : onChange}
                           error={error?.message}
-                          disabled={disabled}
+                          disabled={fieldsDisabled}
                           isSubmitted={effectiveIsSubmitted}
                           status={status}
                           isSubmittable={isSubmittable}
@@ -1468,13 +1517,24 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
           />
         )}
 
+        {isSendingReply && (
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            role="status"
+            aria-live="polite"
+          >
+            Sending…
+          </Typography>
+        )}
+
         <DynamicFormButtons
           uiElements={uiElements}
           secondActions={allButtonActions}
           onSecondActionExecute={handleFooterSecondActionExecute}
           hasContent={hasContent}
           isSubmitted={effectiveIsSubmitted}
-          isSubmitting={isSubmitting}
+          isSubmitting={isSubmitting || isSendingReply}
           disabled={disabled || hasUnresolvedFieldValidity}
           showSkeleton={showSkeleton}
           formValues={watchedValues}

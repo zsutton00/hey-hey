@@ -17,12 +17,16 @@ export interface UseMachineResolutionResult {
 /**
  * `isEligible` narrows which machines the surface offers at all (for example,
  * only machines holding every project repository). Pass a stable reference.
+ * `pollUntilReadyMs` keeps re-reading the list until a machine is ready.
  */
 export const useMachineResolution = (
   preferredMachineId: string | null = null,
   isEligible?: (machine: MachineDto) => boolean,
+  pollUntilReadyMs?: number,
 ): UseMachineResolutionResult => {
-  const { machines: pairedMachines, isReady } = useUserPairedMachines();
+  const { machines: pairedMachines, isReady } = useUserPairedMachines({
+    pollUntilReadyMs,
+  });
   const machines = useMemo(
     () => (isEligible ? pairedMachines.filter(isEligible) : pairedMachines),
     [isEligible, pairedMachines],

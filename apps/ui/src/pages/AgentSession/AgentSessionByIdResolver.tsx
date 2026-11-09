@@ -2,7 +2,7 @@ import { WORK_ITEM_TYPE_KEYS } from "../../types/workItemTypes";
 import React, { useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Alert, Box, CircularProgress, Typography } from "@mui/material";
-import { AgentSessionType, EntityType } from "@hey-hey/ui-common/api";
+import { AgentSessionType, EntityType } from "@hey-hey/contracts/api";
 import { useAgentSession, useWorkItem, isTask } from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import { buildEntityConversationPath } from "./entityConversationRoute";

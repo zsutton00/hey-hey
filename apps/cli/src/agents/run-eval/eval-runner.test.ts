@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { EvalRecordedAttempt } from '../../shared/api/generated/api';
+import type { EvalRecordedAttempt } from '@hey-hey/contracts/api/models';
 import {
   EvalTargetFailure,
   runEvalAttempts,
@@ -42,7 +42,11 @@ const completed: EvalTargetResult = {
 
 const makePorts = (
   launchTarget: EvalRunnerPorts['launchTarget'],
-): { ports: EvalRunnerPorts; attempts: Map<string, EvalAttemptPatch[]>; runStatuses: string[] } => {
+): {
+  ports: EvalRunnerPorts;
+  attempts: Map<string, EvalAttemptPatch[]>;
+  runStatuses: string[];
+} => {
   const attempts = new Map<string, EvalAttemptPatch[]>();
   const runStatuses: string[] = [];
   return {
@@ -120,7 +124,11 @@ describe('runEvalAttempts', () => {
       { ...ports, judge },
     );
 
-    expect(judge).toHaveBeenCalledWith(expect.anything(), 'THE-SAVED-RESEARCH', expect.anything());
+    expect(judge).toHaveBeenCalledWith(
+      expect.anything(),
+      { outputText: 'THE-SAVED-RESEARCH' },
+      expect.anything(),
+    );
     const patches = attempts.get('a')!;
     expect(patches.find((patch) => patch.status === 'JUDGING')).toMatchObject({
       judgedOutput: 'THE-SAVED-RESEARCH',

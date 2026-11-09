@@ -1,6 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
-import { ReadRestriction } from '../../../generated';
-import { EntityType } from '../../../generated/model/entityType';
+import { ReadRestriction } from '@hey-hey/contracts/api/models';
+import { EntityType } from '@hey-hey/contracts/api/models';
 import {
   ReadPolicyContext,
   readPolicyFor,

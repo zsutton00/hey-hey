@@ -8,6 +8,7 @@ import {
   requiresNodeId,
   resolveResponseDispatchContext,
 } from './response-dispatch';
+import { homePageBlockedFinding } from './implementation-readiness/__tests__/readiness-finding.fixture';
 
 const fixturesDir = join(__dirname, '__fixtures__');
 
@@ -169,19 +170,7 @@ describe('dispatchResponseType', () => {
           sourceRevision: 'sha256:open-source-revision',
           capturedAt: '2026-09-17T19:00:00.000Z',
         },
-        finding: {
-          affectedSourceContext: 'The Open task and its Project Assistant memo',
-          unresolvedDecision: 'Which service owns the persisted readiness disposition?',
-          consequentialInventionRisk: 'Coding would otherwise invent the observable behavior.',
-          boundedEvidence: [
-            {
-              category: 'behavior',
-              statement: 'The task names a consumer but leaves the observable outcome open.',
-              sourceRef: 'Project Assistant memo',
-            },
-          ],
-          answerKind: 'Name the authoritative owner and persistence boundary.',
-        },
+        finding: homePageBlockedFinding,
         resolution: { kind: 'NONE' },
       },
     };

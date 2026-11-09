@@ -1,5 +1,6 @@
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import { ProposalReconciliationSubmission } from './reconciliation-submission';
-import type { LocalProposalRefinerPromptPayload } from '../../shared/agent-bridge-contract/generated/api';
+import type { LocalProposalRefinerPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import type {
   PromptTypeHandler,
   PromptTypeHandlerDeps,
@@ -10,7 +11,7 @@ import type { AssistantDeltaEvent, AssistantCompleteEvent } from '../../run/type
 import type { UpdateMessageDto } from '../../shared/api/index';
 import { SystemMessageDataTypeEnum } from '../../shared/api/index';
 import type { ProposalRefinerPromptInput } from './types';
-import type { FullEntityContextDto } from '../../shared/api/generated/api';
+import type { FullEntityContextDto } from '@hey-hey/contracts/api/models';
 import { buildProposalRefinerPrompt } from './proposal-refiner-prompt';
 import { parseRefinerResponse } from '../response-parser';
 import { assertFullProposalHistory } from '../entity-context/full-proposal-history';
@@ -23,6 +24,7 @@ const reconciliationSubmission = new ProposalReconciliationSubmission();
 
 export const proposalRefinerHandler: PromptTypeHandler<LocalProposalRefinerPromptPayload> = {
   id: 'proposal_refiner',
+  sessionRole: SessionRole.Planning,
   promptType: 'proposal_refiner',
   // Agent fix starts the refiner from a proposal, which has no repository.
   service: 'optional',

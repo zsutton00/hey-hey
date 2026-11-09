@@ -17,7 +17,8 @@ import {
   type UIElementPayload,
   type UserMessageData,
 } from '../shared/api/index';
-import type { CodingPromptStartupPlanPayload } from '../shared/api/generated/api';
+import type { CodingPromptStartupPlanPayload } from '@hey-hey/contracts/api/models';
+import type { ConversationId, MessageId, ProjectId, UserId } from '@hey-hey/contracts/brands';
 import type {
   LocalFinalAssessmentResponse,
   LocalStartupSessionPlanResponse,
@@ -488,9 +489,9 @@ const toStructuredResponseSummaryText = (response: KnownStructuredResponse): str
 export interface MapAgentOutputInput {
   text: string;
   timestamp: string;
-  projectId: string;
-  conversationId: string;
-  parentMessageId?: string;
+  projectId: ProjectId;
+  conversationId: ConversationId;
+  parentMessageId?: MessageId;
   triggerNotification?: boolean;
   actionHint?: string;
   /**
@@ -505,10 +506,10 @@ export interface MapAgentOutputInput {
 interface MapUserPromptInput {
   prompt: string;
   timestamp: string;
-  projectId: string;
-  conversationId: string;
-  userId: string;
-  parentMessageId?: string;
+  projectId: ProjectId;
+  conversationId: ConversationId;
+  userId: UserId;
+  parentMessageId?: MessageId;
 }
 
 export interface MapAgentOutputResult {
@@ -862,9 +863,9 @@ interface MapMergedProcessResultInput {
   responseType: string;
   payload: CodingPromptMergedFinalAssessmentPayload;
   timestamp: string;
-  projectId: string;
-  conversationId: string;
-  parentMessageId?: string;
+  projectId: ProjectId;
+  conversationId: ConversationId;
+  parentMessageId?: MessageId;
 }
 
 const mapMergedProcessResultToSystemMessage = (

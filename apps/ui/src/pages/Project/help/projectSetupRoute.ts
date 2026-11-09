@@ -2,7 +2,7 @@ import {
   ProjectConfigVersionEnum,
   ProjectExistingWorkIntent,
   type ProjectResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 
 export const isSelectedExistingWorkProject = (
   project: Pick<ProjectResponseDto, "config"> | null | undefined,

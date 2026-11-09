@@ -12,7 +12,7 @@ import {
   HostActionPreparation,
   HostActionTargetKind,
   HostAffectingActionType,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { canonicalizeJcs } from '../../../core/websockets/trigger-canonicalization';
 import { PrismaService } from '../../../prisma/prisma.service';
 import {
@@ -959,6 +959,79 @@ describe('workspace Skill grant reuse', () => {
     });
     expect(db.executionGrant.create).not.toHaveBeenCalled();
     expect(db.agentSession.findFirst).not.toHaveBeenCalled();
+  });
+});
+
+describe('until-revoked grant reuse', () => {
+  const issuedAt = new Date('2020-01-01T00:00:00.000Z');
+
+  const reuseUntilRevoked = async (revokedAt: Date | null) => {
+    const { db, service } = harness();
+    const grant = {
+      id: 'grant-id',
+      authorizationId: ids.authorization,
+      scope: PrismaExecutionGrantScope.CONTROLLER_DEVICE_WINDOW,
+      controllerCredentialId: ids.controller,
+      controllerInstallationId: ids.installation,
+      machineId: ids.machine,
+      userId: ids.user,
+      organizationId: ids.organization,
+      projectId: ids.project,
+      cadence: PrismaControllerAuthorizationCadence.UNTIL_REVOKED,
+      policyRevision: 1,
+      grantDescriptorHash: 'b'.repeat(64),
+      targetKind: PrismaHostActionTargetKind.AGENT_SESSION,
+      targetId: ids.session,
+      allowedActions: [...PRISMA_CURRENT_AGENT_OPERATIONS],
+      agentSessionId: null,
+      authorizedTurnId: null,
+      taskMonitorId: null,
+      selectedWorkFingerprint: null,
+      policyFingerprint: null,
+      issuedAt,
+      expiresAt: null,
+      suspendedAt: null,
+      terminalAt: null,
+      revokedAt,
+      createdAt: issuedAt,
+    };
+    db.executionGrant.findUnique.mockResolvedValue({
+      authorizationId: ids.authorization,
+    });
+    db.executionAuthorization.findUnique.mockResolvedValue(
+      authorization(interactiveAction(), {
+        cadence: PrismaControllerAuthorizationCadence.UNTIL_REVOKED,
+        issuedAt,
+        expiresAt: new Date(issuedAt.getTime() + 2 * 60 * 1000),
+        grant,
+      }),
+    );
+    return service.assertWorkspaceSkillsAuthorized({
+      authorization: { kind: 'bounded_grant', grantId: 'grant-id' },
+      request: {
+        operation: 'workspace.skills.list',
+        provider: 'codex',
+        catalogContext: { policy: 'non_repository' },
+        authorization: { kind: 'bounded_grant', grantId: 'grant-id' },
+      },
+      organizationId: ids.organization,
+      projectId: ids.project,
+      userId: ids.user,
+      machineId: ids.machine,
+      controllerBindingSecret: ids.bindingSecret,
+    });
+  };
+
+  it('admits a grant with no expiry however long ago it was issued', async () => {
+    await expect(reuseUntilRevoked(null)).resolves.toMatchObject({
+      envelopeAuthorization: { kind: 'bounded_grant', grantId: 'grant-id' },
+    });
+  });
+
+  it('refuses the same grant once it is revoked', async () => {
+    await expect(reuseUntilRevoked(new Date())).rejects.toBeInstanceOf(
+      ExecutionGrantAdmissionDeniedException,
+    );
   });
 });
 

@@ -544,7 +544,6 @@ const AgentConversationViewInner = ({
             <Box data-testid="agent-conversation-viewer">
               <ConversationViewer
                 animationType="minimal"
-                composerResetMode="clearOnSuccess"
                 conversation={displayConversation}
                 agentSessionId={agentSessionId}
                 agentSessionCurrentState={platformCurrentState}

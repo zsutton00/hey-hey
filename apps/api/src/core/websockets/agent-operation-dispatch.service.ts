@@ -18,7 +18,7 @@ import {
   BoundedGrantReference,
   ControllerAssertionEvidence,
   ExecutableEnvelopeAuthorization,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   AnyTransactionClient,
   PrismaService,
@@ -33,6 +33,7 @@ import {
   ProjectId,
 } from '../../types';
 import { toAdmittedAuthorizationKind } from '../../services/agent-operation/agent-operation-authorization-kind';
+import { isExecutionGrantExpired } from '../../services/controller-authorization/controller-authorization-operations';
 import { MessageService } from '../../services/message.service';
 import { failProjectReportStartRunInTransaction } from '../../services/project-reports/project-report-attempt-transitions';
 import { ApiMetricsService } from '../metrics/api-metrics.service';
@@ -605,7 +606,7 @@ export class AgentOperationDispatchService
             select: { expiresAt: true },
           })
         : undefined;
-    if (grant && grant.expiresAt.getTime() <= Date.now()) {
+    if (grant && isExecutionGrantExpired(grant.expiresAt, Date.now())) {
       const transition = await this.markRejected(
         dispatch,
         'START_RUN_GRANT_EXPIRED',
@@ -641,7 +642,7 @@ export class AgentOperationDispatchService
         state: AgentOperationDispatchState.PENDING,
         lastFailureCode: failureCode,
         nextAttemptAt: new Date(
-          Math.min(Date.now() + delay, grant?.expiresAt.getTime() ?? Infinity),
+          Math.min(Date.now() + delay, grant?.expiresAt?.getTime() ?? Infinity),
         ),
         claimOwner: null,
         claimExpiresAt: null,

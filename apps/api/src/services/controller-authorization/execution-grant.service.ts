@@ -28,7 +28,7 @@ import {
   HostAffectingActionType,
   MonitorCommandBody,
   TaskMonitorExternalCommand,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { hashControllerAction } from '../../generated/controller-action-contract';
 import { canonicalizeJcs } from '../../core/websockets/trigger-canonicalization';
 import {
@@ -50,8 +50,12 @@ import {
   CURRENT_AGENT_OPERATIONS,
   getCurrentAgentOperationCategory,
   getControllerDeviceGrantExpiry,
+  getControllerDeviceGrantWindowExpiry,
+  executionGrantExpiryEquals,
   isCurrentAgentOperation,
+  isExecutionGrantExpired,
   toControllerAuthorizationCadence,
+  toControllerDeviceGrantCadence,
 } from './controller-authorization-operations';
 import { isRemovedControllerAuthorizationCadence } from './controller-authorization-cadence';
 import { ControllerBrowserBindingService } from './controller-browser-binding.service';
@@ -1048,14 +1052,14 @@ export class ExecutionGrantService {
     const grant = authorization.grant;
     const expectedWindowExpiry =
       grant?.scope === PrismaExecutionGrantScope.CONTROLLER_DEVICE_WINDOW
-        ? this.requireControllerDeviceGrantExpiry(
+        ? this.requireGrantWindowExpiry(
             authorization.issuedAt,
-            this.requireSupportedCadence(authorization.cadence),
+            authorization.cadence,
           )
-        : null;
+        : undefined;
     if (
       !grant ||
-      grant.expiresAt.getTime() <= Date.now() ||
+      isExecutionGrantExpired(grant.expiresAt, Date.now()) ||
       grant.suspendedAt !== null ||
       grant.terminalAt !== null ||
       grant.revokedAt !== null ||
@@ -1085,8 +1089,8 @@ export class ExecutionGrantService {
       grant.policyRevision !== authorization.policyRevision ||
       grant.cadence !== authorization.cadence ||
       grant.grantDescriptorHash !== authorization.grantDescriptorHash ||
-      (expectedWindowExpiry !== null &&
-        grant.expiresAt.getTime() !== expectedWindowExpiry.getTime())
+      (expectedWindowExpiry !== undefined &&
+        !executionGrantExpiryEquals(grant.expiresAt, expectedWindowExpiry))
     ) {
       this.deny(
         'Active controller grant binding is invalid',
@@ -1372,9 +1376,9 @@ export class ExecutionGrantService {
   ): void {
     if (!grant) return;
     if (grant.scope === PrismaExecutionGrantScope.CONTROLLER_DEVICE_WINDOW) {
-      const expectedExpiresAt = this.requireControllerDeviceGrantExpiry(
+      const expectedExpiresAt = this.requireGrantWindowExpiry(
         authorization.issuedAt,
-        this.requireSupportedCadence(authorization.cadence),
+        authorization.cadence,
       );
       if (
         !this.isActiveControllerDeviceWindow(authorization) ||
@@ -1391,7 +1395,7 @@ export class ExecutionGrantService {
         grant.cadence !== authorization.cadence ||
         grant.grantDescriptorHash !== authorization.grantDescriptorHash ||
         grant.issuedAt.getTime() !== authorization.issuedAt.getTime() ||
-        grant.expiresAt.getTime() !== expectedExpiresAt.getTime() ||
+        !executionGrantExpiryEquals(grant.expiresAt, expectedExpiresAt) ||
         grant.allowedActions.length !==
           CONTROLLER_DEVICE_ALLOWED_ACTIONS.length ||
         CONTROLLER_DEVICE_ALLOWED_ACTIONS.some(
@@ -1404,7 +1408,7 @@ export class ExecutionGrantService {
     }
     if (
       grant.scope !== PrismaExecutionGrantScope.INTERACTIVE_TURN ||
-      grant.expiresAt.getTime() <= Date.now() ||
+      isExecutionGrantExpired(grant.expiresAt, Date.now()) ||
       grant.suspendedAt !== null ||
       grant.terminalAt !== null ||
       grant.revokedAt !== null ||
@@ -1453,7 +1457,7 @@ export class ExecutionGrantService {
     },
   ): void {
     const commonBindingMismatch =
-      grant.expiresAt.getTime() <= Date.now() ||
+      isExecutionGrantExpired(grant.expiresAt, Date.now()) ||
       grant.suspendedAt !== null ||
       grant.terminalAt !== null ||
       grant.revokedAt !== null ||
@@ -1469,11 +1473,13 @@ export class ExecutionGrantService {
     const controllerWindowMismatch =
       expected.reusableWindow &&
       (grant.scope !== PrismaExecutionGrantScope.CONTROLLER_DEVICE_WINDOW ||
-        grant.expiresAt.getTime() !==
-          this.requireControllerDeviceGrantExpiry(
+        !executionGrantExpiryEquals(
+          grant.expiresAt,
+          this.requireGrantWindowExpiry(
             expected.authorizationIssuedAt,
-            this.requireSupportedCadence(expected.cadence),
-          ).getTime() ||
+            expected.cadence,
+          ),
+        ) ||
         grant.taskMonitorId !== null ||
         grant.selectedWorkFingerprint !== null ||
         grant.policyFingerprint !== null);
@@ -1550,7 +1556,7 @@ export class ExecutionGrantService {
     return Boolean(
       grant &&
         grant.scope === PrismaExecutionGrantScope.CONTROLLER_DEVICE_WINDOW &&
-        grant.expiresAt.getTime() > Date.now() &&
+        !isExecutionGrantExpired(grant.expiresAt, Date.now()) &&
         grant.suspendedAt === null &&
         grant.terminalAt === null &&
         grant.revokedAt === null &&
@@ -1567,6 +1573,18 @@ export class ExecutionGrantService {
   ): Date {
     const expiresAt = getControllerDeviceGrantExpiry(issuedAt, cadence);
     return expiresAt;
+  }
+
+  /** The expiry an existing window grant must carry; null for UNTIL_REVOKED. */
+  private requireGrantWindowExpiry(
+    issuedAt: Date,
+    cadence: PrismaControllerAuthorizationCadence,
+  ): Date | null {
+    const supported = toControllerDeviceGrantCadence(cadence);
+    if (!supported) {
+      this.deny('Removed controller authorization cadence');
+    }
+    return getControllerDeviceGrantWindowExpiry(issuedAt, supported);
   }
 
   private requireSupportedCadence(

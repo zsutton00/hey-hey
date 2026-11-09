@@ -30,7 +30,12 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OrganizationGuard } from '../auth/guards/organization.guard';
 import { CurrentOrganization } from '../auth/decorators/current-user.decorator';
 import { TagService } from '../services/tag.service';
-import { Tag, TagQueryDto, UpdateTagDto, AssignTagDto } from 'src/generated';
+import {
+  Tag,
+  TagQueryDto,
+  UpdateTagDto,
+  AssignTagDto,
+} from '@hey-hey/contracts/api/models';
 import { OrganizationId } from '../types';
 
 @ApiTags('Tags')

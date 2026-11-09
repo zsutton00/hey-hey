@@ -1,4 +1,4 @@
-import { UIElement } from '../../generated';
+import { UIElement } from '@hey-hey/contracts/api/models';
 import { RepositoryImportReplyFormValidator } from '../repository-import-reply-form-validator';
 
 describe('RepositoryImportReplyFormValidator', () => {

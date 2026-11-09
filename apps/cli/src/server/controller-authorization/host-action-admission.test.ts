@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { asOrganizationId, asProjectId, asUserId } from '../../test-utils/contract-ids';
 
 import { AuthorizationReplayStore } from './authorization-replay-store';
 import { ControllerAssertionVerifier } from './controller-assertion-verifier';
@@ -18,9 +19,9 @@ const intent = {
   controllerCredentialId: 'credential-1',
   controllerInstallationId: 'installation-1',
   machineId: 'machine-1',
-  userId: 'user-1',
-  organizationId: 'organization-1',
-  projectId: 'project-1',
+  userId: asUserId('user-1'),
+  organizationId: asOrganizationId('organization-1'),
+  projectId: asProjectId('project-1'),
   cadence: 'ONE_DAY' as const,
   policyRevision: 1,
   effectiveGrantExpiresAtMs: 1_700_001_800_000,
@@ -28,8 +29,8 @@ const intent = {
   actionCategory: 'CONVERSATION' as const,
   actionType: 'CONVERSATION_TRIGGER' as const,
   actionPayloadHash: 'a'.repeat(64),
-  allowedActionTypes: new Set(CURRENT_AGENT_OPERATIONS),
-  allowedActionCategories: new Set(['CONVERSATION' as const, 'CLI_READ' as const]),
+  allowedActionTypes: [...CURRENT_AGENT_OPERATIONS],
+  allowedActionCategories: ['CONVERSATION' as const, 'CLI_READ' as const],
   target: { kind: 'CONVERSATION' as const, id: 'conversation-1', revision: null },
   agentSessionId: null,
   taskMonitorId: null,
@@ -43,12 +44,12 @@ const grantDescriptor = {
   controllerCredentialId: 'credential-1',
   controllerInstallationId: 'installation-1',
   machineId: 'machine-1',
-  userId: 'user-1',
-  organizationId: 'organization-1',
+  userId: asUserId('user-1'),
+  organizationId: asOrganizationId('organization-1'),
   cadence: 'ONE_DAY' as const,
   policyRevision: 1,
-  allowedActionTypes: new Set(CURRENT_AGENT_OPERATIONS),
-  allowedActionCategories: new Set(['CONVERSATION' as const, 'CLI_READ' as const]),
+  allowedActionTypes: [...CURRENT_AGENT_OPERATIONS],
+  allowedActionCategories: ['CONVERSATION' as const, 'CLI_READ' as const],
   issuedAtMs: 1_700_000_000_000,
   effectiveExpiresAtMs: 1_700_001_800_000,
 };
@@ -97,7 +98,7 @@ const grantResult: ExecutionGrant = {
   cadence: 'ONE_DAY',
   policyRevision: 1,
   allowedActionTypes: [...CURRENT_AGENT_OPERATIONS],
-  allowedActionCategories: ['CONVERSATION', 'CLI_READ'],
+  allowedActionCategories: ['CONVERSATION' as const, 'CLI_READ' as const],
   issuedAtMs: 1_700_000_000_000,
   effectiveExpiresAtMs: 1_700_001_800_000,
   descriptorHash: 'b'.repeat(64),

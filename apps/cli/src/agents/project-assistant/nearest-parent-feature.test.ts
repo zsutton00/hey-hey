@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { TasksApi } from '../../shared/api/generated';
+import { TasksApi } from '@hey-hey/contracts/api';
 import type { JevAnswer, JevResult } from '../../jev/client';
 import type { LoadedEntityPromptContext } from '../entity-context/types';
 import type { PromptTypeHandlerDeps } from '../prompt-type-handler';
@@ -98,8 +98,20 @@ const settings = (evaluate: (input: never) => Promise<JevResult>) => ({
         content: {
           requirementsSection: {
             records: [
-              { id: 'r1', statement: 'Alpha relevant. More alpha.', fulfilledBy: [] },
-              { id: 'r2', statement: `Beta other. ${SECRET_STATEMENT}`, fulfilledBy: [] },
+              {
+                id: 'r1',
+                statement: 'Alpha relevant. More alpha.',
+                designedBy: [],
+                fulfilledBy: [],
+                contracts: [],
+              },
+              {
+                id: 'r2',
+                statement: `Beta other. ${SECRET_STATEMENT}`,
+                designedBy: [],
+                fulfilledBy: [],
+                contracts: [],
+              },
             ],
           },
         },

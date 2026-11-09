@@ -1,12 +1,13 @@
 import { z } from 'zod';
 import {
+  SessionRole,
   EntityType,
   LocalPromptType,
   WorkflowName,
   type LocalGoalPmConversationInventoryItem,
   type LocalGoalPmGoal,
   type LocalGoalPmPromptPayload,
-} from '../../shared/agent-bridge-contract/generated';
+} from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../../session/types';
 import type { AssistantCompleteEvent } from '../../run/types';
 import {
@@ -275,6 +276,7 @@ const resolveCanonicalGoal = async (
 
 export class GoalPmHandler implements UserLaunchablePromptTypeHandler<LocalGoalPmPromptPayload> {
   public readonly id = 'goal_pm';
+  public readonly sessionRole = SessionRole.Planning;
   public readonly promptType = LocalPromptType.GoalPm;
   public readonly service = 'optional';
   public readonly launchEntity = 'required_goal';

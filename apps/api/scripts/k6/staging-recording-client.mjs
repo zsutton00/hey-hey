@@ -1,3 +1,4 @@
+import { recordingScope } from './recording-scope.mjs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -20,7 +21,8 @@ const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
 export function recordingClient(sshTarget, helper) {
   if (!sshTarget || !helper)
-    throw new Error('Staging recording SSH target and helper are required');
+    throw new Error('Recording SSH target and helper are required');
+  const scope = recordingScope();
   return {
     sshTarget,
     async command(action, token, seconds) {
@@ -33,9 +35,11 @@ export function recordingClient(sshTarget, helper) {
             '-o',
             'ConnectTimeout=10',
             sshTarget,
-            [helper, action, token, ...(seconds ? [String(seconds)] : [])]
-              .map(quote)
-              .join(' '),
+            scope.remoteEnvironment +
+              ' ' +
+              [helper, action, token, ...(seconds ? [String(seconds)] : [])]
+                .map(quote)
+                .join(' '),
           ],
           {
             timeout:
@@ -58,7 +62,7 @@ export function recordingClient(sshTarget, helper) {
         return {
           schemaVersion: 1,
           status: 'recording-incomplete',
-          error: 'Staging recording transport/authentication/parser failure',
+          error: 'Recording transport/authentication/parser failure',
         };
       }
     },
@@ -83,9 +87,10 @@ export async function smokeRecording(client, directory, token) {
     waitsStopped = false;
   try {
     if (
-      ['graph-service', 'neo4j', 'embeddings'].some(
-        (name) => started.collectors?.[name]?.started !== true,
-      )
+      (recordingScope().environment === 'production'
+        ? ['api', 'graph-service', 'neo4j', 'embeddings']
+        : ['graph-service', 'neo4j', 'embeddings']
+      ).some((name) => started.collectors?.[name]?.started !== true)
     )
       result = {
         complete: false,

@@ -5,13 +5,13 @@ import { resolve } from 'node:path';
 import type { AgenticSession } from '../session/index';
 import { NOOP_LOGGER } from '../server/logger';
 import type { LocalPendingRunContext } from '../shared/agent-bridge-contract/contract';
-import type { ConversationStartRunRequestDto } from '../shared/api/generated/api';
+import type { ConversationStartRunRequestDto } from '@hey-hey/contracts/api/models';
 import {
   AgentSessionConfigV2TypeEnum,
   AgentSessionConfigV2VersionEnum,
   LocalPromptType,
   SessionMethod,
-} from '../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import { startAgenticSession } from './agent-session-starter';
 import { RepoMappingStore, toRepositoryPath, toServiceId, type ServiceRepoBinding } from '../repo';
 import { RunStore } from '../run-store';

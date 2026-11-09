@@ -3,7 +3,7 @@ import {
   WorkItemTypeLifecycleStatus,
   WorkItemTypeRole,
   type WorkItemTypeSummaryDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { buildProjectWorkspaceNavigation } from "@hey-hey/ui-common/data";
 import { describe, expect, it } from "vitest";
 import {

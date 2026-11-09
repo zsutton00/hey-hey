@@ -6,7 +6,7 @@ import {
   RepositoryGroundingPrerequisites,
   RepositoryGroundingSuccess,
   RepositoryGroundingWorkflowContext,
-} from '../../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { MachineExecutionReadinessService } from '../../../../services/machine-pairing/machine-execution-readiness.service';
 import { MachinePairingService } from '../../../../services/machine-pairing/machine-pairing.service';
 import { ServiceService } from '../../../../services/service/service.service';

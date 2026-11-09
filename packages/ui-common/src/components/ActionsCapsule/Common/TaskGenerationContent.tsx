@@ -18,6 +18,10 @@ import {
   ConversationStatus as ConversationStatusEnum,
   InitiationType as InitiationTypeEnum,
 } from "../../../api";
+import {
+  toOpenApiOrganizationId,
+  toOpenApiProjectId,
+} from "../../../clients/contractIdentifierAdapters";
 import { useConversation } from "../../../data/hooks/useConversation";
 import { useCreateConversation } from "../../../data/hooks/useCreateConversation";
 import { log } from "../../../utils/logger";
@@ -77,10 +81,10 @@ export const TaskGenerationContent: React.FC<TaskGenerationContentProps> = ({
   >(null);
 
   const workflowAboutId =
-    aboutType === "design-doc" ? selectedInitiativeId ?? undefined : aboutId;
+    aboutType === "design-doc" ? (selectedInitiativeId ?? undefined) : aboutId;
   const workflowAboutType = aboutType === "task" ? "task" : "initiative";
   const canStartWorkflow = Boolean(
-    organizationId && projectId && workflowAboutId
+    organizationId && projectId && workflowAboutId,
   );
 
   // Check for existing conversation
@@ -97,7 +101,7 @@ export const TaskGenerationContent: React.FC<TaskGenerationContentProps> = ({
       maxRetries: 10,
       includeSuggestionDecisions: true,
       enabled: canStartWorkflow,
-    }
+    },
   );
 
   // Build conversation DTO
@@ -107,8 +111,8 @@ export const TaskGenerationContent: React.FC<TaskGenerationContentProps> = ({
     }
 
     return {
-      projectId,
-      organizationId,
+      projectId: toOpenApiProjectId(projectId),
+      organizationId: toOpenApiOrganizationId(organizationId),
       initiatedBy: InitiationTypeEnum.User,
       status: ConversationStatusEnum.Started,
       workflowName: "task-generation",
@@ -224,7 +228,7 @@ export const TaskGenerationContent: React.FC<TaskGenerationContentProps> = ({
       buildConversationDto,
       organizationId,
       projectId,
-    ]
+    ],
   );
 
   if (aboutType === "design-doc" && !selectedInitiativeId) {

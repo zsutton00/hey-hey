@@ -784,11 +784,12 @@ describe("TaskCreateRenderer — project registry type labels", () => {
     expect(onApply).toHaveBeenCalledTimes(1);
   });
 
-  it("renders a registry-selected structured mockup as a static proposal preview", () => {
-    registryState.definitions.STRUCTURED_MOCKUP = {
-      key: "STRUCTURED_MOCKUP",
-      name: "Structured Mockup",
+  it("leads a Mockup proposal with its screen and collapses written sections", () => {
+    registryState.definitions.mockup = {
+      key: "mockup",
+      name: "Mockup",
       sections: [
+        { key: "description", label: "Description", kind: "markdown" },
         {
           key: "mockup",
           label: "Mockup",
@@ -814,8 +815,9 @@ describe("TaskCreateRenderer — project registry type labels", () => {
     const proposal = makeTaskProposal();
     proposal.updates = {
       ...proposal.updates,
-      type: "STRUCTURED_MOCKUP",
+      type: "mockup",
       sections: [
+        { key: "description", content: "Screen details for reviewers." },
         {
           key: "mockup",
           content: {
@@ -861,6 +863,19 @@ describe("TaskCreateRenderer — project registry type labels", () => {
       screen.getByTestId("structured-mockup-semantic-metadata-indicator"),
     ).toBeInTheDocument();
     expect(screen.queryByText(/schemaVersion/)).not.toBeInTheDocument();
+    const details = screen.getByTestId("mockup-proposal-written-sections");
+    expect(details).not.toHaveAttribute("open");
+    expect(
+      screen.getByTestId("mockup-proposal-screen-first"),
+    ).toBeInTheDocument();
+    expect(
+      within(details).getByText("Screen details for reviewers."),
+    ).not.toBeVisible();
+    fireEvent.click(within(details).getByText("Written details"));
+    expect(details).toHaveAttribute("open");
+    expect(
+      within(details).getByText("Screen details for reviewers."),
+    ).toBeInTheDocument();
   });
 
   it("renders arbitrary proposed sections in registry order with registry labels", () => {

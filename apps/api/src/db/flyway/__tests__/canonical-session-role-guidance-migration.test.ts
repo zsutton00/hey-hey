@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { InMemoryMessageBus } from '../../../core/events/in-memory-message-bus.service';
 import type { PrismaService } from '../../../prisma/prisma.service';
-import { SessionRole } from '../../../generated/model/sessionRole';
-import { WorkItemTypeGuidancePurpose } from '../../../generated/model/workItemTypeGuidancePurpose';
+import { SessionRole } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeGuidancePurpose } from '@hey-hey/contracts/api/models';
 import { WorkItemTypeRegistryService } from '../../../services/tasks/work-item-type-registry.service';
 
 type Advice = Partial<Record<SessionRole, string>>;

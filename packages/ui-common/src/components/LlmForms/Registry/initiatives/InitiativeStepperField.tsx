@@ -21,6 +21,11 @@ import type {
   SuggestionDecisionMetadata,
 } from "../../../../api";
 import { SuggestionType as SuggestionTypeEnum } from "../../../../api";
+import {
+  toOpenApiConversationId,
+  toOpenApiInitiativeId,
+  toOpenApiMessageId,
+} from "../../../../clients/contractIdentifierAdapters";
 import { useUserAction } from "../../../../contexts/TrackingContext";
 import { useConversationContext } from "../../../Conversation/Components/ConversationContext";
 import { useInitiatives } from "../../../../data/hooks/useInitiatives";
@@ -117,7 +122,7 @@ export const InitiativeStepperField: React.FC<InitiativeStepperFieldProps> = ({
 
       const metadata: SuggestionDecisionMetadata = {
         kind: "PROPOSED_INITIATIVE",
-        initiativeId,
+        initiativeId: toOpenApiInitiativeId(initiativeId),
       };
 
       const optimisticDecision: SuggestionDecisionStatus = {
@@ -126,8 +131,8 @@ export const InitiativeStepperField: React.FC<InitiativeStepperFieldProps> = ({
         accepted,
         decidedBy: null,
         createdAt: new Date().toISOString(),
-        sourceConversationId: context.conversationId,
-        sourceMessageId: context.messageId,
+        sourceConversationId: toOpenApiConversationId(context.conversationId),
+        sourceMessageId: toOpenApiMessageId(context.messageId),
         metadata,
       };
 

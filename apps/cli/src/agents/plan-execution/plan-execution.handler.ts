@@ -1,3 +1,4 @@
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../../session/types';
 import type { LocalPlanExecutionPromptPayload } from '../../shared/agent-bridge-contract/index';
 import type { AssistantCompleteEvent } from '../../run/types';
@@ -41,6 +42,7 @@ const readPlanExecutionSessionContext = (
 
 export const planExecutionHandler: PromptTypeHandler<LocalPlanExecutionPromptPayload> = {
   id: 'plan_execution',
+  sessionRole: SessionRole.Implementation,
   promptType: 'plan_execution',
   service: 'required',
   launchEntity: 'required',

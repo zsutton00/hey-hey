@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { ArtifactService } from '../artifact.service';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { CreateArtifactDto, QAPairData } from 'src/generated';
+import { CreateArtifactDto, QAPairData } from '@hey-hey/contracts/api/models';
 import { ProjectId, OrganizationId, MessageId } from 'src/types';
 import { DOMAIN_EVENT_PUBLISHER_TOKEN } from '../../../core/events/tokens';
 import { TagService } from '../../tag.service';

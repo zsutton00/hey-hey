@@ -32,10 +32,11 @@
 
 import type { AgenticSession } from '../../session/types';
 import {
+  SessionRole,
   LocalPromptType,
   PlanCombinationAggressiveness,
   type PlanShapingStepReviewPromptPayload,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import {
   turnUserMessageBlock,
   type PrepareResult,
@@ -154,6 +155,7 @@ export const createPlanShapingStepReviewHandler = (
   admissionClient: PlanSubmissionAdmissionClient,
 ): UserLaunchablePromptTypeHandler<PlanShapingStepReviewPromptPayload> => ({
   id: 'plan_shaping_step_review',
+  sessionRole: SessionRole.Planning,
   promptType: LocalPromptType.PlanShapingStepReview,
   service: 'optional',
   launchEntity: 'required',

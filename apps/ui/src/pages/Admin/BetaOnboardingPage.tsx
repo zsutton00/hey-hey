@@ -14,7 +14,7 @@ import {
 import { getApiClient } from "@hey-hey/ui-common/clients";
 import { KEYS } from "@hey-hey/ui-common/i18n";
 import { useTranslation } from "react-i18next";
-import type { OnboardBetaUserDto } from "@hey-hey/ui-common/api";
+import type { OnboardBetaUserDto } from "@hey-hey/contracts/api";
 
 interface SuccessState {
   email: string;

@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { z } from 'zod';
-import { QuestionsSystemMessageData, UIHints } from 'src/generated';
+import {
+  QuestionsSystemMessageData,
+  UIHints,
+} from '@hey-hey/contracts/api/models';
 import { ClaudeModel, LLMProviderName } from '../../../services/llm/llm-shared';
 import { StandardPlaceholders } from '../../../services/llm/placeholders';
 import { LlmQuestionsNodeBase } from '../base/';

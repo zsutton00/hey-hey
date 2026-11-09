@@ -1,5 +1,5 @@
 import { EntityType } from '@prisma/client';
-import { EntityType as GeneratedEntityType } from 'src/generated/model/entityType';
+import { EntityType as GeneratedEntityType } from '@hey-hey/contracts/api/models';
 import { WorkflowAboutType } from 'src/types';
 
 /**

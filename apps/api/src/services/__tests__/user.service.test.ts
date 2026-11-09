@@ -20,7 +20,25 @@ describe('UserService', () => {
     updatedAt: new Date('2024-01-01'),
   };
 
+  const transaction = {
+    $executeRaw: jest.fn(),
+    user: { findUnique: jest.fn(), create: jest.fn() },
+  };
+  const mockEntitlements = {
+    createBetaAtAdmissionInTransaction: jest.fn(),
+    createBetaAtAdmission: jest.fn(),
+  };
+  const mockOrganizationService = {
+    // Add common methods that might be used by UserService
+    findById: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+    createOrganizationWithTransaction: jest.fn(),
+  };
+
   beforeEach(async () => {
+    jest.clearAllMocks();
     const mockPrismaService = {
       db: {
         user: {
@@ -30,15 +48,11 @@ describe('UserService', () => {
           update: jest.fn(),
           delete: jest.fn(),
         },
+        organizationMember: { findFirstOrThrow: jest.fn() },
+        $transaction: jest.fn((callback: (tx: typeof transaction) => unknown) =>
+          callback(transaction),
+        ),
       },
-    };
-
-    const mockOrganizationService = {
-      // Add common methods that might be used by UserService
-      findById: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -65,7 +79,7 @@ describe('UserService', () => {
         },
         {
           provide: AccountEntitlementService,
-          useValue: {},
+          useValue: mockEntitlements,
         },
       ],
     }).compile();
@@ -76,6 +90,44 @@ describe('UserService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('local account bootstrap', () => {
+    it('authorizes the organization created for a new local account', async () => {
+      jest.spyOn(prismaService.db.user, 'findUnique').mockResolvedValue(null);
+      transaction.user.findUnique.mockResolvedValue(null);
+      transaction.user.create.mockResolvedValue({ id: 'local-user' });
+      mockOrganizationService.createOrganizationWithTransaction.mockResolvedValue(
+        { id: 'local-org' },
+      );
+
+      await service.createLocalBootstrapUser('installation-secret');
+
+      expect(
+        mockEntitlements.createBetaAtAdmissionInTransaction,
+      ).toHaveBeenCalledWith(
+        transaction,
+        'local-org',
+        expect.objectContaining({ actor: 'local-user' }),
+      );
+    });
+
+    it('repairs an existing local account whose organization has no entitlement', async () => {
+      jest
+        .spyOn(prismaService.db.user, 'findUnique')
+        .mockResolvedValue({ id: 'local-user' } as never);
+      jest
+        .spyOn(prismaService.db.organizationMember, 'findFirstOrThrow')
+        .mockResolvedValue({ organizationId: 'local-org' } as never);
+
+      await service.createLocalBootstrapUser('installation-secret');
+
+      expect(mockEntitlements.createBetaAtAdmission).toHaveBeenCalledWith(
+        'local-org',
+        expect.objectContaining({ actor: 'local-user' }),
+      );
+      expect(prismaService.db.$transaction).not.toHaveBeenCalled();
+    });
   });
 
   describe('basic service functionality', () => {

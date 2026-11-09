@@ -28,6 +28,42 @@ import * as TestUtils from '../../../utils/testUtils';
 global.fetch = jest.fn();
 
 describe('LLMClientService', () => {
+  describe('local application without hosted credentials', () => {
+    const savedEnvironment = { ...process.env };
+    afterEach(() => {
+      process.env = { ...savedEnvironment };
+    });
+
+    async function withoutCredentials() {
+      const result = await buildService({
+        CLAUDE_API_KEY: '',
+        OPENAI_API_KEY: '',
+        SYNTHETIC_LLM_API_KEY: '',
+        LLM_PROVIDER: LLMProviderName.CLAUDE,
+      });
+      return result.service;
+    }
+
+    it('boots locally without a provider key, while calls still require provider credentials', async () => {
+      process.env.DEPLOYMENT_ENVIRONMENT = 'local';
+      process.env.HEYHEY_LOCAL_APPLICATION = 'true';
+      const local = await withoutCredentials();
+      await expect(
+        local.callStructured(
+          'test',
+          { responseSchema: z.object({}) },
+          defaultSource,
+        ),
+      ).rejects.toThrow('CLAUDE_API_KEY');
+    });
+
+    it('preserves hosted credential validation even if the local switch is present', async () => {
+      process.env.DEPLOYMENT_ENVIRONMENT = 'production';
+      process.env.HEYHEY_LOCAL_APPLICATION = 'true';
+      await expect(withoutCredentials()).rejects.toThrow('CLAUDE_API_KEY');
+    });
+  });
+
   let service: LLMClientService;
   let providerMock: {
     callStructured: jest.Mock;

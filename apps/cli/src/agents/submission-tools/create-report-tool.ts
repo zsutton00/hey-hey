@@ -24,7 +24,7 @@ import path from 'node:path';
 import { NOOP_LOGGER, type ServerLogger } from '../../server/logger';
 
 import { ReportAudience, ReportRelatedEntityType, ReportType } from '../../shared/api/index';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import {
   isCreateReportPersistedFailure,
   type CreateReportProxy,
@@ -538,9 +538,15 @@ export class CreateReportTool implements PassThroughSubmissionToolDeclaration {
     const reportArgs = withRunAgent(args, run);
     delete reportArgs['usage'];
     if (
-      ['CODING_RESEARCH', 'IMPLEMENT', 'REVIEW', 'CHANGE_WALKTHROUGH'].includes(
-        String(args['reportType']),
-      )
+      [
+        'CODING_RESEARCH',
+        'IMPLEMENT',
+        'REVIEW',
+        'CHANGE_WALKTHROUGH',
+        'FEATURE_SYNC',
+        'FEATURE_SYNC_HANDOFF',
+        'FEATURE_SYNC_DECISION',
+      ].includes(String(args['reportType']))
     ) {
       try {
         reportArgs['usage'] = await this.usageSnapshotter.capture(

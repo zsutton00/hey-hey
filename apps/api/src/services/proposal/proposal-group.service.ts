@@ -20,7 +20,7 @@ import type {
   ProposalGroupMemberSnapshot,
   ProposalGroupSnapshot,
   ProposalGroupTerminalTimestamps,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   type AnyTransactionClient,
   PrismaService,
@@ -163,10 +163,7 @@ export class ProposalGroupService {
         memberOrder: member.memberOrder,
         proposal: this.toAuthoringProposal(member.proposal),
         reservedEntityId: member.reservedTargetEntityId,
-        // OpenAPI Generator represents uniqueItems arrays as Set<T>, while
-        // the HTTP representation remains a JSON array.
-        prerequisiteMemberIds: (prerequisitesByMemberId.get(member.id) ??
-          []) as unknown as Set<string>,
+        prerequisiteMemberIds: prerequisitesByMemberId.get(member.id) ?? [],
       })),
       createdAt: group.createdAt.toISOString(),
       updatedAt: group.updatedAt.toISOString(),

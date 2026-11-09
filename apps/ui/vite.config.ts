@@ -101,6 +101,9 @@ const uiCommonSourceAliases = [
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname, "VITE_");
   const apiProxyTarget = env.VITE_API_PROXY_TARGET || "http://localhost:3000";
+  // Local development serves pages and the API from one address, so the API
+  // must see the browser's real origin rather than the proxy target's.
+  const keepBrowserOrigin = env.VITE_API_PROXY_KEEP_BROWSER_ORIGIN === "true";
 
   return {
     plugins: [
@@ -138,8 +141,7 @@ export default defineConfig(({ mode }) => {
         plugins: [
           {
             name: "trace-chunks",
-            async generateBundle(_options, bundle) {
-              const fs = await import("node:fs");
+            generateBundle(_options, bundle) {
               const lines: string[] = [];
               for (const [fileName, chunk] of Object.entries(bundle)) {
                 if (chunk.type === "chunk") {
@@ -153,7 +155,11 @@ export default defineConfig(({ mode }) => {
                   }
                 }
               }
-              fs.writeFileSync("dist/chunk-manifest.txt", lines.join("\n"));
+              this.emitFile({
+                type: "asset",
+                fileName: "chunk-manifest.txt",
+                source: lines.join("\n"),
+              });
             },
           },
         ],
@@ -261,7 +267,11 @@ export default defineConfig(({ mode }) => {
           target: apiProxyTarget,
           changeOrigin: true,
           secure: true,
+          ws: true,
           configure: (proxy) => {
+            if (keepBrowserOrigin) {
+              return;
+            }
             // The backend only accepts browser-session changes (e.g. token
             // refresh) from an allowed origin, so present the target's own.
             const targetOrigin = new URL(apiProxyTarget).origin;
@@ -269,6 +279,11 @@ export default defineConfig(({ mode }) => {
               proxyReq.setHeader("origin", targetOrigin);
             });
           },
+        },
+        "/socket.io": {
+          target: apiProxyTarget,
+          changeOrigin: true,
+          ws: true,
         },
       },
     },

@@ -17,7 +17,7 @@ import {
   type TaskMonitorMachineLogic,
   type TaskMonitorMachineState,
 } from '../agents/task-monitor/state-machine/machine';
-import type { TaskMonitorExternalCommand1 as TaskMonitorExternalCommand } from '../shared/agent-bridge-contract/generated/api';
+import type { TaskMonitorExternalCommand1 as TaskMonitorExternalCommand } from '@hey-hey/contracts/agent-bridge';
 import {
   EffectRunner,
   MachineRecovery,

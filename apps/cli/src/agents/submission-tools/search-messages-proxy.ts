@@ -24,9 +24,9 @@ import {
   EntityContextApi,
   ProjectsApi,
   TasksApi,
-  type SearchConversationMessagesResponseDto,
-} from '../../shared/api/generated/api';
-import { Configuration } from '../../shared/api/generated/configuration';
+} from '@hey-hey/contracts/api';
+import { type SearchConversationMessagesResponseDto } from '@hey-hey/contracts/api/models';
+import { Configuration } from '@hey-hey/contracts/api/configuration';
 import { extractOrganizationIdFromToken } from '../../auth/index';
 import type { SubmissionToolAuth } from './submission-tool-auth';
 

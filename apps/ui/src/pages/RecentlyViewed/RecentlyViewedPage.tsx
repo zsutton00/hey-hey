@@ -1,4 +1,4 @@
-import type { AttentionEventResponse } from "@hey-hey/ui-common/api";
+import type { AttentionEventResponse } from "@hey-hey/contracts/api";
 import { EntityIcon } from "@hey-hey/ui-common/components";
 import { useAttentionEvents, useProject } from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
@@ -120,11 +120,7 @@ export const RecentlyViewedPage: React.FC = () => {
     preferStale: true,
   });
 
-  const {
-    events,
-    error,
-    isLoading,
-  } = useAttentionEvents(organizationId, {
+  const { events, error, isLoading } = useAttentionEvents(organizationId, {
     enabled: !!organizationId && !!projectId,
     includeEntity: true,
     limit: RECENTLY_VIEWED_LIMIT,

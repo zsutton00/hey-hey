@@ -5,7 +5,7 @@ import type {
   FeatureRequirementOperation,
   FeatureRequirementRecord,
   FeatureRequirementsSection,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import type { AnyTransactionClient } from '../../prisma/prisma.service';
 import type { OrganizationId } from '../../types';
 import { loadProposalReferenceMetadata } from '../proposal/proposal-title-snapshot';

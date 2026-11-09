@@ -7,8 +7,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { PROJECT_CONTROLLER_PATH } from '../generated/api/path-constants';
-import type { ProjectMetricsResponseDto } from '../generated';
-import { ActivityActorScopeMode } from '../generated';
+import type { ProjectMetricsResponseDto } from '@hey-hey/contracts/api/models';
+import { ActivityActorScopeMode } from '@hey-hey/contracts/api/models';
 import {
   CurrentOrganization,
   CurrentUser,

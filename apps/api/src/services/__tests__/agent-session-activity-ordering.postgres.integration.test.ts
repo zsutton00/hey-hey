@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { AgentSessionType, Prisma } from '@prisma/client';
-import { AgentSessionListSort } from '../../generated';
+import { AgentSessionListSort } from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EVENT_TYPES } from '../../core/events/types/event.types';
-import type { MessageUpdatedEvent } from '../../generated';
+import type { MessageUpdatedEvent } from '@hey-hey/contracts/api/models';
 import type {
   ConversationId,
   MessageId,

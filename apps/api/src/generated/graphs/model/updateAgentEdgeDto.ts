@@ -10,6 +10,7 @@
  * Do not edit the class manually.
  */
 import { AgentEdgeDirection } from './agentEdgeDirection';
+import { WorkflowTransitionRole } from './workflowTransitionRole';
 import { AgentEdgeType } from './agentEdgeType';
 import { AgentEdgeEndpointEntityType } from './agentEdgeEndpointEntityType';
 import { AgentEdgeCategory } from './agentEdgeCategory';
@@ -42,6 +43,10 @@ export interface UpdateAgentEdgeDto {
    * Optional plain-language action that triggers this flow transition; set null to clear it.
    */
   actionLabel?: string | null;
+  /**
+   * Optional explicit meaning of this flow transition (primary progression, error path or recovery); omitted means unclassified; set null to clear it.
+   */
+  transitionRole?: WorkflowTransitionRole | null;
   /**
    * Label-specific relationship metadata declared by the edge contract.
    */

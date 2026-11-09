@@ -18,12 +18,12 @@ import type {
   OrganizationClosedEventPayload,
   OrganizationReactivationDeadlineLostResponseAllOfData,
   OrganizationReactivationSuccess,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   OrganizationReactivationDeadlineLostResponse,
   OrganizationReactivationDeadlineLostResponseAllOfData as DeadlineLostData,
   OrganizationReactivationSuccess as ReactivationSuccess,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { DomainEventPublisher } from '../core/events/domain-event-publisher';
 import { DOMAIN_EVENT_PUBLISHER_TOKEN } from '../core/events/tokens';
 import { EVENT_TYPES } from '../core/events/types/event.types';

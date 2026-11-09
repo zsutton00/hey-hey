@@ -15,6 +15,8 @@ import { Injectable, Optional } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import type { AxiosRequestConfig, AxiosResponse } from 'axios';
 import { Observable, from, of, switchMap } from 'rxjs';
+import { DesignDocProjectReadinessRequest } from '../model/designDocProjectReadinessRequest';
+import { DesignDocProjectReadinessResponse } from '../model/designDocProjectReadinessResponse';
 import { EntityNeighborhoodRequest } from '../model/entityNeighborhoodRequest';
 import { EntityNeighborhoodResponse } from '../model/entityNeighborhoodResponse';
 import { ErrorResponse } from '../model/errorResponse';
@@ -23,9 +25,13 @@ import { FeatureProjectConnectionResponse } from '../model/featureProjectConnect
 import { IncidentEdgesRequest } from '../model/incidentEdgesRequest';
 import { IncidentEdgesResponse } from '../model/incidentEdgesResponse';
 import { ProvenanceLineageResponse } from '../model/provenanceLineageResponse';
+import { SearchExclusionRequest } from '../model/searchExclusionRequest';
+import { SearchExclusionResponse } from '../model/searchExclusionResponse';
 import { SearchRequest } from '../model/searchRequest';
 import { SearchResponse } from '../model/searchResponse';
 import { TopologyGraphResponse } from '../model/topologyGraphResponse';
+import { WorkItemProjectReadinessRequest } from '../model/workItemProjectReadinessRequest';
+import { WorkItemProjectReadinessResponse } from '../model/workItemProjectReadinessResponse';
 import { Configuration } from '../configuration';
 import { COLLECTION_FORMATS } from '../variables';
 
@@ -54,6 +60,99 @@ export class QueriesService {
     return consumes.includes(form);
   }
 
+  /**
+   * Count listed design docs scoped to the project in the graph
+   * Counts listed design doc nodes that match their exact identity and have the destination organization and project scope plus the project scope connection. This narrow read does not validate owner attachment, content or other graph projections.
+   * @param organizationId Organization identifier
+   * @param projectId Project identifier
+   * @param designDocProjectReadinessRequest
+   * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
+   * @param reportProgress flag to report request and response progress.
+   * @param {*} [checkDesignDocProjectReadinessOpts.config] Override http request option.
+   */
+  public checkDesignDocProjectReadiness(
+    organizationId: string,
+    projectId: string,
+    designDocProjectReadinessRequest: DesignDocProjectReadinessRequest,
+    checkDesignDocProjectReadinessOpts?: { config?: AxiosRequestConfig },
+  ): Observable<AxiosResponse<DesignDocProjectReadinessResponse>>;
+  public checkDesignDocProjectReadiness(
+    organizationId: string,
+    projectId: string,
+    designDocProjectReadinessRequest: DesignDocProjectReadinessRequest,
+    checkDesignDocProjectReadinessOpts?: { config?: AxiosRequestConfig },
+  ): Observable<any> {
+    if (organizationId === null || organizationId === undefined) {
+      throw new Error(
+        'Required parameter organizationId was null or undefined when calling checkDesignDocProjectReadiness.',
+      );
+    }
+
+    if (projectId === null || projectId === undefined) {
+      throw new Error(
+        'Required parameter projectId was null or undefined when calling checkDesignDocProjectReadiness.',
+      );
+    }
+
+    if (
+      designDocProjectReadinessRequest === null ||
+      designDocProjectReadinessRequest === undefined
+    ) {
+      throw new Error(
+        'Required parameter designDocProjectReadinessRequest was null or undefined when calling checkDesignDocProjectReadiness.',
+      );
+    }
+
+    let headers = { ...this.defaultHeaders };
+
+    let accessTokenObservable: Observable<any> = of(null);
+
+    // authentication (BearerAuth) required
+    if (typeof this.configuration.accessToken === 'function') {
+      accessTokenObservable = from(
+        Promise.resolve(this.configuration.accessToken()),
+      );
+    } else if (this.configuration.accessToken) {
+      accessTokenObservable = from(
+        Promise.resolve(this.configuration.accessToken),
+      );
+    }
+    // to determine the Accept header
+    let httpHeaderAccepts: string[] = ['application/json'];
+    const httpHeaderAcceptSelected: string | undefined =
+      this.configuration.selectHeaderAccept(httpHeaderAccepts);
+    if (httpHeaderAcceptSelected != undefined) {
+      headers['Accept'] = httpHeaderAcceptSelected;
+    }
+
+    // to determine the Content-Type header
+    const consumes: string[] = ['application/json'];
+    const httpContentTypeSelected: string | undefined =
+      this.configuration.selectHeaderContentType(consumes);
+    if (httpContentTypeSelected != undefined) {
+      headers['Content-Type'] = httpContentTypeSelected;
+    }
+    return accessTokenObservable.pipe(
+      switchMap((accessToken) => {
+        if (accessToken) {
+          headers['Authorization'] = `Bearer ${accessToken}`;
+        }
+
+        return this.httpClient.post<DesignDocProjectReadinessResponse>(
+          `${this.basePath}/organizations/${encodeURIComponent(String(organizationId))}/projects/${encodeURIComponent(String(projectId))}/design-doc-project-readiness`,
+          designDocProjectReadinessRequest,
+          {
+            withCredentials: this.configuration.withCredentials,
+            ...checkDesignDocProjectReadinessOpts?.config,
+            headers: {
+              ...headers,
+              ...checkDesignDocProjectReadinessOpts?.config?.headers,
+            },
+          },
+        );
+      }),
+    );
+  }
   /**
    * Count listed features with a stored project connection
    * Counts the distinct listed FEATURE tasks that have the exact SCOPED_TO_PROJECT edge to this project. Does not establish readiness of other projections.
@@ -141,6 +240,99 @@ export class QueriesService {
             headers: {
               ...headers,
               ...checkFeatureProjectConnectionOpts?.config?.headers,
+            },
+          },
+        );
+      }),
+    );
+  }
+  /**
+   * Count listed work items matching their copied graph identity
+   * Counts listed task nodes that match their exact identity, type, destination project scope and expected structural parent (including no parent for roots). This narrow read does not validate other graph projections or content.
+   * @param organizationId Organization identifier
+   * @param projectId Project identifier
+   * @param workItemProjectReadinessRequest
+   * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
+   * @param reportProgress flag to report request and response progress.
+   * @param {*} [checkWorkItemProjectReadinessOpts.config] Override http request option.
+   */
+  public checkWorkItemProjectReadiness(
+    organizationId: string,
+    projectId: string,
+    workItemProjectReadinessRequest: WorkItemProjectReadinessRequest,
+    checkWorkItemProjectReadinessOpts?: { config?: AxiosRequestConfig },
+  ): Observable<AxiosResponse<WorkItemProjectReadinessResponse>>;
+  public checkWorkItemProjectReadiness(
+    organizationId: string,
+    projectId: string,
+    workItemProjectReadinessRequest: WorkItemProjectReadinessRequest,
+    checkWorkItemProjectReadinessOpts?: { config?: AxiosRequestConfig },
+  ): Observable<any> {
+    if (organizationId === null || organizationId === undefined) {
+      throw new Error(
+        'Required parameter organizationId was null or undefined when calling checkWorkItemProjectReadiness.',
+      );
+    }
+
+    if (projectId === null || projectId === undefined) {
+      throw new Error(
+        'Required parameter projectId was null or undefined when calling checkWorkItemProjectReadiness.',
+      );
+    }
+
+    if (
+      workItemProjectReadinessRequest === null ||
+      workItemProjectReadinessRequest === undefined
+    ) {
+      throw new Error(
+        'Required parameter workItemProjectReadinessRequest was null or undefined when calling checkWorkItemProjectReadiness.',
+      );
+    }
+
+    let headers = { ...this.defaultHeaders };
+
+    let accessTokenObservable: Observable<any> = of(null);
+
+    // authentication (BearerAuth) required
+    if (typeof this.configuration.accessToken === 'function') {
+      accessTokenObservable = from(
+        Promise.resolve(this.configuration.accessToken()),
+      );
+    } else if (this.configuration.accessToken) {
+      accessTokenObservable = from(
+        Promise.resolve(this.configuration.accessToken),
+      );
+    }
+    // to determine the Accept header
+    let httpHeaderAccepts: string[] = ['application/json'];
+    const httpHeaderAcceptSelected: string | undefined =
+      this.configuration.selectHeaderAccept(httpHeaderAccepts);
+    if (httpHeaderAcceptSelected != undefined) {
+      headers['Accept'] = httpHeaderAcceptSelected;
+    }
+
+    // to determine the Content-Type header
+    const consumes: string[] = ['application/json'];
+    const httpContentTypeSelected: string | undefined =
+      this.configuration.selectHeaderContentType(consumes);
+    if (httpContentTypeSelected != undefined) {
+      headers['Content-Type'] = httpContentTypeSelected;
+    }
+    return accessTokenObservable.pipe(
+      switchMap((accessToken) => {
+        if (accessToken) {
+          headers['Authorization'] = `Bearer ${accessToken}`;
+        }
+
+        return this.httpClient.post<WorkItemProjectReadinessResponse>(
+          `${this.basePath}/organizations/${encodeURIComponent(String(organizationId))}/projects/${encodeURIComponent(String(projectId))}/work-item-project-readiness`,
+          workItemProjectReadinessRequest,
+          {
+            withCredentials: this.configuration.withCredentials,
+            ...checkWorkItemProjectReadinessOpts?.config,
+            headers: {
+              ...headers,
+              ...checkWorkItemProjectReadinessOpts?.config?.headers,
             },
           },
         );
@@ -487,6 +679,99 @@ export class QueriesService {
             withCredentials: this.configuration.withCredentials,
             ...readIncidentEdgesOpts?.config,
             headers: { ...headers, ...readIncidentEdgesOpts?.config?.headers },
+          },
+        );
+      }),
+    );
+  }
+  /**
+   * Resolve the entities connected to given entities
+   * Returns the entities to hide from search for the given entities. Follows only links that point at the given entities, mentions of them, conversations about them and proposals targeting them, and expands each excluded proposal and conversation to its whole conversation. Never follows the given entities\&#39; own outgoing links, structural edges or Project, User and Stub nodes.
+   * @param organizationId Organization identifier
+   * @param projectId Project identifier
+   * @param searchExclusionRequest
+   * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
+   * @param reportProgress flag to report request and response progress.
+   * @param {*} [resolveSearchExclusionOpts.config] Override http request option.
+   */
+  public resolveSearchExclusion(
+    organizationId: string,
+    projectId: string,
+    searchExclusionRequest: SearchExclusionRequest,
+    resolveSearchExclusionOpts?: { config?: AxiosRequestConfig },
+  ): Observable<AxiosResponse<SearchExclusionResponse>>;
+  public resolveSearchExclusion(
+    organizationId: string,
+    projectId: string,
+    searchExclusionRequest: SearchExclusionRequest,
+    resolveSearchExclusionOpts?: { config?: AxiosRequestConfig },
+  ): Observable<any> {
+    if (organizationId === null || organizationId === undefined) {
+      throw new Error(
+        'Required parameter organizationId was null or undefined when calling resolveSearchExclusion.',
+      );
+    }
+
+    if (projectId === null || projectId === undefined) {
+      throw new Error(
+        'Required parameter projectId was null or undefined when calling resolveSearchExclusion.',
+      );
+    }
+
+    if (
+      searchExclusionRequest === null ||
+      searchExclusionRequest === undefined
+    ) {
+      throw new Error(
+        'Required parameter searchExclusionRequest was null or undefined when calling resolveSearchExclusion.',
+      );
+    }
+
+    let headers = { ...this.defaultHeaders };
+
+    let accessTokenObservable: Observable<any> = of(null);
+
+    // authentication (BearerAuth) required
+    if (typeof this.configuration.accessToken === 'function') {
+      accessTokenObservable = from(
+        Promise.resolve(this.configuration.accessToken()),
+      );
+    } else if (this.configuration.accessToken) {
+      accessTokenObservable = from(
+        Promise.resolve(this.configuration.accessToken),
+      );
+    }
+    // to determine the Accept header
+    let httpHeaderAccepts: string[] = ['application/json'];
+    const httpHeaderAcceptSelected: string | undefined =
+      this.configuration.selectHeaderAccept(httpHeaderAccepts);
+    if (httpHeaderAcceptSelected != undefined) {
+      headers['Accept'] = httpHeaderAcceptSelected;
+    }
+
+    // to determine the Content-Type header
+    const consumes: string[] = ['application/json'];
+    const httpContentTypeSelected: string | undefined =
+      this.configuration.selectHeaderContentType(consumes);
+    if (httpContentTypeSelected != undefined) {
+      headers['Content-Type'] = httpContentTypeSelected;
+    }
+    return accessTokenObservable.pipe(
+      switchMap((accessToken) => {
+        if (accessToken) {
+          headers['Authorization'] = `Bearer ${accessToken}`;
+        }
+
+        return this.httpClient.post<SearchExclusionResponse>(
+          `${this.basePath}/organizations/${encodeURIComponent(String(organizationId))}/projects/${encodeURIComponent(String(projectId))}/search-exclusions`,
+          searchExclusionRequest,
+          {
+            withCredentials: this.configuration.withCredentials,
+            ...resolveSearchExclusionOpts?.config,
+            headers: {
+              ...headers,
+              ...resolveSearchExclusionOpts?.config?.headers,
+            },
           },
         );
       }),

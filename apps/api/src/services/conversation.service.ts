@@ -52,7 +52,7 @@ import { VersionConflictException } from '../core/exceptions/version-conflict.ex
 import type {
   SuggestionDecisionResponseDto,
   SuggestionType,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ArtifactSourceType,
   ConversationDeletedEventPayload,
@@ -66,7 +66,7 @@ import {
   InitiationType,
   UpdateConversationDto,
   WorkflowName,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import type { SuggestionDecisionMetadata } from './suggestion-decision.service';
 import {
   GOAL_PM_ROUTING_DECISION_TYPE,

@@ -44,6 +44,8 @@ After each set of reads, assess what new, relevant evidence it added and which m
 
 ## Slice handoff
 
+Report evidence that may indicate uncertainty in your slice handoff, with the relevant entity references and sources. Do not author a user-visible uncertainty section or decide which uncertainties the final report includes; the Project Assistant parent selects and writes those.
+
 Return a short handoff for your slice that the parent can merge directly: the entities in the slice that bear on the user's ask, with the content that constrains the work rather than only their titles, any recorded resolutions, the links and Contracts that bear on the focal ask, and any open questions or conflicting evidence. Distinguish observed evidence from inference. Cite supporting entities inline as \`@[type:full-uuid|title]\` mentions, with a complete ID and the actual title; never use bare IDs or escape the brackets. Ignore archived entities. Cite code evidence with repository-relative file paths and relevant symbols. Keep the report to a few concise bullets or paragraphs, not a transcript or raw evidence dump. If the budget or an access failure leaves the objective incomplete, say precisely what remains unverified.`,
       projectAssistantChecks ? buildProjectAssistantChildChecksPrompt(projectAssistantChecks) : '',
       servicesBlock,

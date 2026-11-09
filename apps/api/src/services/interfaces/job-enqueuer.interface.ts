@@ -1,4 +1,4 @@
-import { SystemMessageResponseType } from 'src/generated';
+import { SystemMessageResponseType } from '@hey-hey/contracts/api/models';
 import {
   ConversationNode,
   FlowContext,

@@ -787,6 +787,10 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
       .map((relationship) => relationship.target);
   }, [activeRelationships, metaDeclaration, selectedChild]);
 
+  const isUxFlow =
+    getDiagramMetadata(draft.projected.projectedRoot)?.kind ===
+    DiagramKind.UxFlow;
+
   const commitRelationship = (value: WorkItemGraphRelationshipDialogValue) => {
     if (relationshipDialog.kind === "closed") return;
     const declaration = flowDeclarations.find(
@@ -800,6 +804,9 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
       category: value.category,
       ...(value.direction ? { direction: value.direction } : {}),
       ...(value.predicate !== undefined ? { predicate: value.predicate } : {}),
+      ...(value.transitionRole !== undefined
+        ? { transitionRole: value.transitionRole }
+        : {}),
       ...(value.reasoning !== undefined ? { reasoning: value.reasoning } : {}),
       ...(value.metadata !== undefined ? { metadata: value.metadata } : {}),
     };
@@ -1180,10 +1187,8 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
       <WorkItemGraphRelationshipDialog
         open={relationshipDialog.kind !== "closed"}
         declarations={flowDeclarations}
-        actionLabelRequired={
-          getDiagramMetadata(draft.projected.projectedRoot)?.kind ===
-          DiagramKind.UxFlow
-        }
+        actionLabelRequired={isUxFlow}
+        transitionRoleRequired={isUxFlow}
         relationship={
           relationshipDialog.kind === "reconnect"
             ? activeRelationships.find((relationship) =>

@@ -1,17 +1,18 @@
 import type { AgenticSession } from '../../session/types';
 import {
+  SessionRole,
   AgentSessionConfigProjectReportV1TypeEnum,
   AgentSessionConfigProjectReportV1VersionEnum,
   LocalPromptType,
   type AgentSessionConfigProjectReportV1,
   type RunCreatePayloadProjectReport,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import {
   ProjectReportKind,
   ProjectReportStatus,
   ReportAudience,
   ReportType,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import { extractOrganizationIdFromToken } from '../../auth';
 import { resolveAgentProviderId } from '../providers/provider-config';
 import {
@@ -57,6 +58,7 @@ const readProjectReportConfig = (
 
 class ProjectReportHandler implements PromptTypeHandler<ProjectReportHandlerPayload> {
   public readonly id = 'project_report';
+  public readonly sessionRole = SessionRole.Research;
   public readonly promptType = LocalPromptType.ProjectReport;
   public readonly service = 'optional';
   public readonly launchEntity = 'none';

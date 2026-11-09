@@ -2,9 +2,10 @@ import { CapsuleAction } from "@hey-hey/ui-common/components";
 import { TrackingProvider } from "@hey-hey/ui-common/context";
 import { useProject, useUsers } from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
+import { isLocalAccountEmail } from "@hey-hey/ui-common/utils";
 import { compose, TERMS } from "@hey-hey/ui-common/i18n";
 import { WebPathService } from "@hey-hey/ui-common/services";
-import type { OrganizationMemberResponseDto } from "@hey-hey/ui-common/api";
+import type { OrganizationMemberResponseDto } from "@hey-hey/contracts/api";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ActivityIcon from "@mui/icons-material/Timeline";
 import PersonIcon from "@mui/icons-material/Person";
@@ -75,22 +76,21 @@ export const UserDetailPage: React.FC = () => {
   const pageScope = projectId
     ? { scope: "project" as const, projectId }
     : organizationId
-    ? { scope: "organization" as const, organizationId }
-    : null;
+      ? { scope: "organization" as const, organizationId }
+      : null;
   const isProjectUserPage = pageScope?.scope === "project";
-  const [isContextualRailVisible, setIsContextualRailVisible] =
-    useState(true);
+  const [isContextualRailVisible, setIsContextualRailVisible] = useState(true);
 
   const [activeTab, setActiveTab] = useQueryState(
     "tab",
-    parseAsStringLiteral(TAB_VALUES).withDefault("overview")
+    parseAsStringLiteral(TAB_VALUES).withDefault("overview"),
   );
 
   const { data: users, isLoading: isLoadingUsers } = useUsers(
     membershipOrganizationId,
     {
       enabled: !!membershipOrganizationId,
-    }
+    },
   );
 
   const { data: project } = useProject(
@@ -99,15 +99,17 @@ export const UserDetailPage: React.FC = () => {
     {
       enabled: !!membershipOrganizationId && !!projectId,
       preferStale: true,
-    }
+    },
   );
 
   const member: OrganizationMemberResponseDto | undefined = useMemo(
     () => users.find((m) => m.userId === userId),
-    [users, userId]
+    [users, userId],
   );
 
   const user = member?.user;
+  const isLocalAccount = isLocalAccountEmail(user?.email ?? "");
+  const accountLabel = isLocalAccount ? "Local account" : user?.email;
 
   const handleBack = useCallback((): void => {
     navigate(projectId ? `/projects/${projectId}` : "/organizations");
@@ -123,11 +125,11 @@ export const UserDetailPage: React.FC = () => {
 
   const handleTabChange = useCallback(
     (
-      nextValue: TabValue | ((old: TabValue) => TabValue | null) | null
+      nextValue: TabValue | ((old: TabValue) => TabValue | null) | null,
     ): void => {
       void setActiveTab(nextValue);
     },
-    [setActiveTab]
+    [setActiveTab],
   );
 
   if (isLoadingUsers) {
@@ -231,9 +233,11 @@ export const UserDetailPage: React.FC = () => {
         <Typography variant="h5" component="span">
           {user.name}
         </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {user.email}
-        </Typography>
+        {accountLabel && (
+          <Typography variant="body2" color="text.secondary">
+            {accountLabel}
+          </Typography>
+        )}
       </Box>
     </Stack>
   );
@@ -345,9 +349,9 @@ export const UserDetailPage: React.FC = () => {
                       </Box>
                       <Box>
                         <Typography variant="subtitle2" color="text.secondary">
-                          Email
+                          {isLocalAccount ? "Account" : "Email"}
                         </Typography>
-                        <Typography variant="body1">{user.email}</Typography>
+                        <Typography variant="body1">{accountLabel}</Typography>
                       </Box>
                       <Box>
                         <Typography variant="subtitle2" color="text.secondary">

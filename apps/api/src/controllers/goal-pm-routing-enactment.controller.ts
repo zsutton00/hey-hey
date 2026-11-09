@@ -21,7 +21,7 @@ import { OrganizationGuard } from '../auth/guards/organization.guard';
 import type {
   GoalPmRoutingEnactmentRequest,
   GoalPmRoutingCompletionRequest,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import type { ConversationId, OrganizationId, UserId } from '../types';
 import { GoalPmRoutingEnactmentService } from '../services/goal-pm-routing-enactment.service';
 

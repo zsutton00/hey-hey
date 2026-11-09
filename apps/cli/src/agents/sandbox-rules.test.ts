@@ -13,7 +13,7 @@ interface SandboxView {
   readonly systemTempWritable: boolean;
   readonly tmpdirWritable: boolean;
   readonly readsRestricted: boolean;
-  readonly hostUnixSockets: readonly string[];
+  readonly hostUnixSocketsReachable: boolean;
   readonly failClosed: boolean;
 }
 
@@ -64,7 +64,7 @@ const providers: Record<string, (fixture: Fixture) => Promise<SandboxView>> = {
       systemTempWritable: true,
       tmpdirWritable: true,
       readsRestricted: false,
-      hostUnixSockets: sandbox.network.allowUnixSockets,
+      hostUnixSocketsReachable: sandbox.network.allowAllUnixSockets,
       failClosed: sandbox.failIfUnavailable && !sandbox.allowUnsandboxedCommands,
     };
   },
@@ -81,10 +81,10 @@ const providers: Record<string, (fixture: Fixture) => Promise<SandboxView>> = {
       writeRoots: [plan.cwd, ...config.writable_roots],
       systemTempWritable: !config.exclude_slash_tmp,
       tmpdirWritable: !config.exclude_tmpdir_env_var,
-      // workspace-write reads the whole disk; network access stays off, which
-      // also denies Unix sockets, and Codex refuses to run without its sandbox.
+      // workspace-write reads the whole disk and Codex refuses to run without
+      // its sandbox. Socket reachability follows the user's own Codex config.
       readsRestricted: false,
-      hostUnixSockets: [],
+      hostUnixSocketsReachable: true,
       failClosed: plan.sandboxMode === 'workspace-write',
     };
   },
@@ -92,7 +92,7 @@ const providers: Record<string, (fixture: Fixture) => Promise<SandboxView>> = {
     const containment = boundary.processContainment();
     const settings = JSON.parse(await fs.readFile(containment.argsPrefix[1]!, 'utf8')) as {
       filesystem: { allowWrite: string[]; denyRead: string[] };
-      network: { allowUnixSockets: string[] };
+      network: { allowAllUnixSockets: boolean };
     };
     const privateTemp = containment.env['TMPDIR']!;
     return {
@@ -102,9 +102,7 @@ const providers: Record<string, (fixture: Fixture) => Promise<SandboxView>> = {
       systemTempWritable: settings.filesystem.allowWrite.includes('/tmp'),
       tmpdirWritable: settings.filesystem.allowWrite.includes(privateTemp),
       readsRestricted: settings.filesystem.denyRead.length > 0,
-      hostUnixSockets: settings.network.allowUnixSockets.filter(
-        (socketRoot) => socketRoot !== privateTemp,
-      ),
+      hostUnixSocketsReachable: settings.network.allowAllUnixSockets,
       failClosed: containment.command === process.execPath,
     };
   },
@@ -133,8 +131,8 @@ describe.each(Object.entries(providers))('Sandbox rules on %s', (provider, view)
     expect((await view(await makeFixture())).readsRestricted).toBe(false);
   });
 
-  it('keeps host Unix sockets unreachable', async () => {
-    expect((await view(await makeFixture())).hostUnixSockets).toEqual([]);
+  it('leaves host Unix sockets such as Docker reachable', async () => {
+    expect((await view(await makeFixture())).hostUnixSocketsReachable).toBe(true);
   });
 
   it('fails rather than running unsandboxed', async () => {

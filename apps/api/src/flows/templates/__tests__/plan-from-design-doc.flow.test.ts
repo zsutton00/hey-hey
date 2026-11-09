@@ -2,8 +2,8 @@ import { planFromDesignDocFlow } from '../plan-from-design-doc.flow';
 import { PLAN_SHAPING_NODES } from '../../constants/node-ids';
 import { FEATURE_SYNC_ACTIONS } from '../../nodes/feature-sync/schemas';
 import { PLAN_SHAPING_ACTIONS } from '../../nodes/plan-shaping/schemas';
-import { LocalPromptType } from 'src/generated/local';
-import { WorkflowReviewAction } from 'src/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
+import { WorkflowReviewAction } from '@hey-hey/contracts/api/models';
 import type {
   NodeRoutingConfig,
   TransitionDefinition,

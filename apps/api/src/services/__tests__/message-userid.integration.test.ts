@@ -17,7 +17,7 @@ import {
   CreateUserMessage,
   QuestionsSystemMessageData,
   SystemMessageResponseType,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import * as TestUtils from '../../utils/testUtils';
 import { OrganizationGuard } from '../../auth/guards/organization.guard';
 import { ProjectAccessGuard } from '../../auth/guards/project-access.guard';

@@ -18,7 +18,7 @@ import {
   HostActionCategory,
   HostActionTargetKind,
   HostAffectingActionType,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import type {
   ExecutableEnvelopeAuthorization,
   AgentInteractionAdmissionRequest,
@@ -37,7 +37,7 @@ import type {
   SubagentSettledAttempt,
   SessionMessageInteractionAdmissionRequest,
   SessionMessageInput,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { canonicalizeJcs } from '../../core/websockets/trigger-canonicalization';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedMachine } from '../machine-pairing/machine-pairing.service';

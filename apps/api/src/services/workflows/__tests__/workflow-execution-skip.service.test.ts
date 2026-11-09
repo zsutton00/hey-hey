@@ -1,4 +1,4 @@
-import { LocalPromptType } from 'src/generated/local';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
 import { Test, TestingModule } from '@nestjs/testing';
 import { WorkflowExecutionService } from '../workflow-execution.service';
 import { PrismaService } from '../../../prisma/prisma.service';

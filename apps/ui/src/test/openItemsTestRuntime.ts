@@ -10,7 +10,7 @@ import type {
   OpenItemsCollection,
   OpenItemsMutationResult,
   OpenItemsPresentCollection,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   openItemsGroupRows,
   openItemsRows,

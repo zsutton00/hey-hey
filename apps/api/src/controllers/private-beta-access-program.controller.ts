@@ -25,7 +25,7 @@ import type {
   PrivateBetaSelfServiceAdmissionModeDto,
   PrivateBetaSelfServiceAdmissionModeUpdateResultDto,
   UpdatePrivateBetaSelfServiceAdmissionModeDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrivateBetaAccessProgramService } from '../services/private-beta-access-program.service';
 
 @ApiTags('Private Beta Access')

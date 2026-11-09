@@ -14,7 +14,7 @@
 import type {
   CodingPromptStartupPlanReference,
   CodingPromptStartupPrimaryImplementation,
-} from '../../../api/generated/index';
+} from '@hey-hey/contracts/api/models';
 
 export interface StartupPlanRenderableStep {
   stepId: string;

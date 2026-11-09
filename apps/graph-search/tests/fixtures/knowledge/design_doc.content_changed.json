@@ -1,0 +1,44 @@
+{
+  "event": {
+    "id": "00000000-0000-4000-8000-200000000005",
+    "type": "design_doc.content_changed",
+    "aggregateId": "00000000-0000-4000-8000-200000000001",
+    "payload": {
+      "designDoc": {
+        "id": "00000000-0000-4000-8000-200000000001",
+        "name": "test2",
+        "tags": [],
+        "status": "REFINING_CONTENT",
+        "summary": "Updated design doc summary from content_changed e2e validation.",
+        "sections": [
+          {
+            "id": "00000000-0000-4000-8000-200000000003",
+            "key": "content",
+            "order": 0,
+            "content": "",
+            "crdtSnapshotSeq": 1,
+            "materializedMarkdown": "Updated markdown content from design_doc.content_changed e2e validation."
+          }
+        ],
+        "template": "BRAINSTORM",
+        "createdAt": "2026-01-30T03:54:38.742Z",
+        "projectId": "00000000-0000-4000-8000-000000000002",
+        "updatedAt": "2026-02-01T00:02:12.999Z",
+        "organizationId": "00000000-0000-4000-8000-000000000001"
+      },
+      "projectId": "00000000-0000-4000-8000-000000000002",
+      "payloadType": "design_doc.content_changed",
+      "organizationId": "00000000-0000-4000-8000-000000000001"
+    }
+  },
+  "timestamp": "2026-02-01T00:02:12.999Z",
+  "correlationId": "corr_0a5070f6-b436-4622-aa9b-e63c0a07729d",
+  "causationId": "corr_0a5070f6-b436-4622-aa9b-e63c0a07729d",
+  "headers": {
+    "traceId": "corr_0a5070f6-b436-4622-aa9b-e63c0a07729d",
+    "causationId": "corr_0a5070f6-b436-4622-aa9b-e63c0a07729d",
+    "sourceService": "DomainEventPublisher",
+    "replayed": true,
+    "replayedAt": "2026-02-01T00:02:12.999Z"
+  }
+}

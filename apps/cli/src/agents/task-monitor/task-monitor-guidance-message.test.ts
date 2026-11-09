@@ -4,13 +4,13 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MessagePoster } from '../../run/message-poster';
 import type { MessagePosterApiClient } from '../../run/types';
+import { UserMessageDataCodingFreeformAllOfPromptTypeEnum as UserMessageDataCodingFreeformPromptTypeEnum } from '@hey-hey/contracts/api/models';
 import {
   MessageStatus,
   MessageType,
   UserMessageAgentInputProvenance,
-  UserMessageDataCodingFreeformPromptTypeEnum,
   type CreateUserMessage,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import { NOOP_LOGGER } from '../../server/logger';
 import { postTaskMonitorGuidanceMessage } from './task-monitor-guidance-message';
 

@@ -24,3 +24,11 @@ export function getDeploymentEnvironment(): DeploymentEnvironment {
 export function assertDeploymentEnvironmentConfigured(): void {
   getDeploymentEnvironment();
 }
+
+/** The installer selects this explicitly; hosted deployments retain startup validation. */
+export function isLocalApplication(): boolean {
+  return (
+    process.env.DEPLOYMENT_ENVIRONMENT === 'local' &&
+    process.env.HEYHEY_LOCAL_APPLICATION === 'true'
+  );
+}

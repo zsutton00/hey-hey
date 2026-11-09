@@ -2,7 +2,7 @@ import type {
   FutureCompletionDependency,
   FutureDependencyPresentation,
   FutureRevisionMutation,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 import type { Prisma, Proposal } from '@prisma/client';
 

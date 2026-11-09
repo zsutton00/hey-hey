@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { MessageResponseDto } from '../../shared/api/generated/api';
+import type { MessageResponseDto } from '@hey-hey/contracts/api/models';
 import {
   formatAgentSessionTranscript,
   projectAgentSessionTranscript,
@@ -109,5 +109,37 @@ describe('Agent Session conversation transcript projection', () => {
     ]);
 
     expect(entries).toEqual([{ role: 'assistant', turn: 1, content: 'Visible completion.' }]);
+  });
+
+  it('preserves uncertainty fields as structured source conversation context', () => {
+    const entries = projectAgentSessionTranscript([
+      message({
+        id: 'uncertainty-1',
+        type: 'SYSTEM',
+        conversationId: 'source-conversation',
+        createdAt: '2026-08-17T10:00:01.000Z',
+        data: {
+          type: 'AGENT_UNCERTAINTY',
+          severity: 'high',
+          category: 'conflict',
+          statement: 'The implementation conflicts with the stated behavior.',
+        },
+      }),
+    ]);
+
+    expect(entries).toEqual([
+      {
+        role: 'uncertainty',
+        turn: 1,
+        uncertainty: {
+          severity: 'high',
+          category: 'conflict',
+          statement: 'The implementation conflicts with the stated behavior.',
+        },
+      },
+    ]);
+    expect(formatAgentSessionTranscript(entries)).toContain(
+      '"severity":"high","category":"conflict","statement":"The implementation conflicts with the stated behavior."',
+    );
   });
 });

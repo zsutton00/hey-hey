@@ -3,6 +3,7 @@ import { projectReportRequest } from 'src/services/reports/__tests__/project-rep
 import { ProjectReportRequestService } from 'src/services/project-reports/project-report-request.service';
 import { ProjectReportActivityService } from 'src/services/project-reports/project-report-activity.service';
 import { ProjectReportContextService } from 'src/services/project-reports/project-report-context.service';
+import { ProjectReportHistoryService } from 'src/services/project-reports/project-report-history.service';
 import { ProjectReportLaunchService } from 'src/services/project-reports/project-report-launch.service';
 import type { OrganizationId, ProjectId, UserId } from 'src/types';
 import {
@@ -10,7 +11,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { EntityType } from 'src/generated';
+import { EntityType } from '@hey-hey/contracts/api/models';
 import { ProjectReportContextBatchPipe } from '../project-report-request.validation';
 
 describe('ProjectReportRequestController', () => {
@@ -25,11 +26,13 @@ describe('ProjectReportRequestController', () => {
   const activity = { preview: jest.fn(), page: jest.fn() };
   const context = { read: jest.fn(), readBatch: jest.fn() };
   const launch = { prepare: jest.fn() };
+  const history = { list: jest.fn() };
   const controller = new ProjectReportRequestController(
     requests as unknown as ProjectReportRequestService,
     activity as unknown as ProjectReportActivityService,
     context as unknown as ProjectReportContextService,
     launch as unknown as ProjectReportLaunchService,
+    history as unknown as ProjectReportHistoryService,
   );
   const organizationId =
     '22222222-2222-4222-8222-222222222222' as OrganizationId;
@@ -39,6 +42,61 @@ describe('ProjectReportRequestController', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     requests.get.mockResolvedValue(request);
+  });
+
+  it('retries a failed history entry as a new attempt over its latest attempt id', async () => {
+    const failedAttemptId = '44444444-4444-4444-8444-444444444444';
+    history.list.mockResolvedValue({
+      entries: [
+        {
+          type: 'REQUEST',
+          requestId: request.id,
+          status: 'FAILED',
+          latestAttempt: { id: failedAttemptId, attemptNumber: 1 },
+        },
+      ],
+      total: 1,
+    });
+    const retried = { ...request, attempts: [{ status: 'QUEUED' }] };
+    requests.retry.mockResolvedValue(retried);
+    requests.get.mockResolvedValue(retried);
+
+    const page = await controller.listHistory(
+      organizationId,
+      projectId,
+      userId,
+      50,
+      0,
+    );
+    const entry = page.entries[0];
+    if (entry?.type !== 'REQUEST') {
+      throw new Error('expected a request entry');
+    }
+    const result = await controller.retry(
+      organizationId,
+      projectId,
+      userId,
+      entry.requestId,
+      {
+        idempotencyKey: 'retry-one',
+        expectedAttemptId: entry.latestAttempt.id,
+      },
+    );
+
+    expect(requests.retry).toHaveBeenCalledWith(
+      organizationId,
+      projectId,
+      userId,
+      request.id,
+      { idempotencyKey: 'retry-one', expectedAttemptId: failedAttemptId },
+    );
+    expect(launch.prepare).toHaveBeenCalledWith(
+      organizationId,
+      projectId,
+      userId,
+      retried,
+    );
+    expect(result).toBe(retried);
   });
 
   it.each(['activity', 'context'])(

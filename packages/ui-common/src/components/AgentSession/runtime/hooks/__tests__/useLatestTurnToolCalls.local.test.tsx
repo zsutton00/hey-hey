@@ -13,7 +13,7 @@ vi.mock("../../directoryBindingApi", () => ({
   createDirectoryBindingApi: () => ({ listRepos }),
   resolveLocalDirectoryRuntimeBaseUrl: () => "http://localhost:3847",
 }));
-vi.mock("../../../../../local-agent-api/generated/api", () => ({
+vi.mock("@hey-hey/contracts/local", () => ({
   RunToolCallsLatestTurnApi: class {
     readLocalRunToolCallsLatestTurn = localRead;
   },

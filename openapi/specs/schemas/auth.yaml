@@ -22,6 +22,108 @@ SetAccountDefaultOrganizationDto:
       format: uuid
       description: Must match the valid browser session's confirmed organization and current authorized membership.
 
+LocalBootstrapResponseDto:
+  type: object
+  additionalProperties: false
+  required: [handoffToken, expiresInSeconds]
+  properties:
+    handoffToken:
+      type: string
+      minLength: 40
+      description: >-
+        One-use local browser handoff capability. Keep only in process memory
+        and an ephemeral URL fragment; never persist or log it.
+    expiresInSeconds:
+      type: integer
+      enum: [120]
+      description: Handoff validity in seconds.
+
+LocalCliCredentialsResponseDto:
+  type: object
+  additionalProperties: false
+  required: [accessToken, refreshToken, expiresInSeconds]
+  properties:
+    accessToken:
+      type: string
+      description: Access token for the local application, held only in the CLI credential store.
+    refreshToken:
+      type: string
+      description: Refresh token for the local application, held only in the CLI credential store.
+    expiresInSeconds:
+      type: integer
+      minimum: 1
+      description: Access token validity in seconds.
+
+LocalHandoffRequestDto:
+  type: object
+  additionalProperties: false
+  required: [handoffToken]
+  properties:
+    handoffToken:
+      type: string
+      minLength: 40
+
+LocalNameRequestDto:
+  type: object
+  additionalProperties: false
+  required: [name]
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 100
+      description: Display name only; not a login identifier or authentication factor.
+
+LocalCodingAgentAvailability:
+  type: string
+  enum: [installed, not-found, check-failed]
+  description: Whether the executable for one coding agent was found on this computer. It says nothing about login or model readiness.
+
+LocalCodingAgentDetectionDto:
+  type: object
+  additionalProperties: false
+  required: [claude, codex, opencode]
+  description: Installed coding agents found by the local CLI, carried in the local pairing page URL fragment. Display information only; it never grants host authority and never contains paths, credentials or provider output.
+  properties:
+    claude:
+      $ref: "#/LocalCodingAgentAvailability"
+    codex:
+      $ref: "#/LocalCodingAgentAvailability"
+    opencode:
+      $ref: "#/LocalCodingAgentAvailability"
+
+LocalSetupStatusDto:
+  type: object
+  additionalProperties: false
+  required:
+    [
+      nameComplete,
+      browserSession,
+      machineConnected,
+      executionReady,
+      hasProjects,
+      setupProjectId,
+    ]
+  properties:
+    nameComplete:
+      type: boolean
+    browserSession:
+      type: boolean
+    machineConnected:
+      type: boolean
+      description: True only while an authorized CLI machine has live Redis presence.
+    executionReady:
+      type: boolean
+      description: True only while a connected protocol-2 machine has an active controller credential; each host action still requires its existing assertion or grant.
+    hasProjects:
+      type: boolean
+      description: True when the local organization already contains a project, for automatic workspace return.
+    setupProjectId:
+      type: string
+      format: uuid
+      nullable: true
+      description: The default project created when the name was saved, while it is still in onboarding and no other project has finished setup. First-project setup resumes this project; null once setup is complete or before the name is saved.
+
 LoginDto:
   type: object
   required:
@@ -215,6 +317,9 @@ UserResponseDto:
       allOf:
         - $ref: "./common.yaml#/OrganizationId"
       nullable: true
+    isLocalAccount:
+      type: boolean
+      description: True only for the single-person identity bootstrapped by the local application. Its internal placeholder email must not be shown or sent to email flows.
 
 # =============================================
 # Password Change Schemas
@@ -316,3 +421,262 @@ PlatformAdminAccessDto:
       description: >-
         Whether the caller is a platform admin, decided by the same allowlist
         the server applies to admin endpoints.
+
+AccountPasskeyDto:
+  type: object
+  additionalProperties: false
+  required: [id, name, createdAt, lastUsedAt, backedUp]
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Identifier of the account passkey record.
+    name:
+      type: string
+      minLength: 1
+      maxLength: 100
+      description: Display name chosen by the account owner.
+    createdAt:
+      type: string
+      format: date-time
+    lastUsedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Last successful sign-in or account proof with this passkey.
+    backedUp:
+      type: boolean
+      description: Whether the authenticator reports the passkey as synced or backed up.
+
+AccountPasskeyListDto:
+  type: object
+  additionalProperties: false
+  required: [passkeys]
+  properties:
+    passkeys:
+      type: array
+      items:
+        $ref: "#/AccountPasskeyDto"
+
+AccountPasskeyRegistrationOptionsDto:
+  type: object
+  additionalProperties: false
+  description: >-
+    Inputs for navigator.credentials.create. The challenge is single-use,
+    expires after five minutes, and is bound to the signed-in account and the
+    acting browser session.
+  required:
+    [
+      challenge,
+      rpId,
+      rpName,
+      userHandle,
+      userName,
+      userDisplayName,
+      excludeCredentialIds,
+      timeoutMs,
+    ]
+  properties:
+    challenge:
+      type: string
+      pattern: "^[A-Za-z0-9_-]+$"
+    rpId:
+      type: string
+    rpName:
+      type: string
+    userHandle:
+      type: string
+      pattern: "^[A-Za-z0-9_-]+$"
+      description: Base64url WebAuthn user handle for this account.
+    userName:
+      type: string
+    userDisplayName:
+      type: string
+    excludeCredentialIds:
+      type: array
+      items:
+        type: string
+        pattern: "^[A-Za-z0-9_-]+$"
+    timeoutMs:
+      type: integer
+
+AccountPasskeyAssertionOptionsDto:
+  type: object
+  additionalProperties: false
+  description: >-
+    Inputs for navigator.credentials.get. The challenge is single-use, expires
+    after five minutes, and is accepted only for the purpose it was issued for.
+  required: [challenge, rpId, allowCredentialIds, timeoutMs]
+  properties:
+    challenge:
+      type: string
+      pattern: "^[A-Za-z0-9_-]+$"
+    rpId:
+      type: string
+    allowCredentialIds:
+      type: array
+      description: Empty for discoverable sign-in; the account's own passkeys for account proof.
+      items:
+        type: string
+        pattern: "^[A-Za-z0-9_-]+$"
+    timeoutMs:
+      type: integer
+
+AccountPasskeyProofOptionsRequestDto:
+  type: object
+  additionalProperties: false
+  required: [operation]
+  properties:
+    operation:
+      type: string
+      enum: [register, remove]
+    passkeyId:
+      type: string
+      format: uuid
+      description: Required when operation is remove; the passkey that will be removed.
+
+AccountPasskeyRegistrationCredentialDto:
+  type: object
+  additionalProperties: false
+  required: [id, rawId, type, response]
+  properties:
+    id:
+      type: string
+      minLength: 1
+      pattern: "^[A-Za-z0-9_-]+$"
+    rawId:
+      type: string
+      minLength: 1
+      pattern: "^[A-Za-z0-9_-]+$"
+    type:
+      type: string
+      enum: [public-key]
+    authenticatorAttachment:
+      type: string
+      enum: [platform, cross-platform]
+      nullable: true
+    response:
+      type: object
+      additionalProperties: false
+      required: [clientDataJSON, attestationObject, transports]
+      properties:
+        clientDataJSON:
+          type: string
+          minLength: 1
+          pattern: "^[A-Za-z0-9_-]+$"
+        attestationObject:
+          type: string
+          minLength: 1
+          pattern: "^[A-Za-z0-9_-]+$"
+        transports:
+          type: array
+          maxItems: 8
+          items:
+            type: string
+            enum: [ble, cable, hybrid, internal, nfc, smart-card, usb]
+
+AccountPasskeyAssertionCredentialDto:
+  type: object
+  additionalProperties: false
+  required: [id, rawId, type, response]
+  properties:
+    id:
+      type: string
+      minLength: 1
+      pattern: "^[A-Za-z0-9_-]+$"
+    rawId:
+      type: string
+      minLength: 1
+      pattern: "^[A-Za-z0-9_-]+$"
+    type:
+      type: string
+      enum: [public-key]
+    authenticatorAttachment:
+      type: string
+      enum: [platform, cross-platform]
+      nullable: true
+    response:
+      type: object
+      additionalProperties: false
+      required: [clientDataJSON, authenticatorData, signature, userHandle]
+      properties:
+        clientDataJSON:
+          type: string
+          minLength: 1
+          pattern: "^[A-Za-z0-9_-]+$"
+        authenticatorData:
+          type: string
+          minLength: 1
+          pattern: "^[A-Za-z0-9_-]+$"
+        signature:
+          type: string
+          minLength: 1
+          pattern: "^[A-Za-z0-9_-]+$"
+        userHandle:
+          type: string
+          nullable: true
+          pattern: "^[A-Za-z0-9_-]*$"
+
+AccountProofDto:
+  type: object
+  additionalProperties: false
+  description: >-
+    Fresh proof of account ownership. Supply exactly one of the current
+    password or an assertion from one of the account's own passkeys answering
+    a proof challenge issued for this operation.
+  properties:
+    currentPassword:
+      type: string
+      minLength: 1
+      maxLength: 1024
+    passkeyAssertion:
+      $ref: "#/AccountPasskeyAssertionCredentialDto"
+
+AccountPasskeySignInDto:
+  type: object
+  additionalProperties: false
+  required: [credential]
+  properties:
+    credential:
+      $ref: "#/AccountPasskeyAssertionCredentialDto"
+
+AccountPasskeyRegistrationDto:
+  type: object
+  additionalProperties: false
+  required: [name, credential, proof]
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 100
+    credential:
+      $ref: "#/AccountPasskeyRegistrationCredentialDto"
+    proof:
+      $ref: "#/AccountProofDto"
+
+AccountPasskeyRenameDto:
+  type: object
+  additionalProperties: false
+  required: [name]
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 100
+
+AccountPasskeyRemovalDto:
+  type: object
+  additionalProperties: false
+  required: [proof]
+  properties:
+    proof:
+      $ref: "#/AccountProofDto"
+
+DevAdminModeDto:
+  type: object
+  additionalProperties: false
+  required: [devAdminMode]
+  properties:
+    devAdminMode:
+      type: boolean
+      description: Whether dev-admin mode is now on. The browser renews its session to pick it up.

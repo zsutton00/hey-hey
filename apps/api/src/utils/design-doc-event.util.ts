@@ -1,7 +1,7 @@
 import type {
   DesignDocResponseDto,
   MaterializedDesignDocSection,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import type { DesignDocWithSectionsRecord } from '../types/design-doc.types';
 
 export function mapDesignDocSections(

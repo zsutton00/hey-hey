@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
+import { ProjectReportsApiAxiosParamCreator } from '@hey-hey/contracts/api';
 import {
   ActivityCorrelationActivityType,
   ActivityCorrelationSource,
@@ -8,13 +9,12 @@ import {
   ProjectReportContextPageDtoKindEnum,
   ProjectReportCoverageStatusEnum,
   ProjectReportEvidenceReferenceKindEnum,
-  ProjectReportsApiAxiosParamCreator,
   type ActivityCorrelationRecordDto,
   type ProjectReportCoverage,
   type ProjectReportEvidenceReference,
   type ProjectReportSubject,
   type ProjectReportSubjectPlacement,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { ServerLogger } from '../../server/logger';
 import {
   evidenceDirectoryOf,

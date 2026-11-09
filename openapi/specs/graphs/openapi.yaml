@@ -378,6 +378,68 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /organizations/{organizationId}/projects/{projectId}/work-item-project-readiness:
+    post:
+      tags:
+        - Queries
+      summary: Count listed work items matching their copied graph identity
+      operationId: checkWorkItemProjectReadiness
+      description: >-
+        Counts listed task nodes that match their exact identity, type, destination
+        project scope and expected structural parent (including no parent for roots).
+        This narrow read does not validate other graph projections or content.
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkItemProjectReadinessRequest"
+      responses:
+        "200":
+          description: How many listed work items match the expected graph state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkItemProjectReadinessResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /organizations/{organizationId}/projects/{projectId}/design-doc-project-readiness:
+    post:
+      tags:
+        - Queries
+      summary: Count listed design docs scoped to the project in the graph
+      operationId: checkDesignDocProjectReadiness
+      description: >-
+        Counts listed design doc nodes that match their exact identity and have the
+        destination organization and project scope plus the project scope connection.
+        This narrow read does not validate owner attachment, content or other graph projections.
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DesignDocProjectReadinessRequest"
+      responses:
+        "200":
+          description: How many listed design docs match the expected graph state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DesignDocProjectReadinessResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /organizations/{organizationId}/projects/{projectId}/traversal:
     post:
       tags:
@@ -400,6 +462,38 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SearchResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /organizations/{organizationId}/projects/{projectId}/search-exclusions:
+    post:
+      tags:
+        - Queries
+      summary: Resolve the entities connected to given entities
+      operationId: resolveSearchExclusion
+      description: >-
+        Returns the entities to hide from search for the given entities. Follows only links that point at the
+        given entities, mentions of them, conversations about them and proposals targeting them, and expands
+        each excluded proposal and conversation to its whole conversation. Never follows the given entities'
+        own outgoing links, structural edges or Project, User and Stub nodes.
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearchExclusionRequest"
+      responses:
+        "200":
+          description: The given entities together with everything connected to them
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchExclusionResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -890,6 +984,44 @@ paths:
             application/json:
               schema:
                 $ref: "../schemas/hints.yaml#/FindHintsByConnectedItemsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /organizations/{organizationId}/projects/{projectId}/hints/by-origin:
+    get:
+      tags:
+        - Hints
+      summary: Find live hints written by one originating record
+      operationId: findHintsByOrigin
+      description: >
+        Returns each live hint whose origin is the given entity type and ID,
+        with all of its connections and strengths. Retired hints are never
+        returned, and a hint with a different origin type is never matched even
+        when the ID is the same. Callers filter by the visibility of each
+        returned connection endpoint.
+      parameters:
+        - $ref: "#/components/parameters/OrganizationIdPath"
+        - $ref: "#/components/parameters/ProjectIdPath"
+        - name: originEntityType
+          in: query
+          required: true
+          schema:
+            $ref: "../schemas/hints.yaml#/HintOriginEntityType"
+        - name: originEntityId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Live hints with the given origin
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/hints.yaml#/ListProjectHintsResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1984,6 +2116,37 @@ components:
         label:
           type: string
 
+    SearchExclusionRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - entityIds
+      properties:
+        entityIds:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: string
+            format: uuid
+        depth:
+          type: integer
+          minimum: 1
+          maximum: 2
+          default: 1
+
+    SearchExclusionResponse:
+      type: object
+      required:
+        - entityIds
+      properties:
+        entityIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Distinct entities to exclude, including the requested ones
+
     FeatureProjectConnectionRequest:
       type: object
       required:
@@ -2006,6 +2169,73 @@ components:
           type: integer
           minimum: 0
           description: Distinct listed features connected to the project
+
+    WorkItemProjectReadinessRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - workItems
+      properties:
+        workItems:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            $ref: "#/components/schemas/WorkItemProjectReadinessExpectation"
+
+    WorkItemProjectReadinessExpectation:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - typeKey
+        - parentTaskId
+      properties:
+        id:
+          type: string
+          format: uuid
+        typeKey:
+          type: string
+          minLength: 1
+        parentTaskId:
+          type: string
+          description: Expected copied parent task UUID, or an empty string for a root item.
+
+    WorkItemProjectReadinessResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - verifiedCount
+      properties:
+        verifiedCount:
+          type: integer
+          minimum: 0
+          description: Listed work items matching all expected graph properties
+
+    DesignDocProjectReadinessRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - designDocIds
+      properties:
+        designDocIds:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            type: string
+            format: uuid
+
+    DesignDocProjectReadinessResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - verifiedCount
+      properties:
+        verifiedCount:
+          type: integer
+          minimum: 0
+          description: Listed design docs scoped to the project in the graph
 
     # Search schemas
     SearchRequest:
@@ -2152,6 +2382,15 @@ components:
             Report types removed from results, relationships and traversal
             paths. Applied in the query before paging and totals, with the same
             path rule as excludeTaskTypes.
+        excludeEntityIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: >-
+            Entities removed from results, relationships and traversal paths.
+            Applied in the query before paging and totals, with the same path
+            rule as excludeTaskTypes.
         tags:
           type: array
           items:
@@ -2476,6 +2715,13 @@ components:
             to the graph service. ARTIFACT and AGENT_SESSION entries are
             excluded — agent sessions live in `agentSessions[]` and
             artifacts are excluded from neighborhood views entirely.
+        omittedCandidateCount:
+          type: integer
+          minimum: 0
+          description: >
+            Distinct candidates reached within the requested depth that the
+            graph service's own read limit left out of this response. Zero
+            when every reached candidate is present.
 
     EntityNeighborhoodNode:
       type: object
@@ -3049,6 +3295,11 @@ components:
             - $ref: "../schemas/agent-edges.yaml#/WorkflowEdgeActionLabel"
           nullable: true
           description: Optional plain-language action that triggers this flow transition.
+        transitionRole:
+          allOf:
+            - $ref: "../schemas/agent-edges.yaml#/WorkflowTransitionRole"
+          nullable: true
+          description: Optional explicit meaning of this flow transition (primary progression, error path or recovery); omitted means unclassified.
         reasoning:
           type: string
           minLength: 1
@@ -3137,6 +3388,9 @@ components:
         actionLabel:
           $ref: "../schemas/agent-edges.yaml#/WorkflowEdgeActionLabel"
           description: Optional plain-language action that triggers this flow transition.
+        transitionRole:
+          $ref: "../schemas/agent-edges.yaml#/WorkflowTransitionRole"
+          description: Optional explicit meaning of this flow transition (primary progression, error path or recovery); omitted means unclassified.
         metadata:
           type: object
           additionalProperties: true
@@ -3248,6 +3502,11 @@ components:
             - $ref: "../schemas/agent-edges.yaml#/WorkflowEdgeActionLabel"
           nullable: true
           description: Optional plain-language action that triggers this flow transition; set null to clear it.
+        transitionRole:
+          allOf:
+            - $ref: "../schemas/agent-edges.yaml#/WorkflowTransitionRole"
+          nullable: true
+          description: Optional explicit meaning of this flow transition (primary progression, error path or recovery); omitted means unclassified; set null to clear it.
         metadata:
           type: object
           additionalProperties: true

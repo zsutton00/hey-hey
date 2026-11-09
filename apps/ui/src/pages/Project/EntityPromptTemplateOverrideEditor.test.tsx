@@ -1,10 +1,10 @@
-import { EntityPromptTemplatesApi } from "@hey-hey/ui-common/api";
+import { EntityPromptTemplatesApi } from "@hey-hey/contracts/api";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
-import type { EntityPromptTemplateCatalogEntryDto } from "@hey-hey/ui-common/api";
+import type { EntityPromptTemplateCatalogEntryDto } from "@hey-hey/contracts/api";
 import { EntityPromptTemplateOverrideEditor } from "./EntityPromptTemplateOverrideEditor";
 
 const mocks = vi.hoisted(() => ({ create: vi.fn(), validate: vi.fn() }));

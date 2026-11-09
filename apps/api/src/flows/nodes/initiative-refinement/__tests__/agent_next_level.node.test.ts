@@ -1,6 +1,9 @@
 import { TestingModule } from '@nestjs/testing';
 import { createServiceTestingModule } from 'src/../test/setup/testing-module.factory';
-import { InitiativeSectionUpdateSource, WorkStatus } from 'src/generated';
+import {
+  InitiativeSectionUpdateSource,
+  WorkStatus,
+} from '@hey-hey/contracts/api/models';
 import { ArtifactService } from 'src/services/artifacts/artifact.service';
 import { InitiativeService } from 'src/services/initiatives/initiative.service';
 import {

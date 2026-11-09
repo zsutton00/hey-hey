@@ -1,9 +1,9 @@
-import { LocalPromptType } from 'src/generated/local';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
 import { DesignDocId, InitiativeId, TaskId } from 'src/types';
 import { TASK_GENERATION_NODES } from '../constants';
 import { createFlow } from './utils';
 import { TaskGenerationFlowContext } from 'src/types/flow-internal.types';
-import { WorkflowName } from 'src/generated';
+import { WorkflowName } from '@hey-hey/contracts/api/models';
 import { TaskService } from 'src/services/tasks/task.service';
 import { DesignDocService } from 'src/services/design-doc/design-doc.service';
 

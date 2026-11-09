@@ -5,7 +5,7 @@ import {
   useCanonicalPlanMutations,
   type PlanWorkItem,
 } from "@hey-hey/ui-common/data";
-import type { WorkStatus } from "@hey-hey/ui-common/api";
+import type { WorkStatus } from "@hey-hey/contracts/api";
 
 export const PlanMetadataControls = ({
   plan,
@@ -16,7 +16,7 @@ export const PlanMetadataControls = ({
 }) => {
   const { updatePlan } = useCanonicalPlanMutations(
     plan.organizationId,
-    plan.projectId
+    plan.projectId,
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +31,9 @@ export const PlanMetadataControls = ({
       setPending(result.status === "pending");
     } catch (cause) {
       setError(
-        cause instanceof Error ? cause.message : "Unable to update Plan status."
+        cause instanceof Error
+          ? cause.message
+          : "Unable to update Plan status.",
       );
     } finally {
       setSaving(false);

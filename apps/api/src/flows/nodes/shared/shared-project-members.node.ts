@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { UIHints } from 'src/generated';
+import { UIHints } from '@hey-hey/contracts/api/models';
 import {
   NodeResult,
   NodeType,

@@ -6,7 +6,7 @@ import { ExecutionRecorder } from '../execution-recorder/execution-recorder';
 import { ExecutionCaptureSession } from '../execution-recorder/capture-session';
 import { NOOP_LOGGER } from '../../../server/logger';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { WorkStatus } from '../../../shared/api/generated/api';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import type { ProjectMaturity, WorkItemTypeDefinitionDto } from '../../../shared/api/index';
 import { intentFirstGuidance, takingShapeGuidance } from '../../prompts/common';
 import { renderWorkItemTypeOntologyEntry } from '../../prompts/render-type-ontology';
@@ -1462,6 +1462,240 @@ describe('session-runner-claude', () => {
     rmSync(base, { recursive: true, force: true });
   });
 
+  it('shares permission decisions only across structurally identical calls', async () => {
+    const onAgentOutput = vi.fn();
+    const runner = new ClaudeAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry,
+      toolRuleStore,
+      runStore: makeRunStore(),
+      repoStore: makeRepoStore(),
+      agentOutputOwner: createProviderTestAgentOutputOwner(onAgentOutput),
+    });
+    const session = makeSession();
+    const runPromise = runner.runPrompt({ session, prompt: 'Check permission decisions.' });
+    await waitForPermissionHandler();
+
+    const permissionRequests = () =>
+      onAgentOutput.mock.calls.flatMap((call) => {
+        const event = call[0]?.event as
+          | {
+              eventType?: string;
+              payload?: {
+                permission_request?: { id?: string; session_id?: string };
+                tool_name?: string;
+              };
+            }
+          | undefined;
+        if (event?.eventType !== 'permission_request') {
+          return [];
+        }
+        const request = event.payload?.permission_request;
+        if (!request?.id || !request.session_id || !event.payload?.tool_name) {
+          return [];
+        }
+        return [
+          { id: request.id, sessionId: request.session_id, toolName: event.payload.tool_name },
+        ];
+      });
+    const submitDecision = async (
+      request: ReturnType<typeof permissionRequests>[number],
+      decision: 'approve' | 'deny',
+    ) =>
+      runner.submitPermissionDecision?.({
+        session,
+        dispatch: translatePermissionDecisionToDispatch({
+          runId: session.agentic_session_id,
+          sessionId: request.sessionId,
+          requestId: request.id,
+          agentType: 'claude',
+          decision,
+          reason: decision === 'deny' ? 'Denied for this call.' : null,
+          idempotencyToken: request.id,
+          deciderUserId: 'user-1',
+        }),
+      });
+
+    const structurallyEqualFirst = {
+      pattern: 'TODO',
+      options: { glob: '*.ts', nested: { mode: 'strict', values: [1, { enabled: true }] } },
+    };
+    const structurallyEqualSecond = {
+      options: { nested: { values: [1, { enabled: true }], mode: 'strict' }, glob: '*.ts' },
+      pattern: 'TODO',
+    };
+    const identicalPromises = [
+      permissionRequestHandler!('Bash', structurallyEqualFirst),
+      permissionRequestHandler!('Bash', structurallyEqualSecond),
+    ];
+    await vi.waitFor(() => expect(permissionRequests()).toHaveLength(1));
+    const [identicalRequest] = permissionRequests();
+    expect(await submitDecision(identicalRequest!, 'approve')).toMatchObject({ delivered: true });
+    await expect(Promise.all(identicalPromises)).resolves.toEqual([
+      { behavior: 'allow', updatedInput: structurallyEqualFirst },
+      { behavior: 'allow', updatedInput: structurallyEqualSecond },
+    ]);
+
+    const firstInput = { command: 'alpha', path: 'src' };
+    const secondInput = { command: 'beta', path: 'src' };
+    let firstSettled = false;
+    let secondSettled = false;
+    const firstPromise = permissionRequestHandler!('Bash', firstInput).then((result) => {
+      firstSettled = true;
+      return result;
+    });
+    const secondPromise = permissionRequestHandler!('Bash', secondInput).then((result) => {
+      secondSettled = true;
+      return result;
+    });
+    await vi.waitFor(() => expect(permissionRequests()).toHaveLength(3));
+    const [firstRequest, secondRequest] = permissionRequests().slice(1);
+    await submitDecision(firstRequest!, 'approve');
+    await expect(firstPromise).resolves.toEqual({ behavior: 'allow', updatedInput: firstInput });
+    expect(secondSettled).toBe(false);
+    await submitDecision(secondRequest!, 'deny');
+    await expect(secondPromise).resolves.toEqual({
+      behavior: 'deny',
+      message: 'Denied for this call.',
+    });
+
+    const thirdInput = { command: 'gamma', path: 'src' };
+    const fourthInput = { command: 'delta', path: 'src' };
+    let thirdSettled = false;
+    let fourthSettled = false;
+    const thirdPromise = permissionRequestHandler!('Bash', thirdInput).then((result) => {
+      thirdSettled = true;
+      return result;
+    });
+    const fourthPromise = permissionRequestHandler!('Bash', fourthInput).then((result) => {
+      fourthSettled = true;
+      return result;
+    });
+    await vi.waitFor(() => expect(permissionRequests()).toHaveLength(5));
+    const [thirdRequest, fourthRequest] = permissionRequests().slice(3);
+    await submitDecision(fourthRequest!, 'deny');
+    await expect(fourthPromise).resolves.toMatchObject({ behavior: 'deny' });
+    expect(thirdRequest).toBeDefined();
+    expect(thirdSettled).toBe(false);
+    expect(fourthSettled).toBe(true);
+    await submitDecision(thirdRequest!, 'approve');
+    await expect(thirdPromise).resolves.toEqual({ behavior: 'allow', updatedInput: thirdInput });
+
+    const arrayForward = { command: 'run', args: ['one', 'two'] };
+    const arrayReverse = { command: 'run', args: ['two', 'one'] };
+    const duplicateInput = { command: 'shared' };
+    const mixedPromises = [
+      permissionRequestHandler!('Bash', duplicateInput),
+      permissionRequestHandler!('Bash', { command: 'shared' }),
+      permissionRequestHandler!('Bash', arrayForward),
+      permissionRequestHandler!('Bash', arrayReverse),
+      permissionRequestHandler!('WebFetch', duplicateInput),
+    ];
+    await vi.waitFor(() => expect(permissionRequests()).toHaveLength(9));
+    const mixedRequests = permissionRequests().slice(5);
+    expect(mixedRequests.map(({ toolName }) => toolName)).toEqual([
+      'Bash',
+      'Bash',
+      'Bash',
+      'WebFetch',
+    ]);
+    for (const request of mixedRequests) {
+      await submitDecision(request, 'approve');
+    }
+    await expect(Promise.all(mixedPromises)).resolves.toHaveLength(5);
+    await waitForEventHandler();
+    emitClaudeEvent({ type: 'result' });
+    await runPromise;
+  });
+
+  it('lists same-tool requests with different inputs on one card with a decision per request', async () => {
+    const onAgentOutput = vi.fn();
+    const runner = new ClaudeAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry,
+      toolRuleStore,
+      runStore: makeRunStore(),
+      repoStore: makeRepoStore(),
+      agentOutputOwner: createProviderTestAgentOutputOwner(onAgentOutput),
+    });
+    const session = makeSession();
+    const runPromise = runner.runPrompt({ session, prompt: 'Search the web.' });
+    await waitForPermissionHandler();
+
+    const emitted = () =>
+      onAgentOutput.mock.calls.flatMap((call) => {
+        const event = call[0]?.event as
+          | { eventType?: string; sessionId?: string; payload?: Record<string, unknown> }
+          | undefined;
+
+        return event?.eventType ? [event] : [];
+      });
+    const cards = () =>
+      emitted().filter(
+        (event) => event.eventType === 'permission_request' && event.payload?.['tool_name'],
+      );
+    const joinedRows = () =>
+      emitted()
+        .filter((event) => event.eventType === 'permission_group_item_added')
+        .map((event) => event.payload as Record<string, string>);
+    const decide = (requestId: string, decision: 'approve' | 'deny') =>
+      runner.submitPermissionDecision?.({
+        session,
+        dispatch: translatePermissionDecisionToDispatch({
+          runId: session.agentic_session_id,
+          sessionId: 'session-1',
+          requestId,
+          agentType: 'claude',
+          decision,
+          reason: decision === 'deny' ? 'Denied for this search.' : null,
+          idempotencyToken: requestId,
+          deciderUserId: 'user-1',
+        }),
+      });
+
+    const alpha = { query: 'alpha', mode: 'standard' };
+    const beta = { query: 'beta', mode: 'standard' };
+    const gamma = { query: 'gamma', mode: 'standard' };
+    const alphaPromise = permissionRequestHandler!('WebSearch', alpha);
+    const betaPromise = permissionRequestHandler!('WebSearch', beta);
+    const gammaPromise = permissionRequestHandler!('WebSearch', gamma);
+    const alphaTwinPromise = permissionRequestHandler!('WebSearch', { ...alpha });
+    await vi.waitFor(() => expect(joinedRows()).toHaveLength(2));
+
+    // One card for the three distinct searches; the exact duplicate adds no row.
+    expect(cards()).toHaveLength(1);
+    const cardRequestId = (cards()[0]!.payload!['permission_request'] as { id: string }).id;
+    const [betaRow, gammaRow] = joinedRows();
+    expect(joinedRows().map((row) => row['description'])).toEqual(['beta', 'gamma']);
+    expect(betaRow).toMatchObject({ cardRequestId, cardDescription: 'alpha' });
+
+    // Each row is decided on its own; the duplicate follows its twin.
+    await decide(cardRequestId, 'approve');
+    await expect(alphaPromise).resolves.toEqual({ behavior: 'allow', updatedInput: alpha });
+    await expect(alphaTwinPromise).resolves.toEqual({ behavior: 'allow', updatedInput: alpha });
+
+    // A request arriving after a decision opens a new card instead of inheriting one.
+    const deltaPromise = permissionRequestHandler!('WebSearch', { query: 'delta' });
+    await vi.waitFor(() => expect(cards()).toHaveLength(2));
+    expect(joinedRows()).toHaveLength(2);
+
+    await decide(betaRow!['requestId']!, 'deny');
+    await expect(betaPromise).resolves.toEqual({
+      behavior: 'deny',
+      message: 'Denied for this search.',
+    });
+    await decide(gammaRow!['requestId']!, 'approve');
+    await expect(gammaPromise).resolves.toEqual({ behavior: 'allow', updatedInput: gamma });
+
+    const deltaRequestId = (cards()[1]!.payload!['permission_request'] as { id: string }).id;
+    await decide(deltaRequestId, 'approve');
+    await expect(deltaPromise).resolves.toMatchObject({ behavior: 'allow' });
+
+    await waitForEventHandler();
+    emitClaudeEvent({ type: 'result' });
+    await runPromise;
+  });
+
   describe('AskUserQuestion', () => {
     const askInput = {
       questions: [
@@ -1700,7 +1934,7 @@ describe('session-runner-claude', () => {
         enabled: true,
         failIfUnavailable: true,
         allowUnsandboxedCommands: false,
-        network: { allowUnixSockets: [] },
+        network: { allowAllUnixSockets: true, allowLocalBinding: true },
       });
       expect(startConfig.workspaceContainment).not.toHaveProperty('processLaunch');
       expect(startConfig).toMatchObject({ permissionMode: 'default' });
@@ -3389,100 +3623,5 @@ describe('session-runner-claude compact', () => {
       }),
     );
     await expect(rejection).rejects.toMatchObject({ cause: disconnectError });
-  });
-});
-
-describe('ClaudeAgentSessionRunner.promptOnce', () => {
-  const makeRunner = (runStore: RunStore = makeRunStore()) =>
-    new ClaudeAgentSessionRunner({
-      localAgentEndpoint,
-      submissionToolRegistry,
-      toolRuleStore,
-      runStore,
-      repoStore: makeRepoStore(),
-    });
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    eventHandler = null;
-    startSessionMock.mockResolvedValue(CLAUDE_TURN_SUCCESS);
-  });
-
-  it('returns the assistant text from a tool-free session in an empty directory', async () => {
-    startSessionMock.mockImplementation(async () => {
-      emitClaudeEvent({
-        type: 'assistant',
-        message: { content: [{ type: 'text', text: 'search for jev' }] },
-      });
-      return CLAUDE_TURN_SUCCESS;
-    });
-    const runStore = makeRunStore();
-    const { signal } = new AbortController();
-
-    const answer = await makeRunner(runStore).promptOnce({
-      session: makeSession({ model: 'session-model' }),
-      prompt: 'plan searches',
-      model: 'turn-model',
-      reasoningEffort: 'high',
-      signal,
-    });
-
-    expect(answer).toBe('search for jev');
-    const [config, options] = startSessionMock.mock.calls[0] as [Record<string, unknown>, unknown];
-    expect(config).toMatchObject({
-      prompt: 'plan searches',
-      builtinTools: [],
-      model: 'turn-model',
-      reasoningEffort: 'high',
-    });
-    expect(config).not.toHaveProperty('mcpServers');
-    expect(config).not.toHaveProperty('allowedTools');
-    expect(config['cwd']).not.toBe('/tmp/repo');
-    expect(options).toEqual({ signal });
-    expect(disconnectMock).toHaveBeenCalledTimes(1);
-    expect(runStore.appendEvent).not.toHaveBeenCalled();
-  });
-
-  it('throws the provider error when the turn fails', async () => {
-    startSessionMock.mockResolvedValue({
-      ok: false,
-      subtype: 'error_during_execution',
-      numTurns: 1,
-      sessionId: null,
-      errors: ['model unavailable'],
-      errorText: 'model unavailable',
-    });
-
-    await expect(
-      makeRunner().promptOnce({
-        session: makeSession(),
-        prompt: 'plan',
-        signal: new AbortController().signal,
-      }),
-    ).rejects.toMatchObject({ code: 'RUN_FAILED', message: 'model unavailable' });
-    expect(disconnectMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('throws when the turn produces no text', async () => {
-    await expect(
-      makeRunner().promptOnce({
-        session: makeSession(),
-        prompt: 'plan',
-        signal: new AbortController().signal,
-      }),
-    ).rejects.toMatchObject({ code: 'RUN_FAILED' });
-  });
-
-  it('surfaces an aborted call and still disconnects', async () => {
-    startSessionMock.mockRejectedValue(new Error('Aborted'));
-
-    await expect(
-      makeRunner().promptOnce({
-        session: makeSession(),
-        prompt: 'plan',
-        signal: AbortSignal.abort(),
-      }),
-    ).rejects.toThrow('Aborted');
-    expect(disconnectMock).toHaveBeenCalledTimes(1);
   });
 });

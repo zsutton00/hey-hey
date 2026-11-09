@@ -4,6 +4,7 @@ import type {
   SubmitRepositoryImportReplyRequestDto,
 } from "../../api";
 import { unifiedApiClient } from "../../clients/serviceClients";
+import { toOpenApiMessageId } from "../../clients/contractIdentifierAdapters";
 import { useCallback } from "react";
 import type { MutationOptions } from "../core/useMutation";
 import { useMutation } from "../core/useMutation";
@@ -18,7 +19,7 @@ export interface SubmitRepositoryImportReplyVariables {
 }
 
 export function useSubmitRepositoryImportReply(
-  options: MutationOptions<MessageResponseDto> = {}
+  options: MutationOptions<MessageResponseDto> = {},
 ) {
   const mutationFn = useCallback(
     async ({
@@ -30,7 +31,7 @@ export function useSubmitRepositoryImportReply(
       answers,
     }: SubmitRepositoryImportReplyVariables): Promise<MessageResponseDto> => {
       const request: SubmitRepositoryImportReplyRequestDto = {
-        parentMessageId,
+        parentMessageId: toOpenApiMessageId(parentMessageId),
         expectedConversationVersion,
         answers,
       };
@@ -46,7 +47,7 @@ export function useSubmitRepositoryImportReply(
       }
       return message;
     },
-    []
+    [],
   );
   return useMutation(mutationFn, options);
 }

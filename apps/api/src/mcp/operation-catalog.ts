@@ -1,7 +1,7 @@
 import {
   McpOperationCatalogEntry,
   McpProposeOutputSchemaId,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { MCP_OPERATION_INPUT_SCHEMA_ID } from './schemas/mcp-operation-input.schema';
 
 export const mcpOperationCatalog = {

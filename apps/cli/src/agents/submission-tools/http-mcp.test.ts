@@ -11,7 +11,7 @@ import type { Run } from '../../run/run';
 import { createTestRun } from '../../run/run.test-support';
 import { NOOP_LOGGER, type ServerLogger } from '../../server/logger';
 import type { CreateSystemMessage } from '../../shared/api/index';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { Turn } from '../../turn/turn';
 import type { PromptTypeHandler } from '../prompt-type-handler';
 import {
@@ -22,6 +22,7 @@ import {
 import { createTestMessagePoster, createTestRunRegistry } from '../../run/run.test-support';
 import { FEATURE_SYNC_ACTIONS, submitReadinessTool } from '../feature-sync/submission-tools';
 import { IncludeExistingProposalsInCurrentMessageTool } from './include-existing-proposals-in-current-message-tool';
+import { raiseUncertaintyTool } from './raise-uncertainty-tool';
 
 /**
  * Action tools no longer post inline — they record the completion on the
@@ -221,6 +222,142 @@ describe('createSubmissionToolsHttpHandler', () => {
   afterEach(() => {
     submissionToolRegistry.clearAll();
     vi.clearAllMocks();
+  });
+
+  it.each(
+    (['lack_of_evidence', 'conflict', 'ambiguity', 'not_implemented', 'question'] as const).flatMap(
+      (category) =>
+        (['low', 'medium', 'high'] as const).map((severity) => [category, severity] as const),
+    ),
+  )(
+    'persists %s uncertainty at %s severity before returning success',
+    async (category, severity) => {
+      const poster = makePoster();
+      const run = makeRun(undefined, {
+        providerSessionId: 'provider-session-1',
+        activeHandler: { promptType: LocalPromptType.CodingFreeform },
+        isBaseSubmissionTool: (name) => name === 'raise_uncertainty',
+      });
+      const registration = submissionToolRegistry.register({
+        runId: run.runId,
+        organizationId: 'org-1',
+        projectId: 'proj-1',
+        conversationId: 'conv-1',
+        externalAgentNodeId: null,
+        triggerMessageId: null,
+        tools: [raiseUncertaintyTool],
+      });
+      const handler = createSubmissionToolsHttpHandler({
+        poster,
+        logger: makeLogger(),
+        getRun: () => run,
+      });
+      const { req, res, captured } = makeReqRes(registration.token, {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name: 'raise_uncertainty',
+          arguments: { category, severity, statement: 'The recorded evidence is incomplete.' },
+        },
+      });
+
+      await handler(req, res);
+
+      expect(poster.createOutOfBand).toHaveBeenCalledTimes(1);
+      expect(dataAsRecord(outOfBandCall(poster).dto)).toMatchObject({
+        type: 'AGENT_UNCERTAINTY',
+        category,
+        severity,
+        statement: 'The recorded evidence is incomplete.',
+        providerSessionId: 'provider-session-1',
+        promptHandler: LocalPromptType.CodingFreeform,
+      });
+      expect(captured.body).toMatchObject({
+        result: { content: [{ type: 'text', text: 'Uncertainty recorded.' }] },
+      });
+      expect(run.setLastSubmissionAction).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    { category: 'other', severity: 'low', statement: 'Evidence.' },
+    { category: 'question', severity: 'invalid', statement: 'Evidence.' },
+    { category: 'question', statement: 'Evidence.' },
+    { category: 'question', severity: 'low', statement: '' },
+    { category: 'question', severity: 'low', statement: '   ' },
+  ])('rejects invalid uncertainty input %# without persistence', async (arguments_) => {
+    const poster = makePoster();
+    const run = makeRun(undefined, {
+      activeHandler: { promptType: LocalPromptType.CodingFreeform },
+      isBaseSubmissionTool: (name) => name === 'raise_uncertainty',
+    });
+    const registration = submissionToolRegistry.register({
+      runId: run.runId,
+      organizationId: 'org-1',
+      projectId: 'proj-1',
+      conversationId: 'conv-1',
+      externalAgentNodeId: null,
+      triggerMessageId: null,
+      tools: [raiseUncertaintyTool],
+    });
+    const handler = createSubmissionToolsHttpHandler({
+      poster,
+      logger: makeLogger(),
+      getRun: () => run,
+    });
+    const { req, res, captured } = makeReqRes(registration.token, {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'raise_uncertainty', arguments: arguments_ },
+    });
+
+    await handler(req, res);
+
+    expect(poster.createOutOfBand).not.toHaveBeenCalled();
+    expect(captured.body).toMatchObject({ result: { isError: true } });
+  });
+
+  it('returns an error and no success when uncertainty persistence fails', async () => {
+    const poster = makePoster();
+    vi.mocked(poster.createOutOfBand).mockRejectedValueOnce(
+      new Error('Message persistence failed'),
+    );
+    const run = makeRun(undefined, {
+      activeHandler: { promptType: LocalPromptType.CodingFreeform },
+      isBaseSubmissionTool: (name) => name === 'raise_uncertainty',
+    });
+    const registration = submissionToolRegistry.register({
+      runId: run.runId,
+      organizationId: 'org-1',
+      projectId: 'proj-1',
+      conversationId: 'conv-1',
+      externalAgentNodeId: null,
+      triggerMessageId: null,
+      tools: [raiseUncertaintyTool],
+    });
+    const handler = createSubmissionToolsHttpHandler({
+      poster,
+      logger: makeLogger(),
+      getRun: () => run,
+    });
+    const { req, res, captured } = makeReqRes(registration.token, {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: {
+        name: 'raise_uncertainty',
+        arguments: { category: 'question', severity: 'medium', statement: 'Need an answer.' },
+      },
+    });
+
+    await handler(req, res);
+
+    expect(captured.body).toMatchObject({
+      jsonrpc: '2.0',
+      error: { code: -32603, message: 'Message persistence failed' },
+    });
   });
 
   it('returns 404 when the token is unknown', async () => {

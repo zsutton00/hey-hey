@@ -1,4 +1,4 @@
-import { ReadRestriction } from '../../generated';
+import { ReadRestriction } from '@hey-hey/contracts/api/models';
 import {
   ReadPolicyContext,
   readPolicyFor,

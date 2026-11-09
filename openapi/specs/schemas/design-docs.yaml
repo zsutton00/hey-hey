@@ -145,15 +145,19 @@ DesignDocResponseDto:
       type: string
 
 DesignDocDraftSection:
-  allOf:
-    - $ref: "#/DesignDocSection"
-    - type: object
-      properties:
-        content:
-          type: string
-        order:
-          type: integer
-          nullable: true
+  type: object
+  required:
+    - key
+  properties:
+    id:
+      $ref: "#/DesignDocSection/properties/id"
+    key:
+      $ref: "#/DesignDocSection/properties/key"
+    content:
+      type: string
+    order:
+      type: integer
+      nullable: true
 
 CreateDesignDocDto:
   type: object

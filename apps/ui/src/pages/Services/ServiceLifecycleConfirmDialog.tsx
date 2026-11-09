@@ -3,7 +3,7 @@ import {
   ModalWorkOwner,
 } from "@hey-hey/ui-common/components/Modals";
 import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
-import type { ServiceDto } from "@hey-hey/ui-common/api";
+import type { ServiceDto } from "@hey-hey/contracts/api";
 import type { UseServiceLifecycleReturn } from "@hey-hey/ui-common/data";
 import { KEYS } from "@hey-hey/ui-common/i18n";
 import ArchiveOutlinedIcon from "@mui/icons-material/ArchiveOutlined";

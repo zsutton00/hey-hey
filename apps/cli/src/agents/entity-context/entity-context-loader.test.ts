@@ -1,3 +1,4 @@
+import { asConversationId, asProjectId } from '../../test-utils/contract-ids';
 import { describe, expect, it, vi } from 'vitest';
 import {
   AgentSessionCurrentState,
@@ -12,9 +13,9 @@ import {
   type FeatureRequirementsSection,
   type FullEntityContextDto,
   WorkStatus,
-} from '../../shared/api/generated/api';
-import { EntityType } from '../../shared/agent-bridge-contract/generated/api';
-import { RunEntityReferenceEntityTypeEnum as RunEntityType } from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/api/models';
+import { EntityType } from '@hey-hey/contracts/agent-bridge';
+import { RunEntityReferenceEntityTypeEnum as RunEntityType } from '@hey-hey/contracts/agent-bridge';
 import { NOOP_LOGGER } from '../../server/logger';
 import { SubmissionToolAuth } from '../submission-tools/submission-tool-auth';
 import { createTestOAuthClient } from '../../auth/oauth-client.test-support';
@@ -29,7 +30,7 @@ const PROJECT_ID = 'project-1';
 const sourceAgentSession = (): AgentSessionDto => ({
   id: AGENT_SESSION_ID,
   organizationId: ORGANIZATION_ID,
-  projectId: PROJECT_ID,
+  projectId: asProjectId(PROJECT_ID),
   userId: 'user-1',
   status: AgentSessionStatus.InProgress,
   currentState: AgentSessionCurrentState.Idle,
@@ -249,11 +250,9 @@ describe('EntityContextLoader', () => {
       const getConversation = vi.fn().mockResolvedValue({
         data: { data: sourceConversation() },
       });
-      const getMessages = vi
-        .fn()
-        .mockResolvedValue({
-          data: { data: paged ? { messages: sourceMessages() } : sourceMessages() },
-        });
+      const getMessages = vi.fn().mockResolvedValue({
+        data: { data: paged ? { messages: sourceMessages() } : sourceMessages() },
+      });
       const getEntityContext = vi
         .fn()
         .mockResolvedValue(
@@ -296,6 +295,7 @@ describe('EntityContextLoader', () => {
         projectId: PROJECT_ID,
         entityType: CanonicalEntityType.AgentSession,
         entityId: AGENT_SESSION_ID,
+        groupRelationships: true,
       });
       expect(context).toMatchObject({
         kind: 'agent_session',
@@ -336,7 +336,7 @@ describe('EntityContextLoader', () => {
 
   it('rejects a source Agent Session whose organization or project differs', async () => {
     const agentSession = sourceAgentSession();
-    agentSession.projectId = 'other-project';
+    agentSession.projectId = asProjectId('other-project');
     const loader = buildLoader({
       getAgentSession: vi.fn().mockResolvedValue({ data: { data: agentSession } }),
       getConversation: vi.fn(),
@@ -360,7 +360,7 @@ describe('EntityContextLoader', () => {
     ).rejects.toThrow(/attached source conversation/);
 
     const mismatchedConversation = sourceConversation();
-    mismatchedConversation.id = 'other-conversation';
+    mismatchedConversation.id = asConversationId('other-conversation');
     const mismatchedLoader = buildLoader({
       getAgentSession: vi.fn().mockResolvedValue({ data: { data: sourceAgentSession() } }),
       getConversation: vi.fn().mockResolvedValue({
@@ -416,6 +416,7 @@ describe('EntityContextLoader', () => {
       projectId: PROJECT_ID,
       entityType: CanonicalEntityType.Task,
       entityId: AGENT_SESSION_ID,
+      groupRelationships: true,
     });
     expect(readAgentSession).not.toHaveBeenCalled();
   });
@@ -456,6 +457,7 @@ describe('EntityContextLoader', () => {
         projectId: PROJECT_ID,
         entityType: canonicalEntityType,
         entityId,
+        groupRelationships: true,
       });
       if (entityType === RunEntityType.Project) {
         expect(findOneProject).toHaveBeenCalledWith({

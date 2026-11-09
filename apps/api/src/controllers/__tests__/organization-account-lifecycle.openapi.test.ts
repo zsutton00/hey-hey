@@ -6,7 +6,7 @@ import type {
   GetOrganizationAccountLifecycleResponse,
   OrganizationAccountLifecycleDto,
   ReactivateOrganizationAccountResponse,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ORGANIZATIONS_ORGANIZATIONID_CANCEL_PATH,
   ORGANIZATIONS_ORGANIZATIONID_ACCOUNT_LIFECYCLE_PATH,

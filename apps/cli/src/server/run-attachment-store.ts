@@ -3,8 +3,8 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { resolveBaseDir } from '../session/paths';
 import { LocalAgentApiError } from '../shared/agent-bridge-contract/errors';
-import type { RunAttachmentReference } from '../shared/agent-bridge-contract/generated/api';
-import type { LocalRunAttachment } from '../shared/local-agent-api/generated/api';
+import type { RunAttachmentReference } from '@hey-hey/contracts/agent-bridge';
+import type { LocalRunAttachment } from '@hey-hey/contracts/local';
 
 export const MAX_RUN_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 export const isPlainAttachmentName = (name: string): boolean =>

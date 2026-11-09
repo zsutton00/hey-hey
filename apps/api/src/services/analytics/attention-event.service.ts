@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { EntityType } from '@prisma/client';
 import { AuthenticatedUser } from 'src/auth/strategies/jwt.strategy';
-import { AttentionEvent } from 'src/generated';
+import { AttentionEvent } from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AgentSessionService } from 'src/services/agent-session.service';
 import { ConversationService } from 'src/services/conversation.service';

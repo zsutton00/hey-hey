@@ -1,4 +1,5 @@
-import type { LocalDesignDocRefinerPromptPayload } from '../../shared/agent-bridge-contract/generated/api';
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
+import type { LocalDesignDocRefinerPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import type {
   PromptTypeHandler,
   PromptTypeHandlerDeps,
@@ -9,7 +10,7 @@ import type { AssistantDeltaEvent, AssistantCompleteEvent } from '../../run/type
 import type { UpdateMessageDto } from '../../shared/api/index';
 import { SystemMessageDataTypeEnum } from '../../shared/api/index';
 import type { DesignDocRefinerPromptInput } from './types';
-import type { FullEntityContextDto } from '../../shared/api/generated/api';
+import type { FullEntityContextDto } from '@hey-hey/contracts/api/models';
 import { buildDesignDocRefinerPrompt } from './design-doc-refiner-prompt';
 import { extractStructuredJsonPayload } from '../response-parser';
 import { assertFullProposalHistory } from '../entity-context/full-proposal-history';
@@ -35,6 +36,7 @@ type EnrichedPayload = LocalDesignDocRefinerPromptPayload & {
 
 export const designDocRefinerHandler: PromptTypeHandler<LocalDesignDocRefinerPromptPayload> = {
   id: 'design_doc_refiner',
+  sessionRole: SessionRole.Planning,
   promptType: 'design_doc_refiner',
   service: 'required',
   launchEntity: 'required',

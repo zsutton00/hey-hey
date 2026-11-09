@@ -1,6 +1,6 @@
 import { WebSocketHandler } from "../../../../../../packages/ui-common/src/data/websockets/handler";
 import { useConversationMessages } from "@hey-hey/ui-common/data";
-import type { ConversationResponseDto } from "@hey-hey/ui-common/api";
+import type { ConversationResponseDto } from "@hey-hey/contracts/api";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -19,12 +19,12 @@ import OnboardingPage from "../Onboarding";
 import type {
   ProjectResponseDto,
   OrganizationResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   ProjectRole,
   ProjectStatus,
   OrganizationRole,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   AuthProvider,
   WebSocketProvider,
@@ -67,55 +67,83 @@ const LocationDisplay = () => {
   );
 };
 
-vi.mock("@hey-hey/ui-common/components", () => ({
-  DISABLED_CONVERSATION_SCROLL_POLICY: {},
-  determineMessageState: () => "completed",
-  HeyHeyBranding: () => <span>Hey Hey</span>,
-  Conversation: ({
-    conversation,
-    onSubmitOnboardingReply,
-    agentSessionId,
-    agentSessionCurrentState,
-  }: {
-    conversation: ConversationResponseDto;
-    onSubmitOnboardingReply: (submission: {
-      parentMessageId: string;
-      expectedConversationVersion: number;
-      answers: Record<string, unknown>;
-    }) => Promise<void>;
-    agentSessionId?: string;
-    agentSessionCurrentState?: string;
-  }) => {
-    const [value, setValue] = useState("");
-    const { data: messages } = useConversationMessages(
-      conversation.organizationId,
-      conversation.projectId,
-      conversation.id,
-    );
-    const firstMessage = messages[0];
-    const isReplyForm = firstMessage?.awaitingResponse;
-    const isExistingWorkIntent = firstMessage?.data?.uiElements?.some(
-      (element) => element.id === "repository_grounding_intent",
-    );
+vi.mock("@hey-hey/ui-common/components", async () => {
+  return {
+    DISABLED_CONVERSATION_SCROLL_POLICY: {},
+    determineMessageState: () => "completed",
+    HeyHeyBranding: () => <span>Hey Hey</span>,
+    Conversation: ({
+      conversation,
+      onSubmitOnboardingReply,
+      agentSessionId,
+      agentSessionCurrentState,
+    }: {
+      conversation: ConversationResponseDto;
+      onSubmitOnboardingReply: (submission: {
+        parentMessageId: string;
+        expectedConversationVersion: number;
+        answers: Record<string, unknown>;
+      }) => Promise<void>;
+      agentSessionId?: string;
+      agentSessionCurrentState?: string;
+    }) => {
+      const [value, setValue] = useState("");
+      const { data: messages } = useConversationMessages(
+        conversation.organizationId,
+        conversation.projectId,
+        conversation.id,
+      );
+      const firstMessage = messages[0];
+      const isReplyForm = firstMessage?.awaitingResponse;
+      const isExistingWorkIntent = firstMessage?.data?.uiElements?.some(
+        (element) => element.id === "repository_grounding_intent",
+      );
 
-    if (isReplyForm) {
-      if (isExistingWorkIntent) {
+      if (isReplyForm) {
+        if (isExistingWorkIntent) {
+          return (
+            <div data-testid="conversation-timeline">
+              <div data-testid="dynamic-form">
+                <button
+                  data-testid="existing-work-import"
+                  onClick={() =>
+                    void onSubmitOnboardingReply({
+                      parentMessageId: firstMessage.id,
+                      expectedConversationVersion: conversation.version,
+                      answers: {
+                        repository_grounding_intent: { choice: "yes" },
+                      },
+                    }).catch(() => undefined)
+                  }
+                >
+                  Import existing work
+                </button>
+              </div>
+            </div>
+          );
+        }
+
         return (
           <div data-testid="conversation-timeline">
             <div data-testid="dynamic-form">
+              <label data-testid="textarea-field-project_concept">
+                Project Concept
+                <textarea
+                  value={value}
+                  onChange={(event) => setValue(event.target.value)}
+                />
+              </label>
               <button
-                data-testid="existing-work-import"
+                data-testid="run-stream-external-reply-submit"
                 onClick={() =>
                   void onSubmitOnboardingReply({
                     parentMessageId: firstMessage.id,
                     expectedConversationVersion: conversation.version,
-                    answers: {
-                      repository_grounding_intent: { choice: "yes" },
-                    },
+                    answers: { project_concept: value },
                   }).catch(() => undefined)
                 }
               >
-                Import existing work
+                Submit
               </button>
             </div>
           </div>
@@ -123,48 +151,22 @@ vi.mock("@hey-hey/ui-common/components", () => ({
       }
 
       return (
-        <div data-testid="conversation-timeline">
-          <div data-testid="dynamic-form">
-            <label data-testid="textarea-field-project_concept">
-              Project Concept
-              <textarea
-                value={value}
-                onChange={(event) => setValue(event.target.value)}
-              />
-            </label>
-            <button
-              data-testid="run-stream-external-reply-submit"
-              onClick={() =>
-                void onSubmitOnboardingReply({
-                  parentMessageId: firstMessage.id,
-                  expectedConversationVersion: conversation.version,
-                  answers: { project_concept: value },
-                }).catch(() => undefined)
-              }
-            >
-              Submit
-            </button>
+        <div
+          data-testid="conversation-timeline"
+          data-agent-session-id={agentSessionId}
+          data-agent-session-current-state={agentSessionCurrentState}
+        >
+          {Array.from({ length: 6 }, (_, index) => (
+            <div key={index} data-testid={`conversation-step-${index}`} />
+          ))}
+          <div data-testid="initiative-field-initiative-1">
+            <div data-testid="work-item-card" />
           </div>
         </div>
       );
-    }
-
-    return (
-      <div
-        data-testid="conversation-timeline"
-        data-agent-session-id={agentSessionId}
-        data-agent-session-current-state={agentSessionCurrentState}
-      >
-        {Array.from({ length: 6 }, (_, index) => (
-          <div key={index} data-testid={`conversation-step-${index}`} />
-        ))}
-        <div data-testid="initiative-field-initiative-1">
-          <div data-testid="work-item-card" />
-        </div>
-      </div>
-    );
-  },
-}));
+    },
+  };
+});
 
 const mockAgentSessions = vi.hoisted(() => {
   const sessions: Array<{ id: string; currentState?: string }> = [];
@@ -793,6 +795,11 @@ describe("Onboarding Page Integration Tests", () => {
     );
     expect(
       screen.queryByTestId("onboarding-breadcrumbs"),
+    ).not.toBeInTheDocument();
+    // Hosted intake explains the low-cost model and offers no separate start.
+    expect(screen.getByTestId("onboarding-model-guidance")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("local-onboarding-launch"),
     ).not.toBeInTheDocument();
 
     // Assert there are 6 elements with data-step-index

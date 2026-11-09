@@ -5,6 +5,7 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
+import { declaredSupersedesEdges } from './relationship-decisions';
 import {
   ProposalEdgeType as PrismaProposalEdgeType,
   ProposalStatus as PrismaProposalStatus,
@@ -20,21 +21,23 @@ import type {
   TaskId,
   UserId,
 } from 'src/types';
-import type { ProposalEdgeDeclaration } from 'src/generated/model/proposalEdgeDeclaration';
-import { ProposalEdgeTargetType } from 'src/generated/model/proposalEdgeTargetType';
-import { ProposalEdgeEndpointMode } from 'src/generated/model/proposalEdgeEndpointMode';
+import type { ProposalEdgeDeclaration } from '@hey-hey/contracts/api/models';
+import { ProposalEdgeTargetType } from '@hey-hey/contracts/api/models';
+import { ProposalEdgeEndpointMode } from '@hey-hey/contracts/api/models';
 import type { AgentEdgeType } from 'src/generated/graphs/model/agentEdgeType';
 import type { AgentEdgeCategory } from 'src/generated/graphs/model/agentEdgeCategory';
 import type { AgentEdgeDirection } from 'src/generated/graphs/model/agentEdgeDirection';
+import type { WorkflowTransitionRole } from 'src/generated/graphs/model/workflowTransitionRole';
 import type { CreateAgentEdgeDto } from 'src/generated/graphs/model/createAgentEdgeDto';
 import { AgentEdgeEndpointEntityType } from 'src/generated/graphs/model/agentEdgeEndpointEntityType';
 import { normalizeMentionTypeAlias } from 'src/services/mentions/mention-type-aliases';
-import { WorkStatus } from 'src/generated';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import {
   TaskService,
   type TaskUpdatePostCommit,
 } from 'src/services/tasks/task.service';
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4, v5 as uuidv5 } from 'uuid';
+import { AgentEdgeType as GraphAgentEdgeType } from 'src/generated/graphs/model/agentEdgeType';
 import { performance } from 'node:perf_hooks';
 import {
   toRequirementCitationEdgeDto,
@@ -74,6 +77,7 @@ export interface MaterializableEdge {
   direction?: AgentEdgeDirection;
   predicate?: string;
   actionLabel?: string;
+  transitionRole?: WorkflowTransitionRole;
   description?: string;
 }
 
@@ -126,6 +130,20 @@ export interface PendingEdgeTaskPostCommit {
 
 export interface PendingEdgeProcessingOptions {
   onTaskPostCommit?: (postCommit: PendingEdgeTaskPostCommit) => void;
+}
+
+const SUPERSESSION_LINEAGE_NAMESPACE = '6f1d1d4e-0b63-4f0e-9a52-3a1c5b8e7d21';
+
+/** Stable across retries so one declared replacement yields one lineage edge. */
+function supersessionLineageEdgeId(
+  proposalId: string,
+  predecessorId: string,
+  successorId: string,
+): string {
+  return uuidv5(
+    `${proposalId}:${predecessorId}:${successorId}:SUPERSEDES`,
+    SUPERSESSION_LINEAGE_NAMESPACE,
+  );
 }
 
 @Injectable()
@@ -328,6 +346,138 @@ export class PendingEdgeService {
     materializableEdges.push(...resolvedFromPending);
 
     return materializableEdges;
+  }
+
+  /**
+   * Run the atomic SUPERSEDES transition for a proposal whose other effects
+   * were applied through the generic change-set path. This reuses the one
+   * transition mechanism; repeating it is safe because an already-superseded
+   * predecessor is skipped, so no second lineage edge is queued.
+   */
+  async applyDeclaredSupersession(
+    proposal: Proposal,
+    successorTaskId: string,
+  ): Promise<void> {
+    const edges = declaredSupersedesEdges(proposal);
+    if (edges.length === 0) {
+      return;
+    }
+
+    const materializableEdges: MaterializableEdge[] = [];
+    const postCommits: PendingEdgeTaskPostCommit[] = [];
+    await this.prisma.db.$transaction(async (tx) => {
+      for (const edge of edges) {
+        await this.processSupersedesEntityEdge(
+          tx,
+          proposal,
+          successorTaskId,
+          edge,
+          materializableEdges,
+          {
+            onTaskPostCommit: (postCommit) => postCommits.push(postCommit),
+          },
+        );
+      }
+    });
+
+    for (const postCommit of postCommits) {
+      await this.taskService.runUpdatePostCommit(
+        proposal.organizationId as OrganizationId,
+        postCommit.taskId,
+        postCommit.postCommit,
+      );
+    }
+    // The status change above commits before Graph is told. Lineage is
+    // therefore ensured on every run, not only when this run changed the
+    // status, so a retry after a failed publication still completes it.
+    const queuedDescriptions = new Map(
+      materializableEdges.map((edge) => [
+        edge.sourceEntityId,
+        edge.description,
+      ]),
+    );
+    await this.ensureSupersessionLineage(
+      proposal,
+      successorTaskId,
+      edges,
+      queuedDescriptions,
+    );
+  }
+
+  /**
+   * Publish the predecessor-to-successor lineage edge for each declared
+   * SUPERSEDES with an id derived from the proposal and the pair, skipping a
+   * pair Graph already records, and verify publication before returning. A
+   * missing edge after publication is a failure, never silent completion.
+   */
+  private async ensureSupersessionLineage(
+    proposal: Proposal,
+    successorTaskId: string,
+    declarations: readonly ProposalEdgeDeclaration[],
+    queuedDescriptions: ReadonlyMap<string, string | undefined>,
+  ): Promise<void> {
+    const organizationId = proposal.organizationId as OrganizationId;
+    const projectId = proposal.projectId as ProjectId;
+    const token = this.tokenFactory(organizationId, projectId);
+    const predecessorIds = declarations.map((edge) => edge.targetEntityId);
+
+    const recordedPredecessors = async (): Promise<Set<string>> => {
+      const incident = await this.agentEdgeClient.findIncident(
+        organizationId,
+        projectId,
+        {
+          nodeIds: new Set(predecessorIds),
+          types: new Set([GraphAgentEdgeType.Supersedes]),
+        },
+        token,
+      );
+      return new Set(
+        incident
+          .filter(
+            (edge) =>
+              edge.type === 'SUPERSEDES' &&
+              edge.targetNodeId === successorTaskId,
+          )
+          .map((edge) => edge.sourceNodeId),
+      );
+    };
+
+    const recorded = await recordedPredecessors();
+    const missing = declarations.filter(
+      (edge) => !recorded.has(edge.targetEntityId),
+    );
+    if (missing.length === 0) {
+      return;
+    }
+
+    await this.materializeEdges(
+      organizationId,
+      projectId,
+      missing.map((edge) => ({
+        id: supersessionLineageEdgeId(
+          proposal.id,
+          edge.targetEntityId,
+          successorTaskId,
+        ),
+        sourceEntityId: edge.targetEntityId,
+        sourceEntityType: AgentEdgeEndpointEntityType.Task,
+        targetEntityId: successorTaskId,
+        targetEntityType: AgentEdgeEndpointEntityType.Task,
+        edgeType: 'SUPERSEDES' as const,
+        description:
+          queuedDescriptions.get(edge.targetEntityId) ??
+          edge.description ??
+          `Superseded by proposal ${proposal.id}.`,
+      })),
+      proposal.conversationId,
+    );
+
+    const published = await recordedPredecessors();
+    if (missing.some((edge) => !published.has(edge.targetEntityId))) {
+      throw new InternalServerErrorException(
+        'The SUPERSEDES lineage edge was not published to the graph service.',
+      );
+    }
   }
 
   private async processSingleEdge(
@@ -1105,6 +1255,9 @@ export class PendingEdgeService {
       ...(edge.predicate !== undefined ? { predicate: edge.predicate } : {}),
       ...(edge.actionLabel !== undefined
         ? { actionLabel: edge.actionLabel }
+        : {}),
+      ...(edge.transitionRole !== undefined
+        ? { transitionRole: edge.transitionRole }
         : {}),
       reasoning:
         edge.description ?? `Declared via proposal edge (${edge.edgeType})`,

@@ -1,5 +1,5 @@
-import { WorkflowName } from '../../shared/api/generated/index';
-import { LocalPromptType } from '../../shared/api/generated/index';
+import { WorkflowName } from '@hey-hey/contracts/api/models';
+import { LocalPromptType } from '@hey-hey/contracts/api/models';
 import { getMethodConfig } from '../../shared/runtime/agents/coordination/sessionMethodRegistry';
 import type { SessionMethod } from '../../shared/runtime/agents/coordination/types';
 

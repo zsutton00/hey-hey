@@ -8,7 +8,7 @@ import {
   AgentSessionType,
   EntityType,
   ProjectMetricIdentity,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ActivityCorrelationService } from '../activity-correlation.service';
 import {

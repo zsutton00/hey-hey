@@ -17,7 +17,7 @@ import type {
   PrivateBetaAccessRequestAcceptedResponseDto,
   PrivateBetaAccessRequestSubmissionDto,
   PublicPrivateBetaAdmissionModeDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrivateBetaAccessService } from '../services/private-beta-access.service';
 import { PrivateBetaAccessProgramService } from '../services/private-beta-access-program.service';
 

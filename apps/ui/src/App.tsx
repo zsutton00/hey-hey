@@ -26,7 +26,7 @@ import {
 import { GlobalStyles } from "@mui/material";
 import { QueryClient } from "@tanstack/react-query";
 import { QueryClientAtomProvider } from "jotai-tanstack-query/react";
-import { LazyAnimatePresence } from "./components/LazyAnimatePresence";
+import { AnimatePresence } from "motion/react";
 import { NuqsAdapter } from "nuqs/adapters/react-router";
 import {
   Navigate,
@@ -73,13 +73,17 @@ const ActionsCapsule = lazy(() =>
   })),
 );
 
-const Home = lazy(() => import("./pages/Home"));
+const HomeRoute = lazy(() => import("./pages/HomeRoute"));
+const LocalSetupPage = lazyNamed(
+  () => import("./pages/LocalSetup/LocalSetupPage"),
+  "LocalSetupPage",
+);
 const OrganizationHomePage = lazyNamed(
   () => import("./pages/OrganizationHome/OrganizationHomePage"),
   "OrganizationHomePage",
 );
 const Contact = lazy(() => import("./pages/Contact"));
-const Login = lazy(() => import("./pages/Login"));
+const Login = lazy(() => import("./pages/LoginRoute"));
 const RequestAccessPage = lazyNamed(
   () => import("./pages/RequestAccess/RequestAccessPage"),
   "RequestAccessPage",
@@ -104,7 +108,10 @@ const PrivateBetaDisclosurePage = lazyNamed(
   () => import("./pages/PrivateBetaDisclosure/PrivateBetaDisclosurePage"),
   "PrivateBetaDisclosurePage",
 );
-const Onboarding = lazy(() => import("./pages/Onboarding"));
+const ProjectOnboardingRoute = lazyNamed(
+  () => import("./pages/ProjectOnboardingRoute"),
+  "ProjectOnboardingRoute",
+);
 const RepositoryImport = lazy(() => import("./pages/RepositoryImport"));
 const NewOrgLandingPage = lazy(
   () => import("./pages/NewOrgLanding/NewOrgLandingPage"),
@@ -305,6 +312,10 @@ const ProjectReportRequestPage = lazyNamed(
   () => import("./pages/Reports/ProjectReportRequestPage"),
   "ProjectReportRequestPage",
 );
+const ProjectReportHistoryPage = lazyNamed(
+  () => import("./pages/Reports/ProjectReportHistoryPage"),
+  "ProjectReportHistoryPage",
+);
 const ProjectReportPage = lazyNamed(
   () => import("./pages/Reports/ProjectReportPage"),
   "ProjectReportPage",
@@ -321,9 +332,9 @@ const EvalRunPage = lazyNamed(
   () => import("./pages/EvalRun/EvalRunPage"),
   "EvalRunPage",
 );
-const EvalResultsPage = lazyNamed(
-  () => import("./pages/EvalRun/EvalResultsPage"),
-  "EvalResultsPage",
+const EvalRunResultsRedirect = lazyNamed(
+  () => import("./pages/EvalRun/EvalRunResultsRedirect"),
+  "EvalRunResultsRedirect",
 );
 const TaskRedirectPage = lazyNamed(
   () => import("./pages/Task/TaskRedirectPage"),
@@ -397,7 +408,7 @@ export const AppRouteShell = () => {
   const showActionsCapsule = isActionsCapsuleRoute;
   const projectId =
     location.pathname.match(/^\/projects\/([^/]+)/)?.[1] ?? null;
-  // Hosted modals outlive the project-keyed open-items tree, so their page
+  // Hosted modals outlive the project-scoped open-items state, so their page
   // activations forward to whichever open-items sink is currently mounted.
   const hostedSinkRef = useRef<EntityActivationSink | null>(null);
   const hostedSink = useMemo<EntityActivationSink>(
@@ -416,8 +427,8 @@ export const AppRouteShell = () => {
           </NuqsAdapter>
         </CanonicalPageProvider>
       </EntityActivationProvider>
+      {/* The provider isolates its canonical state by scope without remounting Layout. */}
       <OpenItemsProvider
-        key={`${user?.id}:${currentOrganization?.id}:${projectId}`}
         projectId={projectId}
         organizationId={currentOrganization?.id ?? null}
         userId={user?.id ?? null}
@@ -430,14 +441,16 @@ export const AppRouteShell = () => {
                 organizationId={currentOrganization?.id ?? ""}
                 projectId={projectId}
               >
-                <LazyAnimatePresence mode="wait">
-                  <Layout />
-                  {showActionsCapsule && (
-                    <Suspense fallback={null}>
-                      <ActionsCapsule />
-                    </Suspense>
-                  )}
-                </LazyAnimatePresence>
+                <AnimatePresence mode="wait">
+                  <>
+                    <Layout />
+                    {showActionsCapsule && (
+                      <Suspense fallback={null}>
+                        <ActionsCapsule />
+                      </Suspense>
+                    )}
+                  </>
+                </AnimatePresence>
               </OpenItemsPreviewHost>
             </NuqsAdapter>
           </CanonicalPageProvider>
@@ -451,11 +464,16 @@ export const router = createBrowserRouter(
   createRoutesFromElements(
     <>
       <Route
+        path="/local"
+        element={withRouteSuspense(<LocalSetupPage />)}
+        errorElement={<RouteErrorBoundary />}
+      />
+      <Route
         path="/"
         element={<AppRouteShell />}
         errorElement={<RouteErrorBoundary />}
       >
-        <Route index element={withRouteSuspense(<Home />)} />
+        <Route index element={withRouteSuspense(<HomeRoute />)} />
         <Route path="contact" element={withRouteSuspense(<Contact />)} />
         <Route path="login" element={withRouteSuspense(<Login />)} />
         <Route
@@ -551,6 +569,10 @@ export const router = createBrowserRouter(
           element={withProtectedRoute(<ProjectReportRequestPage />)}
         />
         <Route
+          path="projects/:projectId/reports"
+          element={withProtectedRoute(<ProjectReportHistoryPage />)}
+        />
+        <Route
           path="projects/:projectId/reports/:reportId"
           element={withProtectedRoute(<ProjectReportPage />)}
         />
@@ -561,7 +583,7 @@ export const router = createBrowserRouter(
         />
         <Route
           path="projects/:projectId/onboarding"
-          element={withProtectedRoute(<Onboarding />)}
+          element={withProtectedRoute(<ProjectOnboardingRoute />)}
         />
         <Route
           path="projects/:projectId/repository-import"
@@ -585,7 +607,7 @@ export const router = createBrowserRouter(
         />
         <Route
           path="projects/:projectId/evals/:evalId/runs/:runId/results"
-          element={withProtectedRoute(<EvalResultsPage />)}
+          element={withProtectedRoute(<EvalRunResultsRedirect />)}
         />
         <Route
           path="projects/:projectId/goals"

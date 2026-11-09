@@ -2,11 +2,29 @@ import {
   ProposalToolsProvider,
   CREATE_WORK_ITEM_TOOL_DESCRIPTION,
   EDIT_WORK_ITEM_TOOL_DESCRIPTION,
+  createWorkItemParameters,
   editWorkItemParameters,
 } from '../tools/proposal-tools.provider';
 import { LIFECYCLE_AWARE_TASK_EDIT_SAFETY_SUMMARY } from '../tools/tool-guidance';
 
 describe('generic task edit tool descriptions', () => {
+  it('explains project-graph receipts before work-item creation', () => {
+    expect(CREATE_WORK_ITEM_TOOL_DESCRIPTION).toContain(
+      'same project and agent session',
+    );
+    expect(CREATE_WORK_ITEM_TOOL_DESCRIPTION).toContain(
+      'reuse it for several related creations',
+    );
+    expect(CREATE_WORK_ITEM_TOOL_DESCRIPTION).toContain(
+      'separate from guidanceToken',
+    );
+    expect(
+      createWorkItemParameters.shape.searchReceiptId.description,
+    ).toContain(
+      'Optional in the input schema so omission gets an actionable error',
+    );
+  });
+
   it('exposes only the generic work-item edit tool', () => {
     const prototype = ProposalToolsProvider.prototype;
     const editTools = Object.getOwnPropertyNames(prototype).flatMap((key) => {

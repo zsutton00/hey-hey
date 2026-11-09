@@ -4,7 +4,7 @@ import {
   LocalPromptType,
   type LocalPromptStartupInput,
   type LocalStartupSessionPromptPayload,
-} from '../../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import { PromptTypeRegistry } from '../../prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../../prompt-type-registry.test-support';
 import type { PromptTypeHandlerContext, PromptTypeHandlerDeps } from '../../prompt-type-handler';
@@ -95,6 +95,7 @@ describe('codingPlanHandler', () => {
 
   it('requires no reports and mounts only conversation tools', () => {
     expect(codingPlanHandler.reports).toEqual([]);
+    expect(codingPlanHandler.excludedBaseSubmissionTools).toContain('raise_uncertainty');
     expect(codingPlanHandler.submissionTools).toEqual([...codingPlanSubmissionTools]);
     expect(codingPlanHandler.submissionTools?.every((tool) => tool.kind === 'pass_through')).toBe(
       true,
@@ -586,7 +587,11 @@ describe('codingPlanHandler', () => {
       expect(prompt).not.toContain('emit_coding_plan_discrepancy');
       expect(prompt).toContain("emit_coding_plan's discrepancies list");
       expect(prompt).toContain('It contains no gates of any kind');
-      expect(prompt).toContain('Every replacement re-lists the discrepancies that still apply');
+      expect(prompt).toContain('Every replacement re-lists every finding that still applies');
+      expect(prompt).toContain('project_context');
+      expect(prompt).not.toContain('ask_coding_plan_question');
+      expect(prompt).toContain('record it as a discrepancy with a proposed resolution');
+      expect(prompt).toContain('their assent does not erase it');
       expect(prompt).toContain(
         'Only the explicit Approve control on the current complete emitted plan authorizes implementation',
       );
@@ -619,9 +624,6 @@ describe('coding-plan registry wiring', () => {
 
   it('the registered handler carries the explicit completion tools', async () => {
     const fetched = registry.get('startup_session');
-    expect(fetched?.submissionTools?.map((tool) => tool.name)).toEqual([
-      'ask_coding_plan_question',
-      'emit_coding_plan',
-    ]);
+    expect(fetched?.submissionTools?.map((tool) => tool.name)).toEqual(['emit_coding_plan']);
   });
 });

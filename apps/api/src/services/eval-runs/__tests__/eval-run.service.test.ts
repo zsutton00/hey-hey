@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { ConversationWorkflowService } from '../../workflows/conversation-workflow.service';
 import { WorkflowTypeRegistryService } from '../../workflows/workflow-type-registry.service';
-import type { CreateAgentSessionConversationDto } from 'src/generated';
+import type { CreateAgentSessionConversationDto } from '@hey-hey/contracts/api/models';
 import { AgentSessionService } from '../../agent-session.service';
 import { EvalRunService } from '../eval-run.service';
 import { EvalRunController } from 'src/controllers/eval-run.controller';
@@ -361,7 +361,85 @@ describe('EvalRunService.launch', () => {
     expect(runDto.payload.settings).toEqual({
       maxConcurrentAttempts: 5,
       attemptTokenLimit: 20000,
+      repeatsPerAttempt: 1,
     });
+  });
+
+  it('records one fresh attempt per case, setup and repeat, repeat by repeat', async () => {
+    const { service, prisma, reports, sessions } = build();
+    const otherCase = { ...caseRecord, id: crypto.randomUUID() };
+    prisma.db.task.findMany.mockResolvedValue([caseRecord, otherCase]);
+
+    await service.launch(ORG, PROJECT, USER, EVAL_ID, {
+      ...request,
+      evalCaseIds: [CASE_ID, otherCase.id],
+      settings: { repeatsPerAttempt: 3 },
+    } as never);
+
+    const [runCall, ...attemptCalls] =
+      reports.createWithIdInTransaction.mock.calls;
+    expect(runCall![3].payload.settings).toEqual({
+      maxConcurrentAttempts: 3,
+      repeatsPerAttempt: 3,
+    });
+    const caseIds = runCall![3].payload.cases.map(
+      (caseInput: { id: string }) => caseInput.id,
+    );
+    expect(attemptCalls).toHaveLength(2 * 2 * 3);
+    const attempts = attemptCalls.map(([, , , dto]) => dto.payload);
+    expect(
+      attempts.map((attempt) => [
+        attempt.repeat,
+        attempt.caseInputId,
+        attempt.configuration.id,
+      ]),
+    ).toEqual(
+      [1, 2, 3].flatMap((repeat) =>
+        caseIds.flatMap((caseId: string) =>
+          [CONFIG_A.id, CONFIG_B.id].map((configId) => [
+            repeat,
+            caseId,
+            configId,
+          ]),
+        ),
+      ),
+    );
+    const targetSessions = attempts.map((attempt) => attempt.targetSessionId);
+    expect(new Set(targetSessions).size).toBe(12);
+    expect(sessions.createInTransaction).toHaveBeenCalledTimes(13);
+  });
+
+  it('accepts ten repeats', async () => {
+    const { service, reports } = build();
+    await service.launch(ORG, PROJECT, USER, EVAL_ID, {
+      ...request,
+      settings: { repeatsPerAttempt: 10 },
+    } as never);
+    expect(reports.createWithIdInTransaction.mock.calls).toHaveLength(
+      1 + 2 * 10,
+    );
+  });
+
+  it('records the trimmed name a run is launched with and none otherwise', async () => {
+    const { service, reports } = build();
+
+    await service.launch(ORG, PROJECT, USER, EVAL_ID, {
+      ...request,
+      name: '  Baseline  ',
+    } as never);
+    await service.launch(ORG, PROJECT, USER, EVAL_ID, {
+      ...request,
+      name: '   ',
+    } as never);
+    await service.launch(ORG, PROJECT, USER, EVAL_ID, request as never);
+
+    const runPayloads = reports.createWithIdInTransaction.mock.calls
+      .map(([, , , dto]) => dto)
+      .filter((dto) => dto.reportType === 'EVAL_RUN')
+      .map((dto) => dto.payload);
+    expect(runPayloads[0].name).toBe('Baseline');
+    expect(runPayloads[1]).not.toHaveProperty('name');
+    expect(runPayloads[2]).not.toHaveProperty('name');
   });
 
   it('removes every prepared session when the run cannot be recorded', async () => {
@@ -627,6 +705,8 @@ describe('EvalRunService.launch', () => {
       'a fractional time limit',
       { ...request, settings: { attemptTimeLimitSeconds: 1.5 } },
     ],
+    ['zero repeats', { ...request, settings: { repeatsPerAttempt: 0 } }],
+    ['eleven repeats', { ...request, settings: { repeatsPerAttempt: 11 } }],
   ])('rejects %s', async (_name, body) => {
     const { service, reports, sessions } = build();
     await expect(
@@ -634,6 +714,84 @@ describe('EvalRunService.launch', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(reports.createWithIdInTransaction).not.toHaveBeenCalled();
     expect(sessions.createInTransaction).not.toHaveBeenCalled();
+  });
+});
+
+describe('EvalRunService.launch Coding Service check', () => {
+  const OTHER_ORG = 'org-2';
+  const OTHER_PROJECT = 'project-2';
+  const SERVICE_IN_PROJECT = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const SERVICE_IN_OTHER_PROJECT = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const SERVICE_IN_OTHER_ORG = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  const UNKNOWN_SERVICE = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+  const services = [
+    { id: SERVICE_IN_PROJECT, organizationId: ORG, projectId: PROJECT },
+    {
+      id: SERVICE_IN_OTHER_PROJECT,
+      organizationId: ORG,
+      projectId: OTHER_PROJECT,
+    },
+    {
+      id: SERVICE_IN_OTHER_ORG,
+      organizationId: OTHER_ORG,
+      projectId: PROJECT,
+    },
+  ];
+
+  function buildWithCodingCase(serviceId: string) {
+    const built = build();
+    const codingCase = {
+      ...caseRecord,
+      sections: [
+        ...caseRecord.sections.filter((s) => s.key !== 'handler'),
+        { key: 'handler', materializedMarkdown: 'free_form' },
+        {
+          key: 'coding',
+          materializedMarkdown: JSON.stringify({
+            serviceId,
+            pinnedCommit: { sha: 'a'.repeat(40), shortMessage: 'Add page' },
+            knownGoodDiff: 'diff --git good',
+            knownBadDiff: 'diff --git bad',
+          }),
+        },
+      ],
+    };
+    built.prisma.db.task.findMany.mockResolvedValue([codingCase]);
+    (built.prisma.db as Record<string, unknown>).service = {
+      count: jest.fn(({ where }: { where: Record<string, string> }) =>
+        Promise.resolve(
+          services.filter((row) =>
+            Object.entries(where).every(
+              ([key, value]) => row[key as keyof typeof row] === value,
+            ),
+          ).length,
+        ),
+      ),
+    };
+    return built;
+  }
+
+  it.each([
+    ['an unknown Service', UNKNOWN_SERVICE],
+    ['a Service in another project', SERVICE_IN_OTHER_PROJECT],
+    ['a Service in another organization', SERVICE_IN_OTHER_ORG],
+  ])('rejects a launch whose case names %s', async (_name, serviceId) => {
+    const { service, reports } = buildWithCodingCase(serviceId);
+
+    await expect(
+      service.launch(ORG, PROJECT, USER, EVAL_ID, request),
+    ).rejects.toThrow(BadRequestException);
+    expect(reports.createWithIdInTransaction).not.toHaveBeenCalled();
+  });
+
+  it('launches a case whose Service is in the project and records the Coding section', async () => {
+    const { service, reports } = buildWithCodingCase(SERVICE_IN_PROJECT);
+
+    await service.launch(ORG, PROJECT, USER, EVAL_ID, request);
+
+    expect(
+      JSON.stringify(reports.createWithIdInTransaction.mock.calls),
+    ).toContain(SERVICE_IN_PROJECT);
   });
 });
 
@@ -719,6 +877,52 @@ describe('EvalRunService.assertStartRun', () => {
     await expect(service.assertStartRun(input(startRequest()))).resolves.toBe(
       true,
     );
+  });
+
+  it('accepts a start of a repeated run only with each attempt’s recorded repeat', async () => {
+    const { service, prisma } = recorded();
+    const repeatedSettings = { ...SETTINGS, repeatsPerAttempt: 2 };
+    prisma.db.report.findFirst.mockResolvedValue({
+      ...runRow,
+      payload: { ...runRow.payload, settings: repeatedSettings },
+    });
+    const secondId = '99999999-9999-4999-8999-999999999999';
+    prisma.db.report.findMany.mockResolvedValue(
+      [attemptId, secondId].map((id, index) => ({
+        id,
+        payload: {
+          caseInputId: caseInput.id,
+          configuration: CONFIG_A,
+          repeat: index + 1,
+          execution,
+          targetSessionId: `target-session-${index + 1}`,
+          targetConversationId: `target-conversation-${index + 1}`,
+        },
+      })),
+    );
+    const attempts = [attemptId, secondId].map((id, index) => ({
+      ...recordedAttempt,
+      attemptId: id,
+      repeat: index + 1,
+      targetSessionId: `target-session-${index + 1}`,
+      targetConversationId: `target-conversation-${index + 1}`,
+    }));
+
+    await expect(
+      service.assertStartRun(
+        input(startRequest({ settings: repeatedSettings, attempts })),
+      ),
+    ).resolves.toBe(true);
+    await expect(
+      service.assertStartRun(
+        input(
+          startRequest({
+            settings: repeatedSettings,
+            attempts: attempts.slice(0, 1),
+          }),
+        ),
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('ignores starts of sessions that are not eval runs', async () => {

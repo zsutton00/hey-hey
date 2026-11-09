@@ -1,4 +1,4 @@
-import type { ReportBugRequestDto } from "@hey-hey/ui-common/api";
+import type { ReportBugRequestDto } from "@hey-hey/contracts/api";
 import { unifiedApiClient } from "@hey-hey/ui-common/clients";
 import axios from "axios";
 import { useCallback, useRef, useState } from "react";

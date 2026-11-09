@@ -8,7 +8,7 @@ import type { RepoMappingStore } from '../../../repo/index';
 import type { RunStore } from '../../../run-store/run-store';
 import type { ServerLogger } from '../../../server/logger';
 import type { AgenticSession } from '../../../session/index';
-import { WorkStatus } from '../../../shared/api/generated/api';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import type { ProjectMaturity, WorkItemTypeDefinitionDto } from '../../../shared/api/index';
 import { LocalPromptType } from '../../../shared/agent-bridge-contract/contract';
 import { intentFirstGuidance, takingShapeGuidance } from '../../prompts/common';
@@ -66,6 +66,7 @@ const PROJECT_REPORT_PLATFORM_TOOLS = {
   'heyhey-platform_get_context': true,
   'heyhey-platform_get_edges': true,
   'heyhey-platform_unified_search': true,
+  'heyhey-platform_get_entity_identities': true,
   'heyhey-platform_task_search': true,
   'heyhey-platform_search_features': true,
   'heyhey-platform_list_reports_by_entity': true,
@@ -1074,9 +1075,11 @@ describe('session-runner-opencode parity', () => {
         branch: 'test-only',
       },
     });
-    expect(launchOpencodeServerMock).toHaveBeenCalledWith({
-      directory: '/tmp/repo/.worktrees/test-only',
-    });
+    expect(launchOpencodeServerMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        directory: '/tmp/repo/.worktrees/test-only',
+      }),
+    );
     expect(removeWorktreeMock).not.toHaveBeenCalled();
   });
 
@@ -2677,132 +2680,5 @@ describe('session-runner-opencode parity', () => {
       .filter((p): p is string => typeof p === 'string');
 
     expect(phases).toEqual(['starting', 'thinking']);
-  });
-});
-
-describe('OpenCodeAgentSessionRunner.promptOnce', () => {
-  const makeRunner = (runStore: RunStore = makeRunStore()) =>
-    new OpenCodeAgentSessionRunner({
-      localAgentEndpoint,
-      submissionToolRegistry,
-      toolRuleStore,
-      runStore,
-      repoStore: makeRepoStore(),
-      oauthClient: makeOauthClient(),
-    });
-
-  const installPromptFetch = (reply: () => Response | Promise<Response>) => {
-    const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
-    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      calls.push({ url, init });
-      if (init?.method === 'POST' && url.match(/\/session\?/)) {
-        return buildJsonResponse({ id: 'once-session' });
-      }
-      if (init?.method === 'POST' && url.includes('/session/once-session/message')) {
-        return reply();
-      }
-      return buildJsonResponse(true);
-    }) as unknown as typeof fetch;
-    return calls;
-  };
-
-  const stop = vi.fn(async () => undefined);
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    getOpencodeModelRefMock.mockImplementation((model) => ({
-      providerID: 'opencode-go',
-      modelID: model,
-    }));
-    launchOpencodeServerMock.mockResolvedValue({
-      baseUrl: 'http://127.0.0.1:7777',
-      directory: '/tmp/isolated',
-      stop,
-    });
-  });
-
-  it('returns the reply text from a tool-free session on its own server', async () => {
-    const calls = installPromptFetch(() =>
-      buildJsonResponse({
-        info: { role: 'assistant' },
-        parts: [
-          { type: 'reasoning', sessionID: 's', text: 'thinking' },
-          { type: 'text', sessionID: 's', text: 'search for jev' },
-        ],
-      }),
-    );
-    const runStore = makeRunStore();
-    const { signal } = new AbortController();
-
-    const answer = await makeRunner(runStore).promptOnce({
-      session: makeSession(),
-      prompt: 'plan searches',
-      model: 'glm-5.2',
-      reasoningEffort: 'high',
-      signal,
-    });
-
-    expect(answer).toBe('search for jev');
-    const launch = launchOpencodeServerMock.mock.calls[0]?.[0] as { directory: string };
-    expect(launch.directory).toContain('heyhey-provider-isolated-');
-    const prompt = calls.find((call) => call.url.includes('/session/once-session/message'));
-    expect(JSON.parse(String(prompt?.init?.body))).toEqual({
-      parts: [{ type: 'text', text: 'plan searches' }],
-      model: { providerID: 'opencode-go', modelID: 'glm-5.2' },
-      variant: 'high',
-      tools: { '*': false },
-    });
-    expect(calls.some((call) => call.url.includes('/mcp'))).toBe(false);
-    expect(
-      calls.some((call) => call.init?.method === 'DELETE' && call.url.includes('/once-session')),
-    ).toBe(true);
-    expect(stop).toHaveBeenCalledOnce();
-    expect(runStore.appendEvent).not.toHaveBeenCalled();
-  });
-
-  it('throws the provider error reported on the reply', async () => {
-    installPromptFetch(() =>
-      buildJsonResponse({
-        info: { role: 'assistant', error: { name: 'APIError', data: { message: 'rate limited' } } },
-        parts: [],
-      }),
-    );
-
-    await expect(
-      makeRunner().promptOnce({
-        session: makeSession(),
-        prompt: 'plan',
-        signal: new AbortController().signal,
-      }),
-    ).rejects.toMatchObject({ code: 'RUN_FAILED', message: 'rate limited' });
-    expect(stop).toHaveBeenCalledOnce();
-  });
-
-  it('throws when the reply has no text', async () => {
-    installPromptFetch(() => buildJsonResponse({ info: { role: 'assistant' }, parts: [] }));
-
-    await expect(
-      makeRunner().promptOnce({
-        session: makeSession(),
-        prompt: 'plan',
-        signal: new AbortController().signal,
-      }),
-    ).rejects.toMatchObject({ code: 'RUN_FAILED' });
-  });
-
-  it('surfaces an aborted call and still stops its server', async () => {
-    installPromptFetch(() => {
-      throw new DOMException('Aborted', 'AbortError');
-    });
-
-    await expect(
-      makeRunner().promptOnce({
-        session: makeSession(),
-        prompt: 'plan',
-        signal: AbortSignal.abort(),
-      }),
-    ).rejects.toThrow();
-    expect(stop).toHaveBeenCalledOnce();
   });
 });

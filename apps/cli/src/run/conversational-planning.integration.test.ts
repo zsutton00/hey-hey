@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import type { Request, Response } from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClaudeCodeSdkClient } from '../agent-runtime/index';
-import { WorkItemTypesApi, ProjectsApi, AgentSessionsApi } from '../shared/api/generated/api';
+import { WorkItemTypesApi, ProjectsApi, AgentSessionsApi } from '@hey-hey/contracts/api';
 import { PromptTypeRegistry } from '../agents/prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../agents/prompt-type-registry.test-support';
 import type { AgentStartupPromptInputResult } from '../agents/prompt-type-handler';
@@ -27,7 +27,7 @@ import { storedInput } from '../server/input-admission/input-admission-codec';
 import { createTestKeyPairStore } from '../credentials/keypair.test-support';
 import { LOCAL_AGENT_SERVICE_TEST_DEPENDENCIES } from '../server/__tests__/helpers/test-run-registry';
 import { SETTLED_CATALOG_AVAILABILITY } from '../test-support/capability-catalog';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { type RunCollaborators } from './run';
 import { RunRegistry } from './run-registry';
 import { RunnerPicker } from './runners/pick-runner';
@@ -318,6 +318,9 @@ async function makeHarness(rejectFirstContext = false) {
                 discrepancyText: 'The prior implementation accepts approval from text.',
                 reasoning: 'Retain explicit approval.',
                 severity: 'high' as const,
+                findingId: 'finding-approval-from-text',
+                category: 'implementation' as const,
+                disposition: 'open' as const,
               },
             ]
           : [],

@@ -24,6 +24,6 @@ export const handleProcessingStatus = (
   });
 
   if (event.phase !== undefined) {
-    ctx.observeProviderSessionPhase(event.phase);
+    ctx.observeProviderPhase(event.phase);
   }
 };

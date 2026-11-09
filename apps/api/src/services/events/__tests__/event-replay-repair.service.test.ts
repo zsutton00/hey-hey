@@ -1,5 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
-import type { TaskEventSectionSnapshot } from '../../../generated';
+import type { TaskEventSectionSnapshot } from '@hey-hey/contracts/api/models';
 
 import { EventReplayRepairService } from '../event-replay-repair.service';
 

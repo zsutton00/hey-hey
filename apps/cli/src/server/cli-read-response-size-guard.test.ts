@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  type CliReadResponseDto,
-  type ContextData,
-} from '../shared/agent-bridge-contract/generated/api';
+import { type CliReadResponseDto, type ContextData } from '@hey-hey/contracts/agent-bridge';
 import { guardCliReadResponse, MAX_CLI_READ_ACK_BYTES } from './cli-read-response-size-guard';
 import { projectLatestTurnToolCalls } from './latest-turn-tool-calls';
 

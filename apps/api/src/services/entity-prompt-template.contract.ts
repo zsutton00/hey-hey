@@ -2,8 +2,8 @@ import {
   EntityPromptTemplateFixedEntitySelectorDto,
   EntityPromptTemplateSyntaxVersion,
   EntityPromptTemplateWorkItemSelectorDto,
-} from 'src/generated';
-import type { EntityPromptTemplateSelectorDto } from 'src/generated';
+} from '@hey-hey/contracts/api/models';
+import type { EntityPromptTemplateSelectorDto } from '@hey-hey/contracts/api/models';
 import type { ProjectId } from 'src/types';
 import { z } from 'zod';
 

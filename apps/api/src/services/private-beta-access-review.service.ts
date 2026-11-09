@@ -2,7 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type {
   PrivateBetaAccessProvisioningOutcomeDto,
   PrivateBetaAccessRequestReviewDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../prisma/prisma.service';
 import type { PrivateBetaAccessRequestId } from '../types';
 import { parsePrivateBetaProvisioningFailureCode } from './private-beta-provisioning-error';

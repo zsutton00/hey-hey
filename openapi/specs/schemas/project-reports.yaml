@@ -301,6 +301,88 @@ ProjectReportRequestDto:
   description: >-
     Durable authoritative state. Attempts are ordered by attemptNumber, latest last. Request status follows
     the latest attempt. Retries preserve submission and kind unchanged.
+ProjectReportHistoryRequestEntry:
+  type: object
+  additionalProperties: false
+  required:
+    - type
+    - requestId
+    - kind
+    - submission
+    - status
+    - latestAttempt
+    - createdAt
+  properties:
+    type:
+      type: string
+      enum: [REQUEST]
+    requestId:
+      type: string
+      format: uuid
+    kind:
+      $ref: '#/ProjectReportKind'
+    submission:
+      $ref: '#/ProjectReportSubmission'
+    status:
+      $ref: '#/ProjectReportStatus'
+    latestAttempt:
+      $ref: '#/ProjectReportAttempt'
+    createdAt:
+      type: string
+      format: date-time
+      description: Request acceptance time; the history ordering key.
+  description: >-
+    The caller's accepted request with its latest attempt only. Retry uses latestAttempt.id as
+    expectedAttemptId. reportId, agentSessionId and conversationId are present on the attempt only when
+    persisted, and are distinct identities.
+ProjectReportHistorySavedReportEntry:
+  type: object
+  additionalProperties: false
+  required:
+    - type
+    - reportId
+    - createdAt
+  properties:
+    type:
+      type: string
+      enum: [SAVED_REPORT]
+    reportId:
+      type: string
+      format: uuid
+    createdAt:
+      type: string
+      format: date-time
+      description: Report creation time; the history ordering key.
+  description: A saved PROJECT_REPORT in the project that no request of the caller links to.
+ProjectReportHistoryEntry:
+  oneOf:
+    - $ref: '#/ProjectReportHistoryRequestEntry'
+    - $ref: '#/ProjectReportHistorySavedReportEntry'
+  discriminator:
+    propertyName: type
+    mapping:
+      REQUEST: '#/ProjectReportHistoryRequestEntry'
+      SAVED_REPORT: '#/ProjectReportHistorySavedReportEntry'
+ProjectReportHistoryPageDto:
+  type: object
+  additionalProperties: false
+  required:
+    - entries
+    - total
+  properties:
+    entries:
+      type: array
+      items:
+        $ref: '#/ProjectReportHistoryEntry'
+    total:
+      type: integer
+      minimum: 0
+    nextOffset:
+      type: integer
+      minimum: 0
+  description: >-
+    Newest-first durable project report history. A completed request and its saved report appear once, as
+    the request entry. Absence of nextOffset ends the list.
 RetryProjectReportRequestDto:
   type: object
   additionalProperties: false

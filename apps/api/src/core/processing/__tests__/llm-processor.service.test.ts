@@ -3,7 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import type { Client } from '@temporalio/client';
 import { z } from 'zod';
 import { MessageStatus } from '../../../constants/message-status.constants';
-import { ArtifactType, SystemMessageData } from '../../../generated';
+import { ArtifactType, SystemMessageData } from '@hey-hey/contracts/api/models';
 import { ArtifactService } from '../../../services/artifacts/artifact.service';
 import { ConversationService } from '../../../services/conversation.service';
 import { InitiativeService } from '../../../services/initiatives/initiative.service';

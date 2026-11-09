@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 // Generated from OpenAPI by scripts/generate-goal-pm-decision-schema.js.
 export const GoalPmRoutingSelectionPayloadSchema = {
   "type": "object",

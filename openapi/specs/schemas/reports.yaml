@@ -1019,50 +1019,148 @@ CodingResearchReadinessEvidence:
       type: string
       minLength: 1
 
+CodingResearchUncertaintyReference:
+  type: object
+  additionalProperties: false
+  required:
+    - entityType
+    - entityId
+    - title
+  properties:
+    entityType:
+      $ref: "./common.yaml#/EntityType"
+    entityId:
+      type: string
+      minLength: 1
+    title:
+      type: string
+      minLength: 1
+
+CodingResearchUncertainty:
+  type: object
+  additionalProperties: false
+  required:
+    - category
+    - severity
+    - statement
+    - references
+  properties:
+    category:
+      type: string
+      enum:
+        - lack_of_evidence
+        - conflict
+        - ambiguity
+        - not_implemented
+      description: >
+        lack_of_evidence means relevant project sources do not establish the
+        point; conflict means relevant sources make incompatible claims;
+        ambiguity means one source reasonably supports more than one reading;
+        not_implemented means evidence shows the expected behavior is absent.
+    severity:
+      type: string
+      enum:
+        - low
+        - medium
+        - high
+      description: >
+        Evidence impact: low is peripheral and needs little qualification;
+        medium weakens a material detail and requires a qualified answer; high
+        prevents a reliable answer to a central part of the ask.
+    statement:
+      type: string
+      minLength: 1
+    references:
+      type: array
+      items:
+        $ref: "#/CodingResearchUncertaintyReference"
+
+CodingResearchSelfResearchReportPayload:
+  type: object
+  description: Project Assistant research result from a run where Project Assistant did the research itself, with no research subagents.
+  required:
+    - reportType
+    - format
+    - summary
+    - analysis
+    - frame
+    - provenance
+    - updates
+    - uncertainties
+  additionalProperties: false
+  properties:
+    reportType:
+      type: string
+      enum:
+        - CODING_RESEARCH
+    format:
+      type: string
+      enum:
+        - SELF_RESEARCH
+    summary:
+      type: string
+      minLength: 1
+    analysis:
+      type: string
+      minLength: 1
+    frame:
+      type: object
+      description: ResearchOutput adjacency-list produced by the research subagent.
+      additionalProperties: true
+    provenance:
+      $ref: "#/CodingResearchProvenance"
+    updates:
+      type: array
+      description: Advisory reconciliation candidates; required, and [] means none found.
+      items:
+        $ref: "#/CodingResearchUpdate"
+    readinessEvidence:
+      type: array
+      maxItems: 8
+      description: Bounded evidence for consequential implementation-readiness decisions.
+      items:
+        $ref: "#/CodingResearchReadinessEvidence"
+    uncertainties:
+      type: array
+      description: Evidence uncertainties; an empty array means none were found.
+      items:
+        $ref: "#/CodingResearchUncertainty"
+
+CodingResearchSubagentParentReportPayload:
+  type: object
+  description: Project Assistant research result from a run where Project Assistant is the parent of research subagents. The parent authors the visible summary and analysis, including its headed uncertainty section; children provide evidence to the parent and do not author the report.
+  required:
+    - reportType
+    - format
+    - summary
+    - analysis
+  additionalProperties: false
+  properties:
+    reportType:
+      type: string
+      enum:
+        - CODING_RESEARCH
+    format:
+      type: string
+      enum:
+        - SUBAGENT_PARENT
+    summary:
+      type: string
+      minLength: 1
+      description: 50–100 word handoff derived from the opening paragraph of analysis.
+    analysis:
+      type: string
+      minLength: 1
+      description: Markdown handoff authored by the Project Assistant parent. Any uncertainty section is headed `Uncertainties` and uses the shared entry convention; child handoffs remain source evidence and are not copied into the visible report as child-authored sections.
+
 CodingResearchReportPayload:
   description: >
-    Payload for CODING_RESEARCH reports emitted by the Project Assistant subagent.
-    `summary` (from BaseReportPayload) is the 50–100 word handoff for the coding agent.
-    `analysis` is the user-facing markdown synthesis of what the graph implies for the task.
-    `frame` is the ResearchOutput adjacency-list object.
-    `provenance` records every discovery call and edge traversal made during the investigation.
-  allOf:
-    - $ref: "#/BaseReportPayload"
-    - type: object
-      required:
-        - reportType
-        - analysis
-        - frame
-        - provenance
-        - updates
-      additionalProperties: false
-      properties:
-        reportType:
-          type: string
-          enum:
-            - CODING_RESEARCH
-        summary: {}
-        analysis:
-          type: string
-          minLength: 1
-          description: User-facing markdown synthesis of what the graph implies for the focal task.
-        frame:
-          type: object
-          description: ResearchOutput adjacency-list produced by the research subagent.
-          additionalProperties: true
-        provenance:
-          $ref: "#/CodingResearchProvenance"
-        updates:
-          type: array
-          description: Advisory reconciliation candidates; required, and [] means none found.
-          items:
-            $ref: "#/CodingResearchUpdate"
-        readinessEvidence:
-          type: array
-          maxItems: 8
-          description: Bounded evidence for consequential implementation-readiness decisions.
-          items:
-            $ref: "#/CodingResearchReadinessEvidence"
+    Payload for CODING_RESEARCH reports. The `format` discriminator records whether
+    Project Assistant researched alone (`SELF_RESEARCH`) or was the parent of
+    research subagents (`SUBAGENT_PARENT`).
+  oneOf:
+    - $ref: "#/CodingResearchSelfResearchReportPayload"
+    - $ref: "#/CodingResearchSubagentParentReportPayload"
 
 SnapshotReportPayload:
   description: Placeholder payload for SNAPSHOT reports.
@@ -1589,11 +1687,6 @@ FeatureSyncDecisionReportPayloadV1:
         - reconciliationOptions
       not:
         type: object
-        properties:
-          decisionGroups:
-            type: array
-          schemaVersion:
-            type: integer
         anyOf:
           - required: [decisionGroups]
           - required: [schemaVersion]
@@ -1683,13 +1776,6 @@ FeatureSyncDecisionReportPayloadV2:
       required: [reportType, decisionGroups]
       not:
         type: object
-        properties:
-          discrepancies:
-            type: array
-          reconciliationOptions:
-            type: array
-          schemaVersion:
-            type: integer
         anyOf:
           - required: [discrepancies]
           - required: [reconciliationOptions]
@@ -2387,6 +2473,14 @@ UpdateReportDto:
 UpdateReportDtoBase:
   type: object
   properties:
+    expectedVersion:
+      type: integer
+      minimum: 1
+      description: >
+        The report version this update was based on. When given and the report
+        has moved on since, the update is rejected with a conflict and nothing
+        is written, so the caller can re-read and retry. Omitted means the
+        update replaces whatever is stored.
     ragEnabled:
       type: boolean
       description: Whether this report may be reused as project knowledge. Omitted means true on creation.
@@ -2923,19 +3017,168 @@ ChangeWalkthroughReportPayload:
   description: Guided behavioral changes in importance order with inspected literal excerpts and immediate explanations. Required Review output, not a repair-authority gate.
   allOf:
     - $ref: "#/BaseReportPayload"
+    - type: object
+      required: [reportType, summary, targetRunId, groups]
+      properties:
+        reportType:
+          type: string
+          enum: [CHANGE_WALKTHROUGH]
+        summary:
+          type: string
+        targetRunId:
+          type: string
+          format: uuid
+          description: Host-stamped reviewed Run identity whose resolved Service workspaces supply source authority.
+        groups:
+          type: array
+          items:
+            $ref: "#/ChangeWalkthroughGroup"
+
+ReportUsageTrendKind:
+  description: Execution kind a usage trend sample is attributed to. CHANGE_WALKTHROUGH reports count as REVIEW.
+  type: string
+  enum: [RESEARCH, IMPLEMENTATION, REVIEW]
+
+ReportUsageTrendGranularity:
+  type: string
+  enum: [day, week, month]
+
+ReportUsageTrendAverages:
+  description: Per-execution averages over complete executions only; null when no complete execution contributes.
   type: object
-  required: [reportType, summary, targetRunId, groups]
+  required: [inputTokens, outputTokens, toolCalls]
   properties:
-    reportType:
+    inputTokens:
+      type: number
+      nullable: true
+    outputTokens:
+      type: number
+      nullable: true
+    toolCalls:
+      type: number
+      nullable: true
+
+ReportUsageTrendTotals:
+  description: Sums of measured figures across matching executions. Nothing is sampled or extrapolated; unmeasured figures contribute nothing.
+  type: object
+  required:
+    [
+      inputTokens,
+      freshInputTokens,
+      cacheReadInputTokens,
+      cacheCreationInputTokens,
+      outputTokens,
+      toolCalls,
+    ]
+  properties:
+    inputTokens:
+      type: integer
+    freshInputTokens:
+      type: integer
+    cacheReadInputTokens:
+      type: integer
+    cacheCreationInputTokens:
+      type: integer
+    outputTokens:
+      type: integer
+    toolCalls:
+      type: integer
+
+ReportUsageTrendBucket:
+  type: object
+  required:
+    [
+      start,
+      executionCount,
+      completeCount,
+      partialCount,
+      unavailableCount,
+      averages,
+      totals,
+    ]
+  properties:
+    start:
+      description: UTC start of the bucket.
       type: string
-      enum: [CHANGE_WALKTHROUGH]
-    summary:
-      type: string
-    targetRunId:
-      type: string
-      format: uuid
-      description: Host-stamped reviewed Run identity whose resolved Service workspaces supply source authority.
-    groups:
+      format: date-time
+    executionCount:
+      type: integer
+    completeCount:
+      type: integer
+    partialCount:
+      type: integer
+    unavailableCount:
+      type: integer
+    averages:
+      $ref: "#/ReportUsageTrendAverages"
+    totals:
+      $ref: "#/ReportUsageTrendTotals"
+
+ReportUsageTrendOptions:
+  description: Filter values present in the project's retained usage data. Unknown provider or effort is the literal value "unknown".
+  type: object
+  required: [reportKinds, providers, models, efforts]
+  properties:
+    reportKinds:
       type: array
       items:
-        $ref: "#/ChangeWalkthroughGroup"
+        $ref: "#/ReportUsageTrendKind"
+    providers:
+      type: array
+      items:
+        type: string
+    models:
+      type: array
+      items:
+        type: string
+    efforts:
+      type: array
+      items:
+        type: string
+
+ReportUsageTrends:
+  description: Approximate per-execution usage trend over retained report usage snapshots. Each execution counts once using its latest snapshot.
+  type: object
+  required:
+    [
+      from,
+      to,
+      granularity,
+      executionCount,
+      completeCount,
+      partialCount,
+      unavailableCount,
+      averages,
+      totals,
+      buckets,
+      options,
+    ]
+  properties:
+    from:
+      type: string
+      format: date-time
+    to:
+      type: string
+      format: date-time
+    granularity:
+      $ref: "#/ReportUsageTrendGranularity"
+    executionCount:
+      description: All matching executions.
+      type: integer
+    completeCount:
+      description: Matching executions with complete coverage; the denominator of the averages.
+      type: integer
+    partialCount:
+      type: integer
+    unavailableCount:
+      type: integer
+    averages:
+      $ref: "#/ReportUsageTrendAverages"
+    totals:
+      $ref: "#/ReportUsageTrendTotals"
+    buckets:
+      type: array
+      items:
+        $ref: "#/ReportUsageTrendBucket"
+    options:
+      $ref: "#/ReportUsageTrendOptions"

@@ -1,6 +1,6 @@
 import { ProposalService } from '../proposal.service';
 import { ProposalReconciliationService } from '../proposal-reconciliation.service';
-import type { ProposalReconciliationState } from 'src/generated';
+import type { ProposalReconciliationState } from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId } from 'src/types';
 
 const basis = {

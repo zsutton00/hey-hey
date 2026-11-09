@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import type { Request } from 'express';
 import type { Context } from '@rekog/mcp-nest';
 import { ListReportsByEntityToolsProvider } from './list-reports-by-entity-tools.provider';
-import { ReportSummaryDto, ReportType } from '../../generated';
+import { ReportSummaryDto, ReportType } from '@hey-hey/contracts/api/models';
 import { ReportService } from '../../services/reports/report.service';
 import * as TestUtils from '../../utils/testUtils';
 

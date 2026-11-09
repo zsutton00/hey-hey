@@ -5,7 +5,7 @@ import type {
   TaskResponseDto,
   WorkItemTypeDefinitionDto,
   WorkItemTypeGraphCapability,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import type { HydratedWorkItemGraphInput } from "@hey-hey/ui-common/components";
 
 export const INSTALLED_GRAPH_RENDERER_KEY = "work-item-graph";

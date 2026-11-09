@@ -8,7 +8,7 @@ import {
   MessageCreatedUserMessage,
   MessageResponseDto,
   SystemMessageResponseType,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { FlowUserMessage } from '../../../types/flow-internal.types';
 import {
   ArtifactGenerationRequestedEvent,

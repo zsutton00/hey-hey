@@ -15,6 +15,11 @@ import type {
   VersionConflictError,
 } from "../types/conversation";
 import { hasVersionInfo } from "./versionUtils";
+import {
+  toOpenApiConversationId,
+  toOpenApiMessageId,
+  toOpenApiProjectId,
+} from "../clients/contractIdentifierAdapters";
 
 /**
  * Create a version-aware user message from form data and conversation
@@ -45,7 +50,7 @@ export function createVersionAwareUserMessage(
   parentMessageId: string,
   conversation?: ConversationResponseDto | null,
   projectId?: string,
-  handler?: CreateUserMessage["handler"]
+  handler?: CreateUserMessage["handler"],
 ): VersionAwareUserMessage {
   const safeConversation = conversation ?? ({} as ConversationResponseDto);
   const expectedConversationVersion = hasVersionInfo(conversation)
@@ -53,12 +58,16 @@ export function createVersionAwareUserMessage(
     : undefined;
 
   const baseMessage: VersionedCreateUserMessage = {
-    projectId: projectId ?? safeConversation.projectId ?? "",
+    projectId: toOpenApiProjectId(
+      projectId ?? safeConversation.projectId ?? "",
+    ),
     data,
     type: MessageType.User,
-    conversationId: safeConversation.id ?? "",
+    conversationId: toOpenApiConversationId(safeConversation.id ?? ""),
     status: MessageStatus.Completed,
-    parentMessageId,
+    parentMessageId: parentMessageId
+      ? toOpenApiMessageId(parentMessageId)
+      : null,
     handler,
     expectedConversationVersion,
   };
@@ -115,7 +124,7 @@ export function createVersionAwareUserMessage(
 
 export function shouldUpdateConversationVersion(
   newVersion: number,
-  currentVersion: number | null | undefined
+  currentVersion: number | null | undefined,
 ): boolean {
   if (!Number.isFinite(newVersion)) {
     return false;
@@ -130,7 +139,7 @@ export function shouldUpdateConversationVersion(
 
 export function handleVersionConflictUpdate<
   TResult,
-  TCallback extends (conversation: VersionedConversationResponseDto) => TResult
+  TCallback extends (conversation: VersionedConversationResponseDto) => TResult,
 >(error: VersionConflictError, updateConversation: TCallback): TResult {
   if (!error?.latestConversation) {
     throw new Error("Version conflict error is missing latest conversation");
@@ -150,7 +159,7 @@ export function handleVersionConflictUpdate<
 export function createOptimisticMessageState(
   parentMessageId: string,
   formData: Record<string, FormValue>,
-  conversation: ConversationResponseDto
+  conversation: ConversationResponseDto,
 ): OptimisticMessageState {
   // Add expected version if available
   if (hasVersionInfo(conversation)) {
@@ -185,7 +194,7 @@ export function createOptimisticMessageState(
 export function shouldShowVersionConflictDialog(
   error: VersionConflictError,
   retryAttempts: number,
-  maxRetries: number
+  maxRetries: number,
 ): boolean {
   // Show dialog if we've exhausted all retry attempts
   if (retryAttempts >= maxRetries) {
@@ -211,7 +220,7 @@ export function shouldShowVersionConflictDialog(
  */
 export function calculateVersionDifference(
   currentVersion: number,
-  expectedVersion: number
+  expectedVersion: number,
 ): {
   difference: number;
   description: "single" | "multiple" | "none";
@@ -236,7 +245,7 @@ export function calculateVersionDifference(
  */
 export function updateUserMessageVersion(
   userMessage: VersionedCreateUserMessage,
-  newExpectedVersion: number
+  newExpectedVersion: number,
 ): VersionedCreateUserMessage {
   return {
     ...userMessage,
@@ -251,7 +260,7 @@ export function updateUserMessageVersion(
  * @returns Validation result with details
  */
 export function validateConversationForVersioning(
-  conversation: ConversationResponseDto
+  conversation: ConversationResponseDto,
 ): {
   isValid: boolean;
   hasVersion: boolean;
@@ -284,7 +293,7 @@ export function validateConversationForVersioning(
  * @returns Safe reference object
  */
 export function createConversationReference(
-  conversation: ConversationResponseDto
+  conversation: ConversationResponseDto,
 ): {
   id: string;
   version: number | undefined;

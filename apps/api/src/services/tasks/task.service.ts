@@ -1,6 +1,6 @@
 import { restrictTaskWhere } from 'src/read-restriction/read-policy';
 import { withApiSpan } from 'src/telemetry/api-tracing';
-import type { ProjectModeSettings } from '../../generated';
+import type { ProjectModeSettings } from '@hey-hey/contracts/api/models';
 import {
   findIneligibleProjectModeTypeKeys,
   PROJECT_MODE_SETTINGS_SCHEMA_REF,
@@ -65,14 +65,15 @@ import {
   UpdateTaskDto,
   PaginatedWorkItemReferenceResponseDto,
   WorkItemGraphAggregateResponseDto,
+  UxFlowMembershipResponseDto,
   WorkItemGraphDerivedReference,
   WorkItemGraphLayoutValue,
   WorkItemGraphParticipationType,
   WorkItemSectionInput,
-} from 'src/generated';
-import { AgentEdgeType as ApiAgentEdgeType } from 'src/generated/model/agentEdgeType';
-import type { AgentEdgeResponseDto } from 'src/generated/model/agentEdgeResponseDto';
-import type { WorkItemTypeSectionDefinition } from 'src/generated';
+} from '@hey-hey/contracts/api/models';
+import { AgentEdgeType as ApiAgentEdgeType } from '@hey-hey/contracts/api/models';
+import type { AgentEdgeResponseDto } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeSectionDefinition } from '@hey-hey/contracts/api/models';
 import type {
   AgentEdge,
   AgentEdgeEndpointEntityType,
@@ -87,11 +88,11 @@ import {
   AGENT_EDGE_LABELS,
   graphRelationshipToAgentEdge,
 } from 'src/services/graphs/agent-edge-mapping';
-import { TaskArchivedEventPayload } from 'src/generated/model/taskArchivedEventPayload';
+import { TaskArchivedEventPayload } from '@hey-hey/contracts/api/models';
 import { hasProposalSupport } from 'src/mcp/tools/proposal-tool-names';
-import { TaskAssignedEventPayload } from 'src/generated/model/taskAssignedEventPayload';
-import { TaskUnassignedEventPayload } from 'src/generated/model/taskUnassignedEventPayload';
-import { EntityType } from 'src/generated/model/entityType';
+import { TaskAssignedEventPayload } from '@hey-hey/contracts/api/models';
+import { TaskUnassignedEventPayload } from '@hey-hey/contracts/api/models';
+import { EntityType } from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
   ConversationId,
@@ -151,6 +152,10 @@ import {
   WORK_ITEM_GRAPH_PARTICIPATION_LIMITS,
   WorkItemGraphParticipationComposer,
 } from './work-item-graph-participation';
+import {
+  uxFlowElementsQuery,
+  uxFlowMembershipsFromElements,
+} from './ux-flow-membership';
 import {
   readWorkItemConfig,
   validateWorkItemConfigForType,
@@ -4167,6 +4172,32 @@ export class TaskService {
     );
   }
 
+  async getUxFlowMemberships(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    workItemId: TaskId,
+    userToken: string | null,
+  ): Promise<UxFlowMembershipResponseDto> {
+    const workItem = await this.findOneByOrganization(
+      organizationId,
+      workItemId,
+      false,
+      false,
+      false,
+      false,
+      userToken,
+    );
+    if (!workItem || workItem.projectId !== projectId) {
+      throw new NotFoundException('Work item not found');
+    }
+
+    const elements = await this.prisma.db.task.findMany(
+      uxFlowElementsQuery({ organizationId, projectId, workItemId }),
+    );
+
+    return { flows: uxFlowMembershipsFromElements(elements, workItemId) };
+  }
+
   async getGraphAggregate(
     organizationId: OrganizationId,
     projectId: ProjectId,
@@ -4676,6 +4707,7 @@ export class TaskService {
     userId?: UserId,
     materializationId?: string,
     effectiveParentId?: string | null,
+    requirementsReplacedLater = false,
   ): Promise<{ task: TaskEntity; postCommit: TaskUpdatePostCommit }> {
     const contextManager = EventContextManager.getInstance();
     const currentContext = contextManager.getCurrentContext();
@@ -4849,6 +4881,7 @@ export class TaskService {
       targetTaskType === WORK_ITEM_TYPE_KEYS.Feature &&
       isReparenting &&
       !hasRequirementsSectionUpdate &&
+      !requirementsReplacedLater &&
       typeof (
         tx.taskSection as unknown as {
           findFirst?: unknown;

@@ -1,6 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
 import * as crypto from 'node:crypto';
 import { BadRequestException } from '@nestjs/common';
 import type { Client } from '@temporalio/client';
@@ -22,7 +20,8 @@ import {
   MessageRecordDto,
   UserMessageData,
   WorkflowName,
-} from '../../generated';
+  UserMessageAgentInputDiscriminatorValues,
+} from '@hey-hey/contracts/api/models';
 import * as TestUtils from '../../utils/testUtils';
 import { ConversationId, OrganizationId, ProjectId, UserId } from '../../types';
 import {
@@ -337,33 +336,7 @@ describe('inbound agent-input contract: per-arm stamp + persistence', () => {
 
   describe('fixture table integrity', () => {
     it('enumerates every direct promptType arm in the generated contract', () => {
-      const modelRoot = resolve(__dirname, '../../generated/model');
-      const unionSource = readFileSync(
-        resolve(modelRoot, 'userMessageAgentInput.ts'),
-        'utf8',
-      );
-      const union = unionSource.match(
-        /export type UserMessageAgentInput\s*=\s*([^;]+);/,
-      );
-      expect(union).not.toBeNull();
-      const promptTypes = union![1]!
-        .split('|')
-        .map((member) => member.trim())
-        .filter(Boolean)
-        .map((name) => {
-          const source = readFileSync(
-            resolve(
-              modelRoot,
-              `${name.charAt(0).toLowerCase()}${name.slice(1)}.ts`,
-            ),
-            'utf8',
-          );
-          const discriminator = source.match(
-            /export type PromptTypeEnum = '([^']+)'/,
-          );
-          expect(discriminator).not.toBeNull();
-          return discriminator![1];
-        });
+      const promptTypes = [...UserMessageAgentInputDiscriminatorValues];
       expect(
         PROMPT_TYPE_FIXTURES.map((fixture) => fixture.promptType).sort(),
       ).toEqual(promptTypes.sort());
@@ -371,18 +344,6 @@ describe('inbound agent-input contract: per-arm stamp + persistence', () => {
       // No duplicate arm identifiers — each promptType appears once.
       const ids = PROMPT_TYPE_FIXTURES.map((f) => f.id);
       expect(new Set(ids).size).toBe(ids.length);
-    });
-
-    it('keeps the CLI-facing JSON artifact byte-in-sync with the typed source', () => {
-      // HEY CLAUDE: You can't import other repos here genius.
-      // const jsonPath = resolve(
-      //   __dirname,
-      //   '../../../../openapi/specs/fixtures/user-message-agent-input.fixtures.json',
-      // );
-      // const onDisk = JSON.parse(readFileSync(jsonPath, 'utf8'));
-      // expect(onDisk).toEqual(JSON.parse(JSON.stringify(AGENT_INPUT_FIXTURES)));
-
-      expect(1).toBe(1);
     });
   });
 

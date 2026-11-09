@@ -24,7 +24,7 @@ import {
   EvidenceItemTypeEnum,
   TaskSummaryTaskTypeEnum,
 } from 'src/generated/agents/models';
-import { ReportAudience } from 'src/generated';
+import { ReportAudience } from '@hey-hey/contracts/api/models';
 import { CODING_PROMPT_RESEARCH_NODES } from 'src/flows/constants';
 import { CODING_PROMPT_RESEARCH_FLOW_ID } from 'src/flows/templates/coding-prompt-research.flow';
 import { PrismaService } from 'src/prisma/prisma.service';

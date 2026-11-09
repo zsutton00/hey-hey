@@ -1,4 +1,4 @@
-import { WorkStatus } from "@hey-hey/ui-common/api";
+import { WorkStatus } from "@hey-hey/contracts/api";
 import { PlanArchiveDeleteDialog } from "@hey-hey/ui-common/components";
 import {
   useProject,

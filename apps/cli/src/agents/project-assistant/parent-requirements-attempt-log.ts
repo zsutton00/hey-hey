@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { describeError, type JevInput, type JevResult } from '../../jev/client';
+import { summarizeJevUsage } from '../../jev/pricing';
 import type { JevEvaluator } from '../../jev/scenarios';
 
 /** One Jev round trip, exactly as sent and received. */
@@ -70,6 +71,9 @@ export const writeAttemptRecord = async (
   await mkdir(dir, { recursive: true });
   const stamp = record.at.replace(/[:.]/g, '-');
   const file = path.join(dir, `${stamp}-${record.focalEntityId}.json`);
-  await writeFile(file, `${JSON.stringify(record, null, 2)}\n`, 'utf8');
+  // Cost and tokens lead the file so they are the first thing read.
+  const { at, ...rest } = record;
+  const logged = { at, ...summarizeJevUsage(record.jevCalls), ...rest };
+  await writeFile(file, `${JSON.stringify(logged, null, 2)}\n`, 'utf8');
   return file;
 };

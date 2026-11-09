@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { EntityContextController } from '../entity-context.controller';
 import { EntityContextService } from '../../services/entity-context/entity-context.service';
 import { testIds } from '../../utils/testUtils';
-import type { FullEntityContextDto } from '../../generated/model/fullEntityContextDto';
+import type { FullEntityContextDto } from '@hey-hey/contracts/api/models';
 
 const entityId = '123e4567-e89b-42d3-a456-426614174099';
 
@@ -42,28 +42,40 @@ describe('EntityContextController', () => {
       entityType: 'TASK',
       displayName: 'Implementation',
       createdAt: '2026-10-13T00:00:00Z',
-      relatedEntities: [{
-        entityId: testIds.task,
-        entityType: 'TASK',
-        displayName: 'Linked dependency',
-        taskType: 'BUG',
-        relationship: 'depends-on',
-        source: 'agent',
-      }],
-      agentSessions: [{
-        entityId: '123e4567-e89b-42d3-a456-426614174084',
-        entityType: 'AGENT_SESSION',
-        displayName: 'Attached session',
-        status: 'IN_PROGRESS',
-      }],
+      relatedEntities: [
+        {
+          entityId: testIds.task,
+          entityType: 'TASK',
+          displayName: 'Linked dependency',
+          taskType: 'BUG',
+          relationship: 'depends-on',
+          source: 'agent',
+        },
+      ],
+      agentSessions: [
+        {
+          entityId: '123e4567-e89b-42d3-a456-426614174084',
+          entityType: 'AGENT_SESSION',
+          displayName: 'Attached session',
+          status: 'IN_PROGRESS',
+        },
+      ],
     };
     entityContextService.getFullEntityContext.mockResolvedValue(projection);
     const result = await controller.getEntityContext(
-      testIds.organization, testIds.project, 'TASK', entityId, 'test-token',
+      testIds.organization,
+      testIds.project,
+      'TASK',
+      entityId,
+      'test-token',
     );
     expect(result).toEqual(projection);
     expect(entityContextService.getFullEntityContext).toHaveBeenCalledWith(
-      testIds.organization, testIds.project, 'TASK', entityId, 'test-token',
+      testIds.organization,
+      testIds.project,
+      'TASK',
+      entityId,
+      'test-token',
       expect.objectContaining({ relatedEntityDepth: 1 }),
     );
   });

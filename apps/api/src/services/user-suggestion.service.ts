@@ -4,7 +4,10 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { GitHubIntegrationHandler } from '../integration/handlers/github.integration.handler';
 import { JiraIntegrationHandler } from '../integration/handlers/jira.integration.handler';
-import { SuggestedUserDto, SuggestedUsersResponseDto } from '../generated';
+import {
+  SuggestedUserDto,
+  SuggestedUsersResponseDto,
+} from '@hey-hey/contracts/api/models';
 
 export interface SuggestedUser {
   name: string;

@@ -7,11 +7,11 @@ import {
   type UpdateAgentSessionDto,
   type TaskMonitorExecutionDefinition,
   type TaskMonitorLaunchConfig,
-} from '../../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import {
   LocalPromptType,
   type LocalTaskMonitorCoordinatorDecision,
-} from '../../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import { buildCodeReviewRequest } from '../../review-subagent/review-request';
 import type { TaskMonitorDecisionStore } from '../task-monitor-decision-store';
 import {

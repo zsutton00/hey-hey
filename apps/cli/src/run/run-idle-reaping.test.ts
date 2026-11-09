@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import {
   createTestRunEventPublisher,
   createTestMessagePoster,
@@ -33,6 +34,7 @@ const handler: PromptTypeHandler<unknown> = {
   service: 'required',
   launchEntity: 'none',
   implementationReadiness: 'gated_and_clarifiable',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],
@@ -119,7 +121,6 @@ const makeSessionRunner = (
 ): AgentSessionRunner => ({
   runPrompt: vi.fn(),
   resumeSession: vi.fn(),
-  promptOnce: vi.fn(),
   getContextUsage: vi.fn(),
   ...(discardSession ? { discardSession } : {}),
 });
@@ -347,7 +348,7 @@ describe('Run idle reaping', () => {
     );
   });
 
-  it('publishes registration and removal for registry-owned lifecycle transitions', () => {
+  it('publishes registration and removal for registry-owned lifecycle transitions', async () => {
     const lifecycle = new RunLifecycleEvents();
     const registered: string[] = [];
     const removed: string[] = [];
@@ -379,10 +380,10 @@ describe('Run idle reaping', () => {
         contextMetadata: { ...makeSession().contextMetadata, agentSessionId: 'run-2' },
       },
     });
-    registry.dispose();
+    await registry.dispose();
     expect(removed).toEqual(['run-1', 'run-1', 'run-2']);
     expect(causes).toEqual(['permanent', 'idle', 'permanent']);
-    registry.dispose();
+    await registry.dispose();
     expect(removed).toEqual(['run-1', 'run-1', 'run-2']);
   });
 });

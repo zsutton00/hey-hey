@@ -1,4 +1,4 @@
-import { TargetEntityType } from "@hey-hey/ui-common/api";
+import { TargetEntityType } from "@hey-hey/contracts/api";
 import { render, screen } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter } from "react-router-dom";
@@ -137,8 +137,6 @@ describe("ExplorerTreeNode interaction target type", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("treeitem")).not.toHaveAttribute(
-      "aria-selected",
-    );
+    expect(screen.getByRole("treeitem")).not.toHaveAttribute("aria-selected");
   });
 });

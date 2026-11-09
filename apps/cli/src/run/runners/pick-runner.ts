@@ -70,7 +70,7 @@ export class RunnerPicker {
         runnerKind: 'procedural',
         reason: 'procedural-handler',
       });
-      return new ProceduralRunner(ctx);
+      return new ProceduralRunner(ctx, this.dependencies.sessionRunnerFacade);
     }
 
     if (handler.runnerKind === 'provider_session') {

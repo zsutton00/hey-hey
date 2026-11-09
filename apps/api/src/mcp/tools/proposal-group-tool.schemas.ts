@@ -3,7 +3,7 @@ import { z } from 'zod';
 import {
   ProposalValidationLayer,
   type ProposalValidationIssue,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 
 export const proposalValidationIssueSchema: z.ZodType<ProposalValidationIssue> =
   z

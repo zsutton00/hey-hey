@@ -3,7 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { JwtKeysService } from '../services/jwt-keys.service';
-import { OrganizationRole } from '../../generated';
+import { OrganizationRole } from '@hey-hey/contracts/api/models';
 import { Request } from 'express';
 import { OrganizationId, UserId } from 'src/types';
 import { UserAccessTokenValidatorService } from '../services/user-access-token-validator.service';
@@ -23,9 +23,11 @@ export interface JwtPayload {
   // Developer admin capabilities
   isDevAdmin?: boolean;
   devAdminMode?: boolean; // Whether user is currently in dev-admin mode
-  sid?: string; // Browser session binding, added by the browser-session cutover
-  authz_version?: number; // Current authorization revision binding
+  isLocalAccount?: boolean;
+  sid?: string; // Browser session binding (required on browser access)
+  authz_version?: number; // Authorization revision binding (required on browser access)
   jti?: string;
+  iss?: string;
   aud?: string | string[];
   iat?: number;
   exp?: number; // Optional since we let JWT service handle expiration
@@ -43,8 +45,12 @@ export interface AuthenticatedUser {
   // Developer admin capabilities
   isDevAdmin: boolean;
   devAdminMode: boolean;
+  isLocalAccount?: boolean;
   isSystemUser?: boolean;
   systemSubject?: string;
+  /** Present only when authenticated by a browser-session access token. */
+  browserSessionId?: string;
+  authorizationVersion?: number;
 }
 
 @Injectable()

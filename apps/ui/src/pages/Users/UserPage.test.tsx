@@ -1,4 +1,4 @@
-import type { OrganizationMemberResponseDto } from "@hey-hey/ui-common/api";
+import type { OrganizationMemberResponseDto } from "@hey-hey/contracts/api";
 import { useProject, useUsers } from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import { render, screen } from "@testing-library/react";
@@ -151,7 +151,7 @@ const renderRoute = (path: string, routePath: string) =>
       <Routes>
         <Route path={routePath} element={<UserDetailPage />} />
       </Routes>
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 
 describe("UserDetailPage route scopes", () => {
@@ -175,35 +175,35 @@ describe("UserDetailPage route scopes", () => {
   it("uses the route organization and omits project-only surfaces", () => {
     renderRoute(
       "/organizations/organization-1/users/user-1",
-      "/organizations/:organizationId/users/:userId"
+      "/organizations/:organizationId/users/:userId",
     );
 
     expect(useUsers).toHaveBeenCalledWith("organization-1", {
       enabled: true,
     });
     expect(
-      screen.getByRole("navigation", { name: "breadcrumb" })
+      screen.getByRole("navigation", { name: "breadcrumb" }),
     ).toHaveTextContent("OrganizationsAlex Admin");
     expect(screen.getByRole("tab", { name: "Overview" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Admin" })).toBeInTheDocument();
     expect(
-      screen.queryByRole("tab", { name: "Activity" })
+      screen.queryByRole("tab", { name: "Activity" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("tab", { name: "Tasks" })
+      screen.queryByRole("tab", { name: "Tasks" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("tab", { name: "Agent Sessions" })
+      screen.queryByRole("tab", { name: "Agent Sessions" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "View Activity" })
+      screen.queryByRole("button", { name: "View Activity" }),
     ).not.toBeInTheDocument();
   });
 
   it("preserves project-scoped tabs and membership resolution", () => {
     renderRoute(
       "/projects/project-1/users/user-1",
-      "/projects/:projectId/users/:userId"
+      "/projects/:projectId/users/:userId",
     );
 
     expect(useUsers).toHaveBeenCalledWith("current-organization", {
@@ -212,10 +212,10 @@ describe("UserDetailPage route scopes", () => {
     expect(screen.getByRole("tab", { name: "Activity" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Tasks" })).toBeInTheDocument();
     expect(
-      screen.getByRole("tab", { name: "Agent Sessions" })
+      screen.getByRole("tab", { name: "Agent Sessions" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "View Activity" })
+      screen.getByRole("button", { name: "View Activity" }),
     ).toBeInTheDocument();
   });
 
@@ -224,7 +224,7 @@ describe("UserDetailPage route scopes", () => {
 
     renderRoute(
       "/organizations/organization-1/users/user-1?tab=activity",
-      "/organizations/:organizationId/users/:userId"
+      "/organizations/:organizationId/users/:userId",
     );
 
     expect(screen.getByText("Profile")).toBeInTheDocument();

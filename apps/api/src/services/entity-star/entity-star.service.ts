@@ -10,7 +10,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EntityStar, EntityType, Prisma } from '@prisma/client';
-import { EntityStarDto } from 'src/generated';
+import { EntityStarDto } from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { EntityRegistryService } from '../entity-registry/entity-registry.service';
 import { ensureStringDate } from 'src/utils/date.util';

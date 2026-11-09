@@ -4,7 +4,7 @@ import type {
   ReportDto,
   ReportType,
   WebSocketSystemNotificationEvent,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { useOptionalWebSocketService } from "@hey-hey/ui-common/context";
 import {
   useCorrelatedActivity,

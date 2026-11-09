@@ -1,3 +1,4 @@
+import { taskMonitorLaunchConfigInputSchema as taskMonitorLaunchConfigV2Schema } from './task-monitor-launch-config';
 import { z } from 'zod';
 import {
   MonitorAuthorityNeutralBodyV2KindEnum,
@@ -11,12 +12,10 @@ import {
   TaskMonitorHumanDecisionCommandCauseEnum,
   TaskMonitorHumanDecisionCommandResolutionEnum,
   TaskMonitorJudgmentResolvedCommand1CauseEnum,
-  TaskMonitorLaunchMethod,
-  TaskMonitorLaunchProvider,
-  TaskMonitorReasoningEffort,
   TaskMonitorResumeCommandCauseEnum,
   TaskMonitorStartCommand1CauseEnum,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
+import { toOpenApiMessageId } from '../../shared/api/identifierAdapters';
 import type {
   AgentTrigger,
   CliReadEnvelopeBody,
@@ -33,7 +32,6 @@ import type {
   SignedConversationControlEnvelope,
   SignedConversationTriggerEnvelope,
   SignedMonitorCommandEnvelope,
-  StartRunWorktree,
   TaskMonitorCommandTarget,
   TaskMonitorCompleteCommand,
   TaskMonitorContinueCommand,
@@ -42,18 +40,17 @@ import type {
   TaskMonitorHumanDecisionEvidence,
   TaskMonitorJudgmentResolvedCommand1,
   TaskMonitorJudgmentResponse,
-  TaskMonitorLaunchConfig,
   TaskMonitorResumeCommand,
   TaskMonitorStartCommand1,
   AgentTriggerStartRun,
   AgentTriggerUserMessage,
   UserMessageAdmittedServiceScope,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import {
   AgentTriggerStartRunPromptTypeEnum,
   AgentTriggerUserMessagePromptTypeEnum,
   type SignedAuthorityReductionEnvelope,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { ExecutableEnvelopeAuthorization } from '../controller-authorization/types';
 import {
   CURRENT_AGENT_OPERATIONS,
@@ -64,7 +61,7 @@ const uuid = z.string().uuid();
 const sha256Hex = z.string().regex(/^[a-f0-9]{64}$/u);
 
 type OpenApiZodShape<T> = {
-  [K in keyof T]-?: z.ZodType<T[K]>;
+  [K in keyof T]-?: z.ZodType<T[K], z.ZodTypeDef, z.input<z.ZodTypeAny>>;
 };
 
 const actionCategories = [
@@ -127,23 +124,6 @@ const targetSchema = z
   })
   .strict();
 
-const taskMonitorWorktreeV2Shape = {
-  enabled: z.boolean(),
-  branch: z.string().min(1).optional(),
-} satisfies Record<keyof StartRunWorktree, z.ZodTypeAny>;
-
-const taskMonitorLaunchConfigV2Shape = {
-  taskId: uuid,
-  method: z.nativeEnum(TaskMonitorLaunchMethod),
-  provider: z.nativeEnum(TaskMonitorLaunchProvider),
-  model: z.string().min(1),
-  reasoningEffort: z.nativeEnum(TaskMonitorReasoningEffort),
-  fastMode: z.boolean().optional(),
-  worktree: z.object(taskMonitorWorktreeV2Shape).strict().optional(),
-} satisfies Record<keyof TaskMonitorLaunchConfig, z.ZodTypeAny>;
-
-const taskMonitorLaunchConfigV2Schema = z.object(taskMonitorLaunchConfigV2Shape).strict();
-
 const taskMonitorCommandTargetV2Shape = {
   workItemType: z.literal(TaskMonitorCommandTargetWorkItemTypeEnum.TaskMonitor),
   workItemId: uuid,
@@ -152,7 +132,7 @@ const taskMonitorCommandTargetV2Shape = {
 const taskMonitorCommandTargetV2Schema = z.object(taskMonitorCommandTargetV2Shape).strict();
 
 const taskMonitorJudgmentResponseV2Shape = {
-  requestMessageId: uuid,
+  requestMessageId: uuid.transform(toOpenApiMessageId),
   label: z.string().min(1).max(240),
   conclusion: z.string().min(1).max(500),
 } satisfies Record<keyof TaskMonitorJudgmentResponse, z.ZodTypeAny>;
@@ -400,7 +380,7 @@ const userMessageAdmittedServiceScopeV2Schema = z
   });
 
 const startRunAgentTriggerEventV2Shape = {
-  sourceUserMessageId: uuid.optional(),
+  sourceUserMessageId: uuid.transform(toOpenApiMessageId).optional(),
   operationId: uuid,
   operationFingerprint: sha256Hex,
   inputExecution: z

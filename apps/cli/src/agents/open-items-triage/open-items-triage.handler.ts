@@ -1,9 +1,10 @@
 import { z } from 'zod';
 import {
+  SessionRole,
   LocalPromptType,
   OpenItemsTriageMode,
   type OpenItemsTriagePromptPayload,
-} from '../../shared/agent-bridge-contract/generated';
+} from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../../session/types';
 import type { AssistantCompleteEvent } from '../../run/types';
 import {
@@ -31,6 +32,7 @@ type TriagePayload = OpenItemsTriagePromptPayload & { triageInput?: TriageInput 
 
 export class OpenItemsTriageHandler implements UserLaunchablePromptTypeHandler<TriagePayload> {
   public readonly id = 'open_items_triage';
+  public readonly sessionRole = SessionRole.Review;
   public readonly promptType = LocalPromptType.OpenItemsTriage;
   public readonly service = 'optional';
   public readonly launchEntity = 'required';

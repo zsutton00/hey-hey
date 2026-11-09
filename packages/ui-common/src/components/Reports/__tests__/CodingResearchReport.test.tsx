@@ -86,6 +86,7 @@ const buildReport = (payload: CodingResearchReportPayload): ReportDto =>
 
 const fullPayload: CodingResearchReportPayload = {
   reportType: "CODING_RESEARCH",
+  format: "SELF_RESEARCH",
   summary:
     "The renderer remains typed and keeps its human-readable handoff visible.",
   analysis:
@@ -159,6 +160,38 @@ const fullPayload: CodingResearchReportPayload = {
         "The report frame shows the requirement and its implementation contract together.",
     },
   ],
+  uncertainties: [
+    {
+      category: "lack_of_evidence",
+      severity: "low",
+      statement: "The project does not specify this peripheral detail.",
+      references: [],
+    },
+    {
+      category: "conflict",
+      severity: "medium",
+      statement: "Two project sources give incompatible behavior.",
+      references: [
+        {
+          entityType: EntityType.Task,
+          entityId: FOCAL_TASK_ID,
+          title: "Improve CODING_RESEARCH renderer",
+        },
+      ],
+    },
+    {
+      category: "ambiguity",
+      severity: "high",
+      statement: "One source supports two readings.",
+      references: [],
+    },
+    {
+      category: "not_implemented",
+      severity: "medium",
+      statement: "The expected behavior is not implemented.",
+      references: [],
+    },
+  ],
 };
 
 const renderReport = (
@@ -184,6 +217,68 @@ const renderReport = (
   );
 
 describe("CodingResearchReport", () => {
+  it("shows structured open questions below analysis with severity and canonical references", () => {
+    renderReport(fullPayload, "research");
+
+    const section = screen.getByTestId(
+      "research-coding-research-uncertainties",
+    );
+    expect(section).toHaveTextContent("Conflict");
+    expect(section).toHaveTextContent("Lack of evidence");
+    expect(section).toHaveTextContent("Ambiguity");
+    expect(section).toHaveTextContent("Not implemented");
+    expect(section).toHaveTextContent("medium");
+    expect(section).toHaveTextContent(
+      "Two project sources give incompatible behavior.",
+    );
+    expect(within(section).getByTestId("mention-badge")).toHaveTextContent(
+      "Improve CODING_RESEARCH renderer",
+    );
+    expect(
+      screen.getByTestId("research-coding-research-analysis-toggle"),
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(section).toHaveTextContent("Open questions");
+    expect(
+      screen.getByTestId("research-coding-research-analysis")
+        .nextElementSibling,
+    ).toBe(section);
+  });
+
+  it("renders written open questions below analysis and removes recognized entries from analysis", () => {
+    const writtenPayload: CodingResearchReportPayload = {
+      reportType: "CODING_RESEARCH",
+      format: "SUBAGENT_PARENT",
+      summary:
+        "The parent reviewed the research evidence and wrote this report.",
+      analysis: [
+        "The parent conclusion remains in analysis.",
+        "",
+        "## Uncertainties",
+        "",
+        "- **ambiguity · high** — A source supports two readings. — References: @[task:2533ce2a-653e-46c1-a3eb-bc2039d85c97|Improve CODING_RESEARCH renderer]",
+      ].join("\n"),
+    };
+
+    renderReport(writtenPayload, "written");
+
+    expect(
+      screen.getByTestId("written-coding-research-uncertainties"),
+    ).toHaveTextContent("A source supports two readings.");
+    expect(
+      screen.getByTestId("written-coding-research-uncertainties"),
+    ).toHaveTextContent("high");
+    const analysis = screen.getByTestId("written-coding-research-analysis");
+    const openQuestions = screen.getByTestId(
+      "written-coding-research-uncertainties",
+    );
+    expect(
+      screen.getByTestId("written-coding-research-analysis-toggle"),
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(analysis.nextElementSibling).toBe(openQuestions);
+    expect(openQuestions).toHaveTextContent("Open questions");
+    expect(screen.getByTestId("written-coding-research-summary")).toBeVisible();
+  });
+
   beforeEach(() => {
     launcherMock.launch.mockReset();
     launcherMock.launch.mockResolvedValue(true);
@@ -212,6 +307,10 @@ describe("CodingResearchReport", () => {
     expect(
       screen.getByTestId("research-coding-research-updates").nextElementSibling,
     ).toBe(screen.getByTestId("research-coding-research-analysis"));
+    expect(
+      screen.getByTestId("research-coding-research-analysis")
+        .nextElementSibling,
+    ).toBe(screen.getByTestId("research-coding-research-uncertainties"));
     expect(
       screen.getByTestId("research-coding-research-updates-card-0"),
     ).toBeInTheDocument();
@@ -539,12 +638,16 @@ describe("CodingResearchReport", () => {
       frame: { focalId: FOCAL_TASK_ID, nodes: [] },
       provenance: { discoveryCalls: [], edgesTraversed: [] },
       updates: [],
+      uncertainties: [],
     };
 
     renderReport(emptyPayload, "empty-research");
 
     expect(
       screen.queryByTestId("empty-research-coding-research-updates"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("empty-research-coding-research-uncertainties"),
     ).not.toBeInTheDocument();
 
     await user.click(
@@ -567,31 +670,41 @@ describe("CodingResearchReport", () => {
     ).toHaveTextContent("No edges traversed.");
   });
 
-  it("renders a report whose payload has no provenance", async () => {
+  it("renders structured reports saved before format and uncertainty fields existed", async () => {
     const user = userEvent.setup();
-    const { provenance: _omitted, ...withoutProvenance } = fullPayload;
+    const {
+      format: _format,
+      provenance: _provenance,
+      uncertainties: _uncertainties,
+      ...legacyPayload
+    } = fullPayload;
 
     renderReport(
-      withoutProvenance as unknown as CodingResearchReportPayload,
-      "no-provenance",
+      legacyPayload as unknown as CodingResearchReportPayload,
+      "legacy-research",
     );
 
     expect(
-      screen.getByTestId("no-provenance-coding-research-summary"),
+      screen.getByTestId("legacy-research-coding-research-summary"),
     ).toBeInTheDocument();
 
     await user.click(
-      screen.getByTestId("no-provenance-coding-research-analysis-toggle"),
+      screen.getByTestId("legacy-research-coding-research-analysis-toggle"),
     );
     await user.click(
-      screen.getByTestId("no-provenance-coding-research-details-toggle"),
+      screen.getByTestId("legacy-research-coding-research-details-toggle"),
     );
 
     expect(
-      screen.getByTestId("no-provenance-coding-research-discovery-calls-empty"),
+      screen.getByTestId(
+        "legacy-research-coding-research-discovery-calls-empty",
+      ),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId("no-provenance-coding-research-edges-empty"),
+      screen.getByTestId("legacy-research-coding-research-edges-empty"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("legacy-research-coding-research-frame-node-0-card"),
     ).toBeInTheDocument();
   });
 });

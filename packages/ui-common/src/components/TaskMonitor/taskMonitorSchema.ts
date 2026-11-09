@@ -1,7 +1,7 @@
 import Ajv, { type ValidateFunction } from "ajv";
 import addFormats from "ajv-formats";
 import type { TaskMonitorExecutionDefinition } from "../../api";
-import { taskMonitorExecutionDefinitionJsonSchema } from "../../generated/task-monitor-contract.schema";
+import { taskMonitorExecutionDefinitionJsonSchema } from "@hey-hey/contracts/agent-bridge/custom/task-monitor-contract.schema";
 
 const ajv = new Ajv({
   allErrors: true,
@@ -14,11 +14,11 @@ addFormats(ajv);
 
 export const taskMonitorExecutionDefinitionSchema: ValidateFunction<TaskMonitorExecutionDefinition> =
   ajv.compile<TaskMonitorExecutionDefinition>(
-    taskMonitorExecutionDefinitionJsonSchema
+    taskMonitorExecutionDefinitionJsonSchema,
   );
 
 export const parseTaskMonitorExecutionDefinition = (
-  content: string
+  content: string,
 ): TaskMonitorExecutionDefinition => {
   let parsed: unknown;
   try {
@@ -29,7 +29,7 @@ export const parseTaskMonitorExecutionDefinition = (
 
   if (!taskMonitorExecutionDefinitionSchema(parsed)) {
     throw new Error(
-      "The execution definition does not match the Task Monitor schema."
+      "The execution definition does not match the Task Monitor schema.",
     );
   }
   return parsed;

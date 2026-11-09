@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { dailySessionHandler } from '../daily-session.handler';
-import type { LocalDailySessionPromptPayload } from '../../../shared/agent-bridge-contract/generated/api';
+import type { LocalDailySessionPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../../../session/types';
 import type { AssistantCompleteEvent, MessageStamp } from '../../../run/types';
 import type { OnCompleteDeps, PromptTypeHandlerDeps } from '../../prompt-type-handler';

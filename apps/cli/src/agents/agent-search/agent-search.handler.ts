@@ -1,3 +1,4 @@
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import type { LocalAgentSearchPromptPayload } from '../../shared/agent-bridge-contract/index';
 import {
   defaultAddUserMessage,
@@ -8,6 +9,7 @@ import { resolveMcpToolNames } from '../mcp-server-config';
 
 export const agentSearchHandler: UserLaunchablePromptTypeHandler<LocalAgentSearchPromptPayload> = {
   id: 'agent_search',
+  sessionRole: SessionRole.Research,
   promptType: 'agent_search',
   service: 'optional',
   launchEntity: 'required',
@@ -21,9 +23,10 @@ export const agentSearchHandler: UserLaunchablePromptTypeHandler<LocalAgentSearc
   /** Eval-launchable child with the same graph-only surface. */
   childConfig: {
     adapterId: 'eval-agent-search',
+    submissionTools: 'run-registered',
+    submissionToolNames: ['raise_uncertainty'],
     mcpAllowedTools: resolveMcpToolNames({ useCase: 'research' }),
     builtinAllowedTools: [],
-    submissionTools: 'none',
     codexSandboxMode: 'read-only',
     includePriorReports: false,
   },

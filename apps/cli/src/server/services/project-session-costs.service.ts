@@ -11,7 +11,7 @@ import type {
   CliReadProjectSessionCostRow,
   CliReadProjectSessionCostsListEnvelopeBody,
   CliReadProjectSessionCostsResult,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type { ServerLogger } from '../logger';
 import {
   SessionCostAdapter,

@@ -8,13 +8,14 @@ import { failureMessage, type FailureReason } from './failure-message';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { messageWriteFailureSchema } from './message-write-diagnostics';
+import { toOpenApiProjectId } from '../shared/api/identifierAdapters';
 import { MessageStatus, MessageType, SystemMessageDataTypeEnum } from '../shared/api/index';
 import type {
   CreateSystemMessage,
   CreateUserMessage,
   SubmitExecutableUserMessageRequestDto,
   UpdateMessageDto,
-} from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { ServerLogger } from '../server/logger';
 import type {
   MessagePosterApiClient,
@@ -74,7 +75,9 @@ const isTransientError = (error: unknown): boolean => {
   if (!response) return true;
   const status = typeof response['status'] === 'number' ? response['status'] : null;
   if (status === null) return true;
-  return status !== 400 && status !== 401 && status !== 403 && status !== 409;
+  return (
+    status !== 400 && status !== 401 && status !== 403 && status !== 409 && status !== 422
+  );
 };
 
 // Agents are instructed to write `@[type:id|title]` mentions, but sometimes
@@ -246,7 +249,7 @@ export class MessagePoster {
         dto: {
           type: 'SYSTEM',
           status: MessageStatus.Completed,
-          projectId: args.projectId,
+          projectId: toOpenApiProjectId(args.projectId),
           data: {
             type: 'AGENT',
             response: failureMessage(args.reason, args.serviceNames),

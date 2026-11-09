@@ -1,4 +1,5 @@
-import { MachineEffectHttpMethod } from '../../../generated';
+import { z } from 'zod';
+import { MachineEffectHttpMethod } from '@hey-hey/contracts/api/models';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import type {
   AgentSessionId,
@@ -25,6 +26,8 @@ const SESSION_ID = '00000000-0000-4000-8000-000000000005' as AgentSessionId;
 const CONVERSATION_ID =
   '00000000-0000-4000-8000-000000000006' as ConversationId;
 const TRIGGER_ID = '00000000-0000-4000-8000-000000000007' as MessageId;
+
+const DONE_SCHEMA = z.object({ response: z.string() }).strict();
 
 describe(ExternalAgentCompletionService.name, () => {
   const prisma = {
@@ -100,7 +103,10 @@ describe(ExternalAgentCompletionService.name, () => {
       triggerMessageId: TRIGGER_ID,
     });
     (nodeExecutionService.getNode as jest.Mock).mockReturnValue({
-      node: { type: 'external_agent', actions: { DONE: {} } },
+      node: {
+        type: 'external_agent',
+        actions: { DONE: { schema: DONE_SCHEMA } },
+      },
     });
     (messageService.addMessage as jest.Mock).mockResolvedValue({});
   });
@@ -144,6 +150,36 @@ describe(ExternalAgentCompletionService.name, () => {
       ORGANIZATION_ID,
       'external-agent-completion',
     );
+  });
+
+  it('rejects an invalid payload without recording a completion, then accepts the corrected one', async () => {
+    const invalid = {
+      ...input(),
+      payload: { summary: 'wrong shape' } as unknown as { response: string },
+    };
+    const request = (body: ReturnType<typeof input>) =>
+      service.submit({
+        organizationId: ORGANIZATION_ID,
+        projectId: PROJECT_ID,
+        agentSessionId: SESSION_ID,
+        authenticatedMachine: { machineId: MACHINE_ID, userId: USER_ID },
+        requestPath: body.proof.path,
+        input: body,
+      });
+
+    await expect(request(invalid)).rejects.toMatchObject({
+      status: 422,
+      response: expect.objectContaining({
+        code: 'EXTERNAL_AGENT_COMPLETION_INVALID_PAYLOAD',
+        issues: expect.arrayContaining([expect.any(Object)]),
+      }),
+    });
+    expect(messageService.addMessage).not.toHaveBeenCalled();
+
+    await expect(request(input())).resolves.toEqual({
+      completionMessageId: expect.any(String),
+    });
+    expect(messageService.addMessage).toHaveBeenCalledTimes(1);
   });
 
   it('rejects a session not bound to the admitted machine before workflow lookup', async () => {
@@ -204,8 +240,12 @@ describe(ExternalAgentCompletionService.name, () => {
     });
 
     await expect(submit()).resolves.toEqual(first);
-    expect(flowExecutionService.findActiveByConversation).not.toHaveBeenCalled();
-    expect(pendingTriggerService.resolvePendingTriggerForNode).not.toHaveBeenCalled();
+    expect(
+      flowExecutionService.findActiveByConversation,
+    ).not.toHaveBeenCalled();
+    expect(
+      pendingTriggerService.resolvePendingTriggerForNode,
+    ).not.toHaveBeenCalled();
     expect(messageService.addMessage).not.toHaveBeenCalled();
   });
 });

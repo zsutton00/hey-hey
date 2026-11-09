@@ -1,10 +1,11 @@
+import { asServiceId } from '../../test-utils/contract-ids';
 import { describe, expect, it } from 'vitest';
-import type { RepositoryGroundingSuccess } from '../../shared/agent-bridge-contract/generated/api';
+import type { RepositoryGroundingSuccess } from '@hey-hey/contracts/agent-bridge';
 import { parseRepositoryAnalysisCompletion } from './schemas';
 
 const success = {
   outcome: 'success',
-  serviceId: '44444444-4444-4444-8444-444444444444',
+  serviceId: asServiceId('44444444-4444-4444-8444-444444444444'),
   provider: 'codex',
   resolvedFrontierModel: 'gpt-frontier',
   narrative: 'Customers manage their accounts.',

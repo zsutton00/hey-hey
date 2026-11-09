@@ -1,7 +1,7 @@
 import type {
   ContextRelatedEntityDto,
   ProposalResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { render, screen } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter } from "react-router-dom";
@@ -104,7 +104,7 @@ vi.mock("../../components/ContextRailCards", () => ({
 const renderSidebar = (
   featureAncestors: BreadcrumbFeatureAncestor[],
   relatedEntities: ContextRelatedEntityDto[] = [],
-  proposals: ProposalResponseDto[] = []
+  proposals: ProposalResponseDto[] = [],
 ): void => {
   render(
     <MemoryRouter>
@@ -116,7 +116,7 @@ const renderSidebar = (
         relatedEntities={relatedEntities}
         proposals={proposals}
       />
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 };
 
@@ -131,11 +131,11 @@ describe("TaskDetailSidebar", () => {
     const tree = await screen.findByTestId("feature-tree-visualization");
     expect(tree).toHaveAttribute(
       "data-focused-feature-id",
-      "feature-direct-parent"
+      "feature-direct-parent",
     );
     expect(tree).toHaveAttribute(
       "data-active-feature-id",
-      "feature-direct-parent"
+      "feature-direct-parent",
     );
     expect(tree).toHaveAttribute("data-source", "local-neighborhood");
   });
@@ -143,7 +143,7 @@ describe("TaskDetailSidebar", () => {
   it("renders the feature tree card", () => {
     renderSidebar([]);
     expect(
-      screen.getByTestId("task-sidebar-feature-tree-card")
+      screen.getByTestId("task-sidebar-feature-tree-card"),
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Feature Tree" })).toBeVisible();
   });
@@ -159,14 +159,14 @@ describe("TaskDetailSidebar", () => {
     const history = screen.getByTestId("task-sidebar-history-card");
     expect(
       featureTree.compareDocumentPosition(history) &
-        Node.DOCUMENT_POSITION_FOLLOWING
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(screen.getByTestId("task-sidebar-related-card")).toBeInTheDocument();
     expect(mockContextRailCards).toHaveBeenCalledWith(
       expect.objectContaining({
         dataTestIdPrefix: "task-sidebar",
         parentWorkItemId: "task-1",
-      })
+      }),
     );
   });
 });

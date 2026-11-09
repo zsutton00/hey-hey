@@ -1,15 +1,30 @@
 import { ConfigService } from '@nestjs/config';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
+import { ModuleRef } from '@nestjs/core';
 
-import { RegisterDto } from '../../../generated';
+import { RegisterDto } from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { OrganizationService } from '../../../services/organization.service';
 import { UserService } from '../../../services/user.service';
-import { UserId } from '../../../types';
+import {
+  ConversationId,
+  OrganizationId,
+  ProjectId,
+  UserId,
+} from '../../../types';
+import { ConversationController } from '../../../controllers/conversation.controller';
+import { ExecutionGrantService } from '../../../services/controller-authorization/execution-grant.service';
 import { AuthService } from '../auth.service';
+import { LocalAccessService } from '../../../local/local-access.service';
+import { LocalFirstPasskeyAuthority } from '../../../local/local-first-passkey-authority';
 import { BrowserSessionService } from '../browser-session.service';
 import { AccountEntitlementService } from '../../../services/account-entitlement.service';
 import { JwtKeysService } from '../jwt-keys.service';
+import { ProjectService } from '../../../services/project.service';
+import { LocalDefaultProjectService } from '../../../services/local-default-project.service';
+import { ProjectAccessService } from '../project-access.service';
+import { OrganizationProjectEntitlementService } from '../../../services/organization-project-entitlement.service';
+import { EntityRegistryService } from '../../../services/entity-registry/entity-registry.service';
 
 const describeDatabase =
   process.env.RUN_AUTH_DB_TESTS === '1' && process.env.PROJECT_DATABASE_URL
@@ -26,6 +41,34 @@ describeDatabase('AuthService registration browser session handoff', () => {
   let prisma: PrismaService;
   let authService: AuthService;
   let userId: UserId;
+  let userService: jest.Mocked<UserService>;
+  let organizationService: jest.Mocked<OrganizationService>;
+  let localInstallationSecret: string | undefined;
+  let localDefaultProjects: () => LocalDefaultProjectService;
+  let jwtKeysService: JwtKeysService;
+  let browserSessionService: BrowserSessionService;
+  // Temporal is the system boundary; project creation itself runs for real.
+  const startWorkflowByType = jest.fn(async () => ({
+    workflowId: `onboarding-${randomUUID()}`,
+  }));
+  const handoffEntries = new Map<string, string>();
+  const redisClient = {
+    set: jest.fn(async (key: string, value: string) => {
+      if (handoffEntries.has(key)) return null;
+      handoffEntries.set(key, value);
+      return 'OK';
+    }),
+    getdel: jest.fn(async (key: string) => {
+      const value = handoffEntries.get(key) ?? null;
+      handoffEntries.delete(key);
+      return value;
+    }),
+    exists: jest.fn(async (key: string) =>
+      Number(connectedMachineIds.has(key.replace('machine:presence:', ''))),
+    ),
+  };
+  const redisService = { getClient: jest.fn(() => redisClient) };
+  const connectedMachineIds = new Set<string>();
 
   beforeAll(async () => {
     prisma = new PrismaService();
@@ -35,22 +78,30 @@ describeDatabase('AuthService registration browser session handoff', () => {
     const configService = {
       get: jest.fn((key: string) => policy[key as keyof typeof policy]),
     } as unknown as ConfigService;
-    const jwtKeysService = {
+    jwtKeysService = {
       signToken: jest.fn(
         (payload: { sid?: string }) => `access-${payload.sid}`,
       ),
     } as unknown as JwtKeysService;
-    const browserSessionService = new BrowserSessionService(
+    browserSessionService = new BrowserSessionService(
       configService,
       prisma,
       jwtKeysService,
       {
         assertOrganizationAuthorized: jest.fn(),
         isOrganizationAuthorized: jest.fn().mockResolvedValue(true),
+        getAuthorizedOrganizationIds: jest.fn(
+          async (organizationIds: string[]) => new Set(organizationIds),
+        ),
       } as unknown as AccountEntitlementService,
+      {
+        issuer: 'https://hosted.test/api',
+        browserAudience: 'https://hosted.test',
+        oauthAudience: 'https://hosted.test:oauth',
+      } as never,
     );
 
-    const userService = {
+    userService = {
       findByEmail: jest.fn().mockResolvedValue(null),
       create: jest.fn(async (dto: RegisterDto) =>
         prisma.db.user.create({
@@ -84,12 +135,48 @@ describeDatabase('AuthService registration browser session handoff', () => {
           currentOrganizationId: null,
         };
       }),
-    } as unknown as UserService;
-    const organizationService = {
+    } as unknown as jest.Mocked<UserService>;
+    organizationService = {
       getUserMemberships: jest.fn().mockResolvedValue([]),
-    } as unknown as OrganizationService;
+    } as unknown as jest.Mocked<OrganizationService>;
 
-    authService = new AuthService(
+    // A fresh owner per call stands in for an API restart between saves.
+    localDefaultProjects = () =>
+      new LocalDefaultProjectService(
+        prisma,
+        new ProjectService(
+          {} as never,
+          prisma,
+          new ProjectAccessService(prisma),
+          {} as never,
+          {
+            refresh: jest.fn(),
+            publishConfigChanged: jest.fn(),
+          } as never,
+          { startWorkflowByType } as never,
+          new OrganizationProjectEntitlementService(prisma),
+          new EntityRegistryService(prisma),
+          { publishInTransaction: jest.fn(async () => null) } as never,
+        ),
+      );
+    authService = createAuthService();
+  });
+
+  // A fresh owner per call stands in for an API restart between saves.
+  const createLocalAccess = (): LocalAccessService =>
+    new LocalAccessService(
+      userService,
+      organizationService,
+      authService,
+      browserSessionService,
+      prisma,
+      redisService as never,
+      localDefaultProjects(),
+      new LocalFirstPasskeyAuthority(redisService as never),
+    );
+
+  const createAuthService = (): AuthService =>
+    new AuthService(
       userService,
       organizationService,
       jwtKeysService,
@@ -99,10 +186,39 @@ describeDatabase('AuthService registration browser session handoff', () => {
       prisma,
       {} as never,
       {} as never,
+      {
+        issuer: 'https://hosted.test/api',
+        browserAudience: 'https://hosted.test',
+        oauthAudience: 'https://hosted.test:oauth',
+      } as never,
+      {} as never,
     );
-  });
 
   afterAll(async () => {
+    if (prisma) {
+      if (localInstallationSecret) {
+        const localIdentity = createHmac('sha256', localInstallationSecret)
+          .update('heyhey-local-identity-v1')
+          .digest('hex');
+        const localUser = await prisma.db.user.findUnique({
+          where: { email: `local-${localIdentity}@local.invalid` },
+        });
+        if (localUser) {
+          const memberships = await prisma.db.organizationMember.findMany({
+            where: { userId: localUser.id },
+            select: { organizationId: true },
+          });
+          await prisma.db.organization.deleteMany({
+            where: {
+              id: {
+                in: memberships.map(({ organizationId }) => organizationId),
+              },
+            },
+          });
+          await prisma.db.user.delete({ where: { id: localUser.id } });
+        }
+      }
+    }
     if (userId) {
       await prisma.db.user.delete({ where: { id: userId } });
     }
@@ -161,5 +277,255 @@ describeDatabase('AuthService registration browser session handoff', () => {
     expect(generations[1]?.secretHash).toBe(
       createHash('sha256').update(renewal.refreshSecret).digest('hex'),
     );
+  });
+
+  it('bootstraps one local identity and exchanges its one-use handoff for a persisted browser session', async () => {
+    const originalEnvironment = {
+      deployment: process.env.DEPLOYMENT_ENVIRONMENT,
+      localApplication: process.env.HEYHEY_LOCAL_APPLICATION,
+      installationSecret: process.env.LOCAL_INSTALLATION_SECRET,
+    };
+    const installationSecret = randomUUID();
+    localInstallationSecret = installationSecret;
+    process.env.DEPLOYMENT_ENVIRONMENT = 'local';
+    process.env.HEYHEY_LOCAL_APPLICATION = 'true';
+    process.env.LOCAL_INSTALLATION_SECRET = installationSecret;
+    handoffEntries.clear();
+    connectedMachineIds.clear();
+
+    const actualOrganizationService = new OrganizationService(
+      {} as never,
+      {} as never,
+      prisma,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const actualUserService = new UserService(
+      prisma,
+      actualOrganizationService,
+      new AccountEntitlementService(prisma),
+      {} as ModuleRef,
+    );
+    userService.createLocalBootstrapUser = jest.fn(
+      actualUserService.createLocalBootstrapUser.bind(actualUserService),
+    );
+    userService.findForAuthentication = jest.fn(
+      actualUserService.findForAuthentication.bind(actualUserService),
+    );
+    userService.getUserWithOrganizations = jest.fn(
+      actualUserService.getUserWithOrganizations.bind(actualUserService),
+    );
+    organizationService.getUserMemberships = jest.fn(
+      actualOrganizationService.getUserMemberships.bind(
+        actualOrganizationService,
+      ),
+    );
+
+    const localAccess = createLocalAccess();
+
+    try {
+      const [firstHandoff, secondHandoff] = await Promise.all([
+        localAccess.createLocalHandoff(installationSecret),
+        localAccess.createLocalHandoff(installationSecret),
+      ]);
+      const identity = createHmac('sha256', installationSecret)
+        .update('heyhey-local-identity-v1')
+        .digest('hex');
+      const email = `local-${identity}@local.invalid`;
+      const users = await prisma.db.user.findMany({ where: { email } });
+      expect(users).toHaveLength(1);
+      expect(users[0]?.name).toBe('');
+      expect(users[0]?.isActive).toBe(true);
+      expect(users[0]?.isDevAdmin).toBe(false);
+      expect(users[0]?.passwordHash).toMatch(/^\$2[aby]\$/);
+      expect(users[0]?.email).toMatch(/^local-[a-f0-9]{64}@local\.invalid$/);
+
+      const memberships = await prisma.db.organizationMember.findMany({
+        where: { userId: users[0]?.id, isActive: true },
+        include: { organization: true },
+      });
+      expect(memberships).toHaveLength(1);
+      // Without an entitlement the access check rejects every request from the local user.
+      await expect(
+        prisma.db.accountEntitlement.count({
+          where: { organizationId: memberships[0]!.organizationId },
+        }),
+      ).resolves.toBe(1);
+
+      const simulatedMachine = await prisma.db.machine.create({
+        data: {
+          userId: users[0]!.id,
+          organizationId: memberships[0]!.organizationId,
+          name: 'Integration test machine',
+          publicKey: 'local-handoff-integration-public-key',
+          tokenHash: createHash('sha256').update(randomUUID()).digest('hex'),
+          authorizationProtocolVersion: 2,
+          authorizationState: 'CONTROLLER_ENROLLMENT_REQUIRED',
+        },
+      });
+      connectedMachineIds.add(simulatedMachine.id);
+
+      const session = await localAccess.completeLocalHandoff(
+        firstHandoff.handoffToken,
+        { userAgent: 'local-handoff-integration-test' },
+      );
+      expect(session.response).toHaveProperty('accessToken');
+      expect(session.response.user).toMatchObject({
+        id: users[0]?.id,
+        isLocalAccount: true,
+      });
+      const localUserId = users[0]!.id as UserId;
+      const localOrganizationId = memberships[0]!.organizationId;
+      // Concurrent first saves, a retry and a save after restart all
+      // converge on the single project pairing will grant access to.
+      const statuses = await Promise.all([
+        localAccess.updateLocalDisplayName(localUserId, 'Ada Lovelace'),
+        createLocalAccess().updateLocalDisplayName(localUserId, 'Ada Lovelace'),
+      ]);
+      await localAccess.updateLocalDisplayName(localUserId, 'Ada Lovelace');
+      const afterRestart = await createLocalAccess().updateLocalDisplayName(
+        localUserId,
+        'Ada Lovelace',
+      );
+      const projects = await prisma.db.project.findMany({
+        where: { organizationId: localOrganizationId },
+        include: { members: true },
+      });
+      expect(projects).toHaveLength(1);
+      expect(projects[0]).toMatchObject({
+        status: 'ONBOARDING',
+        createdBy: localUserId,
+        description: null,
+      });
+      expect(projects[0]!.members).toEqual([
+        expect.objectContaining({ userId: localUserId, role: 'OWNER' }),
+      ]);
+      expect(startWorkflowByType).toHaveBeenCalledTimes(1);
+      for (const status of [...statuses, afterRestart]) {
+        expect(status).toMatchObject({
+          nameComplete: true,
+          hasProjects: true,
+          setupProjectId: projects[0]!.id,
+        });
+      }
+      const refreshedSession = await authService.refreshToken(
+        session.refreshSecret,
+        { userAgent: 'local-handoff-integration-test' },
+      );
+      expect(refreshedSession.response.user).toMatchObject({
+        name: 'Ada Lovelace',
+        isLocalAccount: true,
+      });
+      await expect(
+        localAccess.getLocalStatus(users[0]!.id as UserId),
+      ).resolves.toMatchObject({
+        browserSession: true,
+        machineConnected: true,
+        executionReady: false,
+      });
+      // Leaving onboarding completes setup: return visits enter the workspace.
+      await prisma.db.project.update({
+        where: { id: projects[0]!.id },
+        data: { status: 'ACTIVE' },
+      });
+      await expect(
+        localAccess.getLocalStatus(localUserId),
+      ).resolves.toMatchObject({ hasProjects: true, setupProjectId: null });
+      await prisma.db.project.update({
+        where: { id: projects[0]!.id },
+        data: { status: 'ONBOARDING' },
+      });
+      // Exercise the launch boundary with the automatically authenticated user,
+      // not merely the readiness projection. No controller proof or grant is
+      // supplied: a live local connection must not confer execution authority.
+      const submitPrepared = jest.fn();
+      const launchController = new ConversationController(
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        new ExecutionGrantService(prisma, {} as never, {} as never),
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        { submitPrepared } as never,
+      );
+      // JSON is the untrusted request boundary; deliberately omit the required
+      // authorization field rather than inventing valid controller evidence.
+      const launchBody = JSON.parse(
+        JSON.stringify({
+          machineId: simulatedMachine.id,
+          agentSessionId: randomUUID(),
+          operationId: randomUUID(),
+          operationFingerprint: '0'.repeat(64),
+          handlerPromptType: 'entity_conversation',
+          model: 'test-model',
+          contextMetadata: {
+            capturedAt: new Date().toISOString(),
+            organizationId: memberships[0]!.organizationId,
+            projectId: randomUUID(),
+            agentSessionId: randomUUID(),
+            userComments: [],
+            fileReferences: { resolved: [], unresolved: [] },
+          },
+        }),
+      );
+      await expect(
+        launchController.startConversationRun(
+          launchBody.contextMetadata.projectId as ProjectId,
+          randomUUID() as ConversationId,
+          memberships[0]!.organizationId as OrganizationId,
+          session.response.user.id as UserId,
+          launchBody,
+        ),
+      ).rejects.toMatchObject({
+        response: { code: 'INVALID_CONTROLLER_AUTHORIZATION' },
+      });
+      expect(submitPrepared).not.toHaveBeenCalled();
+      expect(
+        await prisma.db.executionGrant.count({
+          where: { userId: users[0]!.id },
+        }),
+      ).toBe(0);
+      expect(
+        await prisma.db.agentOperation.count({
+          where: { userId: users[0]!.id },
+        }),
+      ).toBe(0);
+
+      await expect(
+        localAccess.completeLocalHandoff(firstHandoff.handoffToken, {}),
+      ).rejects.toThrow('Local browser handoff expired');
+
+      const persistedFamily = await prisma.db.browserSessionFamily.findUnique({
+        where: { id: session.familyId },
+        include: { refreshGenerations: true },
+      });
+      expect(persistedFamily?.userId).toBe(users[0]?.id);
+      expect(persistedFamily?.refreshGenerations).toHaveLength(2);
+      expect(secondHandoff.handoffToken).not.toBe(firstHandoff.handoffToken);
+    } finally {
+      for (const [key, value] of Object.entries({
+        DEPLOYMENT_ENVIRONMENT: originalEnvironment.deployment,
+        HEYHEY_LOCAL_APPLICATION: originalEnvironment.localApplication,
+        LOCAL_INSTALLATION_SECRET: originalEnvironment.installationSecret,
+      })) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
   });
 });

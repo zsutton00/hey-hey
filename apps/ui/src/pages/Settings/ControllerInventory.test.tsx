@@ -5,7 +5,7 @@ import {
   type ControllerCredentialSummaryDto,
   type ControllerInventoryResponseDto,
   type MachineDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   useControllerInventory,
   useRevokeController,
@@ -123,18 +123,18 @@ describe("ControllerInventory", () => {
     expect(
       screen.getAllByTestId("settings-controller-fingerprint")[0],
     ).toHaveTextContent("sha256:short");
-    expect(screen.getAllByTestId("settings-controller-backup")[0]).toHaveTextContent(
-      "Eligible for backup · Backed up",
-    );
-    expect(screen.getAllByTestId("settings-controller-backup")[1]).toHaveTextContent(
-      "Not eligible for backup · Not backed up",
-    );
-    expect(screen.getAllByTestId("settings-controller-last-used")[1]).toHaveTextContent(
-     "Never",
-   );
-    expect(screen.getByTestId("settings-controller-passkey-copy")).toHaveTextContent(
-      "authorize this Agent Bridge",
-    );
+    expect(
+      screen.getAllByTestId("settings-controller-backup")[0],
+    ).toHaveTextContent("Eligible for backup · Backed up");
+    expect(
+      screen.getAllByTestId("settings-controller-backup")[1],
+    ).toHaveTextContent("Not eligible for backup · Not backed up");
+    expect(
+      screen.getAllByTestId("settings-controller-last-used")[1],
+    ).toHaveTextContent("Never");
+    expect(
+      screen.getByTestId("settings-controller-passkey-copy"),
+    ).toHaveTextContent("authorize this Agent Bridge");
     expect(screen.queryByText("controller-1")).not.toBeInTheDocument();
   });
 
@@ -181,9 +181,7 @@ describe("ControllerInventory", () => {
     render(<ControllerInventory machine={machine} />);
 
     const recovery = screen.getByTestId("settings-controller-recovery");
-    expect(recovery).toHaveTextContent(
-      "“Zac's MacBook” can’t run work",
-    );
+    expect(recovery).toHaveTextContent("“Zac's MacBook” can’t run work");
     expect(recovery).toHaveTextContent(
       "This Agent Bridge has no active Passkey",
     );

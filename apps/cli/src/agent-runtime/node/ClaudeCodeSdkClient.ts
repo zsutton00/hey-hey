@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { z, ZodError } from 'zod';
+import { stripCredentialEnvironment } from './credential-environment';
 import { toolExecutionHookSettings, type ToolExecutionHookLaunch } from '../tool-execution-hooks';
 
 import {
@@ -33,6 +34,8 @@ export interface ClaudeCodeSessionConfig {
   /** Explicit launch choice, overriding any saved Claude fast-mode preference. */
   fastMode: boolean;
   toolExecutionHooks?: ToolExecutionHookLaunch | undefined;
+  /** Starts the process without git or GitHub credentials in its environment. */
+  withoutGitCredentials?: boolean | undefined;
   attachments?: readonly RunAttachmentContent[] | undefined;
   prompt: string;
   cwd: string;
@@ -74,7 +77,8 @@ type ClaudeCodeSandboxFilesystemSettings = {
 };
 
 type ClaudeCodeSandboxNetworkSettings = {
-  readonly allowUnixSockets: readonly string[];
+  readonly allowAllUnixSockets: true;
+  readonly allowLocalBinding: true;
 };
 
 /**
@@ -598,8 +602,11 @@ export class ClaudeCodeSdkClient {
       ? [this.commandOverride, ...this.buildArgs(config)]
       : this.buildArgs(config);
 
+    const inherited = config.withoutGitCredentials
+      ? stripCredentialEnvironment(process.env)
+      : process.env;
     const env: NodeJS.ProcessEnv = {
-      ...process.env,
+      ...inherited,
       ...config.toolExecutionHooks?.environment,
     };
     delete env['CLAUDECODE'];

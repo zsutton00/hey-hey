@@ -98,6 +98,7 @@ docs/
 docs/*
 !docs/open-items-goal-promotion.md
 !docs/migration-stack.md
+!docs/local-graph-search.md
 !docs/plan-graph-dependency-cutover.md
 !docs/performance/
 docs/performance/*

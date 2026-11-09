@@ -7,7 +7,7 @@ import {
   ReportType,
   type ProjectReportPayload,
   type ReportDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 
 const mocks = vi.hoisted(() => ({ project: vi.fn(), report: vi.fn() }));
 vi.mock("@hey-hey/ui-common/context", async (importOriginal) => ({

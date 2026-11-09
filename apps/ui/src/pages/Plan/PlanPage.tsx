@@ -25,7 +25,7 @@ import {
   useWorkItem,
   usePlatformAdminAccess,
 } from "@hey-hey/ui-common/data";
-import { TargetEntityType, WorkStatus } from "@hey-hey/ui-common/api";
+import { TargetEntityType, WorkStatus } from "@hey-hey/contracts/api";
 import { useCallback, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";

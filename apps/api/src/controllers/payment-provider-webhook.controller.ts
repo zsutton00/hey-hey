@@ -13,7 +13,7 @@ import {
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
-import type { PaymentProviderWebhookAcceptedResponseDto } from '../generated';
+import type { PaymentProviderWebhookAcceptedResponseDto } from '@hey-hey/contracts/api/models';
 import type {
   PaymentProviderAdapterRequest,
   PaymentProviderHeaders,

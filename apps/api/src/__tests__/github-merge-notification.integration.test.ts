@@ -1,7 +1,10 @@
 import { EVENT_TYPES } from 'src/core/events/types/event.types';
 import { GitHubWebhookAcceptedEvent } from 'src/core/events/types/domain-events';
 import { NotificationGenerationProcessor } from 'src/core/processing/notification-generation-processor.service';
-import { EntityType, NotificationEventType } from 'src/generated';
+import {
+  EntityType,
+  NotificationEventType,
+} from '@hey-hey/contracts/api/models';
 import { OrganizationId, ProjectId } from 'src/types';
 import { createMockPrismaService } from 'src/utils/testUtils';
 

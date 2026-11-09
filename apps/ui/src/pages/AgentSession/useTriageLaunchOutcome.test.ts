@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { MessageRecordDto } from "@hey-hey/ui-common/api";
+import type { MessageRecordDto } from "@hey-hey/contracts/api";
 import {
   TRIAGE_LAUNCH_CONFIRMATION_MS,
   useTriageLaunchOutcome,

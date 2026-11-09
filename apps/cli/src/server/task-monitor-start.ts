@@ -1,17 +1,17 @@
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
 import { z } from 'zod';
-import { taskMonitorExecutionDefinitionJsonSchema } from '../generated/task-monitor-contract.schema';
+import { taskMonitorExecutionDefinitionJsonSchema } from '@hey-hey/contracts/agent-bridge/custom/task-monitor-contract.schema';
 import {
   TaskSectionUpdateSource,
   UpdateTaskResultStatus,
   WorkStatus,
   type TaskMonitorExecutionDefinition,
-} from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { ServerLogger } from './logger';
 import type { PlatformAuthContext } from './platform-auth-context';
 import { TaskMonitorPlanContext } from './task-monitor-plan-context';
-import type { TaskMonitorPlanGuidance } from '../shared/agent-bridge-contract/generated/api';
+import type { TaskMonitorPlanGuidance } from '@hey-hey/contracts/agent-bridge';
 
 const sectionSchema = z
   .object({

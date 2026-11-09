@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { GOAL_PM_ROUTING_DECISION_TYPE } from './goal-pm-routing-decision.service';
 import { SuggestionDecision } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import type { SuggestionType } from '../generated';
+import type { SuggestionType } from '@hey-hey/contracts/api/models';
 import {
   ConversationId,
   InitiativeId,
@@ -75,7 +75,10 @@ export class SuggestionDecisionService {
     suggestionId: string,
   ): Promise<SuggestionDecisionResult> {
     const normalizedType = type.trim();
-    if (normalizedType === GOAL_PM_ROUTING_DECISION_TYPE) throw new BadRequestException('Use conversation routing decision history');
+    if (normalizedType === GOAL_PM_ROUTING_DECISION_TYPE)
+      throw new BadRequestException(
+        'Use conversation routing decision history',
+      );
     const normalizedId = suggestionId.trim();
 
     const decision = await this.prisma.db.suggestionDecision.findUnique({
@@ -99,7 +102,10 @@ export class SuggestionDecisionService {
     input: RecordSuggestionDecisionInput,
   ): Promise<SuggestionDecisionResult> {
     const normalizedType = input.type.trim();
-    if (normalizedType === GOAL_PM_ROUTING_DECISION_TYPE) throw new BadRequestException('Use the dedicated routing decision operation');
+    if (normalizedType === GOAL_PM_ROUTING_DECISION_TYPE)
+      throw new BadRequestException(
+        'Use the dedicated routing decision operation',
+      );
     const normalizedId = input.suggestionId.trim();
 
     const createData = {

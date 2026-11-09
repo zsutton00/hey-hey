@@ -8,9 +8,9 @@ import {
 import { DomainEventPublisher } from 'src/core/events/domain-event-publisher';
 import { EventContextManager } from 'src/core/events/observable-event.context';
 import { EVENT_TYPES } from 'src/core/events/types/event.types';
-import { SubfacetCreatedEventPayload } from 'src/generated/model/subfacetCreatedEventPayload';
-import { SubfacetDeprecatedEventPayload } from 'src/generated/model/subfacetDeprecatedEventPayload';
-import { TopologySubfacetDto } from 'src/generated/model/topologySubfacetDto';
+import { SubfacetCreatedEventPayload } from '@hey-hey/contracts/api/models';
+import { SubfacetDeprecatedEventPayload } from '@hey-hey/contracts/api/models';
+import { TopologySubfacetDto } from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ExecutionContext } from 'src/types/execution-context';
 import { OrganizationId, ProjectId } from 'src/types';

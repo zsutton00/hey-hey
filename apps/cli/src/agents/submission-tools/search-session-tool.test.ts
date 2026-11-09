@@ -1,8 +1,9 @@
+import { asConversationId, asMessageId } from '../../test-utils/contract-ids';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SearchSessionTool } from './search-session-tool';
 import { SearchMessagesProxy, WorkflowAboutReader } from './search-messages-proxy';
 import { SubmissionToolAuth } from './submission-tool-auth';
-import type { SearchConversationMessagesResponseDto } from '../../shared/api/generated/api';
+import type { SearchConversationMessagesResponseDto } from '@hey-hey/contracts/api/models';
 import { createTestRun } from '../../run/run.test-support';
 import { createTestOAuthClient as createProviderTestOAuthClient } from '../../auth/oauth-client.test-support';
 
@@ -14,9 +15,9 @@ const makeRun = (overrides?: Partial<{ conversationId: string; projectId: string
 
 const rows: SearchConversationMessagesResponseDto[] = [
   {
-    conversationId: 'conv-9',
+    conversationId: asConversationId('conv-9'),
     conversationTitle: 'Earlier goal chat',
-    messageId: 'msg-9',
+    messageId: asMessageId('msg-9'),
     snippet: 'we decided to ship the API first',
     createdAt: '2026-06-01T00:00:00.000Z',
     type: 'USER' as SearchConversationMessagesResponseDto['type'],

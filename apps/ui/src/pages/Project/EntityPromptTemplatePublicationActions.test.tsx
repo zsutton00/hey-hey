@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { EntityPromptTemplateCatalogEntryDto } from "@hey-hey/ui-common/api";
+import type { EntityPromptTemplateCatalogEntryDto } from "@hey-hey/contracts/api";
 import { EntityPromptTemplatePublicationActions } from "./EntityPromptTemplatePublicationActions";
 
 const mocks = vi.hoisted(() => ({

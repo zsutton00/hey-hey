@@ -27,7 +27,7 @@ import type {
   TaskResponseDto,
   UpdateTaskDto,
   WorkStatus,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { KEYS, TERMS } from "@hey-hey/ui-common/i18n";
 
 import { apiClient } from "@hey-hey/ui-common/clients";

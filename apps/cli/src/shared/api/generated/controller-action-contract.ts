@@ -2,7 +2,7 @@
  * Auto-generated from specs/agent-bridge/openapi.yaml.
  * Do not edit manually; regenerate from the OpenAPI source.
  */
-import type { HostActionPreparation, ControllerActionInputs } from './api';
+import type { HostActionPreparation, ControllerActionInputs } from '@hey-hey/contracts/api/models';
 export type ControllerActionRuntimeSchemaTypes = {
   HostActionPreparation: HostActionPreparation;
   ControllerActionInputs: ControllerActionInputs;
@@ -1810,7 +1810,17 @@ export const controllerActionRuntimeSchema = {
                       $ref: '#/definitions/CliReadRunSkillsListRequest/properties/authorization/oneOf/0/properties/intent/properties/organizationId',
                     },
                     cadence: {
-                      $ref: '#/definitions/CliReadRunSkillsListRequest/properties/authorization/oneOf/0/properties/intent/properties/cadence',
+                      type: 'string',
+                      enum: [
+                        'FIVE_MINUTES',
+                        'EIGHT_HOURS',
+                        'ONE_DAY',
+                        'ONE_WEEK',
+                        'ONE_MONTH',
+                        'UNTIL_REVOKED',
+                      ],
+                      description:
+                        'Cadence of an issued controller-device grant. The five bounded values are the ControllerAuthorizationCadence a browser may request. UNTIL_REVOKED is a grant with no expiry that stays valid until it is revoked; only first-time `heyhey local` pairing creates one, and no browser authorization request may ask for it.',
                     },
                     policyRevision: {
                       type: 'integer',
@@ -1834,12 +1844,14 @@ export const controllerActionRuntimeSchema = {
                       format: 'int64',
                     },
                     effectiveExpiresAtMs: {
-                      type: 'integer',
+                      type: ['integer', 'null'],
                       format: 'int64',
+                      description:
+                        'Effective expiry, fixed by the cadence. Null exactly when the cadence is UNTIL_REVOKED.',
                     },
                   },
                   description:
-                    'Immutable descriptor hashed by CanonicalControllerAuthorizationIntent.grantDescriptorHash. Every cadence creates one reusable controller-device window with this effective expiry.',
+                    'Immutable descriptor hashed by CanonicalControllerAuthorizationIntent.grantDescriptorHash. Every cadence creates one reusable controller-device window; a bounded cadence has this effective expiry and UNTIL_REVOKED has none.',
                 },
               },
               description:
@@ -2544,6 +2556,9 @@ export const controllerActionRuntimeSchema = {
           $ref: '#/definitions/RunCreatePayloadRunEval',
         },
         {
+          $ref: '#/definitions/RunCreatePayloadLocalOnboarding',
+        },
+        {
           $ref: '#/definitions/RunCreatePayloadQuick',
         },
         {
@@ -3178,76 +3193,272 @@ export const controllerActionRuntimeSchema = {
                     {
                       allOf: [
                         {
-                          type: 'object',
-                          additionalProperties: false,
-                          required: [
-                            'affectedSourceContext',
-                            'unresolvedDecision',
-                            'consequentialInventionRisk',
-                            'boundedEvidence',
-                            'answerKind',
-                          ],
-                          properties: {
-                            affectedSourceContext: {
-                              type: 'string',
-                              minLength: 1,
-                              description: 'Source-bound context presented in the Issue section.',
-                            },
-                            unresolvedDecision: {
-                              type: 'string',
-                              minLength: 1,
+                          description:
+                            'A finding as stored with a disposition: the current explained layout, or the earlier layout kept readable for saved sessions.',
+                          oneOf: [
+                            {
+                              type: 'object',
+                              additionalProperties: false,
+                              required: [
+                                'requestedOutcome',
+                                'reasoningTrail',
+                                'problem',
+                                'failureScenario',
+                                'fixSteps',
+                                'userRequest',
+                                'boundedEvidence',
+                              ],
                               description:
-                                'Unresolved choice included in the How to resolve section.',
-                            },
-                            consequentialInventionRisk: {
-                              type: 'string',
-                              minLength: 1,
-                              description:
-                                'Consequence presented in the What could go wrong section.',
-                            },
-                            boundedEvidence: {
-                              type: 'array',
-                              minItems: 1,
-                              maxItems: 8,
-                              items: {
-                                type: 'object',
-                                additionalProperties: false,
-                                required: ['category', 'statement'],
-                                properties: {
-                                  category: {
-                                    description:
-                                      'Machine-readable evidence classification; presentation does not prefix the statement with it.',
-                                    type: 'string',
-                                    enum: [
-                                      'behavior',
-                                      'ownership',
-                                      'data_lifecycle',
-                                      'authority',
-                                      'security',
-                                      'isolation',
-                                      'integration',
-                                    ],
+                                'Plain-language explanation of why work cannot start yet, written for a reader who has not followed the analysis. Use ordinary words and define any technical term the first time it appears.',
+                              properties: {
+                                requestedOutcome: {
+                                  type: 'string',
+                                  minLength: 1,
+                                  description: 'What the user asked for, in ordinary language.',
+                                },
+                                reasoningTrail: {
+                                  type: 'array',
+                                  minItems: 2,
+                                  maxItems: 4,
+                                  description:
+                                    'Ordered short trail from the request to the problem, each step naming a real task or document consulted.',
+                                  items: {
+                                    type: 'object',
+                                    additionalProperties: false,
+                                    required: ['source', 'explanation'],
+                                    properties: {
+                                      source: {
+                                        type: 'object',
+                                        additionalProperties: false,
+                                        required: ['entityType', 'entityId', 'title'],
+                                        properties: {
+                                          entityType: {
+                                            type: 'string',
+                                            enum: [
+                                              'TASK',
+                                              'FEATURE',
+                                              'DESIGN_DOC',
+                                              'PLAN',
+                                              'CONTRACT',
+                                              'SERVICE',
+                                            ],
+                                            description:
+                                              'Kind of project item a readiness finding cites.',
+                                          },
+                                          entityId: {
+                                            type: 'string',
+                                            format: 'uuid',
+                                            description: 'Full id of the cited project item.',
+                                          },
+                                          title: {
+                                            type: 'string',
+                                            minLength: 1,
+                                            description:
+                                              "The cited item's real title, shown to the user as a link.",
+                                          },
+                                        },
+                                        description:
+                                          'A real project item, cited so the user can open it.',
+                                      },
+                                      explanation: {
+                                        type: 'string',
+                                        minLength: 1,
+                                        description:
+                                          'One plain sentence on what the agent learned from this item and why it led to the next step.',
+                                      },
+                                    },
                                   },
-                                  statement: {
+                                },
+                                problem: {
+                                  type: 'string',
+                                  minLength: 1,
+                                  description: 'The problem in one sentence.',
+                                },
+                                failureScenario: {
+                                  type: 'array',
+                                  minItems: 2,
+                                  maxItems: 8,
+                                  description:
+                                    'Ordered steps that begin in a normal situation and end in the concrete failure.',
+                                  items: {
                                     type: 'string',
                                     minLength: 1,
                                   },
-                                  sourceRef: {
-                                    type: 'string',
-                                    minLength: 1,
+                                },
+                                fixSteps: {
+                                  type: 'array',
+                                  minItems: 1,
+                                  maxItems: 8,
+                                  description: 'Ordered steps that resolve the problem.',
+                                  items: {
+                                    type: 'object',
+                                    additionalProperties: false,
+                                    required: ['owner', 'action', 'state'],
                                     description:
-                                      'Bounded reference to the project evidence supporting the statement.',
+                                      'One step toward resolving the problem. The owner may be a different item from the one being implemented.',
+                                    properties: {
+                                      owner: {
+                                        type: 'object',
+                                        additionalProperties: false,
+                                        required: ['entityType', 'entityId', 'title'],
+                                        properties: {
+                                          entityType: {
+                                            type: 'string',
+                                            enum: [
+                                              'TASK',
+                                              'FEATURE',
+                                              'DESIGN_DOC',
+                                              'PLAN',
+                                              'CONTRACT',
+                                              'SERVICE',
+                                            ],
+                                            description:
+                                              'Kind of project item a readiness finding cites.',
+                                          },
+                                          entityId: {
+                                            type: 'string',
+                                            format: 'uuid',
+                                            description: 'Full id of the cited project item.',
+                                          },
+                                          title: {
+                                            type: 'string',
+                                            minLength: 1,
+                                            description:
+                                              "The cited item's real title, shown to the user as a link.",
+                                          },
+                                        },
+                                        description:
+                                          'A real project item, cited so the user can open it.',
+                                      },
+                                      action: {
+                                        type: 'string',
+                                        minLength: 1,
+                                        description:
+                                          'What must happen in this step, in plain words.',
+                                      },
+                                      state: {
+                                        type: 'string',
+                                        enum: ['DONE', 'REMAINING', 'USER_DECISION'],
+                                        description:
+                                          'DONE means the step is already complete. REMAINING means work is still to be done and needs no decision from the user. USER_DECISION means the user must decide before the step can happen.',
+                                      },
+                                    },
+                                  },
+                                },
+                                userRequest: {
+                                  type: 'string',
+                                  minLength: 1,
+                                  description:
+                                    'The one specific thing the agent needs from the user.',
+                                },
+                                boundedEvidence: {
+                                  type: 'array',
+                                  minItems: 1,
+                                  maxItems: 8,
+                                  description:
+                                    'Supporting evidence kept with the finding; it is not shown as a separate section.',
+                                  items: {
+                                    type: 'object',
+                                    additionalProperties: false,
+                                    required: ['category', 'statement'],
+                                    properties: {
+                                      category: {
+                                        description:
+                                          'Machine-readable evidence classification; presentation does not prefix the statement with it.',
+                                        type: 'string',
+                                        enum: [
+                                          'behavior',
+                                          'ownership',
+                                          'data_lifecycle',
+                                          'authority',
+                                          'security',
+                                          'isolation',
+                                          'integration',
+                                        ],
+                                      },
+                                      statement: {
+                                        type: 'string',
+                                        minLength: 1,
+                                      },
+                                      sourceRef: {
+                                        type: 'string',
+                                        minLength: 1,
+                                        description:
+                                          'Bounded reference to the project evidence supporting the statement.',
+                                      },
+                                    },
                                   },
                                 },
                               },
                             },
-                            answerKind: {
-                              type: 'string',
-                              minLength: 1,
+                            {
+                              type: 'object',
+                              additionalProperties: false,
+                              required: [
+                                'affectedSourceContext',
+                                'unresolvedDecision',
+                                'consequentialInventionRisk',
+                                'boundedEvidence',
+                                'answerKind',
+                              ],
                               description:
-                                'Requested clarification included with unresolvedDecision in the How to resolve section.',
+                                'Finding layout stored before the explained layout existed. It is read for saved sessions only; new findings never use it.',
+                              properties: {
+                                affectedSourceContext: {
+                                  type: 'string',
+                                  minLength: 1,
+                                },
+                                unresolvedDecision: {
+                                  type: 'string',
+                                  minLength: 1,
+                                },
+                                consequentialInventionRisk: {
+                                  type: 'string',
+                                  minLength: 1,
+                                },
+                                boundedEvidence: {
+                                  type: 'array',
+                                  minItems: 1,
+                                  maxItems: 8,
+                                  items: {
+                                    type: 'object',
+                                    additionalProperties: false,
+                                    required: ['category', 'statement'],
+                                    properties: {
+                                      category: {
+                                        description:
+                                          'Machine-readable evidence classification; presentation does not prefix the statement with it.',
+                                        type: 'string',
+                                        enum: [
+                                          'behavior',
+                                          'ownership',
+                                          'data_lifecycle',
+                                          'authority',
+                                          'security',
+                                          'isolation',
+                                          'integration',
+                                        ],
+                                      },
+                                      statement: {
+                                        type: 'string',
+                                        minLength: 1,
+                                      },
+                                      sourceRef: {
+                                        type: 'string',
+                                        minLength: 1,
+                                        description:
+                                          'Bounded reference to the project evidence supporting the statement.',
+                                      },
+                                    },
+                                  },
+                                },
+                                answerKind: {
+                                  type: 'string',
+                                  minLength: 1,
+                                },
+                              },
                             },
-                          },
+                          ],
                         },
                       ],
                     },
@@ -4595,6 +4806,25 @@ export const controllerActionRuntimeSchema = {
                       },
                     ],
                   },
+                  transitionRole: {
+                    anyOf: [
+                      {
+                        type: 'null',
+                      },
+                      {
+                        allOf: [
+                          {
+                            type: 'string',
+                            enum: ['PRIMARY_PROGRESSION', 'ERROR_PATH', 'RECOVERY', 'RETURN'],
+                            description:
+                              'Optional explicit meaning of a flow transition, independent of its action label, relationship variant, predicate and placement. `PRIMARY_PROGRESSION` is the main depicted journey, `ERROR_PATH` an unsuccessful or exceptional branch, `RECOVERY` a route back toward usable progress after something went wrong, and `RETURN` a move back to an earlier step without any failure, such as breadcrumb or back navigation. Absence means unclassified; the role is never inferred from labels, position or topology. Valid only on flow edges (`STANDARD`, `CONDITIONAL`, `LOOP`).\n',
+                          },
+                        ],
+                        description:
+                          'Optional explicit meaning of this flow transition (primary progression, error path or recovery); omitted means unclassified.',
+                      },
+                    ],
+                  },
                   reasoning: {
                     type: 'string',
                   },
@@ -5555,7 +5785,7 @@ export const controllerActionRuntimeSchema = {
     },
     LocalRunEvalPromptPayload: {
       type: 'object',
-      required: ['userMessage', 'evalRunId', 'attempts', 'judgeSetup', 'settings'],
+      required: ['userMessage', 'evalRunId', 'cases', 'attempts', 'judgeSetup', 'settings'],
       properties: {
         startupInput: {
           deprecated: true,
@@ -5654,6 +5884,228 @@ export const controllerActionRuntimeSchema = {
               type: 'integer',
               minimum: 1,
             },
+            repeatsPerAttempt: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 10,
+              description:
+                'How many separate fresh attempts the run makes for each case and configuration. Absent on runs recorded before repeats existed, which are read as 1.\n',
+            },
+          },
+        },
+        cases: {
+          type: 'array',
+          description: 'Case inputs recorded on the run. Attempts reference them by id.',
+          items: {
+            type: 'object',
+            description:
+              'Approved case content and selections recorded when the run was launched. No project snapshot is implied; discovery reads the live project.\n',
+            required: ['id', 'evalCaseId', 'title', 'target', 'grading'],
+            properties: {
+              id: {
+                type: 'string',
+                format: 'uuid',
+              },
+              evalCaseId: {
+                type: 'string',
+                format: 'uuid',
+              },
+              title: {
+                type: 'string',
+              },
+              target: {
+                type: 'object',
+                description:
+                  'Recorded case context. Only the initiating request and focal entity reach the target; situation and supporting items are reviewer and judge context.',
+                required: ['situation', 'initiatingRequest', 'targetHandler'],
+                properties: {
+                  situation: {
+                    type: 'string',
+                    description: 'Approved case content as recorded at launch.',
+                  },
+                  focalItemId: {
+                    type: ['string', 'null'],
+                    format: 'uuid',
+                  },
+                  focalItemType: {
+                    allOf: [
+                      {
+                        $ref: '#/definitions/RunEntityReference/properties/entityType',
+                      },
+                    ],
+                    description:
+                      'Canonical entity family of the focal item. Required whenever focalItemId is present; work-item subtypes use TASK.',
+                  },
+                  supportingItemIds: {
+                    type: 'array',
+                    items: {
+                      type: 'string',
+                      format: 'uuid',
+                    },
+                  },
+                  initiatingRequest: {
+                    type: 'string',
+                    description: 'The single request that starts the case.',
+                  },
+                  targetHandler: {
+                    $ref: '#/definitions/LocalRunEvalPromptPayload/properties/attempts/items/properties/execution/properties/handler',
+                    description: 'Registry key of the handler under test.',
+                  },
+                  consumerHandler: {
+                    allOf: [
+                      {
+                        type: 'string',
+                        description:
+                          'Registry key of a handler whose real Project Assistant policy a Project Assistant case runs under. Each key must be a registered handler that declares a Project Assistant policy; the Hey Hey CLI tests the list against its registry.\n',
+                        enum: [
+                          'startup_session',
+                          'design_doc_refiner',
+                          'feature_sync_analyze',
+                          'feature_refiner',
+                          'task_refiner',
+                          'plan_shaping_feature_sync_analyze',
+                          'free_form',
+                          'entity_conversation',
+                          'html_css_mockup_revision',
+                          'validation_walkthrough',
+                        ],
+                      },
+                    ],
+                    description:
+                      'Present exactly when `targetHandler` is `project_assistant`: the real handler whose policy, tools and prompt Project Assistant runs under. Always explicit; there is no default.\n',
+                  },
+                },
+              },
+              grading: {
+                type: 'object',
+                description: 'For the coordinator and judge only. Never passed to the target.',
+                required: ['checks', 'rubric'],
+                properties: {
+                  expectations: {
+                    type: 'string',
+                    description: 'Expected and forbidden behavior recorded from the approved case.',
+                  },
+                  checks: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      required: ['id', 'description'],
+                      properties: {
+                        id: {
+                          type: 'string',
+                        },
+                        description: {
+                          type: 'string',
+                        },
+                      },
+                    },
+                  },
+                  rubric: {
+                    type: 'array',
+                    description: 'Dimensions are data, not an enum.',
+                    items: {
+                      type: 'object',
+                      required: ['key', 'name', 'description'],
+                      properties: {
+                        key: {
+                          type: 'string',
+                        },
+                        name: {
+                          type: 'string',
+                        },
+                        description: {
+                          type: 'string',
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              coding: {
+                type: 'object',
+                additionalProperties: false,
+                description:
+                  "Coding section of an Eval Case whose handler is `free_form`. For the runner, coordinator and judge only; never passed to the target. Valid exactly when the case's handler is `free_form`; checked at approval and at launch, and recorded with each run.\n",
+                required: ['serviceId', 'pinnedCommit'],
+                properties: {
+                  serviceId: {
+                    $ref: '#/definitions/RepositoryFirstWorkRequest/properties/serviceId',
+                  },
+                  pinnedCommit: {
+                    type: 'object',
+                    additionalProperties: false,
+                    description: 'The commit a coding attempt starts from.',
+                    required: ['sha', 'shortMessage'],
+                    properties: {
+                      sha: {
+                        type: 'string',
+                        pattern: '^[0-9a-f]{40}$',
+                        description: 'Full 40-character commit SHA.',
+                      },
+                      shortMessage: {
+                        type: 'string',
+                        minLength: 1,
+                        description: 'First line of the commit message, shown for recognition.',
+                      },
+                    },
+                  },
+                  knownGoodDiff: {
+                    type: 'string',
+                    minLength: 1,
+                    description:
+                      'Optional reference for the judge: a change that satisfies the case. Never passed to the target.\n',
+                  },
+                  knownBadDiff: {
+                    type: 'string',
+                    minLength: 1,
+                    description:
+                      'Optional reference for the judge: a change that plausibly looks right but fails the case. Never passed to the target.\n',
+                  },
+                  mockupChecklist: {
+                    type: 'object',
+                    additionalProperties: false,
+                    description:
+                      'What a coding case built from a Mockup is judged against. For a NEW Mockup the items cover every control; for an UPDATE only the parts that changed.\n',
+                    required: ['mockupId', 'kind', 'items'],
+                    properties: {
+                      mockupId: {
+                        type: 'string',
+                        format: 'uuid',
+                        description: "The source Mockup, which must be in the case's project.",
+                      },
+                      kind: {
+                        type: 'string',
+                        enum: ['NEW', 'UPDATE'],
+                      },
+                      items: {
+                        type: 'array',
+                        minItems: 1,
+                        items: {
+                          type: 'object',
+                          additionalProperties: false,
+                          description:
+                            'One observable outcome to check in a Mockup-derived coding attempt.',
+                          required: ['id', 'description'],
+                          properties: {
+                            id: {
+                              type: 'string',
+                              minLength: 1,
+                              description:
+                                'Unique within the checklist; the judge answers by this id.',
+                            },
+                            description: {
+                              type: 'string',
+                              minLength: 1,
+                              description: 'The outcome to check, written as observable behavior.',
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
           },
         },
         attempts: {
@@ -5663,7 +6115,8 @@ export const controllerActionRuntimeSchema = {
             'Recorded case x configuration attempts. Each carries its case input and configuration.',
           items: {
             type: 'object',
-            description: 'One case x configuration attempt as recorded for the coordinator.',
+            description:
+              'One attempt at a case, configuration and repeat as recorded for the coordinator.',
             required: [
               'attemptId',
               'caseInput',
@@ -5693,26 +6146,13 @@ export const controllerActionRuntimeSchema = {
                       'entity_conversation',
                       'project_assistant',
                       'feature_sync_analyze',
+                      'free_form',
                     ],
                   },
                   consumerHandler: {
                     allOf: [
                       {
-                        type: 'string',
-                        description:
-                          'Registry key of a handler whose real Project Assistant policy a Project Assistant case runs under. Each key must be a registered handler that declares a Project Assistant policy; the Hey Hey CLI tests the list against its registry.\n',
-                        enum: [
-                          'startup_session',
-                          'design_doc_refiner',
-                          'feature_sync_analyze',
-                          'feature_refiner',
-                          'task_refiner',
-                          'plan_shaping_feature_sync_analyze',
-                          'free_form',
-                          'entity_conversation',
-                          'html_css_mockup_revision',
-                          'validation_walkthrough',
-                        ],
+                        $ref: '#/definitions/LocalRunEvalPromptPayload/properties/cases/items/properties/target/properties/consumerHandler/allOf/0',
                       },
                     ],
                     description:
@@ -5725,8 +6165,9 @@ export const controllerActionRuntimeSchema = {
                   },
                   assessedOutput: {
                     type: 'string',
-                    description: 'Which output the judge assesses for an attempt.',
-                    enum: ['RESEARCH_REPORT', 'HANDLER_REPLY'],
+                    description:
+                      'Which output the judge assesses for an attempt. CODE_CHANGES is the recorded changes of a coding attempt, not its chat reply.\n',
+                    enum: ['RESEARCH_REPORT', 'HANDLER_REPLY', 'CODE_CHANGES'],
                   },
                 },
               },
@@ -5741,118 +6182,7 @@ export const controllerActionRuntimeSchema = {
                 description: 'Conversation prepared at launch alongside the target session.',
               },
               caseInput: {
-                type: 'object',
-                description:
-                  'Approved case content and selections recorded when the run was launched. No project snapshot is implied; discovery reads the live project.\n',
-                required: ['id', 'evalCaseId', 'title', 'target', 'grading'],
-                properties: {
-                  id: {
-                    type: 'string',
-                    format: 'uuid',
-                  },
-                  evalCaseId: {
-                    type: 'string',
-                    format: 'uuid',
-                  },
-                  title: {
-                    type: 'string',
-                  },
-                  target: {
-                    type: 'object',
-                    description:
-                      'Recorded case context. Only the initiating request and focal entity reach the target; situation and supporting items are reviewer and judge context.',
-                    required: ['situation', 'initiatingRequest', 'targetHandler'],
-                    properties: {
-                      situation: {
-                        type: 'string',
-                        description: 'Approved case content as recorded at launch.',
-                      },
-                      focalItemId: {
-                        type: ['string', 'null'],
-                        format: 'uuid',
-                      },
-                      focalItemType: {
-                        allOf: [
-                          {
-                            $ref: '#/definitions/RunEntityReference/properties/entityType',
-                          },
-                        ],
-                        description:
-                          'Canonical entity family of the focal item. Required whenever focalItemId is present; work-item subtypes use TASK.',
-                      },
-                      supportingItemIds: {
-                        type: 'array',
-                        items: {
-                          type: 'string',
-                          format: 'uuid',
-                        },
-                      },
-                      initiatingRequest: {
-                        type: 'string',
-                        description: 'The single request that starts the case.',
-                      },
-                      targetHandler: {
-                        $ref: '#/definitions/LocalRunEvalPromptPayload/properties/attempts/items/properties/execution/properties/handler',
-                        description: 'Registry key of the handler under test.',
-                      },
-                      consumerHandler: {
-                        allOf: [
-                          {
-                            $ref: '#/definitions/LocalRunEvalPromptPayload/properties/attempts/items/properties/execution/properties/consumerHandler/allOf/0',
-                          },
-                        ],
-                        description:
-                          'Present exactly when `targetHandler` is `project_assistant`: the real handler whose policy, tools and prompt Project Assistant runs under. Always explicit; there is no default.\n',
-                      },
-                    },
-                  },
-                  grading: {
-                    type: 'object',
-                    description: 'For the coordinator and judge only. Never passed to the target.',
-                    required: ['checks', 'rubric'],
-                    properties: {
-                      expectations: {
-                        type: 'string',
-                        description:
-                          'Expected and forbidden behavior recorded from the approved case.',
-                      },
-                      checks: {
-                        type: 'array',
-                        items: {
-                          type: 'object',
-                          required: ['id', 'description'],
-                          properties: {
-                            id: {
-                              type: 'string',
-                            },
-                            description: {
-                              type: 'string',
-                            },
-                          },
-                        },
-                      },
-                      rubric: {
-                        type: 'array',
-                        description: 'Dimensions are data, not an enum.',
-                        items: {
-                          type: 'object',
-                          required: ['key', 'name', 'description'],
-                          properties: {
-                            key: {
-                              type: 'string',
-                            },
-                            name: {
-                              type: 'string',
-                            },
-                            description: {
-                              type: 'string',
-                            },
-                          },
-                        },
-                      },
-                    },
-                  },
-                },
+                $ref: '#/definitions/LocalRunEvalPromptPayload/properties/cases/items',
               },
               configuration: {
                 type: 'object',
@@ -5877,8 +6207,33 @@ export const controllerActionRuntimeSchema = {
                   },
                 },
               },
+              repeat: {
+                type: 'integer',
+                minimum: 1,
+                maximum: 10,
+                description:
+                  '1-based repeat this attempt is, copied from its attempt report. Absent when the attempt report has none.\n',
+              },
             },
           },
+        },
+      },
+    },
+    RunCreatePayloadLocalOnboarding: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['promptType', 'userMessage', 'conversationId'],
+      properties: {
+        promptType: {
+          type: 'string',
+          enum: ['local_onboarding'],
+        },
+        userMessage: {
+          type: 'string',
+        },
+        conversationId: {
+          type: 'string',
+          format: 'uuid',
         },
       },
     },
@@ -9155,7 +9510,7 @@ import type {
   ControllerStartInputs,
   ControllerMessageInputs,
   UserMessageData,
-} from './api';
+} from '@hey-hey/contracts/api/models';
 /** Build the delivered start payload before approval. Keep this mapping shared
  * with the API producer, so newly introduced execution inputs have one owner. */
 export function startControllerInputs(

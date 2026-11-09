@@ -3,7 +3,10 @@ import { Throttle } from '@nestjs/throttler';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import type { ReportBugRequestDto, ReportBugResponseDto } from 'src/generated';
+import type {
+  ReportBugRequestDto,
+  ReportBugResponseDto,
+} from '@hey-hey/contracts/api/models';
 import { ReportBugService } from 'src/services/report-bug.service';
 import type { UserId } from 'src/types';
 

@@ -14,13 +14,13 @@ import {
 import { parseAsInteger, parseAsStringLiteral, useQueryState } from "nuqs";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import type { ProposalResponseDto } from "@hey-hey/ui-common/api";
+import type { ProposalResponseDto } from "@hey-hey/contracts/api";
 import {
   ProposalAction as ProposalActionEnum,
   ProposalStatus as ProposalStatusEnum,
   ProposalType as ProposalTypeEnum,
   TargetEntityType as TargetEntityTypeEnum,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { proposalReviewPath } from "./proposalReviewPath";
 
 const SORT_OPTIONS = ["newest", "oldest", "status"] as const;
@@ -75,10 +75,7 @@ export const ProposalsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
 
-  const [page, setPage] = useQueryState(
-    "page",
-    parseAsInteger.withDefault(1),
-  );
+  const [page, setPage] = useQueryState("page", parseAsInteger.withDefault(1));
   const [statusFilter, setStatusFilter] = useQueryState(
     "status",
     parseAsStringLiteral(STATUS_FILTER_VALUES).withDefault(""),
@@ -110,19 +107,16 @@ export const ProposalsPage: React.FC = () => {
 
     try {
       const offset = (page - 1) * PAGE_SIZE;
-      const response =
-        await proposalsClient.listProposals(
-          {
-            organizationId: currentOrgId,
-            projectId,
-            type: typeFilter || undefined,
-            action: actionFilter || undefined,
-            status: statusFilter || undefined,
-            targetEntityType: targetTypeFilter || undefined,
-            limit: PAGE_SIZE,
-            offset,
-          },
-        );
+      const response = await proposalsClient.listProposals({
+        organizationId: currentOrgId,
+        projectId,
+        type: typeFilter || undefined,
+        action: actionFilter || undefined,
+        status: statusFilter || undefined,
+        targetEntityType: targetTypeFilter || undefined,
+        limit: PAGE_SIZE,
+        offset,
+      });
 
       const body = response.data as {
         data?: { data: ProposalResponseDto[]; total: number };

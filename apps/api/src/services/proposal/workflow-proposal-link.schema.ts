@@ -1,4 +1,4 @@
-import type { WorkflowProposalLinkInput } from 'src/generated';
+import type { WorkflowProposalLinkInput } from '@hey-hey/contracts/api/models';
 import { z } from 'zod';
 
 export const WORKFLOW_EDGE_PREDICATE_MAX_LENGTH = 200;
@@ -44,6 +44,19 @@ export const workflowEdgeActionLabelSchema = z
   })
   .describe('Optional plain-language action that triggers a flow transition');
 
+export const WORKFLOW_TRANSITION_ROLES = [
+  'PRIMARY_PROGRESSION',
+  'ERROR_PATH',
+  'RECOVERY',
+  'RETURN',
+] as const;
+
+export const workflowTransitionRoleSchema = z
+  .enum(WORKFLOW_TRANSITION_ROLES)
+  .describe(
+    'Optional explicit meaning of a flow transition: PRIMARY_PROGRESSION, ERROR_PATH, RECOVERY or RETURN. Omit when unclassified.',
+  );
+
 const standardLinkSchema = z
   .object({
     sourceStepTempId: sourceStepTempIdSchema,
@@ -51,6 +64,7 @@ const standardLinkSchema = z
     targetStepTempId: targetStepTempIdSchema,
     direction: directionSchema,
     actionLabel: workflowEdgeActionLabelSchema.optional(),
+    transitionRole: workflowTransitionRoleSchema.optional(),
     description: descriptionSchema,
   })
   .strict();
@@ -63,6 +77,7 @@ const conditionalLinkSchema = z
     direction: directionSchema,
     predicate: workflowEdgePredicateSchema,
     actionLabel: workflowEdgeActionLabelSchema.optional(),
+    transitionRole: workflowTransitionRoleSchema.optional(),
     description: descriptionSchema,
   })
   .strict();
@@ -74,6 +89,7 @@ const loopLinkSchema = z
     targetStepTempId: targetStepTempIdSchema.optional(),
     predicate: workflowEdgePredicateSchema.optional(),
     actionLabel: workflowEdgeActionLabelSchema.optional(),
+    transitionRole: workflowTransitionRoleSchema.optional(),
     description: descriptionSchema,
   })
   .strict();

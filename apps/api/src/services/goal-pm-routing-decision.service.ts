@@ -11,7 +11,7 @@ import type {
   GoalPmRoutingDecisionResponseDto,
   GoalPmRoutingPayload,
   GoalPmRoutingSelectionPayload,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   GoalPmRoutingDecisionResponseDtoSchema,
   GoalPmRoutingPayloadSchema,
@@ -67,7 +67,10 @@ export function mapGoalPmRoutingDecision(
   return record.metadata;
 }
 
-export function routingField(data: unknown, fieldId: string): GoalPmRoutingPayload {
+export function routingField(
+  data: unknown,
+  fieldId: string,
+): GoalPmRoutingPayload {
   if (
     !data ||
     typeof data !== 'object' ||

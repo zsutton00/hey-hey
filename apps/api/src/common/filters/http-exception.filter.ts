@@ -4,7 +4,7 @@ import {
   ExceptionFilter,
   HttpException,
 } from '@nestjs/common';
-import type { ProposalApprovalFailureErrorResponse } from 'src/generated';
+import type { ProposalApprovalFailureErrorResponse } from '@hey-hey/contracts/api/models';
 import { toProposalApprovalFailureDiagnostic } from 'src/services/proposal/proposal-approval-failure-diagnostic';
 import { v4 as uuidv4 } from 'uuid';
 import { Request, Response } from 'express';

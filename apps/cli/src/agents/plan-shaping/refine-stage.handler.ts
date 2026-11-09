@@ -14,9 +14,10 @@
 import { FUTURE_REVISION_MCP_TOOLS } from '../mcp-server-config';
 
 import {
+  SessionRole,
   LocalPromptType,
   type PlanShapingRefineStagePromptPayload,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import { turnUserMessageBlock, type UserLaunchablePromptTypeHandler } from '../prompt-type-handler';
 import { buildRefineStagePrompt } from './prompts';
 import { preparePlanShapingPayload } from './prepare-payload';
@@ -35,6 +36,7 @@ const REFINE_STAGE_ALLOWED_TOOLS: readonly string[] = [
 export const planShapingRefineStageHandler: UserLaunchablePromptTypeHandler<PlanShapingRefineStagePromptPayload> =
   {
     id: 'plan_shaping_refine_stage',
+    sessionRole: SessionRole.Planning,
     promptType: LocalPromptType.PlanShapingRefineStage,
     service: 'optional',
     launchEntity: 'required',

@@ -24,11 +24,11 @@ import { ProposalToolsProvider } from '../../../mcp/tools/proposal-tools.provide
 import { GetToolGuidanceToolsProvider } from '../../../mcp/tools/get-tool-guidance-tools.provider';
 import { guidanceTokenForType } from '../../../mcp/tools/work-item-guidance-token';
 import type { ProposalService } from '../../proposal/proposal.service';
-import type { WorkItemTypeDefinitionDto } from '../../../generated/model/workItemTypeDefinitionDto';
-import { EntityType } from '../../../generated/model/entityType';
-import { SessionRole } from '../../../generated/model/sessionRole';
-import { WorkItemTypeGuidancePurpose } from '../../../generated/model/workItemTypeGuidancePurpose';
-import { WorkStatus } from '../../../generated/model/workStatus';
+import type { WorkItemTypeDefinitionDto } from '@hey-hey/contracts/api/models';
+import { EntityType } from '@hey-hey/contracts/api/models';
+import { SessionRole } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeGuidancePurpose } from '@hey-hey/contracts/api/models';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import * as TestUtils from '../../../utils/testUtils';
 import { UserId } from '../../../types';
 import { Prisma, type WorkItemType } from '@prisma/client';

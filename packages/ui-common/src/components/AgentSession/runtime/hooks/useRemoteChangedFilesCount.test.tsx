@@ -54,7 +54,7 @@ describe("useRemoteChangedFilesCount", () => {
 
   it("does not read an unlaunched session", () => {
     const { result } = renderHook(() =>
-      useRemoteChangedFilesCount({ ...baseParams, enabled: false })
+      useRemoteChangedFilesCount({ ...baseParams, enabled: false }),
     );
     expect(result.current.status).toBe("skipped");
     expect(read).not.toHaveBeenCalled();
@@ -85,16 +85,16 @@ describe("useRemoteChangedFilesCount", () => {
         cliReadRequestDto: expect.objectContaining({
           authorization: { kind: "bounded_grant", grantId: "grant-1" },
         }),
-      })
+      }),
     );
     expect(authorize).toHaveBeenCalledWith(
       expect.objectContaining({
         cause: {
           operation:
             "read the current changed-file count from the connected computer",
-          purpose: "Show the current changed files for this coding session.",
+          purpose: "Show the current changed files for this session.",
         },
-      })
+      }),
     );
   });
 
@@ -119,7 +119,7 @@ describe("useRemoteChangedFilesCount", () => {
     await waitFor(() => expect(result.current.status).toBe("success"));
     expect(result.current.count).toBe(0);
     expect(result.current.readIdentity).toBe(
-      `${baseParams.agentSessionId}:${baseParams.runId}:machine-1`
+      `${baseParams.agentSessionId}:${baseParams.runId}:machine-1`,
     );
     expect(result.current.retryGeneration).toBe(0);
   });
@@ -144,16 +144,16 @@ describe("useRemoteChangedFilesCount", () => {
 
   it("keeps an in-flight result after dependency replay", async () => {
     let resolveRead: (
-      response: Awaited<ReturnType<typeof read>>
+      response: Awaited<ReturnType<typeof read>>,
     ) => void = () => undefined;
     read.mockReturnValue(
       new Promise((resolve) => {
         resolveRead = resolve;
-      }) as ReturnType<typeof read>
+      }) as ReturnType<typeof read>,
     );
 
     const { result, rerender } = renderHook(() =>
-      useRemoteChangedFilesCount(baseParams)
+      useRemoteChangedFilesCount(baseParams),
     );
     await waitFor(() => expect(authorize).toHaveBeenCalledTimes(1));
 
@@ -199,7 +199,7 @@ describe("useRemoteChangedFilesCount", () => {
     } as Awaited<ReturnType<typeof read>>);
 
     const { result, rerender } = renderHook(() =>
-      useRemoteChangedFilesCount(baseParams)
+      useRemoteChangedFilesCount(baseParams),
     );
     await waitFor(() => expect(result.current.status).toBe("success"));
     expect(authorize).toHaveBeenCalledTimes(1);
@@ -223,7 +223,7 @@ describe("useRemoteChangedFilesCount", () => {
           runId: baseParams.runId,
           authorization: { kind: "bounded_grant", grantId: "grant-1" },
         }),
-      })
+      }),
     );
   });
 
@@ -246,7 +246,7 @@ describe("useRemoteChangedFilesCount", () => {
     const { result, rerender } = renderHook(
       ({ enabled }: { enabled: boolean }) =>
         useRemoteChangedFilesCount({ ...baseParams, enabled }),
-      { initialProps: { enabled: true } }
+      { initialProps: { enabled: true } },
     );
 
     await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
@@ -303,12 +303,12 @@ describe("useRemoteChangedFilesCount", () => {
     } as Awaited<ReturnType<typeof read>>);
 
     let resolveRetry: (
-      response: Awaited<ReturnType<typeof read>>
+      response: Awaited<ReturnType<typeof read>>,
     ) => void = () => undefined;
     read.mockReturnValueOnce(
       new Promise((resolve) => {
         resolveRetry = resolve;
-      }) as ReturnType<typeof read>
+      }) as ReturnType<typeof read>,
     );
 
     const { result } = renderHook(() => useRemoteChangedFilesCount(baseParams));
@@ -321,7 +321,7 @@ describe("useRemoteChangedFilesCount", () => {
     await waitFor(() => expect(result.current.status).toBe("loading"));
     if (result.current.status === "loading") {
       expect(result.current.previousFailure?.reason).toBe(
-        "The first read timed out."
+        "The first read timed out.",
       );
       expect(result.current.retryGeneration).toBe(1);
     }

@@ -1,6 +1,6 @@
 import { WebPathService } from "@hey-hey/ui-common";
 import { DiscussCapsuleAction, PlanList } from "@hey-hey/ui-common/components";
-import { EntityType } from "@hey-hey/ui-common/api";
+import { EntityType } from "@hey-hey/contracts/api";
 import { TrackingProvider, useOrganization } from "@hey-hey/ui-common/context";
 import {
   buildProjectWorkspaceNavigation,

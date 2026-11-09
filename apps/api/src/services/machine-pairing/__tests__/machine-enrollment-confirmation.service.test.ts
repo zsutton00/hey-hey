@@ -10,7 +10,7 @@ import {
   ConfirmMachineEnrollmentRequestDto,
   MachineEnrollmentConfirmationPayloadDto,
   PollMachineEnrollmentRequestDto,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { OrganizationId, UserId } from '../../../types';
 import { canonicalizeJcs } from '../../../core/websockets/trigger-canonicalization';
@@ -59,7 +59,10 @@ type TestEnrollment = {
   credentialBackupEligible: boolean;
   credentialBackupState: boolean;
   credentialFingerprint: string;
+  webauthnChallenge: string;
+  requestedCadence: null;
   confirmationNonce: string | null;
+  localApprovalProof: string | null;
   lastPolledAt: Date | null;
   consumedAt: Date | null;
   browserBindingCredentialHash: string | null;
@@ -146,7 +149,10 @@ describe('MachineEnrollmentConfirmationService', () => {
     credentialBackupEligible: true,
     credentialBackupState: false,
     credentialFingerprint: 'b'.repeat(64),
+    webauthnChallenge: 'c'.repeat(43),
+    requestedCadence: null,
     confirmationNonce: CONFIRMATION_NONCE,
+    localApprovalProof: null,
     lastPolledAt: null,
     consumedAt: null,
     browserBindingCredentialHash: null,
@@ -308,6 +314,13 @@ describe('MachineEnrollmentConfirmationService', () => {
       organizationId: ORGANIZATION_ID,
       controllerCredentialId: CREDENTIAL_ID,
       controllerCredentialFingerprint: `sha256:${'b'.repeat(64)}`,
+      controllerCredentialPublicKey: {
+        kty: 'EC',
+        crv: 'P-256',
+        x: Buffer.alloc(32, 1).toString('base64url'),
+        y: Buffer.alloc(32, 2).toString('base64url'),
+      },
+      registrationChallenge: 'c'.repeat(43),
     });
     expect(row.confirmationNonce).toEqual(expect.any(String));
     expect(loggerLog).toHaveBeenLastCalledWith(
@@ -323,6 +336,23 @@ describe('MachineEnrollmentConfirmationService', () => {
         reasonCode: 'poll_succeeded',
       }),
     );
+  });
+
+  it('returns a stored local approval proof only to the device-secret poll, and nothing when absent', async () => {
+    const input: PollMachineEnrollmentRequestDto = {
+      deviceSecret: DEVICE_SECRET,
+    };
+    const ready = await service.poll(ENROLLMENT_ID, input);
+    expect(ready).not.toHaveProperty('localApprovalProof');
+
+    jest.advanceTimersByTime(MACHINE_ENROLLMENT_MIN_POLL_INTERVAL_MS);
+    row.lastPolledAt = new Date(now.getTime() - 5_000);
+    row.localApprovalProof = 'p'.repeat(43);
+    await expect(service.poll(ENROLLMENT_ID, input)).resolves.toMatchObject({
+      state: 'ready',
+      localApprovalProof: 'p'.repeat(43),
+    });
+    expect(JSON.stringify(loggerLog.mock.calls)).not.toContain('p'.repeat(43));
   });
 
   it('enforces the advertised minimum poll interval without exposing evidence', async () => {

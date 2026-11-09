@@ -1,7 +1,4 @@
-import {
-  CliReadErrorCode,
-  type CliReadResponseDto,
-} from '../shared/agent-bridge-contract/generated/api';
+import { CliReadErrorCode, type CliReadResponseDto } from '@hey-hey/contracts/agent-bridge';
 
 /**
  * The platform gateway currently uses Engine.IO's default 1,000,000-byte

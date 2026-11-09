@@ -1,3 +1,4 @@
+import { MAX_RECORDED_ARGUMENT_CHARS } from './eval-recorded-tool-calls';
 import { SessionTokenUsageReader } from '../../provider-usage/session-token-usage';
 import type { TokenUsage } from '../../session/types';
 import { WorkflowAboutReader } from '../submission-tools/search-messages-proxy';
@@ -7,7 +8,18 @@ import { MessagePoster } from '../../run/message-poster';
 import { NOOP_LOGGER } from '../../server/logger';
 /** @vitest-environment node */
 
-import { mkdtemp, rm } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -17,6 +29,43 @@ vi.mock('../providers/session-runner-config', () => ({
     .fn()
     .mockResolvedValue({ sourcePath: '/tmp/cfg.json', warnings: [] }),
   resolveAgentInvocationConfigPath: vi.fn(() => '/tmp/agent-invocation.json'),
+}));
+
+const startSessionMock = vi.fn();
+let permissionRequestHandler:
+  | ((toolName: string, input: unknown) => Promise<Record<string, unknown>>)
+  | null = null;
+let providerEventHandler: ((event: Record<string, unknown>) => void) | null = null;
+
+// The Claude SDK is the process boundary: the real runner decides which tools
+// a Run is offered and what its permission handler allows.
+vi.mock('../../agent-runtime/index', async () => {
+  const actual = await vi.importActual<typeof import('../../agent-runtime/index')>(
+    '../../agent-runtime/index',
+  );
+  return {
+    ...actual,
+    ClaudeCodeSdkClient: class {
+      startSession(...args: unknown[]) {
+        return startSessionMock(...args);
+      }
+      getSessionId() {
+        return null;
+      }
+      async disconnect() {}
+      onPermissionRequest(handler: NonNullable<typeof permissionRequestHandler>) {
+        permissionRequestHandler = handler;
+      }
+      onEvent(handler: typeof providerEventHandler) {
+        providerEventHandler = handler;
+      }
+    },
+  };
+});
+
+vi.mock('../prompts/session-start-context', () => ({
+  readSessionStartContext: () =>
+    Promise.resolve({ workItemTypeDefinitions: [], intentFirst: false, maturity: 'ESTABLISHED' }),
 }));
 
 import { ProjectModeBundleMaterializer } from '../project-mode';
@@ -201,7 +250,7 @@ import type {
   EvalRecordedAttempt,
   EvalResolvedExecution,
   EvalTargetHandlerKey,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { AgenticSession } from '../../session/types';
 
 const executionOf = (
@@ -248,6 +297,12 @@ const attempt = (
       situation: 'SECRET-SITUATION',
     },
     grading: { checks: [], rubric: [], expectations: 'SECRET-EXPECTATIONS' },
+    coding: {
+      serviceId: '55555555-5555-4555-8555-555555555555',
+      pinnedCommit: { sha: 'a'.repeat(40), shortMessage: 'SECRET-COMMIT-MESSAGE' },
+      knownGoodDiff: 'SECRET-KNOWN-GOOD',
+      knownBadDiff: 'SECRET-KNOWN-BAD',
+    },
   },
 });
 /** Saves research and a different completion note, as a research turn does. */
@@ -274,6 +329,16 @@ const finishWith = async (
   });
 };
 
+const CASE_CREATED_AT = '2026-01-01T00:00:00.000Z';
+const CASE_SEARCH_SCOPE = {
+  createdBefore: CASE_CREATED_AT,
+  excludeConnectedTo: [
+    '66666666-6666-4666-8666-666666666666',
+    '99999999-9999-4999-8999-999999999999',
+  ],
+  hiddenEntityIds: ['66666666-6666-4666-8666-666666666666', '99999999-9999-4999-8999-999999999999'],
+};
+
 const coordinator = { contextMetadata: startRunPayload({}).contextMetadata } as AgenticSession;
 
 describe('eval attempts through ordinary Runs', () => {
@@ -286,6 +351,7 @@ describe('eval attempts through ordinary Runs', () => {
         await finishWith(harness, { research: 'Saved research.', finalMessage: 'Done.' });
       }
       const result = await execution.execute(coordinator, attempt(handler), {
+        searchScope: CASE_SEARCH_SCOPE,
         signal: new AbortController().signal,
       });
       expect(result.researchMeasurements).toBeUndefined();
@@ -293,6 +359,7 @@ describe('eval attempts through ordinary Runs', () => {
       expect(JSON.stringify(runPrompt.mock.calls)).not.toContain('SECRET-');
       expect(wiring.runRegistry.get(AGENT_SESSION_ID)?.session).toMatchObject({
         inert: true,
+        searchScope: CASE_SEARCH_SCOPE,
         conversationId: CONVERSATION_ID,
         model: 'claude-test',
         reasoningEffort: 'high',
@@ -317,6 +384,7 @@ describe('eval attempts through ordinary Runs', () => {
       const { runStore, runPrompt, execution } = harness;
       await finishWith(harness, { research: 'Saved research.', finalMessage: 'Done.' });
       await execution.execute(coordinator, attempt('project_assistant'), {
+        searchScope: CASE_SEARCH_SCOPE,
         signal: new AbortController().signal,
       });
       expect(runPrompt).toHaveBeenCalledOnce();
@@ -330,7 +398,7 @@ describe('eval attempts through ordinary Runs', () => {
       await execution.execute(
         coordinator,
         attempt('entity_conversation', { projectAssistantPrepares: true }),
-        { signal: new AbortController().signal },
+        { searchScope: CASE_SEARCH_SCOPE, signal: new AbortController().signal },
       );
       expect(runPrompt).toHaveBeenCalledTimes(2);
       const [research, answer] = promptsRun(runPrompt);
@@ -343,26 +411,6 @@ describe('eval attempts through ordinary Runs', () => {
     it.each([true, false])('preserves research before handoff (reported=%s)', async (reported) => {
       const { runPrompt, runStore, execution } = await makeHarness();
       runPrompt.mockImplementationOnce(async () => {
-        const turn = (await runStore.getRunMetadata(AGENT_SESSION_ID))!.latestTurn!;
-        await runStore.appendRunGatherTrace(AGENT_SESSION_ID, {
-          runId: AGENT_SESSION_ID,
-          turnId: turn.turnId,
-          focal: { id: ENTITY.entityId, type: 'TASK', title: 'Review' },
-          ask: 'Review',
-          caps: { maxSearches: 1, maxResultsPerSearch: 1, hops: [] },
-          steps: [
-            {
-              kind: 'search-keep',
-              read: [],
-              judged: [],
-              failures: [],
-              usage: { requests: 1, inputTokens: 10, outputTokens: 2 },
-              ms: 1,
-            },
-          ],
-          expansionFailures: [],
-          returned: [],
-        });
         if (reported) {
           await recordProviderUsage(runStore, AGENT_SESSION_ID, {
             inputTokens: 100,
@@ -387,7 +435,7 @@ describe('eval attempts through ordinary Runs', () => {
       const result = await execution.execute(
         coordinator,
         attempt('entity_conversation', { projectAssistantPrepares: true }),
-        { signal: new AbortController().signal },
+        { searchScope: CASE_SEARCH_SCOPE, signal: new AbortController().signal },
       );
       expect(runPrompt).toHaveBeenCalledTimes(2);
       expect(result.usage).toMatchObject({
@@ -403,6 +451,7 @@ describe('eval attempts through ordinary Runs', () => {
     it('runs the chosen handler without Project Assistant when preparation is off', async () => {
       const { runPrompt, execution } = await makeHarness();
       await execution.execute(coordinator, attempt('entity_conversation'), {
+        searchScope: CASE_SEARCH_SCOPE,
         signal: new AbortController().signal,
       });
       expect(runPrompt).toHaveBeenCalledOnce();
@@ -419,6 +468,7 @@ describe('eval attempts through ordinary Runs', () => {
           finalMessage: 'Done, report saved.',
         });
         const result = await harness.execution.execute(coordinator, attempt('project_assistant'), {
+          searchScope: CASE_SEARCH_SCOPE,
           signal: new AbortController().signal,
         });
         expect(result).toMatchObject({
@@ -437,6 +487,7 @@ describe('eval attempts through ordinary Runs', () => {
           coordinator,
           attempt('entity_conversation'),
           {
+            searchScope: CASE_SEARCH_SCOPE,
             signal: new AbortController().signal,
           },
         );
@@ -448,6 +499,7 @@ describe('eval attempts through ordinary Runs', () => {
         await finishWith(harness, { finalMessage: 'Here is what I found.' });
         await expect(
           harness.execution.execute(coordinator, attempt('project_assistant'), {
+            searchScope: CASE_SEARCH_SCOPE,
             signal: new AbortController().signal,
           }),
         ).rejects.toThrow(/research ended without saving a research report/);
@@ -459,6 +511,7 @@ describe('eval attempts through ordinary Runs', () => {
       // Feature sync declares it needs a Service folder, which attempts do not have.
       await expect(
         execution.execute(coordinator, attempt('feature_sync_analyze'), {
+          searchScope: CASE_SEARCH_SCOPE,
           signal: new AbortController().signal,
         }),
       ).rejects.toThrow(/feature_sync_analyze failed before producing an answer/);
@@ -471,7 +524,7 @@ describe('eval attempts through ordinary Runs', () => {
         execution.execute(
           coordinator,
           attempt('feature_sync_analyze', { focalItemType: 'PROJECT' }),
-          { signal: new AbortController().signal },
+          { searchScope: CASE_SEARCH_SCOPE, signal: new AbortController().signal },
         ),
       ).rejects.toThrow(/feature_sync_analyze cannot start as the first agent/);
       expect(runPrompt).not.toHaveBeenCalled();
@@ -485,6 +538,7 @@ describe('eval attempts through ordinary Runs', () => {
     const controller = new AbortController();
     controller.abort();
     const result = await execution.execute(coordinator, attempt('agent_search'), {
+      searchScope: CASE_SEARCH_SCOPE,
       signal: controller.signal,
     });
     expect(result.assistantCompleted).toBe(false);
@@ -501,6 +555,7 @@ describe('eval attempts through ordinary Runs', () => {
     execution.bind(service, runStore);
     const onTokenLimit = vi.fn();
     const result = await execution.execute(coordinator, attempt('agent_search'), {
+      searchScope: CASE_SEARCH_SCOPE,
       signal: new AbortController().signal,
       tokenBudget: 10,
       onTokenLimit,
@@ -530,6 +585,7 @@ describe('eval startup and execution cancellation', () => {
     const execution = executionFor(runStore);
     execution.bind(service, runStore);
     const result = execution.execute(coordinator, attempt('agent_search'), {
+      searchScope: CASE_SEARCH_SCOPE,
       signal: controller.signal,
     });
     controller.abort();
@@ -574,6 +630,7 @@ describe('eval startup and execution cancellation', () => {
       const onTokenLimit = vi.fn(() => controller.abort());
       const onProviderSessionIds = vi.fn(async () => undefined);
       const running = execution.execute(coordinator, attempt('agent_search'), {
+        searchScope: CASE_SEARCH_SCOPE,
         signal: controller.signal,
         onProviderSessionIds,
         ...(reason === 'TOKEN_LIMIT' ? { tokenBudget: 10, onTokenLimit } : {}),
@@ -626,7 +683,10 @@ it.each(['USER', 'TOKEN_LIMIT'] as const)(
           },
         },
         async launchTarget(recorded, options) {
-          const result = await execution.execute(coordinator, recorded, options);
+          const result = await execution.execute(coordinator, recorded, {
+            ...options,
+            searchScope: CASE_SEARCH_SCOPE,
+          });
           controller.abort();
           return result;
         },
@@ -648,29 +708,6 @@ describe('settled eval usage evidence', () => {
   it('reads standalone research usage after its active provider identity is discarded', async () => {
     const h = await makeHarness();
     h.runPrompt.mockImplementationOnce(async () => {
-      const turn = (await h.runStore.getRunMetadata(AGENT_SESSION_ID))?.latestTurn;
-      if (!turn) {
-        throw new Error('The research turn must be running.');
-      }
-      await h.runStore.appendRunGatherTrace(AGENT_SESSION_ID, {
-        runId: AGENT_SESSION_ID,
-        turnId: turn.turnId,
-        focal: { id: ENTITY.entityId, type: 'TASK', title: 'Review' },
-        ask: 'Review',
-        caps: { maxSearches: 1, maxResultsPerSearch: 1, hops: [] },
-        steps: [
-          {
-            kind: 'search-keep',
-            read: [],
-            judged: [],
-            failures: [],
-            usage: { requests: 20, inputTokens: 350704, outputTokens: 39774 },
-            ms: 33000,
-          },
-        ],
-        expansionFailures: [],
-        returned: [],
-      });
       await recordProviderUsage(h.runStore, AGENT_SESSION_ID, {
         inputTokens: 120,
         outputTokens: 8,
@@ -684,6 +721,7 @@ describe('settled eval usage evidence', () => {
       return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
     });
     const result = await h.execution.execute(coordinator, attempt('project_assistant'), {
+      searchScope: CASE_SEARCH_SCOPE,
       signal: new AbortController().signal,
     });
     expect((await h.runStore.getRunMetadata(AGENT_SESSION_ID))?.provider_session_id).toBeNull();
@@ -724,7 +762,7 @@ describe('settled eval usage evidence', () => {
       const result = await h.execution.execute(
         coordinator,
         attempt('entity_conversation', { projectAssistantPrepares: prepares }),
-        { signal: new AbortController().signal },
+        { searchScope: CASE_SEARCH_SCOPE, signal: new AbortController().signal },
       );
       expect(result.usage).toMatchObject({
         inputTokens: 120,
@@ -775,7 +813,11 @@ describe('settled eval usage evidence', () => {
               patches.push(patch);
             },
           },
-          launchTarget: (item, options) => h.execution.execute(coordinator, item, options),
+          launchTarget: (item, options) =>
+            h.execution.execute(coordinator, item, {
+              ...options,
+              searchScope: CASE_SEARCH_SCOPE,
+            }),
           judge: async () => ({
             assessment: {
               checkResults: [],
@@ -817,12 +859,75 @@ describe('settled eval usage evidence', () => {
       return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
     });
     const result = await h.execution.execute(coordinator, attempt('agent_search'), {
+      searchScope: CASE_SEARCH_SCOPE,
       signal: new AbortController().signal,
       tokenBudget: 1,
     });
     expect(result.usage).not.toHaveProperty('inputTokens');
     expect(result.usage.outputTokens).toBe(8);
     expect(result.budgetExhausted).toBe(false);
+  });
+
+  it("records the tested agent's tool calls in order without results, bounded and without repeats", async () => {
+    const h = await makeHarness();
+    h.runPrompt.mockImplementationOnce(async () => {
+      const at = new Date().toISOString();
+      const search = {
+        toolName: 'unified_search',
+        toolUseId: 'use-1',
+        timestamp: at,
+        providerSessionId: null,
+        input: { queries: ['alpha'] },
+        result: 'SECRET-RESULT',
+      };
+      await h.runStore.addToolUsage(AGENT_SESSION_ID, [
+        search,
+        // A lifecycle event repeating the same call.
+        search,
+        {
+          toolName: 'get_full_entity',
+          toolUseId: 'use-2',
+          timestamp: at,
+          providerSessionId: null,
+          input: { text: 'x'.repeat(MAX_RECORDED_ARGUMENT_CHARS * 2) },
+        },
+        // A delegated child's call is not the tested handler's own.
+        {
+          toolName: 'child_tool',
+          toolUseId: 'use-3',
+          timestamp: at,
+          providerSessionId: 'child-session',
+          input: {},
+        },
+      ]);
+      return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+    });
+    const result = await h.execution.execute(coordinator, attempt('agent_search'), {
+      searchScope: CASE_SEARCH_SCOPE,
+      signal: new AbortController().signal,
+    });
+    expect(result.recordedToolCalls?.state).toBe('COLLECTED');
+    expect(result.recordedToolCalls?.calls.map((call) => call.toolName)).toEqual([
+      'unified_search',
+      'get_full_entity',
+    ]);
+    expect(result.recordedToolCalls?.calls[0]).toMatchObject({
+      arguments: JSON.stringify({ queries: ['alpha'] }),
+      origin: 'RUN_OBSERVED',
+      truncated: false,
+    });
+    expect(result.recordedToolCalls?.calls[1]).toMatchObject({ truncated: true });
+    expect(result.recordedToolCalls?.calls[1]?.arguments).toHaveLength(MAX_RECORDED_ARGUMENT_CHARS);
+    expect(JSON.stringify(result.recordedToolCalls)).not.toContain('SECRET-RESULT');
+  });
+
+  it('reports tool calls as unavailable, not empty, when the Run retained none', async () => {
+    const h = await makeHarness();
+    const result = await h.execution.execute(coordinator, attempt('agent_search'), {
+      searchScope: CASE_SEARCH_SCOPE,
+      signal: new AbortController().signal,
+    });
+    expect(result.recordedToolCalls).toEqual({ state: 'UNAVAILABLE', calls: [] });
   });
 
   it('isolates an unreadable result from a concurrent sibling attempt', async () => {
@@ -839,7 +944,10 @@ describe('settled eval usage evidence', () => {
     );
     const results = await Promise.allSettled(
       [first, second].map((item) =>
-        h.execution.execute(coordinator, item, { signal: new AbortController().signal }),
+        h.execution.execute(coordinator, item, {
+          searchScope: CASE_SEARCH_SCOPE,
+          signal: new AbortController().signal,
+        }),
       ),
     );
     expect(results[0]).toMatchObject({
@@ -849,5 +957,656 @@ describe('settled eval usage evidence', () => {
       }),
     });
     expect(results[1]).toMatchObject({ status: 'fulfilled', value: { assistantCompleted: true } });
+  });
+});
+
+describe('free-form coding attempt bound to a workspace directory', () => {
+  it('starts on the request with no plan, edits only inside its directory, and cannot change the live graph', async () => {
+    const { realpath } = await import('node:fs/promises');
+    const { ClaudeAgentSessionRunner } = await import('../providers/claude/session-runner-claude');
+    const { RunWorkspaceWriteBoundary } = await import('../workspace-write-boundary');
+    const { resolveRunWorkspace } = await import('../run-scope');
+    const { filterInertPlatformTools } = await import('../../run/inert-execution-policy');
+    const { LocalAgentEndpoint } = await import('../../server/local-base-url');
+    const { SubmissionToolRegistry } = await import('../submission-tools/registry');
+    const { ToolRuleStore } = await import('../../session/tool-rules');
+    const { createProviderTestRepoMappingStore } =
+      await import('../providers/provider-owner.test-support');
+
+    const harness = await makeHarness();
+    const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), 'heyhey-workspace-')));
+    const outside = await realpath(await mkdtemp(path.join(os.tmpdir(), 'heyhey-outside-')));
+    tempDirs.push(directory, outside);
+
+    // 1. The attempt starts the free-form handler directly on the request.
+    const { buildEvalFirstTurn } = await import('./eval-handler-launch');
+    const firstTurn = buildEvalFirstTurn(
+      executionOf('free_form', false),
+      'Add a greeting file.',
+      ENTITY,
+    );
+    const created = await harness.service.createRun({
+      context: { projectId: 'project-1', provider: 'claude' },
+      contextMetadata: coordinator.contextMetadata,
+      conversationId: CONVERSATION_ID,
+      attachments: [],
+      stagedBrowserTab: null,
+      inert: true,
+      workspaceBinding: { serviceId: 'workspace-service', directory },
+      // As an attempt does: Project Assistant never prepares a free-form coding case.
+      config: {
+        type: 'ENTITY_CONVERSATION',
+        version: 'v1',
+        model: 'claude-test',
+        projectAssistant: {
+          enabled: false,
+          allowEdgeUpdates: false,
+          notifyDiscrepancies: false,
+          allowUpdateProposals: false,
+        },
+      },
+      payload: firstTurn.payload,
+    });
+    expect(created.status).toBe('started');
+    const run = await harness.runStore.getRunMetadata(AGENT_SESSION_ID);
+    expect(run).toMatchObject({
+      inert: true,
+      workspaceBound: true,
+      launchServiceId: 'workspace-service',
+      services: [{ id: 'workspace-service', path: directory }],
+      startedPromptTypes: ['free_form'],
+    });
+    expect(JSON.stringify(harness.runPrompt.mock.calls)).toContain('Add a greeting file.');
+
+    // 2. The real Claude runner, given that Run, offers file-writing built-ins
+    // and a shell, both confined to the bound directory.
+    const localAgentEndpoint = new LocalAgentEndpoint();
+    localAgentEndpoint.set('http://127.0.0.1:9999');
+    const toolRuleStore = new ToolRuleStore(path.join(harness.baseDir, 'tool-rules.json'));
+    const repoStore = createProviderTestRepoMappingStore(directory);
+    const session = run!;
+    const workspace = await resolveRunWorkspace({ session, repoStore });
+    if (!workspace.ok) {
+      throw new Error(workspace.message);
+    }
+    const boundary = await RunWorkspaceWriteBoundary.create(workspace);
+    startSessionMock.mockResolvedValue({
+      ok: true,
+      subtype: 'success',
+      numTurns: 1,
+      sessionId: null,
+    });
+    const platformTools = filterInertPlatformTools(['get_context', 'create_edge', 'delete_hint']);
+    const runner = new ClaudeAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry: new SubmissionToolRegistry(),
+      toolRuleStore,
+      runStore: harness.runStore,
+      repoStore,
+    });
+    const runPromise = runner.runPrompt({
+      session,
+      prompt: 'Add a greeting file.',
+      workspace,
+      workspaceWriteBoundary: boundary,
+      platformMcpProxyMount: {
+        runId: AGENT_SESSION_ID,
+        turnId: 'turn-1',
+        token: 'proxy-token',
+        allowedTools: platformTools.map((name) => `mcp__heyhey-platform__${name}`),
+      },
+    });
+    await vi.waitFor(() => expect(permissionRequestHandler).not.toBeNull());
+
+    const startConfig = startSessionMock.mock.calls[0]?.[0] as {
+      builtinTools: string[];
+      cwd: string;
+    };
+    expect(startConfig.cwd).toBe(directory);
+    // The source repository is never a write root: the workspace is the only one.
+    expect(boundary.allowedRepositoryRoots).toEqual([directory]);
+    expect(
+      (
+        startConfig as unknown as {
+          workspaceContainment: { settings: { sandbox: { filesystem: { allowWrite: string[] } } } };
+        }
+      ).workspaceContainment.settings.sandbox.filesystem.allowWrite,
+    ).toEqual([directory]);
+    // The provider process starts without git or GitHub credentials.
+    expect(
+      (startConfig as unknown as { withoutGitCredentials?: boolean }).withoutGitCredentials,
+    ).toBe(true);
+    expect(startConfig.builtinTools).toEqual(
+      expect.arrayContaining(['Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit']),
+    );
+    // The shell never runs outside the Sandbox: the turn fails if it cannot start.
+    expect(
+      (
+        startConfig as unknown as {
+          workspaceContainment: {
+            settings: { sandbox: { enabled: boolean; failIfUnavailable: boolean } };
+          };
+        }
+      ).workspaceContainment.settings.sandbox,
+    ).toMatchObject({ enabled: true, failIfUnavailable: true, allowUnsandboxedCommands: false });
+
+    const handler = permissionRequestHandler!;
+    // The mocked SDK client stands in for Claude's own tool execution: it runs
+    // a tool call only when the real permission handler allowed it, and then
+    // applies it to the path the real write boundary resolved.
+    const runWrite = async (toolInput: {
+      file_path: string;
+      content: string;
+    }): Promise<'allowed' | 'denied'> => {
+      const decision = await handler('Write', toolInput);
+      if (decision['behavior'] !== 'allow') {
+        return 'denied';
+      }
+      const resolved = decision['updatedInput'] as { file_path: string; content: string };
+      await writeFile(resolved.file_path, resolved.content);
+      return 'allowed';
+    };
+
+    await expect(
+      runWrite({ file_path: path.join(directory, 'greeting.txt'), content: 'hello' }),
+    ).resolves.toBe('allowed');
+    expect(await readFile(path.join(directory, 'greeting.txt'), 'utf8')).toBe('hello');
+
+    // A relative path resolves inside the bound directory, not the process cwd.
+    await expect(runWrite({ file_path: 'nested.txt', content: 'relative' })).resolves.toBe(
+      'allowed',
+    );
+    expect(await readFile(path.join(directory, 'nested.txt'), 'utf8')).toBe('relative');
+
+    // Absolute path outside, relative escape, and a symlink out of the directory are all refused.
+    await symlink(outside, path.join(directory, 'escape'));
+    for (const toolInput of [
+      { file_path: path.join(outside, 'abs.txt'), content: 'no' },
+      { file_path: '../' + path.basename(outside) + '/rel.txt', content: 'no' },
+      { file_path: 'escape/link.txt', content: 'no' },
+    ]) {
+      await expect(runWrite(toolInput)).resolves.toBe('denied');
+    }
+    await expect(
+      handler('Edit', { file_path: path.join(outside, 'x.txt'), old_string: 'a', new_string: 'b' }),
+    ).resolves.toMatchObject({ behavior: 'deny' });
+    await expect(
+      handler('MultiEdit', { file_path: path.join(outside, 'm.txt'), edits: [] }),
+    ).resolves.toMatchObject({ behavior: 'deny' });
+    // Nothing was created outside the bound directory.
+    expect(await readdir(outside)).toEqual([]);
+
+    // The shell is the agent's own to use; the Sandbox, not a prompt, confines it.
+    await expect(handler('Bash', { command: 'pnpm install' })).resolves.toMatchObject({
+      behavior: 'allow',
+    });
+    for (const graphWrite of ['create_edge', 'delete_hint', 'update_hint', 'update_edge']) {
+      await expect(handler(`mcp__heyhey-platform__${graphWrite}`, {})).resolves.toMatchObject({
+        behavior: 'deny',
+      });
+    }
+
+    providerEventHandler?.({ type: 'result' });
+    await runPromise;
+    await boundary.dispose();
+  });
+});
+
+describe('commands an eval agent runs in its workspace', () => {
+  const git = (cwd: string, ...args: string[]): string =>
+    execFileSync('git', args, { cwd, encoding: 'utf8' });
+
+  it.runIf(process.platform === 'darwin' || process.platform === 'linux')(
+    'run inside the cloned workspace only: they cannot write outside it or push to the source repository, and a git setting they plant is not executed when the changes are saved',
+    async () => {
+      const { spawnSync } = await import('node:child_process');
+      const { RunWorkspaceWriteBoundary } = await import('../workspace-write-boundary');
+      const { EvalWorkspaces } = await import('./eval-workspace');
+      const { captureChangesSinceCommit } = await import('../../git/diff');
+
+      const temp = await mkdtemp(path.join(os.tmpdir(), 'heyhey-agent-commands-'));
+      tempDirs.push(temp);
+      const source = path.join(temp, 'source');
+      const outside = path.join(temp, 'outside');
+      const planted = path.join(temp, 'planted');
+      await Promise.all([source, outside, planted].map((dir) => mkdir(dir)));
+      git(source, 'init', '-q');
+      git(source, 'config', 'user.email', 't@example.com');
+      git(source, 'config', 'user.name', 't');
+      await writeFile(path.join(source, 'a.txt'), 'one\n');
+      git(source, 'add', '.');
+      git(source, 'commit', '-qm', 'one');
+      const sha = git(source, 'rev-parse', 'HEAD').trim();
+      const sourceSnapshot = (): string =>
+        [
+          git(source, 'for-each-ref'),
+          git(source, 'branch', '--all'),
+          git(source, 'status', '--porcelain'),
+        ].join('|');
+      const before = sourceSnapshot();
+
+      const workspaces = new EvalWorkspaces(
+        { resolvePathForService: async () => source },
+        NOOP_LOGGER,
+        { rootDirectory: path.join(temp, 'workspaces'), maxOpen: 1 },
+      );
+      const workspace = await workspaces.acquire(
+        { attemptId: 'attempt', serviceId: 'service', commitSha: sha },
+        new AbortController().signal,
+      );
+      const directory = await realpath(workspace.directory);
+      const boundary = await RunWorkspaceWriteBoundary.create({
+        ok: true,
+        runMode: 'default',
+        repositoryPathForRunStarted: directory,
+        cwd: directory,
+        allowedRepositoryRoots: [directory],
+        bindingRepositoryPath: directory,
+        workspaceRoot: null,
+      });
+      try {
+        // Run Claude's exact Sandbox policy for this Run through its own engine.
+        const sandbox = boundary.claudeContainment().settings.sandbox;
+        const policy = path.join(await realpath(temp), 'sandbox-policy.json');
+        await writeFile(
+          policy,
+          JSON.stringify({
+            filesystem: {
+              allowWrite: sandbox.filesystem.allowWrite,
+              allowRead: sandbox.filesystem.allowRead,
+              denyWrite: [],
+              denyRead: [],
+            },
+            network: {
+              allowedDomains: [],
+              deniedDomains: [],
+              allowAllUnixSockets: sandbox.network.allowAllUnixSockets,
+              allowLocalBinding: sandbox.network.allowLocalBinding,
+            },
+          }),
+        );
+        const launcher = boundary.processContainment().argsPrefix[0]!;
+        const agentCommand = (script: string, ...args: string[]) =>
+          spawnSync(
+            process.execPath,
+            [launcher, policy, '/bin/bash', '-c', script, 'agent', ...args],
+            {
+              cwd: directory,
+              env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+              encoding: 'utf8',
+              timeout: 30000,
+              killSignal: 'SIGKILL',
+            },
+          );
+
+        const result = agentCommand(
+          `set -u
+          printf made > "$1/made-by-command.txt"                      # inside the workspace
+          ! (printf escaped > "$2/escaped.txt")                        # outside it
+          ! git push "$3" HEAD:refs/heads/escaped                      # push into the source repository
+          ! git push origin HEAD                                       # push to a remote (there is none)
+          git config core.fsmonitor "$4/plant.sh"                      # plant a command for the host
+          git config diff.external "$4/plant.sh"
+          printf ran-ok`,
+          directory,
+          outside,
+          source,
+          planted,
+        );
+        expect(result.error).toBeUndefined();
+        expect(result.status, result.stderr).toBe(0);
+        expect(result.stdout).toContain('ran-ok');
+
+        expect(await readFile(path.join(directory, 'made-by-command.txt'), 'utf8')).toBe('made');
+        expect(await readdir(outside)).toEqual([]);
+        expect(sourceSnapshot()).toBe(before);
+
+        await writeFile(
+          path.join(planted, 'plant.sh'),
+          `#!/bin/sh\ntouch "${planted}/executed"\n`,
+          { mode: 0o755 },
+        );
+        await writeFile(path.join(directory, 'a.txt'), 'one\ntwo\n');
+        const files = await captureChangesSinceCommit({ repoPath: directory, commit: sha });
+
+        expect(files.map((file) => file.path).sort()).toEqual(['a.txt', 'made-by-command.txt']);
+        expect(existsSync(path.join(planted, 'executed'))).toBe(false);
+      } finally {
+        await boundary.dispose();
+        await workspace.release();
+      }
+    },
+    70000,
+  );
+});
+
+describe('free-form coding attempts and their workspaces', () => {
+  const git = (cwd: string, ...args: string[]): string =>
+    execFileSync('git', args, { cwd, encoding: 'utf8' });
+
+  const codingSetup = async (
+    options: { failFirstClone?: boolean; packageManagerProject?: boolean } = {},
+  ) => {
+    const failFirstClone = options.failFirstClone ?? false;
+    const { EvalWorkspaces } = await import('./eval-workspace');
+    const temp = await mkdtemp(path.join(os.tmpdir(), 'heyhey-coding-attempts-'));
+    tempDirs.push(temp);
+    const source = path.join(temp, 'source');
+    const root = path.join(temp, 'workspaces');
+    await mkdir(source);
+    git(source, 'init', '-q');
+    git(source, 'config', 'user.email', 't@example.com');
+    git(source, 'config', 'user.name', 't');
+    await writeFile(path.join(source, 'a.txt'), 'one');
+    if (options.packageManagerProject) {
+      await writeFile(path.join(source, 'pnpm-lock.yaml'), '');
+      await writeFile(
+        path.join(source, 'package.json'),
+        JSON.stringify({ scripts: { bootstrap: 'x', 'generate:contracts': 'y', test: 'z' } }),
+      );
+    }
+    git(source, 'add', '.');
+    git(source, 'commit', '-qm', 'one');
+    const sha = git(source, 'rev-parse', 'HEAD').trim();
+
+    let resolutions = 0;
+    const workspaces = new EvalWorkspaces(
+      {
+        resolvePathForService: async () => {
+          resolutions += 1;
+          if (failFirstClone && resolutions === 1) {
+            throw new Error('repository is not mapped on this machine');
+          }
+
+          return source;
+        },
+      },
+      NOOP_LOGGER,
+      { rootDirectory: root, maxOpen: 2 },
+    );
+    const harness = await makeHarness();
+    const execution = new EvalAttemptExecution(NOOP_LOGGER, undefined, workspaces);
+    execution.bind(harness.service, harness.runStore);
+    const codingAttempt = (attemptId: string): EvalRecordedAttempt => {
+      const base = attempt('free_form');
+
+      return {
+        ...base,
+        attemptId,
+        caseInput: {
+          ...base.caseInput,
+          coding: { ...base.caseInput.coding!, pinnedCommit: { sha, shortMessage: 'one' } },
+        },
+      };
+    };
+    /** The directory the Run was bound to, read while the attempt is running. */
+    const boundDirectory = async (): Promise<string> => {
+      const run = await harness.runStore.getRunMetadata(AGENT_SESSION_ID);
+
+      return run!.services![0]!.path;
+    };
+
+    return { harness, execution, codingAttempt, boundDirectory, root, source };
+  };
+
+  const leftovers = async (root: string): Promise<string[]> =>
+    existsSync(root) ? readdir(root) : [];
+
+  it.each(['succeeds', 'fails', 'is cancelled'] as const)(
+    'leaves no workspace directory when the attempt %s',
+    async (outcome) => {
+      const { harness, execution, codingAttempt, boundDirectory, root } = await codingSetup();
+      const controller = new AbortController();
+      let during: string | undefined;
+      harness.runPrompt.mockImplementationOnce(async (...args: unknown[]) => {
+        during = await boundDirectory();
+        expect(existsSync(during)).toBe(true);
+        if (outcome === 'fails') {
+          throw new Error('provider crashed');
+        }
+        if (outcome === 'is cancelled') {
+          const input = args[0] as import('../providers/session-runner').RunPromptArgs;
+          controller.abort();
+          await new Promise<void>((resolve) => {
+            input.signal?.addEventListener('abort', () => resolve(), { once: true });
+            if (input.signal?.aborted) {
+              resolve();
+            }
+          });
+        }
+
+        return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+      });
+
+      await execution
+        .execute(coordinator, codingAttempt('44444444-4444-4444-8444-444444444444'), {
+          searchScope: CASE_SEARCH_SCOPE,
+          signal: controller.signal,
+        })
+        .catch(() => undefined);
+
+      expect(during).toBeDefined();
+      expect(existsSync(during!)).toBe(false);
+      expect(await leftovers(root)).toEqual([]);
+    },
+  );
+
+  it('saves the changes before the workspace is removed, even when stopped', async () => {
+    const { harness, execution, codingAttempt, boundDirectory } = await codingSetup();
+    const controller = new AbortController();
+    harness.runPrompt.mockImplementationOnce(async (...args: unknown[]) => {
+      const directory = await boundDirectory();
+      await writeFile(path.join(directory, 'a.txt'), 'one\ntwo\n');
+      await writeFile(path.join(directory, 'new.txt'), 'hello\n');
+      const input = args[0] as import('../providers/session-runner').RunPromptArgs;
+      controller.abort();
+      await new Promise<void>((resolve) => {
+        input.signal?.addEventListener('abort', () => resolve(), { once: true });
+        if (input.signal?.aborted) {
+          resolve();
+        }
+      });
+
+      return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+    });
+    const recorded = codingAttempt('88888888-8888-4888-8888-888888888888');
+    let directoryExistedWhenSaved: boolean | undefined;
+    let saved:
+      | Parameters<NonNullable<Parameters<typeof execution.execute>[2]['onWorkspaceSettled']>>[0]
+      | undefined;
+
+    await execution
+      .execute(coordinator, recorded, {
+        searchScope: CASE_SEARCH_SCOPE,
+        signal: controller.signal,
+        onWorkspaceSettled: async (settled) => {
+          directoryExistedWhenSaved = existsSync(await boundDirectory());
+          saved = settled;
+        },
+      })
+      .catch(() => undefined);
+
+    expect(directoryExistedWhenSaved).toBe(true);
+    expect(
+      saved?.recordedChanges.files.map(({ path: file, status, additions, deletions }) => ({
+        file,
+        status,
+        additions,
+        deletions,
+      })),
+    ).toEqual([
+      { file: 'a.txt', status: 'modified', additions: 2, deletions: 1 },
+      { file: 'new.txt', status: 'added', additions: 1, deletions: 0 },
+    ]);
+    expect(saved).toEqual({ recordedChanges: expect.anything() });
+  });
+
+  it('judges the saved changes alone, and runs no install, build or test of its own', async () => {
+    const { harness, execution, codingAttempt, boundDirectory, source } = await codingSetup({
+      packageManagerProject: true,
+    });
+    const bin = path.join(path.dirname(source), 'bin');
+    const calls = path.join(path.dirname(source), 'runner-commands.log');
+    await mkdir(bin);
+    for (const command of ['pnpm', 'npm', 'yarn']) {
+      await writeFile(path.join(bin, command), `#!/bin/sh\necho ${command} "$@" >> "${calls}"\n`, {
+        mode: 0o755,
+      });
+    }
+    harness.runPrompt.mockImplementationOnce(async () => {
+      const directory = await boundDirectory();
+      await writeFile(path.join(directory, 'new.txt'), 'hello\n');
+      const turnId = (await harness.runStore.getRunMetadata(AGENT_SESSION_ID))?.latestTurn?.turnId;
+      await harness.runStore.updateRunFinalAssistantMessage(AGENT_SESSION_ID, {
+        turnId: turnId ?? '',
+        messageId: 'final',
+        text: 'Added new.txt.',
+        committedAt: new Date().toISOString(),
+      });
+
+      return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+    });
+    let directoryContents: string[] = [];
+    const originalPath = process.env['PATH'];
+    process.env['PATH'] = `${bin}:${originalPath}`;
+    try {
+      const result = await execution.execute(
+        coordinator,
+        codingAttempt('99999999-9999-4999-8999-999999999999'),
+        {
+          searchScope: CASE_SEARCH_SCOPE,
+          signal: new AbortController().signal,
+          onWorkspaceSettled: async () => {
+            directoryContents = await readdir(await boundDirectory());
+          },
+        },
+      );
+
+      expect(result.outputText).toContain('## Changes made');
+      expect(result.outputText).toContain('### new.txt (added, +1 -0)');
+      expect(result.outputText).not.toContain('Test results');
+    } finally {
+      process.env['PATH'] = originalPath;
+    }
+    expect(existsSync(calls)).toBe(false);
+    expect(directoryContents.sort()).toEqual(
+      ['.git', 'a.txt', 'new.txt', 'package.json', 'pnpm-lock.yaml'].sort(),
+    );
+  });
+
+  it('fails only the attempt whose changes cannot be captured, keeps its session ids, and runs the next', async () => {
+    const { harness, execution, codingAttempt, boundDirectory, root } = await codingSetup();
+    const recordProviderSession = async (providerSessionId: string): Promise<void> => {
+      await harness.runStore.appendRunProviderSessionHistory(AGENT_SESSION_ID, {
+        providerSessionId,
+        providerConversationId: null,
+        providerSessionAgentId: 'agent_search',
+        observedAt: new Date().toISOString(),
+      });
+    };
+    harness.runPrompt.mockImplementationOnce(async () => {
+      await recordProviderSession('first-attempt-session');
+      // Without its repository, git cannot diff the workspace.
+      await rm(path.join(await boundDirectory(), '.git'), { recursive: true, force: true });
+
+      return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+    });
+    const patches: Array<{ attemptId: string; patch: EvalAttemptPatch }> = [];
+    const sessionIds: string[][] = [];
+    const first = codingAttempt('99999999-9999-4999-8999-999999999999');
+    const second = codingAttempt('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+
+    await runEvalAttempts(
+      {
+        attempts: [first, second],
+        settings: { maxConcurrentAttempts: 1, attemptTokenLimit: 1_000_000 },
+        signal: new AbortController().signal,
+      },
+      {
+        now: () => new Date(),
+        recorder: {
+          setRunStatus: () => Promise.resolve(),
+          updateAttempt: (attemptId, patch) => {
+            patches.push({ attemptId, patch });
+
+            return Promise.resolve();
+          },
+        },
+        launchTarget: (recorded, options) =>
+          execution.execute(coordinator, recorded, {
+            ...options,
+            searchScope: CASE_SEARCH_SCOPE,
+            onProviderSessionIds: async (ids) => {
+              sessionIds.push(ids);
+            },
+          }),
+        judge: vi.fn(async () => {
+          throw new Error('judging is not part of this check');
+        }),
+      },
+    );
+
+    const firstFinal = patches.filter((entry) => entry.attemptId === first.attemptId).at(-1);
+    expect(firstFinal?.patch).toMatchObject({
+      status: 'ERROR',
+      error: { message: expect.stringMatching(/not a git repository|git/i) },
+    });
+    expect(patches.some((entry) => entry.attemptId === second.attemptId)).toBe(true);
+    expect(sessionIds[0]).toEqual(['first-attempt-session']);
+    // Both attempts share the harness's one Run record, so the second reports the same ids.
+    expect(sessionIds[1]).toEqual(['first-attempt-session']);
+    expect(await leftovers(root)).toEqual([]);
+  });
+
+  it('fails only the attempt whose workspace cannot be created, and the next attempt still runs', async () => {
+    const { harness, execution, codingAttempt, boundDirectory, root } = await codingSetup({
+      failFirstClone: true,
+    });
+    let boundDuringSecond: string | undefined;
+    harness.runPrompt.mockImplementationOnce(async () => {
+      boundDuringSecond = await boundDirectory();
+
+      return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+    });
+    const patches: Array<{ attemptId: string; patch: EvalAttemptPatch }> = [];
+    const first = codingAttempt('66666666-6666-4666-8666-666666666666');
+    const second = codingAttempt('77777777-7777-4777-8777-777777777777');
+
+    await runEvalAttempts(
+      {
+        attempts: [first, second],
+        settings: { maxConcurrentAttempts: 1, attemptTokenLimit: 1_000_000 },
+        signal: new AbortController().signal,
+      },
+      {
+        now: () => new Date(),
+        recorder: {
+          setRunStatus: () => Promise.resolve(),
+          updateAttempt: (attemptId, patch) => {
+            patches.push({ attemptId, patch });
+
+            return Promise.resolve();
+          },
+        },
+        launchTarget: (recorded, options) =>
+          execution.execute(coordinator, recorded, {
+            ...options,
+            searchScope: CASE_SEARCH_SCOPE,
+          }),
+        judge: vi.fn(async () => {
+          throw new Error('judging is not part of this check');
+        }),
+      },
+    );
+
+    const firstFinal = patches.filter((entry) => entry.attemptId === first.attemptId).at(-1);
+    expect(firstFinal?.patch).toMatchObject({
+      status: 'ERROR',
+      error: {
+        message: expect.stringMatching(/workspace could not be created.*repository is not mapped/),
+      },
+    });
+    expect(boundDuringSecond).toBeDefined();
+    expect(await leftovers(root)).toEqual([]);
   });
 });

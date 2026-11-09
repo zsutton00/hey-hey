@@ -28,7 +28,7 @@ import {
   CurrentOrganization,
   CurrentUser,
 } from '../auth/decorators/current-user.decorator';
-import { EntityStarDto } from '../generated';
+import { EntityStarDto } from '@hey-hey/contracts/api/models';
 import { EntityStarService } from '../services/entity-star/entity-star.service';
 import { OrganizationId, UserId } from '../types';
 

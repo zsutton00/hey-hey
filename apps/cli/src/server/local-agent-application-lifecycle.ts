@@ -38,7 +38,8 @@ export interface LocalAgentApplicationLifecycleDependencies {
 
 /** Owns ordered disposal of the top-level local-agent application runtimes. */
 export class LocalAgentApplicationLifecycle {
-  private disposed = false;
+  private disposal: Promise<void> | undefined;
+  private cleanupSteps: Array<() => void | Promise<void>> | undefined;
 
   public constructor(private readonly dependencies: LocalAgentApplicationLifecycleDependencies) {}
 
@@ -60,23 +61,30 @@ export class LocalAgentApplicationLifecycle {
     };
   }
 
-  public async dispose(): Promise<void> {
-    if (this.disposed) return;
-    this.disposed = true;
+  public dispose(): Promise<void> {
+    this.dependencies.runRuntime.runRegistry.closeAdmission();
+    this.cleanupSteps ??= [
+      () => this.dependencies.machineActions.dispose(),
+      () => this.dependencies.platformRuntime.dispose(),
+      () => this.dependencies.stateMachineRuntime.dispose(),
+      () => this.dependencies.monitorRuntime.dispose(),
+      () => this.dependencies.monitorEventSources.dispose(),
+      () => this.dependencies.runRuntime.dispose(),
+      () => this.dependencies.infrastructure.dispose(),
+    ];
+    this.disposal ??= this.finishDisposal().catch((error: unknown) => {
+      this.disposal = undefined;
+      throw error;
+    });
+    return this.disposal;
+  }
+
+  private async finishDisposal(): Promise<void> {
     this.dependencies.logger.debug('local.lifecycle.dispose.started');
-    this.dependencies.machineActions.dispose();
-    this.dependencies.platformRuntime.dispose();
-    this.dependencies.stateMachineRuntime.dispose();
-    this.dependencies.monitorRuntime.dispose();
-    this.dependencies.monitorEventSources.dispose();
-    try {
-      await this.dependencies.runRuntime.dispose();
-    } catch (error) {
-      this.dependencies.logger.warn('local.lifecycle.run_runtime_dispose_failed', {
-        error: error instanceof Error ? error.message : String(error),
-      });
+    while (this.cleanupSteps?.length) {
+      await this.cleanupSteps[0]!();
+      this.cleanupSteps.shift();
     }
-    await this.dependencies.infrastructure.dispose();
     this.dependencies.logger.debug('local.lifecycle.dispose.completed');
   }
 }

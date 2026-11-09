@@ -5,8 +5,12 @@ import {
   type CreateUserMessage,
   type LocalPromptProposalInput,
   type UserMessageDataProposalRefiner,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { useAgentSession, useProposal } from "@hey-hey/ui-common/data";
+import {
+  toOpenApiConversationId,
+  toOpenApiProjectId,
+} from "@hey-hey/ui-common/clients";
 import {
   AgentConversationView,
   ExistingEntityConversationSession,
@@ -133,8 +137,8 @@ export const AgentSessionContent: React.FC<AgentSessionContentProps> = ({
             ...(skillSelection ? { skillSelection } : {}),
           };
           const message: CreateUserMessage = {
-            projectId,
-            conversationId,
+            projectId: toOpenApiProjectId(projectId),
+            conversationId: toOpenApiConversationId(conversationId),
             type: MessageType.User,
             data: { agentInput, attachments },
           };

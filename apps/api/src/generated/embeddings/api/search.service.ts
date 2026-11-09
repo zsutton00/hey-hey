@@ -61,7 +61,7 @@ export class SearchService {
    * @param maxResults Maximum number of results to return
    * @param threshold Minimum normalized similarity (0-1, relative to the top hit) required for a match
    * @param searchType Search strategy to use
-   * @param queryMode Query behavior mode (default performs normal search, title_fuzzy performs fuzzy title/name matching without ANN)
+   * @param queryMode Query behavior mode (default performs normal search, title_fuzzy performs fuzzy title/name matching without ANN, exact returns only entities containing the query as a literal case-insensitive contiguous phrase with title matches above body-only matches and no near matches; exact queries must be at least 3 characters)
    * @param boostRecent Whether to boost more recently created artifacts
    * @param entityType Hard entity type filter. Accepts a comma-separated string or repeated query params and maps to filters.types.
    * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
@@ -75,7 +75,7 @@ export class SearchService {
     maxResults?: number,
     threshold?: number,
     searchType?: 'semantic' | 'keyword' | 'hybrid',
-    queryMode?: 'default' | 'title_fuzzy',
+    queryMode?: 'default' | 'title_fuzzy' | 'exact',
     boostRecent?: boolean,
     entityType?: SearchEmbeddingsGetEntityTypeParameter,
     searchEmbeddingsGetOpts?: { config?: AxiosRequestConfig },
@@ -87,7 +87,7 @@ export class SearchService {
     maxResults?: number,
     threshold?: number,
     searchType?: 'semantic' | 'keyword' | 'hybrid',
-    queryMode?: 'default' | 'title_fuzzy',
+    queryMode?: 'default' | 'title_fuzzy' | 'exact',
     boostRecent?: boolean,
     entityType?: SearchEmbeddingsGetEntityTypeParameter,
     searchEmbeddingsGetOpts?: { config?: AxiosRequestConfig },
@@ -277,7 +277,7 @@ export class SearchService {
    * @param maxResults Maximum number of results to return
    * @param threshold Minimum normalized similarity (0-1, relative to the top hit) required for a match
    * @param searchType Search strategy to use
-   * @param queryMode Query behavior mode (default performs normal search, title_fuzzy performs fuzzy title/name matching without ANN)
+   * @param queryMode Query behavior mode (default performs normal search, title_fuzzy performs fuzzy title/name matching without ANN, exact returns only entities containing the query as a literal case-insensitive contiguous phrase with title matches above body-only matches and no near matches; exact queries must be at least 3 characters)
    * @param boostRecent Whether to boost more recently created artifacts
    * @param entityType Hard entity type filter. Accepts a comma-separated string or repeated query params and maps to filters.types.
    * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
@@ -291,7 +291,7 @@ export class SearchService {
     maxResults?: number,
     threshold?: number,
     searchType?: 'semantic' | 'keyword' | 'hybrid',
-    queryMode?: 'default' | 'title_fuzzy',
+    queryMode?: 'default' | 'title_fuzzy' | 'exact',
     boostRecent?: boolean,
     entityType?: SearchEmbeddingsGetEntityTypeParameter,
     searchEmbeddingsOrgGetOpts?: { config?: AxiosRequestConfig },
@@ -303,7 +303,7 @@ export class SearchService {
     maxResults?: number,
     threshold?: number,
     searchType?: 'semantic' | 'keyword' | 'hybrid',
-    queryMode?: 'default' | 'title_fuzzy',
+    queryMode?: 'default' | 'title_fuzzy' | 'exact',
     boostRecent?: boolean,
     entityType?: SearchEmbeddingsGetEntityTypeParameter,
     searchEmbeddingsOrgGetOpts?: { config?: AxiosRequestConfig },

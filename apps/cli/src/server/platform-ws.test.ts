@@ -5,7 +5,7 @@ import { createTestKeyPairStore } from '../credentials/keypair.test-support';
 import { createTestOAuthClient } from './__tests__/helpers/test-oauth-client';
 import { MachineChallengeSigner } from './machine-challenge';
 import { PlatformWebSocketManager } from './platform-ws';
-import type { CliReadResponseDto } from '../shared/agent-bridge-contract/generated/api';
+import type { CliReadResponseDto } from '@hey-hey/contracts/agent-bridge';
 import type { CliReadHandler } from './cli-read-handler';
 import type { ServerLogger } from './logger';
 import { MAX_CLI_READ_ACK_BYTES } from './cli-read-response-size-guard';
@@ -1838,68 +1838,65 @@ describe('PlatformWebSocketManager (per Agent Session)', () => {
     it.each([
       ['machine revocation', 'machine_revocation_reduction', true],
       ['controller revocation', 'controller_revocation_reduction', false],
-    ])(
-      'after an applied %s reduction frame: terminal=%s',
-      async (_label, kind, terminal) => {
-        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-        try {
-          const onMachineRevoked = vi.fn();
-          const client = new PlatformWebSocketManager({
-            serverUrl: 'http://test',
-            oauthClient: fakeOAuthClient('org-1'),
-            logger: NOOP_LOGGER,
-            keyPairStore: createPlatformKeyPairStore({
-              machineId: 'machine-abc',
-              credential: 'cred-abc',
-            }),
-          });
-          client.onMachineRevoked(onMachineRevoked);
-          client.onAuthorityReduction(async () => ({
-            status: 'APPLIED',
-            nonce: '10000000-0000-4000-8000-000000000001',
-          }));
+    ])('after an applied %s reduction frame: terminal=%s', async (_label, kind, terminal) => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      try {
+        const onMachineRevoked = vi.fn();
+        const client = new PlatformWebSocketManager({
+          serverUrl: 'http://test',
+          oauthClient: fakeOAuthClient('org-1'),
+          logger: NOOP_LOGGER,
+          keyPairStore: createPlatformKeyPairStore({
+            machineId: 'machine-abc',
+            credential: 'cred-abc',
+          }),
+        });
+        client.onMachineRevoked(onMachineRevoked);
+        client.onAuthorityReduction(async () => ({
+          status: 'APPLIED',
+          nonce: '10000000-0000-4000-8000-000000000001',
+        }));
 
-          client.subscribe('conv-1');
-          await flush();
-          currentSocket.connected = true;
-          currentSocket.emit('connect');
-          await flush();
-          currentSocket.emit('authenticated', { status: 'success' });
-          await flush();
+        client.subscribe('conv-1');
+        await flush();
+        currentSocket.connected = true;
+        currentSocket.emit('connect');
+        await flush();
+        currentSocket.emit('authenticated', { status: 'success' });
+        await flush();
 
-          const acknowledgement = vi.fn();
-          const droppedSocket = currentSocket;
-          droppedSocket.emit(
-            'trigger.authority_reduction',
-            {
-              type: 'trigger.authority_reduction',
-              timestamp: '2026-07-19T00:00:00.000Z',
-              organizationId: 'org-1',
-              envelope: { event: { kind } },
-            },
-            acknowledgement,
-          );
-          await flush();
+        const acknowledgement = vi.fn();
+        const droppedSocket = currentSocket;
+        droppedSocket.emit(
+          'trigger.authority_reduction',
+          {
+            type: 'trigger.authority_reduction',
+            timestamp: '2026-07-19T00:00:00.000Z',
+            organizationId: 'org-1',
+            envelope: { event: { kind } },
+          },
+          acknowledgement,
+        );
+        await flush();
 
-          expect(acknowledgement).toHaveBeenCalledWith({
-            status: 'APPLIED',
-            nonce: '10000000-0000-4000-8000-000000000001',
-          });
-          expect(onMachineRevoked).toHaveBeenCalledTimes(terminal ? 1 : 0);
-          expect(client.getConnectionState()).toBe(terminal ? 'revoked' : 'connected');
+        expect(acknowledgement).toHaveBeenCalledWith({
+          status: 'APPLIED',
+          nonce: '10000000-0000-4000-8000-000000000001',
+        });
+        expect(onMachineRevoked).toHaveBeenCalledTimes(terminal ? 1 : 0);
+        expect(client.getConnectionState()).toBe(terminal ? 'revoked' : 'connected');
 
-          // The platform force-closes the socket after the frame. A revoked
-          // machine must not reconnect and retry without its credential.
-          droppedSocket.connected = false;
-          droppedSocket.emit('disconnect', 'io server disconnect');
-          await vi.advanceTimersByTimeAsync(60_000);
-          await flush();
-          expect(ioFactory).toHaveBeenCalledTimes(terminal ? 1 : 2);
-        } finally {
-          vi.useRealTimers();
-        }
-      },
-    );
+        // The platform force-closes the socket after the frame. A revoked
+        // machine must not reconnect and retry without its credential.
+        droppedSocket.connected = false;
+        droppedSocket.emit('disconnect', 'io server disconnect');
+        await vi.advanceTimersByTimeAsync(60_000);
+        await flush();
+        expect(ioFactory).toHaveBeenCalledTimes(terminal ? 1 : 2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
 
     it('treats a reasonless auth failure as transient: keeps the credential and reconnects on drop', async () => {
       vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });

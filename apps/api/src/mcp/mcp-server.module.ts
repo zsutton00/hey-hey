@@ -14,6 +14,7 @@ import { McpHealthService } from './mcp-health.service';
 import { McpHealthController } from './mcp-health.controller';
 import { McpCatalogController } from './mcp-catalog.controller';
 import { SearchCacheService } from './tools/search-cache.service';
+import { SearchReceiptStore } from './tools/search-receipt.store';
 import { SearchToolsProvider } from './tools/search-tools.provider';
 import { LintRecoveryStore } from './tools/lint-recovery.store';
 import { ProposalToolsProvider } from './tools/proposal-tools.provider';
@@ -30,6 +31,7 @@ import { ListGoalsToolsProvider } from './tools/list-goals-tools.provider';
 import { GoalTracksToolsProvider } from './tools/goal-tracks-tools.provider';
 import { EdgeToolsProvider } from './tools/edge-tools.provider';
 import { GetFullEntityToolsProvider } from './tools/get-full-entity-tools.provider';
+import { GetEntityIdentitiesToolsProvider } from './tools/get-entity-identities-tools.provider';
 import { GetReportSchemaToolsProvider } from './tools/get-report-schema-tools.provider';
 import { GetToolGuidanceToolsProvider } from './tools/get-tool-guidance-tools.provider';
 import { GetReportBodyToolsProvider } from './tools/get-report-body-tools.provider';
@@ -58,6 +60,7 @@ import {
   providers: [
     McpHealthService,
     SearchCacheService,
+    SearchReceiptStore,
     HelpService,
     SearchToolsProvider,
     LintRecoveryStore,
@@ -75,6 +78,7 @@ import {
     GoalTracksToolsProvider,
     EdgeToolsProvider,
     GetFullEntityToolsProvider,
+    GetEntityIdentitiesToolsProvider,
     GetReportSchemaToolsProvider,
     GetToolGuidanceToolsProvider,
     GetReportBodyToolsProvider,

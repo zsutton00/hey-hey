@@ -1,3 +1,4 @@
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import type { LocalFinalAssessmentPromptPayload } from '../../shared/agent-bridge-contract/index';
 import type { PromptTypeHandler, PromptTypeHandlerContext } from '../prompt-type-handler';
 import { buildFinalAssessmentPrompt } from '../prompts/final-assessment';
@@ -9,9 +10,10 @@ import { buildStartingMessage as buildStartingMessageForPromptType } from '../pr
  * artifact updates. No filesystem tools — the subagent never touches source
  * code.
  */
-const FINAL_ASSESSMENT_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
+export const FINAL_ASSESSMENT_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
   // Context / read
   'get_context',
+  'get_edges',
   'get_feature_sync_context',
   'get_full_entity',
   'get_agent_sessions',
@@ -20,6 +22,7 @@ const FINAL_ASSESSMENT_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
   'get_recently_viewed',
   // Search
   'unified_search',
+  'get_entity_identities',
   'task_search',
   'plan_search',
   'search_features',
@@ -45,6 +48,7 @@ const FINAL_ASSESSMENT_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
 
 export const finalAssessmentHandler: PromptTypeHandler<LocalFinalAssessmentPromptPayload> = {
   id: 'final_assessment',
+  sessionRole: SessionRole.Review,
   promptType: 'final_assessment',
   service: 'required',
   launchEntity: 'none',
@@ -54,6 +58,8 @@ export const finalAssessmentHandler: PromptTypeHandler<LocalFinalAssessmentPromp
   providerSessionCountsForContext: false,
   reports: [],
   subagentConfig: {
+    submissionTools: 'run-registered',
+    submissionToolNames: ['raise_uncertainty'],
     mcpAllowedTools: FINAL_ASSESSMENT_SUBAGENT_MCP_ALLOWED_TOOLS,
     builtinAllowedTools: [],
     adapterId: 'claude-sdk-final-assessment-subagent',

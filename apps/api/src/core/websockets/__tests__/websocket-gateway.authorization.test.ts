@@ -3,7 +3,7 @@ import {
   WebSocketAuthRequest,
   WebSocketJoinRoomRequest,
   WebSocketSubscriptionRequest,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { WebsocketGateway } from '../websocket.gateway';
 
 function makeHarness(

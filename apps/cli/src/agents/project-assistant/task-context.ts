@@ -1,7 +1,7 @@
 import {
   LocalPromptTaskType,
   type LocalPromptTaskType as LocalPromptTaskTypeValue,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type { RunEntityReference } from '../../shared/agent-bridge-contract/index';
 import type { ProjectAssistantPolicy } from '../prompt-type-handler';
 import {

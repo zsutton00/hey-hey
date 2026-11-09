@@ -14,7 +14,7 @@ import type {
   CliReadChangedFileDetail,
   CliReadChangedFileIdentity,
   CliReadChangedFileInventoryEntry,
-} from '../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type {
   LocalRunDiffFilePatch,
   LocalWorktreeState,

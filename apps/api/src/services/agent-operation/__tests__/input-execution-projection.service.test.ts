@@ -4,7 +4,7 @@ import type { MessageService } from '../../message.service';
 import type { TriggerEnvelopeSigner } from '../../../core/websockets/trigger-envelope-signer.service';
 import type { WebsocketGateway } from '../../../core/websockets/websocket.gateway';
 import { testIds } from '../../../utils/testUtils';
-import type { InputExecutionProjection } from '../../../generated';
+import type { InputExecutionProjection } from '@hey-hey/contracts/api/models';
 import type { AuthenticatedMachine } from '../../machine-pairing/machine-pairing.service';
 
 describe('InputExecutionProjectionService', () => {

@@ -12,7 +12,7 @@ import {
   SubmitOnboardingReplyRequestDto,
   SystemMessageData,
   WorkflowName,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ConversationId,
@@ -85,8 +85,8 @@ export class OnboardingReplyService {
         conversation.workflowName !== WorkflowName.Onboarding ||
         conversation.workflowAboutId !== input.projectId ||
         conversation.workflowAboutType !== 'project' ||
-        [ConversationStatus.Failed, ConversationStatus.Deleted].includes(
-          conversation.status as ConversationStatus,
+        [ConversationStatus.Failed, ConversationStatus.Deleted].some(
+          (status) => status === conversation.status,
         )
       ) {
         throw new ConflictException(
@@ -142,7 +142,10 @@ export class OnboardingReplyService {
       const executionIsRunning =
         execution.status === FlowExecutionStatus.STARTED ||
         execution.status === FlowExecutionStatus.IN_PROGRESS;
-      if (executionIsRunning && !conversation.workflowId) {
+      const cliOwned =
+        isSerializableWorkflowState(execution.flowState) &&
+        execution.flowState.executionOwner === 'CLI';
+      if (executionIsRunning && !conversation.workflowId && !cliOwned) {
         throw new ConflictException(
           'Onboarding workflow is not accepting input',
         );
@@ -326,7 +329,8 @@ export class OnboardingReplyService {
           expectedConversationVersion:
             input.request.expectedConversationVersion,
           onboardingReplyDelivery: {
-            ...(conversation.workflowId
+            ...(cliOwned ? { executionOwner: 'CLI' as const } : {}),
+            ...(!cliOwned && conversation.workflowId
               ? { workflowId: conversation.workflowId as WorkflowId }
               : {}),
             nodeId: execution.currentNode,

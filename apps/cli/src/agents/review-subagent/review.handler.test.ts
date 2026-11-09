@@ -30,6 +30,23 @@ describe('reviewHandler', () => {
     expect(resolveHintPromptAccess(true, [...REVIEW_SUBAGENT_MCP_ALLOWED_TOOLS])).toBe('read');
   });
 
+  it('may correct or delete hints but create no others', () => {
+    expect(REVIEW_SUBAGENT_MCP_ALLOWED_TOOLS).toEqual(
+      expect.arrayContaining(['get_hints_by_session', 'update_hint', 'delete_hint']),
+    );
+    expect(REVIEW_SUBAGENT_MCP_ALLOWED_TOOLS).not.toContain('create_hint');
+    expect(REVIEW_SUBAGENT_MCP_ALLOWED_TOOLS).not.toContain('add_hint_connection');
+  });
+
+  it('asks the reviewer to review the target session hints silently', () => {
+    const prompt = reviewHandler.buildPrompt({
+      _sessionId: '55555555-5555-4555-8555-555555555555',
+    } as LocalCodeReviewPromptPayload);
+    expect(prompt).toContain('get_hints_by_session');
+    expect(prompt).toContain('55555555-5555-4555-8555-555555555555');
+    expect(prompt).toContain('update_hint');
+  });
+
   it('has no individual-file approval tool', () => {
     expect(reviewHandler.submissionTools?.map((tool) => tool.name)).toEqual([]);
   });
@@ -57,7 +74,9 @@ describe('reviewHandler', () => {
         { logger: reviewLogger } as unknown as PromptTypeHandlerDeps,
         contextWithReplies([]),
       ),
-    ).resolves.toEqual({ payload: { _recentUserReplies: [] } });
+    ).resolves.toEqual({
+      payload: { _recentUserReplies: [], _sessionId: '55555555-5555-4555-8555-555555555555' },
+    });
     expect(reviewLogger.debug).toHaveBeenCalledWith('local.review.prepare.session_scoped', {
       runId: '55555555-5555-4555-8555-555555555555',
       hasFocusMessage: false,
@@ -135,7 +154,9 @@ describe('reviewHandler', () => {
       '- Launch service `service-a` at `/worktrees/service-a` — this is the launch Service workspace and working directory for the session.',
     );
     expect(prompt).toContain('- `service-b` at `/worktrees/service-b`');
-    expect(prompt).toContain("Host checkouts are outside this session's working context");
+    expect(prompt).toContain(
+      'Do not use a host checkout as a fallback location for edits or other mutations',
+    );
     expect(prompt).not.toContain('/repos/service-a');
     expect(prompt).not.toContain('/repos/service-b');
     expect(prompt).toContain('## Cross-Service Integration Verification');

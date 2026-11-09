@@ -6,7 +6,7 @@ import {
   CodingPlanDiscrepancySchema,
 } from 'src/generated/workflow-review.schemas';
 import type { Prisma } from '@prisma/client';
-import type { MessageResponseDto } from 'src/generated';
+import type { MessageResponseDto } from '@hey-hey/contracts/api/models';
 import { TIMELINE_MESSAGE_WHERE } from 'src/utils/message-timeline.util';
 
 const logger = new Logger('CodingPlanReview');

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { UIElement } from 'src/generated';
+import { UIElement } from '@hey-hey/contracts/api/models';
 import {
   FlowUserMessage,
   MutableContextHandle,

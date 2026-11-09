@@ -1,3 +1,4 @@
+import { asOrganizationId, asProjectId, asProposalId } from '../../test-utils/contract-ids';
 import { describe, it, expect } from 'vitest';
 import { buildProposalRefinerPrompt } from './proposal-refiner-prompt';
 import type { ProposalRefinerPromptInput } from './types';
@@ -96,9 +97,9 @@ describe('buildProposalRefinerPrompt', () => {
       makeInput({
         proposals: [
           {
-            id: 'prop-old-111',
-            organizationId: 'org-1',
-            projectId: 'proj-1',
+            id: asProposalId('prop-old-111'),
+            organizationId: asOrganizationId('org-1'),
+            projectId: asProjectId('proj-1'),
             type: 'SINGLE' as const,
             action: 'CREATE' as const,
             status: 'APPROVED' as const,

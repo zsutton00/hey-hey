@@ -1,5 +1,5 @@
-import type { TaskMonitorCoordinatorValidationFailure } from '../../shared/agent-bridge-contract/generated/api';
-import type { LocalTaskMonitorCoordinatorDecision } from '../../shared/agent-bridge-contract/generated/api';
+import type { TaskMonitorCoordinatorValidationFailure } from '@hey-hey/contracts/agent-bridge';
+import type { LocalTaskMonitorCoordinatorDecision } from '@hey-hey/contracts/agent-bridge';
 import type { ServerLogger } from '../../server/logger';
 import type {
   SettledTurnMonitorEvent,

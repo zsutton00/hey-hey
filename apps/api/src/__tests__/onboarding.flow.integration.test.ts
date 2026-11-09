@@ -26,7 +26,7 @@ import { ContextPerformanceService } from '../core/performance/context-performan
 import { WebsocketGateway } from '../core/websockets/websocket.gateway';
 import { AgentOperationDispatchService } from '../core/websockets/agent-operation-dispatch.service';
 import { AgentOperationWorkflowInputDeliveryService } from '../services/agent-operation/agent-operation-workflow-input-delivery.service';
-import { CreateUserMessage } from '../generated';
+import { CreateUserMessage } from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../prisma/prisma.service';
 import { TEMPORAL_CLIENT } from '../prisma/temporal.module';
 import { HelpContentBootstrapService } from '../services/help-content-bootstrap.service';

@@ -28,7 +28,7 @@ import type {
   ReplaceProposalGroupPrerequisitesRequest,
   StartProposalGroupRequest,
   UpdateProposalGroupMemberRequest,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId } from 'src/types';
 import {
   CurrentOrganization,

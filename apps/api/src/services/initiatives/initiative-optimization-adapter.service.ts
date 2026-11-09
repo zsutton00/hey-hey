@@ -6,7 +6,7 @@
  */
 
 import { Injectable } from '@nestjs/common';
-import { TaskPriority, WorkStatus } from '../../generated';
+import { TaskPriority, WorkStatus } from '@hey-hey/contracts/api/models';
 import { InitiativeId, OrganizationId } from '../../types';
 import {
   InitiativeRefinableEntity,

@@ -19,13 +19,18 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import {
-  EvalRunStatus,
+  TargetEntityType,
   WorkStatus,
   type MaterializedWorkItemSection,
   type TaskResponseDto,
-} from "@hey-hey/ui-common/api";
-import { CapsuleAction, WorkItemReadView } from "@hey-hey/ui-common/components";
+} from "@hey-hey/contracts/api";
 import {
+  CapsuleAction,
+  DiscussCapsuleAction,
+  WorkItemReadView,
+} from "@hey-hey/ui-common/components";
+import {
+  evalRunName,
   useEvalRuns,
   useWorkItemTypeByKey,
   useWorkItems,
@@ -157,42 +162,25 @@ export const EvalPage: React.FC<EvalPageProps> = ({
     const { status, cases, configurations } = run.payload;
     const runParams = { projectId, evalId, runId: run.id };
     const runHref = WebPathService.evalRun(runParams);
-    const resultsHref =
-      status === EvalRunStatus.Finished || status === EvalRunStatus.Stopped
-        ? WebPathService.evalRunResults(runParams)
-        : null;
-    const handleLinkClick =
-      (href: string) =>
-      (event: React.MouseEvent): void => {
-        if (isNavigationModified(event)) return;
-        event.preventDefault();
-        navigate(href);
-      };
+    const handleRunLinkClick = (event: React.MouseEvent): void => {
+      if (isNavigationModified(event)) return;
+      event.preventDefault();
+      navigate(runHref);
+    };
     return (
       <TableRow key={run.id} data-testid={`eval-run-row-${run.id}`}>
         <TableCell>
           <Link
             href={runHref}
-            onClick={handleLinkClick(runHref)}
+            onClick={handleRunLinkClick}
             data-testid={`eval-run-link-${run.id}`}
           >
-            {run.title}
+            {evalRunName(run, t)}
           </Link>
         </TableCell>
         <TableCell>{t(`eval.page.runs.status.${status}`)}</TableCell>
         <TableCell>{`${cases.length} × ${configurations.length}`}</TableCell>
         <TableCell>{formatStarted(run.createdAt)}</TableCell>
-        <TableCell>
-          {resultsHref && (
-            <Link
-              href={resultsHref}
-              onClick={handleLinkClick(resultsHref)}
-              data-testid={`eval-run-results-link-${run.id}`}
-            >
-              {t("eval.page.runs.results")}
-            </Link>
-          )}
-        </TableCell>
       </TableRow>
     );
   };
@@ -208,6 +196,13 @@ export const EvalPage: React.FC<EvalPageProps> = ({
         order={1}
         behavior="click"
         onClick={handleOpenRunSetup}
+      />
+      <DiscussCapsuleAction
+        entityId={evalId}
+        entityType={TargetEntityType.Task}
+        entityTitle={task.name}
+        organizationId={organizationId}
+        projectId={projectId}
       />
       <TaskBreadcrumbs
         projectId={projectId}
@@ -333,7 +328,6 @@ export const EvalPage: React.FC<EvalPageProps> = ({
                       <TableCell>
                         {t("eval.page.runs.columns.started")}
                       </TableCell>
-                      <TableCell />
                     </TableRow>
                   </TableHead>
                   <TableBody>{runs.map(renderRunRow)}</TableBody>

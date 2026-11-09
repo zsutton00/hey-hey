@@ -22,8 +22,8 @@ import i18n from "@hey-hey/ui-common/i18n";
 import type {
   CreateProjectDto,
   ProjectResponseDto,
-} from "@hey-hey/ui-common/api";
-import { ProjectStatus } from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
+import { ProjectStatus } from "@hey-hey/contracts/api";
 import NewOrgLandingPage from "../NewOrgLandingPage";
 
 const ORG_ID = "11111111-1111-4111-8111-111111111111";
@@ -93,6 +93,7 @@ vi.mock("@hey-hey/ui-common/context", async () => {
   >("@hey-hey/ui-common/context");
   return {
     ...actual,
+    useAuth: () => ({ user: { isLocalAccount: false } }),
     TrackingProvider: ({ children }: { children: React.ReactNode }) => (
       <>{children}</>
     ),
@@ -229,9 +230,7 @@ const renderLanding = (searchParams = ""): void => {
               />
               <Route
                 path="/projects"
-                element={
-                  <div data-testid="project-picker">project picker</div>
-                }
+                element={<div data-testid="project-picker">project picker</div>}
               />
             </Routes>
           </MemoryRouter>
@@ -299,7 +298,9 @@ describe("NewOrgLandingPage Integration Tests", () => {
     expect(
       screen.getByTestId("new-org-landing-intro-heading"),
     ).toBeInTheDocument();
-    expect(screen.getByTestId("new-org-landing-intro-body")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("new-org-landing-intro-body"),
+    ).toBeInTheDocument();
 
     // The intro renders ahead of the first onboarding section scene.
     const firstSection = screen.getByTestId(
@@ -314,12 +315,8 @@ describe("NewOrgLandingPage Integration Tests", () => {
     expect(
       screen.getByTestId("mini-demo-scene-project-description"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByTestId("mini-demo-scene-followups"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByTestId("mini-demo-scene-features"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("mini-demo-scene-followups")).toBeInTheDocument();
+    expect(screen.getByTestId("mini-demo-scene-features")).toBeInTheDocument();
 
     // Each section renders its own bespoke scripted scene.
     expect(
@@ -353,9 +350,9 @@ describe("NewOrgLandingPage Integration Tests", () => {
 
     // The single advance button stands up a placeholder project and hands off
     // to the project-scoped onboarding intake.
-    expect(
-      screen.getByTestId("new-org-landing-advance"),
-    ).toHaveTextContent("Start setting up your project");
+    expect(screen.getByTestId("new-org-landing-advance")).toHaveTextContent(
+      "Start setting up your project",
+    );
 
     act(() => {
       fireEvent.click(screen.getByTestId("new-org-landing-advance"));
@@ -366,7 +363,9 @@ describe("NewOrgLandingPage Integration Tests", () => {
     expect(handoff).toHaveAttribute("data-project-id", NEW_PROJECT_ID);
     expect(handoff).toHaveAttribute("data-is-new", "t");
 
-    expect(screen.queryByTestId("new-org-landing-page")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("new-org-landing-page"),
+    ).not.toBeInTheDocument();
     expect(window.localStorage.getItem(SEEN_KEY)).toBe("1");
   });
 
@@ -379,7 +378,9 @@ describe("NewOrgLandingPage Integration Tests", () => {
     });
 
     expect(screen.queryByTestId("mini-demo-player")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("new-org-landing-page")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("new-org-landing-page"),
+    ).not.toBeInTheDocument();
   });
 
   it("suppresses replay on revisit once the intro has been marked seen", async () => {

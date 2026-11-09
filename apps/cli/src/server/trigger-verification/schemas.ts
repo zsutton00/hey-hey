@@ -30,8 +30,8 @@ import {
   type TaskMonitorPauseCommand,
   type TaskMonitorResumeCommand,
   type TaskMonitorStopCommand,
-} from '../../shared/agent-bridge-contract/generated/api';
-import { UserSettingsProvider, UserSettingsReasoningEffort } from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
+import { UserSettingsProvider, UserSettingsReasoningEffort } from '@hey-hey/contracts/api/models';
 
 const envelopeBindingFields = {
   machineId: z.string().min(1),

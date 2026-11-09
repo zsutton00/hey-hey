@@ -10,7 +10,7 @@ import {
   type AgentSessionServiceScopeRequest,
   type SystemMessageData,
   type GrantAgentSessionServicesDto,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { KeyPairStore } from '../../credentials/keypair';
 import type { RepoMappingStore } from '../../repo/index';
 import type { RunStore } from '../../run-store/run-store';
@@ -31,6 +31,7 @@ import type {
   ServiceScopeRequestResult,
 } from './service-scope-types';
 import { ProjectServiceNameResolver } from './project-service-name-resolver';
+import { toOpenApiProjectId } from '../../shared/api/identifierAdapters';
 export type ServiceScopeDecisionResult =
   | { outcome: 'delivered'; callbackType: 'service_scope_decision' }
   | { outcome: 'dropped'; reason: string }
@@ -148,7 +149,7 @@ export class AgentSessionServiceScopeCoordinator {
     const additionalServiceNames = await this.serviceNameResolver.resolve({
       runId: deps.runId,
       organizationId: deps.organizationId,
-      projectId: deps.projectId,
+      projectId: toOpenApiProjectId(deps.projectId),
       serviceIds: additionalServiceIds,
     });
     const data = serviceScopeMessageData(request, additionalServiceNames);
@@ -159,7 +160,7 @@ export class AgentSessionServiceScopeCoordinator {
       dto: {
         type: MessageType.System,
         status: MessageStatus.Open,
-        projectId: deps.projectId,
+        projectId: toOpenApiProjectId(deps.projectId),
         data,
       },
       stamp: null,

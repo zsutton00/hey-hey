@@ -209,7 +209,9 @@ describe("ProposalConversationsTab", () => {
 
     expect(screen.getByText("Origin conversation")).toBeInTheDocument();
     expect(screen.getByText("Proposal conversations")).toBeInTheDocument();
-    await user.click(screen.getByText("Proposal refinement"));
+    await user.click(
+      screen.getByRole("button", { name: /^Proposal refinement/ }),
+    );
     expect(navigateMock).toHaveBeenLastCalledWith(
       "/sessions/refinement-session",
     );

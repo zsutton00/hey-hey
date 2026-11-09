@@ -4,6 +4,7 @@ import { isAxiosError } from 'axios';
 import type { FailureReason } from './failure-message';
 import { isInertSubmissionToolAllowed } from './inert-execution-policy';
 import { SessionRoleGuidance } from '../agents/session-role-guidance/session-role-guidance';
+import { createContextTrimmer } from '../agents/context-trimming/create-trimmer';
 import { resolveHandlerSessionRole } from '../agents/prompt-type-handler';
 import { RunAttachmentNotFoundError } from '../server/run-attachment-store';
 import { RunAttachmentContentReader } from '../agents/providers/run-attachment-content-reader';
@@ -18,6 +19,7 @@ import {
 } from '../browser/browser-tab-notices';
 import { ReportedFileChangeFailure, type ReportedFileChangeResolution } from './file-change-facts';
 import { DeterministicE2EEvidence } from './runners/deterministic-e2e-evidence';
+import { MachineOptionsStore } from '../options/machine-options-store';
 /**
  * Run — the in-memory, active representation of an `AgenticSession`.
  *
@@ -46,9 +48,11 @@ import { DeterministicE2EEvidence } from './runners/deterministic-e2e-evidence';
  */
 
 import { randomUUID } from 'node:crypto';
+import { toOpenApiProjectId } from '../shared/api/identifierAdapters';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { resolveJevLogsDir } from '../session/paths';
 
 import type { AgentOutputMessage } from '../agents/agent-event-stream';
 import {
@@ -57,7 +61,7 @@ import {
   RunWorktreeCollisionError,
   type ResolvedRunWorkspace,
 } from '../agents/run-scope';
-import type { UserMessageAdmittedServiceScope } from '../shared/api/generated/api';
+import type { UserMessageAdmittedServiceScope } from '@hey-hey/contracts/api/models';
 import {
   AgentSessionRunnerError,
   type AgentSessionRunner,
@@ -71,7 +75,6 @@ import type {
   AgentStartupPromptInputResult,
   AgentStartupPromptTemplate,
   PromptTypeHandlerContext,
-  PromptTypeHandlerBaseDeps,
   PromptTypeHandlerDeps,
   PromptTypeHandler,
   RecentUserReply,
@@ -122,7 +125,7 @@ import type {
 import type {
   AgentSessionReviewFileScopeRequest,
   ImplementationReadinessDisposition,
-} from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import { MessageType, MessageStatus, SystemMessageDataTypeEnum } from '../shared/api/index';
 import type { AgentSystemMessageData, SystemMessageData } from '../shared/api/index';
 import type {
@@ -132,8 +135,8 @@ import type {
   ResolvedServiceBinding,
   SendMessageOptions,
 } from '../shared/agent-bridge-contract/contract';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated/api';
-import type { RunEntityReference } from '../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import type { RunEntityReference } from '@hey-hey/contracts/agent-bridge';
 import { resolvePromptText } from '../shared/agent-bridge-contract/contract';
 import { LocalAgentApiError } from '../shared/agent-bridge-contract/errors';
 import type { ServerLogger } from '../server/logger';
@@ -149,7 +152,7 @@ import { validateResolvedPromptReferences } from '../server/services/run.service
 import { EventDispatcher } from './event-dispatcher';
 import type { MessagePoster } from './message-poster';
 import { normalizeEvent } from './normalize';
-import { CODING_AGENT_REPORT_TYPES } from '../agents/prompts/report-chain';
+import { isLegacyHandoffReport } from '../agents/prompts/report-chain';
 import { evaluateDeclaredReports } from './report-enforcement';
 import { emitOpenImplementReportIfNeeded } from './open-implement-report';
 import { resolvePrompt } from './resolve-prompt';
@@ -172,10 +175,9 @@ import {
 } from '../agents/implementation-readiness/readiness-disposition';
 import { createReadinessSourceSnapshotFromStartupInput } from '../agents/implementation-readiness/source-snapshot';
 import { Turn, type Runner } from '../turn/turn';
-import { bindPromptOnce } from './bind-prompt-once';
 import { resolveTurnEffective } from '../turn/turn-effective';
 import { AgentSessionCurrentStateOwner } from './agent-session-current-state';
-import type { AgentSessionCurrentStateObservation } from '../shared/api/generated/api';
+import type { AgentSessionCurrentStateObservation } from '@hey-hey/contracts/api/models';
 import type { LoadedEntityPromptContext } from '../agents/entity-context/types';
 import { ConversationPhaseOwner } from './conversation-phase';
 import { RunCompaction } from './run-compaction';
@@ -209,6 +211,7 @@ import {
 import type { ReportedChangedFile } from '../agents/completion-reconciliation/schemas';
 import type {
   ProviderPhase,
+  ObservedConversationPhase,
   HandlerDeps,
   LocalAgentOutputEvent,
   PendingDiff,
@@ -270,9 +273,11 @@ export const buildRunMcpSessionContext = (
     | 'launchServiceId'
     | 'services'
     | 'inert'
+    | 'searchScope'
   >,
 ): McpSessionContext => ({
   inert: session.inert === true,
+  searchScope: session.searchScope,
   projectId: session.contextMetadata.projectId,
   conversationId: session.conversationId,
   serviceId: session.launchServiceId,
@@ -353,7 +358,7 @@ export interface RunCollaborators {
   /** Persisted machine identity used by controller-authorized Agent Session mutations. */
   keyPairStore?: KeyPairStore;
   /** Shared prompt-handler deps — used by `resolvePrompt` and by handler onComplete hooks. */
-  handlerDeps: PromptTypeHandlerBaseDeps;
+  handlerDeps: PromptTypeHandlerDeps;
   promptTypeRegistry: PromptTypeRegistry;
   submissionToolRegistry: SubmissionToolRegistry;
   /** Select the per-Turn runner after prompt resolution. */
@@ -675,6 +680,7 @@ const readTriggerParentMessageId = (input: InternalRunPromptRequest): string | n
 
 export class Run {
   private readonly attachmentContentReader = new RunAttachmentContentReader();
+  private readonly machineOptionsStore = new MachineOptionsStore();
   // --- Run-owned state ---------------------------------------------------
   readonly runId: string;
   readonly organizationId: string;
@@ -702,6 +708,9 @@ export class Run {
     { messageId: string; data: SystemMessageData | null }
   > = new Map();
   private readonly settledPermissionRequestIds = new Set<string>();
+  // Handlers waiting for a permission card's message to be posted, by the
+  // request id the card is keyed by.
+  private readonly permissionCardWaiters = new Map<string, Array<() => void>>();
   // Open `AskUserQuestion` messages by question request id. In-memory only: a
   // waiting question cannot outlive the process that holds its tool call.
   private readonly questionMessages = new Map<
@@ -820,8 +829,6 @@ export class Run {
    * into the current handler span, then cleared.
    */
   private readonly _submittedTurnIds: Set<string> = new Set();
-  /** Coding Plan items (plan version, discrepancy, question) each Turn persisted. */
-  private readonly _codingPlanElementsByTurn: Map<string, Set<string>> = new Map();
   /**
    * Report-chain length at Turn start, keyed by `Turn.turnId`. Open's
    * changed-workspace report helper reads the slice from this index to avoid
@@ -877,7 +884,7 @@ export class Run {
   private readonly submissionActionPoster: SubmissionActionPoster;
   private readonly broadcaster: RunEventPublisher;
   readonly sessionRoleGuidance: SessionRoleGuidance;
-  private readonly handlerDeps: PromptTypeHandlerBaseDeps;
+  private readonly handlerDeps: PromptTypeHandlerDeps;
   /** Latest authoritative entity startup projection for the current Turn. */
   private startupPromptInputResult: AgentStartupPromptInputResult | null = null;
   /** Effective template configuration reused while entity Context is refreshed. */
@@ -1231,6 +1238,16 @@ export class Run {
    */
   get providerSessionId(): string | null {
     return this.session.provider_session_id ?? null;
+  }
+
+  /** Whether the provider session belongs to this Run: its current session or a history member. */
+  public ownsProviderSession(providerSessionId: string): boolean {
+    return (
+      this.providerSessionId === providerSessionId ||
+      (this.session.provider_session_history ?? []).some(
+        (entry) => entry.providerSessionId === providerSessionId,
+      )
+    );
   }
 
   /**
@@ -1728,8 +1745,8 @@ export class Run {
       nextPhase: 'thinking',
       hasActiveTurn: this.activeTurn !== null,
     });
-    this.agentSessionCurrentState.observeProviderPhase('thinking');
-    this.conversationPhase.resumeAfterApproval();
+    this.agentSessionCurrentState.resolveApproval('decision_delivered');
+    this.conversationPhase.resolveApproval('decision_delivered');
   }
 
   /**
@@ -1759,8 +1776,8 @@ export class Run {
       nextPhase: 'thinking',
       hasActiveTurn: this.activeTurn !== null,
     });
-    this.agentSessionCurrentState.observeProviderPhase('thinking');
-    this.conversationPhase.resumeAfterApproval();
+    this.agentSessionCurrentState.resolveApproval('question_answered');
+    this.conversationPhase.resolveApproval('question_answered');
   }
 
   setHasProviderSession(value: boolean, reason: string): void {
@@ -1978,26 +1995,7 @@ export class Run {
     this.conversationPhase.observeProviderPhase(phase);
   }
 
-  /**
-   * A phase reported by the provider session. Its launch-time `starting` would
-   * otherwise briefly replace the handler-requested gathering state, which must
-   * hold until the session's first real activity.
-   */
-  observeProviderSessionPhase(phase: ProviderPhase): void {
-    if (
-      phase === 'starting' &&
-      this.agentSessionCurrentState.currentProviderPhase === 'gathering_context'
-    ) {
-      this.logger.debug('local.run.current_state.provider_starting_kept_gathering_context', {
-        runId: this.runId,
-        conversationId: this.conversationId,
-      });
-      return;
-    }
-    this.observeProviderPhase(phase);
-  }
-
-  observeConversationPhase(phase: import('../shared/api/generated/api').ConversationPhase): void {
+  observeConversationPhase(phase: ObservedConversationPhase): void {
     if (phase === 'reviewing') {
       this.conversationPhase.observeReviewing();
       return;
@@ -2464,6 +2462,10 @@ export class Run {
   ): void {
     this.settledPermissionRequestIds.delete(requestId);
     this.permissionRequestMessages.set(requestId, { messageId, data });
+    for (const wake of this.permissionCardWaiters.get(requestId) ?? []) {
+      wake();
+    }
+    this.permissionCardWaiters.delete(requestId);
     const presentations: PermissionRequestPresentation[] = [
       ...(this.session.permissionRequestPresentations ?? []).filter(
         (presentation) => presentation.requestId !== requestId,
@@ -2481,6 +2483,50 @@ export class Run {
           error,
         });
       });
+  }
+
+  /**
+   * Resolves once the message for the card keyed by `requestId` has been
+   * recorded, or false after `timeoutMs`. A request can join a card before the
+   * card's own post has finished, so joining waits for the card instead of
+   * dropping the row.
+   */
+  async whenPermissionRequestMessageRecorded(
+    requestId: string,
+    timeoutMs: number,
+  ): Promise<boolean> {
+    if (this.permissionRequestMessages.has(requestId)) {
+      return true;
+    }
+
+    return new Promise<boolean>((resolve) => {
+      const timer = setTimeout(() => {
+        const waiters = this.permissionCardWaiters.get(requestId)?.filter((w) => w !== wake);
+        if (waiters?.length) {
+          this.permissionCardWaiters.set(requestId, waiters);
+        } else {
+          this.permissionCardWaiters.delete(requestId);
+        }
+        resolve(false);
+      }, timeoutMs);
+      const wake = () => {
+        clearTimeout(timer);
+        resolve(true);
+      };
+      this.permissionCardWaiters.set(requestId, [
+        ...(this.permissionCardWaiters.get(requestId) ?? []),
+        wake,
+      ]);
+    });
+  }
+
+  /** Makes a request that joined an open card share that card's message entry. */
+  joinPermissionRequestMessage(
+    requestId: string,
+    entry: { messageId: string; data: SystemMessageData | null },
+  ): void {
+    this.settledPermissionRequestIds.delete(requestId);
+    this.permissionRequestMessages.set(requestId, entry);
   }
 
   recordQuestionMessage(requestId: string, messageId: string, data: SystemMessageData): void {
@@ -3036,6 +3082,30 @@ export class Run {
    * The callback given to the session runner at creation time. Provider
    * calls this for every event it emits; Run normalizes and dispatches.
    */
+  private proceduralOutputCapture: ((event: ReturnType<typeof normalizeEvent>) => void) | null =
+    null;
+
+  async captureProviderOutput(execute: () => Promise<void>): Promise<string> {
+    if (this.proceduralOutputCapture) {
+      throw new Error('A provider request is already active');
+    }
+    let output = '';
+    this.proceduralOutputCapture = (event) => {
+      if (event.kind === 'assistant_complete') {
+        output = event.summary;
+      }
+    };
+    try {
+      await execute();
+      if (!output) {
+        throw new Error('The provider ended without an onboarding result');
+      }
+      return output;
+    } finally {
+      this.proceduralOutputCapture = null;
+    }
+  }
+
   readonly onAgentOutput = (message: AgentOutputMessage): void => {
     this.handleAgentOutput(message, { kind: 'run-provider-session' });
   };
@@ -3286,6 +3356,10 @@ export class Run {
       });
     }
 
+    if (this.proceduralOutputCapture) {
+      this.proceduralOutputCapture(normalizeEvent(event, this.provider));
+      return;
+    }
     this.broadcaster.publishAgentOutput(event, {
       run: this,
       turnId: admittedTurnId ?? null,
@@ -4861,7 +4935,6 @@ export class Run {
         this._stagedFileChanges.clear();
       }
       this._submittedTurnIds.delete(turn.turnId);
-      this._codingPlanElementsByTurn.delete(turn.turnId);
       this._reportChainStartByTurn.delete(turn.turnId);
       // Seal the Turn's coalesced narration row: dropping the slot means the
       // next Turn's first segment authors a fresh row instead of updating this
@@ -5446,19 +5519,12 @@ export class Run {
     // Handlers whose canonical runtime state is their sole authority can
     // opt out before the chain is read, preventing reports from becoming
     // either prompt context or an implicit execution dependency.
-    // Filter to the four agent-facing types produced by coding agents; non-coding
-    // reports (GOAL_PROGRESS, SESSION_SUMMARY, etc.) carry no implementation
-    // context that coding-agent prompts need, and CODING_RESEARCH is excluded
-    // here because its Frame is injected via the memo mechanism — the
-    // `create_coding_research` tool appends it directly — instead.
-    const priorReports =
-      handler.subagentConfig?.includePriorReports === false
-        ? []
-        : this.readReportChain().filter(
-            (entry) =>
-              CODING_AGENT_REPORT_TYPES.has(entry.reportType) &&
-              entry.reportType !== 'CODING_RESEARCH',
-          );
+    // Entity templates can read any report type, so template resolution gets the
+    // whole snapshot. Runners and the appended handoff block keep the types
+    // coding agents have always been shown.
+    const reportHistory =
+      handler.subagentConfig?.includePriorReports === false ? [] : this.readReportChain();
+    const priorReports = reportHistory.filter(isLegacyHandoffReport);
 
     // A handler with a run evidence directory starts children in `prepare`, and
     // those children read their evidence through Run-registered tools, so the
@@ -5476,6 +5542,7 @@ export class Run {
         isFirstTurn,
         previousProviderSession: session.previousProviderSession ?? null,
         reportChain: priorReports,
+        reportHistory,
         memos: session.memos ?? [],
         startupPromptInput: this.startupPromptInputResult,
         startupPromptTemplate: this.startupPromptTemplate,
@@ -5483,14 +5550,8 @@ export class Run {
         startedPromptTypes: new Set(this._startedPromptTypes),
       },
       input,
-      handlerDeps: bindPromptOnce(this.handlerDeps, {
-        handler,
-        session,
-        input,
-        abortSignal: () => this.abortSignal,
-        runner: () => this.runnerPicker.runnerFor(this),
-        observeProviderPhase: (phase) => this.observeProviderPhase(phase),
-      }),
+      handlerDeps: this.handlerDeps,
+      heyHeyContextReminderEnabled: await this.machineOptionsStore.isHeyHeyContextReminderEnabled(),
       turnId,
       abortSignal: () => this.abortSignal,
       recentUserReplies: readRecentUserReplies(input),
@@ -5644,6 +5705,18 @@ export class Run {
       ...(handler.mcpToolUseCase ? { useCase: handler.mcpToolUseCase } : {}),
       additionalTools: platformMcpAdditionalAllowedTools,
     });
+    const jevLogsDir = resolveJevLogsDir();
+    const graphResultNarrower = await createContextTrimmer({
+      promptType: handler.promptType,
+      decisionModel: this.handlerDeps.decisionModel,
+      isDecisionModelEnabled: this.handlerDeps.isDecisionModelEnabled,
+      loadedEntityContext: this.startupPromptInputResult?.loadedEntityContext ?? null,
+      payload: preparedPayload ?? input.payload,
+      deps: this.handlerDeps,
+      logger: this.logger,
+      attemptLogDir: jevLogsDir ? path.join(jevLogsDir, 'get-context') : null,
+      edgesAttemptLogDir: jevLogsDir ? path.join(jevLogsDir, 'get-edges') : null,
+    });
     const platformMcpProxy = new TurnPlatformMcpProxy({
       runId: this.runId,
       turnId,
@@ -5651,6 +5724,7 @@ export class Run {
       catalog: platformMcpCatalog,
       activeHandlerPromptType: handler.promptType,
       logger: this.logger,
+      ...(graphResultNarrower ? { graphResultNarrower } : {}),
     });
     this.logger.debug('local.run.platform_mcp_proxy_registered', {
       turnId,
@@ -5871,14 +5945,7 @@ export class Run {
         ...(browserMcpMount ? { browserMcpMount } : {}),
         platformMcpProxyMount: platformMcpProxy.mount,
         platformMcpAdditionalAllowedTools,
-        handlerDeps: bindPromptOnce(this.handlerDeps, {
-          handler,
-          session,
-          input,
-          abortSignal: () => this.abortSignal,
-          runner: () => this.runnerPicker.runnerFor(this),
-          observeProviderPhase: (phase) => this.observeProviderPhase(phase),
-        }),
+        handlerDeps: this.handlerDeps,
       },
       platformMcpProxy,
       browserAnnotationIds: browserAnnotations.map((annotation) => annotation.id),
@@ -6360,22 +6427,18 @@ export class Run {
         hasConversationId: Boolean(session.conversationId),
         awaitingUserReview,
       });
-      // A turn awaiting a user review may end up with no tools to mount (the
-      // routed handlers — coding_freeform and the feature-sync review
-      // persona — declare none) yet a prior turn's registration on the same
-      // Run could still hold action tools. Replace the prior tool list so the
-      // registry cannot advertise an action tool while the workflow is parked
-      // on a user review.
-      if (awaitingUserReview) {
-        const stale = this.submissionToolRegistry.getByRunId(session.agentic_session_id);
-        if (stale && stale.tools.some((t) => !isPassThroughTool(t))) {
-          this.submissionToolRegistry.update(session.agentic_session_id, {
-            tools,
-            activeToolNames,
-            externalAgentNodeId,
-            triggerMessageId,
-          });
-        }
+      // A turn with no active tools must replace a prior registration. This
+      // applies to user-review turns and to handler changes that exclude all
+      // base tools; otherwise an earlier provider session can keep exposing
+      // stale tools through its cached MCP endpoint.
+      const stale = this.submissionToolRegistry.getByRunId(session.agentic_session_id);
+      if (stale && (stale.tools.length > 0 || (stale.activeToolNames?.length ?? 0) > 0)) {
+        this.submissionToolRegistry.update(session.agentic_session_id, {
+          tools,
+          activeToolNames,
+          externalAgentNodeId,
+          triggerMessageId,
+        });
       }
       return;
     }
@@ -6463,8 +6526,8 @@ export class Run {
   }
 
   public async persistCodingPlanElement(
-    type: import('../shared/api/generated/api').ExtendedUIFieldType,
-    payload: import('../shared/api/generated/api').CodingPlanVersion,
+    type: import('@hey-hey/contracts/api').ExtendedUIFieldType,
+    payload: import('@hey-hey/contracts/api').CodingPlanVersion,
   ): Promise<string> {
     return this.persistCodingPlanMessage(type, '', [
       {
@@ -6476,11 +6539,6 @@ export class Run {
         payload,
       },
     ]);
-  }
-
-  /** Posts a planner question as visible text; the user's reply starts the next Turn. */
-  public async persistCodingPlanQuestion(question: string): Promise<string> {
-    return this.persistCodingPlanMessage('coding_plan_question', question);
   }
 
   private async persistCodingPlanMessage(
@@ -6495,12 +6553,12 @@ export class Run {
     const session = this.session;
     const messageId = await this.poster.createOutOfBand({
       organizationId: session.contextMetadata.organizationId,
-      projectId: session.contextMetadata.projectId,
+      projectId: toOpenApiProjectId(session.contextMetadata.projectId),
       conversationId: session.conversationId,
       dto: {
         type: MessageType.System,
         status: MessageStatus.Completed,
-        projectId: session.contextMetadata.projectId,
+        projectId: toOpenApiProjectId(session.contextMetadata.projectId),
         data: {
           type: SystemMessageDataTypeEnum.Agent,
           response,
@@ -6511,9 +6569,6 @@ export class Run {
       },
       stamp: null,
     });
-    const saved = this._codingPlanElementsByTurn.get(turn.turnId) ?? new Set<string>();
-    saved.add(savedType);
-    this._codingPlanElementsByTurn.set(turn.turnId, saved);
     this.logger.debug('local.coding_plan.conversation.persisted', {
       runId: this.runId,
       turnId: turn.turnId,
@@ -6521,10 +6576,6 @@ export class Run {
       messageId,
     });
     return messageId;
-  }
-
-  public readCodingPlanElementTypes(turnId: string): readonly string[] {
-    return [...(this._codingPlanElementsByTurn.get(turnId) ?? [])];
   }
 
   private async postAgentSystemMessage(
@@ -6540,7 +6591,7 @@ export class Run {
     const dto = {
       type: MessageType.System,
       status: MessageStatus.Completed,
-      projectId: session.contextMetadata.projectId,
+      projectId: toOpenApiProjectId(session.contextMetadata.projectId),
       data: agentData,
       createdAt: new Date().toISOString(),
     } as const;
@@ -6553,7 +6604,18 @@ export class Run {
     });
   }
 
+  private cleanupCompletion: Promise<void> = Promise.resolve();
+  private cleanupStarted = false;
+
+  public waitForCleanup(): Promise<void> {
+    return this.cleanupCompletion;
+  }
+
   cleanup(): void {
+    if (this.cleanupStarted) {
+      return;
+    }
+    this.cleanupStarted = true;
     this.clearInactivityTimer('cleanup');
     this._inactivityReapInterrupted = true;
     this._inactivityReapingDisabled = true;
@@ -6579,7 +6641,6 @@ export class Run {
     this._activeProviderThreadId = null;
     this._activeProviderTurnId = null;
     this._submittedTurnIds.clear();
-    this._codingPlanElementsByTurn.clear();
     this._reportChainStartByTurn.clear();
     this._narrationByTurn.clear();
     this.agentSessionCurrentState.cleanup(
@@ -6595,48 +6656,25 @@ export class Run {
     this._processing = false;
     this.resetAbort();
     const runner = this.runner;
-    let runnerDisposePromise: Promise<void> = Promise.resolve();
-    if (runner?.dispose) {
-      runnerDisposePromise = runner.dispose().catch((error: unknown) => {
-        this.logger.warn('local.run.cleanup.dispose_failed', {
-          runId: this.runId,
-          error,
-        });
-      });
-    }
-    const workspaceWriteBoundary = this.workspaceWriteBoundary;
-    this.workspaceWriteBoundary = null;
-    if (workspaceWriteBoundary) {
-      void runnerDisposePromise.then(() =>
-        workspaceWriteBoundary.dispose().catch((error: unknown) => {
-          this.logger.warn('local.run.cleanup.workspace_write_boundary_dispose_failed', {
-            runId: this.runId,
-            error,
-          });
-        }),
-      );
-    }
-    const runEvidenceDirectory = this.runEvidenceDirectory;
-    this.runEvidenceDirectory = null;
-    if (runEvidenceDirectory) {
-      void runnerDisposePromise
-        .then(() => runEvidenceDirectory)
-        .then((directory) => fs.rm(directory, { recursive: true, force: true }))
-        .catch((error: unknown) => {
-          this.logger.warn('local.run.cleanup.run_evidence_dispose_failed', {
-            runId: this.runId,
-            error,
-          });
-        });
-    }
-    if (this.ownsProjectModeBundleMaterializer) {
-      void this.projectModeBundleMaterializer.dispose().catch((error: unknown) => {
-        this.logger.warn('local.run.cleanup.project_mode_bundle_dispose_failed', {
-          runId: this.runId,
-          error,
-        });
-      });
-    }
+    this.cleanupCompletion = (async () => {
+      await runner?.dispose?.();
+      if (this.workspaceWriteBoundary) {
+        await this.workspaceWriteBoundary.dispose();
+        this.workspaceWriteBoundary = null;
+      }
+      if (this.runEvidenceDirectory) {
+        const directory = await this.runEvidenceDirectory;
+        await fs.rm(directory, { recursive: true, force: true });
+        this.runEvidenceDirectory = null;
+      }
+      if (this.ownsProjectModeBundleMaterializer) {
+        await this.projectModeBundleMaterializer.dispose();
+      }
+    })();
+    void this.cleanupCompletion.catch((error: unknown) => {
+      this.cleanupStarted = false;
+      this.logger.warn('local.run.cleanup.dispose_failed', { runId: this.runId, error });
+    });
   }
 }
 

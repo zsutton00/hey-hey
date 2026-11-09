@@ -1,4 +1,4 @@
-import { EntityType } from '../../../generated/model/entityType';
+import { EntityType } from '@hey-hey/contracts/api/models';
 import { WorkItemParentageValidator } from '../work-item-parentage-validator.service';
 import type { WorkItemTypeRegistryService } from '../work-item-type-registry.service';
 

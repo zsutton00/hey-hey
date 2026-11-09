@@ -1,4 +1,4 @@
-import type { PlanShapingVisualPreviewPromptPayload } from '../../shared/agent-bridge-contract/generated/api';
+import type { PlanShapingVisualPreviewPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import { withSubmissionToolTerminationSuffix } from '../submission-tools/prompt-suffix';
 import type { AgentProviderId } from '../providers/provider-config';
 

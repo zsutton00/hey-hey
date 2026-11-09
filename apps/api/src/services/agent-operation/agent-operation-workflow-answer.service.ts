@@ -26,7 +26,7 @@ import {
   SubmitWorkflowAnswerResponseDto,
   SystemMessageData,
   UserMessageData,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { canonicalizeJcs } from '../../core/websockets/trigger-canonicalization';
 import { AgentOperationDispatchService } from '../../core/websockets/agent-operation-dispatch.service';
 import {

@@ -5,7 +5,7 @@ import {
   ExtendedUIFieldType,
   Influence,
   UIElement,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { AdrActiveSectionEnum } from 'src/generated/agents/models';
 import { DesignDocService } from 'src/services/design-doc/design-doc.service';
 import { DesignDocId } from 'src/types';

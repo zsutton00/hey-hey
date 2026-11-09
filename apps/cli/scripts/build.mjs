@@ -14,6 +14,7 @@ import { rm } from 'node:fs/promises';
 import { builtinModules } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { resolveSharedContract, SHARED_CONTRACTS_PATTERN } from './shared-contracts.mjs';
 
 const cliRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outfile = path.join(cliRoot, 'dist/index.mjs');
@@ -21,10 +22,7 @@ const outfile = path.join(cliRoot, 'dist/index.mjs');
 // Externalize every Node builtin in both bare and node:-prefixed form.
 // platform: 'node' covers most, but not bare subpath specifiers such as
 // "readline/promises" — listing builtinModules explicitly closes that gap.
-const nodeBuiltins = [
-  ...builtinModules,
-  ...builtinModules.map((name) => `node:${name}`),
-];
+const nodeBuiltins = [...builtinModules, ...builtinModules.map((name) => `node:${name}`)];
 
 // Ink loads react-devtools-core only when DEV=true. It is an optional peer
 // that is not installed, so the bundle gets an inert stand-in.
@@ -38,6 +36,15 @@ const omitReactDevtools = {
     build.onLoad({ filter: /.*/, namespace: 'omit-react-devtools' }, () => ({
       contents: 'export default { initialize() {}, connectToDevTools() {} };',
       loader: 'js',
+    }));
+  },
+};
+
+const sharedContracts = {
+  name: 'shared-contracts',
+  setup(build) {
+    build.onResolve({ filter: SHARED_CONTRACTS_PATTERN }, (args) => ({
+      path: resolveSharedContract(args.path),
     }));
   },
 };
@@ -75,7 +82,7 @@ const buildOptions = {
   // playwright-core resolves its own assets relative to its install directory
   // at runtime, so it stays external like the keyring addon.
   external: ['@napi-rs/keyring', 'playwright-core', ...nodeBuiltins],
-  plugins: [omitReactDevtools],
+  plugins: [omitReactDevtools, sharedContracts],
   logLevel: 'info',
 };
 

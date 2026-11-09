@@ -20,7 +20,7 @@ import {
   DialogTitle,
 } from "@mui/material";
 import { keyframes } from "@mui/material/styles";
-import type { TaskResponseDto, UpdateTaskDto } from "@hey-hey/ui-common/api";
+import type { TaskResponseDto, UpdateTaskDto } from "@hey-hey/contracts/api";
 import {
   type CSSProperties,
   useCallback,

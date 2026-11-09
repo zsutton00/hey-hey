@@ -10,7 +10,7 @@ import {
   NotificationClientHandlingHints,
   NotificationEventType,
   NotificationStatus,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { SystemNotificationEvent } from 'src/core/events/types/domain-events';
 import { OrganizationId, UserId } from 'src/types';
 

@@ -49,7 +49,7 @@ type: BUG;
 
 status: ACTIVE;
 
-sections: [].
+sections: .
 
 ### Related entities:
 
@@ -87,7 +87,7 @@ type: CONTRACT;
 
 status: ACTIVE;
 
-sections: [].
+sections: .
 
 ### Related entities:
 
@@ -123,7 +123,7 @@ Design Doc body: Canonical Design Doc;
 
 status: ACTIVE;
 
-sections: [].
+sections: .
 
 ### Related entities:
 
@@ -161,7 +161,7 @@ type: DIAGRAM_ELEMENT;
 
 status: ACTIVE;
 
-sections: [].
+sections: .
 
 ### Related entities:
 
@@ -199,7 +199,7 @@ type: DIAGRAM;
 
 status: ACTIVE;
 
-sections: [].
+sections: .
 
 ### Related entities:
 
@@ -237,7 +237,7 @@ type: FEATURE;
 
 status: ACTIVE;
 
-sections: [].
+sections: .
 
 ### Related entities:
 
@@ -275,7 +275,7 @@ type: GOAL;
 
 status: ACTIVE;
 
-sections: [].
+sections: .
 
 ### Related entities:
 
@@ -383,7 +383,7 @@ type: TASK_MONITOR;
 
 status: ACTIVE;
 
-sections: [].
+sections: .
 
 ### Related entities:
 
@@ -421,7 +421,7 @@ type: STANDARD;
 
 status: ACTIVE;
 
-sections: [].
+sections: .
 
 ### Related entities:
 

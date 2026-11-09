@@ -82,7 +82,7 @@ import {
   HostAffectingActionType,
   SubmitWorkflowAnswerRequestDto,
   SubmitWorkflowAnswerResponseDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { AgentSessionService } from '../services/agent-session.service';
 import { EvalRunService } from '../services/eval-runs/eval-run.service';
 import { ProposalAgentFixService } from '../services/proposal/proposal-agent-fix.service';

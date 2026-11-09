@@ -15,6 +15,10 @@ import {
   type UserMessageDataType,
 } from "../../../../api/index";
 import type { BoundDirectTriggerInput } from "../../operations/AgentOperationCoordinator";
+import {
+  toOpenApiConversationId,
+  toOpenApiProjectId,
+} from "../../../../clients/contractIdentifierAdapters";
 
 export interface FollowupAgentOverride {
   provider: ConversationStartRunRequestDtoProviderEnum;
@@ -180,8 +184,8 @@ export const buildDirectTriggerInput = ({
   handler,
 }: BuildDirectTriggerInputParams): BoundDirectTriggerInput => {
   const userMessage: CreateUserMessage = {
-    projectId,
-    conversationId,
+    projectId: toOpenApiProjectId(projectId),
+    conversationId: toOpenApiConversationId(conversationId),
     type: MessageType.User,
     parentMessageId: null,
     data: buildUserMessageData(data),

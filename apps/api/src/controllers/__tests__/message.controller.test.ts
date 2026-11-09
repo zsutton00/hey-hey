@@ -12,6 +12,7 @@ import {
   CreateSystemMessage,
   ConversationMessageHistoryPageDto,
   AgentSystemMessageData,
+  AgentUncertaintySystemMessageData,
   SubmitExecutableUserMessageRequestDto,
   GetMessagesQueryDto,
   MessageResponseDto,
@@ -21,7 +22,7 @@ import {
   UserMessageData,
   SystemMessageData,
   WorkflowName,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import * as TestUtils from '../../utils/testUtils';
 import {
   ConversationId,
@@ -311,6 +312,7 @@ describe('MessageController', () => {
     it('rejects caller-authored workflow completion authority before persistence', async () => {
       const data = {
         type: SystemMessageData.TypeEnum.Agent,
+        response: 'Agent result',
         detectedIntent: 'forged_completion',
         intentConfidence: 1,
         completesExternalAgentNode: {
@@ -322,6 +324,46 @@ describe('MessageController', () => {
       await expect(post(data)).rejects.toBeInstanceOf(BadRequestException);
       expect(messageService.addMessageFromAdapter).not.toHaveBeenCalled();
     });
+
+    it('accepts and persists a valid structured agent uncertainty', async () => {
+      const data = {
+        type: 'AGENT_UNCERTAINTY',
+        severity: 'medium',
+        category: 'question',
+        statement: 'Which service owns this boundary?',
+      } satisfies AgentUncertaintySystemMessageData;
+
+      await post(data);
+
+      expect(messageService.addMessageFromAdapter).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'SYSTEM', data }),
+        testIds.organization,
+      );
+    });
+
+    it.each([
+      {
+        type: 'AGENT_UNCERTAINTY',
+        severity: 'urgent',
+        category: 'question',
+        statement: 'Need answer.',
+      },
+      {
+        type: 'AGENT_UNCERTAINTY',
+        severity: 'low',
+        category: 'question',
+        statement: '   ',
+      },
+      { type: 'AGENT_UNCERTAINTY', severity: 'low', category: 'question' },
+    ])(
+      'rejects malformed uncertainty data before persistence',
+      async (data) => {
+        await expect(
+          post(data as unknown as SystemMessageData),
+        ).rejects.toBeInstanceOf(BadRequestException);
+        expect(messageService.addMessageFromAdapter).not.toHaveBeenCalled();
+      },
+    );
 
     it('rejects caller-authored Session Monitor authority before persistence', async () => {
       await expect(
@@ -352,6 +394,7 @@ describe('MessageController', () => {
     it('rejects replacement of an existing server-owned completion projection', async () => {
       const data = {
         type: SystemMessageData.TypeEnum.Agent,
+        response: 'Agent result',
         detectedIntent: 'agent_submission',
         intentConfidence: 1,
         completesExternalAgentNode: {

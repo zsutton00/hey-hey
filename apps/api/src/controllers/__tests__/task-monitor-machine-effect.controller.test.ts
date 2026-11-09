@@ -4,7 +4,7 @@ import type { ModuleRef } from '@nestjs/core';
 import type {
   SubmitExecutableUserMessageRequestDto,
   SubmitTaskMonitorGuidanceEffectRequestDto,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { canonicalizeJcs } from '../../core/websockets/trigger-canonicalization';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { MachineEffectAdmissionService } from '../../services/machine-effect-admission/machine-effect-admission.service';

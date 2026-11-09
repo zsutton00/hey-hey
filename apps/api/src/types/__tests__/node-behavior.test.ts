@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { LocalPromptType } from '../../generated/local';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
 import * as TestUtils from '../../utils/testUtils';
 import {
   NodeType,

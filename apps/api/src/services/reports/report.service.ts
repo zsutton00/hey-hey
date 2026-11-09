@@ -1,4 +1,10 @@
 import { readReportUsage } from './report-usage.validation';
+import {
+  aggregateUsageTrends,
+  USAGE_TREND_REPORT_KINDS,
+  type UsageTrendQuery,
+  type UsageTrendRow,
+} from './report-usage-trends';
 import { restrictReportWhere } from 'src/read-restriction/read-policy';
 import { validateChangeWalkthroughPayload } from './change-walkthrough-payload.validation';
 import { validateCodingResearchPayload } from './coding-research-payload.validation';
@@ -15,6 +21,7 @@ import {
 } from 'src/services/tasks/work-item-type-keys';
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Inject,
   forwardRef,
@@ -68,6 +75,7 @@ import {
   ReportCreatedEvent,
   ReportCreatedEventPayload,
   ReportDto,
+  ReportUsageTrends,
   ReportDtoFeatureSyncDecisionV1,
   ReportDtoFeatureSyncDecisionV2,
   ReportDtoOther,
@@ -81,7 +89,7 @@ import {
   ReportType,
   SessionMonitorReportGuidance,
   UpdateReportDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { REPORT_SCHEMAS } from 'src/mcp/tools/report-schemas.generated';
@@ -527,6 +535,54 @@ export class ReportService {
     } satisfies CreateReportDtoOther;
 
     return this.create(input.organizationId, dto);
+  }
+
+  /**
+   * Aggregates the usage snapshots stored on retained, user-visible project
+   * reports. Reads only the columns needed; stored usage that fails validation
+   * is skipped rather than failing the read.
+   */
+  async getUsageTrends(
+    organizationId: OrganizationId,
+    projectId: string,
+    query: UsageTrendQuery,
+  ): Promise<ReportUsageTrends> {
+    const reports = await this.prisma.db.report.findMany({
+      where: restrictReportWhere({
+        organizationId,
+        projectId,
+        reportType: {
+          in: Object.keys(
+            USAGE_TREND_REPORT_KINDS,
+          ) as (keyof typeof USAGE_TREND_REPORT_KINDS)[],
+        },
+        audience: { in: USER_VISIBLE_PERSISTED_REPORT_AUDIENCES },
+        usage: { not: Prisma.DbNull },
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      }),
+      select: { id: true, reportType: true, usage: true },
+    });
+
+    const rows: UsageTrendRow[] = [];
+
+    for (const report of reports) {
+      const usage = readReportUsage(report.usage);
+
+      if (usage === null) {
+        this.logger.warn('report.usage.trend_row_skipped', {
+          organizationId,
+          reportId: report.id,
+        });
+        continue;
+      }
+
+      rows.push({
+        reportType: report.reportType as UsageTrendRow['reportType'],
+        usage,
+      });
+    }
+
+    return aggregateUsageTrends(rows, query);
   }
 
   async findAll(
@@ -1692,7 +1748,7 @@ export class ReportService {
       await this.validateParentReportExists(organizationId, dto.parentReportId);
     }
 
-    const updated = await this.prisma.db.$transaction(async (tx) => {
+    const transaction = this.prisma.db.$transaction(async (tx) => {
       const linkedContextCreates = this.materializeLinkedEntities(
         dto.linkedEntities,
       );
@@ -1705,7 +1761,12 @@ export class ReportService {
         : [];
 
       const updatedReport = await tx.report.update({
-        where: { id: reportId },
+        where: {
+          id: reportId,
+          ...(dto.expectedVersion === undefined
+            ? {}
+            : { version: dto.expectedVersion }),
+        },
         data: {
           payload: this.toPersistedReportPayload(
             dto.payload,
@@ -1782,6 +1843,18 @@ export class ReportService {
 
       await this.publishEvalReportEvent(tx, organizationId, updatedReport);
       return updatedReport;
+    });
+    const updated = await transaction.catch((error: unknown) => {
+      if (
+        dto.expectedVersion !== undefined &&
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new ConflictException(
+          `Report ${reportId} is no longer at version ${dto.expectedVersion}`,
+        );
+      }
+      throw error;
     });
 
     return this.toDto(updated);

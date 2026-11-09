@@ -20,7 +20,7 @@ import type {
   PrivateBetaDisclosureAcceptanceInputDto,
   PrivateBetaDisclosureAcceptanceResponseDto,
   PrivateBetaDisclosureStatusDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrivateBetaDisclosureService } from '../services/private-beta-disclosure.service';
 
 @ApiTags('Private Beta Access')

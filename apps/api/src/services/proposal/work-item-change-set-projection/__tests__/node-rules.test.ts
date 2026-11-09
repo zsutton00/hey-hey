@@ -2,7 +2,7 @@ import type {
   ProjectedWorkItem,
   WorkItemChangeSetIdentity,
   WorkItemChangeSetValidationRequest,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type { PrismaService } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId } from 'src/types';
 import { createWarmWorkItemTypeRegistry } from '../../../../../test/setup/work-item-type-registry.fixture';

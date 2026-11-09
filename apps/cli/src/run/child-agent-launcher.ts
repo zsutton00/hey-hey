@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { createFirstTurnPromptRunState, resolvePrompt } from './resolve-prompt';
 import { SessionRoleGuidance } from '../agents/session-role-guidance/session-role-guidance';
 import { readSessionStartContext } from '../agents/prompts/session-start-context';
-import type { PromptTypeHandlerBaseDeps, RecentUserReply } from '../agents/prompt-type-handler';
+import type { RecentUserReply } from '../agents/prompt-type-handler';
 import type { InternalRunPromptRequest } from '../shared/agent-bridge-contract/contract';
 import type { OAuthClient } from '../auth';
 import type { RepoMappingStore } from '../repo';
@@ -25,6 +25,7 @@ import { SubAgent, type SubAgentResult } from './subagent';
 import type { AgentOutputHandler } from '../agents/agent-event-stream';
 import type { ReportChainEntry } from './types';
 import type { RunEntityReference } from '../shared/agent-bridge-contract/contract';
+import { MachineOptionsStore } from '../options/machine-options-store';
 
 export interface ChildLaunchRequest {
   parentSession: AgenticSession;
@@ -65,9 +66,10 @@ export interface ChildLaunchRequest {
 export type RegisteredChildLaunchRequest = Omit<ChildLaunchRequest, 'handler'>;
 
 export interface ChildAgentLauncherDependencies {
+  machineOptionsStore?: Pick<MachineOptionsStore, 'isHeyHeyContextReminderEnabled'>;
   runStore?: RunStore;
   reportProxy?: CreateReportProxy;
-  handlerDeps: Omit<PromptTypeHandlerBaseDeps, 'childAgentLauncher'>;
+  handlerDeps: Omit<PromptTypeHandlerDeps, 'childAgentLauncher'>;
   promptTypeRegistry: PromptTypeRegistry;
   repoStore: RepoMappingStore;
   oauthClient: OAuthClient;
@@ -77,7 +79,11 @@ export interface ChildAgentLauncherDependencies {
 }
 
 export class ChildAgentLauncher {
-  public constructor(private readonly deps: ChildAgentLauncherDependencies) {}
+  private readonly machineOptionsStore: Pick<MachineOptionsStore, 'isHeyHeyContextReminderEnabled'>;
+
+  public constructor(private readonly deps: ChildAgentLauncherDependencies) {
+    this.machineOptionsStore = deps.machineOptionsStore ?? new MachineOptionsStore();
+  }
 
   /** The registered handler a child launch by this id would run, for callers that read its declarations. */
   public resolveChildHandler(handlerId: string): PromptTypeHandler<unknown> | undefined {
@@ -210,20 +216,6 @@ export class ChildAgentLauncher {
     const handlerDeps: PromptTypeHandlerDeps = {
       ...(request.handlerDeps ?? this.deps.handlerDeps),
       childAgentLauncher: this,
-      // Preparation uses the shared tool-free child handler.
-      promptOnce: async ({ prompt }) => {
-        const result = await this.launchRegistered('eval_preparation', {
-          parentSession: session,
-          payload: { prompt },
-          signal: request.signal,
-          serviceIds: [],
-          ...(request.tokenBudget !== undefined ? { tokenBudget: request.tokenBudget } : {}),
-        });
-        if (!result.assistantCompleted || !result.outputText) {
-          throw new Error('Child preparation ended without a result.');
-        }
-        return result.outputText;
-      },
     };
     const resolved = await resolvePrompt({
       handler: request.handler,
@@ -240,6 +232,7 @@ export class ChildAgentLauncher {
         payload: request.payload,
       } as InternalRunPromptRequest,
       handlerDeps,
+      heyHeyContextReminderEnabled: await this.machineOptionsStore.isHeyHeyContextReminderEnabled(),
       turnId: request.promptContext?.turnId ?? randomUUID(),
       abortSignal: () => request.signal,
       recentUserReplies: request.promptContext?.recentUserReplies ?? [],

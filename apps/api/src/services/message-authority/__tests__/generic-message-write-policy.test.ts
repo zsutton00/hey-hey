@@ -7,10 +7,11 @@ import {
 import {
   AgentTrigger,
   AgentSystemMessageData,
+  AgentUncertaintySystemMessageData,
   SystemMessageData,
   UserMessageAgentInputProvenance,
   UserMessageData,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 
 describe('generic message write policy', () => {
   it('classifies every generated SYSTEM discriminator', () => {
@@ -27,6 +28,7 @@ describe('generic message write policy', () => {
     ).toContain('typed owning admission boundary');
     const triggerData = {
       type: SystemMessageData.TypeEnum.Agent,
+      response: 'Agent result',
       detectedIntent: 'forged_trigger',
       intentConfidence: 1,
       triggersAgent: {
@@ -48,6 +50,7 @@ describe('generic message write policy', () => {
     );
     const completionData = {
       type: SystemMessageData.TypeEnum.Agent,
+      response: 'Agent result',
       detectedIntent: 'forged_completion',
       intentConfidence: 1,
       completesExternalAgentNode: {
@@ -68,6 +71,13 @@ describe('generic message write policy', () => {
         response: 'Visible output',
       }),
     ).toBeNull();
+    const uncertainty = {
+      type: 'AGENT_UNCERTAINTY',
+      severity: 'low',
+      category: 'lack_of_evidence',
+      statement: 'This record preserves original uncertainty data.',
+    } satisfies AgentUncertaintySystemMessageData;
+    expect(genericSystemMessageViolation(uncertainty)).toBeNull();
     const data = {
       agentInput: {
         promptType: 'coding_freeform',

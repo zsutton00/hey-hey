@@ -1,18 +1,12 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { LocalRepositoryBindingErrorCode } from './generated/api';
+import { LocalRepositoryBindingErrorCode } from '@hey-hey/contracts/local/models';
+import { RepositoryBindingsApiAxiosParamCreator } from '@hey-hey/contracts/local';
 
 describe('browser-local generated contract', () => {
-  it('contains only repository-binding operations and the closed typed failures', async () => {
-    const generatedSource = await fs.readFile(path.join(__dirname, 'generated', 'api.ts'), 'utf8');
-
-    expect(generatedSource).toContain('listLocalRepoBindings');
-    expect(generatedSource).toContain('pickLocalRepoDirectory');
-    expect(generatedSource).toContain('setLocalRepoBinding');
-    expect(generatedSource).not.toMatch(
-      /createRun|HealthApi|AuthApi|FilesApi|DebugApi|WorktreesApi|WebSocket/u,
-    );
+  it('builds repository-binding requests and preserves the closed typed failures', async () => {
+    const request = await RepositoryBindingsApiAxiosParamCreator().listLocalRepoBindings();
+    expect(request.url).toBe('/repos');
+    expect(request.options.method).toBe('GET');
     expect(Object.values(LocalRepositoryBindingErrorCode)).toEqual([
       'ORIGIN_NOT_ALLOWED',
       'MACHINE_ID_UNAVAILABLE',

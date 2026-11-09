@@ -45,7 +45,7 @@ import {
   CreateTransformationPipelineDto,
   ProcessContextThroughPipelineDto,
   WorkflowContextCleanupResponseDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 
 @ApiTags('workflow-context')
 @Controller('workflow-context')

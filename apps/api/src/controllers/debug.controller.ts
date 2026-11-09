@@ -73,7 +73,7 @@ import {
   DebugEventReplayMode,
   DebugEventReplayRequestDto,
   DebugEventReplayResponseDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { EventReplayRepairService } from '../services/events/event-replay-repair.service';
 
 export class WebSocketConnectionDetailDto {

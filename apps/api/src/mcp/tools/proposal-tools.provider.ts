@@ -18,17 +18,19 @@ import type {
   FutureRevisionAuthoring,
   FutureRevisionMutation,
   ProjectedWorkItemChangeSetIssue,
+  RelationshipDecision,
   ProposalGroupAuthoringMember,
   ProposalGroupAuthoringSnapshot,
   UpdateProposalDto,
   WorkItemChangeSetOperation,
+  WorkItemChangeSetIdentity,
   WorkItemChangeSetValidationRequest,
   WorkItemTypeGraphCapability,
   WorkItemUpdateOperation,
-} from '../../generated';
-import type { TaskSectionKey } from '../../generated/model/taskSectionKey';
-import { ProposalEdgeEndpointMode } from '../../generated/model/proposalEdgeEndpointMode';
-import { ProposalEdgeType } from '../../generated/model/proposalEdgeType';
+} from '@hey-hey/contracts/api/models';
+import type { TaskSectionKey } from '@hey-hey/contracts/api/models';
+import { ProposalEdgeEndpointMode } from '@hey-hey/contracts/api/models';
+import { ProposalEdgeType } from '@hey-hey/contracts/api/models';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { ProposalService } from '../../services/proposal/proposal.service';
@@ -96,11 +98,18 @@ import {
   validateAuthoringRootProof,
 } from './authoring-guidance';
 import {
+  relationshipDecisionIssues,
+  relationshipDecisionOperations,
+} from '../../services/proposal/relationship-decisions';
+import {
+  MAX_RELATIONSHIP_DECISIONS,
+  relationshipDecisionSchema,
   workItemChangeSetIdentitySchema,
   workItemChangeSetOperationSchema,
   workItemChangeSetValidationRequestSchema,
 } from '../../services/proposal/work-item-change-set.schema';
 import { LIFECYCLE_AWARE_TASK_EDIT_SAFETY_SUMMARY } from './tool-guidance';
+import { SearchReceiptStore } from './search-receipt.store';
 
 const NIL_UUID = '00000000-0000-0000-0000-000000000000';
 const eli5Schema = z
@@ -114,7 +123,7 @@ const PLAN_CREATE_ROUTING_MESSAGE =
   'PLAN work items must be created through create_plan. Use create_plan for Plan intake; do not use create_work_item for Plan creation.';
 
 export const CREATE_WORK_ITEM_TOOL_DESCRIPTION =
-  'Propose a CREATE proposal for a work item of any type (STANDARD, FEATURE, GOAL, BUG, CONTRACT, DIAGRAM, DIAGRAM_ELEMENT, TASK_MONITOR, or project-defined custom types). Per-type rules — allowed sections, required fields, parentage, the feature-only tag, and Diagram graph payloads — are enforced from the central work-item type config. See get_tool_guidance({ toolName: "create_work_item", workItemType }) for the authoring conventions of the type you are creating. serviceIds is accepted when the project-effective type has registry role "work-item" and represents the complete known service scope.';
+  'Before creating a work item, inspect the project graph with unified_search, task_search, search_features, search_goals, search_design_docs, plan_search, or get_context. A successful result includes a searchReceiptId; pass it here to show the graph was checked in this same project and agent session. The receipt expires after a few minutes, but you can reuse it for several related creations until then. This is separate from guidanceToken, which proves you read the work-item writing rules. Missing, expired, or mismatched receipts are rejected with instructions to search again. Propose a CREATE proposal for a work item of any type (STANDARD, FEATURE, GOAL, BUG, CONTRACT, DIAGRAM, DIAGRAM_ELEMENT, TASK_MONITOR, or project-defined custom types). Per-type rules — allowed sections, required fields, parentage, the feature-only tag, and Diagram graph payloads — are enforced from the central work-item type config. See get_tool_guidance({ toolName: "create_work_item", workItemType }) for the authoring conventions of the type you are creating. serviceIds is accepted when the project-effective type has registry role "work-item" and represents the complete known service scope.';
 
 export const EDIT_WORK_ITEM_TOOL_DESCRIPTION =
   'Propose an UPDATE proposal for a work item of any type. The target\'s type is resolved server-side and that type\'s update rules — allowed sections, settable fields — are applied from the central work-item type config. See get_tool_guidance({ toolName: "edit_work_item", workItemType }) for the authoring conventions. ' +
@@ -738,7 +747,36 @@ type ProposalEdgeDeclarationParam = z.infer<
 
 // --------------------------------------------------------
 
+const relationshipDecisionsField = z
+  .array(relationshipDecisionSchema.omit({ original: true }))
+  .max(MAX_RELATIONSHIP_DECISIONS)
+  .optional()
+  .describe(
+    'Reviewable decisions about existing relationships affected by this change, ' +
+      'at most 100. Use them with a SUPERSEDES edge or when moving selected ' +
+      'connections to another work item. Each entry names one existing ' +
+      'relationship by `{ refType: "existing", id }` and records `retain` ' +
+      '(needs a nonempty `reason`; no graph change), `remove`, or `replace` ' +
+      '(needs `replacement` with the exact source, target and edgeType). ' +
+      'Switching one consumer to a new provider is a `replace` of that ' +
+      "consumer's relationship only; the former provider and other consumers " +
+      'stay as they are. Whole-entity replacement is a successor-authored ' +
+      'SUPERSEDES edge; it never supersedes consumers or moves their ' +
+      'dependencies on its own. When creating, the new work item is ' +
+      '`{ refType: "temporary", tempId: "root" }`. The server records each ' +
+      "relationship's original description and endpoint names for review. An " +
+      'omitted or empty array means no relationship was declared for change, ' +
+      'not that the neighborhood was reconciled.',
+  );
+
 export const createWorkItemParameters = z.object({
+  searchReceiptId: z
+    .string()
+    .uuid()
+    .optional()
+    .describe(
+      'Pass the searchReceiptId returned by a successful unified_search, task_search, search_features, search_goals, search_design_docs, plan_search, or get_context call. It proves this agent session inspected this project graph, can be reused for several creations, and expires after a few minutes. Optional in the input schema so omission gets an actionable error; accepted creation requires a valid receipt.',
+    ),
   ragEnabled: z.boolean().optional(),
   applicationEligible: z.boolean().optional(),
   groupContext: proposalGroupContextSchema.optional(),
@@ -828,6 +866,7 @@ export const createWorkItemParameters = z.object({
     .describe(
       'Complete set of work-item identities expected in the new Diagram layout.',
     ),
+  relationshipDecisions: relationshipDecisionsField,
   diagramElements: z
     .array(diagramElementInputSchema)
     .optional()
@@ -905,6 +944,7 @@ export const editWorkItemParameters = z.object({
       'Replace exactly one literal occurrence in a registry-declared Markdown section. ' +
         'The server resolves this against the current canonical section and persists only the complete resulting section content.',
     ),
+  relationshipDecisions: relationshipDecisionsField,
   ...updateWorkItemFields,
   // The handler folds implementation into the description section; keep it
   // outside the UPDATE_WORK_ITEM_KEYS field-copy loop.
@@ -1662,6 +1702,8 @@ export class ProposalToolsProvider {
     private readonly proposalGroupAuthoringService?: ProposalGroupAuthoringService,
     @Optional()
     private readonly featureRequirementAuthoringService?: FeatureRequirementAuthoringService,
+    @Optional()
+    private readonly searchReceipts?: SearchReceiptStore,
   ) {}
 
   private featureRequirementAuthoring(): FeatureRequirementAuthoringService {
@@ -1685,6 +1727,101 @@ export class ProposalToolsProvider {
         .map((diagnostic) => `  ${diagnostic.field}: ${diagnostic.message}`)
         .join('\n')}`,
     );
+  }
+
+  /**
+   * Admit relationship decisions before anything is persisted. Shape rules and
+   * conflicts are reported field by field; each decided relationship is
+   * resolved against Graph so the proposal records what it looked like when
+   * reviewed; and for an existing work item the resulting operations are
+   * projected through the same validation approval uses.
+   */
+  private async admitRelationshipDecisions(args: {
+    organizationId: OrganizationId;
+    projectId: ProjectId;
+    decisions: readonly RelationshipDecision[];
+    edges: readonly { edgeType: string; targetEntityType: string }[];
+    root: WorkItemChangeSetIdentity;
+    graphOperationsRequested: boolean;
+  }): Promise<
+    | { decisions: RelationshipDecision[] }
+    | { issues: ProjectedWorkItemChangeSetIssue[] }
+  > {
+    if (args.graphOperationsRequested) {
+      return {
+        issues: [
+          graphIssue(
+            'relationshipDecisions',
+            'decisions_require_ordinary_edit',
+            'relationshipDecisions cannot be combined with graph operations. Express those relationship changes as relationship operations.',
+          ),
+        ],
+      };
+    }
+
+    const shapeIssues = relationshipDecisionIssues(args.decisions, []);
+    // Edges that need the proposal-edge protocol would run on a path that
+    // cannot carry the decisions, silently dropping half of the change.
+    const durableEdgeTypes = new Set([
+      'DEPENDS_ON',
+      'RELATED_TO',
+      'DERIVES_FROM',
+      'CONTRADICTS',
+      'EVOLVES',
+      'SUPERSEDES',
+    ]);
+    const edgeIssues = args.edges.flatMap((edge, index) =>
+      edge.targetEntityType === 'TASK' && durableEdgeTypes.has(edge.edgeType)
+        ? []
+        : [
+            {
+              field: `edges[${index}]`,
+              code: 'edge_incompatible_with_decisions',
+              reason:
+                'Relationship decisions can only accompany task-to-task DEPENDS_ON, RELATED_TO, DERIVES_FROM, CONTRADICTS, EVOLVES or SUPERSEDES edges. Declare other edges in a separate proposal.',
+            },
+          ],
+    );
+    const authoringIssues = [...shapeIssues, ...edgeIssues];
+    if (authoringIssues.length > 0) {
+      return {
+        issues: authoringIssues.map((issue) =>
+          graphIssue(issue.field, issue.code, issue.reason),
+        ),
+      };
+    }
+
+    if (!this.workItemChangeSetProjector) {
+      throw new Error(
+        'Work-item graph change-set projection is not configured.',
+      );
+    }
+    const resolved =
+      await this.workItemChangeSetProjector.resolveRelationshipDecisions({
+        organizationId: args.organizationId,
+        projectId: args.projectId,
+        decisions: args.decisions,
+      });
+    if (resolved.issues.length > 0) {
+      return { issues: resolved.issues };
+    }
+
+    if (args.root.refType === 'existing') {
+      const projection = await this.workItemChangeSetProjector.project({
+        organizationId: args.organizationId,
+        projectId: args.projectId,
+        request: workItemChangeSetValidationRequestSchema.parse({
+          root: args.root,
+          operations: relationshipDecisionOperations(resolved.decisions),
+          relationshipDecisions: resolved.decisions,
+        }) satisfies WorkItemChangeSetValidationRequest,
+      });
+      if (!projection.valid) {
+        return { issues: projection.issues };
+      }
+    }
+
+    return { decisions: resolved.decisions };
   }
 
   private requireGroupAuthoringService(): ProposalGroupAuthoringService {
@@ -2512,6 +2649,16 @@ export class ProposalToolsProvider {
       );
     }
 
+    if (this.searchReceipts) {
+      const receiptScope = this.searchReceipts.resolveScope(request, projectId);
+      if (!receiptScope) return this.searchReceipts.missingSessionError();
+      const receiptError = await this.searchReceipts.validate(
+        params.searchReceiptId,
+        receiptScope,
+      );
+      if (receiptError) return mcpError(receiptError);
+    }
+
     if (type === WORK_ITEM_TYPE_KEYS.Plan) {
       this.logger.warn(
         `create_work_item rejected PLAN creation for project ${projectId}: ` +
@@ -2855,6 +3002,25 @@ export class ProposalToolsProvider {
       this.logger.log(
         `create_work_item: prepared ${prepared.section.records.length} requirements as canonical JSON`,
       );
+    }
+
+    if (params.relationshipDecisions?.length) {
+      const admitted = await this.admitRelationshipDecisions({
+        organizationId: auth.organizationId,
+        projectId: projectId as ProjectId,
+        decisions: params.relationshipDecisions,
+        edges: params.edges ?? [],
+        root: { refType: 'temporary', tempId: 'root' },
+        graphOperationsRequested: params.operations !== undefined,
+      });
+      if ('issues' in admitted) {
+        return {
+          status: 'invalid_change_set',
+          workItemType: type,
+          issues: admitted.issues,
+        };
+      }
+      updates['relationshipDecisions'] = admitted.decisions;
     }
 
     const conversationId = request.headers['x-conversation-id'] as
@@ -3421,6 +3587,28 @@ export class ProposalToolsProvider {
           ),
         });
         proposalUpdates = request as unknown as Record<string, unknown>;
+      }
+
+      if (params.relationshipDecisions?.length) {
+        const admitted = await this.admitRelationshipDecisions({
+          organizationId: auth.organizationId,
+          projectId: projectId as ProjectId,
+          decisions: params.relationshipDecisions,
+          edges: params.edges ?? [],
+          root: { refType: 'existing', id: params.targetEntityId },
+          graphOperationsRequested: graphEditRequested,
+        });
+        if ('issues' in admitted) {
+          return {
+            status: 'invalid_change_set',
+            workItemType: type,
+            issues: admitted.issues,
+          };
+        }
+        proposalUpdates = {
+          ...proposalUpdates,
+          relationshipDecisions: admitted.decisions,
+        };
       }
 
       if (Object.keys(proposalUpdates).length === 0 && !params.edges?.length) {

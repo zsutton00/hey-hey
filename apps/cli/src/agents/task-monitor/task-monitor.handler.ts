@@ -1,8 +1,9 @@
 import type { AssistantCompleteEvent } from '../../run/types';
 import {
+  SessionRole,
   LocalPromptType,
   type TaskMonitorPromptPayload,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../../session/types';
 import type { TaskMonitorConversationPromptPayload } from '../../shared/agent-bridge-contract/contract';
 import type {
@@ -63,6 +64,7 @@ const publishInvalidDecision = (
 
 export const taskMonitorHandler: PromptTypeHandler<TaskMonitorPromptInput> = {
   id: 'task-monitor-coordinator',
+  sessionRole: SessionRole.Review,
   promptType: LocalPromptType.TaskMonitor,
   service: 'optional',
   launchEntity: 'required',

@@ -4,7 +4,7 @@ import {
   MachineRepoBindingsInboundPayload,
   ServiceRepoBinding,
   WebSocketMachineRepoBindingsEvent,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { ConversationId, UserId } from '../../../types';
 import { PendingTriggerService } from '../../../services/workflows/pending-trigger.service';
 import { AgentSessionService } from '../../../services/agent-session.service';

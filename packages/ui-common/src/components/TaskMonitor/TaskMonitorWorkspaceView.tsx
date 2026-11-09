@@ -18,6 +18,10 @@ import {
   type UserMessageDataTaskMonitor,
 } from "../../api";
 import { apiClient } from "../../clients/client.js";
+import {
+  toOpenApiConversationId,
+  toOpenApiProjectId,
+} from "../../clients/contractIdentifierAdapters";
 import { AgentConversationView } from "../AgentSession";
 import {
   buildAgentInput,
@@ -370,8 +374,10 @@ export const TaskMonitorWorkspaceView = ({
                   } satisfies UserMessageDataTaskMonitor;
 
                   return {
-                    projectId,
-                    conversationId: coordinatorConversationId,
+                    projectId: toOpenApiProjectId(projectId),
+                    conversationId: toOpenApiConversationId(
+                      coordinatorConversationId,
+                    ),
                     type: MessageType.User,
                     data: buildUserMessageData({
                       agentInput: buildAgentInput(agentInput),

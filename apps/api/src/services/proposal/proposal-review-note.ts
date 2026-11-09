@@ -1,8 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
-import type { ProposalReviewNoteDto } from 'src/generated';
-import { proposalReviewNoteSchema } from 'src/generated/proposal-reconciliation.schema';
+import type { ProposalReviewNoteDto } from '@hey-hey/contracts/api/models';
+import { proposalReviewNoteSchema } from '@hey-hey/contracts/api/custom/proposal-reconciliation.schema';
 
 const ajv = new Ajv({ strict: false, allErrors: true });
 addFormats(ajv);

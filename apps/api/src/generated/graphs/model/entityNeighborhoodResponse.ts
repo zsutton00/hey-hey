@@ -20,4 +20,8 @@ export interface EntityNeighborhoodResponse {
    * Hydration map for entities reached by the traversal but not necessarily surfaced in `relatedEntities`. Callers use it to hydrate metadata for entities they discover through other channels (e.g. agent-edge fetch) without round-tripping back to the graph service. ARTIFACT and AGENT_SESSION entries are excluded — agent sessions live in `agentSessions[]` and artifacts are excluded from neighborhood views entirely.
    */
   nodeCatalog?: Array<EntityNeighborhoodNode>;
+  /**
+   * Distinct candidates reached within the requested depth that the graph service\'s own read limit left out of this response. Zero when every reached candidate is present.
+   */
+  omittedCandidateCount?: number;
 }

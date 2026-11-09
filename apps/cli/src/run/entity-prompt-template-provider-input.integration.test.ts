@@ -5,11 +5,11 @@ import {
   EntityPromptTemplateSelectorEntityType,
   EntityPromptTemplateSyntaxVersion,
   type EntityPromptTemplateSelectorDto,
-} from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import {
   RunEntityReferenceEntityTypeEnum,
   type RunEntityReference,
-} from '../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import { createTestOAuthClient } from '../auth/oauth-client.test-support';
 import { EntityContextLoader } from '../agents/entity-context/entity-context-loader';
 import type { LoadedEntityPromptContext } from '../agents/entity-context/types';
@@ -170,7 +170,7 @@ const loadedContextFor = (entry: CanonicalCase): LoadedEntityPromptContext => ({
     entityType: entry.entityType,
     displayName: `Canonical ${entry.heading}`,
     createdAt: '2026-09-04T00:00:00.000Z',
-    relatedEntities: [],
+    groupedRelatedEntities: [],
     featureHierarchy: [],
     proposals: [],
     agentSessions: [],

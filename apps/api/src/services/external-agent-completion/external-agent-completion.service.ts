@@ -3,7 +3,9 @@ import {
   ConflictException,
   Injectable,
   Logger,
+  UnprocessableEntityException,
 } from '@nestjs/common';
+import { z } from 'zod';
 import { validate as isUuid, v5 as uuidv5 } from 'uuid';
 import {
   AgentSystemMessageData,
@@ -13,7 +15,7 @@ import {
   SubmitExternalAgentCompletionRequestDto,
   SubmitExternalAgentCompletionResponseDto,
   SystemMessageData,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { canonicalizeJcs } from '../../core/websockets/trigger-canonicalization';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -136,9 +138,16 @@ export class ExternalAgentCompletionService {
     if (!nodeInfo || !isExternalAgentNode(nodeInfo.node)) {
       this.bindingMismatch('active_external_agent_node');
     }
-    if (!Object.hasOwn(nodeInfo.node.actions, params.input.action)) {
+    const permittedAction = Object.hasOwn(
+      nodeInfo.node.actions,
+      params.input.action,
+    )
+      ? nodeInfo.node.actions[params.input.action]
+      : undefined;
+    if (!permittedAction) {
       this.bindingMismatch('permitted_action');
     }
+    this.assertPayloadMatchesAction(permittedAction.schema, params.input);
 
     const data = {
       type: SystemMessageData.TypeEnum.Agent,
@@ -244,10 +253,39 @@ export class ExternalAgentCompletionService {
       (input.hidden !== undefined && typeof input.hidden !== 'boolean') ||
       (input.providerSessionId !== undefined &&
         typeof input.providerSessionId !== 'string') ||
-      (input.promptHandler !== undefined && typeof input.promptHandler !== 'string')
+      (input.promptHandler !== undefined &&
+        typeof input.promptHandler !== 'string')
     ) {
       throw new BadRequestException('Request does not match the OpenAPI shape');
     }
+  }
+
+  /**
+   * Reject a payload the node cannot accept before the completion message is
+   * written. Persisting the message consumes the open trigger, so a payload
+   * that fails here leaves the trigger available for a corrected resubmission.
+   */
+  private assertPayloadMatchesAction(
+    schema: z.ZodTypeAny,
+    input: SubmitExternalAgentCompletionRequestDto,
+  ): void {
+    const parsed = schema.safeParse(input.payload);
+    if (parsed.success) {
+      return;
+    }
+
+    this.logger.warn('Rejected EXTERNAL_AGENT completion payload', {
+      workflowNodeId: input.workflowNodeId,
+      action: input.action,
+    });
+    throw new UnprocessableEntityException({
+      code: 'EXTERNAL_AGENT_COMPLETION_INVALID_PAYLOAD',
+      message: `The ${input.action} payload is invalid. The workflow is still waiting; correct the payload and submit again.`,
+      issues: parsed.error.issues.map((issue) => ({
+        path: issue.path.join('.'),
+        message: issue.message,
+      })),
+    });
   }
 
   private bindingMismatch(binding: string): never {

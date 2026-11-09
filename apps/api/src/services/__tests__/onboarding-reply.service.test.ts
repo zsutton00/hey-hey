@@ -4,7 +4,7 @@ import {
   ConversationStatus,
   MessageStatus,
   WorkflowName,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { NodeType } from '../../types/flow-internal.types';
 import { ONBOARDING_NODES } from '../../flows/constants/node-ids';
 import { REPOSITORY_GROUNDING_FIELDS } from '../../flows/nodes/onboarding/repository-grounding.contract';
@@ -149,6 +149,40 @@ describe('OnboardingReplyService', () => {
         responses: { none: {} },
       },
     });
+  });
+
+  it('admits a CLI-owned reply without a Temporal execution binding', async () => {
+    const { service, tx, messageService } = build();
+    tx.conversation.findFirst.mockResolvedValueOnce({
+      id: ids.conversationId,
+      version: 4,
+      workflowId: null,
+      workflowName: WorkflowName.Onboarding,
+      workflowAboutId: ids.projectId,
+      workflowAboutType: 'project',
+      status: ConversationStatus.InProgress,
+    });
+    tx.flowExecution.findFirst.mockResolvedValueOnce({
+      id: 'execution-id',
+      currentNode: 'questions',
+      status: FlowExecutionStatus.IN_PROGRESS,
+      flowState: { ...serializedWaitingState, executionOwner: 'CLI' },
+      startedAt: new Date('2026-08-29T01:00:00.000Z'),
+    });
+
+    await expect(service.admit({ ...ids, request } as never)).resolves.toEqual({
+      id: 'message-id',
+    });
+    expect(messageService.addMessageInTransaction).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      ids.organizationId,
+      'onboardingReplyAdmission',
+      expect.objectContaining({
+        onboardingReplyDelivery: { executionOwner: 'CLI', nodeId: 'questions' },
+        suppressExecutableDelivery: true,
+      }),
+    );
   });
 
   it.each([

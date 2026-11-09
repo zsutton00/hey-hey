@@ -1,4 +1,5 @@
 import { EvalAttemptExecution } from '../agents/run-eval/eval-attempt-execution';
+import { EvalWorkspaces } from '../agents/run-eval/eval-workspace';
 import type { ProjectBrowser } from '../browser/project-browser-manager';
 import { RunTabs } from '../browser/run-tabs';
 import { BrowserTools } from '../browser/browser-tools';
@@ -68,18 +69,17 @@ import {
 import { MachineEffectProofSigner } from '../auth/machine-effect-proof';
 import { SessionRunnerFacade } from './runtime/providers/select';
 import { MessageType } from '../shared/api/index';
-import { MachineEffectHttpMethod } from '../shared/api/generated/api';
+import { MachineEffectHttpMethod } from '@hey-hey/contracts/api/models';
 import type {
   CreateSystemMessage,
   CreateUserMessage,
   PostMessageRequest,
   SubmitExecutableUserMessageRequestDto,
-} from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import { ProjectModeBundleMaterializer, ProjectModeBundleRestorer } from '../agents/project-mode';
 import type { HostActionAdmission } from './controller-authorization/host-action-admission';
 import type { ControllerRegistryReader } from './controller-authorization/types';
 import type { CatalogAvailability } from './runtime-capability-catalog';
-import { createRunStorePreparationRecords } from '../agents/preparation-records';
 
 const isSystemMessage = (
   dto: CreateSystemMessage | CreateUserMessage | SubmitExecutableUserMessageRequestDto,
@@ -388,10 +388,13 @@ export class RunApplicationRuntime {
       capabilityCatalog: dependencies.capabilityCatalog,
     });
     const deterministicE2EScenarioRegistry = DeterministicE2EScenarioRegistry.fromEnvironment();
-    const evalAttemptExecution = new EvalAttemptExecution(runLogger);
+    const evalAttemptExecution = new EvalAttemptExecution(
+      runLogger,
+      undefined,
+      new EvalWorkspaces(dependencies.repoStore, runLogger.child({ component: 'eval-workspaces' })),
+    );
     const baseHandlerDeps = {
       evalAttemptExecution,
-      preparationRecords: createRunStorePreparationRecords(dependencies.runStore),
       fetchImpl,
       auth: dependencies.agentRuntime.auth,
       apiBaseUrl: dependencies.apiBaseUrl,
@@ -399,6 +402,12 @@ export class RunApplicationRuntime {
       taskMonitorDecisionStore: dependencies.agentRuntime.taskMonitorDecisionStore,
       sessionMonitorEvaluationStore: dependencies.agentRuntime.sessionMonitorEvaluationStore,
       startupPromptInput: dependencies.agentRuntime.startupPromptInput,
+      ...(dependencies.agentRuntime.decisionModel
+        ? {
+            decisionModel: dependencies.agentRuntime.decisionModel,
+            isDecisionModelEnabled: dependencies.agentRuntime.isDecisionModelEnabled,
+          }
+        : {}),
     };
     this.childAgentLauncher = new ChildAgentLauncher({
       runStore: dependencies.runStore,
@@ -665,19 +674,31 @@ export class RunApplicationRuntime {
     this.localSessionMetadataSource.noteConversationTitle(conversationId, title);
   }
 
+  private cleanupSteps: Array<() => void | Promise<void>> | undefined;
+
   public async dispose(): Promise<void> {
-    this.memoryMonitor.dispose();
-    this.unsubscribeReconnect();
-    this.unsubscribeAuthChanged();
-    this.localSessionMetadataSource.dispose();
-    for (const subscription of this.dispatchSubscriptions.splice(0)) subscription.dispose();
-    this.subagentInteractionRuntime.dispose();
-    await this.inputAdmissionLifecycle.dispose();
-    this.runRegistry.dispose();
-    await this.browserMcpAccess?.dispose();
-    this.sessionActivitySource.dispose();
-    this.localSessionReadSource.dispose();
-    await this.messagePoster.cleanup();
-    await this.projectModeBundleMaterializer.dispose();
+    this.runRegistry.closeAdmission();
+    this.cleanupSteps ??= [
+      () => this.memoryMonitor.dispose(),
+      () => this.unsubscribeReconnect(),
+      () => this.unsubscribeAuthChanged(),
+      () => this.localSessionMetadataSource.dispose(),
+      ...this.dispatchSubscriptions.map((subscription) => () => subscription.dispose()),
+      () => this.subagentInteractionRuntime.dispose(),
+      () => this.inputAdmissionLifecycle.dispose(),
+      () => this.runRegistry.dispose(),
+      async () => {
+        await this.browserMcpAccess?.dispose();
+      },
+      () => this.sessionActivitySource.dispose(),
+      () => this.localSessionReadSource.dispose(),
+      () => this.messagePoster.cleanup(),
+      () => this.projectModeBundleMaterializer.dispose(),
+    ];
+    while (this.cleanupSteps.length) {
+      await this.cleanupSteps[0]!();
+      this.cleanupSteps.shift();
+    }
+    this.dispatchSubscriptions.length = 0;
   }
 }

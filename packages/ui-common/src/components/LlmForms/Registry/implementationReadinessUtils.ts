@@ -1,5 +1,9 @@
 import type {
+  ImplementationReadinessDisposition,
   ImplementationReadinessFinding,
+  ImplementationReadinessFixStepState,
+  ImplementationReadinessItemReference,
+  ImplementationReadinessLegacyFinding,
   ImplementationReadinessPayload,
   SecondaryActionHandler,
   UIElementPayload,
@@ -7,8 +11,33 @@ import type {
 import type { FormValue } from "../types";
 import type { SecondaryActionConfigWithHandler } from "./types";
 
-export const buildImplementationReadinessFindingMarkdown = (
-  finding: ImplementationReadinessFinding,
+type ReadinessFinding = NonNullable<
+  ImplementationReadinessDisposition["finding"]
+>;
+
+const isExplainedFinding = (
+  finding: ReadinessFinding,
+): finding is ImplementationReadinessFinding => "requestedOutcome" in finding;
+
+const FIX_STEP_STATE_LABELS: Record<
+  ImplementationReadinessFixStepState,
+  string
+> = {
+  DONE: "already done",
+  REMAINING: "work remaining",
+  USER_DECISION: "your decision",
+};
+
+const mention = (item: ImplementationReadinessItemReference): string => {
+  const title = item.title.replace(/[|\]]/g, " ");
+  return `@[${item.entityType.toLowerCase()}:${item.entityId}|${title}]`;
+};
+
+const numbered = (lines: string[]): string =>
+  lines.map((line, index) => `${index + 1}. ${line}`).join("\n");
+
+const buildLegacyFindingMarkdown = (
+  finding: ImplementationReadinessLegacyFinding,
 ): string => {
   const evidence = finding.boundedEvidence
     .map((item) =>
@@ -32,6 +61,41 @@ export const buildImplementationReadinessFindingMarkdown = (
     .join("\n\n");
 };
 
+export const buildImplementationReadinessFindingMarkdown = (
+  finding: ReadinessFinding,
+): string => {
+  if (!isExplainedFinding(finding)) {
+    return buildLegacyFindingMarkdown(finding);
+  }
+
+  const trail = numbered(
+    finding.reasoningTrail.map(
+      (entry) => `${mention(entry.source)} — ${entry.explanation}`,
+    ),
+  );
+  const fixSteps = numbered(
+    finding.fixSteps.map(
+      (step) =>
+        `${step.action} — ${mention(step.owner)} (${FIX_STEP_STATE_LABELS[step.state]})`,
+    ),
+  );
+
+  return [
+    "## What you asked for",
+    finding.requestedOutcome,
+    "## How the agent got here",
+    trail,
+    "## The problem",
+    finding.problem,
+    "## What could go wrong",
+    numbered(finding.failureScenario),
+    "## Steps to fix",
+    fixSteps,
+    "## What I need from you",
+    finding.userRequest,
+  ].join("\n\n");
+};
+
 /**
  * Narrows the generated UI payload union at the registry boundary. The API
  * discriminator is the only authority for selecting this field renderer.
@@ -53,9 +117,6 @@ export const isImplementationReadinessPayload = (
 type ImplementationReadinessDispositionAction =
   typeof SecondaryActionHandler.ImplementationReadinessDismiss;
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
 /**
  * Converts an API secondary-action payload into the workflow submission shape
  * expected by the conversation form dispatcher. The API payload's
@@ -69,14 +130,12 @@ export const buildImplementationReadinessDispositionValue = (
   formValues: Record<string, FormValue>,
 ): Record<string, FormValue> | null => {
   const payload = config.payload;
-  if (
-    !isRecord(payload) ||
-    payload.handlerType !== action ||
-    typeof payload.runId !== "string" ||
-    payload.runId.length === 0 ||
-    typeof payload.sourceRevision !== "string" ||
-    payload.sourceRevision.length === 0
-  ) {
+  if (!payload || payload.handlerType !== action) {
+    return null;
+  }
+
+  const { runId, sourceRevision } = payload;
+  if (runId.length === 0 || sourceRevision.length === 0) {
     return null;
   }
 
@@ -85,8 +144,8 @@ export const buildImplementationReadinessDispositionValue = (
     [config.fieldId]: {
       action,
       payload: {
-        runId: payload.runId,
-        sourceRevision: payload.sourceRevision,
+        runId,
+        sourceRevision,
         confirmed: true,
       },
     },

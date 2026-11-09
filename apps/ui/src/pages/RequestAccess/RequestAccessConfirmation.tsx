@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Box, Button, Stack, Typography } from "@mui/material";
 import { Link } from "react-router-dom";
-import type { PrivateBetaSelfServiceAdmissionMode } from "@hey-hey/ui-common/api";
+import type { PrivateBetaSelfServiceAdmissionMode } from "@hey-hey/contracts/api";
 
 export const RequestAccessConfirmation = ({
   mode,

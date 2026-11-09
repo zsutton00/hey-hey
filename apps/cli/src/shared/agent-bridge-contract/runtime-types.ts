@@ -20,9 +20,21 @@ import type {
   AgentSkillSelection,
   ContextData,
   CliReadProviderSessionUsageCost,
-} from './generated/api';
+} from '@hey-hey/contracts/agent-bridge/models';
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+/**
+ * Limits an inert eval attempt's `unified_search` so it cannot find material about its own case:
+ * only items created before the case, and nothing connected to the entities named here (the case,
+ * its Eval, the case's proposals and their conversations). `hiddenEntityIds` is everything connected
+ * to those entities, resolved once at attempt start; every other platform read hides or refuses it.
+ */
+export interface EvalSearchScope {
+  readonly createdBefore: string;
+  readonly excludeConnectedTo: readonly string[];
+  readonly hiddenEntityIds: readonly string[];
+}
 
 export interface LocalPendingRunContext {
   projectId: string;
@@ -33,8 +45,20 @@ export interface LocalPendingRunContext {
   provider?: 'claude' | 'codex' | 'opencode';
 }
 
+/**
+ * Binds a Run to one directory standing in for a Service. The Run uses the
+ * directory as that Service's path, so it is the Run's working directory and
+ * its only write root.
+ */
+export interface LocalRunWorkspaceBinding {
+  serviceId: string;
+  directory: string;
+}
+
 export interface LocalCreateRunRequest {
   context: LocalPendingRunContext;
+  /** Only valid on an inert Run: the directory its file-writing built-ins may change. */
+  workspaceBinding?: LocalRunWorkspaceBinding;
   contextMetadata: RunContextMetadata;
   scope?: LocalRunScope;
   conversationId: string;
@@ -49,6 +73,8 @@ export interface LocalCreateRunRequest {
   reasoningEffort?: StartRunPromptPayloadReasoningEffortEnum;
   fastMode?: boolean;
   inert?: boolean;
+  /** Only valid on an inert Run: limits what its `unified_search` can find about its own eval case. */
+  searchScope?: EvalSearchScope;
   /** Internal standalone Project Assistant admission using the consumer's normal policy. */
   projectAssistantConsumerHandlerId?: string;
   /** Internal cancellation, including materialization before a Run is active. */
@@ -187,7 +213,8 @@ export interface LocalCodeReviewPromptPayload {
   userMessage?: string;
 }
 
-export type LocalImplementPromptPayload = import('./generated/api').ImplementPromptPayload;
+export type LocalImplementPromptPayload =
+  import('@hey-hey/contracts/agent-bridge/models').ImplementPromptPayload;
 
 export interface LocalFeatureTreeConversationPromptPayload {
   projectId: string;

@@ -24,7 +24,7 @@ import type {
   SetOpenItemGoalFilterRequest,
   SetOpenItemGoalDisclosureRequest,
   UngroupOpenItemsRequest,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { v4 as uuidv4 } from 'uuid';
 import * as domain from './open-items.domain';
 import type {

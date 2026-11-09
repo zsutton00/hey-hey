@@ -19,7 +19,7 @@ import {
   type WorkItemSectionSelection,
 } from "../../utils/workItemSections";
 import {
-  adaptFeatureRequirementsSection,
+  readFeatureRequirementsSection,
   isCanonicalFeatureRequirementsDefinition,
 } from "../../utils/featureRequirementsSection";
 
@@ -47,6 +47,19 @@ export interface WorkItemReadViewProps {
   visualSectionTitle?: string;
   visualSectionEntity?: WorkItemVisualSectionEntity;
   visualSectionActions?: React.ReactNode;
+  /**
+   * Lets a page render a section its own way. Returning undefined keeps the
+   * default rendering; returning null shows nothing for that section.
+   */
+  renderSection?: (
+    section: WorkItemTypeSectionDefinition,
+    value: string,
+  ) => React.ReactNode | undefined;
+  /**
+   * Shown directly after the visual (Mockup) sections. When given, the visual
+   * sections come first and the remaining sections follow this content.
+   */
+  afterVisualSections?: React.ReactNode;
 }
 
 export interface WorkItemRequirementsPreview {
@@ -110,16 +123,31 @@ export const WorkItemReadView: React.FC<WorkItemReadViewProps> = ({
   visualSectionTitle,
   visualSectionEntity,
   visualSectionActions,
+  renderSection,
+  afterVisualSections,
 }) => {
   const markdownComponents = useReadViewMarkdownComponents();
   const pathService = usePathService();
 
-  const declaredSections =
+  const resolvedSections =
     sectionSelection?.status === "resolved" ? sectionSelection.sections : [];
+  const isVisualSection = (section: WorkItemTypeSectionDefinition): boolean =>
+    section.kind === "html/css" || section.kind === "structured-mockup";
+  // A page that attaches content to the visual sections shows them first.
+  const declaredSections = afterVisualSections
+    ? [
+        ...resolvedSections.filter(isVisualSection),
+        ...resolvedSections.filter((section) => !isVisualSection(section)),
+      ]
+    : resolvedSections;
   const visualSectionCount = declaredSections.filter(
     (section) =>
       section.kind === "html/css" || section.kind === "structured-mockup",
   ).length;
+  const lastVisualSectionIndex = declaredSections.reduce(
+    (last, section, index) => (isVisualSection(section) ? index : last),
+    -1,
+  );
   const getVisualSectionLabel = (sectionLabel: string): string => {
     if (!visualSectionTitle) return sectionLabel;
     return visualSectionCount === 1
@@ -213,7 +241,7 @@ export const WorkItemReadView: React.FC<WorkItemReadViewProps> = ({
         </Button>
       )}
       <Stack spacing={3}>
-        {declaredSections.map((section) => {
+        {declaredSections.map((section, sectionIndex) => {
           const value = getTaskSectionContent(sections, section.key);
           const materializedSection = sections?.find(
             (candidate) => candidate.key === section.key,
@@ -224,6 +252,19 @@ export const WorkItemReadView: React.FC<WorkItemReadViewProps> = ({
               ? String(materializedSection.materializedProposalId)
               : undefined;
           const visualSectionLabel = getVisualSectionLabel(section.label);
+          const customSection = renderSection?.(section, value);
+          const trailing =
+            sectionIndex === lastVisualSectionIndex
+              ? afterVisualSections
+              : null;
+          if (customSection !== undefined) {
+            return (
+              <React.Fragment key={section.key}>
+                {customSection}
+                {trailing}
+              </React.Fragment>
+            );
+          }
           return (
             <React.Fragment key={section.key}>
               {section.kind === "json" &&
@@ -342,7 +383,6 @@ export const WorkItemReadView: React.FC<WorkItemReadViewProps> = ({
                   sectionSelection?.status === "resolved"
                     ? sectionSelection.typeKey
                     : undefined,
-                  section,
                   materializedSection,
                   requirementsPreview,
                 )
@@ -356,6 +396,7 @@ export const WorkItemReadView: React.FC<WorkItemReadViewProps> = ({
                   mentionConfig,
                 )
               )}
+              {trailing}
             </React.Fragment>
           );
         })}
@@ -370,17 +411,15 @@ const renderRequirementsSection = (
   markdownComponents: Components,
   mentionConfig?: MarkdownRendererMentionConfig,
   typeKey?: string,
-  definition?: WorkItemTypeSectionDefinition,
   section?: MaterializedWorkItemSection,
   requirementsPreview?: WorkItemRequirementsPreview,
 ): React.ReactNode => {
-  const isCanonical = isCanonicalFeatureRequirementsDefinition(
-    typeKey,
-    definition,
-  );
-  const canonicalState = isCanonical
-    ? adaptFeatureRequirementsSection({ typeKey, definition, section })
-    : undefined;
+  // Feature requirements are always structured records, so the stored content
+  // alone decides the state: empty content is empty, never raw JSON text.
+  const canonicalState =
+    typeKey === "FEATURE"
+      ? readFeatureRequirementsSection(section?.materializedMarkdown)
+      : undefined;
 
   return (
     <RequirementsSectionFrame label={label}>

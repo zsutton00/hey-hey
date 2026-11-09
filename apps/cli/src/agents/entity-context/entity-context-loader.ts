@@ -1,17 +1,19 @@
 import { restrictedConfiguration } from '../../shared/api/read-restriction';
-import type { ReadRestriction } from '../../shared/api/generated/api';
+import type { ReadRestriction } from '@hey-hey/contracts/api/models';
 import { z } from 'zod';
 import {
   AgentSessionsApi,
   ConversationsApi,
-  DesignDocTemplate,
   DesignDocsApi,
   EntityContextApi,
+  ProjectsApi,
+  TasksApi,
+} from '@hey-hey/contracts/api';
+import {
+  DesignDocTemplate,
   EntityType as CanonicalEntityType,
   ProjectStatus,
-  ProjectsApi,
   TaskSource,
-  TasksApi,
   type AgentSessionDto,
   type DesignDocResponseDto,
   type FullEntityContextDto,
@@ -21,10 +23,10 @@ import {
   type TaskResponseDto,
   type UserMessageData,
   WorkStatus,
-} from '../../shared/api/generated/api';
-import { Configuration } from '../../shared/api/generated/configuration';
+} from '@hey-hey/contracts/api/models';
+import { Configuration } from '@hey-hey/contracts/api/configuration';
 import type { RunEntityReference } from '../../shared/agent-bridge-contract/contract';
-import { RunEntityReferenceEntityTypeEnum as RunEntityType } from '../../shared/agent-bridge-contract/generated/api';
+import { RunEntityReferenceEntityTypeEnum as RunEntityType } from '@hey-hey/contracts/agent-bridge';
 import type { ServerLogger } from '../../server/logger';
 import type { SubmissionToolAuth } from '../submission-tools/submission-tool-auth';
 import type { EntityContextApiClient } from '../submission-tools/search-messages-proxy';
@@ -567,6 +569,7 @@ export class EntityContextLoader {
         projectId: input.projectId,
         entityType,
         entityId: input.runEntity.entityId,
+        groupRelationships: true,
       });
     } catch (error) {
       this.logger.error('entity_context.load.canonical_context_read_failed', {

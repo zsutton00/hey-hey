@@ -4,11 +4,13 @@ import { describe, expect, it, vi } from "vitest";
 const mockUseFeatureHierarchy = vi.fn();
 
 const noFeatureContent = { entries: new Map() };
+const noMachines = { machines: [] };
 
 vi.mock("@hey-hey/ui-common/data", () => ({
   useFeatureHierarchy: (...args: unknown[]) => mockUseFeatureHierarchy(...args),
   useFeatureDocumentContent: () => noFeatureContent,
   useProject: () => ({ data: undefined }),
+  useUserPairedMachines: () => noMachines,
 }));
 
 vi.mock("@hey-hey/ui-common/services", () => ({

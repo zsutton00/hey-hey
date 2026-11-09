@@ -5,7 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { Prisma, WorkItemType } from '@prisma/client';
-import type { WorkItemTypeDefinitionDto } from '../../generated/model/workItemTypeDefinitionDto';
+import type { WorkItemTypeDefinitionDto } from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId } from '../../types';
 import { WorkItemTypeRegistryService } from './work-item-type-registry.service';
 

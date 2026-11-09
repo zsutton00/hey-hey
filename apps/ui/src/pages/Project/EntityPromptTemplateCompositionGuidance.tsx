@@ -11,7 +11,7 @@ import {
   Typography,
 } from "@mui/material";
 import { getEntityPromptTemplateCompositionMetadata } from "@hey-hey/ui-common/data";
-import type { EntityPromptTemplateEffectiveDto } from "@hey-hey/ui-common/api";
+import type { EntityPromptTemplateEffectiveDto } from "@hey-hey/contracts/api";
 import React from "react";
 
 export interface EntityPromptTemplateCompositionGuidanceProps {

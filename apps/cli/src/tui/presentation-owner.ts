@@ -1,3 +1,4 @@
+import type { LocalApplicationNavigation } from '../local-app/local-application';
 /**
  * PresentationOwner — the terminal menu's single state owner.
  *
@@ -98,7 +99,11 @@ export interface PresentationSources {
   readonly sharedBrowser: Pick<SharedBrowserSource, 'observe' | 'close' | 'setEnabled'>;
   readonly options: Pick<
     OptionsSource,
-    'observe' | 'setIntentFirst' | 'setRemoteToolCallViewing' | 'setJevEnabled'
+    | 'observe'
+    | 'setIntentFirst'
+    | 'setRemoteToolCallViewing'
+    | 'setHeyHeyContextReminder'
+    | 'setJevEnabled'
   >;
 }
 
@@ -106,6 +111,7 @@ export interface PresentationOwnerDependencies {
   /** The Debug feed; it exists before the server starts so startup output is kept. */
   diagnostics: Pick<DiagnosticFeed, 'observe' | 'snapshot'>;
   webOrigin: string;
+  localApplication?: LocalApplicationNavigation;
   target: RuntimeTarget;
   pairingUrl: (userCode: string, route: PairingWebRoute) => string;
   openUrl: (url: string) => Promise<void>;
@@ -421,6 +427,7 @@ export class PresentationOwner {
     const current = {
       'intent-first': this.options?.intentFirst,
       'remote-tool-call-viewing': this.options?.remoteToolCallViewing,
+      'hey-hey-context-reminder': this.options?.heyHeyContextReminder,
       jev: this.options?.jevEnabled,
     }[row];
     if (!this.sources || current === null || current === undefined) {
@@ -439,6 +446,7 @@ export class PresentationOwner {
     const save = {
       'intent-first': () => options.setIntentFirst(!current),
       'remote-tool-call-viewing': () => options.setRemoteToolCallViewing(!current),
+      'hey-hey-context-reminder': () => options.setHeyHeyContextReminder(!current),
       jev: () => options.setJevEnabled(!current),
     }[row]();
     void save.then(
@@ -932,6 +940,9 @@ export class PresentationOwner {
       viewport: this.viewport,
       nowMs: this.now(),
       webOrigin: this.dependencies.webOrigin,
+      ...(this.dependencies.localApplication
+        ? { localApplication: this.dependencies.localApplication }
+        : {}),
       target: this.dependencies.target,
       color: this.dependencies.color,
     });

@@ -1,5 +1,5 @@
 import Ajv from 'ajv';
-import { CommitReportPayload } from 'src/generated/model/commitReportPayload';
+import { CommitReportPayload } from '@hey-hey/contracts/api/models';
 import { projectReportPayload } from 'src/services/reports/__tests__/project-report.fixture';
 import { GetReportSchemaToolsProvider } from './get-report-schema-tools.provider';
 import {
@@ -22,11 +22,13 @@ const VALID_PAYLOAD_BY_TYPE: Record<ReportSchemaKey, ReportPayloadStub> = {
   PROJECT_REPORT: projectReportPayload,
   CODING_RESEARCH: {
     reportType: 'CODING_RESEARCH',
+    format: 'SELF_RESEARCH',
     summary: 'Research stub.',
     analysis: 'Analysis stub.',
     frame: {},
     provenance: { discoveryCalls: [], edgesTraversed: [] },
     updates: [],
+    uncertainties: [],
   },
   COMMIT: {
     reportType: 'COMMIT',

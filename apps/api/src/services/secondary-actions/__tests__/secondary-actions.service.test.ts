@@ -3,7 +3,7 @@ import {
   SecondaryActionConfig,
   SecondaryActionHandler,
   SuggestedAgentActionMethod,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 
 describe('SecondaryActionsService', () => {
   let service: SecondaryActionsService;

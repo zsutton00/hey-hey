@@ -1,4 +1,4 @@
-import type { ProposalResponseDto } from "@hey-hey/ui-common/api";
+import type { ProposalResponseDto } from "@hey-hey/contracts/api";
 import { describe, expect, it, vi } from "vitest";
 import { proposalReviewPath } from "./proposalReviewPath";
 

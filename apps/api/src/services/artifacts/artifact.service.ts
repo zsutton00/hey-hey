@@ -27,12 +27,10 @@ import {
   ArtifactData,
   PaginatedArtifactsDto,
   QueryArtifactsDto,
-  SemanticSearchDto,
-  SemanticSearchResponseDto,
   UpdateArtifactDto,
   ArtifactSourceType,
   ArtifactType,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   ArtifactId,
   ConversationId,
@@ -1496,19 +1494,6 @@ export class ArtifactService {
         `Failed to delete knowledge object: ${(error as Error).message}`,
       );
     }
-  }
-
-  /**
-   * Perform semantic search across knowledge objects
-   */
-  semanticSearch(
-    _searchDto: SemanticSearchDto,
-    _organizationId: OrganizationId,
-  ): Promise<SemanticSearchResponseDto> {
-    const { ..._ } = _searchDto;
-    throw new BadRequestException(
-      'Semantic search is not implemented yet - will be available via events-based embedding service',
-    );
   }
 
   /**

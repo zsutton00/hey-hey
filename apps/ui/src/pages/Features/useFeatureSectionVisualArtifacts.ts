@@ -1,4 +1,7 @@
-import { AgentEdgeEndpointEntityType, AgentEdgeType } from "@hey-hey/ui-common/api";
+import {
+  AgentEdgeEndpointEntityType,
+  AgentEdgeType,
+} from "@hey-hey/contracts/api";
 import {
   MOCKUP_TYPE_KEY,
   isWorkflowFlowRelationship,
@@ -20,7 +23,11 @@ export const useFeatureSectionVisualArtifacts = (
   featureId: string,
   enabled: boolean,
 ) => {
-  const structuralOptions = { parentTaskId: featureId, includeEdges: false, enabled };
+  const structuralOptions = {
+    parentTaskId: featureId,
+    includeEdges: false,
+    enabled,
+  };
   const connectedOptions = {
     relatedEntityId: featureId,
     relatedEntityType: AgentEdgeEndpointEntityType.Task,
@@ -36,24 +43,41 @@ export const useFeatureSectionVisualArtifacts = (
     ...structuralOptions,
     taskType: WORK_ITEM_TYPE_KEYS.Diagram,
   });
-  const linkedMockups = useWorkItems(organizationId, "task", projectId, undefined, {
-    ...connectedOptions,
-    taskType: MOCKUP_TYPE_KEY,
-  });
-  const linkedDiagrams = useWorkItems(organizationId, "task", projectId, undefined, {
-    ...connectedOptions,
-    taskType: WORK_ITEM_TYPE_KEYS.Diagram,
-  });
+  const linkedMockups = useWorkItems(
+    organizationId,
+    "task",
+    projectId,
+    undefined,
+    {
+      ...connectedOptions,
+      taskType: MOCKUP_TYPE_KEY,
+    },
+  );
+  const linkedDiagrams = useWorkItems(
+    organizationId,
+    "task",
+    projectId,
+    undefined,
+    {
+      ...connectedOptions,
+      taskType: WORK_ITEM_TYPE_KEYS.Diagram,
+    },
+  );
 
   if (!enabled) return [];
-  const structural = [...(mockups.workItems ?? []), ...(diagrams.workItems ?? [])]
-    .filter((item) => item.parentTaskId === featureId);
+  const structural = [
+    ...(mockups.workItems ?? []),
+    ...(diagrams.workItems ?? []),
+  ].filter((item) => item.parentTaskId === featureId);
   // The connected endpoint selects direct graph neighbors before pagination;
   // it never traverses through children. Append them after the structural set
   // so the shared selector keeps structural names and removes duplicates.
-  return selectVisualArtifacts([
-    ...structural,
-    ...(linkedMockups.workItems ?? []),
-    ...(linkedDiagrams.workItems ?? []),
-  ], []);
+  return selectVisualArtifacts(
+    [
+      ...structural,
+      ...(linkedMockups.workItems ?? []),
+      ...(linkedDiagrams.workItems ?? []),
+    ],
+    [],
+  );
 };

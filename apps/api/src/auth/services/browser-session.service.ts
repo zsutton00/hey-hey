@@ -16,12 +16,16 @@ import {
   BrowserOrganizationSelectionDto,
   OrganizationRole,
   AccountDefaultOrganizationDto,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   AnyTransactionClient,
   PrismaService,
 } from '../../prisma/prisma.service';
-import { WebsocketUserConnectionLifecycleService } from '../../core/websockets/websocket-user-connection-lifecycle.service';
+import { BrowserSessionEvictionService } from '../../core/websockets/browser-session-eviction.service';
+import {
+  BROWSER_ACCESS_TOKEN_USE,
+  CredentialProfileService,
+} from '../credential-profile';
 import {
   BrowserSessionFamilyId,
   BrowserSessionId,
@@ -42,10 +46,12 @@ import {
 import { JwtPayload } from '../strategies/jwt.strategy';
 import { JwtKeysService } from './jwt-keys.service';
 import { AccountEntitlementService } from '../../services/account-entitlement.service';
+import { isLocalAccountEmail } from '../local-account';
+import { isLocalApplication } from '../../deployment-environment';
 
 const REQUIRED_ACCESS_TTL_SECONDS = 900;
 const REQUIRED_INACTIVITY_TTL_SECONDS = 7 * 24 * 60 * 60;
-const REQUIRED_ABSOLUTE_TTL_SECONDS = 30 * 24 * 60 * 60;
+export const REQUIRED_ABSOLUTE_TTL_SECONDS = 30 * 24 * 60 * 60;
 const REFRESH_SECRET_BYTES = 32;
 const MAX_IP_ADDRESS_LENGTH = 45;
 const MAX_USER_AGENT_LENGTH = 512;
@@ -55,7 +61,12 @@ export interface BrowserSessionPrincipal {
   user: BrowserAuthResponseDto['user'];
   claims: Pick<
     JwtPayload,
-    'email' | 'name' | 'orgMemberships' | 'isDevAdmin' | 'devAdminMode'
+    | 'email'
+    | 'name'
+    | 'orgMemberships'
+    | 'isDevAdmin'
+    | 'devAdminMode'
+    | 'isLocalAccount'
   >;
 }
 
@@ -120,6 +131,7 @@ export class BrowserSessionService {
     private readonly prisma: PrismaService,
     private readonly jwtKeysService: JwtKeysService,
     private readonly accountEntitlementService: AccountEntitlementService,
+    private readonly credentialProfile: CredentialProfileService,
     @Optional() private readonly moduleRef?: ModuleRef,
   ) {
     this.accessTtlSeconds = this.requiredPositiveInteger(
@@ -205,6 +217,7 @@ export class BrowserSessionService {
       select: {
         defaultOrganizationId: true,
         isActive: true,
+        authorizationRevision: true,
         memberships: { where: { isActive: true } },
       },
     });
@@ -260,6 +273,7 @@ export class BrowserSessionService {
             principal,
             authorizedClaims,
             sessionId,
+            account.authorizationRevision,
             userResponse,
           )
         : await this.selectionResponse(
@@ -278,23 +292,31 @@ export class BrowserSessionService {
     principal: BrowserSessionPrincipal,
     claims: AuthorizedSessionClaims,
     sessionId: BrowserSessionId,
+    authorizationRevision: number,
     user: BrowserAuthResponseDto['user'],
   ): BrowserAuthResponseDto {
     return {
       user,
-      accessToken: this.jwtKeysService.signToken(
-        {
-          ...principal.claims,
-          sub: principal.userId,
-          token_use: 'access',
-          sid: sessionId,
-          currentOrgId: claims.currentOrganizationId,
-          orgMemberships: claims.memberships,
-        } satisfies JwtPayload,
-        { expiresIn: this.accessTtlSeconds, jwtid: randomUUID() },
-      ),
+      accessToken: this.signBrowserAccessToken({
+        ...principal.claims,
+        sub: principal.userId,
+        token_use: BROWSER_ACCESS_TOKEN_USE,
+        sid: sessionId,
+        authz_version: authorizationRevision,
+        currentOrgId: claims.currentOrganizationId,
+        orgMemberships: claims.memberships,
+      }),
       expiresIn: this.accessTtlSeconds,
     };
+  }
+
+  private signBrowserAccessToken(payload: JwtPayload): string {
+    return this.jwtKeysService.signToken(payload, {
+      expiresIn: this.accessTtlSeconds,
+      jwtid: randomUUID(),
+      issuer: this.credentialProfile.issuer,
+      audience: this.credentialProfile.browserAudience,
+    });
   }
 
   async accountDefaultOrganization(
@@ -561,10 +583,16 @@ export class BrowserSessionService {
     };
   }
 
+  /** Call only after the revoking transaction has committed. */
   invalidateRevokedSessions(sessionIds: BrowserSessionId[]): void {
-    for (const sessionId of sessionIds) {
-      this.invalidateBrowserSession(sessionId);
-    }
+    this.withEviction((eviction) => eviction.evictSessions(sessionIds));
+  }
+
+  /** Call only after the revision increment has committed. */
+  invalidateStaleAuthorization(userId: UserId, revision: number): void {
+    this.withEviction((eviction) =>
+      eviction.evictStaleRevision(userId, revision),
+    );
   }
 
   private async revokeLogoutMatch(
@@ -751,6 +779,8 @@ export class BrowserSessionService {
       decisionAt,
       false,
     );
+    const isLocalAccount =
+      isLocalApplication() && isLocalAccountEmail(user.email);
     const userResponse = {
       id: user.id as UserId,
       email: user.email,
@@ -760,6 +790,7 @@ export class BrowserSessionService {
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
       currentOrganizationId: authorizedClaims.currentOrganizationId ?? null,
+      ...(isLocalAccount ? { isLocalAccount: true } : {}),
     } satisfies BrowserAuthResponseDto['user'];
 
     await tx.refreshGeneration.update({
@@ -810,23 +841,19 @@ export class BrowserSessionService {
       };
     }
 
-    const accessToken = this.jwtKeysService.signToken(
-      {
-        sub: user.id,
-        token_use: 'access',
-        sid: sessionId,
-        email: user.email,
-        name: user.name,
-        currentOrgId: authorizedClaims.currentOrganizationId,
-        orgMemberships: authorizedClaims.memberships,
-        isDevAdmin: user.isDevAdmin,
-        devAdminMode: user.devAdminMode,
-      } satisfies JwtPayload,
-      {
-        expiresIn: this.accessTtlSeconds,
-        jwtid: randomUUID(),
-      },
-    );
+    const accessToken = this.signBrowserAccessToken({
+      sub: user.id,
+      token_use: BROWSER_ACCESS_TOKEN_USE,
+      sid: sessionId,
+      authz_version: user.authorizationRevision,
+      email: user.email,
+      name: user.name,
+      currentOrgId: authorizedClaims.currentOrganizationId,
+      orgMemberships: authorizedClaims.memberships,
+      isDevAdmin: user.isDevAdmin,
+      devAdminMode: user.devAdminMode,
+      ...(isLocalAccount ? { isLocalAccount: true } : {}),
+    });
 
     return {
       status: 'rotated',
@@ -929,20 +956,33 @@ export class BrowserSessionService {
   }
 
   private invalidateBrowserSession(sessionId: BrowserSessionId): void {
+    this.invalidateRevokedSessions([sessionId]);
+  }
+
+  private withEviction(
+    action: (eviction: BrowserSessionEvictionService) => Promise<void>,
+  ): void {
     if (!this.moduleRef) {
       return;
     }
 
+    let eviction: BrowserSessionEvictionService | undefined;
     try {
-      this.moduleRef
-        .get(WebsocketUserConnectionLifecycleService, { strict: false })
-        ?.invalidateSession(sessionId);
-    } catch (error) {
+      eviction = this.moduleRef.get(BrowserSessionEvictionService, {
+        strict: false,
+      });
+    } catch {
+      eviction = undefined;
+    }
+    if (!eviction) {
+      return;
+    }
+
+    void action(eviction).catch((error: unknown) => {
       this.logger.error('Browser session lifecycle invalidation failed', {
-        sessionId,
         errorType: error instanceof Error ? error.name : 'UnknownError',
       });
-    }
+    });
   }
 
   private boundRequestMetadata(

@@ -1,5 +1,8 @@
 import type { TokenUsage } from '../../../session/types';
-import { CODEX_MCP_ONLY_FEATURE_OVERRIDES } from './mcp-only-features';
+import {
+  CODEX_MCP_ONLY_FEATURE_OVERRIDES,
+  CODEX_WORKSPACE_SHELL_FEATURE_OVERRIDES,
+} from './mcp-only-features';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { withoutCodexInputEcho } from './codex-input-echo';
 import {
@@ -49,7 +52,6 @@ import {
   type ListSkillsArgs,
   type PermissionDecisionDispatchArgs,
   type PermissionDecisionDispatchResult,
-  type PromptOnceArgs,
   type ResumeArgs,
   type RunPromptArgs,
 } from '../session-runner';
@@ -636,47 +638,6 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
     this.client.submitClientResponse(rawRequestId, response);
   };
 
-  public async promptOnce(args: PromptOnceArgs): Promise<string> {
-    const { session, prompt, model, reasoningEffort, signal } = args;
-    const selectedModel = model ?? session.model ?? null;
-    const selectedReasoningEffort = reasoningEffort ?? session.reasoningEffort ?? null;
-    const isolatedDirectory = await IsolatedProviderWorkingDirectory.create();
-    // A transient client: the Run's own client, thread and event log are never touched.
-    const client = new CodexSdkClient();
-    let answer: string | null = null;
-    client.onEvent((event) => {
-      if (event.method !== 'item/completed') return;
-      const item = event.params?.['item'];
-      if (!isRecord(item) || item['type'] !== 'agentMessage') return;
-      const text = item['text'];
-      if (typeof text === 'string' && text.length > 0) answer = text;
-    });
-    try {
-      await client.startSession(
-        {
-          prompt,
-          cwd: isolatedDirectory.path,
-          sandbox: 'read-only',
-          ...(selectedModel ? { model: selectedModel } : {}),
-          ...(selectedReasoningEffort ? { effort: selectedReasoningEffort } : {}),
-        },
-        { signal },
-      );
-      if (answer === null) {
-        throw new AgentSessionRunnerError('RUN_FAILED', 'Codex returned no text for the prompt.');
-      }
-      return answer;
-    } finally {
-      await client.disconnect();
-      await isolatedDirectory.cleanup().catch((error: unknown) => {
-        requestContext.log(this.logger, 'warn', 'local.runner.codex.isolated_cwd.cleanup_failed', {
-          sessionId: session.agentic_session_id,
-          error,
-        });
-      });
-    }
-  }
-
   public async runPrompt(args: RunPromptArgs): Promise<AgentRunResult> {
     if (args.mcpToolUseCase !== 'project_report') {
       return this.runPromptInDirectory(args);
@@ -702,7 +663,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
       prompt,
       attachmentRunId,
       attachments = [],
-      epistemicCalibration,
+      promptDeclarations,
       signal,
       startingMessage,
       readOnlyFilesystem,
@@ -872,7 +833,11 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
             enforceWorkspaceContainment: true,
           }
         : {}),
-      ...(session.inert || reportingRepair || readOnlyFilesystem
+      // A workspace-bound inert Run writes inside its workspace directory only:
+      // the workspace-write sandbox confines apply_patch and the shell to it.
+      ...((session.inert && session.workspaceBound !== true) ||
+      reportingRepair ||
+      readOnlyFilesystem
         ? { readOnlyFilesystem: true }
         : {}),
     });
@@ -1724,7 +1689,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
           {
             provider: 'codex',
             model: selectedModel,
-            ...(epistemicCalibration ? { epistemicCalibration } : {}),
+            ...promptDeclarations,
           },
           {
             provider: 'codex',
@@ -1932,7 +1897,10 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
         session.inert || mcpToolUseCase === 'project_report'
           ? {
               ...(baseConfig ?? {}),
-              features: CODEX_MCP_ONLY_FEATURE_OVERRIDES,
+              features:
+                session.inert && session.workspaceBound === true
+                  ? CODEX_WORKSPACE_SHELL_FEATURE_OVERRIDES
+                  : CODEX_MCP_ONLY_FEATURE_OVERRIDES,
             }
           : baseConfig;
       requestContext.log(this.logger, 'debug', 'local.runner.codex.session_policy.resolved', {
@@ -2015,6 +1983,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
         );
         const startSessionConfig: CodexSdkSessionConfigWithServiceTier = {
           ...(toolExecutionHooks ? { toolExecutionHooks } : {}),
+          ...(session.workspaceBound === true ? { withoutGitCredentials: true } : {}),
           prompt: providerPrompt,
           attachments: attachmentContent,
           ...(freshPlatformPromptDelivery?.mode === PROVIDER_PLATFORM_PROMPT_DELIVERY_MODE.codex
@@ -2067,6 +2036,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
         );
         const resumeSessionConfig: CodexSdkSessionConfigWithServiceTier = {
           ...(toolExecutionHooks ? { toolExecutionHooks } : {}),
+          ...(session.workspaceBound === true ? { withoutGitCredentials: true } : {}),
           prompt: providerPrompt,
           attachments: attachmentContent,
           cwd: runCwd,

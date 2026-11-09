@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { RunEntityReferenceEntityTypeEnum, type RunEntityReference } from '../shared/agent-bridge-contract/generated/api';
+import {
+  RunEntityReferenceEntityTypeEnum,
+  type RunEntityReference,
+} from '@hey-hey/contracts/agent-bridge';
 
 const entityTypeSchema = z.nativeEnum(RunEntityReferenceEntityTypeEnum);
 

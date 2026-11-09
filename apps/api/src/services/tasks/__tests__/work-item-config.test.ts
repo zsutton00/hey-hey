@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
-import { WorkItemConfigKind } from '../../../generated/model/workItemConfigKind';
+import { WorkItemConfigKind } from '@hey-hey/contracts/api/models';
 import {
   readWorkItemConfig,
   validateWorkItemConfig,

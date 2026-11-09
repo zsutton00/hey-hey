@@ -44,6 +44,7 @@ import { OnboardingRepositoryGroundingIntentNode } from './repository-grounding-
     OnboardingRepositoryGroundingIntentNode,
   ],
   exports: [
+    OnboardingNextStepsService,
     OnboardingWelcomeNode,
     OnboardingEndNode,
     OnboardingGenerateFeaturesNode,

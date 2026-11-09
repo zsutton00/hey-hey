@@ -1,3 +1,4 @@
+import { startRunRequestFromStored, promptEventFromStored } from './stored-trigger-contract';
 import type { MessagePoster } from '../../run/message-poster';
 import { isAxiosError } from 'axios';
 import { DeterministicE2EEvidence } from '../../run/runners/deterministic-e2e-evidence';
@@ -5,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { isReviewAdmission, type RunFollowUpAdmission } from './input-admission-payload';
 import { canonicalizeJson } from '../trigger-verification/jcs';
+import { toOpenApiMessageId } from '../../shared/api/identifierAdapters';
 export { collaborationPayloadSchema } from './input-admission-payload';
 import { LocalAgentApiError } from '../../shared/agent-bridge-contract/errors';
 import { RunAttachmentNotFoundError, RunAttachmentStore } from '../run-attachment-store';
@@ -15,15 +17,13 @@ import { failureProjection } from './start-failure';
 import type { RunStore } from '../../run-store/run-store';
 import { RunReadRestoreCoordinator } from '../restore-persisted-runs';
 import { z as durable } from 'zod/v4';
+import { AgentSessionsApi, ProjectsApi, ServicesApi } from '@hey-hey/contracts/api';
 import {
-  AgentSessionsApi,
-  ProjectsApi,
-  ServicesApi,
   type InputExecutionProjection,
   type AgentInteractionSettledTurn,
-} from '../../shared/api/generated/api';
-import { Configuration } from '../../shared/api/generated/configuration';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/api/models';
+import { Configuration } from '@hey-hey/contracts/api/configuration';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import {
   type LocalRunPromptRequest,
   type SendMessageOptions,
@@ -33,6 +33,7 @@ import type { RunRegistry } from '../../run/run-registry';
 import type { LocalAgentService } from '../local-agent-service';
 import type { ServerLogger } from '../logger';
 import { toCreateRunRequest, toRunPromptRequest } from '../trigger-verification/dispatch';
+import { parseRepositoryFeatureEnrichmentRequest } from '../conversation-dispatch/trigger-payload-schemas';
 import { storedSettlementCorrelationV4Schema } from './storage-schema/v4';
 import {
   InputAdmissionOwner,
@@ -745,7 +746,7 @@ export class InputAdmissionLifecycle implements RunFollowUpAdmission {
     const inputExecutionProjection = {
       operationId: record.key,
       operationFingerprint: record.fingerprint,
-      messageId: record.messageId,
+      messageId: toOpenApiMessageId(record.messageId),
       admissionId: record.admissionId,
       revision: record.revision,
       executionStatus,
@@ -869,7 +870,17 @@ export class InputAdmissionLifecycle implements RunFollowUpAdmission {
         if (event.promptType === 'start_run') {
           admittedServiceScope = event.admittedServiceScope;
           if (!conversationId) throw new Error('Persisted input is missing its conversation.');
-          const creation = toCreateRunRequest(event.payload, conversationId);
+          const startRunPayload = startRunRequestFromStored(event.payload);
+          const creation =
+            startRunPayload.payload?.promptType === LocalPromptType.RepositoryFeatureEnrichment
+              ? toCreateRunRequest(
+                  {
+                    ...startRunPayload,
+                    payload: parseRepositoryFeatureEnrichmentRequest(startRunPayload.payload),
+                  },
+                  conversationId,
+                )
+              : toCreateRunRequest(startRunPayload, conversationId);
           const materialized = await this.service.materializeAdmittedRun({
             ...creation,
             triggersAgent: false,
@@ -905,7 +916,7 @@ export class InputAdmissionLifecycle implements RunFollowUpAdmission {
           break;
         }
         if (event.promptType === 'user_message') admittedServiceScope = event.admittedServiceScope;
-        request = toRunPromptRequest(event);
+        request = toRunPromptRequest(promptEventFromStored(event));
         if (event.promptType === 'user_message' && event.payload.attachments.length > 0) {
           await this.attachmentStore.resolvePaths(record.runId, event.payload.attachments);
           this.logger.debug('input_admission.attachments_resolved', {

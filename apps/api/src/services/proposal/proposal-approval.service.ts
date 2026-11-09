@@ -64,7 +64,7 @@ import type {
   WorkItemTypeSummaryDto,
   WorkItemTypeCascadeDeleteUpdatesPayload,
   EntityPromptTemplateProposalUpdatesPayload,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   InitiativeSourceType,
   MentionCreatedEventPayload,
@@ -72,8 +72,8 @@ import {
   WorkItemTypeEffectiveSource,
   WorkItemTypeLifecycleStatus,
   WorkStatus,
-} from 'src/generated';
-import { PayloadType } from 'src/generated/model/payloadType';
+} from '@hey-hey/contracts/api/models';
+import { PayloadType } from '@hey-hey/contracts/api/models';
 import { AgentEdgeEndpointEntityType } from 'src/generated/graphs/model/agentEdgeEndpointEntityType';
 import { AnyTransactionClient, PrismaService } from 'src/prisma/prisma.service';
 import {
@@ -2715,7 +2715,26 @@ export class ProposalApprovalService {
       projection.projectedRoot.type === WORK_ITEM_TYPE_KEYS.EvalCase &&
       !projection.projectedRoot.deleted
     ) {
-      assertApprovedEvalCaseHandlers(projection.projectedRoot);
+      await assertApprovedEvalCaseHandlers(
+        projection.projectedRoot,
+        async (serviceId) =>
+          (await this.prisma.db.service.count({
+            where: {
+              id: serviceId,
+              organizationId: proposal.organizationId,
+              projectId: proposal.projectId,
+            },
+          })) > 0,
+        async (mockupId) =>
+          (await this.prisma.db.task.count({
+            where: {
+              id: mockupId,
+              organizationId: proposal.organizationId,
+              projectId: proposal.projectId,
+              type: WORK_ITEM_TYPE_KEYS.Mockup,
+            },
+          })) > 0,
+      );
     }
     this.logger.debug(
       'Validated generic work-item change set before approval',
@@ -3689,12 +3708,18 @@ export class ProposalApprovalService {
               ...(link.actionLabel !== undefined
                 ? { actionLabel: link.actionLabel }
                 : {}),
+              ...(link.transitionRole !== undefined
+                ? { transitionRole: link.transitionRole }
+                : {}),
             }
           : link.type === 'STANDARD'
             ? {
                 direction: link.direction,
                 ...(link.actionLabel !== undefined
                   ? { actionLabel: link.actionLabel }
+                  : {}),
+                ...(link.transitionRole !== undefined
+                  ? { transitionRole: link.transitionRole }
                   : {}),
               }
             : {
@@ -3703,6 +3728,9 @@ export class ProposalApprovalService {
                   : {}),
                 ...(link.actionLabel !== undefined
                   ? { actionLabel: link.actionLabel }
+                  : {}),
+                ...(link.transitionRole !== undefined
+                  ? { transitionRole: link.transitionRole }
                   : {}),
               };
 

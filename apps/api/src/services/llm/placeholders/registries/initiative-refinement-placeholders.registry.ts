@@ -4,7 +4,7 @@ import { PlaceholderContext } from '../base/placeholder-types';
 import { StandardPlaceholderRegistry } from './standard-placeholders.registry';
 import { InitiativeRefinementFlowContext } from '../../../../types/flow-internal.types';
 import { errorToLoggable } from '../../../../utils/logging.util';
-import { ArtifactResponseDto } from 'src/generated';
+import { ArtifactResponseDto } from '@hey-hey/contracts/api/models';
 
 interface OptimizationStrategyContext {
   type: 'minor' | 'major' | 'structural';

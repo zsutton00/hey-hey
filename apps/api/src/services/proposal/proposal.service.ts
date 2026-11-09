@@ -3,7 +3,7 @@ import type {
   ProposalReviewNoteDto,
   ProposalReviewNoteRecord,
   ProposalReviewNoteResult,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { MessageService } from '../message.service';
 import { ProposalReconciliationCandidatePipe } from '../../pipes/proposal-reconciliation-candidate.pipe';
 import { futureGraph, graphChangeSet } from './future-graph';
@@ -24,7 +24,7 @@ import {
 import type {
   FutureRevisionAuthoring,
   FutureRevisionMutation,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { ProposalReconciliationGroupService } from './proposal-reconciliation-group.service';
 import {
   ProposalReconciliationService,
@@ -70,16 +70,16 @@ import {
   UpdateProposalDto,
 } from './proposal.dto';
 import type { StampedCreateProposalDto } from './proposal.types';
-import type { Influence } from 'src/generated';
+import type { Influence } from '@hey-hey/contracts/api/models';
 import type {
   ProjectedWorkItemChangeSetResponse,
   WorkItemChangeSetValidationRequest,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   EntityType as GeneratedEntityType,
   WorkItemTypeLifecycleStatus,
   WorkItemTypeRole,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { EvalOutputAdmissionService } from '../eval/eval-output-admission.service';
 import { ProposalValidationEngine } from './proposal-validation.engine';
 import {
@@ -2406,14 +2406,6 @@ export class ProposalService {
   private static readonly UUID_REGEX =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-  private static readonly ALLOWED_INFLUENCE_REASON_TYPES = new Set([
-    'explicit_mention',
-    'implied',
-    'derived',
-    'origin',
-    'user_reason',
-  ]);
-
   private static readonly ALLOWED_INFLUENCE_ENTITY_TYPES: ReadonlySet<string> =
     new Set(Object.values(GeneratedEntityType));
 
@@ -2467,15 +2459,9 @@ export class ProposalService {
       }
       if (
         typeof influence.reasonType !== 'string' ||
-        !ProposalService.ALLOWED_INFLUENCE_REASON_TYPES.has(
-          influence.reasonType,
-        )
+        influence.reasonType.trim() === ''
       ) {
-        reject(
-          `reasonType is required and must be one of ${[
-            ...ProposalService.ALLOWED_INFLUENCE_REASON_TYPES,
-          ].join(', ')}`,
-        );
+        reject('reasonType is required and must be a non-empty string');
       }
       if (typeof influence.reasoning !== 'string') {
         reject('reasoning is required and must be a string');

@@ -3,7 +3,12 @@ import type { MachineOptions } from '../options/machine-options-store';
 import { OptionsSource, type OptionsStore } from './options-source';
 
 const fakeStore = (intentFirst = false, remoteToolCallViewing = true) => {
-  let saved: MachineOptions = { intentFirst, remoteToolCallViewing, jevEnabled: true };
+  let saved: MachineOptions = {
+    intentFirst,
+    remoteToolCallViewing,
+    jevEnabled: true,
+    heyHeyContextReminder: false,
+  };
   const store = {
     read: vi.fn<OptionsStore['read']>(() => Promise.resolve(saved)),
     update: vi.fn<OptionsStore['update']>((patch) => {
@@ -23,6 +28,7 @@ describe('OptionsSource', () => {
       intentFirst: null,
       remoteToolCallViewing: null,
       jevEnabled: null,
+      heyHeyContextReminder: null,
       jevKeyDefined: true,
     });
     await vi.waitFor(() =>
@@ -30,6 +36,7 @@ describe('OptionsSource', () => {
         intentFirst: true,
         remoteToolCallViewing: true,
         jevEnabled: true,
+        heyHeyContextReminder: false,
         jevKeyDefined: true,
       }),
     );
@@ -45,6 +52,7 @@ describe('OptionsSource', () => {
         intentFirst: false,
         remoteToolCallViewing: true,
         jevEnabled: true,
+        heyHeyContextReminder: false,
         jevKeyDefined: true,
       }),
     );
@@ -56,6 +64,7 @@ describe('OptionsSource', () => {
       intentFirst: true,
       remoteToolCallViewing: true,
       jevEnabled: true,
+      heyHeyContextReminder: false,
       jevKeyDefined: true,
     });
   });
@@ -69,7 +78,12 @@ describe('OptionsSource', () => {
     source.observe(observer);
 
     await source.setIntentFirst(true);
-    finishRead({ intentFirst: false, remoteToolCallViewing: true, jevEnabled: true });
+    finishRead({
+      intentFirst: false,
+      remoteToolCallViewing: true,
+      jevEnabled: true,
+      heyHeyContextReminder: false,
+    });
     await Promise.resolve();
 
     expect(observer).toHaveBeenCalledTimes(1);
@@ -77,6 +91,7 @@ describe('OptionsSource', () => {
       intentFirst: true,
       remoteToolCallViewing: true,
       jevEnabled: true,
+      heyHeyContextReminder: false,
       jevKeyDefined: true,
     });
   });
@@ -125,6 +140,7 @@ describe('OptionsSource', () => {
       intentFirst: false,
       remoteToolCallViewing: true,
       jevEnabled: true,
+      heyHeyContextReminder: false,
       jevKeyDefined: true,
     });
   });
@@ -143,6 +159,7 @@ describe('OptionsSource', () => {
       intentFirst: true,
       remoteToolCallViewing: false,
       jevEnabled: true,
+      heyHeyContextReminder: false,
       jevKeyDefined: true,
     });
   });
@@ -157,6 +174,7 @@ describe('OptionsSource', () => {
         intentFirst: true,
         remoteToolCallViewing: true,
         jevEnabled: true,
+        heyHeyContextReminder: false,
         jevKeyDefined: false,
       }),
     );
@@ -177,6 +195,26 @@ describe('OptionsSource', () => {
       intentFirst: true,
       remoteToolCallViewing: true,
       jevEnabled: false,
+      heyHeyContextReminder: false,
+      jevKeyDefined: true,
+    });
+  });
+
+  it('saves the Hey Hey reminder choice without touching other options', async () => {
+    const store = fakeStore(true, false);
+    const source = new OptionsSource(store, true, vi.fn());
+    const observer = vi.fn();
+    source.observe(observer);
+    await vi.waitFor(() => expect(observer).toHaveBeenCalled());
+
+    await source.setHeyHeyContextReminder(true);
+
+    expect(store.update).toHaveBeenCalledWith({ heyHeyContextReminder: true });
+    expect(observer).toHaveBeenLastCalledWith({
+      intentFirst: true,
+      remoteToolCallViewing: false,
+      jevEnabled: true,
+      heyHeyContextReminder: true,
       jevKeyDefined: true,
     });
   });

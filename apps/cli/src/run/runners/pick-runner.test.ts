@@ -23,7 +23,7 @@ import type { InternalRunPromptRequest } from '../../shared/agent-bridge-contrac
 import type { PromptTypeHandler, PromptTypeHandlerDeps } from '../../agents/prompt-type-handler';
 import type { AgentSessionRunner } from '../../agents/providers/session-runner';
 import type { AgenticSession } from '../../session/types';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { LocalAgentEndpoint } from '../../server/local-base-url';
 
 const makeSession = (): AgenticSession =>
@@ -89,7 +89,6 @@ const baseDeps = (overrides?: Partial<RunnerPickerDependencies>): RunnerPickerDe
   const runner = {
     runPrompt: vi.fn(),
     resumeSession: vi.fn(),
-    promptOnce: vi.fn(),
     getContextUsage: vi.fn(),
   } as AgentSessionRunner;
   return {

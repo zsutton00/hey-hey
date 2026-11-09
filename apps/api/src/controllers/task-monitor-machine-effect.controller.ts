@@ -28,7 +28,7 @@ import {
   SubmitTaskMonitorRunEffectResponseDto,
   UserMessageAgentInputProvenance,
   UserMessageDataCodingFreeform,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../prisma/prisma.service';
 import { MachineEffectAdmissionService } from '../services/machine-effect-admission/machine-effect-admission.service';
 import type { AuthenticatedMachine } from '../services/machine-pairing/machine-pairing.service';

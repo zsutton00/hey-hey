@@ -1,3 +1,4 @@
+import { LocalOnboardingController } from './controllers/local-onboarding.controller';
 import { WorkspaceSkillsController } from './controllers/workspace-skills.controller';
 import { RuntimeModelCatalogController } from './controllers/runtime-model-catalog.controller';
 import { RuntimeModelCatalogReadService } from './services/runtime-model-catalog-read.service';
@@ -40,6 +41,7 @@ import { DemoTemplateService } from './services/demo-sandbox/demo-template.servi
 import { ProjectTemplateCloneService } from './services/demo-sandbox/project-template-clone.service';
 import { DemoTemplateGraphService } from './services/demo-sandbox/template-graph.service';
 import { AuthController } from './controllers/auth.controller';
+import { AccountPasskeyModule } from './auth/passkeys/account-passkey.module';
 import { AnalyticsController } from './controllers/analytics.controller';
 import { ConversationController } from './controllers/conversation.controller';
 import { OnboardingReplyController } from './controllers/onboarding-reply.controller';
@@ -202,6 +204,8 @@ import { ProjectReportLaunchService } from './services/project-reports/project-r
 import { MetricsModule } from './core/metrics/metrics.module';
 import { TypeSafeJevModule } from './services/typesafe-jev/typesafe-jev.module';
 import { ReadRestrictionModule } from './read-restriction/read-restriction.module';
+import { LocalApplicationModule } from './local/local-application.module';
+import { isLocalApplication } from './deployment-environment';
 
 @Module({
   imports: [
@@ -223,6 +227,7 @@ import { ReadRestrictionModule } from './read-restriction/read-restriction.modul
     CoreModule,
     WebsocketsModule,
     AuthModule,
+    AccountPasskeyModule,
     OAuthModule,
     OutboxPublisherModule,
     CoreDomainModule,
@@ -247,6 +252,8 @@ import { ReadRestrictionModule } from './read-restriction/read-restriction.modul
     MachineEffectAdmissionModule,
     AgentOperationModule,
     TypeSafeJevModule,
+    // Local-only routes and rules never enter a hosted provider graph.
+    ...(isLocalApplication() ? [LocalApplicationModule] : []),
   ],
   controllers: [
     WorkspaceSkillsController,
@@ -279,6 +286,7 @@ import { ReadRestrictionModule } from './read-restriction/read-restriction.modul
     MessageController,
     ConversationController,
     OnboardingReplyController,
+    LocalOnboardingController,
     RepositoryImportReplyController,
     WorkTrackerImportReplyController,
     ArtifactController,

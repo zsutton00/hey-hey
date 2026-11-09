@@ -5,7 +5,7 @@ import {
   CliReadRuntimeModelCatalogGetErrorResponseDto,
   CliReadRuntimeModelCatalogGetSuccessResponseDto,
   CliReadRequestDto,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { CliReadEmitter } from '../cli-read-emitter.service';
 import { SESSION_CLI_READ_OPERATIONS } from '../cli-read-operation-registry';
 

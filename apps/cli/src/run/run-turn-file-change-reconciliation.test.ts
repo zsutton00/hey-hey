@@ -14,7 +14,7 @@ import type { PromptTypeHandler, PromptTypeHandlerDeps } from '../agents/prompt-
 import type { PassThroughSubmissionToolDeclaration } from '../agents/submission-tools/types';
 import type { RunStore } from '../run-store/run-store';
 import type { InternalRunPromptRequest } from '../shared/agent-bridge-contract/contract';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated/api';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../session/types';
 import { Run, type RunArgs, type RunCollaborators } from './run';
 import {
@@ -52,6 +52,7 @@ const quickHandler: PromptTypeHandler<unknown> = {
   service: 'required',
   launchEntity: 'required',
   implementationReadiness: 'gated_and_clarifiable',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],
@@ -349,7 +350,6 @@ describe('same-Turn changed-file reporting recovery', () => {
         throw new Error('Must resume existing provider');
       },
       resumeSession,
-      promptOnce: vi.fn(),
       getContextUsage: async () => {
         throw new Error('Not used');
       },

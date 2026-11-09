@@ -7,7 +7,10 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common';
-import { InitiativeResponseDto, WorkflowName } from '../../generated';
+import {
+  InitiativeResponseDto,
+  WorkflowName,
+} from '@hey-hey/contracts/api/models';
 import { StagedContentAdapter } from '../../interfaces/staged-content-adapter.interface';
 import { ConversationService } from '../../services/conversation.service';
 import { InitiativeService } from '../../services/initiatives/initiative.service';

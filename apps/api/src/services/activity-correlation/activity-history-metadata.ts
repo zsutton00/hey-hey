@@ -1,5 +1,8 @@
 import type { Prisma } from '@prisma/client';
-import { EntityType, type ActivityCorrelationRecordDto } from 'src/generated';
+import {
+  EntityType,
+  type ActivityCorrelationRecordDto,
+} from '@hey-hey/contracts/api/models';
 import type { PrismaService } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId, UserId } from 'src/types';
 

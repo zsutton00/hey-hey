@@ -2,7 +2,7 @@ import type {
   WorkItemChangeSetOperation,
   WorkItemCreateOperation,
   WorkItemUpdateOperation,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   isWorkItemServiceScopeEligible,
   WORK_ITEM_SERVICE_SCOPE_INVALID_REASON,
@@ -17,6 +17,11 @@ import {
   type ProjectionFindings,
 } from '../projection-state';
 import { namedExistingIds } from '../request-facts';
+import {
+  missingDecisionOperations,
+  relationshipDecisionIssues,
+} from '../../relationship-decisions';
+import type { RelationshipDecision } from '@hey-hey/contracts/api/models';
 
 const STRUCTURAL: IssueLayer = 'structural';
 const REFERENTIAL: IssueLayer = 'referential';
@@ -283,6 +288,40 @@ export const serviceRefsRule: ProjectionRule<ServiceRefsScope> = {
           REFERENTIAL,
         );
       }
+    }
+  },
+};
+
+type DecisionsScope = {
+  decisions: readonly RelationshipDecision[];
+  operations: WorkItemChangeSetOperation[];
+};
+
+/**
+ * Decisions are review evidence plus the source of their operations. A stored
+ * request whose decisions and operations disagree is not what was reviewed, so
+ * it is reported before anything can be applied.
+ */
+export const relationshipDecisionsRule: ProjectionRule<DecisionsScope> = {
+  id: 'request.relationshipDecisions',
+  appliesTo: (facts) =>
+    (facts.request.relationshipDecisions?.length ?? 0) > 0
+      ? {
+          decisions: facts.request.relationshipDecisions ?? [],
+          operations: facts.request.operations,
+        }
+      : null,
+  loads: () => [],
+  check(_state, scope, ctx) {
+    // Conflicts with explicit operations cannot be separated from decision
+    // operations here, so only duplicates and per-decision shape are checked
+    // alongside operation agreement.
+    const shape = relationshipDecisionIssues(scope.decisions, []);
+    for (const issue of [
+      ...shape,
+      ...missingDecisionOperations(scope.decisions, scope.operations),
+    ]) {
+      ctx.addIssue(issue.field, issue.code, issue.reason, STRUCTURAL);
     }
   },
 };

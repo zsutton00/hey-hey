@@ -1,10 +1,10 @@
 import { changedFileReportingDuty } from '../completion-reconciliation/message-mapper';
 import { reportChangedFilesTool } from '../submission-tools/report-changed-files-tool';
-import { projectModeSettingsJsonSchema } from '../../generated/project-mode-contract.schema';
-import type { SessionRole } from '../../shared/agent-bridge-contract/generated/api';
+import { projectModeSettingsJsonSchema } from '@hey-hey/contracts/agent-bridge/custom/project-mode-contract.schema';
+import type { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../../session/types';
-import type { RunCreatePayloadProjectMode } from '../../shared/agent-bridge-contract/generated/api';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import type { RunCreatePayloadProjectMode } from '@hey-hey/contracts/agent-bridge';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type {
   LocalWorktreeStateByService,
   ResolvedServiceBinding,

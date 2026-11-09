@@ -89,8 +89,7 @@ describe('RunWorkspaceWriteBoundary', () => {
         const settings = JSON.parse(await fs.readFile(containment.argsPrefix[1]!, 'utf8'));
         expect(settings.filesystem.allowWrite).toContain(tmp);
         expect(settings.filesystem.allowWrite).not.toContain(path.dirname(tmp));
-        expect(settings.network.allowUnixSockets).toEqual([tmp]);
-        expect(settings.network.allowAllUnixSockets).toBeUndefined();
+        expect(settings.network.allowAllUnixSockets).toBe(true);
       }
     } finally {
       await boundary.dispose();
@@ -98,7 +97,7 @@ describe('RunWorkspaceWriteBoundary', () => {
   });
 
   it.runIf(process.platform === 'darwin' || process.platform === 'linux')(
-    "enforces Claude's native sandbox config on Bash writes and host Unix sockets",
+    "bounds Claude's Bash writes to the Service while host Unix sockets stay reachable",
     async () => {
       const base = await makeDirectory();
       const allowed = path.join(base, 'allowed');
@@ -124,7 +123,6 @@ describe('RunWorkspaceWriteBoundary', () => {
             enabled: true,
             failIfUnavailable: true,
             allowUnsandboxedCommands: false,
-            network: { allowUnixSockets: [] },
           });
           // Claude's native sandbox is built on @anthropic-ai/sandbox-runtime;
           // run its exact filesystem/network policy through that engine.
@@ -141,7 +139,8 @@ describe('RunWorkspaceWriteBoundary', () => {
               network: {
                 allowedDomains: [],
                 deniedDomains: [],
-                allowUnixSockets: sandbox.network.allowUnixSockets,
+                allowAllUnixSockets: sandbox.network.allowAllUnixSockets,
+                allowLocalBinding: sandbox.network.allowLocalBinding,
               },
             }),
           );
@@ -158,9 +157,9 @@ describe('RunWorkspaceWriteBoundary', () => {
             '-e',
             `
           const net = require('node:net');
-          const denied = net.connect(process.argv[1]);
-          denied.on('connect', () => { console.error('Host socket unexpectedly accessible'); process.exit(3); });
-          denied.on('error', () => process.exit(0));
+          const host = net.connect(process.argv[1]);
+          host.on('connect', () => process.exit(0));
+          host.on('error', (error) => { console.error('Host socket blocked: ' + error.message); process.exit(3); });
         `,
             hostSocket,
           ]);
@@ -297,7 +296,7 @@ describe('RunWorkspaceWriteBoundary', () => {
           allowUnsandboxedCommands: false,
           excludedCommands: ['ssh', 'scp', 'rsync'],
           filesystem: { allowWrite: [canonicalLaunchRoot, canonicalAdditionalRoot], allowRead: [] },
-          network: { allowUnixSockets: [] },
+          network: { allowAllUnixSockets: true, allowLocalBinding: true },
         },
       },
       settingSources: ['user', 'project', 'local'],
@@ -315,7 +314,7 @@ describe('RunWorkspaceWriteBoundary', () => {
             denyWrite: [canonicalLaunchRoot, canonicalAdditionalRoot],
             allowRead: [],
           },
-          network: { allowUnixSockets: [] },
+          network: { allowAllUnixSockets: true, allowLocalBinding: true },
         },
       },
       settingSources: ['user', 'project', 'local'],
@@ -342,7 +341,7 @@ describe('RunWorkspaceWriteBoundary', () => {
           enabled: true,
           failIfUnavailable: true,
           allowUnsandboxedCommands: false,
-          network: { allowUnixSockets: [] },
+          network: { allowAllUnixSockets: true, allowLocalBinding: true },
         });
         expect(containment).not.toHaveProperty('processLaunch');
       }

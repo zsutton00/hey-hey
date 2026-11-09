@@ -8,7 +8,9 @@ export const SavedJourneyScreen: React.FC<{
   id: string;
   name: string;
   group: Pick<ProposalGroupSnapshot, "organizationId" | "projectId">;
-}> = ({ id, name, group }) => {
+  onOpenFullSize?: () => void;
+  fullSize?: boolean;
+}> = ({ id, name, group, onOpenFullSize, fullSize }) => {
   const read = useWorkItem(group.organizationId, "task", id, {
     projectId: group.projectId,
   });
@@ -37,6 +39,8 @@ export const SavedJourneyScreen: React.FC<{
       source={{ kind: "workItem", workItemId: id }}
       sections={read.workItem.sections ?? []}
       group={group}
+      onOpenFullSize={onOpenFullSize}
+      fullSize={fullSize}
     />
   );
 };

@@ -2,7 +2,7 @@ import {
   FeatureHierarchyEntryDtoRelationshipEnum,
   FeatureHierarchyEntryDtoRelationshipTypeEnum,
   type FeatureHierarchyEntryDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 

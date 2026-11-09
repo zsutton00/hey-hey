@@ -4,12 +4,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AgenticSession } from '../../session/types';
 import type { AssistantCompleteEvent } from '../../run/types';
-import type { OpenItemsTriagePromptPayload } from '../../shared/agent-bridge-contract/generated';
+import type { OpenItemsTriagePromptPayload } from '@hey-hey/contracts/agent-bridge';
 import {
   createPromptTypeHandlerTestAuth,
   createPromptTypeHandlerTestDeps,
 } from '../prompt-type-handler.test-support';
-import { EntityType } from '../../shared/api/generated/api';
+import { EntityType } from '@hey-hey/contracts/api/models';
 import { dispatchResponseType } from '../response-dispatch';
 import { NOOP_LOGGER } from '../../server/logger';
 import {

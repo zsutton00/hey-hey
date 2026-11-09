@@ -1,5 +1,5 @@
 import { ArtifactDataValidators } from '../artifact-data.validators';
-import { InitiativeArtifactData } from '../../../generated';
+import { InitiativeArtifactData } from '@hey-hey/contracts/api/models';
 
 describe('ArtifactDataValidators', () => {
   const validators = new ArtifactDataValidators();

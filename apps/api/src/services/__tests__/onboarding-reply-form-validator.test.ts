@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { UIElement } from '../../generated';
+import { UIElement } from '@hey-hey/contracts/api/models';
 import { OnboardingReplyFormValidator } from '../onboarding-reply-form-validator';
 
 describe('OnboardingReplyFormValidator', () => {
@@ -197,6 +197,5 @@ describe('OnboardingReplyFormValidator', () => {
         ).not.toThrow();
       }
     });
-
   });
 });

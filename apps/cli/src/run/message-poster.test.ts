@@ -1,3 +1,10 @@
+import {
+  asAgentSessionId,
+  asConversationId,
+  asMessageId,
+  asOrganizationId,
+  asProjectId,
+} from '../test-utils/contract-ids';
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs/promises';
@@ -7,7 +14,7 @@ import { MessageStatus, MessageType, SystemMessageDataTypeEnum } from '../shared
 import type {
   CreateSystemMessage,
   SubmitExecutableUserMessageRequestDto,
-} from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { MessagePosterApiClient } from './types';
 
 const makeApiClient = (overrides?: Partial<MessagePosterApiClient>): MessagePosterApiClient => ({
@@ -30,7 +37,7 @@ const makeLogger = () =>
 const systemDto = (): Omit<CreateSystemMessage, 'conversationId' | 'parentMessageId'> => ({
   type: MessageType.System,
   status: MessageStatus.SystemProcessing,
-  projectId: 'proj-1',
+  projectId: asProjectId('proj-1'),
   data: {
     type: SystemMessageDataTypeEnum.Agent,
     response: 'Processing...',
@@ -46,9 +53,9 @@ const userDto = (): Omit<
 > => ({
   type: MessageType.User,
   status: MessageStatus.Completed,
-  projectId: 'proj-1',
+  projectId: asProjectId('proj-1'),
   data: { comment: 'Continue the authorized run.' },
-  agentSessionId: '55555555-5555-4555-8555-555555555555',
+  agentSessionId: asAgentSessionId('55555555-5555-4555-8555-555555555555'),
   operationId: '66666666-6666-4666-8666-666666666666',
   operationFingerprint: '0'.repeat(64),
   authorization: {
@@ -180,14 +187,14 @@ describe('MessagePoster — typed EXTERNAL_AGENT completion', () => {
       });
       const poster = new MessagePoster({ apiClient, logger: makeLogger(), dataDir, inert });
       const args = {
-        organizationId: 'org-1',
-        projectId: 'proj-1',
-        agentSessionId: 'agent-session-1',
+        organizationId: asOrganizationId('org-1'),
+        projectId: asProjectId('proj-1'),
+        agentSessionId: asAgentSessionId('agent-session-1'),
         effectId: '00000000-0000-4000-8000-000000000001',
         request: {
-          conversationId: 'conv-1',
+          conversationId: asConversationId('conv-1'),
           workflowNodeId: 'implementation',
-          pendingTriggerMessageId: 'trigger-message-1',
+          pendingTriggerMessageId: asMessageId('trigger-message-1'),
           action: 'DONE',
         },
       };
@@ -205,10 +212,10 @@ describe('MessagePoster — typed EXTERNAL_AGENT completion', () => {
     },
   );
 
-  it('logs typed rejection diagnostics and does not retry a permanent 409', async () => {
+  it.each([409, 422])('logs typed rejection diagnostics and does not retry a permanent %i', async (status) => {
     const rejection = Object.assign(new Error('completion rejected'), {
       response: {
-        status: 409,
+        status,
         headers: {
           'x-request-id': '11111111-1111-4111-8111-111111111111',
           'x-correlation-id': '22222222-2222-4222-8222-222222222222',
@@ -226,14 +233,14 @@ describe('MessagePoster — typed EXTERNAL_AGENT completion', () => {
     const logger = makeLogger();
     const poster = new MessagePoster({ apiClient, logger, dataDir });
     const args = {
-      organizationId: 'org-1',
-      projectId: 'proj-1',
-      agentSessionId: 'agent-session-1',
+      organizationId: asOrganizationId('org-1'),
+      projectId: asProjectId('proj-1'),
+      agentSessionId: asAgentSessionId('agent-session-1'),
       effectId: '00000000-0000-4000-8000-000000000001',
       request: {
-        conversationId: 'conv-1',
+        conversationId: asConversationId('conv-1'),
         workflowNodeId: 'implementation',
-        pendingTriggerMessageId: 'trigger-message-1',
+        pendingTriggerMessageId: asMessageId('trigger-message-1'),
         action: 'DONE',
       },
     };
@@ -250,7 +257,7 @@ describe('MessagePoster — typed EXTERNAL_AGENT completion', () => {
         pendingTriggerMessageId: 'trigger-message-1',
         action: 'DONE',
         attempt: 1,
-        statusCode: 409,
+        statusCode: status,
         rejectionCode: 'STALE_TRIGGER',
         rejectionReason: 'STALE_TRIGGER',
         requestId: '11111111-1111-4111-8111-111111111111',

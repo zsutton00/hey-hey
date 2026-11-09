@@ -1,5 +1,5 @@
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
-import type { ProjectReportScope, ProjectReportSubject } from '../../shared/api/generated/api';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import type { ProjectReportScope, ProjectReportSubject } from '@hey-hey/contracts/api/models';
 import { PROJECT_REPORT_SECTION_MCP_TOOLS } from '../mcp-server-config';
 import type { PromptTypeHandler } from '../prompt-type-handler';
 import { READ_EVIDENCE_SHARD_TOOL_NAME } from '../submission-tools/read-evidence-shard-tool';
@@ -34,6 +34,7 @@ export interface ProjectReportSectionPayload {
  */
 export const projectReportSectionHandler: PromptTypeHandler<ProjectReportSectionPayload> = {
   id: PROJECT_REPORT_SECTION_HANDLER_ID,
+  sessionRole: SessionRole.Research,
   promptType: LocalPromptType.ProjectReport,
   service: 'optional',
   launchEntity: 'none',
@@ -47,7 +48,7 @@ export const projectReportSectionHandler: PromptTypeHandler<ProjectReportSection
     mcpAllowedTools: PROJECT_REPORT_SECTION_MCP_TOOLS,
     builtinAllowedTools: [],
     submissionTools: 'run-registered',
-    submissionToolNames: [READ_EVIDENCE_SHARD_TOOL_NAME],
+    submissionToolNames: [READ_EVIDENCE_SHARD_TOOL_NAME, 'raise_uncertainty'],
     codexSandboxMode: 'read-only',
     includePriorReports: false,
   },

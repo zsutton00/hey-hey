@@ -25,6 +25,7 @@ import {
   SystemMessageDataTypeEnum,
 } from '../../shared/api/index';
 import type { AgentSystemMessageData, UpdateMessageDto } from '../../shared/api/index';
+import { toOpenApiProjectId } from '../../shared/api/identifierAdapters';
 import type { OnCompleteDeps } from '../../agents/prompt-type-handler';
 import {
   dispatchResponseType,
@@ -68,7 +69,7 @@ const buildCompletionTailDto = (
   return {
     type: MessageType.System,
     status: updateData.status ?? MessageStatus.Completed,
-    projectId,
+    projectId: toOpenApiProjectId(projectId),
     proposalIds: artifactIds.proposalIds,
     reportIds: artifactIds.reportIds,
     // Stamp the turn-completion marker. A streaming delta and the turn's
@@ -284,13 +285,6 @@ export const handleAssistantComplete = async (
     reportCount: completionArtifactIds.reportIds.length,
   });
 
-  const unsavedOutputNotice =
-    dispatchResult.matched || dispatchResult.incompatibleResponseType
-      ? null
-      : (handler?.getUnsavedOutputNotice?.(event, eventTurn.payload, {
-          codingPlanElementTypes: ctx.readCodingPlanElementTypes(eventTurn.turnId),
-        }) ?? null);
-
   if (dispatchResult.matched) {
     deps.logger.info('local.handler.assistant_complete.dispatched', {
       runId: ctx.runId,
@@ -407,25 +401,7 @@ export const handleAssistantComplete = async (
             intentConfidence: 1,
           } satisfies AgentSystemMessageData,
         }
-      : unsavedOutputNotice !== null
-        ? {
-            // Kept as an ordinary completed reply so the user can answer and
-            // the next Turn retries; the notice makes the unsaved output plain.
-            data: {
-              type: SystemMessageDataTypeEnum.Agent,
-              response: `**${unsavedOutputNotice}**\n\n${event.summary}`,
-              detectedIntent: 'required_output_unsaved',
-              intentConfidence: 1,
-            } satisfies AgentSystemMessageData,
-          }
-        : buildCompletionData(event, handler, eventTurn.payload);
-    if (unsavedOutputNotice !== null) {
-      deps.logger.warn('local.handler.assistant_complete.required_output_unsaved', {
-        runId: ctx.runId,
-        turnId: eventTurn.turnId,
-        promptType: turnPromptType,
-      });
-    }
+      : buildCompletionData(event, handler, eventTurn.payload);
     const data = withFeatureVerificationSuggestion(
       addFeatureSyncAffordances(baseData, {
         promptType: turnPromptType,

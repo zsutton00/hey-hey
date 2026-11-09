@@ -1,3 +1,4 @@
+import { sessionPromptDeclarationsOf } from '../../agents/prompts/platform-prompt-context';
 import { filterInertBuiltinTools } from '../inert-execution-policy';
 import { TurnContinuation } from './turn-continuation';
 import type { ServerLogger } from '../../server/logger';
@@ -159,27 +160,12 @@ export class NewSessionRunner implements Runner {
               : providerInput.segments.dynamicContext,
           }
         : null;
-    if (this.ctx.turnId) {
-      await handler.recordProviderInput?.({
-        runId: run.runId,
-        turnId: this.ctx.turnId,
-        logger: this.deps.logger,
-        payload: this.ctx.preparedPayload ?? input.payload,
-        parts: startupSegments
-          ? [
-              { name: 'stableInstructions', text: startupSegments.stableInstructions },
-              { name: 'dynamicContext', text: startupSegments.dynamicContext },
-              { name: 'userInput', text: startupSegments.userInput },
-            ]
-          : [{ name: 'prompt', text: prompt }],
-      });
-    }
     const result = await this.deps.sessionRunnerFacade.runPrompt(run, {
       session: run.session,
       attachmentRunId: run.runId,
       attachments: input.attachments ?? [],
       prompt,
-      ...(handler.epistemicCalibration ? { epistemicCalibration: true as const } : {}),
+      promptDeclarations: sessionPromptDeclarationsOf(handler),
       ...(handler.replaceProviderSystemPrompt ? { replaceProviderSystemPrompt: true } : {}),
       ...(startupSegments ? { startupSegments } : {}),
       ...(input.references ? { references: input.references } : {}),

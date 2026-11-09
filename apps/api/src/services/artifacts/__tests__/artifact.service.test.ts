@@ -9,8 +9,12 @@ import {
   ArtifactStatus,
   ArtifactType,
   Priority,
-} from '../../../generated';
-import { QAPairData, CreateArtifactDto, InsightData } from '../../../generated';
+} from '@hey-hey/contracts/api/models';
+import {
+  QAPairData,
+  CreateArtifactDto,
+  InsightData,
+} from '@hey-hey/contracts/api/models';
 import { ArtifactDataService } from '../artifact-data.service';
 import { ArtifactDataValidators } from '../artifact-data.validators';
 import { ArtifactGraphService } from '../artifact-graph.service';

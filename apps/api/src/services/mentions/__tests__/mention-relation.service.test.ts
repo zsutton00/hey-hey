@@ -2,7 +2,7 @@ import { EntityType, ArtifactRelationType } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { MentionRelationService } from '../mention-relation.service';
 import * as TestUtils from '../../../utils/testUtils';
-import { MessageCreatedEvent } from '../../../generated/model/messageCreatedEvent';
+import { MessageCreatedEvent } from '@hey-hey/contracts/api/models';
 import { EVENT_TYPES } from '../../../core/events/types/event.types';
 
 const { testIds } = TestUtils;

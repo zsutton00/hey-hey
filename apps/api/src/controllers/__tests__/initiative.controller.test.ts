@@ -10,7 +10,7 @@ import {
   WorkStatus,
   Priority,
   ProjectResponseDto,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { ConversationService } from '../../services/conversation.service';
 import { InitiativeService } from '../../services/initiatives/initiative.service';
 import { InitiativeLifecycleService } from '../../services/initiatives/initiative-lifecycle.service';

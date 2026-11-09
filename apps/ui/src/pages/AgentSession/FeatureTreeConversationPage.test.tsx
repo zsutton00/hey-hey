@@ -1,7 +1,7 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AgentSessionStatus, AgentSessionType } from "@hey-hey/ui-common/api";
+import { AgentSessionStatus, AgentSessionType } from "@hey-hey/contracts/api";
 
 const agentSession = {
   id: "session-1",
@@ -114,7 +114,9 @@ describe("FeatureTreeConversationPage", () => {
       />,
     );
 
-    expect(screen.queryByTestId("agent-session-discuss")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("agent-session-discuss"),
+    ).not.toBeInTheDocument();
     expect(useAcknowledgeOnOpenMock).toHaveBeenLastCalledWith({
       organizationId: "org-1",
       projectId: "project-1",
@@ -122,5 +124,4 @@ describe("FeatureTreeConversationPage", () => {
       enabled: false,
     });
   });
-
 });

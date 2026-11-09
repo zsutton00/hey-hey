@@ -11,7 +11,7 @@ import type {
   WorkItemTypeRegistryService,
   WorkItemTypeRules,
 } from '../../services/tasks/work-item-type-registry.service';
-import { WorkStatus } from '../../generated/model/workStatus';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { AGENT_EDGE_TYPES } from './agent-edge-vocabulary';
 import {
   CREATE_WORK_ITEM_TYPE_AUTHORING_AXES,
@@ -149,6 +149,12 @@ export const LIFECYCLE_AWARE_TASK_EDIT_SAFETY_SUMMARY =
 const STANDARD_TASK_DEPENDENCY_GUIDANCE =
   'When authoring multiple tasks, declare a `DEPENDS_ON` edge in `edges` when one task cannot proceed without another; authoring or ordering tasks together alone does not establish a dependency.';
 
+export const FEATURE_REQUIREMENT_CONCISION_GUIDANCE = [
+  '## Concise requirements',
+  '',
+  'Keep each requirement as concise as possible. Make its first sentence a self-contained summary of the promised behavior, and keep further detail only where it changes what is delivered. Cite the owning task, design doc or Contract instead of restating its content. Split a requirement that bundles several independent rules into separate requirements, or move the detail to the fulfilling task.',
+].join('\n');
+
 const FLOW_RELATIONSHIP_VARIANT_GUIDANCE = [
   '',
   '## Flow relationship variants',
@@ -215,6 +221,15 @@ const FLOW_RELATIONSHIP_VARIANT_GUIDANCE = [
   'Invalid: adding `direction` to LOOP is rejected; do not encode LOOP as `direction: "LOOP"`.',
   '```json',
   '{ "edgeType": "LOOP", "category": "flow", "direction": "forward" }',
+  '```',
+  '',
+  '### Transition role (optional, any flow variant)',
+  '',
+  'Set `transitionRole` on a STANDARD, CONDITIONAL or LOOP relationship only when you know what the transition means: `PRIMARY_PROGRESSION` is the main depicted journey, `ERROR_PATH` is an unsuccessful or exceptional branch, `RECOVERY` is a route back toward usable progress after something went wrong, and `RETURN` is a move back to an earlier step with no failure involved, such as breadcrumb or back navigation. The role is separate from `actionLabel`, the variant and the predicate; never infer it from a label, position or topology. Outside `UX_FLOW` Diagrams, when a transition is uncertain or none of the meanings apply, omit `transitionRole` so it stays unclassified. It is rejected on non-flow relationships. A Diagram can have several `PRIMARY_PROGRESSION` transitions: every forward step of the intended journey is primary, including each alternative choice from a screen (for example Sign in and Sign up). Do not mark a transition `ERROR_PATH` merely because it is a less common choice. In a `UX_FLOW` Diagram every transition must declare a role, so classify each one; the proposal is rejected otherwise.',
+  'Set on create, or change on update, by sending the value; send `"transitionRole": null` in a `relationship.update` to clear it; omit the field to keep the current value.',
+  '```json',
+  '{ "op": "relationship.update", "ref": { "refType": "existing", "id": "<relationship-id>" }, "transitionRole": "ERROR_PATH" }',
+  '{ "op": "relationship.update", "ref": { "refType": "existing", "id": "<relationship-id>" }, "transitionRole": null }',
   '```',
 ].join('\n');
 
@@ -492,6 +507,17 @@ function buildWorkItemGuidanceBody(
   const standardTaskDependencyGuidance = (typeKey: string): string[] =>
     typeKey === 'STANDARD' ? ['', STANDARD_TASK_DEPENDENCY_GUIDANCE] : [];
 
+  // Canonical standards carry this block once the migration has run; the
+  // tool-level reminder covers project overrides without repeating it.
+  const featureRequirementConcisionGuidance = (
+    typeKey: string,
+    cfg: WorkItemTypeRules,
+  ): string[] =>
+    typeKey === 'FEATURE' &&
+    !cfg.writingStandards[mode].includes(FEATURE_REQUIREMENT_CONCISION_GUIDANCE)
+      ? ['', FEATURE_REQUIREMENT_CONCISION_GUIDANCE]
+      : [];
+
   const planStageCreateDependencyGuidance = (typeKey: string): string[] =>
     mode === 'create' && typeKey === 'PLAN_STAGE'
       ? [
@@ -648,6 +674,28 @@ function buildWorkItemGuidanceBody(
       '`SUPERSEDES`. Choose the relationship or lifecycle action that matches',
       'the actual case instead. Eligible declarations against',
       `${eligible.join(' and ')} predecessors remain successor-authored.`,
+      '',
+      '## Relationship decisions',
+      '',
+      'Declaring `SUPERSEDES` records only the replacement. It does not',
+      "supersede the predecessor's consumers or move their dependencies.",
+      'Use `relationshipDecisions` (at most 100) for the existing',
+      'relationships the change affects: `retain` with a reason, `remove`,',
+      'or `replace` with the exact source, target and edgeType. Switching one',
+      "consumer to a new provider is a `replace` of that consumer's",
+      'relationship only; the former provider and other consumers stay',
+      'canonical. A retained relationship that still points at a replaced',
+      'item is shown to the reviewer as unfinished migration.',
+      '',
+      'Before deciding, read the content (not just the titles) of the Features',
+      'related to the change and of the Contracts, Diagrams and design docs',
+      'directly connected to it. Moving a relationship does not prove that a',
+      'Contract is still fulfilled or that a document is still true: propose',
+      'the needed content edits as separate proposals that mention the',
+      'affected artifact, and surface any changed promise for the user to',
+      'decide. Do not traverse the whole project, and leave structural',
+      'Feature-to-Task parentage alone unless the request changes it. An empty',
+      'or omitted array means no relationship was declared for change.',
     ];
   };
 
@@ -774,6 +822,7 @@ function buildWorkItemGuidanceBody(
         ...graphEditGuidance(cfg),
         ...diagramProposalEdgeGuidance(typeKey),
         ...standardTaskDependencyGuidance(typeKey),
+        ...featureRequirementConcisionGuidance(typeKey, cfg),
         ...serviceScopeGuidance,
         '',
         cfg.writingStandards[mode],
@@ -1466,7 +1515,8 @@ export const TOOL_GUIDANCE = {
       'rebuild keeps it. An element with no description prints nothing extra.',
       '',
       'Flow links are STANDARD, CONDITIONAL or LOOP links between elements; each',
-      'shows its direction and predicate where the link carries them. Fulfillment',
+      'shows its direction, predicate, action label and transition role where the link',
+      'carries them. Fulfillment',
       'links are FULFILLED_BY implementation evidence. Contract participation is',
       'GUARANTEES, IMPLEMENTS or CONSUMES. The links section carries every other',
       'readable link, including DEPENDS_ON to a Contract.',

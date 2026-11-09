@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { ReportType, type ReportDto } from "@hey-hey/ui-common/api";
+import { ReportType, type ReportDto } from "@hey-hey/contracts/api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDailySessionBriefingReports } from "./useDailySessionBriefingReports";
 
@@ -67,10 +67,7 @@ const buildChildReport = (overrides: Partial<ReportDto>): ReportDto =>
     ...overrides,
   });
 
-const makeQuery = (
-  reports: ReportDto[],
-  spies: ReportQuerySpies,
-): unknown => ({
+const makeQuery = (reports: ReportDto[], spies: ReportQuerySpies): unknown => ({
   reports,
   data: reports,
   isLoading: false,
@@ -84,9 +81,7 @@ const makeQuery = (
 });
 
 const renderBriefingHook = () =>
-  renderHook(() =>
-    useDailySessionBriefingReports("org-1", "project-1"),
-  );
+  renderHook(() => useDailySessionBriefingReports("org-1", "project-1"));
 
 describe("useDailySessionBriefingReports", () => {
   beforeEach(() => {
@@ -132,9 +127,7 @@ describe("useDailySessionBriefingReports", () => {
 
     expect(result.current.selectedParentReportId).toBe("parent-new");
     expect(
-      reportOptions.some(
-        (options) => options.parentReportId === "parent-new",
-      ),
+      reportOptions.some((options) => options.parentReportId === "parent-new"),
     ).toBe(true);
   });
 
@@ -165,11 +158,9 @@ describe("useDailySessionBriefingReports", () => {
     rerender();
 
     expect(result.current.selectedParentReportId).toBe("parent-old");
-    expect(result.current.availableBriefings.map((option) => option.reportId)).toEqual([
-      "parent-newer",
-      "parent-new",
-      "parent-old",
-    ]);
+    expect(
+      result.current.availableBriefings.map((option) => option.reportId),
+    ).toEqual(["parent-newer", "parent-new", "parent-old"]);
   });
 
   it("refreshes parent and selected child reports for notification and focus hints", () => {

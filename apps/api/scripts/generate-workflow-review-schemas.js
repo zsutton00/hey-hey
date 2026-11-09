@@ -7,15 +7,27 @@ const { resolveGeneratedRoot } = require('./generated-root');
 const openapiRoot = resolveOpenapiRoot();
 
 const schemaPath = path.join(openapiRoot, 'specs/schemas/conversations.yaml');
-const schemas = yaml.load(fs.readFileSync(schemaPath, 'utf8'));
+const flowsSchemas = yaml.load(
+  fs.readFileSync(path.join(openapiRoot, 'specs/schemas/flows.yaml'), 'utf8'),
+);
+const conversationSchemas = yaml.load(fs.readFileSync(schemaPath, 'utf8'));
+const duplicateNames = Object.keys(flowsSchemas).filter(
+  (name) => name in conversationSchemas,
+);
+if (duplicateNames.length > 0) {
+  throw new Error(
+    `Schema names defined in both conversations.yaml and flows.yaml: ${duplicateNames.join(', ')}`,
+  );
+}
+const schemas = { ...conversationSchemas, ...flowsSchemas };
 const generatedSchemaNames = [
   'ImplementPromptPayload',
   'CodingPlanDiscrepancy',
+  'CodingPlanEmittedDiscrepancy',
   'CodingPlanContext',
   'CodingPlanVersion',
   'CodingPlanVersionApproval',
   'CodingPlanEmissionInput',
-  'CodingPlanQuestion',
   'CodingPlanConversationalApproval',
   'CodingPlanApprovalPayload',
   'CodingPlanWorkflowAnswer',
@@ -26,11 +38,17 @@ const generatedSchemaNames = [
   'PlanShapingFeatureSyncReviewRefineAnswerPayload',
   'OnboardingFeatureListReviewUserSubmission',
   'OnboardingPlanStageProposalReviewUserSubmission',
+  'ImplementationReadinessOutcomeWorkflowAnswer',
 ];
 
 const referencedNames = new Set();
 
 function schemaExpression(schema) {
+  const expression = unwrappedSchemaExpression(schema);
+  return schema.nullable ? `${expression}.nullable()` : expression;
+}
+
+function unwrappedSchemaExpression(schema) {
   if (schema.$ref) {
     const name = schema.$ref.replace(/^#\//, '');
     if (name.includes('/')) {
@@ -65,6 +83,7 @@ function schemaExpression(schema) {
     if (schema.minLength !== undefined) result += `.min(${schema.minLength})`;
     if (schema.maxLength !== undefined) result += `.max(${schema.maxLength})`;
     if (schema.format === 'uuid') result += '.uuid()';
+    if (schema.format === 'date-time') result += '.datetime({ offset: true })';
     return result;
   }
 
@@ -110,7 +129,7 @@ function schemaExpression(schema) {
   return 'z.unknown()';
 }
 
-const checkedSchemas = ['CodingPlanVersion', 'CodingPlanEmissionInput'];
+const checkedSchemas = ['CodingPlanVersion'];
 const emitted = new Set();
 const declarations = [];
 
@@ -135,11 +154,11 @@ for (const name of generatedSchemaNames) emitSchema(name, true);
 const output = [
   '/* This file is generated from OpenAPI by scripts/generate-workflow-review-schemas.js. */',
   "import { z } from 'zod';",
-  `import type { ${checkedSchemas.join(', ')} } from '${process.argv[2] ? '../shared/api/generated/api' : './model/models'}';`,
+  `import type { ${checkedSchemas.join(', ')} } from '@hey-hey/contracts/api/models';`,
   '',
   '// Zod optional output includes undefined, which exactOptionalPropertyTypes rejects for the OpenAPI types.',
-  'type OptionalKeys<T> = { [K in keyof T]-?: object extends Pick<T, K> ? K : never }[keyof T];',
-  'type ZodShaped<T> = Omit<T, OptionalKeys<T>> & { [K in OptionalKeys<T>]?: T[K] | undefined };',
+  'type OptionalKeys<T> = { [K in keyof T]-?: {} extends Pick<T, K> ? K : never }[keyof T];',
+  'type ZodShaped<T> = T extends readonly (infer U)[] ? ZodShaped<U>[] : T extends object ? Omit<T, OptionalKeys<T>> & { [K in OptionalKeys<T>]?: ZodShaped<T[K]> | undefined } : T;',
   '',
   ...declarations.flatMap((declaration) => [declaration, '']),
 ].join('\n');
@@ -184,13 +203,16 @@ if (process.argv[2]) {
       ...(description ? { description } : {}),
       ...(closed ? { additionalProperties: false } : {}),
       required,
-      properties: Object.assign({}, ...parts.map((part) => part.properties ?? {})),
+      properties: Object.assign(
+        {},
+        ...parts.map((part) => part.properties ?? {}),
+      ),
     };
   };
   fs.writeFileSync(
     process.argv[2].replace('.schemas.ts', '.tool-schemas.ts'),
     '/* Generated from OpenAPI; do not edit. */\n' +
-      ['CodingPlanEmissionInput', 'CodingPlanDiscrepancy', 'CodingPlanQuestion']
+      ['CodingPlanEmissionInput', 'CodingPlanDiscrepancy']
         .map(
           (name) =>
             `export const ${name}ToolSchema = ${JSON.stringify(toToolInputSchema(expand(schemas[name])), null, 2)};\n`,

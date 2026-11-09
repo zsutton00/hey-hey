@@ -6,7 +6,7 @@ import {
   WebSocketConversationTriggerEvent,
   WebSocketExactActionEvent,
   WebSocketMonitorCommandEvent,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 
 export type HostAffectingFrame =
   | WebSocketConversationTriggerEvent

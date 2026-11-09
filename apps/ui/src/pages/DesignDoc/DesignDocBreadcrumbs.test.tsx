@@ -1,7 +1,7 @@
 import {
   DesignDocParentEntityType,
   type DesignDocResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { render, screen } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter } from "react-router-dom";
@@ -88,7 +88,7 @@ vi.mock("@hey-hey/ui-common/components", () => ({
 }));
 
 const buildDesignDoc = (
-  overrides: Partial<DesignDocResponseDto> = {}
+  overrides: Partial<DesignDocResponseDto> = {},
 ): DesignDocResponseDto =>
   ({
     id: "doc-current",
@@ -96,7 +96,7 @@ const buildDesignDoc = (
     parentEntityId: null,
     parentEntityType: null,
     ...overrides,
-  } as DesignDocResponseDto);
+  }) as DesignDocResponseDto;
 
 const renderBreadcrumbs = (designDoc: DesignDocResponseDto): void => {
   render(
@@ -109,7 +109,7 @@ const renderBreadcrumbs = (designDoc: DesignDocResponseDto): void => {
         projectName="Project One"
         designDoc={designDoc}
       />
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 };
 
@@ -126,10 +126,10 @@ describe("DesignDocBreadcrumbs", () => {
       buildDesignDoc({
         parentEntityId: "feature-parent",
         parentEntityType: DesignDocParentEntityType.Task,
-      })
+      }),
     );
     expect(
-      screen.getByRole("link", { name: /Owning Feature/ })
+      screen.getByRole("link", { name: /Owning Feature/ }),
     ).toHaveAttribute("data-kind", "feature");
   });
   beforeEach(() => {
@@ -148,7 +148,7 @@ describe("DesignDocBreadcrumbs", () => {
     const documentsLink = screen.getByRole("link", { name: /documents/i });
     expect(documentsLink).toHaveAttribute(
       "href",
-      "/projects/project-1/design-docs"
+      "/projects/project-1/design-docs",
     );
     expect(screen.getByText("Current Doc")).toBeInTheDocument();
   });
@@ -162,14 +162,14 @@ describe("DesignDocBreadcrumbs", () => {
       buildDesignDoc({
         parentEntityId: "task-7",
         parentEntityType: DesignDocParentEntityType.Task,
-      })
+      }),
     );
 
     expect(screen.queryByText(/documents/i)).not.toBeInTheDocument();
     const taskLink = screen.getByRole("link", { name: /resolved task name/i });
     expect(taskLink).toHaveAttribute(
       "href",
-      "/projects/project-1/tasks/task-7"
+      "/projects/project-1/tasks/task-7",
     );
   });
 
@@ -197,14 +197,14 @@ describe("DesignDocBreadcrumbs", () => {
           };
         }
         return { data: null };
-      }
+      },
     );
 
     renderBreadcrumbs(
       buildDesignDoc({
         parentEntityId: "doc-parent",
         parentEntityType: DesignDocParentEntityType.DesignDoc,
-      })
+      }),
     );
 
     const grandparentLink = screen.getByRole("link", {
@@ -212,13 +212,13 @@ describe("DesignDocBreadcrumbs", () => {
     });
     expect(grandparentLink).toHaveAttribute(
       "href",
-      "/projects/project-1/design-docs/doc-grandparent"
+      "/projects/project-1/design-docs/doc-grandparent",
     );
 
     const parentLink = screen.getByRole("link", { name: /^Parent Doc/i });
     expect(parentLink).toHaveAttribute(
       "href",
-      "/projects/project-1/design-docs/doc-parent"
+      "/projects/project-1/design-docs/doc-parent",
     );
 
     expect(screen.getByText("Current Doc")).toBeInTheDocument();

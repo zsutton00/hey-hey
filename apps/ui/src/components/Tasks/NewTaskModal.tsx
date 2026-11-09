@@ -16,8 +16,8 @@ import {
 } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { KEYS } from "@hey-hey/ui-common/i18n";
-import type { TaskPriority, WorkStatus } from "@hey-hey/ui-common/api";
-import { Priority, WorkStatus as WorkStatusEnum } from "@hey-hey/ui-common/api";
+import type { TaskPriority, WorkStatus } from "@hey-hey/contracts/api";
+import { Priority, WorkStatus as WorkStatusEnum } from "@hey-hey/contracts/api";
 import { SmarterTextAreaCard } from "@hey-hey/ui-common/components";
 import type { WorkItemSectionSelection } from "../../types/workItemTypes";
 

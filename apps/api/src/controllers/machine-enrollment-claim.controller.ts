@@ -25,8 +25,15 @@ import {
   BeginMachineEnrollmentClaimResponseDto,
   CompleteMachineEnrollmentClaimRequestDto,
   CompleteMachineEnrollmentClaimResponseDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { MachineEnrollmentClaimService } from '../services/machine-pairing/machine-enrollment-claim.service';
+import { SharedEnrollmentClaimService } from '../services/machine-pairing/shared-enrollment-claim.service';
+import {
+  actorFor,
+  assertTrustedBrowserOrigin,
+  replaceBrowserSession,
+} from '../auth/passkeys/account-passkey.controller';
+import { browserSessionRequestMetadata } from '../auth/browser-session-cookies';
 import {
   readControllerBindingSecret,
   ControllerBindingCookieService,
@@ -41,6 +48,7 @@ export class MachineEnrollmentClaimController {
   constructor(
     private readonly machineEnrollmentClaimService: MachineEnrollmentClaimService,
     private readonly controllerBindingCookieService: ControllerBindingCookieService,
+    private readonly sharedEnrollmentClaimService: SharedEnrollmentClaimService,
   ) {}
 
   @Post('begin')
@@ -53,12 +61,15 @@ export class MachineEnrollmentClaimController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<BeginMachineEnrollmentClaimResponseDto> {
+    const localAccountName = user.name?.trim() || 'Local Hey Hey';
     const result = await this.machineEnrollmentClaimService.beginClaim(
       body,
       user.userId,
       user.orgMemberships,
       request.ip,
-      { email: user.email, name: user.name },
+      user.isLocalAccount
+        ? { email: localAccountName, name: localAccountName }
+        : { email: user.email, name: user.name },
     );
     const context =
       await this.machineEnrollmentClaimService.ensureBrowserContext(
@@ -99,12 +110,7 @@ export class MachineEnrollmentClaimController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<CompleteMachineEnrollmentClaimResponseDto> {
-    const result = await this.machineEnrollmentClaimService.completeClaim(
-      body,
-      user.userId,
-      user.orgMemberships,
-      request.ip,
-    );
+    const result = await this.complete(body, user, request, response);
     const binding =
       await this.machineEnrollmentClaimService.issueBrowserBindingForAwaitingConfirmation(
         {
@@ -120,6 +126,39 @@ export class MachineEnrollmentClaimController {
       binding.expiresAt,
     );
     return result;
+  }
+
+  private async complete(
+    body: CompleteMachineEnrollmentClaimRequestDto,
+    user: AuthenticatedUser,
+    request: Request,
+    response: Response,
+  ): Promise<CompleteMachineEnrollmentClaimResponseDto> {
+    const sharedClaim =
+      body.accountProof !== undefined ||
+      (await this.sharedEnrollmentClaimService.isSharedClaim(
+        body.enrollmentId,
+      ));
+    if (!sharedClaim) {
+      return this.machineEnrollmentClaimService.completeClaim(
+        body,
+        user.userId,
+        user.orgMemberships,
+        request.ip,
+      );
+    }
+
+    assertTrustedBrowserOrigin(request);
+    const shared = await this.sharedEnrollmentClaimService.completeSharedClaim(
+      body,
+      user.userId,
+      user.orgMemberships,
+      request.ip,
+      actorFor(user),
+      browserSessionRequestMetadata(request),
+    );
+    replaceBrowserSession(response, shared.session);
+    return shared.response;
   }
 
   @Post('abandon')

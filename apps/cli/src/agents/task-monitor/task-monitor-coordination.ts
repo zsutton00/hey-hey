@@ -1,14 +1,12 @@
 import { z } from 'zod';
-import { ReportType, WorkStatus } from '../../shared/api/generated/api';
+import { ReportType, WorkStatus } from '@hey-hey/contracts/api/models';
 import type {
   LocalTaskMonitorCoordinatorDecision,
   TaskMonitorLifecycleCause,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type { TaskMonitorCanonicalEvidence } from './task-monitor-evidence';
 
-const reportTypeSchema = z.enum(
-  Object.values(ReportType) as [ReportType, ...ReportType[]],
-);
+const reportTypeSchema = z.enum(Object.values(ReportType) as [ReportType, ...ReportType[]]);
 
 export interface TaskMonitorCoordinationSettledRun {
   readonly runId: string;

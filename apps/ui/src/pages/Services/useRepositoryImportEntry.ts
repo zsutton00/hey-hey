@@ -9,8 +9,12 @@ import {
   InitiationType,
   RepositoryGroundingEntryMode,
   type CreateRepositoryImportConversationDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import type { HelpActionCapability } from "@hey-hey/ui-common/components";
+import {
+  toOpenApiOrganizationId,
+  toOpenApiProjectId,
+} from "@hey-hey/ui-common/clients";
 const IMPORT_STATUSES: ConversationStatus[] = [
   ConversationStatus.NotStarted,
   ConversationStatus.Started,
@@ -145,10 +149,10 @@ export function useRepositoryImportEntry(
     status: isImporting
       ? "pending"
       : loading
-      ? "loading"
-      : error
-      ? "error"
-      : "ready",
+        ? "loading"
+        : error
+          ? "error"
+          : "ready",
     error,
     execute: handleImportExistingWork,
     retry: () => void retry(),
@@ -181,8 +185,8 @@ function buildImportSeed(
   projectId: string,
 ): CreateRepositoryImportConversationDto {
   return {
-    organizationId,
-    projectId,
+    organizationId: toOpenApiOrganizationId(organizationId),
+    projectId: toOpenApiProjectId(projectId),
     initiatedBy: InitiationType.User,
     status: ConversationStatus.Started,
     title: "Import existing work",

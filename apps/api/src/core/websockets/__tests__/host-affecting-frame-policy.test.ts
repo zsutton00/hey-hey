@@ -1,4 +1,4 @@
-import { HostAffectingActionType } from '../../../generated';
+import { HostAffectingActionType } from '@hey-hey/contracts/api/models';
 import {
   classifyHostAffectingFrame,
   HostAffectingFrame,

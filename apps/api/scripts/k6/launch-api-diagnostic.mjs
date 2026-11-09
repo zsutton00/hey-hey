@@ -123,6 +123,23 @@ function readDeploymentContext() {
   if (context?.schemaVersion !== 1) {
     throw new Error('Deployment context has an unsupported shape');
   }
+  const selectedEnvironment = process.env.API_DIAGNOSTIC_ENVIRONMENT;
+  if (
+    context.deploymentEnvironment === 'production' &&
+    selectedEnvironment !== 'production'
+  ) {
+    throw new Error(
+      'Production diagnostics require API_DIAGNOSTIC_ENVIRONMENT=production',
+    );
+  }
+  if (
+    selectedEnvironment &&
+    context.deploymentEnvironment !== selectedEnvironment
+  ) {
+    throw new Error(
+      'Deployment context does not match the selected diagnostic environment',
+    );
+  }
   return context;
 }
 
@@ -486,8 +503,13 @@ const cpuSshTarget =
   (deploymentContext?.deploymentEnvironment === 'staging'
     ? operatorConfig.sshTarget
     : undefined);
-if (cpuSshTarget && deploymentContext?.deploymentEnvironment !== 'staging') {
-  throw new Error('Staging CPU sampling requires a staging deployment context');
+if (
+  cpuSshTarget &&
+  !['staging', 'production'].includes(deploymentContext?.deploymentEnvironment)
+) {
+  throw new Error(
+    'CPU sampling requires a staging or production deployment context',
+  );
 }
 const runId = optional(
   'K6_RUN_ID',
@@ -701,9 +723,10 @@ for (const vus of steps) {
     );
     writeJson(join(directory, 'runtime-start.json'), result.runtimeStart);
     if (
-      ['graph-service', 'neo4j', 'embeddings'].some(
-        (name) => result.runtimeStart.collectors?.[name]?.started !== true,
-      )
+      (deploymentContext?.deploymentEnvironment === 'production'
+        ? ['api', 'graph-service', 'neo4j', 'embeddings']
+        : ['graph-service', 'neo4j', 'embeddings']
+      ).some((name) => result.runtimeStart.collectors?.[name]?.started !== true)
     ) {
       result.status = 'recording-incomplete';
       failures.push(
@@ -863,7 +886,10 @@ for (const vus of steps) {
         'recording-stop',
         captureToken,
       );
-      writeJson(join(directory, 'runtime-recording.json'), result.runtimeRecording);
+      writeJson(
+        join(directory, 'runtime-recording.json'),
+        result.runtimeRecording,
+      );
       result.evidence = {};
       for (const [name, command] of Object.entries(evidenceCommands)) {
         const evidence = await run(

@@ -22,7 +22,7 @@ import {
   ServiceDto,
   ProposalApprovedEventPayload,
   Influence,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   OrganizationId,
   ProjectId,
@@ -44,7 +44,7 @@ import { getContentFromMessageData } from '../../utils/message-content.util';
 import { buildMessageCreatedEventPayload } from '../../utils/message-event.util';
 import { extractMentions } from '../../utils/mentionFormatting';
 import { normalizeMentionTypeAlias } from '../mentions/mention-type-aliases';
-import { MentionCreatedEventPayload } from '../../generated';
+import { MentionCreatedEventPayload } from '@hey-hey/contracts/api/models';
 
 export async function publishCloneCreatedEvents(
   tx: Prisma.TransactionClient,

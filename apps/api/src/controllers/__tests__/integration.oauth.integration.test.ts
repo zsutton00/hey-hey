@@ -11,7 +11,7 @@ import { ConnectionTestService } from '../../services/connection-test.service';
 import { UserSuggestionService } from '../../services/user-suggestion.service';
 import { GitHubRepositoryService } from '../../services/integrations/github-repository.service';
 import { IntegrationController } from '../integration.controller';
-import { IntegrationConnectionStatus } from '../../generated';
+import { IntegrationConnectionStatus } from '@hey-hey/contracts/api/models';
 
 describe('GitHub OAuth Integration Callback (Integration Test)', () => {
   let app: INestApplication;

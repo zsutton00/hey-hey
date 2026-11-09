@@ -265,6 +265,29 @@ const assertions = [
     "Agent-edge API and Graph contracts must expose the shared action-label field on reads, creates, and updates.",
   ],
   [
+    hasAll(agentEdges.WorkflowTransitionRole.enum, [
+      "PRIMARY_PROGRESSION",
+      "ERROR_PATH",
+      "RECOVERY",
+      "RETURN",
+    ]) &&
+      agentEdges.WorkflowTransitionRole.enum.length === 4 &&
+      composesRef(
+        agentEdgeResponse.properties.transitionRole,
+        "#/WorkflowTransitionRole",
+      ) &&
+      graphAgentEdge.properties.transitionRole &&
+      graphCreateAgentEdge.properties.transitionRole &&
+      graphUpdateAgentEdge.properties.transitionRole &&
+      workflowProposalStandardLink.properties.transitionRole &&
+      workflowProposalConditionalLink.properties.transitionRole &&
+      workflowProposalLoopLink.properties.transitionRole &&
+      workItemStandardRelationshipCreate.properties.transitionRole &&
+      workItemConditionalRelationshipCreate.properties.transitionRole &&
+      workItemLoopRelationshipCreate.properties.transitionRole,
+    "Transition role must be a closed four-value vocabulary exposed on every flow link, relationship create, edge read, create and update contract.",
+  ],
+  [
     agentEdgeResponse.properties.targetNodeType?.type === "string" &&
       agentEdgeResponse.properties.targetNodeType?.nullable === true &&
       graphAgentEdge.properties.targetNodeType?.type === "string" &&

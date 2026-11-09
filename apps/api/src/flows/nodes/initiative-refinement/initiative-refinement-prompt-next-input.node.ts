@@ -5,7 +5,7 @@ import {
   NodeType,
 } from '../../../types/flow-internal.types';
 import { MutableContextHandle } from '../../../utils/mutable-context';
-import { Influence } from '../../../generated';
+import { Influence } from '@hey-hey/contracts/api/models';
 import { InitiativeService } from '../../../services/initiatives/initiative.service';
 import {
   getCurrentSectionFromStatus,

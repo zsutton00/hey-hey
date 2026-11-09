@@ -1,7 +1,7 @@
 import type {
   MonitorCommandAcknowledgement,
   MonitorCommandBody1 as MonitorCommandBody,
-} from '../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type { TaskMonitorMachineContext } from '../agents/task-monitor/state-machine/context';
 import type {
   TaskMonitorMachineEffect,

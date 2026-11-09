@@ -5,6 +5,8 @@ import {
   caseRow,
   compareSetup,
   groupCasesBySetup,
+  groupRepeatsBySetup,
+  summariseRepeats,
   rowMeasure,
   measuredTokens,
 } from "./evalResultsView";
@@ -209,6 +211,147 @@ describe("groupCasesBySetup", () => {
   });
 });
 
+const judged = (
+  recognized: boolean,
+  scores: number[],
+  checks: boolean[] = [],
+) => ({
+  automatedAssessment: {
+    recognition: { recognized, explanation: "" },
+    quality: scores.map((score, index) => ({
+      key: `q${index}`,
+      name: `Q${index}`,
+      score,
+      explanation: "",
+    })),
+    checkResults: checks.map((passed, index) => ({
+      checkId: `c${index}`,
+      passed,
+    })),
+    createdAt: "2026-10-22T10:00:00Z",
+  },
+});
+
+describe("summariseRepeats", () => {
+  const repeats = [
+    attempt("r1", setupA, "case-1", {
+      repeat: 1,
+      ...judged(true, [4, 4], [true, true]),
+      measurements: [handler({ elapsedMs: 1000, toolCalls: 4 })],
+    }),
+    attempt("r2", setupA, "case-1", {
+      repeat: 2,
+      ...judged(true, [3, 3], [true, false]),
+      measurements: [handler({ elapsedMs: 3000 })],
+    }),
+    attempt("r3", setupA, "case-1", {
+      repeat: 3,
+      ...judged(false, [2], [false]),
+      measurements: [],
+    }),
+    attempt("r4", setupA, "case-1", {
+      repeat: 4,
+      status: "ERROR",
+      error: { message: "provider down" },
+      ...judged(true, [5]),
+      measurements: [handler({ elapsedMs: 99_000, toolCalls: 99 })],
+    }),
+    attempt("r5", setupA, "case-1", {
+      repeat: 5,
+      status: "STOPPED",
+      stopReason: "TIME_LIMIT",
+      measurements: [handler({ elapsedMs: 900_000 })],
+    }),
+  ];
+
+  it("reads correct out of judged, quality as mean ± population SD, and sums checks", () => {
+    const summary = summariseRepeats(repeats);
+    expect(summary.attempts).toBe(5);
+    expect(summary.finished).toBe(3);
+    expect(summary.recognition).toEqual({ recognized: 2, assessed: 3 });
+    expect(summary.quality.mean).toBeCloseTo(3);
+    expect(summary.quality.spread).toBeCloseTo(Math.sqrt(2 / 3));
+    expect(summary.quality.scored).toBe(3);
+    expect(summary.checks).toEqual({ passed: 3, total: 5 });
+  });
+
+  it("names errored and stopped repeats and leaves them out of every average", () => {
+    const summary = summariseRepeats(repeats);
+    expect(summary.errored).toEqual([
+      {
+        attemptId: "r4",
+        repeat: 4,
+        message: "provider down",
+        stopReason: null,
+      },
+    ]);
+    expect(summary.stopped).toEqual([
+      { attemptId: "r5", repeat: 5, message: null, stopReason: "TIME_LIMIT" },
+    ]);
+    expect(summary.elapsedMs).toEqual({ value: 2000, reported: 2, total: 3 });
+    expect(summary.toolCalls).toEqual({ value: 4, reported: 1, total: 3 });
+  });
+
+  it("shows nothing reported as null, never 0", () => {
+    const summary = summariseRepeats([
+      attempt("r1", setupA, "case-1", { repeat: 1 }),
+    ]);
+    expect(summary.tokens).toEqual({ value: null, reported: 0, total: 1 });
+    expect(summary.cost.value).toBeNull();
+    expect(summary.quality).toEqual({ mean: null, spread: null, scored: 0 });
+  });
+
+  it("gives a single attempt its own values and no spread", () => {
+    const summary = summariseRepeats([
+      attempt("only", setupA, "case-1", {
+        ...judged(true, [4, 2], [true]),
+        measurements: [handler({ elapsedMs: 5000 })],
+      }),
+    ]);
+    expect(summary.quality).toEqual({ mean: 3, spread: null, scored: 1 });
+    expect(summary.elapsedMs.value).toBe(5000);
+  });
+
+  it("compares a setup over its own finished attempts only", () => {
+    const comparison = compareSetup(setupA, [
+      ...repeats,
+      attempt("other", setupB, "case-1", judged(false, [1])),
+    ]);
+    expect(comparison.attempts).toBe(5);
+    expect(comparison.recognition).toEqual({ recognized: 2, assessed: 3 });
+    expect(comparison.errored.map((entry) => entry.repeat)).toEqual([4]);
+  });
+});
+
+describe("groupRepeatsBySetup", () => {
+  it("lists each case under each setup with its repeats in order, marking weak ones", () => {
+    const groups = groupRepeatsBySetup("p1", run, [
+      attempt("a1-2", setupA, "case-1", { repeat: 2, ...judged(false, [4]) }),
+      attempt("a1-1", setupA, "case-1", { repeat: 1, ...judged(true, [4]) }),
+      attempt("a1-3", setupA, "case-1", { repeat: 3, ...judged(true, [4]) }),
+      attempt("a1-4", setupA, "case-1", { repeat: 4, ...judged(true, [1]) }),
+      attempt("a1-5", setupA, "case-1", { repeat: 5, status: "ERROR" }),
+    ]);
+    expect(groups.map((group) => group.configuration.id)).toEqual(["b", "a"]);
+    const [first] = groups[1]!.cases;
+    expect(first!.title).toBe("New field");
+    expect(first!.summary.recognition).toEqual({ recognized: 3, assessed: 4 });
+    expect(
+      first!.repeats.map(({ repeat, row, weak }) => [
+        repeat,
+        row.attemptId,
+        weak,
+      ]),
+    ).toEqual([
+      [1, "a1-1", false],
+      [2, "a1-2", true],
+      [3, "a1-3", false],
+      [4, "a1-4", true],
+      [5, "a1-5", true],
+    ]);
+  });
+});
+
 describe("fresh input headline", () => {
   it("requires both measured halves and preserves reported zero", () => {
     expect(
@@ -311,5 +454,130 @@ describe("cost", () => {
       ["TARGET_PREPARATION", 0.5],
       ["TARGET_HANDLER", 1.4],
     ]);
+  });
+});
+
+describe("coding attempts", () => {
+  const codingRun = {
+    id: "run-2",
+    payload: {
+      ...run.payload,
+      cases: [
+        {
+          id: "coding-case",
+          title: "Add a field",
+          grading: { checks: [], rubric: [] },
+          coding: {
+            serviceId: "svc-1",
+            pinnedCommit: { sha: "abcdef1234567", shortMessage: "Start here" },
+          },
+        },
+      ],
+    },
+  } as unknown as EvalRunReport;
+  const changes = {
+    files: [
+      {
+        path: "a.ts",
+        status: "modified",
+        additions: 2,
+        deletions: 1,
+        patch: "",
+      },
+    ],
+  };
+  // Attempts recorded before the runner stopped running tests still carry these.
+  const historicalTestChecks = [
+    { command: "ok", passed: true },
+    { command: "bad", passed: false },
+  ];
+
+  it("shows what the attempt saved and where it started", () => {
+    const row = caseRow(
+      "p1",
+      codingRun,
+      attempt("x", setupA, "coding-case", {
+        recordedChanges: changes,
+        ...({ testChecks: historicalTestChecks } as object),
+        error: { message: "boom" },
+      }),
+    );
+
+    expect(row.coding).toEqual({
+      changes,
+      ended: true,
+      startPoint: {
+        serviceId: "svc-1",
+        sha: "abcdef1234567",
+        shortMessage: "Start here",
+      },
+    });
+    expect(row.errorMessage).toBe("boom");
+  });
+
+  it("does not treat a running attempt's missing changes as final", () => {
+    const running = attempt("x", setupA, "coding-case", { status: "RUNNING" });
+
+    expect(caseRow("p1", codingRun, running).coding?.ended).toBe(false);
+  });
+
+  it("maps checklist hits and regressions for an updated Mockup", () => {
+    const checklistRun = {
+      ...codingRun,
+      payload: {
+        ...codingRun.payload,
+        cases: [
+          {
+            ...codingRun.payload.cases[0],
+            coding: {
+              ...codingRun.payload.cases[0].coding,
+              mockupChecklist: {
+                kind: "UPDATE",
+                items: [
+                  { id: "a", description: "Shows it" },
+                  { id: "b", description: "Clears it" },
+                ],
+              },
+            },
+          },
+        ],
+      },
+    } as unknown as EvalRunReport;
+    const judged = attempt("x", setupA, "coding-case", {
+      automatedAssessment: {
+        checkResults: [],
+        recognition: { recognized: true, explanation: "" },
+        quality: [],
+        checklistResults: [
+          { itemId: "a", hit: true, explanation: "added" },
+          { itemId: "b", hit: false, explanation: "missing" },
+        ],
+        regressions: ["Sorting broke"],
+        createdAt: "2026-10-22T10:20:00.000Z",
+      },
+    });
+
+    const row = caseRow("p1", checklistRun, judged);
+
+    expect(row.checklist).toMatchObject({
+      kind: "UPDATE",
+      hits: 1,
+      regressions: ["Sorting broke"],
+    });
+    expect(row.checklist?.items.map((item) => item.hit)).toEqual([true, false]);
+
+    const pending = caseRow(
+      "p1",
+      checklistRun,
+      attempt("y", setupA, "coding-case"),
+    );
+    expect(pending.checklist?.hits).toBeNull();
+    expect(caseRow("p1", codingRun, judged).checklist).toBeNull();
+  });
+
+  it("leaves non-coding attempts alone", () => {
+    const row = caseRow("p1", run, attempt("x", setupA, "case-1"));
+
+    expect(row.coding).toBeNull();
   });
 });

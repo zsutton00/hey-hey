@@ -5,7 +5,7 @@ import type {
   RepositoryGroundingRequest,
   RepositoryGroundingScope,
   RepositoryGroundingSuccess,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 
 /** The generated request is shared by start-run and direct trigger envelopes. */
 export type RepositoryAnalysisPromptPayload = RepositoryGroundingRequest;

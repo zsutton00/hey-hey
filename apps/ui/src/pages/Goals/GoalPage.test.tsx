@@ -10,7 +10,7 @@ import type {
   TaskResponseDto,
   WorkItemTypeDefinitionDto,
   WorkItemTypeSummaryDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   AgentEdgeType,
   AgentSessionType,
@@ -20,7 +20,7 @@ import {
   WorkItemTypeLifecycleStatus,
   WorkStatus,
   WorkflowName,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   act,
   fireEvent,

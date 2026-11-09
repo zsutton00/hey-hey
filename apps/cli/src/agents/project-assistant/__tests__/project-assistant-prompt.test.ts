@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   RunEntityReferenceEntityTypeEnum,
   LocalPromptTaskType,
-} from '../../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import { buildProjectAssistantPrompt as buildPromptContract } from '../../prompts/project-assistant';
 import type { AgentProviderId } from '../../providers/provider-config';
 import type { ProjectAssistantPolicy } from '../../prompt-type-handler';
@@ -99,6 +99,24 @@ describe('buildProjectAssistantPrompt with research subagents off', () => {
 });
 
 describe('buildProjectAssistantPrompt', () => {
+  it('keeps the visible report parent-authored and requests the shared uncertainty shape', () => {
+    const prompt = buildProjectAssistantPrompt(
+      makePayload(),
+      {},
+      {
+        parallelResearchSubagents: true,
+      },
+    );
+
+    expect(prompt).toContain('You alone write and submit the one report the user sees');
+    expect(prompt).toContain('The parent selects and authors the uncertainties');
+    expect(prompt).toContain('Do not ask the user questions');
+    expect(prompt).toContain('not_implemented');
+    expect(prompt).toContain('low for peripheral uncertainty');
+    expect(prompt).toContain('## Uncertainties');
+    expect(prompt).toContain('no top-level uncertainties field');
+  });
+
   it('requests maintenance advice only after bounded artifact discovery', () => {
     const prompt = buildPrompt();
     expect(prompt).toContain('purpose: "maintenance"');
@@ -227,7 +245,9 @@ describe('buildProjectAssistantPrompt', () => {
     expect(on).toMatch(
       /Seed: carry the governing requirements and contracts of the nearest parent feature, given in full under "Nearest parent feature", into your analysis/,
     );
-    expect(off).not.toContain('get_full_entity');
+    expect(off).not.toMatch(
+      /get_full_entity[^\n]*parent feature|parent feature[^\n]*get_full_entity/i,
+    );
   });
 
   it('omits the parent feature wording when the focal entity has no parent feature', () => {
@@ -251,10 +271,10 @@ describe('buildProjectAssistantPrompt', () => {
     expect(prompt).toMatch(/one turn rather than one per turn/i);
   });
 
-  it('states the toolset carries no file-reading tools', () => {
+  it('keeps research capability limits out of the prompt', () => {
     const prompt = buildPrompt();
-    expect(prompt).toMatch(/The toolset carries no file-reading tools/i);
-    expect(prompt).toMatch(/The project graph is the only investigation surface/i);
+    expect(prompt).toMatch(/Hand off relevant findings without discussing tool access/i);
+    expect(prompt).not.toMatch(/cannot read code|cannot read files|cannot read screenshots/i);
   });
 
   it('validates findings against the governing requirements, contracts, and design docs', () => {
@@ -283,7 +303,7 @@ describe('buildProjectAssistantPrompt', () => {
   it('limits advisory updates to independently evidenced topology corrections', () => {
     const prompt = buildPrompt();
     expect(prompt).toContain('## Advisory topology-correction updates');
-    expect(prompt).toMatch(/required advisory `updates` array/i);
+    expect(prompt).toMatch(/the `updates` array is required and advisory/i);
     expect(prompt).toMatch(
       /`update` describes an independently evidenced correction to an existing project entity, relationship, or requirement/i,
     );
@@ -642,9 +662,10 @@ describe('buildProjectAssistantPrompt', () => {
       {},
       { parallelResearchSubagents: true },
     );
-    expect(prompt).toContain('Your main job is combining their handoffs, not researching.');
+    expect(prompt).toContain('each child provides evidence for its slice');
+    expect(prompt).toContain('child handoffs are source material, not report sections');
     expect(prompt).toContain('make no further research reads until `run_subagents` returns');
-    expect(prompt).toContain('Merge them into your single `ResearchOutput`');
+    expect(prompt).toContain('merge the child evidence and check results into your own report');
     expect(prompt).toContain('treat failed, cancelled, or interrupted children as gaps');
     expect(prompt).toContain('or to settle a point where two children disagree');
     expect(prompt).not.toContain("check each child's findings against the graph");

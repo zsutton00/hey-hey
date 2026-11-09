@@ -9,7 +9,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { GoalAudience } from 'src/generated/model/goalAudience';
+import { GoalAudience } from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { TaskId } from 'src/types';
 

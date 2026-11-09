@@ -134,6 +134,9 @@ export const runInteractiveServer = async (options: ServerCommandOptions): Promi
   const owner = new PresentationOwner({
     diagnostics: diagnosticFeed,
     webOrigin: resolvePairingWebOrigin(),
+    ...(options.localApplicationNavigation
+      ? { localApplication: options.localApplicationNavigation }
+      : {}),
     target: resolveRuntimeTarget(),
     pairingUrl: (userCode, route) => resolvePairingUrl(userCode, process.env, route),
     openUrl: async (url) => {

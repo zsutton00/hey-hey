@@ -9,7 +9,7 @@ import * as request from 'supertest';
 import { App } from 'supertest/types';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { OrganizationGuard } from '../../auth/guards/organization.guard';
-import { AgentSessionOutputAttentionState } from '../../generated';
+import { AgentSessionOutputAttentionState } from '@hey-hey/contracts/api/models';
 import { AgentSessionOutputAttentionService } from '../../services/agent-session-output-attention.service';
 import { AgentSessionOutputAttentionController } from '../agent-session-output-attention.controller';
 

@@ -1,6 +1,6 @@
 import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import { useState, type MutableRefObject } from "react";
-import type { PromoteGroupToGoalRequest } from "@hey-hey/ui-common/api";
+import type { PromoteGroupToGoalRequest } from "@hey-hey/contracts/api";
 import {
   Alert,
   Button,

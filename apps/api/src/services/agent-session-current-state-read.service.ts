@@ -1,6 +1,6 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
-import { AgentSessionCurrentStateBatchItemDto } from 'src/generated';
-import { AgentSessionCurrentState } from 'src/generated/model/agentSessionCurrentState';
+import { AgentSessionCurrentStateBatchItemDto } from '@hey-hey/contracts/api/models';
+import { AgentSessionCurrentState } from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { OrganizationId, ProjectId } from 'src/types';
 import {

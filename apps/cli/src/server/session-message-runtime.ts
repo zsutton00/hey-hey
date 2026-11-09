@@ -4,15 +4,15 @@ import { z as durable } from 'zod/v4';
 import { canonicalizeJson } from './trigger-verification/jcs';
 import { collaborationPayloadSchema } from './input-admission/admission-lifecycle';
 import { storedInput } from './input-admission/input-admission-codec';
+import { AgentSessionsApi } from '@hey-hey/contracts/api';
 import {
-  AgentSessionsApi,
   TurnAdmissionSource,
   TurnAdmissionState,
   TurnAdmissionAuthorKindEnum,
   type SessionMessageInput,
   type TurnAdmission,
-} from '../shared/api/generated/api';
-import { Configuration } from '../shared/api/generated/configuration';
+} from '@hey-hey/contracts/api/models';
+import { Configuration } from '@hey-hey/contracts/api/configuration';
 import type { KeyPairStore } from '../credentials/keypair';
 import type { RunStore } from '../run-store/run-store';
 import type { LocalAgentService } from './local-agent-service';

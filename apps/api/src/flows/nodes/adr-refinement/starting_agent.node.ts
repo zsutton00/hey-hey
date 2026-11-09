@@ -6,7 +6,7 @@ import {
   SecondaryActionConfig,
   SecondaryActionHandler,
   UIElement,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { MastraAgentResponse } from 'src/services/agents/mastra-client.service';
 import { DesignDocService } from 'src/services/design-doc/design-doc.service';
 import { InitiativeService } from 'src/services/initiatives/initiative.service';

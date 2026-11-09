@@ -3,7 +3,7 @@ import { NodeRegistry } from 'src/flows/nodes/node-registry.service';
 import {
   NonInteractiveFlowNodeStartEvent,
   SystemMessageData,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { NonInteractiveFlowNodeQueueJob } from 'src/services/interfaces/job-enqueuer.interface';
 import { LLMClientService } from 'src/services/llm/llm-client.service';
 import type { ModelSelectionCriteria } from 'src/services/llm/llm-types';

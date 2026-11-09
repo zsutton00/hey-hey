@@ -15,7 +15,7 @@ import {
 } from './task-proposal-change-set-conversion';
 import { ProposalReconciliationService } from './proposal-reconciliation.service';
 import { canonicalDiagramType } from '../tasks/diagram-metadata';
-import { ProposalEdgeEndpointMode } from 'src/generated/model/proposalEdgeEndpointMode';
+import { ProposalEdgeEndpointMode } from '@hey-hey/contracts/api/models';
 import { normalizeDiagramChangeSet } from './diagram-change-set-compatibility';
 import {
   BadRequestException,
@@ -55,8 +55,8 @@ import type {
   WorkItemChangeSetValidationRequest,
   WorkItemGraphLayoutValue,
   WorkItemRelationshipCreateOperation,
-} from 'src/generated';
-import { PayloadType } from 'src/generated/model/payloadType';
+} from '@hey-hey/contracts/api/models';
+import { PayloadType } from '@hey-hey/contracts/api/models';
 import { AgentEdgeEndpointEntityType } from 'src/generated/graphs/model/agentEdgeEndpointEntityType';
 import { AgentEdgeCategory } from 'src/generated/graphs/model/agentEdgeCategory';
 import type { AgentEdgeType } from 'src/generated/graphs/model/agentEdgeType';
@@ -108,8 +108,8 @@ import {
 import {
   MentionCreatedEventPayload,
   type ProjectModeSettings,
-} from '../../generated';
-import type { WorkItemTypeSectionDefinition } from '../../generated/model/workItemTypeSectionDefinition';
+} from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeSectionDefinition } from '@hey-hey/contracts/api/models';
 import { validateFeatureRequirementsSection } from '../tasks/feature-requirements-section.validator';
 import { FeatureRequirementsReadError } from '../tasks/feature-requirements-reader';
 import {
@@ -127,6 +127,11 @@ import {
   SERVICE_TOKEN_FACTORY,
   type ServiceTokenFactory,
 } from './pending-edge.service';
+import {
+  declaredSupersedesEdges,
+  readRelationshipDecisions,
+  relationshipDecisionOperations,
+} from './relationship-decisions';
 import {
   WorkItemChangeSetProjectionSnapshots,
   type ProjectionView,
@@ -231,6 +236,11 @@ type PriorSectionSnapshot = {
 // the post-publication deferred-edge handoff.
 const REQUIREMENT_CITATION_CHECKPOINT_INDEX = -2;
 const REQUIREMENT_CITATION_CHECKPOINT_KIND = 'requirementCitationEdges.sync';
+// A successor-authored SUPERSEDES declaration runs the one atomic status-and-
+// lineage transition after every relationship effect, under its own checkpoint
+// so it shares the intent's claim, retry and publication gate.
+const SUPERSEDES_TRANSITION_CHECKPOINT_INDEX = -3;
+const SUPERSEDES_TRANSITION_CHECKPOINT_KIND = 'supersedes.transition';
 const FEATURE_REQUIREMENTS_SECTION_KEY = 'requirements';
 
 @Injectable()
@@ -394,8 +404,14 @@ export class WorkItemChangeSetMaterializerService {
             error,
             failure,
           );
-          if (error instanceof HttpException && error.getStatus() === 409)
-            throw error;
+          if (error instanceof HttpException && error.getStatus() === 409) {
+            // A conflict that already explains itself (reconciliation) keeps
+            // its own typed body; otherwise attach the checkpoint diagnostic
+            // so grouped approval can still name the field and correlation.
+            const explainsItself =
+              toProposalApprovalFailureDiagnostic(error).issues.length > 0;
+            throw explainsItself ? error : new ConflictException(failure);
+          }
           throw error instanceof HttpException
             ? new HttpException(failure, error.getStatus())
             : new InternalServerErrorException(failure);
@@ -725,13 +741,32 @@ export class WorkItemChangeSetMaterializerService {
       proposal.action === 'CREATE'
         ? ({ refType: 'temporary', tempId: 'root' } as const)
         : ({ refType: 'existing', id: proposal.targetEntityId } as const);
+    const relationshipDecisions = readRelationshipDecisions(updates);
     const declaredEdgeOperations = this.taskProposalDeclaredEdgeOperations(
       proposal,
       root,
+      relationshipDecisions.length > 0,
     );
     if (declaredEdgeOperations === null) {
+      if (relationshipDecisions.length > 0) {
+        // Decisions only exist on the generic path; falling back to the
+        // proposal-edge protocol would silently drop them.
+        throw new BadRequestException(
+          'Relationship decisions cannot be combined with declared edges that require the proposal-edge protocol. Declare those edges in a separate proposal.',
+        );
+      }
       return null;
     }
+    const decisionOperations = relationshipDecisionOperations(
+      relationshipDecisions,
+    );
+    const withDecisions = (
+      operations: WorkItemChangeSetOperation[],
+    ): WorkItemChangeSetValidationRequest => ({
+      root,
+      operations: [...operations, ...decisionOperations],
+      ...(relationshipDecisions.length > 0 ? { relationshipDecisions } : {}),
+    });
 
     if (proposal.action === 'DELETE') {
       return {
@@ -764,7 +799,7 @@ export class WorkItemChangeSetMaterializerService {
         );
       }
       operations.push(...declaredEdgeOperations);
-      return { root, operations } satisfies WorkItemChangeSetValidationRequest;
+      return withDecisions(operations);
     }
 
     const update: WorkItemUpdateOperation = {
@@ -785,7 +820,7 @@ export class WorkItemChangeSetMaterializerService {
       operations.shift();
     }
     operations.push(...declaredEdgeOperations);
-    return { root, operations } satisfies WorkItemChangeSetValidationRequest;
+    return withDecisions(operations);
   }
 
   /**
@@ -798,11 +833,17 @@ export class WorkItemChangeSetMaterializerService {
   private taskProposalDeclaredEdgeOperations(
     proposal: Pick<Proposal, 'action' | 'edges'>,
     root: WorkItemChangeSetIdentity,
+    supersessionRunsAsTransition: boolean,
   ): WorkItemRelationshipCreateOperation[] | null {
     const edges = (
       proposal.edges as unknown as ProposalEdgeDeclaration[] | null
     )?.filter(
-      (edge) => edge.endpointMode !== ProposalEdgeEndpointMode.Proposal,
+      (edge) =>
+        edge.endpointMode !== ProposalEdgeEndpointMode.Proposal &&
+        // A successor-authored SUPERSEDES is never a raw relationship write.
+        // With decisions it runs as the atomic transition after the
+        // relationship effects instead of selecting the proposal-edge path.
+        !(supersessionRunsAsTransition && edge.edgeType === 'SUPERSEDES'),
     );
     if (!edges || edges.length === 0) {
       return [];
@@ -1034,6 +1075,9 @@ export class WorkItemChangeSetMaterializerService {
         source,
         target,
         reasoning: link.description ?? null,
+        ...('transitionRole' in link && link.transitionRole !== undefined
+          ? { transitionRole: link.transitionRole }
+          : {}),
       };
       const operation =
         link.type === 'CONDITIONAL'
@@ -1416,6 +1460,16 @@ export class WorkItemChangeSetMaterializerService {
                   },
                 ]
               : []),
+            ...(declaredSupersedesEdges(proposal).length > 0
+              ? [
+                  {
+                    id: uuidv4(),
+                    operationIndex: SUPERSEDES_TRANSITION_CHECKPOINT_INDEX,
+                    operationKind: SUPERSEDES_TRANSITION_CHECKPOINT_KIND,
+                    validationRevision,
+                  },
+                ]
+              : []),
           ],
         },
       },
@@ -1668,6 +1722,10 @@ export class WorkItemChangeSetMaterializerService {
     const request =
       prepared.operationSet as unknown as WorkItemChangeSetValidationRequest;
     const effectiveParentIds = this.effectiveParentIds(request, prepared);
+    const requirementsReplacedIds = this.requirementsReplacedIds(
+      request,
+      prepared,
+    );
     request.operations.forEach((operation, operationIndex) => {
       this.logOperationInput(
         params.proposalId,
@@ -1746,6 +1804,7 @@ export class WorkItemChangeSetMaterializerService {
         mappings,
         claimToken,
         effectiveParentIds,
+        requirementsReplacedIds,
       );
       cursor += 1;
     }
@@ -1755,6 +1814,78 @@ export class WorkItemChangeSetMaterializerService {
       validationRevision,
       claimToken,
     );
+    await this.applySupersessionTransition(
+      params,
+      prepared,
+      mappings,
+      validationRevision,
+      claimToken,
+    );
+  }
+
+  /**
+   * Runs after every relationship effect so a retry resumes unfinished work
+   * and publication can only follow a completed transition. The transition
+   * itself is the single status-and-lineage mechanism; this only sequences it
+   * and records completion.
+   */
+  private async applySupersessionTransition(
+    params: {
+      proposalId: string;
+      organizationId: OrganizationId;
+      projectId: ProjectId;
+    },
+    prepared: MaterializationWithCheckpoints,
+    mappings: IdentityMappings,
+    validationRevision: string,
+    claimToken: string,
+  ): Promise<void> {
+    const checkpoint = prepared.checkpoints.find(
+      (candidate) =>
+        candidate.operationIndex === SUPERSEDES_TRANSITION_CHECKPOINT_INDEX,
+    );
+    if (!checkpoint) {
+      return;
+    }
+    this.requireCheckpoint(
+      prepared,
+      SUPERSEDES_TRANSITION_CHECKPOINT_INDEX,
+      validationRevision,
+    );
+    if (checkpoint.status === WorkItemChangeSetCheckpointStatus.COMPLETED) {
+      return;
+    }
+
+    await this.renewClaim(prepared.id, claimToken);
+    await this.markCheckpointApplying(prepared.id, checkpoint.id, claimToken);
+    try {
+      const proposal = await this.prisma.db.proposal.findUniqueOrThrow({
+        where: { id: params.proposalId },
+      });
+      const request =
+        prepared.operationSet as unknown as WorkItemChangeSetValidationRequest;
+      const successorId = this.resolveWorkItemId(
+        request.root,
+        mappings.workItems,
+      );
+      await this.pendingEdgeService.applyDeclaredSupersession(
+        proposal,
+        successorId,
+      );
+    } catch (error) {
+      await this.markCheckpointFailed(
+        prepared.id,
+        checkpoint.id,
+        claimToken,
+        error,
+      );
+      throw error;
+    }
+    await this.markCheckpointCompleted(prepared.id, checkpoint.id, claimToken);
+    this.logger.log('Applied declared SUPERSEDES transition', {
+      proposalId: params.proposalId,
+      materializationId: prepared.id,
+    });
   }
 
   private storedRequirementCitationEdges(
@@ -1890,7 +2021,8 @@ export class WorkItemChangeSetMaterializerService {
   ): boolean {
     return (
       checkpoint.operationIndex >= 0 ||
-      checkpoint.operationIndex === REQUIREMENT_CITATION_CHECKPOINT_INDEX
+      checkpoint.operationIndex === REQUIREMENT_CITATION_CHECKPOINT_INDEX ||
+      checkpoint.operationIndex === SUPERSEDES_TRANSITION_CHECKPOINT_INDEX
     );
   }
 
@@ -2175,6 +2307,7 @@ export class WorkItemChangeSetMaterializerService {
     mappings: IdentityMappings,
     claimToken: string,
     effectiveParentIds?: ReadonlyMap<string, string | null>,
+    requirementsReplacedIds?: ReadonlySet<string>,
   ): Promise<void> {
     return withApiSpan(
       'proposal.change_set.checkpoint',
@@ -2187,6 +2320,7 @@ export class WorkItemChangeSetMaterializerService {
           mappings,
           claimToken,
           effectiveParentIds,
+          requirementsReplacedIds,
         ),
       {
         operationKind: operation.op,
@@ -2207,6 +2341,7 @@ export class WorkItemChangeSetMaterializerService {
     mappings: IdentityMappings,
     claimToken: string,
     effectiveParentIds?: ReadonlyMap<string, string | null>,
+    requirementsReplacedIds?: ReadonlySet<string>,
   ): Promise<void> {
     if (checkpoint.status === WorkItemChangeSetCheckpointStatus.COMPLETED) {
       return;
@@ -2273,6 +2408,7 @@ export class WorkItemChangeSetMaterializerService {
               checkpoint.operationIndex,
               claimToken,
               effectiveParentIds,
+              requirementsReplacedIds,
             ),
           );
           outcome = 'completed';
@@ -2299,6 +2435,7 @@ export class WorkItemChangeSetMaterializerService {
               checkpoint.operationIndex,
               claimToken,
               effectiveParentIds,
+              requirementsReplacedIds,
             ),
           );
         }
@@ -2616,6 +2753,7 @@ export class WorkItemChangeSetMaterializerService {
     operationIndex: number,
     claimToken: string,
     effectiveParentIds?: ReadonlyMap<string, string | null>,
+    requirementsReplacedIds?: ReadonlySet<string>,
   ): Promise<void> {
     switch (operation.op) {
       case 'workItem.create':
@@ -2708,6 +2846,8 @@ export class WorkItemChangeSetMaterializerService {
                 taskUpdates,
                 undefined,
                 materializationId,
+                undefined,
+                requirementsReplacedIds?.has(taskId) ?? false,
               );
               postCommit = result?.postCommit;
               if (serviceIds !== undefined) {
@@ -2879,6 +3019,29 @@ export class WorkItemChangeSetMaterializerService {
         return;
       }
     }
+  }
+
+  // A reparenting update re-validates the item's stored requirements against
+  // the new parent. When this same change set replaces or clears those
+  // requirements, the section operation validates the final content against
+  // the effective parent, so the stored (about to be replaced) content must
+  // not reject the update.
+  private requirementsReplacedIds(
+    request: WorkItemChangeSetValidationRequest,
+    materialization: MaterializationWithCheckpoints,
+  ): ReadonlySet<string> {
+    const mappings = this.readIdentityMappings(materialization);
+    const ids = new Set<string>();
+    for (const operation of request.operations) {
+      if (
+        (operation.op === 'section.replace' ||
+          operation.op === 'section.clear') &&
+        operation.key === 'requirements'
+      ) {
+        ids.add(this.resolveWorkItemId(operation.ref, mappings.workItems));
+      }
+    }
+    return ids;
   }
 
   private effectiveParentIds(
@@ -3373,6 +3536,13 @@ export class WorkItemChangeSetMaterializerService {
           ('predicate' in operation ? (operation.predicate ?? null) : null),
       ],
       [
+        'transitionRole',
+        (edge.transitionRole ?? null) ===
+          ('transitionRole' in operation
+            ? (operation.transitionRole ?? null)
+            : null),
+      ],
+      [
         'reasoning',
         edge.reasoning ===
           (operation.reasoning ?? 'Generic work-item change-set relationship.'),
@@ -3408,6 +3578,8 @@ export class WorkItemChangeSetMaterializerService {
         (edge.direction ?? null) === (operation.direction ?? null)) &&
       (!Object.prototype.hasOwnProperty.call(operation, 'predicate') ||
         (edge.predicate ?? null) === (operation.predicate ?? null)) &&
+      (!Object.prototype.hasOwnProperty.call(operation, 'transitionRole') ||
+        (edge.transitionRole ?? null) === (operation.transitionRole ?? null)) &&
       (!Object.prototype.hasOwnProperty.call(operation, 'reasoning') ||
         edge.reasoning === operation.reasoning) &&
       (!Object.prototype.hasOwnProperty.call(operation, 'metadata') ||
@@ -4480,22 +4652,17 @@ export class WorkItemChangeSetMaterializerService {
   ): UpdateTaskDto & { serviceIds?: string[] } {
     if (!payload || payload.action !== 'UPDATE') return base;
     const original = payload.updates as unknown as UpdateTaskDto;
+    // Sections are not merged here: every proposed section is its own
+    // section.replace operation, which owns the write and its reviewed-basis
+    // guard. Writing them here too would persist them twice and make the
+    // guard see this change set's own write as an outside edit.
     return {
       ...base,
-      ...(Object.prototype.hasOwnProperty.call(payload.updates, 'sections')
-        ? { sections: original.sections }
-        : {}),
       ...(Object.prototype.hasOwnProperty.call(payload.updates, 'initiativeId')
         ? { initiativeId: original.initiativeId }
         : {}),
       ...(Object.prototype.hasOwnProperty.call(payload.updates, 'type')
         ? { type: original.type }
-        : {}),
-      ...(Object.prototype.hasOwnProperty.call(
-        payload.updates,
-        'sectionUpdateSource',
-      )
-        ? { sectionUpdateSource: original.sectionUpdateSource }
         : {}),
       ...(Object.prototype.hasOwnProperty.call(payload.updates, 'reason')
         ? { reason: original.reason }
@@ -4584,6 +4751,9 @@ export class WorkItemChangeSetMaterializerService {
       ...('actionLabel' in operation
         ? { actionLabel: operation.actionLabel ?? undefined }
         : {}),
+      ...('transitionRole' in operation
+        ? { transitionRole: operation.transitionRole ?? undefined }
+        : {}),
       metadata: operation.metadata,
       reasoning:
         operation.reasoning ?? 'Generic work-item change-set relationship.',
@@ -4622,6 +4792,7 @@ export class WorkItemChangeSetMaterializerService {
       direction: operation.direction,
       predicate: operation.predicate,
       actionLabel: operation.actionLabel,
+      transitionRole: operation.transitionRole,
       metadata: operation.metadata,
       reasoning: operation.reasoning ?? undefined,
       lastModifiedBySessionId: proposalId,

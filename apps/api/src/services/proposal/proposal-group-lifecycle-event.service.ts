@@ -2,15 +2,9 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { DomainEventPublisher } from 'src/core/events/domain-event-publisher';
 import { DOMAIN_EVENT_PUBLISHER_TOKEN } from 'src/core/events/tokens';
 import { EVENT_TYPES } from 'src/core/events/types/event.types';
-import type { ProposalGroupLifecycleEventPayload } from 'src/generated';
+import type { ProposalGroupLifecycleEventPayload } from '@hey-hey/contracts/api/models';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId } from 'src/types';
-
-class JsonSerializableSet<T> extends Set<T> {
-  toJSON(): T[] {
-    return [...this];
-  }
-}
 
 @Injectable()
 export class ProposalGroupLifecycleEventService {
@@ -48,7 +42,7 @@ export class ProposalGroupLifecycleEventService {
       projectId: params.projectId,
       groupId: params.groupId,
       revision: params.revision,
-      changedMemberIds: new JsonSerializableSet(params.changedMemberIds ?? []),
+      changedMemberIds: [...new Set(params.changedMemberIds ?? [])],
     } satisfies ProposalGroupLifecycleEventPayload;
     return {
       type: EVENT_TYPES.PROPOSAL_GROUP.LIFECYCLE,

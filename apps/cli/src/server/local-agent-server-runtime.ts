@@ -25,7 +25,11 @@ export class LocalAgentServerRuntime {
   public port = 0;
   public url = '';
 
-  private isClosed = false;
+  private closePromise: Promise<void> | undefined;
+  private resolveClosed!: () => void;
+  public readonly whenClosed = new Promise<void>((resolve) => {
+    this.resolveClosed = resolve;
+  });
 
   public constructor(private readonly dependencies: LocalAgentServerRuntimeDependencies) {}
 
@@ -62,15 +66,22 @@ export class LocalAgentServerRuntime {
     return this;
   }
 
-  public readonly close = async (): Promise<void> => {
-    if (this.isClosed) return;
-    this.isClosed = true;
+  public readonly close = (): Promise<void> => {
+    this.closePromise ??= this.finishClose().catch((error: unknown) => {
+      this.closePromise = undefined;
+      throw error;
+    });
+    return this.closePromise;
+  };
+
+  private async finishClose(): Promise<void> {
     await this.disposeOwnedResources(true);
+    this.resolveClosed();
     this.dependencies.logger.debug('local.server.stopped', {
       host: this.dependencies.host,
       port: this.port,
     });
-  };
+  }
 
   private async rollbackStartup(): Promise<void> {
     await this.disposeOwnedResources(false);

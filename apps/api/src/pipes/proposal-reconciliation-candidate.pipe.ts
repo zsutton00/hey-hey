@@ -5,8 +5,8 @@ import {
 } from '@nestjs/common';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
-import type { CreateProposalReconciliationCandidate } from '../generated';
-import { proposalReconciliationCandidateSchema } from '../generated/proposal-reconciliation.schema';
+import type { CreateProposalReconciliationCandidate } from '@hey-hey/contracts/api/models';
+import { proposalReconciliationCandidateSchema } from '@hey-hey/contracts/api/custom/proposal-reconciliation.schema';
 
 const ajv = new Ajv({
   allErrors: true,

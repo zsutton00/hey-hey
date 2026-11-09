@@ -3,9 +3,9 @@ import type { AuthenticatedUser } from 'src/auth/strategies/jwt.strategy';
 import type {
   CreateProposalDto,
   CreateProposalRequestDto,
-} from 'src/generated';
-import type { ProposalValidationIssue as GeneratedProposalValidationIssue } from 'src/generated/model/proposalValidationIssue';
-import type { ProposalValidationLayer } from 'src/generated/model/proposalValidationLayer';
+} from '@hey-hey/contracts/api/models';
+import type { ProposalValidationIssue as GeneratedProposalValidationIssue } from '@hey-hey/contracts/api/models';
+import type { ProposalValidationLayer } from '@hey-hey/contracts/api/models';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 
 /**

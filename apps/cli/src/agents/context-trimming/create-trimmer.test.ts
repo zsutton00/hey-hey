@@ -1,6 +1,9 @@
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { JevClient, JevInput, JevResult } from '../../jev/client';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import type { JevInput, JevResult } from '../../jev/client';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { ServerLogger } from '../../server/logger';
 import type { LoadedEntityPromptContext } from '../entity-context/types';
 import {
@@ -56,7 +59,12 @@ const contextResult = {
       text: JSON.stringify({
         entityId: 'seed',
         relatedEntities: [
-          { entityId: 'e1', entityType: 'TASK', displayName: 'One', relationship: 'related-to' },
+          {
+            entityId: 'e1',
+            entityType: 'TASK',
+            displayName: 'One',
+            relationships: [{ relationship: 'related-to' }],
+          },
         ],
       }),
     },
@@ -85,8 +93,8 @@ const makeInput = (overrides: Partial<CreateContextTrimmerInput> = {}) => {
   const { logger, warn } = makeLogger();
   const input: CreateContextTrimmerInput = {
     promptType: LocalPromptType.ProjectAssistant,
-    jevClient: { evaluate } as unknown as JevClient,
-    cache: new Map(),
+    decisionModel: { evaluate },
+    isDecisionModelEnabled: () => Promise.resolve(true),
     loadedEntityContext: loadedEntity('STANDARD'),
     payload: { userMessage: '  Look at the proxy.  ' },
     deps: {} as CreateContextTrimmerInput['deps'],
@@ -121,6 +129,7 @@ describe('createContextTrimmer', () => {
     expect(await stateSentBy(input, requests)).toMatchObject({
       task: { name: 'Trim context', description: 'Trim it.', acceptance_criteria: 'Fewer tokens.' },
       parent_feature: { name: 'Jev Integration', description: 'First.\n\nSecond.' },
+      ask: { text: 'Look at the proxy.' },
     });
   });
 
@@ -196,10 +205,19 @@ describe('createContextTrimmer', () => {
     });
   });
 
-  it('does not trim without a Jev client', async () => {
-    const { input } = makeInput({ jevClient: undefined });
+  it('does not trim without a Decision Model', async () => {
+    const { input } = makeInput({ decisionModel: undefined });
 
     expect(await createContextTrimmer(input)).toBeUndefined();
+  });
+
+  it('does not trim or make a request when the existing model option is off', async () => {
+    const isDecisionModelEnabled = vi.fn().mockResolvedValue(false);
+    const { input, requests } = makeInput({ isDecisionModelEnabled });
+
+    expect(await createContextTrimmer(input)).toBeUndefined();
+    expect(isDecisionModelEnabled).toHaveBeenCalledOnce();
+    expect(requests).toEqual([]);
   });
 
   it('does not trim for other handlers', async () => {
@@ -216,14 +234,29 @@ describe('createContextTrimmer', () => {
       { loadedEntityContext: loadedProject, payload: {} },
       'no_focal_work',
     ],
-  ])('logs why it does not trim when %s', async (_name, overrides, reason) => {
-    const { input, warn } = makeInput(overrides);
+  ])('logs and traces why it does not trim when %s', async (_name, overrides, reason) => {
+    const attemptLogDir = await mkdtemp(path.join(os.tmpdir(), 'get-context-log-'));
+    try {
+      const { input, warn } = makeInput({ ...overrides, attemptLogDir });
 
-    expect(await createContextTrimmer(input)).toBeUndefined();
-    expect(warn).toHaveBeenCalledWith(
-      'local.platform_mcp_proxy.get_context_trim.disabled',
-      expect.objectContaining({ reason }),
-    );
+      expect(await createContextTrimmer(input)).toBeUndefined();
+      expect(warn).toHaveBeenCalledWith(
+        'local.platform_mcp_proxy.get_context_trim.disabled',
+        expect.objectContaining({ reason }),
+      );
+      const files = await readdir(attemptLogDir);
+      expect(files).toHaveLength(1);
+      const record: unknown = JSON.parse(
+        await readFile(path.join(attemptLogDir, files[0] ?? ''), 'utf8'),
+      );
+      expect(record).toMatchObject({
+        outcome: 'not_started',
+        promptType: LocalPromptType.ProjectAssistant,
+        reason,
+      });
+    } finally {
+      await rm(attemptLogDir, { recursive: true, force: true });
+    }
   });
 
   it('ranks a planned task against the plan it belongs to', async () => {
@@ -276,7 +309,7 @@ describe('createContextTrimmer', () => {
     expect(await createContextTrimmer(input)).toBeUndefined();
     expect(warn).toHaveBeenCalledWith('local.platform_mcp_proxy.get_context_trim.disabled', {
       reason: 'focal_unavailable',
-      error: 'HTTP 500',
+      errorName: 'Error',
     });
   });
 });

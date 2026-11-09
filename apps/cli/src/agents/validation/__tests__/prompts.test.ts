@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildValidationWalkthroughPrompt } from '../prompts';
-import { LocalValidationWalkthroughPromptPayloadScopeEnum } from '../../../shared/agent-bridge-contract/generated/api';
+import { LocalValidationWalkthroughPromptPayloadScopeEnum } from '@hey-hey/contracts/agent-bridge';
 
 const TASK_ID = '11111111-1111-4111-8111-111111111111';
 const PARENT_TASK_ID = '22222222-2222-4222-8222-222222222222';

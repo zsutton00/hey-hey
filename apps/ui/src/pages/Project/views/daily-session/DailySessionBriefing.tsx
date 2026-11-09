@@ -14,7 +14,7 @@ import {
   LoadingPanel,
   ReportCard,
 } from "@hey-hey/ui-common/components";
-import { ProjectStatus, ReportType } from "@hey-hey/ui-common/api";
+import { ProjectStatus, ReportType } from "@hey-hey/contracts/api";
 import { useProject } from "@hey-hey/ui-common/data";
 import { format, isToday, isYesterday } from "date-fns";
 import React, { useCallback, useLayoutEffect, useRef } from "react";

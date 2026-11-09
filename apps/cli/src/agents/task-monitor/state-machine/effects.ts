@@ -1,4 +1,4 @@
-import type { WorkStatus } from '../../../shared/api/generated/api';
+import type { WorkStatus } from '@hey-hey/contracts/api/models';
 import type {
   TaskMonitorExecutionNode,
   TaskMonitorLaunchDeclaration,
@@ -30,7 +30,7 @@ import type {
   TaskMonitorCoordinatorValidationFailure,
   SessionMonitorSettledTurnEvidence,
   TaskMonitorJudgmentResponse,
-} from '../../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 
 export interface LoadTaskMonitorEffect {
   readonly type: 'LOAD_TASK_MONITOR';

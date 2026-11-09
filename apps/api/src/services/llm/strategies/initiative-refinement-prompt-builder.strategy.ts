@@ -10,7 +10,7 @@ import { ArtifactService } from '../../artifacts/artifact.service';
 import { InitiativeRefinementPlaceholderRegistry } from '../placeholders/registries/initiative-refinement-placeholders.registry';
 import { IPromptBuilderStrategy } from './prompt-builder-strategy.interface';
 import { getResponseGuidance } from './utils';
-import { ArtifactType } from 'src/generated';
+import { ArtifactType } from '@hey-hey/contracts/api/models';
 
 /**
  * Strategy for building initiative refinement prompts with change detection context

@@ -1,5 +1,5 @@
-import { LocalPromptType } from 'src/generated/local';
-import { WorkflowName } from 'src/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
+import { WorkflowName } from '@hey-hey/contracts/api/models';
 import { TASK_PRIORITIZATION_NODES } from '../constants';
 import { createFlow } from './utils';
 import { TaskPrioritizationFlowContext } from 'src/types/flow-internal.types';

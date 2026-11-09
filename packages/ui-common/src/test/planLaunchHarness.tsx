@@ -9,6 +9,12 @@ import { agentSessionKeys } from "../data/collections/agentSessions";
 import { setCapabilityCatalogForTests } from "../components/AgentSession/capabilityCatalog";
 import { EagerIntersectionObserver } from "./eagerIntersectionObserver";
 import {
+  toOpenApiAgentSessionId,
+  toOpenApiConversationId,
+  toOpenApiOrganizationId,
+  toOpenApiProjectId,
+} from "../clients/contractIdentifierAdapters";
+import {
   AgentSessionCurrentState,
   AgentSessionStatus,
   AgentSessionType,
@@ -143,10 +149,10 @@ const launchMachine: MachineDto = {
 };
 export const launchConversation: ConversationResponseDto = {
   restricted: true,
-  id: launchScope.conversationId,
+  id: toOpenApiConversationId(launchScope.conversationId),
   createdBy: null,
-  organizationId: launchScope.organizationId,
-  projectId: launchScope.projectId,
+  organizationId: toOpenApiOrganizationId(launchScope.organizationId),
+  projectId: toOpenApiProjectId(launchScope.projectId),
   initiatedBy: InitiationType.System,
   status: ConversationStatus.NotStarted,
   version: 1,
@@ -157,9 +163,9 @@ export const launchConversation: ConversationResponseDto = {
   updatedAt: "2026-09-01T00:00:00Z",
 };
 export const launchSession: AgentSessionDto = {
-  id: launchScope.agentSessionId,
-  organizationId: launchScope.organizationId,
-  projectId: launchScope.projectId,
+  id: toOpenApiAgentSessionId(launchScope.agentSessionId),
+  organizationId: toOpenApiOrganizationId(launchScope.organizationId),
+  projectId: toOpenApiProjectId(launchScope.projectId),
   userId: "user-launch",
   machineId: launchMachine.machineId,
   type: AgentSessionType.PlanGeneration,

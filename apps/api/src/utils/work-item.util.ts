@@ -1,5 +1,5 @@
 import { invert } from 'lodash';
-import { WorkStatus } from 'src/generated';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 
 /**
  * Work Item Status Utilities
@@ -306,6 +306,6 @@ export const isRefining = (status: WorkStatus) => {
       WorkStatus.RefiningAcceptanceCriteria,
       WorkStatus.RefiningDescription,
       WorkStatus.RefiningDetails,
-    ].includes(status) || isGeneratingStatus(status)
+    ].some((candidate) => candidate === status) || isGeneratingStatus(status)
   );
 };

@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
-import { ExtendedUIFieldType, UIElement } from 'src/generated';
-import { FeatureSyncAnalyzePromptPayload } from 'src/generated';
-import { LocalPromptType } from 'src/generated/local';
+import { ExtendedUIFieldType, UIElement } from '@hey-hey/contracts/api/models';
+import { FeatureSyncAnalyzePromptPayload } from '@hey-hey/contracts/api/models';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
 import {
   ExternalAgentActionSchemas,
   ExternalAgentFlowData,
@@ -132,7 +132,10 @@ export class FeatureSyncAnalyzeNode extends ExternalAgentNodeBase<FeatureSyncFlo
     const data = (userMessage.data ?? {}) as Partial<ExternalAgentFlowData>;
 
     if (data.action === undefined) {
-      const reply = UserMessageExtractor.extractContentFromData(userMessage.data, '').trim();
+      const reply = UserMessageExtractor.extractContentFromData(
+        userMessage.data,
+        '',
+      ).trim();
       if (reply.length > 0) {
         tracker.mutate((draft) => {
           draft.featureSyncPendingUserReply = reply;
@@ -188,11 +191,14 @@ export class FeatureSyncAnalyzeNode extends ExternalAgentNodeBase<FeatureSyncFlo
           ? 'CLEAR'
           : 'REVIEW_REQUIRED';
       if (disposition.state !== expectedState) {
-        this.logger.warn('Feature sync analyze readiness action/state mismatch', {
-          conversationId: tracker.getContext().core.conversationId,
-          action: data.action,
-          state: disposition.state,
-        });
+        this.logger.warn(
+          'Feature sync analyze readiness action/state mismatch',
+          {
+            conversationId: tracker.getContext().core.conversationId,
+            action: data.action,
+            state: disposition.state,
+          },
+        );
         return;
       }
       tracker.mutate((draft) => {
@@ -216,9 +222,12 @@ export class FeatureSyncAnalyzeNode extends ExternalAgentNodeBase<FeatureSyncFlo
       action === FEATURE_SYNC_ACTIONS.NO_DISCREPANCY &&
       !context.implementationReadiness
     ) {
-      this.logger.warn('Feature sync analyze blocked structural fast-path without readiness', {
-        conversationId: context.core.conversationId,
-      });
+      this.logger.warn(
+        'Feature sync analyze blocked structural fast-path without readiness',
+        {
+          conversationId: context.core.conversationId,
+        },
+      );
       return FEATURE_SYNC_NODES.ANALYZE;
     }
     return undefined;

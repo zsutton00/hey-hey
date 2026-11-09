@@ -5,10 +5,10 @@ import {
   ExtendedUIFieldType,
   PlanGenerationFinalizePayload,
   UIElement,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { TaskService } from 'src/services/tasks/task.service';
 import { TaskId, ProjectId } from 'src/types';
-import { WorkStatus } from 'src/generated';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { OrganizationId, PlanId, UserId } from 'src/types';
 import {

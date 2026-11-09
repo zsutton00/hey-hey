@@ -6,15 +6,23 @@ import {
   EntityNeighborhoodRequest,
   FeatureProjectConnectionRequest,
   FeatureProjectConnectionResponse,
+  DesignDocProjectReadinessRequest,
+  DesignDocProjectReadinessResponse,
+  WorkItemProjectReadinessRequest,
+  WorkItemProjectReadinessResponse,
   FindHintsByConnectedItemsRequest,
   FindHintsByConnectedItemsResponse,
   Hint,
+  HintOriginEntityType,
+  ListProjectHintsResponse,
   HintConnectionInput,
   EntityNeighborhoodResponse,
   IncidentEdgesRequest,
   IncidentEdgesResponse,
   ProjectionDeletionCommand,
   ProjectionDeletionResult,
+  SearchExclusionRequest,
+  SearchExclusionResponse,
   SearchRequest,
   SearchResponse,
   StructuredGraphReadRequest,
@@ -122,6 +130,25 @@ export class GraphsClientService {
     return response.data;
   }
 
+  async updateHintText(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    hintId: string,
+    text: string,
+    userToken: string,
+  ): Promise<Hint> {
+    const response = await firstValueFrom<AxiosResponse<Hint>>(
+      this.hintsService.updateHintText(
+        organizationId,
+        projectId,
+        hintId,
+        { text },
+        this.userAuthConfig(userToken),
+      ),
+    );
+    return response.data;
+  }
+
   async retireHint(
     organizationId: OrganizationId,
     projectId: ProjectId,
@@ -151,6 +178,27 @@ export class GraphsClientService {
         organizationId,
         projectId,
         request,
+        this.userAuthConfig(userToken),
+      ),
+    );
+    return response.data;
+  }
+
+  async findHintsByOrigin(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    originEntityType: HintOriginEntityType,
+    originEntityId: string,
+    userToken: string,
+  ): Promise<ListProjectHintsResponse> {
+    const response = await firstValueFrom<
+      AxiosResponse<ListProjectHintsResponse>
+    >(
+      this.hintsService.findHintsByOrigin(
+        organizationId,
+        projectId,
+        originEntityType,
+        originEntityId,
         this.userAuthConfig(userToken),
       ),
     );
@@ -253,6 +301,25 @@ export class GraphsClientService {
     }
   }
 
+  async resolveSearchExclusion(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    request: SearchExclusionRequest,
+    userToken: string,
+  ): Promise<SearchExclusionResponse> {
+    const response = await firstValueFrom<
+      AxiosResponse<SearchExclusionResponse>
+    >(
+      this.queriesService.resolveSearchExclusion(
+        organizationId,
+        projectId,
+        request,
+        this.userAuthConfig(userToken),
+      ),
+    );
+    return response.data;
+  }
+
   async checkFeatureProjectConnection(
     organizationId: OrganizationId,
     projectId: ProjectId,
@@ -263,6 +330,60 @@ export class GraphsClientService {
       AxiosResponse<FeatureProjectConnectionResponse>
     >(
       this.queriesService.checkFeatureProjectConnection(
+        organizationId,
+        projectId,
+        request,
+        {
+          config: {
+            headers: {
+              Authorization: `Bearer ${systemToken}`,
+              'X-API-Auth': `Bearer ${systemToken}`,
+              'Content-Type': 'application/json',
+            },
+          },
+        },
+      ),
+    );
+    return response.data;
+  }
+
+  async checkWorkItemProjectReadiness(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    request: WorkItemProjectReadinessRequest,
+    systemToken: string,
+  ): Promise<WorkItemProjectReadinessResponse> {
+    const response = await firstValueFrom<
+      AxiosResponse<WorkItemProjectReadinessResponse>
+    >(
+      this.queriesService.checkWorkItemProjectReadiness(
+        organizationId,
+        projectId,
+        request,
+        {
+          config: {
+            headers: {
+              Authorization: `Bearer ${systemToken}`,
+              'X-API-Auth': `Bearer ${systemToken}`,
+              'Content-Type': 'application/json',
+            },
+          },
+        },
+      ),
+    );
+    return response.data;
+  }
+
+  async checkDesignDocProjectReadiness(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    request: DesignDocProjectReadinessRequest,
+    systemToken: string,
+  ): Promise<DesignDocProjectReadinessResponse> {
+    const response = await firstValueFrom<
+      AxiosResponse<DesignDocProjectReadinessResponse>
+    >(
+      this.queriesService.checkDesignDocProjectReadiness(
         organizationId,
         projectId,
         request,

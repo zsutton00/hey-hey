@@ -16,7 +16,7 @@ import {
   type OpenItemGroup,
   type OpenItemsCollection,
   type OpenItemsMutationResult,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { createEntityActivation } from "@hey-hey/ui-common/context";
 import { createNavigationLineageEntry } from "@hey-hey/ui-common";
 import { projectOpenItems } from "../components/Explorer/openItemsProjection";
@@ -447,6 +447,36 @@ describe("Open Items canonical UI owner", () => {
     expect(hook.current.stale).toBe(false);
     expect(hook.current.pending).toBe(0);
   });
+
+  it.each(["userId", "organizationId", "projectId"] as const)(
+    "isolates open items immediately when %s changes without a provider remount",
+    async (field) => {
+      const { wrapper, scope, read } = setup();
+      const { result: hook, rerender } = renderHook(useOpenItems, { wrapper });
+      await waitFor(() => expect(hook.current.items).toHaveLength(1));
+
+      let resolveRead!: (
+        value: ReturnType<typeof response<OpenItemsCollection>>,
+      ) => void;
+      read.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveRead = resolve;
+          }),
+      );
+      scope[field] = crypto.randomUUID();
+      rerender();
+      expect(hook.current.items).toEqual([]);
+      await waitFor(() =>
+        expect(read).toHaveBeenLastCalledWith(expect.objectContaining(scope)),
+      );
+      await act(async () => {
+        resolveRead(response(present([])));
+      });
+      await waitFor(() => expect(hook.current.isFetching).toBe(false));
+      expect(hook.current.items).toEqual([]);
+    },
+  );
 
   it("passes authenticated scope and replaces cached rows with canonical data", async () => {
     const { wrapper, scope, read } = setup();

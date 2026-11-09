@@ -10,7 +10,7 @@ import {
   hasExactCurrentAgentOperations,
   isCurrentAgentOperation,
 } from './types';
-import type { ControllerCredentialPublicKey } from '../../shared/api/generated/api';
+import type { ControllerCredentialPublicKey } from '@hey-hey/contracts/api/models';
 import type {
   ControllerAssertionVerificationResult,
   ControllerAuthorizationAdmissionContext,
@@ -20,7 +20,7 @@ import type {
 } from './types';
 
 const DEFAULT_FRESHNESS_MS = 120_000;
-const CONTROLLER_AUTHORIZATION_CADENCE_TTL_MS = new Map([
+export const CONTROLLER_AUTHORIZATION_CADENCE_TTL_MS = new Map([
   ['FIVE_MINUTES', 5 * 60 * 1000],
   ['EIGHT_HOURS', 8 * 60 * 60 * 1000],
   ['ONE_DAY', 24 * 60 * 60 * 1000],
@@ -115,17 +115,24 @@ const asGrantDescriptorJson = (
   effectiveExpiresAtMs: descriptor.effectiveExpiresAtMs,
 });
 
+/** Lowercase hex SHA-256 of the RFC 8785 descriptor, as the API computes it. */
+export const hashControllerDeviceGrantDescriptor = (
+  descriptor: ExecutableControllerAssertionEvidence['grantDescriptor'],
+): string =>
+  crypto
+    .createHash('sha256')
+    .update(canonicalizeJson(asGrantDescriptorJson(descriptor)), 'utf8')
+    .digest('hex');
+
 const verifyGrantDescriptor = (
   evidence: ExecutableControllerAssertionEvidence,
   context: ControllerAuthorizationAdmissionContext,
   now: number,
 ): ControllerAuthorizationDenialReason | null => {
   const { intent, grantDescriptor: descriptor } = evidence;
-  const descriptorHash = crypto
-    .createHash('sha256')
-    .update(canonicalizeJson(asGrantDescriptorJson(descriptor)), 'utf8')
-    .digest('hex');
-  if (descriptorHash !== intent.grantDescriptorHash) return 'GRANT_SCOPE_MISMATCH';
+  if (hashControllerDeviceGrantDescriptor(descriptor) !== intent.grantDescriptorHash) {
+    return 'GRANT_SCOPE_MISMATCH';
+  }
   if (
     descriptor.controllerCredentialId !== intent.controllerCredentialId ||
     descriptor.controllerInstallationId !== intent.controllerInstallationId ||
@@ -156,6 +163,7 @@ const verifyGrantDescriptor = (
   const cadenceTtlMs = CONTROLLER_AUTHORIZATION_CADENCE_TTL_MS.get(intent.cadence);
   if (
     cadenceTtlMs === undefined ||
+    descriptor.effectiveExpiresAtMs === null ||
     !Number.isSafeInteger(descriptor.effectiveExpiresAtMs) ||
     descriptor.effectiveExpiresAtMs <= descriptor.issuedAtMs ||
     descriptor.effectiveExpiresAtMs - descriptor.issuedAtMs !== cadenceTtlMs ||

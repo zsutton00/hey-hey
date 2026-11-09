@@ -4,7 +4,10 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { SubagentInteractionController } from '../../../controllers/agent-interaction.controller';
-import { AgentInteractionKind, AgentInteractionMode } from '../../../generated';
+import {
+  AgentInteractionKind,
+  AgentInteractionMode,
+} from '@hey-hey/contracts/api/models';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import {
   AgentInteractionAdmissionService,

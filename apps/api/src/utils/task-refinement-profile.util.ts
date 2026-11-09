@@ -1,4 +1,4 @@
-import { WorkStatus } from 'src/generated';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { TaskActiveSectionEnum } from 'src/generated/agents/models';
 
 export type TaskRefinementLevel = 'description' | 'acceptanceCriteria';

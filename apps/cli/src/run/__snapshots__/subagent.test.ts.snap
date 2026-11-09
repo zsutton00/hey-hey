@@ -1,7 +1,7 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`SubAgent — unified runtime contract > captures the complete registered code_review child prompt 1`] = `
-"## Session-role guidance (implementation)
+"## Session-role guidance (review)
 
 ### Task
 Follow the reviewed requirements.
@@ -32,9 +32,9 @@ Judge whether the coding session delivers the behavior required by the originati
 
 ## Repository edit authority
 
-Mentions of a Service or repository in a task description, plan, design document, report, message, or retrieved context provide context only. They do not authorize inspection, edits, commits, or mutating commands in that repository. Work only in the current repository and in Services explicitly listed in the active session scope.
+You may inspect code in any project Service during planning or investigation, including Services outside the active session scope. Read-only inspection does not add a Service to the Run's writable roots. A Service mention or repository path provides context only; it does not authorize edits, commits, or mutating commands. Make repository changes only in the current repository or Services explicitly listed in the active session scope.
 
-When the current repository is a linked worktree, authorized work in every other repository requires that repository's explicit corresponding worktree path in the active session scope. Never use, inspect, or edit its host or main checkout as a fallback, and never infer a worktree path. If the required Service or its corresponding worktree is not listed, stop and request expanded Service scope before touching it.
+When the current repository is a linked worktree, changes to another selected Service require that Service's explicit corresponding worktree path in the active session scope. Never use its host or main checkout as a fallback location for edits or other mutations, and never infer a worktree path. If the required Service or its corresponding worktree is not listed, request expanded Service scope before changing it.
 
 Only one service is in scope here, but real projects contain others. Treat any change to a public API, schema, or shared contract as potentially crossing a service boundary — search consumers before assuming the change is internal.
 
@@ -95,11 +95,7 @@ For each change, give a title and only the system context needed to understand i
 
 Copy excerpts from code you inspected. Identify the Service, normalized repository-relative file, inclusive line range, language, and source version. Use the target Run's resolved Service workspaces, including worktrees. Include previous code only when comparison helps and identify its full immutable Git commit revision explicitly. Do not describe historical code as current or an unresolved reference as verified. Source checking is per excerpt: retain independent valid excerpts and findings when another source is unavailable.
 
-Use CHANGE_WALKTHROUGH when saving this explanation through the existing report submission path; consult its live definition first. Omit \`targetRunId\` and each excerpt's \`verification\`: the host stamps the target Run from this Review and computes source verification per excerpt, so neither is established by an agent assertion. An excerpt the host cannot verify stays in the report marked unresolved. Create the CHANGE_WALKTHROUGH report; it is required. Put the explanation only in the report and do not restate it in your reply. The report holds only the explanation of the changes; findings and recommended corrections or decisions stay in the reply. Prior Messages, Plan reports, and Implement reports are not prerequisites. This explanation does not permit source or other project artifact edits or change Service authority, canonical file membership, Review dispositions, or monitor routing.
-
-## Reminder — NO partial UUIDs, EVER (HARD STOP)
-
-You may NEVER write a shortened or partial entity id — not once, not in any form. A reference like \`427b18d2\` (a truncated UUID) is forbidden everywhere: bare, in backticks, in prose like "task 427b18d2", or as "427b18d2 (Title)". The only acceptable way to name an entity in user-visible text is a full, unescaped \`@[type:id|title]\` mention carrying the COMPLETE UUID and a real title — e.g. \`@[task:427b18d2-7f06-408b-aa74-4b9e209a2f2c|Title]\`. If you do not have the full id and title in front of you, look them up with \`get_context\` / \`unified_search\` BEFORE you write the reference. There is no situation, no exception, no "just this once" where a partial UUID is allowed."
+Use CHANGE_WALKTHROUGH when saving this explanation through the existing report submission path; consult its live definition first. Omit \`targetRunId\` and each excerpt's \`verification\`: the host stamps the target Run from this Review and computes source verification per excerpt, so neither is established by an agent assertion. An excerpt the host cannot verify stays in the report marked unresolved. Create the CHANGE_WALKTHROUGH report; it is required. Put the explanation only in the report and do not restate it in your reply. The report holds only the explanation of the changes; findings and recommended corrections or decisions stay in the reply. Prior Messages, Plan reports, and Implement reports are not prerequisites. This explanation does not permit source or other project artifact edits or change Service authority, canonical file membership, Review dispositions, or monitor routing."
 `;
 
 exports[`SubAgent — unified runtime contract > captures the complete registered commit child prompt 1`] = `
@@ -132,15 +128,11 @@ Return only a concise conventional-commit message for the session-owned changes 
 
 The user has sent the following message. Please respond to it directly:
 
-Inspect @[task:20000000-0000-4000-8000-000000000002|Fixed task].
-
-## Reminder — NO partial UUIDs, EVER (HARD STOP)
-
-You may NEVER write a shortened or partial entity id — not once, not in any form. A reference like \`427b18d2\` (a truncated UUID) is forbidden everywhere: bare, in backticks, in prose like "task 427b18d2", or as "427b18d2 (Title)". The only acceptable way to name an entity in user-visible text is a full, unescaped \`@[type:id|title]\` mention carrying the COMPLETE UUID and a real title — e.g. \`@[task:427b18d2-7f06-408b-aa74-4b9e209a2f2c|Title]\`. If you do not have the full id and title in front of you, look them up with \`get_context\` / \`unified_search\` BEFORE you write the reference. There is no situation, no exception, no "just this once" where a partial UUID is allowed."
+Inspect @[task:20000000-0000-4000-8000-000000000002|Fixed task]."
 `;
 
 exports[`SubAgent — unified runtime contract > captures the complete registered final_assessment child prompt 1`] = `
-"## Session-role guidance (implementation)
+"## Session-role guidance (review)
 
 ### Task
 Follow the reviewed requirements.
@@ -455,15 +447,11 @@ After making your tool calls, explain your thinking conversationally — what yo
 
 Rules:
 - taskAssessment.statusRecommendation must align to acceptanceCriteria-based completeness only.
-- The JSON block above must appear exactly once at the end of your response, after your conversational explanation.
-
-## Reminder — NO partial UUIDs, EVER (HARD STOP)
-
-You may NEVER write a shortened or partial entity id — not once, not in any form. A reference like \`427b18d2\` (a truncated UUID) is forbidden everywhere: bare, in backticks, in prose like "task 427b18d2", or as "427b18d2 (Title)". The only acceptable way to name an entity in user-visible text is a full, unescaped \`@[type:id|title]\` mention carrying the COMPLETE UUID and a real title — e.g. \`@[task:427b18d2-7f06-408b-aa74-4b9e209a2f2c|Title]\`. If you do not have the full id and title in front of you, look them up with \`get_context\` / \`unified_search\` BEFORE you write the reference. There is no situation, no exception, no "just this once" where a partial UUID is allowed."
+- The JSON block above must appear exactly once at the end of your response, after your conversational explanation."
 `;
 
 exports[`SubAgent — unified runtime contract > captures the complete registered research child prompt 1`] = `
-"## Session-role guidance (implementation)
+"## Session-role guidance (research)
 
 ### Task
 Follow the reviewed requirements.
@@ -503,6 +491,8 @@ After each set of reads, assess what new, relevant evidence it added and which m
 
 ## Slice handoff
 
+Report evidence that may indicate uncertainty in your slice handoff, with the relevant entity references and sources. Do not author a user-visible uncertainty section or decide which uncertainties the final report includes; the Project Assistant parent selects and writes those.
+
 Return a short handoff for your slice that the parent can merge directly: the entities in the slice that bear on the user's ask, with the content that constrains the work rather than only their titles, any recorded resolutions, the links and Contracts that bear on the focal ask, and any open questions or conflicting evidence. Distinguish observed evidence from inference. Cite supporting entities inline as \`@[type:full-uuid|title]\` mentions, with a complete ID and the actual title; never use bare IDs or escape the brackets. Ignore archived entities. Cite code evidence with repository-relative file paths and relevant symbols. Keep the report to a few concise bullets or paragraphs, not a transcript or raw evidence dump. If the budget or an access failure leaves the objective incomplete, say precisely what remains unverified.
 
 ## Services in scope
@@ -511,23 +501,19 @@ Return a short handoff for your slice that the parent can merge directly: the en
 
 ## Repository edit authority
 
-Mentions of a Service or repository in a task description, plan, design document, report, message, or retrieved context provide context only. They do not authorize inspection, edits, commits, or mutating commands in that repository. Work only in the current repository and in Services explicitly listed in the active session scope.
+You may inspect code in any project Service during planning or investigation, including Services outside the active session scope. Read-only inspection does not add a Service to the Run's writable roots. A Service mention or repository path provides context only; it does not authorize edits, commits, or mutating commands. Make repository changes only in the current repository or Services explicitly listed in the active session scope.
 
-When the current repository is a linked worktree, authorized work in every other repository requires that repository's explicit corresponding worktree path in the active session scope. Never use, inspect, or edit its host or main checkout as a fallback, and never infer a worktree path. If the required Service or its corresponding worktree is not listed, stop and request expanded Service scope before touching it.
+When the current repository is a linked worktree, changes to another selected Service require that Service's explicit corresponding worktree path in the active session scope. Never use its host or main checkout as a fallback location for edits or other mutations, and never infer a worktree path. If the required Service or its corresponding worktree is not listed, request expanded Service scope before changing it.
 
 Only one service is in scope here, but real projects contain others. Treat any change to a public API, schema, or shared contract as potentially crossing a service boundary — search consumers before assuming the change is internal.
 
 ## Focal context orientation
 
-The canonical focal entity projection supplied at provider startup is your initial orientation. Do not reload that same focal entity by default. Read additional context only when the user requests fresh state, you need to follow a different referenced entity, or the supplied neighborhood is insufficient for the current work. In those cases, use \`get_context\` for a known entity and \`unified_search\` for discovery.
+The canonical focal entity projection supplied at provider startup is your initial orientation. Do not reload that same focal entity by default. Read additional context only when the user requests fresh state, you need to follow a different referenced entity, or the supplied neighborhood is insufficient for the current work. In those cases, pick the smallest read for the question, as described in Choosing the Smallest Read.
 
 ---
 
 The user has sent the following message. Please respond to it directly:
 
-Inspect @[task:20000000-0000-4000-8000-000000000002|Fixed task].
-
-## Reminder — NO partial UUIDs, EVER (HARD STOP)
-
-You may NEVER write a shortened or partial entity id — not once, not in any form. A reference like \`427b18d2\` (a truncated UUID) is forbidden everywhere: bare, in backticks, in prose like "task 427b18d2", or as "427b18d2 (Title)". The only acceptable way to name an entity in user-visible text is a full, unescaped \`@[type:id|title]\` mention carrying the COMPLETE UUID and a real title — e.g. \`@[task:427b18d2-7f06-408b-aa74-4b9e209a2f2c|Title]\`. If you do not have the full id and title in front of you, look them up with \`get_context\` / \`unified_search\` BEFORE you write the reference. There is no situation, no exception, no "just this once" where a partial UUID is allowed."
+Inspect @[task:20000000-0000-4000-8000-000000000002|Fixed task]."
 `;

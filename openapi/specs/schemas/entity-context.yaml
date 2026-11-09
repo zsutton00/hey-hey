@@ -254,6 +254,28 @@ EntityContextDto:
         entity being viewed (e.g., create_task targets TASK but
         appears when viewing an INITIATIVE).
 
+RelatedEntitySelectionDto:
+  type: object
+  description: >
+    Boundary of the `relatedEntities` list for this seed. Counts cover
+    distinct entities reached within the requested traversal depth that the
+    caller may traverse; they do not claim global project completeness.
+  required:
+    - candidateEntityCount
+    - omittedEntityCount
+  additionalProperties: false
+  properties:
+    candidateEntityCount:
+      type: integer
+      minimum: 0
+      description: Distinct related-entity candidates within the traversal.
+    omittedEntityCount:
+      type: integer
+      minimum: 0
+      description: >
+        Candidates not present in `relatedEntities` because the consumer's
+        selection limit or the graph read limit left them out.
+
 FullEntityContextDto:
   allOf:
     - $ref: "#/EntityContextDto"
@@ -270,6 +292,16 @@ FullEntityContextDto:
             never a free-floating endpoint. Features are excluded
             (they live in featureHierarchy) and agent sessions are
             excluded (they live in agentSessions).
+        groupedRelatedEntities:
+          type: array
+          items:
+            $ref: "#/ContextGroupedRelatedEntityDto"
+          description: >
+            Agent view of relatedEntities, present only when the request sets
+            groupRelationships. The same selected entities in the same order,
+            one entry per entity with every relationship it has to the seed.
+        relatedEntitySelection:
+          $ref: "#/RelatedEntitySelectionDto"
         agentSessions:
           type: array
           items:
@@ -854,6 +886,67 @@ ContextRelatedEntityDto:
         Work-item type key for TASK entries (STANDARD, BUG, FEATURE, GOAL,
         or a project-registered custom key). Present only when entityType
         is TASK; absent for all other entity types.
+
+ContextEntityRelationshipDto:
+  type: object
+  description: >
+    One relationship between the seed and a grouped related entity.
+  required:
+    - relationship
+  additionalProperties: false
+  properties:
+    relationship:
+      $ref: "#/RelationshipValue"
+    via:
+      type: array
+      items:
+        $ref: "#/RelatedEntityViaDto"
+      description: >
+        Ordered path from the seed when reached through an excluded pivot.
+    source:
+      $ref: "./agent-edges.yaml#/EdgeSource"
+      description: >
+        Origin of the connection. Omitted when every relationship in the
+        response has the same origin.
+    reasoning:
+      type: string
+      description: >
+        Written rationale for this relationship. Omitted when it is only the
+        stock requirement-citation reason.
+
+ContextGroupedRelatedEntityDto:
+  type: object
+  description: >
+    A related entity listed once with all of its relationships to the seed.
+    Same entities and order as relatedEntities.
+  required:
+    - entityId
+    - entityType
+    - displayName
+    - relationships
+  additionalProperties: false
+  properties:
+    entityId:
+      type: string
+      description: Application entity ID.
+    entityType:
+      type: string
+      description: Entity type (e.g. TASK, PLAN, DESIGN_DOC).
+    displayName:
+      type: string
+      description: Human-readable name or title of the entity.
+    status:
+      type: string
+      description: Current status of the entity, if available.
+    taskType:
+      type: string
+      description: Work-item type key for TASK entries.
+    relationships:
+      type: array
+      minItems: 1
+      items:
+        $ref: "#/ContextEntityRelationshipDto"
+      description: Every relationship, ordered by label then origin.
 
 AgentSessionEntryDto:
   type: object

@@ -17,13 +17,29 @@ describe('PlanHierarchyRollupService', () => {
       ).toBe(WorkStatus.REFINING);
     });
 
-    it('treats completed and cancelled children as terminal', () => {
+    it('treats completed, cancelled and superseded children as terminal', () => {
       expect(
         service.computeStageStatus(WorkStatus.ACTIVE, [
           WorkStatus.COMPLETED,
           WorkStatus.CANCELLED,
+          WorkStatus.SUPERSEDED,
         ]),
       ).toBe(WorkStatus.COMPLETED);
+      expect(
+        service.computeStageStatus(WorkStatus.ACTIVE, [
+          WorkStatus.CANCELLED,
+          WorkStatus.SUPERSEDED,
+        ]),
+      ).toBe(WorkStatus.COMPLETED);
+    });
+
+    it('keeps a stage open while a non-terminal child remains beside superseded work', () => {
+      expect(
+        service.computeStageStatus(WorkStatus.ACTIVE, [
+          WorkStatus.SUPERSEDED,
+          WorkStatus.ACTIVE,
+        ]),
+      ).toBe(WorkStatus.ACTIVE);
     });
 
     it('projects explicit blocking before ordinary active work', () => {

@@ -1,0 +1,54 @@
+# Runs the combined graph and search service on PostgreSQL instead of Neo4j and Vespa.
+# Use it together with docker-compose.yml, which supplies the application's own PostgreSQL and Redis:
+#   docker compose -f docker-compose.yml -f docker-compose.graph-search.yml up -d
+# Setup guide: docs/local-graph-search.md
+services:
+  graph-search-postgres:
+    # Pinned to the PostgreSQL 17 + pgvector 0.8.7 image the service is built and tested against.
+    image: pgvector/pgvector:0.8.7-pg17-trixie
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${GRAPH_SEARCH_POSTGRES_ADMIN_PASSWORD:?Set a password for the graph/search PostgreSQL administrator}
+      GRAPH_SEARCH_DB_PASSWORD: ${GRAPH_SEARCH_DB_PASSWORD:?Set a password for the graph_search database role (letters and digits only)}
+    volumes:
+      - graph-search-postgres-data:/var/lib/postgresql/data
+      - ./docker/graph-search/init-graph-search-db.sh:/docker-entrypoint-initdb.d/10-graph-search.sh:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d heyhey_graph_search']
+      interval: 3s
+      timeout: 5s
+      retries: 30
+
+  graph-search:
+    image: ${GRAPH_SEARCH_IMAGE:-heyhey-graph-search:local}
+    build:
+      context: ../..
+      dockerfile: apps/graph-search/Dockerfile
+    depends_on:
+      graph-search-postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      GRAPH_SEARCH_DATABASE_URL: postgres://graph_search:${GRAPH_SEARCH_DB_PASSWORD:?Set the graph_search database role password}@graph-search-postgres:5432/heyhey_graph_search
+      GRAPH_SEARCH_BIND: 0.0.0.0:8090
+      # Where the running API publishes its signing keys, as seen from inside the container.
+      GRAPH_SEARCH_JWKS_URL: ${GRAPH_SEARCH_JWKS_URL:-http://host.docker.internal:3000/api/v1/auth/jwks}
+      GRAPH_SEARCH_GRAPH_AUDIENCE: graph-service
+      GRAPH_SEARCH_SEARCH_AUDIENCE: embeddings-service
+      REDIS_URL: redis://redis:6379
+      EVENTS_CHANNEL_PREFIX: ${EVENTS_CHANNEL_PREFIX:-hey-hey:bus:}
+      GRAPH_ENABLED: 'true'
+      SEARCH_ENABLED: 'true'
+    volumes:
+      # Installed with ../graph-search/scripts/fetch-model.sh; the image does not contain the model.
+      - ${GRAPH_SEARCH_MODEL_DIR:-../graph-search/models/snowflake-arctic-embed-s}:/models/snowflake-arctic-embed-s:ro
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    ports:
+      - '127.0.0.1:${GRAPH_SEARCH_PORT:-8090}:8090'
+    mem_limit: 512m
+    cpus: 1.0
+
+volumes:
+  graph-search-postgres-data:

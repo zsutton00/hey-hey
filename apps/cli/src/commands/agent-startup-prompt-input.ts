@@ -1,7 +1,7 @@
-import type { ReadRestriction } from '../shared/api/generated/api';
+import type { ReadRestriction, ReportDto } from '@hey-hey/contracts/api/models';
 import { z } from 'zod';
+import { EntityPromptTemplatesApiFactory } from '@hey-hey/contracts/api';
 import {
-  EntityPromptTemplatesApiFactory,
   EntityPromptTemplateFixedEntitySelectorDtoEntityTypeEnum,
   EntityPromptTemplateSelectorEntityType,
   EntityPromptTemplateSyntaxVersion,
@@ -12,25 +12,36 @@ import {
   EntityPromptTemplateProjectOwnershipScopeDtoScopeEnum,
   type EntityPromptTemplateEffectiveDtoOwnershipSource,
   type EntityPromptTemplateSelectorDto,
-} from '../shared/api/generated/api';
-import { Configuration } from '../shared/api/generated/configuration';
-import type {
-  LocalPromptStartupInput,
-  LocalPromptTaskType,
-} from '../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/api/models';
+import { Configuration } from '@hey-hey/contracts/api/configuration';
+import type { LocalPromptStartupInput, LocalPromptTaskType } from '@hey-hey/contracts/agent-bridge';
 import {
   LocalPromptTaskType as PromptTaskType,
   RunEntityReferenceEntityTypeEnum as RunEntityType,
   type RunEntityReference,
-} from '../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type { ServerLogger } from '../server/logger';
 import type { SubmissionToolAuth } from '../agents/submission-tools/submission-tool-auth';
 import { EntityContextLoader } from '../agents/entity-context/entity-context-loader';
 import type { LoadedEntityPromptContext } from '../agents/entity-context/types';
 import {
+  entityPromptTemplateLanguageFor,
   renderEntityPromptTemplate,
   type EntityPromptTemplateRenderInput,
 } from './entity-prompt-template-renderer';
+import {
+  buildReportValue,
+  collectReferencedReportTypes,
+  selectNewestReport,
+  TEMPLATE_EXCLUDED_REPORT_TYPES,
+  type EntityPromptTemplateReports,
+  type EntityPromptTemplateReportValue,
+  type SelectableReport,
+} from './entity-prompt-template-reports';
+import { EntityReportReader, type EntityReportReadScope } from './entity-report-reader';
+import { parseEntityPromptTemplate } from '../shared/api/generated/entity-prompt-template-language';
+import type { ReportChainEntry } from '../run/types';
+import { toOpenApiProjectId } from '../shared/api/identifierAdapters';
 
 export type EntityPromptTemplatesApiClient = Pick<
   ReturnType<typeof EntityPromptTemplatesApiFactory>,
@@ -43,6 +54,7 @@ export interface AgentStartupPromptInputOptions {
   logger: ServerLogger;
   entityContextLoader: EntityContextLoader;
   createClient?: (accessToken: string) => EntityPromptTemplatesApiClient;
+  reportReader?: EntityReportReader;
 }
 
 export interface AgentStartupPromptInputRequest {
@@ -51,6 +63,11 @@ export interface AgentStartupPromptInputRequest {
   projectId: string;
   /** The Run's read restriction, carried into the startup context's platform reads. */
   readRestriction?: ReadRestriction | undefined;
+  /**
+   * The Run's report chain at this moment. Reports saved on the focal task by
+   * earlier Runs and reports added in this Run both reach templates through it.
+   */
+  reportChain?: ReadonlyArray<Readonly<ReportChainEntry>>;
 }
 
 export interface AgentStartupPromptTemplateProvenance {
@@ -92,7 +109,8 @@ export type AgentStartupPromptInputFailureBoundary =
   | 'effective_template_auth'
   | 'effective_template_read'
   | 'effective_template_response'
-  | 'effective_template_render';
+  | 'effective_template_render'
+  | 'report_read';
 
 export class AgentStartupPromptInputError extends Error {
   public constructor(
@@ -288,11 +306,13 @@ const buildStartupInput = (
 export const renderStartupPromptTemplate = (
   template: AgentStartupPromptTemplate,
   loadedContext: Pick<LoadedEntityPromptContext, 'entity' | 'context'>,
+  reports: EntityPromptTemplateReports,
   logger: ServerLogger,
 ): string => {
   const renderInput: EntityPromptTemplateRenderInput = {
     entity: loadedContext.entity,
     context: loadedContext.context,
+    reports,
   };
   const fields = {
     templateKey: template.templateKey,
@@ -332,12 +352,16 @@ export class AgentStartupPromptInput {
   private readonly logger: ServerLogger;
   private readonly entityContextLoader: EntityContextLoader;
   private readonly createClient: (accessToken: string) => EntityPromptTemplatesApiClient;
+  private readonly reportReader: EntityReportReader;
 
   public constructor(options: AgentStartupPromptInputOptions) {
     this.auth = options.auth;
     this.apiBaseUrl = options.apiBaseUrl;
     this.logger = options.logger;
     this.entityContextLoader = options.entityContextLoader;
+    this.reportReader =
+      options.reportReader ??
+      new EntityReportReader({ apiBaseUrl: options.apiBaseUrl, logger: options.logger });
     this.createClient =
       options.createClient ??
       ((accessToken: string): EntityPromptTemplatesApiClient =>
@@ -626,7 +650,14 @@ export class AgentStartupPromptInput {
 
       const provenance: AgentStartupPromptTemplateProvenance = {
         templateKey,
-        ownershipSource: effectiveTemplate.ownershipSource,
+        ownershipSource:
+          effectiveTemplate.ownershipSource.scope ===
+          EntityPromptTemplateProjectOwnershipScopeDtoScopeEnum.Project
+            ? {
+                ...effectiveTemplate.ownershipSource,
+                projectId: toOpenApiProjectId(effectiveTemplate.ownershipSource.projectId),
+              }
+            : effectiveTemplate.ownershipSource,
         revisionId: effectiveTemplate.revisionId,
         revisionNumber: effectiveTemplate.revisionNumber,
       };
@@ -639,7 +670,13 @@ export class AgentStartupPromptInput {
       };
     }
 
-    const renderedInput = renderStartupPromptTemplate(template, loadedContext, this.logger);
+    const reports = await this.loadReports(request, template);
+    const renderedInput = renderStartupPromptTemplate(
+      template,
+      loadedContext,
+      reports,
+      this.logger,
+    );
     this.logger.info('agent_startup_prompt_input.resolved', {
       templateKey: template.templateKey,
       ownershipSource: template.provenance.ownershipSource.scope,
@@ -654,5 +691,108 @@ export class AgentStartupPromptInput {
       template,
       provenance: template.provenance,
     };
+  }
+
+  /**
+   * Read the newest saved report of each type the template references, and no
+   * others. A template without report references performs no report reads. A
+   * failed read stops startup; it is never mistaken for an absent report.
+   */
+  private async loadReports(
+    request: AgentStartupPromptInputRequest,
+    template: AgentStartupPromptTemplate,
+  ): Promise<EntityPromptTemplateReports> {
+    const language = entityPromptTemplateLanguageFor(template.syntaxVersion);
+    const referencedTypes = collectReferencedReportTypes(
+      parseEntityPromptTemplate(template.content, language).nodes,
+    );
+    if (referencedTypes.size === 0) {
+      return {};
+    }
+
+    const fields = { templateKey: template.templateKey, boundary: 'report_read' };
+    try {
+      const accessToken = await this.auth.getAccessToken();
+      const scope = {
+        organizationId: request.organizationId,
+        projectId: request.projectId,
+        accessToken,
+        readRestriction: request.readRestriction,
+      };
+      const reports: Record<string, EntityPromptTemplateReportValue> = {};
+      for (const reportType of referencedTypes) {
+        if (TEMPLATE_EXCLUDED_REPORT_TYPES.has(reportType)) {
+          continue;
+        }
+
+        const newest = await this.newestEligibleReport(scope, request, reportType);
+        if (newest !== null) {
+          reports[reportType] = buildReportValue(newest.report, newest.body.payload);
+        }
+      }
+
+      this.logger.debug('agent_startup_prompt_input.reports_loaded', {
+        ...fields,
+        reportTypes: Object.keys(reports),
+      });
+      return reports;
+    } catch {
+      this.logger.error('agent_startup_prompt_input.reports_failed', fields);
+      throw new AgentStartupPromptInputError(
+        'Agent startup prompt input could not read saved reports referenced by its template.',
+        'report_read',
+      );
+    }
+  }
+
+  /**
+   * The platform list only returns reports eligible as project knowledge. A
+   * report known solely from the Run's chain is checked against its stored
+   * eligibility before it can win, so an excluded newer report never displaces
+   * an eligible older one.
+   */
+  private async newestEligibleReport(
+    scope: EntityReportReadScope,
+    request: AgentStartupPromptInputRequest,
+    reportType: string,
+  ): Promise<{ report: SelectableReport; body: ReportDto } | null> {
+    const stored = await this.reportReader.listNewest(scope, request.runEntity, reportType);
+    const verifiedIds = new Set(stored.map((report) => report.reportId));
+    let remaining = [...stored, ...this.chainCandidates(request, reportType)];
+
+    for (;;) {
+      const newest = selectNewestReport(remaining);
+      if (newest === null) {
+        return null;
+      }
+
+      const body = await this.reportReader.readBody(scope, newest.reportId);
+      if (verifiedIds.has(newest.reportId) || body.ragEnabled !== false) {
+        return { report: newest, body };
+      }
+
+      remaining = remaining.filter((candidate) => candidate.reportId !== newest.reportId);
+    }
+  }
+
+  /**
+   * The Run's chain belongs to its task, so it only speaks for a task focal
+   * entity; any other focal entity reads its own reports from the platform.
+   */
+  private chainCandidates(
+    request: AgentStartupPromptInputRequest,
+    reportType: string,
+  ): SelectableReport[] {
+    if (request.runEntity.entityType !== RunEntityType.Task) {
+      return [];
+    }
+
+    return (request.reportChain ?? [])
+      .filter((entry) => entry.reportType === reportType)
+      .map((entry) => ({
+        reportId: entry.reportId,
+        reportType: entry.reportType,
+        createdAt: entry.createdAt,
+      }));
   }
 }

@@ -2,6 +2,7 @@ import { findLaunchCheckoutConflict } from '../repo/launch-checkout';
 import crypto from 'node:crypto';
 import { toServiceId, type RepoMappingStore } from '../repo/index';
 import type { RunStore } from '../run-store';
+import type { EvalSearchScope } from '../shared/agent-bridge-contract/runtime-types';
 import { SessionValidationError } from '../session/errors';
 import type {
   AgenticSession,
@@ -12,6 +13,7 @@ import type {
   LocalPendingRunContext,
   LocalReasoningEffort,
   LocalRunScope,
+  LocalRunWorkspaceBinding,
   LocalWorktreeConfig,
   AgentSessionConfig,
   RunEntityReference,
@@ -20,13 +22,13 @@ import type {
 import {
   LocalPromptTaskType,
   LocalPromptType,
-  RunCreatePayloadFreeFormPromptTypeEnum,
-  RunCreatePayloadQuickPromptTypeEnum,
+  RunCreatePayloadFreeFormAllOfPromptTypeEnum,
+  RunCreatePayloadQuickAllOfPromptTypeEnum,
   RunCreatePayloadWorkflowKickoffPromptTypeEnum,
   RunEntityReferenceEntityTypeEnum,
   type TaskMonitorPlanGuidance,
   type TaskMonitorLaunchConfig,
-} from '../shared/agent-bridge-contract/generated';
+} from '@hey-hey/contracts/agent-bridge';
 import {
   AgentSessionConfigV2TypeEnum,
   AgentSessionConfigV2VersionEnum,
@@ -37,7 +39,7 @@ import {
   type AgentSessionConfigV2,
   type ConversationStartRunRequestDto,
   type TaskMonitorRunEffectPayload,
-} from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import { canonicalizeJson } from '../server/trigger-verification/jcs';
 
 export type AgentSessionStartResult =
@@ -59,6 +61,9 @@ export interface StartAgenticSessionArgs {
   reasoningEffort?: LocalReasoningEffort;
   fastMode?: boolean;
   inert?: boolean;
+  searchScope?: EvalSearchScope;
+  /** Replaces the Run's Service set with this directory, which becomes its working directory and write root. */
+  workspaceBinding?: LocalRunWorkspaceBinding;
   createProviderSessionId?: () => string;
 }
 
@@ -95,6 +100,8 @@ export const startAgenticSession = async ({
   reasoningEffort,
   fastMode,
   inert,
+  searchScope,
+  workspaceBinding,
   createProviderSessionId = defaultCreateProviderSessionId,
 }: StartAgenticSessionArgs): Promise<AgentSessionStartResult> => {
   const agentSessionId = contextMetadata.agentSessionId?.trim();
@@ -104,11 +111,22 @@ export const startAgenticSession = async ({
     );
   }
 
-  const pendingServices = readPendingServices(context);
+  if (workspaceBinding && inert !== true) {
+    throw new SessionValidationError('Only an inert Run can be bound to a workspace directory.');
+  }
+
+  if (searchScope !== undefined && inert !== true) {
+    throw new SessionValidationError('Only an inert Run can carry a search scope.');
+  }
+
+  const pendingServices = workspaceBinding ? null : readPendingServices(context);
   const services: ResolvedServiceBinding[] = [];
   let launchServiceId: string | undefined;
 
-  if (pendingServices) {
+  if (workspaceBinding) {
+    services.push({ id: workspaceBinding.serviceId, path: workspaceBinding.directory });
+    launchServiceId = workspaceBinding.serviceId;
+  } else if (pendingServices) {
     for (const id of pendingServices.ids) {
       const binding = await repoStore.getBinding(toServiceId(id));
       if (!binding) {
@@ -132,6 +150,8 @@ export const startAgenticSession = async ({
 
   const sessionInput: CreateAgenticSessionInput = {
     ...(inert === undefined ? {} : { inert }),
+    ...(searchScope === undefined ? {} : { searchScope }),
+    ...(workspaceBinding ? { workspaceBound: true } : {}),
     agentic_session_id: agentSessionId,
     entity,
     services,
@@ -257,7 +277,7 @@ const resolveTaskMonitorMethodDispatch = (
         attachments: [],
         handlerPromptType: LocalPromptType.FreeForm,
         payload: {
-          promptType: RunCreatePayloadFreeFormPromptTypeEnum.FreeForm,
+          promptType: RunCreatePayloadFreeFormAllOfPromptTypeEnum.FreeForm,
           entity,
           userMessage,
         },
@@ -267,7 +287,7 @@ const resolveTaskMonitorMethodDispatch = (
         attachments: [],
         handlerPromptType: LocalPromptType.Quick,
         payload: {
-          promptType: RunCreatePayloadQuickPromptTypeEnum.Quick,
+          promptType: RunCreatePayloadQuickAllOfPromptTypeEnum.Quick,
           entity,
           userMessage,
         },

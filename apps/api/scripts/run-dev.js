@@ -136,11 +136,12 @@ async function main() {
   acquireLock();
   await runStep(['run', 'clean']);
   await runStep(['prisma', 'generate']);
+  const watchArgs = process.argv.includes('--no-watch') ? [] : ['--watch'];
   await runStep([
     'exec',
     'nest',
     'start',
-    '--watch',
+    ...watchArgs,
     '--exec',
     'node scripts/run-dev-entry.js',
   ]);

@@ -7,7 +7,7 @@ import {
   ProjectId,
   UserId,
 } from '../../../types';
-import { HostActionTargetKind } from '../../../generated';
+import { HostActionTargetKind } from '@hey-hey/contracts/api/models';
 import { ExternalAgentTriggerError } from '../../../types/flow-internal.types';
 import { TriggerEmitter } from '../trigger-emitter.service';
 

@@ -26,7 +26,7 @@ import type {
   SetOpenItemGoalFilterRequest,
   SetOpenItemGoalDisclosureRequest,
   UngroupOpenItemsRequest,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   comparePositionKeys,
   evenlySpacedPositionKeys,

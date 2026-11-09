@@ -11,6 +11,7 @@ import { useLocation } from "react-router-dom";
 import { AgentSessionType, EntityType } from "../../api";
 import { usePathService } from "../../contexts";
 import { useCreateAgentSession } from "../../data/hooks/useCreateAgentSession";
+import { toOpenApiProjectId } from "../../clients/contractIdentifierAdapters";
 import { useUserIdentity } from "../../hooks/useUserIdentity";
 import { EntityConversationChat } from "../AgentSession/EntityConversationChat";
 import { RuntimeModelSelector } from "../AgentSession/RuntimeModelSelector";
@@ -175,7 +176,7 @@ export const ScratchpadConversationPanel: React.FC<
       const session = await createSession({
         organizationId,
         agentSession: {
-          projectId,
+          projectId: toOpenApiProjectId(projectId),
           sessionDate: new Date().toISOString(),
           title: `Scratchpad: ${itemSummary}`.slice(0, 200),
           entityId: primaryItem.entityId,

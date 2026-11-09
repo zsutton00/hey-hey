@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { SystemMessageResponseType, UIElement } from '../../../generated';
+import {
+  SystemMessageResponseType,
+  UIElement,
+} from '@hey-hey/contracts/api/models';
 import { DesignDocService } from '../../../services/design-doc/design-doc.service';
 import { getCurrentSectionFromStatus } from '../../../types/design-doc.types';
 import {

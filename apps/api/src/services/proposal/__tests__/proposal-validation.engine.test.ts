@@ -16,7 +16,7 @@ import type {
   CreateProposalDto,
   CreateProposalRequestDto,
   Influence,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { WorkItemTypeRegistryService } from '../../tasks/work-item-type-registry.service';
 import { WorkItemParentageValidator } from '../../tasks/work-item-parentage-validator.service';
 import {
@@ -25,11 +25,11 @@ import {
   createWarmWorkItemTypeRegistryWithCustomTypes,
 } from '../../../../test/setup/work-item-type-registry.fixture';
 
-import type { WorkItemTypeDefinitionDto } from '../../../generated/model/workItemTypeDefinitionDto';
-import { EntityType } from '../../../generated/model/entityType';
-import { WorkItemTypeEffectiveSource } from '../../../generated/model/workItemTypeEffectiveSource';
-import type { TaskMonitorExecutionDefinition } from '../../../generated/model/taskMonitorExecutionDefinition';
-import { TaskMonitorReviewMode } from '../../../generated/model/taskMonitorReviewMode';
+import type { WorkItemTypeDefinitionDto } from '@hey-hey/contracts/api/models';
+import { EntityType } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeEffectiveSource } from '@hey-hey/contracts/api/models';
+import type { TaskMonitorExecutionDefinition } from '@hey-hey/contracts/api/models';
+import { TaskMonitorReviewMode } from '@hey-hey/contracts/api/models';
 import { WorkItemChangeSetProjectorService } from '../work-item-change-set-projector.service';
 import {
   snapshotEdgeTitles,

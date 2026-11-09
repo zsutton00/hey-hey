@@ -23,7 +23,7 @@ import { parseAsStringLiteral, useQueryState } from "nuqs";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
-import { type ServiceDto } from "@hey-hey/ui-common/api";
+import { type ServiceDto } from "@hey-hey/contracts/api";
 import { CreateServiceModal } from "../../components/CreateServiceModal";
 import { PageBreadcrumbs } from "../../components/Layout";
 import { usePreviewPresentation } from "../../contexts/PreviewPresentationContext";

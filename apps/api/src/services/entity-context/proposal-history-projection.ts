@@ -1,5 +1,5 @@
-import type { ContextProposalFieldChangeDto } from 'src/generated/model/contextProposalFieldChangeDto';
-import type { ContextProposalSummaryDto } from 'src/generated/model/contextProposalSummaryDto';
+import type { ContextProposalFieldChangeDto } from '@hey-hey/contracts/api/models';
+import type { ContextProposalSummaryDto } from '@hey-hey/contracts/api/models';
 import type { TypedProposalResponse } from 'src/services/proposal/proposal.types';
 
 type StablePathValue = {

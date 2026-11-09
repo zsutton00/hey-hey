@@ -5,7 +5,7 @@ import type {
   CliSettingsGenericError,
   CliSettingsResponseDto,
   UserSettingsDailySessionResourceV1,
-} from '../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { PlatformAuthContext } from './platform-auth-context';
 import {
   DailySessionSettingsRevisionConflictError,
@@ -16,6 +16,7 @@ import {
 import type { MonitorPipeline } from './monitors';
 import type { ServerLogger } from './logger';
 import type { TriggerVerificationRuntime } from './trigger-verification/trigger-verification-runtime';
+import { toOpenApiProjectId } from '../shared/api/identifierAdapters';
 
 /** Owns the verified, project-bound User Settings command lifecycle. */
 export class CliSettingsHandler {
@@ -118,7 +119,10 @@ export class CliSettingsHandler {
   private async replace(
     projectId: string,
     expectedPersistenceRevision: number,
-    value: Extract<CliSettingsEnvelopeBody, { operation: 'daily_session.settings.replace' }>['value'],
+    value: Extract<
+      CliSettingsEnvelopeBody,
+      { operation: 'daily_session.settings.replace' }
+    >['value'],
   ): Promise<DailySessionSettingsSnapshot> {
     const snapshot = await this.dependencies.settingsStore.replace(
       projectId,
@@ -161,7 +165,7 @@ export class CliSettingsHandler {
     return {
       settingsFamily: 'daily_session',
       schemaVersion: 1,
-      scope: { type: 'project', projectId },
+      scope: { type: 'project', projectId: toOpenApiProjectId(projectId) },
       persistenceRevision: snapshot.persistenceRevision,
       effectiveValueSource: snapshot.effectiveValueSource,
       value: {

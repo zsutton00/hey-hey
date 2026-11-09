@@ -3,7 +3,7 @@ import {
   LocalPromptType,
   type PlanShapingVisualPreviewEntry,
   type PlanShapingVisualPreviewPromptPayload,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import { VISUAL_PREVIEW_ALLOWED_TOOLS } from './visual-preview.handler';
 import { planShapingVisualPreviewHandler } from './visual-preview.handler';
 import { buildVisualPreviewPrompt } from './visual-preview.prompt';

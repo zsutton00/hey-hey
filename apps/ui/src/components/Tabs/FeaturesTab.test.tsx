@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { WorkItemTypeLifecycleStatus } from "@hey-hey/ui-common/api";
+import { WorkItemTypeLifecycleStatus } from "@hey-hey/contracts/api";
 import { useWorkItemTypeByKey, useWorkItems } from "@hey-hey/ui-common/data";
 import { FeaturesTab } from "./FeaturesTab";
 
@@ -64,14 +64,19 @@ describe("FeaturesTab", () => {
       },
       true,
     ],
-  ])("withholds creation when %s", (_reason, workItemTypeSummary, isFetched) => {
-    mockUseWorkItemTypeByKey.mockReturnValue({
-      workItemTypeSummary,
-      isFetched,
-    } as unknown as ReturnType<typeof useWorkItemTypeByKey>);
+  ])(
+    "withholds creation when %s",
+    (_reason, workItemTypeSummary, isFetched) => {
+      mockUseWorkItemTypeByKey.mockReturnValue({
+        workItemTypeSummary,
+        isFetched,
+      } as unknown as ReturnType<typeof useWorkItemTypeByKey>);
 
-    render(<FeaturesTab organizationId="org-1" projectId="project-1" />);
+      render(<FeaturesTab organizationId="org-1" projectId="project-1" />);
 
-    expect(screen.queryByTestId("create-feature-button")).not.toBeInTheDocument();
-  });
+      expect(
+        screen.queryByTestId("create-feature-button"),
+      ).not.toBeInTheDocument();
+    },
+  );
 });

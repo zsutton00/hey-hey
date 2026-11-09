@@ -2,8 +2,26 @@ import type {
   MessageResponseDto,
   SystemMessageData,
   UserMessageData,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { AgentSessionTranscriptEntry } from './types';
+
+const isAgentUncertaintyMessage = (
+  data: SystemMessageData,
+): data is SystemMessageData & {
+  type: 'AGENT_UNCERTAINTY';
+  severity: 'low' | 'medium' | 'high';
+  category: 'lack_of_evidence' | 'conflict' | 'ambiguity' | 'not_implemented' | 'question';
+  statement: string;
+} =>
+  data.type === 'AGENT_UNCERTAINTY' &&
+  (data.severity === 'low' || data.severity === 'medium' || data.severity === 'high') &&
+  (data.category === 'lack_of_evidence' ||
+    data.category === 'conflict' ||
+    data.category === 'ambiguity' ||
+    data.category === 'not_implemented' ||
+    data.category === 'question') &&
+  typeof data.statement === 'string' &&
+  data.statement.trim().length > 0;
 
 const compareCanonicalMessageOrder = (
   left: MessageResponseDto,
@@ -57,6 +75,20 @@ export function projectAgentSessionTranscript(
       continue;
     }
 
+    if (isAgentUncertaintyMessage(message.data)) {
+      turn += 1;
+      entries.push({
+        role: 'uncertainty',
+        turn,
+        uncertainty: {
+          severity: message.data.severity,
+          category: message.data.category,
+          statement: message.data.statement,
+        },
+      });
+      continue;
+    }
+
     const content = readAssistantMessageContent(message.data);
     if (content.length === 0) continue;
     entries.push({ role: 'assistant', turn: Math.max(turn, 1), content });
@@ -69,9 +101,11 @@ export function formatAgentSessionTranscript(
   entries: readonly AgentSessionTranscriptEntry[],
 ): string {
   return entries
-    .map(
-      (entry) =>
-        `### Turn ${entry.turn} — ${entry.role === 'user' ? 'User' : 'Assistant'}\n${entry.content}`,
-    )
+    .map((entry) => {
+      if (entry.role === 'uncertainty' && entry.uncertainty) {
+        return `### Turn ${entry.turn} — Agent uncertainty\n${JSON.stringify(entry.uncertainty)}`;
+      }
+      return `### Turn ${entry.turn} — ${entry.role === 'user' ? 'User' : 'Assistant'}\n${entry.content ?? ''}`;
+    })
     .join('\n\n');
 }

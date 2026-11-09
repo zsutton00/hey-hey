@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ProjectStatus } from "@hey-hey/ui-common/api";
+import { ProjectStatus } from "@hey-hey/contracts/api";
 import { AppEntityType, PageKind, getBreadcrumbs } from "./breadcrumbs";
 
 vi.mock("@hey-hey/ui-common/services", async () => {

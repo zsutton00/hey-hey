@@ -38,6 +38,7 @@ function setup() {
     addHintConnection: jest.fn(),
     getHint: jest.fn(),
     retireHint: jest.fn(),
+    updateHintText: jest.fn(),
     findHintsByConnectedItems: jest.fn(),
   };
   const resourceAccess = {
@@ -55,38 +56,6 @@ function setup() {
 }
 
 describe('HintService', () => {
-  it('lists the project without using connected-item queries', async () => {
-    const { service, graphsClient, resourceAccess } = setup();
-    const response = { hints: [makeHint('admin', [visibleTask])] };
-    graphsClient.listProjectHints.mockResolvedValue(response);
-    await expect(service.listProjectHints(requestor)).resolves.toEqual(
-      response,
-    );
-    expect(graphsClient.listProjectHints).toHaveBeenCalledWith(
-      requestor.organizationId,
-      requestor.projectId,
-      requestor.token,
-    );
-    expect(resourceAccess.assertResource).toHaveBeenCalledWith(
-      requestor.userId,
-      requestor.organizationId,
-      'project',
-      requestor.projectId,
-    );
-    expect(graphsClient.findHintsByConnectedItems).not.toHaveBeenCalled();
-  });
-
-  it('refuses the project listing before querying the graph when project access fails', async () => {
-    const { service, graphsClient, resourceAccess } = setup();
-    resourceAccess.assertResource.mockRejectedValueOnce(
-      new ForbiddenException('hidden project'),
-    );
-    await expect(service.listProjectHints(requestor)).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
-    expect(graphsClient.listProjectHints).not.toHaveBeenCalled();
-  });
-
   it('drops any hint connected to an item the caller cannot see', async () => {
     const { service, graphsClient } = setup();
     graphsClient.findHintsByConnectedItems.mockResolvedValue({
@@ -192,6 +161,35 @@ describe('HintService', () => {
       ForbiddenException,
     );
     expect(graphsClient.retireHint).not.toHaveBeenCalled();
+  });
+
+  it('corrects the text of a hint whose connected items are all visible', async () => {
+    const { service, graphsClient } = setup();
+    const hint = makeHint('h1', [visibleTask]);
+    graphsClient.getHint.mockResolvedValue(hint);
+    graphsClient.updateHintText.mockResolvedValue({ ...hint, text: 'fixed' });
+    const view = await service.updateHintText(requestor, 'h1', 'fixed');
+    expect(graphsClient.updateHintText).toHaveBeenCalledWith(
+      'org-1',
+      'project-1',
+      'h1',
+      'fixed',
+      'token',
+    );
+    expect(view.text).toBe('fixed');
+    expect(view.connections).toHaveLength(1);
+    expect(view.origin.entityId).toBe(sessionId);
+  });
+
+  it('refuses to correct a hint connected to an item the caller cannot see', async () => {
+    const { service, graphsClient } = setup();
+    graphsClient.getHint.mockResolvedValue(
+      makeHint('h1', [visibleTask, hiddenTask]),
+    );
+    await expect(
+      service.updateHintText(requestor, 'h1', 'fixed'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(graphsClient.updateHintText).not.toHaveBeenCalled();
   });
 
   it('lets graph errors surface', async () => {

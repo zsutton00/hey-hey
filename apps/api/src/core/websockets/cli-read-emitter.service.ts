@@ -24,7 +24,7 @@ import {
   WebSocketCliReadRequestEvent,
   HostActionTargetKind,
   HostAffectingActionType,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   AgentSessionId,
   MachineId,

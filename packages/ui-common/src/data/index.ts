@@ -53,7 +53,9 @@ export {
   filterEntityStars,
 } from "./collections/entityStars";
 export {
+  attemptRepeat,
   buildRunEvalStartPayload,
+  runRepeats,
   isEvalAttemptReport,
   isEvalHumanReviewReport,
   type EvalAttemptOutput,
@@ -64,6 +66,7 @@ export type {
   EvalHumanReviewReport,
   EvalRunReport,
 } from "./collections/evalRuns";
+export { evalRunName, generateEvalRunName } from "./collections/evalRunName";
 export * from "./collections/organizationsDirectory";
 export * from "./collections/adminOrganizationDetail";
 export * from "./collections/adminOrganizationMembers";
@@ -139,6 +142,7 @@ export {
   useRestoreWorkItemType,
   useWorkItemTypeCascadeImpact,
 } from "./hooks/useWorkItemTypeLifecycle";
+export { useWorkItemTypeCanonicalComparison } from "./hooks/useWorkItemTypeCanonicalComparison";
 
 // Export WebSocket debug utilities
 export { useWebSocketDebug, useWebSocketDebugger } from "./websockets/debug";
@@ -189,3 +193,4 @@ export type {
 } from "./triage/application";
 
 export { FutureOfferProvider } from "./futureOffers/FutureOfferProvider";
+export * from "./hooks/useProviderSessionTranscript";

@@ -17,9 +17,9 @@ import {
 } from './helpers/test-run-registry';
 import { loadAgentSessionRunnerConfig } from '../../agents/providers/session-runner-config';
 import { buildMcpServerConfig } from '../../agents/mcp-server-config';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
-import type { RunCreatePayloadRunEval } from '../../shared/agent-bridge-contract/generated/api';
-import type { AgentSessionConfig } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import type { RunCreatePayloadRunEval } from '@hey-hey/contracts/agent-bridge';
+import type { AgentSessionConfig } from '@hey-hey/contracts/agent-bridge';
 import type {
   AgenticSession,
   AgenticSessionContextMetadata,
@@ -899,7 +899,7 @@ describe('local-agent-service — createRun dispatches the handler first turn', 
       expect(result.status).toBe('started');
       expect(capturedCreateRunInputs).toHaveLength(1);
       // Run Eval is procedural: admitted, but it starts no provider session.
-    expect(runPromptMock).not.toHaveBeenCalled();
+      expect(runPromptMock).not.toHaveBeenCalled();
     },
   );
 

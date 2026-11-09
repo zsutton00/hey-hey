@@ -7,6 +7,7 @@ import {
   type ProjectRole,
 } from "../../api";
 import { unifiedApiClient } from "../../clients/serviceClients";
+import { toOpenApiProjectId } from "../../clients/contractIdentifierAdapters";
 import { useMutation } from "../core/useMutation";
 
 export interface InviteByEmailVariables {
@@ -18,7 +19,7 @@ export interface InviteByEmailVariables {
 
 export class DuplicateEmailError extends Error {
   constructor(
-    message = "User with that email already belongs to the organization"
+    message = "User with that email already belongs to the organization",
   ) {
     super(message);
     this.name = "DuplicateEmailError";
@@ -46,7 +47,7 @@ export function useInviteByEmail(options: UseInviteByEmailOptions = {}) {
         inviteToOrganizationDto: {
           email,
           role: OrganizationRole.Member,
-          projects: [{ projectId, role }],
+          projects: [{ projectId: toOpenApiProjectId(projectId), role }],
         },
       });
 

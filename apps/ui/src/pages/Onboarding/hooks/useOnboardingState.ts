@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import type { PillarsState, IntegrationsState } from "../types";
-import type { ConversationResponseDto, StepDto } from "@hey-hey/ui-common/api";
-import { ConversationStatus } from "@hey-hey/ui-common/api";
+import type { ConversationResponseDto, StepDto } from "@hey-hey/contracts/api";
+import { ConversationStatus } from "@hey-hey/contracts/api";
 
 export const useOnboardingState = (
   steps?: StepDto[],

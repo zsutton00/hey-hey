@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH RECURSIVE settings AS (SELECT $1::text AS org,$2::text AS project,$3::jsonb AS expansion),\nwalk AS (\n SELECT n.id,n.entity_type,0 AS depth,ARRAY[]::text[] AS edges,\n        jsonb_build_array(jsonb_build_object('entityId',n.id,'entityType',n.entity_type)) AS identities\n FROM settings s, jsonb_array_elements(s.expansion->'seeds') seed\n JOIN graph.node n ON n.id=seed->>'entityId' AND n.entity_type=seed->>'entityType'\n WHERE n.organization_id=s.org AND n.project_id=s.project AND n.project_scoped AND NOT n.deleted AND NOT n.stub AND n.properties->>'archivedAt' IS NULL AND COALESCE(n.properties->>'status','')<>'ARCHIVED'\n UNION ALL\n SELECT n.id,n.entity_type,w.depth+1,w.edges||e.id,\n        w.identities||jsonb_build_array(jsonb_build_object('entityId',n.id,'entityType',n.entity_type))\n FROM walk w CROSS JOIN settings s\n CROSS JOIN LATERAL (\n   SELECT * FROM graph.edge WHERE organization_id=s.org AND project_id=s.project AND source_id=w.id\n     AND s.expansion->'path'->w.depth->>'direction'='OUTGOING'\n   UNION ALL\n   SELECT * FROM graph.edge WHERE organization_id=s.org AND project_id=s.project AND target_id=w.id\n     AND s.expansion->'path'->w.depth->>'direction'='INCOMING'\n ) e\n JOIN graph.node n ON n.organization_id=s.org AND n.project_id=s.project\n   AND n.id=CASE WHEN s.expansion->'path'->w.depth->>'direction'='OUTGOING' THEN e.target_id ELSE e.source_id END\n WHERE w.depth<jsonb_array_length(s.expansion->'path') AND (w.depth=0 OR w.entity_type<>'USER')\n AND NOT e.id=ANY(w.edges) AND n.project_scoped AND NOT n.deleted AND NOT n.stub AND n.properties->>'archivedAt' IS NULL AND COALESCE(n.properties->>'status','')<>'ARCHIVED'\n AND e.relationship_type=s.expansion->'path'->w.depth->>'relationshipType'\n AND s.expansion->'path'->w.depth->'entityTypes' ? n.entity_type\n AND (COALESCE(s.expansion->'path'->w.depth->'workItemTypeKeys','[]')='[]'\n      OR n.entity_type='TASK' AND s.expansion->'path'->w.depth->'workItemTypeKeys' ? (n.properties->>'type'))\n), targets AS (\n SELECT id,entity_type,jsonb_agg(DISTINCT jsonb_build_object('identities',identities)) AS paths\n FROM walk w CROSS JOIN settings s\n WHERE w.depth=jsonb_array_length(s.expansion->'path')\n AND NOT (COALESCE((s.expansion->>'excludeRoot')::boolean,false) AND id=$4 AND entity_type=$5)\n GROUP BY id,entity_type ORDER BY entity_type,id LIMIT ($3::jsonb->>'limit')::int\n)\nSELECT jsonb_build_object('identity',jsonb_build_object('entityId',id,'entityType',entity_type),'paths',paths)::text AS \"data!\"\nFROM targets ORDER BY entity_type,id\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "data!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": ["Text", "Text", "Jsonb", "Text", "Text"]
+    },
+    "nullable": [null]
+  },
+  "hash": "9d398c591f47c2515022b64c50e1c0a2c78cb5bd284430f40f207cad4d9da480"
+}

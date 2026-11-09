@@ -1,4 +1,4 @@
-import { CurrentControllerMachineEligibilityState } from '../../../generated';
+import { CurrentControllerMachineEligibilityState } from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { MachineId, UserId } from '../../../types';
 import { CurrentControllerMachineEligibilityService } from '../current-controller-machine-eligibility.service';

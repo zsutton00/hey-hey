@@ -17,6 +17,9 @@ export interface CategoricalBarChartProps {
 }
 
 const CHART_HEIGHT = 168;
+// Bar labels render above their bars and are clipped to the plot area, so the
+// axis must extend past the tallest bar to leave room for its label.
+const LABEL_HEADROOM_RATIO = 1.2;
 
 const visuallyHidden = {
   border: 0,
@@ -36,6 +39,7 @@ export const CategoricalBarChart: React.FC<CategoricalBarChartProps> = ({
   onItemActivate,
 }) => {
   const theme = useTheme();
+  const tallestValue = Math.max(1, ...data.map(({ value }) => value));
   const metricColors = {
     Created: theme.palette.plan.main,
     Completed: theme.palette.success.main,
@@ -65,7 +69,14 @@ export const CategoricalBarChart: React.FC<CategoricalBarChartProps> = ({
             },
           },
         ]}
-        yAxis={[{ min: 0, tickMinStep: 1, width: 32 }]}
+        yAxis={[
+          {
+            min: 0,
+            max: Math.ceil(tallestValue * LABEL_HEADROOM_RATIO),
+            tickMinStep: 1,
+            width: 32,
+          },
+        ]}
         series={[
           {
             dataKey: "value",

@@ -1,3 +1,15 @@
+import { startRunRequestFromStored } from '../../input-admission/stored-trigger-contract';
+import {
+  asAgentSessionId,
+  asConversationId,
+  asMachineId,
+  asMessageId,
+  asOrganizationId,
+  asProjectId,
+  asServiceId,
+  asUserId,
+  asWorkflowId,
+} from '../../../test-utils/contract-ids';
 import {
   directActionHarness,
   directActionIds,
@@ -9,20 +21,16 @@ import path from 'node:path';
 import type { ApiRuntime } from '../../../shared/runtime/clients/shared';
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  toCreateRunRequest,
-  toRunPromptRequest,
-  TriggerFrameRouter,
-  type ConversationRunBinding,
-} from '../dispatch';
+import { toCreateRunRequest, TriggerFrameRouter, type ConversationRunBinding } from '../dispatch';
+import { toRunPromptRequestFromStoredEvent } from '../../../test-utils/stored-prompt-request';
 import type { LocalAgentService } from '../../local-agent-service';
 import { createTestLocalAgentService } from '../../local-agent-service.test-support';
 import type {
   AgentOperationDispatchAcknowledgement,
   MonitorCommandAcknowledgement,
   MonitorCommandBody1 as MonitorCommandBody,
-} from '../../../shared/agent-bridge-contract/generated/api';
-import { LocalPromptType } from '../../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { PermissionDecisionOwner, RunRegistry } from '../../../run/run-registry';
 import { createTestMessagePoster, createTestRunStore } from '../../../run/run.test-support';
 import type { KeyPairStore } from '../../../credentials';
@@ -132,7 +140,7 @@ const createTestRouter = (dependencies: TestRouterDependencies): TriggerFrameRou
     return {
       agentic_session_id: runId,
       contextMetadata: {
-        agentSessionId: runId,
+        agentSessionId: asAgentSessionId(runId),
         ...(dependencies.taskMonitorId ? { taskMonitorId: dependencies.taskMonitorId } : {}),
       },
     } as never;
@@ -166,14 +174,16 @@ const createTestRouter = (dependencies: TestRouterDependencies): TriggerFrameRou
       if (record.kind !== 'trigger_frame') continue;
       const { event, conversationId } = record.payload;
       if (event.promptType === 'start_run') {
-        await dependencies.createRun(toCreateRunRequest(event.payload, conversationId!));
+        await dependencies.createRun(
+          toCreateRunRequest(startRunRequestFromStored(event.payload), conversationId!),
+        );
       } else {
         await dependencies.sendMessage(
           record.runId,
-          toRunPromptRequest(event),
+          toRunPromptRequestFromStoredEvent(event),
           event.promptType === 'user_message'
             ? {
-                sourceUserMessageId: event.sourceUserMessageId,
+                sourceUserMessageId: asMessageId(event.sourceUserMessageId),
                 ...(event.admittedServiceScope
                   ? { admittedServiceScope: event.admittedServiceScope }
                   : {}),
@@ -370,13 +380,13 @@ const buildVerifiedConversation = (
   return {
     kind: 'trigger.conversation',
     frame: {
-      organizationId: 'org-1',
-      projectId: 'proj-1',
-      conversationId: 'c0000000-0000-4000-8000-000000000001',
+      organizationId: asOrganizationId('org-1'),
+      projectId: asProjectId('proj-1'),
+      conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
     },
     envelope: {
-      machineId: 'm-1',
-      userId: 'u-1',
+      machineId: asMachineId('m-1'),
+      userId: asUserId('u-1'),
       nonce,
       timestampMs: 0,
       signature: 'sig',
@@ -399,8 +409,8 @@ const buildVerifiedMonitorCommand = (
     commandId: '10000000-0000-4000-8000-000000000001',
     createdAt: '2026-07-19T00:00:00.000Z',
     expiresAt: '2026-07-19T00:15:00.000Z',
-    organizationId: '20000000-0000-4000-8000-000000000002',
-    projectId: '30000000-0000-4000-8000-000000000003',
+    organizationId: asOrganizationId('20000000-0000-4000-8000-000000000002'),
+    projectId: asProjectId('30000000-0000-4000-8000-000000000003'),
     target: {
       workItemType: 'TASK_MONITOR',
       workItemId: '40000000-0000-4000-8000-000000000004',
@@ -419,9 +429,9 @@ const buildVerifiedMonitorCommand = (
   return {
     kind: 'trigger.monitor_command',
     frame: {
-      organizationId: body.organizationId,
-      projectId: body.projectId,
-      userId: 'user-1',
+      organizationId: asOrganizationId(body.organizationId),
+      projectId: asProjectId(body.projectId),
+      userId: asUserId('user-1'),
     },
     envelope: {
       ...(authorization
@@ -430,8 +440,8 @@ const buildVerifiedMonitorCommand = (
             authorization,
           }
         : {}),
-      machineId: 'machine-1',
-      userId: 'user-1',
+      machineId: asMachineId('machine-1'),
+      userId: asUserId('user-1'),
       nonce: '50000000-0000-4000-8000-000000000005',
       timestampMs: 0,
       signature: 'sig',
@@ -477,24 +487,24 @@ const buildVerifier = (result: VerifyResult): TriggerVerifier => {
 const conversationFrameEvent: PlatformWebSocketEvent = {
   type: 'trigger.conversation',
   timestamp: '2026-01-01T00:00:00Z',
-  organizationId: 'org-1',
-  conversationId: 'c0000000-0000-4000-8000-000000000001',
+  organizationId: asOrganizationId('org-1'),
+  conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
   envelope: {},
 };
 
 const monitorCommandFrameEvent: PlatformWebSocketEvent = {
   type: 'trigger.monitor_command',
   timestamp: '2026-07-19T00:00:00.000Z',
-  organizationId: '20000000-0000-4000-8000-000000000002',
-  projectId: '30000000-0000-4000-8000-000000000003',
+  organizationId: asOrganizationId('20000000-0000-4000-8000-000000000002'),
+  projectId: asProjectId('30000000-0000-4000-8000-000000000003'),
   envelope: {},
 };
 
 const authorityReductionFrameEvent: PlatformWebSocketEvent = {
   type: 'trigger.authority_reduction',
   timestamp: '2026-07-19T00:00:00.000Z',
-  organizationId: '20000000-0000-4000-8000-000000000002',
-  userId: 'user-1',
+  organizationId: asOrganizationId('20000000-0000-4000-8000-000000000002'),
+  userId: asUserId('user-1'),
   envelope: {},
 };
 
@@ -503,7 +513,7 @@ const buildVerifiedControllerReduction = (): VerifiedTriggerFrame => {
     version: 2 as const,
     kind: 'controller_revocation_reduction' as const,
     action: 'CONTROLLER_REVOKE' as const,
-    machineId: '10000000-0000-4000-8000-000000000001',
+    machineId: asMachineId('10000000-0000-4000-8000-000000000001'),
     controllerCredentialId: 'controller-1',
     revokedAt: '2026-07-19T00:00:00.000Z',
     enrollmentState: 'CONTROLLER_ENROLLMENT_REQUIRED' as const,
@@ -512,13 +522,13 @@ const buildVerifiedControllerReduction = (): VerifiedTriggerFrame => {
   return {
     kind: 'trigger.authority_reduction',
     frame: {
-      organizationId: '20000000-0000-4000-8000-000000000002',
-      userId: 'user-1',
+      organizationId: asOrganizationId('20000000-0000-4000-8000-000000000002'),
+      userId: asUserId('user-1'),
     },
     envelope: {
       protocolVersion: 2,
-      machineId: body.machineId,
-      userId: 'user-1',
+      machineId: asMachineId(body.machineId),
+      userId: asUserId('user-1'),
       controllerCredentialId: body.controllerCredentialId,
       nonce: '30000000-0000-4000-8000-000000000003',
       timestampMs: 1_700_000_000_000,
@@ -657,7 +667,7 @@ describe('createTestRouter', () => {
       verifier,
       resolveConversationRun: () => ({
         runId: 'run-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       }),
       sendMessage: vi.fn().mockResolvedValue(undefined),
       createRun: vi.fn(),
@@ -743,11 +753,11 @@ describe('createTestRouter', () => {
         interventionId: '70000000-0000-4000-8000-000000000007',
         providerActionId: 'provider-action-1',
         runId: '80000000-0000-4000-8000-000000000008',
-        agentSessionId: '90000000-0000-4000-8000-000000000009',
+        agentSessionId: asAgentSessionId('90000000-0000-4000-8000-000000000009'),
         fingerprint: 'sha256:exact-action',
         resolution: 'APPROVE',
         human: {
-          userId: 'a0000000-0000-4000-8000-00000000000a',
+          userId: asUserId('a0000000-0000-4000-8000-00000000000a'),
           authenticatedAt: '2026-07-19T00:01:00.000Z',
         },
       },
@@ -851,7 +861,7 @@ describe('createTestRouter', () => {
     const sendMessage = vi.fn().mockResolvedValue(undefined);
     const binding: ConversationRunBinding = {
       runId: 'run-1',
-      conversationId: 'c0000000-0000-4000-8000-000000000001',
+      conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
     };
     const logger = noopLogger();
     const router = createTestRouter({
@@ -888,7 +898,7 @@ describe('createTestRouter', () => {
       verifier,
       resolveConversationRun: () => ({
         runId: 'run-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       }),
       sendMessage,
       createRun: vi.fn(),
@@ -978,7 +988,7 @@ describe('createTestRouter', () => {
       verifier,
       resolveConversationRun: () => ({
         runId: 'run-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       }),
       sendMessage,
       createRun: vi.fn(),
@@ -1001,13 +1011,13 @@ describe('createTestRouter', () => {
     const verified: VerifiedTriggerFrame = {
       kind: 'trigger.conversation',
       frame: {
-        organizationId: 'org-1',
-        projectId: 'proj-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        organizationId: asOrganizationId('org-1'),
+        projectId: asProjectId('proj-1'),
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       },
       envelope: {
-        machineId: 'm-1',
-        userId: 'u-1',
+        machineId: asMachineId('m-1'),
+        userId: asUserId('u-1'),
         nonce: 'n-user-msg',
         timestampMs: 0,
         signature: 'sig',
@@ -1016,7 +1026,7 @@ describe('createTestRouter', () => {
           operationId: 'd0000000-0000-4000-8000-000000000001',
           operationFingerprint: 'f'.repeat(64),
           triggerMessageId: 'trigger-msg-user',
-          sourceUserMessageId: 'src-user-msg',
+          sourceUserMessageId: asMessageId('src-user-msg'),
           admittedServiceScope: TEST_ADMITTED_SERVICE_SCOPE,
           payload: {
             handlerPromptType: 'coding_freeform',
@@ -1031,7 +1041,7 @@ describe('createTestRouter', () => {
         operationId: 'd0000000-0000-4000-8000-000000000001',
         operationFingerprint: 'f'.repeat(64),
         triggerMessageId: 'trigger-msg-user',
-        sourceUserMessageId: 'src-user-msg',
+        sourceUserMessageId: asMessageId('src-user-msg'),
         admittedServiceScope: TEST_ADMITTED_SERVICE_SCOPE,
         payload: {
           handlerPromptType: 'coding_freeform',
@@ -1045,7 +1055,7 @@ describe('createTestRouter', () => {
     const sendMessage = vi.fn().mockResolvedValue(undefined);
     const binding: ConversationRunBinding = {
       runId: 'run-1',
-      conversationId: 'c0000000-0000-4000-8000-000000000001',
+      conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
     };
     const logger = noopLogger();
     const router = createTestRouter({
@@ -1077,7 +1087,7 @@ describe('createTestRouter', () => {
     });
     expect(request).not.toHaveProperty('skillSelection.path');
     expect(options).toEqual({
-      sourceUserMessageId: 'src-user-msg',
+      sourceUserMessageId: asMessageId('src-user-msg'),
       admittedServiceScope: TEST_ADMITTED_SERVICE_SCOPE,
     });
     // User-reply follow-ups must not emit a triggerContext — doing so would
@@ -1094,13 +1104,13 @@ describe('createTestRouter', () => {
     const verified: VerifiedTriggerFrame = {
       kind: 'trigger.conversation',
       frame: {
-        organizationId: 'org-1',
-        projectId: 'proj-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        organizationId: asOrganizationId('org-1'),
+        projectId: asProjectId('proj-1'),
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       },
       envelope: {
-        machineId: 'm-1',
-        userId: 'u-1',
+        machineId: asMachineId('m-1'),
+        userId: asUserId('u-1'),
         nonce: 'n-user-msg-missing-source',
         timestampMs: 0,
         signature: 'sig',
@@ -1126,7 +1136,7 @@ describe('createTestRouter', () => {
       verifier: buildVerifier({ ok: true, verified }),
       resolveConversationRun: () => ({
         runId: 'run-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       }),
       sendMessage,
       createRun: vi.fn(),
@@ -1152,13 +1162,13 @@ describe('createTestRouter', () => {
     const verified: VerifiedTriggerFrame = {
       kind: 'trigger.conversation',
       frame: {
-        organizationId: 'org-1',
-        projectId: 'proj-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        organizationId: asOrganizationId('org-1'),
+        projectId: asProjectId('proj-1'),
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       },
       envelope: {
-        machineId: 'm-1',
-        userId: 'u-1',
+        machineId: asMachineId('m-1'),
+        userId: asUserId('u-1'),
         nonce: 'n-user-msg-legacy-scope',
         timestampMs: 0,
         signature: 'sig',
@@ -1167,7 +1177,7 @@ describe('createTestRouter', () => {
           operationId: 'd0000000-0000-4000-8000-000000000001',
           operationFingerprint: 'f'.repeat(64),
           triggerMessageId: 'trigger-msg-user-legacy-scope',
-          sourceUserMessageId: 'src-user-msg-legacy-scope',
+          sourceUserMessageId: asMessageId('src-user-msg-legacy-scope'),
           payload: { handlerPromptType: 'coding_freeform', userMessage: 'hi', attachments: [] },
         } as unknown as never,
       },
@@ -1176,7 +1186,7 @@ describe('createTestRouter', () => {
         operationId: 'd0000000-0000-4000-8000-000000000001',
         operationFingerprint: 'f'.repeat(64),
         triggerMessageId: 'trigger-msg-user-legacy-scope',
-        sourceUserMessageId: 'src-user-msg-legacy-scope',
+        sourceUserMessageId: asMessageId('src-user-msg-legacy-scope'),
         payload: { handlerPromptType: 'coding_freeform', userMessage: 'hi', attachments: [] },
       } as never,
     };
@@ -1186,7 +1196,7 @@ describe('createTestRouter', () => {
       verifier: buildVerifier({ ok: true, verified }),
       resolveConversationRun: () => ({
         runId: 'run-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       }),
       sendMessage,
       createRun: vi.fn(),
@@ -1200,7 +1210,7 @@ describe('createTestRouter', () => {
 
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(sendMessage.mock.calls[0]?.[2]).toEqual({
-      sourceUserMessageId: 'src-user-msg-legacy-scope',
+      sourceUserMessageId: asMessageId('src-user-msg-legacy-scope'),
     });
     expect(logger.infoCalls).toContainEqual([
       'input_admission.accepted',
@@ -1214,7 +1224,7 @@ describe('createTestRouter', () => {
       operationId: 'd0000000-0000-4000-8000-000000000001',
       operationFingerprint: 'f'.repeat(64),
       triggerMessageId: 'trigger-msg-agent-search',
-      sourceUserMessageId: 'src-agent-search',
+      sourceUserMessageId: asMessageId('src-agent-search'),
       admittedServiceScope: TEST_ADMITTED_SERVICE_SCOPE,
       payload: {
         handlerPromptType: 'agent_search',
@@ -1225,13 +1235,13 @@ describe('createTestRouter', () => {
     const verified: VerifiedTriggerFrame = {
       kind: 'trigger.conversation',
       frame: {
-        organizationId: 'org-1',
-        projectId: 'proj-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        organizationId: asOrganizationId('org-1'),
+        projectId: asProjectId('proj-1'),
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       },
       envelope: {
-        machineId: 'm-1',
-        userId: 'u-1',
+        machineId: asMachineId('m-1'),
+        userId: asUserId('u-1'),
         nonce: 'n-agent-search',
         timestampMs: 0,
         signature: 'sig',
@@ -1244,7 +1254,7 @@ describe('createTestRouter', () => {
       verifier: buildVerifier({ ok: true, verified }),
       resolveConversationRun: () => ({
         runId: 'run-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       }),
       sendMessage,
       createRun: vi.fn(),
@@ -1265,7 +1275,7 @@ describe('createTestRouter', () => {
         references: { resolved: [], unresolved: [] },
       },
       {
-        sourceUserMessageId: 'src-agent-search',
+        sourceUserMessageId: asMessageId('src-agent-search'),
         admittedServiceScope: TEST_ADMITTED_SERVICE_SCOPE,
       },
     );
@@ -1277,7 +1287,7 @@ describe('createTestRouter', () => {
       operationId: 'd0000000-0000-4000-8000-000000000001',
       operationFingerprint: 'f'.repeat(64),
       triggerMessageId: 'trigger-msg-feature-sync',
-      sourceUserMessageId: 'src-feature-sync',
+      sourceUserMessageId: asMessageId('src-feature-sync'),
       admittedServiceScope: TEST_ADMITTED_SERVICE_SCOPE,
       payload: {
         handlerPromptType: 'plan_shaping_feature_sync_iterate',
@@ -1297,13 +1307,13 @@ describe('createTestRouter', () => {
     const verified: VerifiedTriggerFrame = {
       kind: 'trigger.conversation',
       frame: {
-        organizationId: 'org-1',
-        projectId: 'proj-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        organizationId: asOrganizationId('org-1'),
+        projectId: asProjectId('proj-1'),
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       },
       envelope: {
-        machineId: 'm-1',
-        userId: 'u-1',
+        machineId: asMachineId('m-1'),
+        userId: asUserId('u-1'),
         nonce: 'n-feature-sync',
         timestampMs: 0,
         signature: 'sig',
@@ -1316,7 +1326,7 @@ describe('createTestRouter', () => {
       verifier: buildVerifier({ ok: true, verified }),
       resolveConversationRun: () => ({
         runId: 'run-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       }),
       sendMessage,
       createRun: vi.fn(),
@@ -1343,7 +1353,7 @@ describe('createTestRouter', () => {
         references: { resolved: [], unresolved: [] },
       },
       {
-        sourceUserMessageId: 'src-feature-sync',
+        sourceUserMessageId: asMessageId('src-feature-sync'),
         admittedServiceScope: TEST_ADMITTED_SERVICE_SCOPE,
       },
     );
@@ -1357,20 +1367,20 @@ describe('createTestRouter', () => {
       operationFingerprint,
       promptType: 'user_message',
       triggerMessageId: 'trigger-review',
-      sourceUserMessageId: 'source-review',
+      sourceUserMessageId: asMessageId('source-review'),
       admittedServiceScope: TEST_ADMITTED_SERVICE_SCOPE,
       payload: { handlerPromptType: 'code_review', userMessage: '', attachments: [] },
     };
     const verified: VerifiedTriggerFrame = {
       kind: 'trigger.conversation',
       frame: {
-        organizationId: 'org-1',
-        projectId: 'proj-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        organizationId: asOrganizationId('org-1'),
+        projectId: asProjectId('proj-1'),
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       },
       envelope: {
-        machineId: 'm-1',
-        userId: 'u-1',
+        machineId: asMachineId('m-1'),
+        userId: asUserId('u-1'),
         nonce: 'n-review',
         timestampMs: 0,
         signature: 'sig',
@@ -1383,7 +1393,7 @@ describe('createTestRouter', () => {
       verifier: buildVerifier({ ok: true, verified }),
       resolveConversationRun: () => ({
         runId: 'run-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       }),
       sendMessage,
       createRun: vi.fn(),
@@ -1406,7 +1416,7 @@ describe('createTestRouter', () => {
         references: { resolved: [], unresolved: [] },
       },
       {
-        sourceUserMessageId: 'source-review',
+        sourceUserMessageId: asMessageId('source-review'),
         admittedServiceScope: TEST_ADMITTED_SERVICE_SCOPE,
       },
     );
@@ -1441,20 +1451,20 @@ describe('createTestRouter', () => {
         operationFingerprint: '8'.repeat(64),
         promptType: 'user_message',
         triggerMessageId: 'trigger-runtime',
-        sourceUserMessageId: 'source-runtime',
+        sourceUserMessageId: asMessageId('source-runtime'),
         admittedServiceScope: TEST_ADMITTED_SERVICE_SCOPE,
         payload,
       };
       const verified: VerifiedTriggerFrame = {
         kind: 'trigger.conversation',
         frame: {
-          organizationId: 'org-1',
-          projectId: 'proj-1',
-          conversationId: 'c0000000-0000-4000-8000-000000000001',
+          organizationId: asOrganizationId('org-1'),
+          projectId: asProjectId('proj-1'),
+          conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
         },
         envelope: {
-          machineId: 'm-1',
-          userId: 'u-1',
+          machineId: asMachineId('m-1'),
+          userId: asUserId('u-1'),
           nonce: 'n-runtime',
           timestampMs: 0,
           signature: 'sig',
@@ -1468,7 +1478,7 @@ describe('createTestRouter', () => {
         verifier: buildVerifier({ ok: true, verified }),
         resolveConversationRun: () => ({
           runId: 'run-1',
-          conversationId: 'c0000000-0000-4000-8000-000000000001',
+          conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
         }),
         sendMessage,
         createRun: vi.fn(),
@@ -1551,7 +1561,7 @@ describe('createTestRouter', () => {
       operationId: 'd0000000-0000-4000-8000-000000000001',
       operationFingerprint: 'f'.repeat(64),
       triggerMessageId: 'trigger-task-monitor',
-      sourceUserMessageId: 'trigger-task-monitor',
+      sourceUserMessageId: asMessageId('trigger-task-monitor'),
       admittedServiceScope: TEST_ADMITTED_SERVICE_SCOPE,
       payload: {
         handlerPromptType: 'task_monitor',
@@ -1563,13 +1573,13 @@ describe('createTestRouter', () => {
     const verified: VerifiedTriggerFrame = {
       kind: 'trigger.conversation',
       frame: {
-        organizationId: 'org-1',
-        projectId: 'proj-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        organizationId: asOrganizationId('org-1'),
+        projectId: asProjectId('proj-1'),
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       },
       envelope: {
-        machineId: 'm-1',
-        userId: 'u-1',
+        machineId: asMachineId('m-1'),
+        userId: asUserId('u-1'),
         nonce: 'n-task-monitor',
         timestampMs: 0,
         signature: 'sig',
@@ -1588,7 +1598,7 @@ describe('createTestRouter', () => {
       verifier: buildVerifier({ ok: true, verified }),
       resolveConversationRun: () => ({
         runId: 'run-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       }),
       sendMessage,
       createRun: vi.fn(),
@@ -1596,11 +1606,11 @@ describe('createTestRouter', () => {
       compactRun: vi.fn().mockResolvedValue(undefined),
       submitPermissionDecision: noopSubmitPermissionDecision(),
       resolveTaskMonitorConversationBinding: vi.fn().mockResolvedValue({
-        organizationId: 'org-1',
-        projectId: 'proj-1',
+        organizationId: asOrganizationId('org-1'),
+        projectId: asProjectId('proj-1'),
       }),
       readUserMessage: vi.fn().mockResolvedValue({
-        messageId: 'trigger-task-monitor',
+        messageId: asMessageId('trigger-task-monitor'),
         content: 'What is the progress?',
       }),
       admitVerifiedTaskMonitorInput,
@@ -1615,8 +1625,8 @@ describe('createTestRouter', () => {
       expect.objectContaining({
         source: 'CONVERSATION_MESSAGE',
         taskMonitorId: taskMonitorPayload.monitorId,
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
-        messageId: 'trigger-task-monitor',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
+        messageId: asMessageId('trigger-task-monitor'),
       }),
     );
   });
@@ -1625,13 +1635,13 @@ describe('createTestRouter', () => {
     const verified: VerifiedTriggerFrame = {
       kind: 'trigger.conversation',
       frame: {
-        organizationId: 'org-1',
-        projectId: 'proj-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        organizationId: asOrganizationId('org-1'),
+        projectId: asProjectId('proj-1'),
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       },
       envelope: {
-        machineId: 'm-1',
-        userId: 'u-1',
+        machineId: asMachineId('m-1'),
+        userId: asUserId('u-1'),
         nonce: 'n-quick-user-msg',
         timestampMs: 0,
         signature: 'sig',
@@ -1640,7 +1650,7 @@ describe('createTestRouter', () => {
           operationId: 'd0000000-0000-4000-8000-000000000001',
           operationFingerprint: 'f'.repeat(64),
           triggerMessageId: 'trigger-msg-quick-user',
-          sourceUserMessageId: 'src-quick-user-msg',
+          sourceUserMessageId: asMessageId('src-quick-user-msg'),
           admittedServiceScope: TEST_ADMITTED_SERVICE_SCOPE,
           payload: { handlerPromptType: 'quick', userMessage: 'what changed?', attachments: [] },
         } as unknown as never,
@@ -1650,7 +1660,7 @@ describe('createTestRouter', () => {
         operationId: 'd0000000-0000-4000-8000-000000000001',
         operationFingerprint: 'f'.repeat(64),
         triggerMessageId: 'trigger-msg-quick-user',
-        sourceUserMessageId: 'src-quick-user-msg',
+        sourceUserMessageId: asMessageId('src-quick-user-msg'),
         admittedServiceScope: TEST_ADMITTED_SERVICE_SCOPE,
         payload: { handlerPromptType: 'quick', userMessage: 'what changed?', attachments: [] },
       } as never,
@@ -1659,7 +1669,7 @@ describe('createTestRouter', () => {
     const sendMessage = vi.fn().mockResolvedValue(undefined);
     const binding: ConversationRunBinding = {
       runId: 'run-1',
-      conversationId: 'c0000000-0000-4000-8000-000000000001',
+      conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
     };
     const router = createTestRouter({
       verifier,
@@ -1685,7 +1695,7 @@ describe('createTestRouter', () => {
     expect(request).not.toHaveProperty('prompt');
     expect(request['triggerContext']).toBeUndefined();
     expect(sendMessage.mock.calls[0]?.[2]).toEqual({
-      sourceUserMessageId: 'src-quick-user-msg',
+      sourceUserMessageId: asMessageId('src-quick-user-msg'),
       admittedServiceScope: TEST_ADMITTED_SERVICE_SCOPE,
     });
   });
@@ -1694,13 +1704,13 @@ describe('createTestRouter', () => {
     const verified: VerifiedTriggerFrame = {
       kind: 'trigger.conversation',
       frame: {
-        organizationId: 'org-1',
-        projectId: 'proj-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        organizationId: asOrganizationId('org-1'),
+        projectId: asProjectId('proj-1'),
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       },
       envelope: {
-        machineId: 'm-1',
-        userId: 'u-1',
+        machineId: asMachineId('m-1'),
+        userId: asUserId('u-1'),
         nonce: 'n-feature-tree',
         timestampMs: 0,
         signature: 'sig',
@@ -1722,7 +1732,7 @@ describe('createTestRouter', () => {
     const sendMessage = vi.fn().mockResolvedValue(undefined);
     const binding: ConversationRunBinding = {
       runId: 'run-1',
-      conversationId: 'c0000000-0000-4000-8000-000000000001',
+      conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
     };
     const logger = noopLogger();
     const router = createTestRouter({
@@ -1777,18 +1787,18 @@ describe('createTestRouter', () => {
       triggerMessageId: 'trigger-msg-enrichment',
       payload: {
         promptType: LocalPromptType.RepositoryFeatureEnrichment,
-        projectId: '11111111-1111-4111-8111-111111111111',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
-        workflowId: '33333333-3333-4333-8333-333333333333',
+        projectId: asProjectId('11111111-1111-4111-8111-111111111111'),
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
+        workflowId: asWorkflowId('33333333-3333-4333-8333-333333333333'),
         workflowNodeId: 'onboarding-repository-feature-enrichment',
-        serviceId: '44444444-4444-4444-8444-444444444444',
-        machineId: '55555555-5555-4555-8555-555555555555',
+        serviceId: asServiceId('44444444-4444-4444-8444-444444444444'),
+        machineId: asMachineId('55555555-5555-4555-8555-555555555555'),
         provider: 'codex',
         resolvedFrontierModel: 'gpt-6-astra',
         reasoningEffort: 'high',
         analysis: {
           outcome: 'success',
-          serviceId: '44444444-4444-4444-8444-444444444444',
+          serviceId: asServiceId('44444444-4444-4444-8444-444444444444'),
           provider: 'codex',
           resolvedFrontierModel: 'gpt-6-astra',
           narrative: 'Repository discovery.',
@@ -1802,13 +1812,13 @@ describe('createTestRouter', () => {
     const verified: VerifiedTriggerFrame = {
       kind: 'trigger.conversation',
       frame: {
-        organizationId: 'org-1',
-        projectId: 'proj-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        organizationId: asOrganizationId('org-1'),
+        projectId: asProjectId('proj-1'),
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       },
       envelope: {
-        machineId: 'm-1',
-        userId: 'u-1',
+        machineId: asMachineId('m-1'),
+        userId: asUserId('u-1'),
         nonce: 'n-enrichment',
         timestampMs: 0,
         signature: 'sig',
@@ -1822,7 +1832,7 @@ describe('createTestRouter', () => {
       verifier: buildVerifier({ ok: true, verified }),
       resolveConversationRun: () => ({
         runId: 'run-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       }),
       sendMessage,
       createRun: vi.fn(),
@@ -1862,7 +1872,7 @@ describe('createTestRouter', () => {
     const sendMessage = vi.fn().mockResolvedValue(undefined);
     const binding: ConversationRunBinding = {
       runId: 'run-1',
-      conversationId: 'c0000000-0000-4000-8000-000000000001',
+      conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
     };
     const router = createTestRouter({
       verifier,
@@ -1903,7 +1913,7 @@ describe('createTestRouter', () => {
     const sendMessage = vi.fn().mockResolvedValue(undefined);
     const binding: ConversationRunBinding = {
       runId: 'run-1',
-      conversationId: 'c0000000-0000-4000-8000-000000000001',
+      conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
     };
     const logger = noopLogger();
     const router = createTestRouter({
@@ -1941,7 +1951,7 @@ describe('createTestRouter', () => {
     const sendMessage = vi.fn().mockResolvedValue(undefined);
     const binding: ConversationRunBinding = {
       runId: 'run-1',
-      conversationId: 'c0000000-0000-4000-8000-000000000001',
+      conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
     };
     // First delivery: no run bound yet. Second: the run has bound.
     let runBound = false;
@@ -2078,7 +2088,7 @@ describe('createTestRouter', () => {
     router.handlePlatformEvent({
       type: 'conversation.updated',
       timestamp: '2026-01-01T00:00:00Z',
-      organizationId: 'org-1',
+      organizationId: asOrganizationId('org-1'),
     });
     expect(verifier.verifyTriggerFrame).not.toHaveBeenCalled();
     expect(sendMessage).not.toHaveBeenCalled();
@@ -2111,7 +2121,7 @@ describe('createTestRouter', () => {
       expect.objectContaining({
         reason: 'rate_limit',
         frameType: 'trigger.conversation',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       }),
     ]);
   });
@@ -2133,9 +2143,9 @@ describe('createTestRouter', () => {
   // -----------------------------------------------------------------
   const VALID_START_RUN_CONTEXT_METADATA = {
     capturedAt: '2026-01-01T00:00:00Z',
-    organizationId: 'org-1',
-    projectId: '22222222-2222-4222-8222-222222222222',
-    agentSessionId: 'sess-abc',
+    organizationId: asOrganizationId('org-1'),
+    projectId: asProjectId('22222222-2222-4222-8222-222222222222'),
+    agentSessionId: asAgentSessionId('sess-abc'),
     userComments: [],
     fileReferences: { resolved: [], unresolved: [] },
   };
@@ -2155,7 +2165,7 @@ describe('createTestRouter', () => {
     serviceIds: ['svc-1'],
     launchServiceId: 'svc-1',
     worktree: { enabled: true, branch: 'feature/worktree-run' },
-    agentSessionId: 'sess-abc',
+    agentSessionId: asAgentSessionId('sess-abc'),
   };
   const PATHLESS_CODEX_SKILL_SELECTION = {
     provider: 'codex' as const,
@@ -2172,13 +2182,13 @@ describe('createTestRouter', () => {
     return {
       kind: 'trigger.conversation',
       frame: {
-        organizationId: 'org-1',
-        projectId: 'proj-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        organizationId: asOrganizationId('org-1'),
+        projectId: asProjectId('proj-1'),
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       },
       envelope: {
-        machineId: 'm-1',
-        userId: 'u-1',
+        machineId: asMachineId('m-1'),
+        userId: asUserId('u-1'),
         nonce,
         timestampMs: 0,
         signature: 'sig',
@@ -2274,7 +2284,7 @@ describe('createTestRouter', () => {
     // `serviceId` here would be a dead key nothing downstream reads → empty
     // `services` → diff 422.
     expect(request['context']).toEqual({
-      projectId: VALID_START_RUN_CONTEXT_METADATA.projectId,
+      projectId: asProjectId(VALID_START_RUN_CONTEXT_METADATA.projectId),
       serviceIds: ['svc-1'],
       launchServiceId: 'svc-1',
       provider: 'claude',
@@ -2403,7 +2413,7 @@ describe('createTestRouter', () => {
       contextMetadata: VALID_START_RUN_CONTEXT_METADATA,
       serviceIds: ['svc-daily'],
       launchServiceId: 'svc-daily',
-      agentSessionId: 'sess-daily',
+      agentSessionId: asAgentSessionId('sess-daily'),
     };
     const verifier = buildVerifier({
       ok: true,
@@ -2470,7 +2480,7 @@ describe('createTestRouter', () => {
     expect(createRun).toHaveBeenCalledTimes(1);
     const [request] = createRun.mock.calls[0] as [Record<string, unknown>];
     expect(request['context']).toEqual({
-      projectId: VALID_START_RUN_CONTEXT_METADATA.projectId,
+      projectId: asProjectId(VALID_START_RUN_CONTEXT_METADATA.projectId),
       provider: 'claude',
     });
     expect(request['context']).not.toHaveProperty('serviceId');
@@ -2566,7 +2576,7 @@ describe('createTestRouter', () => {
     contextMetadata: VALID_START_RUN_CONTEXT_METADATA,
     serviceIds: ['svc-1'],
     launchServiceId: 'svc-1',
-    agentSessionId: 'sess-abc',
+    agentSessionId: asAgentSessionId('sess-abc'),
   };
 
   it('materializes the Agent Session Run and ignores a distinct trigger runId', async () => {
@@ -2592,7 +2602,7 @@ describe('createTestRouter', () => {
         bound
           ? ({
               runId: agentSessionId,
-              conversationId: 'c0000000-0000-4000-8000-000000000001',
+              conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
             } as never)
           : null,
       sendMessage,
@@ -2704,7 +2714,7 @@ describe('createTestRouter', () => {
     // Service set rides into the run context as `serviceIds[]` + `launchServiceId`
     // (see the turn-firing-arm test above for why a scalar key would be dropped).
     expect(request['context']).toEqual({
-      projectId: VALID_START_RUN_CONTEXT_METADATA.projectId,
+      projectId: asProjectId(VALID_START_RUN_CONTEXT_METADATA.projectId),
       serviceIds: ['svc-1'],
       launchServiceId: 'svc-1',
       provider: 'claude',
@@ -2852,7 +2862,7 @@ describe('createTestRouter', () => {
       verifier,
       resolveConversationRun: () => ({
         runId: 'run-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       }),
       sendMessage,
       createRun,
@@ -2877,13 +2887,13 @@ describe('createTestRouter', () => {
     const verified: VerifiedTriggerFrame = {
       kind: 'trigger.conversation',
       frame: {
-        organizationId: 'org-1',
-        projectId: 'proj-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        organizationId: asOrganizationId('org-1'),
+        projectId: asProjectId('proj-1'),
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       },
       envelope: {
-        machineId: 'm-1',
-        userId: 'u-1',
+        machineId: asMachineId('m-1'),
+        userId: asUserId('u-1'),
         nonce: 'n-cross-user-msg',
         timestampMs: 0,
         signature: 'sig',
@@ -2892,7 +2902,7 @@ describe('createTestRouter', () => {
           operationId: 'd0000000-0000-4000-8000-000000000001',
           operationFingerprint: 'f'.repeat(64),
           triggerMessageId: 'trigger-msg-cross',
-          sourceUserMessageId: 'source-message-cross',
+          sourceUserMessageId: asMessageId('source-message-cross'),
           admittedServiceScope: TEST_ADMITTED_SERVICE_SCOPE,
           payload: { handlerPromptType: 'free_form', userMessage: 'hi', attachments: [] },
         } as unknown as never,
@@ -2902,7 +2912,7 @@ describe('createTestRouter', () => {
         operationId: 'd0000000-0000-4000-8000-000000000001',
         operationFingerprint: 'f'.repeat(64),
         triggerMessageId: 'trigger-msg-cross',
-        sourceUserMessageId: 'source-message-cross',
+        sourceUserMessageId: asMessageId('source-message-cross'),
         admittedServiceScope: TEST_ADMITTED_SERVICE_SCOPE,
         payload: { handlerPromptType: 'free_form', userMessage: 'hi', attachments: [] },
       } as never,
@@ -2911,7 +2921,7 @@ describe('createTestRouter', () => {
     const sendMessage = vi.fn().mockResolvedValue(undefined);
     const binding: ConversationRunBinding = {
       runId: 'run-1',
-      conversationId: 'c0000000-0000-4000-8000-000000000001',
+      conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
     };
     const logger = noopLogger();
     const router = createTestRouter({
@@ -2952,7 +2962,7 @@ describe('createTestRouter', () => {
       contextMetadata: VALID_START_RUN_CONTEXT_METADATA,
       serviceIds: ['svc-1'],
       launchServiceId: 'svc-1',
-      agentSessionId: 'sess-abc',
+      agentSessionId: asAgentSessionId('sess-abc'),
     };
     const verifier = buildVerifier({
       ok: true,
@@ -3028,8 +3038,8 @@ describe('createTestRouter', () => {
   const controlFrameEvent: PlatformWebSocketEvent = {
     type: 'trigger.control',
     timestamp: '2026-01-01T00:00:00Z',
-    organizationId: 'org-1',
-    conversationId: 'c0000000-0000-4000-8000-000000000001',
+    organizationId: asOrganizationId('org-1'),
+    conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
     envelope: {},
   };
 
@@ -3041,13 +3051,13 @@ describe('createTestRouter', () => {
     return {
       kind: 'trigger.control',
       frame: {
-        organizationId: 'org-1',
-        projectId: 'proj-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        organizationId: asOrganizationId('org-1'),
+        projectId: asProjectId('proj-1'),
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       },
       envelope: {
-        machineId: 'm-1',
-        userId: 'u-1',
+        machineId: asMachineId('m-1'),
+        userId: asUserId('u-1'),
         nonce,
         timestampMs: 0,
         signature: 'sig',
@@ -3055,7 +3065,7 @@ describe('createTestRouter', () => {
       } as never,
       body: {
         kind: 'stop_run',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
         runId,
       } as never,
     };
@@ -3069,25 +3079,25 @@ describe('createTestRouter', () => {
     return {
       kind: 'trigger.control',
       frame: {
-        organizationId: 'org-1',
-        projectId: 'proj-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        organizationId: asOrganizationId('org-1'),
+        projectId: asProjectId('proj-1'),
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       },
       envelope: {
-        machineId: 'm-1',
-        userId: 'u-1',
+        machineId: asMachineId('m-1'),
+        userId: asUserId('u-1'),
         nonce,
         timestampMs: 0,
         signature: 'sig',
         event: {
           kind: 'compact_run',
-          conversationId: 'c0000000-0000-4000-8000-000000000001',
+          conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
           runId,
         },
       } as never,
       body: {
         kind: 'compact_run',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
         runId,
       } as never,
     };
@@ -3101,7 +3111,7 @@ describe('createTestRouter', () => {
     const stopRun = vi.fn().mockResolvedValue(undefined);
     const binding: ConversationRunBinding = {
       runId: 'binding-run',
-      conversationId: 'c0000000-0000-4000-8000-000000000001',
+      conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
     };
     const logger = noopLogger();
     const router = createTestRouter({
@@ -3123,7 +3133,7 @@ describe('createTestRouter', () => {
       'trigger-verification.control.dispatch',
       expect.objectContaining({
         kind: 'stop_run',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
         runId: 'binding-run',
         envelopeRunId: 'envelope-run',
         nonce: 'n-control',
@@ -3140,7 +3150,7 @@ describe('createTestRouter', () => {
     const compactRun = vi.fn().mockResolvedValue(undefined);
     const binding: ConversationRunBinding = {
       runId: 'binding-run',
-      conversationId: 'c0000000-0000-4000-8000-000000000001',
+      conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
     };
     const logger = noopLogger();
     const router = createTestRouter({
@@ -3163,7 +3173,7 @@ describe('createTestRouter', () => {
       'trigger-verification.control.dispatch',
       expect.objectContaining({
         kind: 'compact_run',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
         runId: 'binding-run',
         envelopeRunId: 'binding-run',
         nonce: 'n-control',
@@ -3183,7 +3193,7 @@ describe('createTestRouter', () => {
       verifier,
       resolveConversationRun: () => ({
         runId: 'binding-run',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       }),
       sendMessage: vi.fn(),
       createRun: vi.fn(),
@@ -3202,7 +3212,7 @@ describe('createTestRouter', () => {
       expect.objectContaining({
         reason: 'run_binding_mismatch',
         kind: 'compact_run',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
         runId: 'binding-run',
         envelopeRunId: 'envelope-run',
         nonce: 'n-control',
@@ -3235,7 +3245,7 @@ describe('createTestRouter', () => {
       'trigger-verification.control.no_active_run',
       expect.objectContaining({
         kind: 'stop_run',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
         runId: 'run-42',
         nonce: 'n-control',
       }),
@@ -3312,13 +3322,13 @@ describe('createTestRouter', () => {
     return {
       kind: 'trigger.control',
       frame: {
-        organizationId: 'org-1',
-        projectId: 'proj-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        organizationId: asOrganizationId('org-1'),
+        projectId: asProjectId('proj-1'),
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       },
       envelope: {
-        machineId: 'm-1',
-        userId: 'u-1',
+        machineId: asMachineId('m-1'),
+        userId: asUserId('u-1'),
         nonce,
         timestampMs: 0,
         signature: 'sig',
@@ -3343,7 +3353,7 @@ describe('createTestRouter', () => {
         verifier,
         resolveConversationRun: () => ({
           runId: 'binding-run',
-          conversationId: 'c0000000-0000-4000-8000-000000000001',
+          conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
         }),
         sendMessage: vi.fn(),
         createRun: vi.fn(),
@@ -3379,7 +3389,7 @@ describe('createTestRouter', () => {
       verifier,
       resolveConversationRun: () => ({
         runId: 'binding-run',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       }),
       sendMessage: vi.fn(),
       createRun: vi.fn(),
@@ -3414,7 +3424,7 @@ describe('createTestRouter', () => {
       verifier,
       resolveConversationRun: () => ({
         runId: 'binding-run',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       }),
       sendMessage: vi.fn(),
       createRun: vi.fn(),
@@ -3456,7 +3466,7 @@ describe('createTestRouter', () => {
       verifier,
       resolveConversationRun: () => ({
         runId: 'binding-run',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       }),
       sendMessage: vi.fn(),
       createRun: vi.fn(),
@@ -3481,7 +3491,7 @@ describe('createTestRouter', () => {
       providerSessionId: 'sess-1',
       decision: 'approve',
       decidedAt: '1970-01-01T00:00:00.000Z',
-      userId: 'u-1',
+      userId: asUserId('u-1'),
       authenticatedAt: '1970-01-01T00:00:00.000Z',
       ingressId: 'permission-decision:idem-1',
     });
@@ -3515,7 +3525,7 @@ describe('createTestRouter', () => {
       verifier,
       resolveConversationRun: () => ({
         runId: 'binding-run',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       }),
       sendMessage: vi.fn(),
       createRun: vi.fn(),
@@ -3552,7 +3562,7 @@ describe('createTestRouter', () => {
     const auditFilePath = path.join(tmpdir(), `hey-hey-permission-audit-${randomUUID()}.jsonl`);
     const binding: ConversationRunBinding = {
       runId: 'binding-run',
-      conversationId: 'c0000000-0000-4000-8000-000000000001',
+      conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
     };
     const restoreRun = vi.fn().mockResolvedValue({ taskMonitorId: null });
     const logger = noopLogger();
@@ -3615,7 +3625,7 @@ describe('createTestRouter', () => {
       verifier,
       resolveConversationRun: () => ({
         runId: 'persisted-run',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       }),
       sendMessage: vi.fn(),
       createRun: vi.fn(),
@@ -3668,7 +3678,7 @@ describe('createTestRouter', () => {
       'trigger-verification.control.no_active_run',
       expect.objectContaining({
         kind: 'permission_decision',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
         requestId: 'req-1',
       }),
     ]);
@@ -3687,7 +3697,7 @@ describe('createTestRouter', () => {
       const auditFilePath = path.join(tmpdir(), `hey-hey-permission-audit-${randomUUID()}.jsonl`);
       const binding: ConversationRunBinding = {
         runId: 'binding-run',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       };
       const logger = noopLogger();
       const router = createTestRouter({
@@ -3728,8 +3738,8 @@ describe('TriggerFrameRouter trigger.control question_answer', () => {
   const controlFrameEvent: PlatformWebSocketEvent = {
     type: 'trigger.control',
     timestamp: '2026-01-01T00:00:00Z',
-    organizationId: 'org-1',
-    conversationId: 'c0000000-0000-4000-8000-000000000001',
+    organizationId: asOrganizationId('org-1'),
+    conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
     envelope: {},
   };
 
@@ -3747,13 +3757,13 @@ describe('TriggerFrameRouter trigger.control question_answer', () => {
     return {
       kind: 'trigger.control',
       frame: {
-        organizationId: 'org-1',
-        projectId: 'proj-1',
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        organizationId: asOrganizationId('org-1'),
+        projectId: asProjectId('proj-1'),
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       },
       envelope: {
-        machineId: 'm-1',
-        userId: 'u-1',
+        machineId: asMachineId('m-1'),
+        userId: asUserId('u-1'),
         nonce: 'n-question',
         timestampMs: 0,
         signature: 'sig',
@@ -3775,7 +3785,7 @@ describe('TriggerFrameRouter trigger.control question_answer', () => {
         overrides.resolveConversationRun ??
         (() => ({
           runId: 'binding-run',
-          conversationId: 'c0000000-0000-4000-8000-000000000001',
+          conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
         })),
       sendMessage: vi.fn(),
       createRun: vi.fn(),
@@ -3900,13 +3910,13 @@ const buildSurfacing = (
     outcome.kind === 'reloaded'
       ? [
           {
-            machineId: 'machine-stale',
+            machineId: asMachineId('machine-stale'),
             name: 'machine-stale',
             pairedAt: '2026-01-01T00:00:00Z',
             active: false,
           },
           {
-            machineId: outcome.machineId,
+            machineId: asMachineId(outcome.machineId),
             name: outcome.machineId,
             pairedAt: '2026-01-01T00:00:00Z',
             active: false,
@@ -3943,8 +3953,8 @@ const dropEvent = (
 ): PlatformWebSocketEvent => ({
   type: 'trigger.conversation',
   timestamp: '2026-01-01T00:00:00Z',
-  organizationId: 'org-1',
-  projectId: 'proj-1',
+  organizationId: asOrganizationId('org-1'),
+  projectId: asProjectId('proj-1'),
   conversationId,
   envelope: {},
 });
@@ -3957,7 +3967,7 @@ const buildSurfacingRouter = (
     verifier,
     resolveConversationRun: () => ({
       runId: 'run-1',
-      conversationId: 'c0000000-0000-4000-8000-000000000001',
+      conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
     }),
     sendMessage: vi.fn().mockResolvedValue(undefined),
     createRun: vi.fn(),
@@ -3973,7 +3983,7 @@ describe('TriggerFrameRouter — owned drop recovery surface', () => {
     const verifier = buildQueueVerifier([dropResult('machine_id_mismatch')]);
     const { surfacing, listMachines, poster } = buildSurfacing({
       kind: 'reloaded',
-      machineId: 'machine-new',
+      machineId: asMachineId('machine-new'),
       serverSigningPublicKeyB64: Buffer.from('srv-new').toString('base64'),
     });
     const router = buildSurfacingRouter(verifier, surfacing);
@@ -4033,7 +4043,7 @@ describe('TriggerFrameRouter — owned drop recovery surface', () => {
       'reloaded',
       {
         kind: 'reloaded',
-        machineId: 'machine-new',
+        machineId: asMachineId('machine-new'),
         serverSigningPublicKeyB64: Buffer.from('srv-new').toString('base64'),
       } as ReconcileOutcome,
     ],
@@ -4118,10 +4128,10 @@ describe('TriggerFrameRouter — owned drop recovery surface', () => {
 // `services: []`, no resolvable repo path, and a 422 from the diff endpoint.
 describe('toCreateRunRequest — service field mapping', () => {
   const CONTEXT_METADATA = {
-    organizationId: 'org-1',
-    projectId: 'proj-1',
+    organizationId: asOrganizationId('org-1'),
+    projectId: asProjectId('proj-1'),
     capturedAt: new Date('2026-06-20T00:00:00.000Z').toISOString(),
-    agentSessionId: 'sess-abc',
+    agentSessionId: asAgentSessionId('sess-abc'),
     userComments: [],
     fileReferences: { resolved: [], unresolved: [] },
   };
@@ -4133,7 +4143,7 @@ describe('toCreateRunRequest — service field mapping', () => {
     model: 'claude-opus-4-7',
     provider: 'claude',
     contextMetadata: CONTEXT_METADATA,
-    agentSessionId: 'sess-abc',
+    agentSessionId: asAgentSessionId('sess-abc'),
   } as unknown as StartRunTriggerPayload;
 
   it('forwards envelope serviceIds + launchServiceId into the run context and emits no scalar serviceId', () => {
@@ -4146,7 +4156,7 @@ describe('toCreateRunRequest — service field mapping', () => {
     const request = toCreateRunRequest(payload, 'c0000000-0000-4000-8000-000000000001');
 
     expect(request.context).toEqual({
-      projectId: 'proj-1',
+      projectId: asProjectId('proj-1'),
       serviceIds: ['svc-1', 'svc-2'],
       launchServiceId: 'svc-2',
       provider: 'claude',
@@ -4209,12 +4219,12 @@ describe('toCreateRunRequest — service field mapping', () => {
 
 describe('admission disposition in the acknowledgement', () => {
   const ids = {
-    organizationId: '0a000000-0000-4000-8000-00000000000a',
-    projectId: '0b000000-0000-4000-8000-00000000000b',
+    organizationId: asOrganizationId('0a000000-0000-4000-8000-00000000000a'),
+    projectId: asProjectId('0b000000-0000-4000-8000-00000000000b'),
     runId: '0c000000-0000-4000-8000-00000000000c',
-    machineId: '0d000000-0000-4000-8000-00000000000d',
-    userId: '0e000000-0000-4000-8000-00000000000e',
-    conversationId: '0f000000-0000-4000-8000-00000000000f',
+    machineId: asMachineId('0d000000-0000-4000-8000-00000000000d'),
+    userId: asUserId('0e000000-0000-4000-8000-00000000000e'),
+    conversationId: asConversationId('0f000000-0000-4000-8000-00000000000f'),
   };
   const followUp = (index: number): VerifiedTriggerFrame => {
     const body = {
@@ -4222,7 +4232,7 @@ describe('admission disposition in the acknowledgement', () => {
       operationFingerprint: String(index).repeat(64),
       promptType: 'user_message',
       triggerMessageId: randomUUID(),
-      sourceUserMessageId: randomUUID(),
+      sourceUserMessageId: asMessageId(randomUUID()),
       admittedServiceScope: TEST_ADMITTED_SERVICE_SCOPE,
       payload: {
         handlerPromptType: 'coding_freeform',
@@ -4233,13 +4243,13 @@ describe('admission disposition in the acknowledgement', () => {
     return {
       kind: 'trigger.conversation',
       frame: {
-        organizationId: ids.organizationId,
-        projectId: ids.projectId,
-        conversationId: ids.conversationId,
+        organizationId: asOrganizationId(ids.organizationId),
+        projectId: asProjectId(ids.projectId),
+        conversationId: asConversationId(ids.conversationId),
       },
       envelope: {
-        machineId: ids.machineId,
-        userId: ids.userId,
+        machineId: asMachineId(ids.machineId),
+        userId: asUserId(ids.userId),
         nonce: randomUUID(),
         timestampMs: 0,
         signature: 'sig',
@@ -4371,14 +4381,14 @@ describe('verified cancellation telemetry', () => {
     });
     const record: ReadableInputRecord = {
       key: randomUUID(),
-      messageId: randomUUID(),
-      agentSessionId: randomUUID(),
+      messageId: asMessageId(randomUUID()),
+      agentSessionId: asAgentSessionId(randomUUID()),
       runId: randomUUID(),
       admissionId: randomUUID(),
-      organizationId: randomUUID(),
-      projectId: randomUUID(),
-      userId: randomUUID(),
-      machineId: randomUUID(),
+      organizationId: asOrganizationId(randomUUID()),
+      projectId: asProjectId(randomUUID()),
+      userId: asUserId(randomUUID()),
+      machineId: asMachineId(randomUUID()),
       fingerprint: 'never-log-this',
       state: 'cancelled',
       admissionDisposition: 'queued',
@@ -4394,18 +4404,18 @@ describe('verified cancellation telemetry', () => {
     };
     const body = {
       kind: 'cancel_input' as const,
-      conversationId: 'c0000000-0000-4000-8000-000000000001',
+      conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       operationId: record.key,
-      messageId: record.messageId!,
-      agentSessionId: record.agentSessionId,
+      messageId: asMessageId(record.messageId!),
+      agentSessionId: asAgentSessionId(record.agentSessionId),
       operationFingerprint: record.fingerprint,
     };
     const verified: VerifiedTriggerFrame = {
       kind: 'trigger.control',
       frame: {
-        organizationId: record.organizationId,
-        projectId: record.projectId,
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        organizationId: asOrganizationId(record.organizationId),
+        projectId: asProjectId(record.projectId),
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       },
       body,
       envelope: {
@@ -4413,8 +4423,8 @@ describe('verified cancellation telemetry', () => {
         event: body,
         timestampMs: 0,
         nonce: 'nonce',
-        machineId: record.machineId,
-        userId: record.userId,
+        machineId: asMachineId(record.machineId),
+        userId: asUserId(record.userId),
         signature: 'signature',
       } as never,
     };
@@ -4448,7 +4458,7 @@ describe('verified cancellation telemetry', () => {
       verifier,
       resolveConversationRun: () => ({
         runId: record.runId,
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
       }),
       inputAdmission,
       sendMessage: vi.fn(),
@@ -4462,7 +4472,7 @@ describe('verified cancellation telemetry', () => {
     const event: PlatformWebSocketEvent = {
       type: 'trigger.control_reduction',
       timestamp: new Date().toISOString(),
-      organizationId: record.organizationId,
+      organizationId: asOrganizationId(record.organizationId),
     };
     try {
       for (let tick = 0; tick < 1_800; tick += 1) {
@@ -4507,7 +4517,7 @@ describe('verified cancellation telemetry', () => {
       ).toHaveLength(2);
       const stopped = {
         kind: 'stop_run' as const,
-        conversationId: 'c0000000-0000-4000-8000-000000000001',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
         runId: record.runId,
       };
       vi.mocked(verifier.verifyTriggerFrame).mockReturnValue({
@@ -4624,8 +4634,8 @@ describe('starts, messages, and monitor commands bind their complete delivered p
     provider: 'claude' as const,
     contextMetadata: {
       capturedAt: '2026-10-23T00:00:00.000Z',
-      organizationId: directActionIds.organizationId,
-      projectId: directActionIds.projectId,
+      organizationId: asOrganizationId(directActionIds.organizationId),
+      projectId: asProjectId(directActionIds.projectId),
       agentSessionId,
       userComments: [],
       fileReferences: { resolved: [], unresolved: [] },
@@ -4644,7 +4654,7 @@ describe('starts, messages, and monitor commands bind their complete delivered p
     operationId: randomUUID(),
     operationFingerprint: 'a'.repeat(64),
     triggerMessageId: randomUUID(),
-    sourceUserMessageId: randomUUID(),
+    sourceUserMessageId: asMessageId(randomUUID()),
     payload: {
       handlerPromptType: 'coding_freeform',
       userMessage: 'approved message',
@@ -4668,8 +4678,8 @@ describe('starts, messages, and monitor commands bind their complete delivered p
     commandId: randomUUID(),
     createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 60000).toISOString(),
-    organizationId: directActionIds.organizationId,
-    projectId: directActionIds.projectId,
+    organizationId: asOrganizationId(directActionIds.organizationId),
+    projectId: asProjectId(directActionIds.projectId),
     target: { workItemType: 'TASK_MONITOR' as const, workItemId: monitorId },
     command,
   };

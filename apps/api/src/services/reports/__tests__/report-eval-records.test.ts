@@ -1,6 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
 import { ReportService } from '../report.service';
-import { ReportRelatedEntityType, ReportType } from 'src/generated';
+import {
+  ReportRelatedEntityType,
+  ReportType,
+} from '@hey-hey/contracts/api/models';
 
 const ORG = 'org-1' as never;
 const PROJECT = 'project-1';

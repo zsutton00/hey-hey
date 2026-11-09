@@ -1,10 +1,10 @@
-import type { ReadRestriction } from '../../shared/api/generated/api';
+import type { ReadRestriction } from '@hey-hey/contracts/api/models';
 import { readRestrictionHeaders } from '../../shared/api/read-restriction';
 import { z } from 'zod';
 
 import type { AgenticSession } from '../../session/types';
-import { RunEntityReferenceEntityTypeEnum } from '../../shared/agent-bridge-contract/generated/api';
-import type { RunEntityReference } from '../../shared/agent-bridge-contract/generated/api';
+import { RunEntityReferenceEntityTypeEnum } from '@hey-hey/contracts/agent-bridge';
+import type { RunEntityReference } from '@hey-hey/contracts/agent-bridge';
 import type { PromptTypeHandlerDeps } from '../prompt-type-handler';
 
 export interface ProjectAssistantReportEntityRef {

@@ -1,5 +1,3 @@
-import type { ReportDto } from "../../../api";
-
 type QueryValue =
   | boolean
   | number
@@ -114,7 +112,7 @@ const readStringArray = (value: unknown): string[] | null => {
 };
 
 const parseEvidenceItemSummary = (
-  value: unknown
+  value: unknown,
 ): EvidencePipelineReportEvidenceItemSummary | null => {
   if (!isRecord(value)) {
     return null;
@@ -145,7 +143,7 @@ const parseEvidenceItemSummary = (
 };
 
 const parseSearchStep = (
-  value: unknown
+  value: unknown,
 ): EvidencePipelineReportSearchStep | null => {
   if (!isRecord(value)) {
     return null;
@@ -169,7 +167,7 @@ const parseSearchStep = (
 };
 
 const parseEvidenceItemArray = (
-  value: unknown
+  value: unknown,
 ): EvidencePipelineReportEvidenceItemSummary[] | null => {
   if (!Array.isArray(value)) {
     return null;
@@ -178,14 +176,15 @@ const parseEvidenceItemArray = (
   const items = value
     .map((item) => parseEvidenceItemSummary(item))
     .filter(
-      (item): item is EvidencePipelineReportEvidenceItemSummary => item !== null
+      (item): item is EvidencePipelineReportEvidenceItemSummary =>
+        item !== null,
     );
 
   return items.length === value.length ? items : null;
 };
 
 const parseSearchResult = (
-  value: unknown
+  value: unknown,
 ): EvidencePipelineReportSearchResult | null => {
   if (!isRecord(value)) {
     return null;
@@ -217,7 +216,7 @@ const parseSearchResult = (
 };
 
 const parseSearchResultArray = (
-  value: unknown
+  value: unknown,
 ): EvidencePipelineReportSearchResult[] | null => {
   if (!Array.isArray(value)) {
     return null;
@@ -226,14 +225,14 @@ const parseSearchResultArray = (
   const items = value
     .map((item) => parseSearchResult(item))
     .filter(
-      (item): item is EvidencePipelineReportSearchResult => item !== null
+      (item): item is EvidencePipelineReportSearchResult => item !== null,
     );
 
   return items.length === value.length ? items : null;
 };
 
 const parseSearchStepArray = (
-  value: unknown
+  value: unknown,
 ): EvidencePipelineReportSearchStep[] | null => {
   if (!Array.isArray(value)) {
     return null;
@@ -247,7 +246,7 @@ const parseSearchStepArray = (
 };
 
 const parsePlannerInput = (
-  value: unknown
+  value: unknown,
 ): EvidencePipelineReportPlannerInput | null => {
   if (!isRecord(value)) {
     return null;
@@ -276,7 +275,7 @@ const parsePlannerInput = (
 };
 
 const parseExecution = (
-  value: unknown
+  value: unknown,
 ): EvidencePipelineReportExecution | null => {
   if (!isRecord(value)) {
     return null;
@@ -314,9 +313,14 @@ const parseExecution = (
 };
 
 export const parseEvidencePipelineReportPayload = (
-  payload: ReportDto["payload"]
+  payload: unknown,
 ): EvidencePipelineReportPayload | null => {
   if (!isRecord(payload)) {
+    return null;
+  }
+
+  const reportType = payload["reportType"];
+  if (reportType !== "EVIDENCE_PIPELINE") {
     return null;
   }
 
@@ -335,7 +339,7 @@ export const parseEvidencePipelineReportPayload = (
   const implementationHintSearchResults =
     parseSearchResultArray(payload.implementationHintSearchResults) ?? [];
   const implementationHints = parseEvidenceItemArray(
-    payload.implementationHints
+    payload.implementationHints,
   );
   const finalEvidence = parseEvidenceItemArray(payload.finalEvidence);
   const execution = parseExecution(payload.execution);
@@ -397,7 +401,7 @@ export const formatQueryValue = (value: QueryValue): string => {
 
 export const formatSearchStepTitle = (
   query: EvidencePipelineReportSearchResult["query"],
-  index: number
+  index: number,
 ): string => {
   const formattedQuery = formatQueryValue(query).trim();
   return formattedQuery.length > 0
@@ -406,7 +410,7 @@ export const formatSearchStepTitle = (
 };
 
 export const groupEvidenceItemsByEntityType = (
-  items: EvidencePipelineReportEvidenceItemSummary[]
+  items: EvidencePipelineReportEvidenceItemSummary[],
 ): EvidenceItemGroup[] => {
   const groups = new Map<string, EvidencePipelineReportEvidenceItemSummary[]>();
 

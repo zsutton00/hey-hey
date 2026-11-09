@@ -9,11 +9,11 @@ import {
   ProcessLlmResult,
 } from '../../../types/flow-internal.types';
 import { MutableContextHandle } from '../../../utils/mutable-context';
-import type { QuestionsSystemMessageData } from '../../../generated';
+import type { QuestionsSystemMessageData } from '@hey-hey/contracts/api/models';
 import {
   ExtendedUIFieldType,
   SecondaryActionHandler,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { TASK_GENERATION_NODES } from '../../constants/node-ids';
 import { StandardPlaceholders as P } from '../../../services/llm/placeholders';
 import { taskGenerationConversationResponseSchema } from '../../utils/shared-schemas';

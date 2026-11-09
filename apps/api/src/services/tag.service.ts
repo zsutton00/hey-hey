@@ -13,7 +13,7 @@ import {
   UpdateTagDto,
   AssignTagDto,
   TagSource,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   Prisma,
   Tag as PrismaTag,

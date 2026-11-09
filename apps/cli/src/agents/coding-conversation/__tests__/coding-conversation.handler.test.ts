@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AgenticSession } from '../../../session/types';
 import type { LocalFreeFormPromptPayload } from '../../../shared/agent-bridge-contract/index';
-import type { LocalPromptStartupInput } from '../../../shared/agent-bridge-contract/generated/api';
-import type { ImplementationReadinessSourceSnapshot } from '../../../shared/api/generated/api';
+import type { LocalPromptStartupInput } from '@hey-hey/contracts/agent-bridge';
+import type { ImplementationReadinessSourceSnapshot } from '@hey-hey/contracts/api/models';
 import type { AssistantCompleteEvent } from '../../../run/types';
 import { NOOP_LOGGER } from '../../../server/logger';
 import { buildCompletionReconciliationPromptFor } from '../../completion-reconciliation/prompts/common';
@@ -23,6 +23,7 @@ import {
   type CodingConversationPreparedPayload,
 } from '../../prompts/coding-conversation';
 import { codingFreeformHandler, freeFormHandler } from '../coding-conversation.handler';
+import { homePageBlockedFinding } from '../../implementation-readiness/__tests__/readiness-finding.fixture';
 
 const makeStartupInput = (): LocalPromptStartupInput => ({
   task: {
@@ -144,13 +145,7 @@ const readinessDisposition = {
     sourceRevision: 'sha256:readiness-source',
     capturedAt: '2026-09-17T19:00:00.000Z',
   },
-  finding: {
-    affectedSourceContext: 'Task context',
-    unresolvedDecision: 'Who owns the write?',
-    consequentialInventionRisk: 'The implementation would invent ownership.',
-    boundedEvidence: [{ category: 'ownership', statement: 'The task leaves ownership open.' }],
-    answerKind: 'Name the owner.',
-  },
+  finding: homePageBlockedFinding,
   resolution: { kind: 'NONE' },
 };
 
@@ -219,7 +214,14 @@ describe('coding-conversation adapters', () => {
     'the %s prompt ends with the shared completion instruction',
     (_label, handler, payload) => {
       const prompt = handler.buildPrompt(payload as never, makeCanonicalContext());
-      expect(prompt.endsWith(buildCompletionReconciliationPromptFor(new Set()))).toBe(true);
+      expect(
+        prompt.endsWith(
+          buildCompletionReconciliationPromptFor({
+            startedPromptTypes: new Set(),
+            focalTask: true,
+          }),
+        ),
+      ).toBe(true);
       expect(prompt).toContain('changedFiles');
     },
   );
@@ -328,7 +330,9 @@ describe('launch preparation', () => {
     expect(prompt).toContain('`service-a` at `/worktrees/service-a`');
     expect(prompt).not.toContain('/host/service-a');
     expect(prompt).not.toContain('/host/service-b');
-    expect(prompt).toContain("Host checkouts are outside this session's working context");
+    expect(prompt).toContain(
+      'Do not use a host checkout as a fallback location for edits or other mutations',
+    );
   });
 
   it('does not synthesize startup input from persisted Run identity alone', async () => {
@@ -400,18 +404,13 @@ describe('launch preparation', () => {
       implementationReadinessSourceSnapshot:
         readinessDisposition.sourceSnapshot as ImplementationReadinessSourceSnapshot,
       implementationReadinessClarification: {
-        finding: {
-          affectedSourceContext: 'Task context',
-          unresolvedDecision: 'Who owns the write?',
-          consequentialInventionRisk: 'The implementation would invent ownership.',
-          boundedEvidence: [{ category: 'ownership', statement: 'Ownership is open.' }],
-          answerKind: 'Name the owner.',
-        },
+        finding: homePageBlockedFinding,
       },
     });
 
     expect(prompt).toContain('## Readiness clarification');
-    expect(prompt).toContain('The open decision was: Who owns the write?');
+    expect(prompt).toContain(homePageBlockedFinding.problem);
+    expect(prompt).toContain(homePageBlockedFinding.userRequest);
     expect(prompt).toContain('with a `CLEAR` disposition');
     expect(prompt.indexOf('## Readiness clarification')).toBeLessThan(
       prompt.indexOf('## Implementation-readiness preflight'),

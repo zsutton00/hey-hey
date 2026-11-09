@@ -1,7 +1,10 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { ThemeProvider } from "@mui/material/styles";
+import React from "react";
+import { render as baseRender, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AgentQuestionPayload } from "../../../../api";
+import { createHeyTheme } from "../../../../contexts/ThemeContext";
 import { AgentQuestionField } from "../AgentQuestionField";
 
 const submitAnswerMock = vi.hoisted(() => vi.fn());
@@ -12,7 +15,7 @@ vi.mock(
       submit: submitAnswerMock,
       isPending: false,
     }),
-  })
+  }),
 );
 
 const basePayload: AgentQuestionPayload = {
@@ -43,6 +46,13 @@ const basePayload: AgentQuestionPayload = {
   ],
 };
 
+const themeWrapper = ({ children }: { children: React.ReactNode }) => (
+  <ThemeProvider theme={createHeyTheme("light")}>{children}</ThemeProvider>
+);
+
+const render = (ui: React.ReactElement) =>
+  baseRender(ui, { wrapper: themeWrapper });
+
 const renderField = (payload: AgentQuestionPayload = basePayload) =>
   render(
     <AgentQuestionField
@@ -59,7 +69,7 @@ const renderField = (payload: AgentQuestionPayload = basePayload) =>
         agentSessionId: "session-1",
       }}
       isSubmitted={false}
-    />
+    />,
   );
 
 describe("AgentQuestionField", () => {
@@ -105,10 +115,10 @@ describe("AgentQuestionField", () => {
       idempotencyToken: "idem-q1",
     });
     expect(
-      await screen.findByTestId("agent-question-answered-question-1")
+      await screen.findByTestId("agent-question-answered-question-1"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByTestId("agent-question-submit-question-1")
+      screen.queryByTestId("agent-question-submit-question-1"),
     ).not.toBeInTheDocument();
   });
 
@@ -123,7 +133,7 @@ describe("AgentQuestionField", () => {
 
     await waitFor(() => {
       expect(submitAnswerMock).toHaveBeenCalledWith(
-        expect.objectContaining({ answers: { "Which database?": "MySQL" } })
+        expect.objectContaining({ answers: { "Which database?": "MySQL" } }),
       );
     });
   });
@@ -135,14 +145,14 @@ describe("AgentQuestionField", () => {
     });
 
     expect(screen.getByTestId("agent-question-answer-0")).toHaveTextContent(
-      "SQLite"
+      "SQLite",
     );
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
   it("surfaces delivery errors and keeps the form submittable", async () => {
     submitAnswerMock.mockRejectedValue(
-      new Error("Controller authorization denied: nope")
+      new Error("Controller authorization denied: nope"),
     );
     const user = userEvent.setup();
     renderField({ ...basePayload, questions: [basePayload.questions[0]!] });
@@ -151,10 +161,10 @@ describe("AgentQuestionField", () => {
     await user.click(screen.getByTestId("agent-question-submit-question-1"));
 
     expect(
-      await screen.findByTestId("agent-question-error-question-1")
+      await screen.findByTestId("agent-question-error-question-1"),
     ).toHaveTextContent("nope");
     expect(
-      screen.getByTestId("agent-question-submit-question-1")
+      screen.getByTestId("agent-question-submit-question-1"),
     ).toBeEnabled();
   });
 });

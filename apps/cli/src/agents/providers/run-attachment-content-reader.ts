@@ -5,7 +5,7 @@ import {
   RUN_ATTACHMENT_FORMAT_HELP,
   type RunAttachmentContent,
 } from '../../agent-runtime/index';
-import type { RunAttachmentReference } from '../../shared/agent-bridge-contract/generated/api';
+import type { RunAttachmentReference } from '@hey-hey/contracts/agent-bridge';
 import { LocalAgentApiError } from '../../shared/agent-bridge-contract/errors';
 import { RunAttachmentStore, RunAttachmentNotFoundError } from '../../server/run-attachment-store';
 

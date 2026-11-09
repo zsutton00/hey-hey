@@ -1,4 +1,4 @@
-import type { WorkItemGraphParticipationEntry } from 'src/generated';
+import type { WorkItemGraphParticipationEntry } from '@hey-hey/contracts/api/models';
 import {
   hasTaskParticipationEndpoints,
   WorkItemGraphParticipationComposer,

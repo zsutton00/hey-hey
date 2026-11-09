@@ -16,7 +16,7 @@ import type {
   TargetEntityType,
   FutureRevisionResponse,
   FutureDependencyPresentation,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type {
   Prisma,
   Proposal,
@@ -26,7 +26,7 @@ import type {
   ProposalGroup,
   ProposalGroupMember,
 } from '@prisma/client';
-import type { ProposalApprovalDto } from 'src/generated';
+import type { ProposalApprovalDto } from '@hey-hey/contracts/api/models';
 import type { RequestorContext } from 'src/mcp/tools/requestor-context';
 import type {
   ConversationId,

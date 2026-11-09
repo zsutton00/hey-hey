@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Tool, Context } from '@rekog/mcp-nest';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { Request } from 'express';
 import { UnifiedSearchService } from '../../services/unified-search/unified-search.service';
@@ -14,7 +15,7 @@ import {
   UnifiedSearchRequest,
   UnifiedSearchResult,
   WorkStatus,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { SearchProjection } from '../../generated/graphs';
 import { HelpService } from '../../services/help.service';
 import { ProjectId } from '../../types';
@@ -30,9 +31,13 @@ import {
 } from './mcp-tool.utils';
 import {
   ENVELOPE_ALLOWANCE,
-  RESPONSE_CHARACTER_BUDGET,
+  SEARCH_RESPONSE_CHARACTER_BUDGET,
 } from './response-budget';
 import { SearchCacheService } from './search-cache.service';
+import {
+  SearchReceiptStore,
+  type SearchReceiptScope,
+} from './search-receipt.store';
 
 const MAX_SNIPPET_LENGTH = 300;
 const MAX_HELP_SEARCH_RESULTS = 50;
@@ -56,6 +61,12 @@ export const UNIFIED_SEARCH_ENTITY_TYPES = [
   'DESIGN_DOC',
   'MESSAGE',
 ] as const;
+
+/** Order-independent digest of a resolved exclusion, so cache keys stay small and stable. */
+const fingerprintEntityIds = (entityIds: readonly string[]): string =>
+  createHash('sha256')
+    .update([...new Set(entityIds)].sort().join(','))
+    .digest('hex');
 
 // NOTE: do not wrap this schema in `.refine()`/`.superRefine()`. Those produce
 // a ZodEffects, which breaks MCP tool schema generation. The exactly-one-of
@@ -139,6 +150,28 @@ export const unifiedSearchParameters = z.object({
         'updated at or before this instant are returned. Combine with ' +
         'updatedAfter to scope results to an update-time window. Applies to ' +
         'every query in a batch.',
+    ),
+  excludeConnected: z
+    .object({
+      entityIds: z.array(z.string().uuid()).min(1).max(100),
+      depth: z.number().int().min(1).max(2).optional(),
+    })
+    .optional()
+    .describe(
+      'Internal; not for general use. The platform sets this during ' +
+        'evaluation runs to hide results connected to the given entities. ' +
+        'Applies to every query in a batch.',
+    ),
+  match: z
+    .enum(['semantic', 'exact'])
+    .optional()
+    .describe(
+      'Match mode, default "semantic" (ranked by meaning). Use "exact" to ' +
+        'find a literal string: only entities whose title or body contains ' +
+        'the query as a contiguous, case-insensitive phrase are returned ' +
+        '(no stemming, no near matches), title matches first. An empty ' +
+        'result means no entity contains the phrase. Queries must be at ' +
+        'least 3 characters. Applies to every query in a batch.',
     ),
   ...paginationFields,
 });
@@ -275,24 +308,28 @@ const searchResultItem = z.object({
   id: z.string().describe('Entity ID'),
   type: z.string().describe('Entity type'),
   title: z.string().describe('Entity title or summary'),
-  snippet: z.string().describe('Relevant text snippet'),
-  matchSpans: z
+  snippet: z
+    .string()
+    .optional()
+    .describe(
+      'Opening text of the hit. Omitted when matchParagraphs is present, since those carry the relevant text.',
+    ),
+  matchParagraphs: z
     .array(
       z.object({
-        start: z.number(),
-        end: z.number(),
-        strength: z.number(),
+        text: z.string(),
+        matchSpans: z.array(
+          z.object({
+            start: z.number(),
+            end: z.number(),
+            strength: z.number(),
+          }),
+        ),
       }),
     )
     .optional()
     .describe(
-      'Matched spans with end-exclusive UTF-16 code-unit offsets into matchText, never snippet. Present together with matchText.',
-    ),
-  matchText: z
-    .string()
-    .optional()
-    .describe(
-      'Exact source text indexed by matchSpans; present together with matchSpans.',
+      'Up to 3 excerpts of paragraphs containing the strongest matches, in document order; a long paragraph is cut to a window around its strongest match. Each matchSpans offset is an end-exclusive UTF-16 code-unit offset into that excerpt text. Omitted when the hit reports no spans.',
     ),
   score: z.number().describe('Relevance score'),
   taskType: z
@@ -312,6 +349,13 @@ export const searchResultOutput = z.object({
   hasMore: z
     .boolean()
     .describe('Whether more results may exist beyond this page'),
+  searchReceiptId: z
+    .string()
+    .uuid()
+    .optional()
+    .describe(
+      'Fresh short-lived receipt proving this project graph search ran in the current agent session. Pass it to create_work_item in this project; it can be reused for several creations until it expires.',
+    ),
 });
 
 type SearchResultOutput = z.infer<typeof searchResultOutput>;
@@ -342,6 +386,13 @@ const unifiedSearchGroup = z.object({
 });
 
 export const unifiedSearchResultOutput = z.object({
+  searchReceiptId: z
+    .string()
+    .uuid()
+    .optional()
+    .describe(
+      'Fresh short-lived receipt proving this project graph search ran in the current agent session. Pass it to create_work_item in this project; it can be reused for several creations until it expires.',
+    ),
   results: z
     .array(searchResultItem)
     .optional()
@@ -383,6 +434,12 @@ export const unifiedSearchResultOutput = z.object({
 
 type UnifiedSearchResultOutput = z.infer<typeof unifiedSearchResultOutput>;
 
+function isSearchReceiptError(
+  value: SearchReceiptScope | CallToolResult,
+): value is CallToolResult {
+  return 'content' in value && 'isError' in value;
+}
+
 type SearchPage = {
   results: z.infer<typeof searchResultItem>[];
   total: number;
@@ -411,7 +468,7 @@ function fitSearchPagesToBudget<T extends SearchPage>(pages: T[]): T[] {
         sizes[index]!.reduce((pageSum, size) => pageSum + size, 0),
       0,
     );
-  while (total > RESPONSE_CHARACTER_BUDGET) {
+  while (total > SEARCH_RESPONSE_CHARACTER_BUDGET) {
     const largest = Math.max(...kept);
     if (largest <= 1) break;
     const index = kept.lastIndexOf(largest);
@@ -433,9 +490,13 @@ function fitSearchPagesToBudget<T extends SearchPage>(pages: T[]): T[] {
 }
 
 function mapResult(item: UnifiedSearchResult) {
-  const snippet =
-    truncate(item.content, MAX_SNIPPET_LENGTH) ||
-    truncate(item.topologySummary, MAX_SNIPPET_LENGTH);
+  const matchParagraphs = item.embeddings?.matchParagraphs;
+  const hasMatchParagraphs =
+    matchParagraphs !== undefined && matchParagraphs.length > 0;
+  const snippet = hasMatchParagraphs
+    ? undefined
+    : truncate(item.content, MAX_SNIPPET_LENGTH) ||
+      truncate(item.topologySummary, MAX_SNIPPET_LENGTH);
 
   const meta = item.embeddings?.metadata as CanonicalTaskMetadata | undefined;
   const isFeature = meta?.taskType === 'FEATURE';
@@ -444,15 +505,9 @@ function mapResult(item: UnifiedSearchResult) {
     id: item.entityId ?? '',
     type: item.entityType ?? '',
     title: item.title ?? '',
-    snippet,
+    ...(snippet === undefined ? {} : { snippet }),
     score: item.score ?? 0,
-    ...(item.embeddings?.matchSpans !== undefined &&
-    item.embeddings.text !== undefined
-      ? {
-          matchSpans: item.embeddings.matchSpans,
-          matchText: item.embeddings.text,
-        }
-      : {}),
+    ...(matchParagraphs === undefined ? {} : { matchParagraphs }),
     // Surface the task subtype straight from the search metadata so callers
     // can tell a feature/bug/goal hit from a standard one without a follow-up
     // lookup; omit it entirely when the search data carries no subtype.
@@ -526,7 +581,44 @@ export class SearchToolsProvider {
     private readonly unifiedSearchService: UnifiedSearchService,
     private readonly searchCache: SearchCacheService,
     private readonly helpService: HelpService,
+    @Optional() private readonly searchReceipts?: SearchReceiptStore,
   ) {}
+
+  private async addSearchReceipt<T extends object>(
+    result: T,
+    scope: SearchReceiptScope,
+    tool: string,
+    input: unknown,
+  ): Promise<(T & { searchReceiptId: string }) | CallToolResult> {
+    if (!this.searchReceipts) {
+      return mcpError('Search receipt storage is unavailable.');
+    }
+    try {
+      const searchReceiptId = await this.searchReceipts.issue(
+        scope,
+        tool,
+        input,
+      );
+      return { ...result, searchReceiptId };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return mcpError(
+        `Unable to issue project-graph search receipt: ${message}`,
+      );
+    }
+  }
+
+  private resolveSearchReceiptScope(
+    request: Request,
+    projectId: string,
+  ): SearchReceiptScope | CallToolResult {
+    const scope = this.searchReceipts?.resolveScope(request, projectId);
+    return (
+      scope ??
+      this.searchReceipts?.missingSessionError() ??
+      mcpError('Search receipt storage is unavailable.')
+    );
+  }
 
   @Tool({
     name: 'search_help',
@@ -598,22 +690,26 @@ export class SearchToolsProvider {
     description:
       'Search across content types (tasks, design docs, plans, and messages) ' +
       'in a project. Returns ranked results with relevance scores and text ' +
-      'snippets for context. Provide EITHER `query` (a single search, ' +
+      'matched text excerpts (a snippet only for hits without them) for context. Provide EITHER `query` (a single search, ' +
       'returning a flat { results, total, hasMore }) OR `queries` (a batch of ' +
       'up to 5 searches run in one call, returning { groups } — one ordered ' +
       'group per input query so you can correlate results back to the query ' +
       'that produced them). Exactly one of `query`/`queries` is required. Use ' +
-      '`queries` to fan out related orientation searches (e.g. after ' +
-      'get_context) without multiple round-trips. Shared filters ' +
+      '`queries` to fan out related discovery searches without multiple ' +
+      'round-trips. Shared filters ' +
       '(`entityTypes`, `downrankUnreviewed`, `createdAfter`, `createdBefore`, ' +
-      '`updatedAfter`, `updatedBefore`) ' +
+      '`updatedAfter`, `updatedBefore`, `match`) ' +
       'and `limit` apply to every query. Pass `entityTypes` to scope to a ' +
       'subset (e.g. ["MESSAGE"] to search conversation history only). Pass ' +
       '`createdAfter` and/or `createdBefore` (ISO-8601 date-times) to scope ' +
       'results to an entity creation-time window. Pass `updatedAfter` and/or ' +
       "`updatedBefore` to scope results to each entity's own update-time " +
-      'window. Both time ranges can be combined. The response stays within ' +
-      'an 8,000-token estimated budget: when it would not fit, ranked ' +
+      'window. Both time ranges can be combined. Set `match: "exact"` to ' +
+      'look up identifiers, symbol names, error strings, file paths, or to ' +
+      'check whether a phrase exists: results are only entities containing ' +
+      'the literal query (no near matches), and an empty result means none ' +
+      'does; matched positions are returned in the result spans. The response stays within ' +
+      'a 12,000-token estimated budget shared across the batch: when it would not fit, ranked ' +
       'results are cut from the end, hasMore is true, and omittedForSize ' +
       'says how many were cut — repeat the query with limit no larger than ' +
       'total and page through it with offset in steps of that limit.',
@@ -633,6 +729,8 @@ export class SearchToolsProvider {
     const resolved = resolveProjectId({}, request);
     if (!isProjectId(resolved)) return resolved;
     const projectId = resolved;
+    const receiptScope = this.resolveSearchReceiptScope(request, projectId);
+    if (isSearchReceiptError(receiptScope)) return receiptScope;
 
     const {
       query,
@@ -643,6 +741,8 @@ export class SearchToolsProvider {
       createdBefore,
       updatedAfter,
       updatedBefore,
+      excludeConnected,
+      match,
       limit,
       offset,
     } = params;
@@ -662,18 +762,31 @@ export class SearchToolsProvider {
       );
     }
 
-    const shared = {
-      entityTypes,
-      downrankUnreviewed,
-      createdAfter,
-      createdBefore,
-      updatedAfter,
-      updatedBefore,
-      limit,
-      offset,
-    };
-
     try {
+      // Worked out once per call and shared by every query of a batch. A failure is a search
+      // error: results are never returned without the exclusion that was asked for.
+      const excludeEntityIds = excludeConnected
+        ? await this.unifiedSearchService.resolveExcludedEntityIds(
+            auth.organizationId,
+            projectId,
+            excludeConnected,
+            auth.token,
+          )
+        : undefined;
+
+      const shared = {
+        entityTypes,
+        downrankUnreviewed,
+        createdAfter,
+        createdBefore,
+        updatedAfter,
+        updatedBefore,
+        excludeEntityIds,
+        match,
+        limit,
+        offset,
+      };
+
       if (hasMulti) {
         // Run each query through the same single-query pipeline (cache
         // included) and return one ordered group per query. Promise.all
@@ -694,7 +807,12 @@ export class SearchToolsProvider {
           queryCount: groups.length,
           totalsByQuery: groups.map((group) => group.total),
         });
-        return { groups: fitSearchPagesToBudget(groups) };
+        return this.addSearchReceipt(
+          { groups: fitSearchPagesToBudget(groups) },
+          receiptScope,
+          'unified_search',
+          params,
+        );
       }
 
       // `hasSingle` (mutually exclusive with `hasMulti`, checked above)
@@ -702,7 +820,12 @@ export class SearchToolsProvider {
       const [page] = fitSearchPagesToBudget([
         await this.runUnifiedQuery(query as string, shared, auth, projectId),
       ]);
-      return page!;
+      return this.addSearchReceipt(
+        page!,
+        receiptScope,
+        'unified_search',
+        params,
+      );
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       const stack = error instanceof Error ? error.stack : undefined;
@@ -727,6 +850,8 @@ export class SearchToolsProvider {
       createdBefore?: string;
       updatedAfter?: string;
       updatedBefore?: string;
+      excludeEntityIds?: string[];
+      match?: 'semantic' | 'exact';
       limit: number;
       offset: number;
     },
@@ -740,9 +865,12 @@ export class SearchToolsProvider {
       createdBefore,
       updatedAfter,
       updatedBefore,
+      excludeEntityIds,
+      match,
       limit,
       offset,
     } = shared;
+    const isExact = match === 'exact';
 
     const resolvedTypes: EntityType[] = entityTypes?.length
       ? (entityTypes as EntityType[])
@@ -763,19 +891,33 @@ export class SearchToolsProvider {
       createdBefore,
       updatedAfter,
       updatedBefore,
+      // The resolved set, not the seeds it came from: the closure changes as items are linked, and a
+      // cached page must never answer a call whose exclusion differs. Present only when asked for,
+      // so ordinary searches keep their exact cache keys.
+      ...(excludeEntityIds
+        ? { excludedEntities: fingerprintEntityIds(excludeEntityIds) }
+        : {}),
+      match,
+      // The shared key lowercases and trims `query`, but an exact phrase is
+      // literal (surrounding whitespace included), so key it untouched.
+      ...(isExact ? { exactPhrase: query } : {}),
       limit,
       offset,
     };
     const cacheKey = this.searchCache.generateKey(cacheParams);
     const filterFp = this.searchCache.buildFilterFingerprint(cacheParams);
 
+    // A "similar" query has a different literal result set, so exact mode
+    // only ever reuses an identical cached query.
     const cached =
       this.searchCache.get<SearchResultOutput>(cacheKey) ??
-      this.searchCache.findSimilar<SearchResultOutput>(
-        query,
-        scopeKey,
-        filterFp,
-      );
+      (isExact
+        ? undefined
+        : this.searchCache.findSimilar<SearchResultOutput>(
+            query,
+            scopeKey,
+            filterFp,
+          ));
     if (cached) {
       this.logger.debug('unified_search cache hit', {
         query,
@@ -798,26 +940,46 @@ export class SearchToolsProvider {
         ? { from: updatedAfter, to: updatedBefore }
         : undefined;
 
-    const searchRequest: UnifiedSearchRequest = {
-      intent: 'hybrid',
-      query,
-      excludeContentless: true,
-      downrankUnreviewed: downrankUnreviewed ?? false,
-      common: {
-        types: resolvedTypes,
-        ...(dateRange ? { dateRange } : {}),
-        ...(updatedAtRange ? { updatedAtRange } : {}),
-      },
-      embeddings: {
-        queryMode: 'default',
-        maxResults: limit,
-        offset,
-      },
-      graph: {
-        page: graphPage,
-        size: limit,
-      },
+    const common = {
+      types: resolvedTypes,
+      ...(dateRange ? { dateRange } : {}),
+      ...(updatedAtRange ? { updatedAtRange } : {}),
+      ...(excludeEntityIds ? { excludeEntityIds } : {}),
     };
+
+    // Exact mode is embeddings-only: graph traversal would add entities that
+    // do not contain the phrase, and a score cutoff would drop literal hits.
+    const searchRequest: UnifiedSearchRequest = isExact
+      ? {
+          intent: 'semantic',
+          query,
+          excludeContentless: true,
+          downrankUnreviewed: downrankUnreviewed ?? false,
+          common,
+          embeddings: {
+            queryMode: 'exact',
+            similarityThreshold: 0,
+            // One extra verified hit tells us whether another page exists.
+            maxResults: limit + 1,
+            offset,
+          },
+        }
+      : {
+          intent: 'hybrid',
+          query,
+          excludeContentless: true,
+          downrankUnreviewed: downrankUnreviewed ?? false,
+          common,
+          embeddings: {
+            queryMode: 'default',
+            maxResults: limit,
+            offset,
+          },
+          graph: {
+            page: graphPage,
+            size: limit,
+          },
+        };
 
     const response = await this.unifiedSearchService.search(
       auth.organizationId,
@@ -877,6 +1039,8 @@ export class SearchToolsProvider {
     const resolved = resolveProjectId({}, request);
     if (!isProjectId(resolved)) return resolved;
     const projectId = resolved;
+    const receiptScope = this.resolveSearchReceiptScope(request, projectId);
+    if (isSearchReceiptError(receiptScope)) return receiptScope;
 
     const {
       query,
@@ -921,7 +1085,7 @@ export class SearchToolsProvider {
         query,
         total: cached.total,
       });
-      return cached;
+      return this.addSearchReceipt(cached, receiptScope, toolName, params);
     }
 
     const hasPostFetchFilters = !!(status || priority || initiativeId);
@@ -1072,7 +1236,7 @@ export class SearchToolsProvider {
       };
 
       this.searchCache.set(cacheKey, query, scopeKey, filterFp, result);
-      return result;
+      return this.addSearchReceipt(result, receiptScope, toolName, params);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       const stack = error instanceof Error ? error.stack : undefined;
@@ -1173,6 +1337,8 @@ export class SearchToolsProvider {
     const resolved = resolveProjectId({}, request);
     if (!isProjectId(resolved)) return resolved;
     const projectId = resolved;
+    const receiptScope = this.resolveSearchReceiptScope(request, projectId);
+    if (isSearchReceiptError(receiptScope)) return receiptScope;
 
     const { query, template, status, tags, limit, offset } = params;
 
@@ -1206,7 +1372,12 @@ export class SearchToolsProvider {
         query,
         total: cached.total,
       });
-      return cached;
+      return this.addSearchReceipt(
+        cached,
+        receiptScope,
+        'search_design_docs',
+        params,
+      );
     }
 
     const mappedStatuses = status
@@ -1295,7 +1466,12 @@ export class SearchToolsProvider {
       });
 
       this.searchCache.set(cacheKey, query, scopeKey, filterFp, result);
-      return result;
+      return this.addSearchReceipt(
+        result,
+        receiptScope,
+        'search_design_docs',
+        params,
+      );
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       const stack = error instanceof Error ? error.stack : undefined;

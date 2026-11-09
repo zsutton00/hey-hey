@@ -1,4 +1,4 @@
-import { AgentSessionContextSizeObservation } from '../../generated';
+import { AgentSessionContextSizeObservation } from '@hey-hey/contracts/api/models';
 import { AgentSessionService } from '../agent-session.service';
 
 describe('AgentSessionService context-size boundary', () => {

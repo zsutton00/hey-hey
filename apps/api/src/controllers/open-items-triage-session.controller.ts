@@ -16,7 +16,7 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OrganizationGuard } from '../auth/guards/organization.guard';
 import { ProjectAccessGuard } from '../auth/guards/project-access.guard';
-import type { OpenItemsTriageSession } from '../generated';
+import type { OpenItemsTriageSession } from '@hey-hey/contracts/api/models';
 import { OpenItemsTriageSessionService } from '../services/open-items/open-items-triage-session.service';
 import type { OrganizationId, ProjectId, UserId } from '../types';
 

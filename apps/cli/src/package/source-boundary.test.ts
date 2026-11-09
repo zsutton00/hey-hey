@@ -61,7 +61,11 @@ describe('CLI source boundary', () => {
         ),
       ).toEqual([]);
     }
-    expect(manifest.scripts.build).toBe('node scripts/build.mjs');
-    expect(manifest.scripts.typecheck).toBe('pnpm tsc --noEmit');
+    expect(manifest.scripts.build).toBe(
+      'node ../../scripts/generate-contracts.mjs --with-lock --build-contracts --target=cli -- pnpm --dir apps/cli run build:unlocked',
+    );
+    expect(manifest.scripts.typecheck).toBe(
+      'node ../../scripts/generate-contracts.mjs --with-lock --build-contracts --target=cli -- pnpm --dir apps/cli exec tsc --noEmit',
+    );
   });
 });

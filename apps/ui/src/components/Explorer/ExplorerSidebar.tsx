@@ -15,7 +15,7 @@ import {
   type TaskResponseDto,
   type WorkItemTypeDefinitionDto,
   type WorkItemTypeSummaryDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   hasDemoSandboxSession,
   useProjects,
@@ -532,12 +532,16 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
   );
 
   const renderUserMenuContent = (): React.ReactNode[] => [
-    <MenuItem key="user-menu-email" disabled>
-      <Typography variant="body2" color="text.secondary">
-        {user?.email}
-      </Typography>
-    </MenuItem>,
-    <Divider key="user-menu-email-divider" />,
+    ...(!user?.isLocalAccount
+      ? [
+          <MenuItem key="user-menu-email" disabled>
+            <Typography variant="body2" color="text.secondary">
+              {user?.email}
+            </Typography>
+          </MenuItem>,
+          <Divider key="user-menu-email-divider" />,
+        ]
+      : []),
     <MenuItem
       key="user-menu-projects"
       onClick={() => handleUserMenuNavigation("/projects")}
@@ -1170,7 +1174,8 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {user?.name || user?.email}
+                  {user?.name ||
+                    (user?.isLocalAccount ? "Local account" : user?.email)}
                 </Typography>
                 {currentOrganization && (
                   <Typography

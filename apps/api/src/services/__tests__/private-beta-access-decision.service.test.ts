@@ -1,5 +1,5 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import type { PrivateBetaAccessRequestDecisionInputDto } from '../../generated';
+import type { PrivateBetaAccessRequestDecisionInputDto } from '@hey-hey/contracts/api/models';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { BrowserSessionRequestMetadata } from '../../auth/browser-session.types';
 import type { PrivateBetaAccessRequestId, UserId } from '../../types';

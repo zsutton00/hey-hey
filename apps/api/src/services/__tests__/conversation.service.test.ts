@@ -16,7 +16,7 @@ import {
   InitiationType,
   InitiativeCreatorType,
   UpdateConversationDto,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TEMPORAL_CLIENT } from '../../prisma/temporal.module';
 import {

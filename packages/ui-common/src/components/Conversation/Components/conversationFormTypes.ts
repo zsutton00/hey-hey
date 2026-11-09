@@ -8,6 +8,13 @@ export type CanonicalMessageId = string & {
   readonly [canonicalMessageId]: true;
 };
 
+/** Narrows a message identity to one confirmed in the canonical conversation collection. */
+export const canonicalMessageIdFromCollection = (
+  value: string,
+  canonicalIds: ReadonlySet<string>,
+): CanonicalMessageId | null =>
+  canonicalIds.has(value) ? (value as CanonicalMessageId) : null;
+
 export type ResponseSubmissionKind = "field" | "report" | "owner-command";
 export type ResponseBehavior =
   | { ownership: "display-only" }
@@ -36,7 +43,7 @@ export type ResponseTargetChangeHandler = (
   target: ConversationResponseTarget,
   conversationId: string,
   /** The canonical message load has settled, successfully or not. */
-  messagesSettled: boolean
+  messagesSettled: boolean,
 ) => void;
 
 export interface ConversationFormResolution {
@@ -45,10 +52,9 @@ export interface ConversationFormResolution {
   disabled: boolean;
   /** Completion evidence from the owner, never temporary command readiness. */
   isSubmitted: boolean;
-  composerResetMode?: "preserve" | "clearOnSuccess";
   submit: (data: Record<string, FormValue>) => Promise<void>;
 }
 
 export type ConversationFormResolver = (
-  conversationMessage: ConversationMessage
+  conversationMessage: ConversationMessage,
 ) => ConversationFormResolution | null;

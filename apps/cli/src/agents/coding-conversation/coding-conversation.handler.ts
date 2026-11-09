@@ -2,7 +2,7 @@ import { reportChangedFilesTool } from '../submission-tools/report-changed-files
 import type { AgenticSession } from '../../session/types';
 import type { LocalFreeFormPromptPayload } from '../../shared/agent-bridge-contract/index';
 import type { Prepared } from '../../shared/agent-bridge-contract/contract';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import {
   completionResponseHooks,
   changedFileReportingDuty,
@@ -21,6 +21,7 @@ import {
 } from '../prompts/coding-conversation';
 import { buildStartingMessage as buildStartingMessageForPromptType } from '../prompts/starting-message';
 import { parseImplementationReadinessResponseFromText } from '../response-parser';
+import { hasFocalTask } from '../completion-reconciliation/prompts/common';
 import { taskIdFromHandlerContext } from '../run-entity';
 import type { AssistantCompleteEvent } from '../../run/types';
 import { requestAgentSessionServiceScopeTool } from '../service-scope-request/service-scope-tool';
@@ -35,6 +36,7 @@ import { submitCodingConversationReadinessTool } from './submit-readiness-tool';
 type CodingConversationDeclaration<TPayload extends CodingConversationPreparedPayload> = Pick<
   UserLaunchablePromptTypeHandler<TPayload>,
   | 'id'
+  | 'sessionRole'
   | 'handsOffOrdinaryReplies'
   | 'promptType'
   | 'service'
@@ -173,7 +175,13 @@ const createCodingConversationHandler = <TPayload extends CodingConversationPrep
               awaitingUserReview: ctx?.awaitingUserReview === true,
               taskId: taskIdFromHandlerContext(ctx),
             },
-        ctx?.startedPromptTypes,
+        {
+          startedPromptTypes: ctx?.startedPromptTypes ?? new Set(),
+          focalTask: hasFocalTask({
+            entity: ctx?.entity ?? null,
+            loadedEntityContext: ctx?.loadedEntityContext,
+          }),
+        },
       );
     },
 
@@ -202,6 +210,7 @@ export const freeFormHandler = createCodingConversationHandler<
 >({
   mode: 'launch',
   id: 'free_form',
+  sessionRole: SessionRole.Implementation,
   handsOffOrdinaryReplies: true,
   promptType: LocalPromptType.FreeForm,
   service: 'required',
@@ -233,6 +242,7 @@ export const codingFreeformHandler =
   createCodingConversationHandler<CodingConversationPreparedPayload>({
     mode: 'follow_up',
     id: 'coding_freeform',
+    sessionRole: SessionRole.Implementation,
     promptType: LocalPromptType.CodingFreeform,
     service: 'required',
     launchEntity: 'none',

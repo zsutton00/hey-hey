@@ -30,7 +30,7 @@ import {
   SignedMonitorAuthorityNeutralEnvelope,
   SignedConversationTriggerEnvelope,
   SignedMonitorCommandEnvelope,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { MachineId, UserId } from '../../types';
 import { ServerSigningKeyService } from '../server-signing/server-signing-key.service';
 import { canonicalizeJcs } from './trigger-canonicalization';

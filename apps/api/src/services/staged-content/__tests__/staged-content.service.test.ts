@@ -12,11 +12,11 @@ import { WorkItemStagedContentAdapter } from '../../../adapters/staged-content/w
 import { ADR_DESIGN_DOC_CONTENT_TYPE } from '../../../config/content-types/design-doc.config';
 import { INITIATIVE_CONTENT_TYPE } from '../../../config/content-types/initiative.config';
 import { WORK_ITEM_CONTENT_TYPE } from '../../../config/content-types/work-item.config';
-import { AdrStatus } from '../../../generated';
-import { ConversationResponseDto } from '../../../generated/model/conversationResponseDto';
-import { ConversationStatus } from '../../../generated/model/conversationStatus';
-import { InitiationType } from '../../../generated/model/initiationType';
-import { WorkflowName } from '../../../generated/model/workflowName';
+import { AdrStatus } from '@hey-hey/contracts/api/models';
+import { ConversationResponseDto } from '@hey-hey/contracts/api/models';
+import { ConversationStatus } from '@hey-hey/contracts/api/models';
+import { InitiationType } from '@hey-hey/contracts/api/models';
+import { WorkflowName } from '@hey-hey/contracts/api/models';
 import {
   ContentTypeDefinition,
   StageDefinition,

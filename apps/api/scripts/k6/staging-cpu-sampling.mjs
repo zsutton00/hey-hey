@@ -1,3 +1,4 @@
+import { recordingScope } from './recording-scope.mjs';
 import { execFile } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { promisify } from 'node:util';
@@ -13,12 +14,13 @@ const services = [
   'neo4j',
   'vespa',
 ];
-const command = `ids=$(docker ps --filter label=com.docker.compose.project=hey-hey-staging --format '{{.ID}}'); test -n "$ids" && docker stats --no-stream --format '{{json .}}' $ids; echo HOST_CPU; head -n 1 /proc/stat`;
+const { environment, project, remoteEnvironment } = recordingScope();
+const command = `ids=$(docker ps --filter label=com.docker.compose.project=${project} --format '{{.ID}}'); test -n "$ids" && docker stats --no-stream --format '{{json .}}' $ids; echo HOST_CPU; head -n 1 /proc/stat`;
 
 export function summarizeCpu(samples) {
   return Object.fromEntries(
     services.map((service) => {
-      const name = `hey-hey-staging-${service}-1`;
+      const name = `${project}-${service}-1`;
       const values = samples.flatMap((sample) =>
         sample.containers
           .filter((c) => c.name === name)
@@ -54,11 +56,8 @@ export async function sampleCpu(sshTarget, phase, path, querySampler) {
     .map((line) => {
       const row = JSON.parse(line);
       const cpuPercent = Number(row.CPUPerc.replace(/%$/, ''));
-      if (
-        !row.Name.startsWith('hey-hey-staging-') ||
-        !Number.isFinite(cpuPercent)
-      ) {
-        throw new Error('Unexpected staging Docker stats response');
+      if (!row.Name.startsWith(`${project}-`) || !Number.isFinite(cpuPercent)) {
+        throw new Error('Unexpected selected deployment Docker stats response');
       }
       return {
         name: row.Name,
@@ -68,8 +67,8 @@ export async function sampleCpu(sshTarget, phase, path, querySampler) {
       };
     });
   for (const service of services) {
-    if (!containers.some((c) => c.name === `hey-hey-staging-${service}-1`)) {
-      throw new Error(`Staging CPU sample missing ${service}`);
+    if (!containers.some((c) => c.name === `${project}-${service}-1`)) {
+      throw new Error(`Deployment CPU sample missing ${service}`);
     }
   }
   const hostCpuTicks = hostCpu.trim().split(/\s+/).slice(1).map(Number);
@@ -88,7 +87,7 @@ export async function sampleCpu(sshTarget, phase, path, querySampler) {
         '-o',
         'ConnectTimeout=10',
         sshTarget,
-        `python3 -c ${quote}`,
+        `${remoteEnvironment} python3 -c ${quote}`,
       ],
       { timeout: 20000, maxBuffer: 4 * 1024 * 1024 },
     );
@@ -109,7 +108,7 @@ export async function sampleCpu(sshTarget, phase, path, querySampler) {
     phase,
     containers,
     hostCpuTicks,
-    neo4jCpuCounters: resources.containers?.['hey-hey-staging-neo4j-1']?.cpu,
+    neo4jCpuCounters: resources.containers?.[`${project}-neo4j-1`]?.cpu,
     resources,
     queryCollection,
     queries,
@@ -190,6 +189,7 @@ export async function startCpuSampling({
       );
       return {
         path,
+        environment,
         baselineSeconds,
         intervalSeconds,
         baseline: summarizeCpu(baseline),
@@ -209,7 +209,8 @@ export async function startCpuSampling({
         queryCoverage:
           'Active transactions sampled at the CPU interval; fast queries may be missed. CPU durations may be null when server CPU tracking is disabled. No trace metadata is collected.',
         units: 'percent of one logical CPU (100% = one core)',
-        scope: 'all processes in staging containers; includes background work',
+        scope:
+          'all processes in selected deployment containers; includes background work',
       };
     },
   };

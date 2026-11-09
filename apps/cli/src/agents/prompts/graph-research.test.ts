@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { PromptTypeRegistry } from '../prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../prompt-type-registry.test-support';
-import { graphResearchGuidance, selectGraphResearchGuidance } from './graph-research';
+import type { PromptTypeHandler } from '../prompt-type-handler';
+import workItemTypesFixture from './__fixtures__/work-item-types.fixture';
+import { buildPlatformSystemPrompt } from './common';
+import { graphResearchGuidance } from './graph-research';
+import { sessionPromptDeclarationsOf } from './platform-prompt-context';
 
 const registry = new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES);
 const handlerFor = (promptType: LocalPromptType) => {
@@ -11,11 +15,31 @@ const handlerFor = (promptType: LocalPromptType) => {
   return handler;
 };
 
-describe('selectGraphResearchGuidance', () => {
+const builtInTypes = workItemTypesFixture.map((summary) => summary.definition);
+
+/** The platform system prompt a fresh provider session for this handler receives. */
+const sessionSystemPromptFor = (handler: PromptTypeHandler<unknown>): string =>
+  buildPlatformSystemPrompt(builtInTypes, {
+    provider: 'claude',
+    model: null,
+    ...sessionPromptDeclarationsOf(handler),
+  });
+
+const occurrences = (prompt: string): number =>
+  prompt.split('## Widening graph research').length - 1;
+
+describe('graph research guidance delivery', () => {
+  it.each(registry.list().map((handler) => [handler.id, handler] as const))(
+    'reaches %s once exactly when the handler declares it',
+    (_id, handler) => {
+      const expected = handler.graphResearchGuidance ? 1 : 0;
+      expect(occurrences(sessionSystemPromptFor(handler))).toBe(expected);
+    },
+  );
+
   it.each([LocalPromptType.EntityConversation, LocalPromptType.FreeForm, LocalPromptType.Research])(
-    'selects the reusable fragment for conversational prompt type %s',
-    (promptType) =>
-      expect(selectGraphResearchGuidance(handlerFor(promptType))).toBe(graphResearchGuidance),
+    'is declared by conversational prompt type %s',
+    (promptType) => expect(handlerFor(promptType).graphResearchGuidance).toBe(true),
   );
 
   it.each([
@@ -23,10 +47,12 @@ describe('selectGraphResearchGuidance', () => {
     LocalPromptType.StartupSession,
     LocalPromptType.PlanExecution,
     LocalPromptType.Implement,
-  ])('excludes bootstrap and execution prompt type %s', (promptType) => {
-    expect(selectGraphResearchGuidance(handlerFor(promptType))).toBeNull();
+  ])('is not declared by bootstrap and execution prompt type %s', (promptType) => {
+    expect(handlerFor(promptType).graphResearchGuidance).toBeUndefined();
   });
+});
 
+describe('graph research guidance text', () => {
   it('contains bounded discovery and proportional evidence guidance', () => {
     expect(graphResearchGuidance).toContain('During the conversation');
     expect(graphResearchGuidance).toContain(

@@ -5,7 +5,7 @@ import {
   EntityType,
   WorkflowName,
   ValidationLaunchContextScopeEnum,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   AgentBridgeTrackingProvider,
   AgenticSetupSection,

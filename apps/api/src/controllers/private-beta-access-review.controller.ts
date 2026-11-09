@@ -15,7 +15,7 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
-import type { PrivateBetaAccessRequestReviewDto } from '../generated';
+import type { PrivateBetaAccessRequestReviewDto } from '@hey-hey/contracts/api/models';
 import type { PrivateBetaAccessRequestId } from '../types';
 import { PrivateBetaAccessReviewService } from '../services/private-beta-access-review.service';
 

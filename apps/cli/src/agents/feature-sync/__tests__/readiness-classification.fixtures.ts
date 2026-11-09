@@ -14,4 +14,9 @@ export const readinessClassificationFixtures = [
     expectedState: 'REVIEW_REQUIRED',
     label: 'evidenced unresolved choice',
   },
+  {
+    id: 'blocked-by-undecided-dependency',
+    expectedState: 'REVIEW_REQUIRED',
+    label: "blocked by another item's undecided design",
+  },
 ] as const;

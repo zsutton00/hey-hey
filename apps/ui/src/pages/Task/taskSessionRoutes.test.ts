@@ -13,9 +13,7 @@ describe("taskSessionRoutes", () => {
         "task-1",
         "session-1",
       ),
-    ).toBe(
-      "/projects/project-1/tasks/task-1/agent-sessions/session-1",
-    );
+    ).toBe("/projects/project-1/tasks/task-1/agent-sessions/session-1");
   });
 
   it("builds task paths with coding sessions tab query", () => {

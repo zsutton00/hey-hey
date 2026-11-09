@@ -5,6 +5,7 @@ import axios, { AxiosError } from "axios";
 import type {
   BrowserSessionResponseDto,
   BrowserOrganizationSelectionDto,
+  DevAdminModeDto,
   PasswordRecoveryAcknowledgementDto,
 } from "../api/api";
 import {
@@ -47,6 +48,7 @@ type JwtPayload = {
   name?: string;
   isDevAdmin?: boolean;
   devAdminMode?: boolean;
+  isLocalAccount?: boolean;
   exp?: number;
   [key: string]: unknown;
 };
@@ -324,6 +326,22 @@ const setBrowserAuthState = (response: BrowserSessionResponseDto): void => {
   }
   if (!("accessToken" in response) || previousToken === authToken)
     notifyAuthChange(true, authToken);
+};
+
+export const acceptBrowserAuthSession = (
+  response: BrowserSessionResponseDto,
+): void => {
+  setBrowserAuthState(response);
+};
+
+/** Validates a server browser-session response, then adopts it. */
+export const acceptBrowserAuthResponse = (
+  value: unknown,
+): BrowserSessionResponseDto => {
+  const response = parseBrowserAuthResponse(value);
+  setBrowserAuthState(response);
+  markDemoSandboxSession(false);
+  return response;
 };
 
 const receiveBrowserRenewal = (value: unknown): void => {
@@ -646,7 +664,8 @@ export const getCurrentUser = () => {
   const payload = decodeJwtPayload(authToken);
   if (!payload) return null;
 
-  const { sub, email, name, isDevAdmin, devAdminMode, exp } = payload;
+  const { sub, email, name, isDevAdmin, devAdminMode, isLocalAccount, exp } =
+    payload;
 
   if (typeof exp === "number" && Date.now() >= exp * 1000) {
     console.warn("Auth token is expired");
@@ -664,32 +683,17 @@ export const getCurrentUser = () => {
     name: typeof name === "string" ? name : undefined,
     isDevAdmin: Boolean(isDevAdmin),
     devAdminMode: Boolean(devAdminMode),
+    isLocalAccount: Boolean(isLocalAccount),
   };
 };
 
 // Toggle dev-admin mode
-export const toggleDevAdminMode = async (): Promise<AuthTokens> => {
+export const toggleDevAdminMode = async (
+  client?: UnifiedApiClient,
+): Promise<DevAdminModeDto> => {
   try {
-    const runtime = getApiRuntime();
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-    if (authToken) {
-      headers.Authorization = `Bearer ${authToken}`;
-    }
-    const response = await runtime.transport.request<AuthTokens>({
-      method: "PATCH",
-      url: "/auth/toggle-dev-admin",
-      data: {},
-      headers,
-      withCredentials: true,
-    });
-
-    if (response.data?.accessToken) {
-      setAuthToken(response.data.accessToken);
-      return response.data;
-    }
-    throw new Error("Failed to toggle dev-admin mode");
+    const response = await resolveClient(client).toggleDevAdminMode();
+    return response.data.data;
   } catch (error) {
     return handleAxiosError(error, "Toggle dev-admin mode");
   }

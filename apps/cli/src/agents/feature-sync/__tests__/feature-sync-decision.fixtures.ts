@@ -1,4 +1,4 @@
-import type { FeatureSyncDecisionReportPayloadV2 } from '../../../shared/api/generated/api';
+import type { FeatureSyncDecisionReportPayloadV2 } from '@hey-hey/contracts/api/models';
 
 const reporting = {
   entityType: 'feature',

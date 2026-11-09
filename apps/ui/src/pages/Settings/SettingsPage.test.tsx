@@ -70,6 +70,13 @@ vi.mock("./ClaimMachine", () => ({
 }));
 
 vi.mock("@hey-hey/ui-common/data", () => ({
+  useAccountPasskeys: () => ({
+    passkeys: [],
+    loadError: null,
+    add: vi.fn(),
+    rename: vi.fn(),
+    remove: vi.fn(),
+  }),
   useUserPairedMachines: () => ({
     machines: [],
     data: [],
@@ -144,23 +151,23 @@ const renderPage = (initialEntry = "/projects/project-1/settings") =>
     <MemoryRouter initialEntries={[initialEntry]}>
       <SettingsPage />
       <LocationState />
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 
 describe("SettingsPage", () => {
   it("opens target-specific browser authorization from recovery links", () => {
     renderPage(
-      "/settings?section=pairing&intent=authorize-browser&machineId=machine-1&machineName=MacBook-Pro"
+      "/settings?section=pairing&intent=authorize-browser&machineId=machine-1&machineName=MacBook-Pro",
     );
 
     expect(
       screen.getByRole("heading", {
         name: "Authorize this browser for MacBook-Pro",
-      })
+      }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("settings-machine-claim")).toHaveAttribute(
       "data-machine-id",
-      "machine-1"
+      "machine-1",
     );
   });
 
@@ -185,17 +192,17 @@ describe("SettingsPage", () => {
     renderPage();
 
     expect(screen.getByTestId("settings-password-section")).toHaveTextContent(
-      "Password"
+      "Password",
     );
     expect(
-      screen.getByTestId("settings-change-password-button")
+      screen.getByTestId("settings-change-password-button"),
     ).toHaveTextContent("Change Password");
     expect(screen.getByTestId("settings-machines-section")).toBeInTheDocument();
     expect(screen.getByTestId("settings-machines-heading")).toHaveTextContent(
-      "Agent Bridges"
+      "Agent Bridges",
     );
     expect(screen.getByTestId("settings-machines-section")).toHaveTextContent(
-      "Hey Hey CLIs"
+      "Hey Hey CLIs",
     );
   });
 
@@ -203,13 +210,13 @@ describe("SettingsPage", () => {
     renderPage();
 
     expect(
-      screen.queryByTestId("current-password-change-form")
+      screen.queryByTestId("current-password-change-form"),
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("settings-change-password-button"));
 
     expect(
-      screen.getByTestId("current-password-change-form")
+      screen.getByTestId("current-password-change-form"),
     ).toBeInTheDocument();
   });
 
@@ -218,13 +225,13 @@ describe("SettingsPage", () => {
     const section = screen.getByTestId("settings-machines-section");
     expect(screen.getByTestId("settings-machines-empty")).toBeInTheDocument();
     expect(
-      screen.getByTestId("settings-pair-machine-button")
+      screen.getByTestId("settings-pair-machine-button"),
     ).toHaveTextContent("Pair an Agent Bridge");
     expect(section).toContainElement(
-      screen.getByTestId("settings-pair-machine-button")
+      screen.getByTestId("settings-pair-machine-button"),
     );
     expect(
-      screen.queryByTestId("settings-machine-claim")
+      screen.queryByTestId("settings-machine-claim"),
     ).not.toBeInTheDocument();
   });
 
@@ -236,7 +243,7 @@ describe("SettingsPage", () => {
     expect(screen.getByTestId("settings-pairing-view")).toBeInTheDocument();
     expect(screen.getByTestId("settings-machine-claim")).toBeInTheDocument();
     expect(screen.getByTestId("location-state")).toHaveTextContent(
-      "/projects/project-1/settings?source=settings&section=pairing"
+      "/projects/project-1/settings?source=settings&section=pairing",
     );
   });
 
@@ -254,50 +261,50 @@ describe("SettingsPage", () => {
 
     expect(screen.getByTestId("settings-pairing-view")).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Pair an Agent Bridge" })
+      screen.getByRole("heading", { name: "Pair an Agent Bridge" }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("settings-machine-claim")).toBeInTheDocument();
     expect(screen.queryByTestId("settings-page")).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId("settings-password-section")
+      screen.queryByTestId("settings-password-section"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId("settings-machines-section")
+      screen.queryByTestId("settings-machines-section"),
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("breadcrumbs-item-0")).toHaveTextContent(
-      "Settings"
+      "Settings",
     );
     expect(screen.getByTestId("breadcrumbs-item-1")).toHaveTextContent(
-      "Pairing"
+      "Pairing",
     );
   });
 
   it("returns to the Settings landing while preserving unrelated query state", () => {
     renderPage(
-      "/projects/project-1/settings?section=pairing&source=account-menu"
+      "/projects/project-1/settings?section=pairing&source=account-menu",
     );
 
     fireEvent.click(screen.getByTestId("settings-pairing-back"));
 
     expect(screen.getByTestId("settings-page")).toBeInTheDocument();
     expect(
-      screen.queryByTestId("settings-pairing-view")
+      screen.queryByTestId("settings-pairing-view"),
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("location-state")).toHaveTextContent(
-      "/projects/project-1/settings?source=account-menu"
+      "/projects/project-1/settings?source=account-menu",
     );
   });
 
   it("returns to Settings from the pairing completion action", () => {
     renderPage(
-      "/projects/project-1/settings?section=pairing&source=account-menu"
+      "/projects/project-1/settings?section=pairing&source=account-menu",
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Return to settings" }));
 
     expect(screen.getByTestId("settings-page")).toBeInTheDocument();
     expect(screen.getByTestId("location-state")).toHaveTextContent(
-      "/projects/project-1/settings?source=account-menu"
+      "/projects/project-1/settings?source=account-menu",
     );
   });
 
@@ -306,7 +313,25 @@ describe("SettingsPage", () => {
 
     expect(screen.getByTestId("settings-page")).toBeInTheDocument();
     expect(
-      screen.queryByTestId("settings-pairing-view")
+      screen.queryByTestId("settings-pairing-view"),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows account passkeys separately from Agent Bridges and asks for account proof before adding", () => {
+    render(
+      <MemoryRouter>
+        <SettingsPage />
+      </MemoryRouter>,
+    );
+
+    const passkeys = screen.getByTestId("settings-passkeys-section");
+    expect(passkeys).not.toContainElement(
+      screen.getByTestId("settings-machines-section"),
+    );
+    expect(screen.getByTestId("settings-passkeys-empty")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("settings-add-passkey-button"));
+    expect(screen.getByTestId("account-proof-dialog")).toBeInTheDocument();
+    expect(screen.getByTestId("account-proof-use-password")).toBeDisabled();
   });
 });

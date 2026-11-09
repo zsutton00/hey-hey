@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { selectAffected } from "./affected-builds.mjs";
 
 export function candidateSelection(
-  { ref, event, target, before, revision },
+  { event, target, before, revision },
   diff = (base, head) =>
     execFileSync("git", ["diff", "--name-only", "--no-renames", base, head], {
       encoding: "utf8",
@@ -13,14 +13,13 @@ export function candidateSelection(
       .split("\n")
       .filter(Boolean),
 ) {
-  if (!/^refs\/heads\/release\/.+/.test(ref ?? ""))
-    throw new Error("Candidate publication requires a release branch");
   let selection;
   if (event === "workflow_dispatch") {
     const files = {
       UI: ["apps/ui/retry"],
       API: ["apps/api/retry"],
       Both: ["apps/ui/retry", "apps/api/retry"],
+      "Graph Search": ["apps/graph-search/retry"],
       All: ["<manual retry>"],
     }[target];
     if (!files) throw new Error("Unknown retry target");
@@ -36,18 +35,11 @@ export function candidateSelection(
     }
     selection = selectAffected(files);
   } else throw new Error("Unsupported candidate event");
-  if (selection.images.length)
-    selection.checks.push({
-      target: "contracts",
-      command:
-        "pnpm test:scripts && pnpm generate:check && pnpm check:controller-producers",
-    });
   return selection;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const result = candidateSelection({
-    ref: process.env.GITHUB_REF,
     event: process.env.GITHUB_EVENT_NAME,
     target: process.env.TARGET,
     before: process.env.BEFORE,
@@ -55,7 +47,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   });
   fs.appendFileSync(
     process.env.GITHUB_OUTPUT,
-    `images=${JSON.stringify(result.images)}\nchecks=${JSON.stringify(result.checks)}\n`,
+    `images=${JSON.stringify(result.images)}\n`,
   );
   fs.appendFileSync(
     process.env.GITHUB_STEP_SUMMARY,

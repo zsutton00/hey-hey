@@ -6,7 +6,7 @@ import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTestKeyPairStore } from '../../credentials/keypair.test-support';
 import { RepoMappingStore, toServiceId } from '../../repo';
-import { LocalRepositoryBindingErrorCode } from '../../shared/local-agent-api/generated/api';
+import { LocalRepositoryBindingErrorCode } from '@hey-hey/contracts/local';
 import type { DirectoryPicker } from '../directory-picker';
 import { NOOP_LOGGER } from '../logger';
 import { createReposRouter } from './repos';

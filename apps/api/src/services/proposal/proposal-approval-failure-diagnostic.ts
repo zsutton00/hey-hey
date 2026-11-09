@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { ProposalApprovalFailureDiagnostic } from 'src/generated';
-import { ProjectedWorkItemChangeSetIssue } from 'src/generated';
+import type { ProposalApprovalFailureDiagnostic } from '@hey-hey/contracts/api/models';
+import { ProjectedWorkItemChangeSetIssue } from '@hey-hey/contracts/api/models';
 
 const MAX_DIAGNOSTIC_ISSUES = 32;
 const MAX_DIAGNOSTIC_TEXT_LENGTH = 512;

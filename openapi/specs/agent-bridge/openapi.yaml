@@ -5,9 +5,59 @@ info:
   description: >-
     Transport-neutral schemas consumed by the paired Agent Bridge runtime. This source contains signed platform
     triggers, CLI run execution and response models, authorized remote reads, and Task Monitor validation contracts.
-paths: {}
+paths:
+  /local-lifecycle/work:
+    get:
+      tags: [LocalLifecycle]
+      operationId: inspectLocalWork
+      description: Machine-local secret authorizes inspection of this terminal owner only.
+      parameters:
+        - in: header
+          name: X-HeyHey-Local-Secret
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Authoritative active run identities, including work not yet visible in the menu.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalLifecycleWork"
+        "403":
+          description: Invalid machine-local authority
+  /local-lifecycle/stop:
+    post:
+      tags: [LocalLifecycle]
+      operationId: stopLocalBridge
+      description: Recheck disclosed work; close this bridge through its owners only if no undisclosed work appeared.
+      parameters:
+        - in: header
+          name: X-HeyHey-Local-Secret
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocalLifecycleWork"
+      responses:
+        "204":
+          description: Owner shutdown and provider disposal completed
+        "409":
+          description: New work appeared; disclose again before interrupting
+        "403":
+          description: Invalid machine-local authority
 components:
   schemas:
+    LocalLifecycleWork:
+      type: object
+      additionalProperties: false
+      required: [runIds]
+      properties:
+        runIds:
+          type: array
+          items: { type: string }
     ChangedFileClaim:
       $ref: ../schemas/changed-file-reporting.yaml#/ChangedFileClaim
     ChangedFileReportInput:
@@ -65,6 +115,8 @@ components:
       $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadDebug
     RunCreatePayloadResearch:
       $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadResearch
+    RunCreatePayloadLocalOnboarding:
+      $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadLocalOnboarding
     RunCreatePayloadRunEval:
       $ref: ../schemas/run-payloads.yaml#/RunCreatePayloadRunEval
     RunCreatePayloadQuick:
@@ -1149,6 +1201,7 @@ components:
       required:
         - userMessage
         - evalRunId
+        - cases
         - attempts
         - judgeSetup
         - settings
@@ -1170,6 +1223,11 @@ components:
           $ref: ../schemas/eval-runs.yaml#/EvalModelSetting
         settings:
           $ref: ../schemas/eval-runs.yaml#/EvalRunSettings
+        cases:
+          type: array
+          description: Case inputs recorded on the run. Attempts reference them by id.
+          items:
+            $ref: ../schemas/eval-runs.yaml#/EvalRunCaseInput
         attempts:
           type: array
           minItems: 1

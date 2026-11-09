@@ -1,3 +1,4 @@
+import { asOrganizationId, asUserId } from '../test-utils/contract-ids';
 import { generateKeyPairSync } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -65,13 +66,15 @@ const makePollResponse = (): PollMachineEnrollmentResponseDto => ({
   osFamily: 'linux',
   cliVersion: '2.2.2',
   machineKeyFingerprint: 'machine-fingerprint',
-  accountId: 'account-1',
-  organizationId: 'organization-1',
+  accountId: asUserId('account-1'),
+  organizationId: asOrganizationId('organization-1'),
   controllerLabel: 'Test controller',
   controllerCredentialId: 'controller-1',
   controllerCredentialFingerprint: 'controller-fingerprint',
   backupEligible: true,
   backupState: false,
+  controllerCredentialPublicKey: { kty: 'EC', crv: 'P-256', x: 'A'.repeat(43), y: 'B'.repeat(43) },
+  registrationChallenge: 'registration-challenge',
   confirmationNonce: 'confirmation-nonce',
   expiresAt: '2099-08-11T18:05:00.000Z',
 });
@@ -86,8 +89,8 @@ const makeActivationResponse = (): ConfirmMachineEnrollmentResponseDto => ({
     machineName: 'test-machine',
     osFamily: 'linux',
     cliVersion: '2.2.2',
-    accountId: 'account-1',
-    organizationId: 'organization-1',
+    accountId: asUserId('account-1'),
+    organizationId: asOrganizationId('organization-1'),
     controllerLabel: 'Test controller',
     controllerCredentialId: 'controller-1',
     controllerCredentialPublicKey: {
@@ -362,8 +365,10 @@ describe('runPairCommand', () => {
 
   it('opens a fresh attempt when protected saved-state lookup is unavailable', async () => {
     const logger = { ...NOOP_LOGGER, debug: vi.fn() };
+    const onBrowserHandoff = vi.fn();
     const deps = makeDeps({
       logger,
+      onBrowserHandoff,
       keyPairStore: Object.assign(createTestKeyPairStore(), {
         loadPendingEnrollmentId: vi.fn().mockRejectedValue(new Error('keychain unavailable')),
       }),
@@ -371,6 +376,7 @@ describe('runPairCommand', () => {
 
     await expect(runPairCommand(deps)).resolves.toBe(true);
     expect(deps.machinesApi.createMachineEnrollment).toHaveBeenCalledTimes(1);
+    expect(onBrowserHandoff).toHaveBeenCalledWith('BCDFG-HJKLM');
     expect(logger.debug).toHaveBeenCalledWith('pair.saved_enrollment.detach_failed', {
       error: 'keychain unavailable',
     });

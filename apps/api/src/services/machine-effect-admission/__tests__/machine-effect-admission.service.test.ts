@@ -6,7 +6,7 @@ import {
 import {
   MachineEffectHttpMethod,
   MachineEffectProofDto,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { canonicalizeJcs } from '../../../core/websockets/trigger-canonicalization';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import type { RedisService } from '../../../core/redis/redis.service';
@@ -142,9 +142,9 @@ describe(MachineEffectAdmissionService.name, () => {
       timestampMs: 'not-a-number',
     } as unknown as MachineEffectProofDto;
 
-    await expect(
-      service.admit(request(malformedProof)),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(service.admit(request(malformedProof))).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
     expect(evalReplay).not.toHaveBeenCalled();
   });
 

@@ -4,9 +4,9 @@ import type {
   RepositoryGroundingSuccess,
   RepositoryGroundingTerminalFailure,
   RepositoryGroundingWorkflowContext,
-} from 'src/generated';
-import { ExtendedUIFieldType, UIElement } from 'src/generated';
-import { LocalPromptType } from 'src/generated/local';
+} from '@hey-hey/contracts/api/models';
+import { ExtendedUIFieldType, UIElement } from '@hey-hey/contracts/api/models';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
 import {
   ExternalAgentActionSchemas,
   ExternalAgentFlowData,

@@ -100,13 +100,13 @@ export class GlobalTrackingInitializer {
    */
   static registerContextProvider(
     name: string,
-    provider: () => Partial<TrackingContext>
+    provider: () => Partial<TrackingContext>,
   ): void {
     this.unregisterContextProvider(name);
     this.contextProviders.set(name, provider);
     this.contextProviderCleanups.set(
       name,
-      userActionTracker.registerContextProvider(name, provider)
+      userActionTracker.registerContextProvider(name, provider),
     );
   }
 
@@ -121,7 +121,12 @@ export class GlobalTrackingInitializer {
    * Set user context (call when user logs in/out)
    */
   static setUserContext(
-    user: { id: string; name?: string; email?: string } | null
+    user: {
+      id: string;
+      name?: string;
+      email?: string;
+      isLocalAccount?: boolean;
+    } | null,
   ): void {
     if (user) {
       userActionTracker.setUserId(user.id as UserId);
@@ -134,7 +139,7 @@ export class GlobalTrackingInitializer {
           user: {
             id: user.id,
             name: user.name,
-            email: user.email,
+            email: user.isLocalAccount ? undefined : user.email,
           },
         },
       }));
@@ -148,7 +153,7 @@ export class GlobalTrackingInitializer {
    * Set organization context (call when organization changes)
    */
   static setOrganizationContext(
-    organization: { id: string; name: string } | null
+    organization: { id: string; name: string } | null,
   ): void {
     if (organization) {
       this.registerContextProvider("organization", () => ({
@@ -187,7 +192,7 @@ export class GlobalTrackingInitializer {
       name: string;
       status: string;
       priority: string;
-    } | null
+    } | null,
   ): void {
     if (initiative) {
       this.registerContextProvider("initiative", () => ({
@@ -211,7 +216,7 @@ export class GlobalTrackingInitializer {
       id: string;
       name: string;
       currentStep?: string;
-    } | null
+    } | null,
   ): void {
     if (workflow) {
       this.registerContextProvider("workflow", () => ({
@@ -406,7 +411,7 @@ export class GlobalTrackingInitializer {
   }
 
   private static getPageNameFromURL(
-    url: string = window.location.href
+    url: string = window.location.href,
   ): string {
     try {
       const urlObj = new URL(url);

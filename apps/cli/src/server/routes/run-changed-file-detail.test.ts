@@ -3,7 +3,7 @@ import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Run } from '../../run/run';
 import type { AgenticSession } from '../../session/types';
-import { CliReadErrorCode } from '../../shared/local-agent-api/generated/api';
+import { CliReadErrorCode } from '@hey-hey/contracts/local';
 import { NOOP_LOGGER } from '../logger';
 import { RunChangedFilesContextError } from '../run-changed-files';
 import { RunReadPreparationError } from '../restore-persisted-runs';

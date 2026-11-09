@@ -43,7 +43,8 @@ const expectSecurity = (operation, scheme, label) => {
   }
 };
 
-const claimFailureCode = api.components.schemas.MachineEnrollmentClaimFailureCode;
+const claimFailureCode =
+  api.components.schemas.MachineEnrollmentClaimFailureCode;
 expectExact(
   claimFailureCode.enum,
   [
@@ -54,36 +55,54 @@ expectExact(
   ],
   "browser-safe machine enrollment claim failure codes",
 );
-const claimFailure = api.components.schemas.MachineEnrollmentClaimFailureErrorDto;
+const claimFailure =
+  api.components.schemas.MachineEnrollmentClaimFailureErrorDto;
 if (
   claimFailure.properties.code.$ref !==
   "#/components/schemas/MachineEnrollmentClaimFailureCode"
 ) {
-  fail("browser claim failures must use the generated safe failure-code schema");
+  fail(
+    "browser claim failures must use the generated safe failure-code schema",
+  );
 }
 if (claimFailure.properties.message.enum) {
-  fail("browser claim guidance must be API-authored rather than fixed generic copy");
+  fail(
+    "browser claim guidance must be API-authored rather than fixed generic copy",
+  );
 }
-const claimRateLimit = api.components.schemas.MachineEnrollmentClaimRateLimitErrorDto;
+const claimRateLimit =
+  api.components.schemas.MachineEnrollmentClaimRateLimitErrorDto;
 if (
   claimRateLimit.properties.code.enum?.[0] !==
     "MACHINE_ENROLLMENT_CLAIM_RATE_LIMITED" ||
   claimRateLimit.properties.retryAfterSeconds.minimum !== 1
 ) {
-  fail("browser claim throttling must expose its generated code and a positive retry delay");
+  fail(
+    "browser claim throttling must expose its generated code and a positive retry delay",
+  );
 }
 
-expectExact(authorization.AuthorizationProtocolVersion.enum, [1, 2], "protocol versions");
+expectExact(
+  authorization.AuthorizationProtocolVersion.enum,
+  [1, 2],
+  "protocol versions",
+);
 expectExact(
   authorization.ControllerAuthorizationCadence.enum,
+  ["FIVE_MINUTES", "EIGHT_HOURS", "ONE_DAY", "ONE_WEEK", "ONE_MONTH"],
+  "controller authorization cadences",
+);
+expectExact(
+  authorization.ControllerDeviceGrantCadence.enum,
   [
     "FIVE_MINUTES",
     "EIGHT_HOURS",
     "ONE_DAY",
     "ONE_WEEK",
     "ONE_MONTH",
+    "UNTIL_REVOKED",
   ],
-  "controller authorization cadences",
+  "controller device grant cadences",
 );
 if (
   authorization.ControllerInstallationId.type !== "string" ||
@@ -114,14 +133,20 @@ const grantDescriptor = authorization.ControllerDeviceGrantDescriptor;
 if (grantDescriptor.additionalProperties !== false) {
   fail("controller-device grant descriptors must reject unknown fields");
 }
-expectExact(grantDescriptor.required, grantDescriptorFields, "grant descriptor fields");
+expectExact(
+  grantDescriptor.required,
+  grantDescriptorFields,
+  "grant descriptor fields",
+);
 expectExact(
   Object.keys(grantDescriptor.properties),
   grantDescriptorFields,
   "grant descriptor properties",
 );
 if (grantDescriptor.properties.allowedActionCategories.maxItems !== 7) {
-  fail("grant descriptor action categories must retain the closed seven-category ceiling");
+  fail(
+    "grant descriptor action categories must retain the closed seven-category ceiling",
+  );
 }
 expectExact(
   authorization.MachineExecutionReadinessState.enum,
@@ -188,7 +213,19 @@ expectExact(
   "authority reduction types",
 );
 
-requireFields(authorization.WorkspaceSkillsHostActionPreparation, ["requestId", "actionCategory", "actionType", "targetKind", "targetId", "provider", "catalogContext"], "workspace catalog authorization");
+requireFields(
+  authorization.WorkspaceSkillsHostActionPreparation,
+  [
+    "requestId",
+    "actionCategory",
+    "actionType",
+    "targetKind",
+    "targetId",
+    "provider",
+    "catalogContext",
+  ],
+  "workspace catalog authorization",
+);
 const expectedTargetKindByAction = {
   CONVERSATION_TRIGGER: "AGENT_SESSION",
   PLATFORM_EVENT_TRIGGER: "PLATFORM_EVENT",
@@ -204,20 +241,32 @@ const expectedTargetKindByAction = {
   EXACT_ACTION_DELIVERY: "EXACT_ACTION",
 };
 if (
-  JSON.stringify(authorization.HostActionPreparation["x-heyhey-target-kind-by-action"]) !==
-  JSON.stringify(expectedTargetKindByAction)
+  JSON.stringify(
+    authorization.HostActionPreparation["x-heyhey-target-kind-by-action"],
+  ) !== JSON.stringify(expectedTargetKindByAction)
 ) {
   fail("host-action target bindings must remain exhaustive and canonical");
 }
 
 expectExact(
   management.ControllerEnrollmentEligibilityState.enum,
-  ["LEGACY_PROTOCOL", "CONTROLLER_ENROLLMENT_REQUIRED", "READY", "NO_CONTROLLER"],
+  [
+    "LEGACY_PROTOCOL",
+    "CONTROLLER_ENROLLMENT_REQUIRED",
+    "READY",
+    "NO_CONTROLLER",
+  ],
   "controller enrollment eligibility states",
 );
 expectExact(
   management.ControllerManagementOutcomeCode.enum,
-  ["WRONG_OWNER", "MACHINE_REVOKED", "INVALID_STATE", "ALREADY_READY", "ALREADY_REVOKED"],
+  [
+    "WRONG_OWNER",
+    "MACHINE_REVOKED",
+    "INVALID_STATE",
+    "ALREADY_READY",
+    "ALREADY_REVOKED",
+  ],
   "controller management outcomes",
 );
 expectExact(
@@ -240,7 +289,10 @@ requireFields(
   ["authorizationProtocolVersion", "machineProof"],
   "machine controller inventory request",
 );
-if (management.ExistingMachineControllerEnrollmentRequestDto.properties.machinePublicKey) {
+if (
+  management.ExistingMachineControllerEnrollmentRequestDto.properties
+    .machinePublicKey
+) {
   fail("existing-machine enrollment must preserve the stored public key");
 }
 requireFields(
@@ -286,7 +338,8 @@ if (existingMachineEnrollment.deprecated) {
   fail("existing-machine enrollment must not be deprecated");
 }
 if (
-  existingMachineEnrollment.requestBody.content["application/json"].schema.$ref !==
+  existingMachineEnrollment.requestBody.content["application/json"].schema
+    .$ref !==
   "#/components/schemas/ExistingMachineControllerEnrollmentRequestDto"
 ) {
   fail("existing-machine enrollment must use its closed request schema");
@@ -308,12 +361,14 @@ expectSecurity(
   "machine controller inspection",
 );
 expectSecurity(
-  api.paths["/machines/{machineId}/controllers/{controllerCredentialId}/revoke"].post,
+  api.paths["/machines/{machineId}/controllers/{controllerCredentialId}/revoke"]
+    .post,
   "MachineCredentialAuth",
   "local controller revocation",
 );
 expectSecurity(
-  api.paths["/machines/{machineId}/controllers/{controllerCredentialId}"].delete,
+  api.paths["/machines/{machineId}/controllers/{controllerCredentialId}"]
+    .delete,
   "BearerAuth",
   "account controller revocation",
 );
@@ -347,7 +402,9 @@ if (
     "#/ExecutableControllerAssertionEvidence" ||
   authUnion.discriminator?.mapping?.bounded_grant !== "#/BoundedGrantReference"
 ) {
-  fail("executable authorization discriminator must target the two executable arms");
+  fail(
+    "executable authorization discriminator must target the two executable arms",
+  );
 }
 const admissionUnion = authorization.AdmissionEnvelopeAuthorization;
 expectExact(
@@ -362,7 +419,9 @@ if (
   admissionUnion.discriminator?.mapping?.bounded_grant !==
     "#/BoundedGrantReference"
 ) {
-  fail("admission authorization discriminator must target the two admission arms");
+  fail(
+    "admission authorization discriminator must target the two admission arms",
+  );
 }
 
 requireFields(
@@ -396,9 +455,16 @@ requireFields(
   ["outcome", "authorizationId", "consumedAt", "grantId"],
   "admitted controller authorization",
 );
-const admittedGrantId = authorization.ControllerAuthorizationAdmittedDto.properties.grantId;
-if (admittedGrantId.type !== "string" || admittedGrantId.format !== "uuid" || admittedGrantId.nullable !== true) {
-  fail("admitted controller authorization must expose a nullable reusable grant identifier");
+const admittedGrantId =
+  authorization.ControllerAuthorizationAdmittedDto.properties.grantId;
+if (
+  admittedGrantId.type !== "string" ||
+  admittedGrantId.format !== "uuid" ||
+  admittedGrantId.nullable !== true
+) {
+  fail(
+    "admitted controller authorization must expose a nullable reusable grant identifier",
+  );
 }
 if (
   !authorization.CanonicalControllerAuthorizationIntent.properties.expiresAtMs.description.includes(
@@ -408,10 +474,13 @@ if (
     "independent",
   )
 ) {
-  fail("canonical intent must separate the two-minute challenge from grant expiry");
+  fail(
+    "canonical intent must separate the two-minute challenge from grant expiry",
+  );
 }
 const canonicalAllowedActionCategories =
-  authorization.CanonicalControllerAuthorizationIntent.properties.allowedActionCategories;
+  authorization.CanonicalControllerAuthorizationIntent.properties
+    .allowedActionCategories;
 if (
   canonicalAllowedActionCategories.type !== "array" ||
   canonicalAllowedActionCategories.minItems !== 1 ||
@@ -422,8 +491,8 @@ if (
   fail("canonical intent must carry the closed allowed-action class set");
 }
 if (
-  authorization.CanonicalControllerAuthorizationIntent.properties.controllerInstallationId.$ref !==
-  "#/ControllerInstallationId"
+  authorization.CanonicalControllerAuthorizationIntent.properties
+    .controllerInstallationId.$ref !== "#/ControllerInstallationId"
 ) {
   fail("canonical intent must use the named controller installation identity");
 }
@@ -442,19 +511,28 @@ const assertion = authorization.ControllerAssertionEvidence;
 if (assertion.additionalProperties !== false) {
   fail("browser controller assertions must reject unknown fields");
 }
-expectExact(assertion.required, assertionFields, "browser controller assertion fields");
+expectExact(
+  assertion.required,
+  assertionFields,
+  "browser controller assertion fields",
+);
 expectExact(
   Object.keys(assertion.properties),
   assertionFields,
   "browser controller assertion properties",
 );
 if (assertion.properties.grantId) {
-  fail("browser controller assertions must not accept a server grant identifier");
+  fail(
+    "browser controller assertions must not accept a server grant identifier",
+  );
 }
 if (
-  assertion.properties.grantDescriptor.$ref !== "#/ControllerDeviceGrantDescriptor"
+  assertion.properties.grantDescriptor.$ref !==
+  "#/ControllerDeviceGrantDescriptor"
 ) {
-  fail("browser controller assertions must carry the complete grant descriptor");
+  fail(
+    "browser controller assertions must carry the complete grant descriptor",
+  );
 }
 
 const executableAssertion = authorization.ExecutableControllerAssertionEvidence;
@@ -476,7 +554,9 @@ if (
   executableAssertion.properties.grantDescriptor.$ref !==
   "#/ControllerDeviceGrantDescriptor"
 ) {
-  fail("executable controller assertions must carry the complete grant descriptor");
+  fail(
+    "executable controller assertions must carry the complete grant descriptor",
+  );
 }
 const executableGrantId = executableAssertion.properties.grantId;
 if (
@@ -484,13 +564,17 @@ if (
   executableGrantId.format !== "uuid" ||
   executableGrantId.nullable === true
 ) {
-  fail("executable controller assertions must carry a required UUID grant identifier");
+  fail(
+    "executable controller assertions must carry a required UUID grant identifier",
+  );
 }
 if (
-  authorization.SubmitControllerAuthorizedActionRequestDto.properties.assertion.$ref !==
-  "#/ControllerAssertionEvidence"
+  authorization.SubmitControllerAuthorizedActionRequestDto.properties.assertion
+    .$ref !== "#/ControllerAssertionEvidence"
 ) {
-  fail("browser submission must use pre-admission controller assertion evidence");
+  fail(
+    "browser submission must use pre-admission controller assertion evidence",
+  );
 }
 const boundedReference = authorization.BoundedGrantReference;
 if (boundedReference.additionalProperties !== false) {
@@ -525,7 +609,9 @@ expectExact(
   "prepare request fields",
 );
 if (prepareRequest.properties.controllerInstallationId) {
-  fail("prepare request must derive controller installation from the browser binding");
+  fail(
+    "prepare request must derive controller installation from the browser binding",
+  );
 }
 
 const resolveRequest = authorization.ResolveControllerAuthorizationRequestDto;
@@ -535,7 +621,9 @@ expectExact(
   "active-grant resolution request fields",
 );
 if (resolveRequest.properties.cadence || resolveRequest.properties.grantId) {
-  fail("active-grant resolution must not accept local cadence or grant authority");
+  fail(
+    "active-grant resolution must not accept local cadence or grant authority",
+  );
 }
 const resolveResponse = authorization.ResolveControllerAuthorizationResponseDto;
 expectExact(
@@ -570,15 +658,21 @@ if (
 }
 
 const allowedCredentials =
-  authorization.ControllerAuthorizationRequestOptions.properties.allowCredentials;
+  authorization.ControllerAuthorizationRequestOptions.properties
+    .allowCredentials;
 if (allowedCredentials.minItems !== 1) {
-  fail("controller authorization options must return at least one eligible credential");
+  fail(
+    "controller authorization options must return at least one eligible credential",
+  );
 }
 if (allowedCredentials.maxItems !== 1) {
-  fail("controller authorization options must contain only the server-resolved credential");
+  fail(
+    "controller authorization options must contain only the server-resolved credential",
+  );
 }
 
-const executableMessage = conversations.SubmitExecutableUserMessageRequestDto.allOf[1];
+const executableMessage =
+  conversations.SubmitExecutableUserMessageRequestDto.allOf[1];
 expectExact(
   executableMessage.required,
   ["authorization", "operationId", "operationFingerprint", "agentSessionId"],
@@ -586,7 +680,7 @@ expectExact(
 );
 if (
   executableMessage.properties.authorization.$ref !==
-  "./controller-authorization.yaml#/AdmissionEnvelopeAuthorization" ||
+    "./controller-authorization.yaml#/AdmissionEnvelopeAuthorization" ||
   executableMessage.properties.authorizationId
 ) {
   fail("executable user messages must use the closed authorization union");
@@ -599,18 +693,28 @@ expectExact(
 );
 if (
   startRunRequest.properties.authorization.$ref !==
-  "./controller-authorization.yaml#/AdmissionEnvelopeAuthorization" ||
+    "./controller-authorization.yaml#/AdmissionEnvelopeAuthorization" ||
   startRunRequest.properties.authorizationId
 ) {
   fail("conversation start-run must use the closed authorization union");
 }
 const monitorRequest = monitor.SubmitTaskMonitorCommandRequestDto;
 if (!Array.isArray(monitorRequest.oneOf) || monitorRequest.oneOf.length !== 3) {
-  fail("Task Monitor requests must split authorization requirements by command authority");
+  fail(
+    "Task Monitor requests must split authorization requirements by command authority",
+  );
 }
-const [monitorIncreasingRequest, monitorReductionRequest, monitorNeutralRequest] = monitorRequest.oneOf;
+const [
+  monitorIncreasingRequest,
+  monitorReductionRequest,
+  monitorNeutralRequest,
+] = monitorRequest.oneOf;
 expectExact(
-  [monitorIncreasingRequest.$ref, monitorReductionRequest.$ref, monitorNeutralRequest.$ref],
+  [
+    monitorIncreasingRequest.$ref,
+    monitorReductionRequest.$ref,
+    monitorNeutralRequest.$ref,
+  ],
   [
     "#/SubmitTaskMonitorAuthorityIncreasingCommandRequestDto",
     "#/SubmitTaskMonitorAuthorityReductionCommandRequestDto",
@@ -637,11 +741,15 @@ if (
     "#/TaskMonitorAuthorityReductionCommand" ||
   monitorReduction.properties.authorization
 ) {
-  fail("Task Monitor reductions must omit authorization while increasing commands require it");
+  fail(
+    "Task Monitor reductions must omit authorization while increasing commands require it",
+  );
 }
 
 expectExact(
-  monitor.TaskMonitorAuthorityIncreasingCommand.oneOf.map((entry) => entry.$ref),
+  monitor.TaskMonitorAuthorityIncreasingCommand.oneOf.map(
+    (entry) => entry.$ref,
+  ),
   [
     "#/TaskMonitorStartCommand",
     "#/TaskMonitorResumeCommand",
@@ -653,18 +761,34 @@ expectExact(
 );
 expectExact(
   monitor.TaskMonitorAuthorityReductionCommand.oneOf.map((entry) => entry.$ref),
-  ["#/TaskMonitorPauseCommand", "#/TaskMonitorStopCommand", "#/TaskMonitorHaltCommand"],
+  [
+    "#/TaskMonitorPauseCommand",
+    "#/TaskMonitorStopCommand",
+    "#/TaskMonitorHaltCommand",
+  ],
   "Task Monitor reductions",
 );
-expectExact(monitor.MonitorCommandBody.properties.version.enum, [1], "legacy monitor version");
-expectExact(monitor.MonitorCommandBodyV2.properties.version.enum, [2], "protocol-2 monitor version");
+expectExact(
+  monitor.MonitorCommandBody.properties.version.enum,
+  [1],
+  "legacy monitor version",
+);
+expectExact(
+  monitor.MonitorCommandBodyV2.properties.version.enum,
+  [2],
+  "protocol-2 monitor version",
+);
 
 const executableFrames = {
-  WebSocketConversationTriggerEvent: "#/ControllerAuthorizedSignedConversationTriggerEnvelope",
-  WebSocketConversationControlEvent: "#/ControllerAuthorizedSignedConversationControlEnvelope",
-  WebSocketMonitorCommandEvent: "#/ControllerAuthorizedSignedMonitorCommandEnvelope",
+  WebSocketConversationTriggerEvent:
+    "#/ControllerAuthorizedSignedConversationTriggerEnvelope",
+  WebSocketConversationControlEvent:
+    "#/ControllerAuthorizedSignedConversationControlEnvelope",
+  WebSocketMonitorCommandEvent:
+    "#/ControllerAuthorizedSignedMonitorCommandEnvelope",
   WebSocketCliReadRequestEvent: "#/ControllerAuthorizedSignedCliReadEnvelope",
-  WebSocketApplicationEffectEvent: "#/ControllerAuthorizedSignedApplicationEffectEnvelope",
+  WebSocketApplicationEffectEvent:
+    "#/ControllerAuthorizedSignedApplicationEffectEnvelope",
   WebSocketExactActionEvent: "#/ControllerAuthorizedSignedExactActionEnvelope",
 };
 
@@ -680,24 +804,47 @@ for (const [frameName, expectedRef] of Object.entries(executableFrames)) {
     fail(`${frameName} must reference ${expectedRef}`);
   }
   const envelope = websockets[expectedRef.slice(2)];
-  if (envelope.additionalProperties !== false) fail(`${expectedRef} must reject unknown fields`);
-  requireFields(envelope, ["protocolVersion", "authorization", "event", "signature"], expectedRef);
+  if (envelope.additionalProperties !== false)
+    fail(`${expectedRef} must reject unknown fields`);
+  requireFields(
+    envelope,
+    ["protocolVersion", "authorization", "event", "signature"],
+    expectedRef,
+  );
   if (
     envelope.properties.authorization.$ref !==
     "./controller-authorization.yaml#/ExecutableEnvelopeAuthorization"
   ) {
-    fail(`${expectedRef} must use the shared activation-or-reuse authorization union`);
+    fail(
+      `${expectedRef} must use the shared activation-or-reuse authorization union`,
+    );
   }
-  expectExact(envelope.properties.protocolVersion.enum, [2], `${expectedRef} protocol version`);
+  expectExact(
+    envelope.properties.protocolVersion.enum,
+    [2],
+    `${expectedRef} protocol version`,
+  );
 }
 
-for (const envelopeName of ["SignedConversationReductionEnvelope", "SignedMonitorReductionEnvelope", "SignedMonitorAuthorityNeutralEnvelope"]) {
+for (const envelopeName of [
+  "SignedConversationReductionEnvelope",
+  "SignedMonitorReductionEnvelope",
+  "SignedMonitorAuthorityNeutralEnvelope",
+]) {
   const envelope = websockets[envelopeName];
-  if (envelope.additionalProperties !== false) fail(`${envelopeName} must reject unknown fields`);
-  if (envelope.properties.authorization || envelope.required.includes("authorization")) {
+  if (envelope.additionalProperties !== false)
+    fail(`${envelopeName} must reject unknown fields`);
+  if (
+    envelope.properties.authorization ||
+    envelope.required.includes("authorization")
+  ) {
     fail(`${envelopeName} must not inherit the execution gate`);
   }
-  expectExact(envelope.properties.protocolVersion.enum, [2], `${envelopeName} protocol version`);
+  expectExact(
+    envelope.properties.protocolVersion.enum,
+    [2],
+    `${envelopeName} protocol version`,
+  );
 }
 
 const protocol2FrameTypes = [
@@ -720,7 +867,8 @@ for (const legacyName of [
   "SignedMonitorCommandEnvelope",
   "SignedCliReadEnvelope",
 ]) {
-  if (!websockets[legacyName]) fail(`${legacyName} compatibility definition is missing`);
+  if (!websockets[legacyName])
+    fail(`${legacyName} compatibility definition is missing`);
 }
 
 console.log("Controller authorization contract validation passed.");

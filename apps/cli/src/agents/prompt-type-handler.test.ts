@@ -1,15 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { resolveHandlerSessionRole } from './prompt-type-handler';
 import { freeFormHandler } from './coding-conversation';
-import { SessionRole } from '../shared/agent-bridge-contract/generated/api';
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../session/types';
 
 // Static/default handlers do not read selected mode settings.
 const session = {} as AgenticSession;
 
 describe('resolveHandlerSessionRole', () => {
-  it('uses the shared implementation default for an undeclared handler', () => {
+  it('returns the role a handler declares', () => {
     expect(resolveHandlerSessionRole(freeFormHandler, session)).toBe(SessionRole.Implementation);
+  });
+  it('has no fallback for a handler that declares no role', () => {
+    const { sessionRole: _declared, ...undeclared } = freeFormHandler;
+    expect(() => resolveHandlerSessionRole(undeclared, session)).toThrow(/does not declare/);
   });
   it.each(Object.values(SessionRole))('honors an explicit %s declaration', (sessionRole) => {
     expect(resolveHandlerSessionRole({ ...freeFormHandler, sessionRole }, session)).toBe(

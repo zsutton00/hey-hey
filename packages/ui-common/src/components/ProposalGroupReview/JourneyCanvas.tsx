@@ -1,8 +1,19 @@
-import React, { useId, useLayoutEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Box } from "@mui/material";
 import type { WorkflowGraphSurfaceData } from "../shared/WorkflowMentionInlineRenderer";
 import { JOURNEY_SCREEN_WIDTH } from "./JourneyScreen";
-import { placeJourneyScreens } from "./placeJourneyScreens";
+import { layoutJourneyScreens } from "./layoutJourneyScreens";
+import {
+  gutterHeights,
+  routeJourneyConnectors,
+  type ScreenBox,
+} from "./routeJourneyConnectors";
 
 type Step = WorkflowGraphSurfaceData["steps"][number];
 
@@ -13,54 +24,79 @@ const SCREEN_WIDTH = JOURNEY_SCREEN_WIDTH;
 const DEFAULT_SCREEN_HEIGHT = 450;
 const COLUMN_GAP = 160;
 const ROW_GAP = 96;
-const ARROW_INSET = 8;
+const ARROW_INSET = 12;
+/** Arrowheads scale with this, so thicker lines also give larger arrows. */
+const CONNECTOR_WIDTH = 2.5;
 /** Keeps horizontal arrows near the top of tall screens. */
 const MAX_ANCHOR_OFFSET = 180;
 
-interface ScreenBox {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
+/** Pointer travel (px) before a press counts as a drag rather than a click. */
+const DRAG_THRESHOLD = 4;
 
-/** Joins the facing sides of two screens: left/right across columns, top/bottom within one. */
-function transitionAnchors(source: ScreenBox, target: ScreenBox) {
-  const horizontal = source.x !== target.x;
-  if (horizontal) {
-    const eastward = target.x > source.x;
-    return {
-      start: {
-        horizontal,
-        x: eastward
-          ? source.x + source.width + ARROW_INSET
-          : source.x - ARROW_INSET,
-        y: source.y + Math.min(source.height / 2, MAX_ANCHOR_OFFSET),
-      },
-      end: {
-        x: eastward
-          ? target.x - ARROW_INSET
-          : target.x + target.width + ARROW_INSET,
-        y: target.y + Math.min(target.height / 2, MAX_ANCHOR_OFFSET),
-      },
-    };
-  }
-  const southward = target.y > source.y;
-  return {
-    start: {
-      horizontal,
-      x: source.x + source.width / 2,
-      y: southward
-        ? source.y + source.height + ARROW_INSET
-        : source.y - ARROW_INSET,
+/**
+ * Lets a mouse drag scroll the element. A press that moved is a drag, and the
+ * click that follows it is swallowed so it does not open a screen or follow a
+ * link.
+ */
+function useDragScroll(container: React.RefObject<HTMLElement | null>) {
+  const [dragging, setDragging] = useState(false);
+  const moved = useRef(false);
+
+  const onPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLElement>) => {
+      const element = container.current;
+      if (!element || event.pointerType !== "mouse" || event.button !== 0) {
+        return;
+      }
+
+      const start = {
+        x: event.clientX,
+        y: event.clientY,
+        left: element.scrollLeft,
+        top: element.scrollTop,
+      };
+      moved.current = false;
+
+      const onMove = (move: PointerEvent) => {
+        const dx = move.clientX - start.x;
+        const dy = move.clientY - start.y;
+        if (!moved.current) {
+          if (Math.hypot(dx, dy) < DRAG_THRESHOLD) {
+            return;
+          }
+          moved.current = true;
+          setDragging(true);
+        }
+        element.scrollLeft = start.left - dx;
+        element.scrollTop = start.top - dy;
+      };
+      const onEnd = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onEnd);
+        window.removeEventListener("pointercancel", onEnd);
+        setDragging(false);
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onEnd);
+      window.addEventListener("pointercancel", onEnd);
     },
-    end: {
-      x: target.x + target.width / 2,
-      y: southward
-        ? target.y - ARROW_INSET
-        : target.y + target.height + ARROW_INSET,
-    },
-  };
+    [container],
+  );
+
+  const onClickCapture = useCallback((event: React.MouseEvent) => {
+    if (moved.current) {
+      moved.current = false;
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }, []);
+
+  // Native link and image dragging would cancel the pointer stream.
+  const onDragStart = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+  }, []);
+
+  return { dragging, onPointerDown, onClickCapture, onDragStart };
 }
 
 export const JourneyCanvas: React.FC<{
@@ -72,6 +108,7 @@ export const JourneyCanvas: React.FC<{
 }> = ({ steps, edges, savedPositions, renderScreen }) => {
   const markerId = useId();
   const container = useRef<HTMLDivElement>(null);
+  const dragScroll = useDragScroll(container);
   const [heights, setHeights] = useState<Record<string, number>>({});
   useLayoutEffect(() => {
     const elements = container.current?.querySelectorAll<HTMLElement>(
@@ -97,14 +134,23 @@ export const JourneyCanvas: React.FC<{
     elements.forEach((element) => observer.observe(element));
     return () => observer.disconnect();
   }, [steps]);
-  const cells = placeJourneyScreens(
-    steps.map((step) => step.id),
+  const cells = layoutJourneyScreens(
+    steps.map(({ id, name }) => ({ id, name })),
     edges.map((edge) => ({
+      id: edge.id,
       sourceId: edge.sourceNodeId,
       targetId: edge.targetNodeId,
+      role: edge.transitionRole ?? null,
+      actionLabel: edge.actionLabel ?? null,
     })),
     savedPositions,
   );
+  const connectorEdges = edges.map((edge) => ({
+    id: edge.id,
+    sourceId: edge.sourceNodeId,
+    targetId: edge.targetNodeId,
+  }));
+  const gaps = gutterHeights(cells, connectorEdges, ROW_GAP);
   const rowCount = Math.max(
     0,
     ...[...cells.values()].map(({ row }) => row + 1),
@@ -121,16 +167,25 @@ export const JourneyCanvas: React.FC<{
         .map((step) => heights[step.id] ?? DEFAULT_SCREEN_HEIGHT),
     ),
   );
+  const rowGap = (row: number) => gaps.get(row) ?? ROW_GAP;
   const rowTops = rowHeights.map((_, row) =>
-    rowHeights.slice(0, row).reduce((top, height) => top + height + ROW_GAP, 0),
+    rowHeights
+      .slice(0, row)
+      .reduce((top, height, index) => top + height + rowGap(index), 0),
   );
   const totalWidth = Math.max(
     0,
     columnCount * (SCREEN_WIDTH + COLUMN_GAP) - COLUMN_GAP,
   );
+  // The last row only needs room below it when connectors run through its gutter.
+  const lastRow = rowCount - 1;
   const totalHeight = Math.max(
     0,
-    rowHeights.reduce((sum, height) => sum + height + ROW_GAP, 0) - ROW_GAP,
+    rowHeights.reduce(
+      (sum, height, row) =>
+        sum + height + (row < lastRow ? rowGap(row) : (gaps.get(row) ?? 0)),
+      0,
+    ),
   );
   const positions = new Map(
     steps.flatMap((step) => {
@@ -150,8 +205,14 @@ export const JourneyCanvas: React.FC<{
   return (
     <Box
       ref={container}
+      data-testid="journey-canvas"
+      onPointerDown={dragScroll.onPointerDown}
+      onClickCapture={dragScroll.onClickCapture}
+      onDragStart={dragScroll.onDragStart}
       sx={{
         overflow: "auto",
+        cursor: dragScroll.dragging ? "grabbing" : "grab",
+        userSelect: dragScroll.dragging ? "none" : undefined,
         bgcolor: (theme) => CANVAS_COLOR[theme.palette.mode],
         p: 3,
       }}
@@ -183,42 +244,37 @@ export const JourneyCanvas: React.FC<{
               viewBox="0 0 10 10"
               refX="9"
               refY="5"
-              markerWidth="7"
-              markerHeight="7"
+              markerWidth="6"
+              markerHeight="6"
               orient="auto-start-reverse"
             >
               <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
             </marker>
           </defs>
-          {edges.map((edge) => {
-            const source = positions.get(edge.sourceNodeId);
-            const target = positions.get(edge.targetNodeId);
-            if (!source || !target) {
-              return null;
-            }
-            const { start, end } = transitionAnchors(source, target);
-            const midX = (start.x + end.x) / 2;
-            const midY = (start.y + end.y) / 2;
-            const horizontal = start.horizontal;
-            const curve = horizontal
-              ? `C ${midX} ${start.y}, ${midX} ${end.y}`
-              : `C ${start.x} ${midY}, ${end.x} ${midY}`;
+          {routeJourneyConnectors(cells, positions, connectorEdges, {
+            columnGap: COLUMN_GAP,
+            inset: ARROW_INSET,
+            maxAnchorOffset: MAX_ANCHOR_OFFSET,
+          }).map(({ edgeId, path, label }) => {
+            const edge = edges.find(({ id }) => id === edgeId)!;
             return (
               <g
                 key={edge.id}
                 data-testid="journey-transition"
                 data-edge-id={edge.id}
+                data-transition-role={edge.transitionRole ?? undefined}
               >
                 <path
-                  d={`M ${start.x} ${start.y} ${curve}, ${end.x} ${end.y}`}
+                  d={path}
                   stroke="currentColor"
+                  strokeWidth={CONNECTOR_WIDTH}
                   fill="none"
                   markerEnd={`url(#${markerId})`}
                 />
                 <text
-                  x={horizontal ? midX : midX + 8}
-                  y={horizontal ? midY - 12 : midY}
-                  textAnchor={horizontal ? "middle" : "start"}
+                  x={label.x}
+                  y={label.y}
+                  textAnchor={label.anchor}
                   fill="currentColor"
                   fontSize="12"
                   paintOrder="stroke"

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { OrganizationId } from '../../types';
-import { ArtifactType } from 'src/generated';
+import { ArtifactType } from '@hey-hey/contracts/api/models';
 
 // Agent cost data structure
 export interface AgentCostData {

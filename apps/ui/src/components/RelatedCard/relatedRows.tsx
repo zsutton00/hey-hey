@@ -8,7 +8,7 @@ import {
   RelationshipValue,
   type WorkItemTypeDefinitionDto,
   type WorkItemTypeSummaryDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   EntityIcon,
   EntityNodeStatusChip,
@@ -22,6 +22,7 @@ import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import {
   Box,
   Chip,
+  type ChipProps,
   LinearProgress,
   ListItemButton,
   Tooltip,
@@ -83,6 +84,40 @@ export const findAboutFromProposal = (
 // will add it as a member once the backend ships.
 const PROPOSED_TOGETHER_RELATIONSHIP = "proposed-together";
 export const DEPENDS_ON_RELATIONSHIP = RelationshipValue.DependsOn;
+
+type RelationshipChipColor = NonNullable<ChipProps["color"]>;
+
+/**
+ * Chip color per relationship. Significant relationships are colored so they
+ * stand out; neutral ones (Related to, Mentions, Parent, …) are omitted and
+ * render in the default color.
+ */
+const RELATIONSHIP_CHIP_COLORS: Partial<
+  Record<RelationshipValue, RelationshipChipColor>
+> = {
+  [RelationshipValue.DependsOn]: "warning",
+  [RelationshipValue.DependedOnBy]: "warning",
+  [RelationshipValue.Blocks]: "error",
+  [RelationshipValue.BlockedBy]: "error",
+  [RelationshipValue.Contradicts]: "error",
+  [RelationshipValue.Supersedes]: "secondary",
+  [RelationshipValue.SupersededBy]: "secondary",
+  [RelationshipValue.Evolves]: "info",
+  [RelationshipValue.EvolvedBy]: "info",
+  [RelationshipValue.DerivesFrom]: "info",
+  [RelationshipValue.DerivedFromBy]: "info",
+};
+
+// Row relationships can also carry non-enum strings (e.g. proposed-together,
+// proposal influence reasons); those fall through to the default color.
+const chipColorForRelationship = (
+  relationship: string,
+): RelationshipChipColor => {
+  if (!isRelationshipValue(relationship)) {
+    return "default";
+  }
+  return RELATIONSHIP_CHIP_COLORS[relationship] ?? "default";
+};
 
 export interface MergedEntityRow {
   entityId: string;
@@ -263,9 +298,7 @@ export const renderEntityRow = (
             label={row.relationLabels[index]}
             size="small"
             variant="outlined"
-            color={
-              relationship === DEPENDS_ON_RELATIONSHIP ? "warning" : "default"
-            }
+            color={chipColorForRelationship(relationship)}
             sx={{
               height: 18,
               fontSize: "0.65rem",

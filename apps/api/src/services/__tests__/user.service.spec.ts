@@ -4,7 +4,7 @@ import * as bcrypt from 'bcrypt';
 import { UserService } from '../user.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OrganizationService } from '../organization.service';
-import { RegisterDto } from '../../generated';
+import { RegisterDto } from '@hey-hey/contracts/api/models';
 import * as TestUtils from '../../utils/testUtils';
 import {
   PASSWORD_CHANGE_CREDENTIAL_ISSUER,
@@ -104,6 +104,7 @@ describe('UserService - Password Security', () => {
         mustChangePassword: false,
         defaultOrganizationId: null,
         isDemoUser: false,
+        authorizationRevision: 0,
       };
 
       (prismaService.db.$transaction as jest.Mock).mockImplementation(
@@ -194,6 +195,7 @@ describe('UserService - Password Security', () => {
         mustChangePassword: true,
         defaultOrganizationId: null,
         isDemoUser: false,
+        authorizationRevision: 0,
       } as User);
       (prismaService.db.$transaction as jest.Mock).mockImplementation(
         async (cb) => cb({ user: { create: txCreate } }),
@@ -253,6 +255,7 @@ describe('UserService - Password Security', () => {
         mustChangePassword: true,
         defaultOrganizationId: null,
         isDemoUser: false,
+        authorizationRevision: 0,
       } as User;
       const tx = {
         user: { create: jest.fn().mockResolvedValue(createdUser) },
@@ -292,12 +295,10 @@ describe('UserService - Password Security', () => {
           }),
         },
         user: {
-          findFirst: jest
-            .fn()
-            .mockResolvedValue({
-              id: testIds.user,
-              email: 'Person@Example.com',
-            }),
+          findFirst: jest.fn().mockResolvedValue({
+            id: testIds.user,
+            email: 'Person@Example.com',
+          }),
           create: jest.fn(),
         },
       };
@@ -356,6 +357,7 @@ describe('UserService - Password Security', () => {
         mustChangePassword: true,
         defaultOrganizationId: null,
         isDemoUser: false,
+        authorizationRevision: 0,
       } as User;
       const userCheckpointRequest = {
         ...request,
@@ -465,6 +467,7 @@ describe('UserService - Password Security', () => {
         mustChangePassword: false,
         defaultOrganizationId: null,
         isDemoUser: false,
+        authorizationRevision: 0,
       };
       const providedPassword = 'correctPassword123';
 
@@ -498,6 +501,7 @@ describe('UserService - Password Security', () => {
         mustChangePassword: false,
         defaultOrganizationId: null,
         isDemoUser: false,
+        authorizationRevision: 0,
       };
 
       mockBcrypt.compare.mockResolvedValue(true as never);
@@ -525,6 +529,7 @@ describe('UserService - Password Security', () => {
         mustChangePassword: false,
         defaultOrganizationId: null,
         isDemoUser: false,
+        authorizationRevision: 0,
       };
 
       mockBcrypt.compare.mockResolvedValue(false as never);
@@ -553,6 +558,7 @@ describe('UserService - Password Security', () => {
         mustChangePassword: false,
         defaultOrganizationId: null,
         isDemoUser: false,
+        authorizationRevision: 0,
       };
       const updatedUser = {
         ...lockedUser,

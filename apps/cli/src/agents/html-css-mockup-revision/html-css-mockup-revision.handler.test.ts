@@ -3,7 +3,7 @@ import type { AgenticSession } from '../../session/types';
 import type {
   LocalHtmlCssMockupRevisionPromptPayload,
   LocalHtmlCssMockupRevisionAnnotation,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type { PromptTypeHandlerContext } from '../prompt-type-handler';
 import { createPromptTypeHandlerTestDeps } from '../prompt-type-handler.test-support';
 import { htmlCssMockupRevisionHandler } from './html-css-mockup-revision.handler';

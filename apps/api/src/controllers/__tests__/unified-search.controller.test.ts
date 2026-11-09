@@ -8,7 +8,7 @@ import {
   UnifiedBatchSearchResponse,
   UnifiedSearchRequest,
   UnifiedSearchResponse,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { OrganizationId, ProjectId } from '../../types';
 
 describe('UnifiedSearchController', () => {

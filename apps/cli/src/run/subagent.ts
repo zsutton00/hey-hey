@@ -1,3 +1,4 @@
+import { sessionPromptDeclarationsOf } from '../agents/prompts/platform-prompt-context';
 import { getCacheInclusiveInputTokens } from '../provider-usage/cache-inclusive-input';
 import type { ReportUsageExecution } from '../provider-usage/report-usage-executions';
 import { readRestrictionFor } from '../shared/api/read-restriction';
@@ -594,6 +595,7 @@ export class SubAgent {
     }
     const mcpContext = {
       inert: session.inert === true,
+      searchScope: session.searchScope,
       readRestriction: readRestrictionFor({ inert: session.inert }) ?? handler.readRestriction,
       ...(session.contextMetadata?.projectId
         ? { projectId: session.contextMetadata.projectId }
@@ -613,13 +615,11 @@ export class SubAgent {
     const providerId = resolveAgentProviderId(session.provider);
     const platformSystemPrompt = buildPlatformSystemPrompt(
       sessionStartContext.workItemTypeDefinitions,
-      providerId === 'codex'
-        ? {
-            provider: providerId,
-            model: model ?? session.model ?? null,
-            ...(handler.epistemicCalibration ? { epistemicCalibration: true as const } : {}),
-          }
-        : undefined,
+      {
+        provider: providerId,
+        model: model ?? session.model ?? null,
+        ...sessionPromptDeclarationsOf(handler),
+      },
       {
         provider: providerId,
         intentFirst: sessionStartContext.intentFirst,

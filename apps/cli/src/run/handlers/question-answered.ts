@@ -8,7 +8,7 @@
 
 import { MessageStatus } from '../../shared/api/index';
 import type { SystemMessageData, UIElement } from '../../shared/api/index';
-import type { AgentQuestionPayload } from '../../shared/api/generated/api';
+import type { AgentQuestionPayload } from '@hey-hey/contracts/api/models';
 import type { QuestionAnsweredEvent, HandlerDeps } from '../types';
 import type { Run } from '../run';
 import { AGENT_QUESTION_UI_ELEMENT_PREFIX } from './agent-question';

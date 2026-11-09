@@ -1,11 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  EntityContextApi,
-  ProposalsApi,
-  SessionRole,
-  WorkItemTypesApi,
-  TasksApi,
-} from '../../shared/api/generated/api';
+import { EntityContextApi, ProposalsApi, WorkItemTypesApi, TasksApi } from '@hey-hey/contracts/api';
+import { SessionRole } from '@hey-hey/contracts/api/models';
 import type { AgenticSession } from '../../session/types';
 import type { PromptTypeHandler } from '../prompt-type-handler';
 import { createPromptTypeHandlerTestDeps } from '../prompt-type-handler.test-support';

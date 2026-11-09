@@ -16,7 +16,7 @@ import { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import {
   SubmitTaskMonitorCommandRequestDto,
   SubmitTaskMonitorCommandResponseDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { TaskMonitorCommandService } from '../services/task-monitor-command.service';
 import { OrganizationId, ProjectId, TaskId } from '../types';
 import type { Request } from 'express';

@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { ReportAudience, ReportType } from 'src/generated';
+import { ReportAudience, ReportType } from '@hey-hey/contracts/api/models';
 import type { OrganizationId, UserId } from 'src/types';
 import { ReportService } from '../report.service';
 import { validateProjectReportPayload } from '../project-report-payload.validation';

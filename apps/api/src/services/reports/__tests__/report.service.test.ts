@@ -1,9 +1,13 @@
-import { ReadRestriction } from 'src/generated';
+import { ReadRestriction } from '@hey-hey/contracts/api/models';
 import {
   ReadPolicyContext,
   readPolicyFor,
 } from 'src/read-restriction/read-policy';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
   CreateReportDto,
@@ -19,7 +23,7 @@ import {
   ReportUsageCacheAvailability,
   ReportUsageCoverage,
   type ReportUsageMeasurement,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   createMockDomainEventPublisher,
   createMockPrismaService,
@@ -520,11 +524,13 @@ describe('ReportService', () => {
       audience: ReportAudience.WorkflowOnly,
       payload: {
         reportType: 'CODING_RESEARCH',
+        format: 'SELF_RESEARCH',
         summary: 'ok',
         analysis: 'analysis',
         frame: {},
         provenance: { discoveryCalls: [], edgesTraversed: [] },
         updates: [],
+        uncertainties: [],
       },
       agent: ' provider-session-1 ',
       sourceExecutionId: 'exec-1',
@@ -594,6 +600,51 @@ describe('ReportService', () => {
       ],
       reportGuidance: { actions: [] },
     });
+  });
+
+  it('round-trips a written research report through create and retrieval unchanged', async () => {
+    const createdAt = new Date('2026-11-03T00:00:00.000Z');
+    const expiresAt = new Date('2026-12-03T00:00:00.000Z');
+    const payload = {
+      reportType: 'CODING_RESEARCH',
+      format: 'SUBAGENT_PARENT',
+      summary: 'The parent-authored findings reach the next handler.',
+      analysis:
+        'Parent synthesis.\n\n## Uncertainties\n\n- **conflict · medium** — Sources disagree. — References: none',
+    } as const;
+    const persistedReport = {
+      id: 'written-research-report',
+      organizationId: 'org-1',
+      projectId: 'project-1',
+      reportType: 'CODING_RESEARCH',
+      audience: 'PROJECT_VISIBLE',
+      payload,
+      version: 1,
+      schemaVersion: 1,
+      sourceExecutionId: null,
+      parentReportId: null,
+      createdAt,
+      expiresAt,
+      reportEntities: [],
+    };
+    prisma.db.report.create.mockResolvedValue(persistedReport);
+    prisma.db.report.findFirst.mockResolvedValue(persistedReport);
+
+    const created = await service.create('org-1' as any, {
+      projectId: 'project-1',
+      reportType: ReportType.CodingResearch,
+      audience: ReportAudience.ProjectVisible,
+      payload,
+    });
+    const fetched = await service.findOne('org-1' as any, created.id);
+
+    expect(prisma.db.report.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ payload }),
+      }),
+    );
+    expect(created.payload).toEqual(payload);
+    expect(fetched.payload).toEqual(payload);
   });
 
   it('indexes one file-touch row per normalized IMPLEMENT report path idempotently', async () => {
@@ -1664,11 +1715,13 @@ describe('ReportService', () => {
         audience: ReportAudience.WorkflowOnly,
         payload: {
           reportType: 'CODING_RESEARCH',
+          format: 'SELF_RESEARCH',
           summary: 'ok',
           analysis: 'analysis',
           frame: {},
           provenance: { discoveryCalls: [], edgesTraversed: [] },
           updates: [],
+          uncertainties: [],
         },
         sourceExecutionId: 'exec-1',
       },
@@ -1770,11 +1823,13 @@ describe('ReportService', () => {
         audience: ReportAudience.WorkflowOnly,
         payload: {
           reportType: 'CODING_RESEARCH',
+          format: 'SELF_RESEARCH',
           summary: 'ok',
           analysis: 'analysis',
           frame: {},
           provenance: { discoveryCalls: [], edgesTraversed: [] },
           updates: [],
+          uncertainties: [],
         },
         sourceExecutionId: 'exec-1',
       },
@@ -1815,11 +1870,13 @@ describe('ReportService', () => {
             type === ReportType.CodingResearch
               ? {
                   reportType: 'CODING_RESEARCH',
+                  format: 'SELF_RESEARCH',
                   summary: 'ok',
                   analysis: 'analysis',
                   frame: {},
                   provenance: { discoveryCalls: [], edgesTraversed: [] },
                   updates: [],
+                  uncertainties: [],
                 }
               : { reportType: 'SNAPSHOT', summary: 'ok' },
         } as CreateReportDto,
@@ -1918,11 +1975,13 @@ describe('ReportService', () => {
           audience: ReportAudience.WorkflowOnly,
           payload: {
             reportType: 'CODING_RESEARCH',
+            format: 'SELF_RESEARCH',
             summary: 'ok',
             analysis: 'analysis',
             frame: {},
             provenance: { discoveryCalls: [], edgesTraversed: [] },
             updates: [],
+            uncertainties: [],
           },
         } as unknown as CreateReportDto,
       ),
@@ -2204,11 +2263,13 @@ describe('ReportService', () => {
       title: 'Coding Research',
       payload: {
         reportType: 'CODING_RESEARCH',
+        format: 'SELF_RESEARCH',
         summary: 'Research stub.',
         analysis: 'analysis',
         frame: {},
         provenance: { discoveryCalls: [], edgesTraversed: [] },
         updates: [],
+        uncertainties: [],
       },
       version: 1,
       schemaVersion: 1,
@@ -2291,11 +2352,13 @@ describe('ReportService', () => {
     const result = await service.update('org-1' as any, 'report-1', {
       payload: {
         reportType: 'CODING_RESEARCH',
+        format: 'SELF_RESEARCH',
         summary: 'updated',
         analysis: 'analysis',
         frame: {},
         provenance: { discoveryCalls: [], edgesTraversed: [] },
         updates: [],
+        uncertainties: [],
       },
     });
 
@@ -2305,17 +2368,52 @@ describe('ReportService', () => {
         data: expect.objectContaining({
           payload: {
             reportType: 'CODING_RESEARCH',
+            format: 'SELF_RESEARCH',
             summary: 'updated',
             analysis: 'analysis',
             frame: {},
             provenance: { discoveryCalls: [], edgesTraversed: [] },
             updates: [],
+            uncertainties: [],
           },
           version: { increment: 1 },
         }),
       }),
     );
     expect(result.version).toBe(2);
+  });
+
+  it('writes only against the version the caller read and reports a conflict otherwise', async () => {
+    (prisma.db.report.findFirst as jest.Mock).mockResolvedValue({
+      id: 'report-1',
+      reportType: 'CODING_RESEARCH',
+    });
+    const dto = {
+      expectedVersion: 3,
+      payload: {
+        reportType: 'CODING_RESEARCH',
+        format: 'SELF_RESEARCH',
+        summary: 'updated',
+        analysis: 'analysis',
+        frame: {},
+        provenance: { discoveryCalls: [], edgesTraversed: [] },
+        updates: [],
+        uncertainties: [],
+      },
+    } as any;
+    (prisma.db.report.update as jest.Mock).mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('not found', {
+        code: 'P2025',
+        clientVersion: 'test',
+      }),
+    );
+
+    await expect(
+      service.update('org-1' as any, 'report-1', dto),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.db.report.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'report-1', version: 3 } }),
+    );
   });
 
   it('keeps PHASE_GROUNDING reports workflow-only across updates', async () => {
@@ -2372,6 +2470,7 @@ describe('ReportService', () => {
       id: 'report-1',
       payload: {
         reportType: 'CODING_RESEARCH',
+        format: 'SELF_RESEARCH',
         summary: 'old',
         __reportEnvelope: { agent: 'provider-session-1' },
       },
@@ -2384,6 +2483,7 @@ describe('ReportService', () => {
       audience: 'WORKFLOW_ONLY',
       payload: {
         reportType: 'CODING_RESEARCH',
+        format: 'SELF_RESEARCH',
         summary: 'updated',
         __reportEnvelope: { agent: 'provider-session-1' },
       },
@@ -2399,11 +2499,13 @@ describe('ReportService', () => {
     const result = await service.update('org-1' as any, 'report-1', {
       payload: {
         reportType: 'CODING_RESEARCH',
+        format: 'SELF_RESEARCH',
         summary: 'updated',
         analysis: 'analysis',
         frame: {},
         provenance: { discoveryCalls: [], edgesTraversed: [] },
         updates: [],
+        uncertainties: [],
       },
     });
 
@@ -2420,6 +2522,7 @@ describe('ReportService', () => {
     expect(result.agent).toBe('provider-session-1');
     expect(result.payload).toEqual({
       reportType: 'CODING_RESEARCH',
+      format: 'SELF_RESEARCH',
       summary: 'updated',
     });
   });
@@ -2567,11 +2670,13 @@ describe('ReportService', () => {
         audience: ReportAudience.WorkflowOnly,
         payload: {
           reportType: 'CODING_RESEARCH',
+          format: 'SELF_RESEARCH',
           summary: 'ok',
           analysis: 'analysis',
           frame: {},
           provenance: { discoveryCalls: [], edgesTraversed: [] },
           updates: [],
+          uncertainties: [],
         },
         parentReportId: 'parent-1',
       });
@@ -2599,11 +2704,13 @@ describe('ReportService', () => {
           audience: ReportAudience.WorkflowOnly,
           payload: {
             reportType: 'CODING_RESEARCH',
+            format: 'SELF_RESEARCH',
             summary: 'ok',
             analysis: 'analysis',
             frame: {},
             provenance: { discoveryCalls: [], edgesTraversed: [] },
             updates: [],
+            uncertainties: [],
           },
           parentReportId: 'nonexistent',
         }),
@@ -2654,11 +2761,13 @@ describe('ReportService', () => {
       const result = await service.update('org-1' as any, 'report-1', {
         payload: {
           reportType: 'CODING_RESEARCH',
+          format: 'SELF_RESEARCH',
           summary: 'ok',
           analysis: 'analysis',
           frame: {},
           provenance: { discoveryCalls: [], edgesTraversed: [] },
           updates: [],
+          uncertainties: [],
         },
         parentReportId: 'parent-1',
       });
@@ -2671,6 +2780,7 @@ describe('ReportService', () => {
         .mockResolvedValueOnce({
           id: 'report-1',
           reportType: 'CODING_RESEARCH',
+          format: 'SELF_RESEARCH',
         })
         .mockResolvedValueOnce(null);
 
@@ -2678,11 +2788,13 @@ describe('ReportService', () => {
         service.update('org-1' as any, 'report-1', {
           payload: {
             reportType: 'CODING_RESEARCH',
+            format: 'SELF_RESEARCH',
             summary: 'ok',
             analysis: 'analysis',
             frame: {},
             provenance: { discoveryCalls: [], edgesTraversed: [] },
             updates: [],
+            uncertainties: [],
           },
           parentReportId: 'nonexistent',
         }),
@@ -2700,11 +2812,13 @@ describe('ReportService', () => {
         service.update('org-1' as any, 'report-1', {
           payload: {
             reportType: 'CODING_RESEARCH',
+            format: 'SELF_RESEARCH',
             summary: 'ok',
             analysis: 'analysis',
             frame: {},
             provenance: { discoveryCalls: [], edgesTraversed: [] },
             updates: [],
+            uncertainties: [],
           },
           parentReportId: 'report-1',
         }),
@@ -3440,11 +3554,13 @@ describe('ReportService', () => {
         audience: ReportAudience.WorkflowOnly,
         payload: {
           reportType: 'CODING_RESEARCH',
+          format: 'SELF_RESEARCH',
           summary: 'ok',
           analysis: 'analysis',
           frame: {},
           provenance: { discoveryCalls: [], edgesTraversed: [] },
           updates: [],
+          uncertainties: [],
         },
         entities: [
           {

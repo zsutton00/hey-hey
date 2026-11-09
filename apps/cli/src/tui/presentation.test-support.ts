@@ -139,22 +139,53 @@ export class FakeSources {
   public intentFirst: boolean | null = false;
   public remoteToolCallViewing: boolean | null = true;
   public jevEnabled: boolean | null = true;
+  public heyHeyContextReminder: boolean | null = false;
   public jevKeyDefined = true;
   public readonly optionsObservers = new Set<OptionsObserver>();
   public readonly setIntentFirst = vi.fn<(intentFirst: boolean) => Promise<void>>((intentFirst) => {
-    this.setOptions(intentFirst, this.remoteToolCallViewing, this.jevEnabled);
+    this.setOptions(
+      intentFirst,
+      this.remoteToolCallViewing,
+      this.jevEnabled,
+      this.jevKeyDefined,
+      this.heyHeyContextReminder,
+    );
     return Promise.resolve();
   });
   public readonly setRemoteToolCallViewing = vi.fn<(enabled: boolean) => Promise<void>>(
     (enabled) => {
-      this.setOptions(this.intentFirst, enabled, this.jevEnabled);
+      this.setOptions(
+        this.intentFirst,
+        enabled,
+        this.jevEnabled,
+        this.jevKeyDefined,
+        this.heyHeyContextReminder,
+      );
       return Promise.resolve();
     },
   );
   public readonly setJevEnabled = vi.fn<(enabled: boolean) => Promise<void>>((enabled) => {
-    this.setOptions(this.intentFirst, this.remoteToolCallViewing, enabled);
+    this.setOptions(
+      this.intentFirst,
+      this.remoteToolCallViewing,
+      enabled,
+      this.jevKeyDefined,
+      this.heyHeyContextReminder,
+    );
     return Promise.resolve();
   });
+  public readonly setHeyHeyContextReminder = vi.fn<(enabled: boolean) => Promise<void>>(
+    (enabled) => {
+      this.setOptions(
+        this.intentFirst,
+        this.remoteToolCallViewing,
+        this.jevEnabled,
+        this.jevKeyDefined,
+        enabled,
+      );
+      return Promise.resolve();
+    },
+  );
   private revision = 0;
 
   public readonly sources = {
@@ -226,6 +257,7 @@ export class FakeSources {
             intentFirst: this.intentFirst,
             remoteToolCallViewing: this.remoteToolCallViewing,
             jevEnabled: this.jevEnabled,
+            heyHeyContextReminder: this.heyHeyContextReminder,
             jevKeyDefined: this.jevKeyDefined,
           },
           unsubscribe: () => this.optionsObservers.delete(observer),
@@ -233,6 +265,7 @@ export class FakeSources {
       },
       setIntentFirst: (intentFirst: boolean) => this.setIntentFirst(intentFirst),
       setRemoteToolCallViewing: (enabled: boolean) => this.setRemoteToolCallViewing(enabled),
+      setHeyHeyContextReminder: (enabled: boolean) => this.setHeyHeyContextReminder(enabled),
       setJevEnabled: (enabled: boolean) => this.setJevEnabled(enabled),
     },
   };
@@ -242,13 +275,21 @@ export class FakeSources {
     remoteToolCallViewing: boolean | null = true,
     jevEnabled: boolean | null = true,
     jevKeyDefined = this.jevKeyDefined,
+    heyHeyContextReminder: boolean | null = false,
   ): void {
     this.jevKeyDefined = jevKeyDefined;
     this.intentFirst = intentFirst;
     this.remoteToolCallViewing = remoteToolCallViewing;
     this.jevEnabled = jevEnabled;
+    this.heyHeyContextReminder = heyHeyContextReminder;
     for (const observer of this.optionsObservers) {
-      observer({ intentFirst, remoteToolCallViewing, jevEnabled, jevKeyDefined });
+      observer({
+        intentFirst,
+        remoteToolCallViewing,
+        jevEnabled,
+        heyHeyContextReminder,
+        jevKeyDefined,
+      });
     }
   }
 

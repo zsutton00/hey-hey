@@ -20,7 +20,7 @@ import {
   ReportType,
   SystemMessageData,
   WorkStatus,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { buildMessageCreatedEventPayload } from 'src/utils/message-event.util';
 import {
   createMockDomainEventPublisher,
@@ -128,11 +128,13 @@ const buildReportCreatedEvent = (
       title: 'Coding Research',
       payload: {
         reportType: 'CODING_RESEARCH',
+        format: 'SELF_RESEARCH',
         summary: 'Research stub.',
         analysis: '',
         frame: {},
         provenance: { discoveryCalls: [], edgesTraversed: [] },
         updates: [],
+        uncertainties: [],
       },
       version: 1,
       schemaVersion: 1,

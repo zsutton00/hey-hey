@@ -32,7 +32,7 @@ export interface BatchSearchQuery {
    */
   similarity_threshold?: number;
   /**
-   * Query behavior mode (default performs normal search, title_fuzzy performs fuzzy title/name matching without ANN)
+   * Query behavior mode (default performs normal search, title_fuzzy performs fuzzy title/name matching without ANN, exact returns only entities containing the query as a literal case-insensitive contiguous phrase with title matches above body-only matches and no near matches; exact queries must be at least 3 characters)
    */
   query_mode?: BatchSearchQuery.QueryModeEnum;
   /**
@@ -46,9 +46,10 @@ export interface BatchSearchQuery {
   query_id?: string;
 }
 export namespace BatchSearchQuery {
-  export type QueryModeEnum = 'default' | 'title_fuzzy';
+  export type QueryModeEnum = 'default' | 'title_fuzzy' | 'exact';
   export const QueryModeEnum = {
     Default: 'default' as QueryModeEnum,
     TitleFuzzy: 'title_fuzzy' as QueryModeEnum,
+    Exact: 'exact' as QueryModeEnum,
   };
 }

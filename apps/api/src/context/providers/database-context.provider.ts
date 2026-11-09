@@ -14,7 +14,7 @@ import {
   ContextType,
 } from '../interfaces';
 import { ProviderPriority } from '../types/context.types';
-import { ArtifactSourceType } from 'src/generated';
+import { ArtifactSourceType } from '@hey-hey/contracts/api/models';
 
 @Injectable()
 export class DatabaseContextProvider implements ContextProvider {

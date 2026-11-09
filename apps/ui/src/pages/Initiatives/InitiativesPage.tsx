@@ -9,6 +9,7 @@ import { useInitiatives, useProject } from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import { compose, KEYS } from "@hey-hey/ui-common/i18n";
 import { contentToSectionInputs } from "@hey-hey/ui-common/utils";
+import { toOpenApiProjectId } from "@hey-hey/ui-common/clients";
 import AddIcon from "@mui/icons-material/Add";
 import {
   Alert,
@@ -31,7 +32,7 @@ import type {
   Priority,
   UpdateInitiativeDto,
   WorkStatus,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { PageBreadcrumbs } from "../../components/Layout";
 
 interface InitiativeFormData {
@@ -96,11 +97,11 @@ export const InitiativesPage: React.FC = () => {
   );
 
   const handleCreateInitiative = async () => {
-    if (!currentOrgId) return;
+    if (!currentOrgId || !projectId) return;
 
     const createDto: CreateInitiativeDto = {
       name: formData.title,
-      projectId: projectId as string,
+      projectId: toOpenApiProjectId(projectId),
       status: formData.status,
       priority: formData.priority,
       tags: formData.tags,

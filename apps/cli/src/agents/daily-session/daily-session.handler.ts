@@ -1,5 +1,6 @@
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import type { AssistantCompleteEvent } from '../../run/types';
-import type { OtherReportPayload } from '../../shared/api/generated';
+import type { OtherReportPayload } from '@hey-hey/contracts/api/models';
 import type { CreateReportDto, CreateReportEntityDto } from '../../shared/api/index';
 import {
   ReportAudience,
@@ -8,7 +9,7 @@ import {
   ReportType,
   SystemMessageDataTypeEnum,
 } from '../../shared/api/index';
-import type { LocalDailySessionPromptPayload } from '../../shared/agent-bridge-contract/generated/api';
+import type { LocalDailySessionPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import type {
   LocalDailySessionResponse,
   LocalReportEntityRef,
@@ -206,6 +207,7 @@ const buildMessageData = (parsed: LocalDailySessionResponse) => ({
 export const dailySessionHandler: UserLaunchablePromptTypeHandler<LocalDailySessionPromptPayload> =
   {
     id: 'daily_session',
+    sessionRole: SessionRole.Research,
     promptType: 'daily_session',
     service: 'optional',
     launchEntity: 'none',

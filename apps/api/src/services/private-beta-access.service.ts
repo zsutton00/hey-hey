@@ -4,7 +4,7 @@ import addFormats from 'ajv-formats';
 import type {
   PrivateBetaAccessRequestAcceptedResponseDto,
   PrivateBetaAccessRequestSubmissionDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   type AnyTransactionClient,
   PrismaService,

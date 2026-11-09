@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { WorkflowName } from '../../../generated';
+import { WorkflowName } from '@hey-hey/contracts/api/models';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import type { OrganizationId, ProjectId, UserId } from '../../../types';
 import type { AgentSessionService } from '../../agent-session.service';

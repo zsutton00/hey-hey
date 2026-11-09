@@ -8,7 +8,7 @@ import {
   UserSettingsResponse,
   UserSettingsRevisionConflictResponse,
   UserSettingsValidationErrorResponse,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { MachineId, OrganizationId, ProjectId, UserId } from '../types';
 import { CliSettingsEmitter } from '../core/websockets/cli-settings-emitter.service';
 import { AgentSessionService } from './agent-session.service';
@@ -29,7 +29,11 @@ export class UserSettingsService {
     settingsFamily: string,
   ): Promise<UserSettingsResponse> {
     const family = this.requireFamily(settingsFamily);
-    const session = await this.findBoundDailySession(organizationId, projectId, userId);
+    const session = await this.findBoundDailySession(
+      organizationId,
+      projectId,
+      userId,
+    );
     const response = await this.cliSettingsEmitter.request({
       request: { operation: 'daily_session.settings.get', projectId },
       machineId: session.machineId as MachineId,
@@ -54,9 +58,16 @@ export class UserSettingsService {
       request.scope.type !== 'project' ||
       request.scope.projectId !== projectId
     ) {
-      throw this.httpError(HttpStatus.BAD_REQUEST, 'The settings payload is not bound to this project.');
+      throw this.httpError(
+        HttpStatus.BAD_REQUEST,
+        'The settings payload is not bound to this project.',
+      );
     }
-    const session = await this.findBoundDailySession(organizationId, projectId, userId);
+    const session = await this.findBoundDailySession(
+      organizationId,
+      projectId,
+      userId,
+    );
     const cliRequest: CliSettingsRequestDto = {
       operation: 'daily_session.settings.replace',
       projectId,
@@ -91,16 +102,26 @@ export class UserSettingsService {
       userId,
       sessionType: AgentSessionType.DailySession,
     });
-    const sessions = await this.agentSessionService.findAll(organizationId, projectId, {
-      userId,
-      type: AgentSessionType.DailySession,
-    });
+    const sessions = await this.agentSessionService.findAll(
+      organizationId,
+      projectId,
+      {
+        userId,
+        type: AgentSessionType.DailySession,
+      },
+    );
     const session = sessions.find((candidate) => candidate.userId === userId);
     if (!session) {
-      throw this.httpError(HttpStatus.NOT_FOUND, 'No Daily Session is registered for this project.');
+      throw this.httpError(
+        HttpStatus.NOT_FOUND,
+        'No Daily Session is registered for this project.',
+      );
     }
     if (!session.machineId) {
-      throw this.httpError(HttpStatus.SERVICE_UNAVAILABLE, 'The Daily Session CLI is not bound.');
+      throw this.httpError(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        'The Daily Session CLI is not bound.',
+      );
     }
     this.logger.debug('user-settings.daily-session.lookup.completed', {
       organizationId,
@@ -114,7 +135,10 @@ export class UserSettingsService {
 
   private requireFamily(settingsFamily: string): UserSettingsFamily {
     if (settingsFamily !== 'daily_session') {
-      throw this.httpError(HttpStatus.NOT_FOUND, 'The requested settings family does not exist.');
+      throw this.httpError(
+        HttpStatus.NOT_FOUND,
+        'The requested settings family does not exist.',
+      );
     }
     return 'daily_session';
   }
@@ -130,7 +154,10 @@ export class UserSettingsService {
         response.result.scope.type !== 'project' ||
         response.result.scope.projectId !== projectId
       ) {
-        throw this.httpError(HttpStatus.BAD_GATEWAY, 'The CLI returned settings for the wrong project.');
+        throw this.httpError(
+          HttpStatus.BAD_GATEWAY,
+          'The CLI returned settings for the wrong project.',
+        );
       }
       return {
         success: true,
@@ -177,9 +204,11 @@ export class UserSettingsService {
       throw new HttpException(payload, HttpStatus.CONFLICT);
     }
     const status =
-      error.code === 'INVALID_REQUEST' || error.code === 'INVALID_PROJECT_CONTEXT'
+      error.code === 'INVALID_REQUEST' ||
+      error.code === 'INVALID_PROJECT_CONTEXT'
         ? HttpStatus.BAD_REQUEST
-        : error.code === 'MALFORMED_ACK' || error.code === 'CORRELATION_MISMATCH'
+        : error.code === 'MALFORMED_ACK' ||
+            error.code === 'CORRELATION_MISMATCH'
           ? HttpStatus.BAD_GATEWAY
           : HttpStatus.SERVICE_UNAVAILABLE;
     throw this.httpError(status, error.message);

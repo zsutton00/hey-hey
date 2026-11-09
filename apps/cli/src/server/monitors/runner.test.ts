@@ -1,3 +1,4 @@
+import { asMessageId } from '../../test-utils/contract-ids';
 import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -10,7 +11,7 @@ import { MessagePoster } from '../../run/message-poster';
 import { RunStore } from '../../run-store/run-store';
 import { NOOP_LOGGER } from '../logger';
 import { TaskMonitorManagedTurnRuntime } from '../task-monitor-managed-turn-runtime';
-import { type TaskMonitorPromptPayload } from '../../shared/agent-bridge-contract/generated';
+import { type TaskMonitorPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import {
   LocalPromptType,
   LocalReasoningEffort,
@@ -25,7 +26,7 @@ import {
   AgentSessionConfigV2VersionEnum,
   AgentSessionType,
   WorkflowName,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type {
   CanonicalMonitorEvent,
   CanonicalSettledTurnMonitorEvent,
@@ -405,7 +406,7 @@ describe('MonitorRunner', () => {
       cause: 'JUDGMENT_RESOLVED',
       correlationId: '20000000-0000-4000-8000-000000000002',
       judgment: {
-        requestMessageId: '20000000-0000-4000-8000-000000000002',
+        requestMessageId: asMessageId('20000000-0000-4000-8000-000000000002'),
         label: 'Your judgment',
         conclusion: 'Proceed with the safer behavior.',
       },

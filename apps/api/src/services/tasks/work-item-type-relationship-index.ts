@@ -1,4 +1,4 @@
-import { EntityType } from '../../generated/model/entityType';
+import { EntityType } from '@hey-hey/contracts/api/models';
 
 export interface WorkItemTypeRelationshipDefinition {
   readonly typeKey: string;

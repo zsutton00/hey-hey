@@ -12,11 +12,10 @@ import {
   type RelevanceScenario,
   type Scenario,
 } from './scenarios';
-import { buildQuestions, buildState, conflictQuestionId } from './state';
+import { buildQuestions, buildState } from './state';
 import type { Wording } from './wording';
 
 type ChoiceAnswer = Extract<JevAnswer, { type: 'choice' }>;
-type NoulAnswer = Extract<JevAnswer, { type: 'noul' }>;
 type JevFailure = Extract<JevResult, { ok: false }>;
 /** What `judge` needs of a client, so a consumer can put a cache in front of one. */
 export type JevEvaluator = Pick<JevClient, 'evaluate'>;
@@ -25,8 +24,6 @@ export interface RelevanceJudgment {
   id: string;
   /** p(implements) + p(informs). */
   relevance: number;
-  /** Probability that the focal work breaks, contradicts or undoes the candidate. */
-  conflict: number;
   relationships: Record<Relationship, number>;
 }
 
@@ -78,8 +75,6 @@ export const relationshipsOf = (answer: ChoiceAnswer): Record<Relationship, numb
 export const relevanceOf = (relationships: Record<Relationship, number>): number =>
   relationships.implements + relationships.informs;
 
-export const conflictOf = (answer: NoulAnswer): number => answer.noul;
-
 const invalidResponse: JevFailure = {
   ok: false,
   failure: { code: 'INVALID_RESPONSE', message: 'Jev returned an invalid evaluation result.' },
@@ -92,14 +87,12 @@ const judgeRelevance = (
   const judgments: RelevanceJudgment[] = [];
   for (const { id } of candidates) {
     const relevance = answers[id];
-    const conflict = answers[conflictQuestionId(id)];
-    if (relevance?.type !== 'choice' || conflict?.type !== 'noul') return null;
+    if (relevance?.type !== 'choice') return null;
     const relationships = relationshipsOf(relevance);
     if (!relationships) return null;
     judgments.push({
       id,
       relevance: relevanceOf(relationships),
-      conflict: conflictOf(conflict),
       relationships,
     });
   }

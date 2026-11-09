@@ -10,6 +10,7 @@ import { OrganizationId, UserId } from 'src/types';
 import {
   AuthResponseDto,
   AccountDefaultOrganizationDto,
+  DevAdminModeDto,
   BrowserAuthResponseDto,
   ChangeCurrentPasswordDto,
   ChangePasswordDto,
@@ -19,7 +20,7 @@ import {
   PasswordRecoveryAcknowledgementDto,
   PasswordRecoveryRequestDto,
   RegisterDto,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { OrganizationService } from '../../services/organization.service';
 import { UserService } from '../../services/user.service';
 import { ApiKeyService } from '../../services/api-key.service';
@@ -36,10 +37,17 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../../services/email.service';
 import { PasswordRecoveryThrottleService } from './password-recovery-throttle.service';
 import { PasswordChangeCredentialKind } from '../password-change-credential.types';
+import { isLocalApplication } from '../../deployment-environment';
+import { isLocalAccountEmail } from '../local-account';
 
 export const PASSWORD_RECOVERY_ACKNOWLEDGEMENT =
   'If an eligible account exists, recovery instructions will be sent.' as const;
 
+import {
+  CredentialProfileService,
+  OAUTH_ACCESS_TOKEN_USE,
+} from '../credential-profile';
+import { UserAccessTokenValidatorService } from './user-access-token-validator.service';
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -54,6 +62,8 @@ export class AuthService {
     private prisma: PrismaService,
     private emailService: EmailService,
     private passwordRecoveryThrottleService: PasswordRecoveryThrottleService,
+    private credentialProfile: CredentialProfileService,
+    private userAccessTokenValidator: UserAccessTokenValidatorService,
   ) {}
 
   getAccountDefaultOrganization(
@@ -73,8 +83,9 @@ export class AuthService {
   }
 
   /**
-   * Generate access + refresh tokens for a given user ID.
-   * Preserved for OAuth and other non-browser consumers.
+   * Generate native OAuth access + refresh tokens for a given user ID. The
+   * access token carries the OAuth purpose and this deployment's issuer and
+   * OAuth audience, so it is never accepted as browser-session access.
    */
   async generateTokensForUserId(userId: UserId): Promise<AuthResponseDto> {
     const user = await this.userService.findById(userId);
@@ -92,6 +103,7 @@ export class AuthService {
 
     const payload: JwtPayload = {
       sub: userId,
+      token_use: OAUTH_ACCESS_TOKEN_USE,
       email: user.email,
       name: user.name,
       currentOrgId:
@@ -107,6 +119,8 @@ export class AuthService {
 
     const accessToken = this.jwtKeysService.signToken(payload, {
       expiresIn: '24h',
+      issuer: this.credentialProfile.issuer,
+      audience: this.credentialProfile.oauthAudience,
     });
     const refreshToken = this.jwtKeysService.signToken(
       { sub: userId, type: 'refresh' },
@@ -207,7 +221,11 @@ export class AuthService {
       user?.passwordHash,
     );
 
-    if (throttle.allowed && user?.isActive) {
+    if (
+      throttle.allowed &&
+      user?.isActive &&
+      !(isLocalApplication() && isLocalAccountEmail(user.email))
+    ) {
       try {
         const recoveryCredential =
           await this.passwordChangeCredentialService.issue(
@@ -439,16 +457,18 @@ export class AuthService {
         };
       }
 
-      const isSystemToken = this.jwtKeysService.isSystemSubject(payload.sub);
+      const isSystemToken =
+        !payload.type && this.jwtKeysService.isSystemSubject(payload.sub);
 
-      // Additional validation: check if user still exists and is active
+      // User credentials go through the same profile, session and revision
+      // checks as protected HTTP and realtime requests.
       if (!isSystemToken) {
-        const user = await this.userService.findById(payload.sub as UserId);
-        if (!user || !user.isActive) {
-          return {
-            valid: false,
-            error: 'User not found or inactive',
-          };
+        try {
+          await this.userAccessTokenValidator.validate(payload, {
+            recordDemoActivity: false,
+          });
+        } catch {
+          return { valid: false, error: 'Invalid token' };
         }
       }
 
@@ -488,7 +508,7 @@ export class AuthService {
   /**
    * Toggle dev-admin mode for users with dev-admin privileges
    */
-  async toggleDevAdminMode(userId: UserId): Promise<AuthResponseDto> {
+  async toggleDevAdminMode(userId: UserId): Promise<DevAdminModeDto> {
     const user = await this.userService.findById(userId);
     if (!user || !user.isActive) {
       throw new UnauthorizedException('User not found or inactive');
@@ -498,48 +518,11 @@ export class AuthService {
       throw new ForbiddenException('User does not have dev-admin privileges');
     }
 
-    // Toggle the dev-admin mode
-    const newDevAdminMode = !user.devAdminMode;
-    await this.userService.updateDevAdminMode(userId, newDevAdminMode);
-
-    // Get updated user with organizations
-    const userWithOrgs =
-      await this.userService.getUserWithOrganizations(userId);
-    const orgMemberships =
-      await this.organizationService.getUserMemberships(userId);
-
-    // Generate new JWT with updated dev-admin mode
-    const payload: JwtPayload = {
-      sub: userId,
-      email: user.email,
-      name: user.name,
-      currentOrgId:
-        userWithOrgs.currentOrganizationId || orgMemberships[0]?.organizationId,
-      orgMemberships: orgMemberships.map((m) => ({
-        orgId: m.organizationId,
-        role: m.role,
-      })),
-      isDevAdmin: user.isDevAdmin,
-      devAdminMode: newDevAdminMode,
-      iat: Math.floor(Date.now() / 1000),
-    };
-
-    const accessToken = this.jwtKeysService.signToken(payload, {
-      expiresIn: '24h',
-    });
-    const refreshToken = this.jwtKeysService.signToken(
-      { sub: userId, type: 'refresh' },
-      { expiresIn: '7d' },
-    );
-
-    const authResponse: AuthResponseDto = {
-      user: userWithOrgs,
-      accessToken,
-      refreshToken,
-      expiresIn: 60 * 60 * 24, // 24 hours in seconds
-    };
-
-    return authResponse;
+    // No credentials are issued here; the browser renews its session to
+    // receive access that reflects the new mode.
+    const devAdminMode = !user.devAdminMode;
+    await this.userService.updateDevAdminMode(userId, devAdminMode);
+    return { devAdminMode } satisfies DevAdminModeDto;
   }
 
   /**

@@ -1,4 +1,5 @@
-import type { LocalFeatureRefinerPromptPayload } from '../../shared/agent-bridge-contract/generated/api';
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
+import type { LocalFeatureRefinerPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import {
   defaultAddUserMessage,
   type UserLaunchablePromptTypeHandler,
@@ -10,7 +11,7 @@ import type { AssistantDeltaEvent, AssistantCompleteEvent } from '../../run/type
 import type { UpdateMessageDto } from '../../shared/api/index';
 import { SystemMessageDataTypeEnum } from '../../shared/api/index';
 import type { FeatureRefinerPromptInput } from './types';
-import type { FullEntityContextDto } from '../../shared/api/generated/api';
+import type { FullEntityContextDto } from '@hey-hey/contracts/api/models';
 import { buildFeatureRefinerPrompt } from './feature-refiner-prompt';
 import { extractStructuredJsonPayload } from '../response-parser';
 import { ExtendedUIFieldType } from '../../shared/api/index';
@@ -43,6 +44,7 @@ type EnrichedPayload = LocalFeatureRefinerPromptPayload & {
 export const featureRefinerHandler: UserLaunchablePromptTypeHandler<LocalFeatureRefinerPromptPayload> =
   {
     id: 'feature_refiner',
+    sessionRole: SessionRole.Planning,
     promptType: 'feature_refiner',
     service: 'required',
     launchEntity: 'required',

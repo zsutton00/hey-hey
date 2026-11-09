@@ -11,7 +11,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import type { ConversationResponseDto } from "@hey-hey/ui-common/api";
+import type { ConversationResponseDto } from "@hey-hey/contracts/api";
 import {
   conversationAdapter,
   EntityGrid,

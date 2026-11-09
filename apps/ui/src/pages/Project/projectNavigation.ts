@@ -1,4 +1,4 @@
-import { WorkItemTypeRole } from "@hey-hey/ui-common/api";
+import { WorkItemTypeRole } from "@hey-hey/contracts/api";
 import type {
   ProjectWorkspaceNavigation,
   ProjectWorkspaceNavigationItem,

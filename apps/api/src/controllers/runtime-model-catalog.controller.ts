@@ -18,7 +18,7 @@ import {
 } from '../auth/decorators/current-user.decorator';
 import { ControllerBindingOriginGuard } from '../common/guards/controller-binding-origin.guard';
 import { readControllerBindingSecret } from '../services/controller-authorization/controller-binding-cookie.service';
-import { CliReadRuntimeModelCatalogGetRequest } from '../generated';
+import { CliReadRuntimeModelCatalogGetRequest } from '@hey-hey/contracts/api/models';
 import { MachineId, OrganizationId, ProjectId, UserId } from '../types';
 import { RuntimeModelCatalogReadService } from '../services/runtime-model-catalog-read.service';
 

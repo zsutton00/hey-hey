@@ -22,7 +22,8 @@ import type {
   ActionSubmissionToolDeclaration,
   PassThroughSubmissionToolDeclaration,
 } from '../agents/submission-tools/types';
-import { TriggerFrameRouter, toRunPromptRequest } from '../server/trigger-verification/dispatch';
+import { TriggerFrameRouter } from '../server/trigger-verification/dispatch';
+import { toRunPromptRequestFromStoredEvent } from '../test-utils/stored-prompt-request';
 import { RunReadRestoreCoordinator } from '../server/restore-persisted-runs';
 import type { StoredInput } from '../server/input-admission/input-admission-codec';
 import { TriggerVerifier, type VerifiedTriggerFrame } from '../server/trigger-verification/verify';
@@ -38,6 +39,7 @@ import { AdmittedHostAction } from '../server/controller-authorization/types';
 import { IncludeExistingProposalsInCurrentMessageTool } from '../agents/submission-tools/include-existing-proposals-in-current-message-tool';
 import { PromptTypeRegistry } from '../agents/prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../agents/prompt-type-registry.test-support';
+import { raiseUncertaintyTool } from '../agents/submission-tools/raise-uncertainty-tool';
 
 const promptTypeRegistry = new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES);
 
@@ -149,6 +151,40 @@ const callRegister = (
 };
 
 describe('Run.registerSubmissionTools', () => {
+  it('removes shared uncertainty from the mounted and active sets on an exempt handler', () => {
+    const { run, submissionToolRegistry } = makeRunHarness({
+      baseSubmissionTools: [raiseUncertaintyTool],
+    });
+    const ordinaryHandler: PromptTypeHandler<unknown> = {
+      id: 'coding_freeform',
+      promptType: 'coding_freeform',
+      service: 'required',
+      launchEntity: 'required',
+      implementationReadiness: 'none',
+      runnerKind: 'provider_session',
+      providerSessionCountsForContext: true,
+      reports: [],
+      buildPrompt: () => '',
+    };
+    const exemptHandler: PromptTypeHandler<unknown> = {
+      ...ordinaryHandler,
+      id: 'project_assistant',
+      promptType: 'project_assistant',
+      excludedBaseSubmissionTools: ['raise_uncertainty'],
+    };
+
+    callRegister(run, ordinaryHandler);
+    expect(submissionToolRegistry.getByRunId('sess-1')?.activeToolNames).toContain(
+      'raise_uncertainty',
+    );
+
+    callRegister(run, exemptHandler, 'turn-2');
+
+    const registration = submissionToolRegistry.getByRunId('sess-1');
+    expect(registration?.tools.map((tool) => tool.name)).not.toContain('raise_uncertainty');
+    expect(registration?.activeToolNames).not.toContain('raise_uncertainty');
+  });
+
   it('registers a pass-through-only handler even when EXTERNAL_AGENT context is missing', () => {
     const { run, submissionToolRegistry } = makeRunHarness();
     expect(run.getTriggerContext()).toBeNull();
@@ -674,7 +710,7 @@ describe('verified trigger envelope → Run → submission-tool registry', () =>
           await sendMessage(
             TEST_CONVERSATION_CAPABILITY,
             runId,
-            toRunPromptRequest(stored.payload.event),
+            toRunPromptRequestFromStoredEvent(stored.payload.event),
           );
     };
     Object.defineProperty(agentService, 'inputAdmission', {

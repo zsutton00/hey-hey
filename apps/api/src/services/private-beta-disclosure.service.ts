@@ -10,7 +10,7 @@ import type {
   PrivateBetaDisclosureAcceptanceResponseDto,
   PrivateBetaDisclosureRequirementDto,
   PrivateBetaDisclosureStatusDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 import { PRIVATE_BETA_DISCLOSURE_REQUIREMENTS } from './private-beta-disclosure.constants';

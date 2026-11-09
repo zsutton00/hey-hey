@@ -44,7 +44,7 @@ vi.mock("@hey-hey/ui-common/components", () => ({
   ),
 }));
 
-vi.mock("@hey-hey/ui-common/api", () => ({
+vi.mock("@hey-hey/contracts/api", () => ({
   EntityType: { Service: "SERVICE" },
 }));
 
@@ -61,11 +61,11 @@ describe("ServiceSessionLaunchButton", () => {
         projectId="project-1"
         serviceId="service-1"
         serviceName="UI"
-      />
+      />,
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Start Service Session" })
+      screen.getByRole("button", { name: "Start Service Session" }),
     );
     expect(screen.getByTestId("service-session-modal")).toHaveTextContent("UI");
 
@@ -83,7 +83,9 @@ describe("ServiceSessionLaunchButton", () => {
           entityTitle: "UI",
         },
       });
-      expect(screen.queryByTestId("service-session-modal")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("service-session-modal"),
+      ).not.toBeInTheDocument();
     });
   });
 });

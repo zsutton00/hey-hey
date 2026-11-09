@@ -34,32 +34,16 @@ const FOCAL_NOUNS: Record<FocalKind, string> = {
   question: 'question',
 };
 
-const CONFLICT_QUESTION_PREFIX = 'conflict:';
-
-/** Id of the conflict question that accompanies a candidate's relevance question. */
-export const conflictQuestionId = (candidateId: string): string =>
-  `${CONFLICT_QUESTION_PREFIX}${candidateId}`;
-
-const CONFLICT_LEAD: Record<FocalKind, string> = {
-  task: 'Does implementing the task break, contradict or undo',
-  feature: 'Does delivering the feature break, contradict or undo',
-  mockup: 'Does the design the mockup shows break, contradict or undo',
-  diagram: 'Does the structure the diagram shows break, contradict or undo',
-  question: 'Does the question assume something that contradicts',
-};
-
 const assertCandidates = (scenario: Scenario, candidates: readonly Candidate[]): void => {
   const seen = new Set<string>();
   for (const candidate of candidates) {
     if (!scenario.candidateKinds.includes(candidate.kind)) {
       throw new Error(`Scenario ${scenario.id} does not take ${candidate.kind} candidates`);
     }
-    for (const questionId of [candidate.id, conflictQuestionId(candidate.id)]) {
-      if (seen.has(questionId)) {
-        throw new Error(`Scenario ${scenario.id} has colliding candidate id ${candidate.id}`);
-      }
-      seen.add(questionId);
+    if (seen.has(candidate.id)) {
+      throw new Error(`Scenario ${scenario.id} has colliding candidate id ${candidate.id}`);
     }
+    seen.add(candidate.id);
   }
 };
 
@@ -127,6 +111,15 @@ const focalState = (focal: Focal): Record<string, Record<string, string>> => {
   }
 };
 
+/**
+ * The edges question text and examples are identical for every candidate, so they are sent once in
+ * state; each question only points at its candidate's line and at this guide.
+ */
+const edgesJudgingGuide = (template: string, focal: Focal): string =>
+  template
+    .replace('{candidate}', () => 'the candidate being asked about')
+    .replace('{focal}', () => FOCAL_NOUNS[focal.kind]);
+
 /** The state a request carries: the focal work plus candidate text grouped by kind. */
 export const buildState = (
   scenario: Scenario,
@@ -137,8 +130,10 @@ export const buildState = (
   assertCandidates(scenario, candidates);
   const state = focalState(focal);
   if (focal.kind !== 'question' && focal.ask?.trim()) state['ask'] = { text: focal.ask };
-  if (scenario.id === 'edges')
+  if (scenario.id === 'edges') {
     state['about'] = { text: openingFor(wording.edges.openingSentence[focal.kind], focal) };
+    state['judging'] = { text: edgesJudgingGuide(wording.edges.readMoreQuestion, focal) };
+  }
   if (scenario.id === 'read_check') {
     state['about'] = { text: openingFor(wording.read_check.openingSentence[focal.kind], focal) };
   }
@@ -150,8 +145,7 @@ export const buildState = (
 };
 
 /**
- * One request, one question per candidate (id = candidate id). Relevance scenarios add a
- * conflict question per candidate under `conflictQuestionId`; the other scenarios ask one.
+ * One request, one question per candidate (id = candidate id).
  */
 export const buildQuestions = (
   scenario: Scenario,
@@ -187,10 +181,6 @@ export const buildQuestions = (
           ]),
         ),
       };
-      questions[conflictQuestionId(candidate.id)] = {
-        type: 'noul',
-        instructions: `${openingFor(opening, focal)} ${CONFLICT_LEAD[focal.kind]} what ${subject} states?`,
-      };
     } else if (scenario.decision === 'applies') {
       const { question, criteria } = wording.read_check;
       questions[candidate.id] = {
@@ -206,12 +196,10 @@ export const buildQuestions = (
         ),
       };
     } else {
-      const { readMoreQuestion, criteria } = wording.edges;
+      const { criteria } = wording.edges;
       questions[candidate.id] = {
         type: 'choice',
-        instructions: readMoreQuestion
-          .replace('{candidate}', () => subject)
-          .replace('{focal}', () => focalNoun),
+        instructions: `Judge the line at state.${stateKey}.${candidate.id} using the rules in state.judging.`,
         criteria: Object.fromEntries(
           Object.entries(criteria).map(([relationship, template]) => [
             relationship,

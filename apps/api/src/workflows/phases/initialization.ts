@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { WorkflowName } from '../../generated';
+import { WorkflowName } from '@hey-hey/contracts/api/models';
 import {
   ConversationId,
   OrganizationId,

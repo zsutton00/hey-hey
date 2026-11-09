@@ -7,7 +7,7 @@ it("keeps canonical Plan tasks nested without a duplicate Step identity", () => 
       parentTaskId: "stage-1",
       planId: "plan-1",
       stageId: "stage-1",
-    })
+    }),
   ).toEqual([
     { entityType: "task", entityId: "plan-1" },
     { entityType: "task", entityId: "stage-1" },

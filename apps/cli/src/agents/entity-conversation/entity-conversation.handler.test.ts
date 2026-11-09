@@ -4,10 +4,10 @@ import type { AgenticSession } from '../../session/types';
 import { NOOP_LOGGER } from '../../server/logger';
 import {
   EntityType,
-  type LocalEntityConversationEntityEntityTypeEnum,
+  type RunEntityReferenceEntityTypeEnum,
   type LocalEntityConversationPromptPayload,
-} from '../../shared/agent-bridge-contract/generated/api';
-import type { AgentSessionDto, FullEntityContextDto } from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
+import type { AgentSessionDto, FullEntityContextDto } from '@hey-hey/contracts/api/models';
 import type { PromptTypeHandlerContext } from '../prompt-type-handler';
 import { WorkflowAboutReader, type WorkflowAbout } from '../submission-tools/search-messages-proxy';
 import { SubmissionToolAuth } from '../submission-tools/submission-tool-auth';
@@ -39,7 +39,7 @@ const buildEntityConversationHandler = (deps: ReturnType<typeof makeDeps>) =>
   new EntityConversationHandler(deps.handler);
 
 const makePayload = (
-  entityType: LocalEntityConversationEntityEntityTypeEnum,
+  entityType: RunEntityReferenceEntityTypeEnum,
 ): LocalEntityConversationPromptPayload => ({
   entity: {
     entityId: 'entity-1',

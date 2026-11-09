@@ -13,7 +13,7 @@ import {
   QueryActivity200Response,
   RecentActivityCorrelationMode,
   RecentActivityCorrelationSort,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { ActivityCorrelationController } from '../activity-correlation.controller';
 import { ActivitySleepService } from 'src/services/activity-correlation/activity-sleep.service';
 import { ActivityCorrelationService } from 'src/services/activity-correlation.service';
@@ -39,8 +39,14 @@ describe('ActivityCorrelationController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ActivityCorrelationController],
       providers: [
-        { provide: ProjectAccessService, useValue: { assertOrganization: jest.fn(), assertProject: jest.fn() } },
-        { provide: ProjectResourceAccessService, useValue: { assertResource: jest.fn() } },
+        {
+          provide: ProjectAccessService,
+          useValue: { assertOrganization: jest.fn(), assertProject: jest.fn() },
+        },
+        {
+          provide: ProjectResourceAccessService,
+          useValue: { assertResource: jest.fn() },
+        },
         {
           provide: ActivityCorrelationService,
           useValue: mockService,

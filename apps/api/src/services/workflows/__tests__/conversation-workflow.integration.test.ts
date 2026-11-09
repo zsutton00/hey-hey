@@ -12,7 +12,8 @@ import {
   CreateConversationDto,
   InitiationType,
   WorkflowName,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
 import * as TestUtils from '../../../utils/testUtils';
 import { NodeType } from '../../../types/flow-internal.types';
 import { ConversationWorkflowError } from '../../../core/exceptions/workflow.exceptions';
@@ -116,6 +117,99 @@ describe('ConversationWorkflowService Integration', () => {
       node: { id: 'start-node', type: NodeType.QUESTIONS },
       routing: {},
     });
+  });
+
+  it('initializes local onboarding intake with a durable CLI owner and never starts Temporal', async () => {
+    const previousEnvironment = process.env;
+    process.env = {
+      ...previousEnvironment,
+      DEPLOYMENT_ENVIRONMENT: 'local',
+      HEYHEY_LOCAL_APPLICATION: 'true',
+    };
+    try {
+      const conversation = TestUtils.createMockConversation({
+        workflowName: WorkflowName.Onboarding,
+        workflowAboutType: 'project',
+        workflowAboutId: TestUtils.testIds.project,
+        workflowId: TestUtils.testIds.workflow,
+      });
+      jest
+        .spyOn(conversationService, 'createConversation')
+        .mockResolvedValue(conversation);
+      jest
+        .spyOn(workflowTypeRegistry, 'validateWorkflowName')
+        .mockReturnValue(WorkflowName.Onboarding);
+      jest.spyOn(nodeExecutionService, 'getFlow').mockReturnValue({
+        id: 'onboarding',
+        terminalPromptType: LocalPromptType.local_onboarding,
+        name: 'Onboarding',
+        description: '',
+        version: 1,
+        startNode: 'welcome',
+        nodes: { welcome: { nextNode: 'existing-work-intent' } },
+      });
+      jest.spyOn(nodeExecutionService, 'getNode').mockReturnValue({
+        node: {
+          id: 'welcome',
+          type: NodeType.OPENER,
+          twoPhase: false,
+          execute: async () => ({
+            type: NodeType.QUESTIONS,
+            message: 'Project concept',
+            data: { detectedIntent: 'continue', intentConfidence: 1 },
+            uiElements: [],
+          }),
+        },
+        routing: { nextNode: 'existing-work-intent' },
+      });
+      jest.spyOn(nodeExecutionService, 'executeNode').mockResolvedValue({
+        result: {
+          type: NodeType.QUESTIONS,
+          message: 'Project concept',
+          data: { detectedIntent: 'continue', intentConfidence: 1 },
+          uiElements: [
+            {
+              id: 'project_concept',
+              type: 'textarea',
+              label: 'Project concept',
+              required: true,
+              influences: [],
+            },
+          ],
+        },
+        nextNodeId: 'existing-work-intent',
+      });
+      jest
+        .spyOn(messageService, 'addMessage')
+        .mockResolvedValue(TestUtils.createMockMessage());
+      (flowExecutionService.createFlowExecution as jest.Mock).mockResolvedValue(
+        { id: 'execution' },
+      );
+      const result = await conversationWorkflowService.createConversation(
+        {
+          projectId: TestUtils.testIds.project,
+          organizationId: TestUtils.testIds.organization,
+          workflowName: 'onboarding',
+          workflowId: TestUtils.testIds.workflow,
+          workflowAboutType: 'project',
+          workflowAboutId: TestUtils.testIds.project,
+          initiatedBy: InitiationType.User,
+          context: {},
+        },
+        TestUtils.testIds.organization,
+        { userId: TestUtils.testIds.user },
+      );
+      expect(result.workflowStarted).toBe(true);
+      expect(workflowTypeRegistry.startWorkflowByType).not.toHaveBeenCalled();
+      expect(flowExecutionService.createFlowExecution).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: TestUtils.testIds.user,
+          flowState: expect.objectContaining({ executionOwner: 'CLI' }),
+        }),
+      );
+    } finally {
+      process.env = previousEnvironment;
+    }
   });
 
   describe('createConversation', () => {

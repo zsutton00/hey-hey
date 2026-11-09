@@ -22,12 +22,12 @@ import {
   AgentSessionType,
   EntityType,
   UnifiedSearchIntent,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import type {
   AgentSessionDto,
   CreateFeatureDto,
   UnifiedSearchResult,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   buildDefaultSurfaceSelection,
   EntitySearchChat,
@@ -35,6 +35,7 @@ import {
   type EntitySearchChatProps,
   type SurfaceSelection,
 } from "@hey-hey/ui-common/components";
+import { toOpenApiProjectId } from "@hey-hey/ui-common/clients";
 import {
   useCreateAgentSession,
   useProject,
@@ -326,7 +327,7 @@ export const FeaturesPage: React.FC<FeaturesPageProps> = ({
       createAgentSessionMutation.mutate({
         organizationId: currentOrgId,
         agentSession: {
-          projectId,
+          projectId: toOpenApiProjectId(projectId),
           type: AgentSessionType.AgentSearch,
           sessionDate: new Date().toISOString(),
           title: trimmed,

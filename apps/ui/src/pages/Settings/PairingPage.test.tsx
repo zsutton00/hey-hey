@@ -60,17 +60,17 @@ describe("PairingPage", () => {
         ]}
       >
         <PairingPage />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(
       screen.getByRole("heading", {
         name: "Authorize this browser for MacBook-Pro",
-      })
+      }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("settings-machine-claim")).toHaveAttribute(
       "data-machine-id",
-      "machine-1"
+      "machine-1",
     );
   });
 
@@ -79,24 +79,44 @@ describe("PairingPage", () => {
       <MemoryRouter initialEntries={["/pairing"]}>
         <PairingPage />
         <LocationState />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(screen.getByTestId("pairing-page")).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Pair an Agent Bridge" })
+      screen.getByRole("heading", { name: "Pair an Agent Bridge" }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("page-breadcrumbs")).toHaveTextContent("Pairing");
     expect(screen.getByTestId("settings-machine-claim")).toHaveAttribute(
       "data-initial-code",
-      "missing"
+      "missing",
     );
     expect(screen.getByTestId("settings-machine-claim")).toHaveAttribute(
       "data-journey",
-      "first-machine"
+      "first-machine",
     );
     fireEvent.click(screen.getByRole("button", { name: "Go to projects" }));
     expect(screen.getByTestId("location-state")).toHaveTextContent("/projects");
+  });
+
+  it("returns local CLI pairing to the local setup handoff after terminal confirmation", () => {
+    render(
+      <MemoryRouter
+        initialEntries={["/pairing?code=BCDFG-HJKLM&returnTo=local"]}
+      >
+        <PairingPage />
+        <LocationState />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("settings-machine-claim")).toHaveAttribute(
+      "data-initial-code",
+      "missing",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Continue to Hey Hey" }),
+    );
+    expect(screen.getByTestId("location-state")).toHaveTextContent("/local");
   });
 
   it("opens the explicit existing-machine journey without trusting URL machine metadata", () => {
@@ -107,22 +127,22 @@ describe("PairingPage", () => {
         ]}
       >
         <PairingPage journey="existing-machine" />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(
-      screen.getByRole("heading", { name: "Add a controller" })
+      screen.getByRole("heading", { name: "Add a controller" }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("settings-machine-claim")).toHaveAttribute(
       "data-initial-code",
-      "bcdfg hjklm"
+      "bcdfg hjklm",
     );
     expect(screen.getByTestId("settings-machine-claim")).toHaveAttribute(
       "data-journey",
-      "existing-machine"
+      "existing-machine",
     );
     expect(screen.getByTestId("settings-machine-claim")).not.toHaveAttribute(
-      "data-machine-id"
+      "data-machine-id",
     );
   });
 
@@ -136,13 +156,13 @@ describe("PairingPage", () => {
       render(
         <MemoryRouter initialEntries={[entry]}>
           <PairingPage />
-        </MemoryRouter>
+        </MemoryRouter>,
       );
 
       expect(screen.getByTestId("settings-machine-claim")).toHaveAttribute(
         "data-initial-code",
-        expected
+        expected,
       );
-    }
+    },
   );
 });

@@ -29,7 +29,7 @@ import {
   SystemMessageResponseType,
   UserMessage,
   UserMessageData,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { InjectTemporalClient } from '../../prisma/temporal.module';
 import { MessageService } from '../../services/message.service';
 import {
@@ -366,6 +366,14 @@ export class MessageProcessor {
         );
       }
       await this.handleParentMessageCompletion(storedMessage, organizationId);
+      if (
+        hasOnboardingReplyDelivery(event) &&
+        event.payload.onboardingReplyDelivery.executionOwner === 'CLI'
+      ) {
+        // The reply itself is durable. Its CLI owner reads it on the next
+        // authoritative step request, including after missed notifications.
+        return;
+      }
       const delivery = hasOnboardingReplyDelivery(event)
         ? event.payload.onboardingReplyDelivery
         : (

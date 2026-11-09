@@ -2,7 +2,7 @@ import {
   type AgentSessionDto,
   AgentSessionStatus,
   WorkStatus,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import type { WorkItemResponseDto } from "@hey-hey/ui-common/data";
 import { agentSessionsClient } from "@hey-hey/ui-common/clients";
 import {
@@ -57,7 +57,13 @@ const resolveStatusAction = (
 
 export const AgentSessionStatusActionCapsule: React.FC<
   AgentSessionStatusActionCapsuleProps
-> = ({ organizationId, projectId, agentSession, taskData, onStatusUpdated }) => {
+> = ({
+  organizationId,
+  projectId,
+  agentSession,
+  taskData,
+  onStatusUpdated,
+}) => {
   const [isUpdating, setIsUpdating] = useState(false);
   const statusAction = useMemo(
     () => resolveStatusAction(agentSession.status),
@@ -66,8 +72,7 @@ export const AgentSessionStatusActionCapsule: React.FC<
 
   const isCompleteAction =
     statusAction?.nextStatus === AgentSessionStatus.Completed;
-  const hasActiveTask =
-    !!taskData && taskData.status !== WorkStatus.Completed;
+  const hasActiveTask = !!taskData && taskData.status !== WorkStatus.Completed;
 
   const { updateTask } = useWorkItems(
     organizationId,
@@ -88,17 +93,15 @@ export const AgentSessionStatusActionCapsule: React.FC<
     setIsUpdating(true);
 
     try {
-      await agentSessionsClient.updateAgentSession(
-        {
-          organizationId,
-          projectId,
-          agentSessionId: agentSession.id,
-          updateAgentSessionDto: {
-            machineId: agentSession.machineId,
-            status: statusAction.nextStatus,
-          },
+      await agentSessionsClient.updateAgentSession({
+        organizationId,
+        projectId,
+        agentSessionId: agentSession.id,
+        updateAgentSessionDto: {
+          machineId: agentSession.machineId,
+          status: statusAction.nextStatus,
         },
-      );
+      });
       await onStatusUpdated?.();
     } catch (error) {
       console.error("Failed to update coding session status:", error);
@@ -120,17 +123,15 @@ export const AgentSessionStatusActionCapsule: React.FC<
       return;
     }
 
-    await agentSessionsClient.updateAgentSession(
-      {
-        organizationId,
-        projectId,
-        agentSessionId: agentSession.id,
-        updateAgentSessionDto: {
-          machineId: agentSession.machineId,
-          status: AgentSessionStatus.Completed,
-        },
+    await agentSessionsClient.updateAgentSession({
+      organizationId,
+      projectId,
+      agentSessionId: agentSession.id,
+      updateAgentSessionDto: {
+        machineId: agentSession.machineId,
+        status: AgentSessionStatus.Completed,
       },
-    );
+    });
     await onStatusUpdated?.();
   }, [
     organizationId,
@@ -154,17 +155,15 @@ export const AgentSessionStatusActionCapsule: React.FC<
             return;
           }
 
-          await agentSessionsClient.updateAgentSession(
-            {
-              organizationId,
-              projectId,
-              agentSessionId: agentSession.id,
-              updateAgentSessionDto: {
-                machineId: agentSession.machineId,
-                status: AgentSessionStatus.Completed,
-              },
+          await agentSessionsClient.updateAgentSession({
+            organizationId,
+            projectId,
+            agentSessionId: agentSession.id,
+            updateAgentSessionDto: {
+              machineId: agentSession.machineId,
+              status: AgentSessionStatus.Completed,
             },
-          );
+          });
           await onStatusUpdated?.();
         }}
         onCompleteSessionOnly={handleCompleteSessionOnly}

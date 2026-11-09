@@ -2,7 +2,7 @@ import type {
   WorkItemChangeSetIdentity,
   WorkItemChangeSetRelationshipIdentity,
   WorkItemChangeSetValidationRequest,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import {
   siblingsKey,
   type Load,

@@ -14,7 +14,7 @@ import {
 import SettingsIcon from "@mui/icons-material/Settings";
 import HelpIcon from "@mui/icons-material/Help";
 import CloseIcon from "@mui/icons-material/Close";
-import type { IntegrationType } from "@hey-hey/ui-common/api";
+import type { IntegrationType } from "@hey-hey/contracts/api";
 import AnimatedButton from "../../../../components/AnimatedButton";
 
 interface TabPanelProps {

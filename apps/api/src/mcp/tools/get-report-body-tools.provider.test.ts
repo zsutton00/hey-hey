@@ -10,7 +10,7 @@ import {
   ReportType,
   OtherReportPayload,
   ReportDtoOther,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { ReportService } from '../../services/reports/report.service';
 import * as TestUtils from '../../utils/testUtils';
 
@@ -47,9 +47,7 @@ function makeRequest(overrides?: RequestOverrides): Request {
   return { user, headers } as unknown as Request;
 }
 
-function makeReportDto(
-  overrides?: Partial<ReportDtoOther>,
-): ReportDtoOther {
+function makeReportDto(overrides?: Partial<ReportDtoOther>): ReportDtoOther {
   return {
     id: REPORT_ID,
     organizationId: testIds.organization,

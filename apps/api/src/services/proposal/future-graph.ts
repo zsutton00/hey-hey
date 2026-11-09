@@ -9,7 +9,7 @@ import type {
   WorkItemChangeSetOperation,
   WorkItemChangeSetValidationRequest,
   WorkItemGraphLayoutValue,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 
 export const graphIdentityKey = (ref: WorkItemChangeSetIdentity) =>
   ref.refType === 'existing' ? `existing:${ref.id}` : `temporary:${ref.tempId}`;
@@ -63,6 +63,7 @@ export function graphContentBasis(graph: ProjectedWorkItemChangeSetResponse) {
             : 'meta'),
         direction: edge.direction ?? null,
         predicate: edge.predicate ?? null,
+        transitionRole: edge.transitionRole ?? null,
         reasoning: edge.reasoning ?? null,
         metadata: edge.metadata ?? null,
       },
@@ -105,6 +106,7 @@ const edgeFields = [
   'category',
   'direction',
   'predicate',
+  'transitionRole',
   'reasoning',
   'metadata',
 ] as const;
@@ -233,6 +235,7 @@ export function graphChangeSet(
         target: edge.target,
         reasoning: edge.reasoning,
         metadata: edge.metadata,
+        ...(edge.transitionRole ? { transitionRole: edge.transitionRole } : {}),
       };
       if (
         edge.edgeType === 'STANDARD' ||

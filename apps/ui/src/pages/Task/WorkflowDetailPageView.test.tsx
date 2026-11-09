@@ -2,8 +2,8 @@ import { WORK_ITEM_TYPE_KEYS } from "../../types/workItemTypes";
 import type {
   AgentEdgeResponseDto,
   TaskResponseDto,
-} from "@hey-hey/ui-common/api";
-import { TaskPriority, WorkStatus } from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
+import { TaskPriority, WorkStatus } from "@hey-hey/contracts/api";
 import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter } from "react-router-dom";

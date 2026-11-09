@@ -15,7 +15,7 @@ import type {
   MentionRemovedEventPayload,
   SystemMessageData,
   UserMessageData,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import type {
   ConversationId,
   MessageId,

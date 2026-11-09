@@ -6,9 +6,10 @@ import {
 } from '../completion-reconciliation/message-mapper';
 import {
   EntityType,
+  SessionRole,
   type LocalEntityConversationPromptPayload,
   type LocalEntityConversationEntity,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../../session/types';
 import { resolveMcpToolNames } from '../mcp-server-config';
 import type { ServerLogger } from '../../server/logger';
@@ -240,6 +241,7 @@ export interface EntityConversationHandlerDependencies {
 
 export class EntityConversationHandler implements UserLaunchablePromptTypeHandler<LocalEntityConversationPromptPayload> {
   public readonly id = 'entity_conversation';
+  public readonly sessionRole = SessionRole.Research;
   public readonly promptType = 'entity_conversation' as const;
   public readonly service = 'optional';
   public readonly launchEntity = 'required';
@@ -259,12 +261,13 @@ export class EntityConversationHandler implements UserLaunchablePromptTypeHandle
   /** Eval-launchable child: the production platform surface, read-only files. */
   public readonly childConfig = {
     adapterId: 'eval-entity-conversation',
+    submissionTools: 'run-registered',
+    submissionToolNames: ['raise_uncertainty'],
     mcpAllowedTools: resolveMcpToolNames({
       useCase: 'general',
       additionalTools: ENTITY_CONVERSATION_ALLOWED_TOOLS,
     }),
     builtinAllowedTools: ['Read', 'Glob', 'Grep'],
-    submissionTools: 'none',
     codexSandboxMode: 'read-only',
     includePriorReports: false,
   } as const;

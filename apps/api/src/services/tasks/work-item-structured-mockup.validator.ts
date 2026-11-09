@@ -1,13 +1,13 @@
 import { z } from 'zod';
-import { WorkItemStructuredMockupTextProps } from '../../generated/model/workItemStructuredMockupTextProps';
-import { WorkItemStructuredMockupContainerProps } from '../../generated/model/workItemStructuredMockupContainerProps';
-import type { WorkItemStructuredMockupCaretDirection } from '../../generated/model/workItemStructuredMockupCaretDirection';
-import type { WorkItemStructuredMockupColor } from '../../generated/model/workItemStructuredMockupColor';
-import type { WorkItemStructuredMockupDividerOrientation } from '../../generated/model/workItemStructuredMockupDividerOrientation';
-import type { WorkItemStructuredMockupIconKey } from '../../generated/model/workItemStructuredMockupIconKey';
-import type { WorkItemStructuredMockupOverflow } from '../../generated/model/workItemStructuredMockupOverflow';
-import type { WorkItemStructuredMockupSemanticRole } from '../../generated/model/workItemStructuredMockupSemanticRole';
-import type { WorkItemStructuredMockupShapeKind } from '../../generated/model/workItemStructuredMockupShapeKind';
+import { WorkItemStructuredMockupTextProps } from '@hey-hey/contracts/api/models';
+import { WorkItemStructuredMockupContainerProps } from '@hey-hey/contracts/api/models';
+import type { WorkItemStructuredMockupCaretDirection } from '@hey-hey/contracts/api/models';
+import type { WorkItemStructuredMockupColor } from '@hey-hey/contracts/api/models';
+import type { WorkItemStructuredMockupDividerOrientation } from '@hey-hey/contracts/api/models';
+import type { WorkItemStructuredMockupIconKey } from '@hey-hey/contracts/api/models';
+import type { WorkItemStructuredMockupOverflow } from '@hey-hey/contracts/api/models';
+import type { WorkItemStructuredMockupSemanticRole } from '@hey-hey/contracts/api/models';
+import type { WorkItemStructuredMockupShapeKind } from '@hey-hey/contracts/api/models';
 
 export const WORK_ITEM_STRUCTURED_MOCKUP_SCHEMA_VERSION_V3 =
   'work-item-structured-mockup.v3' as const;

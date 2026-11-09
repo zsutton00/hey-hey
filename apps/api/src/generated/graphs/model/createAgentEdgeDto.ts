@@ -10,6 +10,7 @@
  * Do not edit the class manually.
  */
 import { AgentEdgeDirection } from './agentEdgeDirection';
+import { WorkflowTransitionRole } from './workflowTransitionRole';
 import { AgentEdgeType } from './agentEdgeType';
 import { AgentEdgeEndpointEntityType } from './agentEdgeEndpointEntityType';
 import { AgentEdgeCategory } from './agentEdgeCategory';
@@ -46,6 +47,7 @@ export interface CreateAgentEdgeDto {
    * Optional plain-language user action that triggers this flow transition, such as \"tap Continue\". Distinct from a CONDITIONAL branch predicate.
    */
   actionLabel?: string;
+  transitionRole?: WorkflowTransitionRole;
   /**
    * Label-specific relationship metadata declared by the edge contract.
    */

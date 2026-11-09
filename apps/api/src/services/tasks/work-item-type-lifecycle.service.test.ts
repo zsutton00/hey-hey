@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import type { WorkItemType } from '@prisma/client';
-import type { WorkItemTypeDefinitionDto } from '../../generated/model/workItemTypeDefinitionDto';
+import type { WorkItemTypeDefinitionDto } from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId } from '../../types';
 import { WorkItemTypeLifecycleService } from './work-item-type-lifecycle.service';
 

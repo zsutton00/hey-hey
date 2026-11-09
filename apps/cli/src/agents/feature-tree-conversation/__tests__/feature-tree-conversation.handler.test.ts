@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgenticSession } from '../../../session/types';
-import type { AgentEdgeResponseDto, FeatureSkeletonNode } from '../../../shared/api/generated/api';
-import { LocalPromptType } from '../../../shared/agent-bridge-contract/generated/api';
+import type { AgentEdgeResponseDto, FeatureSkeletonNode } from '@hey-hey/contracts/api/models';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { LocalFeatureTreeConversationPromptPayload } from '../../../shared/agent-bridge-contract/runtime-types';
 import { PromptTypeRegistry } from '../../prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../../prompt-type-registry.test-support';

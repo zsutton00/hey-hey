@@ -12,7 +12,7 @@ import {
   InitiativeResponseDto,
   UpdateInitiativeDto,
   WorkItemSectionInput,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   InitiativeRefinableEntity,
   toInitiativeRefinableEntity,

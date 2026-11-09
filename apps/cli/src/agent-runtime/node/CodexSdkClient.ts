@@ -4,6 +4,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import type { ToolExecutionHookLaunch } from '../tool-execution-hooks';
 import { createInterface, type Interface as ReadlineInterface } from 'node:readline';
 
+import { stripCredentialEnvironment } from './credential-environment';
 import type { ContextData } from './controlRequestSchemas';
 
 export type CodexSdkTokenUsage = {
@@ -43,6 +44,8 @@ export interface CodexSdkSkillTurnInput {
 export interface CodexSdkSessionConfig {
   /** Environment for an already installed, natively trusted capture hook. */
   toolExecutionHooks?: ToolExecutionHookLaunch | undefined;
+  /** Starts the process without git or GitHub credentials in its environment. */
+  withoutGitCredentials?: boolean | undefined;
   attachments?: readonly RunAttachmentContent[] | undefined;
   prompt: string;
   /** Replaces Codex's built-in base instructions when minting a fresh thread. */
@@ -676,8 +679,15 @@ export class CodexSdkClient {
     this.process = spawn(targetCommand, targetArgs, {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: config.cwd,
-      ...(config.toolExecutionHooks
-        ? { env: { ...process.env, ...config.toolExecutionHooks.environment } }
+      ...(config.toolExecutionHooks || config.withoutGitCredentials
+        ? {
+            env: {
+              ...(config.withoutGitCredentials
+                ? stripCredentialEnvironment(process.env)
+                : process.env),
+              ...config.toolExecutionHooks?.environment,
+            },
+          }
         : {}),
     });
 

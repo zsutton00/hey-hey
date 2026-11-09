@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  LocalPromptType,
-  type FeatureSyncDiscrepancy,
-} from '../../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType, type FeatureSyncDiscrepancy } from '@hey-hey/contracts/agent-bridge';
 import type {
   LocalPlanShapingFeatureSyncAnalyzePromptPayload,
   LocalPlanShapingFeatureSyncDiscussPromptPayload,
@@ -177,7 +174,9 @@ describe('planShapingFeatureSyncAnalyzeHandler', () => {
       expect(prompt).toContain('even when the design doc settles the intended outcome');
       expect(prompt).toContain('wait for the user to choose before drafting');
       expect(prompt).toContain('it does not authorize drafting before the reply');
-      expect(prompt).not.toContain('draft a non-live future remediation and present its review card');
+      expect(prompt).not.toContain(
+        'draft a non-live future remediation and present its review card',
+      );
       expect(prompt).toContain('Leave unresolved product choices as findings');
       expect(prompt).toMatch(/concrete recommendation|concrete remediation/);
       // The eager-drafting step is gone: no instruction to draft edits on this turn.

@@ -1,6 +1,14 @@
 // temporal.module.ts
-import { Module, Provider, Global, Inject, Logger } from '@nestjs/common';
+import {
+  Module,
+  Provider,
+  Global,
+  Inject,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { Connection, Client } from '@temporalio/client';
+import { isLocalApplication } from '../deployment-environment';
 const INDEXED_VALUE_TYPE_KEYWORD_LIST = 7;
 
 export const TEMPORAL_CLIENT = 'TEMPORAL_CLIENT';
@@ -10,6 +18,20 @@ export const InjectTemporalClient = () => Inject(TEMPORAL_CLIENT);
 const temporalClientProvider: Provider = {
   provide: TEMPORAL_CLIENT,
   useFactory: async () => {
+    if (isLocalApplication()) {
+      // Construct no live connection and reject RPCs before gRPC can send them.
+      // Local CLI-owned execution is a separate owner, not a Temporal fallback.
+      const connection = Connection.lazy({
+        interceptors: [
+          () => {
+            throw new ServiceUnavailableException(
+              'Temporal workflows are unavailable in the local application. Use CLI-owned execution.',
+            );
+          },
+        ],
+      });
+      return new Client({ connection });
+    }
     const logger = new Logger(TemporalModule.name);
     const connection = await Connection.connect({
       // Your Temporal service address

@@ -12,7 +12,7 @@ import type {
   GoalPmRoutingAnswer,
   GoalPmRoutingEnactmentRequest,
   GoalPmRoutingOption,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { testIds } from '../../utils/testUtils';
 
 const option = {

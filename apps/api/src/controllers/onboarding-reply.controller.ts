@@ -16,7 +16,7 @@ import { OrganizationGuard } from '../auth/guards/organization.guard';
 import {
   MessageResponseDto,
   SubmitOnboardingReplyRequestDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { OnboardingReplyService } from '../services/onboarding-reply.service';
 import { ConversationId, OrganizationId, ProjectId, UserId } from '../types';
 import { validate as isUuid } from 'uuid';

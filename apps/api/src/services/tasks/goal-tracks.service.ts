@@ -21,7 +21,7 @@ import {
   OpenItemRef,
   TrackedEntitySnapshot,
   WorkItemTypeTrackingLinkRevocationImpactDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type { AgentEdge, CreateAgentEdgeDto } from 'src/generated/graphs';
 import { AgentEdgeEndpointEntityType } from 'src/generated/graphs/model/agentEdgeEndpointEntityType';
 import { PrismaService } from 'src/prisma/prisma.service';

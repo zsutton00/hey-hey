@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { TaskStubReview } from 'src/generated/model/taskStubReview';
+import type { TaskStubReview } from '@hey-hey/contracts/api/models';
 import { LLMProviderName } from 'src/services/llm/llm-shared';
 import type {
   PromptConfig,
@@ -14,8 +14,8 @@ import {
   TaskStub,
   TaskStubSystemMessageData,
   TaskStubUserMessage,
-} from '../../../generated';
-import { SecondaryActionHandler } from '../../../generated';
+} from '@hey-hey/contracts/api/models';
+import { SecondaryActionHandler } from '@hey-hey/contracts/api/models';
 import {
   FlowUserMessage,
   GenerateNodeBase,
@@ -254,6 +254,7 @@ Response shape:
       response: llmResponse.response,
       detectedIntent: 'task_stub_iteration',
       intentConfidence: 1,
+      actions: [],
       stubs,
       round,
       uiElements: [

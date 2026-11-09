@@ -1,5 +1,5 @@
 import type { WorkflowAboutType } from "@hey-hey/ui-common";
-import type { ConversationStatus } from "@hey-hey/ui-common/api";
+import type { ConversationStatus } from "@hey-hey/contracts/api";
 import React, { useCallback } from "react";
 import { ConversationListTab } from "../../components/Tabs/ConversationListTab";
 

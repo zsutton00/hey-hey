@@ -20,6 +20,7 @@
 
 # Build output and caches (images compile their own)
 **/dist
+**/target
 **/dist-ssr
 **/build
 **/coverage

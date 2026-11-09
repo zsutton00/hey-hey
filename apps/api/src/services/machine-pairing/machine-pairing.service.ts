@@ -30,7 +30,7 @@ import {
   CreateMachineEnrollmentResponseDto,
   MachineRevocationReductionBodyDto,
   WebSocketAuthorityReductionEvent,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { MachineConnectionEvictionService } from '../../core/websockets/machine-connection-eviction.service';
 import { DomainEventPublisher } from '../../core/events/domain-event-publisher';
 import { EVENT_TYPES } from '../../core/events/types/event.types';

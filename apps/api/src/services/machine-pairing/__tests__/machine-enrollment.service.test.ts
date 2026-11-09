@@ -16,7 +16,7 @@ import {
   MachinePairingService,
   MACHINE_ENROLLMENT_ATTEMPT_LIMIT,
 } from '../machine-pairing.service';
-import { CreateMachineEnrollmentRequestDto } from '../../../generated';
+import { CreateMachineEnrollmentRequestDto } from '@hey-hey/contracts/api/models';
 
 interface AttemptRow {
   sourceAddress: string;

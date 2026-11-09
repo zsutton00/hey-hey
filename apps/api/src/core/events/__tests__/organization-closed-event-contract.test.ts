@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { load } from 'js-yaml';
-import type { OrganizationClosedEventPayload } from '../../../generated';
+import type { OrganizationClosedEventPayload } from '@hey-hey/contracts/api/models';
 import type { OrganizationId } from '../../../types';
 import { resolveOpenapiRoot } from '../../../../test/helpers/openapi-root';
 

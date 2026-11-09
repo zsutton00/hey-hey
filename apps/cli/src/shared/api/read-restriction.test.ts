@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildMcpHeaders } from '../../agents/mcp-server-config';
 import { evalJudgeHandler } from '../../agents/run-eval/eval-judge.handler';
-import { ReadRestriction } from './generated/api';
+import { ReadRestriction } from '@hey-hey/contracts/api/models';
 import { readRestrictionFor, restrictedConfiguration } from './read-restriction';
 
 const token = `header.${Buffer.from(JSON.stringify({ organizationId: 'org-1' })).toString('base64url')}.signature`;

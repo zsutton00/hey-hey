@@ -3,7 +3,7 @@ import { useEntityPromptTemplateProposal } from "@hey-hey/ui-common/data";
 import type {
   EntityPromptTemplateSelectorDto,
   ProposalResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import React, { useEffect } from "react";
 import { proposalReviewPath } from "../Proposals/proposalReviewPath";
 
@@ -19,7 +19,7 @@ export interface EntityPromptTemplateProposalActionsProps {
   onReviseRejected: (content: string) => void;
   onPendingOperationChange?: (
     proposalId: string,
-    operation: EntityPromptTemplatePendingOperation | null
+    operation: EntityPromptTemplatePendingOperation | null,
   ) => void;
 }
 
@@ -32,7 +32,7 @@ interface ProposalProjectionProps {
   onReviseRejected: (content: string) => void;
   onPendingOperationChange?: (
     proposalId: string,
-    operation: EntityPromptTemplatePendingOperation | null
+    operation: EntityPromptTemplatePendingOperation | null,
   ) => void;
 }
 

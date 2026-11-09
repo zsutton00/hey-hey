@@ -1,9 +1,9 @@
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import {
   ExtendedUIFieldType,
   MessageStatus,
   SystemMessageDataTypeEnum,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { UpdateMessageDto } from '../../shared/api';
 import type { AssistantCompleteEvent } from '../../run/types';
 import type { AgenticSession } from '../../session/types';
@@ -53,6 +53,7 @@ const invalidCompletionAction = (): CompletionAction => ({
 
 export const repositoryPlacementHandler: PromptTypeHandler<RepositoryPlacementPromptPayload> = {
   id: 'repository-placement',
+  sessionRole: SessionRole.Research,
   promptType: LocalPromptType.RepositoryPlacement,
   service: 'required',
   launchEntity: 'none',

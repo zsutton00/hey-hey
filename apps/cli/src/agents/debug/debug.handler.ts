@@ -4,7 +4,7 @@ import type {
   LocalWorktreeStateByService,
   ResolvedServiceBinding,
 } from '../../shared/agent-bridge-contract/contract';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import {
   defaultAddUserMessage,
   type PrepareResult,
@@ -24,6 +24,7 @@ type EnrichedDebugPromptPayload = LocalDebugPromptPayload & {
 
 export const debugHandler: UserLaunchablePromptTypeHandler<LocalDebugPromptPayload> = {
   id: 'debug',
+  sessionRole: SessionRole.Research,
   promptType: LocalPromptType.Debug,
   service: 'required',
   launchEntity: 'required',

@@ -105,15 +105,6 @@ export class ResumeRunner implements Runner {
           })();
     const additionalBuiltinTools = handler.additionalBuiltinTools;
     const readOnlyFilesystem = handler.readOnlyFilesystem;
-    if (this.ctx.turnId && providerPrompt) {
-      await handler.recordProviderInput?.({
-        runId: run.runId,
-        turnId: this.ctx.turnId,
-        logger: this.deps.logger,
-        payload: this.ctx.preparedPayload ?? input.payload,
-        parts: [{ name: 'prompt', text: providerPrompt }],
-      });
-    }
     const result = await this.deps.sessionRunnerFacade.resumeSession(run, {
       session: run.session,
       attachmentRunId: run.runId,

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { TaskResponseDto } from "@hey-hey/ui-common/api";
+import type { TaskResponseDto } from "@hey-hey/contracts/api";
 
 const mockNavigate = vi.fn();
 const mockUseWorkItems = vi.fn();
@@ -20,8 +20,9 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock("@hey-hey/ui-common/api", () => ({
+vi.mock("@hey-hey/contracts/api", () => ({
   WorkStatus: { Active: "ACTIVE" },
+  TargetEntityType: { Task: "task" },
   EvalRunStatus: { Finished: "FINISHED", Stopped: "STOPPED" },
 }));
 
@@ -29,10 +30,13 @@ vi.mock("@hey-hey/ui-common/components", () => ({
   CapsuleAction: (props: { id: string; onClick: () => void }) => (
     <button data-testid={`capsule-${props.id}`} onClick={props.onClick} />
   ),
+  DiscussCapsuleAction: () => <button data-testid="capsule-discuss" />,
   WorkItemReadView: () => <div data-testid="read-view" />,
 }));
 
 vi.mock("@hey-hey/ui-common/data", () => ({
+  evalRunName: (run: { payload: { name?: string } }) =>
+    run.payload.name ?? "generated name",
   usePlatformAdminAccess: () => ({ isPlatformAdmin: false, isResolved: true }),
   useEvalRuns: (...args: unknown[]) => mockUseEvalRuns(...args),
   useWorkItems: (...args: unknown[]) => mockUseWorkItems(...args),
@@ -56,8 +60,6 @@ vi.mock("@hey-hey/ui-common/services", () => ({
     returnToProject: (projectId: string) => `/projects/${projectId}`,
     evalRun: (p: { projectId: string; evalId: string; runId: string }) =>
       `/projects/${p.projectId}/evals/${p.evalId}/runs/${p.runId}`,
-    evalRunResults: (p: { projectId: string; evalId: string; runId: string }) =>
-      `/projects/${p.projectId}/evals/${p.evalId}/runs/${p.runId}/results`,
   },
 }));
 
@@ -187,10 +189,7 @@ describe("EvalPage", () => {
     expect(mockNavigate).toHaveBeenCalledWith(
       "/projects/p1/evals/eval-1/runs/run-1",
     );
-    fireEvent.click(screen.getByTestId("eval-run-results-link-run-1"));
-    expect(mockNavigate).toHaveBeenCalledWith(
-      "/projects/p1/evals/eval-1/runs/run-1/results",
-    );
+    expect(row.querySelectorAll("a")).toHaveLength(1);
     fireEvent.click(screen.getByTestId("eval-new-run"));
     expect(mockNavigate).toHaveBeenCalledWith(
       "/projects/p1/evals/eval-1/runs/new",

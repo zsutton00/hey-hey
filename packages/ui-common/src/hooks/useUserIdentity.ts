@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { getAuthToken } from "../services/authService";
 import { useAuth } from "../contexts/AuthContext";
+export { formatUserIdentity } from "../utils/userIdentity";
 
 // JWT token payload interface based on the provided structure
 export interface JwtPayload {
@@ -14,6 +15,7 @@ export interface JwtPayload {
   }>;
   isDevAdmin: boolean;
   devAdminMode: boolean;
+  isLocalAccount?: boolean;
   iat: number;
   exp: number;
 }
@@ -30,6 +32,7 @@ export interface UserIdentity {
   }>;
   isDevAdmin: boolean;
   devAdminMode: boolean;
+  isLocalAccount?: boolean;
   isTokenExpired: boolean;
   currentOrgRole: string | null; // Role in the current organization
 }
@@ -49,7 +52,7 @@ const base64UrlDecode = (str: string): string => {
       atob(base64)
         .split("")
         .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join("")
+        .join(""),
     );
   } catch {
     throw new Error("Invalid base64 string");
@@ -79,7 +82,7 @@ const isTokenExpired = (exp: number): boolean => {
 // Get user's role in the current organization
 const getCurrentOrgRole = (
   currentOrgId: string,
-  orgMemberships: Array<{ orgId: string; role: string }>
+  orgMemberships: Array<{ orgId: string; role: string }>,
 ): string | null => {
   const membership = orgMemberships.find((m) => m.orgId === currentOrgId);
   return membership ? membership.role : null;
@@ -107,17 +110,22 @@ export const useUserIdentity = (): UserIdentity | null => {
       const payload = decodeJwt(token);
       const currentOrgRole = getCurrentOrgRole(
         payload.currentOrgId,
-        payload.orgMemberships
+        payload.orgMemberships,
       );
 
       return {
         userId: payload.sub,
         email: payload.email,
-        name: payload.name || payload.email.split("@")[0], // Fallback to email username if name not provided
+        name:
+          payload.name ||
+          (payload.isLocalAccount
+            ? "Local account"
+            : payload.email.split("@")[0]),
         currentOrgId: payload.currentOrgId,
         orgMemberships: payload.orgMemberships,
         isDevAdmin: payload.isDevAdmin,
         devAdminMode: payload.devAdminMode,
+        isLocalAccount: Boolean(payload.isLocalAccount),
         isTokenExpired: isTokenExpired(payload.exp),
         currentOrgRole,
       };

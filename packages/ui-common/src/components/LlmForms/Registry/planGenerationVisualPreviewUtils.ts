@@ -81,7 +81,7 @@ export const resolvePlanGenerationVisualPreview = (
     return error("This visual preview payload is unavailable or malformed.");
   }
 
-  const proposalById = new Map(
+  const proposalById = new Map<string, ProposalResponseDto>(
     resolvedProposals.map((proposal) => [proposal.id, proposal]),
   );
   const entryByProposalId = new Map<string, PlanGenerationVisualPreviewEntry>();

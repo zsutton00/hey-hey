@@ -12,6 +12,7 @@ import {
 import React from "react";
 import { type AgentQuestion, type AgentQuestionPayload } from "../../../api";
 import { useSubmitControllerAuthorizedQuestionAnswer } from "../../../data/hooks/useSubmitControllerAuthorizedQuestionAnswer";
+import { NumberedOptionCard, QuestionFrame } from "../../Uncertainties";
 import type { FieldComponentProps, FieldConfig } from "./types";
 
 const OTHER_OPTION = "__other__";
@@ -144,23 +145,31 @@ export const AgentQuestionField: React.FC<AgentQuestionFieldProps> = ({
         data-testid={`agent-question-answered-${payload.requestId}`}
       >
         {payload.questions.map((question, index) => (
-          <Stack key={`${question.question}-${String(index)}`} spacing={0.5}>
-            {question.header ? (
-              <Chip
-                label={question.header}
-                size="small"
-                sx={{ alignSelf: "flex-start" }}
-              />
-            ) : null}
-            <Typography variant="subtitle2">{question.question}</Typography>
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              data-testid={`agent-question-answer-${String(index)}`}
-            >
-              {resolvedAnswers[question.question] ?? "—"}
-            </Typography>
-          </Stack>
+          <QuestionFrame
+            key={`${question.question}-${String(index)}`}
+            testId={`agent-question-answered-frame-${String(index)}`}
+            showAnswerBand={false}
+          >
+            <Stack spacing={0.5}>
+              {question.header ? (
+                <Chip
+                  label={question.header}
+                  size="small"
+                  sx={{ alignSelf: "flex-start" }}
+                />
+              ) : null}
+              <Typography variant="subtitle1" fontWeight={600}>
+                {question.question}
+              </Typography>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                data-testid={`agent-question-answer-${String(index)}`}
+              >
+                {resolvedAnswers[question.question] ?? "—"}
+              </Typography>
+            </Stack>
+          </QuestionFrame>
         ))}
       </Stack>
     );
@@ -176,78 +185,88 @@ export const AgentQuestionField: React.FC<AgentQuestionFieldProps> = ({
         const Control = question.multiSelect ? Checkbox : Radio;
         const otherSelected = selection.selected.includes(OTHER_OPTION);
         return (
-          <Stack
+          <QuestionFrame
             key={`${question.question}-${String(index)}`}
-            spacing={0.5}
-            data-testid={`agent-question-${String(index)}`}
+            testId={`agent-question-${String(index)}`}
           >
-            {question.header ? (
-              <Chip
-                label={question.header}
-                size="small"
-                sx={{ alignSelf: "flex-start" }}
-              />
-            ) : null}
-            <Typography variant="subtitle2">{question.question}</Typography>
-            {question.options.map((option) => (
+            <Stack spacing={1}>
+              {question.header ? (
+                <Chip
+                  label={question.header}
+                  size="small"
+                  sx={{ alignSelf: "flex-start" }}
+                />
+              ) : null}
+              <Typography variant="subtitle1" fontWeight={600}>
+                {question.question}
+              </Typography>
+              {question.options.map((option, optionIndex) => (
+                <NumberedOptionCard
+                  key={option.label}
+                  index={optionIndex}
+                  selected={selection.selected.includes(option.label)}
+                >
+                  <FormControlLabel
+                    disabled={isLocked}
+                    sx={{ m: 0, alignItems: "flex-start" }}
+                    control={
+                      <Control
+                        sx={{ py: 0.25 }}
+                        checked={selection.selected.includes(option.label)}
+                        onChange={() => {
+                          updateSelection(index, (current) =>
+                            toggleSelection(question, current, option.label),
+                          );
+                        }}
+                      />
+                    }
+                    label={
+                      <Stack>
+                        <Typography variant="body2">{option.label}</Typography>
+                        {option.description ? (
+                          <Typography variant="caption" color="text.secondary">
+                            {option.description}
+                          </Typography>
+                        ) : null}
+                      </Stack>
+                    }
+                  />
+                </NumberedOptionCard>
+              ))}
               <FormControlLabel
-                key={option.label}
                 disabled={isLocked}
                 control={
                   <Control
-                    checked={selection.selected.includes(option.label)}
+                    checked={otherSelected}
                     onChange={() => {
                       updateSelection(index, (current) =>
-                        toggleSelection(question, current, option.label),
+                        toggleSelection(question, current, OTHER_OPTION),
                       );
                     }}
                   />
                 }
-                label={
-                  <Stack>
-                    <Typography variant="body2">{option.label}</Typography>
-                    {option.description ? (
-                      <Typography variant="caption" color="text.secondary">
-                        {option.description}
-                      </Typography>
-                    ) : null}
-                  </Stack>
-                }
+                label={<Typography variant="body2">Other</Typography>}
               />
-            ))}
-            <FormControlLabel
-              disabled={isLocked}
-              control={
-                <Control
-                  checked={otherSelected}
-                  onChange={() => {
-                    updateSelection(index, (current) =>
-                      toggleSelection(question, current, OTHER_OPTION),
-                    );
+              {otherSelected ? (
+                <TextField
+                  size="small"
+                  placeholder="Type your answer"
+                  value={selection.otherText}
+                  disabled={isLocked}
+                  onChange={(event) => {
+                    const otherText = event.target.value;
+                    updateSelection(index, (current) => ({
+                      ...current,
+                      otherText,
+                    }));
+                  }}
+                  inputProps={{
+                    "data-testid": `agent-question-other-${String(index)}`,
                   }}
                 />
-              }
-              label={<Typography variant="body2">Other</Typography>}
-            />
-            {otherSelected ? (
-              <TextField
-                size="small"
-                placeholder="Type your answer"
-                value={selection.otherText}
-                disabled={isLocked}
-                onChange={(event) => {
-                  const otherText = event.target.value;
-                  updateSelection(index, (current) => ({
-                    ...current,
-                    otherText,
-                  }));
-                }}
-                inputProps={{
-                  "data-testid": `agent-question-other-${String(index)}`,
-                }}
-              />
-            ) : null}
-          </Stack>
+              ) : null}
+            </Stack>
+          </QuestionFrame>
         );
       })}
 

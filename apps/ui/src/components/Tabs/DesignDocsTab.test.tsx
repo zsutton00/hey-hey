@@ -16,7 +16,7 @@ const {
   navigateMock: vi.fn(),
 }));
 
-vi.mock("@hey-hey/ui-common/api", () => ({
+vi.mock("@hey-hey/contracts/api", () => ({
   DesignDocParentEntityType: {
     Task: "TASK",
     DesignDoc: "DESIGN_DOC",

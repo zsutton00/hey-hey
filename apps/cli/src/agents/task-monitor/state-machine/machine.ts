@@ -1,11 +1,7 @@
 import { z } from 'zod/v4';
 import { assign, setup } from 'xstate';
-import {
-  ReportType,
-  TaskMonitorReasoningEffort,
-  WorkStatus,
-} from '../../../shared/api/generated/api';
-import type { TaskMonitorJudgmentResponse } from '../../../shared/agent-bridge-contract/generated/api';
+import { ReportType, TaskMonitorReasoningEffort, WorkStatus } from '@hey-hey/contracts/api/models';
+import type { TaskMonitorJudgmentResponse } from '@hey-hey/contracts/agent-bridge';
 
 import {
   defineMachine,
@@ -70,6 +66,7 @@ import {
   matchesTaskMonitor,
 } from './guards';
 import { taskMonitorWorkStates } from './states';
+import { toOpenApiMessageId } from '../../../shared/api/identifierAdapters';
 import {
   canOpenExactActionIntervention,
   matchesApplyingDecision,
@@ -632,7 +629,7 @@ const coordinateEffectSchema = z
       .optional(),
     judgment: z
       .object({
-        requestMessageId: z.string(),
+        requestMessageId: z.string().transform(toOpenApiMessageId),
         label: z.string(),
         conclusion: z.string(),
       })
@@ -824,7 +821,7 @@ const settledRunEvaluationEffectSchema = z
     reviewRequestId: z.string().nullable().default(null),
     judgment: z
       .object({
-        requestMessageId: z.string(),
+        requestMessageId: z.string().transform(toOpenApiMessageId),
         label: z.string(),
         conclusion: z.string(),
       })

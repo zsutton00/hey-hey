@@ -16,10 +16,9 @@ import {
   renderWorkItemTypeOntologyEntry,
 } from './render-type-ontology';
 import type { AgentProviderId } from '../providers/provider-config';
-import {
-  selectGpt56EpistemicCalibration,
-  type PlatformPromptContext,
-} from './epistemic-calibration';
+import { selectGpt56EpistemicCalibration } from './epistemic-calibration';
+import { selectGraphResearchGuidance } from './graph-research';
+import type { PlatformPromptContext } from './platform-prompt-context';
 
 type AgentWorkflowContext = LocalFinalAssessmentPromptPayload['context'];
 
@@ -57,13 +56,13 @@ export const lifecycleAwareTaskEditSafety = [
 
 export const codingRepositoryAuthorityGuidance = `## Repository edit authority
 
-Mentions of a Service or repository in a task description, plan, design document, report, message, or retrieved context provide context only. They do not authorize inspection, edits, commits, or mutating commands in that repository. Work only in the current repository and in Services explicitly listed in the active session scope.
+You may inspect code in any project Service during planning or investigation, including Services outside the active session scope. Read-only inspection does not add a Service to the Run's writable roots. A Service mention or repository path provides context only; it does not authorize edits, commits, or mutating commands. Make repository changes only in the current repository or Services explicitly listed in the active session scope.
 
-When the current repository is a linked worktree, authorized work in every other repository requires that repository's explicit corresponding worktree path in the active session scope. Never use, inspect, or edit its host or main checkout as a fallback, and never infer a worktree path. If the required Service or its corresponding worktree is not listed, stop and request expanded Service scope before touching it.`;
+When the current repository is a linked worktree, changes to another selected Service require that Service's explicit corresponding worktree path in the active session scope. Never use its host or main checkout as a fallback location for edits or other mutations, and never infer a worktree path. If the required Service or its corresponding worktree is not listed, request expanded Service scope before changing it.`;
 
 export const codingServiceScopeGuidance = `## Additional Service scope
 
-When repository work requires a project Service that is not already listed in this session's Service scope, including when the session has no Service yet, stop before touching that repository and call \`request_agent_session_service_scope\` with the Service ID(s) and a concise reason. The requested IDs must cover the complete scope you need. Wait for the user's review; do not inspect, edit, commit, or run mutating commands in an out-of-scope repository while approval is pending. Approval expands the session's authorized roots and the next provider session continues with the expanded scope. In a worktree-backed session, continue only after the expanded scope lists the Service's corresponding worktree path; a host or main checkout is never a substitute. Denial means keep working within the existing scope or explain the blocker.`;
+When a repository change requires a project Service that is not already listed in this session's Service scope, including when the session has no Service yet, stop before changing that repository and call \`request_agent_session_service_scope\` with the Service ID(s) and a concise reason. The requested IDs must cover the complete scope you need. Wait for the user's review before making changes; you may continue read-only inspection while approval is pending. Do not edit, commit, or run mutating commands in an out-of-scope repository. Approval expands the session's authorized roots and the next provider session continues with the expanded scope. In a worktree-backed session, continue changes only after the expanded scope lists the Service's corresponding worktree path; a host or main checkout is never a substitute for changes. Denial means keep working within the existing scope or explain the blocker.`;
 
 /**
  * Platform context: tells the agent what the application is and how
@@ -78,15 +77,17 @@ This is a project and product management tool. You have access to both the proje
 
 Pay close attention to the user's request. When the user asks about "related" entities, search broadly — by relationship, hierarchy, and topic — not just by status. Do not pre-filter results (e.g. to only active or open items) unless the user explicitly asks for that.
 
-## Situating Yourself with \`get_context\`
+## Choosing the Smallest Read
 
-\`get_context\` is your primary orientation tool. Given an entity ID and type, it returns the graph around that entity: its feature hierarchy (ancestors, siblings, descendants), related entities (tasks, design docs, services), proposal history (what created or modified it and why), and topology links. Call it whenever you need to understand where an entity sits in the project or what surrounds it — before making edits, when the user references something unfamiliar, or when you need to check whether a change has upstream or downstream consequences.
+Reuse what the prompt already gives you, such as the focal entity's context, instead of reloading it. For anything else you rely on, read the content, not just the title. The bullets below pick the smallest tool that does it.
 
-\`get_context\` is for **orientation** around an entity you already have an ID for; \`unified_search\` is for **discovery** when you do not yet know which entities are relevant. They are complementary primary tools, not competing ones — search to find, then orient on what you find.
+- **You have an ID but no title, or know an ID is a work item but not whether it is a Feature, Bug, Standard Task or another type:** \`get_entity_identities\` returns only \`title\`, \`status\` and \`itemType\`. Every pair needs an \`entityType\`; pass \`entityType: "TASK"\` when the work-item subtype is unknown, e.g. \`{ entityType: "TASK", entityId }\` — work-item type keys alias TASK and \`itemType\` reports the real subtype. It cannot look up an ID with no type.
+- **You want an item's own content or sections:** \`get_full_entity\`.
+- **You need hierarchy, relationships, proposal history, or the upstream and downstream consequences of a change:** \`get_context\`.
+- **You want the direct links around several items you have already identified:** \`get_edges\`, one call for the batch instead of a \`get_context\` per item.
+- **You do not yet know which items are relevant** — hunting for relationships, feature-tree gaps, or whether something is already covered: \`unified_search\` (pass \`queries\` to batch several searches in one call) before reading entities one by one. Its hits already carry the TASK subtype, so they need no identity follow-up.
 
-## Reading Links in Batch with \`get_edges\`
-
-\`get_edges\` is the lighter, multi-input companion to \`get_context\`. Given up to 10 \`{entityType, entityId}\` pairs, it returns the direct (1-hop) typed and influence links around each one, keyed by input. Use it after \`get_context\` has oriented you on one entity and surfaced a list of related entities — pick the ones worth tracing and call \`get_edges\` once to map the connections around all of them, rather than fanning out into N more \`get_context\` calls.`;
+Identity lookup never replaces reading. Before a consequential change, read the governing requirements and design decisions (\`get_full_entity\`, or \`get_context\` when you also need the surrounding graph) and orient on the graph around the entity you are changing.`;
 
 /**
  * Mention format: instructs the agent to reference entities as
@@ -94,13 +95,13 @@ Pay close attention to the user's request. When the user asks about "related" en
  *
  * Internal — composed into `platformSystemPrompt`.
  */
-const mentionFormat = `## Entity References (HARD STOP)
+const mentionFormat = `## Entity References
 
-Any time you reference an entity (task, feature, design doc, service, proposal, agent session, etc.) in user-visible text, you MUST write it as \`@[type:id|title]\` — for example \`@[task:2d5158b4-f564-4891-a9ea-4134ebd2ea72|Task Name]\` or \`@[proposal:461f6ba7-010f-4853-90d0-ea5d878b0a0c|Rewrite task description]\`.
+The UI renders \`@[type:id|title]\` mentions as clickable links; any other way of naming an entity is dead text the user cannot act on, and users treat a broken or partial reference as a serious failure. So whenever you reference an entity (task, feature, design doc, service, proposal, agent session, etc.) in user-visible text, write it as a mention with the complete ID and a real title — for example \`@[task:2d5158b4-f564-4891-a9ea-4134ebd2ea72|Task Name]\` or \`@[proposal:461f6ba7-010f-4853-90d0-ea5d878b0a0c|Rewrite task description]\`.
 
-Never write bare IDs, truncated IDs, or prose like "task 8fb5e689", \`8fb5e689\`, "8fb5e689 (Title)", "sibling 8fb5e689 (title)", or "proposal bb027bea from 2026-04-18". The UI renders \`@[...]\` mentions as clickable links; anything else is dead text the user cannot act on. If you know the ID, you must have or look up a title — use \`get_context\` or \`unified_search\` — and wrap both in the mention format. There is no path that ends in a half-formed reference: look up the title first. Records that are not entities follow the same rule: name a feature requirement by its feature's mention plus the requirement's own wording, never by its \`id\` (e.g. "requirement \`06fcd4ab\`"). Requirement IDs and other short identifiers appear only in tool arguments such as \`requirementOps\`.
+Do not write bare or shortened IDs, in backticks or in prose, such as "task 8fb5e689", \`8fb5e689\`, "8fb5e689 (Title)", "sibling 8fb5e689 (title)", or "proposal bb027bea from 2026-04-18". If you know an ID but not its title, look the title up before writing the reference: \`get_entity_identities\` resolves a known ID (pass \`entityType: "TASK"\` when the work-item subtype is unknown) and \`unified_search\` discovers entities you cannot yet name. Records that are not entities follow the same rule: name a feature requirement by its feature's mention plus the requirement's own wording, never by its \`id\` (e.g. "requirement \`06fcd4ab\`"). Requirement IDs and other short identifiers appear only in tool arguments such as \`requirementOps\`.
 
-**NEVER escape the brackets — zero escapes, ever.** Write \`@[task:...]\` — never \`@\\[task:...]\`. The backslash is a markdown-escape habit; in this UI it breaks the link and emits the raw literal as dead text. No exception — not in lists, not in tables, not in code-adjacent prose, not "to be safe". Examples of what is forbidden: \`@\\[task:6e671950-78ff-41fc-b001-1e1378b6e41a|Reports]\`, \`@\\[feature:...|...]\`, \`@\\[proposal:...|...]\`. Always emit a bare \`@[\`. Code-layer normalization exists as a backstop and does not license the prompt to soften this rule — the rule binds your output regardless of whether the code would silently fix it.`;
+Do not escape the brackets: write \`@[task:...]\`, never \`@\\[task:...]\`. The backslash is a markdown-escape habit that breaks the link in this UI and shows the raw text instead. This holds everywhere, including lists, tables and text next to code.`;
 
 /**
  * Stale references: tells the agent that ARCHIVED entities have no
@@ -118,20 +119,8 @@ This applies even when an archived entity appears in quoted text, conversation h
 
 Before mentioning a proposal or targeting it in an edge, check it with \`get_proposal\`. An approved CREATE's \`targetEntityId\` is the entity it created; mention and link that entity by ID and title instead. Reference the proposal only while it is pending (including same-round edges) or when it is itself the subject, such as asking the user to review it.`;
 
-/**
- * Per-turn reiteration of the entity-mention HARD STOP. The full rule lives in
- * `mentionFormat` and is delivered once per session via the platform system
- * prompt; that single statement gets buried as the session's context fills,
- * which is exactly when bare and partial IDs start leaking. This terse pointer
- * is appended to the tail of every per-turn prompt (see `resolve-prompt.ts` and
- * `subagent.ts`) so the rule is always the most recent thing the agent read
- * before composing its reply. Keep it short — it rides every turn and shares
- * the prompt token budget; it points back to the full rule rather than
- * restating it.
- */
-export const mentionFormatReminder = `## Reminder — NO partial UUIDs, EVER (HARD STOP)
-
-You may NEVER write a shortened or partial entity id — not once, not in any form. A reference like \`427b18d2\` (a truncated UUID) is forbidden everywhere: bare, in backticks, in prose like "task 427b18d2", or as "427b18d2 (Title)". The only acceptable way to name an entity in user-visible text is a full, unescaped \`@[type:id|title]\` mention carrying the COMPLETE UUID and a real title — e.g. \`@[task:427b18d2-7f06-408b-aa74-4b9e209a2f2c|Title]\`. If you do not have the full id and title in front of you, look them up with \`get_context\` / \`unified_search\` BEFORE you write the reference. There is no situation, no exception, no "just this once" where a partial UUID is allowed.`;
+/** Per-turn reminder to use Hey Hey's project context and tools. */
+export const heyHeyContextReminder = `Reminder: you are working inside Hey Hey. It gives you the user's project and tools to search, read and change it, and the user expects you to leverage the project's context and Hey Hey's tools to do work.`;
 
 /**
  * Returns a prompt note when the session has no service context,
@@ -213,7 +202,7 @@ export const buildServicesContextBlock = (input: ServicesContextInput): string =
   lines.push('');
   if (hasCompleteWorktreeProjection) {
     lines.push(
-      "This is a worktree-backed session. Begin all inspection and edits for each Service in its corresponding listed worktree. Host checkouts are outside this session's working context: do not inspect, edit, or use them as fallbacks. Any newly authorized Service must have its explicit corresponding worktree listed before work continues.",
+      'This is a worktree-backed session. For each selected Service, use its corresponding listed worktree for inspection and changes. Do not use a host checkout as a fallback location for edits or other mutations. Read-only inspection of a project Service outside the selected scope is allowed and does not expand writable roots. Any newly authorized Service must have its explicit corresponding worktree listed before changes begin.',
     );
     lines.push('');
   }
@@ -243,7 +232,7 @@ export const formatFinalAssessmentTaskNeighborhood = (
 
 export const focalContextOrientation = `## Focal context orientation
 
-The canonical focal entity projection supplied at provider startup is your initial orientation. Do not reload that same focal entity by default. Read additional context only when the user requests fresh state, you need to follow a different referenced entity, or the supplied neighborhood is insufficient for the current work. In those cases, use \`get_context\` for a known entity and \`unified_search\` for discovery.`;
+The canonical focal entity projection supplied at provider startup is your initial orientation. Do not reload that same focal entity by default. Read additional context only when the user requests fresh state, you need to follow a different referenced entity, or the supplied neighborhood is insufficient for the current work. In those cases, pick the smallest read for the question, as described in Choosing the Smallest Read.`;
 
 export const formatFinalAssessmentStartupDiscrepancyContext = (
   discrepancies: LocalPromptStartupDiscrepancyContextItem[],
@@ -287,12 +276,6 @@ const NON_WORK_ITEM_ENTITY_TYPES: WorkItemTypeDefinitionDto[] = [
     name: 'Service',
     description:
       'A code base. Tasks execute against a service; services are the code context, not a product concept.',
-  },
-  {
-    key: 'PLAN',
-    name: 'Plan',
-    description:
-      'A staged, reviewable sequence of work for a feature, authored as a single artifact and decomposed into stages and steps (not assembled from pre-existing tasks). A plan carries a design doc.',
   },
   {
     key: 'AGENT_SESSION',
@@ -344,8 +327,6 @@ const platformPrimerGuidance = `**Top-level features are product concepts, not a
 
 **Other work items carry the project too.** Features are the backbone, but every work-item type fills a role in the project topology — a Mockup shows how an interface should look and behave, a Diagram shows how the parts of a system relate, and every other type fills the role its description defines. Its contextual type guidance and maintenance guidance explain how it fits. Applicable items govern research, planning, implementation and verification. Read their content, follow their requirements, and surface conflicts instead of routing around them. Judge completion against governing Feature requirements and Contracts, using evidence of delivered behavior. Passing checks alone do not establish fulfillment.
 
-**Search as the default discovery move.** When hunting for relationships, feature-tree gaps, or "is this already covered somewhere?", reach for \`unified_search\` (and its batch variant) before brute-forcing entity reads. Search keeps discovery cost bounded.
-
 **Propose vs. edit vs. ask.** Entity mutations go through \`create_*\` / \`edit_*\` proposals; cross-hierarchy connections go through \`create_edge\`. Anything that mutates live external state or has non-trivial blast radius gets confirmed with the user first.`;
 
 function buildTypeAwarenessSection(workItemDefinitions: WorkItemTypeDefinitionDto[]): string {
@@ -390,13 +371,15 @@ A short decision rule for choosing between adjacent types:
 
 Treat supersede-trigger phrasing as a signal you must act on. In the successor's create or edit proposal, declare a successor-authored \`SUPERSEDES\` relationship in the structured proposal \`edges\`, targeting the predecessor. When that proposal is approved, approval performs the atomic transition that sets the predecessor's status to \`SUPERSEDED\` and persists the successor-to-predecessor lineage together. Do not hand-create a raw \`SUPERSEDES\` edge through \`create_edge\` or \`update_edge\`, and do not set \`SUPERSEDED\` through a direct status edit — the approval-time atomic transition is the single write path. Declare the relationship regardless of the predecessor's prior status, including \`COMPLETED\`, so the graph records that the earlier work is being displaced rather than silently carried forward. Reserve \`SUPERSEDES\` for work that is genuinely replaced: a predecessor that is refined, extended, or iterated on but still stands — its premise still holds and the successor builds on it rather than displacing it — remains canonical and requires \`EVOLVES\` instead.
 
+**Reconcile the neighborhood before proposing a replacement.** A \`SUPERSEDES\` declaration records only that one entity replaces another; it never supersedes the predecessor's consumers or moves their dependencies. Distinguish three cases: an unchanged promise (an internal change that keeps what consumers rely on keeps its identity), a selected consumer switching providers (only that consumer's relationship changes; the former provider stays canonical for everyone else), and whole-provider replacement. Record the affected existing relationships in \`relationshipDecisions\` — at most 100, each \`retain\` with a reason, \`remove\`, or \`replace\` with the exact source, target and edge type — so a retained dependency on a replaced item shows the reviewer unfinished migration. Inspect only the bounded neighborhood: the related Features' relationships and the Contracts, Diagrams and design docs directly connected to the change. Read their content, not their titles. A moved relationship cannot show that a Contract is still fulfilled or that a document still tells the truth, so propose the content edits as separate proposals that mention the artifact, and surface any changed guarantee for the user to decide instead of transferring a promise yourself. Leave Feature-to-Task parentage alone unless the request changes it.
+
 When reading an entity's graph via \`get_context\`, evaluate existing links. If a link is clearly irrelevant, outdated, or misleading — the entities no longer relate in the way the link claims — delete it using \`delete_edge\`. The graph stays useful only if stale connections are pruned.`;
 
 const topologyAuthoringRecognition = `## Topology authoring
 
 When your next action may create or change project topology — including hierarchy, typed edges, proposal groups, TRACKS, Contracts, Diagrams, references, or Diagram Element fulfillment — call get_authoring_guidance() once before the mutation. Carry its reusable authoringRootProof into the specific authoring-guidance read and any covered topology mutation, then carry the returned scoped guidanceToken wherever the operation also authors prose. Missing or mismatched proofs are actionable read-again signals, not authorization failures to work around.
 
-The always-loaded prompt supplies the ambient ontology, mention syntax, search-first discovery, feature references, and recognition boundary. The detailed mutation rules live in get_authoring_guidance(); do not recreate them from memory or duplicate them here.`;
+The always-loaded prompt supplies the ambient ontology, mention syntax, search-first discovery, feature references, and recognition boundary. The detailed mutation rules live in get_authoring_guidance(); do not recreate them from memory.`;
 
 const contractDiscoveryRecognition = `## Contract Discovery and Enforcement
 
@@ -416,10 +399,10 @@ const ephemeralAgentIterationGuidance = `When updating or iterating on existing 
  */
 const deferredMcpTools = `## Deferred MCP Tools Are Not Disconnected
 
-MCP tools listed as "deferred" or behind "still connecting" reminders are not disconnected — they are lazy-loaded via \`ToolSearch\`. The platform MCP server is connected; the tool schemas just have not been fetched yet.
+MCP tools listed as "deferred" or behind "still connecting" reminders are not disconnected — they are lazy-loaded via \`ToolSearch\`. The platform MCP server is normally connected; the tool schemas just have not been fetched yet.
 
-- Never tell the user a platform tool is unavailable because MCP is reconnecting or disconnected. Call \`ToolSearch\` with \`select:<tool_name>\` to load the schema, then invoke the tool normally.
-- "Still connecting" reminders refer to session bootstrap and resolve in seconds; they are not steady-state status.`;
+- A deferred or "still connecting" tool is not unavailable. Call \`ToolSearch\` with \`select:<tool_name>\` to load the schema, then invoke it normally. "Still connecting" resolves in seconds.
+- If the harness reports a server disconnected, or \`ToolSearch\` finds no match after connecting, tell the user the capability is unavailable and why. Don't keep retrying.`;
 
 /** Only Claude defers MCP tools behind `ToolSearch`; an unspecified provider keeps the guidance. */
 const providerDefersMcpTools = (provider: AgentProviderId | undefined): boolean =>
@@ -501,7 +484,7 @@ Help establish enough reviewed knowledge for the next useful action: suggest a c
 const hintDefinition =
   'Hints are short project notes connected to the graph items they concern. They carry direction future agents need but that does not belong in a requirement: guidance the user gave, a correction they do not want to repeat, or a gotcha found while building.';
 
-const hintReadingInstructions = `At the start of each session, call \`get_hints_for_items\` with the IDs of the items you are focused on. Include the focused work item, relevant features, selected Services, relevant user IDs when supplied, and other relevant graph items already supplied to the session. This reads graph connections; it is not a Service-only code search. When your focus moves to another area, read hints connected to those items too. Treat results as weak context: requirements, Contracts, Decisions and code take precedence.`;
+const hintReadingInstructions = `At the start of each session, call \`get_hints_for_items\` with the IDs of the items you are focused on. Include the focused work item, relevant features, selected Services, relevant user IDs when supplied, and other relevant graph items already supplied to the session. This reads graph connections; it is not a Service-only code search. When your focus moves to another area, read hints connected to those items too. Treat results as weak context: requirements, Contracts, Decisions and code take precedence. To review what a particular agent session recorded, call \`get_hints_by_session\` with that session's ID.`;
 
 /**
  * Hint-writing guidance: composed only for sessions that hold `create_hint`
@@ -520,6 +503,8 @@ Record a new hint with \`create_hint\`. Hint text cannot be edited in place: rep
 - At the end of coding work, write hints for gotchas that neither the code nor the task makes obvious.
 
 Delete a hint with \`delete_hint\` when it is wrong, duplicated or no longer applies; leave one that was merely not useful to you.
+
+Project direction goes in a hint, which every future agent sees; private memory is only for facts about the user.
 
 Write the direction itself ("Feature names are never used as identity; use Feature IDs"), never how it was said. Connect the hint to what it is relevant to, typically the focused item and its owning feature. In a project with established requirements, raise input that contradicts them with the user instead of recording it.`;
 
@@ -546,9 +531,6 @@ export interface PlatformPromptOptions {
   hints: HintPromptAccess;
 }
 
-const changedFileReportingObligation =
-  'If you changed files this turn, you must call `report_changed_files` before completing and correct any rejected claims.';
-
 /**
  * Builds the ambient session-level system prompt from a live set of work-item
  * type definitions. The platform ontology, mention format, cross-feature
@@ -570,6 +552,7 @@ export function buildPlatformSystemPrompt(
     platformPrimerGuidance;
 
   const calibration = context ? selectGpt56EpistemicCalibration(context) : null;
+  const graphResearch = context ? selectGraphResearchGuidance(context) : null;
 
   return [
     primer,
@@ -589,9 +572,9 @@ export function buildPlatformSystemPrompt(
     ephemeralAgentIterationGuidance,
     providerDefersMcpTools(options?.provider) ? deferredMcpTools : null,
     consultGraphBeforeAsking,
+    graphResearch,
     options?.maturity === ProjectMaturity.TakingShape ? takingShapeGuidance : null,
     topologyIsImplementationWork,
-    changedFileReportingObligation,
     options?.intentFirst ? intentFirstGuidance : null,
   ]
     .filter((section): section is string => section !== null)
@@ -611,7 +594,7 @@ export function buildPlatformSystemPrompt(
  */
 export const planVsTasksFork = `## Plan vs. tasks
 
-For implementation tasks, offer a plan via \`create_plan\` or standalone tasks when cohesive design and staged review add value; let the user pick before creating anything. Favor this choice for new user-facing capabilities or feature areas built largely from scratch, without that lean for existing-system changes, even large ones. Honor explicit plan requests either way. Task count, service count, and cross-service coordination alone do not justify plans; resolved, independently reviewable changes can become tasks.`;
+For implementation work outside an existing plan, offer a plan via \`create_plan\` or standalone tasks when cohesive design and staged review add value; let the user pick before creating anything. Favor this choice for new user-facing capabilities or feature areas built largely from scratch, without that lean for existing-system changes, even large ones. Honor explicit plan requests either way. Task count, service count, and cross-service coordination alone do not justify plans; resolved, independently reviewable changes can become tasks.`;
 /**
  * Custom work-item-type drafting: when a user clearly wants to track a new kind
  * of work that no existing type captures, the conversation should ground on how

@@ -4,7 +4,7 @@ import {
   type EntityContextDtoProposalsInner,
   type Influence,
   type ProposalResponseDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { render, screen, within } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter } from "react-router-dom";
@@ -95,7 +95,7 @@ const buildRelated = (
   displayName: string,
   relationship = "RELATED_TO",
   source?: EdgeSource,
-  taskType?: string
+  taskType?: string,
 ): ContextRelatedEntityDto => ({
   entityId,
   entityType,
@@ -109,7 +109,7 @@ const buildInfluence = (
   entityId: string,
   entityType: string,
   entityTitle: string | null = null,
-  reasonType = "explicit_mention"
+  reasonType = "explicit_mention",
 ): Influence => ({
   entityId,
   entityType: entityType as Influence["entityType"],
@@ -119,7 +119,7 @@ const buildInfluence = (
 });
 
 const buildProposal = (
-  overrides: Partial<ProposalResponseDto> = {}
+  overrides: Partial<ProposalResponseDto> = {},
 ): ProposalResponseDto =>
   ({
     id: overrides.id ?? "proposal-1",
@@ -137,7 +137,7 @@ const buildProposal = (
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
     ...overrides,
-  } as unknown as ProposalResponseDto);
+  }) as unknown as ProposalResponseDto;
 
 const renderCard = ({
   proposals = [],
@@ -160,7 +160,7 @@ const renderCard = ({
         dataTestId={dataTestId}
         loading={loading}
       />
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 };
 
@@ -186,10 +186,10 @@ describe("RelatedCard", () => {
     expect(screen.getByTestId("related-card")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Related" })).toBeVisible();
     expect(
-      screen.getByRole("progressbar", { name: "Loading related entities" })
+      screen.getByRole("progressbar", { name: "Loading related entities" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByTestId("related-card-content-state")
+      screen.queryByTestId("related-card-content-state"),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("No related entities.")).not.toBeInTheDocument();
   });
@@ -204,7 +204,7 @@ describe("RelatedCard", () => {
       });
 
       const section = screen.getByTestId(
-        "related-card-section-design-documents"
+        "related-card-section-design-documents",
       );
       expect(within(section).getByText("Doc One")).toBeInTheDocument();
       expect(within(section).getByText("Doc Two")).toBeInTheDocument();
@@ -216,7 +216,7 @@ describe("RelatedCard", () => {
       });
 
       expect(
-        screen.queryByTestId("related-card-section-design-documents")
+        screen.queryByTestId("related-card-section-design-documents"),
       ).not.toBeInTheDocument();
     });
   });
@@ -239,7 +239,7 @@ describe("RelatedCard", () => {
       });
 
       expect(
-        screen.queryByTestId("related-card-section-standard")
+        screen.queryByTestId("related-card-section-standard"),
       ).not.toBeInTheDocument();
     });
 
@@ -250,13 +250,13 @@ describe("RelatedCard", () => {
             "task-sib",
             "TASK",
             "Sibling Task",
-            "sibling-via-parent"
+            "sibling-via-parent",
           ),
         ],
       });
 
       expect(
-        screen.queryByTestId("related-card-section-standard")
+        screen.queryByTestId("related-card-section-standard"),
       ).not.toBeInTheDocument();
       expect(screen.queryByText("Sibling Task")).not.toBeInTheDocument();
     });
@@ -275,7 +275,7 @@ describe("RelatedCard", () => {
             "task-sib",
             "TASK",
             "Sibling Task",
-            "sibling-via-parent"
+            "sibling-via-parent",
           ),
         ],
       });
@@ -346,7 +346,7 @@ describe("RelatedCard", () => {
       });
 
       expect(
-        screen.queryByTestId("related-card-section-other")
+        screen.queryByTestId("related-card-section-other"),
       ).not.toBeInTheDocument();
     });
 
@@ -365,7 +365,7 @@ describe("RelatedCard", () => {
       const rows = screen.getAllByTestId("related-card-row-task-1");
       expect(rows).toHaveLength(1);
       expect(
-        screen.queryByTestId("related-card-section-other")
+        screen.queryByTestId("related-card-section-other"),
       ).not.toBeInTheDocument();
     });
   });
@@ -380,7 +380,7 @@ describe("RelatedCard", () => {
             "Standard Related One",
             "related-to",
             undefined,
-            "STANDARD"
+            "STANDARD",
           ),
           buildRelated(
             "standard-dependency-1",
@@ -388,7 +388,7 @@ describe("RelatedCard", () => {
             "Standard Dependency One",
             "depends-on",
             undefined,
-            "STANDARD"
+            "STANDARD",
           ),
           buildRelated(
             "standard-dependency-2",
@@ -396,7 +396,7 @@ describe("RelatedCard", () => {
             "Standard Dependency Two",
             "depends-on",
             undefined,
-            "STANDARD"
+            "STANDARD",
           ),
           buildRelated(
             "standard-related-2",
@@ -404,7 +404,7 @@ describe("RelatedCard", () => {
             "Standard Related Two",
             "related-to",
             undefined,
-            "STANDARD"
+            "STANDARD",
           ),
           buildRelated(
             "bug-related",
@@ -412,7 +412,7 @@ describe("RelatedCard", () => {
             "Bug Related",
             "related-to",
             undefined,
-            "BUG"
+            "BUG",
           ),
           buildRelated(
             "bug-dependency",
@@ -420,7 +420,7 @@ describe("RelatedCard", () => {
             "Bug Dependency",
             "depends-on",
             undefined,
-            "BUG"
+            "BUG",
           ),
           buildRelated(
             "unknown-related",
@@ -428,7 +428,7 @@ describe("RelatedCard", () => {
             "Unknown Related",
             "related-to",
             undefined,
-            "UNKNOWN"
+            "UNKNOWN",
           ),
           buildRelated(
             "unknown-dependency",
@@ -436,7 +436,7 @@ describe("RelatedCard", () => {
             "Unknown Dependency",
             "depends-on",
             undefined,
-            "UNKNOWN"
+            "UNKNOWN",
           ),
         ],
       });
@@ -462,7 +462,7 @@ describe("RelatedCard", () => {
       ]);
     });
 
-    it("applies warning styling only to Depends on chips", () => {
+    it("colors significant relationship chips and leaves neutral ones default", () => {
       renderCard({
         relatedEntities: [
           buildRelated("task-multi", "TASK", "Multi Task", "related-to"),
@@ -473,14 +473,42 @@ describe("RelatedCard", () => {
 
       const row = screen.getByTestId("related-card-row-task-multi");
       expect(
-        within(row).getByText("Depends on").closest(".MuiChip-root")
+        within(row).getByText("Depends on").closest(".MuiChip-root"),
       ).toHaveClass("MuiChip-colorWarning");
       expect(
-        within(row).getByText("Related to").closest(".MuiChip-root")
+        within(row).getByText("Related to").closest(".MuiChip-root"),
       ).toHaveClass("MuiChip-colorDefault");
       expect(
-        within(row).getByText("Derives from").closest(".MuiChip-root")
-      ).toHaveClass("MuiChip-colorDefault");
+        within(row).getByText("Derives from").closest(".MuiChip-root"),
+      ).toHaveClass("MuiChip-colorInfo");
+    });
+
+    it("gives a depended-on-by chip the same warning color as depends-on", () => {
+      renderCard({
+        relatedEntities: [
+          buildRelated("task-waiting", "TASK", "Waiting Task", "depends-on"),
+          buildRelated(
+            "task-blocking",
+            "TASK",
+            "Blocking Task",
+            "depended-on-by",
+          ),
+        ],
+      });
+
+      const dependsOnChip = within(
+        screen.getByTestId("related-card-row-task-waiting"),
+      )
+        .getByText("Depends on")
+        .closest(".MuiChip-root");
+      const dependedOnByChip = within(
+        screen.getByTestId("related-card-row-task-blocking"),
+      )
+        .getByText("Depended on by")
+        .closest(".MuiChip-root");
+
+      expect(dependsOnChip).toHaveClass("MuiChip-colorWarning");
+      expect(dependedOnByChip).toHaveClass("MuiChip-colorWarning");
     });
 
     it("groups TASK entries into per-type sections in registry order, preserving relationship labels, with Design Documents and Other at the tail and Created Together left to History", () => {
@@ -492,7 +520,7 @@ describe("RelatedCard", () => {
             "Standard Task",
             "mentions",
             undefined,
-            "STANDARD"
+            "STANDARD",
           ),
           buildRelated(
             "task-bug",
@@ -500,7 +528,7 @@ describe("RelatedCard", () => {
             "A Bug",
             "depends-on",
             undefined,
-            "BUG"
+            "BUG",
           ),
           buildRelated(
             "task-marketing",
@@ -508,7 +536,7 @@ describe("RelatedCard", () => {
             "A Campaign",
             "related-to",
             undefined,
-            "MARKETING"
+            "MARKETING",
           ),
           buildRelated("doc-1", "DESIGN_DOC", "Doc One", "derives-from"),
           buildRelated("session-1", "AGENT_SESSION", "A Session"),
@@ -518,7 +546,7 @@ describe("RelatedCard", () => {
             "Workflow Standard Step",
             "standard",
             undefined,
-            "workflow_step"
+            "workflow_step",
           ),
           buildRelated(
             "workflow-step-conditional",
@@ -526,13 +554,13 @@ describe("RelatedCard", () => {
             "Workflow Conditional Step",
             "CONDITIONAL",
             undefined,
-            "workflow_step"
+            "workflow_step",
           ),
           buildRelated(
             "workflow-loop-fallback",
             "AGENT_SESSION",
             "Workflow Loop Fallback",
-            "loop"
+            "loop",
           ),
           buildRelated(
             "task-co",
@@ -540,17 +568,17 @@ describe("RelatedCard", () => {
             "Co-Proposed Task",
             "proposed-together",
             undefined,
-            "STANDARD"
+            "STANDARD",
           ),
         ],
       });
 
       // (a) STANDARD lands in its own Tasks group.
       const standardSection = screen.getByTestId(
-        "related-card-section-standard"
+        "related-card-section-standard",
       );
       expect(
-        within(standardSection).getByText("Standard Task")
+        within(standardSection).getByText("Standard Task"),
       ).toBeInTheDocument();
       // (d) relationship-kind label still renders inside the group.
       expect(within(standardSection).getByText("Mentions")).toBeInTheDocument();
@@ -562,30 +590,30 @@ describe("RelatedCard", () => {
 
       // (c) the custom MARKETING entry lands in its own Marketing group.
       const marketingSection = screen.getByTestId(
-        "related-card-section-marketing"
+        "related-card-section-marketing",
       );
       expect(
-        within(marketingSection).getByText("A Campaign")
+        within(marketingSection).getByText("A Campaign"),
       ).toBeInTheDocument();
       expect(
-        within(marketingSection).getByText("Related to")
+        within(marketingSection).getByText("Related to"),
       ).toBeInTheDocument();
 
       // (e) Design Documents and Other sections still render at the tail.
       const docSection = screen.getByTestId(
-        "related-card-section-design-documents"
+        "related-card-section-design-documents",
       );
       expect(within(docSection).getByText("Doc One")).toBeInTheDocument();
       const otherSection = screen.getByTestId("related-card-section-other");
       expect(within(otherSection).getByText("A Session")).toBeInTheDocument();
       expect(
-        screen.queryByText("Workflow Standard Step")
+        screen.queryByText("Workflow Standard Step"),
       ).not.toBeInTheDocument();
       expect(
-        screen.queryByText("Workflow Conditional Step")
+        screen.queryByText("Workflow Conditional Step"),
       ).not.toBeInTheDocument();
       expect(
-        screen.queryByText("Workflow Loop Fallback")
+        screen.queryByText("Workflow Loop Fallback"),
       ).not.toBeInTheDocument();
 
       // (f) Created Together entries belong to the History card.
@@ -601,7 +629,7 @@ describe("RelatedCard", () => {
             "Task One",
             "related-to",
             undefined,
-            "STANDARD"
+            "STANDARD",
           ),
         ],
       });
@@ -628,7 +656,7 @@ describe("RelatedCard", () => {
             "Contract One",
             "related-to",
             undefined,
-            "CONTRACT"
+            "CONTRACT",
           ),
           buildRelated(
             "contract-2",
@@ -636,7 +664,7 @@ describe("RelatedCard", () => {
             "Contract Two",
             "depends-on",
             undefined,
-            "CONTRACT"
+            "CONTRACT",
           ),
         ],
       });
@@ -665,7 +693,7 @@ describe("RelatedCard", () => {
       const docRow = screen.getByTestId("related-card-row-doc-1");
       expect(within(docRow).getByText("Derives from")).toBeInTheDocument();
       expect(
-        within(docRow).queryByText("Derives From")
+        within(docRow).queryByText("Derives From"),
       ).not.toBeInTheDocument();
     });
   });
@@ -688,16 +716,16 @@ describe("RelatedCard", () => {
               `${taskType} item`,
               "related-to",
               undefined,
-              taskType
+              taskType,
             ),
           ],
         });
 
         expect(screen.getByTestId("entity-icon")).toHaveAttribute(
           "data-entity-type",
-          iconType
+          iconType,
         );
-      }
+      },
     );
 
     it("uses the STANDARD icon for a legacy entry without taskType", () => {
@@ -707,7 +735,7 @@ describe("RelatedCard", () => {
 
       expect(screen.getByTestId("entity-icon")).toHaveAttribute(
         "data-entity-type",
-        "TASK"
+        "TASK",
       );
     });
 
@@ -720,7 +748,7 @@ describe("RelatedCard", () => {
             "Unknown item",
             "related-to",
             undefined,
-            "UNKNOWN"
+            "UNKNOWN",
           ),
         ],
       });
@@ -741,15 +769,15 @@ describe("RelatedCard", () => {
               "Consumer bug",
               "related-to",
               undefined,
-              "BUG"
+              "BUG",
             ),
           ],
         });
 
         expect(
-          within(screen.getByTestId(dataTestId)).getByTestId("entity-icon")
+          within(screen.getByTestId(dataTestId)).getByTestId("entity-icon"),
         ).toHaveAttribute("data-entity-type", "BUG");
-      }
+      },
     );
   });
 
@@ -762,13 +790,13 @@ describe("RelatedCard", () => {
             "TASK",
             "Task One",
             "depends-on",
-            "agent" as EdgeSource
+            "agent" as EdgeSource,
           ),
         ],
       });
 
       expect(
-        screen.getByTestId("related-card-row-task-1-agent-source")
+        screen.getByTestId("related-card-row-task-1-agent-source"),
       ).toBeInTheDocument();
     });
 
@@ -780,7 +808,7 @@ describe("RelatedCard", () => {
       });
 
       expect(
-        screen.getByTestId("related-card-row-task-1-agent-source")
+        screen.getByTestId("related-card-row-task-1-agent-source"),
       ).toBeInTheDocument();
     });
 
@@ -792,13 +820,13 @@ describe("RelatedCard", () => {
             "TASK",
             "Task One",
             "depends-on",
-            "system" as EdgeSource
+            "system" as EdgeSource,
           ),
         ],
       });
 
       expect(
-        screen.queryByTestId("related-card-row-task-1-agent-source")
+        screen.queryByTestId("related-card-row-task-1-agent-source"),
       ).not.toBeInTheDocument();
     });
   });
@@ -813,7 +841,7 @@ describe("RelatedCard", () => {
             "Login Mockup",
             "related-to",
             undefined,
-            "mockup"
+            "mockup",
           ),
           buildRelated(
             "diag-1",
@@ -821,7 +849,7 @@ describe("RelatedCard", () => {
             "System Diagram",
             "related-to",
             undefined,
-            "DIAGRAM"
+            "DIAGRAM",
           ),
           buildRelated(
             "task-1",
@@ -829,7 +857,7 @@ describe("RelatedCard", () => {
             "Task One",
             "related-to",
             undefined,
-            "STANDARD"
+            "STANDARD",
           ),
         ],
       });
@@ -865,10 +893,10 @@ describe("RelatedCard", () => {
         ],
       });
       expect(
-        screen.queryByTestId("related-card-section-origin")
+        screen.queryByTestId("related-card-section-origin"),
       ).not.toBeInTheDocument();
       expect(
-        screen.queryByTestId("related-card-section-last-updated")
+        screen.queryByTestId("related-card-section-last-updated"),
       ).not.toBeInTheDocument();
     });
   });

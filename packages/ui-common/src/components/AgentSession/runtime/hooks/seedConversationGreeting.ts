@@ -4,6 +4,10 @@ import {
   type ConversationsApiPostMessageRequest,
   type CreateSystemMessage,
 } from "../../../../api/index";
+import {
+  toOpenApiConversationId,
+  toOpenApiProjectId,
+} from "../../../../clients/contractIdentifierAdapters";
 
 const LOG_PREFIX = "[seedConversationGreeting]";
 
@@ -66,8 +70,8 @@ export const seedConversationGreeting = async ({
   text,
 }: SeedConversationGreetingInput): Promise<void> => {
   const systemMessage: CreateSystemMessage = {
-    projectId,
-    conversationId,
+    projectId: toOpenApiProjectId(projectId),
+    conversationId: toOpenApiConversationId(conversationId),
     type: MessageType.System,
     parentMessageId: null,
     data: {

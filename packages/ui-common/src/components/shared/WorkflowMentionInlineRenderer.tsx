@@ -1,5 +1,10 @@
 import { JourneyCanvas } from "../ProposalGroupReview/JourneyCanvas";
+import {
+  toOpenApiOrganizationId,
+  toOpenApiProjectId,
+} from "../../clients/contractIdentifierAdapters";
 import { SavedJourneyScreen } from "../ProposalGroupReview/SavedJourneyScreen";
+import { UxFlowScreenWalkthrough } from "../ProposalGroupReview/UxFlowScreenWalkthrough";
 import { useModalState } from "../Modals/useModalState";
 import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
@@ -634,6 +639,8 @@ interface WorkflowGraphSurfaceProps {
   explorationAncestors?: readonly string[];
   participation?: WorkItemGraphParticipationResponseDto | null;
   directEntityLinks?: readonly WorkflowGraphDirectEntityLink[];
+  /** For a saved UX flow: the screen marked "You are here"; the flow stays in grid view. */
+  currentUxFlowStepId?: string;
 }
 
 interface WorkflowGraphViewportSurfaceProps {
@@ -1280,6 +1287,7 @@ const projectedRelationshipToSurfaceEdge = (
     direction: relationship.direction,
     predicate: relationship.predicate,
     actionLabel: relationship.actionLabel,
+    transitionRole: relationship.transitionRole,
     reasoning: relationship.reasoning ?? "",
     metadata: relationship.metadata,
     createdAt: PROJECTED_EDGE_TIMESTAMP,
@@ -7169,6 +7177,109 @@ const DiagramExplorationDialog: React.FC<{
   );
 };
 
+/** A saved UX flow as a grid of screens; any screen opens in the one-at-a-time walkthrough. */
+const UxFlowSavedView: React.FC<{
+  graphData: WorkflowGraphSurfaceData;
+  savedPositions: ReadonlyMap<string, { x: number; y: number }>;
+  currentStepId: string | null;
+}> = ({ graphData, savedPositions, currentStepId }) => {
+  const [walkthroughStepId, setWalkthroughStepId] = useState<string | null>(
+    null,
+  );
+  const scope = {
+    organizationId: toOpenApiOrganizationId(graphData.workflow.organizationId),
+    projectId: toOpenApiProjectId(graphData.workflow.projectId),
+  };
+  const renderScreen = (step: GraphWorkItem, fullSize = false) => {
+    const reference = getDiagramElementMetadata(step)?.canonicalReference;
+
+    if (reference?.entityType !== "TASK") {
+      return <Alert severity="info">Screen unavailable</Alert>;
+    }
+
+    const screen = (
+      <SavedJourneyScreen
+        id={reference.entityId}
+        name={step.name}
+        group={scope}
+        fullSize={fullSize}
+        onOpenFullSize={() => setWalkthroughStepId(step.id)}
+      />
+    );
+
+    return !fullSize && step.id === currentStepId ? (
+      <Box
+        data-testid="ux-flow-current-screen"
+        sx={{
+          outline: "3px solid",
+          outlineColor: "primary.main",
+          outlineOffset: 4,
+          borderRadius: 1,
+        }}
+      >
+        <Typography
+          variant="caption"
+          fontWeight={700}
+          color="primary"
+          data-testid="ux-flow-you-are-here"
+          sx={{ display: "block", mb: 0.5 }}
+        >
+          You are here
+        </Typography>
+        {screen}
+      </Box>
+    ) : (
+      screen
+    );
+  };
+
+  return (
+    <>
+      <JourneyCanvas
+        steps={graphData.steps}
+        edges={graphData.edges}
+        savedPositions={savedPositions}
+        renderScreen={(step) => renderScreen(step)}
+      />
+      <Dialog
+        open={walkthroughStepId !== null}
+        onClose={() => setWalkthroughStepId(null)}
+        fullWidth
+        maxWidth="xl"
+      >
+        {walkthroughStepId === null ? null : (
+          <DialogContent sx={{ p: 0, height: "85vh" }}>
+            <UxFlowScreenWalkthrough
+              flow={graphData}
+              savedPositions={savedPositions}
+              initialScreenId={walkthroughStepId}
+              renderScreen={(screenId) => {
+                const step = graphData.steps.find(({ id }) => id === screenId);
+
+                return step ? renderScreen(step, true) : null;
+              }}
+              screenHref={(screenId) => {
+                const step = graphData.steps.find(({ id }) => id === screenId);
+                const reference = step
+                  ? getDiagramElementMetadata(step)?.canonicalReference
+                  : undefined;
+
+                return reference?.entityType === "TASK"
+                  ? getPathService().task({
+                      projectId: scope.projectId,
+                      taskId: reference.entityId,
+                    })
+                  : null;
+              }}
+              onFollowScreenLink={() => setWalkthroughStepId(null)}
+            />
+          </DialogContent>
+        )}
+      </Dialog>
+    </>
+  );
+};
+
 export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
   graphData,
   projection,
@@ -7184,6 +7295,7 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
   explorationAncestors,
   participation,
   directEntityLinks,
+  currentUxFlowStepId,
   ...interaction
 }) => {
   const hasRouter = useInRouterContext();
@@ -7311,10 +7423,6 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
     mode === "view" &&
     getDiagramMetadata(hydratedGraphData.workflow)?.kind === "UX_FLOW"
   ) {
-    const scope = {
-      organizationId: hydratedGraphData.workflow.organizationId,
-      projectId: hydratedGraphData.workflow.projectId,
-    };
     const positions = projection
       ? projection.effectiveLayout.nodes.map(
           ({ node, position }) =>
@@ -7326,22 +7434,10 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
             : [],
         );
     return (
-      <JourneyCanvas
-        steps={hydratedGraphData.steps}
-        edges={hydratedGraphData.edges}
+      <UxFlowSavedView
+        graphData={hydratedGraphData}
         savedPositions={new Map(positions)}
-        renderScreen={(step) => {
-          const reference = getDiagramElementMetadata(step)?.canonicalReference;
-          return reference?.entityType === "TASK" ? (
-            <SavedJourneyScreen
-              id={reference.entityId}
-              name={step.name}
-              group={scope}
-            />
-          ) : (
-            <Alert severity="info">Screen unavailable</Alert>
-          );
-        }}
+        currentStepId={currentUxFlowStepId ?? null}
       />
     );
   }

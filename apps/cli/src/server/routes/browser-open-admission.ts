@@ -5,7 +5,7 @@ import { isAllowedBrowserUrl } from '../../browser/run-tabs';
 import {
   LocalRunBrowserOpenErrorCode,
   type LocalStagedBrowserTabOpenErrorCode,
-} from '../../shared/local-agent-api/generated/api';
+} from '@hey-hey/contracts/local';
 import type { ServerLogger } from '../logger';
 
 /**

@@ -44,6 +44,8 @@ model/createNodeRequest.ts
 model/createRelationshipRequest.ts
 model/deleteIncidentAgentEdgesRequest.ts
 model/deleteIncidentAgentEdgesResponse.ts
+model/designDocProjectReadinessRequest.ts
+model/designDocProjectReadinessResponse.ts
 model/designDocTraversalNode.ts
 model/designDocTraversalNodeProperties.ts
 model/entityNeighborhoodAgentSession.ts
@@ -121,6 +123,8 @@ model/searchBoosts.ts
 model/searchBoostsEntityIdsInner.ts
 model/searchBoostsEntityTypesInner.ts
 model/searchDirection.ts
+model/searchExclusionRequest.ts
+model/searchExclusionResponse.ts
 model/searchFilters.ts
 model/searchFiltersDateRange.ts
 model/searchFiltersUpdatedAtRange.ts
@@ -166,7 +170,11 @@ model/updateNodeRequest.ts
 model/validationSessionStatus.ts
 model/validationSessionTraversalNode.ts
 model/validationSessionTraversalNodeProperties.ts
+model/workItemProjectReadinessExpectation.ts
+model/workItemProjectReadinessRequest.ts
+model/workItemProjectReadinessResponse.ts
 model/workStatus.ts
+model/workflowTransitionRole.ts
 package.json
 tsconfig.build.json
 tsconfig.json

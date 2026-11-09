@@ -323,6 +323,35 @@ describe("TaskUpdateRenderer visual section review", () => {
     }
   });
 
+  it("leads a Mockup update with the proposed screen and collapses written sections", () => {
+    render(
+      <MemoryRouter>
+        <TaskUpdateRenderer
+          proposal={proposal}
+          existing={{ ...existing, type: "mockup" }}
+          status={{ state: "pending" }}
+          onApply={() => {}}
+          workItemTypeDefinition={definition}
+        />
+      </MemoryRouter>,
+    );
+
+    const details = screen.getByTestId("mockup-proposal-written-sections");
+    expect(details).not.toHaveAttribute("open");
+    expect(
+      screen.getByTestId("mockup-proposal-screen-first"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByTestId("html-css-preview")).toHaveLength(1);
+    expect(screen.getAllByTestId("structured-mockup-preview")).toHaveLength(1);
+    expect(
+      within(details).getByTestId("ordinary-section-diff"),
+    ).not.toBeVisible();
+
+    fireEvent.click(within(details).getByText("Written details"));
+    expect(details).toHaveAttribute("open");
+    expect(within(details).getByTestId("ordinary-section-diff")).toBeVisible();
+  });
+
   it("gives the pencil the proposal's mockup on After and none on Before", () => {
     renderProposal();
 

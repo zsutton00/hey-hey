@@ -156,7 +156,6 @@ vi.mock("../../../LlmForms/DynamicForm", () => ({
     isSubmittable,
     secondActions,
     status,
-    composerResetMode,
     uiElements,
     inlineReports,
     onNext,
@@ -166,7 +165,6 @@ vi.mock("../../../LlmForms/DynamicForm", () => ({
     isSubmittable: boolean;
     secondActions?: unknown[];
     status: string;
-    composerResetMode?: "preserve" | "clearOnSuccess";
     uiElements?: Array<{ id: string }>;
     inlineReports?: ReportDto[];
     onNext: (data: Record<string, unknown>) => void;
@@ -181,7 +179,6 @@ vi.mock("../../../LlmForms/DynamicForm", () => ({
         secondActions && secondActions.length > 0 ? "true" : "false"
       }
       data-status={status}
-      data-composer-reset-mode={composerResetMode ?? "preserve"}
       data-ui-element-ids={uiElements?.map((element) => element.id).join(",")}
       data-inline-report-ids={inlineReports
         ?.map((report) => report.id)
@@ -454,7 +451,6 @@ describe("ConversationFormRenderer", () => {
     expect(button).toHaveAttribute("data-submittable", "true");
     expect(button).toHaveAttribute("data-has-second-action", "true");
     expect(button).toHaveAttribute("data-status", "processing");
-    expect(button).toHaveAttribute("data-composer-reset-mode", "preserve");
   });
 
   it("calls handleNext with the message id when the form is submitted", async () => {
@@ -561,7 +557,6 @@ describe("ConversationFormRenderer", () => {
       uiElements: [{ id: "owner-field", type: ExtendedUIFieldType.Textarea }],
       disabled: false,
       isSubmitted: false,
-      composerResetMode: "clearOnSuccess",
       submit,
     };
     const conversationFormResolver = vi.fn(() => formResolution);
@@ -588,7 +583,6 @@ describe("ConversationFormRenderer", () => {
     expect(form).toHaveAttribute("data-disabled", "false");
     expect(form).toHaveAttribute("data-submitted", "false");
     expect(form).toHaveAttribute("data-ui-element-ids", "owner-field");
-    expect(form).toHaveAttribute("data-composer-reset-mode", "clearOnSuccess");
 
     form.click();
 
@@ -1066,34 +1060,6 @@ describe("ConversationFormRenderer", () => {
       screen.getByTestId("report-viewer-read-only-plan-report"),
     ).toHaveAttribute("data-interactive", "false");
     expect(screen.queryByTestId("dynamic-form")).not.toBeInTheDocument();
-  });
-
-  it("passes composer reset override from conversation context", async () => {
-    const message = createMockConversationMessage({
-      message: createMockMessage({
-        data: {
-          type: "QUESTIONS",
-          uiElements: [{ id: "element-1" }],
-        } as QuestionsSystemMessageData,
-      }),
-    });
-
-    await renderWithConversationProvider(
-      <ConversationFormRenderer
-        conversationMessage={message}
-        messageIndex={0}
-        totalMessages={1}
-      />,
-      {
-        timeline: [message],
-        composerResetMode: "clearOnSuccess",
-      },
-    );
-
-    expect(screen.getByTestId("dynamic-form")).toHaveAttribute(
-      "data-composer-reset-mode",
-      "clearOnSuccess",
-    );
   });
 
   it("passes inline report attachments into the dynamic field path", async () => {

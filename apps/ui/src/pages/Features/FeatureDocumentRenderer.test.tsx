@@ -2,7 +2,7 @@ import React from "react";
 import {
   TargetEntityType,
   type WorkItemTypeDefinitionDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { createHeyTheme } from "@hey-hey/ui-common/context";
 import { Box, type SxProps, type Theme } from "@mui/material";
 import { ThemeProvider } from "@mui/material/styles";

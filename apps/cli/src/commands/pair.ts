@@ -32,11 +32,13 @@ import {
   attachDirectEnrollmentOutput,
   MachineEnrollmentCeremony,
   type MachineEnrollmentCeremonyPorts,
+  type MachineEnrollmentCeremonyStep,
 } from '../auth/machine-enrollment-ceremony';
 import { ExecutionGrantStore } from '../server/controller-authorization/execution-grant-store';
 import { StructuredServerLogger, type ServerLogger } from '../server/logger';
 import { resolvePairingUrl } from './pairing-web-url';
 import { describeEnrollment } from './pairing-presentation';
+import type { LocalApprovalSecret } from '../auth/local-approval';
 
 export interface MachinesEnrollmentClient {
   createMachineEnrollment(
@@ -60,6 +62,11 @@ export interface PairCommandDependencies {
   existingMachineClient?: MachineControllerManagementClient;
   confirmation?: MachineEnrollmentConfirmation;
   prompter?: Pick<CredentialPrompter, 'confirm'>;
+  onBrowserHandoff?: (userCode: string) => void;
+  /** Observes every ceremony step, e.g. to offer reopening the browser while it waits. */
+  onCeremonyStep?: (step: MachineEnrollmentCeremonyStep) => void;
+  /** First-time `heyhey local` only; never used for controller upgrades or recovery. */
+  localApproval?: LocalApprovalSecret;
   log: (message: string) => void;
   logError: (message: string) => void;
 }
@@ -124,6 +131,9 @@ const createConfirmationOwner = (
       new ControllerRegistryStore({ keyPairStore: dependencies.keyPairStore }),
     client: dependencies.machinesApi,
     prompter: dependencies.prompter ?? createInteractivePrompter(),
+    ...(dependencies.executionGrantStore
+      ? { executionGrantStore: dependencies.executionGrantStore }
+      : {}),
     log: dependencies.log,
     logError: dependencies.logError,
   });
@@ -219,6 +229,9 @@ export const resolvePairDependencies = (
     : {}),
   ...(dependencies.confirmation ? { confirmation: dependencies.confirmation } : {}),
   ...(dependencies.prompter ? { prompter: dependencies.prompter } : {}),
+  ...(dependencies.onBrowserHandoff ? { onBrowserHandoff: dependencies.onBrowserHandoff } : {}),
+  ...(dependencies.onCeremonyStep ? { onCeremonyStep: dependencies.onCeremonyStep } : {}),
+  ...(dependencies.localApproval ? { localApproval: dependencies.localApproval } : {}),
   log: dependencies.log ?? console.log,
   logError: dependencies.logError ?? console.error,
 });
@@ -241,7 +254,11 @@ export const runPairCommand = async (
     logError: deps.logError,
     prompter: deps.prompter ?? createInteractivePrompter(),
     describeHandoff: (userCode) => describeEnrollment({ userCode }, deps.getPairingUrl(userCode)),
+    ...(deps.onBrowserHandoff ? { onBrowserHandoff: deps.onBrowserHandoff } : {}),
   });
+  if (deps.onCeremonyStep) {
+    ceremony.observe(deps.onCeremonyStep);
+  }
   const result = await ceremony.run(
     (ports) => pairMachine(deps, ports),
     () => FAILED,
@@ -496,5 +513,8 @@ export const pairMachine = async (
   ports.step({ kind: 'browser-handoff', userCode: enrollment.userCode });
 
   const confirmation = createConfirmationOwner(deps);
-  return confirmation.run(enrollment, { ports });
+  return confirmation.run(enrollment, {
+    ports,
+    ...(deps.localApproval ? { localApproval: deps.localApproval } : {}),
+  });
 };

@@ -8,7 +8,7 @@ import {
   SystemMessageData,
   TaskPrioritySystemMessageData,
   WorkflowName,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import {
   InitiativeTaskSnapshot,
   IntermediateSystemMessageData,

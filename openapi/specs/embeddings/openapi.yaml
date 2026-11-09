@@ -102,63 +102,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProjectionDeletionRetryableFailureResponse"
 
-  /embeddings:
-    post:
-      tags:
-        - Embeddings
-      summary: Create Text Embeddings
-      description:
-        Generate and store embeddings for the provided text content. Supports
-        automatic chunking for large documents.
-      operationId: createEmbedding
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        description: Text content and metadata for embedding creation
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/EmbeddingRequest"
-            example:
-              text:
-                Machine learning is a subset of artificial intelligence that focuses
-                on algorithms that can learn from data.
-              metadata:
-                id: ml_intro_001
-                category: education
-                title: Introduction to Machine Learning
-              level: chunk
-      responses:
-        "201":
-          description: Embeddings created successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/EmbeddingResponse"
-              example:
-                success: true
-                data:
-                  success: true
-                  embedding_id: ml_intro_001
-                  chunks_created: 3
-                  chunk_ids:
-                    - ml_intro_001_chunk_0
-                    - ml_intro_001_chunk_1
-                    - ml_intro_001_chunk_2
-                  total_word_count: 25
-        "400":
-          description: Invalid request data
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
   /embeddings/search:
     get:
       tags:
@@ -222,12 +165,13 @@ paths:
         - name: query_mode
           in: query
           required: false
-          description: Query behavior mode (default performs normal search, title_fuzzy performs fuzzy title/name matching without ANN)
+          description: Query behavior mode (default performs normal search, title_fuzzy performs fuzzy title/name matching without ANN, exact returns only entities containing the query as a literal case-insensitive contiguous phrase with title matches above body-only matches and no near matches; exact queries must be at least 3 characters)
           schema:
             type: string
             enum:
               - default
               - title_fuzzy
+              - exact
             default: default
         - name: boost_recent
           in: query
@@ -474,12 +418,13 @@ paths:
         - name: query_mode
           in: query
           required: false
-          description: Query behavior mode (default performs normal search, title_fuzzy performs fuzzy title/name matching without ANN)
+          description: Query behavior mode (default performs normal search, title_fuzzy performs fuzzy title/name matching without ANN, exact returns only entities containing the query as a literal case-insensitive contiguous phrase with title matches above body-only matches and no near matches; exact queries must be at least 3 characters)
           schema:
             type: string
             enum:
               - default
               - title_fuzzy
+              - exact
             default: default
         - name: boost_recent
           in: query
@@ -1176,63 +1121,6 @@ components:
           format: date-time
           description: Last update timestamp.
 
-    EmbeddingRequest:
-      type: object
-      required:
-        - text
-      properties:
-        text:
-          type: string
-          minLength: 1
-          maxLength: 50000
-          description: Text content to embed
-          example: Machine learning is a subset of artificial intelligence...
-        metadata:
-          $ref: "#/components/schemas/EmbeddingMetadata"
-        level:
-          type: string
-          enum:
-            - chunk
-            - document
-          default: chunk
-          description:
-            "Processing level: 'chunk' for automatic chunking or 'document'
-            for whole document"
-          example: chunk
-    EmbeddingResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          description: Whether the operation succeeded
-          example: true
-        data:
-          type: object
-          properties:
-            success:
-              type: boolean
-              description: Whether the embedding creation succeeded
-              example: true
-            embedding_id:
-              type: string
-              description: ID of the created embedding
-              example: ml_intro_001
-            chunks_created:
-              type: integer
-              description: Number of chunks created
-              example: 3
-            chunk_ids:
-              type: array
-              items:
-                type: string
-              description: IDs of the created chunks
-              example:
-                - ml_intro_001_chunk_0
-                - ml_intro_001_chunk_1
-            total_word_count:
-              type: integer
-              description: Total word count of the processed text
-              example: 25
     SearchRequest:
       type: object
       properties:
@@ -1265,8 +1153,9 @@ components:
           enum:
             - default
             - title_fuzzy
+            - exact
           default: default
-          description: Query behavior mode (default performs normal search, title_fuzzy performs fuzzy title/name matching without ANN)
+          description: Query behavior mode (default performs normal search, title_fuzzy performs fuzzy title/name matching without ANN, exact returns only entities containing the query as a literal case-insensitive contiguous phrase with title matches above body-only matches and no near matches; exact queries must be at least 3 characters)
         filters:
           allOf:
             - $ref: "#/components/schemas/SearchFilters"
@@ -1427,6 +1316,16 @@ components:
             totals. Never narrows which document schemas are searched; only task
             documents carry a taskType, and documents of other schemas are
             unaffected. Wins over taskTypes.
+        excludeEntityIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: >-
+            Entity identifiers removed inside the query, before hits, offsets and
+            totals. Matches each document's own id; a document is one record, so
+            an excluded document is removed whole. Never narrows which document
+            schemas are searched.
         created_after:
           oneOf:
             - type: string

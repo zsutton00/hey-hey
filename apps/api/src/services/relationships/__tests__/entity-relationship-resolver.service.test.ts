@@ -1,6 +1,6 @@
 import { EntityType } from '@prisma/client';
 import { EntityRelationshipResolverService } from '../entity-relationship-resolver.service';
-import type { DesignDocLinkResponseDto } from '../../../generated/model/designDocLinkResponseDto';
+import type { DesignDocLinkResponseDto } from '@hey-hey/contracts/api/models';
 import type { TaskService } from '../../tasks/task.service';
 import type { DesignDocService } from '../../design-doc/design-doc.service';
 import type { PrismaService } from '../../../prisma/prisma.service';
@@ -40,14 +40,12 @@ describe('EntityRelationshipResolverService', () => {
         designDoc: { findFirst: designDocFindFirst },
         conversation: { findFirst: jest.fn().mockResolvedValue(null) },
         task: {
-          findFirst: jest
-            .fn()
-            .mockResolvedValue({
-              id: taskId,
-              type: 'STANDARD',
-              parentTaskId: null,
-              projectId: 'project',
-            }),
+          findFirst: jest.fn().mockResolvedValue({
+            id: taskId,
+            type: 'STANDARD',
+            parentTaskId: null,
+            projectId: 'project',
+          }),
         },
       },
     } as unknown as jest.Mocked<PrismaService>;

@@ -19,7 +19,7 @@ import {
   JOB_STATUS_TO_EVENT_TYPE,
 } from '../events/types/event.types';
 import { JobNonRetryableException } from 'src/common/exceptions/job-non-retryable.exception';
-import { PayloadType } from 'src/generated';
+import { PayloadType } from '@hey-hey/contracts/api/models';
 
 interface RedisJob<T = unknown> extends ExecutionContext {
   id: JobId;

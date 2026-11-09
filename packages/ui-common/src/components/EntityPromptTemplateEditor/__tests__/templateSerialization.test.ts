@@ -18,6 +18,7 @@ describe("template source fidelity", () => {
     "{{entity.sections.custom_key}}\t{{context.content.sections.details}}",
     "{{unknown}} {{}} {{entity.name",
     "{{context.relatedEntities}}\r\n{{context.agentSessions}}",
+    "{{#if entity.name}}a{{else}}b{{/if}}\n{{ #if entity.id }}{{ /if }}",
   ])("round trips %j without normalizing source", (content) => {
     const editor = createEditor({
       namespace: "test",
@@ -34,25 +35,37 @@ describe("template source fidelity", () => {
     expect(
       splitTemplateSource(content, "V1")
         .map((part) => part.source)
-        .join("")
+        .join(""),
     ).toBe(content);
   });
   it("recognizes concrete families while preserving unsupported and malformed expressions as text", () => {
     const parts = splitTemplateSource(
       "{{entity.sections.custom_key}} {{entity.sections.<key>}} {{entity.{name}}}",
-      "V1"
+      "V1",
     );
     expect(
-      parts.filter((part) => part.substitution).map((part) => part.source)
+      parts.filter((part) => part.substitution).map((part) => part.source),
     ).toEqual(["{{entity.sections.custom_key}}"]);
+  });
+  it("recognizes both saved-report families for concrete types only", () => {
+    const parts = splitTemplateSource(
+      "{{reports.CODING_RESEARCH.latest}} {{reports.PLAN.latest.summary}} {{reports.<TYPE>.latest}} {{reports.CODING_RESEARCH}}",
+      "V1",
+    );
+    expect(
+      parts.filter((part) => part.substitution).map((part) => part.source),
+    ).toEqual([
+      "{{reports.CODING_RESEARCH.latest}}",
+      "{{reports.PLAN.latest.summary}}",
+    ]);
   });
   it("describes all identifiers and deterministically regenerates the catalog", () => {
     const language = ENTITY_PROMPT_TEMPLATE_LANGUAGES.V1;
     expect(language.authoring.paths.map((entry) => entry.path)).toEqual(
-      language.supportedPaths
+      language.supportedPaths,
     );
     expect(
-      language.authoring.paths.every((entry) => entry.description.length > 0)
+      language.authoring.paths.every((entry) => entry.description.length > 0),
     ).toBe(true);
     const file = "src/generated/entity-prompt-template-language.ts";
     const before = readFileSync(file, "utf8");
@@ -60,5 +73,21 @@ describe("template source fidelity", () => {
       "scripts/generate-entity-prompt-template-language.cjs",
     ]);
     expect(readFileSync(file, "utf8")).toBe(before);
+  });
+});
+
+describe("conditional block tokens", () => {
+  it("treats block tags as tokens and leaves the text between them as literals", () => {
+    expect(
+      splitTemplateSource("{{#if entity.name}}x{{else}}y{{/if}}", "V1").map(
+        (segment) => [segment.source, segment.substitution],
+      ),
+    ).toEqual([
+      ["{{#if entity.name}}", true],
+      ["x", false],
+      ["{{else}}", true],
+      ["y", false],
+      ["{{/if}}", true],
+    ]);
   });
 });

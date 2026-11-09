@@ -34,7 +34,7 @@ import {
   ServiceLinkDto,
   ServiceTaskRelation,
   UpdateServiceDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { CurrentOrganization } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OrganizationGuard } from '../auth/guards/organization.guard';

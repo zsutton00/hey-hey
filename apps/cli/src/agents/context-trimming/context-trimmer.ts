@@ -1,9 +1,9 @@
 import type { z } from 'zod';
-import { DEFAULT_JEV_MODEL, type JevInput, type JevResult } from '../../jev/client';
+import { DEFAULT_JEV_MODEL } from '../../jev/client';
+import { jevCostUsd } from '../../jev/pricing';
 import {
   CONTEXT_SELECTION,
   JEV_CUTOFFS,
-  cacheKey,
   DEFAULT_WORDING,
   judge,
   tierOf,
@@ -13,6 +13,7 @@ import {
   type RelevanceJudgment,
   type Tier,
 } from '../../jev/scenarios';
+import { recordJevCalls } from '../project-assistant/parent-requirements-attempt-log';
 import type { ServerLogger } from '../../server/logger';
 import type { JsonObject, JsonValue } from '../platform-mcp-proxy/session';
 import {
@@ -23,18 +24,35 @@ import {
   type RelationToFocal,
   type Slot,
 } from './get-context-result';
-
-export type JevResponseCache = Map<string, Extract<JevResult, { ok: true }>>;
+import {
+  writeGraphResultAttemptRecord,
+  type GetContextAttemptRecord,
+  type GetContextEntryRecord,
+  type GetEdgesAttemptRecord,
+  type GetEdgesEntryRecord,
+} from './get-context-attempt-log';
+import { edgeIndex, edgeSlotsOf, edgesResultSchema, type EdgeSlot } from './get-edges-result';
 
 export interface GetContextTrimmerConfig {
-  client: JevEvaluator;
+  decisionModel: DecisionModel;
   focal: Focal;
   focalEntityId: string;
-  /** Held by the Run, so a Turn's trimmer reuses answers an earlier Turn paid for. */
-  cache: JevResponseCache;
+  ancestorEntityIds?: ReadonlySet<string>;
   logger: ServerLogger;
   model?: string;
   cutoffs?: Cutoffs;
+  /** Where each get_context call writes its development trace, narrowed or not; null writes none. */
+  attemptLogDir?: string | null;
+  /** Where each get_edges call writes its development trace, narrowed or not; null writes none. */
+  edgesAttemptLogDir?: string | null;
+}
+
+/** Provider-neutral interface used by the graph-result wrapper. */
+export type DecisionModel = JevEvaluator;
+
+export interface DecisionModelResultNarrower {
+  narrowContextResult(upstream: JsonValue): Promise<JsonValue>;
+  narrowEdgesResult(upstream: JsonValue): Promise<JsonValue>;
 }
 
 const TIER_RANK: Record<Tier, number> = { full: 0, short: 1, index: 2 };
@@ -58,7 +76,7 @@ class Untrimmed extends Error {
   }
 }
 
-export class GetContextTrimmer {
+export class GetContextTrimmer implements DecisionModelResultNarrower {
   private readonly model: string;
   private readonly cutoffs: Cutoffs;
 
@@ -69,30 +87,254 @@ export class GetContextTrimmer {
 
   /**
    * The `get_context` tool result with its non-ancestor entries abbreviated by relevance to
-   * the focal work. Whatever prevents that (a Jev failure, a result of another shape) logs
+   * the focal work. Whatever prevents that (a Decision Model failure, a result of another shape) logs
    * its cause and returns the upstream result itself: a helper that cannot help must not
-   * block the session.
+   * block the session. Either way the call leaves a development trace.
    */
   public async trimResult(upstream: JsonValue): Promise<JsonValue> {
+    const recorder = recordJevCalls(this.config.decisionModel);
     try {
-      return await this.trim(upstream);
+      return await this.trim(upstream, recorder);
     } catch (error) {
+      let reason: string;
+      let fields: Record<string, unknown>;
       if (error instanceof Untrimmed) {
+        reason = error.reason;
+        fields = error.fields;
         this.config.logger.warn('local.platform_mcp_proxy.get_context_trim.untrimmed', {
-          reason: error.reason,
-          ...error.fields,
+          reason,
+          ...fields,
         });
       } else {
+        reason = 'unexpected_error';
+        fields = { error: error instanceof Error ? (error.stack ?? error.message) : String(error) };
         this.config.logger.error('local.platform_mcp_proxy.get_context_trim.failed', {
-          error: error instanceof Error ? error.message : String(error),
+          errorName: error instanceof Error ? error.name : 'unknown',
         });
       }
+
+      await this.writeAttempt({
+        outcome: 'passed_through',
+        at: new Date().toISOString(),
+        focalEntityId: this.config.focalEntityId,
+        focal: this.config.focal,
+        model: this.model,
+        reason,
+        fields,
+        jevCalls: recorder.calls,
+      });
       return upstream;
     }
   }
 
-  private async trim(upstream: JsonValue): Promise<JsonValue> {
-    const startedAt = performance.now();
+  public narrowContextResult(upstream: JsonValue): Promise<JsonValue> {
+    return this.trimResult(upstream);
+  }
+
+  /** Narrow direct graph edges with the same context-selection judgment as get_context. */
+  public async trimEdgesResult(upstream: JsonValue): Promise<JsonValue> {
+    const recorder = recordJevCalls(this.config.decisionModel);
+    try {
+      if (!isJsonObject(upstream) || upstream['isError'] === true) {
+        throw new Untrimmed('upstream_error_or_invalid_result');
+      }
+      const structured = upstream['structuredContent'];
+      let original: JsonValue;
+      let isStructured = false;
+      if (isJsonObject(structured)) {
+        original = structured;
+        isStructured = true;
+      } else {
+        const content = upstream['content'];
+        const block = Array.isArray(content) && content.length === 1 ? content[0] : undefined;
+        if (!isJsonObject(block) || block['type'] !== 'text' || typeof block['text'] !== 'string') {
+          throw new Untrimmed('not_a_single_text_block');
+        }
+        try {
+          original = JSON.parse(block['text']) as JsonValue;
+        } catch {
+          throw new Untrimmed('result_text_not_json');
+        }
+      }
+
+      const parsed = edgesResultSchema.safeParse(original);
+      if (!parsed.success) {
+        throw new Untrimmed('unrecognized_edges_shape', { issues: describeIssues(parsed.error) });
+      }
+      if (!isJsonObject(original) || !isJsonObject(original['edgesByEntity'])) {
+        throw new Untrimmed('unrecognized_edges_shape');
+      }
+      const rawEdgesByEntity = original['edgesByEntity'];
+      const slots = edgeSlotsOf(
+        parsed.data,
+        new Set([this.config.focalEntityId, ...(this.config.ancestorEntityIds ?? [])]),
+      );
+      const candidates = slots.flatMap(({ candidate }) => (candidate ? [candidate] : []));
+      if (candidates.length === 0) throw new Untrimmed('no_candidates');
+
+      const judged = await judge(
+        recorder.evaluator,
+        this.model,
+        CONTEXT_SELECTION,
+        this.config.focal,
+        candidates,
+        DEFAULT_WORDING,
+      );
+      if (!judged.ok) {
+        throw new Untrimmed('decision_model_failed', {
+          failureCode: judged.failure.code,
+          ...(judged.failure.providerStatus !== undefined
+            ? { providerStatus: judged.failure.providerStatus }
+            : {}),
+        });
+      }
+      const judgmentById = new Map(judged.judgments.map((judgment) => [judgment.id, judgment]));
+      const tierCounts: Record<Tier, number> = { full: 0, short: 0, index: 0 };
+      const records: GetEdgesEntryRecord[] = [];
+      const entriesBySeed = new Map<
+        string,
+        Array<{ entry: JsonValue; tier: Tier; score: number }>
+      >();
+      for (const slot of slots) {
+        const seedEdges = rawEdgesByEntity[slot.seedId];
+        const rawEntry = Array.isArray(seedEdges) ? seedEdges[slot.position] : undefined;
+        if (rawEntry === undefined) throw new Untrimmed('unrecognized_edges_shape');
+        if (!slot.candidate) {
+          tierCounts.full += 1;
+          records.push({
+            seedId: slot.seedId,
+            position: slot.position,
+            tier: 'full',
+            judgedByDecisionModel: false,
+            text: JSON.stringify(rawEntry),
+          });
+          const entries = entriesBySeed.get(slot.seedId) ?? [];
+          entries.push({ entry: rawEntry, tier: 'full', score: 1 });
+          entriesBySeed.set(slot.seedId, entries);
+          continue;
+        }
+        const judgment = judgmentById.get(slot.candidate.id);
+        if (!judgment) throw new Error('Decision Model omitted an edge judgment.');
+        const tier = tierOf(judgment, this.cutoffs);
+        tierCounts[tier] += 1;
+        records.push({
+          seedId: slot.seedId,
+          position: slot.position,
+          tier,
+          relevance: judgment.relevance,
+          judgedByDecisionModel: true,
+          text: slot.candidate.text,
+        });
+        const entry = tier === 'index' ? edgeIndex(slot.entry) : rawEntry;
+        const entries = entriesBySeed.get(slot.seedId) ?? [];
+        entries.push({ entry, tier, score: judgment.relevance });
+        entriesBySeed.set(slot.seedId, entries);
+      }
+      const rank: Record<Tier, number> = { full: 0, short: 1, index: 2 };
+      const edgesByEntity: JsonObject = Object.fromEntries(
+        Object.entries(rawEdgesByEntity).map(([seedId, seedEdges]) => {
+          if (!Array.isArray(seedEdges)) throw new Untrimmed('unrecognized_edges_shape');
+          const ordered = (entriesBySeed.get(seedId) ?? [])
+            .sort((a, b) => rank[a.tier] - rank[b.tier] || b.score - a.score)
+            .map(({ entry }) => entry);
+          return [seedId, ordered];
+        }),
+      );
+      const narrowed: JsonObject = { ...original, edgesByEntity };
+      const resultText = JSON.stringify(narrowed);
+      const rawText = JSON.stringify(original);
+      const rawSize = rawText.length;
+      this.config.logger.debug('local.platform_mcp_proxy.get_edges_trim.trimmed', {
+        rawSize,
+        narrowedSize: resultText.length,
+        candidateCount: candidates.length,
+        tierCounts,
+        decisionModelDurationMs: judged.durationMs,
+        inputTokens: judged.usage.inputTokens,
+        outputTokens: judged.usage.outputTokens,
+      });
+      await this.writeEdgesAttempt({
+        outcome: 'narrowed',
+        at: new Date().toISOString(),
+        costUsd: jevCostUsd(judged.usage),
+        inputTokens: judged.usage.inputTokens,
+        outputTokens: judged.usage.outputTokens,
+        decisionModelDurationMs: judged.durationMs,
+        rawResultChars: rawSize,
+        narrowedResultChars: resultText.length,
+        tierCounts,
+        focalEntityId: this.config.focalEntityId,
+        model: this.model,
+        focal: this.config.focal,
+        jevCalls: recorder.calls,
+        entries: records,
+        rawResult: rawText,
+        narrowedResult: resultText,
+      });
+      if (isStructured) {
+        const content = upstream['content'];
+        const block = Array.isArray(content) && content.length === 1 ? content[0] : undefined;
+        if (isJsonObject(block) && block['type'] === 'text' && typeof block['text'] === 'string') {
+          try {
+            const contentResult: unknown = JSON.parse(block['text']);
+            if (edgesResultSchema.safeParse(contentResult).success) {
+              return {
+                ...upstream,
+                structuredContent: narrowed,
+                content: [{ ...block, text: resultText }],
+              };
+            }
+          } catch {
+            // Structured output is authoritative when the text block is not JSON.
+          }
+        }
+        return { ...upstream, structuredContent: narrowed };
+      }
+      const content = upstream['content'];
+      const block = Array.isArray(content) ? content[0] : undefined;
+      return isJsonObject(block)
+        ? { ...upstream, content: [{ ...block, text: resultText }] }
+        : upstream;
+    } catch (error) {
+      let reason: string;
+      let fields: Record<string, unknown>;
+      if (error instanceof Untrimmed) {
+        reason = error.reason;
+        fields = error.fields;
+        this.config.logger.warn('local.platform_mcp_proxy.get_edges_trim.untrimmed', {
+          reason,
+          ...fields,
+        });
+      } else {
+        reason = 'unexpected_error';
+        fields = { error: error instanceof Error ? (error.stack ?? error.message) : String(error) };
+        this.config.logger.error('local.platform_mcp_proxy.get_edges_trim.failed', {
+          errorName: error instanceof Error ? error.name : 'unknown',
+        });
+      }
+
+      await this.writeEdgesAttempt({
+        outcome: 'passed_through',
+        at: new Date().toISOString(),
+        focalEntityId: this.config.focalEntityId,
+        focal: this.config.focal,
+        model: this.model,
+        reason,
+        fields,
+        jevCalls: recorder.calls,
+      });
+      return upstream;
+    }
+  }
+
+  public narrowEdgesResult(upstream: JsonValue): Promise<JsonValue> {
+    return this.trimEdgesResult(upstream);
+  }
+
+  private async trim(
+    upstream: JsonValue,
+    recorder: ReturnType<typeof recordJevCalls>,
+  ): Promise<JsonValue> {
     if (!isJsonObject(upstream)) throw new Untrimmed('tool_result_not_object');
     if (upstream['isError'] === true) throw new Untrimmed('upstream_error_result');
     if ('structuredContent' in upstream) throw new Untrimmed('structured_content_present');
@@ -117,24 +359,12 @@ export class GetContextTrimmer {
 
     const slots = slotsOf(parsed.data, this.config.focalEntityId);
     const candidates = slots.flatMap(({ candidate }) => (candidate ? [candidate] : []));
-    if (candidates.length === 0) throw new Untrimmed('no_candidates');
+    if (candidates.length === 0) {
+      throw new Untrimmed('no_candidates', { slotCount: slots.length });
+    }
 
-    const lookup = { cacheHit: false };
-    const evaluator: JevEvaluator = {
-      evaluate: async (input: JevInput) => {
-        const key = cacheKey(input.state, input.questions, input.model);
-        const cached = this.config.cache.get(key);
-        if (cached) {
-          lookup.cacheHit = true;
-          return cached;
-        }
-        const result = await this.config.client.evaluate(input);
-        if (result.ok) this.config.cache.set(key, result);
-        return result;
-      },
-    };
     const judged = await judge(
-      evaluator,
+      recorder.evaluator,
       this.model,
       CONTEXT_SELECTION,
       this.config.focal,
@@ -142,7 +372,7 @@ export class GetContextTrimmer {
       DEFAULT_WORDING,
     );
     if (!judged.ok) {
-      throw new Untrimmed('jev_failed', {
+      throw new Untrimmed('decision_model_failed', {
         failureCode: judged.failure.code,
         ...(judged.failure.providerStatus !== undefined
           ? { providerStatus: judged.failure.providerStatus }
@@ -152,9 +382,19 @@ export class GetContextTrimmer {
 
     const judgmentById = new Map(judged.judgments.map((judgment) => [judgment.id, judgment]));
     const tierCounts: Record<Tier, number> = { full: 0, short: 0, index: 0 };
+    const entries: GetContextEntryRecord[] = [];
     const placed = slots.map((slot): Placed => {
       const { tier, placement } = this.place(slot, judgmentById);
       tierCounts[tier] += 1;
+      const judgment = slot.candidate ? judgmentById.get(slot.candidate.id) : undefined;
+      entries.push({
+        section: slot.section,
+        position: slot.position,
+        tier,
+        ...(judgment ? { relevance: judgment.relevance } : {}),
+        judgedByDecisionModel: slot.candidate !== null,
+        text: slot.candidate ? slot.candidate.text : JSON.stringify(slot.entry),
+      });
       return placement;
     });
     const abbreviated = tierCounts.short + tierCounts.index;
@@ -171,17 +411,62 @@ export class GetContextTrimmer {
     );
 
     this.config.logger.debug('local.platform_mcp_proxy.get_context_trim.trimmed', {
-      rawChars: text.length,
-      trimmedChars: trimmedText.length,
+      rawSize: text.length,
+      narrowedSize: trimmedText.length,
       candidateCount: candidates.length,
-      keptInFullWithoutJev: slots.length - candidates.length,
+      keptInFullWithoutDecisionModel: slots.length - candidates.length,
       tierCounts,
-      jevDurationMs: Math.round(performance.now() - startedAt),
-      inputTokens: lookup.cacheHit ? 0 : judged.usage.inputTokens,
-      outputTokens: lookup.cacheHit ? 0 : judged.usage.outputTokens,
-      cacheHit: lookup.cacheHit,
+      decisionModelDurationMs: judged.durationMs,
+      inputTokens: judged.usage.inputTokens,
+      outputTokens: judged.usage.outputTokens,
+    });
+    await this.writeAttempt({
+      outcome: 'narrowed',
+      at: new Date().toISOString(),
+      costUsd: jevCostUsd(judged.usage),
+      inputTokens: judged.usage.inputTokens,
+      outputTokens: judged.usage.outputTokens,
+      decisionModelDurationMs: judged.durationMs,
+      rawResultChars: text.length,
+      narrowedResultChars: trimmedText.length,
+      tierCounts,
+      focalEntityId: this.config.focalEntityId,
+      model: this.model,
+      focal: this.config.focal,
+      jevCalls: recorder.calls,
+      entries,
     });
     return { ...upstream, content: [{ ...block, text: trimmedText }] };
+  }
+
+  private writeAttempt(record: GetContextAttemptRecord): Promise<void> {
+    return this.writeTrace(this.config.attemptLogDir, 'get_context_trim', record);
+  }
+
+  private writeEdgesAttempt(record: GetEdgesAttemptRecord): Promise<void> {
+    return this.writeTrace(this.config.edgesAttemptLogDir, 'get_edges_trim', record);
+  }
+
+  /** A trace that cannot be written must not change the result the agent receives. */
+  private async writeTrace(
+    dir: string | null | undefined,
+    eventPrefix: 'get_context_trim' | 'get_edges_trim',
+    record: GetContextAttemptRecord | GetEdgesAttemptRecord,
+  ): Promise<void> {
+    if (!dir) {
+      return;
+    }
+
+    try {
+      const file = await writeGraphResultAttemptRecord(dir, record);
+      this.config.logger.debug(`local.platform_mcp_proxy.${eventPrefix}.attempt_logged`, {
+        file,
+      });
+    } catch (error) {
+      this.config.logger.warn(`local.platform_mcp_proxy.${eventPrefix}.attempt_log_failed`, {
+        errorName: error instanceof Error ? error.name : 'unknown',
+      });
+    }
   }
 
   private place(

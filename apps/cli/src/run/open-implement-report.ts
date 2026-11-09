@@ -1,6 +1,6 @@
 import { ReportType } from '../shared/api/index';
-import type { ImplementReportPayload } from '../shared/api/generated/api';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated/api';
+import type { ImplementReportPayload } from '@hey-hey/contracts/api/models';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { PassThroughSubmissionToolDeclaration } from '../agents/submission-tools/types';
 import type { ServerLogger } from '../server/logger';
 import type { ReportChainEntry } from './types';

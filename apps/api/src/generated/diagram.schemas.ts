@@ -1,6 +1,4 @@
 /* Generated from OpenAPI by scripts/generate-diagram-schemas.js. */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-
 import { z } from 'zod';
 export const DiagramMetadataSchema = z
   .object({

@@ -1,4 +1,11 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { DockerBoundary, type ObservedContainer } from '../local-app/docker-boundary';
+import { InstallationStore } from '../local-app/installation-store';
+import { LocalLifecycleOwners } from '../local-app/lifecycle-owners';
+import { RELEASE_PLATFORMS, type ReleaseManifest } from '../release/release-manifest';
 import type { LocalAgentServerRuntime } from '../server/local-agent-server-runtime';
 import { createTestLocalAgentServerRuntime } from '../server/local-agent-server-runtime.test-support';
 import type { MachineReadinessSnapshot } from '../auth/machine-controller-authority';
@@ -216,5 +223,77 @@ describe('ServerCommand', () => {
     expect(ok).toBe(false);
     expect(localServer.close).toHaveBeenCalledTimes(1);
     expect(output.error).toHaveBeenCalledWith('Failed to run local agent server: wait failed');
+  });
+});
+
+describe('ServerCommand against a local application', () => {
+  const image = {
+    reference: `example.test/image@sha256:${'a'.repeat(64)}`,
+    platforms: [...RELEASE_PLATFORMS],
+  };
+  const release = {
+    schemaVersion: 1,
+    cliVersion: '1.2.3',
+    images: { api: image, ui: image, graphSearch: image, postgres: image, redis: image },
+  } satisfies ReleaseManifest;
+  const containers = (services: string[]): ObservedContainer[] =>
+    services.map((service) => ({
+      Id: service,
+      Config: {
+        Image: image.reference,
+        Labels: {
+          'com.docker.compose.service': service,
+          'dev.heyhey.cli-version': release.cliVersion,
+        },
+      },
+      State: { Running: true, Status: 'running' },
+    }));
+  const INFRASTRUCTURE = ['postgres', 'redis', 'graph-search'];
+  let directory: string | undefined;
+
+  afterEach(async () => {
+    if (directory) {
+      await rm(directory, { recursive: true, force: true });
+    }
+    directory = undefined;
+  });
+
+  const runWithContainers = async (
+    running: string[],
+    localApplicationServices?: readonly string[],
+  ) => {
+    directory = await mkdtemp(join(tmpdir(), 'heyhey-server-test-'));
+    await new InstallationStore(directory).prepare(release, directory);
+    vi.spyOn(DockerBoundary.prototype, 'inspect').mockResolvedValue(containers(running));
+    const health = vi.spyOn(DockerBoundary.prototype, 'health').mockResolvedValue(undefined);
+    const localServer = createServer();
+    vi.spyOn(LocalAgentServerStarter.prototype, 'start').mockResolvedValue(localServer);
+    vi.spyOn(LocalLifecycleOwners.prototype, 'register').mockRejectedValue(new Error('registered'));
+    vi.spyOn(TerminationSignalWaiter.prototype, 'wait').mockResolvedValue(undefined);
+    const output = { log: vi.fn(), error: vi.fn() };
+    const ok = await new ServerCommand(output).run({
+      localApplicationDirectory: directory,
+      localApplicationRelease: release,
+      ...(localApplicationServices ? { localApplicationServices } : {}),
+    });
+    return { ok, output, health };
+  };
+
+  it('refuses to connect when an installed container is missing', async () => {
+    const { ok, output } = await runWithContainers(INFRASTRUCTURE);
+
+    expect(ok).toBe(false);
+    expect(output.error).toHaveBeenCalledWith(
+      expect.stringContaining('Local application stopped before connection'),
+    );
+  });
+
+  it('connects in dev mode with only the infrastructure containers running', async () => {
+    const { output, health } = await runWithContainers(INFRASTRUCTURE, INFRASTRUCTURE);
+
+    expect(health).toHaveBeenCalledWith(INFRASTRUCTURE);
+    expect(output.error).not.toHaveBeenCalledWith(
+      expect.stringContaining('Local application stopped before connection'),
+    );
   });
 });

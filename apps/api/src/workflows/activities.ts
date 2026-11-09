@@ -23,7 +23,7 @@ import {
   SystemMessageData,
   SystemMessageResponseType,
   WorkflowName,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConversationService } from '../services/conversation.service';
 import { InitiativeService } from '../services/initiatives/initiative.service';

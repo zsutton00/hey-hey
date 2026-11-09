@@ -7,7 +7,7 @@ import {
   setHandler,
   WorkflowDurationOptions,
 } from '@temporalio/workflow';
-import { type SystemMessageData } from '../generated';
+import { type SystemMessageData } from '@hey-hey/contracts/api/models';
 import {
   ConversationId,
   OrganizationId,

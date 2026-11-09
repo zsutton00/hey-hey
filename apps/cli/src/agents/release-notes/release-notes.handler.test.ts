@@ -10,7 +10,7 @@ import {
 import { ReleaseNotesHandler } from './release-notes.handler';
 import * as history from './release-notes-git';
 import { NOOP_LOGGER } from '../../server/logger';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 
 const projectId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const requestId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';

@@ -4,7 +4,7 @@ import type {
   RepositoryGroundingRetryableFailure,
   RepositoryGroundingSuccess,
   RepositoryGroundingTerminalFailure,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 import {
   createAgentBridgeRuntimeValidator,
   formatRuntimeSchemaErrors,

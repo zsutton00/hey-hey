@@ -1,4 +1,4 @@
-import type { LocalPromptTaskInput } from '../../shared/agent-bridge-contract/generated/api';
+import type { LocalPromptTaskInput } from '@hey-hey/contracts/agent-bridge';
 
 /**
  * Internal input passed to the prompt builder.

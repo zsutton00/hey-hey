@@ -9,8 +9,8 @@ import type {
   ConversationResponseDto,
   Priority,
   TaskResponseDto,
-} from "@hey-hey/ui-common/api";
-import { ProjectStatus, WorkStatus } from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
+import { ProjectStatus, WorkStatus } from "@hey-hey/contracts/api";
 import {
   CapsuleAction,
   InitiativeEditorWalkthrough,
@@ -36,6 +36,7 @@ import {
   usePlatformAdminAccess,
 } from "@hey-hey/ui-common/data";
 import { contentToSectionInputs } from "@hey-hey/ui-common/utils";
+import { toOpenApiUserId } from "@hey-hey/ui-common/clients";
 import ArchiveIcon from "@mui/icons-material/Archive";
 import EditIcon from "@mui/icons-material/Edit";
 import TasksIcon from "@mui/icons-material/Assignment";
@@ -378,7 +379,11 @@ export const InitiativePage: React.FC<InitiativePageProps> = ({
       if (!initiative?.id) return;
 
       try {
-        await updateInitiative({ assigneeId: newAssigneeId || undefined });
+        await updateInitiative({
+          assigneeId: newAssigneeId
+            ? toOpenApiUserId(newAssigneeId)
+            : undefined,
+        });
       } catch (error) {
         console.error("Failed to update initiative assignee:", error);
       }

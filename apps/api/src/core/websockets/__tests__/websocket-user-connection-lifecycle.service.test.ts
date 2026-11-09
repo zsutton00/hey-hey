@@ -23,6 +23,8 @@ describe('WebsocketUserConnectionLifecycleService', () => {
   ): WebsocketUserConnectionRegistration => ({
     userId: 'user-1' as UserId,
     expiresAt: new Date(Date.now() + 10_000),
+    sessionId: 'session-0',
+    authorizationVersion: 2,
     ...overrides,
   });
 
@@ -42,6 +44,8 @@ describe('WebsocketUserConnectionLifecycleService', () => {
     ['missing', { expiresAt: undefined }],
     ['invalid', { expiresAt: 'not-a-date' }],
     ['expired', { expiresAt: new Date(Date.now() - 1) }],
+    ['session-unbound', { sessionId: undefined }],
+    ['revision-unbound', { authorizationVersion: undefined }],
   ])(
     'rejects a %s lifecycle context without retaining state',
     (_case, overrides) => {

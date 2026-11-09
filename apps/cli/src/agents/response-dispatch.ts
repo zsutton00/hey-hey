@@ -30,8 +30,8 @@ import {
   type ImplementationReadinessDismissActionPayload,
   type ImplementationReadinessPayload,
   type ImplementationReadinessReplyActionPayload,
-} from '../shared/api/generated/api';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated';
+} from '@hey-hey/contracts/api/models';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type {
   LocalAgentSearchResultsResponse,
   LocalChildTaskDescriptionUpdateResponse,
@@ -446,17 +446,17 @@ const implementationReadinessEntry: RegistryEntry<ImplementationReadinessPayload
       disposition,
     };
     const { runId, sourceRevision } = disposition.sourceSnapshot;
-    const replyPayload: ImplementationReadinessReplyActionPayload = {
+    const replyPayload = {
       handlerType: SecondaryActionPayloadHandlerTypeEnum.ImplementationReadinessReply,
       runId,
       sourceRevision,
-    };
-    const dismissPayload: ImplementationReadinessDismissActionPayload = {
+    } satisfies ImplementationReadinessReplyActionPayload;
+    const dismissPayload = {
       handlerType: SecondaryActionPayloadHandlerTypeEnum.ImplementationReadinessDismiss,
       runId,
       sourceRevision,
       confirmed: true,
-    };
+    } satisfies ImplementationReadinessDismissActionPayload;
     const secondaryActions: SecondaryActionConfig[] = [
       {
         id: randomUUID(),
@@ -545,7 +545,7 @@ const REGISTRY: { [K in ResponseTypeToken]: RegistryEntry<unknown> } = {
       },
     }),
   } satisfies RegistryEntry<
-    import('../shared/agent-bridge-contract/generated').LocalOpenItemsTriageResponse
+    import('@hey-hey/contracts/agent-bridge').LocalOpenItemsTriageResponse
   > as RegistryEntry<unknown>,
   implementation_readiness_v1: implementationReadinessEntry as RegistryEntry<unknown>,
 };

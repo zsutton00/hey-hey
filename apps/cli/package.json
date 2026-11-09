@@ -1,13 +1,14 @@
 {
   "name": "@hey-hey/cli",
-  "version": "4.2.0",
+  "version": "4.3.0",
   "description": "Hey Hey Agent Bridge — a local CLI that runs agent coding sessions and bridges the Hey Hey platform with Claude Code.",
   "main": "dist/index.mjs",
   "bin": {
     "heyhey": "dist/index.mjs"
   },
   "files": [
-    "dist"
+    "dist",
+    "release-manifest.json"
   ],
   "publishConfig": {
     "access": "public"
@@ -24,8 +25,8 @@
   "scripts": {
     "dev": "pnpm dev:run",
     "dev:build": "node scripts/build.mjs --watch",
-    "build": "node scripts/build.mjs",
-    "typecheck": "pnpm tsc --noEmit",
+    "build": "node ../../scripts/generate-contracts.mjs --with-lock --build-contracts --target=cli -- pnpm --dir apps/cli run build:unlocked",
+    "typecheck": "node ../../scripts/generate-contracts.mjs --with-lock --build-contracts --target=cli -- pnpm --dir apps/cli exec tsc --noEmit",
     "register": "pnpm run build && pnpm link --global",
     "unregister": "pnpm unlink --global",
     "lint": "eslint .",
@@ -44,14 +45,11 @@
     "eval:project-assistant:view": "tsx evals/project-assistant/viewer/server.ts",
     "eval:contract-anchor": "tsx evals/contract-anchor/src/run.ts",
     "eval:work-item-scope": "tsx evals/work-item-scope/src/run.ts",
-    "eval:jev-relevance:snippets": "tsx evals/jev-relevance/src/snippet-run.ts",
     "eval:jev-relevance": "tsx evals/jev-relevance/src/run.ts",
     "eval:jev-relevance:capture": "tsx evals/jev-relevance/src/capture.ts",
     "eval:jev-relevance:edges-capture": "tsx evals/jev-relevance/src/edges-capture.ts",
     "eval:jev-relevance:read-check": "tsx evals/jev-relevance/src/read-check-run.ts",
     "eval:jev-relevance:read-check-capture": "tsx evals/jev-relevance/src/read-check-capture.ts",
-    "eval:jev-relevance:search-stage": "tsx evals/jev-relevance/src/search-stage-run.ts",
-    "eval:jev-relevance:gather-trace": "tsx evals/jev-relevance/src/gather-trace.ts",
     "eval:jev-relevance:run-transcript": "tsx evals/jev-relevance/src/run-transcript.ts",
     "eval:jev-relevance:hints-capture": "tsx evals/jev-relevance/src/hints-capture.ts",
     "eval:jev-relevance:decisions-capture": "tsx evals/jev-relevance/src/decisions-capture.ts",
@@ -66,17 +64,19 @@
     "probe:project-mode-launch-resume": "tsx src/scripts/probe-project-mode-launch-resume.ts",
     "codex:skills": "tsx src/scripts/list-codex-skills.ts",
     "jev:scenarios": "tsx src/scripts/jev-scenarios.ts",
-    "generate:contract": "node \"$(node scripts/openapi-root.cjs)/scripts/task-monitor-contract.js\" --typescript-output src/generated/task-monitor-contract.schema.ts && node \"$(node scripts/openapi-root.cjs)/scripts/project-mode-contract.js\" --typescript-output src/generated/project-mode-contract.schema.ts",
-    "generate:local": "tmp=\"$(mktemp -d \"${TMPDIR:-/tmp}/openapi-generate.XXXXXX\")\" && trap 'rm -rf \"$tmp\"' EXIT && openapi-generator-cli generate -i \"$(node scripts/openapi-root.cjs)/specs/local/openapi.yaml\" -g typescript-axios -o \"$tmp\" --additional-properties=supportsES6=true,withInterfaces=true,modelPropertyNaming=camelCase,typescriptThreePlus=true,useSingleRequestParameter=true --global-property=apiDocs=false,modelDocs=false && mkdir -p src/shared/local-agent-api/generated && cp \"$tmp/api.ts\" \"$tmp/base.ts\" \"$tmp/common.ts\" \"$tmp/configuration.ts\" \"$tmp/index.ts\" src/shared/local-agent-api/generated/ && bash scripts/postprocess-generated-api.sh src/shared/local-agent-api/generated",
-    "generate:agent-bridge": "tmp=\"$(mktemp -d \"${TMPDIR:-/tmp}/openapi-generate.XXXXXX\")\" && trap 'rm -rf \"$tmp\"' EXIT && pnpm generate:contract && openapi-generator-cli generate -i \"$(node scripts/openapi-root.cjs)/specs/agent-bridge/openapi.yaml\" -g typescript-axios -o \"$tmp\" --additional-properties=supportsES6=true,withInterfaces=true,modelPropertyNaming=camelCase,typescriptThreePlus=true,useSingleRequestParameter=true --global-property=apiDocs=false,modelDocs=false && mkdir -p src/shared/agent-bridge-contract/generated && cp \"$tmp/api.ts\" \"$tmp/base.ts\" \"$tmp/common.ts\" \"$tmp/configuration.ts\" \"$tmp/index.ts\" src/shared/agent-bridge-contract/generated/ && bash scripts/postprocess-generated-api.sh src/shared/agent-bridge-contract/generated && node scripts/generate-agent-bridge-runtime-schema.cjs && prettier --write src/shared/agent-bridge-contract/generated/repository-feature-enrichment-runtime-schema.ts",
-    "generate:work-item-enums": "node scripts/generate-work-item-enums.cjs",
-    "generate:api": "tmp=\"$(mktemp -d \"${TMPDIR:-/tmp}/openapi-generate.XXXXXX\")\" && trap 'rm -rf \"$tmp\"' EXIT && pnpm generate:contract && openapi-generator-cli generate -i \"$(node scripts/openapi-root.cjs)/specs/api/openapi.yaml\" -g typescript-axios -o \"$tmp\" --additional-properties=supportsES6=true,withInterfaces=true,modelPropertyNaming=camelCase,typescriptThreePlus=true,useSingleRequestParameter=true --global-property=apiDocs=false,modelDocs=false && mkdir -p src/shared/api/generated && cp \"$tmp/api.ts\" \"$tmp/base.ts\" \"$tmp/common.ts\" \"$tmp/configuration.ts\" \"$tmp/index.ts\" src/shared/api/generated/ && bash scripts/postprocess-generated-api.sh src/shared/api/generated && node scripts/generate-entity-prompt-template-language.cjs && prettier --write src/shared/api/generated/entity-prompt-template-language.ts src/shared/api/generated/index.ts && node ../api/scripts/generate-workflow-review-schemas.js src/generated/coding-plan.schemas.ts && prettier --write src/generated/coding-plan.schemas.ts src/generated/coding-plan.tool-schemas.ts && node scripts/generate-report-error-schemas.cjs && node \"$(node scripts/openapi-root.cjs)/scripts/generate-proposal-reconciliation-schema.js\" src/shared/api/generated/proposal-reconciliation.schema.ts && node \"$(node scripts/openapi-root.cjs)/scripts/generate-controller-action-contract.js\" src/shared/api/generated/controller-action-contract.ts ./api && prettier --write src/shared/api/generated/controller-action-contract.ts",
-    "generate": "pnpm generate:local && pnpm generate:agent-bridge && pnpm generate:api",
-    "generate:all": "node scripts/clean-openapi-generated.cjs && pnpm generate",
-    "generate:check": "pnpm generate && git diff --exit-code -- src/shared/api/generated src/shared/agent-bridge-contract/generated src/shared/local-agent-api/generated src/generated",
-    "prepack": "pnpm typecheck && pnpm test && pnpm build",
+    "generate:contract": "node ../../scripts/generate-contracts.mjs --target=cli",
+    "generate:local": "node ../../scripts/generate-contracts.mjs --target=contracts-local",
+    "generate:agent-bridge": "node ../../scripts/generate-contracts.mjs --target=contracts-agent-bridge",
+    "generate:api": "node ../../scripts/generate-contracts.mjs --target=contracts-api",
+    "generate": "node ../../scripts/generate-contracts.mjs --target=cli",
+    "generate:all": "node ../../scripts/generate-contracts.mjs --target=cli",
+    "generate:check": "node ../../scripts/generate-contracts.mjs --check --target=cli",
+    "prepack": "tsx scripts/verify-release-manifest.ts && pnpm typecheck && pnpm test && pnpm build",
     "format:check": "prettier --check .",
-    "codex:smoke": "tsx scripts/codex-smoke.ts"
+    "codex:smoke": "tsx scripts/codex-smoke.ts",
+    "generate:contract:unlocked": "node ../../scripts/require-openapi-staging.cjs && node scripts/generate-custom-contracts.cjs",
+    "generate:all:unlocked": "node ../../scripts/require-openapi-staging.cjs && node scripts/generate-custom-contracts.cjs",
+    "build:unlocked": "node scripts/build.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "^0.0.71",
@@ -95,7 +95,7 @@
     "@types/node": "^22.19.19",
     "@types/react": "^19.3.0",
     "@vitest/coverage-v8": "^4.1.7",
-    "axios": "^1.16.1",
+    "axios": "1.16.1",
     "chokidar": "^5.0.0",
     "dotenv": "^17.4.2",
     "esbuild": "^0.28.0",

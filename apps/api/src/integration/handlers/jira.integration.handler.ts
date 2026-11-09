@@ -3,7 +3,7 @@ import { Integration, Prisma } from '@prisma/client';
 import * as crypto from 'crypto';
 import * as dns from 'dns';
 import { promisify } from 'util';
-import { IntegrationType } from '../../generated';
+import { IntegrationType } from '@hey-hey/contracts/api/models';
 import { ArtifactService } from '../../services/artifacts/artifact.service';
 import { ConfigEncryptionService } from '../../services/config-encryption.service';
 import { OrganizationId } from '../../types';

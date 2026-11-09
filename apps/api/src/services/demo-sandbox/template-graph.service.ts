@@ -4,10 +4,8 @@ import { firstValueFrom } from 'rxjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtKeysService } from '../../auth/services/jwt-keys.service';
 import { TemplateGraphService } from '../../generated/graphs/api/templateGraph.service';
-import {
-  TemplateGraphCopyCommand,
-  TemplateGraphSnapshot,
-} from '../../generated/graphs';
+import type { TemplateGraphSnapshot } from '../../generated/graphs';
+import { readGraphCopyCommand } from './template-graph-copy-intent';
 
 @Injectable()
 export class DemoTemplateGraphService {
@@ -61,7 +59,7 @@ export class DemoTemplateGraphService {
           this.client.applyTemplateGraphCopy(
             intent.organizationId,
             intent.projectId,
-            intent.command as unknown as TemplateGraphCopyCommand,
+            readGraphCopyCommand(intent.command),
             {
               config: {
                 timeout: 10_000,

@@ -1,3 +1,4 @@
+import { asOrganizationId, asUserId } from '../../test-utils/contract-ids';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -42,13 +43,15 @@ const ready = (): PendingMachineEnrollment => ({
   osFamily: 'macos',
   cliVersion: '2.2.2',
   machineKeyFingerprint: 'machine-fp-1',
-  accountId: 'account-1',
-  organizationId: 'organization-1',
+  accountId: asUserId('account-1'),
+  organizationId: asOrganizationId('organization-1'),
   controllerCredentialId: 'credential-1',
   controllerLabel: 'Alice passkey',
   controllerCredentialFingerprint: 'fp-1',
   backupEligible: true,
   backupState: false,
+  controllerCredentialPublicKey: { kty: 'EC', crv: 'P-256', x: 'A'.repeat(43), y: 'B'.repeat(43) },
+  registrationChallenge: 'registration-challenge',
   confirmationNonce: NONCE,
   expiresAt: '2026-08-12T22:00:00.000Z',
   state: 'ready',
@@ -64,8 +67,8 @@ const activation = (): ConfirmMachineEnrollmentResponseDto => ({
     machineName: 'Alice laptop',
     osFamily: 'macos',
     cliVersion: '2.2.2',
-    accountId: 'account-1',
-    organizationId: 'organization-1',
+    accountId: asUserId('account-1'),
+    organizationId: asOrganizationId('organization-1'),
     controllerLabel: 'Alice passkey',
     controllerCredentialId: 'credential-1',
     controllerCredentialPublicKey: {

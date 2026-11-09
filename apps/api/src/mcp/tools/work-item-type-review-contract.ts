@@ -1,4 +1,4 @@
-import { WorkStatus } from '../../generated/model/workStatus';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 
 const displayStatus = (status: WorkStatus): string =>
   status

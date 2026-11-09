@@ -5,7 +5,7 @@ import {
   IntegrationConnectionStatus,
   GitHubIntegrationConfig,
   JiraIntegrationConfig,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 
 export interface ConnectionTestResult {
   connectionStatus: IntegrationConnectionStatus;

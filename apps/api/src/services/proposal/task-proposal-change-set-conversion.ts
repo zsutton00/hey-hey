@@ -6,7 +6,7 @@ import type {
   WorkItemChangeSetValidationRequest,
   WorkItemCreateOperation,
   WorkItemUpdateOperation,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { canonicalDiagramType } from '../tasks/diagram-metadata';
 import { WORK_ITEM_TYPE_KEYS } from '../tasks/work-item-type-keys';
 

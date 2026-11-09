@@ -1,11 +1,11 @@
-import { SessionRole } from '../../../generated/model/sessionRole';
+import { SessionRole } from '@hey-hey/contracts/api/models';
 import type { WorkItemType } from '@prisma/client';
 import { InMemoryMessageBus } from '../../../core/events/in-memory-message-bus.service';
 import type { PrismaService } from '../../../prisma/prisma.service';
-import { WorkItemTypeLifecycleStatus } from '../../../generated/model/workItemTypeLifecycleStatus';
-import { WorkItemTypeRole } from '../../../generated/model/workItemTypeRole';
-import { WorkItemTypeGuidancePurpose } from '../../../generated/model/workItemTypeGuidancePurpose';
-import { WorkStatus } from '../../../generated/model/workStatus';
+import { WorkItemTypeLifecycleStatus } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeRole } from '@hey-hey/contracts/api/models';
+import { WorkItemTypeGuidancePurpose } from '@hey-hey/contracts/api/models';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { WorkItemTypeRegistryService } from '../work-item-type-registry.service';
 
 /**
@@ -352,6 +352,39 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
       effectiveSource: 'CANONICAL',
       definition: { name: canonical.name },
     });
+  });
+
+  it('returns a project override next to the unmodified canonical definition', async () => {
+    const canonical = {
+      ...buildRow({
+        typeKey: 'STANDARD',
+        projectId: null,
+        isSystem: true,
+      }),
+      maintenanceGuidance: 'Canonical maintenance.',
+      id: 'canonical-standard',
+      typeKey: 'STANDARD',
+    };
+    const override = projectRow('STANDARD', PROJECT_A, {
+      name: 'Project Standard',
+    });
+    const service = makeService(
+      [override],
+      [canonical],
+      [PROJECT_A, PROJECT_B],
+    );
+    await service.refresh();
+
+    const comparison = service.getCanonicalComparison(PROJECT_A, 'STANDARD');
+    expect(comparison?.effective.definition.name).toBe('Project Standard');
+    expect(comparison?.canonical?.name).toBe(canonical.name);
+    expect(comparison?.canonical?.maintenanceGuidance).toBe(
+      'Canonical maintenance.',
+    );
+    expect(service.getDefinition(PROJECT_A, 'STANDARD')?.definition.name).toBe(
+      'Project Standard',
+    );
+    expect(service.getCanonicalComparison(PROJECT_A, 'NOPE')).toBeUndefined();
   });
 
   it('projects the explicit accepted launch-config policy from the effective definition', async () => {

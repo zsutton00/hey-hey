@@ -1,4 +1,4 @@
-import type { DebugOutboxEventDto } from "@hey-hey/ui-common/api";
+import type { DebugOutboxEventDto } from "@hey-hey/contracts/api";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -74,7 +74,12 @@ describe("DebugEventReplayPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useOutboxEvents.mockReturnValue({
-      data: { entityType: "task", entityId: "task-1", count: 1, events: [event] },
+      data: {
+        entityType: "task",
+        entityId: "task-1",
+        count: 1,
+        events: [event],
+      },
       error: null,
       events: [event],
       isLoading: false,
@@ -165,9 +170,13 @@ describe("DebugEventReplayPanel", () => {
 
     renderPanel();
 
-    expect(screen.getByText("1 result · response truncated")).toBeInTheDocument();
+    expect(
+      screen.getByText("1 result · response truncated"),
+    ).toBeInTheDocument();
     expect(screen.getByText("task.created")).toBeInTheDocument();
-    expect(screen.getByText("Validation: INVALID · Fix: APPLIED")).toBeInTheDocument();
+    expect(
+      screen.getByText("Validation: INVALID · Fix: APPLIED"),
+    ).toBeInTheDocument();
     expect(screen.getByText("QUEUED")).toBeInTheDocument();
     expect(screen.getByText("Original event: event-1")).toBeInTheDocument();
     expect(screen.getByText("Replay event: replay-1")).toBeInTheDocument();

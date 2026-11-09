@@ -1,8 +1,9 @@
 import {
+  SessionRole,
   LocalPromptType,
   type RepositoryFeatureEnrichmentRequest,
-} from '../../shared/agent-bridge-contract/generated/api';
-import { ExtendedUIFieldType, SystemMessageDataTypeEnum } from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
+import { ExtendedUIFieldType, SystemMessageDataTypeEnum } from '@hey-hey/contracts/api/models';
 import type { UpdateMessageDto } from '../../shared/api';
 import type { AssistantCompleteEvent } from '../../run/types';
 import { createAgentBridgeRuntimeValidator } from '../../shared/agent-bridge-contract/runtime-schema-validator';
@@ -29,6 +30,7 @@ const readHandoff = createAgentBridgeRuntimeValidator<RepositoryFeatureEnrichmen
 /** Ordinary conversation after import; the API workflow has already finished. */
 export class RepositoryFeatureEnrichmentHandler implements UserLaunchablePromptTypeHandler<RepositoryFeatureEnrichmentPromptPayload> {
   readonly id = 'repository-feature-enrichment';
+  readonly sessionRole = SessionRole.Research;
   readonly promptType = LocalPromptType.RepositoryFeatureEnrichment;
   readonly service = 'required';
   readonly launchEntity = 'none';

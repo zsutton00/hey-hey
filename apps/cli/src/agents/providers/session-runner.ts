@@ -1,4 +1,4 @@
-import type { RunAttachmentReference } from '../../shared/agent-bridge-contract/generated/api';
+import type { RunAttachmentReference } from '@hey-hey/contracts/agent-bridge';
 import type { BrowserMcpMount } from '../browser-tools/browser-mcp-access';
 import type { AgenticSession } from '../../session/index';
 import type {
@@ -15,6 +15,7 @@ import type { ResolvedRunWorkspace } from '../run-scope';
 import type { RunWorkspaceWriteBoundary } from '../workspace-write-boundary';
 import type { AgentSkillCatalog, AgentSkillSelection } from './agent-skills';
 import type { ProviderSessionStartupSegments } from '../../run/provider-session-startup-input';
+import type { SessionPromptDeclarations } from '../prompts/platform-prompt-context';
 
 export type AgentSessionRunnerErrorCode =
   | 'INVALID_CREDENTIAL'
@@ -59,8 +60,8 @@ export interface RunPromptArgs {
   attachmentRunId?: string;
   attachments?: readonly RunAttachmentReference[];
   prompt: string;
-  /** Initiating handler's `epistemicCalibration` declaration, applied to fresh-session guidance. */
-  epistemicCalibration?: true;
+  /** Initiating handler's prompt declarations, composed into fresh-session guidance. */
+  promptDeclarations?: SessionPromptDeclarations;
   /** Replace provider defaults with the platform prompt on fresh sessions. */
   replaceProviderSystemPrompt?: boolean;
   /** Pathless provider Skill identity; provider adapters resolve native paths locally. */
@@ -196,14 +197,6 @@ export interface ResumeArgs {
   workspaceWriteBoundary?: RunWorkspaceWriteBoundary;
 }
 
-export interface PromptOnceArgs {
-  session: AgenticSession;
-  prompt: string;
-  model?: string;
-  reasoningEffort?: LocalReasoningEffort;
-  signal: AbortSignal;
-}
-
 export interface ListSkillsArgs {
   session: AgenticSession;
   workspace?: ResolvedRunWorkspace;
@@ -249,12 +242,6 @@ export type QuestionAnswerDispatchResult =
 
 export interface AgentSessionRunner {
   runPrompt(args: RunPromptArgs): Promise<AgentRunResult>;
-  /**
-   * Send one prompt with no tools, no MCP servers and no conversation, outside
-   * the Run's provider session and event log, and resolve with the model's text.
-   * Throws on failure; never resolves with an invented result.
-   */
-  promptOnce(args: PromptOnceArgs): Promise<string>;
   listSkills?(args: ListSkillsArgs): Promise<AgentSkillCatalog>;
   resumeSession(args: ResumeArgs): Promise<AgentRunResult>;
   /**

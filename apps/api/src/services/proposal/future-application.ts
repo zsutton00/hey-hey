@@ -10,7 +10,7 @@ import type {
   FutureRevisionResponse,
   UpdateDesignDocDto,
   UpdateTaskDto,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { futureApplyRequestSchema } from 'src/generated/future-revision.schema';
 import type { WorkItemTypeRegistryService } from '../tasks/work-item-type-registry.service';
 import { resolveWorkItemSectionContentKind } from '../tasks/task-section-schema-validator.registry';

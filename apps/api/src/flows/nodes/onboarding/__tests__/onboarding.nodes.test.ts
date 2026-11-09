@@ -23,7 +23,7 @@ import {
   ExtendedUIFieldType,
   MultipleChoiceAction,
   WorkflowName,
-} from '../../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { SHARED_NODES } from '../../../constants';
 import {
   ClaudeModel,
@@ -189,8 +189,7 @@ describe('Onboarding nodes', () => {
 
     expect(result).toEqual({
       action: 'FAIL',
-      reason:
-        'Concept clarification failed with non-recoverable NON_RETRYABLE',
+      reason: 'Concept clarification failed with non-recoverable NON_RETRYABLE',
     });
   });
 
@@ -447,7 +446,10 @@ describe('Onboarding nodes', () => {
     const edges = { materializeEdges: jest.fn().mockResolvedValue(undefined) };
     const setup = await createServiceTestingModule({
       providers: [OnboardingCreatePlansNode],
-      overrides: [[TaskService, planService], [PendingEdgeService, edges]],
+      overrides: [
+        [TaskService, planService],
+        [PendingEdgeService, edges],
+      ],
     });
 
     const module: TestingModule = setup.module;
@@ -506,10 +508,17 @@ describe('Onboarding nodes', () => {
       }),
     } as unknown as jest.Mocked<TaskService>;
 
-    const edges = { materializeEdges: jest.fn().mockRejectedValue(new Error('relationship insert failed')) };
+    const edges = {
+      materializeEdges: jest
+        .fn()
+        .mockRejectedValue(new Error('relationship insert failed')),
+    };
     const setup = await createServiceTestingModule({
       providers: [OnboardingCreatePlansNode],
-      overrides: [[TaskService, planService], [PendingEdgeService, edges]],
+      overrides: [
+        [TaskService, planService],
+        [PendingEdgeService, edges],
+      ],
     });
 
     const module: TestingModule = setup.module;

@@ -1,7 +1,7 @@
 import type {
   RepositoryFirstWorkCompletion,
   RepositoryFirstWorkRequest,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 
 export type RepositoryFirstWorkPromptPayload = RepositoryFirstWorkRequest;
 type RepositoryFirstWorkResult = RepositoryFirstWorkCompletion;

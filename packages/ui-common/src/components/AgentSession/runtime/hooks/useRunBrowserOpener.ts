@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { LocalRunBrowserOpenErrorCode } from "../../../../local-agent-api/generated/api";
+import { LocalRunBrowserOpenErrorCode } from "@hey-hey/contracts/local";
 import {
   createDirectoryBindingApi,
   LocalRunBrowserOpenError,

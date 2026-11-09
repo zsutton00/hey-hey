@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ServiceFolderNotBoundFailure } from '../../shared/api/generated/api';
+import type { ServiceFolderNotBoundFailure } from '@hey-hey/contracts/api/models';
 
 const startFailureSchema = z.object({
   failure: z.object({

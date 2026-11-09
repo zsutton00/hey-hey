@@ -2,7 +2,7 @@ import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { reportErrorSchemas } from '../../shared/api/generated/report-error-schemas';
 import type { ServerLogger } from '../../server/logger';
-import type { ActiveGoalDto } from '../../shared/api/generated/api';
+import type { ActiveGoalDto } from '@hey-hey/contracts/api/models';
 
 export interface FetchActiveGoalsDeps {
   organizationId: string;

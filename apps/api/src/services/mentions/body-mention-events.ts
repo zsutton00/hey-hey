@@ -8,7 +8,7 @@ import { EVENT_TYPES } from 'src/core/events/types/event.types';
 import {
   MentionCreatedEventPayload,
   MentionRemovedEventPayload,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 import type { ResolvedMention } from 'src/services/mentions/mention-processing.service';
 import type {

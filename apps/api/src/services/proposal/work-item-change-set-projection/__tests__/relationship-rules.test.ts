@@ -1,5 +1,5 @@
 import { AxiosError, AxiosHeaders } from 'axios';
-import type { WorkItemChangeSetValidationRequest } from 'src/generated';
+import type { WorkItemChangeSetValidationRequest } from '@hey-hey/contracts/api/models';
 import type { PrismaService } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId } from 'src/types';
 import { createWarmWorkItemTypeRegistry } from '../../../../../test/setup/work-item-type-registry.fixture';

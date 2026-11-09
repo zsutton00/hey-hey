@@ -1,4 +1,4 @@
-import type { AttentionEventResponse } from "@hey-hey/ui-common/api";
+import type { AttentionEventResponse } from "@hey-hey/contracts/api";
 import { useAttentionEvents, useProject } from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import { fireEvent, render, screen, within } from "@testing-library/react";
@@ -13,10 +13,8 @@ vi.mock("nuqs", () => {
   };
   return {
     parseAsStringEnum: () => parser,
-    useQueryState: (
-      _key: string,
-      config: { defaultValue?: unknown } = {},
-    ) => React.useState(config.defaultValue),
+    useQueryState: (_key: string, config: { defaultValue?: unknown } = {}) =>
+      React.useState(config.defaultValue),
   };
 });
 

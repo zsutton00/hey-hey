@@ -1,4 +1,5 @@
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
+import { isAxiosError } from "axios";
 import {
   ReportAudience,
   ReportEntityRelation,
@@ -188,9 +189,43 @@ export function evalAttemptOutputQueryOptions(
   });
 }
 
-/** Number of attempts launch recorded: one per case and configuration. */
+/** Repeats per case and configuration. Runs recorded before repeats count as 1. */
+export const runRepeats = (run: EvalRunReport): number =>
+  run.payload.settings.repeatsPerAttempt ?? 1;
+
+/** Which repeat an attempt is. Attempts recorded before repeats are repeat 1. */
+export const attemptRepeat = (attempt: EvalAttemptReport): number =>
+  attempt.payload.repeat ?? 1;
+
+/** Number of attempts launch recorded: one per case, configuration and repeat. */
 export const expectedAttemptCount = (run: EvalRunReport): number =>
-  run.payload.cases.length * run.payload.configurations.length;
+  run.payload.cases.length *
+  run.payload.configurations.length *
+  runRepeats(run);
+
+/**
+ * Launch order: repeat by repeat, then case, then configuration, as recorded
+ * on the run. Independent of createdAt, which ties within one transaction.
+ */
+function inLaunchOrder(
+  run: EvalRunReport,
+  attempts: EvalAttemptReport[],
+): EvalAttemptReport[] {
+  const casePosition = new Map(run.payload.cases.map((c, i) => [c.id, i]));
+  const configurationPosition = new Map(
+    run.payload.configurations.map((c, i) => [c.id, i]),
+  );
+  const position = (attempt: EvalAttemptReport): number[] => [
+    attemptRepeat(attempt),
+    casePosition.get(attempt.payload.caseInputId) ?? -1,
+    configurationPosition.get(attempt.payload.configuration.id) ?? -1,
+  ];
+  return [...attempts].sort((left, right) => {
+    const a = position(left);
+    const b = position(right);
+    return a[0]! - b[0]! || a[1]! - b[1]! || a[2]! - b[2]!;
+  });
+}
 
 export function evalAttemptsQueryOptions(
   organizationId: string,
@@ -265,6 +300,60 @@ export async function launchEvalRun(
   return report;
 }
 
+/** How many times a rename re-reads the run after the runner moved it on. */
+const RENAME_ATTEMPTS = 5;
+
+const isVersionConflict = (error: unknown): boolean =>
+  isAxiosError(error) && error.response?.status === 409;
+
+/**
+ * Renames a run through the ordinary report update. The update names the
+ * version it was based on, so it never lands on top of progress the runner
+ * recorded in the meantime: on a conflict the run is read again and only the
+ * name is applied to what is now stored. A blank name removes it, returning
+ * the run to its generated name.
+ */
+export async function renameEvalRun(
+  organizationId: string,
+  run: EvalRunReport,
+  name: string,
+): Promise<EvalRunReport> {
+  const trimmed = name.trim();
+  let current = run;
+  for (let attempt = 1; attempt <= RENAME_ATTEMPTS; attempt += 1) {
+    const { name: _previous, ...rest } = current.payload;
+    try {
+      const response = await unifiedApiClient.updateReport({
+        organizationId,
+        reportId: current.id,
+        updateReportDto: {
+          expectedVersion: current.version,
+          payload: trimmed ? { ...rest, name: trimmed } : rest,
+        },
+      });
+      const report = response.data.data;
+      if (!report || !isEvalRunReport(report)) {
+        throw new Error("Renaming the eval run returned no run report");
+      }
+      return report;
+    } catch (error) {
+      if (!isVersionConflict(error) || attempt === RENAME_ATTEMPTS) {
+        throw error;
+      }
+      const latest = await unifiedApiClient.getReport({
+        organizationId,
+        reportId: current.id,
+      });
+      const report = latest.data.data;
+      if (!report || !isEvalRunReport(report)) {
+        throw new Error("Reading the eval run before renaming returned no run");
+      }
+      current = report;
+    }
+  }
+  throw new Error("Renaming the eval run did not complete");
+}
+
 export interface SaveEvalHumanReviewInput {
   projectId: string;
   evalId: string;
@@ -329,7 +418,8 @@ export function buildRunEvalStartPayload(
     );
   }
   const cases = new Map(run.payload.cases.map((c) => [c.id, c]));
-  const recordedAttempts: EvalRecordedAttempt[] = attempts.map((attempt) => {
+  const ordered = inLaunchOrder(run, attempts);
+  const recordedAttempts: EvalRecordedAttempt[] = ordered.map((attempt) => {
     const caseInput = cases.get(attempt.payload.caseInputId);
     if (!caseInput) {
       throw new Error(
@@ -355,6 +445,9 @@ export function buildRunEvalStartPayload(
       targetConversationId,
       caseInput,
       configuration: attempt.payload.configuration,
+      ...(attempt.payload.repeat !== undefined
+        ? { repeat: attempt.payload.repeat }
+        : {}),
     };
   });
   return {
@@ -364,6 +457,7 @@ export function buildRunEvalStartPayload(
     evalRunId: run.id,
     judgeSetup: run.payload.judgeSetup,
     settings: run.payload.settings,
+    cases: run.payload.cases,
     attempts: recordedAttempts,
   };
 }

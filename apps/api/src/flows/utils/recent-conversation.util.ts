@@ -1,4 +1,7 @@
-import { ArtifactResponseDto, ArtifactType } from 'src/generated';
+import {
+  ArtifactResponseDto,
+  ArtifactType,
+} from '@hey-hey/contracts/api/models';
 import { ArtifactService } from 'src/services/artifacts/artifact.service';
 import { OrganizationId, ProjectId } from 'src/types';
 import { formatArtifactForPrompt } from 'src/utils/artifact-formatting.util';

@@ -1,4 +1,4 @@
-import type { OrganizationResponseDto } from "@hey-hey/ui-common/api";
+import type { OrganizationResponseDto } from "@hey-hey/contracts/api";
 import { useOrganization } from "@hey-hey/ui-common/context";
 import {
   fireEvent,

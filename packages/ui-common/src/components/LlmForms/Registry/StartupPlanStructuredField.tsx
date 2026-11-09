@@ -188,8 +188,7 @@ type LegacyStructuredResponseContainer = {
 };
 
 type StartupPlanStructuredFieldValue =
-  | StartupPlanStructuredResponseValue
-  | LegacyStructuredResponseContainer;
+  StartupPlanStructuredResponseValue | LegacyStructuredResponseContainer;
 
 export type StartupPlanStructuredFieldProps =
   FieldComponentProps<StartupPlanStructuredFieldValue>;
@@ -275,7 +274,10 @@ const extractStartupPlan = (
       value.response,
     );
     if (parsedFromText.ok) {
-      return parsedFromText.value;
+      return {
+        ...parsedFromText.value,
+        requiredServiceIds: [...parsedFromText.value.requiredServiceIds],
+      };
     }
   }
 

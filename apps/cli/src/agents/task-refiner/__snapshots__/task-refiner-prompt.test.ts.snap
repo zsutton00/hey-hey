@@ -39,7 +39,7 @@ Widget renders correctly.
 
 ## Focal context orientation
 
-The canonical focal entity projection supplied at provider startup is your initial orientation. Do not reload that same focal entity by default. Read additional context only when the user requests fresh state, you need to follow a different referenced entity, or the supplied neighborhood is insufficient for the current work. In those cases, use \`get_context\` for a known entity and \`unified_search\` for discovery.
+The canonical focal entity projection supplied at provider startup is your initial orientation. Do not reload that same focal entity by default. Read additional context only when the user requests fresh state, you need to follow a different referenced entity, or the supplied neighborhood is insufficient for the current work. In those cases, pick the smallest read for the question, as described in Choosing the Smallest Read.
 
 ## RESPONSE FORMAT
 

@@ -23,7 +23,12 @@ describe('ControllerAuthorizationController', () => {
   it('requires both JWT authentication and organization membership', () => {
     expect(
       Reflect.getMetadata(GUARDS_METADATA, ControllerAuthorizationController),
-    ).toEqual([JwtAuthGuard, OrganizationGuard, ProjectAccessGuard, ControllerBindingOriginGuard]);
+    ).toEqual([
+      JwtAuthGuard,
+      OrganizationGuard,
+      ProjectAccessGuard,
+      ControllerBindingOriginGuard,
+    ]);
   });
 
   it('binds the generated resolve operation to its concrete POST route', () => {

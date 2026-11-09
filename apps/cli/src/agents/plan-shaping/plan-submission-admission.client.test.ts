@@ -6,8 +6,9 @@ import { SubmissionToolAuth } from '../submission-tools/submission-tool-auth';
 import { createTestRun } from '../../run/run.test-support';
 import { Turn } from '../../turn/turn';
 import { NOOP_LOGGER } from '../../server/logger';
-import { LocalPromptType } from '../../shared/agent-bridge-contract/generated/api';
-import type { PlansApi, PlanSubmissionAdmissionResponse } from '../../shared/api/generated/api';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import type { PlansApi } from '@hey-hey/contracts/api';
+import type { PlanSubmissionAdmissionResponse } from '@hey-hey/contracts/api/models';
 import { taskIdFromSession } from '../run-entity';
 
 function fixture(
@@ -18,7 +19,7 @@ function fixture(
   run.session.entity = null;
   run.setActiveTurn(
     new Turn({
-    effectiveRole: 'implementation',
+      effectiveRole: 'implementation',
       turnId: 'turn',
       runId: run.runId,
       resolvedPrompt: '',

@@ -1,5 +1,6 @@
 import { GetToolGuidanceToolsProvider } from './get-tool-guidance-tools.provider';
 import {
+  FEATURE_REQUIREMENT_CONCISION_GUIDANCE,
   TOOL_GUIDANCE,
   type ToolGuidanceBody,
   type ToolGuidanceKey,
@@ -133,6 +134,82 @@ describe('GetToolGuidanceToolsProvider', () => {
       );
 
       expect(getText(result)).toContain(STANDARD_TASK_DEPENDENCY_GUIDANCE);
+    },
+  );
+
+  it.each(['create_work_item', 'edit_work_item'] as const)(
+    'gives FEATURE %s guidance the concise-requirement rule once and keeps it off other types',
+    async (toolName) => {
+      const read = async (workItemType: string) =>
+        getText(
+          await provider.getToolGuidance(
+            {
+              toolName,
+              workItemType,
+              authoringRootProof: AUTHORING_ROOT_PROOF,
+            },
+            {} as any,
+            { headers: { 'x-project-id': PROJECT_ID } } as any,
+          ),
+        );
+
+      const feature = await read('FEATURE');
+      expect(
+        feature.split(FEATURE_REQUIREMENT_CONCISION_GUIDANCE),
+      ).toHaveLength(2);
+      for (const phrase of [
+        'as concise as possible',
+        'first sentence a self-contained summary of the promised behavior',
+        'only where it changes what is delivered',
+        'Cite the owning task, design doc or Contract instead of restating',
+        'Split a requirement that bundles several independent rules',
+      ]) {
+        expect(feature).toContain(phrase);
+      }
+
+      expect(await read('STANDARD')).not.toContain('Concise requirements');
+    },
+  );
+
+  it.each(['create_work_item', 'edit_work_item'] as const)(
+    'does not repeat the concise-requirement block in %s guidance when the FEATURE standards already carry it',
+    async (toolName) => {
+      const mode = toolName === 'create_work_item' ? 'create' : 'edit';
+      const original = registry.getRulesForProject.bind(registry);
+      const spy = jest
+        .spyOn(registry, 'getRulesForProject')
+        .mockImplementation((typeKey, projectId) => {
+          const rules = original(typeKey, projectId);
+          return typeKey === 'FEATURE'
+            ? {
+                ...rules,
+                writingStandards: {
+                  ...rules.writingStandards,
+                  [mode]: `${rules.writingStandards[mode]}\n\n${FEATURE_REQUIREMENT_CONCISION_GUIDANCE}`,
+                },
+              }
+            : rules;
+        });
+
+      try {
+        const text = getText(
+          await provider.getToolGuidance(
+            {
+              toolName,
+              workItemType: 'FEATURE',
+              authoringRootProof: AUTHORING_ROOT_PROOF,
+            },
+            {} as any,
+            { headers: { 'x-project-id': PROJECT_ID } } as any,
+          ),
+        );
+
+        expect(text.split(FEATURE_REQUIREMENT_CONCISION_GUIDANCE)).toHaveLength(
+          2,
+        );
+      } finally {
+        spy.mockRestore();
+      }
     },
   );
 
@@ -295,7 +372,9 @@ describe('GetToolGuidanceToolsProvider', () => {
 
   it('tells edits to revise a pending proposal via update_proposal, not creates', async () => {
     const ctx = { headers: { 'x-project-id': PROJECT_ID } } as any;
-    const workItem = (toolName: string) =>
+    const workItem = (
+      toolName: Parameters<typeof provider.getToolGuidance>[0]['toolName'],
+    ) =>
       provider.getToolGuidance(
         {
           toolName,

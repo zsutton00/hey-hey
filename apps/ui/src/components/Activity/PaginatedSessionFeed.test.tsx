@@ -6,7 +6,7 @@ import {
   MessageStatus,
   MessageType,
   type PaginatedAgentSessionItemDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { usePaginatedAgentSessions } from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import { act, fireEvent, render, screen } from "@testing-library/react";
@@ -198,7 +198,7 @@ const makeRect = (top: number, bottom: number): DOMRect =>
     x: 0,
     y: top,
     toJSON: () => ({}),
-  } as DOMRect);
+  }) as DOMRect;
 
 describe("PaginatedSessionFeed conversations variant", () => {
   beforeEach(() => {
@@ -269,8 +269,12 @@ describe("PaginatedSessionFeed conversations variant", () => {
       hasPendingUpdates: true,
     });
     renderConversations();
-    expect(screen.getByTestId("conversation-results")).toHaveStyle({ opacity: "0.5" });
-    expect(screen.getByRole("button", { name: "Updates available" })).toBeEnabled();
+    expect(screen.getByTestId("conversation-results")).toHaveStyle({
+      opacity: "0.5",
+    });
+    expect(
+      screen.getByRole("button", { name: "Updates available" }),
+    ).toBeEnabled();
     expect(screen.queryByRole("status")).toBeNull();
   });
 
@@ -699,7 +703,9 @@ describe("PaginatedSessionFeed coding variant refreshes", () => {
     );
     expect(results).toHaveStyle({ opacity: "1" });
     expect(results.scrollTop).toBe(200);
-    expect(screen.getByRole("status")).toHaveTextContent("There is new content. Load it?");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "There is new content. Load it?",
+    );
     expect(screen.getByRole("button", { name: "Load updates" })).toBeEnabled();
     expect(usePaginatedAgentSessionsMock().refetch).not.toHaveBeenCalled();
   });
@@ -838,7 +844,9 @@ describe("PaginatedSessionFeed coding variant refreshes", () => {
     ).mockReturnValue(makeRect(-250, 500));
     const originalRow = screen.getByTestId("coding-session-container-one");
     expect(refetch).not.toHaveBeenCalled();
-    expect(screen.getByRole("status")).toHaveTextContent("There is new content. Load it?");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "There is new content. Load it?",
+    );
     await user.click(screen.getByRole("button", { name: "Load updates" }));
     expect(refetch).toHaveBeenCalledOnce();
     expect(viewport.scrollTop).toBe(250);
@@ -849,7 +857,9 @@ describe("PaginatedSessionFeed coding variant refreshes", () => {
     rerender(view());
     expect(screen.getByTestId("session-feed-apply-updates")).toBeDisabled();
     expect(screen.getByRole("status")).toHaveTextContent("Loading updates…");
-    expect(screen.getByTestId("coding-session-results")).toHaveStyle({ opacity: "1" });
+    expect(screen.getByTestId("coding-session-results")).toHaveStyle({
+      opacity: "1",
+    });
     fireEvent.click(screen.getByTestId("session-feed-apply-updates"));
     expect(refetch).toHaveBeenCalledOnce();
     expect(screen.getByTestId("coding-session-container-one")).toBe(
@@ -901,9 +911,13 @@ describe("PaginatedSessionFeed coding variant refreshes", () => {
     );
     expect(screen.getByRole("alert")).toHaveTextContent("Failed");
     expect(screen.getByRole("button", { name: "Retry updates" })).toBeEnabled();
-    expect(screen.getByRole("status")).toHaveTextContent("Updates could not be loaded. Try again.");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Updates could not be loaded. Try again.",
+    );
     expect(results).toHaveStyle({ opacity: "1" });
-    expect(screen.getByTestId("coding-session-container-one")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("coding-session-container-one"),
+    ).toBeInTheDocument();
     await act(async () =>
       fireEvent.click(screen.getByTestId("session-feed-apply-updates")),
     );

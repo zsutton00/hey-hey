@@ -1,9 +1,15 @@
+import {
+  asConversationId,
+  asProjectId,
+  asServiceId,
+  asWorkflowId,
+} from '../test-utils/contract-ids';
 import { describe, expect, it } from 'vitest';
 import { PromptTypeRegistry } from './prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from './prompt-type-registry.test-support';
-import { LocalPromptType } from '../shared/agent-bridge-contract/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import { dailySessionHandler } from './daily-session/daily-session.handler';
-import type { RepositoryGroundingRequest } from '../shared/agent-bridge-contract/generated';
+import type { RepositoryGroundingRequest } from '@hey-hey/contracts/agent-bridge';
 import { freeFormHandler } from './coding-conversation';
 import { EVAL_CONSUMER_HANDLER_IDS } from './run-eval/eval-targets';
 
@@ -152,12 +158,12 @@ describe('prompt-type-registry', () => {
     (provider, resolvedFrontierModel, expectedRunner) => {
       const trigger = {
         promptType: LocalPromptType.RepositoryGrounding,
-        projectId: 'project-1',
-        conversationId: 'conversation-1',
-        workflowId: 'workflow-1',
+        projectId: asProjectId('project-1'),
+        conversationId: asConversationId('conversation-1'),
+        workflowId: asWorkflowId('workflow-1'),
         workflowNodeId: 'repository-grounding-analysis',
         entryMode: 'existing_project',
-        serviceId: 'service-1',
+        serviceId: asServiceId('service-1'),
         confirmedServiceBrief: 'Existing product',
         machineId: 'machine-1',
         scope: { scope: 'comprehensive' },
@@ -232,11 +238,29 @@ describe('prompt-type-registry', () => {
   it('resolves child-only handlers for the child launcher without making them dispatchable', () => {
     const section = registry.getChildHandler('project_report_section');
     expect(section?.childConfig?.submissionTools).toBe('run-registered');
-    expect(section?.childConfig?.submissionToolNames).toEqual(['read_evidence_shard']);
+    expect(section?.childConfig?.submissionToolNames).toEqual([
+      'read_evidence_shard',
+      'raise_uncertainty',
+    ]);
     expect(registry.list()).not.toContain(section);
     expect(registry.getById('project_report_section')).toBeUndefined();
     expect(registry.getChildHandler('research')).toBe(registry.getById('research'));
     expect(registry.getChildHandler('not_a_real_handler_id')).toBeUndefined();
+  });
+
+  it('mounts the report tool for every subagent handler that declares a required report', () => {
+    const handlers = registry
+      .list()
+      .filter((handler) => handler.reports.some((report) => report.required));
+
+    for (const handler of handlers) {
+      const names = handler.subagentConfig?.submissionToolNames;
+      if (names === undefined) {
+        continue;
+      }
+
+      expect(names, handler.id).toContain('create_report');
+    }
   });
 
   it('resolves every registered handler by its stable id', () => {

@@ -2,7 +2,7 @@ import type {
   RepositoryPlacementCompletion,
   RepositoryPlacementRequest,
   RepositoryPlacementSuccess,
-} from '../../shared/agent-bridge-contract/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
 
 export type RepositoryPlacementPromptPayload = RepositoryPlacementRequest;
 type RepositoryPlacementResult = RepositoryPlacementCompletion;

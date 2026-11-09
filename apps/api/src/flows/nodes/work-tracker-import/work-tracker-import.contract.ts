@@ -5,7 +5,7 @@ import {
   type WorkTrackerConnectionCompletion,
   type WorkTrackerImportRequest,
   type WorkTrackerImportSuccess,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import type { ExternalAgentActionSchemas } from '../../../types/flow-internal.types';
 import type { WorkTrackerImportFlowContext } from '../../../types/flow-internal.types';
 import { type FeatureGenerationResponse } from '../../utils/shared-schemas';

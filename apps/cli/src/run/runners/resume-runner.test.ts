@@ -1,3 +1,4 @@
+import { asProjectId } from '../../test-utils/contract-ids';
 import { describe, expect, it, vi } from 'vitest';
 import {
   createTestRunEventPublisher,
@@ -134,7 +135,7 @@ describe('ResumeRunner', () => {
         },
         provenance: {
           templateKey: 'task',
-          ownershipSource: { scope: 'PROJECT', projectId: 'proj-1' },
+          ownershipSource: { scope: 'PROJECT', projectId: asProjectId('proj-1') },
           revisionId: 'revision-2',
           revisionNumber: 2,
         },

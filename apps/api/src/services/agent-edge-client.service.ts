@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
   Injectable,
   Logger,
 } from '@nestjs/common';
@@ -27,6 +28,7 @@ import { OrganizationId, ProjectId } from 'src/types';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
   workflowEdgeActionLabelSchema,
+  workflowTransitionRoleSchema,
   workflowEdgePredicateSchema,
 } from 'src/services/proposal/workflow-proposal-link.schema';
 import {
@@ -56,6 +58,22 @@ const hasOwnField = (value: object, field: string): boolean =>
   Object.prototype.hasOwnProperty.call(value, field);
 
 export const AGENT_EDGE_BATCH_SIZE = 50;
+
+/** A downstream 4xx is the answer for the caller; anything else stays a server error. */
+function toCallerError(error: unknown): unknown {
+  if (!isAxiosError<string | object>(error) || !error.response) {
+    return error;
+  }
+
+  const { status, data } = error.response;
+  if (status < 400 || status >= 500) {
+    return error;
+  }
+
+  return status === 409
+    ? new ConflictException(data)
+    : new HttpException(data, status);
+}
 
 @Injectable()
 export class AgentEdgeClientService {
@@ -268,6 +286,15 @@ export class AgentEdgeClientService {
     if (hasActionLabel) {
       this.validateActionLabel(dto.actionLabel);
     }
+    const hasTransitionRole = hasOwnField(dto, 'transitionRole');
+    if (hasTransitionRole && !flowEdgeTypes.has(dto.type)) {
+      throw new BadRequestException(
+        'CreateAgentEdgeDto.transitionRole is only allowed for STANDARD, CONDITIONAL, and LOOP relationships.',
+      );
+    }
+    if (hasTransitionRole) {
+      this.validateTransitionRole(dto.transitionRole, 'CreateAgentEdgeDto');
+    }
     if (!flowEdgeTypes.has(dto.type)) return;
 
     if (dto.category !== AgentEdgeCategory.Flow) {
@@ -341,6 +368,17 @@ export class AgentEdgeClientService {
     }
   }
 
+  private validateTransitionRole(
+    transitionRole: unknown,
+    dtoName: 'CreateAgentEdgeDto' | 'UpdateAgentEdgeDto',
+  ): void {
+    if (!workflowTransitionRoleSchema.safeParse(transitionRole).success) {
+      throw new BadRequestException(
+        `${dtoName}.transitionRole must be PRIMARY_PROGRESSION, ERROR_PATH, RECOVERY, or RETURN.`,
+      );
+    }
+  }
+
   private validateActionLabel(
     actionLabel: CreateAgentEdgeDto['actionLabel'],
   ): void {
@@ -385,6 +423,9 @@ export class AgentEdgeClientService {
     }
     if (dto.actionLabel !== undefined && dto.actionLabel !== null) {
       this.validateActionLabel(dto.actionLabel);
+    }
+    if (dto.transitionRole !== undefined && dto.transitionRole !== null) {
+      this.validateTransitionRole(dto.transitionRole, 'UpdateAgentEdgeDto');
     }
   }
 
@@ -573,12 +614,7 @@ export class AgentEdgeClientService {
         downstream: axiosResponseToLoggable(error),
         agentEdgeId,
       });
-      if (
-        isAxiosError<string | object>(error) &&
-        error.response?.status === 409
-      )
-        throw new ConflictException(error.response.data);
-      throw error;
+      throw toCallerError(error);
     }
   }
 
@@ -636,12 +672,7 @@ export class AgentEdgeClientService {
         downstream: axiosResponseToLoggable(error),
         agentEdgeId,
       });
-      if (
-        isAxiosError<string | object>(error) &&
-        error.response?.status === 409
-      )
-        throw new ConflictException(error.response.data);
-      throw error;
+      throw toCallerError(error);
     }
   }
 

@@ -4,7 +4,7 @@ import {
   WorkItemTypeLifecycleStatus,
   WorkItemTypeRole,
   type WorkItemTypeSummaryDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NuqsAdapter } from "nuqs/adapters/react-router";

@@ -21,6 +21,7 @@ import { FindHintsByConnectedItemsRequest } from '../model/findHintsByConnectedI
 import { FindHintsByConnectedItemsResponse } from '../model/findHintsByConnectedItemsResponse';
 import { Hint } from '../model/hint';
 import { HintConnectionInput } from '../model/hintConnectionInput';
+import { HintOriginEntityType } from '../model/hintOriginEntityType';
 import { ListProjectHintsResponse } from '../model/listProjectHintsResponse';
 import { RemoveHintConnectionResponse } from '../model/removeHintConnectionResponse';
 import { SetHintConnectionStrengthDto } from '../model/setHintConnectionStrengthDto';
@@ -324,6 +325,105 @@ export class HintsService {
               ...headers,
               ...findHintsByConnectedItemsOpts?.config?.headers,
             },
+          },
+        );
+      }),
+    );
+  }
+  /**
+   * Find live hints written by one originating record
+   * Returns each live hint whose origin is the given entity type and ID, with all of its connections and strengths. Retired hints are never returned, and a hint with a different origin type is never matched even when the ID is the same. Callers filter by the visibility of each returned connection endpoint.
+   * @param organizationId Organization identifier
+   * @param projectId Project identifier
+   * @param originEntityType
+   * @param originEntityId
+   * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
+   * @param reportProgress flag to report request and response progress.
+   * @param {*} [findHintsByOriginOpts.config] Override http request option.
+   */
+  public findHintsByOrigin(
+    organizationId: string,
+    projectId: string,
+    originEntityType: HintOriginEntityType,
+    originEntityId: string,
+    findHintsByOriginOpts?: { config?: AxiosRequestConfig },
+  ): Observable<AxiosResponse<ListProjectHintsResponse>>;
+  public findHintsByOrigin(
+    organizationId: string,
+    projectId: string,
+    originEntityType: HintOriginEntityType,
+    originEntityId: string,
+    findHintsByOriginOpts?: { config?: AxiosRequestConfig },
+  ): Observable<any> {
+    if (organizationId === null || organizationId === undefined) {
+      throw new Error(
+        'Required parameter organizationId was null or undefined when calling findHintsByOrigin.',
+      );
+    }
+
+    if (projectId === null || projectId === undefined) {
+      throw new Error(
+        'Required parameter projectId was null or undefined when calling findHintsByOrigin.',
+      );
+    }
+
+    if (originEntityType === null || originEntityType === undefined) {
+      throw new Error(
+        'Required parameter originEntityType was null or undefined when calling findHintsByOrigin.',
+      );
+    }
+
+    if (originEntityId === null || originEntityId === undefined) {
+      throw new Error(
+        'Required parameter originEntityId was null or undefined when calling findHintsByOrigin.',
+      );
+    }
+
+    let queryParameters = new URLSearchParams();
+    if (originEntityType !== undefined && originEntityType !== null) {
+      queryParameters.append('originEntityType', <any>originEntityType);
+    }
+    if (originEntityId !== undefined && originEntityId !== null) {
+      queryParameters.append('originEntityId', <any>originEntityId);
+    }
+
+    let headers = { ...this.defaultHeaders };
+
+    let accessTokenObservable: Observable<any> = of(null);
+
+    // authentication (BearerAuth) required
+    if (typeof this.configuration.accessToken === 'function') {
+      accessTokenObservable = from(
+        Promise.resolve(this.configuration.accessToken()),
+      );
+    } else if (this.configuration.accessToken) {
+      accessTokenObservable = from(
+        Promise.resolve(this.configuration.accessToken),
+      );
+    }
+    // to determine the Accept header
+    let httpHeaderAccepts: string[] = ['application/json'];
+    const httpHeaderAcceptSelected: string | undefined =
+      this.configuration.selectHeaderAccept(httpHeaderAccepts);
+    if (httpHeaderAcceptSelected != undefined) {
+      headers['Accept'] = httpHeaderAcceptSelected;
+    }
+
+    // to determine the Content-Type header
+    const consumes: string[] = [];
+    return accessTokenObservable.pipe(
+      switchMap((accessToken) => {
+        if (accessToken) {
+          headers['Authorization'] = `Bearer ${accessToken}`;
+        }
+
+        return this.httpClient.get<ListProjectHintsResponse>(
+          `${this.basePath}/organizations/${encodeURIComponent(String(organizationId))}/projects/${encodeURIComponent(String(projectId))}/hints/by-origin`,
+          {
+            params: queryParameters,
+            withCredentials: this.configuration.withCredentials,
+            ...findHintsByOriginOpts?.config,
+            headers: { ...headers, ...findHintsByOriginOpts?.config?.headers },
           },
         );
       }),

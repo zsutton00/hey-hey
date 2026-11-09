@@ -1,4 +1,4 @@
-import { MachineExecutionReadinessState } from '../../../generated';
+import { MachineExecutionReadinessState } from '@hey-hey/contracts/api/models';
 import { MachineId, UserId } from '../../../types';
 import { MachineExecutionReadinessService } from '../machine-execution-readiness.service';
 

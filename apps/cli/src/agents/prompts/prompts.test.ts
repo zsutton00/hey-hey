@@ -11,12 +11,15 @@ import type {
   LocalStartupSessionPromptPayload,
   LocalVerificationPlanPromptPayload,
 } from '../../shared/agent-bridge-contract/index';
-import type { LocalEntityConversationEntityEntityTypeEnum } from '../../shared/agent-bridge-contract/generated/api';
-import type { ImplementationReadinessSourceSnapshot } from '../../shared/api/generated/api';
+import type { RunEntityReferenceEntityTypeEnum } from '@hey-hey/contracts/agent-bridge';
+import type { ImplementationReadinessSourceSnapshot } from '@hey-hey/contracts/api/models';
 import { buildChildTaskUpdatesPrompt } from './child-task-updates';
+import { raiseUncertaintyTool } from '../submission-tools/raise-uncertainty-tool';
 import {
   buildPlatformSystemPrompt,
   buildServicesContextBlock,
+  codingRepositoryAuthorityGuidance,
+  codingServiceScopeGuidance,
   consultGraphBeforeAsking,
   intentFirstGuidance,
   takingShapeGuidance,
@@ -30,6 +33,7 @@ import type { WorkItemTypeDefinitionDto } from './render-type-ontology';
 import { buildCodingConversationPrompt } from './coding-conversation';
 import { buildCompletionReconciliationPromptFor } from '../completion-reconciliation/prompts/common';
 import { buildEntityConversationPrompt } from './entity-conversation';
+import type { LoadedEntityPromptContext } from '../entity-context/types';
 import { buildFeatureTreeConversationPrompt } from '../feature-tree-conversation/feature-tree-conversation-prompt';
 import { buildFinalAssessmentPrompt } from './final-assessment';
 import { buildReviewPrompt } from './review';
@@ -152,9 +156,14 @@ describe('buildServicesContextBlock', () => {
     expect(result).toContain('`service-a` at `/worktrees/service-a`');
     expect(result).not.toContain('/host/service-a');
     expect(result).not.toContain('/host/service-b');
-    expect(result).toContain("Host checkouts are outside this session's working context");
-    expect(result).toContain('Mentions of a Service or repository');
-    expect(result).toContain('do not authorize inspection, edits, commits, or mutating commands');
+    expect(result).toContain(
+      'Do not use a host checkout as a fallback location for edits or other mutations',
+    );
+    expect(result).toContain('You may inspect code in any project Service');
+    expect(result).toContain(
+      "Read-only inspection does not add a Service to the Run's writable roots",
+    );
+    expect(result).toContain('does not authorize edits, commits, or mutating commands');
     expect(result).toContain('explicit corresponding worktree path');
     expect(result).toContain('never infer a worktree path');
   });
@@ -170,7 +179,28 @@ describe('buildServicesContextBlock', () => {
     expect(result).toContain('`service-b` at `/host/service-b`');
     expect(result).not.toContain('worktree-backed session');
     expect(result).not.toContain('Host checkouts are outside');
-    expect(result).toContain('Mentions of a Service or repository');
+    expect(result).toContain('You may inspect code in any project Service');
+  });
+
+  it('separates cross-Service inspection from approval-gated repository changes', () => {
+    expect(codingRepositoryAuthorityGuidance).toContain(
+      'You may inspect code in any project Service during planning or investigation',
+    );
+    expect(codingRepositoryAuthorityGuidance).toContain(
+      "Read-only inspection does not add a Service to the Run's writable roots",
+    );
+    expect(codingRepositoryAuthorityGuidance).toContain(
+      'A Service mention or repository path provides context only; it does not authorize edits, commits, or mutating commands',
+    );
+    expect(codingServiceScopeGuidance).toContain(
+      'may continue read-only inspection while approval is pending',
+    );
+    expect(codingServiceScopeGuidance).toContain('Do not edit, commit, or run mutating commands');
+    expect(codingServiceScopeGuidance).toContain('request_agent_session_service_scope');
+    expect(codingServiceScopeGuidance).toContain("Wait for the user's review");
+    expect(codingServiceScopeGuidance).toContain(
+      'Denial means keep working within the existing scope',
+    );
   });
 
   it('fails closed instead of exposing host checkouts for a partial worktree projection', () => {
@@ -204,6 +234,42 @@ describe('focalContextOrientation', () => {
 });
 
 describe('buildPlatformSystemPrompt', () => {
+  it('leaves the uncertainty rubric to the tool, so agents without it never see it', () => {
+    const prompt = buildPlatformSystemPrompt(sampleDefs);
+
+    expect(prompt).not.toContain('raise_uncertainty');
+    expect(prompt).not.toContain('Raising uncertainties');
+  });
+
+  it('delivers the rubric, including the question category, with the tool', () => {
+    const { description } = raiseUncertaintyTool;
+
+    expect(description).toContain('Map review P0/P1 to high, P2 to medium, and P3/P4 to low');
+    expect(description).toContain('question');
+  });
+
+  it('tells agents which read answers which question without dropping graph research', () => {
+    const prompt = buildPlatformSystemPrompt(sampleDefs);
+
+    const readChoices = prompt.slice(prompt.indexOf('## Choosing the Smallest Read'));
+    const bullets = readChoices.split('\n').filter((line) => line.startsWith('- '));
+    const advice = (tool: string): string | undefined =>
+      bullets.find((line) => line.includes(`\`${tool}\``));
+
+    expect(advice('get_entity_identities')).toMatch(/title/);
+    expect(advice('get_entity_identities')).toContain('entityType: "TASK"');
+    expect(advice('get_full_entity')).toMatch(/content/);
+    expect(advice('get_context')).toMatch(/hierarchy.*relationships.*proposal history/);
+    expect(advice('get_edges')).toMatch(/direct links/);
+    expect(advice('unified_search')).toMatch(/do not yet know/);
+
+    expect(prompt).not.toContain('is your primary orientation tool');
+    expect(prompt).toContain(consultGraphBeforeAsking);
+    expect(prompt).toMatch(/governing requirements and design decisions/);
+    expect(prompt).toContain('Identity lookup never replaces reading');
+    expect(prompt).toContain('Every pair needs an `entityType`');
+  });
+
   it('tells only Claude sessions that deferred MCP tools load through ToolSearch', () => {
     const build = (provider: 'claude' | 'codex' | 'opencode') =>
       buildPlatformSystemPrompt(sampleDefs, undefined, {
@@ -357,9 +423,7 @@ Good: "Turning Shared Browser off now stays off after you restart the CLI."`;
     expect(prompt.indexOf('**Links as connective tissue.**')).toBeLessThan(
       prompt.indexOf(paragraph),
     );
-    expect(prompt.indexOf(paragraph)).toBeLessThan(
-      prompt.indexOf('**Search as the default discovery move.**'),
-    );
+    expect(prompt.indexOf(paragraph)).toBeLessThan(prompt.indexOf('**Propose vs. edit vs. ask.**'));
     for (const agentPrompt of [
       buildCodingConversationPrompt(
         { userMessage: 'review knowledge' },
@@ -543,26 +607,29 @@ Good: "Turning Shared Browser off now stays off after you restart the CLI."`;
     );
   });
 
-  it('frames a plan as a single artifact for a feature, not an assembled collection of tasks', () => {
-    expect(buildPlatformSystemPrompt(sampleDefs)).toContain('authored as a single artifact');
-    expect(buildPlatformSystemPrompt(sampleDefs)).toContain(
-      'not assembled from pre-existing tasks',
-    );
-    expect(buildPlatformSystemPrompt(sampleDefs)).toContain('sequence of work for a feature');
-    expect(buildPlatformSystemPrompt(sampleDefs)).not.toContain(
-      'ordered collection of tasks and design docs',
-    );
-    expect(buildPlatformSystemPrompt(sampleDefs)).not.toContain('`create_plan`');
+  it('describes Plan only through the project type registry', () => {
+    const planType = {
+      ...sampleDefs[0]!,
+      key: 'PLAN',
+      name: 'Plan',
+      description:
+        'A staged, reviewable sequence of work authored as one artifact with create_plan and divided into dependency-ordered stages, not assembled from existing tasks.',
+      role: 'project-info',
+    } satisfies WorkItemTypeDefinitionDto;
+    const prompt = buildPlatformSystemPrompt([...sampleDefs, planType]);
+
+    expect(prompt.split('(`PLAN`)')).toHaveLength(2);
+    expect(prompt.split('**Work-item types.**')[1]).toContain('(`PLAN`)');
+    expect(prompt.split('authored as one artifact with create_plan')).toHaveLength(2);
   });
 
-  it('preserves the existing situational-awareness, links, search, and propose-edit-ask paragraphs', () => {
+  it('preserves the existing situational-awareness, links, and propose-edit-ask paragraphs', () => {
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain(
       'Situational awareness (passive reflex, not a fan-out)',
     );
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain('notice what I already see');
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain('src/agents/feature-sync/prompts.ts');
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain('Links as connective tissue');
-    expect(buildPlatformSystemPrompt(sampleDefs)).toContain('Search as the default discovery move');
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain('unified_search');
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain('Propose vs. edit vs. ask');
   });
@@ -601,13 +668,11 @@ Good: "Turning Shared Browser off now stays off after you restart the CLI."`;
 
   it('bundles the ambient platform-context block', () => {
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain('## Platform Context');
-    expect(buildPlatformSystemPrompt(sampleDefs)).toContain(
-      'Situating Yourself with `get_context`',
-    );
+    expect(buildPlatformSystemPrompt(sampleDefs)).toContain('## Choosing the Smallest Read');
   });
 
   it('bundles the mention-format block', () => {
-    expect(buildPlatformSystemPrompt(sampleDefs)).toContain('## Entity References (HARD STOP)');
+    expect(buildPlatformSystemPrompt(sampleDefs)).toContain('## Entity References');
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain('@[type:id|title]');
   });
 
@@ -727,6 +792,7 @@ describe('planVsTasksFork', () => {
   it('uses cohesive design and staged review within the plan as the test', () => {
     expect(planVsTasksFork).toContain('when cohesive design and staged review add value');
     expect(planVsTasksFork).toContain('offer a plan via `create_plan` or standalone tasks');
+    expect(planVsTasksFork).toContain('outside an existing plan');
   });
 
   it('prefers new feature work while preserving existing-system judgment and user choice', () => {
@@ -829,6 +895,15 @@ describe('consultGraphBeforeAsking', () => {
 describe('buildCodingPlanPrompt', () => {
   it('describes conversational review with explicit approval', () => {
     expect(buildCodingPlanPrompt({})).toMatchSnapshot();
+  });
+  it('keeps project-document updates reviewable after implementation', () => {
+    const prompt = buildCodingPlanPrompt({});
+    expect(prompt).toContain('do not promise that implementation will edit it');
+    expect(prompt).toContain(
+      'the reviewer will have a chance to update project documents after implementation',
+    );
+    expect(prompt).toContain('preserve the finding and its disposition');
+    expect(prompt).toContain('or make the document change a condition of completing the code work');
   });
   it('preserves current feedback, research, scope and the complete durable discussion', () => {
     expect(
@@ -1726,11 +1801,8 @@ describe('buildEntityConversationPrompt', () => {
     const prompt = buildEntityConversationPrompt(makeEntityPayload());
     expect(prompt).toContain(planVsTasksFork);
     expect(prompt).toMatch(/Contract Companion Proposals/i);
-    expect(prompt).toContain('ambient Contract-recognition boundary');
-    expect(prompt).toContain("relevant element's concrete inputs, outputs, and responsibility");
-    expect(prompt).toContain('outside a Diagram');
+    expect(prompt).toContain('recognition boundary from Contract Discovery and Enforcement');
     expect(prompt).toContain('root authoring guide and Contract-specific guide');
-    expect(prompt).toContain('reference roll-ups');
     expect(prompt).not.toContain('Attach every step evidenced as authoring');
     expect(prompt).toContain('boundary remains under-modeled');
     expect(prompt).toMatchSnapshot();
@@ -1764,12 +1836,6 @@ describe('buildEntityConversationPrompt', () => {
   it('includes the conversation role instruction', () => {
     const result = buildEntityConversationPrompt(makeEntityPayload());
     expect(result).toContain('user has started a conversation');
-  });
-
-  it('composes graph research once in Entity Conversation instructions', () => {
-    const result = buildEntityConversationPrompt(makeEntityPayload());
-    expect(result.match(/## Widening graph research/gu)).toHaveLength(1);
-    expect(result).toContain('no supplied Service association or session Service context');
   });
 
   it('includes page context when provided', () => {
@@ -1869,7 +1935,7 @@ describe('buildEntityConversationPrompt', () => {
         makeEntityPayload({
           entity: {
             entityId: 'task-1',
-            entityType: '' as LocalEntityConversationEntityEntityTypeEnum,
+            entityType: '' as RunEntityReferenceEntityTypeEnum,
           },
         }),
       ),
@@ -1931,6 +1997,50 @@ describe('buildEntityConversationPrompt', () => {
   it('includes the plan-vs-tasks fork', () => {
     const result = buildEntityConversationPrompt(makeEntityPayload());
     expect(result).toContain('## Plan vs. tasks');
+  });
+
+  describe('plan task placement', () => {
+    const planned = (taskType: string, planContext?: object) =>
+      buildEntityConversationPrompt(
+        makeEntityPayload({
+          entity: { ...makeEntityPayload().entity, taskType },
+        }),
+        planContext
+          ? ({
+              kind: 'entity',
+              context: { planContext },
+            } as unknown as LoadedEntityPromptContext)
+          : undefined,
+      );
+
+    it.each([
+      ['a plan', planned('PLAN')],
+      ['a plan stage', planned('PLAN_STAGE')],
+      [
+        'a task within a plan',
+        planned('STANDARD', {
+          parentPlan: { id: 'p' },
+          parentStage: { id: 's' },
+        }),
+      ],
+    ])('keeps plan work inside the plan for %s', (_label, result) => {
+      expect(result).toContain('## Plan task placement');
+      expect(result).toContain('beneath a stage of the containing plan');
+      expect(result).toContain('Default to the focal stage');
+      expect(result).toContain('ask the user when none clearly fits');
+      expect(result).toContain('Only obviously unrelated work may be standalone');
+      expect(result).toContain('`DEPENDS_ON`');
+      expect(result).toContain('do not copy a task');
+      expect(result).toContain('not your placement reasoning');
+    });
+
+    it.each([
+      ['a standalone task', planned('STANDARD', {})],
+      ['a feature', planned('FEATURE')],
+      ['an entity without loaded context', buildEntityConversationPrompt(makeEntityPayload())],
+    ])('adds no placement guidance for %s', (_label, result) => {
+      expect(result).not.toContain('## Plan task placement');
+    });
   });
 
   it('includes custom-type mutation guidance across creation, project-owned editing, grounding, and user intent', () => {
@@ -2171,7 +2281,11 @@ describe('buildCodingConversationPrompt', () => {
     expect(result).toContain('## Follow References');
     expect(result).toContain('## Plan vs. tasks');
     expect(result).toContain('## Additional Service scope');
-    expect(result.endsWith(buildCompletionReconciliationPromptFor(new Set()))).toBe(true);
+    expect(
+      result.endsWith(
+        buildCompletionReconciliationPromptFor({ startedPromptTypes: new Set(), focalTask: true }),
+      ),
+    ).toBe(true);
     expect(result).toMatchSnapshot();
   });
 
@@ -2179,7 +2293,9 @@ describe('buildCodingConversationPrompt', () => {
     const result = buildCodingConversationPrompt({ userMessage: 'go' }, { kind: 'launch' });
     expect(result).toContain('A readiness response replaces the completion JSON below');
     expect(result.indexOf('## Implementation-readiness preflight')).toBeLessThan(
-      result.indexOf(buildCompletionReconciliationPromptFor(new Set())),
+      result.indexOf(
+        buildCompletionReconciliationPromptFor({ startedPromptTypes: new Set(), focalTask: true }),
+      ),
     );
   });
 

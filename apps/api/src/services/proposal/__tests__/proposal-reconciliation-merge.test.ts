@@ -1,4 +1,4 @@
-import type { UpdateTaskDto } from 'src/generated';
+import type { UpdateTaskDto } from '@hey-hey/contracts/api/models';
 import { reconciliationPatch } from '../proposal-reconciliation-content';
 import { mergeProposalContent } from '../proposal-reconciliation-merge';
 

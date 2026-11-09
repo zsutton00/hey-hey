@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import type { StagedBrowserTabReference } from "../../../../local-agent-api/generated/api";
+import type { StagedBrowserTabReference } from "@hey-hey/contracts/local";
 import {
   createDirectoryBindingApi,
   LocalStagedBrowserTabOpenError,

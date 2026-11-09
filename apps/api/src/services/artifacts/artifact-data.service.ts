@@ -11,7 +11,7 @@ import {
   QAPairData,
   RequirementData,
   TaskOriginalArtifactData,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 
 @Injectable()
 export class ArtifactDataService {

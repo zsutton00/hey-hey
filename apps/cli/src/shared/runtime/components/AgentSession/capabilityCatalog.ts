@@ -1,7 +1,7 @@
 import {
   ConversationStartRunRequestDtoProviderEnum,
   ConversationStartRunRequestDtoReasoningEffortEnum,
-} from '../../../api/generated/index';
+} from '@hey-hey/contracts/api/models';
 
 export interface OpencodeModelRef {
   providerID: string;

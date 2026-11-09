@@ -1,12 +1,12 @@
-import { LocalPromptType } from 'src/generated/local';
-import { WorkflowName } from 'src/generated';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge/models';
+import { WorkflowName } from '@hey-hey/contracts/api/models';
 import { AgentSessionService } from 'src/services/agent-session.service';
 import { TaskId } from 'src/types';
 import { FeatureSyncFlowContext } from 'src/types/flow-internal.types';
 import { FEATURE_SYNC_NODES } from '../constants';
 import { FEATURE_SYNC_ACTIONS } from '../nodes/feature-sync/schemas';
 import { createFlow } from './utils';
-import { WorkflowReviewAction } from 'src/generated';
+import { WorkflowReviewAction } from '@hey-hey/contracts/api/models';
 
 /**
  * Initial feature-sync flow.
@@ -69,7 +69,8 @@ export const featureSyncFlow = createFlow<FeatureSyncFlowContext>({
         },
         [FEATURE_SYNC_ACTIONS.READINESS_CLEAR]: {
           nextNodeId: FEATURE_SYNC_NODES.CODING_PLAN,
-          description: 'No consequential implementation decision remains unresolved.',
+          description:
+            'No consequential implementation decision remains unresolved.',
         },
         [FEATURE_SYNC_ACTIONS.READINESS_REVIEW_REQUIRED]: {
           nextNodeId: FEATURE_SYNC_NODES.IMPLEMENTATION_READINESS_REVIEW,
@@ -83,15 +84,18 @@ export const featureSyncFlow = createFlow<FeatureSyncFlowContext>({
       transitions: {
         default: {
           nextNodeId: FEATURE_SYNC_NODES.IMPLEMENTATION_READINESS_REVIEW,
-          description: 'Keep the readiness finding visible for an unrecognized action.',
+          description:
+            'Keep the readiness finding visible for an unrecognized action.',
         },
         implementation_readiness_reply: {
           nextNodeId: FEATURE_SYNC_NODES.ANALYZE,
-          description: 'Return clarification through the standard composer for a fresh check.',
+          description:
+            'Return clarification through the standard composer for a fresh check.',
         },
         implementation_readiness_dismiss: {
           nextNodeId: FEATURE_SYNC_NODES.CODING_PLAN,
-          description: 'Dismiss the finding for this unchanged run and source snapshot.',
+          description:
+            'Dismiss the finding for this unchanged run and source snapshot.',
         },
       },
     },

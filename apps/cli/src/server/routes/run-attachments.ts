@@ -10,7 +10,7 @@ import {
   type LocalRunAttachmentOpenErrorResponse,
   type LocalRunAttachmentOpenSuccessResponse,
   type LocalRunAttachmentSuccessResponse,
-} from '../../shared/local-agent-api/generated/api';
+} from '@hey-hey/contracts/local';
 import {
   AttachmentOpenerUnavailableError,
   createAttachmentShower,

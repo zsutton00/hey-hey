@@ -2,7 +2,7 @@ import {
   SystemMessageData,
   UserMessageAgentInputProvenance,
   UserMessageData,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { isAgentSystemMessageData } from '../../utils/type-checks';
 
 export type GenericMessageConsequence =
@@ -34,6 +34,7 @@ export const SYSTEM_MESSAGE_CONSEQUENCE = {
   TASK_MONITOR_SUPERVISION: 'PASSIVE_PROJECTION',
   TASK_MONITOR_LAUNCH_RECOVERY: 'PASSIVE_PROJECTION',
   CARRIER: 'PASSIVE_PROJECTION',
+  AGENT_UNCERTAINTY: 'PASSIVE_PROJECTION',
 } satisfies Record<SystemMessageData.TypeEnum, GenericMessageConsequence>;
 
 export const genericSystemMessageViolation = (

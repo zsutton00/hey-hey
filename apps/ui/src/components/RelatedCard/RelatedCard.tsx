@@ -2,7 +2,7 @@ import {
   type ContextRelatedEntityDto,
   type EntityContextDtoProposalsInner,
   type WorkItemTypeDefinitionDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import { Card, isVisualArtifactTypeKey } from "@hey-hey/ui-common/components";
 import { useWorkItemTypes } from "@hey-hey/ui-common/data";
 import { Box, List, Stack, Typography } from "@mui/material";
@@ -57,19 +57,19 @@ export const RelatedCard: React.FC<RelatedCardProps> = ({
     }[] = [];
     const seen = new Set<string>();
     const prioritizeDependencies = (
-      rows: MergedEntityRow[]
+      rows: MergedEntityRow[],
     ): MergedEntityRow[] => [
       ...rows.filter((row) =>
-        row.relationships.includes(DEPENDS_ON_RELATIONSHIP)
+        row.relationships.includes(DEPENDS_ON_RELATIONSHIP),
       ),
       ...rows.filter(
-        (row) => !row.relationships.includes(DEPENDS_ON_RELATIONSHIP)
+        (row) => !row.relationships.includes(DEPENDS_ON_RELATIONSHIP),
       ),
     ];
     const visibleBuckets = new Map(
       Array.from(taskBuckets).filter(
-        ([typeKey]) => !isVisualArtifactTypeKey(typeKey)
-      )
+        ([typeKey]) => !isVisualArtifactTypeKey(typeKey),
+      ),
     );
 
     for (const type of workItemTypes) {
@@ -103,9 +103,9 @@ export const RelatedCard: React.FC<RelatedCardProps> = ({
   >(
     () =>
       new Map(
-        workItemTypes.map(({ definition }) => [definition.key, definition])
+        workItemTypes.map(({ definition }) => [definition.key, definition]),
       ),
-    [workItemTypes]
+    [workItemTypes],
   );
 
   const hasDesignDocs = designDocRows.length > 0;
@@ -120,7 +120,7 @@ export const RelatedCard: React.FC<RelatedCardProps> = ({
       projectId,
       testIdPrefix,
       workItemTypeDefinitions,
-      workItemTypes
+      workItemTypes,
     );
 
   return (
@@ -162,7 +162,7 @@ export const RelatedCard: React.FC<RelatedCardProps> = ({
                   <List dense disablePadding>
                     {otherRows.map(renderRow)}
                     {userInfluenceRows.map((user) =>
-                      renderUserRow(user, projectId, testIdPrefix)
+                      renderUserRow(user, projectId, testIdPrefix),
                     )}
                   </List>
                 </Box>

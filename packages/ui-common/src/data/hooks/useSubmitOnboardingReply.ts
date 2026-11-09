@@ -4,6 +4,7 @@ import type {
   SubmitOnboardingReplyRequestDto,
 } from "../../api";
 import { unifiedApiClient } from "../../clients/serviceClients";
+import { toOpenApiMessageId } from "../../clients/contractIdentifierAdapters";
 import { useCallback } from "react";
 import type { MutationOptions } from "../core/useMutation";
 import { useMutation } from "../core/useMutation";
@@ -20,7 +21,7 @@ export type UseSubmitOnboardingReplyOptions =
   MutationOptions<MessageResponseDto>;
 
 export function useSubmitOnboardingReply(
-  options: UseSubmitOnboardingReplyOptions = {}
+  options: UseSubmitOnboardingReplyOptions = {},
 ) {
   const mutationFn = useCallback(
     async ({
@@ -45,7 +46,7 @@ export function useSubmitOnboardingReply(
         throw new Error("No current conversation version returned from API");
       }
       const request: SubmitOnboardingReplyRequestDto = {
-        parentMessageId,
+        parentMessageId: toOpenApiMessageId(parentMessageId),
         expectedConversationVersion,
         answers,
       };
@@ -63,7 +64,7 @@ export function useSubmitOnboardingReply(
 
       return message;
     },
-    []
+    [],
   );
 
   return useMutation(mutationFn, options);

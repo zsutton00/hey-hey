@@ -2,7 +2,7 @@ import {
   AgentSessionStatus,
   AgentSessionType,
   type AgentSessionStatusChangedEvent,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ProjectReportRequestService } from '../project-report-request.service';
 import { ProjectReportSessionOutcomeListener } from '../project-report-session-outcome.listener';

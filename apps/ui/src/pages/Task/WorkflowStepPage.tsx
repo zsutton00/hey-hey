@@ -15,7 +15,7 @@ import {
   type ContextRelatedEntityDto,
   type EntityContextDtoProposalsInner,
   type PlanContextEntryDto,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import {
   useFullEntityContext,
   useProject,

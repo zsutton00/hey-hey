@@ -13,6 +13,12 @@ Usage: migration-stack-remote.sh [STACK_NAME] [--worktree WORKTREE_NAME]
        migration-stack-remote.sh up STACK_NAME [--worktree NAME] [--timeout SEC]
            [--api-env KEY=VALUE ... | --api-env-file FILE]
        migration-stack-remote.sh down STACK_NAME
+       migration-stack-remote.sh provision STACK_NAME [--worktree NAME] [--timeout SEC]
+           [--api-env KEY=VALUE ... | --api-env-file FILE]
+       migration-stack-remote.sh replay STACK_NAME [--dry-run] [--skip N] [--batch-size N] [--delay-ms N]
+       migration-stack-remote.sh mark-provisioned STACK_NAME [--replay-completed] [--revision NAME=VALUE ...]
+       migration-stack-remote.sh stop STACK_NAME
+       migration-stack-remote.sh resume STACK_NAME [--timeout SEC]
        migration-stack-remote.sh restart STACK_NAME SERVICE [--timeout SEC]
        migration-stack-remote.sh tunnel STACK_NAME
        migration-stack-remote.sh db-tunnel STACK_NAME --local-port PORT
@@ -23,6 +29,14 @@ Syncs the current local source checkouts to the configured Linux Docker host,
 starts the named migration stack there, and forwards its UI/API ports locally.
 The explicit up command exits after API and UI readiness; tunnel commands keep
 their SSH connection open until interrupted.
+
+provision syncs sources like up but starts only the data stores and the Graph
+and Embeddings consumers; the API stays down until resume. Run replay once,
+reconcile, then mark-provisioned and resume.
+
+down is destructive: it removes the stack's volumes and remote staging directory.
+stop keeps both. resume restarts a stopped, provisioned stack on its existing data
+without syncing sources, importing the bootstrap or replaying history.
 
 Set HEY_HEY_MIGRATION_REMOTE_TARGET to an SSH target (user@host or SSH config
 host). The Linux host's existing migration-stack bootstrap is copied into the
@@ -36,7 +50,7 @@ if [[ "${1:-}" == '-h' || "${1:-}" == '--help' ]]; then
 fi
 operation=interactive
 case "${1:-}" in
-  up|down|restart|tunnel|db-tunnel|reverse-tunnel|status)
+  up|provision|replay|mark-provisioned|down|stop|resume|restart|tunnel|db-tunnel|reverse-tunnel|status)
     operation="$1"
     shift
     ;;
@@ -56,27 +70,36 @@ if [[ "$operation" == 'restart' ]]; then
   shift
   [[ "$service" =~ ^[a-z][a-z0-9-]*$ ]] || { echo 'Error: invalid service name.' >&2; exit 2; }
 fi
+forward_args=()
+if [[ "$operation" == 'replay' || "$operation" == 'mark-provisioned' ]]; then
+  # These flags belong to the launcher; accept only plain option tokens.
+  for forwarded in "$@"; do
+    [[ "$forwarded" =~ ^[A-Za-z0-9._=,/-]+$ ]] || { usage >&2; exit 2; }
+    forward_args+=("$forwarded")
+  done
+  set --
+fi
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --worktree)
-      [[ "$operation" == 'up' || "$operation" == 'interactive' ]] &&
+      [[ "$operation" == 'up' || "$operation" == 'provision' || "$operation" == 'interactive' ]] &&
         [[ $# -ge 2 && -n "$2" && "$2" != -* && "$2" != */* ]] || { usage >&2; exit 2; }
       worktree_name="$2"
       shift 2
       ;;
     --timeout)
-      [[ "$operation" == 'up' || "$operation" == 'interactive' || "$operation" == 'restart' ]] &&
+      [[ "$operation" == 'up' || "$operation" == 'provision' || "$operation" == 'interactive' || "$operation" == 'restart' || "$operation" == 'resume' ]] &&
         [[ $# -ge 2 && "$2" =~ ^[0-9]+$ && "$2" -gt 0 ]] || { echo 'Error: --timeout requires positive seconds.' >&2; exit 2; }
       readiness_timeout="$2"
       shift 2
       ;;
     --api-env)
-      [[ "$operation" == 'up' || "$operation" == 'interactive' ]] && [[ $# -ge 2 && "$2" == *=* ]] || { usage >&2; exit 2; }
+      [[ "$operation" == 'up' || "$operation" == 'provision' || "$operation" == 'interactive' ]] && [[ $# -ge 2 && "$2" == *=* ]] || { usage >&2; exit 2; }
       api_env_assignments+=("$2")
       shift 2
       ;;
     --api-env-file)
-      [[ "$operation" == 'up' || "$operation" == 'interactive' ]] && [[ $# -ge 2 && -f "$2" ]] || { usage >&2; exit 2; }
+      [[ "$operation" == 'up' || "$operation" == 'provision' || "$operation" == 'interactive' ]] && [[ $# -ge 2 && -f "$2" ]] || { usage >&2; exit 2; }
       api_env_file="$2"
       shift 2
       ;;
@@ -200,6 +223,22 @@ else
   echo 'Migration stack heyhey-${safe_name} is already absent.'
 fi
 rm -rf -- "\$stack_root"
+EOF
+  exit
+fi
+
+if [[ "$operation" == 'stop' || "$operation" == 'resume' || "$operation" == 'replay' || "$operation" == 'mark-provisioned' ]]; then
+  # Neither operation touches the staging directory, sources or other stacks.
+  # Check first so a missing stack is not given a control directory.
+  ssh "$remote_target" "[ -f \"\$HOME/${remote_runtime}\" ]" ||
+    { echo 'Error: named stack has no runtime file; nothing was changed.' >&2; exit 1; }
+  sync_control_script
+  ssh "$remote_target" "bash -se" <<EOF
+set -euo pipefail
+stack_root="\$HOME/${remote_root}"
+cd "\$stack_root/sources/api"
+export HEY_HEY_MIGRATION_STATE_ROOT="\$stack_root/state"
+bash "\$stack_root/control/migration-stack.sh" --api-root "\$PWD" ${operation} --name '${safe_name}'$(if [[ "$operation" == 'resume' ]]; then printf " --timeout '%s'" "$readiness_timeout"; fi)$(for forwarded in ${forward_args[@]+"${forward_args[@]}"}; do printf " '%s'" "$forwarded"; done)
 EOF
   exit
 fi
@@ -373,6 +412,8 @@ sync_private_file "${EMBEDDINGS_ENV_ROOT}/.env" "${remote_sources}/embeddings/.e
 ssh "$remote_target" "umask 077; mkdir -p \"\$HOME/${remote_sources}/api/.tmp/migration-stack/${safe_name}\""
 sync_private_file "$api_extra_source" "${remote_sources}/api/.tmp/migration-stack/${safe_name}/api-extra.env"
 
+launcher_command=up
+[[ "$operation" != 'provision' ]] || launcher_command=provision
 remote_command="$(cat <<EOF
 set -e
 remote_root="\$HOME/${remote_root}"
@@ -406,7 +447,7 @@ if [[ ! -s "\$remote_root/state/bootstrap/application.dump" ]]; then
   # Older source checkouts require a host pg_restore even on Docker-only hosts.
   docker run --rm \\
     --mount "type=bind,source=\$existing_bootstraps,target=/bootstrap.dump,readonly" \\
-    postgres:13 pg_restore --list /bootstrap.dump >/dev/null
+    postgres:17 pg_restore --list /bootstrap.dump >/dev/null
   bootstrap_dir="\$remote_root/state/bootstrap"
   umask 077
   cp "\$existing_bootstraps" "\$bootstrap_dir/application.dump.tmp"
@@ -421,7 +462,7 @@ if [[ ! -s "\$remote_root/state/bootstrap/application.dump" ]]; then
   mv "\$bootstrap_dir/application.dump.tmp" "\$bootstrap_dir/application.dump"
 fi
 printf '[%s] Building and starting stack ${safe_name}; waiting for health checks...\\n' "\$(date -u +%Y-%m-%dT%H:%M:%SZ)" >&2
-bash "\$remote_root/control/migration-stack.sh" --api-root "\$api_root" up --name '${safe_name}' --timeout '${readiness_timeout}' >&2
+bash "\$remote_root/control/migration-stack.sh" --api-root "\$api_root" ${launcher_command} --name '${safe_name}' --timeout '${readiness_timeout}' >&2
 printf '[%s] Stack ${safe_name} startup completed.\\n' "\$(date -u +%Y-%m-%dT%H:%M:%SZ)" >&2
 sed -n -e '/^STACK_UI_PORT=/p' -e '/^STACK_API_PORT=/p' "\$api_root/.tmp/migration-stack/${safe_name}/runtime.env"
 EOF
@@ -444,6 +485,10 @@ done <<<"$port_output"
 
 printf 'UI: http://%s:%s\nAPI: http://%s:%s\n' "$STACK_HOSTNAME" "$ui_port" "$STACK_HOSTNAME" "$api_port"
 printf 'Mac hosts entry: 127.0.0.1 %s\n' "$STACK_HOSTNAME"
+if [[ "$operation" == 'provision' ]]; then
+  log_phase "Stack ${safe_name} data stores and consumers are up; the API is not started. Run replay next."
+  exit 0
+fi
 if [[ "$operation" == 'up' ]]; then
   log_phase "Stack ${safe_name} is ready. Run mstack tunnel ${safe_name} to open UI/API forwards."
   exit 0

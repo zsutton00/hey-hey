@@ -1,4 +1,6 @@
 import type { PropsWithChildren, ReactElement } from "react";
+import { ThemeProvider } from "@mui/material/styles";
+import { createHeyTheme } from "../../../contexts/ThemeContext";
 import {
   fireEvent,
   render as renderWithTestingLibrary,
@@ -128,6 +130,7 @@ const evidenceReport: ReportDto = {
   reportType: ReportType.EvidencePipeline,
   title: "Evidence Pipeline",
   payload: {
+    reportType: "EVIDENCE_PIPELINE",
     plannerInput: {
       messageCount: 2,
       optionKeys: ["scope"],
@@ -1539,7 +1542,11 @@ describe("ReportViewer dispatcher", () => {
       } satisfies DecisionNeededReportPayload,
     } as ReportDto;
 
-    render(<ReportViewer report={decisionNeededReport} />);
+    render(
+      <ThemeProvider theme={createHeyTheme("light")}>
+        <ReportViewer report={decisionNeededReport} />
+      </ThemeProvider>,
+    );
 
     const baseTestId = "report-viewer-dispatch-decision-needed";
     const renderer = screen.getByTestId(`${baseTestId}-decision-needed`);
@@ -1561,9 +1568,9 @@ describe("ReportViewer dispatcher", () => {
     ).toBeTruthy();
     expect(optionDescriptions).toHaveLength(3);
     expect(optionDescriptions.map(({ textContent }) => textContent)).toEqual([
-      "1. Preserve the current presentation.",
-      "2. Adopt the compact presentation.",
-      "3. Use a responsive hybrid presentation.",
+      "Preserve the current presentation.",
+      "Adopt the compact presentation.",
+      "Use a responsive hybrid presentation.",
     ]);
     expect(
       optionDescriptions.map((option) => option.dataset.optionNumber),

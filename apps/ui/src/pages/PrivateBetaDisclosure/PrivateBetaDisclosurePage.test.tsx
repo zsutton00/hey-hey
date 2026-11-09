@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DISCLOSURE_REQUIREMENTS } from "../Legal/legalContent";
 import { PrivateBetaDisclosurePage } from "./PrivateBetaDisclosurePage";
@@ -16,9 +16,7 @@ const makeStatus = (recordedAcceptances = [], isComplete = false) => ({
   data: {
     requiredDocuments: DISCLOSURE_REQUIREMENTS.map((requirement) => ({
       documentKind: requirement.documentKey.toUpperCase() as
-        | "TERMS"
-        | "PRIVACY"
-        | "SECURITY",
+        "TERMS" | "PRIVACY" | "SECURITY",
       version: requirement.version,
       effectiveDate: requirement.effectiveDate,
       actionType: requirement.actionType,
@@ -46,6 +44,11 @@ const makeStatus = (recordedAcceptances = [], isComplete = false) => ({
   submitAcceptance: vi.fn().mockResolvedValue({ accepted: true }),
 });
 
+const WelcomeProbe = () => {
+  const location = useLocation();
+  return <div data-testid="welcome">{location.search}</div>;
+};
+
 const renderPage = (initialEntry = "/private-beta/disclosure") =>
   render(
     <MemoryRouter initialEntries={[initialEntry]}>
@@ -55,12 +58,9 @@ const renderPage = (initialEntry = "/private-beta/disclosure") =>
           element={<PrivateBetaDisclosurePage />}
         />
         <Route path="/home" element={<div data-testid="home">Home</div>} />
-        <Route
-          path="/projects/project-1"
-          element={<div data-testid="returned-destination">Project</div>}
-        />
+        <Route path="/welcome" element={<WelcomeProbe />} />
       </Routes>
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 
 describe("PrivateBetaDisclosurePage", () => {
@@ -76,64 +76,68 @@ describe("PrivateBetaDisclosurePage", () => {
     renderPage();
 
     expect(
-      screen.getByRole("heading", { name: /before you enter/i })
+      screen.getByRole("heading", { name: /before you enter/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/Terms of Service/i)).toBeInTheDocument();
     expect(screen.queryByText(/Privacy Policy/i)).not.toBeInTheDocument();
     expect(
-      screen.queryByText(/Agent Bridge Security Boundary/i)
+      screen.queryByText(/Agent Bridge Security Boundary/i),
     ).not.toBeInTheDocument();
     expect(screen.getAllByRole("checkbox")).toHaveLength(1);
     expect(
-      screen.getByLabelText(
-        /agree to the current terms/i
-      )
+      screen.getByLabelText(/agree to the current terms/i),
     ).toBeInTheDocument();
     expect(screen.getAllByText(/Version 1\.2-beta/)).toHaveLength(1);
   });
 
-  it("submits distinct current actions and returns to the original destination", async () => {
-    const user = userEvent.setup();
-    const submitAcceptance = vi.fn().mockResolvedValue({ accepted: true });
-    const refetch = vi.fn().mockResolvedValue({
-      ...makeStatus([], true).data,
-      recordedAcceptances: [
-        {
-          documentKind: "TERMS",
-          version: "1.2-beta",
-          effectiveDate: "2026-09-14",
-          actionType: "AGREED",
-        },
-      ],
-      isComplete: true,
-    });
-    usePrivateBetaDisclosureMock.mockReturnValue({
-      ...makeStatus(),
-      submitAcceptance,
-      refetch,
-    });
+  it.each([
+    ["/projects/project-1", ""],
+    ["/welcome?projectId=project-1", "?projectId=project-1"],
+  ])(
+    "after accepting with return target %s it continues to /welcome",
+    async (returnTo, expectedSearch) => {
+      const user = userEvent.setup();
+      const submitAcceptance = vi.fn().mockResolvedValue({ accepted: true });
+      const refetch = vi.fn().mockResolvedValue({
+        ...makeStatus([], true).data,
+        recordedAcceptances: [
+          {
+            documentKind: "TERMS",
+            version: "1.2-beta",
+            effectiveDate: "2026-09-14",
+            actionType: "AGREED",
+          },
+        ],
+        isComplete: true,
+      });
+      usePrivateBetaDisclosureMock.mockReturnValue({
+        ...makeStatus(),
+        submitAcceptance,
+        refetch,
+      });
 
-    renderPage("/private-beta/disclosure?returnTo=%2Fprojects%2Fproject-1");
+      renderPage(
+        `/private-beta/disclosure?returnTo=${encodeURIComponent(returnTo)}`,
+      );
 
-    await user.click(
-      screen.getByLabelText(/agree to the current terms/i)
-    );
-    await user.click(
-      screen.getByRole("button", { name: /continue to hey hey/i })
-    );
+      await user.click(screen.getByLabelText(/agree to the current terms/i));
+      await user.click(
+        screen.getByRole("button", { name: /continue to hey hey/i }),
+      );
 
-    expect(submitAcceptance).toHaveBeenCalledTimes(1);
-    expect(submitAcceptance).toHaveBeenNthCalledWith(1, {
-      documentKind: "TERMS",
-      version: "1.2-beta",
-      effectiveDate: "2026-09-14",
-      actionType: "AGREED",
-    });
-    expect(refetch).toHaveBeenCalledOnce();
-    expect(
-      await screen.findByTestId("returned-destination")
-    ).toBeInTheDocument();
-  });
+      expect(submitAcceptance).toHaveBeenCalledTimes(1);
+      expect(submitAcceptance).toHaveBeenNthCalledWith(1, {
+        documentKind: "TERMS",
+        version: "1.2-beta",
+        effectiveDate: "2026-09-14",
+        actionType: "AGREED",
+      });
+      expect(refetch).toHaveBeenCalledOnce();
+      expect(await screen.findByTestId("welcome")).toHaveTextContent(
+        expectedSearch,
+      );
+    },
+  );
 
   it("requires the single agreement checkpoint before submitting", async () => {
     const user = userEvent.setup();
@@ -146,13 +150,11 @@ describe("PrivateBetaDisclosurePage", () => {
     renderPage();
 
     await user.click(
-      screen.getByRole("button", { name: /continue to hey hey/i })
+      screen.getByRole("button", { name: /continue to hey hey/i }),
     );
 
     expect(
-      await screen.findByText(
-        /please agree to the current terms/i
-      )
+      await screen.findByText(/please agree to the current terms/i),
     ).toBeInTheDocument();
     expect(submitAcceptance).not.toHaveBeenCalled();
   });

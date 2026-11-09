@@ -1,4 +1,4 @@
-import { EntityType } from '../../../generated/model/entityType';
+import { EntityType } from '@hey-hey/contracts/api/models';
 import { WorkItemTypeRelationshipIndex } from '../work-item-type-relationship-index';
 
 describe('WorkItemTypeRelationshipIndex', () => {
@@ -66,13 +66,15 @@ describe('WorkItemTypeRelationshipIndex', () => {
 
   it('applies child-owned EntityType parentage as a literal allow-list', () => {
     expect(index.canParentEntityType('FEATURE', EntityType.Task)).toBe(false);
-    expect(index.canParentEntityType('FEATURE', EntityType.DesignDoc)).toBe(false);
+    expect(index.canParentEntityType('FEATURE', EntityType.DesignDoc)).toBe(
+      false,
+    );
     expect(index.canParentEntityType('TASK_MONITOR', EntityType.Task)).toBe(
       true,
     );
-    expect(index.canParentEntityType('TASK_MONITOR', EntityType.DesignDoc)).toBe(
-      false,
-    );
+    expect(
+      index.canParentEntityType('TASK_MONITOR', EntityType.DesignDoc),
+    ).toBe(false);
     expect(index.canParentEntityType('MISSING', EntityType.Task)).toBe(false);
   });
 

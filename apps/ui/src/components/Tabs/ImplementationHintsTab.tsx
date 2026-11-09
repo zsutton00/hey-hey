@@ -1,4 +1,4 @@
-import type { ImplementationHintDto } from "@hey-hey/ui-common/api";
+import type { ImplementationHintDto } from "@hey-hey/contracts/api";
 import type { FilterConfig } from "@hey-hey/ui-common/components";
 import {
   EntityFilters,
@@ -249,10 +249,7 @@ export const ImplementationHintsTab: React.FC<ImplementationHintsTabProps> = ({
         "implementationHints.emptySession",
         "No implementation hints linked to this coding session yet.",
       )
-    : t(
-        "implementationHints.empty",
-        "No implementation hints available yet.",
-      );
+    : t("implementationHints.empty", "No implementation hints available yet.");
 
   const filters: FilterConfig[] = [
     {

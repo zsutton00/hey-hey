@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ApiRuntime } from '../../../shared/runtime/clients/shared';
-import { MessageType, SystemMessageDataTypeEnum } from '../../../shared/api/generated/api';
+import { MessageType, SystemMessageDataTypeEnum } from '@hey-hey/contracts/api/models';
 import type { MessagePoster } from '../../../run/message-poster';
 import type {
   EffectExecutionIdentity,

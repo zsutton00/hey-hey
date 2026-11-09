@@ -23,7 +23,7 @@ import {
   useProject,
   useUpdateDesignDoc,
 } from "@hey-hey/ui-common/data";
-import type { AgentSessionDto } from "@hey-hey/ui-common/api";
+import type { AgentSessionDto } from "@hey-hey/contracts/api";
 import ArchiveIcon from "@mui/icons-material/Archive";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import EditIcon from "@mui/icons-material/Edit";
@@ -51,7 +51,7 @@ import {
   DesignDocTemplate,
   EntityType,
   TargetEntityType,
-} from "@hey-hey/ui-common/api";
+} from "@hey-hey/contracts/api";
 import TasksIcon from "@mui/icons-material/Assignment";
 import {
   DetailPageBody,

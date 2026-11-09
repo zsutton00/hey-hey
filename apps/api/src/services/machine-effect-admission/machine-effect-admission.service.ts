@@ -9,7 +9,7 @@ import type Redis from 'ioredis';
 import {
   MachineEffectHttpMethod,
   MachineEffectProofDto,
-} from '../../generated';
+} from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../core/redis/redis.service';
 import { canonicalizeJcs } from '../../core/websockets/trigger-canonicalization';
@@ -213,9 +213,7 @@ export class MachineEffectAdmissionService {
       if (reserved !== 1) {
         this.deny(
           request,
-          reserved === -1
-            ? 'effect_binding_mismatch'
-            : 'nonce_replay_rejected',
+          reserved === -1 ? 'effect_binding_mismatch' : 'nonce_replay_rejected',
         );
       }
     } catch (error) {

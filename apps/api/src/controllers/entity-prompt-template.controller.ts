@@ -23,7 +23,7 @@ import { CurrentOrganization } from '../auth/decorators/current-user.decorator';
 import type {
   EntityPromptTemplateCatalogDto,
   EntityPromptTemplateEffectiveDto,
-} from '../generated';
+} from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId } from '../types';
 import { entityPromptTemplateDraftValidationRequestSchema } from '../services/entity-prompt-template.contract';
 import { EntityPromptTemplateService } from '../services/entity-prompt-template.service';

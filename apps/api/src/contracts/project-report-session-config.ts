@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
-import type { AgentSessionConfigProjectReportV1 } from 'src/generated';
+import type { AgentSessionConfigProjectReportV1 } from '@hey-hey/contracts/api/models';
 import { projectReportSchemas } from 'src/generated/project-report.schemas';
 
 const validate = addFormats(

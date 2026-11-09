@@ -40,7 +40,7 @@ import {
   UpdateNotificationPreferencesDto,
   WebSocketSystemNotificationEvent,
   WorkStatus,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import { DomainEventPublisher } from 'src/core/events/domain-event-publisher';
 import {
   SystemNotificationEvent,

@@ -314,12 +314,15 @@ describe("UnifiedApiClient task reads", () => {
       incidentRelationshipTypes: new Set(["GUARANTEES"]),
     });
 
-    expect(getWorkItemGraph).toHaveBeenCalledWith({
-      organizationId: "org-1",
-      projectId: "project-1",
-      workItemId: "workflow-1",
-      incidentRelationshipTypes: new Set(["GUARANTEES"]),
-    }, undefined);
+    expect(getWorkItemGraph).toHaveBeenCalledWith(
+      {
+        organizationId: "org-1",
+        projectId: "project-1",
+        workItemId: "workflow-1",
+        incidentRelationshipTypes: ["GUARANTEES"],
+      },
+      undefined,
+    );
   });
 
   it("threads bounded task IDs through the generated collection read", async () => {
@@ -354,7 +357,7 @@ describe("UnifiedApiClient task reads", () => {
     const request = getTasks.mock.calls[0]?.[0];
     expect(request?.organizationId).toBe("org-1");
     expect(request?.projectId).toBe("project-1");
-    expect(request?.taskIds).toEqual(new Set(["task-1", "task-2"]));
+    expect(request?.taskIds).toEqual(["task-1", "task-2"]);
     expect(request?.includeServiceRelations).toBe(true);
     expect(request?.includeEdges).toBe(true);
     expect(request?.includeTrackedEntities).toBe(false);
@@ -427,7 +430,8 @@ describe("UnifiedApiClient task reads", () => {
         organizationId: "org-1",
         projectId: "project-1",
         taskId: "task-1",
-      }), undefined,
+      }),
+      undefined,
     );
   });
 
@@ -465,7 +469,8 @@ describe("UnifiedApiClient task reads", () => {
         taskId: "task-1",
         includeServiceRelations: true,
         includeEdges: true,
-      }), undefined,
+      }),
+      undefined,
     );
   });
 
@@ -503,7 +508,8 @@ describe("UnifiedApiClient task reads", () => {
         taskId: "task-1",
         includeEdges: true,
         edgeTypes: [AgentEdgeType.Standard, AgentEdgeType.FulfilledBy],
-      }), undefined,
+      }),
+      undefined,
     );
   });
 });
@@ -521,7 +527,7 @@ describe("UnifiedApiClient private-beta access", () => {
     transport.axios.defaults.adapter = adapter;
     const runtime = createApiRuntime({ baseUrl: "/api/v1", transport });
     const result = await new UnifiedApiClient(
-      runtime.clients
+      runtime.clients,
     ).getPublicPrivateBetaAdmissionMode();
     expect(result.data.data).toEqual({ mode: "PAUSED" });
     expect(adapter.mock.calls[0]?.[0]).toMatchObject({
@@ -529,7 +535,7 @@ describe("UnifiedApiClient private-beta access", () => {
       url: "/api/v1/private-beta-access/admission-mode",
     });
     expect(
-      adapter.mock.calls[0]?.[0].headers.get("Authorization")
+      adapter.mock.calls[0]?.[0].headers.get("Authorization"),
     ).toBeUndefined();
   });
 
@@ -557,7 +563,7 @@ describe("UnifiedApiClient private-beta access", () => {
     const submit = vi
       .spyOn(
         runtime.clients.privateBetaAccess,
-        "submitPrivateBetaAccessRequest"
+        "submitPrivateBetaAccessRequest",
       )
       .mockResolvedValue({
         data: response,
@@ -614,19 +620,19 @@ describe("UnifiedApiClient private-beta access", () => {
     const read = vi
       .spyOn(
         runtime.clients.privateBetaAccess,
-        "getPrivateBetaSelfServiceAdmissionMode"
+        "getPrivateBetaSelfServiceAdmissionMode",
       )
       .mockResolvedValue({ data: {} } as never);
     const publicRead = vi
       .spyOn(
         runtime.clients.privateBetaAccess,
-        "getPublicPrivateBetaAdmissionMode"
+        "getPublicPrivateBetaAdmissionMode",
       )
       .mockResolvedValue({ data: {} } as never);
     const update = vi
       .spyOn(
         runtime.clients.privateBetaAccess,
-        "updatePrivateBetaSelfServiceAdmissionMode"
+        "updatePrivateBetaSelfServiceAdmissionMode",
       )
       .mockResolvedValue({ data: {} } as never);
     const request: PrivateBetaAccessApiUpdatePrivateBetaSelfServiceAdmissionModeRequest =

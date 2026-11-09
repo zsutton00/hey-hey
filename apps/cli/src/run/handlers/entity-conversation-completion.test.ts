@@ -3,7 +3,7 @@ import { createTestOAuthClient } from '../../auth/oauth-client.test-support';
 import { EntityConversationHandler } from '../../agents/entity-conversation/entity-conversation.handler';
 import { createOnCompleteTestDeps } from '../../agents/prompt-type-handler.test-support';
 import { SubmissionToolAuth } from '../../agents/submission-tools/submission-tool-auth';
-import type { VerifyFeaturePayload } from '../../shared/api/generated/api';
+import type { VerifyFeaturePayload } from '@hey-hey/contracts/api/models';
 import { handleAssistantComplete } from './assistant-complete';
 import { handleAssistantDelta } from './assistant-delta';
 import { makeDeps, makePoster, makeTestRun, makeTestTurn } from './__test-utils';

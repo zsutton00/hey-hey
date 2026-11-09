@@ -4,7 +4,7 @@ import type {
   FullEntityContextDto,
   ProjectResponseDto,
   TaskResponseDto,
-} from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/api/models';
 import type { RunEntityReference } from '../../shared/agent-bridge-contract/contract';
 
 export type CurrentEntityDto =
@@ -21,9 +21,14 @@ export interface ExistingLoadedEntityPromptContext {
 }
 
 export interface AgentSessionTranscriptEntry {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'uncertainty';
   turn: number;
-  content: string;
+  content?: string;
+  uncertainty?: {
+    severity: 'low' | 'medium' | 'high';
+    category: 'lack_of_evidence' | 'conflict' | 'ambiguity' | 'not_implemented' | 'question';
+    statement: string;
+  };
 }
 
 interface AgentSessionPromptContext {

@@ -1,10 +1,10 @@
 import type { KeyObject } from 'node:crypto';
-import { CurrentAgentOperation } from '../../shared/agent-bridge-contract/generated/api';
+import { CurrentAgentOperation } from '@hey-hey/contracts/agent-bridge';
 import type {
   BoundedGrantReference,
   CanonicalControllerAuthorizationIntent,
   ExecutableControllerAssertionEvidence,
-  ControllerAuthorizationCadence,
+  ControllerDeviceGrantCadence,
   ControllerDeviceGrantDescriptor,
   ControllerDeviceGrantScope,
   CurrentAgentOperation as CurrentAgentOperationValue,
@@ -13,8 +13,8 @@ import type {
   HostActionTarget,
   HostActionTargetKind,
   HostAffectingActionType,
-} from '../../shared/agent-bridge-contract/generated/api';
-import type { ControllerCredentialPublicKey } from '../../shared/api/generated/api';
+} from '@hey-hey/contracts/agent-bridge';
+import type { ControllerCredentialPublicKey } from '@hey-hey/contracts/api/models';
 
 export type {
   CanonicalControllerAuthorizationIntent,
@@ -136,12 +136,13 @@ export interface ExecutionGrant {
   machineId: string;
   userId: string;
   organizationId: string;
-  cadence: ControllerAuthorizationCadence;
+  cadence: ControllerDeviceGrantCadence;
   policyRevision: number;
   allowedActionTypes: CurrentAgentOperationValue[];
   allowedActionCategories: HostActionCategory[];
   issuedAtMs: number;
-  effectiveExpiresAtMs: number;
+  /** Null for an UNTIL_REVOKED grant, which stays valid until revoked. */
+  effectiveExpiresAtMs: number | null;
   descriptorHash: string;
   controllerCredentialFingerprint: string;
   suspended: boolean;

@@ -21,6 +21,7 @@ import type {
   WorkItemTypeDefinitionDto,
   WorkItemTypeGraphCapability,
   WorkItemUpdateOperation,
+  WorkflowTransitionRole,
 } from "../../api";
 import {
   WORK_ITEM_GRAPH_LAYOUT_SCHEMA_VERSION,
@@ -124,6 +125,7 @@ type RelationshipCreateFields = {
   direction?: RelationshipDirection;
   predicate?: string | null;
   actionLabel?: string | null;
+  transitionRole?: WorkflowTransitionRole | null;
   reasoning?: string | null;
   metadata?: Record<string, unknown> | null;
 };
@@ -621,6 +623,10 @@ function applyOperation(
           "predicate" in operation ? (operation.predicate ?? null) : null,
         actionLabel:
           "actionLabel" in operation ? (operation.actionLabel ?? null) : null,
+        transitionRole:
+          "transitionRole" in operation
+            ? (operation.transitionRole ?? null)
+            : null,
         reasoning: operation.reasoning ?? null,
         metadata: operation.metadata ?? null,
         deleted: false,
@@ -652,6 +658,13 @@ function applyOperation(
       ) {
         relationship.actionLabel = null;
       }
+      if (
+        operation.category !== undefined &&
+        operation.category !== "flow" &&
+        !Object.prototype.hasOwnProperty.call(operation, "transitionRole")
+      ) {
+        relationship.transitionRole = null;
+      }
       if (operation.category !== undefined)
         relationship.category = operation.category;
       if (Object.prototype.hasOwnProperty.call(operation, "direction")) {
@@ -662,6 +675,9 @@ function applyOperation(
       }
       if (Object.prototype.hasOwnProperty.call(operation, "actionLabel")) {
         relationship.actionLabel = operation.actionLabel ?? null;
+      }
+      if (Object.prototype.hasOwnProperty.call(operation, "transitionRole")) {
+        relationship.transitionRole = operation.transitionRole ?? null;
       }
       if (Object.prototype.hasOwnProperty.call(operation, "reasoning")) {
         relationship.reasoning = operation.reasoning ?? null;
@@ -1275,6 +1291,9 @@ const buildRelationshipCreateOperation = (
         ...(fields.actionLabel?.trim()
           ? { actionLabel: fields.actionLabel.trim() }
           : {}),
+        ...(fields.transitionRole
+          ? { transitionRole: fields.transitionRole }
+          : {}),
       };
     case "STANDARD":
       if (!fields.direction) {
@@ -1297,6 +1316,9 @@ const buildRelationshipCreateOperation = (
         ...(fields.actionLabel?.trim()
           ? { actionLabel: fields.actionLabel.trim() }
           : {}),
+        ...(fields.transitionRole
+          ? { transitionRole: fields.transitionRole }
+          : {}),
       };
     case "LOOP":
       return {
@@ -1306,6 +1328,9 @@ const buildRelationshipCreateOperation = (
         predicate: fields.predicate ?? undefined,
         ...(fields.actionLabel?.trim()
           ? { actionLabel: fields.actionLabel.trim() }
+          : {}),
+        ...(fields.transitionRole
+          ? { transitionRole: fields.transitionRole }
           : {}),
       };
     case "RELATED_TO":

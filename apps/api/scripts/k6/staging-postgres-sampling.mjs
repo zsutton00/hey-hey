@@ -1,3 +1,4 @@
+import { recordingScope } from './recording-scope.mjs';
 import { spawn } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
@@ -31,7 +32,8 @@ SELECT json_build_object(
     FROM activity WHERE cardinality(blockers) > 0
   ) b)
 )::text;`;
-const command = `timeout 900s docker exec -i hey-hey-staging-postgres-1 sh -c 'PGPASSWORD="$(cat /run/secrets/postgres_password)" exec psql -X -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atq -v ON_ERROR_STOP=1'`;
+const { project } = recordingScope();
+const command = `timeout 900s docker exec -i ${project}-postgres-1 sh -c 'PGPASSWORD="$(cat /run/secrets/postgres_password)" exec psql -X -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atq -v ON_ERROR_STOP=1'`;
 
 export function summarizePostgres(samples) {
   const gaps = samples

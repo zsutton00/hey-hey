@@ -230,3 +230,83 @@ ListProjectHintsResponse:
       type: array
       items:
         $ref: "#/Hint"
+
+AdminHintConnection:
+  type: object
+  description: >
+    A hint connection with the connected item's display identity, resolved by
+    the API only for items the caller may see. Title and itemType are absent
+    for an item that no longer exists or that the caller cannot see.
+  required:
+    - id
+    - targetNodeId
+    - targetEntityType
+    - strength
+  properties:
+    id:
+      type: string
+      format: uuid
+    targetNodeId:
+      type: string
+      format: uuid
+    targetEntityType:
+      $ref: "#/HintConnectionEndpointEntityType"
+    strength:
+      $ref: "#/HintStrength"
+    title:
+      type: string
+      description: Title of the connected item. Omitted when unavailable to the caller.
+    itemType:
+      type: string
+      description: >
+        Work-item type key (FEATURE, STANDARD, a custom type) for work items,
+        the template for design docs, otherwise omitted.
+
+AdminHint:
+  type: object
+  required:
+    - id
+    - projectId
+    - text
+    - origin
+    - connections
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    projectId:
+      type: string
+      format: uuid
+    text:
+      type: string
+    origin:
+      $ref: "#/HintOrigin"
+    connections:
+      type: array
+      items:
+        $ref: "#/AdminHintConnection"
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+AdminProjectHintsResponse:
+  type: object
+  required: [hints, matchingCount, totalCount]
+  properties:
+    hints:
+      type: array
+      items:
+        $ref: "#/AdminHint"
+    matchingCount:
+      type: integer
+      minimum: 0
+      description: Number of live hints matching the supplied filters.
+    totalCount:
+      type: integer
+      minimum: 0
+      description: Number of live hints in the project, ignoring filters.

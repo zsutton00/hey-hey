@@ -16,6 +16,8 @@ const FOCAL_ID = 'task-1';
 const record = (id: string, statement: string, fulfilledBy: string[] = []) => ({
   id,
   statement,
+  designedBy: [],
+  contracts: [],
   fulfilledBy: fulfilledBy.map((entityId) => ({
     entityId,
     entityType: 'TASK',
@@ -63,7 +65,6 @@ const evaluatorFor = (relevant: string[]) =>
         model: 'jev-test',
         answers: Object.fromEntries<JevAnswer>(
           Object.entries(input.questions).map(([id, question]) => {
-            if (question.type === 'noul') return [id, { type: 'noul', noul: 0 }];
             const isRelevant = relevant.includes(id);
             return [
               id,
@@ -142,10 +143,10 @@ describe('filterParentRequirements', () => {
     );
 
     expect(result.requirementsMarkdown).toContain(
-      '- Fulfilled by the focal. Second sentence. (fulfilled by @[TASK:task-1|Title of task-1])',
+      '- Fulfilled by the focal. Second sentence. — fulfilled by @[TASK:task-1|Title of task-1]',
     );
     const sent = evaluate.mock.calls[0]?.[0];
-    expect(Object.keys(sent?.questions ?? {})).toEqual(['requirement:1', 'conflict:requirement:1']);
+    expect(Object.keys(sent?.questions ?? {})).toEqual(['requirement:1']);
   });
 
   it('does not call Jev when the focal task fulfils every requirement', async () => {
@@ -188,7 +189,7 @@ describe('filterParentRequirements', () => {
     ).rejects.toMatchObject({ reason: 'jev_failed', fields: { failureCode: 'INVALID_RESPONSE' } });
   });
 
-  it('throws unfiltered on malformed records and on a focal that is not a task', async () => {
+  it('throws unfiltered on malformed records', async () => {
     await expect(
       filterParentRequirements(
         request,
@@ -197,13 +198,15 @@ describe('filterParentRequirements', () => {
         filterWith([{ id: 'r1' }], evaluatorFor([])),
       ),
     ).rejects.toBeInstanceOf(ParentRequirementsUnfiltered);
+  });
 
+  it('filters for a feature focal as it does for a task', async () => {
     const feature = {
       ...loaded,
       entity: { ...(loaded as { entity: object }).entity, type: 'FEATURE' },
     } as unknown as LoadedEntityPromptContext;
     await expect(
       filterParentRequirements(request, parent, feature, filterWith([], evaluatorFor([]))),
-    ).rejects.toMatchObject({ reason: 'focal_not_a_task' });
+    ).rejects.toMatchObject({ reason: 'no_requirements' });
   });
 });

@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { ActivityCorrelationMode } from 'src/generated';
+import { ActivityCorrelationMode } from '@hey-hey/contracts/api/models';
 import type {
   ActivityCorrelationRecordDto,
   CreateProjectReportRequestDto,
@@ -9,7 +9,7 @@ import type {
   ProjectReportPreviewRow,
   ProjectReportScope,
   ProjectReportSubject,
-} from 'src/generated';
+} from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId, UserId } from 'src/types';
 import { ActivityQueryService } from '../activity-correlation/activity-query.service';
 

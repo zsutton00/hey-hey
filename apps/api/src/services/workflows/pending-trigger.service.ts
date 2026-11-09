@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { FlowExecutionStatus } from '@prisma/client';
-import { AgentSystemMessageData } from '../../generated';
+import { AgentSystemMessageData } from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   ConversationId,

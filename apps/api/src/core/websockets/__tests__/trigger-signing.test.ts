@@ -5,7 +5,7 @@ import {
   RunCreatePayloadWorkflowKickoff,
   MachineRevocationReductionBodyDto,
   SignedConversationTriggerEnvelope,
-} from '../../../generated';
+} from '@hey-hey/contracts/api/models';
 import { ConversationId, MachineId, UserId } from '../../../types';
 import { ServerSigningKeyService } from '../../server-signing/server-signing-key.service';
 import { canonicalizeJcs } from '../trigger-canonicalization';

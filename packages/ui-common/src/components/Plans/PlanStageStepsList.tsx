@@ -13,7 +13,7 @@ import type {
   PlanStageStandardTask,
   PlanStageWorkItem,
 } from "../../data/plans/canonicalPlan";
-import { getStatusColorMapping } from "../../utils";
+import { getStatusColorMapping, getStatusLabel } from "../../utils/statusUtils";
 import { EntityIcon } from "../Entity/EntityIcon";
 
 export interface PlanStageStepsListProps {
@@ -24,7 +24,7 @@ export interface PlanStageStepsListProps {
 
 const getInternalDependencyIds = (
   task: PlanStageStandardTask,
-  stageTaskIds: ReadonlySet<string>
+  stageTaskIds: ReadonlySet<string>,
 ): string[] => [
   ...new Set(
     (task.edges ?? []).flatMap((edge) =>
@@ -32,14 +32,14 @@ const getInternalDependencyIds = (
       edge.sourceNodeId === task.id &&
       stageTaskIds.has(edge.targetNodeId)
         ? [edge.targetNodeId]
-        : []
-    )
+        : [],
+    ),
   ),
 ];
 
 const renderTaskSections = (task: PlanStageStandardTask) => {
   const populatedSections = (task.sections ?? []).filter((section) =>
-    Boolean(section.materializedMarkdown.trim())
+    Boolean(section.materializedMarkdown.trim()),
   );
   if (populatedSections.length === 0) return null;
 
@@ -141,7 +141,7 @@ export const PlanStageStepsList: React.FC<PlanStageStepsListProps> = ({
                     </Typography>
                   </Box>
                   <Chip
-                    label={task.status}
+                    label={getStatusLabel(task.status).toUpperCase()}
                     color={getStatusColorMapping(task.status)}
                     size="small"
                   />
@@ -163,7 +163,7 @@ export const PlanStageStepsList: React.FC<PlanStageStepsListProps> = ({
                 )}
 
                 {(task.sections?.some((section) =>
-                  section.materializedMarkdown.trim()
+                  section.materializedMarkdown.trim(),
                 ) ??
                   false) && <Divider sx={{ my: 1 }} />}
                 {renderTaskSections(task)}

@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { RelationshipType } from 'src/generated/graphs/model/relationshipType';
-import { WorkItemTypeLifecycleStatus } from 'src/generated';
-import type { ProjectModeSettings } from 'src/generated';
+import { WorkItemTypeLifecycleStatus } from '@hey-hey/contracts/api/models';
+import type { ProjectModeSettings } from '@hey-hey/contracts/api/models';
 import { AnyTransactionClient } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId } from 'src/types';
 import { AgentEdgeClientService } from '../agent-edge-client.service';
