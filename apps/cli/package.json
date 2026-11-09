@@ -1,6 +1,6 @@
 {
   "name": "@hey-hey/cli",
-  "version": "4.2.1",
+  "version": "4.3.0",
   "description": "Hey Hey Agent Bridge — a local CLI that runs agent coding sessions and bridges the Hey Hey platform with Claude Code.",
   "main": "dist/index.mjs",
   "bin": {
