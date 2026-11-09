@@ -4,7 +4,7 @@ import {
   assertObservedRelease,
 } from '../local-app/local-application';
 import { sameRelease } from '../local-app/release-source';
-import type { ReleaseManifest } from '../release/release-manifest';
+import type { ReleaseIdentity } from '../release/release-manifest';
 import { SERVICE_IMAGES } from '../local-app/compose';
 import { LocalLifecycleOwners, type LocalBridgeLifecycle } from '../local-app/lifecycle-owners';
 import { InstallationStore } from '../local-app/installation-store';
@@ -20,7 +20,7 @@ import { PlatformUnavailableStartupPresenter } from './platform-unavailable-star
 
 export interface ServerCommandOptions {
   localApplicationDirectory?: string;
-  localApplicationRelease?: ReleaseManifest;
+  localApplicationRelease?: ReleaseIdentity;
   localApplicationNavigation?: LocalApplicationNavigation;
   /**
    * Compose services that must be running before connecting. Defaults to the full installed

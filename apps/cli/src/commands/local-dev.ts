@@ -12,6 +12,7 @@ import {
   provisioningSql,
 } from '../local-app/compose';
 import { DockerBoundary } from '../local-app/docker-boundary';
+import { modelsFromPins } from '../release/model-pins';
 import { InstallationStore } from '../local-app/installation-store';
 import { ModelFiles } from '../local-app/model-files';
 import { LocalLifecycleOwners } from '../local-app/lifecycle-owners';
@@ -91,7 +92,7 @@ export async function runLocalDevCommand(): Promise<boolean> {
     const modelDirectory = await new ModelFiles(
       join(storage.directory, 'models'),
       process.env['HEYHEY_LOCAL_MODEL_DIR'],
-    ).ensure(release);
+    ).ensure(modelsFromPins(join(root, 'apps', 'graph-search', 'model-pins.json')));
     const secrets = await storage.secrets();
     const bridgePort = resolveLocalBridgePort();
 

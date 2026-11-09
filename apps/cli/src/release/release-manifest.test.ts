@@ -90,12 +90,16 @@ describe('release manifest', () => {
     expect(() => parseReleaseManifest(JSON.stringify(badSum))).toThrow(/checksum/);
   });
 
-  it('treats a changed model pin as a different release', () => {
-    const changed = manifest();
-    changed.models.tokenizer.sha256 = 'c'.repeat(64);
+  it('identifies a release by CLI version and images, so installs saved without models still match', () => {
+    const { models: _models, ...saved } = manifest();
+    const otherImages = manifest();
+    otherImages.images.api.reference = otherImages.images.api.reference.replace(
+      /@sha256:./,
+      '@sha256:f',
+    );
 
-    expect(sameRelease(manifest(), manifest())).toBe(true);
-    expect(sameRelease(manifest(), changed)).toBe(false);
+    expect(sameRelease(saved, manifest())).toBe(true);
+    expect(sameRelease(saved, otherImages)).toBe(false);
   });
 
   it('matches the pin file shared with fetch-model.sh', () => {

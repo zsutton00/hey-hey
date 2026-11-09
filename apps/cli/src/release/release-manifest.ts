@@ -58,6 +58,18 @@ export const releaseManifestSchema = z.strictObject({
 });
 
 export type ReleaseManifest = z.infer<typeof releaseManifestSchema>;
+
+/**
+ * What an installation remembers about its release: the CLI version and the pinned images. Model
+ * files are not part of it; they always come from the running CLI's own manifest, so saved
+ * installations written before models were pinned stay readable. Unknown keys are dropped.
+ */
+export const releaseIdentitySchema = z.object({
+  schemaVersion: releaseManifestSchema.shape.schemaVersion,
+  cliVersion: releaseManifestSchema.shape.cliVersion,
+  images: releaseManifestSchema.shape.images,
+});
+export type ReleaseIdentity = z.infer<typeof releaseIdentitySchema>;
 export type ReleaseModelFile = ReleaseManifest['models']['modelQuantized'];
 export type ReleaseImageName = keyof ReleaseManifest['images'];
 

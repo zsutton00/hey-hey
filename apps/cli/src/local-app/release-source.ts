@@ -1,5 +1,9 @@
 import { readFile } from 'node:fs/promises';
-import { parseManifestForVersion, type ReleaseManifest } from '../release/release-manifest';
+import {
+  parseManifestForVersion,
+  type ReleaseIdentity,
+  type ReleaseManifest,
+} from '../release/release-manifest';
 
 /** Packaged and rehearsal releases share the exact same parsing and version gate. */
 export class ReleaseSource {
@@ -21,18 +25,12 @@ export class ReleaseSource {
   }
 }
 
-export function sameRelease(left: ReleaseManifest, right: ReleaseManifest): boolean {
+export function sameRelease(left: ReleaseIdentity, right: ReleaseIdentity): boolean {
   return (
     left.cliVersion === right.cliVersion &&
     Object.entries(left.images).every(([name, image]) =>
       Object.entries(right.images).some(
         ([otherName, other]) => name === otherName && image.reference === other.reference,
-      ),
-    ) &&
-    Object.entries(left.models).every(([name, model]) =>
-      Object.entries(right.models).some(
-        ([otherName, other]) =>
-          name === otherName && model.url === other.url && model.sha256 === other.sha256,
       ),
     )
   );

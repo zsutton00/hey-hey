@@ -6,6 +6,8 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReleaseManifest, ReleaseModelFile } from '../release/release-manifest';
 
+type ReleaseModels = ReleaseManifest['models'];
+
 /** The network boundary: fetch one URL. Replaced in tests; production uses global fetch. */
 export type ModelDownload = (url: string) => Promise<Response>;
 
@@ -47,8 +49,8 @@ export class ModelFiles {
   }
 
   /** Verifies (and when needed downloads) both files; returns the directory to mount. */
-  async ensure(release: ReleaseManifest, onDownload: () => void = () => {}): Promise<string> {
-    const files = Object.values(release.models);
+  async ensure(models: ReleaseModels, onDownload: () => void = () => {}): Promise<string> {
+    const files = Object.values(models);
     if (this.override) {
       for (const model of files) {
         await this.verifyOverride(model);
