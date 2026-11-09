@@ -66,14 +66,15 @@ export interface ParentRequirementsAttemptRecord {
 
 export const writeAttemptRecord = async (
   dir: string,
+  sessionId: string,
   record: ParentRequirementsAttemptRecord,
 ): Promise<string> => {
   await mkdir(dir, { recursive: true });
   const stamp = record.at.replace(/[:.]/g, '-');
-  const file = path.join(dir, `${stamp}-${record.focalEntityId}.json`);
+  const file = path.join(dir, `${stamp}-${sessionId}-${record.focalEntityId}.json`);
   // Cost and tokens lead the file so they are the first thing read.
   const { at, ...rest } = record;
-  const logged = { at, ...summarizeJevUsage(record.jevCalls), ...rest };
+  const logged = { at, sessionId, ...summarizeJevUsage(record.jevCalls), ...rest };
   await writeFile(file, `${JSON.stringify(logged, null, 2)}\n`, 'utf8');
   return file;
 };

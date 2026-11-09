@@ -120,15 +120,23 @@ export interface GetEdgesPassedThroughRecord {
 
 export type GetEdgesAttemptRecord = GetEdgesNarrowedRecord | GetEdgesPassedThroughRecord;
 
-/** Writes one file per call or Turn; the random suffix keeps concurrent or repeated ones apart. */
+/**
+ * Writes one file per call or Turn; the random suffix keeps concurrent or repeated ones apart.
+ * The agent session id leads the record and the file name so a log joins to its transcript.
+ */
 export const writeGraphResultAttemptRecord = async (
   dir: string,
+  sessionId: string,
   record: GetContextAttemptRecord | GetEdgesAttemptRecord,
 ): Promise<string> => {
   await mkdir(dir, { recursive: true });
   const stamp = record.at.replace(/[:.]/g, '-');
   const subject = record.focalEntityId ?? 'no-focal';
-  const file = path.join(dir, `${stamp}-${record.outcome}-${subject}-${randomUUID()}.json`);
-  await writeFile(file, `${JSON.stringify(record, null, 2)}\n`, 'utf8');
+  const file = path.join(
+    dir,
+    `${stamp}-${record.outcome}-${sessionId}-${subject}-${randomUUID()}.json`,
+  );
+  const { at, ...rest } = record;
+  await writeFile(file, `${JSON.stringify({ at, sessionId, ...rest }, null, 2)}\n`, 'utf8');
   return file;
 };

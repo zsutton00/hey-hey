@@ -41,11 +41,12 @@ describe('parent requirements attempt log', () => {
       filteredLoad: 'filtered',
     };
 
-    const file = await writeAttemptRecord(dir, record);
+    const file = await writeAttemptRecord(dir, 'session-1', record);
     const logged = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
 
-    expect(Object.keys(logged).slice(0, 4)).toEqual([
+    expect(Object.keys(logged).slice(0, 5)).toEqual([
       'at',
+      'sessionId',
       'costUsd',
       'inputTokens',
       'outputTokens',

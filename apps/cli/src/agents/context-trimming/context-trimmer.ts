@@ -37,6 +37,8 @@ export interface GetContextTrimmerConfig {
   decisionModel: DecisionModel;
   focal: Focal;
   focalEntityId: string;
+  /** Agent session the Run belongs to; stamped on every development trace. */
+  sessionId: string;
   ancestorEntityIds?: ReadonlySet<string>;
   logger: ServerLogger;
   model?: string;
@@ -458,7 +460,7 @@ export class GetContextTrimmer implements DecisionModelResultNarrower {
     }
 
     try {
-      const file = await writeGraphResultAttemptRecord(dir, record);
+      const file = await writeGraphResultAttemptRecord(dir, this.config.sessionId, record);
       this.config.logger.debug(`local.platform_mcp_proxy.${eventPrefix}.attempt_logged`, {
         file,
       });

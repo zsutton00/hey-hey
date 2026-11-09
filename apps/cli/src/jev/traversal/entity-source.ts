@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { Candidate } from '../scenarios';
 import type { FoundCandidate, TitledRef } from './types';
+import { firstSentence } from '../../agents/context-trimming/get-context-result';
 
 const refSchema = z.object({ id: z.string().min(1), kind: z.string().min(1) });
 
@@ -37,11 +38,6 @@ export const entitySourceSchema = z.object({
 export type EntitySource = z.infer<typeof entitySourceSchema>;
 
 const MENTION = /@\[([a-z_]+):([0-9a-f-]{36})\|([^\]]*)\]/g;
-
-const firstSentence = (text: string): string => {
-  const flat = text.trim().replace(/\s+/g, ' ');
-  return /^.*?[.!?](?=\s|$)/.exec(flat)?.[0] ?? flat;
-};
 
 const REQUIREMENT_ROLES = {
   fulfilledBy: 'fulfills requirement',

@@ -137,6 +137,7 @@ const makeTrimmer = (
     decisionModel: { evaluate },
     focal,
     focalEntityId: overrides.focalEntityId ?? FOCAL_ID,
+    sessionId: 'session-1',
     ...(overrides.ancestorEntityIds ? { ancestorEntityIds: overrides.ancestorEntityIds } : {}),
     logger: log.logger,
   });
@@ -503,6 +504,7 @@ describe('GetContextTrimmer', () => {
         decisionModel: { evaluate },
         focal,
         focalEntityId: FOCAL_ID,
+        sessionId: 'session-1',
         logger: log.logger,
         attemptLogDir,
       });
@@ -540,7 +542,7 @@ describe('GetContextTrimmer', () => {
       expect(record.tierCounts).toEqual({ full: 1, short: 2, index: 3 });
       expect(record.inputTokens).toBe(100);
       expect(record.costUsd).toBeCloseTo(0.0000042, 10);
-      expect(Object.keys(record)[2]).toBe('costUsd');
+      expect(Object.keys(record)[3]).toBe('costUsd');
       expect(record.jevCalls).toHaveLength(1);
       expect(Object.keys(record.jevCalls[0]?.input.questions ?? {})).not.toContainEqual(
         expect.stringContaining('conflict'),
@@ -575,6 +577,7 @@ describe('GetContextTrimmer', () => {
       expect(record).toMatchObject({
         outcome: 'passed_through',
         focalEntityId: FOCAL_ID,
+        sessionId: 'session-1',
         reason: 'decision_model_failed',
         fields: { failureCode: 'TIMEOUT' },
         jevCalls: [expect.anything()],
@@ -592,6 +595,7 @@ describe('GetContextTrimmer', () => {
           decisionModel: { evaluate },
           focal,
           focalEntityId: FOCAL_ID,
+          sessionId: 'session-1',
           logger: log.logger,
           edgesAttemptLogDir: dir,
         });
@@ -626,6 +630,7 @@ describe('GetContextTrimmer', () => {
       const narrowedRecord = records.find((record) => record['outcome'] === 'narrowed');
       expect(narrowedRecord).toMatchObject({
         focalEntityId: FOCAL_ID,
+        sessionId: 'session-1',
         rawResultChars: JSON.stringify(upstream.structuredContent).length,
         narrowedResultChars: JSON.stringify(
           (narrowed as { structuredContent: unknown }).structuredContent,

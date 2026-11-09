@@ -5714,6 +5714,7 @@ export class Run {
       payload: preparedPayload ?? input.payload,
       deps: this.handlerDeps,
       logger: this.logger,
+      sessionId: this.agentSessionId,
       attemptLogDir: jevLogsDir ? path.join(jevLogsDir, 'get-context') : null,
       edgesAttemptLogDir: jevLogsDir ? path.join(jevLogsDir, 'get-edges') : null,
     });

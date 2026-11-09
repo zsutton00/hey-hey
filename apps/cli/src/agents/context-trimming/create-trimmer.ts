@@ -85,6 +85,8 @@ export interface CreateContextTrimmerInput {
   payload: unknown;
   deps: TrimmingDeps;
   logger: ServerLogger;
+  /** Agent session the Run belongs to; stamped on every development trace. */
+  sessionId: string;
   /** Where get_context attempts write development traces; null or absent writes none. */
   attemptLogDir?: string | null;
   /** Where get_edges attempts write development traces; null or absent writes none. */
@@ -107,7 +109,7 @@ const recordNotStarted = async (
   }
 
   try {
-    await writeGraphResultAttemptRecord(input.attemptLogDir, {
+    await writeGraphResultAttemptRecord(input.attemptLogDir, input.sessionId, {
       outcome: 'not_started',
       at: new Date().toISOString(),
       promptType: input.promptType,
@@ -190,6 +192,7 @@ export const createContextTrimmer = async (
     decisionModel: input.decisionModel,
     focal,
     focalEntityId: loaded.focalEntity.entityId,
+    sessionId: input.sessionId,
     ancestorEntityIds: new Set(
       (loaded.context.featureHierarchy ?? [])
         .filter((entry) => entry.relationship === 'ancestor')
