@@ -11,7 +11,11 @@ import {
 } from './get-context-tools.provider';
 import { EntityContextService } from '../../services/entity-context/entity-context.service';
 import * as TestUtils from '../../utils/testUtils';
-import type { FullEntityContextDto } from '@hey-hey/contracts/api/models';
+import type {
+  ContextRelatedEntityDto,
+  FullEntityContextDto,
+} from '@hey-hey/contracts/api/models';
+import { groupRelatedEntities } from '../../services/entity-context/related-entity-grouping';
 
 const { testIds } = TestUtils;
 
@@ -88,7 +92,7 @@ const siblingStage = {
 };
 
 function makeFullEntityContext(overrides?: Record<string, unknown>) {
-  return {
+  const context = {
     entityId,
     entityType: 'TASK',
     taskType: 'STANDARD',
@@ -183,6 +187,12 @@ function makeFullEntityContext(overrides?: Record<string, unknown>) {
     ],
     agentSessions: [],
     ...overrides,
+  };
+  return {
+    ...context,
+    groupedRelatedEntities: groupRelatedEntities(
+      context.relatedEntities as ContextRelatedEntityDto[],
+    ),
   };
 }
 
@@ -357,14 +367,52 @@ describe('GetContextToolsProvider', () => {
       const planEntry = result.relatedEntities.find(
         (e: any) => e.entityId === relatedPlanId,
       );
-      expect(planEntry.relationship).toBe('mentions');
+      expect(planEntry.relationships).toEqual([{ relationship: 'mentions' }]);
       const siblingEntry = result.relatedEntities.find(
         (e: any) => e.entityId === relatedTaskId,
       );
-      expect(siblingEntry.relationship).toBe('sibling-via-parent');
+      expect(siblingEntry.relationships[0].relationship).toBe(
+        'sibling-via-parent',
+      );
       expect(siblingEntry.taskType).toBe('STANDARD');
-      expect(siblingEntry.via).toHaveLength(1);
-      expect(siblingEntry.via[0].entityId).toBe(featureParentId);
+      expect(siblingEntry.relationships[0].via).toHaveLength(1);
+      expect(siblingEntry.relationships[0].via[0].entityId).toBe(
+        featureParentId,
+      );
+    });
+
+    it('returns an entity linked two ways once, with both relationships', async () => {
+      entityContextService.getFullEntityContext.mockResolvedValue(
+        makeFullEntityContext({
+          relatedEntities: [
+            {
+              entityId: relatedTaskId,
+              entityType: 'TASK',
+              displayName: 'Linked twice',
+              relationship: 'mentions',
+              source: 'system',
+            },
+            {
+              entityId: relatedTaskId,
+              entityType: 'TASK',
+              displayName: 'Linked twice',
+              relationship: 'mentioned-by',
+              source: 'system',
+            },
+          ],
+        }) as any,
+      );
+
+      const result = (await provider.getContext(
+        makeParams(),
+        {} as any,
+        makeRequest(),
+      )) as any;
+
+      expect(result.relatedEntities).toHaveLength(1);
+      expect(
+        result.relatedEntities[0].relationships.map((r: any) => r.relationship),
+      ).toEqual(['mentioned-by', 'mentions']);
     });
 
     it('validates system and agent related entities against the registered output schema', async () => {
@@ -434,7 +482,7 @@ describe('GetContextToolsProvider', () => {
       expect(result.taskType).toBe('GOAL');
       expect(result.relatedEntities).toEqual([
         expect.objectContaining({
-          relationship: 'tracked-by',
+          relationships: [{ relationship: 'tracked-by' }],
           taskType: 'STANDARD',
         }),
       ]);
@@ -552,6 +600,7 @@ describe('GetContextToolsProvider', () => {
         {
           relatedEntityDepth: 2,
           relatedEntitySelection: { maxEntities: 100 },
+          groupRelationships: true,
           proposalDetail: 'summary',
         },
       );
@@ -597,13 +646,42 @@ describe('GetContextToolsProvider', () => {
           },
         ],
       };
-      entityContextService.getFullEntityContext.mockResolvedValue(projection);
+      entityContextService.getFullEntityContext.mockResolvedValue({
+        ...projection,
+        groupedRelatedEntities: groupRelatedEntities(
+          projection.relatedEntities ?? [],
+        ),
+      });
       const result = await provider.getContext(
         makeParams(),
         {} as Context,
         makeRequest(),
       );
-      expect(result).toMatchObject(projection);
+      const { relatedEntities: _flat, ...rest } = projection;
+      expect(result).toMatchObject(rest);
+      expect(result).toMatchObject({
+        relatedEntities: [
+          expect.objectContaining({
+            entityId: relatedTaskId,
+            relationships: [
+              expect.objectContaining({
+                relationship: 'sibling-via-parent',
+                source: 'system',
+              }),
+            ],
+          }),
+          expect.objectContaining({
+            entityId: relatedPlanId,
+            taskType: 'BUG',
+            relationships: [
+              expect.objectContaining({
+                relationship: 'depends-on',
+                source: 'agent',
+              }),
+            ],
+          }),
+        ],
+      });
       expect(entityContextService.getFullEntityContext).toHaveBeenCalledWith(
         testIds.organization,
         testIds.project,
@@ -613,6 +691,7 @@ describe('GetContextToolsProvider', () => {
         {
           relatedEntityDepth: 2,
           relatedEntitySelection: { maxEntities: 100 },
+          groupRelationships: true,
           proposalDetail: 'summary',
         },
       );
@@ -852,6 +931,7 @@ describe('GetContextToolsProvider', () => {
           {
             relatedEntityDepth: 2,
             relatedEntitySelection: { maxEntities: 100 },
+            groupRelationships: true,
             proposalDetail: 'summary',
           },
         );
@@ -1189,6 +1269,7 @@ describe('GetContextToolsProvider', () => {
         expect(call[5]).toEqual({
           relatedEntityDepth: 2,
           relatedEntitySelection: { maxEntities: 100 },
+          groupRelationships: true,
           proposalDetail: 'summary',
         });
       }
@@ -1325,6 +1406,7 @@ describe('GetContextToolsProvider', () => {
         {
           relatedEntityDepth: 2,
           relatedEntitySelection: { maxEntities: 100 },
+          groupRelationships: true,
           proposalDetail: 'summary',
         },
       );
@@ -1350,6 +1432,7 @@ describe('GetContextToolsProvider', () => {
         {
           relatedEntityDepth: 2,
           relatedEntitySelection: { maxEntities: 100 },
+          groupRelationships: true,
           proposalDetail: 'summary',
         },
       );
@@ -1378,6 +1461,7 @@ describe('GetContextToolsProvider', () => {
         {
           relatedEntityDepth: 2,
           relatedEntitySelection: { maxEntities: 100 },
+          groupRelationships: true,
           proposalDetail: 'summary',
         },
       );

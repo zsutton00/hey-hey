@@ -71,10 +71,8 @@ const related = (name: string, relationship = 'related-to', reasoning?: string) 
   entityId: `id-${name}`,
   entityType: 'TASK',
   displayName: name,
-  relationship,
   status: 'COMPLETED',
-  via: [{ kind: 'edge' }],
-  ...(reasoning ? { reasoning } : {}),
+  relationships: [{ relationship, via: [{ kind: 'edge' }], ...(reasoning ? { reasoning } : {}) }],
 });
 
 const contextBody = {
@@ -285,9 +283,8 @@ describe('GetContextTrimmer', () => {
         entityType: 'TASK',
         displayName: 'Middle',
         status: 'COMPLETED',
-        relationship: 'mentions',
+        relationships: [{ relationship: 'mentions', summary: 'Mentioned once.' }],
         relationToFocal: 'informs',
-        summary: 'Mentioned once.',
       },
       { entityId: 'id-Low', entityType: 'TASK', displayName: 'Low' },
       { entityId: 'id-Hidden-conflict', entityType: 'TASK', displayName: 'Hidden-conflict' },
@@ -377,6 +374,33 @@ describe('GetContextTrimmer', () => {
       toolResult({ ...contextBody, relatedEntities: [related('High', 'depends-on', 'Edited.')] }),
     );
     expect(evaluate).toHaveBeenCalledTimes(3);
+  });
+
+  it('keeps each relationship reason of an abbreviated entity', async () => {
+    const { trimmer } = makeTrimmer(
+      answerFrom({
+        ...scores,
+        'related:0': { implements: 0.2, informs: 0.45 },
+      }),
+    );
+    const twoReasons = {
+      ...related('Two'),
+      relationships: [
+        { relationship: 'depends-on', reasoning: 'Needed first. Detail follows.' },
+        { relationship: 'mentions', reasoning: 'Cited in the plan. More.' },
+      ],
+    };
+
+    const parsed = parsedBody(
+      await trimmer.trimResult(toolResult({ ...contextBody, relatedEntities: [twoReasons] })),
+    );
+
+    expect(
+      (parsed['relatedEntities'] as Array<{ relationships: unknown }>)[0]?.relationships,
+    ).toEqual([
+      { relationship: 'depends-on', summary: 'Needed first.' },
+      { relationship: 'mentions', summary: 'Cited in the plan.' },
+    ]);
   });
 
   it('returns the upstream result and logs the cause when Jev fails', async () => {

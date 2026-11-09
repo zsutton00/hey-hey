@@ -162,6 +162,38 @@ const relatedEntityViaSchema = z.object({
   relationship: relationshipValueSchema,
 });
 
+const entityRelationshipSchema = z.object({
+  relationship: relationshipValueSchema.describe(
+    'Relationship between the seed entity and this entity. Direction ' +
+      'is encoded in the value (supersedes vs superseded-by, mentions ' +
+      'vs mentioned-by); sibling-via-parent surfaces tasks reached only ' +
+      'through an excluded parent feature; proposed-together is the ' +
+      'symmetric, system-emitted edge between entities co-authored by ' +
+      'the same approved proposal.',
+  ),
+  source: z
+    .enum([EdgeSource.System, EdgeSource.Agent, EdgeSource.User])
+    .optional()
+    .describe(
+      'Origin of the relationship: system, agent or user. Omitted when ' +
+        'every relationship in this response has the same origin.',
+    ),
+  via: z
+    .array(relatedEntityViaSchema)
+    .optional()
+    .describe(
+      'Path from the seed when reached through an excluded pivot ' +
+        '(e.g. a parent feature). Absent for direct relationships.',
+    ),
+  reasoning: z
+    .string()
+    .optional()
+    .describe(
+      'Written rationale for this relationship. Absent when none was ' +
+        'written.',
+    ),
+});
+
 const relatedEntitySchema = z.object({
   entityId: z.string(),
   entityType: z.string(),
@@ -173,36 +205,10 @@ const relatedEntitySchema = z.object({
     .string()
     .optional()
     .describe('Resolved work-item type key for TASK entries.'),
-  source: z
-    .enum([EdgeSource.System, EdgeSource.Agent, EdgeSource.User])
-    .optional()
-    .describe(
-      'Origin of the relationship: system for platform-derived graph ' +
-        'relationships, agent for AI-authored edges, or user for ' +
-        'human-authored edges.',
-    ),
-  relationship: relationshipValueSchema.describe(
-    'Relationship between the seed entity and this entity. Direction ' +
-      'is encoded in the value (supersedes vs superseded-by, mentions ' +
-      'vs mentioned-by); sibling-via-parent surfaces tasks reached only ' +
-      'through an excluded parent feature; proposed-together is the ' +
-      'symmetric, system-emitted edge between entities co-authored by ' +
-      'the same approved proposal.',
-  ),
-  via: z
-    .array(relatedEntityViaSchema)
-    .optional()
-    .describe(
-      'Path from the seed when reached through an excluded pivot ' +
-        '(e.g. a parent feature). Empty/absent for direct relationships.',
-    ),
-  reasoning: z
-    .string()
-    .optional()
-    .describe(
-      'Natural language rationale recorded on create_edge. Present ' +
-        'only for agent-authored relationships.',
-    ),
+  relationships: z
+    .array(entityRelationshipSchema)
+    .min(1)
+    .describe('Every relationship this entity has to the seed.'),
 });
 
 const agentSessionEntrySchema = z.object({
@@ -486,8 +492,8 @@ export const getContextOutput = z.object({
   relatedEntities: z
     .array(relatedEntitySchema)
     .describe(
-      'Entities related to the seed within a 2-hop traversal, in a ' +
-        'single flat list with the relationship inline on each entry. ' +
+      'Entities related to the seed within a 2-hop traversal, one entry ' +
+        'per entity with all of its relationships listed on it. ' +
         'Workflow flow edges are excluded from this meta relationship ' +
         'surface; workflow fulfillment links remain visible as meta links. ' +
         'Features live in featureHierarchy; agent sessions live in ' +
@@ -717,8 +723,8 @@ export class GetContextToolsProvider {
     description:
       'Returns orientation context for an entity: its proposal history (what ' +
       'created or modified it and why), the entities it relates to within ' +
-      '2 hops (relatedEntities — flat list, with each relationship inline ' +
-      'on the entry), the agent sessions attached to it (agentSessions), ' +
+      '2 hops (relatedEntities — one entry per entity, with all of its ' +
+      'relationships listed on the entry), the agent sessions attached to it (agentSessions), ' +
       'and its placement in the product feature hierarchy. ' +
       'Any registered work-item type key aliases TASK. ' +
       'The featureHierarchy shows where the entity sits within the product — ' +
@@ -947,6 +953,7 @@ export class GetContextToolsProvider {
         {
           relatedEntityDepth: 2,
           relatedEntitySelection: MCP_RELATED_ENTITY_SELECTION,
+          groupRelationships: true,
           proposalDetail: ProposalDetail.Summary,
         },
       );
@@ -989,7 +996,7 @@ export class GetContextToolsProvider {
       proposalDetail: ProposalDetail.Summary,
       olderProposalsOmitted: fullContext.olderProposalsOmitted ?? false,
       proposals,
-      relatedEntities: fullContext.relatedEntities ?? [],
+      relatedEntities: fullContext.groupedRelatedEntities ?? [],
       relatedEntitySelection: fullContext.relatedEntitySelection ?? {
         candidateEntityCount: 0,
         omittedEntityCount: 0,

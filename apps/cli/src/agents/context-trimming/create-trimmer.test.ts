@@ -59,7 +59,12 @@ const contextResult = {
       text: JSON.stringify({
         entityId: 'seed',
         relatedEntities: [
-          { entityId: 'e1', entityType: 'TASK', displayName: 'One', relationship: 'related-to' },
+          {
+            entityId: 'e1',
+            entityType: 'TASK',
+            displayName: 'One',
+            relationships: [{ relationship: 'related-to' }],
+          },
         ],
       }),
     },
