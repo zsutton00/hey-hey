@@ -98,8 +98,20 @@ const settings = (evaluate: (input: never) => Promise<JevResult>) => ({
         content: {
           requirementsSection: {
             records: [
-              { id: 'r1', statement: 'Alpha relevant. More alpha.', fulfilledBy: [] },
-              { id: 'r2', statement: `Beta other. ${SECRET_STATEMENT}`, fulfilledBy: [] },
+              {
+                id: 'r1',
+                statement: 'Alpha relevant. More alpha.',
+                designedBy: [],
+                fulfilledBy: [],
+                contracts: [],
+              },
+              {
+                id: 'r2',
+                statement: `Beta other. ${SECRET_STATEMENT}`,
+                designedBy: [],
+                fulfilledBy: [],
+                contracts: [],
+              },
             ],
           },
         },
