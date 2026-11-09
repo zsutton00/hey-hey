@@ -1,86 +1,192 @@
-Future revisions and proposal review
-Added support for reviewing changes ahead of implementation, tracking completion conditions, and applying the reviewed result when ready. Expanded future revisions to complete Diagram graphs, elements, references and layout.
-Added ready-to-apply revisions on Project Overview and completion/verification offers showing full changes. Added an Updates tab on Plans, clearer readiness stages and linked-work navigation.
-Added three-way conflict review and manual or agent-assisted resolution. Saving a resolution updates the same proposal/future instead of creating a disconnected correction. Keep this with future-revision coverage rather than presenting it as an unrelated headline.
-Fixed false overlap conflicts, inconsistent readiness decisions, grouped approval errors, Diagram publication failures and comparisons that mistook equivalent stored values for changes. Retry skips completed change-set operations, preserving newer user edits.
-Fixed unreadable requirements comparisons, missing specialized previews, hidden proposal identity, broken conversation navigation and premature graph-loading errors. Updated proposals resurface at turn completion.
-Existing task-linked futures remain supported. Default authoring uses futures for Plan-delivered knowledge changes; task execution ordinarily proposes ordinary updates, and conversations ask about now versus when work ships.
+# Changelog
 
-UX flows
-Added support for linking multiple Mockups into one view documenting the flow between screens and the user action that triggers each transition.
-Review a flow and newly proposed screens together, with per-screen annotations and approval/rejection. Accepted screens remain available; rejected screens block application of the journey. Further revision starts with the user's next comment.
-Render both proposed and already saved flows as screen journeys. Connected screens sit beside each other; screens use their declared presentation dimensions and can open at full size.
-Fixed same-group screen references, missing previews, incorrect screen sizing, misleading approval controls and fulfillment warnings that treated screens as implementation steps. No claim is made here that arrow-key walkthrough navigation or clickable controls inside screens is delivered.
+## v1.2.0
 
-Implementation planning
-Updated existing implementation planning for conversational iteration over complete Markdown plan versions, with explicit approval of the exact version to implement.
-Save a plan and its complete discrepancy list together. Show discrepancies beneath their plan, preserve version-specific decisions, and defer remediations until the user chooses.
-Fixed approval/replies lost after refresh, forgotten model selections and implementation stalling after a provider switch.
-Fixed deferred planning tools being inaccessible and turns silently completing with no saved plan. Preserve approved handoffs and surface missing-plan failures.
+### Local setup and graph search
 
-Hints and retained knowledge
-Replaced agents' use of legacy Service-scoped implementation hints with project-scoped graph hints. Hints preserve corrections, direction and gotchas and connect to multiple relevant entities through weighted connections.
-Agents retrieve hints connected to their focused work and can retire obsolete hints. Read restrictions apply to retrieval; coding-plan helpers receive read-only access.
-Project Admin lists hints with full text, connected items and strengths. Archived Services and their legacy implementation hints remain browsable. Stored legacy records are retained.
+- Added the graph search service, a local graph and vector-embedding store that runs memory-efficiently on your machine. Local installs need it to run.
+- Added single-passkey local pairing. Setup works by name only and opens the browser with access already granted.
+- Added a choice of pairing duration, including until revoked.
+- Implemented local onboarding through the coding agent you already use.
+- Added a local passkey login for the local app.
+- Added a local source development mode.
+- Added account passkey enrollment and enforcement at sign-in.
+- Updated project access checks to run once per request and before every search.
 
-Agent evaluations
-Improved evaluations to exercise named real handlers using the same preparation as ordinary sessions, with an independent Project Assistant on/off choice.
-Run attempts as ordinary inert sessions: outputs remain evaluation evidence and do not become ordinary project knowledge or apply live changes. Keep grading material out of evaluated agents' search and graph paths.
-Added per-case results, attempt conversations, retained outputs, execution details, target/judge provider-session identifiers and per-attempt costs. Token measurements distinguish fresh input, cache categories and output after settlement.
-Fixed missing Eval navigation, rejected valid model configurations, invalid attempt conversations, stalled execution and opening evidence accidentally starting a run.
-These are evaluation improvements, not the introduction of evaluations as a new capability.
+### Search and context
 
-Demo workspace
-Include the availability of the demo as release context, as requested by the user. The selected code baseline already contains demo functionality, so availability as a newly deployed offering is user-supplied context rather than an introduction proved by this diff.
-Added setup progress and recovery after refresh, retry on setup failure, and readiness checks covering all expected copied Feature connections.
-Fixed clone failures caused by operational identifiers and orphan session conversations, corrected clone event identity, and directed ready visitors to the project's Welcome page.
-Replaced the obstructive top notice with a smaller bottom banner and fixed demo logout/real sign-in state interfering with normal browser use and CLI pairing.
+- Added exact-match search mode.
+- Added matching paragraphs to search results. This is hosted-only and relies on multivector search.
+- Added a lightweight lookup of an item's title, status and type, to reduce token cost for title lookups.
+- Added a cap and grouping by relationship to related items in context.
+- Removed Jev context gathering and conflict judgments.
+- Updated work-item creation to require a prior search.
+- Fixed archived items appearing in agent context.
+- Fixed graph search accepting searches without current project access.
+- Fixed graph search allowing deletion of platform-owned edges.
 
-Dialogs
-Added a shared dialog shell and minimization. Supported dialogs retain drafts, selections, attachments and review context across in-app page navigation.
-Minimize is limited to supported shared-host dialogs. This is not a promise that every dialog survives navigation, and browser refresh persistence is outside the change.
+### Evaluations
 
-Navigation and smaller interface fixes
-Fixed Open Items selection when removing other items, sessions jumping out of their parent branch during activation, and hover previews opening late or sticking.
-Improved session labels using conversation titles and parent names. Triage must establish a generic session's purpose before recommending its removal.
-Fixed iPhone Safari layout/touch-target displacement, desktop type-navigation overflow, wasted width in expanded previews and unnecessarily compact Discuss selectors.
-Fixed previous-turn tool calls flashing during follow-up startup, restored file links from changed-file diffs to the configured editor, and kept attachment chips beside message authors.
-Show browser annotation comments beside their targets by default; repositioned the annotation toolbar. Clarified activity chart colors and Welcome step actions.
-Usage/Costs views load the routing session rather than hydrating every project session.
+- Added naming and renaming of evaluation runs.
+- Added repeated runs of a case, with results for each repeat.
+- Implemented isolated workspaces for coding evals, and saved the diff the judge reviewed.
+- Added each attempt's tool calls, provider sessions and full session transcripts.
+- Fixed eval attempts reading items connected to their own case through search or context.
 
-Agent behavior and work-item tools
-Added default session roles to Agent Modes and type-owned guidance for implementation, research, planning and review; retired standalone semantic guidance in favor of those role instructions.
-Fixed Agent Mode and refiner conversations switching to a generic coding agent after the first turn. Preserve the owning agent, mode and accepted runtime across replies and handoffs.
-Fixed missing changed-file reporting in Agent Mode sessions. Completion requires reporting when files changed; discussion-only turns do not need an empty file report.
-Review is read-only and judges delivery against governing Feature requirements and Contracts. Completion can raise specific concerns when implementation diverges from governing Mockups or Diagrams.
-Honor explicit edit instructions within admitted scope without repeatedly requesting permission. Need-style discussion still does not authorize repository edits.
-Allow registered work-item type keys in context/full-entity reads, including custom types; support Message and Conversation context seeds. Correct Diagram authoring guidance.
-Allow all agent-settable statuses declared by the type, remove the legacy batch edit_tasks tool, and guide agents to consolidate changes to one entity into one update per round.
-Fixed clearing assignees and returning successful archive mutation results. Fixed indefinitely retried workspace input without a Service.
-Show terminal/startup failure reasons in conversations, avoid presenting pending Service approval as failure, and distinguish cancellation from real provider errors.
+### Reports and uncertainties
 
-Authorization and pairing
-Bind direct commands and protected reads to the exact inputs the user approved. Align supported coding-session launch payloads with controller validation and add schema-compatibility build checks.
-Fix Agent fix startup by binding the selected machine before launch; preserve the browser's eligibility on previously paired machines when adding another controller.
-Protect Embeddings diagnostics with scoped credentials and check current project access before private retrieval. Search applies trusted project scope before ranking/pagination.
-Improve authorization-mismatch diagnostics. Authentication declaration/generation changes support these boundaries; deployment was not tested in this investigation.
+- Added structured uncertainties that agents can raise. Reports show them separately from open questions.
+- Added a project report history page and API.
+- Added usage to feature sync reports.
+- Improved report text readability.
 
-Repository import
-Add a post-import conversation to enrich reviewed Features with user-confirmed intent, with usable reply fields for follow-up questions.
-Fix reviewed candidates being rejected by CLI validation and workflow handoffs being treated as prompts that still needed an answer.
-Improve repository-analysis instructions so Feature descriptions explain the capability and its boundaries instead of repeating one-line labels.
+### Proposals and diagrams
 
-Project Assistant and context gathering
-Make the Jev option control all CLI uses of Jev.
-Gather paragraph-level relevance excerpts while preserving canonical identities and access to full entities. Narrow a loaded neighborhood against the user's request; on failed judgment use the original context.
-Persist exact provider input, gathering requests, answers and traces for diagnosis. Internal converter/bootstrap refactors support the same flow.
-Some implementing items remain Active; code inclusion is established, but a completed task status or production effectiveness is not claimed.
+- Implemented carrying relationships over when one item replaces another.
+- Added explicit transition roles to diagrams, and laid out journeys by those roles.
+- Added opening a UX flow from a Mockup screen, and showing a Mockup's flow under it.
+- Updated Mockup proposals to lead with the screen.
+- Fixed validation and approval of Mockup work items.
 
-Reports
-Deliver report evidence outside the starting prompt and require every shard page to be read before submission. No sampling or omission merely to fit prompt limits.
-Add saved creation-time usage measurements and a usage bar to terminal reports. Improve change-walkthrough visual hierarchy and source links.
-Evidence-volume handling is represented in the release even though its task remains Active. This inventory does not claim it solves release-note discovery, grouping or scope selection.
+### Plans
 
-Search
-Return matching passage spans together with their exact source text through search and unified search, allowing callers to locate the relevant portions of a result.
-Format Feature requirements as readable searchable content instead of raw requirements JSON. Verify section ingestion/update/deletion behavior.
+- Fixed plan stages not completing when their tasks are superseded.
+- Fixed plan views showing the wrong task statuses.
+- Fixed tasks created from a plan leaving that plan.
+
+### Agents and sessions
+
+- Added grouped permission requests on one card.
+- Fixed a monitored run waiting forever on an unanswered permission prompt.
+- Added review and correction of session hints, and retrieval of hints by the session that wrote them.
+- Added changed files to entity conversations.
+- Added filters, and the names of connected items, to the hints admin page.
+- Added the terminal title being set while a run is in progress.
+
+### Releases and infrastructure
+
+- Implemented CLI releases that publish with a pinned image manifest.
+- Updated the shared database to PostgreSQL 17.
+- Updated image builds to run from any branch.
+- Added a comparison of work-item type overrides with their canonical definitions.
+
+### Fixes
+
+- Fixed retries of an applied change set so they skip checkpoints that already completed.
+- Fixed grouped feature updates conflicting with themselves.
+- Fixed reply composers not clearing after a reply is sent.
+- Added an empty state for empty feature requirements.
+- Fixed chart labels being clipped.
+- Fixed local handoff tokens being exchanged more than once.
+
+## v1.1.0
+
+### Future revisions and proposal review
+
+- Added reviewing changes ahead of implementation, with completion conditions and applying the reviewed result when ready.
+- Added full Diagram graphs, elements, references and layout to future revisions.
+- Added ready-to-apply revisions on Project Overview, and completion and verification offers that show the full change.
+- Added an Updates tab on Plans, clearer readiness stages and linked-work navigation.
+- Added three-way conflict review with manual or agent-assisted resolution. Saving a resolution updates the same proposal or future.
+- Updated authoring to use futures for knowledge changes delivered by a Plan. Task execution proposes ordinary updates, and conversations ask whether a change goes live now or when the work ships.
+- Fixed false overlap conflicts, inconsistent readiness decisions, grouped approval errors and Diagram publication failures.
+- Fixed comparisons that treated equivalent stored values as changes.
+- Fixed retries re-running completed change-set operations, which could overwrite newer user edits.
+- Fixed unreadable requirements comparisons, missing specialized previews, hidden proposal identity and broken conversation navigation.
+- Fixed premature graph-loading errors. Updated proposals now resurface when a turn completes.
+
+### UX flows
+
+- Added linking multiple Mockups into one flow that documents each screen transition and the action that triggers it.
+- Added reviewing a flow together with newly proposed screens, with per-screen annotations and approval or rejection.
+- Added rendering of proposed and saved flows as screen journeys, using each screen's declared size, with a full-size view.
+- Fixed same-group screen references, missing previews, incorrect screen sizing and misleading approval controls.
+- Fixed fulfillment warnings that treated screens as implementation steps.
+
+### Implementation planning
+
+- Updated planning to iterate conversationally over complete Markdown plan versions, with explicit approval of the exact version to implement.
+- Added saving a plan with its complete discrepancy list, shown beneath the plan, with remediations deferred until you choose.
+- Fixed approvals and replies lost after a refresh, forgotten model selections and stalls after a provider switch.
+- Fixed deferred planning tools being unavailable, and turns that finished without a saved plan.
+
+### Hints
+
+- Replaced Service-scoped implementation hints with project-scoped graph hints that connect to several items with weighted connections.
+- Added agents retrieving hints for their focused work and retiring obsolete ones.
+- Added a Project Admin hints list with full text, connected items and strengths.
+
+### Agent evaluations
+
+- Updated evaluations to run named real handlers with the same preparation as ordinary sessions, with an independent Project Assistant on/off choice.
+- Updated attempts to run as inert sessions, with grading material kept out of evaluated agents' search and graph reads.
+- Added per-case results, attempt conversations, retained outputs, execution details, target and judge provider-session IDs, and per-attempt costs.
+- Added settled token usage by cache category.
+- Fixed missing Eval navigation, rejected valid model configurations, invalid attempt conversations, stalled execution and opening evidence starting a run.
+
+### Demo workspace
+
+- Added setup progress and recovery after a refresh, retry on failure, and readiness checks covering all copied Feature connections.
+- Updated the demo notice to a smaller bottom banner and sent ready visitors to the project's Welcome page.
+- Fixed clone failures from operational identifiers and orphan session conversations, and wrong clone event identity.
+- Fixed demo logout and real sign-in state interfering with normal browser use and CLI pairing.
+
+### Dialogs
+
+- Added a shared dialog shell with minimizing. Supported dialogs keep drafts, selections, attachments and review context across in-app navigation.
+
+### Navigation and interface
+
+- Fixed Open Items selection when removing other items, sessions jumping out of their parent branch, and hover previews opening late or sticking.
+- Updated session labels to use conversation titles and parent names.
+- Fixed iPhone Safari layout and touch targets, desktop type-navigation overflow, wasted width in expanded previews and compact Discuss selectors.
+- Fixed previous-turn tool calls flashing at follow-up startup, and restored file links from changed-file diffs to the configured editor.
+- Fixed attachment chips sitting away from message authors.
+- Added annotation comments shown beside their targets by default, and moved the annotation toolbar.
+- Updated activity chart colors and Welcome step actions for clarity.
+- Updated Usage and Costs views to load only the routing session.
+
+### Agent behavior and work-item tools
+
+- Added default session roles to Agent Modes, and type-owned guidance for implementation, research, planning and review, replacing standalone semantic guidance.
+- Fixed Agent Mode and refiner conversations switching to a generic coding agent after the first turn.
+- Fixed missing changed-file reporting in Agent Mode sessions.
+- Updated review to be read-only and judge delivery against governing Feature requirements and Contracts.
+- Updated agents to honor explicit edit instructions within admitted scope without repeated permission requests.
+- Added registered and custom work-item type keys to context and full-entity reads, and Message and Conversation context seeds.
+- Updated agents to set any status the type allows, and removed the batch `edit_tasks` tool.
+- Fixed clearing assignees, archive mutation results and endlessly retried workspace input without a Service.
+- Added terminal and startup failure reasons in conversations, and distinguished cancellation from provider errors.
+
+### Authorization and pairing
+
+- Updated direct commands and protected reads to bind to the exact inputs you approved.
+- Added scoped credentials on Embeddings diagnostics, and a current-project-access check before private retrieval.
+- Updated search to apply project scope before ranking and pagination.
+- Fixed Agent fix startup by binding the selected machine before launch.
+- Fixed adding a controller removing the browser's eligibility on previously paired machines.
+- Added clearer authorization-mismatch diagnostics.
+
+### Repository import
+
+- Added a post-import conversation that enriches reviewed Features with confirmed intent.
+- Fixed reviewed candidates being rejected by CLI validation, and handoffs being treated as unanswered prompts.
+- Updated repository analysis so Feature descriptions explain the capability and its boundaries.
+
+### Project Assistant and context
+
+- Added a Jev setting that controls every CLI use of Jev.
+- Added paragraph-level relevance excerpts that keep canonical identities and full-entity access.
+- Added narrowing of a loaded neighborhood to the request, falling back to the original context if judgment fails.
+- Added saved provider input, gathering requests, answers and traces for diagnosis.
+
+### Reports
+
+- Updated report evidence to be read as shards outside the prompt, with every page required before submission.
+- Added saved creation-time usage and a usage bar on terminal reports.
+- Updated change-walkthrough hierarchy and source links.
+
+### Search
+
+- Added matching passage spans and source text to search and unified search.
+- Updated Feature requirements to index as readable text instead of raw JSON.
