@@ -23438,7 +23438,10 @@
               "description": "Real provider session id of the child that judged this attempt. Never a pending placeholder."
             },
             "judgeSessionId": {
-              "type": ["string", "null"],
+              "type": [
+                "string",
+                "null"
+              ],
               "description": "Agent Session of the judge, recorded as soon as it is created so a running judge is already known as an eval session. The finished assessment repeats it."
             },
             "measurements": {
@@ -25000,7 +25003,10 @@
           "description": "Number of further calls left out once the list reached its cap."
         }
       },
-      "required": ["state", "calls"],
+      "required": [
+        "state",
+        "calls"
+      ],
       "description": "The tool calls one attempt made, in order. UNAVAILABLE means they could not be collected, which is different from COLLECTED with no calls."
     },
     "EvalRecordedToolCallsStateEnum": {
@@ -25039,7 +25045,11 @@
           "description": "True when arguments were cut."
         }
       },
-      "required": ["toolName", "origin", "truncated"],
+      "required": [
+        "toolName",
+        "origin",
+        "truncated"
+      ],
       "description": "One tool call an attempt\\'s tested agent made. The call\\'s result is never kept. Evidence only; never shown to the tested agent or other attempts."
     },
     "EvalRecordedToolCallOriginEnum": {
