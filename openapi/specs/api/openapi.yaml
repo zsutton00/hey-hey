@@ -3416,6 +3416,18 @@ paths:
             Graph traversal depth used only for relatedEntities and
             agentSessions. UI callers use the default one-hop neighborhood;
             agent callers may request two hops for broader orientation.
+        - name: groupRelationships
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: >
+            Agent view. Adds groupedRelatedEntities (one entry per related
+            entity carrying all of its relationships) and returns
+            featureHierarchy with one entry per feature, relationship type
+            and direction. relatedEntities is unchanged. Selection, ranking
+            and limits are identical to the default response.
         - name: includeFeatureHierarchy
           in: query
           required: false
@@ -4674,6 +4686,56 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/UnifiedGraphSearchResponse"
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
+  /organizations/{organizationId}/projects/{projectId}/topology/connected-entities:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Organization ID
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+    post:
+      summary: List the entities connected to the given entities
+      description: >-
+        Returns the given entities together with the entities that link to or
+        mention them, and every message in any given conversation. Links the
+        given entities make themselves and structural hubs such as the project
+        or a parent feature are not followed. Returns IDs only.
+      operationId: getTopologyConnectedEntities
+      tags: [Topology]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConnectedEntitiesRequest"
+      responses:
+        "200":
+          description: Connected entities resolved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ConnectedEntitiesResponse"
         "400":
           description: Invalid request parameters
           content:
@@ -24986,6 +25048,37 @@ components:
       $ref: "../schemas/unified-search.yaml#/UnifiedSearchRequest"
     UnifiedSearchResponse:
       $ref: "../schemas/unified-search.yaml#/UnifiedSearchResponse"
+    ConnectedEntitiesRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - entityIds
+      properties:
+        entityIds:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: string
+            format: uuid
+          description: Entities whose connected entities are listed.
+        depth:
+          type: integer
+          minimum: 1
+          maximum: 2
+          default: 1
+          description: How many link hops from the given entities are followed.
+    ConnectedEntitiesResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - entityIds
+      properties:
+        entityIds:
+          type: array
+          items:
+            type: string
+          description: Distinct connected entities, including the given ones.
     UnifiedGraphSearchResponse:
       $ref: "../schemas/unified-search.yaml#/UnifiedGraphSearchResponse"
     UnifiedBatchGraphSearchOptions:
@@ -25465,6 +25558,10 @@ components:
       $ref: "../schemas/entity-context.yaml#/PlanContextEntryDto"
     ContextRelatedEntityDto:
       $ref: "../schemas/entity-context.yaml#/ContextRelatedEntityDto"
+    ContextGroupedRelatedEntityDto:
+      $ref: "../schemas/entity-context.yaml#/ContextGroupedRelatedEntityDto"
+    ContextEntityRelationshipDto:
+      $ref: "../schemas/entity-context.yaml#/ContextEntityRelationshipDto"
     RelatedEntitySelectionDto:
       $ref: "../schemas/entity-context.yaml#/RelatedEntitySelectionDto"
     RelatedEntityViaDto:

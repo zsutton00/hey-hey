@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod/v4';
 import { SessionValidationError } from '../session/errors';
+import type { EvalSearchScope } from '../shared/agent-bridge-contract/runtime-types';
 import { resolveBaseDir } from '../session/paths';
 import type {
   AgenticSession,
@@ -211,6 +212,27 @@ class RunMetadataMigrationRequiredError extends SessionValidationError {
   }
 }
 
+const evalSearchScopeSchema = z.object({
+  createdBefore: z.string(),
+  excludeConnectedTo: z.array(z.string()),
+  hiddenEntityIds: z.array(z.string()),
+});
+
+const sameSearchScope = (
+  left: EvalSearchScope | undefined,
+  right: EvalSearchScope | undefined,
+): boolean => {
+  if (!left || !right) {
+    return left === right;
+  }
+
+  return (
+    left.createdBefore === right.createdBefore &&
+    left.excludeConnectedTo.length === right.excludeConnectedTo.length &&
+    left.excludeConnectedTo.every((id, index) => id === right.excludeConnectedTo[index])
+  );
+};
+
 const legacyPlanRunEntitySchema = z.object({ entityType: z.literal('PLAN') }).passthrough();
 
 const parseRunMetadata = (text: string): AgenticSession => {
@@ -219,10 +241,10 @@ const parseRunMetadata = (text: string): AgenticSession => {
     throw new SessionValidationError('Persisted Run inertness must be boolean.');
   }
   if (
-    parsed['searchCreatedBefore'] !== undefined &&
-    typeof parsed['searchCreatedBefore'] !== 'string'
+    parsed['searchScope'] !== undefined &&
+    !evalSearchScopeSchema.safeParse(parsed['searchScope']).success
   ) {
-    throw new SessionValidationError('Persisted Run search cutoff must be a string.');
+    throw new SessionValidationError('Persisted Run search scope is invalid.');
   }
   if (!Object.hasOwn(parsed, 'entity')) {
     throw new SessionValidationError('Persisted Run metadata is missing entity.');
@@ -1175,10 +1197,10 @@ export class RunStore {
           throw new SessionValidationError('Run inertness cannot change after creation.');
         }
         if (
-          input.searchCreatedBefore !== undefined &&
-          input.searchCreatedBefore !== existing.searchCreatedBefore
+          input.searchScope !== undefined &&
+          !sameSearchScope(input.searchScope, existing.searchScope)
         ) {
-          throw new SessionValidationError('Run search cutoff cannot change after creation.');
+          throw new SessionValidationError('Run search scope cannot change after creation.');
         }
         if (!sameRunEntity(existing.entity, parsedEntity.data)) {
           throw new SessionValidationError(
@@ -1203,7 +1225,7 @@ export class RunStore {
       const baseEntry = {
         agentic_session_id: agenticSessionId,
         inert: input.inert ?? false,
-        ...(input.searchCreatedBefore ? { searchCreatedBefore: input.searchCreatedBefore } : {}),
+        ...(input.searchScope ? { searchScope: input.searchScope } : {}),
         ...(input.workspaceBound ? { workspaceBound: true } : {}),
         entity: parsedEntity.data,
         services: input.services,

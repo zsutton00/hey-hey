@@ -381,25 +381,36 @@ describe('RunStore', () => {
     ).rejects.toThrow('Run inertness cannot change');
   });
 
-  it('keeps an inert Run search cutoff after a fresh store opens it, and refuses changing it', async () => {
-    const cutoff = '2026-03-01T00:00:00.000Z';
-    const run = await store.createRun(
-      createTaskInput({ inert: true, searchCreatedBefore: cutoff }),
-    );
+  it('keeps an inert Run search scope after a fresh store opens it, and refuses changing it', async () => {
+    const scope = {
+      createdBefore: '2026-03-01T00:00:00.000Z',
+      excludeConnectedTo: ['case-id', 'eval-id', 'proposal-id', 'conversation-id'],
+      hiddenEntityIds: ['case-id', 'eval-id', 'proposal-id', 'conversation-id', 'message-id'],
+    };
+    const run = await store.createRun(createTaskInput({ inert: true, searchScope: scope }));
     const reopened = new RunStore({ paths: createTempPaths(tempRoot) });
     await reopened.initialize();
     expect(await reopened.getRun(run.agentic_session_id)).toMatchObject({
-      searchCreatedBefore: cutoff,
+      searchScope: scope,
     });
     await expect(
       reopened.createRun(
         createTaskInput({
           agentic_session_id: run.agentic_session_id,
           inert: true,
-          searchCreatedBefore: '2026-04-01T00:00:00.000Z',
+          searchScope: { ...scope, createdBefore: '2026-04-01T00:00:00.000Z' },
         }),
       ),
-    ).rejects.toThrow('search cutoff cannot change');
+    ).rejects.toThrow('search scope cannot change');
+    await expect(
+      reopened.createRun(
+        createTaskInput({
+          agentic_session_id: run.agentic_session_id,
+          inert: true,
+          searchScope: { ...scope, excludeConnectedTo: ['case-id'] },
+        }),
+      ),
+    ).rejects.toThrow('search scope cannot change');
   });
 
   it('preserves attachments when the authoritative completed Run is newer than retention cutoff', async () => {

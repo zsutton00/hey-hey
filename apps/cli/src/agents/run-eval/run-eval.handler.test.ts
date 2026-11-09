@@ -5,12 +5,42 @@ import { runEvalHandler } from './run-eval.handler';
 
 const CASE_CREATED_AT = '2026-01-01T00:00:00.000Z';
 
-// The only platform read is the Eval Case's creation time, which sets the attempt's search cutoff.
-vi.mock('./eval-case-created-at', () => ({
-  EvalCaseCreatedAt: class {
-    public read = vi.fn(() => Promise.resolve(CASE_CREATED_AT));
-  },
-}));
+const EVAL_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const PROPOSAL_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const AUTHORING_CONVERSATION_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const AUTHORING_MESSAGE_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+
+// The platform reads that set an attempt's search scope: the Eval Case with its Eval, and the
+// proposals made about it with the conversations they were made in, and everything connected to them.
+const mockCaseReads = async (listProposals?: () => Promise<unknown>) => {
+  const { TasksApi, ProposalsApi, TopologyApi } = await import('@hey-hey/contracts/api');
+  vi.spyOn(TopologyApi.prototype, 'getTopologyConnectedEntities').mockImplementation((async ({
+    connectedEntitiesRequest,
+  }: {
+    connectedEntitiesRequest: { entityIds: string[] };
+  }) => ({
+    data: { data: { entityIds: [...connectedEntitiesRequest.entityIds, AUTHORING_MESSAGE_ID] } },
+  })) as never);
+  vi.spyOn(
+    TasksApi.prototype,
+    'organizationsOrganizationIdProjectsProjectIdTasksTaskIdGet',
+  ).mockResolvedValue({
+    data: { data: { createdAt: CASE_CREATED_AT, parentTaskId: EVAL_ID } },
+  } as never);
+  vi.spyOn(ProposalsApi.prototype, 'listProposals').mockImplementation(
+    (listProposals ??
+      (async () => ({
+        data: {
+          data: {
+            data: [{ id: PROPOSAL_ID, conversationId: AUTHORING_CONVERSATION_ID }],
+            total: 1,
+            limit: 100,
+            offset: 0,
+          },
+        },
+      }))) as never,
+  );
+};
 
 const attempt = {
   attemptId: '33333333-3333-4333-8333-333333333333',
@@ -119,7 +149,8 @@ describe('runEvalHandler', () => {
         return {} as never;
       });
 
-      const searchCutoffs: string[] = [];
+      await mockCaseReads();
+      const searchScopes: unknown[] = [];
       const ctx = {
         session: {
           agentic_session_id: 'run-1',
@@ -134,9 +165,9 @@ describe('runEvalHandler', () => {
             execute: (
               _session: unknown,
               recorded: typeof attempt,
-              options: { searchCreatedBefore: string },
+              options: { searchScope: unknown },
             ) => {
-              searchCutoffs.push(options.searchCreatedBefore);
+              searchScopes.push(options.searchScope);
               launches.push({
                 handlerId: recorded.caseInput.target.targetHandler,
                 payload: { userMessage: recorded.caseInput.target.initiatingRequest },
@@ -160,7 +191,24 @@ describe('runEvalHandler', () => {
       );
 
       expect(summary).toBe('Eval run finished: 1 completed, 0 with errors, 0 stopped.');
-      expect(searchCutoffs).toEqual([CASE_CREATED_AT]);
+      expect(searchScopes).toEqual([
+        {
+          createdBefore: CASE_CREATED_AT,
+          excludeConnectedTo: [
+            attempt.caseInput.evalCaseId,
+            EVAL_ID,
+            PROPOSAL_ID,
+            AUTHORING_CONVERSATION_ID,
+          ],
+          hiddenEntityIds: [
+            attempt.caseInput.evalCaseId,
+            EVAL_ID,
+            PROPOSAL_ID,
+            AUTHORING_CONVERSATION_ID,
+            AUTHORING_MESSAGE_ID,
+          ],
+        },
+      ]);
       expect(launches.map((launch) => launch.handlerId)).toEqual(['agent_search', 'eval_judge']);
       const targetLaunch = launches[0]!;
       expect(JSON.stringify(targetLaunch.payload)).not.toMatch(/SECRET/);
@@ -180,4 +228,45 @@ describe('runEvalHandler', () => {
       vi.restoreAllMocks();
     },
   );
+  it('fails an attempt alone when its case proposals cannot be read, never searching unscoped', async () => {
+    await mockCaseReads(() => Promise.reject(new Error('proposals unavailable')));
+    const reports = new Map<string, Record<string, unknown>>([
+      [payload.evalRunId, { reportType: 'EVAL_RUN', status: 'QUEUED' }],
+      [attempt.attemptId, { reportType: 'EVAL_ATTEMPT', status: 'QUEUED', measurements: [] }],
+    ]);
+    const { ReportsApi } = await import('@hey-hey/contracts/api');
+    vi.spyOn(ReportsApi.prototype, 'getReport').mockImplementation(
+      async (request) =>
+        ({
+          data: { data: { id: request.reportId, payload: reports.get(request.reportId) } },
+        }) as never,
+    );
+    vi.spyOn(ReportsApi.prototype, 'updateReport').mockImplementation(async (request) => {
+      reports.set(
+        request.reportId,
+        request.updateReportDto.payload as unknown as Record<string, unknown>,
+      );
+      return {} as never;
+    });
+    const execute = vi.fn();
+    const ctx = {
+      session: {
+        agentic_session_id: 'run-1',
+        contextMetadata: { organizationId: 'org-1', projectId: 'project-1' },
+      },
+      deps: {
+        auth: { getAccessToken: async () => 'token' },
+        apiBaseUrl: 'http://api.test',
+        logger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        evalAttemptExecution: { sweepWorkspaces: () => Promise.resolve(), execute },
+        childAgentLauncher: { launchRegistered: vi.fn() },
+      },
+    } as unknown as ProceduralRunContext;
+
+    const summary = await runEvalHandler.runProcedure!(payload, ctx, new AbortController().signal);
+
+    expect(summary).toContain('1 with errors');
+    expect(execute).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
 });
