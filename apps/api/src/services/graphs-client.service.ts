@@ -21,6 +21,8 @@ import {
   IncidentEdgesResponse,
   ProjectionDeletionCommand,
   ProjectionDeletionResult,
+  SearchExclusionRequest,
+  SearchExclusionResponse,
   SearchRequest,
   SearchResponse,
   StructuredGraphReadRequest,
@@ -297,6 +299,25 @@ export class GraphsClientService {
       });
       throw error;
     }
+  }
+
+  async resolveSearchExclusion(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    request: SearchExclusionRequest,
+    userToken: string,
+  ): Promise<SearchExclusionResponse> {
+    const response = await firstValueFrom<
+      AxiosResponse<SearchExclusionResponse>
+    >(
+      this.queriesService.resolveSearchExclusion(
+        organizationId,
+        projectId,
+        request,
+        this.userAuthConfig(userToken),
+      ),
+    );
+    return response.data;
   }
 
   async checkFeatureProjectConnection(

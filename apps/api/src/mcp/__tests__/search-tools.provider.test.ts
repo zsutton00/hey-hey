@@ -20,6 +20,7 @@ type SearchResult = z.infer<typeof searchResultOutput>;
 
 const mockSearchService = {
   search: jest.fn(),
+  resolveExcludedEntityIds: jest.fn(),
 } as unknown as jest.Mocked<UnifiedSearchService>;
 
 const mockCacheService = {
@@ -857,6 +858,164 @@ describe('SearchToolsProvider', () => {
         expect(validation.success).toBe(true);
       },
     );
+
+    describe('excludeConnected (internal, set by the platform for eval attempts)', () => {
+      const EXCLUDE = {
+        entityIds: [ENTITY_ID, OWNER_ID],
+        depth: 1,
+      };
+      const RESOLVED = [ENTITY_ID, OWNER_ID, PROJECT_ID];
+
+      it('resolves the exclusion once for a batch and every query carries the same entities', async () => {
+        (
+          mockSearchService.resolveExcludedEntityIds as jest.Mock
+        ).mockResolvedValue(RESOLVED);
+        (mockSearchService.search as jest.Mock).mockResolvedValue(
+          makeSearchResponse([]),
+        );
+
+        await provider.unifiedSearch(
+          {
+            queries: ['one', 'two', 'three'],
+            excludeConnected: EXCLUDE,
+            limit: 5,
+            offset: 0,
+          },
+          dummyContext as any,
+          makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
+        );
+
+        expect(
+          mockSearchService.resolveExcludedEntityIds,
+        ).toHaveBeenCalledTimes(1);
+        expect(mockSearchService.resolveExcludedEntityIds).toHaveBeenCalledWith(
+          ORG_ID,
+          PROJECT_ID,
+          EXCLUDE,
+          'tok',
+        );
+        const calls = (mockSearchService.search as jest.Mock).mock.calls;
+        expect(calls).toHaveLength(3);
+        for (const call of calls) {
+          expect(call[2].common.excludeEntityIds).toEqual(RESOLVED);
+        }
+      });
+
+      describe('with the real result cache', () => {
+        const A = [ENTITY_ID, OWNER_ID];
+        const B = [ENTITY_ID, OWNER_ID, PROJECT_ID];
+        const C = [ENTITY_ID];
+        let cached: SearchToolsProvider;
+
+        const run = (
+          query: string,
+          excludeConnected: typeof EXCLUDE | null = EXCLUDE,
+        ) =>
+          cached.unifiedSearch(
+            {
+              query,
+              ...(excludeConnected ? { excludeConnected } : {}),
+              limit: 5,
+              offset: 0,
+            },
+            dummyContext as any,
+            makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
+          );
+
+        beforeEach(() => {
+          cached = new SearchToolsProvider(
+            mockSearchService as unknown as UnifiedSearchService,
+            new SearchCacheService(),
+            mockHelpService as unknown as HelpService,
+            mockSearchReceipts as any,
+          );
+          (mockSearchService.resolveExcludedEntityIds as jest.Mock).mockReset();
+          (mockSearchService.search as jest.Mock)
+            .mockReset()
+            .mockResolvedValue(makeSearchResponse([]));
+        });
+
+        it('searches again when the same seeds now resolve to a different set, for identical and similar queries', async () => {
+          (mockSearchService.resolveExcludedEntityIds as jest.Mock)
+            .mockResolvedValueOnce(A)
+            .mockResolvedValueOnce(B)
+            .mockResolvedValueOnce(C);
+
+          await run('retry failed attempts');
+          await run('retry failed attempts');
+          await run('retry failed attempt');
+
+          const sent = (mockSearchService.search as jest.Mock).mock.calls.map(
+            ([, , request]) => request.common.excludeEntityIds,
+          );
+          expect(sent).toEqual([A, B, C]);
+        });
+
+        it('still reuses a cached page when the resolved set is the same, in any order', async () => {
+          (mockSearchService.resolveExcludedEntityIds as jest.Mock)
+            .mockResolvedValueOnce(B)
+            .mockResolvedValueOnce([...B].reverse());
+
+          await run('retry failed attempts');
+          await run('retry failed attempts');
+
+          expect(mockSearchService.search).toHaveBeenCalledTimes(1);
+        });
+
+        it('never serves an excluded page to a search without the exclusion, or the reverse', async () => {
+          (
+            mockSearchService.resolveExcludedEntityIds as jest.Mock
+          ).mockResolvedValue(B);
+
+          await run('retry failed attempts');
+          await run('retry failed attempts', null);
+          await run('retry failed attempts');
+
+          expect(mockSearchService.search).toHaveBeenCalledTimes(2);
+        });
+      });
+
+      it('makes no exclusion call and adds nothing to the request when the option is absent', async () => {
+        (mockSearchService.search as jest.Mock).mockResolvedValue(
+          makeSearchResponse([]),
+        );
+
+        await provider.unifiedSearch(
+          { queries: ['one', 'two'], limit: 5, offset: 0 },
+          dummyContext as any,
+          makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
+        );
+
+        expect(
+          mockSearchService.resolveExcludedEntityIds,
+        ).not.toHaveBeenCalled();
+        for (const call of (mockSearchService.search as jest.Mock).mock.calls) {
+          expect(call[2].common).not.toHaveProperty('excludeEntityIds');
+          expect(call[2]).not.toHaveProperty('excludeConnected');
+        }
+      });
+
+      it('returns a search error, never unexcluded results, when the exclusion cannot be resolved', async () => {
+        (
+          mockSearchService.resolveExcludedEntityIds as jest.Mock
+        ).mockRejectedValue(new Error('graph unavailable'));
+
+        const result = (await provider.unifiedSearch(
+          {
+            queries: ['one', 'two'],
+            excludeConnected: EXCLUDE,
+            limit: 5,
+            offset: 0,
+          },
+          dummyContext as any,
+          makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
+        )) as { isError?: boolean; content: Array<{ text: string }> };
+
+        expect(result.isError).toBe(true);
+        expect(result.content[0]?.text).toContain('graph unavailable');
+        expect(mockSearchService.search).not.toHaveBeenCalled();
+      });
+    });
 
     it('forwards shared filters and limit to every query in the batch', async () => {
       (mockSearchService.search as jest.Mock).mockResolvedValue(

@@ -208,6 +208,12 @@ export interface UnifiedEmbeddingsSearchFilters {
      */
     'excludeTaskTypes'?: Array<string>;
     /**
+     * Internal. Entity identifiers removed by the embeddings service inside the retrieval query, before limits, offsets and totals.
+     * @type {Array<string>}
+     * @memberof UnifiedEmbeddingsSearchFilters
+     */
+    'excludeEntityIds'?: Array<string>;
+    /**
      *
      * @type {string}
      * @memberof UnifiedEmbeddingsSearchFilters

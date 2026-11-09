@@ -2,11 +2,12 @@ import type { OAuthClient } from '../auth/index';
 import { extractOrganizationIdFromToken } from '../auth/index';
 import type { ReadRestriction } from '@hey-hey/contracts/api/models';
 import { readRestrictionFor, readRestrictionHeaders } from '../shared/api/read-restriction';
+import type { EvalSearchScope } from '../shared/agent-bridge-contract/runtime-types';
 
 export interface McpSessionContext {
   readonly inert?: boolean;
-  /** Experiment: an inert execution's `unified_search` returns only items created before this ISO time. */
-  readonly searchCreatedBefore?: string | undefined;
+  /** Limits what an inert eval attempt's `unified_search` can find about its own case. */
+  readonly searchScope?: EvalSearchScope | undefined;
   /** Overrides what `inert` implies, for executions restricted without being inert (the judge). */
   readonly readRestriction?: ReadRestriction | undefined;
   projectId?: string | undefined;

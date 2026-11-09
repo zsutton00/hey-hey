@@ -273,11 +273,11 @@ export const buildRunMcpSessionContext = (
     | 'launchServiceId'
     | 'services'
     | 'inert'
-    | 'searchCreatedBefore'
+    | 'searchScope'
   >,
 ): McpSessionContext => ({
   inert: session.inert === true,
-  searchCreatedBefore: session.searchCreatedBefore,
+  searchScope: session.searchScope,
   projectId: session.contextMetadata.projectId,
   conversationId: session.conversationId,
   serviceId: session.launchServiceId,

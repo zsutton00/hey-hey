@@ -1,6 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Tool, Context } from '@rekog/mcp-nest';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { Request } from 'express';
 import { UnifiedSearchService } from '../../services/unified-search/unified-search.service';
@@ -60,6 +61,12 @@ export const UNIFIED_SEARCH_ENTITY_TYPES = [
   'DESIGN_DOC',
   'MESSAGE',
 ] as const;
+
+/** Order-independent digest of a resolved exclusion, so cache keys stay small and stable. */
+const fingerprintEntityIds = (entityIds: readonly string[]): string =>
+  createHash('sha256')
+    .update([...new Set(entityIds)].sort().join(','))
+    .digest('hex');
 
 // NOTE: do not wrap this schema in `.refine()`/`.superRefine()`. Those produce
 // a ZodEffects, which breaks MCP tool schema generation. The exactly-one-of
@@ -143,6 +150,17 @@ export const unifiedSearchParameters = z.object({
         'updated at or before this instant are returned. Combine with ' +
         'updatedAfter to scope results to an update-time window. Applies to ' +
         'every query in a batch.',
+    ),
+  excludeConnected: z
+    .object({
+      entityIds: z.array(z.string().uuid()).min(1).max(100),
+      depth: z.number().int().min(1).max(2).optional(),
+    })
+    .optional()
+    .describe(
+      'Internal; not for general use. The platform sets this during ' +
+        'evaluation runs to hide results connected to the given entities. ' +
+        'Applies to every query in a batch.',
     ),
   match: z
     .enum(['semantic', 'exact'])
@@ -723,6 +741,7 @@ export class SearchToolsProvider {
       createdBefore,
       updatedAfter,
       updatedBefore,
+      excludeConnected,
       match,
       limit,
       offset,
@@ -743,19 +762,31 @@ export class SearchToolsProvider {
       );
     }
 
-    const shared = {
-      entityTypes,
-      downrankUnreviewed,
-      createdAfter,
-      createdBefore,
-      updatedAfter,
-      updatedBefore,
-      match,
-      limit,
-      offset,
-    };
-
     try {
+      // Worked out once per call and shared by every query of a batch. A failure is a search
+      // error: results are never returned without the exclusion that was asked for.
+      const excludeEntityIds = excludeConnected
+        ? await this.unifiedSearchService.resolveExcludedEntityIds(
+            auth.organizationId,
+            projectId,
+            excludeConnected,
+            auth.token,
+          )
+        : undefined;
+
+      const shared = {
+        entityTypes,
+        downrankUnreviewed,
+        createdAfter,
+        createdBefore,
+        updatedAfter,
+        updatedBefore,
+        excludeEntityIds,
+        match,
+        limit,
+        offset,
+      };
+
       if (hasMulti) {
         // Run each query through the same single-query pipeline (cache
         // included) and return one ordered group per query. Promise.all
@@ -819,6 +850,7 @@ export class SearchToolsProvider {
       createdBefore?: string;
       updatedAfter?: string;
       updatedBefore?: string;
+      excludeEntityIds?: string[];
       match?: 'semantic' | 'exact';
       limit: number;
       offset: number;
@@ -833,6 +865,7 @@ export class SearchToolsProvider {
       createdBefore,
       updatedAfter,
       updatedBefore,
+      excludeEntityIds,
       match,
       limit,
       offset,
@@ -858,6 +891,12 @@ export class SearchToolsProvider {
       createdBefore,
       updatedAfter,
       updatedBefore,
+      // The resolved set, not the seeds it came from: the closure changes as items are linked, and a
+      // cached page must never answer a call whose exclusion differs. Present only when asked for,
+      // so ordinary searches keep their exact cache keys.
+      ...(excludeEntityIds
+        ? { excludedEntities: fingerprintEntityIds(excludeEntityIds) }
+        : {}),
       match,
       // The shared key lowercases and trims `query`, but an exact phrase is
       // literal (surrounding whitespace included), so key it untouched.
@@ -905,6 +944,7 @@ export class SearchToolsProvider {
       types: resolvedTypes,
       ...(dateRange ? { dateRange } : {}),
       ...(updatedAtRange ? { updatedAtRange } : {}),
+      ...(excludeEntityIds ? { excludeEntityIds } : {}),
     };
 
     // Exact mode is embeddings-only: graph traversal would add entities that

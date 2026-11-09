@@ -183,6 +183,14 @@ UnifiedEmbeddingsSearchFilters:
         Task types removed by the embeddings service inside the retrieval query,
         before limits, offsets and totals. Combines with `taskTypes` by
         intersection: an excluded type is never returned even when requested.
+    excludeEntityIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: >-
+        Internal. Entity identifiers removed by the embeddings service inside the
+        retrieval query, before limits, offsets and totals.
     created_after:
       type: string
     created_before:
@@ -241,6 +249,15 @@ UnifiedSearchCommonFilters:
         Report types removed from graph results and traversal paths inside the
         retrieval query, before limits, offsets and totals. Other entity types
         and report types are unaffected.
+    excludeEntityIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: >-
+        Internal. Entities removed from every search lane inside the retrieval
+        query, before limits, offsets and totals. Normally produced from
+        `excludeConnected` rather than supplied directly.
     statuses:
       type: array
       items:
@@ -364,6 +381,14 @@ UnifiedGraphSearchFilters:
       description: >-
         Report types the graph service removes from results and traversal paths
         inside the query.
+    excludeEntityIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: >-
+        Internal. Entities the graph service removes from results, relationships
+        and traversal paths inside the query.
     dateRange:
       type: object
       properties:
@@ -518,6 +543,35 @@ UnifiedSearchRequest:
       $ref: "#/UnifiedEmbeddingsSearchOptions"
     boosts:
       $ref: "#/UnifiedSearchBoosts"
+    excludeConnected:
+      $ref: "#/UnifiedSearchExcludeConnected"
+  additionalProperties: false
+
+UnifiedSearchExcludeConnected:
+  type: object
+  required:
+    - entityIds
+  description: >-
+    Internal; not for general use. Removes from every search lane the entities
+    connected to the given entities, the inverse of `seedEntityIds`. Only links
+    that point at the given entities count, never links they make themselves,
+    and structural hubs such as the project or a parent feature are not
+    followed. The platform sets this during evaluation runs.
+  properties:
+    entityIds:
+      type: array
+      minItems: 1
+      maxItems: 100
+      items:
+        type: string
+        format: uuid
+      description: Entities whose connected material is hidden from results.
+    depth:
+      type: integer
+      minimum: 1
+      maximum: 2
+      default: 1
+      description: How many link hops from the given entities are hidden.
   additionalProperties: false
 
 UnifiedGraphSearchResult:

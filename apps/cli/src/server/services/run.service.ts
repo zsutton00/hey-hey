@@ -557,9 +557,7 @@ export class RunService {
       if (resolvedEffort) startArgs.reasoningEffort = resolvedEffort;
       if (input.fastMode !== undefined) startArgs.fastMode = input.fastMode;
       if (input.inert !== undefined) startArgs.inert = input.inert;
-      if (input.searchCreatedBefore !== undefined) {
-        startArgs.searchCreatedBefore = input.searchCreatedBefore;
-      }
+      if (input.searchScope !== undefined) startArgs.searchScope = input.searchScope;
       if (input.workspaceBinding) startArgs.workspaceBinding = input.workspaceBinding;
       const result = await startAgenticSession(startArgs);
 

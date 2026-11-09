@@ -1,4 +1,5 @@
 import type { ServerLogger } from '../../server/logger';
+import type { EvalSearchScope } from '../../shared/agent-bridge-contract/runtime-types';
 import type { LocalCreateRunRequest } from '../../shared/agent-bridge-contract/contract';
 import {
   EvalAssessedOutput,
@@ -110,8 +111,8 @@ export class EvalAttemptExecution {
     attempt: EvalRecordedAttempt,
     options: {
       signal: AbortSignal;
-      /** Experiment: the attempt's `unified_search` returns only items created before this time. */
-      searchCreatedBefore: string;
+      /** What the attempt's `unified_search` may not reveal about its own case. */
+      searchScope: EvalSearchScope;
       tokenBudget?: number;
       onTokenLimit?: () => void;
       onProviderSessionIds?: (ids: string[]) => Promise<void>;
@@ -158,7 +159,7 @@ export class EvalAttemptExecution {
         ? { reasoningEffort: effortSchema.parse(setting.reasoningEffort) }
         : {}),
       inert: true,
-      searchCreatedBefore: options.searchCreatedBefore,
+      searchScope: options.searchScope,
       signal: options.signal,
       config: {
         type: 'ENTITY_CONVERSATION',

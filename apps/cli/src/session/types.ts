@@ -12,6 +12,7 @@ import type {
   ResolvedServiceBinding,
   TaskResponseDto,
 } from '../shared/agent-bridge-contract/contract';
+import type { EvalSearchScope } from '../shared/agent-bridge-contract/runtime-types';
 import type { AgentSessionServiceScopeRequest } from '@hey-hey/contracts/api/models';
 import type {
   ReviewFileScopeContinuation,
@@ -144,8 +145,8 @@ export interface AgenticSessionEvent {
 interface AgenticSessionBase {
   /** Immutable execution isolation, retained across restoration. */
   readonly inert?: boolean;
-  /** Immutable. Experiment: an inert Run's `unified_search` returns only items created before this ISO time. */
-  readonly searchCreatedBefore?: string;
+  /** Immutable. What an inert eval attempt's `unified_search` may not reveal about its own case. */
+  readonly searchScope?: EvalSearchScope;
   /** Immutable. An inert Run whose Service path is a dedicated workspace directory it may edit. */
   readonly workspaceBound?: boolean;
   agentic_session_id: string;
@@ -270,7 +271,7 @@ export type AgenticSession = AgenticSessionBase & {
 
 interface CreateAgenticSessionInputBase {
   readonly inert?: boolean;
-  readonly searchCreatedBefore?: string;
+  readonly searchScope?: EvalSearchScope;
   readonly workspaceBound?: boolean;
   agentic_session_id?: string;
   entity: RunEntityReference | null;

@@ -2,6 +2,7 @@ import { findLaunchCheckoutConflict } from '../repo/launch-checkout';
 import crypto from 'node:crypto';
 import { toServiceId, type RepoMappingStore } from '../repo/index';
 import type { RunStore } from '../run-store';
+import type { EvalSearchScope } from '../shared/agent-bridge-contract/runtime-types';
 import { SessionValidationError } from '../session/errors';
 import type {
   AgenticSession,
@@ -60,7 +61,7 @@ export interface StartAgenticSessionArgs {
   reasoningEffort?: LocalReasoningEffort;
   fastMode?: boolean;
   inert?: boolean;
-  searchCreatedBefore?: string;
+  searchScope?: EvalSearchScope;
   /** Replaces the Run's Service set with this directory, which becomes its working directory and write root. */
   workspaceBinding?: LocalRunWorkspaceBinding;
   createProviderSessionId?: () => string;
@@ -99,7 +100,7 @@ export const startAgenticSession = async ({
   reasoningEffort,
   fastMode,
   inert,
-  searchCreatedBefore,
+  searchScope,
   workspaceBinding,
   createProviderSessionId = defaultCreateProviderSessionId,
 }: StartAgenticSessionArgs): Promise<AgentSessionStartResult> => {
@@ -114,8 +115,8 @@ export const startAgenticSession = async ({
     throw new SessionValidationError('Only an inert Run can be bound to a workspace directory.');
   }
 
-  if (searchCreatedBefore !== undefined && inert !== true) {
-    throw new SessionValidationError('Only an inert Run can carry a search cutoff.');
+  if (searchScope !== undefined && inert !== true) {
+    throw new SessionValidationError('Only an inert Run can carry a search scope.');
   }
 
   const pendingServices = workspaceBinding ? null : readPendingServices(context);
@@ -149,7 +150,7 @@ export const startAgenticSession = async ({
 
   const sessionInput: CreateAgenticSessionInput = {
     ...(inert === undefined ? {} : { inert }),
-    ...(searchCreatedBefore === undefined ? {} : { searchCreatedBefore }),
+    ...(searchScope === undefined ? {} : { searchScope }),
     ...(workspaceBinding ? { workspaceBound: true } : {}),
     agentic_session_id: agentSessionId,
     entity,

@@ -38,6 +38,7 @@ import {
   UnifiedGraphSearchResult,
   UnifiedEmbeddingsSearchFilters,
   UnifiedSearchDiagnostics,
+  UnifiedSearchExcludeConnected,
   UnifiedSearchPlanLineageMode,
   UnifiedSearchRequest,
   UnifiedSearchResponse,
@@ -174,6 +175,13 @@ export class UnifiedSearchService {
     if (!userToken) {
       throw new UnauthorizedException('Authentication token not found');
     }
+
+    request = await this.withResolvedExclusion(
+      organizationId,
+      projectId,
+      request,
+      userToken,
+    );
 
     if (!request.intent) {
       throw new BadRequestException('intent is required');
@@ -443,6 +451,7 @@ export class UnifiedSearchService {
     const titleByEntityId = new Map<string, string>();
     const batchPlanLineageBoostDeltas = new Map<string, number>();
     const graphCache = new Map<string, Promise<UnifiedGraphSearchResponse>>();
+    const exclusionByKey = new Map<string, Promise<string[]>>();
     const batchRequestId = this.resolveBatchRequestId(request);
     this.logger.log('Unified batch search started', {
       organizationId,
@@ -487,11 +496,16 @@ export class UnifiedSearchService {
         query,
         request.globalOptions,
       );
-      const expandedRequest =
+      const expandedRequest = await this.withResolvedExclusion(
+        organizationId,
+        projectId,
         await this.expandGraphSeedEntityIdsFromConversation(
           organizationId,
           mergedRequest,
-        );
+        ),
+        userToken,
+        exclusionByKey,
+      );
 
       if (!expandedRequest.intent) {
         throw new BadRequestException('intent is required');
@@ -1967,6 +1981,82 @@ export class UnifiedSearchService {
     }
   }
 
+  /**
+   * Internal: the entities to hide for an exclusion, worked out by the graph service. Callers
+   * that run several searches resolve once and pass the result as `common.excludeEntityIds`.
+   */
+  async resolveExcludedEntityIds(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    exclusion: UnifiedSearchExcludeConnected,
+    userToken: string | null,
+  ): Promise<string[]> {
+    if (!userToken) {
+      throw new UnauthorizedException('Authentication token not found');
+    }
+
+    const response = await this.graphsClientService.resolveSearchExclusion(
+      organizationId,
+      projectId,
+      { entityIds: exclusion.entityIds, depth: exclusion.depth },
+      userToken,
+    );
+    return response.entityIds;
+  }
+
+  /**
+   * Turns `excludeConnected` into the resolved `common.excludeEntityIds` every lane filters on.
+   * A request without it is returned untouched, so ordinary searches make no extra call.
+   * Resolution failure propagates: a search never runs without the exclusion it asked for.
+   */
+  private async withResolvedExclusion(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    request: UnifiedSearchRequest,
+    userToken: string | null,
+    resolvedByKey?: Map<string, Promise<string[]>>,
+  ): Promise<UnifiedSearchRequest> {
+    const { excludeConnected, ...rest } = request;
+    if (!excludeConnected) {
+      return request;
+    }
+
+    const key = `${excludeConnected.depth ?? ''}:${excludeConnected.entityIds.join(',')}`;
+    let resolving = resolvedByKey?.get(key);
+    if (!resolving) {
+      resolving = this.resolveExcludedEntityIds(
+        organizationId,
+        projectId,
+        excludeConnected,
+        userToken,
+      );
+      resolvedByKey?.set(key, resolving);
+    }
+    const resolved = await resolving;
+
+    return {
+      ...rest,
+      common: {
+        ...rest.common,
+        excludeEntityIds: [
+          ...new Set([...(rest.common?.excludeEntityIds ?? []), ...resolved]),
+        ],
+      },
+    };
+  }
+
+  private resolveExcludedEntityIdsFromFilters(
+    request: UnifiedSearchRequest,
+  ): string[] {
+    return [
+      ...new Set([
+        ...(request.common?.excludeEntityIds ?? []),
+        ...(request.graph?.filters?.excludeEntityIds ?? []),
+        ...(request.embeddings?.filters?.excludeEntityIds ?? []),
+      ]),
+    ];
+  }
+
   private buildGraphRequest(
     request: UnifiedSearchRequest,
     projection?: SearchProjection,
@@ -1985,6 +2075,7 @@ export class UnifiedSearchService {
       .filter((t): t is string => !!t);
     const excludeTaskTypes = this.resolveExcludedTaskTypes(request);
     const excludeReportTypes = this.resolveExcludedReportTypes(request);
+    const excludeEntityIds = this.resolveExcludedEntityIdsFromFilters(request);
     const hasGraphFilters =
       !!graphFilters ||
       !!resolvedEntityTypes?.length ||
@@ -1992,6 +2083,7 @@ export class UnifiedSearchService {
       !!resolvedTaskTypes?.length ||
       !!excludeTaskTypes.length ||
       !!excludeReportTypes.length ||
+      !!excludeEntityIds.length ||
       !!graphDateRange?.from ||
       !!graphDateRange?.to ||
       !!graphUpdatedAtRange?.from ||
@@ -2013,6 +2105,9 @@ export class UnifiedSearchService {
               : undefined,
             excludeReportTypes: excludeReportTypes.length
               ? excludeReportTypes
+              : undefined,
+            excludeEntityIds: excludeEntityIds.length
+              ? excludeEntityIds
               : undefined,
             dateRange: graphDateRange,
             updatedAtRange: graphUpdatedAtRange,
@@ -2065,6 +2160,7 @@ export class UnifiedSearchService {
             excludeReportTypes: sortByString(
               request.filters.excludeReportTypes,
             ),
+            excludeEntityIds: sortByString(request.filters.excludeEntityIds),
           }
         : undefined,
       scoring: request.scoring
@@ -2457,6 +2553,7 @@ export class UnifiedSearchService {
     const statuses = this.resolveEmbeddingsStatuses(request);
     const taskTypes = this.resolveUnifiedEmbeddingsTaskTypes(request);
     const excludeTaskTypes = this.resolveExcludedTaskTypes(request);
+    const excludeEntityIds = this.resolveExcludedEntityIdsFromFilters(request);
 
     if (
       !baseFilters &&
@@ -2465,7 +2562,8 @@ export class UnifiedSearchService {
       !commonUpdatedAtRange &&
       !statuses?.length &&
       !taskTypes?.length &&
-      !excludeTaskTypes.length
+      !excludeTaskTypes.length &&
+      !excludeEntityIds.length
     ) {
       return undefined;
     }
@@ -2505,6 +2603,10 @@ export class UnifiedSearchService {
       mergedFilters.excludeTaskTypes = excludeTaskTypes;
     }
 
+    if (excludeEntityIds.length) {
+      mergedFilters.excludeEntityIds = excludeEntityIds;
+    }
+
     return mergedFilters;
   }
 
@@ -2518,6 +2620,7 @@ export class UnifiedSearchService {
     const statuses = this.resolveEmbeddingsStatuses(request);
     const taskTypes = this.resolveEmbeddingsTaskTypes(request);
     const excludeTaskTypes = this.resolveExcludedTaskTypes(request);
+    const excludeEntityIds = this.resolveExcludedEntityIdsFromFilters(request);
 
     if (
       !baseFilters &&
@@ -2526,7 +2629,8 @@ export class UnifiedSearchService {
       !commonUpdatedAtRange &&
       !statuses?.length &&
       !taskTypes?.length &&
-      !excludeTaskTypes.length
+      !excludeTaskTypes.length &&
+      !excludeEntityIds.length
     ) {
       return undefined;
     }
@@ -2577,6 +2681,10 @@ export class UnifiedSearchService {
 
     if (excludeTaskTypes.length) {
       mergedFilters.excludeTaskTypes = excludeTaskTypes;
+    }
+
+    if (excludeEntityIds.length) {
+      mergedFilters.excludeEntityIds = excludeEntityIds;
     }
 
     return mergedFilters;
