@@ -648,7 +648,7 @@ describe('ordinary Run output boundaries', () => {
               grading: { checks: [], rubric: [], expectations: 'SECRET-EXPECTATIONS' },
             },
           } satisfies EvalRecordedAttempt,
-          { signal: new AbortController().signal },
+          { signal: new AbortController().signal, searchCreatedBefore: '2026-01-01T00:00:00.000Z' },
         );
         expect(result).toMatchObject({ assistantCompleted: true, outputText: 'Evidence answer.' });
         expect(await runStore.getRunMetadata(AGENT_SESSION_ID)).toMatchObject({

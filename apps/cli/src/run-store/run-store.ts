@@ -218,6 +218,12 @@ const parseRunMetadata = (text: string): AgenticSession => {
   if (parsed['inert'] !== undefined && typeof parsed['inert'] !== 'boolean') {
     throw new SessionValidationError('Persisted Run inertness must be boolean.');
   }
+  if (
+    parsed['searchCreatedBefore'] !== undefined &&
+    typeof parsed['searchCreatedBefore'] !== 'string'
+  ) {
+    throw new SessionValidationError('Persisted Run search cutoff must be a string.');
+  }
   if (!Object.hasOwn(parsed, 'entity')) {
     throw new SessionValidationError('Persisted Run metadata is missing entity.');
   }
@@ -1168,6 +1174,12 @@ export class RunStore {
         if (input.inert !== undefined && input.inert !== (existing.inert ?? false)) {
           throw new SessionValidationError('Run inertness cannot change after creation.');
         }
+        if (
+          input.searchCreatedBefore !== undefined &&
+          input.searchCreatedBefore !== existing.searchCreatedBefore
+        ) {
+          throw new SessionValidationError('Run search cutoff cannot change after creation.');
+        }
         if (!sameRunEntity(existing.entity, parsedEntity.data)) {
           throw new SessionValidationError(
             'A Run with this agent session id already exists with a different entity.',
@@ -1191,6 +1203,7 @@ export class RunStore {
       const baseEntry = {
         agentic_session_id: agenticSessionId,
         inert: input.inert ?? false,
+        ...(input.searchCreatedBefore ? { searchCreatedBefore: input.searchCreatedBefore } : {}),
         ...(input.workspaceBound ? { workspaceBound: true } : {}),
         entity: parsedEntity.data,
         services: input.services,

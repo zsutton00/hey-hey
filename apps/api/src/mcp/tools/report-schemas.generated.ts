@@ -1144,6 +1144,19 @@ export const REPORT_SCHEMAS = {
               description:
                 'Real provider session id of the child that judged this attempt. Never a pending placeholder.',
             },
+            judgeSessionId: {
+              anyOf: [
+                {
+                  type: 'string',
+                  format: 'uuid',
+                  description:
+                    'Agent Session of the judge, recorded as soon as it is created so a running judge is already known as an eval session. The finished assessment repeats it.\n',
+                },
+                {
+                  type: 'null',
+                },
+              ],
+            },
             measurements: {
               type: 'array',
               description:

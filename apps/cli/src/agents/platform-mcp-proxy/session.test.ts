@@ -35,12 +35,17 @@ const makeSession = (
   logger?: ServerLogger,
   inert = false,
   graphResultNarrower?: DecisionModelResultNarrower,
+  searchCreatedBefore?: string,
 ) =>
   new PlatformMcpProxySession(
     {
       runId: 'run-1',
       turnId: 'turn-1',
-      context: { projectId: 'project-1', ...(inert ? { inert: true } : {}) },
+      context: {
+        projectId: 'project-1',
+        ...(inert ? { inert: true } : {}),
+        ...(searchCreatedBefore ? { searchCreatedBefore } : {}),
+      },
       catalog: new ActivePlatformToolCatalog({
         useCase: 'general',
         additionalTools: ['create_design_doc', 'get_context', 'get_edges'],
@@ -157,6 +162,60 @@ describe('PlatformMcpProxySession', () => {
       );
     },
   );
+
+  describe('unified_search cutoff', () => {
+    const CUTOFF = '2026-03-01T00:00:00.000Z';
+
+    const searchWith = async (args: Record<string, unknown>, inert = true, cutoff = CUTOFF) => {
+      const forward = vi.fn<PlatformMcpForwarder['forward']>().mockResolvedValue({
+        jsonrpc: '2.0',
+        id: 1,
+        result: { content: [] },
+      });
+      const proxy = makeSession(forward, undefined, inert, undefined, cutoff);
+      await proxy.handle({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'unified_search', arguments: args as never },
+      });
+
+      return forward.mock.calls[0]?.[0].params?.['arguments'];
+    };
+
+    it.each([
+      ['a single query', { query: 'retry' }],
+      ['a batch', { queries: ['retry', 'backoff'], entityTypes: ['MESSAGE'] }],
+    ])('adds the cutoff when the agent gives no date to %s', async (_label, args) => {
+      expect(await searchWith(args)).toEqual({ ...args, createdBefore: CUTOFF });
+    });
+
+    it('keeps an earlier agent date', async () => {
+      const args = { query: 'retry', createdBefore: '2026-01-01T00:00:00.000Z' };
+      expect(await searchWith(args)).toEqual(args);
+    });
+
+    it('replaces a later agent date with the cutoff', async () => {
+      const args = { queries: ['retry'], createdBefore: '2026-06-01T00:00:00.000Z' };
+      expect(await searchWith(args)).toEqual({ ...args, createdBefore: CUTOFF });
+    });
+
+    it('leaves searches of Runs without a cutoff unchanged', async () => {
+      const args = { query: 'retry' };
+      const forward = vi.fn<PlatformMcpForwarder['forward']>().mockResolvedValue({
+        jsonrpc: '2.0',
+        id: 1,
+        result: { content: [] },
+      });
+      await makeSession(forward, undefined, true).handle({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'unified_search', arguments: args },
+      });
+      expect(forward.mock.calls[0]?.[0].params?.['arguments']).toEqual(args);
+    });
+  });
 
   it('refuses unknown tools during inert execution before forwarding', async () => {
     const forward = vi.fn<PlatformMcpForwarder['forward']>();

@@ -144,6 +144,8 @@ export interface AgenticSessionEvent {
 interface AgenticSessionBase {
   /** Immutable execution isolation, retained across restoration. */
   readonly inert?: boolean;
+  /** Immutable. Experiment: an inert Run's `unified_search` returns only items created before this ISO time. */
+  readonly searchCreatedBefore?: string;
   /** Immutable. An inert Run whose Service path is a dedicated workspace directory it may edit. */
   readonly workspaceBound?: boolean;
   agentic_session_id: string;
@@ -268,6 +270,7 @@ export type AgenticSession = AgenticSessionBase & {
 
 interface CreateAgenticSessionInputBase {
   readonly inert?: boolean;
+  readonly searchCreatedBefore?: string;
   readonly workspaceBound?: boolean;
   agentic_session_id?: string;
   entity: RunEntityReference | null;

@@ -61,6 +61,8 @@ export interface LocalCreateRunRequest {
   reasoningEffort?: StartRunPromptPayloadReasoningEffortEnum;
   fastMode?: boolean;
   inert?: boolean;
+  /** Only valid on an inert Run: its `unified_search` returns only items created before this ISO time. */
+  searchCreatedBefore?: string;
   /** Internal standalone Project Assistant admission using the consumer's normal policy. */
   projectAssistantConsumerHandlerId?: string;
   /** Internal cancellation, including materialization before a Run is active. */

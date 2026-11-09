@@ -110,6 +110,8 @@ export class EvalAttemptExecution {
     attempt: EvalRecordedAttempt,
     options: {
       signal: AbortSignal;
+      /** Experiment: the attempt's `unified_search` returns only items created before this time. */
+      searchCreatedBefore: string;
       tokenBudget?: number;
       onTokenLimit?: () => void;
       onProviderSessionIds?: (ids: string[]) => Promise<void>;
@@ -156,6 +158,7 @@ export class EvalAttemptExecution {
         ? { reasoningEffort: effortSchema.parse(setting.reasoningEffort) }
         : {}),
       inert: true,
+      searchCreatedBefore: options.searchCreatedBefore,
       signal: options.signal,
       config: {
         type: 'ENTITY_CONVERSATION',

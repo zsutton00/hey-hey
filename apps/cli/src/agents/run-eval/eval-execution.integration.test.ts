@@ -329,6 +329,8 @@ const finishWith = async (
   });
 };
 
+const CASE_CREATED_AT = '2026-01-01T00:00:00.000Z';
+
 const coordinator = { contextMetadata: startRunPayload({}).contextMetadata } as AgenticSession;
 
 describe('eval attempts through ordinary Runs', () => {
@@ -341,6 +343,7 @@ describe('eval attempts through ordinary Runs', () => {
         await finishWith(harness, { research: 'Saved research.', finalMessage: 'Done.' });
       }
       const result = await execution.execute(coordinator, attempt(handler), {
+        searchCreatedBefore: CASE_CREATED_AT,
         signal: new AbortController().signal,
       });
       expect(result.researchMeasurements).toBeUndefined();
@@ -348,6 +351,7 @@ describe('eval attempts through ordinary Runs', () => {
       expect(JSON.stringify(runPrompt.mock.calls)).not.toContain('SECRET-');
       expect(wiring.runRegistry.get(AGENT_SESSION_ID)?.session).toMatchObject({
         inert: true,
+        searchCreatedBefore: CASE_CREATED_AT,
         conversationId: CONVERSATION_ID,
         model: 'claude-test',
         reasoningEffort: 'high',
@@ -372,6 +376,7 @@ describe('eval attempts through ordinary Runs', () => {
       const { runStore, runPrompt, execution } = harness;
       await finishWith(harness, { research: 'Saved research.', finalMessage: 'Done.' });
       await execution.execute(coordinator, attempt('project_assistant'), {
+        searchCreatedBefore: CASE_CREATED_AT,
         signal: new AbortController().signal,
       });
       expect(runPrompt).toHaveBeenCalledOnce();
@@ -385,7 +390,7 @@ describe('eval attempts through ordinary Runs', () => {
       await execution.execute(
         coordinator,
         attempt('entity_conversation', { projectAssistantPrepares: true }),
-        { signal: new AbortController().signal },
+        { searchCreatedBefore: CASE_CREATED_AT, signal: new AbortController().signal },
       );
       expect(runPrompt).toHaveBeenCalledTimes(2);
       const [research, answer] = promptsRun(runPrompt);
@@ -422,7 +427,7 @@ describe('eval attempts through ordinary Runs', () => {
       const result = await execution.execute(
         coordinator,
         attempt('entity_conversation', { projectAssistantPrepares: true }),
-        { signal: new AbortController().signal },
+        { searchCreatedBefore: CASE_CREATED_AT, signal: new AbortController().signal },
       );
       expect(runPrompt).toHaveBeenCalledTimes(2);
       expect(result.usage).toMatchObject({
@@ -438,6 +443,7 @@ describe('eval attempts through ordinary Runs', () => {
     it('runs the chosen handler without Project Assistant when preparation is off', async () => {
       const { runPrompt, execution } = await makeHarness();
       await execution.execute(coordinator, attempt('entity_conversation'), {
+        searchCreatedBefore: CASE_CREATED_AT,
         signal: new AbortController().signal,
       });
       expect(runPrompt).toHaveBeenCalledOnce();
@@ -454,6 +460,7 @@ describe('eval attempts through ordinary Runs', () => {
           finalMessage: 'Done, report saved.',
         });
         const result = await harness.execution.execute(coordinator, attempt('project_assistant'), {
+          searchCreatedBefore: CASE_CREATED_AT,
           signal: new AbortController().signal,
         });
         expect(result).toMatchObject({
@@ -472,6 +479,7 @@ describe('eval attempts through ordinary Runs', () => {
           coordinator,
           attempt('entity_conversation'),
           {
+            searchCreatedBefore: CASE_CREATED_AT,
             signal: new AbortController().signal,
           },
         );
@@ -483,6 +491,7 @@ describe('eval attempts through ordinary Runs', () => {
         await finishWith(harness, { finalMessage: 'Here is what I found.' });
         await expect(
           harness.execution.execute(coordinator, attempt('project_assistant'), {
+            searchCreatedBefore: CASE_CREATED_AT,
             signal: new AbortController().signal,
           }),
         ).rejects.toThrow(/research ended without saving a research report/);
@@ -494,6 +503,7 @@ describe('eval attempts through ordinary Runs', () => {
       // Feature sync declares it needs a Service folder, which attempts do not have.
       await expect(
         execution.execute(coordinator, attempt('feature_sync_analyze'), {
+          searchCreatedBefore: CASE_CREATED_AT,
           signal: new AbortController().signal,
         }),
       ).rejects.toThrow(/feature_sync_analyze failed before producing an answer/);
@@ -506,7 +516,7 @@ describe('eval attempts through ordinary Runs', () => {
         execution.execute(
           coordinator,
           attempt('feature_sync_analyze', { focalItemType: 'PROJECT' }),
-          { signal: new AbortController().signal },
+          { searchCreatedBefore: CASE_CREATED_AT, signal: new AbortController().signal },
         ),
       ).rejects.toThrow(/feature_sync_analyze cannot start as the first agent/);
       expect(runPrompt).not.toHaveBeenCalled();
@@ -520,6 +530,7 @@ describe('eval attempts through ordinary Runs', () => {
     const controller = new AbortController();
     controller.abort();
     const result = await execution.execute(coordinator, attempt('agent_search'), {
+      searchCreatedBefore: CASE_CREATED_AT,
       signal: controller.signal,
     });
     expect(result.assistantCompleted).toBe(false);
@@ -536,6 +547,7 @@ describe('eval attempts through ordinary Runs', () => {
     execution.bind(service, runStore);
     const onTokenLimit = vi.fn();
     const result = await execution.execute(coordinator, attempt('agent_search'), {
+      searchCreatedBefore: CASE_CREATED_AT,
       signal: new AbortController().signal,
       tokenBudget: 10,
       onTokenLimit,
@@ -565,6 +577,7 @@ describe('eval startup and execution cancellation', () => {
     const execution = executionFor(runStore);
     execution.bind(service, runStore);
     const result = execution.execute(coordinator, attempt('agent_search'), {
+      searchCreatedBefore: CASE_CREATED_AT,
       signal: controller.signal,
     });
     controller.abort();
@@ -609,6 +622,7 @@ describe('eval startup and execution cancellation', () => {
       const onTokenLimit = vi.fn(() => controller.abort());
       const onProviderSessionIds = vi.fn(async () => undefined);
       const running = execution.execute(coordinator, attempt('agent_search'), {
+        searchCreatedBefore: CASE_CREATED_AT,
         signal: controller.signal,
         onProviderSessionIds,
         ...(reason === 'TOKEN_LIMIT' ? { tokenBudget: 10, onTokenLimit } : {}),
@@ -661,7 +675,10 @@ it.each(['USER', 'TOKEN_LIMIT'] as const)(
           },
         },
         async launchTarget(recorded, options) {
-          const result = await execution.execute(coordinator, recorded, options);
+          const result = await execution.execute(coordinator, recorded, {
+            ...options,
+            searchCreatedBefore: CASE_CREATED_AT,
+          });
           controller.abort();
           return result;
         },
@@ -696,6 +713,7 @@ describe('settled eval usage evidence', () => {
       return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
     });
     const result = await h.execution.execute(coordinator, attempt('project_assistant'), {
+      searchCreatedBefore: CASE_CREATED_AT,
       signal: new AbortController().signal,
     });
     expect((await h.runStore.getRunMetadata(AGENT_SESSION_ID))?.provider_session_id).toBeNull();
@@ -736,7 +754,7 @@ describe('settled eval usage evidence', () => {
       const result = await h.execution.execute(
         coordinator,
         attempt('entity_conversation', { projectAssistantPrepares: prepares }),
-        { signal: new AbortController().signal },
+        { searchCreatedBefore: CASE_CREATED_AT, signal: new AbortController().signal },
       );
       expect(result.usage).toMatchObject({
         inputTokens: 120,
@@ -787,7 +805,11 @@ describe('settled eval usage evidence', () => {
               patches.push(patch);
             },
           },
-          launchTarget: (item, options) => h.execution.execute(coordinator, item, options),
+          launchTarget: (item, options) =>
+            h.execution.execute(coordinator, item, {
+              ...options,
+              searchCreatedBefore: CASE_CREATED_AT,
+            }),
           judge: async () => ({
             assessment: {
               checkResults: [],
@@ -829,6 +851,7 @@ describe('settled eval usage evidence', () => {
       return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
     });
     const result = await h.execution.execute(coordinator, attempt('agent_search'), {
+      searchCreatedBefore: CASE_CREATED_AT,
       signal: new AbortController().signal,
       tokenBudget: 1,
     });
@@ -872,6 +895,7 @@ describe('settled eval usage evidence', () => {
       return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
     });
     const result = await h.execution.execute(coordinator, attempt('agent_search'), {
+      searchCreatedBefore: CASE_CREATED_AT,
       signal: new AbortController().signal,
     });
     expect(result.recordedToolCalls?.state).toBe('COLLECTED');
@@ -892,6 +916,7 @@ describe('settled eval usage evidence', () => {
   it('reports tool calls as unavailable, not empty, when the Run retained none', async () => {
     const h = await makeHarness();
     const result = await h.execution.execute(coordinator, attempt('agent_search'), {
+      searchCreatedBefore: CASE_CREATED_AT,
       signal: new AbortController().signal,
     });
     expect(result.recordedToolCalls).toEqual({ state: 'UNAVAILABLE', calls: [] });
@@ -911,7 +936,10 @@ describe('settled eval usage evidence', () => {
     );
     const results = await Promise.allSettled(
       [first, second].map((item) =>
-        h.execution.execute(coordinator, item, { signal: new AbortController().signal }),
+        h.execution.execute(coordinator, item, {
+          searchCreatedBefore: CASE_CREATED_AT,
+          signal: new AbortController().signal,
+        }),
       ),
     );
     expect(results[0]).toMatchObject({
@@ -1344,6 +1372,7 @@ describe('free-form coding attempts and their workspaces', () => {
 
       await execution
         .execute(coordinator, codingAttempt('44444444-4444-4444-8444-444444444444'), {
+          searchCreatedBefore: CASE_CREATED_AT,
           signal: controller.signal,
         })
         .catch(() => undefined);
@@ -1380,6 +1409,7 @@ describe('free-form coding attempts and their workspaces', () => {
 
     await execution
       .execute(coordinator, recorded, {
+        searchCreatedBefore: CASE_CREATED_AT,
         signal: controller.signal,
         onWorkspaceSettled: async (settled) => {
           directoryExistedWhenSaved = existsSync(await boundDirectory());
@@ -1436,6 +1466,7 @@ describe('free-form coding attempts and their workspaces', () => {
         coordinator,
         codingAttempt('99999999-9999-4999-8999-999999999999'),
         {
+          searchCreatedBefore: CASE_CREATED_AT,
           signal: new AbortController().signal,
           onWorkspaceSettled: async () => {
             directoryContents = await readdir(await boundDirectory());
@@ -1496,6 +1527,7 @@ describe('free-form coding attempts and their workspaces', () => {
         launchTarget: (recorded, options) =>
           execution.execute(coordinator, recorded, {
             ...options,
+            searchCreatedBefore: CASE_CREATED_AT,
             onProviderSessionIds: async (ids) => {
               sessionIds.push(ids);
             },
@@ -1548,7 +1580,11 @@ describe('free-form coding attempts and their workspaces', () => {
             return Promise.resolve();
           },
         },
-        launchTarget: (recorded, options) => execution.execute(coordinator, recorded, options),
+        launchTarget: (recorded, options) =>
+          execution.execute(coordinator, recorded, {
+            ...options,
+            searchCreatedBefore: CASE_CREATED_AT,
+          }),
         judge: vi.fn(async () => {
           throw new Error('judging is not part of this check');
         }),

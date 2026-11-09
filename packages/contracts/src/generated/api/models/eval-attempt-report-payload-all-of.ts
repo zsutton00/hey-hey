@@ -135,6 +135,12 @@ export interface EvalAttemptReportPayloadAllOf {
      */
     'judgeProviderSessionId'?: string;
     /**
+     * Agent Session of the judge, recorded as soon as it is created so a running judge is already known as an eval session. The finished assessment repeats it.
+     * @type {string}
+     * @memberof EvalAttemptReportPayloadAllOf
+     */
+    'judgeSessionId'?: string | null;
+    /**
      * At most one each of TARGET_PREPARATION and TARGET_HANDLER. Older attempts may also hold a JUDGE entry, which is never shown.
      * @type {Array<EvalMeasurement>}
      * @memberof EvalAttemptReportPayloadAllOf

@@ -3,6 +3,15 @@ import { LocalPromptType, type LocalRunEvalPromptPayload } from '@hey-hey/contra
 import type { ProceduralRunContext } from '../prompt-type-handler';
 import { runEvalHandler } from './run-eval.handler';
 
+const CASE_CREATED_AT = '2026-01-01T00:00:00.000Z';
+
+// The only platform read is the Eval Case's creation time, which sets the attempt's search cutoff.
+vi.mock('./eval-case-created-at', () => ({
+  EvalCaseCreatedAt: class {
+    public read = vi.fn(() => Promise.resolve(CASE_CREATED_AT));
+  },
+}));
+
 const attempt = {
   attemptId: '33333333-3333-4333-8333-333333333333',
   execution: {
@@ -110,6 +119,7 @@ describe('runEvalHandler', () => {
         return {} as never;
       });
 
+      const searchCutoffs: string[] = [];
       const ctx = {
         session: {
           agentic_session_id: 'run-1',
@@ -121,7 +131,12 @@ describe('runEvalHandler', () => {
           logger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
           evalAttemptExecution: {
             sweepWorkspaces: () => Promise.resolve(),
-            execute: (_session: unknown, recorded: typeof attempt) => {
+            execute: (
+              _session: unknown,
+              recorded: typeof attempt,
+              options: { searchCreatedBefore: string },
+            ) => {
+              searchCutoffs.push(options.searchCreatedBefore);
               launches.push({
                 handlerId: recorded.caseInput.target.targetHandler,
                 payload: { userMessage: recorded.caseInput.target.initiatingRequest },
@@ -145,6 +160,7 @@ describe('runEvalHandler', () => {
       );
 
       expect(summary).toBe('Eval run finished: 1 completed, 0 with errors, 0 stopped.');
+      expect(searchCutoffs).toEqual([CASE_CREATED_AT]);
       expect(launches.map((launch) => launch.handlerId)).toEqual(['agent_search', 'eval_judge']);
       const targetLaunch = launches[0]!;
       expect(JSON.stringify(targetLaunch.payload)).not.toMatch(/SECRET/);

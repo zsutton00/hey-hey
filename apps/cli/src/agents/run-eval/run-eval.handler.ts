@@ -12,6 +12,7 @@ import {
   type UserLaunchablePromptTypeHandler,
 } from '../prompt-type-handler';
 import { EVAL_JUDGE_HANDLER_ID, parseEvalJudgeOutput } from './eval-judge.handler';
+import { EvalCaseCreatedAt } from './eval-case-created-at';
 import { EvalReportRecorder } from './eval-report-recorder';
 import { runEvalAttempts, type EvalRunnerPorts, type EvalRunTally } from './eval-runner';
 const EVAL_WORK_ITEM_TYPE_KEY = 'EVAL' as const;
@@ -58,6 +59,13 @@ const runRecordedAttempts = async (
     organizationId: session.contextMetadata.organizationId,
     evalRunId: payload.evalRunId,
   });
+  const caseCreatedAt = new EvalCaseCreatedAt(
+    {
+      organizationId: session.contextMetadata.organizationId,
+      projectId: session.contextMetadata.projectId,
+    },
+    { accessToken: await deps.auth.getAccessToken(), apiBaseUrl: deps.apiBaseUrl },
+  );
   const launcher = deps.childAgentLauncher;
   const ports: EvalRunnerPorts = {
     recorder,
@@ -66,8 +74,11 @@ const runRecordedAttempts = async (
       if (!deps.evalAttemptExecution) {
         throw new Error('Eval attempt execution is unavailable.');
       }
+      const searchCreatedBefore = await caseCreatedAt.read(attempt.caseInput.evalCaseId);
+
       return deps.evalAttemptExecution.execute(session, attempt, {
         ...options,
+        searchCreatedBefore,
         onProviderSessionIds: (ids) =>
           recorder.updateAttempt(attempt.attemptId, { attemptProviderSessionIds: ids }),
         onWorkspaceSettled: (settled) => recorder.updateAttempt(attempt.attemptId, settled),

@@ -1,4 +1,5 @@
 import { isInertPlatformToolAllowed } from '../../run/inert-execution-policy';
+import { withSearchCutoff } from './search-cutoff';
 import type { McpSessionContext } from '../mcp-server-config';
 import type { ServerLogger } from '../../server/logger';
 import type { ActivePlatformToolCatalog } from './catalog';
@@ -431,6 +432,8 @@ export class PlatformMcpProxySession {
         params['arguments'] = { ...args, ragEnabled: false, applicationEligible: false };
       } else if (normalizedName === 'create_report' || normalizedName === 'update_report') {
         params['arguments'] = { ...args, ragEnabled: false };
+      } else if (normalizedName === 'unified_search' && this.runtime.context.searchCreatedBefore) {
+        params['arguments'] = withSearchCutoff(args, this.runtime.context.searchCreatedBefore);
       }
     }
     const normalizedRequest = { ...request, params };

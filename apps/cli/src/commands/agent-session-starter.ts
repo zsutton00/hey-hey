@@ -60,6 +60,7 @@ export interface StartAgenticSessionArgs {
   reasoningEffort?: LocalReasoningEffort;
   fastMode?: boolean;
   inert?: boolean;
+  searchCreatedBefore?: string;
   /** Replaces the Run's Service set with this directory, which becomes its working directory and write root. */
   workspaceBinding?: LocalRunWorkspaceBinding;
   createProviderSessionId?: () => string;
@@ -98,6 +99,7 @@ export const startAgenticSession = async ({
   reasoningEffort,
   fastMode,
   inert,
+  searchCreatedBefore,
   workspaceBinding,
   createProviderSessionId = defaultCreateProviderSessionId,
 }: StartAgenticSessionArgs): Promise<AgentSessionStartResult> => {
@@ -110,6 +112,10 @@ export const startAgenticSession = async ({
 
   if (workspaceBinding && inert !== true) {
     throw new SessionValidationError('Only an inert Run can be bound to a workspace directory.');
+  }
+
+  if (searchCreatedBefore !== undefined && inert !== true) {
+    throw new SessionValidationError('Only an inert Run can carry a search cutoff.');
   }
 
   const pendingServices = workspaceBinding ? null : readPendingServices(context);
@@ -143,6 +149,7 @@ export const startAgenticSession = async ({
 
   const sessionInput: CreateAgenticSessionInput = {
     ...(inert === undefined ? {} : { inert }),
+    ...(searchCreatedBefore === undefined ? {} : { searchCreatedBefore }),
     ...(workspaceBinding ? { workspaceBound: true } : {}),
     agentic_session_id: agentSessionId,
     entity,

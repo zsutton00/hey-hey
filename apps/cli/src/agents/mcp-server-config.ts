@@ -5,6 +5,8 @@ import { readRestrictionFor, readRestrictionHeaders } from '../shared/api/read-r
 
 export interface McpSessionContext {
   readonly inert?: boolean;
+  /** Experiment: an inert execution's `unified_search` returns only items created before this ISO time. */
+  readonly searchCreatedBefore?: string | undefined;
   /** Overrides what `inert` implies, for executions restricted without being inert (the judge). */
   readonly readRestriction?: ReadRestriction | undefined;
   projectId?: string | undefined;
