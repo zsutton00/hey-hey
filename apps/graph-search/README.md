@@ -1,13 +1,12 @@
 # Graph and search service
 
-The Rust foundation for a PostgreSQL graph/search backend. One process owns
+A local graph and vector-embedding service for Hey Hey, built to run on a
+developer's machine with a small memory footprint. One Rust process owns
 separate `graph` and `search` modules and a dedicated logical database on the
-existing PostgreSQL server. The search module includes the text encoder and the
-search operations (see [Search](#search)). The graph module serves the core queries
-and batch relationship creation. The search module also consumes the events of the
-deployed Embeddings service (see [Search events](#search-events)). Graph event ingestion and the remaining
-graph write surfaces are follow-on work; this app is not yet a complete backend
-replacement.
+existing PostgreSQL server. The graph module serves the core queries and batch
+relationship creation, and ingests graph events. The search module provides text
+and semantic search (see [Search](#search)) and consumes the events of the
+deployed Embeddings service (see [Search events](#search-events)).
 
 ## Build from a clean checkout
 
@@ -133,12 +132,11 @@ The application reads environment variables; it does not load `.env` files.
 
 The graph route group is under `/api`, matching the graph specification's server
 prefix; the search group is rooted at `/`, matching the embeddings specification.
-Both currently return **501 Not Implemented**; disabled surfaces return 404.
-`GET /healthz` is a separate process readiness endpoint: 200 after migrations
-and while PostgreSQL is reachable, 503 when it is unavailable. It is not the
-embeddings specification's `/health` response. Wire authority remains
-`openapi/specs/graphs/openapi.yaml` and `openapi/specs/embeddings/openapi.yaml`;
-this foundation introduces no domain DTOs or successful domain operations.
+`POST /admin/backup` (graph) and the `/debug` routes (search) return **501 Not
+Implemented**; disabled surfaces return 404. `GET /healthz` is a separate process readiness endpoint: 200
+after migrations and while PostgreSQL is reachable, 503 when it is unavailable. It
+is not the embeddings specification's `/health` response. Wire authority remains
+`openapi/specs/graphs/openapi.yaml` and `openapi/specs/embeddings/openapi.yaml`.
 
 The runtime uses two Tokio workers and at most five database connections by
 default. Compose caps the service at one CPU/512 MiB. The disposable test
@@ -568,8 +566,8 @@ An existing stub can receive its stored pair during approval, while read paths
 continue hiding that endpoint; normal task hydration then exposes the pair
 without replaying the already-consumed approval event.
 
-For a conversation with *n* distinct valid targets, the stored clique contains
-at most *n(n−1)/2* edges; adding one target requires at most *n−1* new edges.
+For a conversation with _n_ distinct valid targets, the stored clique contains
+at most _n(n−1)/2_ edges; adding one target requires at most _n−1_ new edges.
 Database work is scoped to the explicit organization/project and indexed
 conversation cohorts. Pair storage grows quadratically for a large conversation,
 while each ordinary context read now follows stored adjacency instead of joining

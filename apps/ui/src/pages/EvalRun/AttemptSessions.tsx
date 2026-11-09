@@ -17,7 +17,7 @@ import { useTranslation } from "react-i18next";
 
 import { FunctionalDialog } from "@hey-hey/ui-common/components";
 import type { EvalAttemptReport } from "@hey-hey/ui-common/data";
-import { resumeCommandFor } from "./evalResultsView";
+import { automatedAssessment, resumeCommandFor } from "./evalResultsView";
 import { SpaLink } from "./SpaLink";
 import {
   ReadSessionButton,
@@ -122,7 +122,9 @@ export const AttemptSessions: React.FC<{
   const judgeId = attempt.payload.judgeProviderSessionId ?? null;
   const attemptRunId = attempt.payload.targetSessionId ?? null;
   const judgeRunId =
-    attempt.payload.automatedAssessment?.judgeSessionId ?? null;
+    attempt.payload.judgeSessionId ??
+    automatedAssessment(attempt)?.judgeSessionId ??
+    null;
   const attemptProviderId = asTranscriptProviderId(attemptProvider);
   const judgeProviderId = asTranscriptProviderId(judgeProvider);
 

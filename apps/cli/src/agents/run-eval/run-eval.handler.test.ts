@@ -82,6 +82,7 @@ const payload: LocalRunEvalPromptPayload = {
   evalRunId: '22222222-2222-4222-8222-222222222222',
   judgeSetup: { provider: 'claude', model: 'opus' },
   settings: { maxConcurrentAttempts: 3 },
+  cases: [attempt.caseInput],
   attempts: [attempt],
 };
 

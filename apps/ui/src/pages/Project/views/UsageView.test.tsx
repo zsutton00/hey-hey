@@ -2,11 +2,10 @@ import {
   AuthorizationProtocolVersion,
   CurrentControllerMachineEligibilityState,
   MachineExecutionReadinessState,
-  type AgentSessionDto,
   type MachineDto,
 } from "@hey-hey/contracts/api";
 import {
-  useAgentSessions,
+  useAgentSessionRouting,
   useUserPairedMachines,
 } from "@hey-hey/ui-common/data";
 import { render, screen } from "@testing-library/react";
@@ -24,20 +23,12 @@ vi.mock("@hey-hey/ui-common/components", async (importOriginal) => ({
 }));
 
 vi.mock("@hey-hey/ui-common/data", () => ({
-  useAgentSessions: vi.fn(),
+  useAgentSessionRouting: vi.fn(),
   useUserPairedMachines: vi.fn(),
 }));
 
-const useAgentSessionsMock = vi.mocked(useAgentSessions);
+const useAgentSessionRoutingMock = vi.mocked(useAgentSessionRouting);
 const useUserPairedMachinesMock = vi.mocked(useUserPairedMachines);
-
-const session = (id: string, machineId: string | null): AgentSessionDto =>
-  ({
-    id,
-    machineId,
-    updatedAt: "2026-10-01T00:00:00.000Z",
-    sessionDate: "2026-10-01T00:00:00.000Z",
-  }) as AgentSessionDto;
 
 const readyMachine = (machineId: string): MachineDto => ({
   machineId,
@@ -52,13 +43,13 @@ const readyMachine = (machineId: string): MachineDto => ({
 });
 
 const setHookResults = (
-  sessions: AgentSessionDto[],
+  routingAgentSessionId: string | null,
   machines: MachineDto[],
 ) => {
-  useAgentSessionsMock.mockReturnValue({
-    agentSessions: sessions,
+  useAgentSessionRoutingMock.mockReturnValue({
+    routingAgentSessionId,
     isLoading: false,
-  } as ReturnType<typeof useAgentSessions>);
+  });
   useUserPairedMachinesMock.mockReturnValue({
     machines,
     isLoading: false,
@@ -71,7 +62,7 @@ describe("UsageView", () => {
   });
 
   it("explains provider usage is unavailable when no CLI is paired", () => {
-    setHookResults([], []);
+    setHookResults(null, []);
 
     render(
       <UsageView
@@ -88,10 +79,7 @@ describe("UsageView", () => {
   });
 
   it("routes the shared Usage view through a session bound to a ready CLI", () => {
-    setHookResults(
-      [session("session-1", "machine-1")],
-      [readyMachine("machine-1")],
-    );
+    setHookResults("session-1", [readyMachine("machine-1")]);
 
     render(
       <UsageView
@@ -101,6 +89,12 @@ describe("UsageView", () => {
       />,
     );
 
+    expect(useAgentSessionRoutingMock).toHaveBeenCalledWith(
+      "org-1",
+      "project-1",
+      "user-1",
+      ["machine-1"],
+    );
     expect(mockProviderUsageActivityView).toHaveBeenCalledWith({
       organizationId: "org-1",
       projectId: "project-1",

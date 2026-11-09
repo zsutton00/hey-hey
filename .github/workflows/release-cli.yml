@@ -1,11 +1,17 @@
 name: Release CLI
 run-name: CLI release — ${{ github.ref_name }}
 
-# Publishes one CLI version together with the pinned, public, multi-arch image
-# set its manifest describes. Images first, then npm, then anonymous checks.
-# Separate from the staging candidate workflow: this one is the public release.
+# Publishes one CLI version with the exact images already built and verified by a
+# "Build images" run on the same commit. Nothing is rebuilt here: the candidate
+# run's release-manifest.json is the one that ships. Tags the images with the CLI
+# version, publishes npm, then runs anonymous checks.
 on:
   workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: Run ID of the successful "Build images" run (target All) on this exact commit
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -16,15 +22,15 @@ concurrency:
 
 env:
   REGISTRY_OWNER: ghcr.io/zsutton00
-  # Upstream images are pinned by digest into the manifest, not republished.
-  POSTGRES_UPSTREAM: docker.io/pgvector/pgvector:0.8.7-pg17-trixie
-  REDIS_UPSTREAM: docker.io/library/redis:8-alpine
 
 jobs:
   approve:
     # The protected environment holds the required-reviewer approval.
     runs-on: ubuntu-latest
     environment: release
+    permissions:
+      contents: read
+      actions: read
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -45,141 +51,24 @@ jobs:
             echo "@hey-hey/cli@$VERSION is already published" >&2
             exit 1
           fi
-
-  build:
-    needs: approve
-    name: Build ${{ matrix.image }} ${{ matrix.platform }}
-    runs-on: ${{ matrix.runner }}
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-          - { image: api, platform: linux/amd64, runner: ubuntu-latest }
-          - { image: api, platform: linux/arm64, runner: ubuntu-24.04-arm }
-          - { image: ui, platform: linux/amd64, runner: ubuntu-latest }
-          - { image: ui, platform: linux/arm64, runner: ubuntu-24.04-arm }
-          - {
-              image: graph-search,
-              platform: linux/amd64,
-              runner: ubuntu-latest,
-            }
-          - {
-              image: graph-search,
-              platform: linux/arm64,
-              runner: ubuntu-24.04-arm,
-            }
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push by digest
-        id: build
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: apps/${{ matrix.image }}/Dockerfile
-          platforms: ${{ matrix.platform }}
-          outputs: type=image,name=${{ env.REGISTRY_OWNER }}/${{ matrix.image }}-service,push-by-digest=true,name-canonical=true,push=true
-          build-args: |
-            APP_VERSION=${{ needs.approve.outputs.version }}
-            SOURCE_REVISION=${{ github.sha }}
-          cache-from: type=gha,scope=${{ matrix.image }}-${{ matrix.platform }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.image }}-${{ matrix.platform }}
-      - name: Record platform digest
+      - name: Require a successful candidate run for this exact commit
         env:
-          DIGEST: ${{ steps.build.outputs.digest }}
-          PLATFORM: ${{ matrix.platform }}
-        run: |
-          mkdir -p "$RUNNER_TEMP/digests"
-          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: digest-${{ matrix.image }}-${{ matrix.runner }}
-          path: ${{ runner.temp }}/digests/*
-          retention-days: 7
-
-  merge:
-    needs: [approve, build]
-    name: Merge ${{ matrix.image }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      matrix:
-        image: [api, ui, graph-search]
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: digest-${{ matrix.image }}-*
-          path: ${{ runner.temp }}/digests
-          merge-multiple: true
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Create the multi-arch list and record its digest
-        env:
-          REPOSITORY: ${{ env.REGISTRY_OWNER }}/${{ matrix.image }}-service
-          VERSION: ${{ needs.approve.outputs.version }}
-          IMAGE: ${{ matrix.image }}
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.candidate_run_id }}
         run: |
           set -euo pipefail
-          SOURCES=()
-          for file in "$RUNNER_TEMP"/digests/*; do
-            SOURCES+=("$REPOSITORY@sha256:$(basename "$file")")
-          done
-          [ "${#SOURCES[@]}" -eq 2 ] || { echo "Expected one digest per platform" >&2; exit 1; }
-          docker buildx imagetools create -t "$REPOSITORY:$VERSION" "${SOURCES[@]}"
-          DIGEST="$(docker buildx imagetools inspect "$REPOSITORY:$VERSION" --format '{{.Manifest.Digest}}')"
-          echo "$REPOSITORY@$DIGEST" > "$RUNNER_TEMP/reference-$IMAGE.txt"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: reference-${{ matrix.image }}
-          path: ${{ runner.temp }}/reference-${{ matrix.image }}.txt
-
-  upstream:
-    needs: approve
-    runs-on: ubuntu-latest
-    steps:
-      - uses: docker/setup-buildx-action@v3
-      - name: Pin PostgreSQL and Redis by digest
-        run: |
-          set -euo pipefail
-          pin() {
-            local tagged="$1" repository="${1%%:*}"
-            local raw digest
-            raw="$(docker buildx imagetools inspect "$tagged" --raw)"
-            for platform in amd64 arm64; do
-              jq -e --arg a "$platform" '.manifests[] | select(.platform.os == "linux" and .platform.architecture == $a)' <<<"$raw" >/dev/null \
-                || { echo "$tagged has no linux/$platform variant" >&2; exit 1; }
-            done
-            digest="$(docker buildx imagetools inspect "$tagged" --format '{{.Manifest.Digest}}')"
-            echo "$repository@$digest"
-          }
-          echo "$(pin "$POSTGRES_UPSTREAM")" > "$RUNNER_TEMP/reference-postgres.txt"
-          echo "$(pin "$REDIS_UPSTREAM")" > "$RUNNER_TEMP/reference-redis.txt"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: reference-upstream
-          path: ${{ runner.temp }}/reference-*.txt
+          run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID")"
+          [ "$(jq -r .path <<<"$run")" = ".github/workflows/publish-images.yml" ] || { echo "Run $RUN_ID is not a Build images run" >&2; exit 1; }
+          [ "$(jq -r .conclusion <<<"$run")" = "success" ] || { echo "Run $RUN_ID did not succeed" >&2; exit 1; }
+          [ "$(jq -r .head_sha <<<"$run")" = "$GITHUB_SHA" ] || { echo "Run $RUN_ID built a different commit than $GITHUB_SHA" >&2; exit 1; }
 
   publish:
-    needs: [approve, merge, upstream]
+    needs: approve
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: write
+      actions: read
       id-token: write
     steps:
       - uses: actions/checkout@v4
@@ -187,9 +76,27 @@ jobs:
           ref: ${{ github.sha }}
       - uses: actions/download-artifact@v4
         with:
-          pattern: reference-*
-          path: ${{ runner.temp }}/references
-          merge-multiple: true
+          name: release-manifest-${{ github.sha }}
+          path: ${{ runner.temp }}/candidate
+          run-id: ${{ inputs.candidate_run_id }}
+          github-token: ${{ github.token }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tag the candidate images with the CLI version
+        env:
+          VERSION: ${{ needs.approve.outputs.version }}
+        run: |
+          set -euo pipefail
+          manifest="$RUNNER_TEMP/candidate/release-manifest.json"
+          [ "$(jq -r .cliVersion "$manifest")" = "$VERSION" ] || { echo "Candidate manifest is for a different CLI version" >&2; exit 1; }
+          for image in api ui graphSearch; do
+            reference="$(jq -r --arg i "$image" '.images[$i].reference' "$manifest")"
+            docker buildx imagetools create -t "${reference%@*}:$VERSION" "$reference"
+          done
       - uses: pnpm/action-setup@v4
         with:
           version: 10.18.1
@@ -199,30 +106,17 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile --filter @hey-hey/cli...
-      - name: Write the release manifest
+      - name: Publish to npm with the candidate manifest
         working-directory: apps/cli
         run: |
-          set -euo pipefail
-          refs="$RUNNER_TEMP/references"
-          jq -n \
-            --arg api "$(cat "$refs/reference-api.txt")" \
-            --arg ui "$(cat "$refs/reference-ui.txt")" \
-            --arg graphSearch "$(cat "$refs/reference-graph-search.txt")" \
-            --arg postgres "$(cat "$refs/reference-postgres.txt")" \
-            --arg redis "$(cat "$refs/reference-redis.txt")" \
-            '{api: $api, ui: $ui, graphSearch: $graphSearch, postgres: $postgres, redis: $redis}' \
-            > "$RUNNER_TEMP/digests.json"
-          pnpm exec tsx scripts/write-release-manifest.ts "$RUNNER_TEMP/digests.json"
-          cp release-manifest.json "$RUNNER_TEMP/release-manifest.json"
-      - name: Publish to npm
-        working-directory: apps/cli
-        run: npm publish --provenance --access public
+          cp "$RUNNER_TEMP/candidate/release-manifest.json" release-manifest.json
+          npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - uses: actions/upload-artifact@v4
         with:
           name: release-manifest
-          path: ${{ runner.temp }}/release-manifest.json
+          path: ${{ runner.temp }}/candidate/release-manifest.json
 
   verify-pull:
     needs: publish

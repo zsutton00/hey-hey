@@ -107,6 +107,7 @@ describe("LocalSetupPage", () => {
     vi.clearAllMocks();
     forgetLocalPairing();
     sessionStorage.clear();
+    localStorage.clear();
     authClient.getLocalSetupStatus.mockResolvedValue(statusResponse());
     authClient.saveLocalDisplayName.mockResolvedValue(
       statusResponse({ nameComplete: true }),
