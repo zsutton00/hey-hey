@@ -387,6 +387,9 @@ importers:
       '@eslint/js':
         specifier: ^9.39.4
         version: 9.39.4
+      '@hey-hey/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@modelcontextprotocol/sdk':
         specifier: ^1.26.0
         version: 1.26.0(zod@3.25.76)
