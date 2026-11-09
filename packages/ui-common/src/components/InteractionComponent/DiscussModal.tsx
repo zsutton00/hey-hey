@@ -1,5 +1,6 @@
 import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import { EntityType, type AgentSkillSelection } from "../../api";
+import { formatEntityTypeLabel } from "../Reports/viewer/evidencePipelineTypes";
 import React, {
   useCallback,
   useEffect,
@@ -420,8 +421,18 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
       ? { organizationId, projectId, conversationId: null }
       : null;
 
+  const entityTypeLabel =
+    workItemTypeSummary?.definition.name ??
+    (focalEntity.kind === "entity" && !focalWorkItemId
+      ? formatEntityTypeLabel(focalEntity.entityType)
+      : undefined);
+  const workTitle = entityTitle
+    ? `Discuss ${entityTypeLabel ? `${entityTypeLabel}: ` : ""}${entityTitle}`
+    : "Discuss";
+
   return (
     <Dialog
+      workTitle={workTitle}
       ownerKey={
         ownerKey ??
         (focalEntity.kind === "entity"
