@@ -29,10 +29,10 @@ describe('release manifest', () => {
     expect(parseReleaseManifest(JSON.stringify(manifest()))).toEqual(manifest());
   });
 
-  it('accepts an ARM-only release', () => {
+  it.each(RELEASE_PLATFORMS)('accepts a single-platform manifest for %s', (platform) => {
     const release = manifest();
     for (const image of Object.values(release.images)) {
-      image.platforms = ['linux/arm64'];
+      image.platforms = [platform];
     }
 
     expect(parseReleaseManifest(JSON.stringify(release))).toEqual(release);
@@ -45,11 +45,11 @@ describe('release manifest', () => {
     expect(() => parseReleaseManifest(JSON.stringify(release))).toThrow(/sha256 digest/);
   });
 
-  it('rejects an image missing the required ARM platform', () => {
+  it('rejects an image with no declared platform', () => {
     const release = manifest();
-    release.images.redis.platforms = ['linux/amd64'];
+    release.images.redis.platforms = [];
 
-    expect(() => parseReleaseManifest(JSON.stringify(release))).toThrow(/linux\/arm64/);
+    expect(() => parseReleaseManifest(JSON.stringify(release))).toThrow();
   });
 
   it('accepts a manifest only for the package version being published', () => {

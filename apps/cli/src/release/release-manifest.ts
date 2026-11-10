@@ -1,6 +1,6 @@
 import { z } from 'zod/v4';
 
-/** Recognized release platforms; every image must cover Mac ARM (via Linux ARM). */
+/** Recognized image platforms; each manifest declares the platforms actually built. */
 export const RELEASE_PLATFORMS = ['linux/amd64', 'linux/arm64'] as const;
 
 const pinnedReferenceSchema = z
@@ -10,9 +10,7 @@ const pinnedReferenceSchema = z
     'Image reference must be pinned by sha256 digest',
   );
 
-const platformsSchema = z
-  .array(z.enum(RELEASE_PLATFORMS))
-  .refine((platforms) => platforms.includes('linux/arm64'), 'Image must cover linux/arm64');
+const platformsSchema = z.array(z.enum(RELEASE_PLATFORMS)).min(1);
 
 const releaseImageSchema = z.strictObject({
   reference: pinnedReferenceSchema,
