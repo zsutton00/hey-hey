@@ -2,8 +2,7 @@ name: Build images
 run-name: Staging candidates — ${{ github.ref_name }}
 
 # Release pushes and manual runs from any branch publish the same verified build.
-# Release branches build and smoke-check linux/arm64 only. Manual builds on other
-# branches also cover linux/amd64. Verified variants are published together.
+# Every run builds and smoke-checks linux/arm64 only, including manual runs.
 # When api, ui and graph-search are all built in one run, a candidate
 # release-manifest.json is uploaded for testing
 # `heyhey local`; the Release CLI workflow publishes that same manifest.
@@ -64,7 +63,7 @@ jobs:
       fail-fast: false
       matrix:
         image: ${{ fromJSON(needs.select.outputs.images) }}
-        platform: ${{ fromJSON(startsWith(github.ref, 'refs/heads/release/') && '["linux/arm64"]' || '["linux/amd64","linux/arm64"]') }}
+        platform: [linux/arm64]
     name: Build ${{ matrix.image }} ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
@@ -211,7 +210,7 @@ jobs:
       - name: Publish verified image variants and record the digest
         env:
           IMAGE: ${{ matrix.image }}
-          EXPECTED_PLATFORMS: ${{ startsWith(github.ref, 'refs/heads/release/') && '1' || '2' }}
+          EXPECTED_PLATFORMS: "1"
         run: |
           set -euo pipefail
           SAFE_REF="${GITHUB_REF_NAME//\//-}"
@@ -264,7 +263,7 @@ jobs:
       - name: Pin PostgreSQL and Redis by digest
         if: steps.complete.outputs.complete == 'true'
         env:
-          REQUIRED_ARCHITECTURES: ${{ startsWith(github.ref, 'refs/heads/release/') && 'arm64' || 'amd64 arm64' }}
+          REQUIRED_ARCHITECTURES: arm64
         run: |
           set -euo pipefail
           pin() {
@@ -295,7 +294,7 @@ jobs:
         if: steps.complete.outputs.complete == 'true'
         working-directory: apps/cli
         env:
-          RELEASE_IMAGE_PLATFORMS: ${{ startsWith(github.ref, 'refs/heads/release/') && '["linux/arm64"]' || '["linux/amd64","linux/arm64"]' }}
+          RELEASE_IMAGE_PLATFORMS: '["linux/arm64"]'
         run: |
           set -euo pipefail
           refs="$RUNNER_TEMP/references"
