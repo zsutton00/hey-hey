@@ -1125,6 +1125,7 @@ EntityPromptTemplateProposalUpdatesPayload:
 
 ProposalUpdates:
   oneOf:
+    - $ref: "#/PlanFromExistingTasksUpdatesPayload"
     - $ref: "./future-revisions.yaml#/FutureRevisionMutation"
     - $ref: "./tasks.yaml#/CreateTaskDto"
     - $ref: "./tasks.yaml#/UpdateTaskDto"
@@ -1138,6 +1139,9 @@ ProposalUpdates:
     - $ref: "#/EntityPromptTemplateProposalUpdatesPayload"
   description: >
     The proposed change payload. Shape depends on action + targetEntityType:
+    CREATE/CONVERSATION with proposalKind=plan-from-existing-tasks carries
+    PlanFromExistingTasksUpdatesPayload, including complete replacement content
+    on proposal revision; it never requests new-task generation.
     CREATE/TASK -> CreateTaskDto, UPDATE/TASK -> UpdateTaskDto,
     including the structured FEATURE requirement input and partial-operation
     fields when the target work item is a FEATURE,

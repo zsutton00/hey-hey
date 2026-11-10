@@ -23,7 +23,11 @@ import {
   ProposalHeader,
   type ProposalHeaderTypePresentation,
 } from "./ProposalHeader";
-import { isPlaceholderEntityId } from "./types";
+import {
+  getProposalMaterializationStatus,
+  isExistingTaskPlanProposal,
+  isPlaceholderEntityId,
+} from "./types";
 import { updateProposalTitleLinkSx } from "./updateProposalTitleLinkSx";
 
 const titleFlexSx = { flex: 1, minWidth: 0 };
@@ -119,6 +123,9 @@ export const ProposalTitle: FC<ProposalTitleProps> = ({
   const hasResolvedTarget = !isPlaceholderEntityId(resolvedTarget.entityId);
   const isLinked =
     hasResolvedTarget &&
+    (!isExistingTaskPlanProposal(proposal) ||
+      (getProposalMaterializationStatus(proposal)?.state === "applied" &&
+        resolvedTarget.entityType === TargetEntityType.Task)) &&
     (proposal.action !== ProposalAction.Create ||
       proposal.status === ProposalStatus.Approved ||
       target !== undefined);

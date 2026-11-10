@@ -1,3 +1,4 @@
+import * as responsePolicy from '../proposal-response-policy';
 import { ProposalReconciliationAdapterService } from '../proposal-reconciliation-adapter.service';
 import { createWarmWorkItemTypeRegistryWithCustomTypes } from '../../../../test/setup/work-item-type-registry.fixture';
 import { WorkItemParentageValidator } from '../../tasks/work-item-parentage-validator.service';
@@ -2155,6 +2156,290 @@ describe('ProposalApprovalService', () => {
         ).not.toHaveBeenCalled();
       },
     );
+  });
+
+  describe('approval of a Plan from existing tasks', () => {
+    const featureId = '10000000-0000-4000-8000-0000000000f1';
+    const first = '10000000-0000-4000-8000-0000000000a1';
+    const second = '10000000-0000-4000-8000-0000000000a2';
+    const planId = '10000000-0000-4000-8000-0000000000b1';
+    const stageA = '10000000-0000-4000-8000-0000000000b2';
+    const stageB = '10000000-0000-4000-8000-0000000000b3';
+    const docId = '10000000-0000-4000-8000-0000000000d1';
+
+    function setupAdoption() {
+      const draft = makeStoredProposal({
+        targetEntityType: 'CONVERSATION',
+        targetEntityId: '00000000-0000-0000-0000-000000000000',
+        updates: {
+          proposalKind: 'plan-from-existing-tasks',
+          parentFeatureId: featureId,
+          planTitle: 'Deliver existing work',
+          designDocMarkdown: '# Agreed design',
+          stages: [
+            { title: 'Prepare', taskIds: [first] },
+            { title: 'Deliver', taskIds: [second] },
+          ],
+          taskPrerequisites: [{ taskId: second, dependsOnTaskIds: [first] }],
+        },
+      });
+      setupForApproval(draft);
+      let stored = draft;
+      let intent: Record<string, any> | null = null;
+      jest
+        .spyOn(responsePolicy, 'mapProposalResponse')
+        .mockImplementation(async () =>
+          jest.requireActual('../proposal.types').toProposalResponseDto(
+            {
+              ...stored,
+              workItemChangeSetMaterialization: intent
+                ? { ...intent, checkpoints: [] }
+                : null,
+            },
+            1,
+          ),
+        );
+      const rows = [
+        {
+          id: first,
+          type: 'STANDARD',
+          status: 'ACTIVE',
+          archivedAt: null,
+          parentTaskId: featureId,
+        },
+        {
+          id: second,
+          type: 'STANDARD',
+          status: 'COMPLETED',
+          archivedAt: null,
+          parentTaskId: featureId,
+        },
+      ];
+      txMock.task.findFirst.mockImplementation(
+        async ({ where }: { where: { id: string } }) =>
+          where.id === featureId
+            ? {
+                id: featureId,
+                type: 'FEATURE',
+                status: 'ACTIVE',
+                parentTaskId: null,
+                archivedAt: null,
+              }
+            : rows.find((row) => row.id === where.id),
+      );
+      txMock.task.findMany.mockImplementation(async () => rows);
+      mockTaskService.createInTransaction
+        .mockResolvedValueOnce({ id: planId })
+        .mockResolvedValueOnce({ id: stageA })
+        .mockResolvedValueOnce({ id: stageB });
+      mockTaskService.updateInTransaction.mockResolvedValue({ postCommit: {} });
+      mockDesignDocService.createInTransaction.mockResolvedValue({ id: docId });
+      const withProgress = () => ({
+        ...stored,
+        workItemChangeSetMaterialization: intent
+          ? { ...intent, checkpoints: [] }
+          : null,
+      });
+      txMock.proposal.update.mockImplementation(
+        async ({ data }: { data: Record<string, unknown> }) => {
+          stored = { ...stored, ...data };
+          return withProgress();
+        },
+      );
+      txMock.proposal.findUniqueOrThrow = jest.fn(async () => withProgress());
+      txMock.workItemChangeSetMaterialization = {
+        create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => {
+          intent = {
+            id: 'intent',
+            status: 'PREPARED',
+            attemptCount: 0,
+            ...data,
+          };
+          return intent;
+        }),
+        findUnique: jest.fn(async () => intent),
+        findUniqueOrThrow: jest.fn(async () => intent),
+        updateMany: jest.fn(
+          async ({ data }: { data: Record<string, unknown> }) => {
+            intent = { ...intent, ...data };
+            return { count: 1 };
+          },
+        ),
+        update: jest.fn(async ({ data }: { data: Record<string, unknown> }) => {
+          intent = { ...intent, ...data };
+          return intent;
+        }),
+      };
+      Object.assign(mockPrisma.db, {
+        workItemChangeSetMaterialization:
+          txMock.workItemChangeSetMaterialization,
+      });
+      Object.assign(mockPrisma.db.proposal, {
+        findUniqueOrThrow: txMock.proposal.findUniqueOrThrow,
+        findFirst: jest.fn(async () => withProgress()),
+      });
+      return { rows, progress: () => intent, stored: () => stored };
+    }
+
+    it('adopts ACTIVE and COMPLETED identities with ordered stages and explicit dependencies, publishing one completed Plan', async () => {
+      const fixture = setupAdoption();
+      const result = await service.approve(
+        proposalId,
+        testIds.organization,
+        testIds.project,
+        approvingUserId,
+      );
+      expect(result.enacted).toBe(true);
+      expect(result.resultingEntityId).toBe(planId);
+      expect(result.proposal.targetEntityType).toBe('TASK');
+      expect(result.proposal.materialization?.state).toBe('PUBLISHED');
+      expect(
+        mockTaskService.createInTransaction.mock.calls.map((call) => [
+          call[3].type,
+          call[3].parentTaskId,
+        ]),
+      ).toEqual([
+        ['PLAN', featureId],
+        ['PLAN_STAGE', planId],
+        ['PLAN_STAGE', planId],
+      ]);
+      expect(
+        mockTaskService.updateInTransaction.mock.calls.map((call) => [
+          call[3],
+          call[4],
+        ]),
+      ).toEqual([
+        [first, { parentTaskId: stageA }],
+        [second, { parentTaskId: stageB }],
+      ]);
+      expect(mockDesignDocService.createInTransaction).toHaveBeenCalledWith(
+        txMock,
+        expect.objectContaining({
+          parentEntityId: planId,
+          sections: [{ key: 'content', order: 0, content: '# Agreed design' }],
+        }),
+      );
+      expect(mockPendingEdgeService.materializeEdges).toHaveBeenCalledWith(
+        testIds.organization,
+        testIds.project,
+        expect.arrayContaining([
+          expect.objectContaining({
+            sourceEntityId: stageB,
+            targetEntityId: stageA,
+            edgeType: 'DEPENDS_ON',
+          }),
+          expect.objectContaining({
+            sourceEntityId: second,
+            targetEntityId: first,
+            edgeType: 'DEPENDS_ON',
+          }),
+          expect.objectContaining({
+            sourceEntityId: planId,
+            targetEntityId: docId,
+            edgeType: 'DERIVES_FROM',
+          }),
+        ]),
+        null,
+      );
+      expect(fixture.progress()?.status).toBe('PUBLISHED');
+      expect(
+        mockPlanFromDesignDocLauncher.materializeRunInTransaction,
+      ).not.toHaveBeenCalled();
+      expect(
+        mockEventPublisher.publishInTransaction.mock.calls.filter(
+          (call) => call[1].type === EVENT_TYPES.PROPOSAL.APPROVED,
+        ),
+      ).toHaveLength(1);
+    });
+
+    it.each(['missing', 'ARCHIVED', 'SUPERSEDED', 'another Plan'])(
+      'rejects a post-authoring eligibility change (%s) before creating anything',
+      async (change) => {
+        const fixture = setupAdoption();
+        if (change === 'missing') {
+          fixture.rows.pop();
+        } else if (change === 'another Plan') {
+          fixture.rows[1]!.parentTaskId = planId;
+          txMock.task.findFirst
+            .mockResolvedValueOnce({
+              id: featureId,
+              type: 'FEATURE',
+              status: 'ACTIVE',
+            })
+            .mockResolvedValueOnce({ id: featureId, type: 'FEATURE' })
+            .mockResolvedValueOnce({ id: planId, type: 'PLAN' });
+        } else {
+          fixture.rows[1]!.status = change;
+        }
+        await expect(
+          service.approve(
+            proposalId,
+            testIds.organization,
+            testIds.project,
+            approvingUserId,
+          ),
+        ).rejects.toMatchObject({
+          response: {
+            issues: [
+              expect.objectContaining({
+                field: 'updates.stages[1].taskIds[0]',
+                layer: 'referential',
+                code:
+                  change === 'missing'
+                    ? 'TASK_NOT_FOUND'
+                    : change === 'another Plan'
+                      ? 'TASK_ALREADY_IN_PLAN'
+                      : 'TASK_UNAVAILABLE',
+              }),
+            ],
+          },
+        });
+        expect(mockTaskService.createInTransaction).not.toHaveBeenCalled();
+        expect(mockTaskService.updateInTransaction).not.toHaveBeenCalled();
+        expect(mockDesignDocService.createInTransaction).not.toHaveBeenCalled();
+        expect(fixture.progress()).toBeNull();
+      },
+    );
+
+    it('keeps graph publication failures unfinished and retries the same Plan without creating or moving work again', async () => {
+      const fixture = setupAdoption();
+      mockPendingEdgeService.materializeEdges.mockRejectedValueOnce(
+        new Error('Graph unavailable'),
+      );
+      const result = await service.approve(
+        proposalId,
+        testIds.organization,
+        testIds.project,
+        approvingUserId,
+      );
+      expect(result.enacted).toBe(false);
+      expect(result.resultingEntityId).toBeNull();
+      expect(result.proposal.materialization?.state).toBe(
+        'RECOVERABLE_FAILURE',
+      );
+      expect(result.proposal.materialization?.lastError).toBe(
+        'Graph unavailable',
+      );
+      expect(fixture.stored().targetEntityType).toBe('CONVERSATION');
+      expect(
+        mockEventPublisher.publishInTransaction.mock.calls.filter(
+          (call) => call[1].type === EVENT_TYPES.PROPOSAL.APPROVED,
+        ),
+      ).toHaveLength(0);
+      const retried = await service.retryApprovedGenericProposal({
+        proposalId,
+        organizationId: testIds.organization,
+        projectId: testIds.project,
+      });
+      expect(retried.proposal.materialization?.state).toBe('PUBLISHED');
+      expect(retried.resultingEntityId).toBe(planId);
+      expect(mockTaskService.createInTransaction).toHaveBeenCalledTimes(3);
+      expect(mockTaskService.updateInTransaction).toHaveBeenCalledTimes(2);
+      expect(mockPendingEdgeService.materializeEdges.mock.calls[0]![2]).toEqual(
+        mockPendingEdgeService.materializeEdges.mock.calls[1]![2],
+      );
+      expect(fixture.progress()?.status).toBe('PUBLISHED');
+    });
   });
 
   describe('approve() with CREATE + CONVERSATION (plan-from-design-doc)', () => {

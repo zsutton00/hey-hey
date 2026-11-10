@@ -1,3 +1,4 @@
+import { existingTaskPlanEligibilityIssues } from './existing-task-plan-eligibility';
 import { ProposalReconciliationService } from './proposal-reconciliation.service';
 import { forwardRef, Inject } from '@nestjs/common';
 import { sectionContent } from './future-application';
@@ -694,7 +695,7 @@ const planFromDesignDocConversationUpdatesSchema = z
 // union of all stage taskIds; array order is stage order.
 const PLAN_FROM_EXISTING_TASKS_KIND = 'plan-from-existing-tasks';
 
-const planFromExistingTasksUpdatesSchema = z
+export const planFromExistingTasksUpdatesSchema = z
   .object({
     proposalKind: z.literal(PLAN_FROM_EXISTING_TASKS_KIND),
     parentFeatureId: z.string().uuid(),
@@ -762,7 +763,7 @@ const planFromExistingTasksUpdatesSchema = z
     });
   });
 
-function isPlanFromExistingTasksPayload(
+export function isPlanFromExistingTasksPayload(
   updates: unknown,
 ): updates is { proposalKind: typeof PLAN_FROM_EXISTING_TASKS_KIND } {
   return (
@@ -2267,7 +2268,7 @@ export class ProposalValidationEngine {
   /**
    * Existence checks for a plan proposed from existing tasks: the parent must
    * be a FEATURE and every listed task must exist, each reported by ID. Task
-   * status and current parentage are approval-time rules, not checked here.
+   * eligibility is checked now and repeated under the approval transaction lock.
    */
   private async validatePlanFromExistingTasksReferences(
     payload: z.infer<typeof planFromExistingTasksUpdatesSchema>,
@@ -2298,7 +2299,7 @@ export class ProposalValidationEngine {
     }
 
     for (const [stageIndex, stage] of payload.stages.entries()) {
-      const found = await db.task.findMany({
+      const found: { id: string }[] = await db.task.findMany({
         where: { id: { in: stage.taskIds }, ...scope },
         select: { id: true },
       });
@@ -2318,6 +2319,20 @@ export class ProposalValidationEngine {
       }
     }
 
+    if (issues.length === 0) {
+      const eligibility = await existingTaskPlanEligibilityIssues(
+        db,
+        payload,
+        ctx.organizationId,
+        ctx.projectId,
+      );
+      issues.push(
+        ...eligibility.map((issue) => ({
+          ...issue,
+          field: `${prefix}.${issue.field}`,
+        })),
+      );
+    }
     return issues;
   }
 

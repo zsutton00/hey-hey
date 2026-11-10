@@ -394,6 +394,46 @@ describe('ProposalService.update', () => {
     );
   });
 
+  it('replaces the complete pending adoption content without retaining old prerequisites', async () => {
+    const updates = {
+      proposalKind: 'plan-from-existing-tasks' as const,
+      parentFeatureId: testIds.task,
+      planTitle: 'Revised adoption',
+      designDocMarkdown: '# Revised design',
+      stages: [{ title: 'Deliver', taskIds: [testIds.task] }],
+    };
+    const existing = makeStoredProposal({
+      targetEntityType: 'CONVERSATION',
+      eli5: 'Organize existing work.',
+      updates: {
+        ...updates,
+        taskPrerequisites: [
+          { taskId: testIds.task, dependsOnTaskIds: [testIds.initiative] },
+        ],
+      },
+    });
+    const txMock = {
+      proposal: {
+        findFirst: jest.fn().mockResolvedValue(existing),
+        update: jest.fn().mockResolvedValue({ ...existing, updates }),
+      },
+    };
+    mockTransaction(mockPrisma, txMock);
+    await service.update(
+      proposalId,
+      testIds.organization,
+      testIds.project,
+      { updates },
+      approvingUserId,
+    );
+    expect(txMock.proposal.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ updates, title: updates.planTitle }),
+      }),
+    );
+    expect(service['reconciliation'].captureAuthoring).toHaveBeenCalled();
+  });
+
   it('should reject deleting a proposal that belongs to a group', async () => {
     const txMock = {
       proposal: {

@@ -67,6 +67,15 @@ import type { FutureRevisionContent } from './future-revision-content.js';
 import type { FutureRevisionMutation } from './future-revision-mutation.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { PlanFromExistingTasksStage } from './plan-from-existing-tasks-stage.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { PlanFromExistingTasksTaskPrerequisite } from './plan-from-existing-tasks-task-prerequisite.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { PlanFromExistingTasksUpdatesPayload } from './plan-from-existing-tasks-updates-payload.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { RelationshipDecision } from './relationship-decision.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -113,7 +122,7 @@ import type { WorkflowProposalStepInput } from './workflow-proposal-step-input.j
 
 /**
  * @type ProposalUpdates
- * The proposed change payload. Shape depends on action + targetEntityType: CREATE/TASK -> CreateTaskDto, UPDATE/TASK -> UpdateTaskDto, including the structured FEATURE requirement input and partial-operation fields when the target work item is a FEATURE, CREATE/DESIGN_DOC -> CreateDesignDocDto, UPDATE/DESIGN_DOC -> UpdateDesignDocDto, UPDATE/PLAN -> UpdatePlanDto, WORK_ITEM_TYPE lifecycle operations -> WorkItemTypeLifecycleUpdatesPayload, DELETE/WORK_ITEM_TYPE with cascade=true -> WorkItemTypeCascadeDeleteUpdatesPayload, and ordinary DELETE proposals -> DeleteUpdatesPayload (empty object). UPDATE/ENTITY_PROMPT_TEMPLATE carries an EntityPromptTemplateUpsertUpdatesPayload; DELETE/ENTITY_PROMPT_TEMPLATE carries an EntityPromptTemplateRetireUpdatesPayload. Both template payloads are submitted through the standard proposal route and return the standard ProposalResponseDto rather than a publication result.
+ * The proposed change payload. Shape depends on action + targetEntityType: CREATE/CONVERSATION with proposalKind=plan-from-existing-tasks carries PlanFromExistingTasksUpdatesPayload, including complete replacement content on proposal revision; it never requests new-task generation. CREATE/TASK -> CreateTaskDto, UPDATE/TASK -> UpdateTaskDto, including the structured FEATURE requirement input and partial-operation fields when the target work item is a FEATURE, CREATE/DESIGN_DOC -> CreateDesignDocDto, UPDATE/DESIGN_DOC -> UpdateDesignDocDto, UPDATE/PLAN -> UpdatePlanDto, WORK_ITEM_TYPE lifecycle operations -> WorkItemTypeLifecycleUpdatesPayload, DELETE/WORK_ITEM_TYPE with cascade=true -> WorkItemTypeCascadeDeleteUpdatesPayload, and ordinary DELETE proposals -> DeleteUpdatesPayload (empty object). UPDATE/ENTITY_PROMPT_TEMPLATE carries an EntityPromptTemplateUpsertUpdatesPayload; DELETE/ENTITY_PROMPT_TEMPLATE carries an EntityPromptTemplateRetireUpdatesPayload. Both template payloads are submitted through the standard proposal route and return the standard ProposalResponseDto rather than a publication result.
  * @export
  */
-export type ProposalUpdates = CreateDesignDocDto | CreateTaskDto | EntityPromptTemplateProposalUpdatesPayload | FutureRevisionMutation | UpdateDesignDocDto | UpdateTaskDto | WorkItemChangeSetValidationRequest | WorkItemTypeCascadeDeleteUpdatesPayload | WorkItemTypeLifecycleUpdatesPayload | object;
+export type ProposalUpdates = CreateDesignDocDto | CreateTaskDto | EntityPromptTemplateProposalUpdatesPayload | FutureRevisionMutation | PlanFromExistingTasksUpdatesPayload | UpdateDesignDocDto | UpdateTaskDto | WorkItemChangeSetValidationRequest | WorkItemTypeCascadeDeleteUpdatesPayload | WorkItemTypeLifecycleUpdatesPayload | object;

@@ -40,7 +40,10 @@ import {
   rootChildrenView,
   WorkItemChangeSetProjectorService,
 } from '../../services/proposal/work-item-change-set-projector.service';
-import { createdProposalTargetType } from '../../services/proposal/proposal-validation.engine';
+import {
+  createdProposalTargetType,
+  planFromExistingTasksUpdatesSchema,
+} from '../../services/proposal/proposal-validation.engine';
 import type { StampedCreateProposalDto } from '../../services/proposal/proposal.types';
 import { readFutureRevision } from '../../services/proposal/future-revision';
 import { parseFutureRevisionAuthoring } from '../../services/proposal/future-revision-materializer';
@@ -1336,7 +1339,7 @@ export const proposeFutureRevisionOutput = z.discriminatedUnion('status', [
 
 type ProposeFutureRevisionOutput = z.infer<typeof proposeFutureRevisionOutput>;
 
-const proposalUpdatesSchema = z
+const entityProposalUpdatesSchema = z
   .object({
     name: z.string().min(1).optional().describe('Updated name/title'),
     sections: z
@@ -1389,6 +1392,12 @@ const proposalUpdatesSchema = z
     'The proposed changes to store. Shape matches the target entity ' +
       'update DTO (e.g. name, sections, status, priority for tasks).',
   );
+
+// Adoption revisions carry a complete typed artifact, never task-generation fields.
+const proposalUpdatesSchema = z.union([
+  planFromExistingTasksUpdatesSchema,
+  entityProposalUpdatesSchema,
+]);
 
 export const updateProposalParameters = z.object({
   groupContext: proposalGroupContextSchema.optional(),
@@ -4229,7 +4238,10 @@ export class ProposalToolsProvider {
       toolName: PROPOSAL_TOOL_NAMES.UPDATE_PROPOSAL,
       token: params.authoringRootProof,
       required: topologyMutationRequested({
-        parentTaskId: params.updates?.parentTaskId,
+        parentTaskId:
+          params.updates && 'parentTaskId' in params.updates
+            ? params.updates.parentTaskId
+            : undefined,
         groupContext: params.groupContext,
       }),
     });
@@ -4310,7 +4322,11 @@ export class ProposalToolsProvider {
         };
       }
 
-      if (params.updates?.status !== undefined) {
+      if (
+        params.updates &&
+        'status' in params.updates &&
+        params.updates.status !== undefined
+      ) {
         const existing = await this.proposalService.findOne(
           params.proposalId,
           auth.organizationId,

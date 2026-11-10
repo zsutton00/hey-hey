@@ -4822,7 +4822,13 @@ describe('ProposalValidationEngine', () => {
         async ({ where }: { where: { id: { in: string[] } } }) =>
           where.id.in
             .filter((id) => taskIds.includes(id))
-            .map((id) => ({ id })),
+            .map((id) => ({
+              id,
+              type: 'STANDARD',
+              status: id === TASK_A ? 'ACTIVE' : 'COMPLETED',
+              archivedAt: null,
+              parentTaskId: null,
+            })),
       );
     }
 
@@ -4834,7 +4840,7 @@ describe('ProposalValidationEngine', () => {
       return result.proposals[0]!;
     }
 
-    it('accepts a feature with existing tasks regardless of their status', async () => {
+    it('accepts ACTIVE and COMPLETED tasks', async () => {
       existing(true, [TASK_A, TASK_B, TASK_C]);
 
       const result = await validate(
@@ -4845,6 +4851,29 @@ describe('ProposalValidationEngine', () => {
 
       expect(result.errors).toEqual([]);
     });
+
+    it.each(['ARCHIVED', 'SUPERSEDED'])(
+      'rejects known %s tasks at authoring admission',
+      async (status) => {
+        existing(true, [TASK_A, TASK_B, TASK_C]);
+        mockPrisma.db.task.findMany.mockResolvedValue(
+          [TASK_A, TASK_B, TASK_C].map((id) => ({
+            id,
+            type: 'STANDARD',
+            status: id === TASK_B ? status : 'ACTIVE',
+            archivedAt: null,
+            parentTaskId: null,
+          })),
+        );
+        const result = await validate(planDto());
+        expect(result.errors).toContainEqual(
+          expect.objectContaining({
+            code: 'TASK_UNAVAILABLE',
+            field: 'proposals[0].updates.stages[1].taskIds[0]',
+          }),
+        );
+      },
+    );
 
     it('rejects an empty task list', async () => {
       const result = await validate(planDto({ stages: [] }));
@@ -4880,12 +4909,16 @@ describe('ProposalValidationEngine', () => {
     it('rejects a prerequisite that names a task outside the set', async () => {
       const result = await validate(
         planDto({
-          taskPrerequisites: [{ taskId: TASK_B, dependsOnTaskIds: [FEATURE_ID] }],
+          taskPrerequisites: [
+            { taskId: TASK_B, dependsOnTaskIds: [FEATURE_ID] },
+          ],
         }),
       );
 
       expect(result.valid).toBe(false);
-      expect(result.errors[0]!.reason).toContain('not in the proposed task set');
+      expect(result.errors[0]!.reason).toContain(
+        'not in the proposed task set',
+      );
     });
 
     it('rejects a missing parent feature', async () => {
@@ -4907,9 +4940,7 @@ describe('ProposalValidationEngine', () => {
 
       const result = await validate(planDto());
 
-      expect(
-        result.errors.map((e) => [e.code, e.layer, e.reason]),
-      ).toEqual([
+      expect(result.errors.map((e) => [e.code, e.layer, e.reason])).toEqual([
         ['entity_not_found', 'referential', expect.stringContaining(TASK_B)],
         ['entity_not_found', 'referential', expect.stringContaining(TASK_C)],
       ]);

@@ -11,6 +11,7 @@ import {
 } from "../../api";
 import type {
   ProposalResponseDto,
+  PlanFromExistingTasksUpdatesPayload,
   CreateTaskDto,
   UpdateTaskDto,
   CreateDesignDocDto,
@@ -272,7 +273,8 @@ export const getProposalMaterializationStatus = (
 ): ProposalItemStatus | undefined => {
   const progress = proposal.materialization;
   if (!progress) {
-    return isWorkItemGraphProposal(proposal) &&
+    return (isWorkItemGraphProposal(proposal) ||
+      isExistingTaskPlanProposal(proposal)) &&
       proposal.status === ProposalStatus.Approved
       ? { state: "applying" }
       : undefined;
@@ -552,3 +554,20 @@ export const isCreatePlanProposal = (
     typeof updates?.designDocMarkdown === "string"
   );
 };
+
+/** The dedicated producer's validated artifact, never a design-doc workflow. */
+export function isExistingTaskPlanProposal(
+  proposal: ProposalResponseDto,
+): proposal is ProposalResponseDto & {
+  updates: PlanFromExistingTasksUpdatesPayload;
+} {
+  const updates: unknown = proposal.updates;
+  return (
+    proposal.action === ProposalAction.Create &&
+    (proposal.targetEntityType === TargetEntityType.Conversation ||
+      (proposal.targetEntityType === TargetEntityType.Task &&
+        proposal.status === ProposalStatus.Approved)) &&
+    isRecord(updates) &&
+    updates.proposalKind === "plan-from-existing-tasks"
+  );
+}
