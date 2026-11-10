@@ -37,7 +37,11 @@ const references = z
   })
   .parse(JSON.parse(readFileSync(digestsFile, 'utf8')));
 
-const withPlatforms = (reference: string) => ({ reference, platforms: [...RELEASE_PLATFORMS] });
+const platforms = process.env.RELEASE_IMAGE_PLATFORMS
+  ? z.array(z.enum(RELEASE_PLATFORMS)).parse(JSON.parse(process.env.RELEASE_IMAGE_PLATFORMS))
+  : [...RELEASE_PLATFORMS];
+
+const withPlatforms = (reference: string) => ({ reference, platforms });
 
 const manifest: ReleaseManifest = releaseManifestSchema.parse({
   schemaVersion: 1,

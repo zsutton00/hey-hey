@@ -1,6 +1,6 @@
 import { z } from 'zod/v4';
 
-/** Platforms every release image must cover: Mac ARM (via Linux ARM) and Linux x86. */
+/** Recognized release platforms; every image must cover Mac ARM (via Linux ARM). */
 export const RELEASE_PLATFORMS = ['linux/amd64', 'linux/arm64'] as const;
 
 const pinnedReferenceSchema = z
@@ -12,10 +12,7 @@ const pinnedReferenceSchema = z
 
 const platformsSchema = z
   .array(z.enum(RELEASE_PLATFORMS))
-  .refine(
-    (platforms) => RELEASE_PLATFORMS.every((platform) => platforms.includes(platform)),
-    `Image must cover ${RELEASE_PLATFORMS.join(' and ')}`,
-  );
+  .refine((platforms) => platforms.includes('linux/arm64'), 'Image must cover linux/arm64');
 
 const releaseImageSchema = z.strictObject({
   reference: pinnedReferenceSchema,

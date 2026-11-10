@@ -29,6 +29,15 @@ describe('release manifest', () => {
     expect(parseReleaseManifest(JSON.stringify(manifest()))).toEqual(manifest());
   });
 
+  it('accepts an ARM-only release', () => {
+    const release = manifest();
+    for (const image of Object.values(release.images)) {
+      image.platforms = ['linux/arm64'];
+    }
+
+    expect(parseReleaseManifest(JSON.stringify(release))).toEqual(release);
+  });
+
   it('rejects an image that is only pinned by tag', () => {
     const release = manifest();
     release.images.api.reference = 'ghcr.io/zsutton00/api-service:latest';
@@ -36,7 +45,7 @@ describe('release manifest', () => {
     expect(() => parseReleaseManifest(JSON.stringify(release))).toThrow(/sha256 digest/);
   });
 
-  it('rejects an image missing either required platform', () => {
+  it('rejects an image missing the required ARM platform', () => {
     const release = manifest();
     release.images.redis.platforms = ['linux/amd64'];
 
