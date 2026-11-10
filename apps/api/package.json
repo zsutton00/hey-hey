@@ -95,6 +95,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.2",
     "@elastic/elasticsearch": "8.11.0",
+    "@hey-hey/contracts": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@nestjs/axios": "^4.0.0",
     "@nestjs/common": "^11.1.0",
@@ -164,10 +165,11 @@
     "uuid": "^11.1.0",
     "winston": "^3.17.0",
     "zod": "^3.25.74",
-    "zod-to-json-schema": "^3.24.6",
-    "@hey-hey/contracts": "workspace:*"
+    "zod-to-json-schema": "^3.24.6"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.15",
+    "@electric-sql/pglite-socket": "^0.2.18",
     "@eslint/js": "^9.18.0",
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
