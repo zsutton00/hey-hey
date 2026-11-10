@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { VerifyFeatureElement } from "../../../../api";
 import { VerifyFeatureField } from "../VerifyFeatureField";
@@ -70,6 +71,13 @@ vi.mock("../../../InteractionComponent", () => ({
       </div>
     ) : null,
 }));
+vi.mock("../../../../contexts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../../contexts")>()),
+  usePathService: () => ({
+    agentSession: ({ agentSessionId }: { agentSessionId: string }) =>
+      `/sessions/${agentSessionId}`,
+  }),
+}));
 vi.mock("../../../../data/hooks/useAgentSession", () => ({
   useAgentSession: () => ({ data: null }),
 }));
@@ -98,7 +106,7 @@ vi.mock("../../../Conversation/Components/ConversationContext", () => ({
   }),
 }));
 vi.mock("../../../../data/hooks/useSuggestionDecision", () => ({
-  useSuggestionDecision: () => ({ mutate: vi.fn() }),
+  useSuggestionDecision: () => ({ mutate: vi.fn().mockResolvedValue({}) }),
 }));
 vi.mock("../../../Conversation/utils/conversationFormHelpers", () => ({
   createSecondActionFromAPI: () => ({ onExecute: mocks.next }),
@@ -152,7 +160,7 @@ const action = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.launch.mockResolvedValue(true);
+  mocks.launch.mockResolvedValue({ agentSessionId: "created-session" });
 });
 
 describe("Verify Feature field and secondary action", () => {
@@ -269,24 +277,26 @@ describe("Verify Feature field and secondary action", () => {
 
   it("opens shared staging without launching until the edited modal is submitted", async () => {
     render(
-      <VerificationRuntimeContext.Provider
-        value={{
-          parentAgentSessionId: "source-session",
-          machineId: "selected-machine",
-          serviceIds: ["one", "two"],
-          launchServiceId: "two",
-        }}
-      >
-        <SecondaryActionRenderer
-          action={action}
-          context={context}
-          trackUI={vi.fn()}
-          messageId="source-message"
-          handleNext={mocks.next}
-          formValues={{}}
-          uiElements={[field]}
-        />
-      </VerificationRuntimeContext.Provider>,
+      <MemoryRouter>
+        <VerificationRuntimeContext.Provider
+          value={{
+            parentAgentSessionId: "source-session",
+            machineId: "selected-machine",
+            serviceIds: ["one", "two"],
+            launchServiceId: "two",
+          }}
+        >
+          <SecondaryActionRenderer
+            action={action}
+            context={context}
+            trackUI={vi.fn()}
+            messageId="source-message"
+            handleNext={mocks.next}
+            formValues={{}}
+            uiElements={[field]}
+          />
+        </VerificationRuntimeContext.Provider>
+      </MemoryRouter>,
     );
     expect(mocks.launch).not.toHaveBeenCalled();
     const verifyButton = screen.getByTestId("project-topology-button");
@@ -332,26 +342,30 @@ describe("Verify Feature field and secondary action", () => {
   });
 
   it("keeps staging open for a failed start so the prompt can be retried", async () => {
-    mocks.launch.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    mocks.launch
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ agentSessionId: "created-session" });
     render(
-      <VerificationRuntimeContext.Provider
-        value={{
-          parentAgentSessionId: "source-session",
-          machineId: "selected-machine",
-          serviceIds: [],
-          launchServiceId: null,
-        }}
-      >
-        <SecondaryActionRenderer
-          action={action}
-          context={context}
-          trackUI={vi.fn()}
-          messageId="source-message"
-          handleNext={mocks.next}
-          formValues={{}}
-          uiElements={[field]}
-        />
-      </VerificationRuntimeContext.Provider>,
+      <MemoryRouter>
+        <VerificationRuntimeContext.Provider
+          value={{
+            parentAgentSessionId: "source-session",
+            machineId: "selected-machine",
+            serviceIds: [],
+            launchServiceId: null,
+          }}
+        >
+          <SecondaryActionRenderer
+            action={action}
+            context={context}
+            trackUI={vi.fn()}
+            messageId="source-message"
+            handleNext={mocks.next}
+            formValues={{}}
+            uiElements={[field]}
+          />
+        </VerificationRuntimeContext.Provider>
+      </MemoryRouter>,
     );
 
     fireEvent.click(screen.getByTestId("project-topology-button"));

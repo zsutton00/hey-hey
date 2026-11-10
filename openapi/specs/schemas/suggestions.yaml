@@ -17,6 +17,7 @@ SuggestionType:
     - suggested_action_initiative
     - related_entities
     - generated_initiative
+    - verify_feature
 
 CreateSuggestedTaskRequestDto:
   type: object
@@ -110,12 +111,14 @@ SuggestionDecisionMetadata:
     - $ref: "#/CreateSuggestedTaskDecisionMetadata"
     - $ref: "#/CreateSuggestedDesignDocDecisionMetadata"
     - $ref: "#/ProposedInitiativeDecisionMetadata"
+    - $ref: "#/VerifyFeatureDecisionMetadata"
   discriminator:
     propertyName: kind
     mapping:
       CREATE_SUGGESTED_TASK: "#/CreateSuggestedTaskDecisionMetadata"
       CREATE_SUGGESTED_DESIGN_DOC: "#/CreateSuggestedDesignDocDecisionMetadata"
       PROPOSED_INITIATIVE: "#/ProposedInitiativeDecisionMetadata"
+      VERIFY_FEATURE: "#/VerifyFeatureDecisionMetadata"
 
 CreateSuggestedTaskDecisionMetadata:
   type: object
@@ -146,6 +149,18 @@ CreateSuggestedDesignDocDecisionMetadata:
     designDocId:
       $ref: "./common.yaml#/DesignDocId"
       nullable: true
+
+VerifyFeatureDecisionMetadata:
+  type: object
+  required:
+    - kind
+    - agentSessionId
+  properties:
+    kind:
+      type: string
+      enum: [VERIFY_FEATURE]
+    agentSessionId:
+      $ref: "./common.yaml#/AgentSessionId"
 
 ProposedInitiativeDecisionMetadata:
   type: object
