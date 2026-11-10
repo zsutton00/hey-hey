@@ -126,6 +126,7 @@ jobs:
     strategy:
       matrix:
         include:
+          - { platform: linux/amd64, runner: ubuntu-latest }
           - { platform: linux/arm64, runner: ubuntu-24.04-arm }
     steps:
       - uses: actions/download-artifact@v4
