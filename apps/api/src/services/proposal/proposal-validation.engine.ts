@@ -36,6 +36,7 @@ import {
 import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod';
 import { PrismaService, AnyTransactionClient } from 'src/prisma/prisma.service';
+import type { Task } from '@prisma/client';
 import type {
   CreateProposalDto,
   CreateProposalRequestDto,
@@ -2211,7 +2212,7 @@ export class ProposalValidationEngine {
         ]),
       ]),
     ];
-    const found = await db.task.findMany({
+    const found: Pick<Task, 'id' | 'type'>[] = await db.task.findMany({
       where: {
         id: { in: [payload.parentFeatureId, ...taskIds] },
         organizationId: ctx.organizationId,

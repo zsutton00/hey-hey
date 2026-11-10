@@ -7,7 +7,10 @@ import {
 import { Prisma } from '@prisma/client';
 import { v5 as uuidv5 } from 'uuid';
 import { CreateTaskDto, WorkStatus } from '@hey-hey/contracts/api/models';
-import { AnyTransactionClient } from '../../prisma/prisma.service';
+import {
+  AnyTransactionClient,
+  type ExtendedPrismaClient,
+} from '../../prisma/prisma.service';
 import { AgentEdgeEndpointEntityType } from '../../generated/graphs/model/agentEdgeEndpointEntityType';
 import {
   DesignDocId,
@@ -252,7 +255,7 @@ export class PlanFromExistingTasksAdoptionService {
     updates: Record<string, unknown>;
     organizationId: OrganizationId;
     projectId: ProjectId;
-    db: Prisma.TransactionClient;
+    db: Pick<ExtendedPrismaClient, 'task'>;
   }): Promise<MaterializableEdge[]> {
     const payload = planFromExistingTasksPayloadSchema.parse(params.updates);
     const firstTaskIds = payload.stages.map((stage) => stage.taskIds[0]!);
@@ -264,7 +267,9 @@ export class PlanFromExistingTasksAdoptionService {
       },
       select: { id: true, parentTaskId: true },
     });
-    const parentByTask = new Map(rows.map((r) => [r.id, r.parentTaskId]));
+    const parentByTask = new Map<string, string | null>(
+      rows.map((r) => [r.id, r.parentTaskId]),
+    );
     const stageIds = firstTaskIds.map((taskId) => parentByTask.get(taskId));
     const stages = await params.db.task.findMany({
       where: {
