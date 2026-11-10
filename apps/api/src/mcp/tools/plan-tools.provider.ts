@@ -3,7 +3,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Context, Tool } from '@rekog/mcp-nest';
 import type { Request } from 'express';
 import { z } from 'zod';
-import { WorkflowName } from '@hey-hey/contracts/api/models';
+import {
+  WorkflowName,
+  type PlanFromExistingTasksUpdatesPayload,
+} from '@hey-hey/contracts/api/models';
 import { ProposalService } from '../../services/proposal/proposal.service';
 import type { StampedCreateProposalDto } from '../../services/proposal/proposal.types';
 import type { ProjectId, TaskId } from '../../types';
@@ -91,6 +94,71 @@ const createPlanResultOutput = z.union([
 ]);
 
 type CreatePlanOutput = z.infer<typeof createPlanResultOutput>;
+
+export const createPlanFromExistingTasksParameters = z.object({
+  ragEnabled: z.boolean().optional(),
+  applicationEligible: z.boolean().optional(),
+  parentFeatureId: z
+    .string()
+    .uuid()
+    .describe('The feature the plan anchors under and whose tasks it adopts.'),
+  planTitle: z.string().min(1).describe('User-visible plan name'),
+  designDocMarkdown: z
+    .string()
+    .min(1)
+    .describe(
+      'Design-doc body drafted from the parent feature (what was wanted) and ' +
+        'the tasks (how it was done), as a record of how the work was ' +
+        'delivered.',
+    ),
+  stages: z
+    .array(
+      z.object({
+        title: z.string().min(1),
+        summary: z.string().min(1).optional(),
+        taskIds: z.array(z.string().uuid()).min(1),
+      }),
+    )
+    .min(1)
+    .describe(
+      'Ordered stages. Array order is stage order. Each lists the existing ' +
+        'task IDs it holds; a task appears in exactly one stage.',
+    ),
+  taskPrerequisites: z
+    .array(
+      z.object({
+        taskId: z.string().uuid(),
+        dependsOnTaskIds: z.array(z.string().uuid()).min(1),
+      }),
+    )
+    .optional()
+    .describe(
+      'Explicit task-to-task prerequisites within the set. List order ' +
+        'implies nothing.',
+    ),
+  eli5: z
+    .string()
+    .min(1)
+    .max(150)
+    .describe(
+      'Required proposal-owned explanation for a reviewer (150 characters maximum).',
+    ),
+  reason: z.string().optional().describe('Why this plan is being proposed'),
+  influences: z
+    .array(influenceSchema)
+    .max(100)
+    .optional()
+    .describe(
+      'Entities that influenced this proposal. Each entry declares ' +
+        'the entity ID, reason type (explicit_mention, implied, derived), ' +
+        'and a brief reasoning explanation.',
+    ),
+  generatedWithVersion: z
+    .string()
+    .max(255)
+    .optional()
+    .describe('Model or tool version used to generate this proposal'),
+});
 
 @Injectable()
 export class PlanToolsProvider {
@@ -190,6 +258,107 @@ export class PlanToolsProvider {
       if (invalidChangeSet) return invalidChangeSet;
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.warn(`create_plan failed: ${message}`);
+      return mcpError(message);
+    }
+  }
+
+  @Tool({
+    name: ORCHESTRATION_TOOL_NAMES.CREATE_PLAN_FROM_EXISTING_TASKS,
+    description:
+      'Propose a plan built from a feature\'s existing tasks: a design doc, ' +
+      'ordered stages, and the exact task set, reviewed as one proposal. ' +
+      'Creates no tasks. See get_tool_guidance({ toolName: ' +
+      '"create_plan_from_existing_tasks" }) for when to use it.',
+    parameters: createPlanFromExistingTasksParameters,
+    outputSchema: createPlanResultOutput,
+  })
+  async createPlanFromExistingTasks(
+    params: z.infer<typeof createPlanFromExistingTasksParameters>,
+    _context: Context,
+    request: Request,
+  ): Promise<CreatePlanOutput | CallToolResult> {
+    const auth = extractAuthContext({}, request);
+    if (!isAuthContext(auth)) return auth;
+
+    const conversationId = request.headers['x-conversation-id'] as
+      | string
+      | undefined;
+    const projectId = request.headers['x-project-id'] as string | undefined;
+
+    if (!projectId) {
+      return mcpError(
+        'Missing project context. Ensure X-Project-ID header is set.',
+      );
+    }
+
+    const requestorContext = extractRequestorContext(
+      auth,
+      request,
+      ORCHESTRATION_TOOL_NAMES.CREATE_PLAN_FROM_EXISTING_TASKS,
+      conversationId,
+    );
+
+    const provenance = buildProvenanceEnvelope(
+      requestorContext,
+      params.influences,
+      params.generatedWithVersion,
+    );
+
+    const updates = {
+      proposalKind: 'plan-from-existing-tasks',
+      parentFeatureId: params.parentFeatureId,
+      planTitle: params.planTitle,
+      designDocMarkdown: params.designDocMarkdown,
+      stages: params.stages,
+      ...(params.taskPrerequisites
+        ? { taskPrerequisites: params.taskPrerequisites }
+        : {}),
+    } satisfies PlanFromExistingTasksUpdatesPayload;
+
+    const dto: StampedCreateProposalDto = {
+      ragEnabled: params.ragEnabled,
+      applicationEligible: params.applicationEligible,
+      type: 'SINGLE',
+      action: 'CREATE',
+      targetEntityId: NIL_UUID,
+      targetEntityType: 'CONVERSATION',
+      title: params.planTitle,
+      eli5: params.eli5,
+      updates,
+      requestorContext,
+      influences: provenance.influences,
+      ...(provenance.generatedWithVersion
+        ? { generatedWithVersion: provenance.generatedWithVersion }
+        : {}),
+      ...(conversationId ? { conversationId } : {}),
+    };
+
+    try {
+      const proposal = await this.proposalService.create(
+        auth.organizationId,
+        projectId as ProjectId,
+        auth.user.userId,
+        dto,
+      );
+
+      this.logger.log(
+        `create_plan_from_existing_tasks proposal created: ${proposal.id} for project ${projectId}`,
+      );
+
+      return {
+        id: proposal.id,
+        status: proposal.status,
+        action: proposal.action,
+        targetEntityType: proposal.targetEntityType,
+        targetEntityId: proposal.targetEntityId,
+        fields: Object.keys(updates),
+        createdAt: proposal.createdAt,
+      };
+    } catch (error: unknown) {
+      const invalidChangeSet = invalidProposalChangeSetFromError(error);
+      if (invalidChangeSet) return invalidChangeSet;
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(`create_plan_from_existing_tasks failed: ${message}`);
       return mcpError(message);
     }
   }

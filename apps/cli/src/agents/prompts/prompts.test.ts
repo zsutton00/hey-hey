@@ -803,6 +803,8 @@ describe('planVsTasksFork', () => {
       'without that lean for existing-system changes, even large ones',
     );
     expect(planVsTasksFork).toContain('Honor explicit plan requests either way');
+    expect(planVsTasksFork).toContain('create_plan_from_existing_tasks');
+    expect(planVsTasksFork).toContain('If that set looks incomplete, stop and ask the user');
     expect(planVsTasksFork).toContain(
       'Task count, service count, and cross-service coordination alone do not justify plans',
     );
