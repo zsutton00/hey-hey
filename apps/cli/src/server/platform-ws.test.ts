@@ -184,6 +184,52 @@ describe('PlatformWebSocketManager (per Agent Session)', () => {
     expect(payload.conversationIds.sort()).toEqual(['conv-1', 'conv-2']);
   });
 
+  it('stops requesting rooms the platform reports as denied', async () => {
+    const client = new PlatformWebSocketManager({
+      serverUrl: 'http://test',
+      oauthClient: fakeOAuthClient('org-1'),
+      logger: NOOP_LOGGER,
+      keyPairStore: createPlatformKeyPairStore(),
+    });
+
+    client.subscribe('conv-live');
+    client.subscribe('conv-gone');
+    client.subscribeProject('project-live');
+    client.subscribeProject('project-gone');
+    await flush();
+    currentSocket.connected = true;
+    currentSocket.emit('connect');
+    await flush();
+    currentSocket.emit('authenticated', {
+      status: 'success',
+      projectIds: [],
+      conversationIds: [],
+    });
+    await flush();
+
+    currentSocket.emit('subscribed', {
+      status: 'success',
+      eventTypes: [],
+      projectIds: ['project-live'],
+      conversationIds: ['conv-live'],
+      initiativeIds: [],
+      designDocIds: [],
+      deniedScopes: [
+        { scopeType: 'project', id: 'project-gone' },
+        { scopeType: 'conversation', id: 'conv-gone' },
+      ],
+    });
+    currentSocket._emits.length = 0;
+    client.subscribe('conv-new');
+
+    const subscribeEmits = currentSocket._emits.filter((e) => e.event === 'subscribe');
+    expect(subscribeEmits).toHaveLength(1);
+    expect(subscribeEmits[0]!.payload).toMatchObject({
+      conversationIds: ['conv-live', 'conv-new'],
+      projectIds: ['project-live'],
+    });
+  });
+
   it('emits unsubscribe for a removed conversation and re-sends subscribe with the remaining set', async () => {
     const client = new PlatformWebSocketManager({
       serverUrl: 'http://test',

@@ -119,7 +119,16 @@ function makeHarness(
   } as unknown as jest.Mocked<MachinePresenceService>;
 
   const websocketAuthorizationService = {
-    authorize: jest.fn().mockResolvedValue({ authorized: true }),
+    authorize: jest.fn().mockImplementation((request) => ({
+      authorized: true,
+      grantedScope: {
+        projectIds: request.projectIds,
+        conversationIds: request.conversationIds,
+        initiativeIds: request.initiativeIds,
+        designDocIds: request.designDocIds,
+      },
+      deniedScopes: [],
+    })),
   } as never;
 
   const gateway = new WebsocketGateway(

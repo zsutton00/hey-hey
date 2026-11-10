@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { WebSocketLeaveRoomRequest } from '@hey-hey/contracts/api/models';
 import { Socket } from 'socket.io';
+import type { DeniedChildRoomScope } from './websocket-authorization.service';
 import {
   ConversationId,
   DesignDocId,
@@ -328,11 +329,18 @@ export class WebsocketConnectionManager {
     conversationIds?: ConversationId[],
     initiativeIds?: InitiativeId[],
     designDocIds?: DesignDocId[],
+    deniedScopes: readonly DeniedChildRoomScope[] = [],
   ): Promise<void> {
     const socket = this.sockets.get(socketId);
     if (!socket) {
       this.logger.warn(`Socket not found for subscription: ${socketId}`);
       return;
+    }
+
+    // A denied scope must not survive from an earlier grant: leave the room
+    // and drop it from the connection scope that runtime authorization reads.
+    if (deniedScopes.length > 0) {
+      await this.revokeDeniedScopes(socketId, socket, deniedScopes);
     }
 
     const subscription: EventSubscription = {
@@ -382,6 +390,40 @@ export class WebsocketConnectionManager {
       initiativeIds,
       designDocIds,
     });
+  }
+
+  private async revokeDeniedScopes(
+    socketId: string,
+    socket: Socket,
+    deniedScopes: readonly DeniedChildRoomScope[],
+  ): Promise<void> {
+    const connection = this.connections.get(socketId);
+    if (!connection) {
+      return;
+    }
+
+    const fields = {
+      project: 'projectIds',
+      conversation: 'conversationIds',
+      initiative: 'initiativeIds',
+      design_doc: 'designDocIds',
+    } as const;
+    for (const { scopeType, id } of deniedScopes) {
+      const ids: string[] = connection[fields[scopeType]];
+      const index = ids.indexOf(id);
+      if (index === -1) {
+        continue;
+      }
+
+      ids.splice(index, 1);
+      const room = scopeType === 'design_doc' ? 'design-doc' : scopeType;
+      await socket.leave(`${room}:${id}`);
+      this.logger.log('[ConnectionManager] Revoked denied subscription scope', {
+        socketId,
+        scopeType,
+        id,
+      });
+    }
   }
 
   /**

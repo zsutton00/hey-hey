@@ -183,6 +183,47 @@ export type AgentSessionRuntimeConnectionContext = {
   projectIds: readonly string[];
 };
 
+/**
+ * Name the first identity check a runtime observation failed. A connection
+ * with no subscribed projects is reported separately from one subscribed to
+ * other projects, because the former means its subscribe never succeeded.
+ */
+function runtimeObservationRejectionReason(
+  connection: AgentSessionRuntimeConnectionContext,
+  session: {
+    userId: string;
+    machineId: string | null;
+    projectId: string;
+  } | null,
+  organizationId: string | undefined,
+): string {
+  if (!session) {
+    return 'session_not_found';
+  }
+
+  if (connection.userId !== session.userId) {
+    return 'user_mismatch';
+  }
+
+  if (!connection.machineId || !session.machineId) {
+    return 'machine_unbound';
+  }
+
+  if (connection.machineId !== session.machineId) {
+    return 'machine_mismatch';
+  }
+
+  if (!organizationId) {
+    return 'organization_mismatch';
+  }
+
+  if (connection.projectIds.length === 0) {
+    return 'connection_has_no_project_subscriptions';
+  }
+
+  return 'project_not_subscribed';
+}
+
 export type StartRunConversationBinding =
   | { kind: 'REPOSITORY_IMPORT_MATERIALIZATION' }
   | { kind: 'WORK_TRACKER_IMPORT_MATERIALIZATION' }
@@ -2382,15 +2423,13 @@ export class AgentSessionService {
         organizationId,
         userId: connection.userId,
         machineId: connection.machineId,
-        reason: !session
-          ? 'session_not_found'
-          : connection.userId !== session.userId
-            ? 'user_mismatch'
-            : connection.machineId !== session.machineId
-              ? 'machine_mismatch'
-              : !organizationId
-                ? 'organization_mismatch'
-                : 'project_mismatch',
+        sessionProjectId: session?.projectId,
+        connectionProjectCount: connection.projectIds.length,
+        reason: runtimeObservationRejectionReason(
+          connection,
+          session,
+          organizationId,
+        ),
       });
       throw new ForbiddenException('Agent Session runtime observation denied');
     }

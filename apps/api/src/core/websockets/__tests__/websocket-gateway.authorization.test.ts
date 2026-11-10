@@ -5,11 +5,17 @@ import {
   WebSocketSubscriptionRequest,
 } from '@hey-hey/contracts/api/models';
 import { WebsocketGateway } from '../websocket.gateway';
+import { WebsocketAuthorizationService } from '../websocket-authorization.service';
+import { ProjectAccessService } from '../../../auth/services/project-access.service';
+import { WebsocketConnectionManager } from '../websocket-connection-manager.service';
+import { AgentSessionService } from '../../../services/agent-session.service';
+import { MachineId, OrganizationId, UserId } from '../../../types';
 
 function makeHarness(
   options: {
     authorized?: boolean;
     connection?: Record<string, unknown> | undefined;
+    realAuthorization?: WebsocketAuthorizationService;
   } = {},
 ) {
   const connectionManager = {
@@ -45,11 +51,19 @@ function makeHarness(
   };
 
   const websocketAuthorizationService = {
-    authorize: jest
-      .fn()
-      .mockResolvedValue({ authorized: options.authorized ?? true }),
+    authorize: jest.fn().mockImplementation((request) => ({
+      authorized: options.authorized ?? true,
+      grantedScope: {
+        projectIds: request.projectIds,
+        conversationIds: request.conversationIds,
+        initiativeIds: request.initiativeIds,
+        designDocIds: request.designDocIds,
+      },
+      deniedScopes: [],
+    })),
     authorizeMachine: jest.fn().mockImplementation((request) => ({
       authorized: true,
+      deniedScopes: [],
       organizationIds: request.organizationIds,
       projectIds: request.projectIds,
       conversationIds: request.conversationIds,
@@ -75,7 +89,7 @@ function makeHarness(
     {} as never,
     {} as never,
     {} as never,
-    websocketAuthorizationService as never,
+    (options.realAuthorization ?? websocketAuthorizationService) as never,
     {
       hasRegistration: jest.fn().mockReturnValue(true),
       register: jest.fn().mockReturnValue(true),
@@ -418,11 +432,301 @@ describe('WebsocketGateway browser room authorization', () => {
       ['conversation-1'],
       [],
       [],
+      [],
     );
     expect(emit).toHaveBeenCalledWith(
       'subscribed',
       expect.objectContaining({ status: 'success' }),
     );
+  });
+});
+
+/**
+ * The machine's database state after the user lost access to one project:
+ * project-gone is deleted (or its membership was removed), so it and its
+ * conversation no longer resolve for this user.
+ */
+const liveConversation = {
+  id: 'conversation-live',
+  organizationId: 'org-1',
+  projectId: 'project-live',
+};
+
+function realAuthorizationWithOneStaleProject(
+  liveConversations = [liveConversation],
+): WebsocketAuthorizationService {
+  const liveProject = { id: 'project-live', organizationId: 'org-1' };
+
+  return new WebsocketAuthorizationService(
+    new ProjectAccessService({} as never),
+    {
+      db: {
+        machine: {
+          findFirst: jest
+            .fn()
+            .mockResolvedValue({ organizationId: 'org-1', revokedAt: null }),
+        },
+        project: {
+          findMany: jest.fn().mockResolvedValue([liveProject]),
+        },
+        conversation: {
+          findMany: jest.fn().mockResolvedValue(liveConversations),
+        },
+        initiative: { findMany: jest.fn().mockResolvedValue([]) },
+        designDoc: { findMany: jest.fn().mockResolvedValue([]) },
+        organization: {
+          findMany: jest.fn().mockResolvedValue([{ id: 'org-1' }]),
+        },
+        organizationMember: {
+          findMany: jest.fn().mockResolvedValue([{ organizationId: 'org-1' }]),
+        },
+        projectMember: {
+          findMany: jest
+            .fn()
+            .mockResolvedValue([{ projectId: 'project-live' }]),
+        },
+        agentSession: { findMany: jest.fn().mockResolvedValue([]) },
+        executionGrant: { findMany: jest.fn().mockResolvedValue([]) },
+      },
+    } as never,
+    {
+      areOrganizationsAuthorized: jest.fn().mockResolvedValue(true),
+    } as never,
+  );
+}
+
+describe('machine subscription with a room the user can no longer reach', () => {
+  it('subscribes the reachable rooms and names the unreachable ones', async () => {
+    const { gateway, connectionManager, client, emit } = makeHarness({
+      realAuthorization: realAuthorizationWithOneStaleProject(),
+      connection: {
+        id: 'socket-1',
+        userId: 'machine-owner',
+        organizationIds: ['org-1'],
+        projectIds: [],
+        conversationIds: [],
+        initiativeIds: [],
+        designDocIds: [],
+        clientType: 'cli',
+        machineId: 'machine-1',
+        verifiedMachine: true,
+        authorizationProtocolVersion: 2,
+      },
+    });
+    const payload: WebSocketSubscriptionRequest = {
+      eventTypes: [WebSocketSubscriptionRequest.EventTypesEnum.MessageCreated],
+      projectIds: ['project-live', 'project-gone'],
+      conversationIds: ['conversation-live', 'conversation-gone'],
+    };
+
+    await gateway.handleSubscribe(client, payload);
+
+    // The connection records the reachable project, so Run state reports for
+    // its sessions are accepted.
+    expect(connectionManager.subscribe).toHaveBeenCalledWith(
+      'socket-1',
+      payload.eventTypes,
+      ['project-live'],
+      ['conversation-live'],
+      [],
+      [],
+      [
+        expect.objectContaining({ scopeType: 'project', id: 'project-gone' }),
+        expect.objectContaining({
+          scopeType: 'conversation',
+          id: 'conversation-gone',
+        }),
+      ],
+    );
+    expect(emit).toHaveBeenCalledWith('subscribed', {
+      status: 'success',
+      eventTypes: payload.eventTypes,
+      projectIds: ['project-live'],
+      conversationIds: ['conversation-live'],
+      initiativeIds: [],
+      designDocIds: [],
+      deniedScopes: [
+        { scopeType: 'project', id: 'project-gone' },
+        { scopeType: 'conversation', id: 'conversation-gone' },
+      ],
+    });
+  });
+});
+
+describe('Run state after a machine subscription with an unreachable room', () => {
+  const activeConversation = {
+    ...liveConversation,
+    id: 'conversation-active',
+  };
+  const cachedPhase = {
+    organizationId: 'org-1',
+    projectId: 'project-live',
+    conversationId: 'conversation-active',
+    phase: 'thinking',
+    revision: 7,
+    transitionedAt: '2026-11-10T19:00:00.000Z',
+  };
+  const sessions = {
+    'session-live': { projectId: 'project-live' },
+    'session-gone': { projectId: 'project-gone' },
+  } as const;
+
+  async function subscribeMachineWithStaleProject() {
+    const connectionManager = new WebsocketConnectionManager();
+    const emit = jest.fn();
+    const client = {
+      id: 'socket-1',
+      disconnected: false,
+      emit,
+      join: jest.fn(),
+      leave: jest.fn(),
+      disconnect: jest.fn(),
+    } as unknown as Socket;
+    await connectionManager.addConnection(
+      client,
+      'machine-owner' as UserId,
+      ['org-1' as OrganizationId],
+      [],
+      [],
+      [],
+      [],
+      'cli',
+      'machine-1' as MachineId,
+      true,
+      2,
+    );
+
+    const currentStateProjection = {
+      observe: jest.fn().mockResolvedValue({ outcome: 'applied' }),
+      recordAuthorizationDecision: jest.fn(),
+    };
+    const agentSessionService = new AgentSessionService(
+      {
+        db: {
+          agentSession: {
+            findFirst: jest.fn(
+              ({ where }: { where: { id: keyof typeof sessions } }) => ({
+                id: where.id,
+                organizationId: 'org-1',
+                projectId: sessions[where.id].projectId,
+                userId: 'machine-owner',
+                machineId: 'machine-1',
+                conversationId: null,
+              }),
+            ),
+          },
+        },
+      } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      currentStateProjection as never,
+    );
+    const conversationPhaseProjection = {
+      setTransitionSink: jest.fn(),
+      read: jest.fn((id: string) =>
+        id === cachedPhase.conversationId ? cachedPhase : null,
+      ),
+    };
+    const prisma = {
+      db: {
+        conversation: {
+          findFirst: jest.fn(({ where }: { where: { id: string } }) =>
+            [liveConversation, activeConversation].find(
+              (conversation) => conversation.id === where.id,
+            ),
+          ),
+        },
+      },
+    };
+    const gateway = new WebsocketGateway(
+      { registerRevalidation: jest.fn() } as never,
+      connectionManager,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      agentSessionService,
+      { getBindings: jest.fn().mockResolvedValue(null) } as never,
+      realAuthorizationWithOneStaleProject([
+        liveConversation,
+        activeConversation,
+      ]),
+      { hasRegistration: jest.fn().mockReturnValue(true) } as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      conversationPhaseProjection as never,
+      prisma as never,
+    );
+
+    await gateway.handleSubscribe(client, {
+      eventTypes: [WebSocketSubscriptionRequest.EventTypesEnum.MessageCreated],
+      projectIds: ['project-live', 'project-gone'],
+      conversationIds: [
+        'conversation-live',
+        'conversation-active',
+        'conversation-gone',
+      ],
+    });
+
+    const observe = (agentSessionId: keyof typeof sessions) =>
+      gateway.handleAgentSessionCurrentStateObserved(client, {
+        agentSessionId,
+        currentState: 'thinking',
+        observedAt: '2026-11-10T19:05:00.000Z',
+      } as never);
+
+    return { emit, observe, currentStateProjection };
+  }
+
+  it('accepts Run state for sessions in the reachable project', async () => {
+    const { observe, currentStateProjection } =
+      await subscribeMachineWithStaleProject();
+
+    await observe('session-live');
+
+    expect(currentStateProjection.observe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentSessionId: 'session-live',
+        projectId: 'project-live',
+      }),
+      'thinking',
+      '2026-11-10T19:05:00.000Z',
+    );
+  });
+
+  it('rejects Run state for sessions in the unreachable project', async () => {
+    const { observe, currentStateProjection } =
+      await subscribeMachineWithStaleProject();
+
+    await observe('session-gone');
+
+    expect(currentStateProjection.observe).not.toHaveBeenCalled();
+    expect(
+      currentStateProjection.recordAuthorizationDecision,
+    ).toHaveBeenCalledWith(false);
+  });
+
+  it('sends each reachable conversation its cached phase or idle', async () => {
+    const { emit } = await subscribeMachineWithStaleProject();
+
+    const phaseEvents = emit.mock.calls
+      .filter(([event]) => event === 'conversation.phase_changed')
+      .map(([, payload]) => payload);
+    expect(phaseEvents).toEqual([
+      expect.objectContaining({
+        conversationId: 'conversation-live',
+        phase: 'idle',
+      }),
+      expect.objectContaining({
+        conversationId: 'conversation-active',
+        phase: 'thinking',
+        revision: 7,
+      }),
+    ]);
   });
 });
 
