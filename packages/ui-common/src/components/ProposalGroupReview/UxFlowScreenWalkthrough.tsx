@@ -10,6 +10,7 @@ import {
   Link,
   Paper,
   Stack,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import {
@@ -76,6 +77,7 @@ export const UxFlowScreenWalkthrough: React.FC<{
     (count, group) => count + group.options.length,
     0,
   );
+  const onlyOption = optionCount === 1 ? groups[0].options[0] : null;
   const previousId = deriveIncomingScreen(trail);
   const position = orderedIds.indexOf(screenId) + 1;
   const currentHref = screenHref(screenId);
@@ -84,6 +86,38 @@ export const UxFlowScreenWalkthrough: React.FC<{
     setTrail((current) => goToScreen(current, nextId));
     setPanelOpen(false);
   };
+
+  const singleActionLabel = onlyOption?.actionLabel ?? null;
+  const nextAccessibleName =
+    optionCount === 0
+      ? "No next options"
+      : onlyOption === null
+        ? "Next options"
+        : singleActionLabel === null
+          ? "Next"
+          : `Next: ${singleActionLabel}`;
+  const nextButton = (
+    <IconButton
+      disabled={optionCount === 0}
+      onClick={() =>
+        onlyOption === null
+          ? setPanelOpen((open) => !open)
+          : show(onlyOption.targetStepId)
+      }
+      aria-label={nextAccessibleName}
+      aria-expanded={optionCount > 1 ? panelOpen : undefined}
+      data-testid="ux-flow-next-button"
+      sx={{
+        width: 56,
+        height: 56,
+        bgcolor: "primary.main",
+        color: "primary.contrastText",
+        "&:hover": { bgcolor: "primary.dark" },
+      }}
+    >
+      <ArrowForwardIcon fontSize="large" />
+    </IconButton>
+  );
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -197,24 +231,13 @@ export const UxFlowScreenWalkthrough: React.FC<{
           }}
         >
           <Stack alignItems="center" spacing={0.75}>
-            <IconButton
-              disabled={optionCount === 0}
-              onClick={() => setPanelOpen((open) => !open)}
-              aria-label={
-                optionCount === 0 ? "No next options" : "Next options"
-              }
-              aria-expanded={panelOpen}
-              data-testid="ux-flow-next-button"
-              sx={{
-                width: 56,
-                height: 56,
-                bgcolor: "primary.main",
-                color: "primary.contrastText",
-                "&:hover": { bgcolor: "primary.dark" },
-              }}
-            >
-              <ArrowForwardIcon fontSize="large" />
-            </IconButton>
+            {singleActionLabel === null ? (
+              nextButton
+            ) : (
+              <Tooltip title={singleActionLabel} placement="left">
+                {nextButton}
+              </Tooltip>
+            )}
             <Typography variant="caption" noWrap>
               {optionCount > 1 ? `Next (${optionCount})` : "Next"}
             </Typography>
@@ -239,13 +262,15 @@ export const UxFlowScreenWalkthrough: React.FC<{
             <Stack spacing={1.5}>
               {groups.map((group) => (
                 <Box
-                  key={group.title}
+                  key={group.role ?? "NONE"}
                   data-testid="ux-flow-next-group"
                   data-role={group.role ?? "NONE"}
                 >
-                  <Typography variant="overline" color="text.secondary">
-                    {group.title}
-                  </Typography>
+                  {group.title === null ? null : (
+                    <Typography variant="overline" color="text.secondary">
+                      {group.title}
+                    </Typography>
+                  )}
                   {group.options.map((option) => (
                     <ButtonBase
                       key={option.edgeId}

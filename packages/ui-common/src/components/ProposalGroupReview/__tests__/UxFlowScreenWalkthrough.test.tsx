@@ -66,6 +66,7 @@ describe("UxFlowScreenWalkthrough", () => {
     open("pay");
 
     expect(screen.getByText("Next (3)")).toBeInTheDocument();
+    expect(screen.queryByText("Other options")).toBeNull();
     fireEvent.click(screen.getByTestId("ux-flow-next-button"));
     const panel = screen.getByTestId("ux-flow-next-panel");
     const options = within(panel).getAllByTestId("ux-flow-next-option");
@@ -86,11 +87,24 @@ describe("UxFlowScreenWalkthrough", () => {
     expect(screen.queryByTestId("ux-flow-back-button")).toBeNull();
 
     fireEvent.click(screen.getByTestId("ux-flow-next-button"));
-    fireEvent.click(screen.getByTestId("ux-flow-next-option"));
     expect(shown()).toBe("pay");
 
     fireEvent.click(screen.getByTestId("ux-flow-back-button"));
     expect(shown()).toBe("cart");
+  });
+
+  it("goes straight to the only next screen without a count or panel", () => {
+    open("cart");
+
+    const next = screen.getByTestId("ux-flow-next-button");
+    expect(screen.getByText("Next")).toBeInTheDocument();
+    expect(screen.queryByText(/Next \(/)).toBeNull();
+    expect(next).toHaveAccessibleName("Next: Check out");
+
+    fireEvent.click(next);
+
+    expect(shown()).toBe("pay");
+    expect(screen.queryByTestId("ux-flow-next-panel")).toBeNull();
   });
 
   it("shows a disabled Next button when a screen has no next options", () => {
