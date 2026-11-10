@@ -52,6 +52,7 @@ import type {
   EntityPromptTemplateRetireUpdatesPayload,
   EntityPromptTemplateUpsertUpdatesPayload,
   CreatePlanFromDesignDocConversationContext,
+  PlanFromExistingTasksUpdatesPayload,
   Influence,
   ProposalEdgeDeclaration,
   ProjectedWorkItem,
@@ -692,6 +693,92 @@ const planFromDesignDocConversationUpdatesSchema = z
   })
   .strict();
 
+// create_plan_from_existing_tasks persists the OpenAPI plan-from-existing-tasks
+// payload as a CONVERSATION CREATE proposal. The proposalKind discriminator
+// keeps it apart from the design-doc workflow payload above, so it is never
+// read as a workflow start or as a plain task create. The task set is the
+// union of all stage taskIds; array order is stage order.
+const PLAN_FROM_EXISTING_TASKS_KIND = 'plan-from-existing-tasks';
+
+const planFromExistingTasksUpdatesSchema = z
+  .object({
+    proposalKind: z.literal(PLAN_FROM_EXISTING_TASKS_KIND),
+    parentFeatureId: z.string().uuid(),
+    planTitle: z.string().min(1),
+    designDocMarkdown: z.string().min(1),
+    stages: z
+      .array(
+        z
+          .object({
+            title: z.string().min(1),
+            summary: z.string().min(1).optional(),
+            taskIds: z.array(z.string().uuid()).min(1),
+          })
+          .strict(),
+      )
+      .min(1),
+    taskPrerequisites: z
+      .array(
+        z
+          .object({
+            taskId: z.string().uuid(),
+            dependsOnTaskIds: z.array(z.string().uuid()).min(1),
+          })
+          .strict(),
+      )
+      .optional(),
+  })
+  .strict()
+  .superRefine((payload, ctx) => {
+    const seen = new Set<string>();
+    payload.stages.forEach((stage, stageIndex) => {
+      stage.taskIds.forEach((taskId, taskIndex) => {
+        if (seen.has(taskId)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['stages', stageIndex, 'taskIds', taskIndex],
+            message: `Task ${taskId} is listed more than once; a task belongs to exactly one stage.`,
+          });
+        }
+        seen.add(taskId);
+      });
+    });
+    (payload.taskPrerequisites ?? []).forEach((entry, entryIndex) => {
+      if (!seen.has(entry.taskId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['taskPrerequisites', entryIndex, 'taskId'],
+          message: `Task ${entry.taskId} is not in the proposed task set.`,
+        });
+      }
+      entry.dependsOnTaskIds.forEach((dependencyId, dependencyIndex) => {
+        if (!seen.has(dependencyId)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [
+              'taskPrerequisites',
+              entryIndex,
+              'dependsOnTaskIds',
+              dependencyIndex,
+            ],
+            message: `Prerequisite ${dependencyId} is not in the proposed task set.`,
+          });
+        }
+      });
+    });
+  });
+
+function isPlanFromExistingTasksPayload(
+  updates: unknown,
+): updates is { proposalKind: typeof PLAN_FROM_EXISTING_TASKS_KIND } {
+  return (
+    updates !== null &&
+    typeof updates === 'object' &&
+    'proposalKind' in updates &&
+    updates.proposalKind === PLAN_FROM_EXISTING_TASKS_KIND
+  );
+}
+
 export function isCascadeWorkItemTypeDeletePayload(
   updates: unknown,
 ): updates is WorkItemTypeCascadeDeleteUpdatesPayload {
@@ -793,6 +880,11 @@ type _CheckPlanFromDesignDocConversationContext = _Extends<
   CreatePlanFromDesignDocConversationContext
 >;
 
+type _CheckPlanFromExistingTasksUpdates = _Extends<
+  z.infer<typeof planFromExistingTasksUpdatesSchema>,
+  PlanFromExistingTasksUpdatesPayload
+>;
+
 const proposalEli5Schema = z.string().min(1).max(150);
 
 const baseProposalSchema = z.object({
@@ -866,8 +958,11 @@ function getUpdatesSchema(
     return createDesignDocUpdatesSchema;
   if (action === 'UPDATE' && targetEntityType === 'DESIGN_DOC')
     return updateDesignDocUpdatesSchema;
-  if (action === 'CREATE' && targetEntityType === 'CONVERSATION')
-    return planFromDesignDocConversationUpdatesSchema;
+  if (action === 'CREATE' && targetEntityType === 'CONVERSATION') {
+    return isPlanFromExistingTasksPayload(updates)
+      ? planFromExistingTasksUpdatesSchema
+      : planFromDesignDocConversationUpdatesSchema;
+  }
   if (action === 'CREATE' && targetEntityType === 'WORK_ITEM_TYPE')
     return createWorkItemTypeUpdatesSchema;
   if (action === 'UPDATE' && targetEntityType === 'WORK_ITEM_TYPE') {
@@ -2189,6 +2284,63 @@ export class ProposalValidationEngine {
     }
   }
 
+  /**
+   * Existence checks for a plan proposed from existing tasks: the parent must
+   * be a FEATURE and every listed task must exist, each reported by ID. Task
+   * status and current parentage are approval-time rules, not checked here.
+   */
+  private async validatePlanFromExistingTasksReferences(
+    payload: z.infer<typeof planFromExistingTasksUpdatesSchema>,
+    ctx: ReferentialValidationContext,
+    prefix: string,
+    db: AnyTransactionClient,
+  ): Promise<ProposalValidationIssue[]> {
+    const issues: ProposalValidationIssue[] = [];
+    const scope = {
+      organizationId: ctx.organizationId,
+      projectId: ctx.projectId,
+      archivedAt: null,
+    };
+
+    const parent = await db.task.findFirst({
+      where: { id: payload.parentFeatureId, ...scope },
+      select: { id: true, type: true },
+    });
+    if (!parent || parent.type !== 'FEATURE') {
+      issues.push({
+        field: `${prefix}.updates.parentFeatureId`,
+        code: 'entity_not_found',
+        reason: `FEATURE ${payload.parentFeatureId} not found in project ${ctx.projectId}`,
+        layer: 'referential',
+        suggestion:
+          'Use the ID of an existing, non-archived FEATURE in this project.',
+      });
+    }
+
+    for (const [stageIndex, stage] of payload.stages.entries()) {
+      const found = await db.task.findMany({
+        where: { id: { in: stage.taskIds }, ...scope },
+        select: { id: true },
+      });
+      const foundIds = new Set(found.map((task) => task.id));
+      for (const [taskIndex, taskId] of stage.taskIds.entries()) {
+        if (foundIds.has(taskId)) {
+          continue;
+        }
+        issues.push({
+          field: `${prefix}.updates.stages[${stageIndex}].taskIds[${taskIndex}]`,
+          code: 'entity_not_found',
+          reason: `Task ${taskId} not found in project ${ctx.projectId}`,
+          layer: 'referential',
+          suggestion:
+            'List only existing, non-archived tasks. If a task is missing, ask the user to create it first.',
+        });
+      }
+    }
+
+    return issues;
+  }
+
   // ── Layer 2: Referential Integrity ─────────────────────────────
 
   /**
@@ -2329,6 +2481,22 @@ export class ProposalValidationEngine {
             'Use a non-archived source work item whose registry tracking rules allow the new work-item type.',
         });
       }
+    }
+
+    if (
+      dto.action === 'CREATE' &&
+      dto.targetEntityType === 'CONVERSATION' &&
+      isPlanFromExistingTasksPayload(dto.updates)
+    ) {
+      issues.push(
+        ...(await this.validatePlanFromExistingTasksReferences(
+          planFromExistingTasksUpdatesSchema.parse(dto.updates),
+          ctx,
+          prefix,
+          db,
+        )),
+      );
+      return issues;
     }
 
     // Type-recognition gate, mirroring the service layer's assertTypeActive on

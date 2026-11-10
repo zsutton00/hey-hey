@@ -255,7 +255,8 @@ export class PlanToolsProvider {
     description:
       'Propose a Plan built from existing Tasks: one reviewable proposal that, ' +
       'once approved, creates the Plan, its design doc and stages and moves the ' +
-      'listed Tasks under them. Nothing is created or moved by this call.',
+      'listed Tasks under them. Nothing is created or moved by this call. ' +
+      'See get_tool_guidance({ toolName: "create_plan_from_existing_tasks" }) for guidance.',
     parameters: createPlanFromExistingTasksParameters,
     outputSchema: createPlanResultOutput,
   })

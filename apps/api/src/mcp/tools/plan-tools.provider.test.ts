@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import type { ProposalService } from '../../services/proposal/proposal.service';
 import { validateProposalStructure } from '../../services/proposal/proposal-validation.engine';
 import { createPlanParameters, PlanToolsProvider } from './plan-tools.provider';
+import { ORCHESTRATION_TOOL_NAMES } from './proposal-tool-names';
 
 const ORGANIZATION_ID = '00000000-0000-4000-8000-000000000001';
 const PROJECT_ID = '00000000-0000-4000-8000-000000000002';
@@ -155,6 +156,79 @@ describe('create_plan authoring admission', () => {
     } as unknown as ProposalService);
 
     const result = await provider.createPlan(params, {} as any, request());
+
+    expect(result).toEqual({ status: 'invalid_change_set', issues });
+  });
+});
+
+describe('create_plan_from_existing_tasks authoring admission', () => {
+  const TASK_ID = '00000000-0000-4000-8000-000000000005';
+  const existingTasksParams = {
+    eli5: 'Plans the existing tasks for review.',
+    planTitle: 'Delivered plan',
+    designDocMarkdown: '# Plan\n\nHow the work was delivered.',
+    parentFeatureId: FEATURE_ID,
+    stages: [{ title: 'Only stage', taskIds: [TASK_ID] }],
+  };
+
+  it('returns a reviewable proposal through shared admission without creating anything else', async () => {
+    const proposalCreate = jest
+      .fn()
+      .mockImplementation(async (_o, _p, _u, dto) => {
+        expect(
+          validateProposalStructure(dto, 0, { enforceAuthoringEnvelope: true }),
+        ).toEqual([]);
+        return {
+          id: PROPOSAL_ID,
+          status: 'DRAFT',
+          action: 'CREATE',
+          targetEntityType: 'CONVERSATION',
+          targetEntityId: '00000000-0000-0000-0000-000000000000',
+          createdAt: '2026-09-14T00:00:00.000Z',
+        };
+      });
+    const proposalService = { create: proposalCreate };
+    const provider = new PlanToolsProvider(
+      proposalService as unknown as ProposalService,
+    );
+
+    const result = await provider.createPlanFromExistingTasks(
+      existingTasksParams,
+      {} as any,
+      request(),
+    );
+
+    expect(result).toMatchObject({ id: PROPOSAL_ID });
+    expect(proposalCreate).toHaveBeenCalledTimes(1);
+    expect(Object.keys(proposalService)).toEqual(['create']);
+    expect(ORCHESTRATION_TOOL_NAMES.CREATE_PLAN_FROM_EXISTING_TASKS).toBe(
+      'create_plan_from_existing_tasks',
+    );
+  });
+
+  it('returns every validation issue from proposal admission', async () => {
+    const issues = [
+      {
+        field: 'proposals[0].updates.stages[0].taskIds[0]',
+        code: 'entity_not_found',
+        reason: `Task ${TASK_ID} not found`,
+        layer: 'referential',
+      },
+    ];
+    const provider = new PlanToolsProvider({
+      create: jest.fn().mockRejectedValue(
+        new BadRequestException({
+          message: 'Proposal authoring validation failed',
+          errors: issues,
+        }),
+      ),
+    } as unknown as ProposalService);
+
+    const result = await provider.createPlanFromExistingTasks(
+      existingTasksParams,
+      {} as any,
+      request(),
+    );
 
     expect(result).toEqual({ status: 'invalid_change_set', issues });
   });

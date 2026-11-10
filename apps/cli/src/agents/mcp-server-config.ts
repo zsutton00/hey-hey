@@ -71,6 +71,7 @@ export const HEYHEY_RESERVED_MCP_SERVER_NAMES = [
 const MCP_TOOL_LIST: readonly McpTool[] = [
   { name: 'create_edge', useCases: ['coding', 'general'] },
   { name: 'create_plan', useCases: ['general'] },
+  { name: 'create_plan_from_existing_tasks', useCases: ['general'] },
   { name: 'create_design_doc', useCases: ['coding', 'general'] },
   { name: 'create_work_item', useCases: ['coding', 'general'] },
   { name: 'create_work_item_type', useCases: ['general'] },

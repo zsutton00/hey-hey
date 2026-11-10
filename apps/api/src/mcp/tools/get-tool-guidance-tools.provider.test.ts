@@ -466,6 +466,19 @@ describe('GetToolGuidanceToolsProvider', () => {
       );
     });
 
+    it('create_plan_from_existing_tasks tells the agent to stop and ask when the task set looks incomplete', async () => {
+      const result = await provider.getToolGuidance(
+        { toolName: 'create_plan_from_existing_tasks' },
+        {} as any,
+        {} as any,
+      );
+      const text = getText(result).replace(/\s+/g, ' ');
+
+      expect(text).toContain('stop and tell the user');
+      expect(text).toContain('never creates tasks');
+      expect(text).toContain('parent feature says what');
+    });
+
     it('create_plan uses PRD-facing headings with technical subsections', async () => {
       const result = await provider.getToolGuidance(
         { toolName: 'create_plan' },

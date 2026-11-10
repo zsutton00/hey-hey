@@ -129,10 +129,12 @@ describe('readCreatedProposalIds', () => {
     ).toEqual([]);
   });
 
-  it.each([{ id: FIRST_ID }, { structuredContent: { id: FIRST_ID } }])(
-    'reads create_plan proposal identity from its tool-specific id response shape',
-    (result) => {
-      expect(readCreatedProposalIds('create_plan', success(result))).toEqual([FIRST_ID]);
+  it.each(['create_plan', 'create_plan_from_existing_tasks'])(
+    'reads %s proposal identity from its tool-specific id response shape',
+    (toolName) => {
+      for (const result of [{ id: FIRST_ID }, { structuredContent: { id: FIRST_ID } }]) {
+        expect(readCreatedProposalIds(toolName, success(result))).toEqual([FIRST_ID]);
+      }
     },
   );
 
