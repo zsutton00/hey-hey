@@ -306,6 +306,49 @@ describe("local /welcome", () => {
     expect(createProject).not.toHaveBeenCalled();
   });
 
+  it("pre-selects the low-cost Claude model instead of the first reported one", async () => {
+    vi.mocked(fetchRuntimeModelCatalog).mockResolvedValue({
+      id: "catalog",
+      response: {
+        requestId: "catalog",
+        operation: "runtime.model_catalog.get",
+        status: "success",
+        result: {
+          providers: [
+            {
+              provider: "claude",
+              models: [
+                {
+                  id: "claude-opus",
+                  label: "Opus",
+                  efforts: ["low", "medium", "high"],
+                },
+                {
+                  id: "claude-haiku-5-5",
+                  label: "Haiku 5.5",
+                  efforts: ["low", "medium", "high"],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+    renderWelcome();
+
+    await userEvent.click(await enabledStart());
+
+    await waitFor(() =>
+      expect(platform.state.starts).toEqual([
+        expect.objectContaining({
+          provider: "claude",
+          model: "claude-haiku-5-5",
+          reasoningEffort: "medium",
+        }),
+      ]),
+    );
+  });
+
   it("keeps the saved choice fixed and retries the same session after a failed start", async () => {
     platform.state.startStates.push("FAILED");
     renderWelcome();
