@@ -5,6 +5,7 @@ import type { ProposalResponseDto, WorkItemTypeDefinitionDto } from "../../api";
 import type { CreateProposalProps } from "./types";
 import {
   isCreatePlanProposal,
+  isExistingTaskPlanProposal,
   isCreateTaskUpdates,
   isCreateWorkflowTaskUpdates,
   isCreateDesignDocUpdates,
@@ -17,6 +18,7 @@ import { useMarkWorkItemTypeDataStale } from "../../data/hooks/useWorkItemTypeLi
 import { TaskCreateRenderer } from "./TaskCreateRenderer";
 import { DesignDocCreateRenderer } from "./DesignDocCreateRenderer";
 import { WorkItemTypeCreateRenderer } from "./WorkItemTypeCreateRenderer";
+import { ExistingTaskPlanCreateRenderer } from "./ExistingTaskPlanCreateRenderer";
 import { PlanCreateRenderer } from "./PlanCreateRenderer";
 import { WorkflowProposalRenderer } from "./WorkflowProposalRenderer";
 import { getApprovalProgress } from "../../permissions";
@@ -253,6 +255,18 @@ export const CreateProposal: React.FC<CreateProposalProps> = ({
             overrides={overrides}
           />
         );
+      } else if (isExistingTaskPlanProposal(proposal)) {
+        rendered = (
+          <ExistingTaskPlanCreateRenderer
+            proposal={proposal}
+            onApply={onApply}
+            onApplied={onApplied}
+            onReject={onReject}
+            disabled={disabled}
+            siblingProposals={siblingProposals}
+            overrides={overrides}
+          />
+        );
       } else if (isCreatePlanProposal(proposal)) {
         rendered = (
           <PlanCreateRenderer
@@ -355,7 +369,8 @@ export const CreateProposal: React.FC<CreateProposalProps> = ({
         </MentionExpansionProvider>
       );
 
-      return renderMode === "group-member" ? (
+      return renderMode === "group-member" ||
+        isExistingTaskPlanProposal(proposal) ? (
         rendered
       ) : (
         <RejectedProposalCard proposal={proposal} status={status}>
@@ -368,6 +383,8 @@ export const CreateProposal: React.FC<CreateProposalProps> = ({
       getState,
       handleApply,
       handleReject,
+      onApply,
+      onApplied,
       onReject,
       renderMode,
       siblingProposals,

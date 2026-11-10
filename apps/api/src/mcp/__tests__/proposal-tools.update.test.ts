@@ -83,9 +83,9 @@ describe('ProposalToolsProvider.updateProposal', () => {
 
     expect(parsed.success).toBe(true);
     if (!parsed.success) return;
-    expect(parsed.data.updates?.sections).toEqual([
-      { key: 'preview', content: htmlCssContent, order: 0 },
-    ]);
+    expect(parsed.data.updates).toEqual({
+      sections: [{ key: 'preview', content: htmlCssContent, order: 0 }],
+    });
   });
 
   it('forwards the typed HTML/CSS section unchanged to the proposal service', async () => {
@@ -125,4 +125,37 @@ describe('ProposalToolsProvider.updateProposal', () => {
       'tok',
     );
   });
+});
+
+it('carries the complete adoption artifact through the ordinary refiner update', async () => {
+  const updates = {
+    proposalKind: 'plan-from-existing-tasks' as const,
+    parentFeatureId: PROJECT_ID,
+    planTitle: 'Adopt this work',
+    designDocMarkdown: '# Revised design',
+    stages: [{ title: 'Deliver', taskIds: [TASK_ID] }],
+    taskPrerequisites: [],
+  };
+  const proposalUpdate = jest.fn().mockResolvedValue({
+    id: PROPOSAL_ID,
+    status: 'DRAFT',
+    action: 'CREATE',
+    targetEntityType: 'CONVERSATION',
+    targetEntityId: TASK_ID,
+  });
+  const provider = createProvider(proposalUpdate);
+  const result = await provider.updateProposal(
+    updateProposalParameters.parse({ proposalId: PROPOSAL_ID, updates }),
+    {} as any,
+    makeRequest(),
+  );
+  expect((result as any).isError).toBeUndefined();
+  expect(proposalUpdate).toHaveBeenCalledWith(
+    PROPOSAL_ID,
+    ORG_ID,
+    PROJECT_ID,
+    expect.objectContaining({ updates }),
+    'u1',
+    'tok',
+  );
 });
