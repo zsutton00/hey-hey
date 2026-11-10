@@ -165,7 +165,7 @@ export class ProjectAssistantHandler implements PromptTypeHandler<ProjectAssista
     const jevEnabled = this.parentRequirements ? await this.isJevEnabled() : false;
     const filter =
       jevEnabled && this.parentRequirements && loaded?.kind === 'entity'
-        ? { settings: this.parentRequirements, loaded }
+        ? { settings: this.parentRequirements, sessionId: run.agentic_session_id, loaded }
         : undefined;
     const nearestParentFeature = parentRequest
       ? await loadNearestParentFeatureSection(parentRequest, deps, filter)

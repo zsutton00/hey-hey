@@ -170,6 +170,7 @@ describe('loadNearestParentFeatureSection', () => {
     const logger = makeLogger();
     const section = await loadNearestParentFeatureSection(request, makeDeps(logger), {
       settings: settings(answerWith('requirement:0')),
+      sessionId: 'session-1',
       loaded,
     });
 
@@ -196,6 +197,7 @@ describe('loadNearestParentFeatureSection', () => {
     mockParentRead();
     const section = await loadNearestParentFeatureSection(request, makeDeps(), {
       settings: settings(answerWith('requirement:0')),
+      sessionId: 'session-1',
       loaded,
     });
 
@@ -220,6 +222,7 @@ describe('loadNearestParentFeatureSection', () => {
   it('logs the failed Jev result and the reason the load stayed unfiltered', async () => {
     mockParentRead();
     await loadNearestParentFeatureSection(request, makeDeps(), {
+      sessionId: 'session-1',
       settings: settings(() =>
         Promise.resolve({
           ok: false,
@@ -243,6 +246,7 @@ describe('loadNearestParentFeatureSection', () => {
     mockParentRead();
     const logger = makeLogger();
     const section = await loadNearestParentFeatureSection(request, makeDeps(logger), {
+      sessionId: 'session-1',
       settings: settings(() =>
         Promise.resolve({
           ok: false,
@@ -275,6 +279,7 @@ describe('loadNearestParentFeatureSection', () => {
     await expect(
       loadNearestParentFeatureSection(request, makeDeps(), {
         settings: settings(answerWith('requirement:0')),
+        sessionId: 'session-1',
         loaded,
       }),
     ).rejects.toThrow('malformed parent feature');

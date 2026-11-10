@@ -89,9 +89,12 @@ export interface Slot {
   index(): Entry;
 }
 
+const sentenceSegmenter = new Intl.Segmenter('en', { granularity: 'sentence' });
+
 export const firstSentence = (text: string): string => {
   const flat = text.trim().replace(/\s+/g, ' ');
-  return /^.*?[.!?](?=\s|$)/.exec(flat)?.[0] ?? flat;
+  const first = sentenceSegmenter.segment(flat)[Symbol.iterator]().next();
+  return first.done ? flat : first.value.segment.trim();
 };
 
 const withSummary = (summary: string | null | undefined): { summary?: string } => {

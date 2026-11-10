@@ -93,6 +93,7 @@ const makeInput = (overrides: Partial<CreateContextTrimmerInput> = {}) => {
   const { logger, warn } = makeLogger();
   const input: CreateContextTrimmerInput = {
     promptType: LocalPromptType.ProjectAssistant,
+    sessionId: 'session-1',
     decisionModel: { evaluate },
     isDecisionModelEnabled: () => Promise.resolve(true),
     loadedEntityContext: loadedEntity('STANDARD'),
