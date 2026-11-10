@@ -418,6 +418,37 @@ describe("OrganizationHome", () => {
     expect(onCreateProject).toHaveBeenCalledOnce();
   });
 
+  it("shows no limit text or warning and keeps creation enabled when the backend reports no project limit", () => {
+    renderHome(
+      [],
+      [],
+      USER_ID,
+      projectsResult(
+        [],
+        makeEntitlement({
+          projectLimit: null,
+          usage: {
+            projectCount: 7,
+            workItemCount: 42,
+            observedAt: "2026-09-04T00:00:00.000Z",
+          },
+        }),
+      ),
+      starsResult([]),
+      metricsResult(),
+    );
+
+    expect(
+      screen.queryByTestId("organization-home-project-entitlement"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("organization-home-project-create-unavailable"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Create Project" }),
+    ).toBeEnabled();
+  });
+
   it("hides project creation from callers whose organization role cannot create projects", () => {
     usePermissionsMock.mockReturnValue({ createProjects: false });
     renderHome(

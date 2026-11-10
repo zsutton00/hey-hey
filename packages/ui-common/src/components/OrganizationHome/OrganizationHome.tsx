@@ -331,17 +331,19 @@ export const OrganizationHome: React.FC<OrganizationHomeProps> = ({
                 sx={{ mt: 2, display: "flex", justifyContent: "center" }}
               />
             )}
-          {entitlement && entitlement.canCreateProject && (
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              sx={{ mt: 2 }}
-              data-testid="organization-home-project-entitlement"
-            >
-              {entitlement.usage.projectCount} of {entitlement.projectLimit}{" "}
-              projects used
-            </Typography>
-          )}
+          {entitlement &&
+            entitlement.canCreateProject &&
+            entitlement.projectLimit !== null && (
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ mt: 2 }}
+                data-testid="organization-home-project-entitlement"
+              >
+                {entitlement.usage.projectCount} of {entitlement.projectLimit}{" "}
+                projects used
+              </Typography>
+            )}
           {entitlement && !entitlement.canCreateProject && (
             <Alert
               severity="warning"
