@@ -23,6 +23,7 @@ export * from "./MemberList";
 export * from "./InteractionComponent";
 export * from "./Integrations";
 export * from "./Library";
+export * from "./Local";
 export * from "./LlmForms";
 export * from "./MiniDemoPlayer";
 export * from "./Modals";

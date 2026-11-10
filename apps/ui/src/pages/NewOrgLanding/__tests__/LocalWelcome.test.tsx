@@ -222,6 +222,7 @@ const enabledStart = async () => {
 };
 
 beforeEach(() => {
+  window.__HEY_HEY_RUNTIME_CONFIG__ = { deployment: "local" };
   Object.assign(platform.state, {
     machine: readyMachine,
     missingProject: false,
@@ -258,6 +259,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  delete window.__HEY_HEY_RUNTIME_CONFIG__;
   cleanup();
   vi.clearAllMocks();
 });

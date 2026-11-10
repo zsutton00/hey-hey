@@ -796,8 +796,10 @@ describe("Onboarding Page Integration Tests", () => {
     expect(
       screen.queryByTestId("onboarding-breadcrumbs"),
     ).not.toBeInTheDocument();
-    // Hosted intake explains the low-cost model and offers no separate start.
-    expect(screen.getByTestId("onboarding-model-guidance")).toBeInTheDocument();
+    // Hosted onboarding shows no local-only guidance and offers no separate start.
+    expect(
+      screen.queryByTestId("onboarding-model-guidance"),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("local-onboarding-launch"),
     ).not.toBeInTheDocument();

@@ -71,8 +71,6 @@ export const en = {
   "localSetup.progress.retry": "Try again",
   "onboarding.local.runtimeUnavailable":
     "The saved runtime is unavailable on this computer. Restore that provider to resume onboarding.",
-  "onboarding.runtime.lowCostGuidance":
-    "A low-cost model is enough for onboarding.",
   "onboarding.runtime.ownPlanGuidance":
     "Choose which machine and model will run onboarding. It uses your own coding plan; a low-cost model is enough.",
   "onboarding.runtime.loading": "Preparing your project…",
