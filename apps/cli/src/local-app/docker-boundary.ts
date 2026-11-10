@@ -134,9 +134,11 @@ export class DockerBoundary {
         'never',
         service,
       ]);
-    } catch {
+    } catch (error) {
+      this.logger.error('local.docker.service_start_failed', { service, error });
       throw new Error(
         `${service} could not start. Check its Docker service diagnostics, available resources, port conflicts and configuration, then retry. Data is preserved.`,
+        { cause: error },
       );
     }
   }
@@ -145,9 +147,11 @@ export class DockerBoundary {
   async recreateUi(path: string): Promise<void> {
     try {
       await this.compose(path, ['up', '-d', '--no-deps', '--pull', 'never', 'ui']);
-    } catch {
+    } catch (error) {
+      this.logger.error('local.docker.service_restart_failed', { service: 'ui', error });
       throw new Error(
         'ui could not restart. Check its Docker service diagnostics and configuration, then retry. Data is preserved.',
+        { cause: error },
       );
     }
   }

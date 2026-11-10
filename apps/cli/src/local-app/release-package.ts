@@ -6,9 +6,11 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod/v4';
+import { StructuredServerLogger } from '../server/logger';
 import { parseManifestForVersion, type ReleaseManifest } from '../release/release-manifest';
 
 const exec = promisify(execFile);
+const logger = new StructuredServerLogger({}, { component: 'local-release-package' });
 async function execute(
   command: string,
   args: string[],
@@ -16,9 +18,11 @@ async function execute(
 ): Promise<{ stdout: string }> {
   try {
     return await exec(command, args, options);
-  } catch {
+  } catch (error) {
+    logger.error('local.release_package.command_failed', { command, args, error });
     throw new Error(
       `${command} could not complete the release operation. Check npm access, permissions and disk space, then retry. Your local data is preserved.`,
+      { cause: error },
     );
   }
 }

@@ -37,7 +37,11 @@ import type { EntityPromptTemplatesApiClient } from './agent-startup-prompt-inpu
 import {
   AgentStartupPromptInput,
   entityPromptTemplateSelectorFor,
+  renderStartupPromptTemplate,
+  AgentStartupPromptInputError,
+  type AgentStartupPromptTemplate,
 } from './agent-startup-prompt-input';
+import type { ServerLogger } from '../server/logger';
 
 const runEntity = (
   entityType: RunEntityReference['entityType'] = RunEntityReferenceEntityTypeEnum.Task,
@@ -841,5 +845,55 @@ describe('AgentStartupPromptInput saved reports', () => {
     await expect(owner.resolve({ ...request, ...scope })).rejects.toMatchObject({
       boundary: 'effective_template_render',
     });
+  });
+});
+
+describe('renderStartupPromptTemplate failure diagnostics', () => {
+  it('logs the render error kind and message without template or Context content', () => {
+    const loaded = loadedWorkItem();
+    const { relatedEntities: _omitted, ...contextWithoutRelated } = loaded.context;
+    const template: AgentStartupPromptTemplate = {
+      templateKey: 'work-item-custom-review',
+      selector: entityPromptTemplateSelectorFor(loaded),
+      syntaxVersion: EntityPromptTemplateSyntaxVersion.V1,
+      content: 'SECRET-TEMPLATE-TEXT {{context.relatedEntities}}',
+      provenance: {
+        templateKey: 'work-item-custom-review',
+        ownershipSource: { scope: 'CANONICAL' },
+        revisionId: 'revision-1',
+        revisionNumber: 1,
+      },
+    };
+    const error = vi.fn();
+    const logger: ServerLogger = {
+      trace: vi.fn(),
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error,
+      child: () => logger,
+    };
+
+    let thrown: unknown;
+    try {
+      renderStartupPromptTemplate(
+        template,
+        { entity: loaded.entity, context: contextWithoutRelated as typeof loaded.context },
+        {},
+        logger,
+      );
+    } catch (caught) {
+      thrown = caught;
+    }
+
+    expect(thrown).toBeInstanceOf(AgentStartupPromptInputError);
+    expect(error).toHaveBeenCalledWith(
+      'agent_startup_prompt_input.template_render_failed',
+      expect.objectContaining({
+        renderBoundary: 'missing_path',
+        causeMessage: expect.stringContaining('context.relatedEntities'),
+      }),
+    );
+    expect(JSON.stringify(error.mock.calls)).not.toContain('SECRET-TEMPLATE-TEXT');
   });
 });

@@ -26,6 +26,7 @@ import { EntityContextLoader } from '../agents/entity-context/entity-context-loa
 import type { LoadedEntityPromptContext } from '../agents/entity-context/types';
 import {
   entityPromptTemplateLanguageFor,
+  EntityPromptTemplateRenderError,
   renderEntityPromptTemplate,
   type EntityPromptTemplateRenderInput,
 } from './entity-prompt-template-renderer';
@@ -116,11 +117,26 @@ export class AgentStartupPromptInputError extends Error {
   public constructor(
     message: string,
     public readonly boundary: AgentStartupPromptInputFailureBoundary,
+    options?: ErrorOptions,
   ) {
-    super(message);
+    super(message, options);
     this.name = 'AgentStartupPromptInputError';
   }
 }
+
+/** The failure's cause for the log line: error type and message only, never template or Context content. */
+const describeCause = (error: unknown): { causeName: string; causeMessage: string } => {
+  if (error instanceof Error) {
+    return { causeName: error.name, causeMessage: error.message };
+  }
+
+  return { causeName: typeof error, causeMessage: String(error) };
+};
+
+/** Schema failures for the log line: where and what code, never the received values. */
+const describeSchemaIssues = (error: z.ZodError): { issues: string[] } => ({
+  issues: error.issues.map((issue) => `${issue.path.join('.')}: ${issue.code}`),
+});
 
 const canonicalOwnershipSourceSchema = z
   .object({
@@ -330,11 +346,18 @@ export const renderStartupPromptTemplate = (
       template.syntaxVersion,
       renderInput,
     );
-  } catch {
-    logger.error('agent_startup_prompt_input.template_render_failed', fields);
+  } catch (error) {
+    logger.error('agent_startup_prompt_input.template_render_failed', {
+      ...fields,
+      ...describeCause(error),
+      ...(error instanceof EntityPromptTemplateRenderError
+        ? { renderBoundary: error.boundary }
+        : {}),
+    });
     throw new AgentStartupPromptInputError(
       'Agent startup prompt input effective template render failed.',
       'effective_template_render',
+      { cause: error },
     );
   }
 
@@ -385,9 +408,10 @@ export class AgentStartupPromptInput {
         projectId: request.projectId,
         readRestriction: request.readRestriction,
       });
-    } catch {
+    } catch (error) {
       this.logger.error('agent_startup_prompt_input.entity_context_failed', {
         focalEntityType: request.runEntity.entityType,
+        ...describeCause(error),
         boundary: 'entity_context_loader',
       });
       throw new AgentStartupPromptInputError(
@@ -440,9 +464,10 @@ export class AgentStartupPromptInput {
       let accessToken: string;
       try {
         accessToken = await this.auth.getAccessToken();
-      } catch {
+      } catch (error) {
         this.logger.error('agent_startup_prompt_input.template_auth_failed', {
           selector,
+          ...describeCause(error),
           boundary: 'effective_template_auth',
         });
         throw new AgentStartupPromptInputError(
@@ -461,9 +486,10 @@ export class AgentStartupPromptInput {
           organizationId: request.organizationId,
           projectId: request.projectId,
         });
-      } catch {
+      } catch (error) {
         this.logger.error('agent_startup_prompt_input.catalog_read_failed', {
           selector,
+          ...describeCause(error),
           boundary: 'effective_template_read',
         });
         throw new AgentStartupPromptInputError(
@@ -574,9 +600,10 @@ export class AgentStartupPromptInput {
           projectId: request.projectId,
           templateKey,
         });
-      } catch {
+      } catch (error) {
         this.logger.error('agent_startup_prompt_input.template_read_failed', {
           templateKey,
+          ...describeCause(error),
           boundary: 'effective_template_read',
         });
         throw new AgentStartupPromptInputError(
@@ -588,6 +615,7 @@ export class AgentStartupPromptInput {
       const parsedResponse = effectiveTemplateResponseSchema.safeParse(response.data);
       if (!parsedResponse.success) {
         this.logger.error('agent_startup_prompt_input.template_response_malformed', {
+          ...describeSchemaIssues(parsedResponse.error),
           templateKey,
           boundary: 'effective_template_response',
         });
@@ -736,8 +764,11 @@ export class AgentStartupPromptInput {
         reportTypes: Object.keys(reports),
       });
       return reports;
-    } catch {
-      this.logger.error('agent_startup_prompt_input.reports_failed', fields);
+    } catch (error) {
+      this.logger.error('agent_startup_prompt_input.reports_failed', {
+        ...fields,
+        ...describeCause(error),
+      });
       throw new AgentStartupPromptInputError(
         'Agent startup prompt input could not read saved reports referenced by its template.',
         'report_read',

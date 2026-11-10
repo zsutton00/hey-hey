@@ -366,9 +366,9 @@ export const cullRunStore = async (
           updatedAt: run.updatedAt,
         });
       }
-    } catch {
+    } catch (error) {
       scheduledCompletedRunIds.add(runId);
-      console.error('run.retention.preview_failed', { runId });
+      console.error('run.retention.preview_failed', { runId, error });
     }
   }
 
@@ -391,8 +391,8 @@ export const cullRunStore = async (
         updatedAt: run.updatedAt,
       });
       scheduledCompletedRunIds.add(runId);
-    } catch {
-      console.error('run.retention.preview_failed', { runId });
+    } catch (error) {
+      console.error('run.retention.preview_failed', { runId, error });
     }
   }
 

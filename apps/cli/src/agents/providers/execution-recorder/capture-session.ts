@@ -70,8 +70,8 @@ export class ExecutionCaptureSession {
         roots,
         harnessVersion: this.version,
       });
-    } catch {
-      await this.transportFailure();
+    } catch (error) {
+      await this.transportFailure(error);
       return undefined;
     }
   }
@@ -201,28 +201,30 @@ export class ExecutionCaptureSession {
     }
   }
 
-  private async gap(reason: CaptureGap): Promise<void> {
+  private async gap(reason: CaptureGap, cause?: unknown): Promise<void> {
     const scope = this.scope;
     this.logger.debug('execution_capture.coverage_gap', {
       provider: this.provider,
       runId: scope?.runId,
       turnId: scope?.turnId,
       reason,
+      ...(cause === undefined ? {} : { error: cause }),
     });
     if (scope) {
       try {
         await this.recorder.store.coverage({ ...scope, reason });
-      } catch {
+      } catch (error) {
         this.logger.warn('execution_capture.coverage_persist_failed', {
           provider: this.provider,
           reason,
+          error,
         });
       }
     }
   }
 
-  public transportFailure(): Promise<void> {
-    return this.gap('snapshot_failure');
+  public transportFailure(cause?: unknown): Promise<void> {
+    return this.gap('snapshot_failure', cause);
   }
 
   public async end(): Promise<void> {
@@ -254,12 +256,13 @@ export class ExecutionCaptureSession {
             ...admitted.identity,
             elapsedMs: Date.now() - confirmStartedAt,
           });
-        } catch {
+        } catch (error) {
           this.logger.warn('execution_capture.settlement_confirm_failed', {
             ...admitted.identity,
             elapsedMs: Date.now() - confirmStartedAt,
+            error,
           });
-          await this.transportFailure();
+          await this.transportFailure(error);
         }
       }
       if (
@@ -295,12 +298,13 @@ export class ExecutionCaptureSession {
           ...admitted.identity,
           elapsedMs: Date.now() - toolStartedAt,
         });
-      } catch {
+      } catch (error) {
         this.logger.warn('execution_capture.settlement_tool_failed', {
           ...admitted.identity,
           elapsedMs: Date.now() - toolStartedAt,
+          error,
         });
-        await this.transportFailure();
+        await this.transportFailure(error);
       }
     }
     const interruptStartedAt = Date.now();
@@ -317,14 +321,15 @@ export class ExecutionCaptureSession {
         provider: this.provider,
         elapsedMs: Date.now() - interruptStartedAt,
       });
-    } catch {
+    } catch (error) {
       this.logger.warn('execution_capture.settlement_interrupt_failed', {
         runId: scope.runId,
         turnId: scope.turnId,
         provider: this.provider,
         elapsedMs: Date.now() - interruptStartedAt,
+        error,
       });
-      await this.transportFailure();
+      await this.transportFailure(error);
     }
     this.scope = null;
     this.providerTurn = null;
@@ -352,8 +357,8 @@ export class ExecutionCaptureSession {
         ...diagnostic,
         elapsedMs: Date.now() - startedAt,
       });
-    } catch {
-      this.logger.warn('execution_capture.channel_close_failed', diagnostic);
+    } catch (error) {
+      this.logger.warn('execution_capture.channel_close_failed', { ...diagnostic, error });
     }
     this.tools.clear();
     this.observed.clear();

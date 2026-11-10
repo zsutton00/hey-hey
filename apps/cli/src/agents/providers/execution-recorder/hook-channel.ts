@@ -49,8 +49,8 @@ export class HookChannel {
           try {
             const input = hookInputSchema.parse(JSON.parse(text));
             await this.session.handle(input, abort.signal);
-          } catch {
-            await this.session.transportFailure();
+          } catch (error) {
+            await this.session.transportFailure(error);
           } finally {
             // Never approve, deny, rewrite, or add model-visible output.
             response.writeHead(200, { 'content-type': 'application/json' }).end('{}');
