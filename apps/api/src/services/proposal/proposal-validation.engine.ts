@@ -1,3 +1,7 @@
+import {
+  isPlanFromExistingTasksPayload,
+  planFromExistingTasksPayloadSchema,
+} from '../plan/plan-from-existing-tasks.schema';
 import { ProposalReconciliationService } from './proposal-reconciliation.service';
 import { forwardRef, Inject } from '@nestjs/common';
 import { sectionContent } from './future-application';
@@ -35,6 +39,7 @@ import { PrismaService, AnyTransactionClient } from 'src/prisma/prisma.service';
 import type {
   CreateProposalDto,
   CreateProposalRequestDto,
+  CreatePlanFromExistingTasksProposalUpdates,
   CreateTaskDto,
   UpdateTaskDto,
   CreateDesignDocDto,
@@ -775,6 +780,10 @@ type _CheckEntityPromptTemplateProposal = _Extends<
   z.infer<typeof entityPromptTemplateProposalUpdatesSchema>,
   EntityPromptTemplateProposalUpdatesPayload
 >;
+type _CheckPlanFromExistingTasksUpdates = _Extends<
+  CreatePlanFromExistingTasksProposalUpdates,
+  z.infer<typeof planFromExistingTasksPayloadSchema>
+>;
 type _CheckPlanFromDesignDocConversationContext = _Extends<
   Omit<
     z.infer<typeof planFromDesignDocConversationUpdatesSchema>,
@@ -841,6 +850,13 @@ function getUpdatesSchema(
   ) {
     return workItemChangeSetValidationRequestSchema;
   }
+  if (
+    action === 'CREATE' &&
+    targetEntityType === 'TASK' &&
+    isPlanFromExistingTasksPayload(updates)
+  ) {
+    return planFromExistingTasksPayloadSchema;
+  }
   if (action === 'CREATE' && targetEntityType === 'TASK')
     return createTaskUpdatesSchema;
   if (action === 'UPDATE' && targetEntityType === 'TASK')
@@ -892,6 +908,9 @@ function sameChangeSetIdentity(
 }
 
 function createdRootType(updates: unknown): string | undefined {
+  if (isPlanFromExistingTasksPayload(updates)) {
+    return 'PLAN';
+  }
   const changeSet = workItemChangeSetValidationRequestSchema.safeParse(updates);
   if (changeSet.success) {
     const rootKey = changeSetIdentityKey(changeSet.data.root);
@@ -2171,6 +2190,61 @@ export class ProposalValidationEngine {
 
   // ── Layer 2: Referential Integrity ─────────────────────────────
 
+  /**
+   * Authoring-time check that the Feature and every named Task exist in this
+   * project. Approval repeats the full eligibility check on current records.
+   */
+  private async validatePlanFromExistingTasksReferences(
+    updates: Record<string, unknown>,
+    ctx: ReferentialValidationContext,
+    prefix: string,
+    db: AnyTransactionClient,
+  ): Promise<ProposalValidationIssue[]> {
+    const payload = planFromExistingTasksPayloadSchema.parse(updates);
+    const issues: ProposalValidationIssue[] = [];
+    const taskIds = [
+      ...new Set([
+        ...payload.stages.flatMap((stage) => stage.taskIds),
+        ...(payload.taskPrerequisites ?? []).flatMap((p) => [
+          p.taskId,
+          p.dependsOnTaskId,
+        ]),
+      ]),
+    ];
+    const found = await db.task.findMany({
+      where: {
+        id: { in: [payload.parentFeatureId, ...taskIds] },
+        organizationId: ctx.organizationId,
+        projectId: ctx.projectId,
+        archivedAt: null,
+      },
+      select: { id: true, type: true },
+    });
+    const byId = new Map(found.map((row) => [row.id, row.type]));
+
+    if (byId.get(payload.parentFeatureId) !== WORK_ITEM_TYPE_KEYS.Feature) {
+      issues.push({
+        field: `${prefix}.updates.parentFeatureId`,
+        code: 'entity_not_found',
+        reason: 'The parent Feature does not exist in this project.',
+        layer: 'referential',
+        suggestion: 'Choose an active Feature in this project.',
+      });
+    }
+    for (const taskId of taskIds) {
+      if (!byId.has(taskId)) {
+        issues.push({
+          field: `${prefix}.updates.stages`,
+          code: 'entity_not_found',
+          reason: `Task ${taskId} does not exist in this project.`,
+          layer: 'referential',
+          suggestion: 'Name only existing, non-archived Tasks of this project.',
+        });
+      }
+    }
+    return issues;
+  }
+
   private async validateReferences(
     dto: CreateProposalDto,
     ctx: ReferentialValidationContext,
@@ -2205,6 +2279,19 @@ export class ProposalValidationEngine {
         });
       }
       return issues;
+    }
+
+    if (
+      dto.action === 'CREATE' &&
+      dto.targetEntityType === 'TASK' &&
+      isPlanFromExistingTasksPayload(dto.updates)
+    ) {
+      return this.validatePlanFromExistingTasksReferences(
+        dto.updates,
+        ctx,
+        prefix,
+        db,
+      );
     }
 
     // Verify project exists in the org

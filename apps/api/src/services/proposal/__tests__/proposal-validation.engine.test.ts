@@ -2167,6 +2167,66 @@ describe('ProposalValidationEngine', () => {
       ).not.toThrow();
     });
 
+    describe('existing-task Plan proposals', () => {
+      const adoption = {
+        proposalKind: 'PLAN_FROM_EXISTING_TASKS',
+        planTitle: 'Adopted plan',
+        designDocMarkdown: '# Design',
+        parentFeatureId: '11111111-1111-4111-8111-111111111111',
+        stages: [{ title: 'First', taskIds: [testIds.task] }],
+      };
+
+      it('accepts a TASK create carrying the existing-task Plan payload', () => {
+        expect(() =>
+          assertProposalStructurallyValid(
+            makeCreateTaskDto({ title: 'Adopted plan', updates: adoption }),
+          ),
+        ).not.toThrow();
+      });
+
+      it('reports a missing parent Feature or Task at authoring time and passes when both exist', async () => {
+        const featureId = adoption.parentFeatureId;
+        const found = [{ id: testIds.task, type: 'STANDARD' }];
+        const db = {
+          task: { findMany: jest.fn().mockResolvedValue(found) },
+        };
+        const check = (rows: typeof found) => {
+          db.task.findMany.mockResolvedValue(rows);
+          return (engine as any).validatePlanFromExistingTasksReferences(
+            adoption,
+            {
+              organizationId: testIds.organization,
+              projectId: testIds.project,
+            },
+            'proposals[0]',
+            db,
+          );
+        };
+
+        expect(
+          (await check(found)).map((issue: { field: string }) => issue.field),
+        ).toEqual(['proposals[0].updates.parentFeatureId']);
+        expect(
+          await check([...found, { id: featureId, type: 'FEATURE' }]),
+        ).toEqual([]);
+        expect(
+          (await check([{ id: featureId, type: 'FEATURE' }])).map(
+            (issue: { field: string }) => issue.field,
+          ),
+        ).toEqual(['proposals[0].updates.stages']);
+      });
+
+      it('rejects the payload when a required field is missing', () => {
+        const { stages: _stages, ...incomplete } = adoption;
+
+        expect(() =>
+          assertProposalStructurallyValid(
+            makeCreateTaskDto({ title: 'Adopted plan', updates: incomplete }),
+          ),
+        ).toThrow();
+      });
+    });
+
     it('does not evaluate permission warnings as authoring blockers', async () => {
       const tx = makeTransactionDb();
       const permissionSpy = jest.spyOn(engine as any, 'validatePermissions');

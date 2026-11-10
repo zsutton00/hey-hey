@@ -91,6 +91,43 @@ describe('create_plan authoring admission', () => {
     expect(proposalCreate).toHaveBeenCalledTimes(1);
   });
 
+  it('authors an existing-task Plan proposal that passes shared structural admission and targets the Plan', async () => {
+    const proposalCreate = jest
+      .fn()
+      .mockImplementation(async (_o, _p, _u, dto) => {
+        expect(dto.targetEntityType).toBe('TASK');
+        expect(
+          validateProposalStructure(dto, 0, { enforceAuthoringEnvelope: true }),
+        ).toEqual([]);
+        return {
+          id: PROPOSAL_ID,
+          status: 'DRAFT',
+          action: 'CREATE',
+          targetEntityType: 'TASK',
+          targetEntityId: '00000000-0000-0000-0000-000000000000',
+          createdAt: '2026-09-14T00:00:00.000Z',
+        };
+      });
+    const provider = new PlanToolsProvider({
+      create: proposalCreate,
+    } as unknown as ProposalService);
+
+    const result = await provider.createPlanFromExistingTasks(
+      {
+        eli5: params.eli5,
+        planTitle: params.planTitle,
+        designDocMarkdown: params.designDocMarkdown,
+        parentFeatureId: FEATURE_ID,
+        stages: [{ title: 'First', taskIds: [PROPOSAL_ID] }],
+      },
+      {} as any,
+      request(),
+    );
+
+    expect(result).toMatchObject({ id: PROPOSAL_ID, targetEntityType: 'TASK' });
+    expect(proposalCreate).toHaveBeenCalledTimes(1);
+  });
+
   it('returns every canonical validation issue from proposal admission', async () => {
     const issues = [
       {
