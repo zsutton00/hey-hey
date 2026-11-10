@@ -29,6 +29,31 @@ import { MarkdownRenderer } from "../shared/MarkdownRenderer";
 /** Grid column width; screens are laid out at their declared size and scaled to it. */
 export const JOURNEY_SCREEN_WIDTH = 600;
 
+/** Screen-shaped stand-in for a Mockup that cannot be shown, at a fixed aspect ratio. */
+export const JourneyScreenPlaceholder: React.FC<{ name: string }> = ({
+  name,
+}) => (
+  <Stack
+    data-testid="journey-screen-placeholder"
+    alignItems="center"
+    justifyContent="center"
+    spacing={1}
+    sx={{
+      width: JOURNEY_SCREEN_WIDTH,
+      maxWidth: "100%",
+      aspectRatio: "4 / 3",
+      bgcolor: "action.hover",
+      textAlign: "center",
+      p: 2,
+    }}
+  >
+    <Typography variant="h6">{name}</Typography>
+    <Typography variant="caption" color="text.secondary">
+      Mockup preview unavailable
+    </Typography>
+  </Stack>
+);
+
 export const JourneyScreen: React.FC<{
   name: string;
   source:
@@ -39,6 +64,8 @@ export const JourneyScreen: React.FC<{
   children?: React.ReactNode;
   onOpenFullSize?: () => void;
   fullSize?: boolean;
+  /** Static miniature: no full-size opener, pencils, or alert fallback. */
+  readOnly?: boolean;
 }> = ({
   name,
   source,
@@ -47,6 +74,7 @@ export const JourneyScreen: React.FC<{
   children,
   onOpenFullSize,
   fullSize = false,
+  readOnly = false,
 }) => {
   const [open, setOpen, ownerKey] = useModalState(false);
   const registry = useWorkItemTypeByKey(
@@ -129,11 +157,13 @@ export const JourneyScreen: React.FC<{
         <Box inert sx={{ pointerEvents: "none" }}>
           {visualSections.length ? (
             renderThumbnails()
+          ) : readOnly ? (
+            <JourneyScreenPlaceholder name={name} />
           ) : (
             <Alert severity="info">Screen preview unavailable</Alert>
           )}
         </Box>
-        {visualSections.length ? (
+        {visualSections.length && !readOnly ? (
           <ButtonBase
             data-testid="journey-screen-preview"
             aria-label={`View ${name} full size`}
@@ -148,7 +178,7 @@ export const JourneyScreen: React.FC<{
           />
         ) : null}
         <Stack spacing={1} sx={{ position: "absolute", top: 8, right: 8 }}>
-          {visualSections.map((section) => {
+          {(readOnly ? [] : visualSections).map((section) => {
             const content =
               section.kind === "html/css"
                 ? decodeHtmlCssSectionContent(section.proposedValue)

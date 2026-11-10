@@ -1405,7 +1405,7 @@ const dedupeEdges = (
   return Array.from(byId.values());
 };
 
-const hydrateWorkflowGraphEdges = (
+export const hydrateWorkflowGraphEdges = (
   graphData: WorkflowGraphSurfaceData,
 ): WorkflowGraphSurfaceData => ({
   ...graphData,
