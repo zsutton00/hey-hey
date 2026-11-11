@@ -124,14 +124,16 @@ export function resolveReviewedCodingPlan(
     });
   }
   if (!latest.context.success) {
-    logger.debug('Coding Plan version rejected as invalid', {
+    const problems = latest.context.error.issues
+      .map((issue) => `${issue.path.join('.') || '(plan)'}: ${issue.message}`)
+      .join('; ');
+    logger.warn('Coding Plan version rejected as invalid', {
       versionMessageId,
-      cause: latest.context.error.message,
+      problems,
     });
     throw new ConflictException({
       code: 'CODING_PLAN_REVIEW_CONTEXT_INVALID',
-      message:
-        'The reviewed planning context is invalid and must be corrected before approval.',
+      message: `The reviewed planning context is invalid and must be corrected before approval. Problems: ${problems}`,
     });
   }
   logger.debug('Coding Plan current complete version resolved', {
