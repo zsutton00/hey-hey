@@ -479,6 +479,33 @@ describe('GetToolGuidanceToolsProvider', () => {
       expect(text).toContain('parent feature says what');
     });
 
+    it('guides existing-task plans toward few outcome stages and a full PRD', async () => {
+      const guidance = async (toolName: string) =>
+        getText(
+          await provider.getToolGuidance({ toolName }, {} as any, {} as any),
+        )
+          .replace(/\s+/g, ' ')
+          .toLowerCase();
+      const existing = await guidance('create_plan_from_existing_tasks');
+      const created = await guidance('create_plan');
+
+      expect(existing.indexOf('decide what the plan is about')).toBeLessThan(
+        existing.indexOf('fewest coherent delivery-outcome stages'),
+      );
+      for (const text of [existing, created]) {
+        expect(text).toContain('fewest coherent delivery-outcome stages');
+        expect(text).toContain('single stage is acceptable');
+        expect(text).toMatch(/one stage per task is a warning sign/);
+        expect(text).toMatch(/prerequisites[^.]*not in extra stages/);
+      }
+      expect(existing).toMatch(/substantial prd-style document/);
+      expect(existing).toContain('create_plan');
+      expect(existing).toContain('single outline');
+      expect(existing).toMatch(/exclusions are a short part/);
+      expect(existing).toContain('stop and tell the user');
+      expect(existing).toContain('nothing is created until the user approves');
+    });
+
     it('create_plan uses PRD-facing headings with technical subsections', async () => {
       const result = await provider.getToolGuidance(
         { toolName: 'create_plan' },

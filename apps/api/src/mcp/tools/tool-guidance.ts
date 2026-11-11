@@ -79,6 +79,20 @@ Product: A user asks to save restaurant dishes as favorites and revisit them. Ac
 );
 
 /**
+ * Stage-grouping advice shared by both Plan entry points so the rule has one home.
+ */
+const PLAN_STAGE_GROUPING_GUIDANCE = [
+  'Group work into the fewest coherent delivery-outcome stages. Each stage should',
+  'help a reviewer understand an outcome the work delivers, not mirror the number',
+  'of tasks. A single stage is acceptable when the work delivers one outcome. One',
+  'stage per task is a warning sign: reconsider the grouping, though it is not a',
+  'forbidden configuration or a numerical limit. Task order and real prerequisites',
+  'belong in task prerequisites, not in extra stages. Independent work and',
+  'prerequisites owned outside the plan stay as they are; stage order keeps its',
+  'existing meaning, and each task belongs to exactly one stage.',
+];
+
+/**
  * Backticked, comma-joined render of the canonical agent edge vocabulary,
  * inlined into the proposal-edges guidance below so adding or retiring a
  * type in {@link AGENT_EDGE_TYPES} updates the rendered guidance with no
@@ -1092,6 +1106,10 @@ export const TOOL_GUIDANCE = {
         'and interfaces rather than inventing missing schemas, events, or sequencing.',
         '```',
         '',
+        '## Grouping work into stages',
+        '',
+        ...PLAN_STAGE_GROUPING_GUIDANCE,
+        '',
         ...PLAN_SCOPE_AND_JUDGMENT_GUIDANCE,
         '',
         '## Do NOT pre-materialize a design doc proposal',
@@ -1147,6 +1165,25 @@ export const TOOL_GUIDANCE = {
       'the work was delivered. Later changes in direction belong on the feature, not',
       'in this document. The doc travels inside the proposal; it is not a separate',
       'artifact to maintain.',
+      '',
+      'Make it a substantial PRD-style document, not a summary: explain the',
+      "feature's intended outcome and the experience it gives users, and how the",
+      'selected tasks deliver it, in enough depth for a meaningful review. Use the',
+      'section template from `get_tool_guidance` for `create_plan` as the single',
+      'outline (its eight headings and four technical subsections); do not invent',
+      'a second template. Ground responsibilities, shared decisions, and interfaces',
+      'in the selected work and leave routine code choices to implementation.',
+      'Scope exclusions are a short part of the document, never its bulk. Follow the',
+      'plan scope and judgment discipline in that guidance: no invented metrics or',
+      'speculative scope, and acceptance criteria only summarize behavior the work',
+      'already establishes.',
+      '',
+      '## Decide what the plan is about, then group',
+      '',
+      'Before grouping, read the feature and every selected task, understand what',
+      'the work delivers, and decide what the plan is about.',
+      '',
+      ...PLAN_STAGE_GROUPING_GUIDANCE,
       '',
       '## Stages and prerequisites',
       '',
