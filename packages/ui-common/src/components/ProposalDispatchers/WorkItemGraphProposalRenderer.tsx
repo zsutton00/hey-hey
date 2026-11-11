@@ -282,6 +282,8 @@ const getGraphDiffElements = (
 
   updates.operations.forEach((operation) => {
     switch (operation.op) {
+      case "designDoc.create":
+        break;
       case "workItem.create":
         addedChildren.set(graphIdentityKey(operation.ref), operation.ref);
         break;

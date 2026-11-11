@@ -1756,28 +1756,15 @@ export class ProposalService {
         updateData.targetEntityType =
           dto.targetEntityType as PrismaTargetEntityType;
       }
-      // Adoption revisions replace the entire reviewed artifact. In particular,
-      // omitting taskPrerequisites removes the prior prerequisites.
-      const adoptionRevision =
-        dto.updates !== undefined &&
-        isPlanFromExistingTasksPayload(existing.updates);
-      const adoptionUpdates = adoptionRevision
-        ? planFromExistingTasksUpdatesSchema.parse(dto.updates)
-        : undefined;
       const nextUpdates =
         dto.updates === undefined
           ? existing.updates
-          : adoptionUpdates
-            ? adoptionUpdates
-            : {
-                ...((existing.updates as Record<string, unknown>) ?? {}),
-                ...(dto.updates as Record<string, unknown>),
-              };
+          : {
+              ...((existing.updates as Record<string, unknown>) ?? {}),
+              ...(dto.updates as Record<string, unknown>),
+            };
       if (dto.updates !== undefined) {
         updateData.updates = nextUpdates as Prisma.InputJsonValue;
-        if (adoptionUpdates) {
-          updateData.title = adoptionUpdates.planTitle;
-        }
       }
       if (dto.requestorContext !== undefined) {
         updateData.requestorContext = dto.requestorContext
@@ -1836,7 +1823,7 @@ export class ProposalService {
         targetEntityType: (dto.targetEntityType ??
           existing.targetEntityType) as CreateProposalDto['targetEntityType'],
         updates: nextUpdates as CreateProposalDto['updates'],
-        title: adoptionUpdates?.planTitle ?? existing.title ?? undefined,
+        title: existing.title ?? undefined,
         eli5,
         edges:
           (existing.edges as unknown as CreateProposalDto['edges']) ??
@@ -1915,7 +1902,7 @@ export class ProposalService {
       await this.reconciliation.captureAuthoring(tx, result);
       // captureAuthoring clears active votes. Do not return the relation read
       // before that write as the revised artifact's approval progress.
-      return adoptionRevision ? { ...result, approvalRecords: [] } : result;
+      return { ...result, approvalRecords: [] };
     });
 
     this.logger.log('Proposal updated', {

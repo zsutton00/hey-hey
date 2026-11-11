@@ -1123,49 +1123,6 @@ EntityPromptTemplateProposalUpdatesPayload:
     Proposal lifecycle state remains represented only by ProposalStatus;
     template lifecycle state describes effective persisted revisions only.
 
-CreatePlanFromExistingTasksProposalUpdates:
-  type: object
-  additionalProperties: false
-  required:
-    - proposalKind
-    - planTitle
-    - designDocMarkdown
-    - parentFeatureId
-    - stages
-  properties:
-    proposalKind:
-      type: string
-      enum:
-        - PLAN_FROM_EXISTING_TASKS
-      description: Discriminator for a Plan built from a fixed set of existing Tasks.
-    planTitle:
-      type: string
-      minLength: 1
-    designDocMarkdown:
-      type: string
-      minLength: 1
-      description: Design document body attached to the new Plan.
-    parentFeatureId:
-      $ref: "./common.yaml#/TaskId"
-      description: Feature the new Plan is created under.
-    stages:
-      type: array
-      minItems: 1
-      description: Ordered stages. Each stage depends on the stage before it.
-      items:
-        $ref: "#/PlanFromExistingTasksStage"
-    taskPrerequisites:
-      type: array
-      description: >-
-        Explicit prerequisites only. Stage order never implies a Task
-        dependency.
-      items:
-        $ref: "#/PlanFromExistingTasksPrerequisite"
-  description: >-
-    Payload of a CREATE/TASK proposal whose approval creates one Plan, its
-    design document and stages, and moves the listed existing Tasks under them.
-    The created Plan is the proposal's resulting entity.
-
 PlanFromExistingTasksStage:
   type: object
   additionalProperties: false
@@ -1201,7 +1158,6 @@ ProposalUpdates:
     - $ref: "#/PlanFromExistingTasksUpdatesPayload"
     - $ref: "./future-revisions.yaml#/FutureRevisionMutation"
     - $ref: "./tasks.yaml#/CreateTaskDto"
-    - $ref: "#/CreatePlanFromExistingTasksProposalUpdates"
     - $ref: "./tasks.yaml#/UpdateTaskDto"
     - $ref: "./design-docs.yaml#/CreateDesignDocDto"
     - $ref: "./design-docs.yaml#/UpdateDesignDocDto"
@@ -1695,8 +1651,12 @@ WorkItemMetaRelationshipCreateOperation:
       $ref: "#/TemporaryRelationshipIdentity"
     source:
       $ref: "#/WorkItemChangeSetIdentity"
+    sourceEntityType:
+      $ref: "./agent-edges.yaml#/AgentEdgeEndpointEntityType"
     target:
       $ref: "#/WorkItemChangeSetIdentity"
+    targetEntityType:
+      $ref: "./agent-edges.yaml#/AgentEdgeEndpointEntityType"
     edgeType:
       $ref: "./agent-edges.yaml#/AgentMetaEdgeType"
     category:
@@ -1979,6 +1939,35 @@ WorkItemLayoutClearOperation:
       type: string
       minLength: 1
 
+WorkItemDesignDocCreateOperation:
+  type: object
+  description: >-
+    Creates a design doc beneath an existing or same-change-set work item. The
+    design doc is created with the work items of the same change set, so a
+    reviewed proposal can introduce a work item and its design doc together.
+  additionalProperties: false
+  required:
+    - op
+    - ref
+    - name
+    - markdown
+    - parent
+  properties:
+    op:
+      type: string
+      enum:
+        - designDoc.create
+    ref:
+      $ref: "#/TemporaryWorkItemIdentity"
+    name:
+      type: string
+      minLength: 1
+    markdown:
+      type: string
+      minLength: 1
+    parent:
+      $ref: "#/WorkItemChangeSetIdentity"
+
 WorkItemChangeSetOperation:
   oneOf:
     - $ref: "#/WorkItemCreateOperation"
@@ -1991,6 +1980,7 @@ WorkItemChangeSetOperation:
     - $ref: "#/WorkItemRelationshipDeleteOperation"
     - $ref: "#/WorkItemLayoutReplaceOperation"
     - $ref: "#/WorkItemLayoutClearOperation"
+    - $ref: "#/WorkItemDesignDocCreateOperation"
   discriminator:
     propertyName: op
     mapping:
@@ -2004,6 +1994,7 @@ WorkItemChangeSetOperation:
       relationship.delete: "#/WorkItemRelationshipDeleteOperation"
       layout.replace: "#/WorkItemLayoutReplaceOperation"
       layout.clear: "#/WorkItemLayoutClearOperation"
+      designDoc.create: "#/WorkItemDesignDocCreateOperation"
 
 WorkItemChangeSetValidationRequest:
   type: object
@@ -2209,6 +2200,24 @@ ProjectedWorkItem:
     deleted:
       type: boolean
 
+ProjectedDesignDoc:
+  type: object
+  additionalProperties: false
+  required:
+    - identity
+    - name
+    - markdown
+    - parent
+  properties:
+    identity:
+      $ref: "#/WorkItemChangeSetIdentity"
+    name:
+      type: string
+    markdown:
+      type: string
+    parent:
+      $ref: "#/WorkItemChangeSetIdentity"
+
 ProjectedWorkItemRelationship:
   type: object
   additionalProperties: false
@@ -2309,6 +2318,10 @@ ProjectedWorkItemChangeSetResponse:
     projectedRoot:
       nullable: true
       $ref: "#/ProjectedWorkItem"
+    designDocs:
+      type: array
+      items:
+        $ref: "#/ProjectedDesignDoc"
     children:
       type: array
       items:

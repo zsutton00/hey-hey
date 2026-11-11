@@ -20,7 +20,12 @@ export function projectReconciliationChangeSet(
   );
   for (const operation of request.operations) {
     const ref = 'ref' in operation ? operation.ref : operation.root;
-    const type = operation.op.startsWith('relationship.') ? 'EDGE' : 'TASK';
+    const type =
+      operation.op === 'designDoc.create'
+        ? 'DESIGN_DOC'
+        : operation.op.startsWith('relationship.')
+          ? 'EDGE'
+          : 'TASK';
     const id = ref.refType === 'existing' ? ref.id : `temporary:${ref.tempId}`;
     const key = `${type}:${id}`;
     if (
@@ -28,6 +33,24 @@ export function projectReconciliationChangeSet(
       operation.op === 'relationship.delete'
     ) {
       targets[key] = { deleted: true };
+      continue;
+    }
+    if (operation.op === 'designDoc.create') {
+      targets[key] = {
+        name: operation.name,
+        template: 'PLAN_DOCUMENT',
+        status: 'READY',
+        tags: [],
+        summary: null,
+        parentEntityId:
+          operation.parent.refType === 'existing'
+            ? operation.parent.id
+            : `temporary:${operation.parent.tempId}`,
+        parentEntityType: 'TASK',
+        archivedAt: null,
+        sections: { content: operation.markdown },
+        sectionOrder: { content: 0 },
+      };
       continue;
     }
     const content = (targets[key] ??

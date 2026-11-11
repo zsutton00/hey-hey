@@ -3,7 +3,8 @@ import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { ProposalAction, TargetEntityType } from "../../api";
 import type {
-  PlanFromExistingTasksUpdatesPayload,
+  WorkItemChangeSetValidationRequest,
+  WorkItemCreateOperation,
   ProposalResponseDto,
 } from "../../api";
 import { usePathService } from "../../contexts/PathServiceContext";
@@ -36,7 +37,7 @@ export function ExistingTaskPlanCreateRenderer({
   overrides,
 }: {
   proposal: ProposalResponseDto & {
-    updates: PlanFromExistingTasksUpdatesPayload;
+    updates: WorkItemChangeSetValidationRequest;
   };
   onApply: OnApplyProposal;
   onApplied?: OnAppliedProposal;
@@ -73,14 +74,57 @@ export function ExistingTaskPlanCreateRenderer({
     }, 1000);
     return () => window.clearInterval(timer);
   }, [status.state, refetch]);
-  const { updates } = proposal;
+  const { updates: changeSet } = proposal;
+  const plan = changeSet.operations.find(
+    (op): op is WorkItemCreateOperation =>
+      op.op === "workItem.create" && op.type === "PLAN",
+  );
+  const document = changeSet.operations.find(
+    (op) => op.op === "designDoc.create",
+  );
+  const stageCreates = changeSet.operations.filter(
+    (op): op is WorkItemCreateOperation =>
+      op.op === "workItem.create" && op.type === "PLAN_STAGE",
+  );
+  const same = (
+    a: import("../../api").WorkItemChangeSetIdentity,
+    b: import("../../api").WorkItemChangeSetIdentity,
+  ) =>
+    a.refType === "temporary" &&
+    b.refType === "temporary" &&
+    a.tempId === b.tempId;
+  const updates = {
+    name: plan?.name,
+    designDocMarkdown: document?.markdown,
+    parentFeatureId:
+      plan?.parent?.refType === "existing" ? plan.parent.id : undefined,
+    stages: stageCreates.map((stage) => ({
+      title: stage.name,
+      taskIds: changeSet.operations.flatMap((op) =>
+        op.op === "workItem.update" &&
+        op.ref.refType === "existing" &&
+        op.parent &&
+        same(op.parent, stage.ref)
+          ? [op.ref.id]
+          : [],
+      ),
+    })),
+    taskPrerequisites: changeSet.operations.flatMap((op) =>
+      op.op === "relationship.create" &&
+      op.edgeType === "DEPENDS_ON" &&
+      op.source.refType === "existing" &&
+      op.target.refType === "existing"
+        ? [{ taskId: op.source.id, dependsOnTaskId: op.target.id }]
+        : [],
+    ),
+  };
   const taskIds = updates.stages.flatMap((stage) => stage.taskIds);
   const prerequisites = updates.taskPrerequisites ?? [];
   const records = useExistingPlanTasks(
     proposal.organizationId,
     proposal.projectId,
     [
-      updates.parentFeatureId,
+      ...(updates.parentFeatureId ? [updates.parentFeatureId] : []),
       ...taskIds,
       ...prerequisites.flatMap((entry) => [
         entry.taskId,
@@ -153,7 +197,7 @@ export function ExistingTaskPlanCreateRenderer({
       {!overrides?.hideHeader && (
         <ProposalTitle
           proposal={proposal}
-          resolvedTargetName={updates.planTitle}
+          resolvedTargetName={updates.name}
           typePresentation={presentation}
           hideTypeChip={overrides?.hideTypeChip}
           titleSx={
@@ -242,7 +286,7 @@ export function ExistingTaskPlanCreateRenderer({
         <Typography variant="caption">
           {t("proposals.existingPlan.parentFeature")}
         </Typography>
-        {renderTask(updates.parentFeatureId, false)}
+        {updates.parentFeatureId && renderTask(updates.parentFeatureId, false)}
       </Box>
       {status.state === "applied" && !completed && (
         <Alert severity="warning">

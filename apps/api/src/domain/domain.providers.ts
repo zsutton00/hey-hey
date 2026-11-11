@@ -106,7 +106,6 @@ import { ProposalGroupDecisionService } from 'src/services/proposal/proposal-gro
 import { ProposalGroupLifecycleEventService } from 'src/services/proposal/proposal-group-lifecycle-event.service';
 import { ProposalGroupReferenceValidation } from 'src/services/proposal/proposal-group-reference-validation';
 import { ProposalApprovalService } from 'src/services/proposal/proposal-approval.service';
-import { PlanFromExistingTasksAdoptionService } from 'src/services/plan/plan-from-existing-tasks-adoption.service';
 import { PlanStageBatchApprovalService } from 'src/services/proposal/plan-stage-batch-approval.service';
 import { PlanStepBatchApprovalService } from 'src/services/proposal/plan-step-batch-approval.service';
 import {
@@ -307,7 +306,6 @@ export const DOMAIN_SERVICES: Provider[] = [
   ProposalReconciliationService,
   ProposalReconciliationAdapterService,
   ProposalApprovalService,
-  PlanFromExistingTasksAdoptionService,
   PlanStageBatchApprovalService,
   PlanStepBatchApprovalService,
   ProposalValidationEngine,
@@ -440,7 +438,6 @@ export const DOMAIN_EXPORTS = [
   ProposalReconciliationService,
   ProposalReconciliationAdapterService,
   ProposalApprovalService,
-  PlanFromExistingTasksAdoptionService,
   PlanStageBatchApprovalService,
   PlanStepBatchApprovalService,
   ProposalValidationEngine,

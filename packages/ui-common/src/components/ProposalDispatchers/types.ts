@@ -11,14 +11,13 @@ import {
 } from "../../api";
 import type {
   ProposalResponseDto,
-  PlanFromExistingTasksUpdatesPayload,
+  WorkItemChangeSetValidationRequest,
   CreateTaskDto,
   UpdateTaskDto,
   CreateDesignDocDto,
   UpdateDesignDocDto,
   WorkItemTypeDefinitionDto,
   WorkItemTypeArchiveRequestDto,
-  WorkItemChangeSetValidationRequest,
   WorkItemChangeSetOperation,
   ProposalApprovalFailureDiagnostic,
   RelationshipDecision,
@@ -235,6 +234,7 @@ const isWorkItemChangeSetOperation = (
     case "relationship.update":
     case "section.clear":
     case "section.replace":
+    case "designDoc.create":
     case "workItem.create":
     case "workItem.delete":
     case "workItem.update":
@@ -273,8 +273,7 @@ export const getProposalMaterializationStatus = (
 ): ProposalItemStatus | undefined => {
   const progress = proposal.materialization;
   if (!progress) {
-    return (isWorkItemGraphProposal(proposal) ||
-      isExistingTaskPlanProposal(proposal)) &&
+    return isWorkItemGraphProposal(proposal) &&
       proposal.status === ProposalStatus.Approved
       ? { state: "applying" }
       : undefined;
@@ -559,15 +558,49 @@ export const isCreatePlanProposal = (
 export function isExistingTaskPlanProposal(
   proposal: ProposalResponseDto,
 ): proposal is ProposalResponseDto & {
-  updates: PlanFromExistingTasksUpdatesPayload;
+  updates: WorkItemChangeSetValidationRequest;
 } {
-  const updates: unknown = proposal.updates;
+  if (
+    proposal.action !== ProposalAction.Create ||
+    proposal.targetEntityType !== TargetEntityType.Task ||
+    !isWorkItemGraphProposal(proposal)
+  ) {
+    return false;
+  }
+  const { root, operations } = proposal.updates;
+  if (root.refType !== "temporary") {
+    return false;
+  }
+  const plan = operations.find(
+    (operation) =>
+      operation.op === "workItem.create" &&
+      operation.ref.tempId === root.tempId,
+  );
+  if (plan?.op !== "workItem.create" || plan.type !== "PLAN") {
+    return false;
+  }
+  const stages = operations.flatMap((operation) =>
+    operation.op === "workItem.create" &&
+    operation.type === "PLAN_STAGE" &&
+    operation.parent?.refType === "temporary" &&
+    operation.parent.tempId === root.tempId
+      ? [operation.ref.tempId]
+      : [],
+  );
   return (
-    proposal.action === ProposalAction.Create &&
-    (proposal.targetEntityType === TargetEntityType.Conversation ||
-      (proposal.targetEntityType === TargetEntityType.Task &&
-        proposal.status === ProposalStatus.Approved)) &&
-    isRecord(updates) &&
-    updates.proposalKind === "plan-from-existing-tasks"
+    stages.length > 0 &&
+    operations.some(
+      (operation) =>
+        operation.op === "designDoc.create" &&
+        operation.parent.refType === "temporary" &&
+        operation.parent.tempId === root.tempId,
+    ) &&
+    operations.some(
+      (operation) =>
+        operation.op === "workItem.update" &&
+        operation.ref.refType === "existing" &&
+        operation.parent?.refType === "temporary" &&
+        stages.includes(operation.parent.tempId),
+    )
   );
 }

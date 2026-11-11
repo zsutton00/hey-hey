@@ -79,9 +79,27 @@ describe('create_plan authoring admission', () => {
           createdAt: '2026-09-14T00:00:00.000Z',
         };
       });
-    const provider = new PlanToolsProvider({
-      create: proposalCreate,
-    } as unknown as ProposalService);
+    const provider = new PlanToolsProvider(
+      {
+        create: proposalCreate,
+      } as unknown as ProposalService,
+      {
+        db: {
+          task: {
+            findFirst: jest.fn().mockResolvedValue({
+              id: FEATURE_ID,
+              type: 'FEATURE',
+              parentTaskId: null,
+            }),
+            findMany: jest
+              .fn()
+              .mockResolvedValue([
+                { id: PROPOSAL_ID, type: 'STANDARD', parentTaskId: FEATURE_ID },
+              ]),
+          },
+        },
+      } as any,
+    );
 
     const result = await provider.createPlan(params, {} as any, request());
 
@@ -109,9 +127,27 @@ describe('create_plan authoring admission', () => {
           createdAt: '2026-09-14T00:00:00.000Z',
         };
       });
-    const provider = new PlanToolsProvider({
-      create: proposalCreate,
-    } as unknown as ProposalService);
+    const provider = new PlanToolsProvider(
+      {
+        create: proposalCreate,
+      } as unknown as ProposalService,
+      {
+        db: {
+          task: {
+            findFirst: jest.fn().mockResolvedValue({
+              id: FEATURE_ID,
+              type: 'FEATURE',
+              parentTaskId: null,
+            }),
+            findMany: jest
+              .fn()
+              .mockResolvedValue([
+                { id: PROPOSAL_ID, type: 'STANDARD', parentTaskId: FEATURE_ID },
+              ]),
+          },
+        },
+      } as any,
+    );
 
     const result = await provider.createPlanFromExistingTasks(
       {
@@ -146,14 +182,32 @@ describe('create_plan authoring admission', () => {
         layer: 'referential',
       },
     ];
-    const provider = new PlanToolsProvider({
-      create: jest.fn().mockRejectedValue(
-        new BadRequestException({
-          message: 'Proposal authoring validation failed',
-          errors: issues,
-        }),
-      ),
-    } as unknown as ProposalService);
+    const provider = new PlanToolsProvider(
+      {
+        create: jest.fn().mockRejectedValue(
+          new BadRequestException({
+            message: 'Proposal authoring validation failed',
+            errors: issues,
+          }),
+        ),
+      } as unknown as ProposalService,
+      {
+        db: {
+          task: {
+            findFirst: jest.fn().mockResolvedValue({
+              id: FEATURE_ID,
+              type: 'FEATURE',
+              parentTaskId: null,
+            }),
+            findMany: jest
+              .fn()
+              .mockResolvedValue([
+                { id: PROPOSAL_ID, type: 'STANDARD', parentTaskId: FEATURE_ID },
+              ]),
+          },
+        },
+      } as any,
+    );
 
     const result = await provider.createPlan(params, {} as any, request());
 
@@ -161,75 +215,67 @@ describe('create_plan authoring admission', () => {
   });
 });
 
-describe('create_plan_from_existing_tasks authoring admission', () => {
-  const TASK_ID = '00000000-0000-4000-8000-000000000005';
-  const existingTasksParams = {
-    eli5: 'Plans the existing tasks for review.',
-    planTitle: 'Delivered plan',
-    designDocMarkdown: '# Plan\n\nHow the work was delivered.',
-    parentFeatureId: FEATURE_ID,
-    stages: [{ title: 'Only stage', taskIds: [TASK_ID] }],
-  };
-
-  it('returns a reviewable proposal through shared admission without creating anything else', async () => {
-    const proposalCreate = jest
-      .fn()
-      .mockImplementation(async (_o, _p, _u, dto) => {
-        expect(
-          validateProposalStructure(dto, 0, { enforceAuthoringEnvelope: true }),
-        ).toEqual([]);
-        return {
-          id: PROPOSAL_ID,
-          status: 'DRAFT',
-          action: 'CREATE',
-          targetEntityType: 'CONVERSATION',
-          targetEntityId: '00000000-0000-0000-0000-000000000000',
-          createdAt: '2026-09-14T00:00:00.000Z',
-        };
-      });
-    const proposalService = { create: proposalCreate };
-    const provider = new PlanToolsProvider(
-      proposalService as unknown as ProposalService,
-    );
-
-    const result = await provider.createPlanFromExistingTasks(
-      existingTasksParams,
-      {} as any,
-      request(),
-    );
-
-    expect(result).toMatchObject({ id: PROPOSAL_ID });
-    expect(proposalCreate).toHaveBeenCalledTimes(1);
-    expect(Object.keys(proposalService)).toEqual(['create']);
-    expect(ORCHESTRATION_TOOL_NAMES.CREATE_PLAN_FROM_EXISTING_TASKS).toBe(
-      'create_plan_from_existing_tasks',
-    );
-  });
-
-  it('returns every validation issue from proposal admission', async () => {
-    const issues = [
-      {
-        field: 'proposals[0].updates.stages[0].taskIds[0]',
-        code: 'entity_not_found',
-        reason: `Task ${TASK_ID} not found`,
-        layer: 'referential',
-      },
-    ];
-    const provider = new PlanToolsProvider({
-      create: jest.fn().mockRejectedValue(
-        new BadRequestException({
-          message: 'Proposal authoring validation failed',
-          errors: issues,
-        }),
-      ),
-    } as unknown as ProposalService);
-
-    const result = await provider.createPlanFromExistingTasks(
-      existingTasksParams,
-      {} as any,
-      request(),
-    );
-
-    expect(result).toEqual({ status: 'invalid_change_set', issues });
-  });
+describe('existing-task Plan admission failures', () => {
+  it.each(['missing feature', 'missing task', 'empty tasks', 'duplicate task'])(
+    'rejects %s before proposing any mutation',
+    async (failure) => {
+      const create = jest.fn();
+      const provider = new PlanToolsProvider(
+        { create } as any,
+        {
+          db: {
+            task: {
+              findFirst: jest
+                .fn()
+                .mockResolvedValue(
+                  failure === 'missing feature'
+                    ? null
+                    : { id: FEATURE_ID, type: 'FEATURE', parentTaskId: null },
+                ),
+              findMany: jest.fn().mockResolvedValue(
+                failure === 'missing task'
+                  ? []
+                  : [
+                      {
+                        id: PROPOSAL_ID,
+                        type: 'STANDARD',
+                        parentTaskId: FEATURE_ID,
+                      },
+                    ],
+              ),
+            },
+          },
+        } as any,
+      );
+      const result = await provider.createPlanFromExistingTasks(
+        {
+          ...params,
+          stages: [
+            {
+              title: 'Delivery',
+              taskIds:
+                failure === 'empty tasks'
+                  ? []
+                  : failure === 'duplicate task'
+                    ? [PROPOSAL_ID, PROPOSAL_ID]
+                    : [PROPOSAL_ID],
+            },
+          ],
+        },
+        {} as any,
+        request(),
+      );
+      expect(result).toMatchObject({ isError: true });
+      const codes = {
+        'missing feature': 'PARENT_FEATURE_NOT_FOUND',
+        'missing task': 'TASK_NOT_FOUND',
+        'empty tasks': 'EMPTY_TASK_LIST',
+        'duplicate task': 'DUPLICATE_TASK_ASSIGNMENT',
+      };
+      expect(JSON.stringify(result)).toContain(
+        codes[failure as keyof typeof codes],
+      );
+      expect(create).not.toHaveBeenCalled();
+    },
+  );
 });

@@ -10,6 +10,7 @@ import {
   TaskPriority,
   WorkItemConditionalRelationshipCreateOperation,
   WorkItemCreateOperation,
+  WorkItemDesignDocCreateOperation,
   WorkItemDeleteOperation,
   WorkItemLayoutClearOperation,
   WorkItemLayoutReplaceOperation,
@@ -132,6 +133,16 @@ const workItemCreateOperationSchema = z
   })
   .strict();
 
+const workItemDesignDocCreateOperationSchema = z
+  .object({
+    op: z.literal('designDoc.create'),
+    ref: temporaryWorkItemIdentitySchema,
+    name: z.string().min(1),
+    markdown: z.string().min(1),
+    parent: workItemChangeSetIdentitySchema,
+  })
+  .strict();
+
 const workItemUpdateOperationSchema = z
   .object({
     op: z.literal('workItem.update'),
@@ -176,7 +187,9 @@ const workItemMetaRelationshipCreateOperationSchema = z
     op: z.literal('relationship.create'),
     ref: temporaryRelationshipIdentitySchema,
     source: workItemChangeSetIdentitySchema,
+    sourceEntityType: agentEdgeEndpointEntityTypeSchema.optional(),
     target: workItemChangeSetIdentitySchema,
+    targetEntityType: agentEdgeEndpointEntityTypeSchema.optional(),
     edgeType: agentMetaEdgeTypeSchema,
     category: z.literal('meta').optional(),
     direction: agentEdgeDirectionSchema.nullable().optional(),
@@ -302,6 +315,8 @@ const workItemLayoutClearOperationSchema = z
   .strict();
 
 const operationSchemasByOp = {
+  [WorkItemDesignDocCreateOperation.OpEnum.DesignDocCreate]:
+    workItemDesignDocCreateOperationSchema,
   [WorkItemCreateOperation.OpEnum.WorkItemCreate]:
     workItemCreateOperationSchema,
   [WorkItemUpdateOperation.OpEnum.WorkItemUpdate]:
@@ -436,6 +451,7 @@ export const workItemChangeSetSchemasAlignWithGeneratedTypes = {
   temporaryRelationshipIdentitySchema,
   workItemChangeSetRelationshipIdentitySchema,
   workItemCreateOperationSchema,
+  workItemDesignDocCreateOperationSchema,
   workItemUpdateOperationSchema,
   workItemDeleteOperationSchema,
   workItemSectionReplaceOperationSchema,
@@ -466,6 +482,7 @@ export const workItemChangeSetSchemasAlignWithGeneratedTypes = {
     z.ZodTypeDef,
     unknown
   >;
+  workItemDesignDocCreateOperationSchema: z.ZodType<WorkItemDesignDocCreateOperation>;
   workItemUpdateOperationSchema: z.ZodType<
     WorkItemUpdateOperation,
     z.ZodTypeDef,

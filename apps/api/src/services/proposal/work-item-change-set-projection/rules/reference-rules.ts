@@ -131,7 +131,10 @@ export const identityBoundaryRule: ProjectionRule<BoundaryScope> = {
     const rootKey = nodeKey(request.root);
     const temporaryWorkItemCreates = new Set(
       request.operations.flatMap((operation) =>
-        operation.op === 'workItem.create' ? [nodeKey(operation.ref)] : [],
+        operation.op === 'workItem.create' ||
+        operation.op === 'designDoc.create'
+          ? [nodeKey(operation.ref)]
+          : [],
       ),
     );
     const temporaryRelationshipCreates = new Set(
@@ -158,6 +161,9 @@ export const identityBoundaryRule: ProjectionRule<BoundaryScope> = {
           `Temporary work-item reference ${key} must be declared by a workItem.create operation in this change set.`,
           REFERENTIAL,
         );
+        return;
+      }
+      if (state.designDocs?.has(key)) {
         return;
       }
       if (!state.nodes.has(key)) {
@@ -233,6 +239,19 @@ export const identityBoundaryRule: ProjectionRule<BoundaryScope> = {
     for (const [operationIndex, operation] of request.operations.entries()) {
       const field = `operations[${operationIndex}]`;
       switch (operation.op) {
+        case 'designDoc.create':
+          validateWorkItemReference(operation.parent, `${field}.parent`, {
+            allowOutsideRoot: true,
+          });
+          if (state.designDocs?.has(nodeKey(operation.parent))) {
+            ctx.addIssue(
+              `${field}.parent`,
+              'invalid_parent',
+              'A design document parent must be a work item.',
+              REFERENTIAL,
+            );
+          }
+          break;
         case 'workItem.create':
         case 'workItem.update':
           validateWorkItemReference(operation.ref, `${field}.ref`);

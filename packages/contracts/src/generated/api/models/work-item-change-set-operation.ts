@@ -34,19 +34,22 @@ import type { FeatureTag } from './feature-tag.js';
 import type { TaskPriority } from './task-priority.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { TemporaryWorkItemIdentity } from './temporary-work-item-identity.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { WorkItemChangeSetIdentity } from './work-item-change-set-identity.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { WorkItemChangeSetLayoutEntry } from './work-item-change-set-layout-entry.js';
 // May contain unused imports in some cases
 // @ts-ignore
-import type { WorkItemChangeSetRelationshipIdentity } from './work-item-change-set-relationship-identity.js';
-// May contain unused imports in some cases
-// @ts-ignore
 import type { WorkItemCreateOperation } from './work-item-create-operation.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { WorkItemDeleteOperation } from './work-item-delete-operation.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { WorkItemDesignDocCreateOperation } from './work-item-design-doc-create-operation.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { WorkItemLayoutClearOperation } from './work-item-layout-clear-operation.js';
@@ -82,6 +85,6 @@ import type { WorkflowTransitionRole } from './workflow-transition-role.js';
  * @type WorkItemChangeSetOperation
  * @export
  */
-export type WorkItemChangeSetOperation = { op: 'layout.clear' } & WorkItemLayoutClearOperation | { op: 'layout.replace' } & WorkItemLayoutReplaceOperation | { op: 'relationship.create' } & WorkItemRelationshipCreateOperation | { op: 'relationship.delete' } & WorkItemRelationshipDeleteOperation | { op: 'relationship.update' } & WorkItemRelationshipUpdateOperation | { op: 'section.clear' } & WorkItemSectionClearOperation | { op: 'section.replace' } & WorkItemSectionReplaceOperation | { op: 'workItem.create' } & WorkItemCreateOperation | { op: 'workItem.delete' } & WorkItemDeleteOperation | { op: 'workItem.update' } & WorkItemUpdateOperation;
+export type WorkItemChangeSetOperation = { op: 'designDoc.create' } & WorkItemDesignDocCreateOperation | { op: 'layout.clear' } & WorkItemLayoutClearOperation | { op: 'layout.replace' } & WorkItemLayoutReplaceOperation | { op: 'relationship.create' } & WorkItemRelationshipCreateOperation | { op: 'relationship.delete' } & WorkItemRelationshipDeleteOperation | { op: 'relationship.update' } & WorkItemRelationshipUpdateOperation | { op: 'section.clear' } & WorkItemSectionClearOperation | { op: 'section.replace' } & WorkItemSectionReplaceOperation | { op: 'workItem.create' } & WorkItemCreateOperation | { op: 'workItem.delete' } & WorkItemDeleteOperation | { op: 'workItem.update' } & WorkItemUpdateOperation;
 
-export const WorkItemChangeSetOperationDiscriminatorValues = ["workItem.create","workItem.update","workItem.delete","section.replace","section.clear","relationship.create","relationship.update","relationship.delete","layout.replace","layout.clear"] as const;
+export const WorkItemChangeSetOperationDiscriminatorValues = ["workItem.create","workItem.update","workItem.delete","section.replace","section.clear","relationship.create","relationship.update","relationship.delete","layout.replace","layout.clear","designDoc.create"] as const;

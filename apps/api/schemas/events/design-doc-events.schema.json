@@ -18001,9 +18001,6 @@
           "$ref": "#/definitions/CreateDesignDocDto"
         },
         {
-          "$ref": "#/definitions/CreatePlanFromExistingTasksProposalUpdates"
-        },
-        {
           "$ref": "#/definitions/CreateTaskDto"
         },
         {
@@ -18161,92 +18158,6 @@
         {}
       ],
       "description": "Entity type that owns a design document as its parent."
-    },
-    "CreatePlanFromExistingTasksProposalUpdates": {
-      "type": "object",
-      "properties": {
-        "proposalKind": {
-          "$ref": "#/definitions/CreatePlanFromExistingTasksProposalUpdatesProposalKindEnum",
-          "description": "Discriminator for a Plan built from a fixed set of existing Tasks."
-        },
-        "planTitle": {
-          "type": "string"
-        },
-        "designDocMarkdown": {
-          "type": "string",
-          "description": "Design document body attached to the new Plan."
-        },
-        "parentFeatureId": {
-          "$ref": "#/definitions/TaskId",
-          "description": "Unique identifier for a task (branded type)"
-        },
-        "stages": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/PlanFromExistingTasksStage"
-          },
-          "description": "Ordered stages. Each stage depends on the stage before it."
-        },
-        "taskPrerequisites": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/PlanFromExistingTasksPrerequisite"
-          },
-          "description": "Explicit prerequisites only. Stage order never implies a Task dependency."
-        }
-      },
-      "required": [
-        "proposalKind",
-        "planTitle",
-        "designDocMarkdown",
-        "parentFeatureId",
-        "stages"
-      ],
-      "description": "Payload of a CREATE/TASK proposal whose approval creates one Plan, its design document and stages, and moves the listed existing Tasks under them. The created Plan is the proposal\\'s resulting entity."
-    },
-    "CreatePlanFromExistingTasksProposalUpdatesProposalKindEnum": {
-      "anyOf": [
-        {
-          "type": "string",
-          "const": "PLAN_FROM_EXISTING_TASKS"
-        },
-        {}
-      ]
-    },
-    "PlanFromExistingTasksStage": {
-      "type": "object",
-      "properties": {
-        "title": {
-          "type": "string"
-        },
-        "taskIds": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "required": [
-        "title",
-        "taskIds"
-      ]
-    },
-    "PlanFromExistingTasksPrerequisite": {
-      "type": "object",
-      "properties": {
-        "taskId": {
-          "$ref": "#/definitions/TaskId",
-          "description": "Unique identifier for a task (branded type)"
-        },
-        "dependsOnTaskId": {
-          "$ref": "#/definitions/TaskId",
-          "description": "Unique identifier for a task (branded type)"
-        }
-      },
-      "required": [
-        "taskId",
-        "dependsOnTaskId"
-      ]
     },
     "CreateTaskDto": {
       "type": "object",
@@ -19134,6 +19045,12 @@
         "projectedRoot": {
           "$ref": "#/definitions/ProjectedWorkItem"
         },
+        "designDocs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ProjectedDesignDoc"
+          }
+        },
         "children": {
           "type": "array",
           "items": {
@@ -19303,6 +19220,29 @@
       "required": [
         "key",
         "content"
+      ]
+    },
+    "ProjectedDesignDoc": {
+      "type": "object",
+      "properties": {
+        "identity": {
+          "$ref": "#/definitions/WorkItemChangeSetIdentity"
+        },
+        "name": {
+          "type": "string"
+        },
+        "markdown": {
+          "type": "string"
+        },
+        "parent": {
+          "$ref": "#/definitions/WorkItemChangeSetIdentity"
+        }
+      },
+      "required": [
+        "identity",
+        "name",
+        "markdown",
+        "parent"
       ]
     },
     "ProjectedWorkItemRelationship": {
@@ -19622,6 +19562,34 @@
           "properties": {
             "op": {
               "type": "string",
+              "const": "designDoc.create"
+            },
+            "ref": {
+              "$ref": "#/definitions/TemporaryWorkItemIdentity"
+            },
+            "name": {
+              "type": "string"
+            },
+            "markdown": {
+              "type": "string"
+            },
+            "parent": {
+              "$ref": "#/definitions/WorkItemChangeSetIdentity"
+            }
+          },
+          "required": [
+            "markdown",
+            "name",
+            "op",
+            "parent",
+            "ref"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
               "const": "layout.clear"
             },
             "root": {
@@ -19742,8 +19710,14 @@
             "source": {
               "$ref": "#/definitions/WorkItemChangeSetIdentity"
             },
+            "sourceEntityType": {
+              "$ref": "#/definitions/AgentEdgeEndpointEntityType"
+            },
             "target": {
               "$ref": "#/definitions/WorkItemChangeSetIdentity"
+            },
+            "targetEntityType": {
+              "$ref": "#/definitions/AgentEdgeEndpointEntityType"
             },
             "edgeType": {
               "type": "string",
@@ -20198,6 +20172,31 @@
         }
       ]
     },
+    "TemporaryWorkItemIdentity": {
+      "type": "object",
+      "properties": {
+        "refType": {
+          "$ref": "#/definitions/TemporaryWorkItemIdentityRefTypeEnum"
+        },
+        "tempId": {
+          "type": "string",
+          "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+        }
+      },
+      "required": [
+        "refType",
+        "tempId"
+      ]
+    },
+    "TemporaryWorkItemIdentityRefTypeEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "temporary"
+        },
+        {}
+      ]
+    },
     "WorkItemChangeSetLayoutEntry": {
       "type": "object",
       "properties": {
@@ -20321,31 +20320,6 @@
         {
           "type": "string",
           "const": "flow"
-        },
-        {}
-      ]
-    },
-    "TemporaryWorkItemIdentity": {
-      "type": "object",
-      "properties": {
-        "refType": {
-          "$ref": "#/definitions/TemporaryWorkItemIdentityRefTypeEnum"
-        },
-        "tempId": {
-          "type": "string",
-          "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
-        }
-      },
-      "required": [
-        "refType",
-        "tempId"
-      ]
-    },
-    "TemporaryWorkItemIdentityRefTypeEnum": {
-      "anyOf": [
-        {
-          "type": "string",
-          "const": "temporary"
         },
         {}
       ]

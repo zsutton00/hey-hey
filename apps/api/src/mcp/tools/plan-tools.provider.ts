@@ -4,7 +4,12 @@ import { Context, Tool } from '@rekog/mcp-nest';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { WorkflowName } from '@hey-hey/contracts/api/models';
-import { PLAN_FROM_EXISTING_TASKS_KIND } from '../../services/plan/plan-from-existing-tasks.schema';
+import { PrismaService } from 'src/prisma/prisma.service';
+import type {
+  WorkItemChangeSetOperation,
+  WorkItemChangeSetValidationRequest,
+  WorkItemChangeSetIdentity,
+} from '@hey-hey/contracts/api/models';
 import { ProposalService } from '../../services/proposal/proposal.service';
 import type { StampedCreateProposalDto } from '../../services/proposal/proposal.types';
 import type { ProjectId, TaskId } from '../../types';
@@ -152,7 +157,10 @@ type CreatePlanOutput = z.infer<typeof createPlanResultOutput>;
 export class PlanToolsProvider {
   private readonly logger = new Logger(PlanToolsProvider.name);
 
-  constructor(private readonly proposalService: ProposalService) {}
+  constructor(
+    private readonly proposalService: ProposalService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Tool({
     name: ORCHESTRATION_TOOL_NAMES.CREATE_PLAN,
@@ -273,6 +281,9 @@ export class PlanToolsProvider {
       | undefined;
     const projectId = request.headers['x-project-id'] as string | undefined;
     if (!projectId) {
+      this.logger.warn(
+        'create_plan_from_existing_tasks rejected: missing project context',
+      );
       return mcpError(
         'Missing project context. Ensure X-Project-ID header is set.',
       );
@@ -290,16 +301,198 @@ export class PlanToolsProvider {
       params.generatedWithVersion,
     );
 
-    const updates: Record<string, unknown> = {
-      proposalKind: PLAN_FROM_EXISTING_TASKS_KIND,
-      planTitle: params.planTitle,
-      designDocMarkdown: params.designDocMarkdown,
-      parentFeatureId: params.parentFeatureId,
-      stages: params.stages,
-      ...(params.taskPrerequisites
-        ? { taskPrerequisites: params.taskPrerequisites }
-        : {}),
+    const reject = (code: string, reason: string) => {
+      this.logger.warn('create_plan_from_existing_tasks rejected', {
+        code,
+        reason,
+      });
+      return mcpError(`${code}: ${reason}`);
     };
+    const taskIds = params.stages.flatMap((stage) => stage.taskIds);
+    if (
+      taskIds.length === 0 ||
+      params.stages.some((stage) => stage.taskIds.length === 0)
+    ) {
+      return reject('EMPTY_TASK_LIST', 'Every stage must list existing tasks.');
+    }
+    if (new Set(taskIds).size !== taskIds.length) {
+      return reject(
+        'DUPLICATE_TASK_ASSIGNMENT',
+        'A task may appear only once in the Plan.',
+      );
+    }
+    const scope = {
+      organizationId: auth.organizationId,
+      projectId,
+      archivedAt: null,
+    };
+    const feature = await this.prisma.db.task.findFirst({
+      where: { ...scope, id: params.parentFeatureId, type: 'FEATURE' },
+      select: { id: true },
+    });
+    if (!feature) {
+      return reject(
+        'PARENT_FEATURE_NOT_FOUND',
+        'The parent Feature does not exist in this project.',
+      );
+    }
+    const prerequisites = params.taskPrerequisites ?? [];
+    const rows = await this.prisma.db.task.findMany({
+      where: {
+        ...scope,
+        id: {
+          in: [
+            ...new Set([
+              ...taskIds,
+              ...prerequisites.map((p) => p.dependsOnTaskId),
+            ]),
+          ],
+        },
+      },
+      select: { id: true, type: true, parentTaskId: true },
+    });
+    const byId = new Map<string, (typeof rows)[number]>(
+      rows.map((row) => [row.id, row]),
+    );
+    const features = new Set<string>();
+    for (const taskId of taskIds) {
+      const row = byId.get(taskId);
+      if (!row) {
+        return reject(
+          'TASK_NOT_FOUND',
+          `Task ${taskId} does not exist in this project.`,
+        );
+      }
+      if (row.type !== 'STANDARD') {
+        return reject(
+          'TASK_NOT_STANDARD',
+          `Work item ${taskId} is not a Standard Task.`,
+        );
+      }
+      let parentId = row.parentTaskId;
+      const seen = new Set<string>();
+      while (parentId && !seen.has(parentId)) {
+        seen.add(parentId);
+        const parent = await this.prisma.db.task.findFirst({
+          where: { ...scope, id: parentId },
+          select: { id: true, type: true, parentTaskId: true },
+        });
+        if (!parent) {
+          break;
+        }
+        if (parent.type === 'PLAN' || parent.type === 'PLAN_STAGE') {
+          return reject(
+            'TASK_ALREADY_IN_PLAN',
+            `Task ${taskId} is already inside a Plan.`,
+          );
+        }
+        if (parent.type === 'FEATURE') {
+          features.add(parent.id);
+          break;
+        }
+        parentId = parent.parentTaskId;
+      }
+    }
+    for (const prerequisite of prerequisites) {
+      if (!taskIds.includes(prerequisite.taskId)) {
+        return reject(
+          'PREREQUISITE_TASK_NOT_ADOPTED',
+          'A prerequisite source must be an adopted Task.',
+        );
+      }
+      if (prerequisite.taskId === prerequisite.dependsOnTaskId) {
+        return reject('SELF_DEPENDENCY', 'A Task cannot depend on itself.');
+      }
+      if (!byId.has(prerequisite.dependsOnTaskId)) {
+        return reject(
+          'PREREQUISITE_NOT_FOUND',
+          `Prerequisite ${prerequisite.dependsOnTaskId} does not exist in this project.`,
+        );
+      }
+    }
+    const temporary = (tempId: string): WorkItemChangeSetIdentity => ({
+      refType: 'temporary',
+      tempId,
+    });
+    const existing = (id: string): WorkItemChangeSetIdentity => ({
+      refType: 'existing',
+      id,
+    });
+    const root = { refType: 'temporary', tempId: 'plan' } as const;
+    const operations: WorkItemChangeSetOperation[] = [
+      {
+        op: 'workItem.create',
+        ref: root,
+        type: 'PLAN',
+        name: params.planTitle,
+        parent: existing(params.parentFeatureId),
+      },
+      {
+        op: 'section.replace',
+        ref: root,
+        key: 'outcome',
+        content: params.planTitle,
+      },
+      {
+        op: 'designDoc.create',
+        ref: { refType: 'temporary', tempId: 'design-doc' },
+        name: params.planTitle,
+        markdown: params.designDocMarkdown,
+        parent: root,
+      },
+    ];
+    const relationship = (
+      source: WorkItemChangeSetIdentity,
+      target: WorkItemChangeSetIdentity,
+      edgeType: 'DEPENDS_ON' | 'RELATED_TO' | 'DERIVES_FROM',
+      targetEntityType: 'TASK' | 'DESIGN_DOC' = 'TASK',
+    ) => {
+      operations.push({
+        op: 'relationship.create',
+        ref: { refType: 'temporary', tempId: `edge-${operations.length}` },
+        source,
+        target,
+        edgeType,
+        targetEntityType,
+      });
+    };
+    relationship(root, temporary('design-doc'), 'DERIVES_FROM', 'DESIGN_DOC');
+    params.stages.forEach((stage, index) => {
+      const ref = { refType: 'temporary', tempId: `stage-${index}` } as const;
+      operations.push({
+        op: 'workItem.create',
+        ref,
+        type: 'PLAN_STAGE',
+        name: stage.title,
+        parent: root,
+      });
+      for (const id of stage.taskIds) {
+        operations.push({
+          op: 'workItem.update',
+          ref: existing(id),
+          parent: ref,
+        });
+      }
+      if (index > 0) {
+        relationship(ref, temporary(`stage-${index - 1}`), 'DEPENDS_ON');
+      }
+    });
+    for (const prerequisite of prerequisites) {
+      relationship(
+        existing(prerequisite.taskId),
+        existing(prerequisite.dependsOnTaskId),
+        'DEPENDS_ON',
+      );
+    }
+    for (const id of features) {
+      if (id !== params.parentFeatureId) {
+        relationship(root, existing(id), 'RELATED_TO');
+      }
+    }
+    const updates = {
+      root,
+      operations,
+    } satisfies WorkItemChangeSetValidationRequest;
 
     const dto: StampedCreateProposalDto = {
       ragEnabled: params.ragEnabled,
@@ -340,7 +533,18 @@ export class PlanToolsProvider {
       };
     } catch (error: unknown) {
       const invalidChangeSet = invalidProposalChangeSetFromError(error);
-      if (invalidChangeSet) return invalidChangeSet;
+      if (invalidChangeSet) {
+        this.logger.warn(
+          'create_plan_from_existing_tasks rejected by shared admission',
+          {
+            issues: invalidChangeSet.issues.map((issue) => ({
+              code: issue.code,
+              field: issue.field,
+            })),
+          },
+        );
+        return invalidChangeSet;
+      }
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.warn(`create_plan_from_existing_tasks failed: ${message}`);
       return mcpError(message);

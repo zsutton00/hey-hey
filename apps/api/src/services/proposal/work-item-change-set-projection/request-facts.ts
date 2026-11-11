@@ -60,6 +60,7 @@ export function namedExistingIds(
   }
   for (const operation of request.operations) {
     switch (operation.op) {
+      case 'designDoc.create':
       case 'workItem.create':
         visit(operation.parent);
         break;

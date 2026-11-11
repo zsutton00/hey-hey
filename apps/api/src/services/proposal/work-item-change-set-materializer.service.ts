@@ -1,3 +1,6 @@
+import { DesignDocService } from '../design-doc/design-doc.service';
+import { v5 as uuidv5 } from 'uuid';
+import type { DesignDocId } from 'src/types';
 import type { FutureGraphApplication } from './future-graph';
 import { ModuleRef } from '@nestjs/core';
 import { ProposalGroupDecisionService } from './proposal-group-decision.service';
@@ -270,6 +273,7 @@ export class WorkItemChangeSetMaterializerService {
     private readonly pendingEdgeService: PendingEdgeService,
     private readonly mentionProcessingService: MentionProcessingService,
     @Optional() private readonly modules?: ModuleRef,
+    @Optional() private readonly designDocService?: DesignDocService,
   ) {}
 
   async hasNonterminalIntent(
@@ -1369,6 +1373,7 @@ export class WorkItemChangeSetMaterializerService {
     const mappings = this.allocateIdentityMappings(
       operationSet,
       params.reservedRootWorkItemId,
+      params.proposalId,
     );
     this.includeProjectionIdentities(mappings, projections.prior);
     this.includeProjectionIdentities(mappings, projections.target);
@@ -2756,6 +2761,70 @@ export class WorkItemChangeSetMaterializerService {
     requirementsReplacedIds?: ReadonlySet<string>,
   ): Promise<void> {
     switch (operation.op) {
+      case 'designDoc.create': {
+        if (!this.designDocService) {
+          throw new InternalServerErrorException(
+            'DesignDocService is unavailable for designDoc.create.',
+          );
+        }
+        const service = this.designDocService;
+        await this.prisma.db.$transaction(async (tx) => {
+          await tx.$queryRaw`SELECT id FROM work_item_change_set_materializations WHERE id = ${materializationId} FOR UPDATE`;
+          const intent =
+            await tx.workItemChangeSetMaterialization.findUniqueOrThrow({
+              where: { id: materializationId },
+            });
+          if (
+            intent.claimToken !== claimToken ||
+            !intent.claimExpiresAt ||
+            intent.claimExpiresAt <= new Date()
+          ) {
+            throw new ConflictException(
+              'The application claim expired before document creation.',
+            );
+          }
+          const id = this.resolveWorkItemId(
+            operation.ref,
+            mappings.workItems,
+          ) as DesignDocId;
+          const existing = await tx.designDoc.findUnique({ where: { id } });
+          if (!existing) {
+            await service.createInTransaction(
+              tx as unknown as Prisma.TransactionClient,
+              {
+                name: operation.name,
+                template: 'PLAN_DOCUMENT',
+                status: 'READY',
+                organizationId: params.organizationId,
+                projectId: params.projectId,
+                parentEntityType: 'TASK',
+                parentEntityId: this.resolveWorkItemId(
+                  operation.parent,
+                  mappings.workItems,
+                ),
+                sections: [
+                  { key: 'content', order: 0, content: operation.markdown },
+                ],
+              },
+              id,
+            );
+          }
+          await tx.workItemChangeSetMaterializationCheckpoint.update({
+            where: {
+              materializationId_operationIndex: {
+                materializationId,
+                operationIndex,
+              },
+            },
+            data: {
+              status: WorkItemChangeSetCheckpointStatus.COMPLETED,
+              completedAt: new Date(),
+              lastError: null,
+            },
+          });
+        });
+        return;
+      }
       case 'workItem.create':
         await this.guardedTaskTransaction(
           params,
@@ -2768,6 +2837,7 @@ export class WorkItemChangeSetMaterializerService {
             const proposalPayload = await this.findTaskProposalPayload(
               params.proposalId,
               operation,
+              tx,
             );
             const createTaskDto = this.mergeCreateTaskProposalPayload(
               this.toCreateTaskDto(operation, mappings),
@@ -2825,6 +2895,7 @@ export class WorkItemChangeSetMaterializerService {
               const proposalPayload = await this.findTaskProposalPayload(
                 params.proposalId,
                 operation,
+                tx,
               );
               const updateTaskDto = this.mergeUpdateTaskProposalPayload(
                 this.toUpdateTaskDto(operation, mappings),
@@ -3263,6 +3334,28 @@ export class WorkItemChangeSetMaterializerService {
       return false;
     };
     switch (operation.op) {
+      case 'designDoc.create': {
+        const doc = await this.prisma.db.designDoc.findFirst({
+          where: {
+            id: this.resolveWorkItemId(operation.ref, mappings.workItems),
+            organizationId: params.organizationId,
+            projectId: params.projectId,
+          },
+          include: { sections: true },
+        });
+        return (
+          !!doc &&
+          doc.name === operation.name &&
+          doc.parentEntityType === 'TASK' &&
+          doc.parentEntityId ===
+            this.resolveWorkItemId(operation.parent, mappings.workItems) &&
+          doc.sections.some(
+            (section) =>
+              section.key === 'content' &&
+              section.materializedMarkdown === operation.markdown,
+          )
+        );
+      }
       case 'workItem.create':
       case 'workItem.update': {
         const task = await this.prisma.db.task.findFirst({
@@ -3508,7 +3601,10 @@ export class WorkItemChangeSetMaterializerService {
       ],
       [
         'sourceEntityType',
-        edge.sourceEntityType === AgentEdgeEndpointEntityType.Task,
+        edge.sourceEntityType ===
+          ('sourceEntityType' in operation
+            ? (operation.sourceEntityType ?? AgentEdgeEndpointEntityType.Task)
+            : AgentEdgeEndpointEntityType.Task),
       ],
       [
         'targetNodeId',
@@ -3517,7 +3613,10 @@ export class WorkItemChangeSetMaterializerService {
       ],
       [
         'targetEntityType',
-        edge.targetEntityType === AgentEdgeEndpointEntityType.Task,
+        edge.targetEntityType ===
+          ('targetEntityType' in operation
+            ? (operation.targetEntityType ?? AgentEdgeEndpointEntityType.Task)
+            : AgentEdgeEndpointEntityType.Task),
       ],
       ['type', edge.type === operation.edgeType],
       [
@@ -4427,6 +4526,7 @@ export class WorkItemChangeSetMaterializerService {
   private allocateIdentityMappings(
     request: WorkItemChangeSetValidationRequest,
     reservedRootWorkItemId?: TaskId,
+    proposalId?: string,
   ): IdentityMappings {
     const workItems: Record<string, string> = {};
     const relationships: Record<string, string> = {};
@@ -4455,8 +4555,18 @@ export class WorkItemChangeSetMaterializerService {
       }
       workItems[this.workItemKey(request.root)] = reservedRootWorkItemId;
     }
-    for (const operation of request.operations) {
-      if ('ref' in operation && operation.op.startsWith('workItem.')) {
+    for (const [index, operation] of request.operations.entries()) {
+      if (operation.op === 'designDoc.create' && proposalId) {
+        workItems[this.workItemKey(operation.ref)] = uuidv5(
+          `design-doc:${index}`,
+          proposalId,
+        );
+      }
+      if (
+        'ref' in operation &&
+        (operation.op.startsWith('workItem.') ||
+          operation.op === 'designDoc.create')
+      ) {
         visitWorkItem(operation.ref as WorkItemChangeSetIdentity);
       }
       if ('root' in operation) visitWorkItem(operation.root);
@@ -4552,8 +4662,9 @@ export class WorkItemChangeSetMaterializerService {
     operation:
       | Extract<WorkItemChangeSetOperation, { op: 'workItem.create' }>
       | Extract<WorkItemChangeSetOperation, { op: 'workItem.update' }>,
+    db: AnyTransactionClient = this.prisma.db,
   ): Promise<TaskProposalMaterializationPayload | null> {
-    const proposal = await this.prisma.db.proposal.findUnique({
+    const proposal = await db.proposal.findUnique({
       where: { id: proposalId },
       select: {
         action: true,
@@ -4734,12 +4845,18 @@ export class WorkItemChangeSetMaterializerService {
         operation.source,
         mappings.workItems,
       ),
-      sourceEntityType: AgentEdgeEndpointEntityType.Task,
+      sourceEntityType:
+        'sourceEntityType' in operation
+          ? (operation.sourceEntityType ?? AgentEdgeEndpointEntityType.Task)
+          : AgentEdgeEndpointEntityType.Task,
       targetNodeId: this.resolveWorkItemId(
         operation.target,
         mappings.workItems,
       ),
-      targetEntityType: AgentEdgeEndpointEntityType.Task,
+      targetEntityType:
+        'targetEntityType' in operation
+          ? (operation.targetEntityType ?? AgentEdgeEndpointEntityType.Task)
+          : AgentEdgeEndpointEntityType.Task,
       type: operation.edgeType,
       category: operation.category,
       ...('direction' in operation
@@ -4775,7 +4892,11 @@ export class WorkItemChangeSetMaterializerService {
               operation.source,
               mappings.workItems,
             ),
-            sourceEntityType: AgentEdgeEndpointEntityType.Task,
+            sourceEntityType:
+              'sourceEntityType' in operation
+                ? (operation.sourceEntityType ??
+                  AgentEdgeEndpointEntityType.Task)
+                : AgentEdgeEndpointEntityType.Task,
           }
         : {}),
       ...(operation.target
@@ -4784,7 +4905,11 @@ export class WorkItemChangeSetMaterializerService {
               operation.target,
               mappings.workItems,
             ),
-            targetEntityType: AgentEdgeEndpointEntityType.Task,
+            targetEntityType:
+              'targetEntityType' in operation
+                ? (operation.targetEntityType ??
+                  AgentEdgeEndpointEntityType.Task)
+                : AgentEdgeEndpointEntityType.Task,
           }
         : {}),
       type: operation.edgeType,

@@ -98,7 +98,6 @@ import {
   ResolvedMention,
 } from 'src/services/mentions/mention-processing.service';
 import { PlanFromDesignDocLauncherService } from 'src/services/plan/plan-from-design-doc-launcher.service';
-import { PlanFromExistingTasksAdoptionService } from 'src/services/plan/plan-from-existing-tasks-adoption.service';
 import { TaskService } from 'src/services/tasks/task.service';
 import type { TaskUpdatePostCommit } from 'src/services/tasks/task.service';
 import { WORK_ITEM_TYPE_KEYS } from 'src/services/tasks/work-item-type-keys';
@@ -1011,7 +1010,6 @@ export class ProposalApprovalService {
     private readonly projectApprovalPolicyService: ProjectApprovalPolicyService,
     private readonly projectAccess: ProjectAccessService,
     private readonly reconciliation: ProposalReconciliationService,
-    private readonly planFromExistingTasksAdoption: PlanFromExistingTasksAdoptionService,
     @Optional()
     private readonly entityPromptTemplateService?: EntityPromptTemplateService,
     @Optional()
@@ -1309,13 +1307,6 @@ export class ProposalApprovalService {
         userId,
         'manageWorkItemTypes',
       );
-    }
-    if (
-      unlocked?.status === 'APPROVED' &&
-      unlocked.action === 'CREATE' &&
-      this.planFromExistingTasksAdoption.isAdoptionPayload(unlocked.updates)
-    ) {
-      return this.republishAdoptionEdges(unlocked, projectPolicy);
     }
     if (unlocked && unlocked.status !== 'DRAFT') {
       throw new BadRequestException(
@@ -2406,17 +2397,6 @@ export class ProposalApprovalService {
         });
         if (!task) {
           mismatches = ['entity is missing'];
-          break;
-        }
-        if (this.planFromExistingTasksAdoption.isAdoptionPayload(updates)) {
-          mismatches = this.collectMaterializationMismatches([
-            ['organizationId', task.organizationId, organizationId],
-            ['projectId', task.projectId, projectId],
-            ['archivedAt', task.archivedAt, null],
-            ['name', task.name, updates.planTitle],
-            ['type', task.type, 'PLAN'],
-            ['parentTaskId', task.parentTaskId, updates.parentFeatureId],
-          ]);
           break;
         }
         mismatches = this.collectMaterializationMismatches([
@@ -3552,16 +3532,6 @@ export class ProposalApprovalService {
 
     switch (proposal.targetEntityType) {
       case 'TASK':
-        if (this.planFromExistingTasksAdoption.isAdoptionPayload(updates)) {
-          return this.enactPlanFromExistingTasks(
-            tx,
-            updates as Record<string, unknown>,
-            proposal,
-            organizationId,
-            projectId,
-            options.reservedTargetEntityId,
-          );
-        }
         return this.enactCreateTask(
           tx,
           updates as CreateTaskDto,
@@ -4012,91 +3982,6 @@ export class ProposalApprovalService {
       ],
       runPostCommit: NOOP_POST_COMMIT,
       durablePostCommits: [],
-    };
-  }
-
-  /**
-   * Approving an already-approved adoption retries its graph publication. The
-   * Plan, stages and Task moves are committed, so only the dependency edges can
-   * be missing; they are rebuilt from committed state and published with their
-   * original stable identities, so a repeat creates nothing new.
-   */
-  private async republishAdoptionEdges(
-    proposal: Proposal,
-    projectPolicy: ProjectApprovalPolicy,
-  ): Promise<ApprovalResult> {
-    const organizationId = proposal.organizationId as OrganizationId;
-    const projectId = proposal.projectId as ProjectId;
-    const edges =
-      await this.planFromExistingTasksAdoption.rebuildPublicationEdges({
-        proposalId: proposal.id,
-        planId: proposal.targetEntityId,
-        updates: proposal.updates as Record<string, unknown>,
-        organizationId,
-        projectId,
-        db: this.prisma.db,
-      });
-    this.logger.log('Retrying adoption dependency publication', {
-      proposalId: proposal.id,
-      planId: proposal.targetEntityId,
-      edgeCount: edges.length,
-    });
-    await this.pendingEdgeService.materializeEdges(
-      organizationId,
-      projectId,
-      edges,
-      proposal.conversationId,
-    );
-
-    return {
-      proposal: await this.toResponseDto(proposal, projectPolicy),
-      resultingEntityId: proposal.targetEntityId,
-      enacted: true,
-    };
-  }
-
-  /**
-   * Adopt the reviewed existing Tasks into a new Plan. Everything is written
-   * in the approval transaction; graph edges publish after commit with stable
-   * identities so a retry cannot duplicate them.
-   */
-  private async enactPlanFromExistingTasks(
-    tx: AnyTransactionClient,
-    updates: Record<string, unknown>,
-    proposal: Proposal,
-    organizationId: OrganizationId,
-    projectId: ProjectId,
-    reservedPlanId?: string,
-  ): Promise<EnactResult> {
-    const adoption =
-      await this.planFromExistingTasksAdoption.adoptInTransaction(tx, {
-        proposalId: proposal.id,
-        updates,
-        requestorId: proposal.requestorId as UserId,
-        organizationId,
-        projectId,
-        ...(reservedPlanId ? { reservedPlanId } : {}),
-      });
-
-    return {
-      entityId: adoption.planId,
-      materializableEdges: adoption.edges,
-      runPostCommit: async () => {
-        for (const { taskId, postCommit } of adoption.taskPostCommits) {
-          await this.taskService.runUpdatePostCommit(
-            organizationId,
-            taskId as TaskId,
-            postCommit,
-          );
-        }
-      },
-      durablePostCommits: adoption.taskPostCommits.map(
-        ({ taskId, postCommit }): DurablePostCommit => ({
-          kind: 'TASK_UPDATE',
-          entityId: taskId,
-          payload: postCommit,
-        }),
-      ),
     };
   }
 

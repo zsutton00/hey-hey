@@ -1,3 +1,5 @@
+import { PlanToolsProvider } from '../../../mcp/tools/plan-tools.provider';
+import { workItemChangeSetValidationRequestSchema } from '../work-item-change-set.schema';
 import { ProposalReconciliationAdapterService } from '../proposal-reconciliation-adapter.service';
 import { createWarmWorkItemTypeRegistryWithCustomTypes } from '../../../../test/setup/work-item-type-registry.fixture';
 import { WorkItemParentageValidator } from '../../tasks/work-item-parentage-validator.service';
@@ -20,7 +22,6 @@ import {
   PROPOSAL_ENACTMENT_TRANSACTION_OPTIONS,
   ProposalApprovalService,
 } from '../proposal-approval.service';
-import { PlanFromExistingTasksAdoptionService } from '../../plan/plan-from-existing-tasks-adoption.service';
 import { TaskService } from '../../tasks/task.service';
 import { WorkItemTypeRegistryService } from '../../tasks/work-item-type-registry.service';
 import { WorkItemTypeLifecycleService } from '../../tasks/work-item-type-lifecycle.service';
@@ -190,11 +191,6 @@ describe('ProposalApprovalService', () => {
   };
   let mockPlanFromDesignDocLauncher: {
     materializeRunInTransaction: jest.Mock;
-  };
-  let mockAdoption: {
-    isAdoptionPayload: jest.Mock;
-    adoptInTransaction: jest.Mock;
-    rebuildPublicationEdges: jest.Mock;
   };
   let mockMentionProcessingService: {
     extractAndValidate: jest.Mock;
@@ -400,11 +396,6 @@ describe('ProposalApprovalService', () => {
     mockPlanFromDesignDocLauncher = {
       materializeRunInTransaction: jest.fn(),
     };
-    mockAdoption = {
-      isAdoptionPayload: jest.fn().mockReturnValue(false),
-      adoptInTransaction: jest.fn(),
-      rebuildPublicationEdges: jest.fn(),
-    };
     mockMentionProcessingService = {
       extractAndValidate: jest.fn().mockResolvedValue([]),
       extractMentionTokens: jest.fn().mockReturnValue([]),
@@ -520,10 +511,6 @@ describe('ProposalApprovalService', () => {
       providers: [
         { provide: ProjectAccessService, useValue: mockProjectAccess },
         ProposalApprovalService,
-        {
-          provide: PlanFromExistingTasksAdoptionService,
-          useValue: mockAdoption,
-        },
         {
           provide: ProposalReconciliationService,
           useValue: {
@@ -2170,139 +2157,6 @@ describe('ProposalApprovalService', () => {
         ).not.toHaveBeenCalled();
       },
     );
-  });
-
-  describe('approve() with CREATE + TASK (plan from existing tasks)', () => {
-    const NIL_UUID = '00000000-0000-0000-0000-000000000000';
-    const adoptedPlanId = '123e4567-e89b-42d3-a456-426614174555';
-    const adoptedTaskId = '123e4567-e89b-42d3-a456-426614174556';
-    const edges = [
-      {
-        id: 'edge-1',
-        sourceEntityId: 'stage-2',
-        sourceEntityType: 'TASK',
-        targetEntityId: 'stage-1',
-        targetEntityType: 'TASK',
-        edgeType: 'DEPENDS_ON',
-      },
-    ];
-    const updates = {
-      proposalKind: 'PLAN_FROM_EXISTING_TASKS',
-      planTitle: 'Adopted plan',
-      designDocMarkdown: '# Design',
-      parentFeatureId: testIds.task,
-      stages: [{ title: 'First', taskIds: [adoptedTaskId] }],
-    };
-    const adoptedPostCommit = { artifactRefresh: true };
-
-    beforeEach(() => {
-      mockAdoption.isAdoptionPayload.mockReturnValue(true);
-      mockAdoption.adoptInTransaction.mockResolvedValue({
-        planId: adoptedPlanId,
-        designDocId: 'doc',
-        stageIds: ['stage-1'],
-        edges,
-        taskPostCommits: [
-          { taskId: adoptedTaskId, postCommit: adoptedPostCommit },
-        ],
-      });
-    });
-
-    it('records the created Plan as the proposal target and publishes its edges and task post-commits', async () => {
-      const draft = makeStoredProposal({
-        targetEntityId: NIL_UUID,
-        updates,
-      });
-      setupForApproval(draft);
-
-      const result = await service.approve(
-        proposalId,
-        testIds.organization,
-        testIds.project,
-        approvingUserId,
-      );
-
-      expect(result.resultingEntityId).toBe(adoptedPlanId);
-      expect(txMock.proposal.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { targetEntityId: adoptedPlanId } }),
-      );
-      expect(mockPendingEdgeService.materializeEdges).toHaveBeenCalledWith(
-        testIds.organization,
-        testIds.project,
-        expect.arrayContaining(edges),
-        null,
-      );
-      expect(mockTaskService.runUpdatePostCommit).toHaveBeenCalledWith(
-        testIds.organization,
-        adoptedTaskId,
-        adoptedPostCommit,
-      );
-      expect(mockTaskService.createInTransaction).not.toHaveBeenCalled();
-    });
-
-    it('rolls nothing forward when adoption is rejected', async () => {
-      setupForApproval(
-        makeStoredProposal({ targetEntityId: NIL_UUID, updates }),
-      );
-      mockAdoption.adoptInTransaction.mockRejectedValue(
-        new BadRequestException('Task is already inside Plan'),
-      );
-
-      await expect(
-        service.approve(
-          proposalId,
-          testIds.organization,
-          testIds.project,
-          approvingUserId,
-        ),
-      ).rejects.toThrow('already inside Plan');
-      expect(mockPendingEdgeService.materializeEdges).not.toHaveBeenCalled();
-    });
-
-    it('lets a repeated approval complete failed dependency publication without adopting again', async () => {
-      const draft = makeStoredProposal({
-        targetEntityId: NIL_UUID,
-        updates,
-      });
-      setupForApproval(draft);
-      mockPendingEdgeService.materializeEdges.mockRejectedValueOnce(
-        new Error('graph unavailable'),
-      );
-
-      await expect(
-        service.approve(
-          proposalId,
-          testIds.organization,
-          testIds.project,
-          approvingUserId,
-        ),
-      ).rejects.toThrow('graph unavailable');
-      mockAdoption.adoptInTransaction.mockClear();
-
-      const approved = {
-        ...draft,
-        status: 'APPROVED',
-        targetEntityId: adoptedPlanId,
-      };
-      stubStoredProposal(approved);
-      mockAdoption.rebuildPublicationEdges.mockResolvedValue(edges);
-
-      const retry = await service.approve(
-        proposalId,
-        testIds.organization,
-        testIds.project,
-        approvingUserId,
-      );
-
-      expect(retry.resultingEntityId).toBe(adoptedPlanId);
-      expect(mockAdoption.adoptInTransaction).not.toHaveBeenCalled();
-      expect(mockPendingEdgeService.materializeEdges).toHaveBeenLastCalledWith(
-        testIds.organization,
-        testIds.project,
-        edges,
-        null,
-      );
-    });
   });
 
   describe('approve() with CREATE + CONVERSATION (plan-from-design-doc)', () => {
@@ -4348,20 +4202,82 @@ describe('ProposalApprovalService', () => {
       },
     );
 
-    it('records approval and completes the selected generic enactment before returning', async () => {
-      const draft = makeStoredProposal({
-        updates: {
-          root: { refType: 'temporary', tempId: 'root' },
-          operations: [
-            {
-              op: 'workItem.create',
-              ref: { refType: 'temporary', tempId: 'root' },
-              name: 'Root',
-              type: 'STANDARD',
+    it('approves the real four-stage producer payload through generic enactment without a top-level name', async () => {
+      let stored: unknown;
+      const ids = [
+        '11111111-1111-4111-8111-111111111111',
+        '22222222-2222-4222-8222-222222222222',
+        '33333333-3333-4333-8333-333333333333',
+        '44444444-4444-4444-8444-444444444444',
+      ] as const;
+      const provider = new PlanToolsProvider(
+        {
+          create: async (
+            _org: unknown,
+            _project: unknown,
+            _user: unknown,
+            dto: { updates: unknown },
+          ) => {
+            stored = dto.updates;
+            return {
+              id: proposalId,
+              status: 'DRAFT',
+              action: 'CREATE',
+              targetEntityType: 'TASK',
+              targetEntityId: '00000000-0000-0000-0000-000000000000',
+              createdAt: '',
+            };
+          },
+        } as any,
+        {
+          db: {
+            task: {
+              findFirst: jest.fn().mockResolvedValue({
+                id: testIds.task,
+                type: 'FEATURE',
+                parentTaskId: null,
+              }),
+              findMany: jest.fn().mockResolvedValue(
+                ids.map((id) => ({
+                  id,
+                  type: 'STANDARD',
+                  parentTaskId: testIds.task,
+                })),
+              ),
             },
-          ],
+          },
+        } as any,
+      );
+      await provider.createPlanFromExistingTasks(
+        {
+          planTitle: 'Deliver existing work',
+          eli5: 'Organize the reviewed tasks.',
+          parentFeatureId: testIds.task,
+          designDocMarkdown:
+            '# Full design\n\n' +
+            'Reviewed implementation decisions.\n'.repeat(300),
+          stages: ids.map((id, i) => ({
+            title: `Stage ${i + 1}`,
+            taskIds: [id],
+          })),
+          taskPrerequisites: [{ taskId: ids[3], dependsOnTaskId: ids[0] }],
         },
-      });
+        {} as any,
+        {
+          headers: { 'x-project-id': testIds.project },
+          user: {
+            userId: approvingUserId,
+            currentOrgId: testIds.organization,
+            orgMemberships: [],
+            isDevAdmin: false,
+            devAdminMode: false,
+          },
+        } as any,
+      );
+      const updates = workItemChangeSetValidationRequestSchema.parse(stored);
+      expect(updates).not.toHaveProperty('name');
+      expect(updates).not.toHaveProperty('planTitle');
+      const draft = makeStoredProposal({ updates });
       setupForApproval(draft);
 
       const result = await service.approve(

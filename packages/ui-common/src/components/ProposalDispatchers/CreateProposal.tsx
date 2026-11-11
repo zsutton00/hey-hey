@@ -238,7 +238,19 @@ export const CreateProposal: React.FC<CreateProposalProps> = ({
         : undefined;
 
       let rendered: React.ReactNode;
-      if (isWorkItemGraphProposal(proposal)) {
+      if (isExistingTaskPlanProposal(proposal)) {
+        rendered = (
+          <ExistingTaskPlanCreateRenderer
+            proposal={proposal}
+            onApply={onApply}
+            onApplied={onApplied}
+            onReject={onReject}
+            disabled={disabled}
+            siblingProposals={siblingProposals}
+            overrides={overrides}
+          />
+        );
+      } else if (isWorkItemGraphProposal(proposal)) {
         const graphStatus =
           getProposalMaterializationStatus(proposal) ?? status;
         rendered = (
@@ -252,18 +264,6 @@ export const CreateProposal: React.FC<CreateProposalProps> = ({
             disabled={disabled}
             siblingProposals={siblingProposals}
             approvalProgress={approvalProgress}
-            overrides={overrides}
-          />
-        );
-      } else if (isExistingTaskPlanProposal(proposal)) {
-        rendered = (
-          <ExistingTaskPlanCreateRenderer
-            proposal={proposal}
-            onApply={onApply}
-            onApplied={onApplied}
-            onReject={onReject}
-            disabled={disabled}
-            siblingProposals={siblingProposals}
             overrides={overrides}
           />
         );

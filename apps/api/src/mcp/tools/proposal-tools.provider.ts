@@ -40,10 +40,7 @@ import {
   rootChildrenView,
   WorkItemChangeSetProjectorService,
 } from '../../services/proposal/work-item-change-set-projector.service';
-import {
-  createdProposalTargetType,
-  planFromExistingTasksUpdatesSchema,
-} from '../../services/proposal/proposal-validation.engine';
+import { createdProposalTargetType } from '../../services/proposal/proposal-validation.engine';
 import type { StampedCreateProposalDto } from '../../services/proposal/proposal.types';
 import { readFutureRevision } from '../../services/proposal/future-revision';
 import { parseFutureRevisionAuthoring } from '../../services/proposal/future-revision-materializer';
@@ -1393,10 +1390,9 @@ const entityProposalUpdatesSchema = z
       'update DTO (e.g. name, sections, status, priority for tasks).',
   );
 
-// Adoption revisions carry a complete typed artifact, never task-generation fields.
 const proposalUpdatesSchema = z.union([
-  planFromExistingTasksUpdatesSchema,
   entityProposalUpdatesSchema,
+  workItemChangeSetValidationRequestSchema,
 ]);
 
 export const updateProposalParameters = z.object({
@@ -1569,6 +1565,9 @@ export function validateGraphOperationsAgainstCapability(params: {
 
   params.operations.forEach((operation, operationIndex) => {
     switch (operation.op) {
+      case 'designDoc.create':
+        requireAction('createNode', operationIndex, operation);
+        break;
       case 'workItem.create':
         requireAction('createNode', operationIndex, operation);
         if (operation.status === 'SUPERSEDED') {

@@ -1,3 +1,4 @@
+import { isExistingTaskPlanProposal } from "../types";
 import {
   act,
   fireEvent,
@@ -24,7 +25,7 @@ import {
   WorkStatus,
   WorkItemChangeSetMaterializationState,
   TaskSource,
-  type PlanFromExistingTasksUpdatesPayload,
+  type WorkItemChangeSetValidationRequest,
   type ProposalResponseDto,
   type TaskResponseDto,
 } from "../../../api";
@@ -54,17 +55,58 @@ vi.mock("../../../contexts/WebSocketContext", () => ({
   useOptionalWebSocketService: () => null,
 }));
 
-const artifact = {
-  proposalKind: "plan-from-existing-tasks",
-  parentFeatureId: "feature",
-  planTitle: "Deliver existing work",
-  designDocMarkdown: "# Complete design\n\nThe entire design body.",
-  stages: [
-    { title: "Prepare", summary: "Prepare the release", taskIds: ["first"] },
+function artifactFor(
+  stages = [
+    { title: "Prepare", taskIds: ["first"] },
     { title: "Deliver", taskIds: ["second", "third"] },
   ],
-  taskPrerequisites: [{ taskId: "second", dependsOnTaskIds: ["first"] }],
-} satisfies PlanFromExistingTasksUpdatesPayload;
+  markdown = "# Complete design\n\nThe entire design body.",
+  prerequisites = [{ taskId: "second", dependsOnTaskId: "first" }],
+): WorkItemChangeSetValidationRequest {
+  return {
+    root: { refType: "temporary", tempId: "plan" },
+    operations: [
+      {
+        op: "workItem.create",
+        ref: { refType: "temporary", tempId: "plan" },
+        type: "PLAN",
+        name: "Deliver existing work",
+        parent: { refType: "existing", id: "feature" },
+      },
+      {
+        op: "designDoc.create",
+        ref: { refType: "temporary", tempId: "doc" },
+        name: "Design",
+        markdown,
+        parent: { refType: "temporary", tempId: "plan" },
+      },
+      ...stages.flatMap(
+        (stage, i): WorkItemChangeSetValidationRequest["operations"] => [
+          {
+            op: "workItem.create",
+            ref: { refType: "temporary", tempId: `stage-${i}` },
+            type: "PLAN_STAGE",
+            name: stage.title,
+            parent: { refType: "temporary", tempId: "plan" },
+          },
+          ...stage.taskIds.map((id) => ({
+            op: "workItem.update" as const,
+            ref: { refType: "existing" as const, id },
+            parent: { refType: "temporary" as const, tempId: `stage-${i}` },
+          })),
+        ],
+      ),
+      ...prerequisites.map((p) => ({
+        op: "relationship.create" as const,
+        ref: { refType: "temporary" as const, tempId: `edge-${p.taskId}` },
+        source: { refType: "existing" as const, id: p.taskId },
+        target: { refType: "existing" as const, id: p.dependsOnTaskId },
+        edgeType: "DEPENDS_ON" as const,
+      })),
+    ],
+  };
+}
+const artifact = artifactFor();
 const initial: ProposalResponseDto = {
   id: "adoption",
   organizationId: "org",
@@ -74,7 +116,7 @@ const initial: ProposalResponseDto = {
   status: ProposalStatus.Draft,
   targetEntityType: TargetEntityType.Conversation,
   targetEntityId: "00000000-0000-0000-0000-000000000000",
-  title: artifact.planTitle,
+  title: "Deliver existing work",
   updates: artifact,
   eli5: "Organize the work already written.",
   requestorId: "author",
@@ -271,7 +313,11 @@ describe.each(["standalone", "detail"] as const)(
         updatedAt: "2026-11-10T01:00:00Z",
         updates: {
           ...artifact,
-          designDocMarkdown: "Revised design for approval",
+          operations: artifact.operations.map((operation) =>
+            operation.op === "designDoc.create"
+              ? { ...operation, markdown: "Revised design for approval" }
+              : operation,
+          ),
         },
       };
       await act(async () => {
@@ -331,7 +377,14 @@ describe.each(["standalone", "detail"] as const)(
       proposal = {
         ...proposal,
         updatedAt: "2026-11-10T03:00:00Z",
-        updates: { ...artifact, designDocMarkdown: "Corrected design" },
+        updates: {
+          ...artifact,
+          operations: artifact.operations.map((operation) =>
+            operation.op === "designDoc.create"
+              ? { ...operation, markdown: "Corrected design" }
+              : operation,
+          ),
+        },
       };
       await act(async () => {
         await client.invalidateQueries({
@@ -347,61 +400,20 @@ describe.each(["standalone", "detail"] as const)(
       ).toBeInTheDocument();
     });
 
-    it("never presents approval as completed adoption and follows authoritative same-identity results", async () => {
-      proposal = {
-        ...initial,
-        status: ProposalStatus.Approved,
-        targetEntityId: "reserved-plan",
-      };
+    it("links the created Plan when generic materialization is published", async () => {
       const { client } = harness(renderMode);
       await screen.findByRole("progressbar");
       expect(
-        screen.queryByRole("link", { name: artifact.planTitle }),
+        screen.queryByRole("link", { name: "Deliver existing work" }),
       ).not.toBeInTheDocument();
       proposal = {
-        ...proposal,
+        ...initial,
+        status: ProposalStatus.Approved,
         materialization: {
-          state: WorkItemChangeSetMaterializationState.RecoverableFailure,
+          state: WorkItemChangeSetMaterializationState.Published,
           attemptCount: 1,
           operations: [],
-          lastError: "Task moved to another Plan",
-          diagnostic: {
-            issueCount: 1,
-            truncated: false,
-            correlationId: "adoption-correlation",
-            issues: [
-              {
-                field: "stages[1].taskIds[0]",
-                code: "TASK_ALREADY_IN_PLAN",
-                reason: "Task moved to another Plan",
-                layer: "referential",
-              },
-            ],
-          },
         },
-      };
-      await act(async () => {
-        await client.invalidateQueries({
-          queryKey: proposalKeys.project("org", "project"),
-        });
-      });
-      expect(
-        await screen.findByText("Task moved to another Plan"),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByTestId("proposal-failure-diagnostic"),
-      ).toHaveTextContent("stages[1].taskIds[0]");
-      expect(
-        screen.getByTestId("proposal-failure-diagnostic"),
-      ).toHaveTextContent("TASK_ALREADY_IN_PLAN");
-      expect(
-        screen.getByTestId("proposal-failure-diagnostic"),
-      ).toHaveTextContent("referential");
-      expect(
-        screen.getByTestId("proposal-failure-diagnostic"),
-      ).toHaveTextContent("adoption-correlation");
-      proposal = {
-        ...proposal,
         targetEntityId: "created-plan",
         targetEntityType: TargetEntityType.Task,
         materialization: {
@@ -416,7 +428,7 @@ describe.each(["standalone", "detail"] as const)(
         });
       });
       expect(
-        await screen.findByRole("link", { name: artifact.planTitle }),
+        await screen.findByRole("link", { name: "Deliver existing work" }),
       ).toHaveAttribute("href", "/projects/project/plans/created-plan");
     });
   },
@@ -452,14 +464,11 @@ it("refreshes the complete revised artifact and cleared votes in both hosts", as
     ...proposal,
     updatedAt: "2026-11-10T01:00:00Z",
     approvals: [],
-    updates: {
-      ...artifact,
-      designDocMarkdown: "# Revised design\n\nRevised complete body.",
-      stages: [
-        { title: "Release together", taskIds: ["third", "first", "second"] },
-      ],
-      taskPrerequisites: [],
-    },
+    updates: artifactFor(
+      [{ title: "Release together", taskIds: ["third", "first", "second"] }],
+      "# Revised design\n\nRevised complete body.",
+      [],
+    ),
   };
   await act(async () => {
     await client.invalidateQueries({
@@ -494,4 +503,46 @@ it("batches and deduplicates more than 200 referenced identities", async () => {
   );
   expect(reads.map((batch) => batch.length)).toEqual([200, 5]);
   expect(new Set(reads.flat()).size).toBe(205);
+});
+
+it("routes only a Plan with its owned stages to existing-task Plan review", () => {
+  expect(isExistingTaskPlanProposal(initial)).toBe(true);
+  const featureProposal = {
+    ...initial,
+    updates: {
+      ...artifact,
+      operations: artifact.operations.map((operation) =>
+        operation.op === "workItem.create" && operation.type === "PLAN"
+          ? { ...operation, type: "FEATURE" }
+          : operation,
+      ),
+    },
+  };
+  expect(isExistingTaskPlanProposal(featureProposal)).toBe(false);
+  const withoutStages = {
+    ...initial,
+    updates: {
+      ...artifact,
+      operations: artifact.operations.filter(
+        (operation) =>
+          operation.op !== "workItem.create" || operation.type !== "PLAN_STAGE",
+      ),
+    },
+  };
+  expect(isExistingTaskPlanProposal(withoutStages)).toBe(false);
+  const unrelatedStages = {
+    ...initial,
+    updates: {
+      ...artifact,
+      operations: artifact.operations.map((operation) =>
+        operation.op === "workItem.create" && operation.type === "PLAN_STAGE"
+          ? {
+              ...operation,
+              parent: { refType: "temporary" as const, tempId: "other-root" },
+            }
+          : operation,
+      ),
+    },
+  };
+  expect(isExistingTaskPlanProposal(unrelatedStages)).toBe(false);
 });

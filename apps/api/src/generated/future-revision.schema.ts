@@ -1159,6 +1159,133 @@ export const futureRevisionMutationSchema = {
                                 }
                               ]
                             },
+                            "designDocs": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "identity",
+                                  "name",
+                                  "markdown",
+                                  "parent"
+                                ],
+                                "properties": {
+                                  "identity": {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "refType",
+                                          "id"
+                                        ],
+                                        "properties": {
+                                          "refType": {
+                                            "type": "string",
+                                            "enum": [
+                                              "existing"
+                                            ]
+                                          },
+                                          "id": {
+                                            "type": "string",
+                                            "format": "uuid"
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "refType",
+                                          "tempId"
+                                        ],
+                                        "properties": {
+                                          "refType": {
+                                            "type": "string",
+                                            "enum": [
+                                              "temporary"
+                                            ]
+                                          },
+                                          "tempId": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                          }
+                                        }
+                                      }
+                                    ],
+                                    "discriminator": {
+                                      "propertyName": "refType",
+                                      "mapping": {
+                                        "existing": "#/ExistingWorkItemIdentity",
+                                        "temporary": "#/TemporaryWorkItemIdentity"
+                                      }
+                                    },
+                                    "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "markdown": {
+                                    "type": "string"
+                                  },
+                                  "parent": {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "refType",
+                                          "id"
+                                        ],
+                                        "properties": {
+                                          "refType": {
+                                            "type": "string",
+                                            "enum": [
+                                              "existing"
+                                            ]
+                                          },
+                                          "id": {
+                                            "type": "string",
+                                            "format": "uuid"
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "refType",
+                                          "tempId"
+                                        ],
+                                        "properties": {
+                                          "refType": {
+                                            "type": "string",
+                                            "enum": [
+                                              "temporary"
+                                            ]
+                                          },
+                                          "tempId": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                          }
+                                        }
+                                      }
+                                    ],
+                                    "discriminator": {
+                                      "propertyName": "refType",
+                                      "mapping": {
+                                        "existing": "#/ExistingWorkItemIdentity",
+                                        "temporary": "#/TemporaryWorkItemIdentity"
+                                      }
+                                    },
+                                    "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                                  }
+                                }
+                              }
+                            },
                             "children": {
                               "type": "array",
                               "items": {
@@ -2834,6 +2961,25 @@ export const futureRevisionMutationSchema = {
                             },
                             "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
                           },
+                          "sourceEntityType": {
+                            "type": "string",
+                            "enum": [
+                              "ARTIFACT",
+                              "INITIATIVE",
+                              "PROJECT",
+                              "TASK",
+                              "MESSAGE",
+                              "CONVERSATION",
+                              "DESIGN_DOC",
+                              "AGENT_SESSION",
+                              "VALIDATION_SESSION",
+                              "SERVICE",
+                              "REPORT",
+                              "PROPOSAL",
+                              "IMPLEMENTATION_HINT"
+                            ],
+                            "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
+                          },
                           "target": {
                             "oneOf": [
                               {
@@ -2886,6 +3032,25 @@ export const futureRevisionMutationSchema = {
                               }
                             },
                             "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                          },
+                          "targetEntityType": {
+                            "type": "string",
+                            "enum": [
+                              "ARTIFACT",
+                              "INITIATIVE",
+                              "PROJECT",
+                              "TASK",
+                              "MESSAGE",
+                              "CONVERSATION",
+                              "DESIGN_DOC",
+                              "AGENT_SESSION",
+                              "VALIDATION_SESSION",
+                              "SERVICE",
+                              "REPORT",
+                              "PROPOSAL",
+                              "IMPLEMENTATION_HINT"
+                            ],
+                            "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
                           },
                           "edgeType": {
                             "type": "string",
@@ -4228,6 +4393,108 @@ export const futureRevisionMutationSchema = {
                         "minLength": 1
                       }
                     }
+                  },
+                  {
+                    "type": "object",
+                    "description": "Creates a design doc beneath an existing or same-change-set work item. The design doc is created with the work items of the same change set, so a reviewed proposal can introduce a work item and its design doc together.",
+                    "additionalProperties": false,
+                    "required": [
+                      "op",
+                      "ref",
+                      "name",
+                      "markdown",
+                      "parent"
+                    ],
+                    "properties": {
+                      "op": {
+                        "type": "string",
+                        "enum": [
+                          "designDoc.create"
+                        ]
+                      },
+                      "ref": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "refType",
+                          "tempId"
+                        ],
+                        "properties": {
+                          "refType": {
+                            "type": "string",
+                            "enum": [
+                              "temporary"
+                            ]
+                          },
+                          "tempId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                          }
+                        }
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "markdown": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "parent": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "id"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "existing"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "tempId"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "temporary"
+                                ]
+                              },
+                              "tempId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                              }
+                            }
+                          }
+                        ],
+                        "discriminator": {
+                          "propertyName": "refType",
+                          "mapping": {
+                            "existing": "#/ExistingWorkItemIdentity",
+                            "temporary": "#/TemporaryWorkItemIdentity"
+                          }
+                        },
+                        "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                      }
+                    }
                   }
                 ],
                 "discriminator": {
@@ -4242,7 +4509,8 @@ export const futureRevisionMutationSchema = {
                     "relationship.update": "#/WorkItemRelationshipUpdateOperation",
                     "relationship.delete": "#/WorkItemRelationshipDeleteOperation",
                     "layout.replace": "#/WorkItemLayoutReplaceOperation",
-                    "layout.clear": "#/WorkItemLayoutClearOperation"
+                    "layout.clear": "#/WorkItemLayoutClearOperation",
+                    "designDoc.create": "#/WorkItemDesignDocCreateOperation"
                   }
                 }
               }
@@ -5879,6 +6147,133 @@ export const futureRevisionMutationSchema = {
                               "type": "null"
                             }
                           ]
+                        },
+                        "designDocs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "identity",
+                              "name",
+                              "markdown",
+                              "parent"
+                            ],
+                            "properties": {
+                              "identity": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "id"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "existing"
+                                        ]
+                                      },
+                                      "id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "tempId"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "temporary"
+                                        ]
+                                      },
+                                      "tempId": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                      }
+                                    }
+                                  }
+                                ],
+                                "discriminator": {
+                                  "propertyName": "refType",
+                                  "mapping": {
+                                    "existing": "#/ExistingWorkItemIdentity",
+                                    "temporary": "#/TemporaryWorkItemIdentity"
+                                  }
+                                },
+                                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "markdown": {
+                                "type": "string"
+                              },
+                              "parent": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "id"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "existing"
+                                        ]
+                                      },
+                                      "id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "tempId"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "temporary"
+                                        ]
+                                      },
+                                      "tempId": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                      }
+                                    }
+                                  }
+                                ],
+                                "discriminator": {
+                                  "propertyName": "refType",
+                                  "mapping": {
+                                    "existing": "#/ExistingWorkItemIdentity",
+                                    "temporary": "#/TemporaryWorkItemIdentity"
+                                  }
+                                },
+                                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                              }
+                            }
+                          }
                         },
                         "children": {
                           "type": "array",
@@ -7779,6 +8174,25 @@ export const futureRevisionAuthoringSchema = {
                                 },
                                 "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
                               },
+                              "sourceEntityType": {
+                                "type": "string",
+                                "enum": [
+                                  "ARTIFACT",
+                                  "INITIATIVE",
+                                  "PROJECT",
+                                  "TASK",
+                                  "MESSAGE",
+                                  "CONVERSATION",
+                                  "DESIGN_DOC",
+                                  "AGENT_SESSION",
+                                  "VALIDATION_SESSION",
+                                  "SERVICE",
+                                  "REPORT",
+                                  "PROPOSAL",
+                                  "IMPLEMENTATION_HINT"
+                                ],
+                                "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
+                              },
                               "target": {
                                 "oneOf": [
                                   {
@@ -7831,6 +8245,25 @@ export const futureRevisionAuthoringSchema = {
                                   }
                                 },
                                 "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                              },
+                              "targetEntityType": {
+                                "type": "string",
+                                "enum": [
+                                  "ARTIFACT",
+                                  "INITIATIVE",
+                                  "PROJECT",
+                                  "TASK",
+                                  "MESSAGE",
+                                  "CONVERSATION",
+                                  "DESIGN_DOC",
+                                  "AGENT_SESSION",
+                                  "VALIDATION_SESSION",
+                                  "SERVICE",
+                                  "REPORT",
+                                  "PROPOSAL",
+                                  "IMPLEMENTATION_HINT"
+                                ],
+                                "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
                               },
                               "edgeType": {
                                 "type": "string",
@@ -9173,6 +9606,108 @@ export const futureRevisionAuthoringSchema = {
                             "minLength": 1
                           }
                         }
+                      },
+                      {
+                        "type": "object",
+                        "description": "Creates a design doc beneath an existing or same-change-set work item. The design doc is created with the work items of the same change set, so a reviewed proposal can introduce a work item and its design doc together.",
+                        "additionalProperties": false,
+                        "required": [
+                          "op",
+                          "ref",
+                          "name",
+                          "markdown",
+                          "parent"
+                        ],
+                        "properties": {
+                          "op": {
+                            "type": "string",
+                            "enum": [
+                              "designDoc.create"
+                            ]
+                          },
+                          "ref": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "tempId"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "temporary"
+                                ]
+                              },
+                              "tempId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                              }
+                            }
+                          },
+                          "name": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "markdown": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "parent": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "existing"
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                  }
+                                }
+                              }
+                            ],
+                            "discriminator": {
+                              "propertyName": "refType",
+                              "mapping": {
+                                "existing": "#/ExistingWorkItemIdentity",
+                                "temporary": "#/TemporaryWorkItemIdentity"
+                              }
+                            },
+                            "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                          }
+                        }
                       }
                     ],
                     "discriminator": {
@@ -9187,7 +9722,8 @@ export const futureRevisionAuthoringSchema = {
                         "relationship.update": "#/WorkItemRelationshipUpdateOperation",
                         "relationship.delete": "#/WorkItemRelationshipDeleteOperation",
                         "layout.replace": "#/WorkItemLayoutReplaceOperation",
-                        "layout.clear": "#/WorkItemLayoutClearOperation"
+                        "layout.clear": "#/WorkItemLayoutClearOperation",
+                        "designDoc.create": "#/WorkItemDesignDocCreateOperation"
                       }
                     }
                   }
@@ -11118,6 +11654,25 @@ export const futureWorkItemChangesSchema = {
                     },
                     "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
                   },
+                  "sourceEntityType": {
+                    "type": "string",
+                    "enum": [
+                      "ARTIFACT",
+                      "INITIATIVE",
+                      "PROJECT",
+                      "TASK",
+                      "MESSAGE",
+                      "CONVERSATION",
+                      "DESIGN_DOC",
+                      "AGENT_SESSION",
+                      "VALIDATION_SESSION",
+                      "SERVICE",
+                      "REPORT",
+                      "PROPOSAL",
+                      "IMPLEMENTATION_HINT"
+                    ],
+                    "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
+                  },
                   "target": {
                     "oneOf": [
                       {
@@ -11170,6 +11725,25 @@ export const futureWorkItemChangesSchema = {
                       }
                     },
                     "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                  },
+                  "targetEntityType": {
+                    "type": "string",
+                    "enum": [
+                      "ARTIFACT",
+                      "INITIATIVE",
+                      "PROJECT",
+                      "TASK",
+                      "MESSAGE",
+                      "CONVERSATION",
+                      "DESIGN_DOC",
+                      "AGENT_SESSION",
+                      "VALIDATION_SESSION",
+                      "SERVICE",
+                      "REPORT",
+                      "PROPOSAL",
+                      "IMPLEMENTATION_HINT"
+                    ],
+                    "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
                   },
                   "edgeType": {
                     "type": "string",
@@ -12512,6 +13086,108 @@ export const futureWorkItemChangesSchema = {
                 "minLength": 1
               }
             }
+          },
+          {
+            "type": "object",
+            "description": "Creates a design doc beneath an existing or same-change-set work item. The design doc is created with the work items of the same change set, so a reviewed proposal can introduce a work item and its design doc together.",
+            "additionalProperties": false,
+            "required": [
+              "op",
+              "ref",
+              "name",
+              "markdown",
+              "parent"
+            ],
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": [
+                  "designDoc.create"
+                ]
+              },
+              "ref": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "refType",
+                  "tempId"
+                ],
+                "properties": {
+                  "refType": {
+                    "type": "string",
+                    "enum": [
+                      "temporary"
+                    ]
+                  },
+                  "tempId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                  }
+                }
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "markdown": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parent": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "id"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "existing"
+                        ]
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "tempId"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "temporary"
+                        ]
+                      },
+                      "tempId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                      }
+                    }
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "refType",
+                  "mapping": {
+                    "existing": "#/ExistingWorkItemIdentity",
+                    "temporary": "#/TemporaryWorkItemIdentity"
+                  }
+                },
+                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+              }
+            }
           }
         ],
         "discriminator": {
@@ -12526,7 +13202,8 @@ export const futureWorkItemChangesSchema = {
             "relationship.update": "#/WorkItemRelationshipUpdateOperation",
             "relationship.delete": "#/WorkItemRelationshipDeleteOperation",
             "layout.replace": "#/WorkItemLayoutReplaceOperation",
-            "layout.clear": "#/WorkItemLayoutClearOperation"
+            "layout.clear": "#/WorkItemLayoutClearOperation",
+            "designDoc.create": "#/WorkItemDesignDocCreateOperation"
           }
         }
       }
