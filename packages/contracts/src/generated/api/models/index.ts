@@ -962,7 +962,6 @@ export * from './diagram-level.js';
 export * from './diagram-metadata.js';
 export * from './diagram-metadata-not.js';
 export * from './diagram-reference-target-rule.js';
-export * from './disposition.js';
 export * from './document-data.js';
 export * from './document-data-all-of.js';
 export * from './document-data-all-of-sections.js';
