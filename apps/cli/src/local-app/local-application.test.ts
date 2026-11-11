@@ -675,10 +675,10 @@ describe('local application installation and return visits', () => {
     expect(hostApi.GRAPH_SERVICE_URL).toBe('http://127.0.0.1:58090/api');
   });
 
-  it('fixture releases cannot bypass packaged version or digest validation', async () => {
+  it('reuses pinned images across CLI versions and rejects invalid image data', async () => {
     await expect(
       new ReleaseSource(join(directory, 'release.json'), 'other-version').read(),
-    ).rejects.toThrow('package.json');
+    ).resolves.toEqual({ ...release, cliVersion: 'other-version' });
     const invalid = structuredClone(release);
     invalid.images.api.reference = 'example.test/api:latest';
     await writeFile(join(directory, 'release.json'), JSON.stringify(invalid));

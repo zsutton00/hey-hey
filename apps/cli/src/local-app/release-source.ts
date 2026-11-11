@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { StructuredServerLogger } from '../server/logger';
 import { parseManifestForVersion, type ReleaseManifest } from '../release/release-manifest';
 
-/** Packaged and rehearsal releases share the exact same parsing and version gate. */
+/** Packaged and rehearsal releases share image validation and use their package's CLI version. */
 export class ReleaseSource {
   private readonly logger = new StructuredServerLogger({}, { component: 'local-release-source' });
   constructor(

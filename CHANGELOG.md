@@ -4,6 +4,8 @@
 
 ### Fixes
 
+- Fixed running the CLI from a worktree rejecting sessions whose Service uses another checkout.
+- Fixed CLI version bumps rejecting an already verified image manifest during packaging and release.
 - Fixed local workspace sessions failing to recover through passkey sign-in.
 - Fixed local web setup competing for port 3000 by using port 3850 for the web app.
 - Fixed machine live-update subscriptions being rejected when only some requested projects were accessible.

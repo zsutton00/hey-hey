@@ -18,8 +18,8 @@ const releaseImageSchema = z.strictObject({
 });
 
 /**
- * The single version source for one CLI release: install, matching checks and
- * update offers read this file and never resolve image tags on their own.
+ * The pinned image set for a release. The package supplies its CLI version;
+ * install, matching checks and update offers never resolve image tags on their own.
  * Agents is deliberately not part of the set.
  */
 export const releaseManifestSchema = z.strictObject({
@@ -42,14 +42,7 @@ export function parseReleaseManifest(json: string): ReleaseManifest {
   return releaseManifestSchema.parse(JSON.parse(json));
 }
 
-/** Parses the manifest and requires it to belong to the given CLI version. */
+/** Reads the image set for the CLI package using it, independently of its build-time version. */
 export function parseManifestForVersion(json: string, cliVersion: string): ReleaseManifest {
-  const manifest = parseReleaseManifest(json);
-  if (manifest.cliVersion !== cliVersion) {
-    throw new Error(
-      `Release manifest is for CLI ${manifest.cliVersion}, but package.json is ${cliVersion}.`,
-    );
-  }
-
-  return manifest;
+  return { ...parseReleaseManifest(json), cliVersion };
 }
