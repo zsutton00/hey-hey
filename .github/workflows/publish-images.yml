@@ -2,9 +2,10 @@ name: Build images
 run-name: Staging candidates — ${{ github.ref_name }}
 
 # Release pushes and manual runs from any branch publish the same verified build.
-# Every image is built natively for linux/amd64 and linux/arm64, smoke-checked on
-# each, and merged into one multi-arch image. When api, ui and graph-search are all
-# built in one run, a candidate release-manifest.json is uploaded for testing
+# Release branches build amd64 and arm64; all others build amd64 only.
+# Automatic release pushes select all three images for the CLI bundle.
+# When api, ui and graph-search are all built in one run, a candidate
+# release-manifest.json is uploaded for testing
 # `heyhey local`; the Release CLI workflow publishes that same manifest.
 on:
   push:
@@ -15,7 +16,7 @@ on:
         description: What would you like to build?
         type: choice
         required: true
-        default: Both
+        default: All
         options:
           - UI
           - API
@@ -50,6 +51,7 @@ jobs:
         env:
           TARGET: ${{ inputs.target }}
           BEFORE: ${{ github.event.before }}
+          REF: ${{ github.ref }}
         run: node scripts/image-candidate-selection.mjs
 
   build:
@@ -63,7 +65,7 @@ jobs:
       fail-fast: false
       matrix:
         image: ${{ fromJSON(needs.select.outputs.images) }}
-        platform: [linux/amd64, linux/arm64]
+        platform: ${{ fromJSON(startsWith(github.ref, 'refs/heads/release/') && '["linux/amd64","linux/arm64"]' || '["linux/amd64"]') }}
     name: Build ${{ matrix.image }} ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
@@ -207,9 +209,10 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Create the multi-arch image and record its digest
+      - name: Publish verified image variants and record the digest
         env:
           IMAGE: ${{ matrix.image }}
+          EXPECTED_PLATFORMS: ${{ startsWith(github.ref, 'refs/heads/release/') && '2' || '1' }}
         run: |
           set -euo pipefail
           SAFE_REF="${GITHUB_REF_NAME//\//-}"
@@ -220,7 +223,7 @@ jobs:
           for file in "$RUNNER_TEMP"/digests/digest-*.txt; do
             SOURCES+=("$REPOSITORY@$(cat "$file")")
           done
-          [ "${#SOURCES[@]}" -eq 2 ] || { echo "Expected one digest per platform" >&2; exit 1; }
+          [ "${#SOURCES[@]}" -eq "$EXPECTED_PLATFORMS" ] || { echo "Expected one digest per platform" >&2; exit 1; }
           docker buildx imagetools create -t "$REPOSITORY:candidate-$GITHUB_SHA" -t "$REPOSITORY:$VERSION" "${SOURCES[@]}"
           DIGEST="$(docker buildx imagetools inspect "$REPOSITORY:candidate-$GITHUB_SHA" --format '{{.Manifest.Digest}}')"
           mkdir -p "$RUNNER_TEMP/reference"
@@ -261,13 +264,15 @@ jobs:
         if: steps.complete.outputs.complete == 'true'
       - name: Pin PostgreSQL and Redis by digest
         if: steps.complete.outputs.complete == 'true'
+        env:
+          REQUIRED_ARCHITECTURES: ${{ startsWith(github.ref, 'refs/heads/release/') && 'amd64 arm64' || 'amd64' }}
         run: |
           set -euo pipefail
           pin() {
             local tagged="$1" repository="${1%%:*}"
             local raw digest
             raw="$(docker buildx imagetools inspect "$tagged" --raw)"
-            for platform in amd64 arm64; do
+            for platform in $REQUIRED_ARCHITECTURES; do
               jq -e --arg a "$platform" '.manifests[] | select(.platform.os == "linux" and .platform.architecture == $a)' <<<"$raw" >/dev/null \
                 || { echo "$tagged has no linux/$platform variant" >&2; exit 1; }
             done
@@ -290,6 +295,8 @@ jobs:
       - name: Write and verify the candidate release manifest
         if: steps.complete.outputs.complete == 'true'
         working-directory: apps/cli
+        env:
+          RELEASE_IMAGE_PLATFORMS: ${{ startsWith(github.ref, 'refs/heads/release/') && '["linux/amd64","linux/arm64"]' || '["linux/amd64"]' }}
         run: |
           set -euo pipefail
           refs="$RUNNER_TEMP/references"

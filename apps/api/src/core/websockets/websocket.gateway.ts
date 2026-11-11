@@ -66,6 +66,7 @@ import {
   WebSocketMachineAuthenticationErrorResponse,
   WebSocketAccessDeniedResponse,
   WebSocketSubscribedResponse,
+  WebSocketDeniedSubscriptionScope,
   WebSocketJoinedResponse,
   WebSocketLeaveRoomRequest,
   WebSocketLeftResponse,
@@ -189,7 +190,13 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { DemoSandboxActivityService } from '../../services/demo-sandbox/demo-sandbox-activity.service';
 import { MachinePresenceService } from './machine-presence.service';
-import { WebsocketAuthorizationService } from './websocket-authorization.service';
+import { ClientConnection } from '../events/types/event.types';
+import {
+  ChildRoomScopeType,
+  DeniedChildRoomScope,
+  GrantedRoomScope,
+  WebsocketAuthorizationService,
+} from './websocket-authorization.service';
 import { WebsocketUserConnectionLifecycleService } from './websocket-user-connection-lifecycle.service';
 import {
   classifyHostAffectingFrame,
@@ -267,6 +274,20 @@ const parseAuthorityReductionAcknowledgement = (
     return null;
   }
   return value as unknown as AuthorityReductionAcknowledgement;
+};
+
+/**
+ * Client-facing scope names. Organization denials never reach a client:
+ * they deny the whole machine subscription instead.
+ */
+const subscriptionScopeTypes: Record<
+  ChildRoomScopeType,
+  WebSocketDeniedSubscriptionScope.ScopeTypeEnum
+> = {
+  project: WebSocketDeniedSubscriptionScope.ScopeTypeEnum.Project,
+  conversation: WebSocketDeniedSubscriptionScope.ScopeTypeEnum.Conversation,
+  initiative: WebSocketDeniedSubscriptionScope.ScopeTypeEnum.Initiative,
+  design_doc: WebSocketDeniedSubscriptionScope.ScopeTypeEnum.DesignDoc,
 };
 
 @WebSocketGateway({
@@ -663,6 +684,7 @@ export class WebsocketGateway
             initiatives: initiativeIds.length,
             designDocs: designDocIds.length,
           },
+          deniedScopes: roomDecision.deniedScopes,
         });
         await this.clearBrowserAuthenticationState(client.id);
         client.emit('authenticated', this.roomAccessDenied());
@@ -794,6 +816,69 @@ export class WebsocketGateway
       reason: 'authentication_required',
       message: 'Authentication required',
     };
+  }
+
+  /**
+   * Authorize a subscribe request. A verified CLI machine is granted the rooms
+   * it may access and told which it may not, so one stale ID cannot block
+   * every other room. Browser subscriptions stay all-or-nothing.
+   * Returns null when the request is denied as a whole.
+   */
+  private async authorizeSubscriptionScope(
+    client: Socket,
+    connection: ClientConnection,
+    requestedScope: GrantedRoomScope & { organizationIds: OrganizationId[] },
+  ): Promise<{
+    grantedScope: GrantedRoomScope;
+    deniedScopes: DeniedChildRoomScope[];
+  } | null> {
+    if (!connection.userId) {
+      return null;
+    }
+
+    if (connection.clientType === 'cli' && connection.machineId) {
+      const decision =
+        await this.websocketAuthorizationService.authorizeMachine({
+          machineId: connection.machineId,
+          userId: connection.userId,
+          ...requestedScope,
+        });
+      if (!decision.authorized) {
+        this.logger.warn('[WebSocket] Subscription room access denied', {
+          socketId: client.id,
+          userId: connection.userId,
+          machineId: connection.machineId,
+          reason: 'machine_not_authorized',
+        });
+        return null;
+      }
+
+      return {
+        grantedScope: {
+          projectIds: decision.projectIds,
+          conversationIds: decision.conversationIds,
+          initiativeIds: decision.initiativeIds,
+          designDocIds: decision.designDocIds,
+        },
+        deniedScopes: decision.deniedScopes,
+      };
+    }
+
+    const decision = await this.websocketAuthorizationService.authorize({
+      userId: connection.userId,
+      ...requestedScope,
+    });
+    if (!decision.authorized) {
+      this.logger.warn('[WebSocket] Subscription room access denied', {
+        socketId: client.id,
+        userId: connection.userId,
+        clientType: connection.clientType,
+        deniedScopes: decision.deniedScopes,
+      });
+      return null;
+    }
+
+    return { grantedScope: decision.grantedScope, deniedScopes: [] };
   }
 
   private roomAccessDenied(): WebSocketAccessDeniedResponse {
@@ -1046,6 +1131,7 @@ export class WebsocketGateway
       this.logger.warn('[machine-challenge] requested scope denied', {
         socketId: client.id,
         machineId,
+        reason: 'machine_not_authorized',
       });
       client.emit('authenticated', this.roomAccessDenied());
       client.disconnect();
@@ -1079,7 +1165,7 @@ export class WebsocketGateway
       machine.authorizationProtocolVersion === 2 &&
       machine.authorizationState === 'READY'
     ) {
-      for (const conversationId of pending.conversationIds) {
+      for (const conversationId of roomDecision.conversationIds) {
         await this.maybeReplayMachineRepoBindings(client, conversationId);
         await this.maybeReplayConversationPhase(client, conversationId);
       }
@@ -1291,29 +1377,12 @@ export class WebsocketGateway
         initiativeIds: (initiativeIds as InitiativeId[]) || [],
         designDocIds: (designDocIds as DesignDocId[]) || [],
       };
-      const roomDecision =
-        connection.clientType === 'cli' && connection.machineId
-          ? await this.websocketAuthorizationService.authorizeMachine({
-              machineId: connection.machineId,
-              userId: connection.userId,
-              ...requestedScope,
-            })
-          : await this.websocketAuthorizationService.authorize({
-              userId: connection.userId,
-              ...requestedScope,
-            });
-
-      if (!roomDecision.authorized) {
-        this.logger.warn('[WebSocket] Subscription room access denied', {
-          socketId: client.id,
-          userId: connection.userId,
-          requestedCounts: {
-            projects: projectIds?.length ?? 0,
-            conversations: conversationIds?.length ?? 0,
-            initiatives: initiativeIds?.length ?? 0,
-            designDocs: designDocIds?.length ?? 0,
-          },
-        });
+      const roomGrant = await this.authorizeSubscriptionScope(
+        client,
+        connection,
+        requestedScope,
+      );
+      if (!roomGrant) {
         client.emit('subscribed', this.roomAccessDenied());
         return this.roomAccessDenied();
       }
@@ -1328,20 +1397,26 @@ export class WebsocketGateway
       await this.connectionManager.subscribe(
         client.id,
         eventTypes,
-        (projectIds as ProjectId[]) || [],
-        (conversationIds as ConversationId[]) || [],
-        (initiativeIds as InitiativeId[]) || [],
-        (designDocIds as DesignDocId[]) || [],
+        roomGrant.grantedScope.projectIds,
+        roomGrant.grantedScope.conversationIds,
+        roomGrant.grantedScope.initiativeIds,
+        roomGrant.grantedScope.designDocIds,
+        roomGrant.deniedScopes,
       );
       this.connectionManager.updateActivity(client.id);
 
+      const deniedScopes = roomGrant.deniedScopes.map(
+        ({ scopeType, id }) =>
+          ({
+            scopeType: subscriptionScopeTypes[scopeType],
+            id,
+          }) satisfies WebSocketDeniedSubscriptionScope,
+      );
       const response: WebSocketSubscribedResponse = {
         status: 'success',
         eventTypes,
-        projectIds: projectIds ?? [],
-        conversationIds: conversationIds ?? [],
-        initiativeIds: initiativeIds ?? [],
-        designDocIds: designDocIds ?? [],
+        ...roomGrant.grantedScope,
+        ...(deniedScopes.length > 0 ? { deniedScopes } : {}),
       };
       if (
         this.connectionManager.getConnection(client.id) !== connection ||
@@ -1350,7 +1425,7 @@ export class WebsocketGateway
         return this.roomAccessDenied();
       client.emit('subscribed', response);
 
-      for (const conversationId of conversationIds ?? []) {
+      for (const conversationId of roomGrant.grantedScope.conversationIds) {
         await this.maybeReplayMachineRepoBindings(client, conversationId);
         await this.maybeReplayConversationPhase(client, conversationId);
       }
@@ -1503,10 +1578,12 @@ export class WebsocketGateway
               ...requestedScope,
             });
 
-      if (!roomDecision.authorized) {
+      if (!roomDecision.authorized || roomDecision.deniedScopes.length > 0) {
         this.logger.warn('[WebSocket] Join room access denied', {
           socketId: client.id,
           userId: connection.userId,
+          clientType: connection.clientType,
+          deniedScopes: roomDecision.deniedScopes,
           requestedCounts: {
             project: projectId ? 1 : 0,
             conversation: conversationId ? 1 : 0,

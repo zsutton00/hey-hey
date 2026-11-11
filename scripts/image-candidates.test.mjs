@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { candidateSelection } from "./image-candidate-selection.mjs";
 import { publicationEvidence } from "./image-publication-evidence.mjs";
 const push = {
@@ -8,6 +12,86 @@ const push = {
   before: "a".repeat(40),
   revision: "b".repeat(40),
 };
+test("release pushes always select the complete CLI image bundle", () => {
+  for (const files of [[], ["CHANGELOG.md"], ["apps/api/src/a.ts"]]) {
+    assert.deepEqual(
+      candidateSelection(
+        { ...push, ref: "refs/heads/release/2026-11-11" },
+        () => files,
+      ).images,
+      ["ui", "api", "graph-search"],
+    );
+  }
+});
+
+test("release builds merge both architectures and declare them in the CLI manifest", () => {
+  const workflow = fs.readFileSync(
+    new URL("../.github/workflows/publish-images.yml", import.meta.url),
+    "utf8",
+  );
+  assert.match(workflow, /REF: \$\{\{ github.ref \}\}/);
+  assert.match(
+    workflow,
+    /platform: .*startsWith\(github.ref, 'refs\/heads\/release\/'\).*\["linux\/amd64","linux\/arm64"\]/,
+  );
+  assert.match(workflow, /EXPECTED_PLATFORMS: .*&& '2' \|\| '1'/);
+  assert.match(
+    workflow,
+    /REQUIRED_ARCHITECTURES: .*&& 'amd64 arm64' \|\| 'amd64'/,
+  );
+  assert.match(
+    workflow,
+    /RELEASE_IMAGE_PLATFORMS: .*&& '\["linux\/amd64","linux\/arm64"\]' \|\| '\["linux\/amd64"\]'/,
+  );
+});
+
+test("the CLI manifest writer and verifier preserve all image digests and both architectures", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "release-manifest-"));
+  const cliRoot = fileURLToPath(new URL("../apps/cli/", import.meta.url));
+  const references = Object.fromEntries(
+    ["api", "ui", "graphSearch", "postgres", "redis"].map((image, index) => [
+      image,
+      `example.test/${image.toLowerCase()}@sha256:${String(index + 1).repeat(64)}`,
+    ]),
+  );
+  const platforms = ["linux/amd64", "linux/arm64"];
+  const digestsFile = path.join(directory, "digests.json");
+  const manifestFile = path.join(directory, "release-manifest.json");
+  fs.writeFileSync(digestsFile, JSON.stringify(references));
+  try {
+    const tsx = path.join(cliRoot, "node_modules", ".bin", "tsx");
+    execFileSync(
+      tsx,
+      ["scripts/write-release-manifest.ts", digestsFile, manifestFile],
+      {
+        cwd: cliRoot,
+        env: {
+          ...process.env,
+          RELEASE_IMAGE_PLATFORMS: JSON.stringify(platforms),
+        },
+      },
+    );
+    execFileSync(tsx, ["scripts/verify-release-manifest.ts", manifestFile], {
+      cwd: cliRoot,
+    });
+    const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
+    const cliPackage = JSON.parse(
+      fs.readFileSync(path.join(cliRoot, "package.json"), "utf8"),
+    );
+    assert.equal(manifest.cliVersion, cliPackage.version);
+    assert.deepEqual(
+      manifest.images,
+      Object.fromEntries(
+        Object.entries(references).map(([image, reference]) => [
+          image,
+          { reference, platforms },
+        ]),
+      ),
+    );
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
 test("manual runs select images regardless of branch", () => {
   assert.deepEqual(
     candidateSelection({ ...push, event: "workflow_dispatch", target: "API" })

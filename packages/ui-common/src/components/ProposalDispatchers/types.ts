@@ -11,13 +11,13 @@ import {
 } from "../../api";
 import type {
   ProposalResponseDto,
+  WorkItemChangeSetValidationRequest,
   CreateTaskDto,
   UpdateTaskDto,
   CreateDesignDocDto,
   UpdateDesignDocDto,
   WorkItemTypeDefinitionDto,
   WorkItemTypeArchiveRequestDto,
-  WorkItemChangeSetValidationRequest,
   WorkItemChangeSetOperation,
   ProposalApprovalFailureDiagnostic,
   RelationshipDecision,
@@ -234,6 +234,7 @@ const isWorkItemChangeSetOperation = (
     case "relationship.update":
     case "section.clear":
     case "section.replace":
+    case "designDoc.create":
     case "workItem.create":
     case "workItem.delete":
     case "workItem.update":
@@ -552,3 +553,54 @@ export const isCreatePlanProposal = (
     typeof updates?.designDocMarkdown === "string"
   );
 };
+
+/** The dedicated producer's validated artifact, never a design-doc workflow. */
+export function isExistingTaskPlanProposal(
+  proposal: ProposalResponseDto,
+): proposal is ProposalResponseDto & {
+  updates: WorkItemChangeSetValidationRequest;
+} {
+  if (
+    proposal.action !== ProposalAction.Create ||
+    proposal.targetEntityType !== TargetEntityType.Task ||
+    !isWorkItemGraphProposal(proposal)
+  ) {
+    return false;
+  }
+  const { root, operations } = proposal.updates;
+  if (root.refType !== "temporary") {
+    return false;
+  }
+  const plan = operations.find(
+    (operation) =>
+      operation.op === "workItem.create" &&
+      operation.ref.tempId === root.tempId,
+  );
+  if (plan?.op !== "workItem.create" || plan.type !== "PLAN") {
+    return false;
+  }
+  const stages = operations.flatMap((operation) =>
+    operation.op === "workItem.create" &&
+    operation.type === "PLAN_STAGE" &&
+    operation.parent?.refType === "temporary" &&
+    operation.parent.tempId === root.tempId
+      ? [operation.ref.tempId]
+      : [],
+  );
+  return (
+    stages.length > 0 &&
+    operations.some(
+      (operation) =>
+        operation.op === "designDoc.create" &&
+        operation.parent.refType === "temporary" &&
+        operation.parent.tempId === root.tempId,
+    ) &&
+    operations.some(
+      (operation) =>
+        operation.op === "workItem.update" &&
+        operation.ref.refType === "existing" &&
+        operation.parent?.refType === "temporary" &&
+        stages.includes(operation.parent.tempId),
+    )
+  );
+}

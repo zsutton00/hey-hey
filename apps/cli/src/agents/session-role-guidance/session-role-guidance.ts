@@ -254,9 +254,10 @@ export class SessionRoleGuidance {
             }
             await this.persist(session);
           }
-        } catch {
+        } catch (error) {
           this.deps.logger.warn('session_role_guidance.parent_context_unresolved', {
             entityId: focal.id,
+            error,
           });
         }
       }
@@ -323,7 +324,7 @@ export class SessionRoleGuidance {
             ...(context.taskType ? { typeKey: context.taskType } : { kind: context.entityType }),
             ...(proposal ? { proposal } : {}),
           });
-        } catch {
+        } catch (error) {
           result.resolutions.push({
             ...ref,
             status: 'unresolved',
@@ -333,6 +334,7 @@ export class SessionRoleGuidance {
           this.deps.logger.warn('session_role_guidance.entity_unresolved', {
             entityId: ref.id,
             entityType: ref.type,
+            error,
           });
         }
       }
@@ -375,7 +377,12 @@ export class SessionRoleGuidance {
             // An authoritative omission is a successful read, distinct from failure.
             result.deliveryKeys.push(`${role}:${entry.typeKey}`);
           }
-        } catch {
+        } catch (error) {
+          this.deps.logger.warn('session_role_guidance.advice_read_failed', {
+            role,
+            typeKeys: batch,
+            error,
+          });
           if (batch.length > 1) {
             for (const key of batch) await readAdvice([key]);
           } else result.failedTypeKeys.push(...batch);
@@ -401,7 +408,7 @@ export class SessionRoleGuidance {
         failedTypeKeys: result.failedTypeKeys,
         deliveryKeys: result.deliveryKeys,
       });
-    } catch {
+    } catch (error) {
       // Shared access failure is distinct from an authoritative advice omission.
       // Keep the selected identities for retry; do not consume any delivery keys.
       result.resolutions = state.references.map((ref) => ({
@@ -413,6 +420,7 @@ export class SessionRoleGuidance {
       result.text = '';
       this.deps.logger.warn('session_role_guidance.dependency_read_failed', {
         referenceCount: state.references.length,
+        error,
       });
     }
     this.logSelection(session, role, result, sourcesInspected);

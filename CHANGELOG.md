@@ -1,5 +1,38 @@
 # Changelog
 
+## v1.2.1
+
+### Fixes
+
+- Fixed running the CLI from a worktree rejecting sessions whose Service uses another checkout.
+- Fixed CLI version bumps rejecting an already verified image manifest during packaging and release.
+- Fixed local workspace sessions failing to recover through passkey sign-in.
+- Fixed local web setup competing for port 3000 by using port 3850 for the web app.
+- Fixed machine live-update subscriptions being rejected when only some requested projects were accessible.
+- Fixed interrupted event delivery leaving outbox work claimed indefinitely by adding expiring claims.
+- Fixed verification views losing the started session state when returning to the page.
+- Fixed invalid Plans becoming difficult to manage, missing plan configuration, and database types used when adopting tasks.
+- Fixed reviewed plan approval errors hiding the rule that failed.
+- Fixed workflow descriptions selecting the wrong section.
+- Fixed feature verification overlooking unresolved planning findings.
+- Updated CLI startup and runtime diagnostics to include failure causes and development attempt logs to identify the agent session.
+
+### Plans and previews
+
+- Added creating a reviewed Plan from existing tasks, with task adoption applied together on approval.
+- Updated implementation plans to explain intended behavior changes and group stages and design documents more clearly.
+- Added UX flow previews as screen journeys and direct navigation to flows containing a single screen.
+
+### Local setup
+
+- Removed the project limit for local installations.
+- Added a lower-cost model preselection to local welcome setup.
+
+### Release artifacts
+
+- Fixed release-branch builds to publish Linux AMD64 and ARM64 images and a complete CLI image manifest.
+- Updated local setup documentation. Install the published CLI with `npm install -g @hey-hey/cli`; its release manifest pins the matching images.
+
 ## v1.2.0
 
 ### Local setup and graph search

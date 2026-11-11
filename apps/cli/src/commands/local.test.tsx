@@ -1,5 +1,9 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { runLocalCommand } from './local';
+import { localWebOrigin } from '../local-app/compose';
+import { DEFAULT_LOCAL_WEB_PORT } from '../local-app/local-port';
+
+const LOCAL_WEB_ORIGIN = localWebOrigin(DEFAULT_LOCAL_WEB_PORT);
 import { KeyPairStore } from '../credentials';
 import { accountNamespace } from '../credentials/keypair';
 import { CredentialStore } from '../credentials/store';
@@ -15,10 +19,11 @@ vi.mock('../local-app/local-application', () => ({
   LocalApplication: class {
     state = {
       kind: 'ready',
-      url: 'http://localhost:5173',
+      url: LOCAL_WEB_ORIGIN,
       reconnectCommand: 'heyhey local',
       stopCommand: 'heyhey local stop',
     };
+    webPort = DEFAULT_LOCAL_WEB_PORT;
     releases = { read: async () => ({ cliVersion: '4.2.1' }) };
     async run() {}
   },
@@ -104,8 +109,8 @@ it.each([
         expect.objectContaining({ accessToken: fakeJwt, refreshToken: 'local-refresh-token' }),
       );
       expect(process.env['HEYHEY_API_URL']).toBe('http://localhost:3000');
-      expect(process.env['HEYHEY_WEB_ORIGIN']).toBe('http://localhost:5173');
-      expect(process.env['HEYHEY_CONTROLLER_ORIGIN']).toBe(origin ?? 'http://localhost:5173');
+      expect(process.env['HEYHEY_WEB_ORIGIN']).toBe(LOCAL_WEB_ORIGIN);
+      expect(process.env['HEYHEY_CONTROLLER_ORIGIN']).toBe(origin ?? LOCAL_WEB_ORIGIN);
       expect(process.env['HEYHEY_CONTROLLER_RP_ID']).toBe(rpId ?? 'localhost');
       expect(new KeyPairStore().getAccountNamespace()).toBe(
         accountNamespace('http://localhost:3000'),

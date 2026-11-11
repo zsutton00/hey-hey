@@ -2,6 +2,7 @@ import type { JsonObject, JsonValue, PlatformMcpProxyResult } from './session';
 
 const PROPOSAL_AUTHORING_TOOLS: ReadonlySet<string> = new Set([
   'create_plan',
+  'create_plan_from_existing_tasks',
   'edit_plan',
   'create_work_item',
   'edit_work_item',
@@ -109,10 +110,11 @@ export const readCreatedProposalIds = (
   if (!result) return [];
 
   const found: string[] = [];
-  // create_plan's output schema names its proposal identity `id`. Other
+  // create_plan's and create_plan_from_existing_tasks's output schemas name
+  // their proposal identity `id`. Other
   // authoring tools use proposalId, while a generic top-level `id` may be an
   // entity identity, so keep this compatibility path tool-specific.
-  if (toolName === 'create_plan') {
+  if (toolName === 'create_plan' || toolName === 'create_plan_from_existing_tasks') {
     const proposalId = readCreatePlanProposalId(result);
     if (proposalId) found.push(proposalId);
   }

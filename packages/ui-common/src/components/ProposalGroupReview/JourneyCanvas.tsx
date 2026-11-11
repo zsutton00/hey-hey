@@ -105,7 +105,9 @@ export const JourneyCanvas: React.FC<{
   /** Positions saved on the Diagram, keyed by step id. */
   savedPositions: ReadonlyMap<string, { x: number; y: number }>;
   renderScreen: (step: Step) => React.ReactNode;
-}> = ({ steps, edges, savedPositions, renderScreen }) => {
+  /** Static presentation at natural size: no scrolling, dragging or grab cursor. */
+  readOnly?: boolean;
+}> = ({ steps, edges, savedPositions, renderScreen, readOnly = false }) => {
   const markerId = useId();
   const container = useRef<HTMLDivElement>(null);
   const dragScroll = useDragScroll(container);
@@ -206,13 +208,17 @@ export const JourneyCanvas: React.FC<{
     <Box
       ref={container}
       data-testid="journey-canvas"
-      onPointerDown={dragScroll.onPointerDown}
-      onClickCapture={dragScroll.onClickCapture}
-      onDragStart={dragScroll.onDragStart}
+      onPointerDown={readOnly ? undefined : dragScroll.onPointerDown}
+      onClickCapture={readOnly ? undefined : dragScroll.onClickCapture}
+      onDragStart={readOnly ? undefined : dragScroll.onDragStart}
       sx={{
-        overflow: "auto",
-        cursor: dragScroll.dragging ? "grabbing" : "grab",
-        userSelect: dragScroll.dragging ? "none" : undefined,
+        ...(readOnly
+          ? { width: "max-content" }
+          : {
+              overflow: "auto",
+              cursor: dragScroll.dragging ? "grabbing" : "grab",
+              userSelect: dragScroll.dragging ? "none" : undefined,
+            }),
         bgcolor: (theme) => CANVAS_COLOR[theme.palette.mode],
         p: 3,
       }}

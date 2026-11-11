@@ -26,7 +26,7 @@ const describeDatabase =
     : describe.skip;
 
 const RP_ID = 'localhost';
-const ORIGIN = 'http://localhost:5173';
+const ORIGIN = 'http://localhost:3850';
 const AAGUID = new Uint8Array(16);
 
 const config = {

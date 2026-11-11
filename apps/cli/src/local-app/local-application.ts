@@ -8,11 +8,43 @@ import { DockerBoundary, type ObservedContainer } from './docker-boundary';
 import {
   composeConfiguration,
   LOCAL_AGENT_PORT_VARIABLE,
+  localWebOrigin,
+  localWebSocketUrl,
   provisioningSql,
   SERVICE_IMAGES,
 } from './compose';
-import { resolveLocalBridgePort } from './local-port';
+import {
+  LOCAL_WEB_CONTAINER_PORT,
+  resolveLocalBridgePort,
+  resolveLocalWebPort,
+} from './local-port';
 import type { ReleaseManifest } from '../release/release-manifest';
+
+/**
+ * A running install is current only when the UI is published on the local web
+ * port with the matching bridge port and live-update address, and the API
+ * trusts the same passkey origin. Anything else is recreated in place.
+ */
+export function webStackIsCurrent(
+  observed: ObservedContainer[],
+  bridgePort: number,
+  webPort: number,
+): boolean {
+  const service = (name: string) =>
+    observed.find((c) => c.Config.Labels?.['com.docker.compose.service'] === name);
+  const ui = service('ui');
+  const api = service('api');
+  const publishedPorts = ui?.HostConfig?.PortBindings?.[`${LOCAL_WEB_CONTAINER_PORT}/tcp`]?.map(
+    (binding) => binding.HostPort,
+  );
+
+  return (
+    publishedPorts?.includes(String(webPort)) === true &&
+    ui?.Config.Env?.includes(`${LOCAL_AGENT_PORT_VARIABLE}=${bridgePort}`) === true &&
+    ui.Config.Env.includes(`VITE_WS_URL=${localWebSocketUrl(webPort)}`) &&
+    api?.Config.Env?.includes(`ACCOUNT_PASSKEY_ORIGIN=${localWebOrigin(webPort)}`) === true
+  );
+}
 
 export interface LocalApplicationNavigation {
   url: string;
@@ -90,6 +122,7 @@ export class LocalApplication extends EventEmitter {
     private readonly packages?: ReleasePackage,
     /** Resolved once; the bridge listens here and the UI container is told the same value. */
     readonly bridgePort: number = resolveLocalBridgePort(),
+    readonly webPort: number = resolveLocalWebPort(),
   ) {
     super();
   }
@@ -351,24 +384,23 @@ export class LocalApplication extends EventEmitter {
         observed.length === Object.keys(SERVICE_IMAGES).length &&
         observed.every((c) => c.State.Running)
       ) {
-        const ui = observed.find((c) => c.Config.Labels?.['com.docker.compose.service'] === 'ui');
-        const configured = ui?.Config.Env?.includes(
-          `${LOCAL_AGENT_PORT_VARIABLE}=${this.bridgePort}`,
-        );
-        if (!configured) {
-          progress('Updating the web app bridge port');
+        if (!webStackIsCurrent(observed, this.bridgePort, this.webPort)) {
+          progress('Updating the web app address and bridge port');
           const secrets = await this.storage.secrets();
           await this.storage.writeCompose(
-            composeConfiguration(installation, secrets, this.bridgePort),
+            composeConfiguration(installation, secrets, this.bridgePort, this.webPort),
           );
-          await this.docker.recreateUi(this.storage.composePath);
+          this.logger.info('local.stack.web_configuration_stale', {
+            webOrigin: localWebOrigin(this.webPort),
+          });
+          await this.docker.recreateWebStack(this.storage.composePath);
         }
         progress('Checking application readiness');
         await this.docker.health();
       } else {
         progress('Preparing protected local storage');
         const secrets = await this.storage.secrets();
-        const config = composeConfiguration(installation, secrets, this.bridgePort);
+        const config = composeConfiguration(installation, secrets, this.bridgePort, this.webPort);
         await this.storage.writeCompose(config);
         steps.push('Local storage created');
         if (updating) {
@@ -402,7 +434,7 @@ export class LocalApplication extends EventEmitter {
       }
       this.show({
         kind: 'ready',
-        url: 'http://localhost:5173/local',
+        url: new URL('/local', localWebOrigin(this.webPort)).toString(),
         reconnectCommand: 'heyhey local',
         stopCommand: 'heyhey local stop',
         bridgeConnected: false,

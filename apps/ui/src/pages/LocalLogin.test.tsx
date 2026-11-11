@@ -9,6 +9,7 @@ import { clearAuthToken } from "@hey-hey/ui-common/services";
 import "@hey-hey/ui-common/i18n";
 import LoginRoute from "./LoginRoute";
 import HomeRoute from "./HomeRoute";
+import { LocalSetupPage } from "./LocalSetup/LocalSetupPage";
 
 class TestCredential {
   id = "AQ";
@@ -102,6 +103,51 @@ afterEach(() => {
 });
 
 describe("deployment login", () => {
+  it.each([null, "550e8400-e29b-41d4-a716-446655440077"])(
+    "recovers /local through passkey sign-in and resumes the existing workspace or setup (%s)",
+    async (setupProjectId) => {
+      globalThis.mswServer.use(
+        http.post("*/auth/passkeys/sign-in", () =>
+          HttpResponse.json({ data: session }),
+        ),
+        http.get("*/auth/local/status", ({ request }) => {
+          expect(request.headers.get("authorization")).toBe(
+            "Bearer local-access-token",
+          );
+          return HttpResponse.json({
+            data: {
+              nameComplete: true,
+              browserSession: true,
+              machineConnected: true,
+              executionReady: false,
+              hasProjects: true,
+              setupProjectId,
+            },
+          });
+        }),
+      );
+      render(
+        <MemoryRouter initialEntries={["/local?pairing=started"]}>
+          <AuthProvider>
+            <Routes>
+              <Route path="/local" element={<LocalSetupPage />} />
+              <Route path="/login" element={<LoginRoute />} />
+              <Route path="/home" element={<Destination />} />
+              <Route path="/welcome" element={<Destination />} />
+            </Routes>
+          </AuthProvider>
+        </MemoryRouter>,
+      );
+      await userEvent.click(await screen.findByTestId("return-passkey"));
+      expect(await screen.findByTestId("destination")).toHaveTextContent(
+        setupProjectId ? `/welcome?projectId=${setupProjectId}` : "/home",
+      );
+      expect(
+        screen.queryByLabelText(/email|password/i),
+      ).not.toBeInTheDocument();
+    },
+  );
+
   it("renews a valid session and restores the whole destination without a passkey prompt", async () => {
     globalThis.mswServer.use(
       http.post("*/auth/refresh", () => HttpResponse.json({ data: session })),

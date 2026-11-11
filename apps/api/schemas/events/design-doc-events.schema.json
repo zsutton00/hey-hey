@@ -1805,7 +1805,7 @@
         },
         "disposition": {
           "$ref": "#/definitions/CodingPlanDiscrepancyAllOfDispositionEnum",
-          "description": "Current state of the finding. Assent changes the disposition and never removes the finding."
+          "description": "Current state of the finding. Assent changes the disposition and never removes the finding. changes_existing_behavior marks a planned change to existing behavior that recorded design supports. repair_planned is the legacy name of changes_existing_behavior, accepted on read only so plans saved before the rename stay valid."
         },
         "implementationFollowThrough": {
           "type": "string",
@@ -1906,6 +1906,10 @@
         {
           "type": "string",
           "const": "accepted"
+        },
+        {
+          "type": "string",
+          "const": "changes_existing_behavior"
         },
         {
           "type": "string",
@@ -19038,6 +19042,12 @@
         "projectedRoot": {
           "$ref": "#/definitions/ProjectedWorkItem"
         },
+        "designDocs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ProjectedDesignDoc"
+          }
+        },
         "children": {
           "type": "array",
           "items": {
@@ -19207,6 +19217,29 @@
       "required": [
         "key",
         "content"
+      ]
+    },
+    "ProjectedDesignDoc": {
+      "type": "object",
+      "properties": {
+        "identity": {
+          "$ref": "#/definitions/WorkItemChangeSetIdentity"
+        },
+        "name": {
+          "type": "string"
+        },
+        "markdown": {
+          "type": "string"
+        },
+        "parent": {
+          "$ref": "#/definitions/WorkItemChangeSetIdentity"
+        }
+      },
+      "required": [
+        "identity",
+        "name",
+        "markdown",
+        "parent"
       ]
     },
     "ProjectedWorkItemRelationship": {
@@ -19526,6 +19559,34 @@
           "properties": {
             "op": {
               "type": "string",
+              "const": "designDoc.create"
+            },
+            "ref": {
+              "$ref": "#/definitions/TemporaryWorkItemIdentity"
+            },
+            "name": {
+              "type": "string"
+            },
+            "markdown": {
+              "type": "string"
+            },
+            "parent": {
+              "$ref": "#/definitions/WorkItemChangeSetIdentity"
+            }
+          },
+          "required": [
+            "markdown",
+            "name",
+            "op",
+            "parent",
+            "ref"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
               "const": "layout.clear"
             },
             "root": {
@@ -19646,8 +19707,14 @@
             "source": {
               "$ref": "#/definitions/WorkItemChangeSetIdentity"
             },
+            "sourceEntityType": {
+              "$ref": "#/definitions/AgentEdgeEndpointEntityType"
+            },
             "target": {
               "$ref": "#/definitions/WorkItemChangeSetIdentity"
+            },
+            "targetEntityType": {
+              "$ref": "#/definitions/AgentEdgeEndpointEntityType"
             },
             "edgeType": {
               "type": "string",
@@ -20102,6 +20169,31 @@
         }
       ]
     },
+    "TemporaryWorkItemIdentity": {
+      "type": "object",
+      "properties": {
+        "refType": {
+          "$ref": "#/definitions/TemporaryWorkItemIdentityRefTypeEnum"
+        },
+        "tempId": {
+          "type": "string",
+          "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+        }
+      },
+      "required": [
+        "refType",
+        "tempId"
+      ]
+    },
+    "TemporaryWorkItemIdentityRefTypeEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "temporary"
+        },
+        {}
+      ]
+    },
     "WorkItemChangeSetLayoutEntry": {
       "type": "object",
       "properties": {
@@ -20225,31 +20317,6 @@
         {
           "type": "string",
           "const": "flow"
-        },
-        {}
-      ]
-    },
-    "TemporaryWorkItemIdentity": {
-      "type": "object",
-      "properties": {
-        "refType": {
-          "$ref": "#/definitions/TemporaryWorkItemIdentityRefTypeEnum"
-        },
-        "tempId": {
-          "type": "string",
-          "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
-        }
-      },
-      "required": [
-        "refType",
-        "tempId"
-      ]
-    },
-    "TemporaryWorkItemIdentityRefTypeEnum": {
-      "anyOf": [
-        {
-          "type": "string",
-          "const": "temporary"
         },
         {}
       ]

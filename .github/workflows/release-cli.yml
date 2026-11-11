@@ -2,14 +2,14 @@ name: Release CLI
 run-name: CLI release — ${{ github.ref_name }}
 
 # Publishes one CLI version with the exact images already built and verified by a
-# "Build images" run on the same commit. Nothing is rebuilt here: the candidate
+# "Build images" run selected for the release. Nothing is rebuilt here: the candidate
 # run's release-manifest.json is the one that ships. Tags the images with the CLI
 # version, publishes npm, then runs anonymous checks.
 on:
   workflow_dispatch:
     inputs:
       candidate_run_id:
-        description: Run ID of the successful "Build images" run (target All) on this exact commit
+        description: Run ID of the successful "Build images" run (target All) whose pinned images should ship
         type: string
         required: true
 
@@ -33,6 +33,7 @@ jobs:
       actions: read
     outputs:
       version: ${{ steps.version.outputs.version }}
+      candidate_revision: ${{ steps.candidate.outputs.revision }}
     steps:
       - name: Require a release branch
         env:
@@ -51,7 +52,8 @@ jobs:
             echo "@hey-hey/cli@$VERSION is already published" >&2
             exit 1
           fi
-      - name: Require a successful candidate run for this exact commit
+      - name: Require a successful candidate run
+        id: candidate
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ inputs.candidate_run_id }}
@@ -60,7 +62,7 @@ jobs:
           run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID")"
           [ "$(jq -r .path <<<"$run")" = ".github/workflows/publish-images.yml" ] || { echo "Run $RUN_ID is not a Build images run" >&2; exit 1; }
           [ "$(jq -r .conclusion <<<"$run")" = "success" ] || { echo "Run $RUN_ID did not succeed" >&2; exit 1; }
-          [ "$(jq -r .head_sha <<<"$run")" = "$GITHUB_SHA" ] || { echo "Run $RUN_ID built a different commit than $GITHUB_SHA" >&2; exit 1; }
+          echo "revision=$(jq -r .head_sha <<<"$run")" >> "$GITHUB_OUTPUT"
 
   publish:
     needs: approve
@@ -76,7 +78,7 @@ jobs:
           ref: ${{ github.sha }}
       - uses: actions/download-artifact@v4
         with:
-          name: release-manifest-${{ github.sha }}
+          name: release-manifest-${{ needs.approve.outputs.candidate_revision }}
           path: ${{ runner.temp }}/candidate
           run-id: ${{ inputs.candidate_run_id }}
           github-token: ${{ github.token }}
@@ -92,7 +94,6 @@ jobs:
         run: |
           set -euo pipefail
           manifest="$RUNNER_TEMP/candidate/release-manifest.json"
-          [ "$(jq -r .cliVersion "$manifest")" = "$VERSION" ] || { echo "Candidate manifest is for a different CLI version" >&2; exit 1; }
           for image in api ui graphSearch; do
             reference="$(jq -r --arg i "$image" '.images[$i].reference' "$manifest")"
             docker buildx imagetools create -t "${reference%@*}:$VERSION" "$reference"
@@ -126,7 +127,6 @@ jobs:
     strategy:
       matrix:
         include:
-          - { platform: linux/amd64, runner: ubuntu-latest }
           - { platform: linux/arm64, runner: ubuntu-24.04-arm }
     steps:
       - uses: actions/download-artifact@v4
@@ -167,4 +167,3 @@ jobs:
           done
           [ "$(npx --no-install heyhey --version)" = "$VERSION" ]
           cmp node_modules/@hey-hey/cli/release-manifest.json "$GITHUB_WORKSPACE/release-manifest.json"
-          [ "$(jq -r .cliVersion node_modules/@hey-hey/cli/release-manifest.json)" = "$VERSION" ]

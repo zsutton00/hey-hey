@@ -3148,6 +3148,28 @@ WebSocketSubscribedSuccessResponse:
       items:
         type: string
       description: Design doc IDs accepted for subscription.
+    deniedScopes:
+      type: array
+      description: >-
+        Requested IDs a paired CLI machine may not subscribe to. The server
+        grants the remaining IDs and omits these from the accepted lists; the
+        client should stop requesting them. Present only on machine
+        subscriptions that had at least one denied ID.
+      items:
+        $ref: "#/WebSocketDeniedSubscriptionScope"
+
+WebSocketDeniedSubscriptionScope:
+  type: object
+  additionalProperties: false
+  required:
+    - scopeType
+    - id
+  properties:
+    scopeType:
+      type: string
+      enum: ["project", "conversation", "initiative", "design_doc"]
+    id:
+      type: string
 
 WebSocketAccessDeniedResponse:
   type: object

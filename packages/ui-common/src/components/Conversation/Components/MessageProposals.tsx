@@ -7,6 +7,7 @@ import {
   ProposalStatus,
 } from "../../../api";
 import { proposalsClient } from "../../../clients/serviceClients";
+import { useInvalidateProposalReview } from "../../../data/hooks/useInvalidateProposalReview";
 import { useInvalidateConversation } from "../../../data/hooks/useInvalidateConversation";
 import { log } from "../../../utils/logger";
 import {
@@ -21,7 +22,10 @@ import type {
 } from "../../ProposalDispatchers";
 import { ProposalGroupReview } from "../../ProposalGroupReview";
 import { setLifecycle } from "../../ProposalDispatchers/proposalSelectedStateCache";
-import { getProposalMaterializationStatus } from "../../ProposalDispatchers/types";
+import {
+  getProposalMaterializationStatus,
+  isExistingTaskPlanProposal,
+} from "../../ProposalDispatchers/types";
 import {
   classifyProposal,
   hasMessageEmitted,
@@ -57,6 +61,7 @@ export const useMessageProposalActions = (
     useConversationContext();
   const invalidateConversation = useInvalidateConversation();
   const checkAppliedProposal = useFutureOfferCheck();
+  const invalidateReview = useInvalidateProposalReview();
 
   const onProposalsAcceptedRef = useRef(onProposalsAccepted);
   onProposalsAcceptedRef.current = onProposalsAccepted;
@@ -95,6 +100,17 @@ export const useMessageProposalActions = (
         // since render can expose the acknowledgement gate before retrying.
         invalidateConversation(conversationId);
         throw error;
+      } finally {
+        await invalidateReview(
+          proposal.organizationId,
+          proposal.projectId,
+        ).catch((error: unknown) => {
+          log.error("conversation_viewer", "Proposal review refresh failed", {
+            code: "PROPOSAL_REVIEW_REFRESH_FAILED",
+            proposalId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
       }
       if (!approvedProposal) {
         throw new Error(
@@ -105,6 +121,12 @@ export const useMessageProposalActions = (
       checkAppliedProposal(approvedProposal);
       invalidateConversation(conversationId);
 
+      if (
+        isExistingTaskPlanProposal(approvedProposal) &&
+        approvedProposal.status !== ProposalStatus.Approved
+      ) {
+        return approvedProposal;
+      }
       const materializationStatus =
         getProposalMaterializationStatus(approvedProposal);
       if (!materializationStatus || materializationStatus.state === "applied") {
@@ -152,6 +174,7 @@ export const useMessageProposalActions = (
     },
     [
       checkAppliedProposal,
+      invalidateReview,
       conversationId,
       invalidateConversation,
       triggeringMessage,
@@ -179,10 +202,24 @@ export const useMessageProposalActions = (
         rejectProposalDto: { reason },
       });
 
+      await invalidateReview(proposal.organizationId, proposal.projectId).catch(
+        (error: unknown) => {
+          log.error("conversation_viewer", "Proposal review refresh failed", {
+            code: "PROPOSAL_REVIEW_REFRESH_FAILED",
+            proposalId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        },
+      );
       setLifecycle(proposalId, "rejected");
       invalidateConversation(conversationId);
     },
-    [conversationId, invalidateConversation, ungroupedProposals],
+    [
+      conversationId,
+      invalidateConversation,
+      invalidateReview,
+      ungroupedProposals,
+    ],
   );
 
   const handleApplied = useCallback<OnAppliedProposal>(

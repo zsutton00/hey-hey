@@ -293,6 +293,120 @@ describe('ConversationService', () => {
       expect(result).toBeNull();
     });
 
+    describe('with includeSuggestionDecisions', () => {
+      const decisionRow = (
+        overrides: Record<string, unknown>,
+      ): Record<string, unknown> => ({
+        organizationId: mockOrganizationId,
+        accepted: true,
+        decidedBy: TestUtils.testIds.user,
+        sourceConversationId: mockConversationId,
+        sourceMessageId: TestUtils.testIds.message,
+        metadata: null,
+        createdAt: new Date('2026-11-10T12:00:00.000Z'),
+        updatedAt: new Date('2026-11-10T12:00:00.000Z'),
+        ...overrides,
+      });
+
+      it('returns a stored Verify Feature decision with its session beside other decisions and Goal PM routing', async () => {
+        const verifyFeatureId = `${TestUtils.testIds.message}:verify-feature`;
+        jest
+          .spyOn(prismaService.db.conversation, 'findFirst')
+          .mockResolvedValue({
+            ...mockDbConversation,
+            suggestionDecisions: [
+              decisionRow({
+                suggestionId: verifyFeatureId,
+                type: 'verify_feature',
+                metadata: {
+                  kind: 'VERIFY_FEATURE',
+                  agentSessionId: 'created-session',
+                },
+              }),
+              decisionRow({
+                suggestionId: 'older-message:task-1',
+                type: 'task_content_apply',
+                metadata: { kind: 'CREATE_SUGGESTED_TASK', workflowId: 'wf-1' },
+              }),
+              decisionRow({
+                suggestionId: 'routing',
+                type: 'goal_pm_routing_decision',
+                metadata: {
+                  sourceConversationId: mockConversationId,
+                  sourceMessageId: TestUtils.testIds.message,
+                  uiElementId: 'routing',
+                  selectedOption: {
+                    optionId: 'first',
+                    kind: 'startNewConversation',
+                    title: 'New thread',
+                    rationale: 'New topic',
+                    requiresConfirmation: true,
+                  },
+                  decidedBy: TestUtils.testIds.user,
+                  createdAt: '2026-11-10T12:00:00.000Z',
+                },
+              }),
+            ],
+          } as never);
+
+        const result = await service.getConversation(
+          mockConversationId,
+          mockOrganizationId,
+          { includeSuggestionDecisions: true },
+        );
+
+        expect(prismaService.db.conversation.findFirst).toHaveBeenCalledWith(
+          expect.objectContaining({
+            include: {
+              suggestionDecisions: { orderBy: { createdAt: 'desc' } },
+            },
+          }),
+        );
+        const decisions = result?.suggestionDecisions ?? [];
+        expect(decisions.map((decision) => decision.type).sort()).toEqual([
+          'task_content_apply',
+          'verify_feature',
+        ]);
+        expect(
+          decisions.find((decision) => decision.id === verifyFeatureId),
+        ).toMatchObject({
+          type: 'verify_feature',
+          accepted: true,
+          sourceMessageId: TestUtils.testIds.message,
+          metadata: {
+            kind: 'VERIFY_FEATURE',
+            agentSessionId: 'created-session',
+          },
+        });
+      });
+
+      it('returns no Verify Feature decision for an older suggestion that was never started', async () => {
+        jest
+          .spyOn(prismaService.db.conversation, 'findFirst')
+          .mockResolvedValue({
+            ...mockDbConversation,
+            suggestionDecisions: [
+              decisionRow({
+                suggestionId: 'older-message:task-1',
+                type: 'task_content_apply',
+              }),
+            ],
+          } as never);
+
+        const result = await service.getConversation(
+          mockConversationId,
+          mockOrganizationId,
+          { includeSuggestionDecisions: true },
+        );
+
+        expect(
+          result?.suggestionDecisions?.some(
+            (decision) => decision.type === 'verify_feature',
+          ),
+        ).toBe(false);
+      });
+    });
+
     it('returns metadata without requesting Message relations', async () => {
       jest
         .spyOn(prismaService.db.conversation, 'findFirst')

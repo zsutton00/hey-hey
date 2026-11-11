@@ -21,7 +21,11 @@ import type {
   AuthorityReductionAcknowledgement,
   MonitorCommandAcknowledgement,
 } from '@hey-hey/contracts/api/models';
-import type { CliSettingsResponseDto } from '@hey-hey/contracts/api/models';
+import type {
+  CliSettingsResponseDto,
+  WebSocketDeniedSubscriptionScope,
+  WebSocketSubscribedResponse,
+} from '@hey-hey/contracts/api/models';
 import type { CliReadHandler } from './cli-read-handler';
 import type { MachineControllerAuthority } from '../auth/machine-controller-authority';
 
@@ -1089,38 +1093,38 @@ export class PlatformWebSocketManager {
         },
       );
 
-      sock.on(
-        'subscribed',
-        (response: {
-          status: string;
-          message?: string;
-          eventTypes?: string[];
-          conversationIds?: string[];
-        }) => {
-          if (response.status === 'success') {
-            const serverEventTypes = response.eventTypes ?? [];
-            const missingEventTypes = SUBSCRIBED_EVENT_TYPES.filter(
-              (type) => !serverEventTypes.includes(type),
-            );
-            this.logger.info('conversation-updated.subscription.upstream.subscribed_ack', {
-              socketId: sock.id,
-              serverEventTypes,
-              serverConversationIds: response.conversationIds,
-              missingEventTypes,
-            });
-            if (missingEventTypes.length > 0) {
-              this.logger.warn('conversation-updated.subscription.upstream.event_types_missing', {
-                missingEventTypes,
-                serverEventTypes,
-              });
-            }
-          } else {
-            this.logger.error('conversation-updated.subscription.upstream.subscribe_nack', {
-              message: response.message,
-            });
-          }
-        },
-      );
+      sock.on('subscribed', (response: WebSocketSubscribedResponse) => {
+        if (response.status !== 'success') {
+          this.logger.error('conversation-updated.subscription.upstream.subscribe_nack', {
+            socketId: sock.id,
+            reason: response.reason,
+            message: response.message,
+            requestedConversationIds: [...this.conversationIds],
+            requestedProjectIds: [...this.projectIds],
+          });
+          return;
+        }
+
+        const serverEventTypes = response.eventTypes;
+        const missingEventTypes = SUBSCRIBED_EVENT_TYPES.filter(
+          (type) => !serverEventTypes.includes(type),
+        );
+        this.logger.info('conversation-updated.subscription.upstream.subscribed_ack', {
+          socketId: sock.id,
+          serverEventTypes,
+          serverConversationIds: response.conversationIds,
+          serverProjectIds: response.projectIds,
+          missingEventTypes,
+        });
+        if (missingEventTypes.length > 0) {
+          this.logger.warn('conversation-updated.subscription.upstream.event_types_missing', {
+            missingEventTypes,
+            serverEventTypes,
+          });
+        }
+
+        this.dropDeniedSubscriptions(response.deniedScopes ?? []);
+      });
 
       sock.on('disconnect', (reason: string) => {
         this.logger.warn('conversation-updated.subscription.upstream.disconnected', {
@@ -1205,6 +1209,35 @@ export class PlatformWebSocketManager {
         activeReconnectAttemptId: this.activeReconnectAttemptId,
         error: error instanceof Error ? error.message : String(error),
       });
+    });
+  };
+
+  /**
+   * The platform granted every other room and named these as ones this user
+   * may no longer reach (deleted, or access removed). Stop requesting them so
+   * later subscribes do not keep carrying a stale ID.
+   */
+  private readonly dropDeniedSubscriptions = (
+    deniedScopes: readonly WebSocketDeniedSubscriptionScope[],
+  ): void => {
+    if (deniedScopes.length === 0) {
+      return;
+    }
+
+    for (const denied of deniedScopes) {
+      if (denied.scopeType === 'project') {
+        this.projectIds.delete(denied.id);
+      }
+
+      if (denied.scopeType === 'conversation') {
+        this.conversationIds.delete(denied.id);
+      }
+    }
+
+    this.logger.warn('conversation-updated.subscription.upstream.scopes_denied', {
+      deniedScopes,
+      remainingConversations: this.conversationIds.size,
+      remainingProjects: this.projectIds.size,
     });
   };
 

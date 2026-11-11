@@ -1,7 +1,10 @@
-import { Alert } from "@mui/material";
+import { Alert, Button, Stack } from "@mui/material";
+import { useQueryClient } from "@tanstack/react-query";
+import { ProjectTopologyViewSessionButton } from "../shared/ProjectTopologyButton";
+import { conversationKeys } from "../../data/collections/conversations";
 import { VerifyFeatureAction } from "./SecondaryActions/VerifyFeatureAction";
 import { isVerifyFeaturePayload } from "../../types/secondaryActions";
-import React from "react";
+import React, { useState } from "react";
 import type { SuggestionDecisionMetadata, SuggestionType } from "../../api";
 import {
   SecondaryActionHandler,
@@ -9,6 +12,7 @@ import {
 } from "../../api";
 import { useSuggestionDecision } from "../../data/hooks/useSuggestionDecision";
 import { log } from "../../utils/logger";
+import { usePathService } from "../../contexts";
 import { useConversationContext } from "./Components/ConversationContext";
 import { createSecondActionFromAPI } from "./utils/conversationFormHelpers";
 import type { UIAction } from "../../types/userTracking";
@@ -27,6 +31,7 @@ import type {
   SecondaryActionSubmitOptions,
 } from "../LlmForms/Registry/types";
 import {
+  buildSuggestionId,
   getSecondaryActionSuggestionId,
   type SuggestionDecisionStatus,
 } from "./hooks/useSuggestionDecisions";
@@ -53,10 +58,22 @@ const getSuggestionTypeForAction = (
       return SuggestionTypeEnum.SuggestedActionTask;
     case SecondaryActionHandler.RelatedEntities:
       return SuggestionTypeEnum.RelatedEntities;
+    case SecondaryActionHandler.VerifyFeature:
+      return SuggestionTypeEnum.VerifyFeature;
     default:
       return null;
   }
 };
+
+/**
+ * A verification session that was created but whose started state has not
+ * been saved yet. Keeping its id lets the user retry the save without
+ * launching verification again.
+ */
+interface UnsavedVerifyFeatureStart {
+  agentSessionId: string;
+  status: "saving" | "failed";
+}
 
 export interface SecondaryActionRendererProps {
   /** The secondary action configuration to render */
@@ -107,6 +124,10 @@ export const SecondaryActionRenderer: React.FC<
 }) => {
   const { suggestionDecisions } = useConversationContext();
   const decisionMutation = useSuggestionDecision();
+  const paths = usePathService();
+  const queryClient = useQueryClient();
+  const [unsavedStart, setUnsavedStart] =
+    useState<UnsavedVerifyFeatureStart | null>(null);
   const handler = action.handler;
   const { onExecute } = createSecondActionFromAPI(
     action,
@@ -117,7 +138,12 @@ export const SecondaryActionRenderer: React.FC<
     uiElements,
   );
 
-  const suggestionId = getSecondaryActionSuggestionId(messageId, action);
+  // The Verify Feature decision is keyed by message and element, never by
+  // concern text or list position.
+  const suggestionId =
+    handler === SecondaryActionHandler.VerifyFeature
+      ? buildSuggestionId(messageId, action.fieldId)
+      : getSecondaryActionSuggestionId(messageId, action);
   const suggestionType = getSuggestionTypeForAction(handler);
   const suggestionDecision = suggestionDecisions.getDecision(suggestionId);
 
@@ -131,12 +157,14 @@ export const SecondaryActionRenderer: React.FC<
     });
   };
 
-  const recordDecision = (
+  /** Resolves true once the decision is saved; false when it could not be. */
+  const persistDecision = async (
     accepted: boolean,
-    metadata?: SuggestionDecisionMetadata,
-  ) => {
+    metadata: SuggestionDecisionMetadata | undefined,
+    optimistic: boolean,
+  ): Promise<boolean> => {
     if (!suggestionId || !suggestionType) {
-      return;
+      return false;
     }
 
     const sourceMessageId = context.messageId ?? messageId;
@@ -147,24 +175,27 @@ export const SecondaryActionRenderer: React.FC<
         hasConversationId: !!context.conversationId,
         hasMessageId: !!sourceMessageId,
       });
-      return;
+      return false;
     }
 
-    const optimisticDecision: SuggestionDecisionStatus = {
-      id: suggestionId,
-      type: suggestionType,
-      accepted,
-      decidedBy: null,
-      createdAt: new Date().toISOString(),
-      sourceConversationId: toOpenApiConversationId(context.conversationId),
-      sourceMessageId: toOpenApiMessageId(sourceMessageId),
-      metadata,
-    };
+    if (optimistic) {
+      upsertDecision(
+        {
+          id: suggestionId,
+          type: suggestionType,
+          accepted,
+          decidedBy: null,
+          createdAt: new Date().toISOString(),
+          sourceConversationId: toOpenApiConversationId(context.conversationId),
+          sourceMessageId: toOpenApiMessageId(sourceMessageId),
+          metadata,
+        },
+        metadata,
+      );
+    }
 
-    upsertDecision(optimisticDecision, metadata);
-
-    decisionMutation
-      .mutate({
+    try {
+      const decision = await decisionMutation.mutate({
         organizationId: context.organizationId,
         type: suggestionType,
         suggestionId,
@@ -172,17 +203,52 @@ export const SecondaryActionRenderer: React.FC<
         sourceConversationId: context.conversationId,
         sourceMessageId,
         metadata,
-      })
-      .then((decision) => {
-        upsertDecision(decision);
-      })
-      .catch((error) => {
-        log.error("ui", "Failed to record suggestion decision", {
-          actionId: action.id,
-          handler,
-          error,
-        });
       });
+      upsertDecision(decision);
+      return true;
+    } catch (error) {
+      log.error("ui", "Failed to record suggestion decision", {
+        actionId: action.id,
+        handler,
+        suggestionId,
+        error,
+      });
+      return false;
+    }
+  };
+
+  const recordDecision = (
+    accepted: boolean,
+    metadata?: SuggestionDecisionMetadata,
+  ) => {
+    void persistDecision(accepted, metadata, true);
+  };
+
+  // Verify Feature is not saved optimistically: the started state must only
+  // look saved once it is, otherwise a failed save would silently vanish on
+  // reload. Until then the created session stays linked and the save can be
+  // retried without launching again.
+  const saveVerifyFeatureStart = async (agentSessionId: string) => {
+    setUnsavedStart({ agentSessionId, status: "saving" });
+    const saved = await persistDecision(
+      true,
+      { kind: "VERIFY_FEATURE", agentSessionId },
+      false,
+    );
+    setUnsavedStart(saved ? null : { agentSessionId, status: "failed" });
+
+    // Launching navigates to the new session, which unmounts this suggestion
+    // and drops its local state. Refreshing the cached conversation is what
+    // lets the started state show when the user comes back.
+    if (saved && context.conversationId) {
+      await queryClient.invalidateQueries({
+        queryKey: conversationKeys.conversation(
+          context.organizationId,
+          context.projectId,
+          context.conversationId,
+        ),
+      });
+    }
   };
 
   if (handler === SecondaryActionHandler.VerifyFeature) {
@@ -190,12 +256,61 @@ export const SecondaryActionRenderer: React.FC<
       (element) =>
         element.id === action.fieldId && element.type === "verify_feature",
     );
-    return field && isVerifyFeaturePayload(field.payload) ? (
-      <VerifyFeatureAction check={field.payload} context={context} />
-    ) : (
-      <Alert severity="error">
-        Feature verification details are unavailable.
-      </Alert>
+    if (!field || !isVerifyFeaturePayload(field.payload)) {
+      return (
+        <Alert severity="error">
+          Feature verification details are unavailable.
+        </Alert>
+      );
+    }
+
+    const savedMetadata =
+      suggestionDecision?.accepted &&
+      suggestionDecision.metadata?.kind === "VERIFY_FEATURE"
+        ? suggestionDecision.metadata
+        : null;
+    const startedSessionId =
+      savedMetadata?.agentSessionId ?? unsavedStart?.agentSessionId;
+    if (startedSessionId) {
+      return (
+        <Stack spacing={1} alignItems="flex-start">
+          <ProjectTopologyViewSessionButton
+            to={paths.agentSession({
+              projectId: context.projectId,
+              agentSessionId: startedSessionId,
+            })}
+          />
+          {!savedMetadata && unsavedStart?.status === "failed" && (
+            <Alert
+              severity="warning"
+              data-testid="verify-feature-save-failed"
+              action={
+                <Button
+                  color="inherit"
+                  size="small"
+                  data-testid="verify-feature-retry-save"
+                  onClick={() => void saveVerifyFeatureStart(startedSessionId)}
+                >
+                  Retry saving
+                </Button>
+              }
+            >
+              Verification started, but we could not save that for others.
+              Retrying only saves it; it does not start verification again.
+            </Alert>
+          )}
+        </Stack>
+      );
+    }
+
+    return (
+      <VerifyFeatureAction
+        check={field.payload}
+        context={context}
+        onLaunched={(agentSessionId) =>
+          void saveVerifyFeatureStart(agentSessionId)
+        }
+      />
     );
   }
 

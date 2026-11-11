@@ -18,6 +18,8 @@ import { InitiativeService } from '../services/initiatives/initiative.service';
 import { MessageService } from '../services/message.service';
 import { OrganizationService } from '../services/organization.service';
 import { OrganizationProjectEntitlementService } from '../services/organization-project-entitlement.service';
+import { LocalOrganizationProjectEntitlementService } from '../local/local-organization-project-entitlement.service';
+import { isLocalApplication } from '../deployment-environment';
 import { AccountEntitlementService } from '../services/account-entitlement.service';
 import { PaymentProviderBindingService } from '../services/payment-entitlement/payment-provider-binding.service';
 import { PaymentProviderAdapterRegistry } from '../services/payment-entitlement/payment-provider-adapter.registry';
@@ -211,7 +213,12 @@ export const DOMAIN_SERVICES: Provider[] = [
   InitiativeService,
   MessageService,
   OrganizationService,
-  OrganizationProjectEntitlementService,
+  {
+    provide: OrganizationProjectEntitlementService,
+    useClass: isLocalApplication()
+      ? LocalOrganizationProjectEntitlementService
+      : OrganizationProjectEntitlementService,
+  },
   AccountEntitlementService,
   PaymentProviderBindingService,
   PaymentProviderAdapterRegistry,

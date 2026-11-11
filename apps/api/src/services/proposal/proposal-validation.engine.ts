@@ -32,6 +32,7 @@ import {
 import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod';
 import { PrismaService, AnyTransactionClient } from 'src/prisma/prisma.service';
+import type { Task } from '@prisma/client';
 import type {
   CreateProposalDto,
   CreateProposalRequestDto,
@@ -1966,6 +1967,7 @@ export class ProposalValidationEngine {
         organizationId,
         projectId,
         request: parsed.data,
+        db,
       });
       if (!projection.valid) {
         throw new BadRequestException({

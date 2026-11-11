@@ -1,13 +1,16 @@
 import { invalidateProposalReconciliation } from "../ProposalReconciliation/reconciliationInvalidation";
 import { useCallback, useEffect, useReducer, useRef } from "react";
-import { ProposalStatus } from "../../api";
+import { ProposalStatus, type ProposalResponseDto } from "../../api";
 import type {
   OnApplyProposal,
   OnAppliedProposal,
   ProposalItemState,
   ProposalItemStatus,
 } from "./types";
-import { getProposalMaterializationStatus } from "./types";
+import {
+  getProposalMaterializationStatus,
+  isExistingTaskPlanProposal,
+} from "./types";
 import {
   getEntry,
   setLifecycle,
@@ -20,7 +23,7 @@ import {
 
 type StateMap = Record<string, ProposalItemStatus>;
 
-type ProposalLike = { id: string; status: ProposalStatus };
+type ProposalLike = ProposalResponseDto;
 
 type Action =
   | { type: "RESET"; proposals: ProposalLike[] }
@@ -68,6 +71,12 @@ function reducer(state: StateMap, action: Action): StateMap {
 }
 
 function seedFromProposal(proposal: ProposalLike): ProposalItemStatus {
+  if (isExistingTaskPlanProposal(proposal)) {
+    if (proposal.status === ProposalStatus.Rejected) {
+      return { state: "rejected" };
+    }
+    return getProposalMaterializationStatus(proposal) ?? { state: "pending" };
+  }
   const cached = getEntry(proposal.id);
   if (cached?.lifecycle === "applied") {
     return { state: "applied" };
@@ -111,9 +120,13 @@ export function useProposalState(proposals: ProposalLike[]) {
   );
 
   const idsKey = proposals.map((p) => p.id).join(",");
+  const adoptionRevisionKey = proposals
+    .filter(isExistingTaskPlanProposal)
+    .map((proposal) => `${proposal.id}:${JSON.stringify(proposal.updates)}`)
+    .join(",");
   useEffect(() => {
     dispatch({ type: "RESET", proposals });
-  }, [idsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [idsKey, adoptionRevisionKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const unsubs = proposals.map((proposal) =>
@@ -132,9 +145,21 @@ export function useProposalState(proposals: ProposalLike[]) {
   }, [idsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const getState = useCallback(
-    (id: string): ProposalItemStatus =>
-      stateMap[id] ?? { state: "pending" as ProposalItemState },
-    [stateMap],
+    (id: string): ProposalItemStatus => {
+      const proposal = proposals.find((item) => item.id === id);
+      if (proposal && isExistingTaskPlanProposal(proposal)) {
+        const authoritative = seedFromProposal(proposal);
+        const local = stateMap[id];
+        if (authoritative.state === "applying" && local?.state === "failed") {
+          return local;
+        }
+        if (authoritative.state !== "pending") {
+          return authoritative;
+        }
+      }
+      return stateMap[id] ?? { state: "pending" as ProposalItemState };
+    },
+    [stateMap, proposals],
   );
 
   const applyItem = useCallback(
@@ -162,6 +187,14 @@ export function useProposalState(proposals: ProposalLike[]) {
         }
         if (materializationStatus?.state === "applying") {
           dispatch({ type: "SET_APPLYING", id });
+          return;
+        }
+        if (
+          result &&
+          isExistingTaskPlanProposal(result) &&
+          !materializationStatus
+        ) {
+          dispatch({ type: "RESET", proposals: [result] });
           return;
         }
         dispatch({ type: "SET_APPLIED", id });

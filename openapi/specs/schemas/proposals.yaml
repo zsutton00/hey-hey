@@ -1123,6 +1123,36 @@ EntityPromptTemplateProposalUpdatesPayload:
     Proposal lifecycle state remains represented only by ProposalStatus;
     template lifecycle state describes effective persisted revisions only.
 
+PlanFromExistingTasksStage:
+  type: object
+  additionalProperties: false
+  required:
+    - title
+    - taskIds
+  properties:
+    title:
+      type: string
+      minLength: 1
+    taskIds:
+      type: array
+      minItems: 1
+      items:
+        $ref: "./common.yaml#/TaskId"
+
+PlanFromExistingTasksPrerequisite:
+  type: object
+  additionalProperties: false
+  required:
+    - taskId
+    - dependsOnTaskId
+  properties:
+    taskId:
+      $ref: "./common.yaml#/TaskId"
+      description: Adopted Task that depends on the prerequisite.
+    dependsOnTaskId:
+      $ref: "./common.yaml#/TaskId"
+      description: Prerequisite Task, which may be outside the Plan.
+
 ProposalUpdates:
   oneOf:
     - $ref: "./future-revisions.yaml#/FutureRevisionMutation"
@@ -1617,8 +1647,12 @@ WorkItemMetaRelationshipCreateOperation:
       $ref: "#/TemporaryRelationshipIdentity"
     source:
       $ref: "#/WorkItemChangeSetIdentity"
+    sourceEntityType:
+      $ref: "./agent-edges.yaml#/AgentEdgeEndpointEntityType"
     target:
       $ref: "#/WorkItemChangeSetIdentity"
+    targetEntityType:
+      $ref: "./agent-edges.yaml#/AgentEdgeEndpointEntityType"
     edgeType:
       $ref: "./agent-edges.yaml#/AgentMetaEdgeType"
     category:
@@ -1901,6 +1935,35 @@ WorkItemLayoutClearOperation:
       type: string
       minLength: 1
 
+WorkItemDesignDocCreateOperation:
+  type: object
+  description: >-
+    Creates a design doc beneath an existing or same-change-set work item. The
+    design doc is created with the work items of the same change set, so a
+    reviewed proposal can introduce a work item and its design doc together.
+  additionalProperties: false
+  required:
+    - op
+    - ref
+    - name
+    - markdown
+    - parent
+  properties:
+    op:
+      type: string
+      enum:
+        - designDoc.create
+    ref:
+      $ref: "#/TemporaryWorkItemIdentity"
+    name:
+      type: string
+      minLength: 1
+    markdown:
+      type: string
+      minLength: 1
+    parent:
+      $ref: "#/WorkItemChangeSetIdentity"
+
 WorkItemChangeSetOperation:
   oneOf:
     - $ref: "#/WorkItemCreateOperation"
@@ -1913,6 +1976,7 @@ WorkItemChangeSetOperation:
     - $ref: "#/WorkItemRelationshipDeleteOperation"
     - $ref: "#/WorkItemLayoutReplaceOperation"
     - $ref: "#/WorkItemLayoutClearOperation"
+    - $ref: "#/WorkItemDesignDocCreateOperation"
   discriminator:
     propertyName: op
     mapping:
@@ -1926,6 +1990,7 @@ WorkItemChangeSetOperation:
       relationship.delete: "#/WorkItemRelationshipDeleteOperation"
       layout.replace: "#/WorkItemLayoutReplaceOperation"
       layout.clear: "#/WorkItemLayoutClearOperation"
+      designDoc.create: "#/WorkItemDesignDocCreateOperation"
 
 WorkItemChangeSetValidationRequest:
   type: object
@@ -2131,6 +2196,24 @@ ProjectedWorkItem:
     deleted:
       type: boolean
 
+ProjectedDesignDoc:
+  type: object
+  additionalProperties: false
+  required:
+    - identity
+    - name
+    - markdown
+    - parent
+  properties:
+    identity:
+      $ref: "#/WorkItemChangeSetIdentity"
+    name:
+      type: string
+    markdown:
+      type: string
+    parent:
+      $ref: "#/WorkItemChangeSetIdentity"
+
 ProjectedWorkItemRelationship:
   type: object
   additionalProperties: false
@@ -2231,6 +2314,10 @@ ProjectedWorkItemChangeSetResponse:
     projectedRoot:
       nullable: true
       $ref: "#/ProjectedWorkItem"
+    designDocs:
+      type: array
+      items:
+        $ref: "#/ProjectedDesignDoc"
     children:
       type: array
       items:

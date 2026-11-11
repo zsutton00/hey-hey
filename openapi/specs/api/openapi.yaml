@@ -28778,6 +28778,9 @@ components:
     WebSocketSubscribedResponse:
       $ref: "../schemas/websockets.yaml#/WebSocketSubscribedResponse"
 
+    WebSocketDeniedSubscriptionScope:
+      $ref: "../schemas/websockets.yaml#/WebSocketDeniedSubscriptionScope"
+
     WebSocketLeaveRoomRequest:
       $ref: "../schemas/websockets.yaml#/WebSocketLeaveRoomRequest"
     WebSocketLeftResponse:

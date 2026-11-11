@@ -14,6 +14,20 @@ import { KEYS } from "../keys";
 import { compose, patterns } from "../compose";
 
 export const en = {
+  "proposals.existingPlan.existingTask": "Existing task",
+  "proposals.existingPlan.loading": "Loading task…",
+  "proposals.existingPlan.readFailed": "Could not read this task.",
+  "proposals.existingPlan.unavailable": "This task is unavailable.",
+  "proposals.existingPlan.deliveryOrder": "Stages in delivery order",
+  "proposals.existingPlan.prerequisites": "Explicit task prerequisites",
+  "proposals.existingPlan.orderIsNotDependency":
+    "Stage and task list order do not imply task dependencies.",
+  "proposals.existingPlan.noPrerequisites": "No task prerequisites declared.",
+  "proposals.existingPlan.dependsOn": "Depends on",
+  "proposals.existingPlan.parentFeature": "Parent Feature",
+  "proposals.existingPlan.resultUnavailable":
+    "Adoption completed, but its Plan link is unavailable.",
+  "proposals.existingPlan.approve": "Approve",
   "localLogin.title": "Welcome back",
   "localLogin.note": "Use your passkey to continue where you left off.",
   "localLogin.continuing": "Continuing where you left off…",
@@ -71,8 +85,6 @@ export const en = {
   "localSetup.progress.retry": "Try again",
   "onboarding.local.runtimeUnavailable":
     "The saved runtime is unavailable on this computer. Restore that provider to resume onboarding.",
-  "onboarding.runtime.lowCostGuidance":
-    "A low-cost model is enough for onboarding.",
   "onboarding.runtime.ownPlanGuidance":
     "Choose which machine and model will run onboarding. It uses your own coding plan; a low-cost model is enough.",
   "onboarding.runtime.loading": "Preparing your project…",

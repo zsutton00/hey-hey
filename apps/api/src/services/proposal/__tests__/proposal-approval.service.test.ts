@@ -1,3 +1,5 @@
+import { PlanToolsProvider } from '../../../mcp/tools/plan-tools.provider';
+import { workItemChangeSetValidationRequestSchema } from '../work-item-change-set.schema';
 import { ProposalReconciliationAdapterService } from '../proposal-reconciliation-adapter.service';
 import { createWarmWorkItemTypeRegistryWithCustomTypes } from '../../../../test/setup/work-item-type-registry.fixture';
 import { WorkItemParentageValidator } from '../../tasks/work-item-parentage-validator.service';
@@ -4200,20 +4202,82 @@ describe('ProposalApprovalService', () => {
       },
     );
 
-    it('records approval and completes the selected generic enactment before returning', async () => {
-      const draft = makeStoredProposal({
-        updates: {
-          root: { refType: 'temporary', tempId: 'root' },
-          operations: [
-            {
-              op: 'workItem.create',
-              ref: { refType: 'temporary', tempId: 'root' },
-              name: 'Root',
-              type: 'STANDARD',
+    it('approves the real four-stage producer payload through generic enactment without a top-level name', async () => {
+      let stored: unknown;
+      const ids = [
+        '11111111-1111-4111-8111-111111111111',
+        '22222222-2222-4222-8222-222222222222',
+        '33333333-3333-4333-8333-333333333333',
+        '44444444-4444-4444-8444-444444444444',
+      ] as const;
+      const provider = new PlanToolsProvider(
+        {
+          create: async (
+            _org: unknown,
+            _project: unknown,
+            _user: unknown,
+            dto: { updates: unknown },
+          ) => {
+            stored = dto.updates;
+            return {
+              id: proposalId,
+              status: 'DRAFT',
+              action: 'CREATE',
+              targetEntityType: 'TASK',
+              targetEntityId: '00000000-0000-0000-0000-000000000000',
+              createdAt: '',
+            };
+          },
+        } as any,
+        {
+          db: {
+            task: {
+              findFirst: jest.fn().mockResolvedValue({
+                id: testIds.task,
+                type: 'FEATURE',
+                parentTaskId: null,
+              }),
+              findMany: jest.fn().mockResolvedValue(
+                ids.map((id) => ({
+                  id,
+                  type: 'STANDARD',
+                  parentTaskId: testIds.task,
+                })),
+              ),
             },
-          ],
+          },
+        } as any,
+      );
+      await provider.createPlanFromExistingTasks(
+        {
+          planTitle: 'Deliver existing work',
+          eli5: 'Organize the reviewed tasks.',
+          parentFeatureId: testIds.task,
+          designDocMarkdown:
+            '# Full design\n\n' +
+            'Reviewed implementation decisions.\n'.repeat(300),
+          stages: ids.map((id, i) => ({
+            title: `Stage ${i + 1}`,
+            taskIds: [id],
+          })),
+          taskPrerequisites: [{ taskId: ids[3], dependsOnTaskId: ids[0] }],
         },
-      });
+        {} as any,
+        {
+          headers: { 'x-project-id': testIds.project },
+          user: {
+            userId: approvingUserId,
+            currentOrgId: testIds.organization,
+            orgMemberships: [],
+            isDevAdmin: false,
+            devAdminMode: false,
+          },
+        } as any,
+      );
+      const updates = workItemChangeSetValidationRequestSchema.parse(stored);
+      expect(updates).not.toHaveProperty('name');
+      expect(updates).not.toHaveProperty('planTitle');
+      const draft = makeStoredProposal({ updates });
       setupForApproval(draft);
 
       const result = await service.approve(

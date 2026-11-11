@@ -1,6 +1,104 @@
+import { createMockPrismaService } from 'src/utils/testUtils';
 import { OutboxStore } from '../outbox-store.service';
 
 describe('OutboxStore', () => {
+  it.each([0, 1])(
+    'only merges into an unchanged, unclaimed event (updated rows: %s)',
+    async (count) => {
+      const prisma = createMockPrismaService().db;
+      const payload = {
+        update: { title: 'Revised title', description: 'Existing description' },
+        changes: [
+          {
+            field: 'title',
+            oldValue: 'Original title',
+            newValue: 'Revised title',
+            dataType: 'string',
+          },
+          {
+            field: 'description',
+            oldValue: '',
+            newValue: 'Existing description',
+            dataType: 'string',
+          },
+        ],
+        totalFieldsChanged: 2,
+        changedBy: {
+          userId: 'user-1',
+          email: 'user@example.test',
+          name: 'User',
+        },
+      };
+      prisma.outboxEvent.findFirst.mockResolvedValue({
+        id: 'recent-event',
+        payload,
+        headers: {},
+        correlationId: 'earlier-correlation',
+        createdAt: new Date(),
+      });
+      const tx = {
+        ...prisma,
+        outboxEvent: {
+          ...prisma.outboxEvent,
+          updateMany: jest.fn().mockResolvedValue({ count }),
+        },
+      };
+      const service = new OutboxStore(prisma as never);
+
+      const result = await service['tryMergeWithRecentEvent'](
+        tx as never,
+        {
+          eventType: 'initiative.updated',
+          aggregateId: 'initiative-1',
+          payload: {
+            ...payload,
+            update: { title: 'Latest title' },
+            changes: [
+              {
+                field: 'title',
+                oldValue: 'Revised title',
+                newValue: 'Latest title',
+                dataType: 'string',
+              },
+            ],
+          },
+        } as never,
+        {
+          correlationId: 'latest-correlation',
+          userId: 'user-1',
+          organizationId: 'org-1',
+        } as never,
+      );
+
+      expect(result).toBe(count === 1 ? 'recent-event' : null);
+      expect(tx.outboxEvent.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            id: 'recent-event',
+            status: { in: ['PENDING', 'SCHEDULED'] },
+            payload: { equals: payload },
+          }),
+          data: expect.objectContaining({
+            payload: expect.objectContaining({
+              totalFieldsChanged: 2,
+              changes: expect.arrayContaining([
+                expect.objectContaining({
+                  field: 'title',
+                  oldValue: 'Original title',
+                  newValue: 'Latest title',
+                }),
+                expect.objectContaining({
+                  field: 'description',
+                  newValue: 'Existing description',
+                }),
+              ]),
+            }),
+          }),
+        }),
+      );
+    },
+  );
+
   describe('getEventsForEntity', () => {
     it('serializes bigint sequence numbers for debug responses', async () => {
       const prisma = {

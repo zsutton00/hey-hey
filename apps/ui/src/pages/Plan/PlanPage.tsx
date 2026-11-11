@@ -110,6 +110,15 @@ export const PlanPage = ({
     },
   );
   const feature = cachedFeature ?? loadedFeature;
+  // An unreadable Plan has no aggregate, so its title and status come from the
+  // generic work item read, which does not depend on Plan validation.
+  const isUnreadable = result.status === "error" && !result.recovery;
+  const { workItem: unreadablePlan } = useWorkItem(
+    organizationId,
+    "task",
+    planId,
+    { projectId, enabled: Boolean(organizationId && planId && isUnreadable) },
+  );
   const [previewTab, setPreviewTab] = useState<PlanTab>("plan");
   const [manageOpen, setManageOpen, manageOpenOwnerKey] = useModalState(false);
   const layoutMainScrollOwner = useLayoutMainScrollOwner();
@@ -160,51 +169,61 @@ export const PlanPage = ({
       </Box>
     );
   if (result.status === "error") {
-    if (!result.recovery)
+    if (!result.recovery && !unreadablePlan) {
       return <Alert severity="error">{result.error.message}</Alert>;
-
-    return (
-      <Stack
-        spacing={2}
-        sx={{ p: 3 }}
-        data-testid="plan-generation-validation-recovery"
-      >
-        <Alert severity="error" data-testid="plan-generation-validation-error">
-          <Stack spacing={0.75}>
-            <Typography variant="subtitle2">
-              Plan generation failed validation.
-            </Typography>
-            <Typography variant="body2">{result.error.message}</Typography>
-            {result.validationIssues.map((issue, index) => (
-              <Stack
-                key={`${issue.layer}-${issue.code}-${issue.field}-${index}`}
-              >
-                <Typography variant="body2">
-                  {issue.layer} · {issue.field} · {issue.code}: {issue.reason}
-                </Typography>
-                {issue.suggestion ? (
-                  <Typography variant="caption">{issue.suggestion}</Typography>
-                ) : null}
-              </Stack>
-            ))}
-          </Stack>
-        </Alert>
-        <PlanGenerationChat
-          organizationId={organizationId}
-          projectId={projectId}
-          planId={planId}
-          plan={result.recovery.plan}
-          configuration={result.recovery.configuration}
-          scrollPolicy={planGenerationScrollPolicy}
-        />
-      </Stack>
-    );
+    }
+    if (result.recovery) {
+      return (
+        <Stack
+          spacing={2}
+          sx={{ p: 3 }}
+          data-testid="plan-generation-validation-recovery"
+        >
+          <Alert
+            severity="error"
+            data-testid="plan-generation-validation-error"
+          >
+            <Stack spacing={0.75}>
+              <Typography variant="subtitle2">
+                Plan generation failed validation.
+              </Typography>
+              <Typography variant="body2">{result.error.message}</Typography>
+              {result.validationIssues.map((issue, index) => (
+                <Stack
+                  key={`${issue.layer}-${issue.code}-${issue.field}-${index}`}
+                >
+                  <Typography variant="body2">
+                    {issue.layer} · {issue.field} · {issue.code}: {issue.reason}
+                  </Typography>
+                  {issue.suggestion ? (
+                    <Typography variant="caption">
+                      {issue.suggestion}
+                    </Typography>
+                  ) : null}
+                </Stack>
+              ))}
+            </Stack>
+          </Alert>
+          <PlanGenerationChat
+            organizationId={organizationId}
+            projectId={projectId}
+            planId={planId}
+            plan={result.recovery.plan}
+            configuration={result.recovery.configuration}
+            scrollPolicy={planGenerationScrollPolicy}
+          />
+        </Stack>
+      );
+    }
   }
-  if (!plan || !aggregate)
-    return <Alert severity="error">Plan not found.</Alert>;
+  // An unreadable Plan keeps the normal page; only the Plan viewer is replaced
+  // by the validation error, since it needs the validated aggregate.
+  const readError = result.status === "error" ? result.error.message : null;
+  const shell = plan ?? unreadablePlan;
+  if (!shell) return <Alert severity="error">Plan not found.</Alert>;
   const lineage = [
-    ...(plan.parentTaskId
-      ? [createNavigationLineageEntry("task", plan.parentTaskId)]
+    ...(shell.parentTaskId
+      ? [createNavigationLineageEntry("task", shell.parentTaskId)]
       : []),
     createNavigationLineageEntry("task", planId),
   ];
@@ -227,8 +246,8 @@ export const PlanPage = ({
                 type: "task",
                 id: planId,
                 lineage,
-                name: plan.name,
-                status: plan.status,
+                name: shell.name,
+                status: shell.status,
                 projectId,
               },
             }),
@@ -244,7 +263,7 @@ export const PlanPage = ({
                   "task",
                   planId,
                   lineage,
-                  { kind: "task", label: plan.name, taskType: plan.type },
+                  { kind: "task", label: shell.name, taskType: shell.type },
                 ),
               }
         }
@@ -253,7 +272,7 @@ export const PlanPage = ({
           <DiscussCapsuleAction
             entityId={planId}
             entityType={TargetEntityType.Task}
-            entityTitle={plan.name}
+            entityTitle={shell.name}
             organizationId={organizationId}
             projectId={projectId}
           />
@@ -268,7 +287,7 @@ export const PlanPage = ({
                 type: "project",
                 entityId: projectId,
               },
-              ...(plan.parentTaskId
+              ...(shell.parentTaskId
                 ? [
                     {
                       label: feature?.name ?? "Feature",
@@ -276,24 +295,24 @@ export const PlanPage = ({
                         "/projects/" +
                         projectId +
                         "/features/" +
-                        plan.parentTaskId,
+                        shell.parentTaskId,
                       type: "task" as const,
-                      entityId: plan.parentTaskId,
+                      entityId: shell.parentTaskId,
                     },
                   ]
                 : []),
               {
                 label: "Plans",
-                to: plan.parentTaskId
+                to: shell.parentTaskId
                   ? "/projects/" +
                     projectId +
                     "/features/" +
-                    plan.parentTaskId +
+                    shell.parentTaskId +
                     "?tab=plans"
                   : "/projects/" + projectId + "/plans",
               },
               {
-                label: plan.name,
+                label: shell.name,
                 isCurrent: true,
                 type: "task",
                 entityId: planId,
@@ -316,9 +335,9 @@ export const PlanPage = ({
                 : undefined
             }
           >
-            <DetailPageHeader title={plan.name} />
+            <DetailPageHeader title={shell.name} />
             <Chip
-              label={getPlanStatusLabel(plan.status)}
+              label={getPlanStatusLabel(shell.status)}
               size="small"
               sx={{ alignSelf: "flex-start", my: 1 }}
             />
@@ -342,7 +361,9 @@ export const PlanPage = ({
             </Tabs>
             {tab === "plan" && (
               <Box sx={{ mt: 3 }}>
-                {plan.status === WorkStatus.Backlog ? (
+                {!plan || !aggregate ? (
+                  <Alert severity="error">{readError}</Alert>
+                ) : shell.status === WorkStatus.Backlog ? (
                   preview ? (
                     <Alert severity="info" data-testid="plan-draft-preview">
                       This Plan is a draft. Open the Plan to generate its stages
@@ -439,10 +460,12 @@ export const PlanPage = ({
             )}
             {tab === "admin" && (
               <Stack spacing={3} sx={{ mt: 3 }}>
-                <PlanWorktreeEditor
-                  plan={plan}
-                  configuration={aggregate.configuration}
-                />
+                {plan && aggregate && (
+                  <PlanWorktreeEditor
+                    plan={plan}
+                    configuration={aggregate.configuration}
+                  />
+                )}
                 {!preview && (
                   <Button color="error" onClick={() => setManageOpen(true)}>
                     Archive or delete Plan
@@ -459,8 +482,8 @@ export const PlanPage = ({
             organizationId={organizationId}
             projectId={projectId}
             planId={planId}
-            planName={plan.name}
-            planStatus={plan.status}
+            planName={shell.name}
+            planStatus={shell.status}
             onDeleted={() => navigate("/projects/" + projectId + "/plans")}
           />
         </ModalWorkOwner.Provider>

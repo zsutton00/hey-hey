@@ -56,6 +56,7 @@ const INERT_PROPOSAL_TOOLS = new Set([
   'create_work_item',
   'edit_work_item',
   'create_plan',
+  'create_plan_from_existing_tasks',
   'create_design_doc',
   'edit_design_doc',
   'create_work_item_type',

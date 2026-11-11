@@ -1336,7 +1336,7 @@ export const proposeFutureRevisionOutput = z.discriminatedUnion('status', [
 
 type ProposeFutureRevisionOutput = z.infer<typeof proposeFutureRevisionOutput>;
 
-const proposalUpdatesSchema = z
+const entityProposalUpdatesSchema = z
   .object({
     name: z.string().min(1).optional().describe('Updated name/title'),
     sections: z
@@ -1389,6 +1389,11 @@ const proposalUpdatesSchema = z
     'The proposed changes to store. Shape matches the target entity ' +
       'update DTO (e.g. name, sections, status, priority for tasks).',
   );
+
+const proposalUpdatesSchema = z.union([
+  entityProposalUpdatesSchema,
+  workItemChangeSetValidationRequestSchema,
+]);
 
 export const updateProposalParameters = z.object({
   groupContext: proposalGroupContextSchema.optional(),
@@ -1560,6 +1565,9 @@ export function validateGraphOperationsAgainstCapability(params: {
 
   params.operations.forEach((operation, operationIndex) => {
     switch (operation.op) {
+      case 'designDoc.create':
+        requireAction('createNode', operationIndex, operation);
+        break;
       case 'workItem.create':
         requireAction('createNode', operationIndex, operation);
         if (operation.status === 'SUPERSEDED') {
@@ -4229,7 +4237,10 @@ export class ProposalToolsProvider {
       toolName: PROPOSAL_TOOL_NAMES.UPDATE_PROPOSAL,
       token: params.authoringRootProof,
       required: topologyMutationRequested({
-        parentTaskId: params.updates?.parentTaskId,
+        parentTaskId:
+          params.updates && 'parentTaskId' in params.updates
+            ? params.updates.parentTaskId
+            : undefined,
         groupContext: params.groupContext,
       }),
     });
@@ -4310,7 +4321,11 @@ export class ProposalToolsProvider {
         };
       }
 
-      if (params.updates?.status !== undefined) {
+      if (
+        params.updates &&
+        'status' in params.updates &&
+        params.updates.status !== undefined
+      ) {
         const existing = await this.proposalService.findOne(
           params.proposalId,
           auth.organizationId,

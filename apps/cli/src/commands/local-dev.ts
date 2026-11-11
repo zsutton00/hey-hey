@@ -5,7 +5,7 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import {
   DEV_INFRASTRUCTURE_ENDPOINTS,
-  LOCAL_WEB_ORIGIN,
+  localWebOrigin,
   devWebEnvironment,
   devComposeConfiguration,
   localApiEnvironment,
@@ -15,7 +15,7 @@ import { DockerBoundary } from '../local-app/docker-boundary';
 import { InstallationStore, checkModels } from '../local-app/installation-store';
 import { LocalLifecycleOwners } from '../local-app/lifecycle-owners';
 import { assertObservedRelease } from '../local-app/local-application';
-import { resolveLocalBridgePort } from '../local-app/local-port';
+import { resolveLocalBridgePort, resolveLocalWebPort } from '../local-app/local-port';
 import { continueLocalApplication } from './local';
 
 const INFRASTRUCTURE = ['postgres', 'redis', 'graph-search'];
@@ -90,6 +90,7 @@ export async function runLocalDevCommand(): Promise<boolean> {
     await checkModels(installation.modelDirectory);
     const secrets = await storage.secrets();
     const bridgePort = resolveLocalBridgePort();
+    const webPort = resolveLocalWebPort();
 
     await new LocalLifecycleOwners(storage).exclusive(async () => {
       const observed = await docker.inspect();
@@ -109,6 +110,7 @@ export async function runLocalDevCommand(): Promise<boolean> {
           installation,
           secrets,
           bridgePort,
+          webPort,
           join(root, 'apps', 'api', 'db', 'flyway'),
         ),
         devPath,
@@ -128,14 +130,14 @@ export async function runLocalDevCommand(): Promise<boolean> {
         'api',
         join(root, 'apps', 'api'),
         ['dev:no-watch'],
-        localApiEnvironment(secrets, DEV_INFRASTRUCTURE_ENDPOINTS),
+        localApiEnvironment(secrets, DEV_INFRASTRUCTURE_ENDPOINTS, webPort),
         logDirectory,
       ),
       startFromSource(
         'ui',
         join(root, 'apps', 'ui'),
-        ['exec', 'vite', '--port', '5173', '--strictPort'],
-        devWebEnvironment(bridgePort),
+        ['exec', 'vite', '--port', String(webPort), '--strictPort'],
+        devWebEnvironment(bridgePort, webPort),
         logDirectory,
       ),
     );
@@ -147,7 +149,7 @@ export async function runLocalDevCommand(): Promise<boolean> {
     assertObservedRelease(await docker.inspect(), release);
 
     const navigation = {
-      url: `${LOCAL_WEB_ORIGIN}/local`,
+      url: `${localWebOrigin(webPort)}/local`,
       reconnectCommand: 'pnpm dev:run local dev',
       stopCommand: 'Ctrl+C',
     };
@@ -157,6 +159,7 @@ export async function runLocalDevCommand(): Promise<boolean> {
       release,
       navigation,
       bridgePort,
+      webPort,
       () => {},
       INFRASTRUCTURE,
     );

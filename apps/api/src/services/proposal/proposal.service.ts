@@ -1754,13 +1754,15 @@ export class ProposalService {
         updateData.targetEntityType =
           dto.targetEntityType as PrismaTargetEntityType;
       }
+      const nextUpdates =
+        dto.updates === undefined
+          ? existing.updates
+          : {
+              ...((existing.updates as Record<string, unknown>) ?? {}),
+              ...(dto.updates as Record<string, unknown>),
+            };
       if (dto.updates !== undefined) {
-        const existingUpdates =
-          (existing.updates as Record<string, unknown>) ?? {};
-        updateData.updates = {
-          ...existingUpdates,
-          ...(dto.updates as Record<string, unknown>),
-        } as Prisma.InputJsonValue;
+        updateData.updates = nextUpdates as Prisma.InputJsonValue;
       }
       if (dto.requestorContext !== undefined) {
         updateData.requestorContext = dto.requestorContext
@@ -1818,13 +1820,7 @@ export class ProposalService {
         targetEntityId: dto.targetEntityId ?? existing.targetEntityId,
         targetEntityType: (dto.targetEntityType ??
           existing.targetEntityType) as CreateProposalDto['targetEntityType'],
-        updates:
-          dto.updates !== undefined
-            ? {
-                ...((existing.updates as Record<string, unknown>) ?? {}),
-                ...(dto.updates as Record<string, unknown>),
-              }
-            : ((existing.updates as Record<string, unknown>) ?? {}),
+        updates: nextUpdates as CreateProposalDto['updates'],
         title: existing.title ?? undefined,
         eli5,
         edges:
@@ -1902,7 +1898,9 @@ export class ProposalService {
       });
 
       await this.reconciliation.captureAuthoring(tx, result);
-      return result;
+      // captureAuthoring clears active votes. Do not return the relation read
+      // before that write as the revised artifact's approval progress.
+      return { ...result, approvalRecords: [] };
     });
 
     this.logger.log('Proposal updated', {

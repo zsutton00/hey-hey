@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import {
+  Navigate,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 import { getApiRuntime } from "@hey-hey/ui-common/clients";
 import {
   acceptBrowserAuthSession,
@@ -132,7 +137,8 @@ export function LocalSetupPage(): React.JSX.Element {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
+  const location = useLocation();
   const [status, setStatus] = useState<LocalSetupStatusDto | null>(null);
   const [name, setName] = useState("");
   const [step, setStep] = useState<"loading" | "name" | "error">("loading");
@@ -169,6 +175,9 @@ export function LocalSetupPage(): React.JSX.Element {
   };
 
   const [cliFragment] = useState(readCliFragment);
+  const [handoffPending, setHandoffPending] = useState(() =>
+    Boolean(cliFragment.handoffToken),
+  );
 
   useEffect(() => {
     mountCount += 1;
@@ -190,6 +199,12 @@ export function LocalSetupPage(): React.JSX.Element {
       return;
     }
 
+    // Initial renewal must settle before a handoff establishes a new session.
+    // Otherwise a late renewal rejection can clear the accepted session.
+    if (authLoading) {
+      return;
+    }
+
     recordLocalSetupEvent("handoff: exchanging the one-use token");
     void exchangeHandoffToken(handoffToken)
       .then((response) => {
@@ -206,11 +221,14 @@ export function LocalSetupPage(): React.JSX.Element {
         recordLocalSetupEvent(`handoff: failed (${describeFailure(failure)})`);
         setError("Run heyhey local again to restore access to this computer.");
         setStep("error");
-      });
-  }, [cliFragment]);
+      })
+      .finally(() => setHandoffPending(false));
+  }, [cliFragment, authLoading]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || authLoading || handoffPending) {
+      return;
+    }
 
     let active = true;
     const refreshStatus = async () => {
@@ -256,7 +274,7 @@ export function LocalSetupPage(): React.JSX.Element {
       active = false;
       window.clearInterval(interval);
     };
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, authLoading, handoffPending, navigate]);
 
   const saveName = async () => {
     const displayName = name.trim();
@@ -299,7 +317,19 @@ export function LocalSetupPage(): React.JSX.Element {
     );
   }
 
-  if (step === "loading" || !status) {
+  if (!authLoading && !handoffPending && !isAuthenticated) {
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{
+          from: { pathname: location.pathname, search: location.search },
+        }}
+      />
+    );
+  }
+
+  if (authLoading || handoffPending || step === "loading" || !status) {
     return (
       <main className="local-setup" aria-live="polite">
         <p className="local-setup__wordmark">HEY HEY</p>

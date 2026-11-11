@@ -2,6 +2,7 @@ import { chmod, mkdir, readFile, writeFile, stat, rename, unlink } from 'node:fs
 import { generateKeyPairSync, randomBytes } from 'node:crypto';
 import { join, resolve } from 'node:path';
 import { z } from 'zod/v4';
+import { StructuredServerLogger } from '../server/logger';
 import { releaseManifestSchema, type ReleaseManifest } from '../release/release-manifest';
 
 const secretSchema = z.strictObject({
@@ -26,6 +27,7 @@ const updateConsentSchema = z.strictObject({
 });
 
 export class InstallationStore {
+  private readonly logger = new StructuredServerLogger({}, { component: 'local-installation' });
   constructor(readonly directory: string) {}
 
   get composePath(): string {
@@ -113,9 +115,11 @@ export class InstallationStore {
       const path = join(this.directory, 'secrets.json');
       await chmod(path, 0o600);
       return secretSchema.parse(JSON.parse(await readFile(path, 'utf8')));
-    } catch {
+    } catch (error) {
+      this.logger.error('local.installation.secrets_unreadable', { error });
       throw new Error(
         'Restore protected local secrets.json from backup before retrying. Existing secrets will never be replaced.',
+        { cause: error },
       );
     }
   }

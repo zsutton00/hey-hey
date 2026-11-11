@@ -61,15 +61,16 @@ describe("deriveScreenNextOptions", () => {
 });
 
 describe("groupScreenNextOptions", () => {
-  it("orders groups main, error, recovery, return, then role-less under Other options", () => {
+  it("orders groups main, error, recovery, return, then role-less without a title", () => {
     const groups = groupScreenNextOptions(deriveScreenNextOptions(flow, "pay"));
 
     expect(groups.map((group) => group.title)).toEqual([
       "Main path",
       "Error path",
       "Return",
-      "Other options",
+      null,
     ]);
+    expect(groups.at(-1)?.role).toBeNull();
     expect(groups.at(-1)?.options.map((option) => option.actionLabel)).toEqual([
       "Pay with saved card",
     ]);
@@ -87,7 +88,7 @@ describe("groupScreenNextOptions", () => {
     );
 
     expect(groups).toEqual([
-      expect.objectContaining({ role: null, title: "Other options" }),
+      expect.objectContaining({ role: null, title: null }),
     ]);
   });
 });

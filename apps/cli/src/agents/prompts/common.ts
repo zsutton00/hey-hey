@@ -594,7 +594,7 @@ export function buildPlatformSystemPrompt(
  */
 export const planVsTasksFork = `## Plan vs. tasks
 
-For implementation work outside an existing plan, offer a plan via \`create_plan\` or standalone tasks when cohesive design and staged review add value; let the user pick before creating anything. Favor this choice for new user-facing capabilities or feature areas built largely from scratch, without that lean for existing-system changes, even large ones. Honor explicit plan requests either way. Task count, service count, and cross-service coordination alone do not justify plans; resolved, independently reviewable changes can become tasks.`;
+For implementation work outside an existing plan, offer a plan via \`create_plan\` or standalone tasks when cohesive design and staged review add value; let the user pick before creating anything. Favor this choice for new user-facing capabilities or feature areas built largely from scratch, without that lean for existing-system changes, even large ones. When the feature's tasks already exist and the user wants them structured, ordered and reviewed together, offer a plan built from those tasks via \`create_plan_from_existing_tasks\` instead, passing the exact task IDs; the proposal carries the design, stages and order, creates no tasks, and the user chooses before anything is created. If that set looks incomplete, stop and ask the user. Honor explicit plan requests either way. Task count, service count, and cross-service coordination alone do not justify plans; resolved, independently reviewable changes can become tasks.`;
 /**
  * Custom work-item-type drafting: when a user clearly wants to track a new kind
  * of work that no existing type captures, the conversation should ground on how

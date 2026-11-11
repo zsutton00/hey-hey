@@ -7,8 +7,13 @@ import { ReleaseSource } from './release-source';
 import { ReleasePackage } from './release-package';
 import { InstallationStore } from './installation-store';
 import { DockerBoundary, type ObservedContainer } from './docker-boundary';
-import { SERVICE_IMAGES } from './compose';
-import { DEFAULT_LOCAL_BRIDGE_PORT, resolveLocalBridgePort } from './local-port';
+import { localWebOrigin, SERVICE_IMAGES } from './compose';
+import {
+  DEFAULT_LOCAL_BRIDGE_PORT,
+  DEFAULT_LOCAL_WEB_PORT,
+  resolveLocalBridgePort,
+  resolveLocalWebPort,
+} from './local-port';
 import { RELEASE_PLATFORMS, type ReleaseManifest } from '../release/release-manifest';
 
 const image = (name: string) => ({
@@ -30,16 +35,25 @@ function containers(
   running: boolean,
   manifest = release,
   bridgePort = DEFAULT_LOCAL_BRIDGE_PORT,
+  webPort = DEFAULT_LOCAL_WEB_PORT,
 ): ObservedContainer[] {
   return Object.entries(SERVICE_IMAGES).map(([service, name]) => ({
     Id: service,
     Config: {
       Image: manifest.images[name].reference,
-      Env: service === 'ui' ? [`VITE_LOCAL_AGENT_PORT=${bridgePort}`] : [],
+      Env:
+        service === 'ui'
+          ? [`VITE_LOCAL_AGENT_PORT=${bridgePort}`, `VITE_WS_URL=ws://localhost:${webPort}`]
+          : service === 'api'
+            ? [`ACCOUNT_PASSKEY_ORIGIN=http://localhost:${webPort}`]
+            : [],
       Labels: {
         'com.docker.compose.service': service,
         'dev.heyhey.cli-version': manifest.cliVersion,
       },
+    },
+    HostConfig: {
+      PortBindings: service === 'ui' ? { '5173/tcp': [{ HostPort: String(webPort) }] } : {},
     },
     State: {
       Running: running,
@@ -191,7 +205,7 @@ describe('local application installation and return visits', () => {
     await app.install();
     expect(app.state).toMatchObject({
       kind: 'ready',
-      url: 'http://localhost:5173/local',
+      url: `${localWebOrigin(DEFAULT_LOCAL_WEB_PORT)}/local`,
       bridgeConnected: false,
       executionAuthorized: false,
     });
@@ -240,20 +254,33 @@ describe('local application installation and return visits', () => {
   it('writes the bridge port into the UI container configuration', async () => {
     const installation = await storage.prepare(release, models);
     const { composeConfiguration } = await import('./compose');
-    const config = composeConfiguration(installation, await storage.secrets(), 4100);
+    const config = composeConfiguration(
+      installation,
+      await storage.secrets(),
+      4100,
+      DEFAULT_LOCAL_WEB_PORT,
+    );
     expect(config.services.ui.environment.VITE_LOCAL_AGENT_PORT).toBe('4100');
   });
 
   it('serves the installed web app and API from one address', async () => {
     const installation = await storage.prepare(release, models);
-    const { composeConfiguration, devWebEnvironment, LOCAL_WEB_ORIGIN } = await import('./compose');
-    const ui = composeConfiguration(installation, await storage.secrets(), 4100).services.ui;
+    const { composeConfiguration, devWebEnvironment } = await import('./compose');
+    const LOCAL_WEB_ORIGIN = localWebOrigin(DEFAULT_LOCAL_WEB_PORT);
+    const ui = composeConfiguration(
+      installation,
+      await storage.secrets(),
+      4100,
+      DEFAULT_LOCAL_WEB_PORT,
+    ).services.ui;
 
+    expect(ui.ports).toEqual(['127.0.0.1:3850:5173']);
+    expect(ui.healthcheck.test.at(-1)).toContain('http://127.0.0.1:5173/');
     expect(ui.environment['API_PROXY_TARGET']).toBe('http://api:3000');
     expect(ui.environment['VITE_API_URL']).toBe('/api/v1');
     expect(new URL(ui.environment['VITE_WS_URL'] ?? '').host).toBe(new URL(LOCAL_WEB_ORIGIN).host);
 
-    const dev = devWebEnvironment(4100);
+    const dev = devWebEnvironment(4100, DEFAULT_LOCAL_WEB_PORT);
     expect(dev['VITE_API_URL']).toBe('/api/v1');
     expect(new URL(dev['VITE_WS_URL'] ?? '').host).toBe(new URL(LOCAL_WEB_ORIGIN).host);
   });
@@ -265,11 +292,88 @@ describe('local application installation and return visits', () => {
     const app = new LocalApplication(source, storage, docker, models, 'darwin', undefined, 4100);
     await app.run();
     expect(app.state.kind).toBe('ready');
-    expect(mutated().map((args) => args.at(-1))).toEqual(['ui']);
+    expect(mutated().map((args) => args.slice(-2))).toEqual([['api', 'ui']]);
     expect(mutated().some((args) => args.includes('pull') || args.includes('run'))).toBe(false);
     const written = JSON.parse(await readFile(storage.composePath, 'utf8'));
     expect(written.services.ui.environment.VITE_LOCAL_AGENT_PORT).toBe('4100');
     expect(await storage.secrets()).toEqual(before);
+  });
+
+  it('moves an existing 5173-era installation to the new web address without touching data or secrets', async () => {
+    await storage.prepare(release, models);
+    const before = await storage.secrets();
+    docker.observed = containers(true, release, DEFAULT_LOCAL_BRIDGE_PORT, 5173);
+    const app = new LocalApplication(source, storage, docker, models, 'darwin');
+    await app.run();
+    expect(app.state).toMatchObject({
+      kind: 'ready',
+      url: `${localWebOrigin(DEFAULT_LOCAL_WEB_PORT)}/local`,
+    });
+    expect(mutated().map((args) => args.slice(-2))).toEqual([['api', 'ui']]);
+    expect(mutated().some((args) => ['pull', 'down', 'run'].includes(args.at(-1) ?? ''))).toBe(
+      false,
+    );
+    expect(mutated().some((args) => args.includes('-v') || args.includes('--volumes'))).toBe(false);
+    const written = JSON.parse(await readFile(storage.composePath, 'utf8'));
+    expect(written.services.ui.ports).toEqual(['127.0.0.1:3850:5173']);
+    expect(written.services.api.environment.ACCOUNT_PASSKEY_ORIGIN).toBe('http://localhost:3850');
+    expect(written.services.api.environment.ACCOUNT_PASSKEY_RP_ID).toBe('localhost');
+    expect(await storage.secrets()).toEqual(before);
+  });
+
+  it('resolves an explicit web port once and applies it everywhere, rejecting an invalid one', async () => {
+    expect(resolveLocalWebPort({})).toBe(3850);
+    expect(resolveLocalWebPort({ HEYHEY_WEB_PORT: '4100' })).toBe(4100);
+    expect(() => resolveLocalWebPort({ HEYHEY_WEB_PORT: 'nope' })).toThrow('HEYHEY_WEB_PORT');
+    expect(() => resolveLocalWebPort({ HEYHEY_WEB_PORT: '70000' })).toThrow('HEYHEY_WEB_PORT');
+
+    const installation = await storage.prepare(release, models);
+    const { composeConfiguration } = await import('./compose');
+    const config = composeConfiguration(
+      installation,
+      await storage.secrets(),
+      DEFAULT_LOCAL_BRIDGE_PORT,
+      4100,
+    );
+    const api = config.services.api.environment;
+    expect(config.services.ui.ports).toEqual(['127.0.0.1:4100:5173']);
+    expect(config.services.ui.environment.VITE_WS_URL).toBe('ws://localhost:4100');
+    for (const key of [
+      'ACCOUNT_PASSKEY_ORIGIN',
+      'MACHINE_ENROLLMENT_WEBAUTHN_ORIGIN',
+      'BROWSER_TOKEN_AUDIENCE',
+      'CORS_WHITELIST',
+    ] as const) {
+      expect(api[key]).toBe('http://localhost:4100');
+    }
+    expect(api.ACCOUNT_PASSKEY_RP_ID).toBe('localhost');
+  });
+
+  it('recreates a stack running on the default web port when another port is requested', async () => {
+    await storage.prepare(release, models);
+    docker.observed = containers(true);
+    const app = new LocalApplication(
+      source,
+      storage,
+      docker,
+      models,
+      'darwin',
+      undefined,
+      DEFAULT_LOCAL_BRIDGE_PORT,
+      4100,
+    );
+    await app.run();
+    expect(app.state).toMatchObject({ kind: 'ready', url: 'http://localhost:4100/local' });
+    expect(mutated().map((args) => args.slice(-2))).toEqual([['api', 'ui']]);
+  });
+
+  it('leaves an up-to-date running stack alone', async () => {
+    await storage.prepare(release, models);
+    docker.observed = containers(true);
+    const app = new LocalApplication(source, storage, docker, models, 'darwin');
+    await app.run();
+    expect(app.state.kind).toBe('ready');
+    expect(mutated()).toEqual([]);
   });
 
   it.each(['missing', 'stopped', 'compose'] as const)(
@@ -500,6 +604,7 @@ describe('local application installation and return visits', () => {
       installation,
       await storage.secrets(),
       DEFAULT_LOCAL_BRIDGE_PORT,
+      DEFAULT_LOCAL_WEB_PORT,
     );
     const expectedImages = Object.values(release.images).map((image) => image.reference);
     for (const service of Object.values(config.services)) {
@@ -532,11 +637,17 @@ describe('local application installation and return visits', () => {
       localApiEnvironment,
       DEV_INFRASTRUCTURE_ENDPOINTS,
     } = await import('./compose');
-    const installed = composeConfiguration(installation, secrets, DEFAULT_LOCAL_BRIDGE_PORT);
+    const installed = composeConfiguration(
+      installation,
+      secrets,
+      DEFAULT_LOCAL_BRIDGE_PORT,
+      DEFAULT_LOCAL_WEB_PORT,
+    );
     const dev = devComposeConfiguration(
       installation,
       secrets,
       DEFAULT_LOCAL_BRIDGE_PORT,
+      DEFAULT_LOCAL_WEB_PORT,
       '/flyway',
     );
 
@@ -549,7 +660,11 @@ describe('local application installation and return visits', () => {
       expect(dev.services[name].ports.every((port) => port.startsWith('127.0.0.1:'))).toBe(true);
     }
 
-    const hostApi = localApiEnvironment(secrets, DEV_INFRASTRUCTURE_ENDPOINTS);
+    const hostApi = localApiEnvironment(
+      secrets,
+      DEV_INFRASTRUCTURE_ENDPOINTS,
+      DEFAULT_LOCAL_WEB_PORT,
+    );
     const addressKeys = /URL|HOST|PORT/;
     for (const [key, value] of Object.entries(installed.services.api.environment)) {
       if (!addressKeys.test(key)) {
@@ -560,10 +675,10 @@ describe('local application installation and return visits', () => {
     expect(hostApi.GRAPH_SERVICE_URL).toBe('http://127.0.0.1:58090/api');
   });
 
-  it('fixture releases cannot bypass packaged version or digest validation', async () => {
+  it('reuses pinned images across CLI versions and rejects invalid image data', async () => {
     await expect(
       new ReleaseSource(join(directory, 'release.json'), 'other-version').read(),
-    ).rejects.toThrow('package.json');
+    ).resolves.toEqual({ ...release, cliVersion: 'other-version' });
     const invalid = structuredClone(release);
     invalid.images.api.reference = 'example.test/api:latest';
     await writeFile(join(directory, 'release.json'), JSON.stringify(invalid));

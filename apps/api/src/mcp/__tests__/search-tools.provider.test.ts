@@ -1,3 +1,4 @@
+import { ok } from 'node:assert/strict';
 import { z } from 'zod';
 import {
   SearchToolsProvider,
@@ -823,18 +824,21 @@ describe('SearchToolsProvider', () => {
             ),
         );
 
-        const result = (await provider.unifiedSearch(
-          {
-            queries: ['auth', 'billing'],
-            limit: 25,
-            offset,
-          },
-          dummyContext as any,
-          makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
-        )) as { groups: Array<{ query: string } & SearchResult> };
+        const result = unifiedSearchResultOutput.parse(
+          await provider.unifiedSearch(
+            {
+              queries: ['auth', 'billing'],
+              limit: 25,
+              offset,
+            },
+            dummyContext as any,
+            makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
+          ),
+        );
 
         expect(mockSearchService.search).toHaveBeenCalledTimes(2);
         expect(result.searchReceiptId).toMatch(/^[0-9a-f-]{36}$/i);
+        ok(result.groups);
         expect(mockSearchReceipts.issue).toHaveBeenCalledWith(
           expect.objectContaining({ projectId: PROJECT_ID }),
           'unified_search',

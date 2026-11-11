@@ -1,4 +1,3 @@
-import { useTranslation } from "react-i18next";
 import { AnimatedConditional, FadeIn } from "@hey-hey/ui-common/animations";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
@@ -32,7 +31,7 @@ import {
   useProject,
   useSubmitOnboardingReply,
 } from "@hey-hey/ui-common/data";
-import { Box, Typography, useTheme } from "@mui/material";
+import { Box, useTheme } from "@mui/material";
 import { useCallback, useEffect, useState } from "react";
 import type { ConversationMessage } from "../../types/conversation";
 import { PageBreadcrumbs } from "../../components/Layout";
@@ -86,7 +85,6 @@ const isSelectedExistingWorkIntentAnswer = (answer: unknown): boolean =>
 // Container component for data loading and orchestration
 const OnboardingPageContent = () => {
   const navigate = useNavigate();
-  const { t } = useTranslation();
   const theme = useTheme();
   // Read the active org from the app-wide OrganizationContext — the same source
   // every other page (and project creation) uses. The JWT's currentOrgId is a
@@ -408,13 +406,6 @@ const OnboardingPageContent = () => {
         <HeyHeyBranding variant="header" />
       </Box>
 
-      <Typography
-        color="text.secondary"
-        data-testid="onboarding-model-guidance"
-        sx={{ mb: 2 }}
-      >
-        {t("onboarding.runtime.lowCostGuidance")}
-      </Typography>
       <AnimatedConditional show={!isLoaded} animationType="fade">
         <OnboardingLoadingScreen
           isNew={isNew}

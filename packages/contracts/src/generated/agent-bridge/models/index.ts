@@ -212,7 +212,6 @@ export * from './conversation-control-question-answer.js';
 export * from './conversation-control-stop-run.js';
 export * from './conversation-host-action-preparation.js';
 export * from './current-agent-operation.js';
-export * from './disposition.js';
 export * from './edge-source.js';
 export * from './entity-type.js';
 export * from './eval-assessed-output.js';

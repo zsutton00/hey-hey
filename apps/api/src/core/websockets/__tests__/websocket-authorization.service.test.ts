@@ -146,6 +146,7 @@ describe('WebsocketAuthorizationService', () => {
       }),
     ).resolves.toEqual({
       authorized: true,
+      deniedScopes: [],
       organizationIds: ['org-1'],
       projectIds: ['project-1'],
       conversationIds: ['conversation-1'],
@@ -159,33 +160,59 @@ describe('WebsocketAuthorizationService', () => {
   });
 
   it.each([
-    ['membership loss', [], 'conversation-1'],
+    [
+      'membership loss',
+      [],
+      'conversation-1',
+      [
+        { scopeType: 'project', id: 'project-1', reason: 'project_access' },
+        {
+          scopeType: 'conversation',
+          id: 'conversation-1',
+          reason: 'project_access',
+        },
+      ],
+      [],
+    ],
     [
       'a foreign child room',
       [{ projectId: 'project-1' }],
       'foreign-conversation',
+      [
+        {
+          scopeType: 'conversation',
+          id: 'foreign-conversation',
+          reason: 'not_found_or_inaccessible',
+        },
+      ],
+      ['project-1'],
     ],
   ])(
-    'denies the complete machine room batch after %s without resolving executable scope',
-    async (_reason, projectMemberships, conversationId) => {
-      const { service, agentSessionFindMany, executionGrantFindMany } =
-        makeService({
-          machine: { organizationId: 'org-1', revokedAt: null },
-          projects: [{ id: 'project-1', organizationId: 'org-1' }],
-          conversations:
-            conversationId === 'conversation-1'
-              ? [
-                  {
-                    id: 'conversation-1',
-                    organizationId: 'org-1',
-                    projectId: 'project-1',
-                  },
-                ]
-              : [],
-          organizations: [{ id: 'org-1' }],
-          organizationMemberships: [{ organizationId: 'org-1' }],
-          projectMemberships,
-        });
+    'grants only the reachable machine rooms after %s and names the rest',
+    async (
+      _reason,
+      projectMemberships,
+      conversationId,
+      deniedScopes,
+      grantedProjectIds,
+    ) => {
+      const { service } = makeService({
+        machine: { organizationId: 'org-1', revokedAt: null },
+        projects: [{ id: 'project-1', organizationId: 'org-1' }],
+        conversations:
+          conversationId === 'conversation-1'
+            ? [
+                {
+                  id: 'conversation-1',
+                  organizationId: 'org-1',
+                  projectId: 'project-1',
+                },
+              ]
+            : [],
+        organizations: [{ id: 'org-1' }],
+        organizationMemberships: [{ organizationId: 'org-1' }],
+        projectMemberships,
+      });
 
       await expect(
         service.authorizeMachine({
@@ -198,19 +225,41 @@ describe('WebsocketAuthorizationService', () => {
           designDocIds: [],
         }),
       ).resolves.toEqual({
-        authorized: false,
-        organizationIds: [],
-        projectIds: [],
+        authorized: true,
+        deniedScopes,
+        organizationIds: ['org-1'],
+        projectIds: grantedProjectIds,
         conversationIds: [],
         initiativeIds: [],
         designDocIds: [],
         agentSessionIds: [],
         taskMonitorIds: [],
       });
-      expect(agentSessionFindMany).not.toHaveBeenCalled();
-      expect(executionGrantFindMany).not.toHaveBeenCalled();
     },
   );
+
+  it('denies the whole machine request when the machine organization is no longer accessible', async () => {
+    const { service, agentSessionFindMany } = makeService({
+      machine: { organizationId: 'org-1', revokedAt: null },
+      projects: [{ id: 'project-1', organizationId: 'org-1' }],
+      organizations: [{ id: 'org-1' }],
+      organizationMemberships: [],
+      projectMemberships: [{ projectId: 'project-1' }],
+    });
+
+    await expect(
+      service.authorizeMachine({
+        machineId: asId<MachineId>('machine-1'),
+        userId: asId<UserId>('user-1'),
+        organizationIds: [asId<OrganizationId>('org-1')],
+        projectIds: [asId<ProjectId>('project-1')],
+        conversationIds: [],
+        initiativeIds: [],
+        designDocIds: [],
+      }),
+    ).resolves.toMatchObject({ authorized: false, projectIds: [] });
+    expect(agentSessionFindMany).not.toHaveBeenCalled();
+  });
 
   it('authorizes an active organization member with current project access', async () => {
     const { service, organizationMemberFindMany, projectMemberFindMany } =
@@ -223,6 +272,13 @@ describe('WebsocketAuthorizationService', () => {
 
     await expect(service.authorize(request)).resolves.toEqual({
       authorized: true,
+      grantedScope: {
+        projectIds: ['project-1'],
+        conversationIds: [],
+        initiativeIds: [],
+        designDocIds: [],
+      },
+      deniedScopes: [],
     });
     expect(organizationMemberFindMany).toHaveBeenCalledWith({
       where: {
@@ -256,7 +312,17 @@ describe('WebsocketAuthorizationService', () => {
           asId<ConversationId>('deleted-or-missing-conversation'),
         ],
       }),
-    ).resolves.toEqual({ authorized: false });
+    ).resolves.toMatchObject({
+      authorized: false,
+      grantedScope: { projectIds: ['project-1'], conversationIds: [] },
+      deniedScopes: [
+        {
+          scopeType: 'conversation',
+          id: 'deleted-or-missing-conversation',
+          reason: 'not_found_or_inaccessible',
+        },
+      ],
+    });
   });
 
   it('denies a project-owned child when its current project membership is missing', async () => {
@@ -283,7 +349,16 @@ describe('WebsocketAuthorizationService', () => {
       designDocIds: [],
     });
 
-    expect(decision).toEqual({ authorized: false });
+    expect(decision).toMatchObject({
+      authorized: false,
+      deniedScopes: [
+        {
+          scopeType: 'conversation',
+          id: 'conversation-1',
+          reason: 'project_access',
+        },
+      ],
+    });
     expect(projectFindMany).toHaveBeenCalledTimes(2);
   });
 
@@ -316,7 +391,7 @@ describe('WebsocketAuthorizationService', () => {
         initiativeIds: [],
         designDocIds: [asId<DesignDocId>('design-doc-1')],
       }),
-    ).resolves.toEqual({ authorized: false });
+    ).resolves.toMatchObject({ authorized: false });
   });
 
   it('denies archived initiatives and deleted projects without distinguishing the cause', async () => {
@@ -335,7 +410,21 @@ describe('WebsocketAuthorizationService', () => {
         initiativeIds: [asId<InitiativeId>('archived-initiative')],
         designDocIds: [],
       }),
-    ).resolves.toEqual({ authorized: false });
+    ).resolves.toMatchObject({
+      authorized: false,
+      deniedScopes: [
+        {
+          scopeType: 'project',
+          id: 'deleted-project',
+          reason: 'not_found_or_inaccessible',
+        },
+        {
+          scopeType: 'initiative',
+          id: 'archived-initiative',
+          reason: 'not_found_or_inaccessible',
+        },
+      ],
+    });
   });
 
   it('denies otherwise valid rooms when current account access is revoked or expired', async () => {
@@ -347,8 +436,15 @@ describe('WebsocketAuthorizationService', () => {
       entitlementsAuthorized: false,
     });
 
-    await expect(service.authorize(request)).resolves.toEqual({
+    await expect(service.authorize(request)).resolves.toMatchObject({
       authorized: false,
+      deniedScopes: expect.arrayContaining([
+        {
+          scopeType: 'project',
+          id: 'project-1',
+          reason: 'organization_not_entitled',
+        },
+      ]),
     });
   });
 });

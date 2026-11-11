@@ -1,3 +1,6 @@
+import { ProposalReconciliationGroupService } from '../proposal-reconciliation-group.service';
+import { PlanToolsProvider } from '../../../mcp/tools/plan-tools.provider';
+import { workItemChangeSetValidationRequestSchema } from '../work-item-change-set.schema';
 import type { WorkflowTransitionRole } from '@hey-hey/contracts/api/models';
 import { AxiosError, AxiosHeaders } from 'axios';
 import { PlanSubmissionAdmissionService } from '../../plan/plan-submission-admission.service';
@@ -4086,5 +4089,247 @@ describe('Graph dependency admission', () => {
         projected.issues.some((issue) => issue.code === 'duplicate_dependency'),
       ).toBe(!removeOld);
     }
+  });
+});
+
+describe('existing-task Plan producer through generic review projection', () => {
+  it('reviews four stages, cross-feature Tasks, explicit prerequisites and the complete document', async () => {
+    const { projector, prisma } = await createProjector();
+    const featureId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const otherFeatureId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const ids = [
+      'cccccccc-cccc-4ccc-8ccc-ccccccccccc1',
+      'cccccccc-cccc-4ccc-8ccc-ccccccccccc2',
+      'cccccccc-cccc-4ccc-8ccc-ccccccccccc3',
+      'cccccccc-cccc-4ccc-8ccc-ccccccccccc4',
+    ] as const;
+    const rows = [
+      persistedTask(featureId, 'Primary capability', 'FEATURE'),
+      persistedTask(otherFeatureId, 'Other capability', 'FEATURE'),
+      ...ids.map((id, index) => ({
+        ...persistedTask(
+          id,
+          `Existing task ${index}`,
+          'STANDARD',
+          index === 1 ? otherFeatureId : featureId,
+        ),
+        sections: [
+          {
+            key: 'description',
+            materializedMarkdown: `Implement the reviewed delivery boundary ${index}. Preserve canonical identities and existing consumer behavior.`,
+          },
+          {
+            key: 'acceptanceCriteria',
+            materializedMarkdown:
+              'The delivered boundary accepts conforming input and preserves identity, status and recorded dependencies.',
+          },
+        ],
+        status: index === 2 ? 'COMPLETED' : 'ACTIVE',
+      })),
+    ];
+    (prisma.db.task.findMany as jest.Mock).mockImplementation(
+      async ({ where }) =>
+        rows.filter((row) =>
+          where.id?.in
+            ? where.id.in.includes(row.id)
+            : row.parentTaskId === where.parentTaskId &&
+              row.name === where.name,
+        ),
+    );
+    (prisma.db.task.findFirst as jest.Mock).mockImplementation(
+      async ({ where }) => rows.find((row) => row.id === where.id) ?? null,
+    );
+    let stored: unknown;
+    const provider = new PlanToolsProvider(
+      {
+        create: async (
+          _org: unknown,
+          _project: unknown,
+          _user: unknown,
+          dto: { updates: unknown },
+        ) => {
+          stored = dto.updates;
+          return {
+            id: 'proposal',
+            status: 'DRAFT',
+            action: 'CREATE',
+            targetEntityType: 'TASK',
+            targetEntityId: '00000000-0000-0000-0000-000000000000',
+            createdAt: '',
+          };
+        },
+      } as any,
+      prisma,
+    );
+    const markdown =
+      '# Full reviewed design\n\n' +
+      'Detailed delivery decisions and acceptance evidence.\n'.repeat(300);
+    const result = await provider.createPlanFromExistingTasks(
+      {
+        planTitle: 'Deliver existing work',
+        eli5: 'Organize existing work.',
+        parentFeatureId: featureId,
+        designDocMarkdown: markdown,
+        stages: ids.map((id, i) => ({
+          title: `Stage ${i + 1}`,
+          taskIds: [id],
+        })),
+        taskPrerequisites: [{ taskId: ids[3], dependsOnTaskId: ids[0] }],
+      },
+      {} as any,
+      {
+        headers: { 'x-project-id': projectId },
+        user: {
+          userId: 'user',
+          currentOrgId: organizationId,
+          orgMemberships: [],
+          isDevAdmin: false,
+          devAdminMode: false,
+        },
+      } as any,
+    );
+    expect(result).toMatchObject({ id: 'proposal' });
+    expect(stored).not.toHaveProperty('planTitle');
+    expect(stored).not.toHaveProperty('proposalKind');
+    const request = workItemChangeSetValidationRequestSchema.parse(stored);
+    expect(
+      request.operations
+        .filter((op) => op.op === 'workItem.create')
+        .map((op) => op.op === 'workItem.create' && op.type),
+    ).toEqual(['PLAN', 'PLAN_STAGE', 'PLAN_STAGE', 'PLAN_STAGE', 'PLAN_STAGE']);
+    const projection = await projector.project({
+      organizationId,
+      projectId,
+      request,
+    });
+    expect(projection.issues).toEqual([]);
+    expect(projection.valid).toBe(true);
+    for (const targetEntityType of [undefined, 'TASK'] as const) {
+      const malformed = {
+        ...request,
+        operations: request.operations.map((operation) =>
+          operation.op === 'relationship.create' &&
+          'targetEntityType' in operation &&
+          operation.targetEntityType === 'DESIGN_DOC'
+            ? { ...operation, targetEntityType }
+            : operation,
+        ),
+      };
+      const rejected = await projector.project({
+        organizationId,
+        projectId,
+        request: malformed,
+      });
+      expect(rejected.valid).toBe(false);
+      expect(rejected.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: 'endpoint_type_mismatch' }),
+        ]),
+      );
+    }
+
+    expect(projection.designDocs?.[0]?.markdown).toBe(markdown);
+    const planId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    const docId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+    const persistedPlan = {
+      ...persistedTask(planId, 'Deliver existing work', 'PLAN', featureId),
+      sections: [
+        { key: 'outcome', materializedMarkdown: 'Deliver existing work' },
+      ],
+    };
+    rows.push(persistedPlan);
+    const documentRead = jest.fn().mockResolvedValue([
+      {
+        id: docId,
+        name: 'Deliver existing work',
+        parentEntityType: 'TASK',
+        parentEntityId: planId,
+        sections: [{ key: 'content', materializedMarkdown: markdown }],
+      },
+    ]);
+    Object.assign(prisma.db, { designDoc: { findMany: documentRead } });
+    const recovery = new ProposalReconciliationGroupService(
+      {
+        db: { proposalReconciliationEffect: { findMany: async () => [] } },
+      } as never,
+      {
+        get: () => ({ edgeBasis: async () => ({ version: 'absent' }) }),
+      } as never,
+    );
+    const remaining = await recovery.remainingCandidate(
+      { targetEntityId: planId } as never,
+      request as never,
+      {
+        id: 'interrupted',
+        rootWorkItemId: planId,
+        operationSet: request,
+        workItemIdMappings: {
+          'temporary:plan': planId,
+          'temporary:design-doc': docId,
+        },
+        relationshipIdMappings: {},
+        checkpoints: request.operations.map((operation, operationIndex) => ({
+          operationIndex,
+          status:
+            operationIndex < 3
+              ? 'COMPLETED'
+              : operation.op === 'relationship.create'
+                ? 'FAILED'
+                : 'PENDING',
+        })),
+      } as never,
+    );
+    const replacement = workItemChangeSetValidationRequestSchema.parse(
+      remaining.updates,
+    );
+    expect(
+      replacement.operations.some(
+        (operation) => operation.op === 'designDoc.create',
+      ),
+    ).toBe(false);
+    expect(replacement.operations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          op: 'relationship.create',
+          target: { refType: 'existing', id: docId },
+          targetEntityType: 'DESIGN_DOC',
+        }),
+      ]),
+    );
+    const resumedReview = await projector.project({
+      organizationId,
+      projectId,
+      request: replacement,
+    });
+    expect(resumedReview.issues).toEqual([]);
+    expect(resumedReview.designDocs?.[0]?.identity).toEqual({
+      refType: 'existing',
+      id: docId,
+    });
+    expect(documentRead).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          organizationId,
+          projectId,
+          archivedAt: null,
+        }),
+      }),
+    );
+
+    expect(
+      projection.children
+        .filter((node) => node.type === 'STANDARD')
+        .map((node) => node.identity),
+    ).toEqual(
+      expect.arrayContaining(ids.map((id) => ({ refType: 'existing', id }))),
+    );
+    expect(projection.incidentRelationships).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          edgeType: 'RELATED_TO',
+          target: { refType: 'existing', id: otherFeatureId },
+        }),
+      ]),
+    );
   });
 });
