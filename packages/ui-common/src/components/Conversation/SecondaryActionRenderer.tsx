@@ -1,5 +1,7 @@
-import { Alert, Button, Link, Stack } from "@mui/material";
-import { Link as RouterLink } from "react-router-dom";
+import { Alert, Button, Stack } from "@mui/material";
+import { useQueryClient } from "@tanstack/react-query";
+import { ProjectTopologyViewSessionButton } from "../shared/ProjectTopologyButton";
+import { conversationKeys } from "../../data/collections/conversations";
 import { VerifyFeatureAction } from "./SecondaryActions/VerifyFeatureAction";
 import { isVerifyFeaturePayload } from "../../types/secondaryActions";
 import React, { useState } from "react";
@@ -123,6 +125,7 @@ export const SecondaryActionRenderer: React.FC<
   const { suggestionDecisions } = useConversationContext();
   const decisionMutation = useSuggestionDecision();
   const paths = usePathService();
+  const queryClient = useQueryClient();
   const [unsavedStart, setUnsavedStart] =
     useState<UnsavedVerifyFeatureStart | null>(null);
   const handler = action.handler;
@@ -233,6 +236,19 @@ export const SecondaryActionRenderer: React.FC<
       false,
     );
     setUnsavedStart(saved ? null : { agentSessionId, status: "failed" });
+
+    // Launching navigates to the new session, which unmounts this suggestion
+    // and drops its local state. Refreshing the cached conversation is what
+    // lets the started state show when the user comes back.
+    if (saved && context.conversationId) {
+      await queryClient.invalidateQueries({
+        queryKey: conversationKeys.conversation(
+          context.organizationId,
+          context.projectId,
+          context.conversationId,
+        ),
+      });
+    }
   };
 
   if (handler === SecondaryActionHandler.VerifyFeature) {
@@ -258,17 +274,12 @@ export const SecondaryActionRenderer: React.FC<
     if (startedSessionId) {
       return (
         <Stack spacing={1} alignItems="flex-start">
-          <Link
-            component={RouterLink}
+          <ProjectTopologyViewSessionButton
             to={paths.agentSession({
               projectId: context.projectId,
               agentSessionId: startedSessionId,
             })}
-            data-testid="verify-feature-started-link"
-            underline="hover"
-          >
-            Verification started
-          </Link>
+          />
           {!savedMetadata && unsavedStart?.status === "failed" && (
             <Alert
               severity="warning"

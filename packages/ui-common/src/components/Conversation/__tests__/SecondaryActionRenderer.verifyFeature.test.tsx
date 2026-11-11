@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
+import { conversationKeys } from "../../../data/collections/conversations";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { VerifyFeatureElement } from "../../../api";
 import type { ConversationResponseDto } from "../../../api";
@@ -159,45 +161,49 @@ function ConversationDecisions({
   );
 }
 
+const queryClient = new QueryClient();
+
 const renderSuggestion = (
   messageId = "message-1",
   conversation: ConversationResponseDto = loadedConversation([]),
 ) =>
   render(
-    <MemoryRouter>
-      <ConversationDecisions conversation={conversation}>
-        <VerificationRuntimeContext.Provider
-          value={{
-            parentAgentSessionId: "source-session",
-            machineId: "machine",
-            serviceIds: [],
-            launchServiceId: null,
-          }}
-        >
-          <VerifyFeatureField
-            config={{
-              field: field.id,
-              type: field.type,
-              description: field.label,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <ConversationDecisions conversation={conversation}>
+          <VerificationRuntimeContext.Provider
+            value={{
+              parentAgentSessionId: "source-session",
+              machineId: "machine",
+              serviceIds: [],
+              launchServiceId: null,
             }}
-            value={field.payload}
-            context={context}
-            isSubmitted={false}
-            onChange={vi.fn()}
-          />
-          <SecondaryActionRenderer
-            action={action}
-            context={context}
-            trackUI={vi.fn()}
-            messageId={messageId}
-            handleNext={vi.fn()}
-            formValues={{}}
-            isSubmissionLocked={false}
-            uiElements={[field]}
-          />
-        </VerificationRuntimeContext.Provider>
-      </ConversationDecisions>
-    </MemoryRouter>,
+          >
+            <VerifyFeatureField
+              config={{
+                field: field.id,
+                type: field.type,
+                description: field.label,
+              }}
+              value={field.payload}
+              context={context}
+              isSubmitted={false}
+              onChange={vi.fn()}
+            />
+            <SecondaryActionRenderer
+              action={action}
+              context={context}
+              trackUI={vi.fn()}
+              messageId={messageId}
+              handleNext={vi.fn()}
+              formValues={{}}
+              isSubmissionLocked={false}
+              uiElements={[field]}
+            />
+          </VerificationRuntimeContext.Provider>
+        </ConversationDecisions>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 
 const startedDecision = {
@@ -231,6 +237,7 @@ const loadedConversation = (decisions: unknown[]): ConversationResponseDto =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
   mocks.mutate.mockResolvedValue(startedDecision);
 });
 
@@ -247,7 +254,7 @@ describe("Verify Feature remembers that it was started", () => {
     );
 
     const link = screen.getByTestId("verify-feature-started-link");
-    expect(link).toHaveTextContent("Verification started");
+    expect(link).toHaveTextContent("View session");
     expect(link).toHaveAttribute(
       "href",
       "/projects/project/sessions/stored-session",
@@ -315,6 +322,15 @@ describe("Verify Feature remembers that it was started", () => {
       metadata: { kind: "VERIFY_FEATURE", agentSessionId: "created-session" },
     });
     expect(mocks.launch).toHaveBeenCalledTimes(1);
+    // The launch navigates away, so the cached conversation must be refreshed
+    // for the started state to show on return.
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: conversationKeys.conversation(
+        "org",
+        "project",
+        "source-conversation",
+      ),
+    });
     expect(
       screen.queryByTestId("verify-feature-save-failed"),
     ).not.toBeInTheDocument();
