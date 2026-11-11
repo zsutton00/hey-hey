@@ -32,6 +32,12 @@ it("establishes first-use access through handoff, then refreshes the real provid
   let hasProjects = false;
   let authorizedStatus = false;
   let handedOff = false;
+  let renewalStarted = false;
+  let handoffStarted = false;
+  let releaseRenewal!: () => void;
+  const renewal = new Promise<void>((resolve) => {
+    releaseRenewal = resolve;
+  });
   const session = () => ({
     accessToken: "local-access-token",
     expiresIn: 900,
@@ -55,12 +61,15 @@ it("establishes first-use access through handoff, then refreshes the real provid
     setupProjectId: null,
   });
   globalThis.mswServer.use(
-    http.post("*/auth/refresh", () =>
-      handedOff
+    http.post("*/auth/refresh", async () => {
+      renewalStarted = true;
+      await renewal;
+      return handedOff
         ? HttpResponse.json({ data: session() })
-        : new HttpResponse(null, { status: 401 }),
-    ),
+        : new HttpResponse(null, { status: 401 });
+    }),
     http.post("*/auth/local/handoff", async ({ request }) => {
+      handoffStarted = true;
       expect(await request.json()).toEqual({ handoffToken });
       // Let the provider's initial unauthenticated renewal finish first.
       await waitFor(() =>
@@ -105,6 +114,9 @@ it("establishes first-use access through handoff, then refreshes the real provid
       </MemoryRouter>
     </AuthProvider>,
   );
+  await waitFor(() => expect(renewalStarted).toBe(true));
+  expect(handoffStarted).toBe(false);
+  releaseRenewal();
   await screen.findByLabelText("Name");
   expect(
     screen.queryByRole("button", { name: "Get started" }),
