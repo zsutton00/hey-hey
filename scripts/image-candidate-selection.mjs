@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { selectAffected } from "./affected-builds.mjs";
 
 export function candidateSelection(
-  { event, target, before, revision },
+  { event, target, before, revision, ref },
   diff = (base, head) =>
     execFileSync("git", ["diff", "--name-only", "--no-renames", base, head], {
       encoding: "utf8",
@@ -25,6 +25,11 @@ export function candidateSelection(
     if (!files) throw new Error("Unknown retry target");
     selection = selectAffected(files);
   } else if (event === "push") {
+    // A release is a complete CLI bundle, including unchanged images at this revision.
+    if (ref?.startsWith("refs/heads/release/")) {
+      return selectAffected(["<complete release bundle>"]);
+    }
+
     let files = ["<unavailable push base>"];
     if (/^[a-f0-9]{40}$/.test(before ?? "") && !/^0+$/.test(before)) {
       try {
@@ -44,6 +49,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     target: process.env.TARGET,
     before: process.env.BEFORE,
     revision: process.env.GITHUB_SHA,
+    ref: process.env.REF,
   });
   fs.appendFileSync(
     process.env.GITHUB_OUTPUT,

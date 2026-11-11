@@ -28,7 +28,7 @@
 
 ### Release artifacts
 
-- Updated release-branch image builds to target Linux ARM64; other branches target Linux AMD64.
+- Fixed release-branch builds to publish Linux AMD64 and ARM64 images and a complete CLI image manifest.
 - Updated local setup documentation. Install the published CLI with `npm install -g @hey-hey/cli`; its release manifest pins the matching images.
 
 ## v1.2.0
