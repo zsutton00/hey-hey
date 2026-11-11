@@ -1,9 +1,10 @@
 import type { Installation, InstallationSecrets } from './installation-store';
+import { LOCAL_WEB_CONTAINER_PORT } from './local-port';
 
 export const LOCAL_PROJECT = 'heyhey-local';
 /** The browser, not the API, is the WebAuthn origin: passkeys are bound to the local web app. */
-export const LOCAL_WEB_ORIGIN = 'http://localhost:5173';
-export const LOCAL_WEB_WS_URL = 'ws://localhost:5173';
+export const localWebOrigin = (webPort: number) => `http://localhost:${webPort}`;
+export const localWebSocketUrl = (webPort: number) => `ws://localhost:${webPort}`;
 export const LOCAL_WEB_RP_ID = 'localhost';
 export const LOCAL_BROWSER_TOKEN_ISSUER = 'urn:heyhey:local';
 /** UI container variable the web app reads at runtime to find the bridge. */
@@ -21,11 +22,12 @@ export function composeConfiguration(
   installation: Installation,
   secrets: InstallationSecrets,
   bridgePort: number,
+  webPort: number,
 ) {
   const { release, modelDirectory } = installation;
   const image = (name: keyof typeof release.images) => release.images[name].reference;
   const labels = { 'dev.heyhey.cli-version': release.cliVersion };
-  const apiEnvironment = localApiEnvironment(secrets, CONTAINER_ENDPOINTS);
+  const apiEnvironment = localApiEnvironment(secrets, CONTAINER_ENDPOINTS, webPort);
   const ready = (url: string) => ({
     test: [
       'CMD',
@@ -80,7 +82,7 @@ export function composeConfiguration(
         image: image('ui'),
         labels,
         restart: 'unless-stopped',
-        ports: ['127.0.0.1:5173:5173'],
+        ports: [`127.0.0.1:${webPort}:${LOCAL_WEB_CONTAINER_PORT}`],
         environment: {
           API_HOST: 'localhost',
           API_PORT: '3000',
@@ -90,10 +92,10 @@ export function composeConfiguration(
           API_PROXY_TARGET: 'http://api:3000',
           VITE_DEPLOYMENT: 'local',
           VITE_API_URL: '/api/v1',
-          VITE_WS_URL: LOCAL_WEB_WS_URL,
+          VITE_WS_URL: localWebSocketUrl(webPort),
           [LOCAL_AGENT_PORT_VARIABLE]: String(bridgePort),
         },
-        healthcheck: ready('http://127.0.0.1:5173/'),
+        healthcheck: ready(`http://127.0.0.1:${LOCAL_WEB_CONTAINER_PORT}/`),
       },
       'graph-search': {
         image: image('graphSearch'),
@@ -142,8 +144,10 @@ const CONTAINER_ENDPOINTS: InfrastructureEndpoints = {
 export function localApiEnvironment(
   secrets: InstallationSecrets,
   endpoints: InfrastructureEndpoints,
+  webPort: number,
 ) {
   const { postgres, redis, graphSearchUrl } = endpoints;
+  const webOrigin = localWebOrigin(webPort);
   const postgresAddress = `${postgres.host}:${postgres.port}`;
   const apiDatabase = `postgresql://heyhey:${secrets.api}@${postgresAddress}/heyhey`;
   return {
@@ -168,20 +172,20 @@ export function localApiEnvironment(
     MACHINE_ENROLLMENT_CODE_HMAC_KEY: secrets.enrollmentCodeHmac,
     // Pairing passkeys are bound to the local UI origin, not the hosted production one.
     MACHINE_ENROLLMENT_WEBAUTHN_RP_ID: LOCAL_WEB_RP_ID,
-    MACHINE_ENROLLMENT_WEBAUTHN_ORIGIN: LOCAL_WEB_ORIGIN,
+    MACHINE_ENROLLMENT_WEBAUTHN_ORIGIN: webOrigin,
     // Account sign-in passkeys use the same local UI origin.
     ACCOUNT_PASSKEY_RP_ID: LOCAL_WEB_RP_ID,
-    ACCOUNT_PASSKEY_ORIGIN: LOCAL_WEB_ORIGIN,
+    ACCOUNT_PASSKEY_ORIGIN: webOrigin,
     // Local browser credentials carry a local-only issuer, so hosted
     // deployments reject them and this API rejects hosted credentials.
     BROWSER_TOKEN_ISSUER: LOCAL_BROWSER_TOKEN_ISSUER,
-    BROWSER_TOKEN_AUDIENCE: LOCAL_WEB_ORIGIN,
+    BROWSER_TOKEN_AUDIENCE: webOrigin,
     // The api refuses to start unless these match its reviewed browser-session policy.
     BROWSER_ACCESS_TOKEN_TTL_SECONDS: '900',
     BROWSER_SESSION_INACTIVITY_TTL_SECONDS: '604800',
     BROWSER_SESSION_ABSOLUTE_TTL_SECONDS: '2592000',
     PASSWORD_CHANGE_TOKEN_TTL_SECONDS: '900',
-    CORS_WHITELIST: LOCAL_WEB_ORIGIN,
+    CORS_WHITELIST: webOrigin,
   };
 }
 
@@ -205,9 +209,10 @@ export function devComposeConfiguration(
   installation: Installation,
   secrets: InstallationSecrets,
   bridgePort: number,
+  webPort: number,
   flywayDirectory: string,
 ) {
-  const installed = composeConfiguration(installation, secrets, bridgePort);
+  const installed = composeConfiguration(installation, secrets, bridgePort, webPort);
   const { postgres, redis, api } = installed.services;
   const graphSearch = installed.services['graph-search'];
   const dev = DEV_INFRASTRUCTURE_ENDPOINTS;
@@ -257,12 +262,12 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
  * which proxies the API and live updates while keeping the browser's own origin, so sign-in,
  * pairing and session cookies share one origin as they do in the installed stack.
  */
-export function devWebEnvironment(bridgePort: number): Record<string, string> {
+export function devWebEnvironment(bridgePort: number, webPort: number): Record<string, string> {
   return {
     NODE_ENV: 'development',
     VITE_DEPLOYMENT: 'local',
     VITE_API_URL: '/api/v1',
-    VITE_WS_URL: LOCAL_WEB_WS_URL,
+    VITE_WS_URL: localWebSocketUrl(webPort),
     VITE_API_PROXY_TARGET: 'http://localhost:3000',
     VITE_API_PROXY_KEEP_BROWSER_ORIGIN: 'true',
     [LOCAL_AGENT_PORT_VARIABLE]: String(bridgePort),

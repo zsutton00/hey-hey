@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import { localWebOrigin } from '../local-app/compose';
+import { DEFAULT_LOCAL_WEB_PORT } from '../local-app/local-port';
+
+const LOCAL_WEB_ORIGIN = localWebOrigin(DEFAULT_LOCAL_WEB_PORT);
 import { resolvePairingUrl, resolvePairingWebOrigin } from './pairing-web-url';
 
 describe('pairing web URL', () => {
@@ -17,12 +21,12 @@ describe('pairing web URL', () => {
   it('uses the local web app when the CLI targets the local API', () => {
     const env = { HEYHEY_API_URL: 'http://localhost:3000/api/v1/' };
 
-    expect(resolvePairingWebOrigin(env)).toBe('http://localhost:5173');
+    expect(resolvePairingWebOrigin(env)).toBe(LOCAL_WEB_ORIGIN);
     expect(resolvePairingUrl('BCDFG HJKLM', env)).toBe(
-      'http://localhost:5173/pairing?code=BCDFG+HJKLM',
+      `${LOCAL_WEB_ORIGIN}/pairing?code=BCDFG+HJKLM`,
     );
     expect(resolvePairingUrl('BCDFG HJKLM', env, 'add-controller')).toBe(
-      'http://localhost:5173/add-controller?code=BCDFG+HJKLM',
+      `${LOCAL_WEB_ORIGIN}/add-controller?code=BCDFG+HJKLM`,
     );
   });
 

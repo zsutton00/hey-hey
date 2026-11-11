@@ -1,5 +1,5 @@
 import type { ReleaseManifest } from '../release/release-manifest';
-import { LOCAL_WEB_ORIGIN, LOCAL_WEB_RP_ID } from '../local-app/compose';
+import { LOCAL_WEB_RP_ID, localWebOrigin } from '../local-app/compose';
 import { ReleasePackage } from '../local-app/release-package';
 import { useEffect, useState } from 'react';
 import { homedir } from 'node:os';
@@ -49,8 +49,12 @@ interface LocalPairingHandoff {
 }
 
 /** Secrets ride only in the fragment, which browsers never send to a server. */
-const localWebUrl = (handoffToken?: string, pairing?: LocalPairingHandoff): string => {
-  const url = new URL('/local', LOCAL_WEB_ORIGIN);
+const localWebUrl = (
+  webOrigin: string,
+  handoffToken?: string,
+  pairing?: LocalPairingHandoff,
+): string => {
+  const url = new URL('/local', webOrigin);
   const fragment = new URLSearchParams();
   if (pairing) {
     url.searchParams.set('pairing', 'started');
@@ -122,6 +126,7 @@ class LocalPairingPageReopener {
     private readonly installationSecret: string,
     private readonly localApproval: LocalApprovalSecret,
     private readonly agents: LocalCodingAgentDetectionDto,
+    private readonly webOrigin: string,
   ) {}
 
   follow(step: MachineEnrollmentCeremonyStep): void {
@@ -166,7 +171,7 @@ class LocalPairingPageReopener {
         agents: this.agents,
       };
       await openLocalPage(
-        localWebUrl(handoffToken, pairing),
+        localWebUrl(this.webOrigin, handoffToken, pairing),
         'Could not open the local pairing page automatically.',
       );
     } catch (error: unknown) {
@@ -188,6 +193,7 @@ export async function continueLocalApplication(
   release: ReleaseManifest,
   navigation: LocalApplicationNavigation,
   bridgePort: number,
+  webPort: number,
   onStopping: () => void,
   /** Dev mode only: the containers expected to be running. See `ServerCommandOptions`. */
   expectedServices?: readonly string[],
@@ -198,10 +204,11 @@ export async function continueLocalApplication(
   const originalControllerOrigin = process.env['HEYHEY_CONTROLLER_ORIGIN'];
   const originalControllerRpId = process.env['HEYHEY_CONTROLLER_RP_ID'];
   process.env['HEYHEY_API_URL'] = 'http://localhost:3000';
-  process.env['HEYHEY_WEB_ORIGIN'] = LOCAL_WEB_ORIGIN;
+  const webOrigin = localWebOrigin(webPort);
+  process.env['HEYHEY_WEB_ORIGIN'] = webOrigin;
   // Passkey assertions come from the local web app, so the CLI must expect exactly that origin.
   // An explicit value still wins.
-  process.env['HEYHEY_CONTROLLER_ORIGIN'] ??= LOCAL_WEB_ORIGIN;
+  process.env['HEYHEY_CONTROLLER_ORIGIN'] ??= webOrigin;
   process.env['HEYHEY_CONTROLLER_RP_ID'] ??= LOCAL_WEB_RP_ID;
 
   try {
@@ -219,7 +226,7 @@ export async function continueLocalApplication(
     );
     if (currentMachineId) {
       await openLocalPage(
-        localWebUrl(handoffToken),
+        localWebUrl(webOrigin, handoffToken),
         'Could not open the local setup page automatically.',
       );
       return await new PairServerCommand().runServerAfterPairing({
@@ -234,7 +241,7 @@ export async function continueLocalApplication(
 
     const localApproval = new LocalApprovalSecret();
     const agents = await new CodingAgentDetector().detect();
-    const reopener = new LocalPairingPageReopener(secrets.admin, localApproval, agents);
+    const reopener = new LocalPairingPageReopener(secrets.admin, localApproval, agents, webOrigin);
     const paired = await runPairCommand({
       keyPairStore,
       localApproval,
@@ -242,7 +249,7 @@ export async function continueLocalApplication(
       getPairingUrl: (userCode) => resolvePairingUrl(userCode),
       onBrowserHandoff: (userCode) => {
         void openLocalPage(
-          localWebUrl(handoffToken, { userCode, localApproval, agents }),
+          localWebUrl(webOrigin, handoffToken, { userCode, localApproval, agents }),
           'Could not open the local pairing page automatically.',
         );
       },
@@ -401,6 +408,7 @@ export async function runLocalCommand(args: string[]): Promise<boolean> {
       await application.releases.read(),
       application.state,
       application.bridgePort,
+      application.webPort,
       () => {
         applicationStopping = true;
       },

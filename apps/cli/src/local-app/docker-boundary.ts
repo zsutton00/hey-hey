@@ -11,6 +11,14 @@ const containerSchema = z.array(
       Labels: z.record(z.string(), z.string()).nullable(),
       Env: z.array(z.string()).nullable().optional(),
     }),
+    HostConfig: z
+      .object({
+        PortBindings: z
+          .record(z.string(), z.array(z.object({ HostPort: z.string() })).nullable())
+          .nullable()
+          .optional(),
+      })
+      .optional(),
     State: z.object({
       Running: z.boolean(),
       Status: z.string(),
@@ -143,14 +151,14 @@ export class DockerBoundary {
     }
   }
 
-  /** Recreates only the UI container so changed runtime configuration takes effect. */
-  async recreateUi(path: string): Promise<void> {
+  /** Recreates the api and ui containers so changed runtime configuration takes effect. Volumes are untouched. */
+  async recreateWebStack(path: string): Promise<void> {
     try {
-      await this.compose(path, ['up', '-d', '--no-deps', '--pull', 'never', 'ui']);
+      await this.compose(path, ['up', '-d', '--no-deps', '--pull', 'never', 'api', 'ui']);
     } catch (error) {
-      this.logger.error('local.docker.service_restart_failed', { service: 'ui', error });
+      this.logger.error('local.docker.service_restart_failed', { service: 'api,ui', error });
       throw new Error(
-        'ui could not restart. Check its Docker service diagnostics and configuration, then retry. Data is preserved.',
+        'api and ui could not restart. Check its Docker service diagnostics and configuration, then retry. Data is preserved.',
         { cause: error },
       );
     }

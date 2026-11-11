@@ -14,6 +14,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import {
@@ -43,7 +44,16 @@ const localNameBodySchema = z
 @ApiTags('Authentication')
 @Controller('api/v1/auth')
 export class LocalAuthController {
-  constructor(private readonly localAccess: LocalAccessService) {}
+  private readonly trustedOrigin: string;
+
+  constructor(
+    private readonly localAccess: LocalAccessService,
+    configService: ConfigService,
+  ) {
+    this.trustedOrigin = configService.getOrThrow<string>(
+      'ACCOUNT_PASSKEY_ORIGIN',
+    );
+  }
 
   @Public()
   @Post('local/bootstrap')
@@ -125,7 +135,7 @@ export class LocalAuthController {
   private assertLocalBrowserOrigin(request: Request): void {
     const fetchSite = request.headers['sec-fetch-site'];
     if (
-      request.headers.origin !== 'http://localhost:5173' ||
+      request.headers.origin !== this.trustedOrigin ||
       (fetchSite !== undefined &&
         fetchSite !== 'same-site' &&
         fetchSite !== 'same-origin')

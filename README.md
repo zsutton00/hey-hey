@@ -143,7 +143,7 @@ npm install -g @hey-hey/cli
 heyhey local
 ```
 
-The first time, `heyhey local` checks Docker, asks before installing, and then downloads the application and a small search model (about 35 MB). It starts the services and opens Hey Hey in your browser at <http://localhost:5173>. You create your account there; it is separate from any heyhey.dev account.
+The first time, `heyhey local` checks Docker, asks before installing, and then downloads the application and a small search model (about 35 MB). It starts the services and opens Hey Hey in your browser at <http://localhost:3850>. You create your account there; it is separate from any heyhey.dev account.
 
 After that, `heyhey local` reconnects to the running application and offers updates when a new release is out.
 
@@ -165,7 +165,7 @@ Stopping keeps your data. Run `heyhey local` to start again.
 | PostgreSQL       | The database                                    | about 95 MB    |
 | Redis            | Live updates and background jobs                | about 10 MB    |
 
-The web app and API are reachable only from your computer, on ports 5173 and 3000.
+The web app and API are reachable only from your computer, on ports 3850 and 3000. If 3850 is taken, set `HEYHEY_WEB_PORT` to another port before running `heyhey local`; sign-in, pairing and live updates follow it.
 
 ## License
 
