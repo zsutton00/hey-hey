@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { OutboxEventStatus, Prisma } from '@prisma/client';
 import { errorToLoggable } from 'src/utils/logging.util';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -301,8 +301,16 @@ export class OutboxStore {
       );
 
       // Update the existing event with merged payload and reset timestamp
-      await tx.outboxEvent.update({
-        where: { id: existingEvent.id },
+      const merged = await tx.outboxEvent.updateMany({
+        where: {
+          id: existingEvent.id,
+          status: {
+            in: [OutboxEventStatus.PENDING, OutboxEventStatus.SCHEDULED],
+          },
+          payload: { equals: existingEvent.payload ?? Prisma.JsonNull },
+          correlationId: existingEvent.correlationId,
+          createdAt: existingEvent.createdAt,
+        },
         data: {
           payload: mergedPayload as unknown as Prisma.InputJsonValue,
           // Update timestamp to reflect latest change
@@ -318,6 +326,10 @@ export class OutboxStore {
           } as Prisma.InputJsonValue,
         },
       });
+
+      if (merged.count !== 1) {
+        return null;
+      }
 
       this.logger.debug('Successfully merged initiative.updated event', {
         mergedEventId: existingEvent.id,
@@ -578,12 +590,4 @@ export {
   OutboxEventData,
 } from '../core/events/outbox-event.types';
 
-// Expose enum so callers can inspect statuses without pulling prisma models
-export enum OutboxEventStatus {
-  PENDING = 'PENDING',
-  PROCESSING = 'PROCESSING',
-  PUBLISHED = 'PUBLISHED',
-  FAILED = 'FAILED',
-  SCHEDULED = 'SCHEDULED',
-  CANCELLED = 'CANCELLED',
-}
+export { OutboxEventStatus } from '@prisma/client';
