@@ -7,6 +7,7 @@ import { PlanPage } from "./PlanPage";
 
 const mocks = vi.hoisted(() => ({
   aggregate: vi.fn(),
+  workItem: vi.fn(),
   viewer: vi.fn(),
   generation: vi.fn(),
   worktree: vi.fn(),
@@ -57,7 +58,7 @@ vi.mock("@hey-hey/ui-common/data", () => ({
     get: () => undefined,
     resolveAncestry: () => ({ ancestors: [], complete: false }),
   }),
-  useWorkItem: () => ({ workItem: { name: "Parent feature" } }),
+  useWorkItem: (...args: unknown[]) => mocks.workItem(...args),
 }));
 vi.mock("@hey-hey/ui-common/components", async () => {
   // Keep the real completion owner; PlanViewer's guard is covered in ui-common.
@@ -68,7 +69,13 @@ vi.mock("@hey-hey/ui-common/components", async () => {
       <div data-testid="dependent-futures" data-task-id={taskId} />
     ),
     DiscussCapsuleAction: () => null,
-    PlanArchiveDeleteDialog: () => null,
+    PlanArchiveDeleteDialog: ({ open }: { open: boolean }) =>
+      open ? (
+        <div>
+          <button>Archive</button>
+          <button>Delete</button>
+        </div>
+      ) : null,
     PlanGenerationChat: (props: unknown) => {
       mocks.generation(props);
       return <div data-testid="plan-generation">Generation</div>;
@@ -235,6 +242,7 @@ const renderPage = (
 describe("canonical Plan page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.workItem.mockReturnValue({ workItem: { name: "Parent feature" } });
     mocks.aggregate.mockReturnValue({
       status: "ready",
       aggregate: { plan, configuration, stages: [] },
@@ -340,6 +348,7 @@ describe("canonical Plan page", () => {
       aggregate: null,
       error: null,
     });
+    mocks.workItem.mockReturnValue({ workItem: null });
     const { rerender } = renderPage();
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
     mocks.aggregate.mockReturnValue({
@@ -359,6 +368,37 @@ describe("canonical Plan page", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Invalid PLAN registry",
     );
+    expect(mocks.viewer).not.toHaveBeenCalled();
+  });
+  it("lets the user archive or delete a Plan that fails validation", async () => {
+    mocks.workItem.mockReturnValue({
+      workItem: { ...plan, name: "Private conversations" },
+    });
+    mocks.aggregate.mockReturnValue({
+      status: "error",
+      aggregate: null,
+      error: new Error(
+        "The Plan is missing a valid planConfiguration section.",
+      ),
+    });
+
+    renderPage();
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "The Plan is missing a valid planConfiguration section.",
+    );
+    expect(screen.getAllByText("Private conversations").length).toBeGreaterThan(
+      0,
+    );
+    for (const name of ["plan", "updates", "documents", "conversations"]) {
+      expect(screen.getByTestId("plan-tab-" + name)).toBeInTheDocument();
+    }
+    await userEvent.click(screen.getByTestId("plan-tab-admin"));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Archive or delete Plan" }),
+    );
+    expect(screen.getByRole("button", { name: "Archive" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
     expect(mocks.viewer).not.toHaveBeenCalled();
   });
   it("keeps malformed Plan generation recoverable with structured findings", () => {
