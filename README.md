@@ -169,6 +169,8 @@ The web app and API are reachable only from your computer, on ports 3850 and 300
 
 ## License
 
+See the [changelog](CHANGELOG.md) for release notes.
+
 Hey Hey is open source under [AGPL-3.0](LICENSE). The hosted version at heyhey.dev is in open beta.
 
 ## What's here
