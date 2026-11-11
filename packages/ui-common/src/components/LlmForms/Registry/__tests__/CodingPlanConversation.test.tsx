@@ -820,17 +820,17 @@ describe("conversational planning controls", () => {
     );
     expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
   });
-  it("fails visibly with no pending approval and never falls back to chat", async () => {
+  it("submits a live approval and a reply even when the workflow node and prompt gate read differently", async () => {
+    state.node.mockResolvedValue({
+      data: { data: { currentNodeId: "other" } },
+    });
     state.gate.mockResolvedValue({
-      data: {
-        data: {
-          workflowState: "agent-pending",
-          nodeId: "feature-sync-coding-plan",
-          triggerMessageId: null,
-        },
-      },
+      data: { data: { workflowState: "idle", nodeId: "other" } },
     });
     const { result } = renderHook(() => useCodingPlanConversation(context));
+    await act(async () => {
+      await result.current.submit({ reply: "Tighten step two." });
+    });
     await act(async () => {
       await result.current.submit({
         approval: {
@@ -839,8 +839,8 @@ describe("conversational planning controls", () => {
         },
       });
     });
-    expect(result.current.error).toContain("no pending planning approval");
-    expect(state.answer).not.toHaveBeenCalled();
-    expect(state.submit).not.toHaveBeenCalled();
+    expect(result.current.error).toBeNull();
+    expect(state.submit).toHaveBeenCalledTimes(1);
+    expect(state.answer).toHaveBeenCalledTimes(1);
   });
 });
