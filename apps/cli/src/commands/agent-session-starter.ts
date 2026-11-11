@@ -1,4 +1,3 @@
-import { findLaunchCheckoutConflict } from '../repo/launch-checkout';
 import crypto from 'node:crypto';
 import { toServiceId, type RepoMappingStore } from '../repo/index';
 import type { RunStore } from '../run-store';
@@ -143,9 +142,6 @@ export const startAgenticSession = async ({
       services.push({ id, path: binding.repositoryPath });
     }
     launchServiceId = pendingServices.launchServiceId;
-    const launchPath = services.find((entry) => entry.id === launchServiceId)!.path;
-    const conflict = await findLaunchCheckoutConflict(launchPath, worktree?.enabled === true);
-    if (conflict) throw new SessionValidationError(conflict);
   }
 
   const sessionInput: CreateAgenticSessionInput = {

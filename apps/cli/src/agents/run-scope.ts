@@ -1,8 +1,10 @@
-import { findLaunchCheckoutConflict } from '../repo/launch-checkout';
 import fs from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { LOCAL_RUN_MODE, LOCAL_RUN_WORKSPACE_LAYOUT } from '../shared/agent-bridge-contract/contract';
+import {
+  LOCAL_RUN_MODE,
+  LOCAL_RUN_WORKSPACE_LAYOUT,
+} from '../shared/agent-bridge-contract/contract';
 import type {
   LocalWorktreeState,
   LocalWorktreeStateByService,
@@ -91,8 +93,7 @@ const getSessionLogFields = (session: AgenticSession): LogFields => ({
 
 export type RunWorkspaceResolutionFailureCode = 'REPO_BINDING_MISSING' | 'RUN_SCOPE_INVALID';
 
-export const RUN_WORKTREE_COLLISION_CODE =
-  'BRANCH_CHECKED_OUT_IN_HOST_REPOSITORY' as const;
+export const RUN_WORKTREE_COLLISION_CODE = 'BRANCH_CHECKED_OUT_IN_HOST_REPOSITORY' as const;
 
 export type RunWorktreeCollisionAuthority = 'PLAN' | 'TASK_MONITOR';
 export type RunWorktreeCollisionCorrectionMode = 'PLAN_LOCKED' | 'USER_EDITABLE';
@@ -670,14 +671,6 @@ export const resolveRunWorkspace = async (input: {
   }
 
   const bindingRepositoryPath = toCanonicalPath(launch.repositoryPath);
-  const checkoutConflict = await findLaunchCheckoutConflict(
-    bindingRepositoryPath,
-    input.session.worktree?.enabled === true,
-    logger,
-  );
-  if (checkoutConflict) {
-    return { ok: false, code: 'RUN_SCOPE_INVALID', message: checkoutConflict };
-  }
   const allServicePaths = await resolveAllServicePaths(input.session, input.repoStore);
   if (!allServicePaths.ok) {
     logWarn(logger, 'local.run_scope.workspace.resolve.service_binding_missing', {
