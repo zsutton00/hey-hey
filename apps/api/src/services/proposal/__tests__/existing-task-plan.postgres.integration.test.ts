@@ -27,6 +27,10 @@ import { ProposalValidationEngine } from '../proposal-validation.engine';
 import { ProjectApprovalPolicyService } from '../project-approval-policy.service';
 import { PendingEdgeService } from '../pending-edge.service';
 import { PlanToolsProvider } from '../../../mcp/tools/plan-tools.provider';
+import {
+  PLAN_CONFIGURATION_SCHEMA_VERSION,
+  validatePlanConfigurationContent,
+} from '../../tasks/plan-configuration.validator';
 import type { OrganizationId, ProjectId, UserId } from '../../../types';
 import type { AgentEdge, CreateAgentEdgeDto } from '../../../generated/graphs';
 
@@ -396,6 +400,21 @@ describe('existing-task Plan public approval with PostgreSQL', () => {
     });
     expect(resumed.enacted).toBe(true);
     const planId = resumed.resultingEntityId!;
+    const configurationSection = await prisma.taskSection.findUnique({
+      where: { taskId_key: { taskId: planId, key: 'planConfiguration' } },
+    });
+    const configuration = validatePlanConfigurationContent(
+      configurationSection?.materializedMarkdown,
+    );
+    expect(configuration.success).toBe(true);
+    if (!configuration.success) {
+      throw new Error(configuration.message);
+    }
+    expect(configuration.value).toEqual({
+      schemaVersion: PLAN_CONFIGURATION_SCHEMA_VERSION,
+      planType: 'STANDARD',
+      worktreeBranch: null,
+    });
     expect(await prisma.designDoc.count()).toBe(1);
     expect((await prisma.designDoc.findFirstOrThrow()).id).toBe(document.id);
     const stages = await prisma.task.findMany({

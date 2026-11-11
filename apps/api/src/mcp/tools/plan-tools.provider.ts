@@ -9,7 +9,9 @@ import type {
   WorkItemChangeSetOperation,
   WorkItemChangeSetValidationRequest,
   WorkItemChangeSetIdentity,
+  PlanConfigurationV1,
 } from '@hey-hey/contracts/api/models';
+import { PLAN_CONFIGURATION_SCHEMA_VERSION } from '../../services/tasks/plan-configuration.validator';
 import { ProposalService } from '../../services/proposal/proposal.service';
 import type { StampedCreateProposalDto } from '../../services/proposal/proposal.types';
 import type { ProjectId, TaskId } from '../../types';
@@ -426,6 +428,16 @@ export class PlanToolsProvider {
         type: 'PLAN',
         name: params.planTitle,
         parent: existing(params.parentFeatureId),
+      },
+      {
+        op: 'section.replace',
+        ref: root,
+        key: 'planConfiguration',
+        content: {
+          schemaVersion: PLAN_CONFIGURATION_SCHEMA_VERSION,
+          planType: 'STANDARD',
+          worktreeBranch: null,
+        } satisfies PlanConfigurationV1,
       },
       {
         op: 'section.replace',
