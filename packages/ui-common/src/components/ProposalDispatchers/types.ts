@@ -33,7 +33,11 @@ import type { DiffViewMode } from "../SuggestedContent";
  * after the user clicks "Apply".
  */
 export type ProposalItemState =
-  "pending" | "applying" | "applied" | "rejected" | "failed";
+  | "pending"
+  | "applying"
+  | "applied"
+  | "rejected"
+  | "failed";
 
 export interface ProposalItemStatus {
   /** Approval can precede application for a future revision. */
@@ -344,7 +348,8 @@ interface ProposedWorkflowStepWithTempId extends ProposedWorkflowStepFields {
 }
 
 export type ProposedWorkflowStep =
-  ProposedWorkflowStepWithId | ProposedWorkflowStepWithTempId;
+  | ProposedWorkflowStepWithId
+  | ProposedWorkflowStepWithTempId;
 
 interface ProposedWorkflowFlowLinkFields {
   id?: string;
@@ -378,7 +383,8 @@ type ProposedWorkflowFulfillmentLink = ProposedWorkflowFlowLinkFields &
   );
 
 export type ProposedWorkflowFlowLink =
-  ProposedWorkflowNodeLink | ProposedWorkflowFulfillmentLink;
+  | ProposedWorkflowNodeLink
+  | ProposedWorkflowFulfillmentLink;
 
 export interface CreateWorkflowProposalUpdates extends Omit<
   CreateTaskDto,
@@ -414,10 +420,12 @@ export interface UpdateWorkflowStepProposalUpdates extends UpdateTaskDto {
 }
 
 export type WorkflowCreateProposalUpdates =
-  CreateWorkflowProposalUpdates | CreateWorkflowStepProposalUpdates;
+  | CreateWorkflowProposalUpdates
+  | CreateWorkflowStepProposalUpdates;
 
 export type WorkflowUpdateProposalUpdates =
-  UpdateWorkflowProposalUpdates | UpdateWorkflowStepProposalUpdates;
+  | UpdateWorkflowProposalUpdates
+  | UpdateWorkflowStepProposalUpdates;
 
 const isCreateWorkflowUpdatesPayload = (
   updates: unknown,
