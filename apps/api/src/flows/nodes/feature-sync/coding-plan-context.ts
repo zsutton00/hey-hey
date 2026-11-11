@@ -11,6 +11,15 @@ import { TIMELINE_MESSAGE_WHERE } from 'src/utils/message-timeline.util';
 
 const logger = new Logger('CodingPlanReview');
 
+/** Plans saved before the rename carry `repair_planned`; readers see the current name. */
+function withCurrentDisposition<T extends { disposition?: string | undefined }>(
+  issue: T,
+): T {
+  return issue.disposition === 'repair_planned'
+    ? { ...issue, disposition: 'changes_existing_behavior' }
+    : issue;
+}
+
 const planningMessageData = z
   .object({
     comment: z.string().optional(),
@@ -88,14 +97,16 @@ export function resolveReviewedCodingPlan(
         if (latest.context.success) {
           discussion.push(`Plan (${row.id}): ${latest.context.data.markdown}`);
           for (const issue of latest.context.data.discrepancies ?? [])
-            discussion.push(`Issue (${row.id}): ${JSON.stringify(issue)}`);
+            discussion.push(
+              `Issue (${row.id}): ${JSON.stringify(withCurrentDisposition(issue))}`,
+            );
         }
       } else if (element.type === 'coding_plan_discrepancy') {
         const issue = CodingPlanDiscrepancySchema.safeParse(element.payload);
         discussion.push(
           issue.success
-            ? `Issue (${row.id}): ${JSON.stringify(issue.data)}`
-            : `Issue (${row.id}) is unavailable because its persisted evidence is invalid.`,
+            ? `Issue (${row.id}): ${JSON.stringify(withCurrentDisposition(issue.data))}`
+            : `Issue (${row.id}) is unavailable because its persisted evidence is invalid: ${issue.error.message}`,
         );
       }
     }
@@ -115,6 +126,7 @@ export function resolveReviewedCodingPlan(
   if (!latest.context.success) {
     logger.debug('Coding Plan version rejected as invalid', {
       versionMessageId,
+      cause: latest.context.error.message,
     });
     throw new ConflictException({
       code: 'CODING_PLAN_REVIEW_CONTEXT_INVALID',
@@ -127,7 +139,12 @@ export function resolveReviewedCodingPlan(
   });
   return {
     versionMessageId: latest.messageId,
-    approvedVersion: latest.context.data,
+    approvedVersion: {
+      ...latest.context.data,
+      discrepancies: latest.context.data.discrepancies?.map(
+        withCurrentDisposition,
+      ),
+    },
     planningDiscussion: discussion.join('\n\n'),
   };
 }

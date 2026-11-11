@@ -28,9 +28,9 @@ describe('buildImplementPrompt', () => {
   it('carries approved project-context findings into completion reconciliation', () => {
     const result = buildImplementPrompt({
       approvedPlan:
-        '## Supporting planning discussion\n{"category":"project_context","findingId":"doc-update","disposition":"repair_planned"}',
+        '## Supporting planning discussion\n{"category":"project_context","findingId":"doc-update","disposition":"changes_existing_behavior"}',
     });
-    expect(result).toContain('"findingId":"doc-update","disposition":"repair_planned"');
+    expect(result).toContain('"findingId":"doc-update","disposition":"changes_existing_behavior"');
     expect(result).toContain('each project-context finding and its current disposition');
     expect(result).toContain('Check each relevant finding against its cited governing context');
     expect(result).toContain('suggest_feature_verification');

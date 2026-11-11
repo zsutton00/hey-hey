@@ -1805,7 +1805,7 @@
         },
         "disposition": {
           "$ref": "#/definitions/CodingPlanDiscrepancyAllOfDispositionEnum",
-          "description": "Current state of the finding. Assent changes the disposition and never removes the finding."
+          "description": "Current state of the finding. Assent changes the disposition and never removes the finding. changes_existing_behavior marks a planned change to existing behavior that recorded design supports. repair_planned is the legacy name of changes_existing_behavior, accepted on read only so plans saved before the rename stay valid."
         },
         "implementationFollowThrough": {
           "type": "string",
@@ -1906,6 +1906,10 @@
         {
           "type": "string",
           "const": "accepted"
+        },
+        {
+          "type": "string",
+          "const": "changes_existing_behavior"
         },
         {
           "type": "string",

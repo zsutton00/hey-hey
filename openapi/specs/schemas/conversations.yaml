@@ -7048,8 +7048,8 @@ CodingPlanDiscrepancy:
           description: The direction or assent the user gave about this finding.
         disposition:
           type: string
-          enum: [open, accepted, repair_planned, withdrawn]
-          description: Current state of the finding. Assent changes the disposition and never removes the finding.
+          enum: [open, accepted, changes_existing_behavior, repair_planned, withdrawn]
+          description: Current state of the finding. Assent changes the disposition and never removes the finding. changes_existing_behavior marks a planned change to existing behavior that recorded design supports. repair_planned is the legacy name of changes_existing_behavior, accepted on read only so plans saved before the rename stay valid.
         implementationFollowThrough:
           type: string
           description: What implementation must address or verify for this finding.
@@ -7069,7 +7069,9 @@ CodingPlanEmittedDiscrepancy:
         category:
           $ref: "#/CodingPlanDiscrepancy/allOf/1/properties/category"
         disposition:
-          $ref: "#/CodingPlanDiscrepancy/allOf/1/properties/disposition"
+          type: string
+          enum: [open, accepted, changes_existing_behavior, withdrawn]
+          description: Current state of the finding. Assent changes the disposition and never removes the finding. changes_existing_behavior marks a planned change to existing behavior that recorded design supports.
   description: A finding as emitted with a new plan version; carries the required finding metadata.
 
 CodingPlanConversationalApproval:
