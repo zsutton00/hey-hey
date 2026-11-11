@@ -1,3 +1,4 @@
+import { ok } from 'node:assert/strict';
 import { ProposalReconciliationService } from '../../proposal/proposal-reconciliation.service';
 import { PlanDependenciesService } from '../../plan/plan-dependencies.service';
 import {
@@ -4028,12 +4029,16 @@ describe('EntityContextService', () => {
 
         const [onlyArchived, mixed] =
           result.content!.requirementsSection!.records;
+        ok(onlyArchived);
+        ok(mixed);
         expect(onlyArchived.statement).toBe('Only archived fulfills this');
         expect(onlyArchived.fulfilledBy).toEqual([]);
         expect(mixed.fulfilledBy.map((c) => c.entityId)).toEqual([
           completedPlanId,
         ]);
-        expect(JSON.parse(result.content!.sections!.requirements)).toEqual(
+        const serializedRequirements = result.content!.sections!.requirements;
+        ok(serializedRequirements);
+        expect(JSON.parse(serializedRequirements)).toEqual(
           result.content!.requirementsSection,
         );
       });
@@ -4053,9 +4058,10 @@ describe('EntityContextService', () => {
           archivedFeatureId,
         );
         expect(result.content!.sections!.requirements).toBe(storedRequirements);
-        expect(
-          result.content!.requirementsSection!.records[0].fulfilledBy,
-        ).toHaveLength(1);
+        const firstRequirement =
+          result.content!.requirementsSection!.records[0];
+        ok(firstRequirement);
+        expect(firstRequirement.fulfilledBy).toHaveLength(1);
       });
 
       it('does not let archived items use up the selection limit', async () => {

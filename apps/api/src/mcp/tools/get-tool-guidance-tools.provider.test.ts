@@ -480,7 +480,7 @@ describe('GetToolGuidanceToolsProvider', () => {
     });
 
     it('guides existing-task plans toward few outcome stages and a full PRD', async () => {
-      const guidance = async (toolName: string) =>
+      const guidance = async (toolName: ToolGuidanceKey) =>
         getText(
           await provider.getToolGuidance({ toolName }, {} as any, {} as any),
         )
