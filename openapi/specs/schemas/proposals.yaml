@@ -1155,7 +1155,6 @@ PlanFromExistingTasksPrerequisite:
 
 ProposalUpdates:
   oneOf:
-    - $ref: "#/PlanFromExistingTasksUpdatesPayload"
     - $ref: "./future-revisions.yaml#/FutureRevisionMutation"
     - $ref: "./tasks.yaml#/CreateTaskDto"
     - $ref: "./tasks.yaml#/UpdateTaskDto"
@@ -1169,9 +1168,6 @@ ProposalUpdates:
     - $ref: "#/EntityPromptTemplateProposalUpdatesPayload"
   description: >
     The proposed change payload. Shape depends on action + targetEntityType:
-    CREATE/CONVERSATION with proposalKind=plan-from-existing-tasks carries
-    PlanFromExistingTasksUpdatesPayload, including complete replacement content
-    on proposal revision; it never requests new-task generation.
     CREATE/TASK -> CreateTaskDto, UPDATE/TASK -> UpdateTaskDto,
     including the structured FEATURE requirement input and partial-operation
     fields when the target work item is a FEATURE,
@@ -3022,88 +3018,3 @@ ProposalReviewNoteResult:
     messageId:
       type: string
       format: uuid
-
-PlanFromExistingTasksStage:
-  type: object
-  additionalProperties: false
-  required:
-    - title
-    - taskIds
-  description: One stage of a plan proposed from existing tasks.
-  properties:
-    title:
-      type: string
-      minLength: 1
-      description: User-visible stage name.
-    summary:
-      type: string
-      minLength: 1
-      description: Short statement of what the stage delivers.
-    taskIds:
-      type: array
-      minItems: 1
-      items:
-        type: string
-        format: uuid
-      description: Existing tasks grouped into this stage. A task appears in exactly one stage.
-
-PlanFromExistingTasksTaskPrerequisite:
-  type: object
-  additionalProperties: false
-  required:
-    - taskId
-    - dependsOnTaskIds
-  description: Explicit prerequisites of one task within the proposed task set.
-  properties:
-    taskId:
-      type: string
-      format: uuid
-    dependsOnTaskIds:
-      type: array
-      minItems: 1
-      items:
-        type: string
-        format: uuid
-      description: Tasks in the proposed set that must finish before taskId.
-
-PlanFromExistingTasksUpdatesPayload:
-  type: object
-  additionalProperties: false
-  required:
-    - proposalKind
-    - parentFeatureId
-    - planTitle
-    - designDocMarkdown
-    - stages
-  description: |
-    Proposal payload for a Plan built from a feature's existing tasks. It is
-    reviewed as one artifact; nothing is created until approval. The task set
-    is the union of all stage taskIds. Stage order is the order of `stages`
-    and becomes the linear predecessor chain between stages. Task-to-task
-    prerequisites are stated only in `taskPrerequisites`.
-  properties:
-    proposalKind:
-      type: string
-      enum:
-        - plan-from-existing-tasks
-      description: Discriminator that distinguishes this payload from other CONVERSATION CREATE proposals.
-    parentFeatureId:
-      type: string
-      format: uuid
-      description: The FEATURE the plan anchors under.
-    planTitle:
-      type: string
-      minLength: 1
-    designDocMarkdown:
-      type: string
-      minLength: 1
-      description: Design-doc body drafted from the parent feature (the what) and the tasks (the how).
-    stages:
-      type: array
-      minItems: 1
-      items:
-        $ref: "#/PlanFromExistingTasksStage"
-    taskPrerequisites:
-      type: array
-      items:
-        $ref: "#/PlanFromExistingTasksTaskPrerequisite"

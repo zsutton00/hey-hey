@@ -29630,12 +29630,6 @@ components:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeArchiveRequestDto"
     WorkItemTypeCascadeDeleteUpdatesPayload:
       $ref: "../schemas/proposals.yaml#/WorkItemTypeCascadeDeleteUpdatesPayload"
-    PlanFromExistingTasksStage:
-      $ref: "../schemas/proposals.yaml#/PlanFromExistingTasksStage"
-    PlanFromExistingTasksTaskPrerequisite:
-      $ref: "../schemas/proposals.yaml#/PlanFromExistingTasksTaskPrerequisite"
-    PlanFromExistingTasksUpdatesPayload:
-      $ref: "../schemas/proposals.yaml#/PlanFromExistingTasksUpdatesPayload"
 
     # =============================================
     # Staged Content Schema References

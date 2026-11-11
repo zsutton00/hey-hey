@@ -2,7 +2,6 @@ import { BadRequestException } from '@nestjs/common';
 import type { ProposalService } from '../../services/proposal/proposal.service';
 import { validateProposalStructure } from '../../services/proposal/proposal-validation.engine';
 import { createPlanParameters, PlanToolsProvider } from './plan-tools.provider';
-import { ORCHESTRATION_TOOL_NAMES } from './proposal-tool-names';
 
 const ORGANIZATION_ID = '00000000-0000-4000-8000-000000000001';
 const PROJECT_ID = '00000000-0000-4000-8000-000000000002';

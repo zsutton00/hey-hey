@@ -128,7 +128,7 @@ export function ExistingTaskPlanCreateRenderer({
       ...taskIds,
       ...prerequisites.flatMap((entry) => [
         entry.taskId,
-        ...entry.dependsOnTaskIds,
+        entry.dependsOnTaskId,
       ]),
     ],
   );
@@ -237,11 +237,6 @@ export function ExistingTaskPlanCreateRenderer({
           <Typography variant="subtitle2">
             {index + 1}. {stage.title}
           </Typography>
-          {stage.summary && (
-            <MarkdownRenderer allowMentionEscapes>
-              {stage.summary}
-            </MarkdownRenderer>
-          )}
           {stage.taskIds.map((id) => (
             <Box key={id}>{renderTask(id)}</Box>
           ))}
@@ -260,16 +255,12 @@ export function ExistingTaskPlanCreateRenderer({
           </Typography>
         )}
         {prerequisites.map((entry) => (
-          <Stack key={entry.taskId} spacing={0.5}>
+          <Stack key={`${entry.taskId}:${entry.dependsOnTaskId}`} spacing={0.5}>
             {renderTask(entry.taskId)}
             <Typography variant="caption">
               {t("proposals.existingPlan.dependsOn")}
             </Typography>
-            {entry.dependsOnTaskIds.map((id) => (
-              <Box key={id} sx={{ pl: 2 }}>
-                {renderTask(id)}
-              </Box>
-            ))}
+            <Box sx={{ pl: 2 }}>{renderTask(entry.dependsOnTaskId)}</Box>
           </Stack>
         ))}
       </Box>

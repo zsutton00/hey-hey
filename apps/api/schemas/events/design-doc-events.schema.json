@@ -18010,9 +18010,6 @@
           "$ref": "#/definitions/FutureRevisionMutation"
         },
         {
-          "$ref": "#/definitions/PlanFromExistingTasksUpdatesPayload"
-        },
-        {
           "$ref": "#/definitions/UpdateDesignDocDto"
         },
         {
@@ -20549,100 +20546,6 @@
         },
         {}
       ]
-    },
-    "PlanFromExistingTasksUpdatesPayload": {
-      "type": "object",
-      "properties": {
-        "proposalKind": {
-          "$ref": "#/definitions/PlanFromExistingTasksUpdatesPayloadProposalKindEnum",
-          "description": "Discriminator that distinguishes this payload from other CONVERSATION CREATE proposals."
-        },
-        "parentFeatureId": {
-          "type": "string",
-          "description": "The FEATURE the plan anchors under."
-        },
-        "planTitle": {
-          "type": "string"
-        },
-        "designDocMarkdown": {
-          "type": "string",
-          "description": "Design-doc body drafted from the parent feature (the what) and the tasks (the how)."
-        },
-        "stages": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/PlanFromExistingTasksStage"
-          }
-        },
-        "taskPrerequisites": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/PlanFromExistingTasksTaskPrerequisite"
-          }
-        }
-      },
-      "required": [
-        "proposalKind",
-        "parentFeatureId",
-        "planTitle",
-        "designDocMarkdown",
-        "stages"
-      ],
-      "description": "Proposal payload for a Plan built from a feature\\'s existing tasks. It is reviewed as one artifact; nothing is created until approval. The task set is the union of all stage taskIds. Stage order is the order of `stages` and becomes the linear predecessor chain between stages. Task-to-task prerequisites are stated only in `taskPrerequisites`."
-    },
-    "PlanFromExistingTasksUpdatesPayloadProposalKindEnum": {
-      "anyOf": [
-        {
-          "type": "string",
-          "const": "plan-from-existing-tasks"
-        },
-        {}
-      ]
-    },
-    "PlanFromExistingTasksStage": {
-      "type": "object",
-      "properties": {
-        "title": {
-          "type": "string",
-          "description": "User-visible stage name."
-        },
-        "summary": {
-          "type": "string",
-          "description": "Short statement of what the stage delivers."
-        },
-        "taskIds": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Existing tasks grouped into this stage. A task appears in exactly one stage."
-        }
-      },
-      "required": [
-        "title",
-        "taskIds"
-      ],
-      "description": "One stage of a plan proposed from existing tasks."
-    },
-    "PlanFromExistingTasksTaskPrerequisite": {
-      "type": "object",
-      "properties": {
-        "taskId": {
-          "type": "string"
-        },
-        "dependsOnTaskIds": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Tasks in the proposed set that must finish before taskId."
-        }
-      },
-      "required": [
-        "taskId",
-        "dependsOnTaskIds"
-      ],
-      "description": "Explicit prerequisites of one task within the proposed task set."
     },
     "UpdateDesignDocDto": {
       "type": "object",

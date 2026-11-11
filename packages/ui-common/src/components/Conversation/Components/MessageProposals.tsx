@@ -104,7 +104,13 @@ export const useMessageProposalActions = (
         await invalidateReview(
           proposal.organizationId,
           proposal.projectId,
-        ).catch(() => null);
+        ).catch((error: unknown) => {
+          log.error("conversation_viewer", "Proposal review refresh failed", {
+            code: "PROPOSAL_REVIEW_REFRESH_FAILED",
+            proposalId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
       }
       if (!approvedProposal) {
         throw new Error(
@@ -197,7 +203,13 @@ export const useMessageProposalActions = (
       });
 
       await invalidateReview(proposal.organizationId, proposal.projectId).catch(
-        () => null,
+        (error: unknown) => {
+          log.error("conversation_viewer", "Proposal review refresh failed", {
+            code: "PROPOSAL_REVIEW_REFRESH_FAILED",
+            proposalId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        },
       );
       setLifecycle(proposalId, "rejected");
       invalidateConversation(conversationId);

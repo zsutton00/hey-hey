@@ -1,7 +1,3 @@
-import {
-  adoptExistingTaskPlan,
-  publishExistingTaskPlan,
-} from './existing-task-plan-adoption';
 import { reconciliationPatch } from './proposal-reconciliation-content';
 import { isEqual } from 'lodash';
 import { readProjectReadyCandidates } from './project-ready-futures';
@@ -159,7 +155,6 @@ import {
   assertProposalStructurallyValid,
   assertWorkflowProposalLinksStructurallyValid,
   isCascadeWorkItemTypeDeletePayload,
-  isPlanFromExistingTasksPayload,
 } from './proposal-validation.engine';
 import { assertWorkItemTypeEditSupported } from './work-item-type-edit-classifier';
 import { assertStoredTracksDeclarationsValid } from './proposal-tracking-attachment';
@@ -1070,13 +1065,6 @@ export class ProposalApprovalService {
       },
       include: { workItemChangeSetMaterialization: true },
     });
-    if (target && isPlanFromExistingTasksPayload(target.updates)) {
-      assertProposalApplicationEligible(
-        target,
-        'retryApprovedExistingTaskPlan',
-      );
-      return this.finishExistingTaskPlan(target, projectPolicy);
-    }
     if (!target?.workItemChangeSetMaterialization) {
       throw new BadRequestException(
         'Only an approved generic work-item proposal with durable retry state can be retried.',
@@ -1105,37 +1093,6 @@ export class ProposalApprovalService {
         materialized.rootWorkItemId ?? materialized.proposal.targetEntityId,
       enacted: materialized.enacted,
     };
-  }
-
-  private async finishExistingTaskPlan(
-    proposal: Proposal,
-    projectPolicy: ProjectApprovalPolicy,
-  ): Promise<ApprovalResult> {
-    try {
-      const published = await publishExistingTaskPlan(
-        this.prisma,
-        proposal,
-        this.taskService,
-        this.pendingEdgeService,
-        async (tx, updated, id) => {
-          await this.advanceTaskMarkerAfterMaterialization(tx, updated, id);
-          await this.reconciliation.recordCreatedDelivery(tx, updated);
-          await this.publishApprovedEvent(tx, updated, id);
-        },
-      );
-      return {
-        proposal: await this.toResponseDto(published, projectPolicy),
-        resultingEntityId: published.targetEntityId,
-        enacted: true,
-      };
-    } catch (error) {
-      return this.recoverableMaterializationFailureResult(
-        proposal,
-        projectPolicy,
-        proposal.id,
-        error,
-      );
-    }
   }
 
   private async recoverableMaterializationFailureResult(
@@ -1597,9 +1554,7 @@ export class ProposalApprovalService {
         await this.advanceTaskMarkerAfterMaterialization(tx, updated, entityId);
         await this.reconciliation.recordCreatedDelivery(tx, updated);
 
-        if (!isPlanFromExistingTasksPayload(updated.updates)) {
-          await this.publishApprovedEvent(tx, updated, entityId);
-        }
+        await this.publishApprovedEvent(tx, updated, entityId);
 
         const pendingEdgeTaskPostCommits: PendingEdgeTaskPostCommit[] = [];
         const materializableEdges = [
@@ -1659,13 +1614,6 @@ export class ProposalApprovalService {
         'Rolling back an immediately materialized proposal edge because approval failed.',
       );
       throw error;
-    }
-
-    if (
-      result.enacted &&
-      isPlanFromExistingTasksPayload(result.proposal.updates)
-    ) {
-      return this.finishExistingTaskPlan(result.proposal, projectPolicy);
     }
 
     if (result.cascadeExecutionId) {
@@ -3887,20 +3835,6 @@ export class ProposalApprovalService {
     projectId: ProjectId,
     reservedTargetEntityId?: string,
   ): Promise<EnactResult> {
-    if (isPlanFromExistingTasksPayload(updates)) {
-      const planId = await adoptExistingTaskPlan(
-        tx,
-        proposal,
-        this.taskService,
-        this.designDocService,
-      );
-      return {
-        entityId: planId,
-        materializableEdges: [],
-        runPostCommit: NOOP_POST_COMMIT,
-        durablePostCommits: [],
-      };
-    }
     const designDocMarkdown = updates.designDocMarkdown as string;
     const planTitle = updates.planTitle as string;
     const parentFeatureId = updates.parentFeatureId as string | undefined;

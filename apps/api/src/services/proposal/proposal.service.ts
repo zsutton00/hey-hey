@@ -83,8 +83,6 @@ import {
 import { EvalOutputAdmissionService } from '../eval/eval-output-admission.service';
 import { ProposalValidationEngine } from './proposal-validation.engine';
 import {
-  isPlanFromExistingTasksPayload,
-  planFromExistingTasksUpdatesSchema,
   assertWorkItemChangeSetStructurallyValid,
   assertWorkflowProposalLinksStructurallyValid,
 } from './proposal-validation.engine';

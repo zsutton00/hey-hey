@@ -114,7 +114,7 @@ const initial: ProposalResponseDto = {
   type: ProposalType.Single,
   action: ProposalAction.Create,
   status: ProposalStatus.Draft,
-  targetEntityType: TargetEntityType.Conversation,
+  targetEntityType: TargetEntityType.Task,
   targetEntityId: "00000000-0000-0000-0000-000000000000",
   title: "Deliver existing work",
   updates: artifact,
@@ -402,7 +402,7 @@ describe.each(["standalone", "detail"] as const)(
 
     it("links the created Plan when generic materialization is published", async () => {
       const { client } = harness(renderMode);
-      await screen.findByRole("progressbar");
+      await screen.findAllByText("Ship release");
       expect(
         screen.queryByRole("link", { name: "Deliver existing work" }),
       ).not.toBeInTheDocument();
@@ -416,12 +416,8 @@ describe.each(["standalone", "detail"] as const)(
         },
         targetEntityId: "created-plan",
         targetEntityType: TargetEntityType.Task,
-        materialization: {
-          state: WorkItemChangeSetMaterializationState.Published,
-          attemptCount: 2,
-          operations: [],
-        },
       };
+      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
       await act(async () => {
         await client.invalidateQueries({
           queryKey: proposalKeys.project("org", "project"),
@@ -430,6 +426,7 @@ describe.each(["standalone", "detail"] as const)(
       expect(
         await screen.findByRole("link", { name: "Deliver existing work" }),
       ).toHaveAttribute("href", "/projects/project/plans/created-plan");
+      expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     });
   },
 );
