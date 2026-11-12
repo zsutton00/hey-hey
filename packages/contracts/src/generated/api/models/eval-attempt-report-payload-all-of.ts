@@ -24,6 +24,9 @@ import type { EvalAttemptStatus } from './eval-attempt-status.js';
 import type { EvalAttemptStopReason } from './eval-attempt-stop-reason.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { EvalAttemptTurn } from './eval-attempt-turn.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { EvalConfiguration } from './eval-configuration.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -164,6 +167,18 @@ export interface EvalAttemptReportPayloadAllOf {
      * @memberof EvalAttemptReportPayloadAllOf
      */
     'recordedToolCalls'?: EvalRecordedToolCalls;
+    /**
+     * The scripted messages the attempt started, in order, each saved as it settled. Absent on attempts recorded before scripted conversations, which ran only their final message.
+     * @type {Array<EvalAttemptTurn>}
+     * @memberof EvalAttemptReportPayloadAllOf
+     */
+    'turns'?: Array<EvalAttemptTurn>;
+    /**
+     * Index of the message the judge assessed. Absent when no final assessment happened.
+     * @type {number}
+     * @memberof EvalAttemptReportPayloadAllOf
+     */
+    'judgedTurnIndex'?: number;
     /**
      * The exact text the judge was given to assess: the saved research for research alone, otherwise the handler\'s reply. Absent when judging never started. The judge runs as an isolated child inside the run\'s coordinator session and has no session of its own, so this is the record of what it looked at.
      * @type {string}

@@ -1487,6 +1487,219 @@ export const REPORT_SCHEMAS = {
               description:
                 "The tested agent's own tool calls, without results. Absent on attempts recorded before tool calls were kept.\n",
             },
+            turns: {
+              type: 'array',
+              description:
+                'The scripted messages the attempt started, in order, each saved as it settled. Absent on attempts recorded before scripted conversations, which ran only their final message.\n',
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                description:
+                  "One scripted message an attempt sent and what came of it, saved as soon as the message settles. `index` is the message's position in the case's frozen inputs. Evidence only; never shown to the tested agent.\n",
+                required: ['index', 'input', 'state'],
+                properties: {
+                  index: {
+                    type: 'integer',
+                    minimum: 0,
+                    description:
+                      'Position of the message in the frozen inputs, from 0.',
+                  },
+                  turnId: {
+                    type: 'string',
+                    description:
+                      "The Run's Turn that handled the message. Absent until the Turn started.",
+                  },
+                  input: {
+                    type: 'string',
+                    description: 'The exact message text sent.',
+                  },
+                  state: {
+                    type: 'string',
+                    enum: ['STARTED', 'COMPLETED', 'FAILED', 'STOPPED'],
+                  },
+                  reply: {
+                    type: 'string',
+                    description:
+                      "The agent's reply to this message. Absent when none was produced.",
+                  },
+                  startedAt: {
+                    type: 'string',
+                    format: 'date-time',
+                  },
+                  completedAt: {
+                    type: 'string',
+                    format: 'date-time',
+                  },
+                  recordedToolCalls: {
+                    allOf: [
+                      {
+                        type: 'object',
+                        additionalProperties: false,
+                        description:
+                          'The tool calls one attempt made, in order. UNAVAILABLE means they could not be collected, which is different from COLLECTED with no calls.\n',
+                        required: ['state', 'calls'],
+                        properties: {
+                          state: {
+                            type: 'string',
+                            enum: ['COLLECTED', 'UNAVAILABLE'],
+                          },
+                          calls: {
+                            type: 'array',
+                            description: 'Empty when state is UNAVAILABLE.',
+                            items: {
+                              type: 'object',
+                              additionalProperties: false,
+                              description:
+                                "One tool call an attempt's tested agent made. The call's result is never kept. Evidence only; never shown to the tested agent or other attempts.\n",
+                              required: ['toolName', 'origin', 'truncated'],
+                              properties: {
+                                toolName: {
+                                  type: 'string',
+                                },
+                                arguments: {
+                                  type: 'string',
+                                  description:
+                                    'Serialized arguments the agent passed, cut to a fixed size when large.',
+                                },
+                                origin: {
+                                  type: 'string',
+                                  enum: ['RUN_OBSERVED', 'INTERCEPTED'],
+                                  description:
+                                    "RUN_OBSERVED calls come from the Run's retained tool usage. INTERCEPTED is reserved for calls the CLI answered itself without performing them.\n",
+                                },
+                                agentText: {
+                                  type: 'string',
+                                  description:
+                                    'Text the agent wrote with an INTERCEPTED call.',
+                                },
+                                truncated: {
+                                  type: 'boolean',
+                                  description: 'True when arguments were cut.',
+                                },
+                              },
+                            },
+                          },
+                          omittedCalls: {
+                            type: 'integer',
+                            minimum: 1,
+                            description:
+                              'Number of further calls left out once the list reached its cap.',
+                          },
+                        },
+                      },
+                    ],
+                    description:
+                      'Only the calls made while handling this message.',
+                  },
+                  measurement: {
+                    allOf: [
+                      {
+                        type: 'object',
+                        description:
+                          'Every number is optional and absent when the provider did not report it. It is never defaulted to 0.\n',
+                        required: ['scope'],
+                        properties: {
+                          scope: {
+                            type: 'string',
+                            description:
+                              'TARGET_PREPARATION (the Project Assistant research agent, present only when research ran) and TARGET_HANDLER (the tested agent) are measured per attempt. JUDGE is no longer recorded; stored JUDGE entries are ignored. COORDINATOR is measured per run. Scopes are never summed into one another.\n',
+                            enum: [
+                              'TARGET_PREPARATION',
+                              'TARGET_HANDLER',
+                              'JUDGE',
+                              'COORDINATOR',
+                            ],
+                          },
+                          elapsedMs: {
+                            type: 'integer',
+                            minimum: 0,
+                          },
+                          inputTokens: {
+                            description:
+                              'Fresh uncached input tokens; excludes cache reads.',
+                            type: 'integer',
+                            minimum: 0,
+                          },
+                          outputTokens: {
+                            type: 'integer',
+                            minimum: 0,
+                          },
+                          cacheReadInputTokens: {
+                            description:
+                              'Input tokens read from cache; absent when unreported.',
+                            type: 'integer',
+                            minimum: 0,
+                          },
+                          cacheCreationInputTokens: {
+                            description:
+                              'Input tokens written to cache; absent when unreported.',
+                            type: 'integer',
+                            minimum: 0,
+                          },
+                          toolCalls: {
+                            type: 'integer',
+                            minimum: 0,
+                          },
+                          cost: {
+                            description:
+                              'What one measured agent cost, or that its cost is not reported.',
+                            oneOf: [
+                              {
+                                type: 'object',
+                                description:
+                                  "A cost read from the provider's own record. `partial` means only some of the attempt's provider sessions could be read, so the amount is a lower bound.\n",
+                                additionalProperties: false,
+                                required: ['state', 'amount', 'currency'],
+                                properties: {
+                                  state: {
+                                    type: 'string',
+                                    enum: ['available', 'partial'],
+                                  },
+                                  amount: {
+                                    type: 'number',
+                                    minimum: 0,
+                                  },
+                                  currency: {
+                                    type: 'string',
+                                    enum: ['USD'],
+                                  },
+                                },
+                              },
+                              {
+                                type: 'object',
+                                description:
+                                  'The cost could not be read (unsupported provider such as OpenCode, no provider session, or a failed read). Carries no amount so it is never mistaken for zero.\n',
+                                additionalProperties: false,
+                                required: ['state'],
+                                properties: {
+                                  state: {
+                                    type: 'string',
+                                    enum: ['unavailable'],
+                                  },
+                                },
+                              },
+                            ],
+                          },
+                        },
+                      },
+                    ],
+                    description:
+                      'Time, tokens and cost attributed to this message. Absent values were not reported and are never zero.\n',
+                  },
+                  measurementPartial: {
+                    type: 'boolean',
+                    description:
+                      "True when some of this message's usage could not be attributed to it alone.",
+                  },
+                },
+              },
+            },
+            judgedTurnIndex: {
+              type: 'integer',
+              minimum: 0,
+              description:
+                'Index of the message the judge assessed. Absent when no final assessment happened.',
+            },
             judgedOutput: {
               anyOf: [
                 {

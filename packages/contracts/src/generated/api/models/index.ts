@@ -1060,6 +1060,7 @@ export * from './eval-attempt-report-payload.js';
 export * from './eval-attempt-report-payload-all-of.js';
 export * from './eval-attempt-status.js';
 export * from './eval-attempt-stop-reason.js';
+export * from './eval-attempt-turn.js';
 export * from './eval-attempt-updated-event.js';
 export * from './eval-attempt-updated-event-all-of.js';
 export * from './eval-attempt-updated-event-payload.js';
