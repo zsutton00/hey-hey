@@ -46,6 +46,8 @@ describe('MessageService - Clone Functionality', () => {
             ProposalReconciliationService,
             'decisionsForProposals'
           >,
+        },
+        {
           provide: ProjectApprovalPolicyService,
           useValue: createTestProjectApprovalPolicyService(),
         },

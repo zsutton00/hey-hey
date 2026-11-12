@@ -461,8 +461,7 @@ export class EntityContextService {
     private readonly graphsClientService: GraphsClientService,
     private readonly workItemTypeRegistry: WorkItemTypeRegistryService,
     private readonly taskService: TaskService,
-    @Optional()
-    private readonly projectApprovalPolicyService: ProjectApprovalPolicyService = new ProjectApprovalPolicyService(),
+    private readonly projectApprovalPolicyService: ProjectApprovalPolicyService,
   ) {
     this.visibility = new ReadVisibilityService(prisma);
   }

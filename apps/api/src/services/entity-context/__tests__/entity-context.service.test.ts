@@ -246,6 +246,8 @@ describe('EntityContextService', () => {
             ProposalReconciliationService,
             'decisionsForProposals'
           >,
+        },
+        {
           provide: ProjectApprovalPolicyService,
           useValue: createTestProjectApprovalPolicyService(),
         },

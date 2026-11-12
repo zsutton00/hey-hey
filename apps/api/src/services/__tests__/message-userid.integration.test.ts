@@ -62,6 +62,8 @@ describe('Message UserID Integration Tests', () => {
             ProposalReconciliationService,
             'decisionsForProposals'
           >,
+        },
+        {
           provide: ProjectApprovalPolicyService,
           useValue: createTestProjectApprovalPolicyService(),
         },

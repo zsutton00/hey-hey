@@ -169,6 +169,8 @@ describe('MessageService', () => {
             ProposalReconciliationService,
             'decisionsForProposals'
           >,
+        },
+        {
           provide: ProjectApprovalPolicyService,
           useValue: createTestProjectApprovalPolicyService(policyPrisma),
         },

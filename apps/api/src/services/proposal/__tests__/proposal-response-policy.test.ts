@@ -611,6 +611,9 @@ describe('out-of-date comparison batch', () => {
     expect(statuses.get('current')).toBe('CURRENT');
     expect(tx.proposalReconciliationRevision.findMany).toHaveBeenCalledTimes(1);
     expect(tx.task.findMany).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('ordinary approval explanations', () => {
   const members = [
     { userId: 'author' },
