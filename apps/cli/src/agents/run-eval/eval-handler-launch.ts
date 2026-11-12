@@ -13,7 +13,7 @@ export interface EvalFirstTurn {
 }
 
 /**
- * Starts the recorded handler directly on the case's initiating request, the
+ * Starts the recorded handler directly on the case's final message, the
  * way the normal workflow would have, without the workflow. A handler that
  * needs an input this attempt cannot supply throws here, which fails only this
  * attempt with the reason.

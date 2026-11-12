@@ -1736,7 +1736,7 @@ export const en = {
   "eval.case.inputs.singleNote":
     "The agent's reply to this message is what is judged.",
   "eval.case.inputs.listNote":
-    "The agent's reply to the last message is what is judged. Earlier messages aren't sent to the agent yet.",
+    "The agent's reply to the last message is what is judged. Earlier messages are saved with the case but aren't sent to the agent yet.",
   "eval.case.inputs.judged": "Judged",
   "eval.case.inputs.moveUp": "Move up",
   "eval.case.inputs.moveDown": "Move down",
