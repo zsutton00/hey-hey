@@ -7,6 +7,8 @@ import type {
   MessageResponseDto,
   OnboardingReplyAnswers,
   RepositoryImportReplyAnswers,
+  QuestionsGroupUserMessage,
+  UIElement,
   UserMessageDataWorkflowDefined,
 } from "../../../api";
 import {
@@ -28,6 +30,7 @@ import type { FormValue } from "../../LlmForms/types";
 import type { SecondaryActionSubmitOptions } from "../../LlmForms/Registry/types";
 import { submitControllerAuthorizedWorkflowAnswer } from "../../../data/hooks/submitControllerAuthorizedWorkflowAnswer";
 import { useConversationMessages } from "../../../data/hooks/useConversationMessages";
+import { isQuestionsGroupPayload } from "../../LlmForms/Registry/QuestionGroupField";
 import { classifyWorkflowSubmission } from "../utils/conversationFormHelpers";
 import {
   projectOnboardingReviewAnswers,
@@ -85,21 +88,46 @@ const findMessageById = (
 
 /**
  * The import workflow has finished by the time enrichment questions appear, so
- * answers to them are ordinary messages for the retained CLI handler, never
- * workflow replies.
+ * answers to them are ordinary messages for the retained CLI enrichment
+ * handler, never workflow replies. Its messages offer either the single reply
+ * field or a question group that carries `conversationReply`.
  */
-const isEnrichmentReplyParent = (
+const findEnrichmentReplyElement = (
   messages: readonly MessageResponseDto[],
   parentMessageId: string,
-): boolean => {
+): UIElement | undefined => {
   const parent = findMessageById(messages, parentMessageId);
-  return (
-    parent?.type === MessageType.System &&
-    parent.data.uiElements?.some(
-      (element) =>
-        element.type === ExtendedUIFieldType.RepositoryFeatureEnrichmentReply,
-    ) === true
+  if (parent?.type !== MessageType.System) return undefined;
+
+  return parent.data.uiElements?.find(
+    (element) =>
+      element.type === ExtendedUIFieldType.RepositoryFeatureEnrichmentReply ||
+      (element.type === ExtendedUIFieldType.QuestionGroup &&
+        isQuestionsGroupPayload(element.payload) &&
+        element.payload.conversationReply !== undefined),
   );
+};
+
+/**
+ * Pairs every question with its answer, or "unanswered", then the note, so the
+ * handler reads one non-empty message even when every field was left blank.
+ */
+export const formatQuestionGroupReply = (
+  questions: readonly string[],
+  value: QuestionsGroupUserMessage | undefined,
+): string => {
+  const answers = new Map(
+    (value?.clarifyingAnswers ?? []).map((item) => [
+      item.question,
+      item.answer.trim(),
+    ]),
+  );
+  const paired = questions.map(
+    (question) => `${question}\n${answers.get(question) || "unanswered"}`,
+  );
+  const note = value?.note?.trim();
+
+  return [...paired, ...(note ? [`Note: ${note}`] : [])].join("\n\n");
 };
 
 const isLegacyRepositoryImportReply = (
@@ -293,10 +321,11 @@ export const useConversationSubmission = ({
         conversationMessages.data,
         parentMessageId,
       );
-      const isEnrichmentReply = isEnrichmentReplyParent(
+      const enrichmentElement = findEnrichmentReplyElement(
         conversationMessages.data,
         parentMessageId,
       );
+      const isEnrichmentReply = enrichmentElement !== undefined;
       const isRepositoryImportConversation =
         !isEnrichmentReply &&
         (activeConversation.workflowName === "repository-import" ||
@@ -305,16 +334,27 @@ export const useConversationSubmission = ({
         activeConversation.workflowName === "onboarding" &&
         !isLegacyRepositoryImport &&
         !isEnrichmentReply;
+      const questionGroupReply =
+        enrichmentElement?.type === ExtendedUIFieldType.QuestionGroup &&
+        isQuestionsGroupPayload(enrichmentElement.payload)
+          ? formatQuestionGroupReply(
+              enrichmentElement.payload.questions,
+              data[enrichmentElement.id] as QuestionsGroupUserMessage,
+            )
+          : null;
       const workflowSubmission =
+        questionGroupReply === null &&
         !isOnboardingConversation &&
         !isRepositoryImportConversation &&
         activeConversation.workflowId
           ? classifyWorkflowSubmission(data)
           : null;
       const messageData =
-        workflowSubmission?.kind === "conversational-text"
-          ? addWorkflowFollowupInput(data, workflowSubmission.userMessage)
-          : data;
+        questionGroupReply !== null
+          ? addWorkflowFollowupInput(data, questionGroupReply)
+          : workflowSubmission?.kind === "conversational-text"
+            ? addWorkflowFollowupInput(data, workflowSubmission.userMessage)
+            : data;
 
       // Create version-aware user message
       const userMessage = createVersionAwareUserMessage(

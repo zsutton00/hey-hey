@@ -259,6 +259,8 @@ components:
       $ref: ../schemas/repository-grounding.yaml#/RepositoryFeatureEnrichmentDecisionCompletion
     RepositoryFeatureEnrichmentQuestions:
       $ref: ../schemas/repository-grounding.yaml#/RepositoryFeatureEnrichmentQuestions
+    RepositoryFeatureEnrichmentQuestionGroup:
+      $ref: ../schemas/repository-grounding.yaml#/RepositoryFeatureEnrichmentQuestionGroup
     RepositoryFeatureEnrichmentSuccess:
       $ref: ../schemas/repository-grounding.yaml#/RepositoryFeatureEnrichmentSuccess
     RepositoryFeatureEnrichmentSuccessDecision:

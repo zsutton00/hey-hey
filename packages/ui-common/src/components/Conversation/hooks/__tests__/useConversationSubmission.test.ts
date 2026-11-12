@@ -522,6 +522,113 @@ describe("useConversationSubmission", () => {
     });
   });
 
+  describe("repository import enrichment question group", () => {
+    const questions = ["Who owns retries?", "Is the audit trail required?"];
+    const enrichmentConversation: ConversationResponseDto = {
+      ...mockConversation,
+      workflowId: "workflow-1",
+      workflowName: "repository-import",
+    };
+    const questionMessage = {
+      id: "parent-id",
+      type: MessageType.System,
+      data: {
+        uiElements: [
+          {
+            id: "questions",
+            type: "question_group",
+            payload: {
+              questions,
+              conversationReply: { noteLabel: "Note", notePlaceholder: "..." },
+            },
+          },
+        ],
+      },
+      responses: [],
+    };
+
+    beforeEach(() => {
+      mockUseConversationMessages.mockReturnValue({
+        data: [questionMessage],
+        orderedData: [questionMessage],
+      });
+    });
+
+    const submit = async (value: Record<string, unknown>) => {
+      const onSubmitRepositoryImportReply = vi.fn();
+      const onDirectTrigger = vi.fn().mockResolvedValue(undefined);
+      const { result } = renderHook(() =>
+        useConversationSubmission({
+          ...defaultProps,
+          activeConversation: enrichmentConversation,
+          onSubmitRepositoryImportReply,
+          onDirectTrigger,
+        }),
+      );
+      await act(async () => {
+        await result.current.handleNext(
+          { questions: value } as never,
+          "parent-id",
+        );
+      });
+      return { onSubmitRepositoryImportReply, onDirectTrigger, result };
+    };
+
+    it("sends each question with its answer or unanswered, then the note, as an ordinary message", async () => {
+      const { onSubmitRepositoryImportReply, onDirectTrigger } = await submit({
+        clarifyingAnswers: [
+          { question: questions[0], answer: " The platform team " },
+          { question: questions[1], answer: "" },
+        ],
+        note: "Correct the retry policy",
+      });
+
+      expect(onSubmitRepositoryImportReply).not.toHaveBeenCalled();
+      expect(onDirectTrigger).toHaveBeenCalledTimes(1);
+      expect(
+        mockCreateVersionAwareUserMessage.mock.calls[0]?.[0],
+      ).toMatchObject({
+        agentInput: {
+          userMessage: `${questions[0]}\nThe platform team\n\n${questions[1]}\nunanswered\n\nNote: Correct the retry policy`,
+        },
+      });
+    });
+
+    it("sends a note-only reply as a non-empty message", async () => {
+      await submit({
+        clarifyingAnswers: questions.map((question) => ({
+          question,
+          answer: "",
+        })),
+        note: "that's enough",
+      });
+
+      const sent = mockCreateVersionAwareUserMessage.mock.calls[0]?.[0] as {
+        agentInput: { userMessage: string };
+      };
+      expect(sent.agentInput.userMessage).toContain("unanswered");
+      expect(sent.agentInput.userMessage).toContain("Note: that's enough");
+    });
+
+    it("unlocks immediately when the send fails", async () => {
+      const onDirectTrigger = vi.fn().mockRejectedValue(new Error("rejected"));
+      const { result } = renderHook(() =>
+        useConversationSubmission({
+          ...defaultProps,
+          activeConversation: enrichmentConversation,
+          onDirectTrigger,
+        }),
+      );
+      await act(async () => {
+        await result.current.handleNext(
+          { questions: { clarifyingAnswers: [], note: "x" } } as never,
+          "parent-id",
+        );
+      });
+      expect(result.current.isSubmitting).toBe(false);
+    });
+  });
+
   it("fails closed when onboarding has no reply owner", async () => {
     const onDirectTrigger = vi.fn().mockResolvedValue(undefined);
     const onboardingConversation: ConversationResponseDto = {

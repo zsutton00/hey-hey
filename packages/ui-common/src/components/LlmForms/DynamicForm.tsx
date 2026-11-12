@@ -261,6 +261,7 @@ const generateSchemaFromUIElements = (uiElements: UIElement[]) => {
               }),
             )
             .optional(),
+          note: z.string().optional(),
         });
         break;
       case "multiple_choice":

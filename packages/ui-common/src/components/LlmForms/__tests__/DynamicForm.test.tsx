@@ -148,6 +148,26 @@ vi.mock("../Registry", () => ({
         typeof value.userMessage === "string" &&
         value.userMessage.trim().length > 0,
     },
+    question_group: {
+      Component: ({ config, onChange }: FieldComponentProps) => (
+        <button
+          type="button"
+          data-testid={`field-${config.field}-note-only`}
+          onClick={() =>
+            onChange?.({
+              clarifyingAnswers: [
+                { question: "Who owns retries?", answer: "" },
+              ],
+              note: "that's enough",
+            })
+          }
+        />
+      ),
+      getHasContent: (value: FormValue | undefined) =>
+        typeof value === "object" &&
+        value !== null &&
+        Object.keys(value).length > 0,
+    },
     validity: {
       Component: ({ config, onValidityChange }: FieldComponentProps) => (
         <div>
@@ -667,6 +687,36 @@ describe("DynamicForm", () => {
         expect(mockOnNext).toHaveBeenCalledWith(
           {
             "test-input": "test value",
+          },
+          undefined,
+        );
+      });
+    });
+
+    it("keeps the free-form note on a question group when submitted", async () => {
+      const user = userEvent.setup();
+      renderForm({
+        uiElements: [
+          createUIElement({
+            id: "questions",
+            type: ExtendedUIFieldType.QuestionGroup,
+            submitText: "Send",
+          }),
+        ],
+      });
+
+      await user.click(screen.getByTestId("field-questions-note-only"));
+      await user.click(screen.getByTestId("run-stream-external-reply-submit"));
+
+      await waitFor(() => {
+        expect(mockOnNext).toHaveBeenCalledWith(
+          {
+            questions: {
+              clarifyingAnswers: [
+                { question: "Who owns retries?", answer: "" },
+              ],
+              note: "that's enough",
+            },
           },
           undefined,
         );
