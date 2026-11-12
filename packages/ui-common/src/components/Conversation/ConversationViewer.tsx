@@ -260,6 +260,11 @@ export interface PersistedConversationViewerProps {
    * When true, hide the "Next" button on analysis messages.
    */
   hideAnalysisAction?: boolean;
+  /**
+   * Suppress the in-timeline thinking placeholder for a processing system
+   * message. Set by owners that render the Run-state indicator themselves.
+   */
+  hideProcessingPlaceholder?: boolean;
 
   /**
    * Active coding session context for agent-session-scoped forms.
@@ -890,6 +895,7 @@ const PersistedConversationViewer: React.FC<
   renderNestedUserMessages = false,
   renderTimestamp = false,
   hideAnalysisAction = false,
+  hideProcessingPlaceholder = false,
   agentSessionId,
   agentSessionCurrentState,
   showAgentSessionCurrentStateIndicator = false,
@@ -992,6 +998,7 @@ const PersistedConversationViewer: React.FC<
       readOnly={readOnly}
       renderNestedUserMessages={renderNestedUserMessages}
       hideAnalysisAction={hideAnalysisAction}
+      hideProcessingPlaceholder={hideProcessingPlaceholder}
       proposalDiffDefaultViewMode={proposalDiffDefaultViewMode}
       onProposalsAccepted={onProposalsAccepted}
       triageApplication={triageApplication}

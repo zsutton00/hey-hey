@@ -559,6 +559,7 @@ const AgentConversationViewInner = ({
                 scrollPolicy={scrollPolicy}
                 readOnly={readOnly}
                 hideAnalysisAction
+                hideProcessingPlaceholder
                 timelineAnimationMode="none"
                 onDirectTrigger={handleDirectTrigger}
                 hideRetryButton

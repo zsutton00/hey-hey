@@ -125,6 +125,7 @@ export const ConversationMessage: React.FC<ConversationMessageProps> = memo(
       handleRetrySuccess,
       isReadOnly,
       hideAnalysisAction,
+      hideProcessingPlaceholder,
     } = useConversationContext();
     const retryOpenTrigger = useRetryConversationOpenTrigger({
       onSuccess: handleRetrySuccess,
@@ -142,6 +143,10 @@ export const ConversationMessage: React.FC<ConversationMessageProps> = memo(
       : null;
 
     const shouldHideSystemMessage = useMemo(() => {
+      const isProcessingPlaceholder =
+        conversationMessage.state === "system_processing" &&
+        !conversationMessage.message.responses?.length;
+      if (hideProcessingPlaceholder && isProcessingPlaceholder) return true;
       const uiElements = (
         conversationMessage.message.data as
           QuestionsSystemMessageData | undefined
@@ -152,7 +157,12 @@ export const ConversationMessage: React.FC<ConversationMessageProps> = memo(
         const entry = type ? FIELD_REGISTRY[type] : undefined;
         return entry?.hideSystemMessage === true;
       });
-    }, [conversationMessage.message.data]);
+    }, [
+      conversationMessage.message.data,
+      conversationMessage.message.responses,
+      conversationMessage.state,
+      hideProcessingPlaceholder,
+    ]);
 
     const proposalsRenderConfig = useMemo(() => {
       const uiElements = (
