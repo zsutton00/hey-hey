@@ -166,11 +166,18 @@ export const MessageAuthorCaption: React.FC<MessageAuthorCaptionProps> = ({
         component="div"
         data-testid={`notice-caption-${messageId}`}
         data-notice-severity={noticeSeverity}
-        sx={{ display: "flex", alignItems: "center", gap: 0.5, ...sx }}
+        sx={sx}
       >
-        <NoticeIcon sx={{ fontSize: 14 }} aria-hidden />
-        System notice
-        {timestamp ? ` · ${timestamp}` : status ? <> · {status}</> : null}
+        <Box
+          component="span"
+          sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+        >
+          <NoticeIcon sx={{ fontSize: "1.25em" }} aria-hidden />
+          <span>
+            System notice
+            {timestamp ? ` · ${timestamp}` : status ? <> · {status}</> : null}
+          </span>
+        </Box>
       </Typography>
     );
   }
