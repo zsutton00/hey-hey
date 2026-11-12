@@ -3827,6 +3827,38 @@ export class Run {
     this.initialInertInputAllowed = true;
   }
 
+  /** The one recorded scripted message the coordinator has authorized next, by exact text. */
+  private authorizedScriptedInput: { index: number; text: string } | null = null;
+
+  /**
+   * Coordinator-owned: lets exactly one recorded scripted message into this
+   * inert Run. Any other follow-up, or the same one twice, is still refused.
+   */
+  public authorizeScriptedInertInput(authorization: { index: number; text: string }): void {
+    if (!this.session.inert) {
+      throw new Error('Only inert evaluation Runs take scripted input.');
+    }
+    if (this.authorizedScriptedInput) {
+      throw new Error('A scripted input is already authorized and has not been admitted.');
+    }
+    this.authorizedScriptedInput = authorization;
+    this.logger.debug('local.run.inert.scripted_input_authorized', {
+      runId: this.runId,
+      index: authorization.index,
+    });
+  }
+
+  /** Withdraws an authorization the Run never admitted, so it cannot be used later. */
+  public revokeScriptedInertInput(): void {
+    this.authorizedScriptedInput = null;
+  }
+
+  private matchesAuthorizedScriptedInput(input: InternalRunPromptRequest): boolean {
+    const authorized = this.authorizedScriptedInput;
+
+    return authorized !== null && resolvePromptText(input) === authorized.text;
+  }
+
   private assertOrdinaryExecution(input?: InternalRunPromptRequest): void {
     if (!this.session.inert) {
       return;
@@ -3932,6 +3964,15 @@ export class Run {
       this.initialInertInputAllowed = false;
       this.inertInput = input;
       this.logger.debug('local.run.inert.initial_input', { runId: this.runId });
+    } else if (this.session.inert && this.matchesAuthorizedScriptedInput(input)) {
+      const authorized = this.authorizedScriptedInput!;
+      this.authorizedScriptedInput = null;
+      this.inertInput = input;
+      this.inertInputStarted = false;
+      this.logger.debug('local.run.inert.scripted_input_admitted', {
+        runId: this.runId,
+        index: authorized.index,
+      });
     } else {
       this.assertOrdinaryExecution();
     }

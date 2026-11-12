@@ -246,6 +246,29 @@ export class MessageService {
     return this.buildAcceptedResponse(session);
   }
 
+  /**
+   * Sends one recorded scripted message into an inert evaluation Run and waits
+   * for its Turn to settle. The Run admits only the exact authorized text, once.
+   */
+  public async sendScriptedInertMessage(
+    runId: string,
+    input: LocalRunPromptRequest,
+    authorization: { index: number; text: string },
+  ): Promise<void> {
+    const located = await this.dependencies.runService.activateRunByAnyId(runId);
+    if (!located) {
+      throw new LocalAgentApiError('RUN_NOT_FOUND', `Unknown coding run: ${runId}`, 404);
+    }
+    const run = this.getOrCreateRun(located.agenticSession);
+    run.authorizeScriptedInertInput(authorization);
+    try {
+      await this.sendMessage(runId, input);
+      await run.awaitIdle();
+    } finally {
+      run.revokeScriptedInertInput();
+    }
+  }
+
   private log(
     level: 'trace' | 'debug' | 'info' | 'warn' | 'error',
     event: string,

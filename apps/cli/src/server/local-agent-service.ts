@@ -205,6 +205,18 @@ export class LocalAgentService {
     return this.messageService.sendMessage(runId, input, options);
   }
 
+  /**
+   * Delivers one recorded scripted message to an inert evaluation Run through
+   * the Run's ordinary follow-up path, then waits for its Turn to settle.
+   */
+  public sendScriptedInertMessage(
+    runId: string,
+    input: LocalRunPromptRequest,
+    authorization: { index: number; text: string },
+  ): Promise<void> {
+    return this.messageService.sendScriptedInertMessage(runId, input, authorization);
+  }
+
   /** Local lifecycle continuations that do not originate from a browser request. */
   public sendSystemMessage(
     runId: string,

@@ -59,6 +59,7 @@ import {
   toConfiguration,
   toLaunchSettings,
   type RunSettingsDraft,
+  plannedMessageCount,
 } from "./evalRunView";
 
 /** State the setup page hands the run page when the start did not go through. */
@@ -483,7 +484,11 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
           <Box component="ul" data-testid="eval-run-cases" sx={{ m: 0, pl: 3 }}>
             {approvedCases.map((evalCase) => (
               <li key={evalCase.id}>
-                <Typography variant="body2">{evalCase.name}</Typography>
+                <Typography variant="body2">
+                  {evalCase.name}
+                  {plannedMessageCount(evalCase.sections) !== null &&
+                    ` · ${t("eval.run.setup.messages", { count: plannedMessageCount(evalCase.sections) ?? 0 })}`}
+                </Typography>
               </li>
             ))}
           </Box>

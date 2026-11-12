@@ -1508,6 +1508,8 @@ export const en = {
   "eval.run.setup.judgeIncomplete":
     "Choose a provider, model and reasoning effort for the judge.",
   "eval.run.setup.cases": "Approved cases in this run",
+  "eval.run.setup.messages_one": "1 message, judged on the last",
+  "eval.run.setup.messages_other": "{{count}} messages, judged on the last",
   "eval.run.setup.noCases":
     "This Eval has no approved cases yet. Approve cases on the Eval before running it.",
   "eval.run.setup.casesError": "Couldn't load the approved cases.",
@@ -1736,7 +1738,7 @@ export const en = {
   "eval.case.inputs.singleNote":
     "The agent's reply to this message is what is judged.",
   "eval.case.inputs.listNote":
-    "The agent's reply to the last message is what is judged. Earlier messages are saved with the case but aren't sent to the agent yet.",
+    "The messages are sent to the agent in order, and it answers each one. The agent's reply to the last message is what is judged.",
   "eval.case.inputs.judged": "Judged",
   "eval.case.inputs.moveUp": "Move up",
   "eval.case.inputs.moveDown": "Move down",
@@ -1832,6 +1834,18 @@ export const en = {
   "eval.results.assessment.checklistHit": "Hit",
   "eval.results.assessment.checklistMissed": "Missed",
   "eval.results.assessment.checklistUnanswered": "Not judged",
+  "eval.results.turns.title": "Conversation",
+  "eval.results.turns.progress":
+    "{{completed}} of {{planned}} messages finished ({{started}} started).",
+  "eval.results.turns.judged": "Message {{message}} was judged.",
+  "eval.results.turns.notJudged": "Not judged.",
+  "eval.results.turns.message": "Message {{message}}",
+  "eval.results.turns.unavailable": "Not reported",
+  "eval.results.turns.partial": "(partly attributed)",
+  "eval.results.turns.state.STARTED": "Running",
+  "eval.results.turns.state.COMPLETED": "Finished",
+  "eval.results.turns.state.FAILED": "Failed",
+  "eval.results.turns.state.STOPPED": "Stopped",
   "eval.results.assessment.regressions": "Broken by this change:",
   "eval.results.assessment.noRegressions":
     "Nothing that worked before is broken.",

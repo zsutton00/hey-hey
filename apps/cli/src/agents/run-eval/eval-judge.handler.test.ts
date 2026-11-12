@@ -148,3 +148,40 @@ describe('parseEvalJudgeOutput', () => {
     expect(() => parseEvalJudgeOutput('looks fine', caseInput, 'now')).toThrow('no JSON');
   });
 });
+
+describe('judging a scripted conversation', () => {
+  it('shows earlier messages as context only and judges the final message and its own tool calls', () => {
+    const prompt = evalJudgeHandler.buildPrompt({
+      caseInput,
+      outputText: 'FINAL-REPLY',
+      toolCalls: {
+        state: 'COLLECTED',
+        calls: [{ toolName: 'FINAL-TOOL', origin: 'RUN_OBSERVED', truncated: false }],
+      },
+      conversation: {
+        earlierTurns: [
+          {
+            index: 0,
+            input: 'EARLIER-USER',
+            state: 'COMPLETED',
+            reply: 'EARLIER-REPLY',
+            recordedToolCalls: {
+              state: 'COLLECTED',
+              calls: [{ toolName: 'EARLIER-TOOL', origin: 'RUN_OBSERVED', truncated: false }],
+            },
+          },
+        ],
+        judgedTurn: { index: 1, input: 'FINAL-USER', state: 'COMPLETED', reply: 'FINAL-REPLY' },
+      },
+    });
+
+    const [context, final] = prompt.split("## The agent's output for the message under test");
+    expect(context).toContain('Earlier conversation (context only)');
+    expect(context).toContain('EARLIER-USER');
+    expect(context).toContain('EARLIER-TOOL');
+    expect(context).toContain('can satisfy a check or earn credit');
+    expect(final).toContain('FINAL-REPLY');
+    expect(final).toContain('FINAL-TOOL');
+    expect(final).not.toContain('EARLIER-TOOL');
+  });
+});

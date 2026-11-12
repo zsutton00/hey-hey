@@ -53,6 +53,58 @@ const checklist = (overrides: Record<string, unknown> = {}) => ({
 const serviceExists = async (id: string) => id === SERVICE;
 const mockupExists = async (id: string) => id === MOCKUP;
 
+describe('a conversation and its handler', () => {
+  const conversation = JSON.stringify({
+    inputs: [
+      { kind: 'text_message', text: 'Hello.' },
+      { kind: 'text_message', text: 'Now find the mockup.' },
+    ],
+  });
+  const withInputs = (handler: string, consumer: string, inputs: string) => ({
+    name: 'A case',
+    sections: [
+      { key: 'inputs', content: inputs },
+      { key: 'handler', content: handler },
+      { key: 'consumerHandler', content: consumer },
+    ],
+  });
+
+  it('rejects approving a multi-message case whose handler is Project Assistant, which is not interactive', async () => {
+    await expect(
+      assertApprovedEvalCaseHandlers(
+        withInputs(
+          'project_assistant',
+          'entity_conversation',
+          conversation,
+        ) as never,
+        serviceExists,
+        mockupExists,
+      ),
+    ).rejects.toThrow(/not interactive/);
+  });
+
+  it('still approves a multi-message case on a conversational handler and a one-message Project Assistant case', async () => {
+    await expect(
+      assertApprovedEvalCaseHandlers(
+        withInputs('entity_conversation', '', conversation) as never,
+        serviceExists,
+        mockupExists,
+      ),
+    ).resolves.toBeUndefined();
+    await expect(
+      assertApprovedEvalCaseHandlers(
+        withInputs(
+          'project_assistant',
+          'entity_conversation',
+          VALID_INPUTS,
+        ) as never,
+        serviceExists,
+        mockupExists,
+      ),
+    ).resolves.toBeUndefined();
+  });
+});
+
 describe('assertApprovedEvalCaseHandlers', () => {
   it.each([
     ['missing', undefined],

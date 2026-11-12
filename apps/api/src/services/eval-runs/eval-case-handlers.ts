@@ -53,7 +53,7 @@ export async function assertApprovedEvalCaseHandlers(
     return;
   }
 
-  resolveEvalCaseInputs(
+  const inputs = resolveEvalCaseInputs(
     root.name,
     root.sections.find((section) => section.key === 'inputs')?.content,
   );
@@ -61,6 +61,11 @@ export async function assertApprovedEvalCaseHandlers(
     root.name,
     sectionText(root.sections, 'handler'),
     sectionText(root.sections, 'consumerHandler'),
+  );
+  assertConversationFitsHandler(
+    root.name,
+    inputs.inputs.length,
+    handlers.targetHandler,
   );
   const coding = resolveEvalCaseCoding(
     root.name,
@@ -78,6 +83,22 @@ export async function assertApprovedEvalCaseHandlers(
  */
 const PROJECT_ASSISTANT_ALONE_CONSUMER =
   EvalConsumerHandlerKey.EntityConversation;
+
+/**
+ * Project Assistant research is not interactive: it answers once and keeps no
+ * conversation, so a case that sends more than one message cannot run on it.
+ */
+export function assertConversationFitsHandler(
+  caseName: string,
+  messageCount: number,
+  handler: EvalTargetHandlerKey,
+): void {
+  if (handler === EvalTargetHandlerKey.ProjectAssistant && messageCount > 1) {
+    throw new BadRequestException(
+      `Eval case "${caseName}" cannot run on ${EvalTargetHandlerKey.ProjectAssistant}: it sends ${messageCount} messages, and Project Assistant research is not interactive. Use one message, or choose a conversational handler.`,
+    );
+  }
+}
 
 /** Launch rejects a run-level handler that is not an evaluable handler key. */
 export function assertEvaluableRunHandler(

@@ -41,6 +41,7 @@ import {
 import { WebPathService } from "@hey-hey/ui-common/services";
 
 import { AttemptExecutionSummary } from "./AttemptExecutionSummary";
+import { AttemptTurns } from "./AttemptTurns";
 import { AttemptSessions } from "./AttemptSessions";
 import { AttemptToolCalls } from "./AttemptToolCalls";
 
@@ -546,6 +547,13 @@ export const EvalCaseDetail: React.FC<EvalCaseDetailProps> = ({
       isRepeat={repeat !== null}
     />
     {row.coding && <CodingAttemptResults coding={row.coding} />}
+    <AttemptTurns
+      attempt={attempt}
+      plannedMessages={
+        run.payload.cases.find((c) => c.id === attempt.payload.caseInputId)
+          ?.target.inputs.inputs.length ?? 1
+      }
+    />
     <AttemptSessions
       attempt={attempt}
       judgeSessionHref={row.judgeSessionHref}
