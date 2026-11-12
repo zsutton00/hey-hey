@@ -1195,6 +1195,78 @@ describe("ConversationMessage", () => {
     expect(screen.queryByTestId("agent-caption-msg-1")).not.toBeInTheDocument();
   });
 
+  describe("automated notices", () => {
+    const renderSystemMessage = (data: Record<string, unknown>) =>
+      render(
+        <ConversationMessage
+          conversationMessage={createMockConversationMessage({
+            message: {
+              ...createMockConversationMessage().message,
+              data: { type: "AGENT", response: "Body text", ...data } as never,
+            },
+          })}
+          messageIndex={0}
+          totalMessages={1}
+        />,
+      );
+
+    it("captions a marked notice as a System notice without fabricating an agent author", () => {
+      renderSystemMessage({
+        presentation: "notice",
+        promptHandler: "coding_freeform",
+      });
+
+      expect(screen.getByTestId("notice-caption-msg-1")).toHaveTextContent(
+        "System notice",
+      );
+      expect(screen.getByTestId("notice-caption-msg-1")).toHaveAttribute(
+        "data-notice-severity",
+        "info",
+      );
+      expect(
+        screen.queryByTestId("agent-caption-msg-1"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByTestId("system-message-retry")).toBeInTheDocument();
+    });
+
+    it("renders warning severity independently of the notice marker", () => {
+      renderSystemMessage({
+        presentation: "notice",
+        noticeSeverity: "warning",
+      });
+
+      expect(screen.getByTestId("notice-caption-msg-1")).toHaveAttribute(
+        "data-notice-severity",
+        "warning",
+      );
+    });
+
+    it("does not treat severity alone as a notice", () => {
+      renderSystemMessage({
+        noticeSeverity: "warning",
+        promptHandler: "free_form",
+      });
+
+      expect(
+        screen.queryByTestId("notice-caption-msg-1"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByTestId("agent-caption-msg-1")).toHaveTextContent(
+        "Free Form agent",
+      );
+    });
+
+    it("keeps unmarked historical agent replies on the agent caption", () => {
+      renderSystemMessage({ promptHandler: "startup_session" });
+
+      expect(
+        screen.queryByTestId("notice-caption-msg-1"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByTestId("agent-caption-msg-1")).toHaveTextContent(
+        "Startup Session agent",
+      );
+    });
+  });
+
   it("renders session-monitor provenance USER messages with the monitor treatment", () => {
     const conversationMessage = createMockConversationMessage({
       message: {

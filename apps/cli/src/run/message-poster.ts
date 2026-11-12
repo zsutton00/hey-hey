@@ -9,7 +9,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { messageWriteFailureSchema } from './message-write-diagnostics';
 import { toOpenApiProjectId } from '../shared/api/identifierAdapters';
-import { MessageStatus, MessageType, SystemMessageDataTypeEnum } from '../shared/api/index';
+import {
+  MessageStatus,
+  MessageType,
+  SystemMessageDataNoticeSeverityEnum,
+  SystemMessageDataPresentationEnum,
+  SystemMessageDataTypeEnum,
+} from '../shared/api/index';
 import type {
   CreateSystemMessage,
   CreateUserMessage,
@@ -258,6 +264,8 @@ export class MessagePoster {
             }),
             detectedIntent: 'agent_response',
             intentConfidence: 1,
+            presentation: SystemMessageDataPresentationEnum.Notice,
+            noticeSeverity: SystemMessageDataNoticeSeverityEnum.Warning,
             ...(args.inert ? { ragEnabled: false } : {}),
           },
         },

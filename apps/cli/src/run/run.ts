@@ -126,8 +126,17 @@ import type {
   AgentSessionReviewFileScopeRequest,
   ImplementationReadinessDisposition,
 } from '@hey-hey/contracts/api/models';
-import { MessageType, MessageStatus, SystemMessageDataTypeEnum } from '../shared/api/index';
-import type { AgentSystemMessageData, SystemMessageData } from '../shared/api/index';
+import {
+  MessageType,
+  MessageStatus,
+  SystemMessageDataPresentationEnum,
+  SystemMessageDataTypeEnum,
+} from '../shared/api/index';
+import type {
+  AgentSystemMessageData,
+  SystemMessageData,
+  SystemMessageDataNoticeSeverityEnum as NoticeSeverity,
+} from '../shared/api/index';
 import type {
   InternalRunPromptRequest,
   LocalAnyPromptPayload,
@@ -998,7 +1007,8 @@ export class Run {
       session: () => this.session,
       activeTurn: () => this.activeTurn,
       contextProviderSessionId: () => this.contextProviderSessionId(),
-      postAgentSystemMessage: (response, session) => this.postAgentSystemMessage(response, session),
+      postRuntimeNotice: (response, severity, session) =>
+        this.postAgentSystemMessage(response, session, severity),
     });
     this.proposalTracker = new RunProposalTracker({
       runId: this.runId,
@@ -1119,7 +1129,8 @@ export class Run {
         if (!this.activeTurn && !this._processing) void this.drainQueue();
       },
       releaseHeldAdmission: (held) => this.releaseHeldAdmission(held),
-      postAgentSystemMessage: (text) => this.postAgentSystemMessage(text),
+      postRuntimeNotice: (text, severity) =>
+        this.postAgentSystemMessage(text, this.session, severity),
     });
     this.serviceScopeCoordinator = new AgentSessionServiceScopeCoordinator({
       runStore: this.runStore,
@@ -2688,6 +2699,8 @@ export class Run {
     if (!replayed) {
       await this.postAgentSystemMessage(
         'Sorry, looks like we have to ask again… The earlier approval request expired when the CLI restarted, so the action will be retried and approval requested again if needed.',
+        this.session,
+        'info',
       );
     }
 
@@ -6612,7 +6625,10 @@ export class Run {
           ...(uiElements ? { uiElements } : {}),
         },
       },
-      stamp: null,
+      stamp: {
+        providerSessionId: this.providerSessionId,
+        promptHandler: turn.handler.promptType,
+      },
     });
     this.logger.debug('local.coding_plan.conversation.persisted', {
       runId: this.runId,
@@ -6626,12 +6642,16 @@ export class Run {
   private async postAgentSystemMessage(
     response: string,
     session: AgenticSession = this.session,
+    noticeSeverity?: NoticeSeverity,
   ): Promise<void> {
     const agentData: AgentSystemMessageData = {
       type: SystemMessageDataTypeEnum.Agent,
       response,
       detectedIntent: 'agent_response',
       intentConfidence: 1,
+      ...(noticeSeverity
+        ? { presentation: SystemMessageDataPresentationEnum.Notice, noticeSeverity }
+        : {}),
     };
     const dto = {
       type: MessageType.System,

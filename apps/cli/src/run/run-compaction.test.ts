@@ -28,9 +28,7 @@ const makeHarness = (
   const emit = vi.fn(() => {
     calls.push('emit');
   });
-  const postAgentSystemMessage = vi.fn<RunCompactionDeps['postAgentSystemMessage']>(() =>
-    Promise.resolve(),
-  );
+  const postRuntimeNotice = vi.fn<RunCompactionDeps['postRuntimeNotice']>(() => Promise.resolve());
   const state = { processing: false };
   const deps: RunCompactionDeps = {
     runId: 'run-1',
@@ -43,7 +41,7 @@ const makeHarness = (
     session: () => session,
     activeTurn: () => null,
     contextProviderSessionId: () => 'provider-session-1',
-    postAgentSystemMessage,
+    postRuntimeNotice,
     ...overrides,
   };
   return {
@@ -53,13 +51,13 @@ const makeHarness = (
     compact,
     getContextUsage,
     emit,
-    postAgentSystemMessage,
+    postRuntimeNotice,
     state,
   };
 };
 
 const notes = (h: ReturnType<typeof makeHarness>): string[] =>
-  h.postAgentSystemMessage.mock.calls.map(([response]) => response);
+  h.postRuntimeNotice.mock.calls.map(([response]) => response);
 
 describe('RunCompaction', () => {
   describe('compact', () => {
@@ -67,6 +65,10 @@ describe('RunCompaction', () => {
       const h = makeHarness();
       await h.compaction.compact();
       expect(notes(h)).toEqual(['Starting compact…', 'Finished compact…']);
+      expect(h.postRuntimeNotice.mock.calls.map(([, severity]) => severity)).toEqual([
+        'info',
+        'info',
+      ]);
       expect(h.compact).toHaveBeenCalledTimes(1);
     });
 
@@ -75,6 +77,16 @@ describe('RunCompaction', () => {
       await h.compaction.compact({ silent: true });
       expect(notes(h)).toEqual([]);
       expect(h.compact).toHaveBeenCalledTimes(1);
+    });
+
+    it('posts a warning notice when compaction fails', async () => {
+      const h = makeHarness();
+      h.compact.mockRejectedValueOnce(new Error('boom'));
+      await expect(h.compaction.compact()).rejects.toThrow('boom');
+      expect(h.postRuntimeNotice.mock.calls.map(([text, severity]) => [text, severity])).toEqual([
+        ['Starting compact…', 'info'],
+        ['Compact failed: boom', 'warning'],
+      ]);
     });
 
     it('throws NOT_SUPPORTED when the runner cannot compact', async () => {

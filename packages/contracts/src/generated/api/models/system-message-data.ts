@@ -109,6 +109,18 @@ export interface SystemMessageData {
      */
     'ragEnabled'?: boolean;
     /**
+     * Set by the publisher when the message is an automated runtime notice rather than an agent reply. Absent on agent replies and on historical messages; never inferred from response text or missing provenance.
+     * @type {string}
+     * @memberof SystemMessageData
+     */
+    'presentation'?: SystemMessageDataPresentationEnum;
+    /**
+     * Severity of an automated notice, independent of the notice classification. Only meaningful when presentation is \"notice\"; a notice without it renders as info.
+     * @type {string}
+     * @memberof SystemMessageData
+     */
+    'noticeSeverity'?: SystemMessageDataNoticeSeverityEnum;
+    /**
      * LLM\'s reasoning for the intent detection
      * @type {string}
      * @memberof SystemMessageData
@@ -274,6 +286,23 @@ Object.defineProperty(SystemMessageDataCategoryEnum, "not_implemented", { enumer
 Object.defineProperty(SystemMessageDataCategoryEnum, "question", { enumerable: false, value: SystemMessageDataCategoryEnum["Question"] });
 
 export type SystemMessageDataCategoryEnum = typeof SystemMessageDataCategoryEnum[keyof typeof SystemMessageDataCategoryEnum];
+export const SystemMessageDataPresentationEnum = {
+    Notice: 'notice',
+    "notice": "notice",
+} as const;
+Object.defineProperty(SystemMessageDataPresentationEnum, "notice", { enumerable: false, value: SystemMessageDataPresentationEnum["Notice"] });
+
+export type SystemMessageDataPresentationEnum = typeof SystemMessageDataPresentationEnum[keyof typeof SystemMessageDataPresentationEnum];
+export const SystemMessageDataNoticeSeverityEnum = {
+    Info: 'info',
+    Warning: 'warning',
+    "info": "info",
+    "warning": "warning",
+} as const;
+Object.defineProperty(SystemMessageDataNoticeSeverityEnum, "info", { enumerable: false, value: SystemMessageDataNoticeSeverityEnum["Info"] });
+Object.defineProperty(SystemMessageDataNoticeSeverityEnum, "warning", { enumerable: false, value: SystemMessageDataNoticeSeverityEnum["Warning"] });
+
+export type SystemMessageDataNoticeSeverityEnum = typeof SystemMessageDataNoticeSeverityEnum[keyof typeof SystemMessageDataNoticeSeverityEnum];
 export const SystemMessageDataActionHintEnum = {
     TaskComplete: 'task_complete',
     PermissionRequested: 'permission_requested',
@@ -298,6 +327,10 @@ export namespace SystemMessageData {
     export type SeverityEnum = SystemMessageDataSeverityEnum;
     export const CategoryEnum = SystemMessageDataCategoryEnum;
     export type CategoryEnum = SystemMessageDataCategoryEnum;
+    export const PresentationEnum = SystemMessageDataPresentationEnum;
+    export type PresentationEnum = SystemMessageDataPresentationEnum;
+    export const NoticeSeverityEnum = SystemMessageDataNoticeSeverityEnum;
+    export type NoticeSeverityEnum = SystemMessageDataNoticeSeverityEnum;
     export const ActionHintEnum = SystemMessageDataActionHintEnum;
     export type ActionHintEnum = SystemMessageDataActionHintEnum;
 }
