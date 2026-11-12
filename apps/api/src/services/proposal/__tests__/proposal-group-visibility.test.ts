@@ -1,3 +1,4 @@
+import { createTestProjectApprovalPolicyService } from 'src/utils/testUtils';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import type { OrganizationId, ProjectId } from 'src/types';
 import { ProposalApprovalService } from '../proposal-approval.service';
@@ -30,7 +31,7 @@ function createService() {
     {} as never,
     approvalService as never,
     {} as never,
-    new ProjectApprovalPolicyService(),
+    createTestProjectApprovalPolicyService(),
     {} as never,
     { assertProjectRole: jest.fn() } as never,
     { captureAuthoring: jest.fn() } as never,
@@ -200,7 +201,7 @@ describe('Proposal group BUILDING visibility', () => {
     Object.assign(approvalService, {
       prisma: { db },
       proposalGroupDecisionService,
-      projectApprovalPolicyService: new ProjectApprovalPolicyService(),
+      projectApprovalPolicyService: createTestProjectApprovalPolicyService(),
       toResponseDto: jest.fn().mockResolvedValue(proposal),
     });
 
@@ -255,7 +256,7 @@ describe('Proposal group BUILDING visibility', () => {
         isWorkItemChangeSetValidationRequest: jest.fn().mockReturnValue(false),
         taskProposalChangeSet: jest.fn().mockReturnValue(null),
       },
-      projectApprovalPolicyService: new ProjectApprovalPolicyService(),
+      projectApprovalPolicyService: createTestProjectApprovalPolicyService(),
       pendingEdgeService: {
         rollbackMaterializedEdges: jest.fn().mockResolvedValue(undefined),
       },

@@ -1,4 +1,5 @@
 import { LocalOnboardingController } from './controllers/local-onboarding.controller';
+import { ProjectApprovalPolicyController } from './controllers/project-approval-policy.controller';
 import { WorkspaceSkillsController } from './controllers/workspace-skills.controller';
 import { RuntimeModelCatalogController } from './controllers/runtime-model-catalog.controller';
 import { RuntimeModelCatalogReadService } from './services/runtime-model-catalog-read.service';
@@ -274,6 +275,7 @@ import { isLocalApplication } from './deployment-environment';
     ProjectMetricsController,
     QueueController,
     ProjectController,
+    ProjectApprovalPolicyController,
     ReportController,
     ProjectReportsController,
     ProjectReportRequestController,

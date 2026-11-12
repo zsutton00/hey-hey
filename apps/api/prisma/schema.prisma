@@ -332,7 +332,7 @@ model PrivateBetaAccessNotificationAttempt {
 }
 
 model Organization {
-  demoGraphCopyIntents DemoGraphCopyIntent[]
+  demoGraphCopyIntents              DemoGraphCopyIntent[]
   projectReportRequests             ProjectReportRequest[]
   proposalFutures                   ProposalFuture[]
   id                                String                             @id @default(uuid())
@@ -909,20 +909,21 @@ model MessageMention {
 }
 
 model Project {
-  maturity                          ProjectMaturity                    @default(TAKING_SHAPE)
-  demoGraphCopyIntent                DemoGraphCopyIntent?
+  approvalPolicy                    ProjectApprovalPolicyConfiguration?
+  maturity                          ProjectMaturity                     @default(TAKING_SHAPE)
+  demoGraphCopyIntent               DemoGraphCopyIntent?
   demoTemplates                     DemoTemplate[]
   projectReportRequests             ProjectReportRequest[]
   proposalFutures                   ProposalFuture[]
-  id                                String                             @id @default(uuid())
+  id                                String                              @id @default(uuid())
   name                              String
   description                       String?
-  createdAt                         DateTime                           @default(now()) @map("created_at")
-  updatedAt                         DateTime                           @updatedAt @map("updated_at")
-  deletedAt                         DateTime?                          @map("deleted_at")
-  status                            ProjectStatus                      @default(ACTIVE)
-  createdBy                         String?                            @map("created_by")
-  organizationId                    String                             @map("organization_id")
+  createdAt                         DateTime                            @default(now()) @map("created_at")
+  updatedAt                         DateTime                            @updatedAt @map("updated_at")
+  deletedAt                         DateTime?                           @map("deleted_at")
+  status                            ProjectStatus                       @default(ACTIVE)
+  createdBy                         String?                             @map("created_by")
+  organizationId                    String                              @map("organization_id")
   config                            Json?
   artifacts                         Artifact[]
   conversations                     Conversation[]
@@ -932,12 +933,12 @@ model Project {
   llmPromptResponses                LLMPromptResponse[]
   unifiedSearchLogs                 UnifiedSearchLog[]
   initiatives                       ProjectInitiative[]
-  originatingInitiatives            Initiative[]                       @relation("InitiativeOriginatingProject")
+  originatingInitiatives            Initiative[]                        @relation("InitiativeOriginatingProject")
   designDocs                        DesignDoc[]
-  tasks                             Task[]                             @relation("ProjectTasks")
+  tasks                             Task[]                              @relation("ProjectTasks")
   taskRelations                     ProjectTask[]
-  creator                           User?                              @relation("ProjectCreator", fields: [createdBy], references: [id])
-  organization                      Organization                       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  creator                           User?                               @relation("ProjectCreator", fields: [createdBy], references: [id])
+  organization                      Organization                        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   services                          Service[]
   userSuggestions                   UserSuggestion[]
   subfacets                         Subfacet[]
@@ -1009,21 +1010,21 @@ enum DemoSandboxStage {
 // and readinessFeatureId are empty only while a PROVISIONING reservation waits
 // for its preparation transaction.
 model DemoSandbox {
-  id                   String              @id @default(uuid())
-  organizationId       String?             @map("organization_id")
-  projectId            String?             @map("project_id")
-  demoUserId           String?             @map("demo_user_id")
-  browserBindingHash   String              @unique @map("browser_binding_hash")
-  creatorIpHash        String              @map("creator_ip_hash")
-  readinessFeatureIds  String[]            @default([]) @map("readiness_feature_ids")
-  connectedFeatureCount Int                @default(0) @map("connected_feature_count")
-  provisioningDeadline DateTime            @map("provisioning_deadline")
-  status               DemoSandboxStatus
-  stage                DemoSandboxStage    @default(COPYING)
-  createdAt            DateTime            @default(now()) @map("created_at")
-  lastActivityAt       DateTime?           @map("last_activity_at")
-  expiresAt            DateTime?           @map("expires_at")
-  demoUser             User?               @relation(fields: [demoUserId], references: [id], onDelete: SetNull)
+  id                    String            @id @default(uuid())
+  organizationId        String?           @map("organization_id")
+  projectId             String?           @map("project_id")
+  demoUserId            String?           @map("demo_user_id")
+  browserBindingHash    String            @unique @map("browser_binding_hash")
+  creatorIpHash         String            @map("creator_ip_hash")
+  readinessFeatureIds   String[]          @default([]) @map("readiness_feature_ids")
+  connectedFeatureCount Int               @default(0) @map("connected_feature_count")
+  provisioningDeadline  DateTime          @map("provisioning_deadline")
+  status                DemoSandboxStatus
+  stage                 DemoSandboxStage  @default(COPYING)
+  createdAt             DateTime          @default(now()) @map("created_at")
+  lastActivityAt        DateTime?         @map("last_activity_at")
+  expiresAt             DateTime?         @map("expires_at")
+  demoUser              User?             @relation(fields: [demoUserId], references: [id], onDelete: SetNull)
 
   @@index([status, expiresAt])
   @@index([creatorIpHash, createdAt])
@@ -1031,28 +1032,28 @@ model DemoSandbox {
 }
 
 model DemoSandboxProgramState {
-  id                 String                  @id @default("singleton")
-  activeCap          Int                     @map("active_cap")
-  perIpLimit         Int                     @map("per_ip_limit")
-  perIpWindowSeconds Int                     @map("per_ip_window_seconds")
-  updatedAt          DateTime                @updatedAt @map("updated_at")
+  id                 String   @id @default("singleton")
+  activeCap          Int      @map("active_cap")
+  perIpLimit         Int      @map("per_ip_limit")
+  perIpWindowSeconds Int      @map("per_ip_window_seconds")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
   @@map("demo_sandbox_program_state")
 }
 
 // Owned by the destination project, removed by final organization deletion.
 model DemoGraphCopyIntent {
-  id             String   @id @default(uuid())
-  organizationId String   @map("organization_id")
-  projectId      String   @unique @map("project_id")
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  projectId      String    @unique @map("project_id")
   command        Json
   completedAt    DateTime? @map("completed_at")
-  attempts       Int      @default(0)
-  nextAttemptAt  DateTime @default(now()) @map("next_attempt_at")
-  createdAt      DateTime @default(now()) @map("created_at")
+  attempts       Int       @default(0)
+  nextAttemptAt  DateTime  @default(now()) @map("next_attempt_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([completedAt, nextAttemptAt], map: "demo_graph_copy_intents_pending_idx")
   @@map("demo_graph_copy_intents")
@@ -3679,6 +3680,7 @@ model ServiceValidationSession {
 }
 
 model Proposal {
+  approvalDecisionEvidence      Json?            @map("approval_decision_evidence")
   id                            String           @id @default(uuid())
   organizationId                String           @map("organization_id")
   projectId                     String           @map("project_id")
@@ -3719,7 +3721,7 @@ model Proposal {
   groupMembership                  ProposalGroupMember?
   messageReferences                MessageProposalReference[]
   reconciliationRevisions          ProposalReconciliationRevision[]
-  legacyReconciliationSuggestion ProposalReconciliationSuggestion? @relation("LegacyCorrection")
+  legacyReconciliationSuggestion   ProposalReconciliationSuggestion? @relation("LegacyCorrection")
 
   @@index([organizationId])
   @@index([organizationId, projectId])
@@ -3757,13 +3759,13 @@ model ProposalFuture {
 }
 
 model ProposalFutureRevision {
-  futureId   String         @map("future_id")
-  revision   Int
-  proposalId String         @map("proposal_id")
-  candidateRevisionId String? @map("candidate_revision_id")
-  reviewedAt DateTime       @default(now()) @map("reviewed_at")
-  mutation   Json
-  future     ProposalFuture @relation(fields: [futureId], references: [id], onDelete: Cascade)
+  futureId            String         @map("future_id")
+  revision            Int
+  proposalId          String         @map("proposal_id")
+  candidateRevisionId String?        @map("candidate_revision_id")
+  reviewedAt          DateTime       @default(now()) @map("reviewed_at")
+  mutation            Json
+  future              ProposalFuture @relation(fields: [futureId], references: [id], onDelete: Cascade)
 
   @@id([futureId, revision])
   @@unique([proposalId, candidateRevisionId])
@@ -4880,16 +4882,28 @@ model ProposalReconciliationReplacement {
 }
 
 model ProposalReconciliationSuggestion {
-  id String @id @default(uuid()) @db.Uuid
-  proposalId String @map("proposal_id")
-  candidateRevisionId String @map("candidate_revision_id") @db.Uuid
-  agentSessionId String? @map("agent_session_id")
-  messageId String? @map("message_id")
-  legacyProposalId String? @unique @map("legacy_proposal_id")
-  legacyProposal Proposal? @relation("LegacyCorrection", fields: [legacyProposalId], references: [id])
-  status String @default("PENDING")
-  request Json
-  createdAt DateTime @default(now()) @map("created_at")
+  id                  String    @id @default(uuid()) @db.Uuid
+  proposalId          String    @map("proposal_id")
+  candidateRevisionId String    @map("candidate_revision_id") @db.Uuid
+  agentSessionId      String?   @map("agent_session_id")
+  messageId           String?   @map("message_id")
+  legacyProposalId    String?   @unique @map("legacy_proposal_id")
+  legacyProposal      Proposal? @relation("LegacyCorrection", fields: [legacyProposalId], references: [id])
+  status              String    @default("PENDING")
+  request             Json
+  createdAt           DateTime  @default(now()) @map("created_at")
+
   @@index([proposalId, status])
   @@map("proposal_reconciliation_suggestions")
+}
+
+// The row survives restore: null rules means defaults, not revision zero.
+model ProjectApprovalPolicyConfiguration {
+  projectId String   @id @map("project_id")
+  revision  Int      @default(0)
+  rules     Json?
+  updatedAt DateTime @default(now()) @map("updated_at")
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_approval_policy_configurations")
 }

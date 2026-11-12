@@ -1,3 +1,4 @@
+import { createTestProjectApprovalPolicyService } from 'src/utils/testUtils';
 import {
   BadRequestException,
   ForbiddenException,
@@ -48,7 +49,7 @@ describe('work-item type proposal authoring role gate', () => {
         {} as never,
         {} as never,
         {} as never,
-        new ProjectApprovalPolicyService(),
+        createTestProjectApprovalPolicyService(),
         {} as never,
         { assertProjectRole } as never,
         { captureAuthoring: jest.fn() } as never,
@@ -121,7 +122,7 @@ describe('work-item type proposal authoring role gate', () => {
           {} as never,
           {} as never,
           {} as never,
-          new ProjectApprovalPolicyService(),
+          createTestProjectApprovalPolicyService(),
           {} as never,
           { assertProjectRole } as never,
           { captureAuthoring: jest.fn() } as never,

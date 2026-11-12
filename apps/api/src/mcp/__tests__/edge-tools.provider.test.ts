@@ -1,3 +1,4 @@
+import { createTestProjectApprovalPolicyService } from 'src/utils/testUtils';
 import { EdgeToolsProvider } from '../tools/edge-tools.provider';
 import { AUTHORING_ROOT_PROOF } from '../tools/authoring-guidance';
 import { AgentEdgeClientService } from '../../services/agent-edge-client.service';
@@ -381,6 +382,7 @@ describe('get_edges', () => {
       graphsClient,
       registry,
       {} as any,
+      createTestProjectApprovalPolicyService(),
     );
     return new EdgeToolsProvider(
       mockClient,

@@ -1,3 +1,4 @@
+import { createTestProjectApprovalPolicyService } from 'src/utils/testUtils';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ProposalApprovalService } from '../../proposal/proposal-approval.service';
@@ -304,7 +305,10 @@ describe('Accepted work-item type is immediately usable (live registry snapshot)
           useValue: { assertProjectRole: jest.fn() },
         },
         ProposalApprovalService,
-        ProjectApprovalPolicyService,
+        {
+          provide: ProjectApprovalPolicyService,
+          useValue: createTestProjectApprovalPolicyService(),
+        },
         {
           provide: ProposalReconciliationService,
           useValue: {

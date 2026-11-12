@@ -1,3 +1,5 @@
+import { ProjectApprovalPolicyService } from 'src/services/proposal/project-approval-policy.service';
+import { createTestProjectApprovalPolicyService } from 'src/utils/testUtils';
 import { MessageService } from '../message.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../core/redis/redis.service';
@@ -64,6 +66,10 @@ describe('MessageService - userId functionality', () => {
     const setup = await createServiceTestingModule({
       providers: [
         MessageService,
+        {
+          provide: ProjectApprovalPolicyService,
+          useValue: createTestProjectApprovalPolicyService(),
+        },
         PrismaService,
         RedisService,
         { provide: DOMAIN_EVENT_PUBLISHER_TOKEN, useValue: mockEventPublisher },

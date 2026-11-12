@@ -1,4 +1,6 @@
 import { ProposalReconciliationService } from '../proposal/proposal-reconciliation.service';
+import { ProjectApprovalPolicyService } from 'src/services/proposal/project-approval-policy.service';
+import { createTestProjectApprovalPolicyService } from 'src/utils/testUtils';
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
@@ -60,6 +62,8 @@ describe('Message UserID Integration Tests', () => {
             ProposalReconciliationService,
             'decisionsForProposals'
           >,
+          provide: ProjectApprovalPolicyService,
+          useValue: createTestProjectApprovalPolicyService(),
         },
         {
           provide: EntityRegistryService,

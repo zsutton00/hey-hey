@@ -147,6 +147,72 @@ export const en = {
   "usageTrends.error": "Usage trends could not be loaded.",
   "usageTrends.empty":
     "No agent executions with usage measurements match this period and these filters.",
+  "approvalSettings.type": "Type",
+  "approvalSettings.featureContent": "Feature content changed",
+  "approvalSettings.topLevel": "At top level",
+  "approvalSettings.authoringTool": "Authoring operation",
+
+  "approvalSettings.retry": "Try again",
+  "approvalSettings.ruleCount": "Rules",
+  "approvalSettings.user": "User",
+  "approvalSettings.agent": "Agent",
+  "approvalSettings.createAction": "Create",
+  "approvalSettings.updateAction": "Update",
+  "approvalSettings.deleteAction": "Delete",
+  "approvalSettings.statusOnly": "Status only",
+  "approvalSettings.contentChange": "Content changes",
+
+  "approvalSettings.priority": "Global priority",
+  "approvalSettings.projectSource": "Project configuration",
+  "approvalSettings.fixed": "Fixed requirement \u00b7 Locked",
+  "approvalSettings.builtin": "Built-in default",
+  "approvalSettings.any": "Any",
+  "approvalSettings.immediate": "Apply immediately",
+  "approvalSettings.count": "Human approvals",
+  "approvalSettings.credit": "Allow eligible user proposer approval",
+  "approvalSettings.yes": "Yes",
+  "approvalSettings.no": "No",
+  "approvalSettings.loadError": "Could not load approval settings.",
+  "approvalSettings.loading": "Loading approval settings",
+  "approvalSettings.defaultGroup": "Default \u00b7 All types",
+  "approvalSettings.title": "Approval rules",
+  "approvalSettings.intro":
+    "Choose when changes apply immediately and when people review them.",
+  "approvalSettings.unsaved": "Unsaved changes",
+  "approvalSettings.saved": "Current settings",
+  "approvalSettings.save": "Save changes",
+  "approvalSettings.restore": "Restore defaults",
+  "approvalSettings.discard": "Discard edits",
+  "approvalSettings.orderHelp":
+    "Grouped by type. Evaluated by global priority. Saved priorities come from the API. Unsaved edits preview fixed requirements first, then project rules, then built-in defaults. The first matching rule wins. Grouping never changes matching order.",
+  "approvalSettings.refreshError":
+    "Could not refresh settings. Your edits are preserved.",
+  "approvalSettings.conflict":
+    "Someone saved newer settings. Your edits are preserved. Read and review the latest settings before deliberately retrying.",
+  "approvalSettings.saveError":
+    "Could not save changes. Your edits are preserved. Correct any errors and try again.",
+  "approvalSettings.reviewLatest": "Review latest settings",
+  "approvalSettings.latest": "Latest saved settings",
+  "approvalSettings.acceptRevision":
+    "I reviewed these settings. Keep my edits for a deliberate retry.",
+  "approvalSettings.groups": "Rule groups",
+  "approvalSettings.unknownGroup":
+    "This type is no longer in the registry. Choose another group.",
+  "approvalSettings.add": "Add rule",
+  "approvalSettings.historical": "Unavailable type · Read only",
+  "approvalSettings.otherBuiltins": "Other built-in rules \u00b7 Locked",
+  "approvalSettings.fallback": "When no rule matches",
+  "approvalSettings.proposalRequired": "Proposal required",
+  "approvalSettings.noProposal": "No proposal required",
+  "approvalSettings.permissionHelp":
+    "Only governance managers can edit. Agent authorship earns no human approval. Immediate changes retain a proposal audit record.",
+  "approvalSettings.author": "Author",
+  "approvalSettings.action": "Action",
+  "approvalSettings.change": "Changes",
+  "approvalSettings.delete": "Delete rule",
+  "approvalSettings.outcome": "Outcome",
+  "approvalSettings.review": "Require human approval",
+
   "demo.start.checking": "Checking for your demo…",
   "demo.start.resumeError":
     "We couldn't check for your demo. Please try again.",

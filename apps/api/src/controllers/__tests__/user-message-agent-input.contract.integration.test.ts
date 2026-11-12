@@ -1,3 +1,4 @@
+import { createTestProjectApprovalPolicyService } from 'src/utils/testUtils';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as crypto from 'node:crypto';
 import { BadRequestException } from '@nestjs/common';
@@ -204,6 +205,7 @@ function buildHarness(config: FakeConversationConfig): Harness {
     peripherals.redisService,
     peripherals.mentionProcessingService,
     peripherals.reportService,
+    createTestProjectApprovalPolicyService(),
   );
 
   const conversationService = {

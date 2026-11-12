@@ -900,3 +900,5 @@ export {
   useApplyProposalFuture,
   type UseApplyProposalFutureReturn,
 } from "./useApplyProposalFuture";
+
+export { useProjectApprovalPolicy } from "./useProjectApprovalPolicy";

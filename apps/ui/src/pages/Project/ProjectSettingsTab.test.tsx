@@ -15,6 +15,16 @@ const mockAdmin = vi.fn();
 
 vi.mock("@hey-hey/ui-common/components", () => ({
   ProjectMembersPanel: () => <div>Members panel</div>,
+  ProjectApprovalSettings: (props: {
+    organizationId: string;
+    projectId: string;
+  }) => (
+    <div
+      data-testid="approval-settings"
+      data-organization={props.organizationId}
+      data-project={props.projectId}
+    />
+  ),
 }));
 
 vi.mock("nuqs", () => ({
@@ -93,6 +103,7 @@ describe("ProjectSettingsTab", () => {
           { value: "members", label: "Members" },
           { value: "types", label: "Types" },
           { value: "administration", label: "Administration" },
+          { value: "approval-rules", label: "Approval rules" },
         ],
         value: "services",
       }),
@@ -167,6 +178,20 @@ describe("ProjectSettingsTab", () => {
     expect(mockSetQueryState).toHaveBeenCalledWith("entity-prompt-templates", {
       history: "push",
     });
+  });
+
+  it("restores approval settings from URL state with project identity", () => {
+    mockQueryState.settingsSubTab = "approval-rules";
+    renderTab();
+    expect(screen.getByTestId("approval-settings")).toHaveAttribute(
+      "data-project",
+      "project-1",
+    );
+    expect(screen.getByTestId("approval-settings")).toHaveAttribute(
+      "data-organization",
+      "org-1",
+    );
+    expect(mockServices).not.toHaveBeenCalled();
   });
 
   it("retains the administration metadata composition", () => {

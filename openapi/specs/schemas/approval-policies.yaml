@@ -118,10 +118,13 @@ ProjectApprovalPolicyRule:
       description: Project-authored rules cannot set FIXED_REQUIRED.
     requiredApprovals:
       type: integer
+      format: int32
       minimum: 0
+      maximum: 2147483647
       description: >-
         Per-rule effective count. IMMEDIATE requires 0; PROJECT_REQUIRED
-        requires a positive supported count. The API enforces the pairing and
+        requires a positive count up to 2147483647, the PostgreSQL INTEGER
+        storage maximum. The API enforces the bound and pairing and
         reports a field-addressable validation issue when it is invalid.
     allowsProposerApproval:
       type: boolean
@@ -158,7 +161,9 @@ ProjectApprovalPolicyEffectiveRule:
       $ref: "#/ProjectApprovalPolicyRequirement"
     requiredApprovals:
       type: integer
+      format: int32
       minimum: 0
+      maximum: 2147483647
       description: Effective per-rule count; zero for IMMEDIATE, configured rule count for PROJECT_REQUIRED, fixed count for FIXED_REQUIRED.
     allowsProposerApproval:
       type: boolean
@@ -193,7 +198,9 @@ ProjectApprovalPolicyFallback:
         - PROJECT_REQUIRED
     requiredApprovals:
       type: integer
+      format: int32
       minimum: 0
+      maximum: 2147483647
     allowsProposerApproval:
       type: boolean
       enum: [false]
@@ -386,7 +393,9 @@ ProposalApprovalExplanation:
           $ref: "#/ProjectApprovalPolicyRequirement"
         requiredApprovals:
           type: integer
+          format: int32
           minimum: 0
+          maximum: 2147483647
       description: Null only when historical evidence is UNAVAILABLE.
     changedFields:
       type: array
