@@ -486,7 +486,6 @@ const TrackedEntityRow: React.FC<TrackedEntityRowProps> = ({
           organizationId={organizationId}
           projectId={projectId}
           hasProposalSupport
-          draggable={false}
           contextualActions={[
             {
               action: "remove_from_goal",

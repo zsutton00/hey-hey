@@ -237,6 +237,9 @@ vi.mock("@hey-hey/ui-common/components", () => ({
     children,
     contextualActions = [],
     entityId,
+    entityType,
+    entityTitle,
+    draggable = true,
   }: {
     children: React.ReactNode;
     contextualActions?: Array<{
@@ -244,8 +247,16 @@ vi.mock("@hey-hey/ui-common/components", () => ({
       onSelect: () => void;
     }>;
     entityId: string;
+    entityType: string;
+    entityTitle: string;
+    draggable?: boolean;
   }) => (
-    <div data-testid={`goal-tracked-interaction-${entityId}`}>
+    <div
+      data-testid={`goal-tracked-interaction-${entityId}`}
+      data-draggable={String(draggable)}
+      data-entity-type={entityType}
+      data-entity-title={entityTitle}
+    >
       {children}
       {contextualActions.map((action) => (
         <button
@@ -1805,6 +1816,45 @@ describe("GoalPage tabs", () => {
       });
       expect(mockRefetchGoalWorkItem).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it("makes tracked task and plan rows draggable with their entity identity", async () => {
+    mockTrackedWorkItems["plan-1"] = createGoalTask({
+      id: "plan-1",
+      name: "Delivery plan",
+      type: "PLAN",
+      status: WorkStatus.Active,
+    });
+    mockGoalWorkItem = createGoalTask({
+      trackedEntities: [
+        {
+          targetEntityId: "standard-1",
+          targetEntityType: EntityType.Task,
+          title: "Tracked task",
+          status: WorkStatus.Active,
+        },
+        {
+          targetEntityId: "plan-1",
+          targetEntityType: EntityType.Task,
+          title: "Delivery plan",
+          status: WorkStatus.Active,
+        },
+      ],
+    });
+
+    renderGoalPage();
+
+    const taskRow = await screen.findByTestId(
+      "goal-tracked-interaction-standard-1",
+    );
+    const planRow = await screen.findByTestId(
+      "goal-tracked-interaction-plan-1",
+    );
+
+    expect(taskRow).toHaveAttribute("data-draggable", "true");
+    expect(taskRow).toHaveAttribute("data-entity-title", "Tracked task");
+    expect(planRow).toHaveAttribute("data-draggable", "true");
+    expect(planRow).toHaveAttribute("data-entity-title", "Delivery plan");
   });
 
   it("removes a tracked plan through the goal-scoped action", async () => {
