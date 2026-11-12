@@ -1,3 +1,4 @@
+import { StoredDecisionEvidenceInvalidError } from './approval-policy-read-diagnostic';
 import Ajv from 'ajv';
 import type { Prisma } from '@prisma/client';
 import type { ProposalApprovalExplanation } from 'src/generated';
@@ -54,7 +55,9 @@ export function readApprovalEvidence(
     candidate.changedFieldClassification === null ||
     candidate.creditedProposerApprovals === null
   ) {
-    throw new Error('Stored approval decision evidence is invalid');
+    throw new StoredDecisionEvidenceInvalidError(
+      'Stored approval decision evidence is invalid',
+    );
   }
   return candidate;
 }

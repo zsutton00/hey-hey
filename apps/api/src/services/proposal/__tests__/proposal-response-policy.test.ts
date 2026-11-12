@@ -1,10 +1,18 @@
 import { ProposalReconciliationAdapterService } from '../proposal-reconciliation-adapter.service';
 import { ProposalReconciliationService } from '../proposal-reconciliation.service';
 import { Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { EventContextManager } from 'src/core/events/observable-event.context';
+import type { PrismaService } from 'src/prisma/prisma.service';
+import { ProjectApprovalPolicyStore } from '../project-approval-policy.store';
+import { ProjectApprovalPolicyValidation } from '../project-approval-policy.validation';
 import { evaluateApprovalPolicy } from '../permission-evaluation';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 import type { WorkItemTypeRegistryService } from '../../tasks/work-item-type-registry.service';
-import { createDefaultProjectApprovalPolicy } from '../project-approval-policy.service';
+import {
+  createDefaultProjectApprovalPolicy,
+  ProjectApprovalPolicyService,
+} from '../project-approval-policy.service';
 import {
   mapProposalResponse as mapSingle,
   mapProposalResponses as mapMany,
@@ -813,14 +821,17 @@ describe('ordinary approval explanations', () => {
       approvalExplanation: { evidence: 'LIVE', source: 'PROJECT' },
     });
     expect(diagnostic).toHaveBeenCalledWith(
-      'Proposal decision evidence unavailable in collection',
-      { proposalId: 'corrupt-history' },
+      expect.any(String),
+      expect.objectContaining({
+        category: 'DECISION_EVIDENCE_INVALID',
+        proposalId: 'corrupt-history',
+      }),
     );
-    expect(diagnostic.mock.calls.flat()).not.toContain('CAPTURED');
+    expect(JSON.stringify(diagnostic.mock.calls)).not.toContain('CAPTURED');
     diagnostic.mockRestore();
   });
 
-  it('returns healthy review work when another project or individual target fails, resolving each project once', async () => {
+  it('isolates storage, saved-policy and target failures with distinguishable safe diagnostics, keeping healthy work and failed records', async () => {
     const db = txFor();
     db.task.findFirst.mockImplementation(
       async ({ where }: { where: { id: string } }) =>
@@ -835,26 +846,107 @@ describe('ordinary approval explanations', () => {
     );
     const proposals = [
       stored('healthy'),
-      { ...stored('broken-project'), projectId: 'broken-project' },
+      { ...stored('unreachable'), projectId: 'unreachable' },
+      { ...stored('missing-relation'), projectId: 'missing-relation' },
+      { ...stored('corrupt-policy'), projectId: 'corrupt-policy' },
       { ...stored('missing-target'), targetEntityId: 'missing' },
     ];
-    const resolver = {
-      resolve: jest.fn(async (id: string) => {
-        if (id === 'broken-project') {
-          throw new Error('secret connection string');
+    const snapshot = structuredClone(proposals);
+    // The real store, validation and resolver run; only the database is faked.
+    const queryRaw = jest.fn(
+      async (_sql: TemplateStringsArray, projectId: string) => {
+        if (projectId === 'unreachable') {
+          throw new Prisma.PrismaClientInitializationError(
+            'secret connection string',
+            'test',
+            'P1001',
+          );
         }
-        return policy(2);
-      }),
-    };
-    const policies = await resolveProjectApprovalPolicies(resolver, proposals);
-    const responses = await mapProposalResponses(
-      db as unknown as AnyTransactionClient,
-      proposals,
-      policies,
-      { omitUnresolvableTargets: true },
+        if (projectId === 'missing-relation') {
+          throw new Prisma.PrismaClientKnownRequestError(
+            'secret connection string',
+            {
+              code: 'P2010',
+              clientVersion: 'test',
+              meta: { code: '42P01', message: 'secret connection string' },
+            },
+          );
+        }
+        if (projectId === 'corrupt-policy') {
+          return [{ revision: 1, rules: { unexpected: 'secret policy body' } }];
+        }
+        return [];
+      },
     );
-    expect(resolver.resolve).toHaveBeenCalledTimes(2);
-    expect(db.projectMember.findMany).toHaveBeenCalledTimes(1);
+    const resolver = new ProjectApprovalPolicyService(
+      new ProjectApprovalPolicyStore({
+        db: { $queryRaw: queryRaw },
+      } as unknown as PrismaService),
+      new ProjectApprovalPolicyValidation({
+        isTypeActiveForProject: () => true,
+      }),
+    );
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    const error = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+
+    const responses = await EventContextManager.getInstance().runWithContext(
+      {
+        correlationId: 'corr-approval-read',
+        sourceService: 'test',
+        sourceMethod: 'collection-read',
+      },
+      async () => {
+        const policies = await resolveProjectApprovalPolicies(
+          resolver,
+          proposals,
+        );
+        return mapProposalResponses(
+          db as unknown as AnyTransactionClient,
+          proposals,
+          policies,
+          { omitUnresolvableTargets: true },
+        );
+      },
+    );
+
     expect(responses.map((response) => response.id)).toEqual(['healthy']);
+    // Failed work is only omitted from the response; nothing is written back.
+    expect(proposals).toEqual(snapshot);
+    const entries = warn.mock.calls
+      .map(([, context]) => context)
+      .filter((context) => context.category !== undefined);
+    const forProject = (projectId: string, category: string) =>
+      entries.filter(
+        (entry) => entry.projectId === projectId && entry.category === category,
+      );
+    expect(forProject('unreachable', 'POLICY_STORAGE_UNAVAILABLE')).toEqual([
+      expect.objectContaining({ errorCode: 'P1001' }),
+    ]);
+    expect(
+      forProject('missing-relation', 'POLICY_STORAGE_UNAVAILABLE'),
+    ).toEqual([
+      expect.objectContaining({ errorCode: 'P2010', databaseCode: '42P01' }),
+    ]);
+    expect(forProject('corrupt-policy', 'SAVED_POLICY_INVALID')).toHaveLength(
+      1,
+    );
+    expect(
+      entries.filter(
+        (entry) =>
+          entry.category === 'TARGET_UNRESOLVED' &&
+          entry.proposalId === 'missing-target',
+      ),
+    ).toHaveLength(1);
+    for (const failed of entries) {
+      expect(failed.correlationId).toBe('corr-approval-read');
+    }
+    const emitted = JSON.stringify([...warn.mock.calls, ...error.mock.calls]);
+    expect(emitted).not.toContain('secret');
+    warn.mockRestore();
+    error.mockRestore();
   });
 });

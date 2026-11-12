@@ -1,3 +1,4 @@
+import { SAVED_POLICY_INVALID_CODE } from './approval-policy-read-diagnostic';
 import {
   BadRequestException,
   Inject,
@@ -85,9 +86,10 @@ export class ProjectApprovalPolicyValidation {
       this.logger.error('Malformed saved project approval policy', {
         projectId,
       });
-      throw new InternalServerErrorException(
-        'Saved project approval policy is invalid',
-      );
+      throw new InternalServerErrorException({
+        code: SAVED_POLICY_INVALID_CODE,
+        message: 'Saved project approval policy is invalid',
+      });
     }
     return value.rules;
   }

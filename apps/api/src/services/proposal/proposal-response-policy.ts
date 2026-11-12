@@ -36,6 +36,12 @@ import {
 } from './future-revision';
 import type { WorkItemTypeRegistryService } from '../tasks/work-item-type-registry.service';
 
+import {
+  ProjectPolicyMissingError,
+  ProposalTargetUnresolvedError,
+  logApprovalPolicyReadFailure,
+} from './approval-policy-read-diagnostic';
+
 const logger = new Logger('ProposalResponsePolicy');
 
 type ProposalPolicyFields = Pick<
@@ -290,9 +296,12 @@ async function resolveProposalPolicies(
         if (!options.omitUnresolvableTargets) {
           throw error;
         }
-        logger.warn('Proposal decision evidence unavailable in collection', {
-          proposalId: proposal.id,
-        });
+        logApprovalPolicyReadFailure(
+          logger,
+          error,
+          'DECISION_EVIDENCE_INVALID',
+          { projectId: proposal.projectId, proposalId: proposal.id },
+        );
         resolved.set(proposal.id, null);
       }
       continue;
@@ -359,7 +368,8 @@ async function resolveProposalPolicies(
               if (!options.omitUnresolvableTargets) {
                 throw error;
               }
-              logger.warn('Proposal policy unavailable in collection', {
+              logApprovalPolicyReadFailure(logger, error, 'EVALUATION_FAILED', {
+                projectId: proposal.projectId,
                 proposalId: proposal.id,
               });
               resolved.set(proposal.id, null);
@@ -370,9 +380,12 @@ async function resolveProposalPolicies(
         if (!options.omitUnresolvableTargets) {
           throw error;
         }
-        logger.warn('Project approval policy unavailable in collection', {
-          projectId: seed.projectId,
-        });
+        logApprovalPolicyReadFailure(
+          logger,
+          error,
+          'POLICY_STORAGE_UNAVAILABLE',
+          { projectId: seed.projectId },
+        );
         for (const proposal of group) {
           resolved.set(proposal.id, null);
         }
@@ -602,7 +615,20 @@ export async function mapProposalResponses(
   );
   const outOfDateStatuses = await Promise.all(
     resolvableProposals.map((proposal) =>
-      resolveProposalOutOfDateStatus(tx, proposal, options.reconciliation),
+      resolveProposalOutOfDateStatus(
+        tx,
+        proposal,
+        options.reconciliation,
+      ).catch((error) => {
+        if (!options.omitUnresolvableTargets) {
+          throw error;
+        }
+        logApprovalPolicyReadFailure(logger, error, 'TARGET_UNRESOLVED', {
+          projectId: proposal.projectId,
+          proposalId: proposal.id,
+        });
+        return null;
+      }),
     ),
   );
 
@@ -669,10 +695,13 @@ export async function resolveProjectApprovalPolicies(
                 projectId as ProjectId,
               ),
             ] as const;
-          } catch {
-            logger.warn('Unable to resolve approval policy for project', {
-              projectId,
-            });
+          } catch (error) {
+            logApprovalPolicyReadFailure(
+              logger,
+              error,
+              'POLICY_STORAGE_UNAVAILABLE',
+              { projectId },
+            );
             return null;
           }
         }),
@@ -690,7 +719,7 @@ function policyForProject(
   }
   const policy = policies.get(projectId);
   if (!policy) {
-    throw new Error(
+    throw new ProjectPolicyMissingError(
       `Missing resolved approval policy for project ${projectId}`,
     );
   }
