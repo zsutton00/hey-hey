@@ -299,7 +299,7 @@ describe('persisted project rule resolution', () => {
     allowsProposerApproval: true,
   } satisfies ProjectApprovalPolicyRule;
 
-  function resolver(rules: unknown) {
+  function resolver(rules: unknown, activeTypes = ['MARKETING', 'FEATURE']) {
     const prisma = createMockPrismaService();
     prisma.db.$queryRaw.mockImplementation(async (_sql, id) =>
       id === projectId ? [{ revision: 7, rules }] : [],
@@ -307,7 +307,7 @@ describe('persisted project rule resolution', () => {
     return new ProjectApprovalPolicyService(
       new ProjectApprovalPolicyStore(prisma as unknown as PrismaService),
       new ProjectApprovalPolicyValidation({
-        isTypeActiveForProject: (key) => ['MARKETING', 'FEATURE'].includes(key),
+        isTypeActiveForProject: (key) => activeTypes.includes(key),
       }),
     );
   }
@@ -397,9 +397,32 @@ describe('persisted project rule resolution', () => {
     );
   });
 
+  it('keeps applying a saved rule after its type is retired', async () => {
+    const service = resolver([savedRule], ['FEATURE']);
+    const policy = await service.resolve(projectId);
+    expect(
+      policy.rules.filter((rule) => rule.source === 'PROJECT'),
+    ).toHaveLength(1);
+    expect(
+      evaluatePermissions(
+        { type: 'MARKETING', parentTaskId: null, initiativeId: null },
+        {
+          source: 'user',
+          action: 'UPDATE',
+          authorId: 'alice',
+          eligibleProjectMemberIds: ['alice', 'bob'],
+          toolName: null,
+          changedFields: ['status'],
+        },
+        policy,
+      ).threshold,
+    ).toBe(0);
+    expect(await service.snapshot(projectId)).toMatchObject({ revision: 7 });
+  });
+
   it.each([
     [{ secret: 'never log this' }],
-    [{ ...savedRule, conditions: { typeKey: 'unknown' } }],
+    [[{ ...savedRule, requirement: 'IMMEDIATE', requiredApprovals: 2 }]],
   ])(
     'fails malformed saved data without poisoning another project',
     async (rules) => {
