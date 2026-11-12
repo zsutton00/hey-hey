@@ -137,7 +137,7 @@ export const DiagramThumbnail: React.FC<DiagramThumbnailProps> = ({
       {description ? (
         <Typography
           variant="body2"
-          color="text.secondary"
+          color="text.primary"
           data-testid="diagram-thumbnail-description"
           sx={{
             mt: 1,
