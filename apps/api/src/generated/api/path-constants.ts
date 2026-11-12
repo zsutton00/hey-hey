@@ -153,6 +153,7 @@ export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_ALLOWED_
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_TASKID_SUPERSEDE_PATH = '/organizations/{organizationId}/projects/{projectId}/work-items/{taskId}/supersede';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_TASKID_DEPENDENCIES_PATH = '/organizations/{organizationId}/projects/{projectId}/work-items/{taskId}/dependencies';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_TASKID_DEPENDENCIES_DEPENDENCYID_PATH = '/organizations/{organizationId}/projects/{projectId}/work-items/{taskId}/dependencies/{dependencyId}';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_APPROVAL_POLICY_PATH = '/organizations/{organizationId}/projects/{projectId}/approval-policy';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEM_TYPES_PATH = '/organizations/{organizationId}/projects/{projectId}/work-item-types';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEM_TYPES_TYPEKEY_GUIDANCE_PATH = '/organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/guidance';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEM_TYPES_GUIDANCE_BATCH_PATH = '/organizations/{organizationId}/projects/{projectId}/work-item-types/guidance/batch';

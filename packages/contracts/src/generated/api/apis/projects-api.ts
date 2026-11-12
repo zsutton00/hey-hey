@@ -53,6 +53,16 @@ import type { InputExecutionProjection } from '../models.js';
 // @ts-ignore
 import type { ListProjectMembers200Response } from '../models.js';
 // @ts-ignore
+import type { ProjectApprovalPolicyReplaceRequest } from '../models.js';
+// @ts-ignore
+import type { ProjectApprovalPolicyResponse } from '../models.js';
+// @ts-ignore
+import type { ProjectApprovalPolicyRestoreRequest } from '../models.js';
+// @ts-ignore
+import type { ProjectApprovalPolicyRevisionConflictResponse } from '../models.js';
+// @ts-ignore
+import type { ProjectApprovalPolicyValidationErrorResponse } from '../models.js';
+// @ts-ignore
 import type { ProjectInputExecution200Response } from '../models.js';
 // @ts-ignore
 import type { ProjectLimitReachedDto } from '../models.js';
@@ -312,6 +322,48 @@ export const ProjectsApiAxiosParamCreator = function (configuration?: Configurat
                 .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
                 .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)))
                 .replace(`{${"operationId"}}`, encodeURIComponent(String(operationId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Return the API-owned effective policy, complete global first-match order, rule provenance, protected fixed exceptions, unmatched fallback, and concurrency revision. Any caller with project read access may inspect the policy. A project with no saved override receives the established code defaults at revision 0 unless a prior restore or replacement has advanced its revision history. A malformed persisted override is an error; it is never silently replaced with defaults.
+         * @summary Get the effective project approval policy
+         * @param {string} organizationId Organization that owns the project.
+         * @param {string} projectId Project whose approval policy is read or replaced.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getProjectApprovalPolicy: async (organizationId: string, projectId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('getProjectApprovalPolicy', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('getProjectApprovalPolicy', 'projectId', projectId)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/approval-policy`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)));
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
             const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
             let baseOptions;
@@ -674,6 +726,102 @@ export const ProjectsApiAxiosParamCreator = function (configuration?: Configurat
             };
         },
         /**
+         * Replace the project-authored rule layer and each rule\'s approval count using compare-and-swap expectedRevision. Only project OWNER and ARCHITECT roles may manage this policy; proposal approver eligibility does not grant management authority. The API resolves selectors against the project\'s current effective work-item type registry and rejects invalid documents without replacing the existing override. Protected FIXED rules remain ahead of project rules, saved project rules retain request order, and ordinary code defaults follow them so project rules can override a default while unmatched proposals keep established behavior. On success, revision increments once and the complete effective snapshot is returned. A stale revision returns 409 and requires a fresh read.
+         * @summary Replace the editable project approval rules
+         * @param {string} organizationId Organization that owns the project.
+         * @param {string} projectId Project whose approval policy is read or replaced.
+         * @param {ProjectApprovalPolicyReplaceRequest} projectApprovalPolicyReplaceRequest
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        replaceProjectApprovalPolicy: async (organizationId: string, projectId: string, projectApprovalPolicyReplaceRequest: ProjectApprovalPolicyReplaceRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('replaceProjectApprovalPolicy', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('replaceProjectApprovalPolicy', 'projectId', projectId)
+            // verify required parameter 'projectApprovalPolicyReplaceRequest' is not null or undefined
+            assertParamExists('replaceProjectApprovalPolicy', 'projectApprovalPolicyReplaceRequest', projectApprovalPolicyReplaceRequest)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/approval-policy`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'PUT', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(projectApprovalPolicyReplaceRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Remove the current project override and return the effective code defaults. Only project OWNER and ARCHITECT roles may restore defaults. expectedRevision is checked atomically with the restore. Every successful restore increments and retains the project revision, even when no override is currently present, so absent configuration and absent concurrency history remain distinct and stale first-save or restore/recreate writes cannot succeed. A stale revision returns 409 and requires a fresh read.
+         * @summary Restore the code-owned approval defaults
+         * @param {string} organizationId Organization that owns the project.
+         * @param {string} projectId Project whose approval policy is read or replaced.
+         * @param {ProjectApprovalPolicyRestoreRequest} projectApprovalPolicyRestoreRequest
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        restoreProjectApprovalPolicyDefaults: async (organizationId: string, projectId: string, projectApprovalPolicyRestoreRequest: ProjectApprovalPolicyRestoreRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('restoreProjectApprovalPolicyDefaults', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('restoreProjectApprovalPolicyDefaults', 'projectId', projectId)
+            // verify required parameter 'projectApprovalPolicyRestoreRequest' is not null or undefined
+            assertParamExists('restoreProjectApprovalPolicyDefaults', 'projectApprovalPolicyRestoreRequest', projectApprovalPolicyRestoreRequest)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/approval-policy`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(projectApprovalPolicyRestoreRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Update a specific project\'s details within the organization
          * @summary Update a project
          * @param {string} organizationId Organization ID
@@ -820,6 +968,20 @@ export const ProjectsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Return the API-owned effective policy, complete global first-match order, rule provenance, protected fixed exceptions, unmatched fallback, and concurrency revision. Any caller with project read access may inspect the policy. A project with no saved override receives the established code defaults at revision 0 unless a prior restore or replacement has advanced its revision history. A malformed persisted override is an error; it is never silently replaced with defaults.
+         * @summary Get the effective project approval policy
+         * @param {string} organizationId Organization that owns the project.
+         * @param {string} projectId Project whose approval policy is read or replaced.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async getProjectApprovalPolicy(organizationId: string, projectId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ProjectApprovalPolicyResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getProjectApprovalPolicy(organizationId, projectId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['ProjectsApi.getProjectApprovalPolicy']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Returns counts of various entities associated with the project
          * @summary Get entity counts for a project
          * @param {string} organizationId Organization ID
@@ -926,6 +1088,36 @@ export const ProjectsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Replace the project-authored rule layer and each rule\'s approval count using compare-and-swap expectedRevision. Only project OWNER and ARCHITECT roles may manage this policy; proposal approver eligibility does not grant management authority. The API resolves selectors against the project\'s current effective work-item type registry and rejects invalid documents without replacing the existing override. Protected FIXED rules remain ahead of project rules, saved project rules retain request order, and ordinary code defaults follow them so project rules can override a default while unmatched proposals keep established behavior. On success, revision increments once and the complete effective snapshot is returned. A stale revision returns 409 and requires a fresh read.
+         * @summary Replace the editable project approval rules
+         * @param {string} organizationId Organization that owns the project.
+         * @param {string} projectId Project whose approval policy is read or replaced.
+         * @param {ProjectApprovalPolicyReplaceRequest} projectApprovalPolicyReplaceRequest
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async replaceProjectApprovalPolicy(organizationId: string, projectId: string, projectApprovalPolicyReplaceRequest: ProjectApprovalPolicyReplaceRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ProjectApprovalPolicyResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.replaceProjectApprovalPolicy(organizationId, projectId, projectApprovalPolicyReplaceRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['ProjectsApi.replaceProjectApprovalPolicy']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Remove the current project override and return the effective code defaults. Only project OWNER and ARCHITECT roles may restore defaults. expectedRevision is checked atomically with the restore. Every successful restore increments and retains the project revision, even when no override is currently present, so absent configuration and absent concurrency history remain distinct and stale first-save or restore/recreate writes cannot succeed. A stale revision returns 409 and requires a fresh read.
+         * @summary Restore the code-owned approval defaults
+         * @param {string} organizationId Organization that owns the project.
+         * @param {string} projectId Project whose approval policy is read or replaced.
+         * @param {ProjectApprovalPolicyRestoreRequest} projectApprovalPolicyRestoreRequest
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async restoreProjectApprovalPolicyDefaults(organizationId: string, projectId: string, projectApprovalPolicyRestoreRequest: ProjectApprovalPolicyRestoreRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ProjectApprovalPolicyResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.restoreProjectApprovalPolicyDefaults(organizationId, projectId, projectApprovalPolicyRestoreRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['ProjectsApi.restoreProjectApprovalPolicyDefaults']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Update a specific project\'s details within the organization
          * @summary Update a project
          * @param {string} organizationId Organization ID
@@ -1011,6 +1203,16 @@ export const ProjectsApiFactory = function (configuration?: Configuration, baseP
             return localVarFp.getAgentOperation(requestParameters.organizationId, requestParameters.projectId, requestParameters.operationId, options).then((request) => request(axios, basePath));
         },
         /**
+         * Return the API-owned effective policy, complete global first-match order, rule provenance, protected fixed exceptions, unmatched fallback, and concurrency revision. Any caller with project read access may inspect the policy. A project with no saved override receives the established code defaults at revision 0 unless a prior restore or replacement has advanced its revision history. A malformed persisted override is an error; it is never silently replaced with defaults.
+         * @summary Get the effective project approval policy
+         * @param {ProjectsApiGetProjectApprovalPolicyRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getProjectApprovalPolicy(requestParameters: ProjectsApiGetProjectApprovalPolicyRequest, options?: RawAxiosRequestConfig): AxiosPromise<ProjectApprovalPolicyResponse> {
+            return localVarFp.getProjectApprovalPolicy(requestParameters.organizationId, requestParameters.projectId, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Returns counts of various entities associated with the project
          * @summary Get entity counts for a project
          * @param {ProjectsApiGetProjectCountsRequest} requestParameters Request parameters.
@@ -1079,6 +1281,26 @@ export const ProjectsApiFactory = function (configuration?: Configuration, baseP
          */
         removeProjectMember(requestParameters: ProjectsApiRemoveProjectMemberRequest, options?: RawAxiosRequestConfig): AxiosPromise<void> {
             return localVarFp.removeProjectMember(requestParameters.organizationId, requestParameters.projectId, requestParameters.userId, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Replace the project-authored rule layer and each rule\'s approval count using compare-and-swap expectedRevision. Only project OWNER and ARCHITECT roles may manage this policy; proposal approver eligibility does not grant management authority. The API resolves selectors against the project\'s current effective work-item type registry and rejects invalid documents without replacing the existing override. Protected FIXED rules remain ahead of project rules, saved project rules retain request order, and ordinary code defaults follow them so project rules can override a default while unmatched proposals keep established behavior. On success, revision increments once and the complete effective snapshot is returned. A stale revision returns 409 and requires a fresh read.
+         * @summary Replace the editable project approval rules
+         * @param {ProjectsApiReplaceProjectApprovalPolicyRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        replaceProjectApprovalPolicy(requestParameters: ProjectsApiReplaceProjectApprovalPolicyRequest, options?: RawAxiosRequestConfig): AxiosPromise<ProjectApprovalPolicyResponse> {
+            return localVarFp.replaceProjectApprovalPolicy(requestParameters.organizationId, requestParameters.projectId, requestParameters.projectApprovalPolicyReplaceRequest, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Remove the current project override and return the effective code defaults. Only project OWNER and ARCHITECT roles may restore defaults. expectedRevision is checked atomically with the restore. Every successful restore increments and retains the project revision, even when no override is currently present, so absent configuration and absent concurrency history remain distinct and stale first-save or restore/recreate writes cannot succeed. A stale revision returns 409 and requires a fresh read.
+         * @summary Restore the code-owned approval defaults
+         * @param {ProjectsApiRestoreProjectApprovalPolicyDefaultsRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        restoreProjectApprovalPolicyDefaults(requestParameters: ProjectsApiRestoreProjectApprovalPolicyDefaultsRequest, options?: RawAxiosRequestConfig): AxiosPromise<ProjectApprovalPolicyResponse> {
+            return localVarFp.restoreProjectApprovalPolicyDefaults(requestParameters.organizationId, requestParameters.projectId, requestParameters.projectApprovalPolicyRestoreRequest, options).then((request) => request(axios, basePath));
         },
         /**
          * Update a specific project\'s details within the organization
@@ -1160,6 +1382,16 @@ export interface ProjectsApiInterface {
     getAgentOperation(requestParameters: ProjectsApiGetAgentOperationRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetAgentOperation200Response>;
 
     /**
+     * Return the API-owned effective policy, complete global first-match order, rule provenance, protected fixed exceptions, unmatched fallback, and concurrency revision. Any caller with project read access may inspect the policy. A project with no saved override receives the established code defaults at revision 0 unless a prior restore or replacement has advanced its revision history. A malformed persisted override is an error; it is never silently replaced with defaults.
+     * @summary Get the effective project approval policy
+     * @param {ProjectsApiGetProjectApprovalPolicyRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ProjectsApiInterface
+     */
+    getProjectApprovalPolicy(requestParameters: ProjectsApiGetProjectApprovalPolicyRequest, options?: RawAxiosRequestConfig): AxiosPromise<ProjectApprovalPolicyResponse>;
+
+    /**
      * Returns counts of various entities associated with the project
      * @summary Get entity counts for a project
      * @param {ProjectsApiGetProjectCountsRequest} requestParameters Request parameters.
@@ -1228,6 +1460,26 @@ export interface ProjectsApiInterface {
      * @memberof ProjectsApiInterface
      */
     removeProjectMember(requestParameters: ProjectsApiRemoveProjectMemberRequest, options?: RawAxiosRequestConfig): AxiosPromise<void>;
+
+    /**
+     * Replace the project-authored rule layer and each rule\'s approval count using compare-and-swap expectedRevision. Only project OWNER and ARCHITECT roles may manage this policy; proposal approver eligibility does not grant management authority. The API resolves selectors against the project\'s current effective work-item type registry and rejects invalid documents without replacing the existing override. Protected FIXED rules remain ahead of project rules, saved project rules retain request order, and ordinary code defaults follow them so project rules can override a default while unmatched proposals keep established behavior. On success, revision increments once and the complete effective snapshot is returned. A stale revision returns 409 and requires a fresh read.
+     * @summary Replace the editable project approval rules
+     * @param {ProjectsApiReplaceProjectApprovalPolicyRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ProjectsApiInterface
+     */
+    replaceProjectApprovalPolicy(requestParameters: ProjectsApiReplaceProjectApprovalPolicyRequest, options?: RawAxiosRequestConfig): AxiosPromise<ProjectApprovalPolicyResponse>;
+
+    /**
+     * Remove the current project override and return the effective code defaults. Only project OWNER and ARCHITECT roles may restore defaults. expectedRevision is checked atomically with the restore. Every successful restore increments and retains the project revision, even when no override is currently present, so absent configuration and absent concurrency history remain distinct and stale first-save or restore/recreate writes cannot succeed. A stale revision returns 409 and requires a fresh read.
+     * @summary Restore the code-owned approval defaults
+     * @param {ProjectsApiRestoreProjectApprovalPolicyDefaultsRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ProjectsApiInterface
+     */
+    restoreProjectApprovalPolicyDefaults(requestParameters: ProjectsApiRestoreProjectApprovalPolicyDefaultsRequest, options?: RawAxiosRequestConfig): AxiosPromise<ProjectApprovalPolicyResponse>;
 
     /**
      * Update a specific project\'s details within the organization
@@ -1393,6 +1645,27 @@ export interface ProjectsApiGetAgentOperationRequest {
      * @memberof ProjectsApiGetAgentOperation
      */
     readonly operationId: string
+}
+
+/**
+ * Request parameters for getProjectApprovalPolicy operation in ProjectsApi.
+ * @export
+ * @interface ProjectsApiGetProjectApprovalPolicyRequest
+ */
+export interface ProjectsApiGetProjectApprovalPolicyRequest {
+    /**
+     * Organization that owns the project.
+     * @type {string}
+     * @memberof ProjectsApiGetProjectApprovalPolicy
+     */
+    readonly organizationId: string
+
+    /**
+     * Project whose approval policy is read or replaced.
+     * @type {string}
+     * @memberof ProjectsApiGetProjectApprovalPolicy
+     */
+    readonly projectId: string
 }
 
 /**
@@ -1599,6 +1872,62 @@ export interface ProjectsApiRemoveProjectMemberRequest {
 }
 
 /**
+ * Request parameters for replaceProjectApprovalPolicy operation in ProjectsApi.
+ * @export
+ * @interface ProjectsApiReplaceProjectApprovalPolicyRequest
+ */
+export interface ProjectsApiReplaceProjectApprovalPolicyRequest {
+    /**
+     * Organization that owns the project.
+     * @type {string}
+     * @memberof ProjectsApiReplaceProjectApprovalPolicy
+     */
+    readonly organizationId: string
+
+    /**
+     * Project whose approval policy is read or replaced.
+     * @type {string}
+     * @memberof ProjectsApiReplaceProjectApprovalPolicy
+     */
+    readonly projectId: string
+
+    /**
+     *
+     * @type {ProjectApprovalPolicyReplaceRequest}
+     * @memberof ProjectsApiReplaceProjectApprovalPolicy
+     */
+    readonly projectApprovalPolicyReplaceRequest: ProjectApprovalPolicyReplaceRequest
+}
+
+/**
+ * Request parameters for restoreProjectApprovalPolicyDefaults operation in ProjectsApi.
+ * @export
+ * @interface ProjectsApiRestoreProjectApprovalPolicyDefaultsRequest
+ */
+export interface ProjectsApiRestoreProjectApprovalPolicyDefaultsRequest {
+    /**
+     * Organization that owns the project.
+     * @type {string}
+     * @memberof ProjectsApiRestoreProjectApprovalPolicyDefaults
+     */
+    readonly organizationId: string
+
+    /**
+     * Project whose approval policy is read or replaced.
+     * @type {string}
+     * @memberof ProjectsApiRestoreProjectApprovalPolicyDefaults
+     */
+    readonly projectId: string
+
+    /**
+     *
+     * @type {ProjectApprovalPolicyRestoreRequest}
+     * @memberof ProjectsApiRestoreProjectApprovalPolicyDefaults
+     */
+    readonly projectApprovalPolicyRestoreRequest: ProjectApprovalPolicyRestoreRequest
+}
+
+/**
  * Request parameters for updateProject operation in ProjectsApi.
  * @export
  * @interface ProjectsApiUpdateProjectRequest
@@ -1706,6 +2035,18 @@ export class ProjectsApi extends BaseAPI implements ProjectsApiInterface {
     }
 
     /**
+     * Return the API-owned effective policy, complete global first-match order, rule provenance, protected fixed exceptions, unmatched fallback, and concurrency revision. Any caller with project read access may inspect the policy. A project with no saved override receives the established code defaults at revision 0 unless a prior restore or replacement has advanced its revision history. A malformed persisted override is an error; it is never silently replaced with defaults.
+     * @summary Get the effective project approval policy
+     * @param {ProjectsApiGetProjectApprovalPolicyRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ProjectsApi
+     */
+    public getProjectApprovalPolicy(requestParameters: ProjectsApiGetProjectApprovalPolicyRequest, options?: RawAxiosRequestConfig) {
+        return ProjectsApiFp(this.configuration).getProjectApprovalPolicy(requestParameters.organizationId, requestParameters.projectId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
      * Returns counts of various entities associated with the project
      * @summary Get entity counts for a project
      * @param {ProjectsApiGetProjectCountsRequest} requestParameters Request parameters.
@@ -1787,6 +2128,30 @@ export class ProjectsApi extends BaseAPI implements ProjectsApiInterface {
      */
     public removeProjectMember(requestParameters: ProjectsApiRemoveProjectMemberRequest, options?: RawAxiosRequestConfig) {
         return ProjectsApiFp(this.configuration).removeProjectMember(requestParameters.organizationId, requestParameters.projectId, requestParameters.userId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Replace the project-authored rule layer and each rule\'s approval count using compare-and-swap expectedRevision. Only project OWNER and ARCHITECT roles may manage this policy; proposal approver eligibility does not grant management authority. The API resolves selectors against the project\'s current effective work-item type registry and rejects invalid documents without replacing the existing override. Protected FIXED rules remain ahead of project rules, saved project rules retain request order, and ordinary code defaults follow them so project rules can override a default while unmatched proposals keep established behavior. On success, revision increments once and the complete effective snapshot is returned. A stale revision returns 409 and requires a fresh read.
+     * @summary Replace the editable project approval rules
+     * @param {ProjectsApiReplaceProjectApprovalPolicyRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ProjectsApi
+     */
+    public replaceProjectApprovalPolicy(requestParameters: ProjectsApiReplaceProjectApprovalPolicyRequest, options?: RawAxiosRequestConfig) {
+        return ProjectsApiFp(this.configuration).replaceProjectApprovalPolicy(requestParameters.organizationId, requestParameters.projectId, requestParameters.projectApprovalPolicyReplaceRequest, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Remove the current project override and return the effective code defaults. Only project OWNER and ARCHITECT roles may restore defaults. expectedRevision is checked atomically with the restore. Every successful restore increments and retains the project revision, even when no override is currently present, so absent configuration and absent concurrency history remain distinct and stale first-save or restore/recreate writes cannot succeed. A stale revision returns 409 and requires a fresh read.
+     * @summary Restore the code-owned approval defaults
+     * @param {ProjectsApiRestoreProjectApprovalPolicyDefaultsRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ProjectsApi
+     */
+    public restoreProjectApprovalPolicyDefaults(requestParameters: ProjectsApiRestoreProjectApprovalPolicyDefaultsRequest, options?: RawAxiosRequestConfig) {
+        return ProjectsApiFp(this.configuration).restoreProjectApprovalPolicyDefaults(requestParameters.organizationId, requestParameters.projectId, requestParameters.projectApprovalPolicyRestoreRequest, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

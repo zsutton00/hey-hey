@@ -37,6 +37,9 @@ import type { ProposalAction } from './proposal-action.js';
 import type { ProposalApprovalDto } from './proposal-approval-dto.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { ProposalApprovalExplanation } from './proposal-approval-explanation.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { ProposalEdgeDeclaration } from './proposal-edge-declaration.js';
 // May contain unused imports in some cases
 // @ts-ignore

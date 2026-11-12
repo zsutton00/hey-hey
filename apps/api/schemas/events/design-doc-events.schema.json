@@ -17801,8 +17801,14 @@
           "description": "Optional metadata about the requestor and request context"
         },
         "requiredApprovals": {
-          "type": "number",
-          "description": "Effective number of approvals required by the API-owned proposal policy. Clients must display this value rather than evaluating an independent approval threshold."
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Effective number of approvals required by the API-owned proposal policy. Null for terminal ordinary proposals whose historical evidence is unavailable; null must never be displayed as zero or reconstructed from current settings. Clients must display this value rather than evaluating an independent approval threshold."
+        },
+        "approvalExplanation": {
+          "$ref": "#/definitions/ProposalApprovalExplanation"
         },
         "influences": {
           "type": "array",
@@ -22479,6 +22485,272 @@
         "proposalId",
         "reviewedAt",
         "mutation"
+      ]
+    },
+    "ProposalApprovalExplanation": {
+      "type": "object",
+      "properties": {
+        "evidence": {
+          "$ref": "#/definitions/ProposalApprovalExplanationEvidence"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ProjectApprovalPolicyRuleSource"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Null only when historical evidence is UNAVAILABLE."
+        },
+        "conditions": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ProjectApprovalPolicyEffectiveConditions"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Matched rule conditions; null only when historical evidence is UNAVAILABLE."
+        },
+        "requirement": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ProposalApprovalExplanationRequirement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "changedFields": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "API-classified field paths for the proposal. Null only when historical evidence is UNAVAILABLE; an empty array means no content fields."
+        },
+        "changedFieldClassification": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ProposalApprovalExplanationChangedFieldClassification"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "creditedProposerApprovals": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Captured/live count of approval records credited to the user proposer. Agent authorship contributes zero. This is historical decision evidence for CAPTURED and never depends on the current viewer; null when legacy terminal history is unavailable."
+        },
+        "viewerEligibility": {
+          "$ref": "#/definitions/ProposalApprovalExplanationViewerEligibility"
+        }
+      },
+      "required": [
+        "evidence",
+        "source",
+        "conditions",
+        "requirement",
+        "changedFields",
+        "changedFieldClassification",
+        "creditedProposerApprovals",
+        "viewerEligibility"
+      ],
+      "description": "API-owned explanation of the rule and approval requirement for this proposal response."
+    },
+    "ProposalApprovalExplanationEvidence": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "LIVE"
+        },
+        {
+          "type": "string",
+          "const": "CAPTURED"
+        },
+        {
+          "type": "string",
+          "const": "UNAVAILABLE"
+        },
+        {}
+      ],
+      "description": "Pending ordinary proposals report LIVE policy on each read or decision. Terminal decisions report CAPTURED evidence from the decision transition. Legacy terminal proposals without captured evidence report UNAVAILABLE; they are never reconstructed from current policy."
+    },
+    "ProjectApprovalPolicyRuleSource": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "PROJECT"
+        },
+        {
+          "type": "string",
+          "const": "DEFAULT"
+        },
+        {
+          "type": "string",
+          "const": "FIXED"
+        },
+        {}
+      ],
+      "description": "Origin of a rule in the effective policy."
+    },
+    "ProjectApprovalPolicyEffectiveConditions": {
+      "type": "object",
+      "properties": {
+        "typeKey": {
+          "type": "string",
+          "description": "Exact effective registry key; omitted means all work-item types."
+        },
+        "author": {
+          "$ref": "#/definitions/ProjectApprovalPolicyAuthor"
+        },
+        "action": {
+          "$ref": "#/definitions/ProjectApprovalPolicyAction"
+        },
+        "change": {
+          "$ref": "#/definitions/ProjectApprovalPolicyChangeSelector"
+        },
+        "featureContentChange": {
+          "type": "boolean",
+          "description": "Optional existing FEATURE-specific content classification. True means at least one changed field is name, sections.description, sections.requirements, or sections.acceptanceCriteria. It is separate from the generic change selector."
+        },
+        "topLevel": {
+          "type": "boolean",
+          "description": "Existing API-owned structural top-level match input used by code defaults."
+        },
+        "toolName": {
+          "type": "string",
+          "description": "Existing authoring-boundary match input used by code defaults."
+        }
+      },
+      "description": "Omitted conditions match any value for that dimension. Conditions are conjunctive. For project-authored rules, typeKey, author, action, and change are the settings controls; featureContentChange, topLevel, and toolName preserve the complete effective match explanation for code-owned rules."
+    },
+    "ProjectApprovalPolicyAuthor": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "USER"
+        },
+        {
+          "type": "string",
+          "const": "AGENT"
+        },
+        {}
+      ]
+    },
+    "ProjectApprovalPolicyAction": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "CREATE"
+        },
+        {
+          "type": "string",
+          "const": "UPDATE"
+        },
+        {
+          "type": "string",
+          "const": "DELETE"
+        },
+        {}
+      ],
+      "description": "UPDATE rules match both UPDATE and VERSIONED_UPDATE proposals. The API normalizes VERSIONED_UPDATE to UPDATE before policy evaluation; the policy action model therefore remains unchanged."
+    },
+    "ProjectApprovalPolicyChangeSelector": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "STATUS_ONLY"
+        },
+        {
+          "type": "string",
+          "const": "CONTENT_CHANGE"
+        },
+        {}
+      ],
+      "description": "CONTENT_CHANGE matches when at least one changed field is not status. STATUS_ONLY matches exactly one changed field named status. These generic selectors are distinct from the existing FEATURE content classifier, which is retained on effective code-default rules and is reported in review explanations."
+    },
+    "ProposalApprovalExplanationRequirement": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "$ref": "#/definitions/ProjectApprovalPolicyRequirement"
+        },
+        "requiredApprovals": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "category",
+        "requiredApprovals"
+      ],
+      "description": "Null only when historical evidence is UNAVAILABLE."
+    },
+    "ProjectApprovalPolicyRequirement": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "IMMEDIATE"
+        },
+        {
+          "type": "string",
+          "const": "PROJECT_REQUIRED"
+        },
+        {
+          "type": "string",
+          "const": "FIXED_REQUIRED"
+        },
+        {}
+      ],
+      "description": "IMMEDIATE applies without human approval. PROJECT_REQUIRED uses the rule\\'s requiredApprovals value. FIXED_REQUIRED uses a code-owned count and is never editable through project settings."
+    },
+    "ProposalApprovalExplanationChangedFieldClassification": {
+      "type": "object",
+      "properties": {
+        "statusOnlyChange": {
+          "type": "boolean",
+          "description": "True only when the sole changed field is status."
+        },
+        "contentChange": {
+          "type": "boolean",
+          "description": "True when at least one changed field is not status."
+        },
+        "featureContentChange": {
+          "type": "boolean",
+          "description": "Existing FEATURE classifier for name and the supported description, requirements, and acceptance-criteria fields."
+        }
+      },
+      "required": [
+        "statusOnlyChange",
+        "contentChange",
+        "featureContentChange"
+      ],
+      "description": "Null only when historical evidence is UNAVAILABLE."
+    },
+    "ProposalApprovalExplanationViewerEligibility": {
+      "type": "object",
+      "properties": {
+        "eligibleToApprove": {
+          "type": "boolean",
+          "description": "Current viewer\\'s server-derived approval eligibility, evaluated now and never stored as historical evidence."
+        }
+      },
+      "required": [
+        "eligibleToApprove"
       ]
     },
     "ValidationSessionId": {
