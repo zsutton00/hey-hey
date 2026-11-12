@@ -4,6 +4,10 @@ import {
   resolveEvalExecution,
 } from '../eval-case-handlers';
 
+const VALID_INPUTS = JSON.stringify({
+  inputs: [{ kind: 'text_message', text: 'Add a mobile view.' }],
+});
+
 const projected = (
   handler: string,
   consumer: string,
@@ -12,6 +16,7 @@ const projected = (
   name: 'A case',
   ...(status ? { status } : {}),
   sections: [
+    { key: 'inputs', content: VALID_INPUTS },
     { key: 'handler', content: handler },
     { key: 'consumerHandler', content: consumer },
   ],
@@ -30,6 +35,7 @@ const coding = (overrides: Record<string, unknown> = {}) =>
 const withCoding = (handler: string, content?: string) => ({
   name: 'A case',
   sections: [
+    { key: 'inputs', content: VALID_INPUTS },
     { key: 'handler', content: handler },
     { key: 'consumerHandler', content: '' },
     ...(content === undefined ? [] : [{ key: 'coding', content }]),
@@ -48,6 +54,29 @@ const serviceExists = async (id: string) => id === SERVICE;
 const mockupExists = async (id: string) => id === MOCKUP;
 
 describe('assertApprovedEvalCaseHandlers', () => {
+  it.each([
+    ['missing', undefined],
+    ['empty', '{"inputs":[]}'],
+    ['an unknown kind', '{"inputs":[{"kind":"audio","text":"x"}]}'],
+  ])('rejects a case whose Inputs section is %s', async (_name, content) => {
+    const sections = projected('entity_conversation', '').sections.filter(
+      (section) => section.key !== 'inputs',
+    );
+    await expect(
+      assertApprovedEvalCaseHandlers(
+        {
+          name: 'A case',
+          sections: [
+            ...sections,
+            ...(content === undefined ? [] : [{ key: 'inputs', content }]),
+          ],
+        } as never,
+        serviceExists,
+        mockupExists,
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
   it.each([
     ['an entity conversation case', 'entity_conversation', ''],
     [

@@ -8042,9 +8042,8 @@
             "type": "string"
           }
         },
-        "initiatingRequest": {
-          "type": "string",
-          "description": "The single request that starts the case."
+        "inputs": {
+          "$ref": "#/definitions/EvalCaseInputs"
         },
         "targetHandler": {
           "$ref": "#/definitions/EvalTargetHandlerKey"
@@ -8056,10 +8055,51 @@
       },
       "required": [
         "situation",
-        "initiatingRequest",
+        "inputs",
         "targetHandler"
       ],
-      "description": "Recorded case context. Only the initiating request and focal entity reach the target; situation and supporting items are reviewer and judge context."
+      "description": "Recorded case context. Only the inputs and focal entity reach the target; situation and supporting items are reviewer and judge context. Runs recorded before inputs existed carry `initiatingRequest` instead and are read as a one-message list."
+    },
+    "EvalCaseInputs": {
+      "type": "object",
+      "properties": {
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/EvalCaseTextMessageInput"
+          }
+        }
+      },
+      "required": [
+        "inputs"
+      ],
+      "description": "Inputs section of an Eval Case: the ordered inputs that start and drive the case. Never holds situation, expectations, checks or rubric. Checked at authoring, approval and launch, and recorded with each run."
+    },
+    "EvalCaseTextMessageInput": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/EvalCaseTextMessageInputKindEnum"
+        },
+        "text": {
+          "type": "string",
+          "description": "The message text, with any inline entity mentions as written."
+        }
+      },
+      "required": [
+        "kind",
+        "text"
+      ],
+      "description": "A fixed user message, worded as the user would type it."
+    },
+    "EvalCaseTextMessageInputKindEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "text_message"
+        },
+        {}
+      ]
     },
     "EvalConsumerHandlerKey": {
       "anyOf": [

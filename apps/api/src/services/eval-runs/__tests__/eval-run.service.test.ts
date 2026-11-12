@@ -30,7 +30,11 @@ const caseRecord = {
   name: 'A case',
   sections: [
     { key: 'situation', materializedMarkdown: 'Situation' },
-    { key: 'request', materializedMarkdown: 'Do the thing' },
+    {
+      key: 'inputs',
+      materializedMarkdown:
+        '{"inputs":[{"kind":"text_message","text":"Do the thing"}]}',
+    },
     { key: 'handler', materializedMarkdown: 'entity_conversation' },
     {
       key: 'items',
@@ -800,7 +804,15 @@ describe('EvalRunService.assertStartRun', () => {
   const CONVERSATION = 'conversation-1';
   const SETTINGS = { maxConcurrentAttempts: 3, attemptTimeLimitSeconds: 600 };
   const attemptId = '88888888-8888-4888-8888-888888888888';
-  const caseInput = { id: 'case-input-1', title: 'A case' };
+  const caseInput = {
+    id: 'case-input-1',
+    title: 'A case',
+    target: {
+      situation: 'Situation',
+      inputs: { inputs: [{ kind: 'text_message', text: 'Do the thing' }] },
+      targetHandler: 'entity_conversation',
+    },
+  };
   const runRow = {
     id: 'run-1',
     projectId: PROJECT,

@@ -1,3 +1,4 @@
+import { oneMessageInputs } from './eval-case-inputs.fixture';
 import { describe, expect, it, vi } from 'vitest';
 import { LocalPromptType, type LocalRunEvalPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import type { ProceduralRunContext } from '../prompt-type-handler';
@@ -66,7 +67,7 @@ const attempt = {
     title: 'Finds the stale requirement',
     target: {
       situation: 'A requirement no longer matches the shipped behaviour.',
-      initiatingRequest: 'Find what is out of date.',
+      inputs: oneMessageInputs('Find what is out of date.'),
       targetHandler: 'agent_search' as const,
     },
     grading: {
@@ -171,7 +172,7 @@ describe('runEvalHandler', () => {
               searchScopes.push(options.searchScope);
               launches.push({
                 handlerId: recorded.caseInput.target.targetHandler,
-                payload: { userMessage: recorded.caseInput.target.initiatingRequest },
+                payload: { userMessage: recorded.caseInput.target.inputs.inputs[0]!.text },
                 request: {},
               });
               return Promise.resolve({

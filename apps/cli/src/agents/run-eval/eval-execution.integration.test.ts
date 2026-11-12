@@ -1,3 +1,4 @@
+import { oneMessageInputs } from './eval-case-inputs.fixture';
 import { MAX_RECORDED_ARGUMENT_CHARS } from './eval-recorded-tool-calls';
 import { SessionTokenUsageReader } from '../../provider-usage/session-token-usage';
 import type { TokenUsage } from '../../session/types';
@@ -293,7 +294,7 @@ const attempt = (
         : {}),
       focalItemId: ENTITY.entityId,
       focalItemType: options.focalItemType ?? 'TASK',
-      initiatingRequest: 'Review this item.',
+      inputs: oneMessageInputs('Review this item.'),
       situation: 'SECRET-SITUATION',
     },
     grading: { checks: [], rubric: [], expectations: 'SECRET-EXPECTATIONS' },

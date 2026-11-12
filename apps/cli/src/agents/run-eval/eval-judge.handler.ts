@@ -9,6 +9,7 @@ import {
   type EvalRunCaseInput,
 } from '@hey-hey/contracts/api/models';
 import type { PromptTypeHandler } from '../prompt-type-handler';
+import { finalEvalInputText } from './eval-targets';
 import { toolCallsEvidenceText } from './eval-recorded-tool-calls';
 
 export const EVAL_JUDGE_HANDLER_ID = 'eval_judge';
@@ -166,7 +167,7 @@ const buildEvalJudgePrompt = (payload: EvalJudgePayload): string => {
     '## Case',
     `Title: ${caseInput.title}`,
     `Situation: ${target.situation}`,
-    `Request the agent received: ${target.initiatingRequest}`,
+    `Request the agent received: ${finalEvalInputText(target)}`,
     ...(grading.expectations
       ? ['', '## Expected and forbidden behaviour', grading.expectations]
       : []),

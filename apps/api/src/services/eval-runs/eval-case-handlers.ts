@@ -5,12 +5,14 @@ import {
   EvalTargetHandlerKey,
   WorkStatus,
   type EvalCaseCoding,
+  type EvalCaseInputs,
   type EvalCaseTarget,
   type EvalHandlerConfig,
   type EvalResolvedExecution,
   type ProjectedWorkItem,
 } from '@hey-hey/contracts/api/models';
 import { validateEvalCaseCodingContent } from '../tasks/eval-case-coding.validator';
+import { validateEvalCaseInputsContent } from '../tasks/eval-case-inputs.validator';
 
 const TARGET_HANDLER_KEYS: readonly string[] =
   Object.values(EvalTargetHandlerKey);
@@ -51,6 +53,10 @@ export async function assertApprovedEvalCaseHandlers(
     return;
   }
 
+  resolveEvalCaseInputs(
+    root.name,
+    root.sections.find((section) => section.key === 'inputs')?.content,
+  );
   const handlers = resolveEvalCaseHandlers(
     root.name,
     sectionText(root.sections, 'handler'),
@@ -156,6 +162,33 @@ export function resolveEvalCaseHandlers(
     );
   }
   return { targetHandler: handler, consumerHandler: consumer };
+}
+
+/**
+ * The Inputs section must be present and well formed. Shared by approval and
+ * launch; returns the validated inputs object.
+ */
+export function resolveEvalCaseInputs(
+  caseName: string,
+  content: unknown,
+): EvalCaseInputs {
+  const isBlank =
+    content === undefined ||
+    content === null ||
+    (typeof content === 'string' && content.trim() === '');
+  if (isBlank) {
+    throw new BadRequestException(
+      `Eval case "${caseName}" cannot run: its Inputs section is missing.`,
+    );
+  }
+
+  const result = validateEvalCaseInputsContent(content);
+  if (!result.success) {
+    throw new BadRequestException(
+      `Eval case "${caseName}" cannot run: its Inputs section is invalid (${result.message}).`,
+    );
+  }
+  return result.value;
 }
 
 /** Whether a Service with this id belongs to the case's project. */

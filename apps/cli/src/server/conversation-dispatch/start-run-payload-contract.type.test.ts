@@ -1,3 +1,4 @@
+import { oneMessageInputs } from '../../agents/run-eval/eval-case-inputs.fixture';
 import { describe, expect, it } from 'vitest';
 import type {
   RunContextMetadata,
@@ -282,7 +283,7 @@ describe('StartRunPromptPayload compile-time contract', () => {
             title: 'Recognises a stale requirement',
             target: {
               situation: 'A requirement no longer matches the shipped behaviour.',
-              initiatingRequest: 'Update the feature.',
+              inputs: oneMessageInputs('Update the feature.'),
               targetHandler: 'entity_conversation',
             },
             grading: { checks: [], rubric: [] },

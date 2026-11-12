@@ -1,3 +1,4 @@
+import { oneMessageInputs } from './eval-case-inputs.fixture';
 import { describe, expect, it } from 'vitest';
 import type { EvalRunCaseInput } from '@hey-hey/contracts/api/models';
 import { evalJudgeHandler, parseEvalJudgeOutput } from './eval-judge.handler';
@@ -8,7 +9,7 @@ const caseInput: EvalRunCaseInput = {
   title: 'Mockup maintenance',
   target: {
     situation: 'The feature changed.',
-    initiatingRequest: 'Add a filter.',
+    inputs: oneMessageInputs('Add a filter.'),
     targetHandler: 'entity_conversation',
   },
   grading: {

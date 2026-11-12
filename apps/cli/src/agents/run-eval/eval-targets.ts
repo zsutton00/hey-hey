@@ -19,3 +19,12 @@ export const resolveEvalTargetEntity = (target: EvalCaseTarget): RunEntityRefere
 
 export const EVAL_TARGET_HANDLER_IDS: readonly string[] = Object.values(EvalTargetHandlerKey);
 export const EVAL_CONSUMER_HANDLER_IDS: readonly string[] = Object.values(EvalConsumerHandlerKey);
+
+/**
+ * The text of the one message a case runs and is judged on. Multi-message
+ * execution belongs to the multi-turn work; until then the final input is the
+ * only one that matters, and a one-message case has no other. The API reads
+ * runs recorded before inputs existed as a one-message list.
+ */
+export const finalEvalInputText = (target: EvalCaseTarget): string =>
+  target.inputs.inputs[target.inputs.inputs.length - 1]!.text;

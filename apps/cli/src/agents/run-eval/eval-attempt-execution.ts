@@ -20,7 +20,7 @@ import { recordToolCalls, UNAVAILABLE_TOOL_CALLS } from './eval-recorded-tool-ca
 import { assessedOutputText, codeChangesOutputText } from './eval-assessed-output';
 import { captureChangesSinceCommit } from '../../git/diff';
 import { buildEvalFirstTurn } from './eval-handler-launch';
-import { resolveEvalTargetEntity } from './eval-targets';
+import { finalEvalInputText, resolveEvalTargetEntity } from './eval-targets';
 import { z } from 'zod';
 import { LocalReasoningEffort } from '../../shared/agent-bridge-contract/contract';
 
@@ -132,7 +132,7 @@ export class EvalAttemptExecution {
       entityType: 'PROJECT' as const,
       entityId: coordinator.contextMetadata.projectId,
     };
-    const firstTurn = buildEvalFirstTurn(execution, target.initiatingRequest, entity);
+    const firstTurn = buildEvalFirstTurn(execution, finalEvalInputText(target), entity);
     // Research alone starts through the consumer's Project Assistant bootstrap,
     // which only exists while Project Assistant is enabled.
     const projectAssistantRuns =

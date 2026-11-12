@@ -46,7 +46,10 @@ import type {
 import { AgentSessionService } from '../agent-session.service';
 import { ReportService } from '../reports/report.service';
 import { WORK_ITEM_TYPE_KEYS } from '../tasks/work-item-type-keys';
-import { toEvalRunCaseInput } from './eval-case-input.mapper';
+import {
+  readEvalCaseTarget,
+  toEvalRunCaseInput,
+} from './eval-case-input.mapper';
 import {
   assertEvalCaseMockupExists,
   assertEvalCaseServiceExists,
@@ -627,7 +630,10 @@ export class EvalRunService {
       select: { id: true, payload: true },
     });
     const caseInputs = new Map<string, EvalRunCaseInput>(
-      payload.cases.map((caseInput) => [caseInput.id, caseInput]),
+      payload.cases.map((caseInput) => [
+        caseInput.id,
+        { ...caseInput, target: readEvalCaseTarget(caseInput.target) },
+      ]),
     );
     return {
       runId: run.id,

@@ -1,3 +1,4 @@
+import { oneMessageInputs } from '../agents/run-eval/eval-case-inputs.fixture';
 import { EvalAttemptExecution } from '../agents/run-eval/eval-attempt-execution';
 import type { AgenticSession } from '../session/types';
 import type { EvalRecordedAttempt } from '@hey-hey/contracts/api/models';
@@ -642,7 +643,7 @@ describe('ordinary Run output boundaries', () => {
                 targetHandler: 'entity_conversation',
                 focalItemId: ENTITY.entityId,
                 focalItemType: 'TASK',
-                initiatingRequest: 'Review this item.',
+                inputs: oneMessageInputs('Review this item.'),
                 situation: 'SECRET-SITUATION',
               },
               grading: { checks: [], rubric: [], expectations: 'SECRET-EXPECTATIONS' },

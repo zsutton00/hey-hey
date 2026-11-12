@@ -1,3 +1,4 @@
+import { oneMessageInputs } from '../agents/run-eval/eval-case-inputs.fixture';
 import { evalJudgeHandler, parseEvalJudgeOutput } from '../agents/run-eval/eval-judge.handler';
 import type { EvalRunCaseInput } from '@hey-hey/contracts/api/models';
 import {
@@ -241,7 +242,7 @@ describe('SubAgent — unified runtime contract', () => {
         target: {
           targetHandler: 'entity_conversation',
           situation: 'Recorded situation',
-          initiatingRequest: 'Recorded request',
+          inputs: oneMessageInputs('Recorded request'),
         },
         grading: { checks: [], rubric: [] },
       };
@@ -371,7 +372,7 @@ describe('SubAgent — unified runtime contract', () => {
             target: {
               targetHandler: 'entity_conversation',
               situation: 'Situation',
-              initiatingRequest: 'Request',
+              inputs: oneMessageInputs('Request'),
             },
             grading: { checks: [], rubric: [] },
           },

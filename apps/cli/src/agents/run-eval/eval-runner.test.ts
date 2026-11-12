@@ -1,3 +1,4 @@
+import { oneMessageInputs } from './eval-case-inputs.fixture';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { EvalRecordedAttempt } from '@hey-hey/contracts/api/models';
 import {
@@ -22,7 +23,7 @@ const makeAttempt = (id: string): EvalRecordedAttempt => ({
     id: `case-${id}`,
     evalCaseId: 'eval-case',
     title: id,
-    target: { situation: 's', initiatingRequest: 'r', targetHandler: 'agent_search' },
+    target: { situation: 's', inputs: oneMessageInputs('r'), targetHandler: 'agent_search' },
     grading: { checks: [], rubric: [] },
   },
 });

@@ -11,6 +11,7 @@ import { normalizeMentionTypeAlias } from '../mentions/mention-type-aliases';
 import {
   resolveEvalCaseCoding,
   resolveEvalCaseHandlers,
+  resolveEvalCaseInputs,
 } from './eval-case-handlers';
 
 export type EvalCaseRecord = {
@@ -108,7 +109,9 @@ function parseRubric(markdown: string): EvalRubricDimension[] {
 /**
  * Records an approved Eval Case exactly as it stands at launch. The target
  * context includes reviewer-only situation and supporting items; the launch
- * sends only the request and focal entity to the tested handler.
+ * sends only the inputs and focal entity to the tested handler. The stored
+ * Inputs text is carried verbatim, so mentions in a message reach the tested
+ * agent exactly as they did from the former Markdown request.
  */
 export function toEvalRunCaseInput(record: EvalCaseRecord): EvalRunCaseInput {
   const section = (key: string): string =>
@@ -117,13 +120,11 @@ export function toEvalRunCaseInput(record: EvalCaseRecord): EvalRunCaseInput {
       ?.materializedMarkdown?.trim() ?? '';
 
   const situation = section('situation');
-  const initiatingRequest =
-    record.sections.find((candidate) => candidate.key === 'request')
-      ?.materializedMarkdown ?? '';
+  const inputsContent = section('inputs');
   const handler = section('handler');
   const missing = [
     ['situation', situation],
-    ['request', initiatingRequest],
+    ['inputs', inputsContent],
     ['handler', handler],
   ]
     .filter(([, value]) => !value?.trim())
@@ -133,6 +134,7 @@ export function toEvalRunCaseInput(record: EvalCaseRecord): EvalRunCaseInput {
       `Eval case "${record.name}" cannot run: missing ${missing.join(', ')}`,
     );
   }
+  const inputs = resolveEvalCaseInputs(record.name, inputsContent);
   const handlers = resolveEvalCaseHandlers(
     record.name,
     handler,
@@ -154,7 +156,7 @@ export function toEvalRunCaseInput(record: EvalCaseRecord): EvalRunCaseInput {
     target: {
       situation,
       ...items,
-      initiatingRequest,
+      inputs,
       ...handlers,
     },
     grading: {
@@ -163,5 +165,34 @@ export function toEvalRunCaseInput(record: EvalCaseRecord): EvalRunCaseInput {
       rubric: parseRubric(section('rubric')),
     },
     ...(coding ? { coding } : {}),
+  };
+}
+
+/** A target recorded before Eval Case inputs existed. */
+type LegacyEvalCaseTarget = Omit<EvalCaseTarget, 'inputs'> & {
+  initiatingRequest: string;
+};
+
+function isLegacyEvalCaseTarget(
+  target: EvalCaseTarget | LegacyEvalCaseTarget,
+): target is LegacyEvalCaseTarget {
+  return !('inputs' in target) && 'initiatingRequest' in target;
+}
+
+/**
+ * Reads a recorded run's case target. A target recorded before inputs existed
+ * carries only `initiatingRequest` and reads as a one-message list.
+ */
+export function readEvalCaseTarget(
+  target: EvalCaseTarget | LegacyEvalCaseTarget,
+): EvalCaseTarget {
+  if (!isLegacyEvalCaseTarget(target)) {
+    return target;
+  }
+
+  const { initiatingRequest, ...rest } = target;
+  return {
+    ...rest,
+    inputs: { inputs: [{ kind: 'text_message', text: initiatingRequest }] },
   };
 }

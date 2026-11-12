@@ -1705,12 +1705,8 @@ export const REPORT_SCHEMAS = {
                   target: {
                     type: 'object',
                     description:
-                      'Recorded case context. Only the initiating request and focal entity reach the target; situation and supporting items are reviewer and judge context.',
-                    required: [
-                      'situation',
-                      'initiatingRequest',
-                      'targetHandler',
-                    ],
+                      'Recorded case context. Only the inputs and focal entity reach the target; situation and supporting items are reviewer and judge context. Runs recorded before inputs existed carry `initiatingRequest` instead and are read as a one-message list.',
+                    required: ['situation', 'inputs', 'targetHandler'],
                     properties: {
                       situation: {
                         type: 'string',
@@ -1761,9 +1757,49 @@ export const REPORT_SCHEMAS = {
                           format: 'uuid',
                         },
                       },
-                      initiatingRequest: {
-                        type: 'string',
-                        description: 'The single request that starts the case.',
+                      inputs: {
+                        type: 'object',
+                        additionalProperties: false,
+                        description:
+                          'Inputs section of an Eval Case: the ordered inputs that start and drive the case. Never holds situation, expectations, checks or rubric. Checked at authoring, approval and launch, and recorded with each run.\n',
+                        required: ['inputs'],
+                        properties: {
+                          inputs: {
+                            type: 'array',
+                            minItems: 1,
+                            items: {
+                              description:
+                                'One input of an Eval Case. `kind` selects the member.',
+                              oneOf: [
+                                {
+                                  type: 'object',
+                                  additionalProperties: false,
+                                  description:
+                                    'A fixed user message, worded as the user would type it.',
+                                  required: ['kind', 'text'],
+                                  properties: {
+                                    kind: {
+                                      type: 'string',
+                                      enum: ['text_message'],
+                                    },
+                                    text: {
+                                      type: 'string',
+                                      minLength: 1,
+                                      description:
+                                        'The message text, with any inline entity mentions as written.',
+                                    },
+                                  },
+                                },
+                              ],
+                              discriminator: {
+                                propertyName: 'kind',
+                                mapping: {
+                                  text_message: '#/EvalCaseTextMessageInput',
+                                },
+                              },
+                            },
+                          },
+                        },
                       },
                       targetHandler: {
                         type: 'string',
