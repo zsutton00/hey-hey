@@ -380,7 +380,10 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
   private readonly logger: ServerLogger;
   private readonly providerUsageCapture: ProviderUsageCapture;
 
+  public readonly executionRecorder: ExecutionRecorder | undefined;
+
   public constructor(dependencies: CodexAgentSessionRunnerDependencies) {
+    this.executionRecorder = dependencies.executionRecorder;
     this.runStore = dependencies.runStore;
     this.repoStore = dependencies.repoStore;
     this.localAgentEndpoint = dependencies.localAgentEndpoint;

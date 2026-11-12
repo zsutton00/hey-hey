@@ -1,3 +1,4 @@
+import type { ExecutionRecorder } from './execution-recorder/execution-recorder';
 import type { RunAttachmentReference } from '@hey-hey/contracts/agent-bridge';
 import type { BrowserMcpMount } from '../browser-tools/browser-mcp-access';
 import type { AgenticSession } from '../../session/index';
@@ -241,6 +242,9 @@ export type QuestionAnswerDispatchResult =
   | { delivered: false; outcome: 'stale'; reason: 'request_not_found' };
 
 export interface AgentSessionRunner {
+  /** Hook evidence owned by this provider runner, when precise tracking is enabled. */
+  readonly executionRecorder?: ExecutionRecorder;
+
   runPrompt(args: RunPromptArgs): Promise<AgentRunResult>;
   listSkills?(args: ListSkillsArgs): Promise<AgentSkillCatalog>;
   resumeSession(args: ResumeArgs): Promise<AgentRunResult>;

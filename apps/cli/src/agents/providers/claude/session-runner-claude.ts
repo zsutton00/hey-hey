@@ -290,7 +290,10 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
   private readonly agentOutputOwner: Run | undefined;
   private readonly logger: ServerLogger;
 
+  public readonly executionRecorder: ExecutionRecorder | undefined;
+
   public constructor(dependencies: ClaudeAgentSessionRunnerDependencies) {
+    this.executionRecorder = dependencies.executionRecorder;
     this.runStore = dependencies.runStore;
     this.repoStore = dependencies.repoStore;
     this.localAgentEndpoint = dependencies.localAgentEndpoint;
