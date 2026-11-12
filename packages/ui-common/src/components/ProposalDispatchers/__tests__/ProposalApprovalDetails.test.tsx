@@ -9,6 +9,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -121,21 +122,26 @@ beforeEach(() => {
 });
 
 describe("ordinary approval review", () => {
-  it("renders the API rule, counts, proposer credit and combined-edit reason with an expandable explanation", () => {
+  it("shows API counts with View Rule and keeps the rule out of the summary until opened", async () => {
+    const user = userEvent.setup();
     render(<ProposalApprovalDetails proposal={proposal()} />);
-    expect(screen.getByText("1 of 2 human approvals")).toBeVisible();
+    expect(screen.getByText("1 of 2 user approvals")).toBeVisible();
+    expect(screen.queryByText(/Why this rule applied/)).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    const trigger = screen.getByRole("button", { name: "View Rule" });
+    await user.click(trigger);
+    const dialog = await screen.findByRole("dialog");
     expect(
-      screen.getByText("MARKETING · User · Update · Content changes"),
+      within(dialog).getByText("MARKETING · User · Update · Content changes"),
     ).toBeVisible();
-    expect(screen.getByText("Project configuration")).toBeVisible();
-    expect(screen.getByText(/1 approval credited/)).toBeVisible();
+    expect(within(dialog).getByText("Project configuration")).toBeVisible();
+    expect(within(dialog).getByText(/1 approval credited/)).toBeVisible();
     expect(
-      screen.getByText(/Status and content changed together/),
+      within(dialog).getByText(/Status and content changed together/),
     ).toBeVisible();
-    fireEvent.click(screen.getByTestId("proposal-approval-details-toggle"));
-    expect(
-      screen.getByText("MARKETING · User · Update · Content changes"),
-    ).not.toBeVisible();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(trigger).toHaveFocus();
   });
 
   it("shows captured immediate history and explicit unavailable legacy history", () => {
@@ -154,7 +160,6 @@ describe("ordinary approval review", () => {
     );
     expect(screen.getByText("Applied immediately")).toBeVisible();
     expect(screen.getByText(/audit record/)).toBeVisible();
-    expect(screen.getByText(/Later settings changes/)).toBeVisible();
     rerender(
       <ProposalApprovalDetails
         proposal={proposal({
@@ -176,7 +181,7 @@ describe("ordinary approval review", () => {
     expect(
       screen.getByText(/Historical approval details are unavailable/),
     ).toBeVisible();
-    expect(screen.queryByText("Project configuration")).toBeNull();
+    expect(screen.queryByRole("button", { name: "View Rule" })).toBeNull();
     expect(screen.queryByRole("progressbar")).toBeNull();
     const unknown = getApprovalProgress(null, []);
     expect(unknown.isMet).toBe(false);
@@ -185,15 +190,17 @@ describe("ordinary approval review", () => {
     );
   });
 
-  it("exposes a keyboard-focusable native disclosure, labelled progress and fixed-rule explanation", async () => {
+  it("labels progress and explains fixed rules and captured evidence in the modal", async () => {
     const user = userEvent.setup();
     render(
       <ProposalApprovalDetails
         proposal={proposal({
+          status: "APPROVED",
           requiredApprovals: 1,
           approvals: [],
           approvalExplanation: {
             ...explanation,
+            evidence: "CAPTURED",
             source: "FIXED",
             creditedProposerApprovals: 0,
             requirement: { category: "FIXED_REQUIRED", requiredApprovals: 1 },
@@ -202,19 +209,20 @@ describe("ordinary approval review", () => {
       />,
     );
     expect(
-      screen.getByRole("progressbar", { name: "0 of 1 human approvals" }),
+      screen.getByRole("progressbar", { name: "0 of 1 user approvals" }),
     ).toHaveAttribute("max", "1");
-    await user.tab();
+    await user.click(screen.getByRole("button", { name: "View Rule" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Fixed rule")).toBeVisible();
     expect(
-      screen.getByTestId("proposal-approval-details-toggle"),
-    ).toHaveFocus();
-    expect(screen.getByText("Fixed rule")).toBeVisible();
-    expect(screen.getByText(/cannot change this fixed rule/)).toBeVisible();
-    expect(
-      screen.getByText("No human proposer approval credited."),
+      within(dialog).getByText(/cannot change this fixed rule/),
     ).toBeVisible();
-    await user.click(screen.getByTestId("proposal-approval-details-toggle"));
-    expect(screen.getByText("Fixed rule")).not.toBeVisible();
+    expect(within(dialog).getByText(/Later settings changes/)).toBeVisible();
+    expect(
+      within(dialog).getByText("No human proposer approval credited."),
+    ).toBeVisible();
+    await user.click(within(dialog).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("uses current API eligibility for approval while preserving terminal retries", () => {

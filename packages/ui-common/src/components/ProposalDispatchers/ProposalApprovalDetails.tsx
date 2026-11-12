@@ -1,5 +1,13 @@
-import React, { createContext, useContext } from "react";
-import { Box, Stack, Typography } from "@mui/material";
+import React, { createContext, useContext, useState } from "react";
+import {
+  Box,
+  Button,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Stack,
+  Typography,
+} from "@mui/material";
 import type {
   ProposalApprovalExplanation,
   ProposalResponseDto,
@@ -10,6 +18,7 @@ import {
   approvalSourceLabel,
   matchedApprovalConditions,
 } from "./approvalExplanationPresentation";
+import { FunctionalDialog } from "../Modals";
 import type { ProposalRenderMode } from "./types";
 import { ProposalPresentationContext } from "./ProposalPresentationContext";
 
@@ -65,6 +74,8 @@ function ApprovalEvidenceDetails({
   const combinedEdit =
     explanation.changedFields?.includes("status") &&
     explanation.changedFieldClassification?.contentChange;
+  const [ruleOpen, setRuleOpen] = useState(false);
+  const approvalsLabel = `${progress.approvalCount} of ${proposal.requiredApprovals} user approvals`;
   return (
     <Box
       component="section"
@@ -73,25 +84,33 @@ function ApprovalEvidenceDetails({
       sx={{ p: 2, borderTop: 1, borderColor: "divider" }}
     >
       <Stack spacing={1}>
-        {requirement?.category === "IMMEDIATE" ? (
-          <Typography variant="subtitle2">
-            {explanation.evidence === "CAPTURED" && applied
-              ? "Applied immediately"
-              : "No human approval required"}
-          </Typography>
-        ) : (
-          <Typography variant="subtitle2">
-            {progress.approvalCount} of {proposal.requiredApprovals} human
-            approvals
-          </Typography>
-        )}
+        <Stack direction="row" spacing={1} alignItems="center">
+          {requirement?.category === "IMMEDIATE" ? (
+            <Typography variant="subtitle2">
+              {explanation.evidence === "CAPTURED" && applied
+                ? "Applied immediately"
+                : "No user approval required"}
+            </Typography>
+          ) : (
+            <Typography variant="subtitle2">{approvalsLabel}</Typography>
+          )}
+          <Button
+            variant="text"
+            size="small"
+            sx={{ minWidth: 0, textTransform: "none" }}
+            data-testid="proposal-view-rule"
+            onClick={() => setRuleOpen(true)}
+          >
+            View Rule
+          </Button>
+        </Stack>
         {proposal.requiredApprovals !== null &&
           proposal.requiredApprovals > 0 && (
             <Box
               component="progress"
               value={progress.approvalCount}
               max={proposal.requiredApprovals}
-              aria-label={`${progress.approvalCount} of ${proposal.requiredApprovals} human approvals`}
+              aria-label={approvalsLabel}
               sx={{ width: "100%" }}
             />
           )}
@@ -100,24 +119,18 @@ function ApprovalEvidenceDetails({
             This proposal remains the audit record of the change.
           </Typography>
         )}
-        <Box component="details" open>
-          <Box
-            component="summary"
-            tabIndex={0}
-            data-testid="proposal-approval-details-toggle"
-            sx={{
-              cursor: "pointer",
-              typography: "body2",
-              fontWeight: "bold",
-              "&:focus-visible": {
-                outline: "2px solid",
-                outlineColor: "primary.main",
-                outlineOffset: 3,
-              },
-            }}
-          >
-            Why this rule applied
-          </Box>
+      </Stack>
+      <FunctionalDialog
+        open={ruleOpen}
+        onClose={() => setRuleOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        aria-labelledby="proposal-approval-rule-title"
+      >
+        <DialogTitle id="proposal-approval-rule-title">
+          Approval rule
+        </DialogTitle>
+        <DialogContent data-testid="proposal-approval-rule">
           <Box
             component="dl"
             sx={{
@@ -156,33 +169,38 @@ function ApprovalEvidenceDetails({
                 : "No human proposer approval credited."}
             </dd>
           </Box>
-          {combinedEdit && (
-            <Typography variant="body2">
-              Status and content changed together, so the status-only rule does
-              not match.
-            </Typography>
-          )}
-          {explanation.source === "FIXED" && (
-            <Typography variant="body2">
-              Project configuration cannot change this fixed rule.
-            </Typography>
-          )}
-        </Box>
-        {explanation.evidence === "LIVE" ? (
-          <Typography variant="body2" color="text.secondary">
-            {explanation.viewerEligibility.eligibleToApprove
-              ? "You are eligible to approve this change."
-              : "You cannot add an approval to this change."}{" "}
-            Pending reviews use the effective settings on their next read or
-            decision.
-          </Typography>
-        ) : (
-          <Typography variant="body2" color="text.secondary">
-            Decision evidence retained in history. Later settings changes do not
-            alter this explanation.
-          </Typography>
-        )}
-      </Stack>
+          <Stack spacing={1}>
+            {combinedEdit && (
+              <Typography variant="body2">
+                Status and content changed together, so the status-only rule
+                does not match.
+              </Typography>
+            )}
+            {explanation.source === "FIXED" && (
+              <Typography variant="body2">
+                Project configuration cannot change this fixed rule.
+              </Typography>
+            )}
+            {explanation.evidence === "LIVE" ? (
+              <Typography variant="body2" color="text.secondary">
+                {explanation.viewerEligibility.eligibleToApprove
+                  ? "You are eligible to approve this change."
+                  : "You cannot add an approval to this change."}{" "}
+                Pending reviews use the effective settings on their next read or
+                decision.
+              </Typography>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                Decision evidence retained in history. Later settings changes do
+                not alter this explanation.
+              </Typography>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRuleOpen(false)}>Close</Button>
+        </DialogActions>
+      </FunctionalDialog>
     </Box>
   );
 }
