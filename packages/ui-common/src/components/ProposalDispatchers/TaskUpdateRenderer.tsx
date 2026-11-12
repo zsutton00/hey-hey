@@ -532,36 +532,32 @@ export const TaskUpdateRenderer: React.FC<{
           {isMockupReview && (
             <Stack spacing={1.5} data-testid="mockup-proposal-screen-first">
               {htmlCssSections.map((section) => (
-                <Stack key={section.key} spacing={0.5}>
-                  <Typography variant="caption" color="text.secondary">
-                    {section.label}
-                  </Typography>
-                  <HtmlCssSectionRenderer
-                    content={section.proposedValue}
-                    definition={section.definition}
-                    context="inline"
-                    title={`${section.label} proposal preview`}
-                    organizationId={proposal.organizationId}
-                    projectId={proposal.projectId}
-                    mockupSource={{
-                      kind: "proposal",
-                      proposalId: proposal.id,
-                      sectionKey: section.key,
-                    }}
-                  />
-                </Stack>
+                <VisualProposalSectionComparison
+                  key={section.key}
+                  kind="html/css"
+                  label={section.label}
+                  definition={section.definition}
+                  before={section.existingValue}
+                  after={section.proposedValue}
+                  organizationId={proposal.organizationId}
+                  materializedProposalId={section.materializedProposalId}
+                  projectId={proposal.projectId}
+                  proposedMockupSource={{
+                    kind: "proposal",
+                    proposalId: proposal.id,
+                    sectionKey: section.key,
+                  }}
+                />
               ))}
               {structuredMockupSections.map((section) => (
-                <Stack key={section.key} spacing={0.5}>
-                  <Typography variant="caption" color="text.secondary">
-                    {section.label}
-                  </Typography>
-                  <StructuredMockupSectionRenderer
-                    content={section.proposedValue}
-                    definition={section.definition}
-                    context="inline"
-                  />
-                </Stack>
+                <VisualProposalSectionComparison
+                  key={section.key}
+                  kind="structured-mockup"
+                  label={section.label}
+                  definition={section.definition}
+                  before={section.existingValue}
+                  after={section.proposedValue}
+                />
               ))}
             </Stack>
           )}
@@ -617,41 +613,39 @@ export const TaskUpdateRenderer: React.FC<{
                         requirements={structuredRequirementsChange.after}
                       />
                     ) : null}
-                    {!isMockupReview &&
-                      htmlCssSections.map((section) => (
-                        <Stack key={section.key} spacing={0.5}>
-                          <Typography variant="caption" color="text.secondary">
-                            {section.label}
-                          </Typography>
-                          <HtmlCssSectionRenderer
-                            content={section.proposedValue}
-                            definition={section.definition}
-                            context="inline"
-                            title={`${section.label} approved proposal preview`}
-                            organizationId={proposal.organizationId}
-                            materializedProposalId={proposal.id}
-                            projectId={proposal.projectId}
-                            mockupSource={{
-                              kind: "proposal",
-                              proposalId: proposal.id,
-                              sectionKey: section.key,
-                            }}
-                          />
-                        </Stack>
-                      ))}
-                    {!isMockupReview &&
-                      structuredMockupSections.map((section) => (
-                        <Stack key={section.key} spacing={0.5}>
-                          <Typography variant="caption" color="text.secondary">
-                            {section.label}
-                          </Typography>
-                          <StructuredMockupSectionRenderer
-                            content={section.proposedValue}
-                            definition={section.definition}
-                            context="inline"
-                          />
-                        </Stack>
-                      ))}
+                    {htmlCssSections.map((section) => (
+                      <Stack key={section.key} spacing={0.5}>
+                        <Typography variant="caption" color="text.secondary">
+                          {section.label}
+                        </Typography>
+                        <HtmlCssSectionRenderer
+                          content={section.proposedValue}
+                          definition={section.definition}
+                          context="inline"
+                          title={`${section.label} approved proposal preview`}
+                          organizationId={proposal.organizationId}
+                          materializedProposalId={proposal.id}
+                          projectId={proposal.projectId}
+                          mockupSource={{
+                            kind: "proposal",
+                            proposalId: proposal.id,
+                            sectionKey: section.key,
+                          }}
+                        />
+                      </Stack>
+                    ))}
+                    {structuredMockupSections.map((section) => (
+                      <Stack key={section.key} spacing={0.5}>
+                        <Typography variant="caption" color="text.secondary">
+                          {section.label}
+                        </Typography>
+                        <StructuredMockupSectionRenderer
+                          content={section.proposedValue}
+                          definition={section.definition}
+                          context="inline"
+                        />
+                      </Stack>
+                    ))}
                     {modeFilesSections.map((section) => (
                       <Stack key={section.key} spacing={0.5}>
                         <Typography variant="caption" color="text.secondary">
