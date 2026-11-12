@@ -27,6 +27,8 @@ import type { ApiErrorResponse } from '../models.js';
 // @ts-ignore
 import type { CreateReport201Response } from '../models.js';
 // @ts-ignore
+import type { CreateReport400Response } from '../models.js';
+// @ts-ignore
 import type { CreateReport409Response } from '../models.js';
 // @ts-ignore
 import type { CreateReportDto } from '../models.js';

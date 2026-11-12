@@ -21468,11 +21468,13 @@ paths:
                       data:
                         $ref: "#/components/schemas/CreateReportResponseDto"
         "400":
-          description: Bad request
+          description: Bad request, or a payload that fails its report schema (REPORT_PAYLOAD_INVALID with field-level issues).
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
+                anyOf:
+                  - $ref: "#/components/schemas/CreateReportValidationError"
+                  - $ref: "#/components/schemas/ApiErrorResponse"
         "409":
           description: Attempt already persisted, or another submission conflict.
           content:
@@ -25438,6 +25440,12 @@ components:
       $ref: "../schemas/reports.yaml#/CreateReportCompletedAttempt"
     CreateReportCompletedAttemptError:
       $ref: "../schemas/reports.yaml#/CreateReportCompletedAttemptError"
+    CreateReportValidationIssue:
+      $ref: "../schemas/reports.yaml#/CreateReportValidationIssue"
+    CreateReportValidationFailure:
+      $ref: "../schemas/reports.yaml#/CreateReportValidationFailure"
+    CreateReportValidationError:
+      $ref: "../schemas/reports.yaml#/CreateReportValidationError"
     PlanSubmissionAdmissionRequest:
       $ref: "../schemas/trigger-payloads.yaml#/PlanSubmissionAdmissionRequest"
     PlanSubmissionAdmissionResponse:

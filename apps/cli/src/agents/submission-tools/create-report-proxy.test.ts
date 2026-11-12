@@ -20,6 +20,7 @@ import { SubmissionToolAuth } from './submission-tool-auth';
 import { createTestOAuthClient as createProviderTestOAuthClient } from '../../auth/oauth-client.test-support';
 import { jointDecision } from '../feature-sync/__tests__/feature-sync-decision.fixtures';
 import type { Run } from '../../run/run';
+import { SubmissionToolCorrectableError } from './types';
 import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type {
   ProjectReportCoverage,
@@ -456,6 +457,53 @@ describe('CreateReportProxy', () => {
     await expect(
       proxy.create({ runId: 'r', conversationId: 'c', projectId: 'p', args: {} }),
     ).rejects.toThrow('Platform create_report returned HTTP 400: payload.body: required');
+  });
+
+  it('turns a platform schema rejection into a correctable error naming the report type, fields and causes', async () => {
+    const proxy = new CreateReportProxy({
+      fetchImpl: makeFetch(
+        jsonResponse(
+          {
+            success: false,
+            message:
+              'SNAPSHOT report (schemaVersion 1) is invalid: /summary: missing required property "summary".',
+            statusCode: 400,
+            timestamp: '2026-10-03T06:00:00Z',
+            code: 'REPORT_PAYLOAD_INVALID',
+            data: {
+              reportType: 'SNAPSHOT',
+              schemaVersion: 1,
+              issues: [
+                {
+                  path: '/summary',
+                  keyword: 'required',
+                  message: "must have required property 'summary'",
+                  missingProperty: 'summary',
+                },
+              ],
+            },
+          },
+          400,
+        ),
+      ),
+      auth: makeSubmissionToolAuth('token-with-org:org-1'),
+      apiBaseUrl: 'http://localhost:3000/api/v1',
+      reportEmissionEvents: makeReportEmissionEvents(),
+    });
+
+    const rejected = await proxy
+      .create({ runId: 'r', conversationId: 'c', projectId: 'p', args: {} })
+      .catch((error: unknown) => error);
+
+    expect(rejected).toBeInstanceOf(SubmissionToolCorrectableError);
+    expect((rejected as SubmissionToolCorrectableError).reason).toContain('SNAPSHOT');
+    expect((rejected as SubmissionToolCorrectableError).findings).toEqual([
+      expect.objectContaining({
+        field: '/summary',
+        code: 'required',
+        reason: 'missing required property "summary"',
+      }),
+    ]);
   });
 
   it.each([true, false])(

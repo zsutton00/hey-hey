@@ -25,8 +25,11 @@ const runPayload = {
 const attemptPayload = {
   reportType: 'EVAL_ATTEMPT',
   summary: 'attempt',
-  caseInputId: 'case-input-1',
-  configuration: { id: 'c', target: { provider: 'claude', model: 'opus' } },
+  caseInputId: '55555555-5555-4555-8555-555555555555',
+  configuration: {
+    id: '66666666-6666-4666-8666-666666666666',
+    target: { provider: 'claude', model: 'opus' },
+  },
   status: 'QUEUED',
   measurements: [],
 };
