@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Team settings · Members</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        font-size: 14px;
+        color: #1d1d1f;
+      }
+
+      /* Two panes: fixed nav + content */
+      .shell {
+        display: grid;
+        grid-template-columns: 200px 1fr;
+        min-height: 100vh;
+      }
+
+      .nav {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 20px 12px;
+        border-right: 1px solid #ddd;
+      }
+
+      .nav a {
+        padding: 6px 10px;
+        border-radius: 6px;
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .nav a[aria-current="page"] {
+        background: #eaeaf8;
+        font-weight: 600;
+      }
+
+      .content {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        max-width: 760px;
+        padding: 24px;
+      }
+
+      .content-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .content-header h1 {
+        margin: 0;
+        font-size: 22px;
+      }
+
+      .content-header p {
+        margin: 2px 0 0;
+        color: #6b6b70;
+      }
+
+      .button {
+        padding: 6px 12px;
+        border: 1px solid #c7c7cc;
+        border-radius: 6px;
+        background: #fff;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .button--primary {
+        border-color: #223344;
+        background: #223344;
+        color: #fff;
+      }
+
+      .button--danger {
+        border-color: #c33;
+        background: #c33;
+        color: #fff;
+      }
+
+      .card {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 14px;
+        border: 1px solid #ddd;
+        border-radius: 10px;
+      }
+
+      .card h2 {
+        margin: 0;
+        font-size: 15px;
+      }
+
+      /* Setting row: label + help stacked left, toggle right */
+      .setting {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .setting__text {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .setting__text span {
+        font-size: 12px;
+        color: #6b6b70;
+      }
+
+      .toggle {
+        position: relative;
+        width: 34px;
+        height: 18px;
+        border-radius: 9px;
+        background: #c7c7cc;
+        flex-shrink: 0;
+      }
+
+      .toggle::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: #fff;
+      }
+
+      .toggle[aria-checked="true"] {
+        background: #44aa77;
+      }
+
+      .toggle[aria-checked="true"]::after {
+        left: 18px;
+      }
+
+      .members-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      /* Member row: avatar | name/email | role | remove */
+      .member {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 6px 0;
+        border-top: 1px solid #eee;
+      }
+
+      .avatar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: #dcdce0;
+        font-size: 11px;
+        flex-shrink: 0;
+      }
+
+      .member__identity {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+      }
+
+      .member__identity span {
+        font-size: 12px;
+        color: #6b6b70;
+      }
+
+      .member__remove {
+        border: 0;
+        background: none;
+        color: #a22;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .role-picker {
+        display: flex;
+        gap: 10px;
+        padding: 4px 8px;
+        border: 1px solid #5588cc;
+        border-radius: 6px;
+      }
+
+      .danger-zone {
+        border-color: #dd5555;
+      }
+
+      .danger-zone__row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .danger-zone__row p {
+        margin: 2px 0 0;
+        font-size: 12px;
+        color: #6b6b70;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell" data-hh-id="settings-shell">
+      <nav class="nav" data-hh-id="settings-nav">
+        <a href="#" data-hh-id="nav-general">General</a>
+        <a href="#" aria-current="page" data-hh-id="nav-members">Members</a>
+        <a href="#" data-hh-id="nav-billing">Billing</a>
+        <a href="#" data-hh-id="nav-security">Security</a>
+      </nav>
+
+      <main class="content" data-hh-id="settings-content">
+        <header class="content-header" data-hh-id="content-header">
+          <div data-hh-id="title-block">
+            <h1 data-hh-id="content-title">Members</h1>
+            <p data-hh-id="content-subtitle">
+              Manage who can access the Acme team.
+            </p>
+          </div>
+          <button
+            class="button button--primary"
+            type="button"
+            data-hh-id="invite-member"
+          >
+            Invite member
+          </button>
+        </header>
+
+        <section class="card" data-hh-id="preferences-card">
+          <h2>Preferences</h2>
+          <div class="setting" data-hh-id="setting-row">
+            <div class="setting__text">
+              <strong data-hh-id="setting-label">Allow guests</strong>
+              <span data-hh-id="setting-help"
+                >Guests can view shared projects only.</span
+              >
+            </div>
+            <span
+              class="toggle"
+              role="switch"
+              aria-checked="true"
+              aria-label="Allow guests"
+              data-hh-id="setting-toggle"
+            ></span>
+          </div>
+          <div class="setting">
+            <div class="setting__text">
+              <strong>Require two-factor</strong>
+              <span>Members must enable 2FA before joining.</span>
+            </div>
+            <span
+              class="toggle"
+              role="switch"
+              aria-checked="false"
+              aria-label="Require two-factor"
+            ></span>
+          </div>
+        </section>
+
+        <section class="card" data-hh-id="members-card">
+          <div class="members-header" data-hh-id="members-header">
+            <h2>Members (4)</h2>
+            <input
+              type="search"
+              placeholder="Search members"
+              aria-label="Search members"
+              data-hh-id="member-search"
+            />
+          </div>
+
+          <div class="member" data-hh-id="member-row">
+            <span class="avatar" data-hh-id="member-avatar">AL</span>
+            <div class="member__identity" data-hh-id="member-identity">
+              <strong>Ada Lovelace</strong>
+              <span>ada@acme.io</span>
+            </div>
+            <select aria-label="Role" data-hh-id="member-role">
+              <option>Owner</option>
+            </select>
+            <button
+              class="member__remove"
+              type="button"
+              aria-label="Remove member"
+              data-hh-id="member-remove"
+            >
+              Remove
+            </button>
+          </div>
+
+          <div class="member">
+            <span class="avatar">GH</span>
+            <div class="member__identity">
+              <strong>Grace Hopper</strong><span>grace@acme.io</span>
+            </div>
+            <select aria-label="Role">
+              <option>Admin</option>
+            </select>
+            <button
+              class="member__remove"
+              type="button"
+              aria-label="Remove member"
+            >
+              Remove
+            </button>
+          </div>
+
+          <div class="member" data-hh-id="member-row-editing">
+            <span class="avatar">KJ</span>
+            <div class="member__identity">
+              <strong>Katherine Johnson</strong><span>kj@acme.io</span>
+            </div>
+            <button
+              class="member__remove"
+              type="button"
+              aria-label="Remove member"
+            >
+              Remove
+            </button>
+          </div>
+
+          <div class="member">
+            <span class="avatar">MR</span>
+            <div class="member__identity">
+              <strong>Mae Robinson</strong><span>mae@acme.io</span>
+            </div>
+            <select aria-label="Role">
+              <option>Viewer</option>
+            </select>
+            <button
+              class="member__remove"
+              type="button"
+              aria-label="Remove member"
+            >
+              Remove
+            </button>
+          </div>
+          <div class="member-role-editor">
+            <div
+              class="role-picker"
+              role="radiogroup"
+              aria-label="Role"
+              data-hh-id="role-picker"
+            >
+              <label><input type="radio" name="kj-role" /> Admin</label>
+              <label
+                ><input type="radio" name="kj-role" checked /> Editor</label
+              >
+              <label><input type="radio" name="kj-role" /> Viewer</label>
+            </div>
+            <button class="button" type="button" data-hh-id="role-done">
+              Done
+            </button>
+          </div>
+        </section>
+
+        <section class="card danger-zone" data-hh-id="danger-zone">
+          <div class="danger-zone__row">
+            <div>
+              <strong>Delete team</strong>
+              <p>
+                Permanently removes all projects and members. This cannot be
+                undone.
+              </p>
+            </div>
+            <button
+              class="button button--danger"
+              type="button"
+              data-hh-id="delete-team"
+            >
+              Delete team
+            </button>
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

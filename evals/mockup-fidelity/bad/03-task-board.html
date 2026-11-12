@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sprint 14 board</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        font-size: 13px;
+        color: #1d1d1f;
+      }
+
+      .page {
+        padding: 20px;
+      }
+
+      /* Top bar: breadcrumb | avatar filter | Share, Add task */
+      .top-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+
+      .avatar-filter,
+      .top-bar__actions {
+        display: flex;
+        gap: 6px;
+      }
+
+      .avatar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: #dcdce0;
+        font-size: 10px;
+        flex-shrink: 0;
+      }
+
+      .button {
+        padding: 5px 10px;
+        border: 1px solid #c7c7cc;
+        border-radius: 6px;
+        background: #fff;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .button--primary {
+        border-color: #223344;
+        background: #223344;
+        color: #fff;
+      }
+
+      /* Board: four equal columns, horizontal scroll, never wraps */
+      .board {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(220px, 1fr));
+        gap: 12px;
+        overflow-x: auto;
+      }
+
+      .column {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 8px;
+        border-radius: 10px;
+        background: #f3f3f6;
+      }
+
+      .column__header {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .column__label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .column__label h2 {
+        margin: 0;
+        font-size: 13px;
+      }
+
+      .count {
+        padding: 0 7px;
+        border-radius: 999px;
+        background: #dcdce0;
+        font-size: 11px;
+      }
+
+      .column__add {
+        border: 0;
+        background: none;
+        font-size: 16px;
+        cursor: pointer;
+      }
+
+      .task {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      .task__row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .priority {
+        font-size: 11px;
+        color: #6b6b70;
+      }
+
+      .priority--high {
+        color: #b33;
+        font-weight: 600;
+      }
+
+      .task__key {
+        font-size: 11px;
+        color: #8a8a90;
+      }
+
+      .task__title {
+        margin: 0;
+        font-size: 13px;
+      }
+
+      .tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+
+      .tags span {
+        padding: 1px 6px;
+        border-radius: 999px;
+        background: #eaeaf8;
+        font-size: 10px;
+      }
+
+      .task__meta {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        color: #6b6b70;
+        flex-shrink: 0;
+      }
+
+      .task__blocked {
+        padding: 3px 6px;
+        border-radius: 4px;
+        background: #fbe3e3;
+        color: #a22;
+        font-size: 11px;
+      }
+
+      .task__done-title {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .task__done-title .check {
+        color: #44aa77;
+        font-weight: 700;
+      }
+
+      .task--done .task__title {
+        text-decoration: line-through;
+        color: #8a8a90;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page" data-hh-id="board-page">
+      <header class="top-bar" data-hh-id="top-bar">
+        <nav data-hh-id="breadcrumb">Team / <strong>Sprint 14</strong></nav>
+        <div class="avatar-filter" data-hh-id="avatar-filter">
+          <span class="avatar">AL</span><span class="avatar">GH</span
+          ><span class="avatar">KJ</span><span class="avatar">MR</span>
+        </div>
+        <div class="top-bar__actions">
+          <button class="button" type="button" data-hh-id="share">Share</button>
+          <button
+            class="button button--primary"
+            type="button"
+            data-hh-id="add-task"
+          >
+            + Add task
+          </button>
+        </div>
+      </header>
+
+      <div class="board" data-hh-id="board">
+        <section class="column" data-hh-id="column-todo">
+          <div class="column__header" data-hh-id="column-header">
+            <div class="column__label">
+              <h2 data-hh-id="column-name">To do</h2>
+              <span class="count" data-hh-id="column-count">3</span>
+            </div>
+            <button
+              class="column__add"
+              type="button"
+              aria-label="Add to To do"
+              data-hh-id="column-add"
+            >
+              +
+            </button>
+          </div>
+          <article class="task" data-hh-id="task-card">
+            <div class="task__row" data-hh-id="task-top-row">
+              <span class="priority priority--high" data-hh-id="task-priority"
+                >High</span
+              >
+              <span class="task__key" data-hh-id="task-key">WEB-142</span>
+            </div>
+            <h3 class="task__title" data-hh-id="task-title">
+              Fix checkout redirect loop
+            </h3>
+            <div class="task__row" data-hh-id="task-bottom-row">
+              <div class="tags" data-hh-id="task-tags">
+                <span>Bug</span><span>Payments</span>
+              </div>
+              <div class="task__meta" data-hh-id="task-meta">
+                <span data-hh-id="task-due">Nov 18</span>
+                <span class="avatar" data-hh-id="task-assignee">AL</span>
+              </div>
+            </div>
+          </article>
+          <article class="task">
+            <div class="task__row">
+              <span class="priority">Low</span
+              ><span class="task__key">WEB-150</span>
+            </div>
+            <h3 class="task__title">Update footer links</h3>
+            <div class="task__row">
+              <div class="tags"><span>Content</span></div>
+              <div class="task__meta">
+                <span>Nov 22</span><span class="avatar">KJ</span>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section class="column" data-hh-id="column-progress">
+          <div class="column__header">
+            <div class="column__label">
+              <h2>In progress</h2>
+              <span class="count">2</span>
+            </div>
+            <button
+              class="column__add"
+              type="button"
+              aria-label="Add to In progress"
+            >
+              +
+            </button>
+          </div>
+          <article class="task" data-hh-id="task-card-blocked">
+            <div class="task__blocked" data-hh-id="blocked-banner">
+              Blocked · waiting on API keys
+            </div>
+            <div class="task__row">
+              <span class="priority priority--high">High</span
+              ><span class="task__key">API-88</span>
+            </div>
+            <h3 class="task__title">Connect billing webhooks</h3>
+            <div class="task__row">
+              <div class="tags"><span>Backend</span></div>
+              <div class="task__meta">
+                <span>Nov 15</span><span class="avatar">MR</span>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section class="column" data-hh-id="column-review">
+          <div class="column__header">
+            <div class="column__label">
+              <h2>Review</h2>
+              <span class="count">1</span>
+            </div>
+            <button
+              class="column__add"
+              type="button"
+              aria-label="Add to Review"
+            >
+              +
+            </button>
+          </div>
+          <article class="task">
+            <div class="task__row">
+              <span class="priority">Medium</span
+              ><span class="task__key">WEB-139</span>
+            </div>
+            <h3 class="task__title">Pricing page copy</h3>
+            <div class="task__row">
+              <div class="tags">
+                <span>Content</span><span>Marketing</span><span>Q4</span>
+              </div>
+              <div class="task__meta">
+                <span>Nov 14</span><span class="avatar">GH</span>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section class="column" data-hh-id="column-done">
+          <div class="column__header">
+            <div class="column__label">
+              <h2>Done</h2>
+              <span class="count">1</span>
+            </div>
+            <button class="column__add" type="button" aria-label="Add to Done">
+              +
+            </button>
+          </div>
+          <article class="task task--done" data-hh-id="task-card-done">
+            <div class="task__row">
+              <span class="priority">Medium</span
+              ><span class="task__key">WEB-131</span>
+            </div>
+            <div class="task__done-title" data-hh-id="done-title-row">
+              <span class="check" data-hh-id="done-check">✓</span>
+              <h3 class="task__title">Cookie banner</h3>
+            </div>
+            <div class="task__row">
+              <div class="tags"><span>Legal</span></div>
+              <div class="task__meta">
+                <span>Nov 9</span><span class="avatar">AL</span>
+              </div>
+            </div>
+          </article>
+        </section>
+      </div>
+    </div>
+  </body>
+</html>
