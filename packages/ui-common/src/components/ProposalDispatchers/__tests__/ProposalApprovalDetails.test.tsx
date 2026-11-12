@@ -182,7 +182,6 @@ describe("ordinary approval review", () => {
       screen.getByText(/Historical approval details are unavailable/),
     ).toBeVisible();
     expect(screen.queryByRole("button", { name: "View Rule" })).toBeNull();
-    expect(screen.queryByRole("progressbar")).toBeNull();
     const unknown = getApprovalProgress(null, []);
     expect(unknown.isMet).toBe(false);
     expect(formatApprovalStatus(unknown)).toBe(
@@ -190,7 +189,7 @@ describe("ordinary approval review", () => {
     );
   });
 
-  it("labels progress and explains fixed rules and captured evidence in the modal", async () => {
+  it("shows counts and explains fixed rules and captured evidence in the modal", async () => {
     const user = userEvent.setup();
     render(
       <ProposalApprovalDetails
@@ -208,9 +207,7 @@ describe("ordinary approval review", () => {
         })}
       />,
     );
-    expect(
-      screen.getByRole("progressbar", { name: "0 of 1 user approvals" }),
-    ).toHaveAttribute("max", "1");
+    expect(screen.getByText("0 of 1 user approvals")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "View Rule" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Fixed rule")).toBeVisible();

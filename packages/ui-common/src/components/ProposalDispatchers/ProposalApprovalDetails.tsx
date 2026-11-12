@@ -75,7 +75,6 @@ function ApprovalEvidenceDetails({
     explanation.changedFields?.includes("status") &&
     explanation.changedFieldClassification?.contentChange;
   const [ruleOpen, setRuleOpen] = useState(false);
-  const approvalsLabel = `${progress.approvalCount} of ${proposal.requiredApprovals} user approvals`;
   return (
     <Box
       component="section"
@@ -92,7 +91,10 @@ function ApprovalEvidenceDetails({
                 : "No user approval required"}
             </Typography>
           ) : (
-            <Typography variant="subtitle2">{approvalsLabel}</Typography>
+            <Typography variant="subtitle2">
+              {progress.approvalCount} of {proposal.requiredApprovals} user
+              approvals
+            </Typography>
           )}
           <Button
             variant="text"
@@ -104,16 +106,6 @@ function ApprovalEvidenceDetails({
             View Rule
           </Button>
         </Stack>
-        {proposal.requiredApprovals !== null &&
-          proposal.requiredApprovals > 0 && (
-            <Box
-              component="progress"
-              value={progress.approvalCount}
-              max={proposal.requiredApprovals}
-              aria-label={approvalsLabel}
-              sx={{ width: "100%" }}
-            />
-          )}
         {requirement?.category === "IMMEDIATE" && (
           <Typography variant="body2">
             This proposal remains the audit record of the change.
