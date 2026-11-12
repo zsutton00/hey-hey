@@ -1,6 +1,8 @@
 import { type INestApplication, type ExecutionContext } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import request = require('supertest');
+import { TransformInterceptor } from 'src/common/interceptors/transform.interceptor';
 import { ProjectApprovalPolicyController } from '../project-approval-policy.controller';
 import { ProjectApprovalPolicyManagementService } from 'src/services/proposal/project-approval-policy-management.service';
 import { ProjectApprovalPolicyService } from 'src/services/proposal/project-approval-policy.service';
@@ -104,6 +106,8 @@ describe('project approval policy HTTP boundary', () => {
       })
       .compile();
     app = module.createNestApplication();
+    // The production wire envelope comes from this global interceptor.
+    app.useGlobalInterceptors(new TransformInterceptor(app.get(Reflector)));
     await app.init();
   });
 

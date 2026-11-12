@@ -18,10 +18,7 @@ import {
   ProjectAccessGuard,
   ProjectResourceId,
 } from 'src/auth/guards/project-access.guard';
-import type {
-  ProjectApprovalPolicyResponse,
-  ProjectApprovalPolicySnapshot,
-} from 'src/generated';
+import type { ProjectApprovalPolicySnapshot } from 'src/generated';
 import { PROJECT_CONTROLLER_PATH } from 'src/generated/api/path-constants';
 import { ProjectApprovalPolicyManagementService } from 'src/services/proposal/project-approval-policy-management.service';
 import type { OrganizationId, ProjectId, UserId } from 'src/types';
@@ -39,10 +36,8 @@ export class ProjectApprovalPolicyController {
     @CurrentOrganization() organizationId: OrganizationId,
     @Param('projectId') projectId: ProjectId,
     @CurrentUser('userId') userId: UserId,
-  ): Promise<ProjectApprovalPolicyResponse> {
-    return this.response(
-      await this.management.read(organizationId, projectId, userId),
-    );
+  ): Promise<ProjectApprovalPolicySnapshot> {
+    return this.management.read(organizationId, projectId, userId);
   }
 
   @Put()
@@ -51,10 +46,8 @@ export class ProjectApprovalPolicyController {
     @Param('projectId') projectId: ProjectId,
     @CurrentUser('userId') userId: UserId,
     @Body() body: unknown,
-  ): Promise<ProjectApprovalPolicyResponse> {
-    return this.response(
-      await this.management.replace(organizationId, projectId, userId, body),
-    );
+  ): Promise<ProjectApprovalPolicySnapshot> {
+    return this.management.replace(organizationId, projectId, userId, body);
   }
 
   @Post()
@@ -64,21 +57,7 @@ export class ProjectApprovalPolicyController {
     @Param('projectId') projectId: ProjectId,
     @CurrentUser('userId') userId: UserId,
     @Body() body: unknown,
-  ): Promise<ProjectApprovalPolicyResponse> {
-    return this.response(
-      await this.management.restore(organizationId, projectId, userId, body),
-    );
-  }
-
-  private response(
-    data: ProjectApprovalPolicySnapshot,
-  ): ProjectApprovalPolicyResponse {
-    return {
-      success: true,
-      message: 'Project approval policy',
-      data,
-      timestamp: new Date().toISOString(),
-      statusCode: 200,
-    };
+  ): Promise<ProjectApprovalPolicySnapshot> {
+    return this.management.restore(organizationId, projectId, userId, body);
   }
 }
