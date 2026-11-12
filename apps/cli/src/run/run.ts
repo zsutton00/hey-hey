@@ -106,6 +106,7 @@ import {
 } from '../agents/submission-tools/types';
 import type { SubmissionToolRegistry } from '../agents/submission-tools/registry';
 import { SubmissionActionPoster } from '../agents/submission-tools/action-poster';
+import { CreateReportTool } from '../agents/submission-tools/create-report-tool';
 import { ActivePlatformToolCatalog } from '../agents/platform-mcp-proxy/catalog';
 import { TurnPlatformMcpProxy } from '../agents/platform-mcp-proxy/turn-proxy';
 import type { McpSessionContext } from '../agents/mcp-server-config';
@@ -154,7 +155,7 @@ import type { MessagePoster } from './message-poster';
 import { normalizeEvent } from './normalize';
 import { isLegacyHandoffReport } from '../agents/prompts/report-chain';
 import { evaluateDeclaredReports } from './report-enforcement';
-import { emitOpenImplementReportIfNeeded } from './open-implement-report';
+import { emitTurnImplementReports } from './turn-implement-reports';
 import { resolvePrompt } from './resolve-prompt';
 import { resolveOwnerFollowup } from '../agents/resolve-owner-followup';
 import type { RunnerContext } from './runners/types';
@@ -1713,6 +1714,7 @@ export class Run {
     this.runner = runner;
   }
 
+  /** Set only for a Run whose provider hooks are sent; null means every edit stays approximate. */
   notePermissionDecisionDelivered(input: {
     requestId: string;
     decision: PermissionDecision;
@@ -1883,13 +1885,6 @@ export class Run {
           }
         : { serviceId: 'legacy', repoRelativePath: candidatePath };
     });
-  }
-
-  logImplementReportValidation(
-    event: string,
-    metadata: Record<string, string | number | boolean | null | readonly string[]>,
-  ): void {
-    this.logger.warn(event, { runId: this.runId, ...metadata });
   }
 
   /**
@@ -3017,7 +3012,7 @@ export class Run {
   async prepareTurnCompletionArtifacts(turn: Turn, activeDispatchId?: symbol): Promise<void> {
     await this.drainInFlightDispatch(IN_FLIGHT_DISPATCH_DRAIN_TIMEOUT_MS, activeDispatchId);
     try {
-      await this._fileChangeMutation;
+      await Promise.all([this._fileChangeMutation, turn.changedFileReporting.settleReports()]);
     } catch (error) {
       this.logger.error('local.run.turn_completion.file_change_settle_failed', {
         runId: this.runId,
@@ -3035,16 +3030,17 @@ export class Run {
     );
 
     try {
-      await emitOpenImplementReportIfNeeded({
+      await emitTurnImplementReports({
         run: this,
+        turn,
         logger: this.logger,
-        promptType: turn.handler.promptType,
-        fileChanges: this.getFileChangeProjection(turn.turnId),
+        facts: this._fileChangeFacts,
+        capturedVersions: this.runner?.executionRecorder ?? null,
         reportsSinceTurnStart,
-        createReportTool: createReportTool ?? null,
+        createReportTool: createReportTool instanceof CreateReportTool ? createReportTool : null,
       });
     } catch (error) {
-      this.logger.error('local.run.open_implement_report.emit.failed', {
+      this.logger.error('local.run.turn_implement_reports.emit.failed', {
         runId: this.runId,
         turnId: turn.turnId,
         promptType: turn.handler.promptType,

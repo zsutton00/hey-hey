@@ -9,6 +9,12 @@ const stateSegments = (enabled: boolean | null): Segment[] => {
     : [segment('Off', 'warning'), segment('   Enter to turn on', 'muted')];
 };
 
+const PRECISE_TRACKING_NOTES = [
+  'Record exactly which lines each agent edit changed (Claude and Codex only)',
+  'Slows every shell command an agent runs: files are scanned before and after it',
+  'Applies to sessions started afterward',
+];
+
 export const optionsViewModel = (state: PresentationState): ScreenModel => {
   const width = contentWidth(state.viewport.columns);
   const jevKeyMissing = state.options?.jevKeyDefined === false;
@@ -49,6 +55,16 @@ export const optionsViewModel = (state: PresentationState): ScreenModel => {
         {
           indent: 3,
         },
+      ),
+      line([]),
+      line([segment('Precise file change tracking', 'accent', true)], {
+        right: stateSegments(state.options?.preciseFileChangeTracking ?? null),
+        selected: state.optionsRow === 'precise-file-change-tracking',
+      }),
+      ...PRECISE_TRACKING_NOTES.map((note) =>
+        line([segment(note, 'muted')], {
+          indent: 3,
+        }),
       ),
       line([]),
       line([segment('Jev', 'accent', true)], {

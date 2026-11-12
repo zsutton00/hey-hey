@@ -669,7 +669,12 @@ export class CodexSdkClient {
 
   private spawnProcess(config: CodexSdkSessionConfig): void {
     const targetCommand = this.commandOverride ? process.execPath : 'codex';
-    const targetArgs = this.commandOverride ? [this.commandOverride] : ['app-server'];
+    const configOverrides = (config.toolExecutionHooks?.configOverrides ?? []).flatMap(
+      (override) => ['-c', override],
+    );
+    const targetArgs = this.commandOverride
+      ? [this.commandOverride]
+      : ['app-server', ...configOverrides];
 
     console.debug('[CodexSdkClient] process spawn started', {
       command: targetCommand,

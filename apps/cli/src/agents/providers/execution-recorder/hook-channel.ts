@@ -12,8 +12,12 @@ const hookInputSchema = z.object({
   tool_name: z.string().min(1),
   turn_id: z.string().min(1).optional(),
   exit_code: z.number().nullable().optional(),
+  tool_input: z.unknown().optional(),
 });
 export type HookInput = z.infer<typeof hookInputSchema>;
+
+/** Large enough for a whole apply_patch envelope; a bigger body aborts and the edit stays approximate. */
+const MAX_HOOK_BODY_CHARACTERS = 4 * 1024 * 1024;
 
 /** Private per-provider-process channel. It accepts no cwd, roots, Run IDs, or file bytes. */
 export class HookChannel {
@@ -38,7 +42,7 @@ export class HookChannel {
       request.setEncoding('utf8');
       request.on('data', (chunk: string) => {
         text += chunk;
-        if (text.length > 16384) {
+        if (text.length > MAX_HOOK_BODY_CHARACTERS) {
           abort.abort();
           request.destroy();
         }

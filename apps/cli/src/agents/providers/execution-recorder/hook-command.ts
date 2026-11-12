@@ -13,6 +13,7 @@ process.stdin.on('end', () => {
     const body = JSON.stringify({
       hook_event_name: event.hook_event_name, session_id: event.session_id,
       turn_id: event.turn_id, tool_use_id: event.tool_use_id, tool_name: event.tool_name,
+      tool_input: event.hook_event_name === 'PreToolUse' ? event.tool_input : undefined,
       exit_code: event.tool_response && event.tool_response.exit_code
     });
     const request = http.request(url, { method: 'POST',
