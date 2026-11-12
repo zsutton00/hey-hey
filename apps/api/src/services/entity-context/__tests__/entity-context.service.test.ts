@@ -241,7 +241,21 @@ describe('EntityContextService', () => {
         {
           provide: ProposalReconciliationService,
           useValue: {
-            decisionsForProposals: jest.fn().mockResolvedValue(new Map()),
+            decisionsForProposals: jest.fn(
+              (_tx: unknown, proposals: readonly { id: string }[]) =>
+                Promise.resolve(
+                  new Map(
+                    proposals.map((proposal) => [
+                      proposal.id,
+                      {
+                        kind: 'NOT_REQUIRED' as const,
+                        differences: [],
+                        differingPaths: [],
+                      },
+                    ]),
+                  ),
+                ),
+            ),
           } satisfies Pick<
             ProposalReconciliationService,
             'decisionsForProposals'

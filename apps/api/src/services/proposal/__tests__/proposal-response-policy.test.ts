@@ -634,6 +634,9 @@ describe('ordinary approval explanations', () => {
   function txFor(type = 'MARKETING') {
     return {
       projectMember: { findMany: jest.fn().mockResolvedValue(members) },
+      proposalReconciliationRevision: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       task: {
         findFirst: jest.fn().mockResolvedValue({
           type,

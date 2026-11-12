@@ -517,6 +517,7 @@ describe('ProposalApprovalService', () => {
           useValue: {
             assertApplicable: jest.fn(),
             recordCreatedDelivery: jest.fn(),
+            decisionsForProposals: jest.fn().mockResolvedValue(new Map()),
           },
         },
         {
