@@ -12985,6 +12985,14 @@
           "type": "boolean",
           "description": "Whether this message should be included in RAG retrieval"
         },
+        "presentation": {
+          "$ref": "#/definitions/SystemMessageDataPresentationEnum",
+          "description": "Set by the publisher when the message is an automated runtime notice rather than an agent reply. Absent on agent replies and on historical messages; never inferred from response text or missing provenance."
+        },
+        "noticeSeverity": {
+          "$ref": "#/definitions/SystemMessageDataNoticeSeverityEnum",
+          "description": "Severity of an automated notice, independent of the notice classification. Only meaningful when presentation is \\\"notice\\\"; a notice without it renders as info."
+        },
         "reasoning": {
           "type": "string",
           "description": "LLM\\'s reasoning for the intent detection"
@@ -13165,6 +13173,28 @@
         {
           "type": "string",
           "const": "question"
+        },
+        {}
+      ]
+    },
+    "SystemMessageDataPresentationEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "notice"
+        },
+        {}
+      ]
+    },
+    "SystemMessageDataNoticeSeverityEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "info"
+        },
+        {
+          "type": "string",
+          "const": "warning"
         },
         {}
       ]
@@ -17497,12 +17527,33 @@
             "type": "string"
           },
           "description": "Clarifying questions for scope and constraints"
+        },
+        "conversationReply": {
+          "$ref": "#/definitions/QuestionsGroupConversationReply"
         }
       },
       "required": [
         "questions"
       ],
       "description": "Plan scope constraints payload for UI rendering"
+    },
+    "QuestionsGroupConversationReply": {
+      "type": "object",
+      "properties": {
+        "noteLabel": {
+          "type": "string",
+          "description": "Label of the free-form note box shown under the questions"
+        },
+        "notePlaceholder": {
+          "type": "string",
+          "description": "Placeholder of the free-form note box"
+        }
+      },
+      "required": [
+        "noteLabel",
+        "notePlaceholder"
+      ],
+      "description": "Present when the answers are an ordinary conversation message rather than a workflow reply. Shows a free-form note box and lets the group be submitted with every answer blank."
     },
     "RepositoryGroundingFieldPayload": {
       "type": "object",
