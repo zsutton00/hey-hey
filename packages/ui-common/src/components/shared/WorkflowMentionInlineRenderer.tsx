@@ -1,4 +1,7 @@
-import { JourneyCanvas } from "../ProposalGroupReview/JourneyCanvas";
+import {
+  JourneyCanvas,
+  type JourneyChangeState,
+} from "../ProposalGroupReview/JourneyCanvas";
 import {
   toOpenApiOrganizationId,
   toOpenApiProjectId,
@@ -588,6 +591,113 @@ export interface WorkflowGraphDiffElements {
   changed: WorkflowGraphCreatedElements;
   deleted: WorkflowGraphCreatedElements;
 }
+
+export type WorkflowGraphChangeState =
+  "added" | "changed" | "removed" | "unchanged";
+
+/**
+ * How one screen or transition differs from the current graph, from the
+ * proposal's own change identities. An all-new (authored) preview has nothing
+ * to compare against, so everything is unchanged.
+ */
+export const resolveWorkflowGraphChangeState = ({
+  isCreated,
+  diffStatus,
+  presentationState,
+}: {
+  isCreated: boolean;
+  diffStatus: WorkflowGraphDiffStatus | undefined;
+  presentationState: WorkflowGraphPresentationState;
+}): WorkflowGraphChangeState => {
+  if (presentationState === "authored") {
+    return "unchanged";
+  }
+  if (diffStatus === "deleted") {
+    return "removed";
+  }
+  if (diffStatus) {
+    return diffStatus;
+  }
+
+  return isCreated ? "added" : "unchanged";
+};
+
+export interface UxFlowChangeLookup {
+  steps: ReadonlyMap<string, WorkflowGraphChangeState>;
+  edges: ReadonlyMap<string, WorkflowGraphChangeState>;
+}
+
+/**
+ * The ids a proposal's change identities refer to, in the key space of the
+ * projected graph's step and edge ids. The one place that decides which
+ * elements were created and what diff status each has.
+ */
+const collectGraphChangeIdentities = (
+  createdElements: WorkflowGraphCreatedElements | undefined,
+  diffElements: WorkflowGraphDiffElements | undefined,
+) => {
+  const diffStatusByNodeId = new Map<string, WorkflowGraphDiffStatus>();
+  const diffStatusByEdgeId = new Map<string, WorkflowGraphDiffStatus>();
+  (["changed", "added", "deleted"] as const).forEach((status) => {
+    diffElements?.[status].children.forEach((identity) => {
+      diffStatusByNodeId.set(workItemIdentityKey(identity), status);
+    });
+    diffElements?.[status].relationships.forEach((identity) => {
+      diffStatusByEdgeId.set(relationshipIdentityKey(identity), status);
+    });
+  });
+
+  return {
+    createdNodeIds: new Set(
+      (createdElements?.children ?? []).map((identity) =>
+        workItemIdentityKey(identity),
+      ),
+    ),
+    createdEdgeIds: new Set(
+      (createdElements?.relationships ?? []).map((identity) =>
+        relationshipIdentityKey(identity),
+      ),
+    ),
+    diffStatusByNodeId,
+    diffStatusByEdgeId,
+  };
+};
+
+/** Change state per screen and transition id of a UX-flow proposal preview. */
+const buildUxFlowChangeLookup = (
+  graphData: WorkflowGraphSurfaceData,
+  createdElements: WorkflowGraphCreatedElements | undefined,
+  diffElements: WorkflowGraphDiffElements | undefined,
+  presentationState: WorkflowGraphPresentationState,
+): UxFlowChangeLookup => {
+  const identities = collectGraphChangeIdentities(
+    createdElements,
+    diffElements,
+  );
+
+  return {
+    steps: new Map(
+      graphData.steps.map(({ id }) => [
+        id,
+        resolveWorkflowGraphChangeState({
+          isCreated: identities.createdNodeIds.has(id),
+          diffStatus: identities.diffStatusByNodeId.get(id),
+          presentationState,
+        }),
+      ]),
+    ),
+    edges: new Map(
+      graphData.edges.map(({ id }) => [
+        id,
+        resolveWorkflowGraphChangeState({
+          isCreated: identities.createdEdgeIds.has(id),
+          diffStatus: identities.diffStatusByEdgeId.get(id),
+          presentationState,
+        }),
+      ]),
+    ),
+  };
+};
 
 export interface WorkItemGraphConnectionGesture {
   source: WorkItemChangeSetIdentity;
@@ -5919,42 +6029,15 @@ const WorkflowGraphViewportSurface: React.FC<
       ),
     [interaction?.reconnectableRelationships],
   );
-  const createdNodeIds = useMemo(
-    () =>
-      new Set(
-        (createdElements?.children ?? []).map((identity) =>
-          workItemIdentityKey(identity),
-        ),
-      ),
-    [createdElements?.children],
+  const {
+    createdNodeIds,
+    createdEdgeIds,
+    diffStatusByNodeId,
+    diffStatusByEdgeId,
+  } = useMemo(
+    () => collectGraphChangeIdentities(createdElements, diffElements),
+    [createdElements, diffElements],
   );
-  const createdEdgeIds = useMemo(
-    () =>
-      new Set(
-        (createdElements?.relationships ?? []).map((identity) =>
-          relationshipIdentityKey(identity),
-        ),
-      ),
-    [createdElements?.relationships],
-  );
-  const diffStatusByNodeId = useMemo(() => {
-    const statuses = new Map<string, WorkflowGraphDiffStatus>();
-    (["changed", "added", "deleted"] as const).forEach((status) => {
-      diffElements?.[status].children.forEach((identity) => {
-        statuses.set(workItemIdentityKey(identity), status);
-      });
-    });
-    return statuses;
-  }, [diffElements]);
-  const diffStatusByEdgeId = useMemo(() => {
-    const statuses = new Map<string, WorkflowGraphDiffStatus>();
-    (["changed", "added", "deleted"] as const).forEach((status) => {
-      diffElements?.[status].relationships.forEach((identity) => {
-        statuses.set(relationshipIdentityKey(identity), status);
-      });
-    });
-    return statuses;
-  }, [diffElements]);
   const buildModel = useCallback(
     (
       positions: WorkflowGraphModelOptions["authoredPositions"],
@@ -7159,7 +7242,70 @@ const UxFlowSavedView: React.FC<{
   graphData: WorkflowGraphSurfaceData;
   savedPositions: ReadonlyMap<string, { x: number; y: number }>;
   currentStepId: string | null;
-}> = ({ graphData, savedPositions, currentStepId }) => {
+  /** Set only when reviewing a proposal; a saved flow has no change state. */
+  createdElements?: WorkflowGraphCreatedElements;
+  diffElements?: WorkflowGraphDiffElements;
+  presentationState: WorkflowGraphPresentationState;
+}> = ({
+  graphData: fullGraphData,
+  savedPositions,
+  currentStepId,
+  createdElements,
+  diffElements,
+  presentationState,
+}) => {
+  const changes = useMemo(
+    () =>
+      createdElements || diffElements
+        ? buildUxFlowChangeLookup(
+            fullGraphData,
+            createdElements,
+            diffElements,
+            presentationState,
+          )
+        : undefined,
+    [fullGraphData, createdElements, diffElements, presentationState],
+  );
+  // The grid shows the flow as it will be; removals are inspected in the
+  // proposal's Proposed changes list.
+  const graphData = useMemo(() => {
+    if (!changes) {
+      return fullGraphData;
+    }
+    const steps = fullGraphData.steps.filter(
+      ({ id }) => changes.steps.get(id) !== "removed",
+    );
+    const stepIds = new Set(steps.map(({ id }) => id));
+
+    return {
+      ...fullGraphData,
+      steps,
+      edges: fullGraphData.edges.filter(
+        (edge) =>
+          changes.edges.get(edge.id) !== "removed" &&
+          stepIds.has(edge.sourceNodeId) &&
+          stepIds.has(edge.targetNodeId),
+      ),
+    };
+  }, [changes, fullGraphData]);
+  const journeyChangeStates = useMemo(() => {
+    if (!changes) {
+      return undefined;
+    }
+    const toJourney = (states: UxFlowChangeLookup["steps"]) =>
+      new Map(
+        [...states].flatMap(([id, state]) =>
+          state === "removed"
+            ? []
+            : [[id, state satisfies JourneyChangeState] as const],
+        ),
+      );
+
+    return {
+      steps: toJourney(changes.steps),
+      edges: toJourney(changes.edges),
+    };
+  }, [changes]);
   const [walkthroughStepId, setWalkthroughStepId] = useState<string | null>(
     null,
   );
@@ -7174,7 +7320,7 @@ const UxFlowSavedView: React.FC<{
       return <Alert severity="info">Screen unavailable</Alert>;
     }
 
-    const screen = (
+    const savedScreen = (
       <SavedJourneyScreen
         id={reference.entityId}
         name={step.name}
@@ -7183,6 +7329,26 @@ const UxFlowSavedView: React.FC<{
         onOpenFullSize={() => setWalkthroughStepId(step.id)}
       />
     );
+    const changeState = journeyChangeStates?.steps.get(step.id);
+    // The grid marks changed screens on its own wrapper; the walkthrough does it here.
+    const screen =
+      fullSize && (changeState === "added" || changeState === "changed") ? (
+        <Box
+          data-testid="journey-screen"
+          data-step-id={step.id}
+          data-change-state={changeState}
+          sx={{
+            outline: "3px solid",
+            outlineColor: "success.main",
+            outlineOffset: 4,
+            borderRadius: 1,
+          }}
+        >
+          {savedScreen}
+        </Box>
+      ) : (
+        savedScreen
+      );
 
     return !fullSize && step.id === currentStepId ? (
       <Box
@@ -7216,6 +7382,7 @@ const UxFlowSavedView: React.FC<{
         steps={graphData.steps}
         edges={graphData.edges}
         savedPositions={savedPositions}
+        changeStates={journeyChangeStates}
         renderScreen={(step) => renderScreen(step)}
       />
       <Dialog
@@ -7415,6 +7582,9 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
         graphData={hydratedGraphData}
         savedPositions={new Map(positions)}
         currentStepId={currentUxFlowStepId ?? null}
+        createdElements={createdElements}
+        diffElements={diffElements}
+        presentationState={presentationState}
       />
     );
   }

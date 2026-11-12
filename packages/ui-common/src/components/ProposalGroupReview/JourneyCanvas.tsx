@@ -5,7 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Box } from "@mui/material";
+import { Box, useTheme } from "@mui/material";
 import type { WorkflowGraphSurfaceData } from "../shared/WorkflowMentionInlineRenderer";
 import { JOURNEY_SCREEN_WIDTH } from "./JourneyScreen";
 import { findUxFlowStartScreenId } from "../shared/diagramElementMetadata";
@@ -17,6 +17,12 @@ import {
 } from "./routeJourneyConnectors";
 
 type Step = WorkflowGraphSurfaceData["steps"][number];
+
+/** How a screen or transition differs from the current flow in an UPDATE review. */
+export type JourneyChangeState = "added" | "changed" | "unchanged";
+
+const isHighlighted = (state: JourneyChangeState | undefined) =>
+  state === "added" || state === "changed";
 
 /** Plain canvas gray: the UX Flow Grid View mockup's light gray, or a dark gray in dark mode. */
 const CANVAS_COLOR = { light: "#f0f2f5", dark: "#1e2126" };
@@ -108,8 +114,22 @@ export const JourneyCanvas: React.FC<{
   renderScreen: (step: Step) => React.ReactNode;
   /** Static presentation at natural size: no scrolling, dragging or grab cursor. */
   readOnly?: boolean;
-}> = ({ steps, edges, savedPositions, renderScreen, readOnly = false }) => {
+  /** Reviewed change state per screen and transition id; absent means neutral. */
+  changeStates?: {
+    steps: ReadonlyMap<string, JourneyChangeState>;
+    edges: ReadonlyMap<string, JourneyChangeState>;
+  };
+}> = ({
+  steps,
+  edges,
+  savedPositions,
+  renderScreen,
+  readOnly = false,
+  changeStates,
+}) => {
   const markerId = useId();
+  const changedMarkerId = `${markerId}-changed`;
+  const successColor = useTheme().palette.success.main;
   const container = useRef<HTMLDivElement>(null);
   const dragScroll = useDragScroll(container);
   const [heights, setHeights] = useState<Record<string, number>>({});
@@ -258,6 +278,17 @@ export const JourneyCanvas: React.FC<{
             >
               <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
             </marker>
+            <marker
+              id={changedMarkerId}
+              viewBox="0 0 10 10"
+              refX="9"
+              refY="5"
+              markerWidth="6"
+              markerHeight="6"
+              orient="auto-start-reverse"
+            >
+              <path d="M 0 0 L 10 5 L 0 10 z" fill={successColor} />
+            </marker>
           </defs>
           {routeJourneyConnectors(cells, positions, connectorEdges, {
             columnGap: COLUMN_GAP,
@@ -265,19 +296,30 @@ export const JourneyCanvas: React.FC<{
             maxAnchorOffset: MAX_ANCHOR_OFFSET,
           }).map(({ edgeId, path, label }) => {
             const edge = edges.find(({ id }) => id === edgeId)!;
+            const edgeState = changeStates?.edges.get(edge.id) ?? "unchanged";
             return (
-              <g
+              <Box
+                component="g"
                 key={edge.id}
                 data-testid="journey-transition"
                 data-edge-id={edge.id}
                 data-transition-role={edge.transitionRole ?? undefined}
+                data-change-state={edgeState}
+                sx={
+                  isHighlighted(edgeState)
+                    ? {
+                        color: (theme) => theme.palette.success.main,
+                        "& text": { fill: "currentColor" },
+                      }
+                    : undefined
+                }
               >
                 <path
                   d={path}
                   stroke="currentColor"
                   strokeWidth={CONNECTOR_WIDTH}
                   fill="none"
-                  markerEnd={`url(#${markerId})`}
+                  markerEnd={`url(#${isHighlighted(edgeState) ? changedMarkerId : markerId})`}
                 />
                 <text
                   x={label.x}
@@ -290,7 +332,7 @@ export const JourneyCanvas: React.FC<{
                 >
                   {edge.actionLabel ?? edge.predicate}
                 </text>
-              </g>
+              </Box>
             );
           })}
         </Box>
@@ -301,11 +343,22 @@ export const JourneyCanvas: React.FC<{
               key={step.id}
               data-testid="journey-screen"
               data-step-id={step.id}
+              data-change-state={
+                changeStates?.steps.get(step.id) ?? "unchanged"
+              }
               sx={{
                 position: "absolute",
                 left: box.x,
                 top: box.y,
                 width: box.width,
+                ...(isHighlighted(changeStates?.steps.get(step.id))
+                  ? {
+                      outline: "3px solid",
+                      outlineColor: "success.main",
+                      outlineOffset: 4,
+                      borderRadius: 1,
+                    }
+                  : {}),
               }}
             >
               {renderScreen(step)}
