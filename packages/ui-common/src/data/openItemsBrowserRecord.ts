@@ -1,9 +1,31 @@
-import { ENTITY_ACTIVATION_TYPES, createEntityActivation, type AgentSessionPresentationSnapshot, type EntityPresentationSnapshot, type EntityActivationType } from "../contexts/EntityActivationContext";
+import {
+  ENTITY_ACTIVATION_TYPES,
+  createEntityActivation,
+  type AgentSessionPresentationSnapshot,
+  type EntityPresentationSnapshot,
+  type EntityActivationType,
+} from "../contexts/EntityActivationContext";
 import { AgentSessionType } from "../api";
-import { createNavigationLineageEntry, type NavigationLineage, type NavigationLineageEntry } from "../types/userTracking";
-import type { OpenItemsRow as OpenItem, OpenItemsGroupRow as OpenItemGroup, OpenItemsBrowserRecord } from "./openItemsModel";
-type PersistedOpenItemsDisclosure = NonNullable<OpenItemsBrowserRecord["disclosure"]>;
-const lineageEntityTypes = new Set(["plan", "plan_stage", "plan_step", "task"]);
+import {
+  createNavigationLineageEntry,
+  type NavigationLineage,
+  type NavigationLineageEntry,
+} from "../types/userTracking";
+import type {
+  OpenItemsRow as OpenItem,
+  OpenItemsGroupRow as OpenItemGroup,
+  OpenItemsBrowserRecord,
+} from "./openItemsModel";
+type PersistedOpenItemsDisclosure = NonNullable<
+  OpenItemsBrowserRecord["disclosure"]
+>;
+const lineageEntityTypes = new Set([
+  "plan",
+  "plan_stage",
+  "plan_step",
+  "task",
+  "agent_session",
+]);
 
 const isOpenItemEntityType = (value: unknown): value is EntityActivationType =>
   typeof value === "string" &&
@@ -39,9 +61,7 @@ const canonicalOpenItemsGroup = (
   collapsed: group.collapsed === true,
 });
 
-const isPersistedOpenItemsGroup = (
-  value: unknown,
-): value is OpenItemGroup => {
+const isPersistedOpenItemsGroup = (value: unknown): value is OpenItemGroup => {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return false;
   }
@@ -286,10 +306,7 @@ const parseOpenItemsRecord = (
       return null;
     }
     const record = parsed as Record<string, unknown>;
-    if (
-      record.version !== 1 ||
-      !Array.isArray(record.items)
-    ) {
+    if (record.version !== 1 || !Array.isArray(record.items)) {
       return null;
     }
     const validItems = record.items.filter(isOpenItem);
@@ -329,10 +346,16 @@ const parseOpenItemsRecord = (
 export const parseOpenItems = (value: string | null): OpenItem[] =>
   parseOpenItemsRecord(value)?.items ?? [];
 
-
-export function readOpenItemsBrowserRecord(value: string | null): OpenItemsBrowserRecord {
- const parsed = parseOpenItemsRecord(value);
- return { version: 1, items: parsed?.items ?? [], groups: parsePersistedOpenItemsGroups(parsed?.record.groups),
- sortDirection: parsed?.record.sortDirection === "newest" ? "newest" : "oldest",
- disclosure: parsePersistedOpenItemsDisclosure(parsed?.record.disclosure) };
+export function readOpenItemsBrowserRecord(
+  value: string | null,
+): OpenItemsBrowserRecord {
+  const parsed = parseOpenItemsRecord(value);
+  return {
+    version: 1,
+    items: parsed?.items ?? [],
+    groups: parsePersistedOpenItemsGroups(parsed?.record.groups),
+    sortDirection:
+      parsed?.record.sortDirection === "newest" ? "newest" : "oldest",
+    disclosure: parsePersistedOpenItemsDisclosure(parsed?.record.disclosure),
+  };
 }

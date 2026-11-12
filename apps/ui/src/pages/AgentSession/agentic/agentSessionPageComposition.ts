@@ -13,6 +13,7 @@ export const buildAgentSessionPageComposition = ({
   stageId,
   stepId,
   taskId,
+  parentAgentSessionId,
   presentation,
 }: {
   preview: boolean;
@@ -22,6 +23,7 @@ export const buildAgentSessionPageComposition = ({
   stageId?: string;
   stepId?: string;
   taskId?: string;
+  parentAgentSessionId?: string;
   presentation: AgentSessionPresentationSnapshot;
 }): CanonicalPageComposition => {
   if (preview) {
@@ -39,6 +41,7 @@ export const buildAgentSessionPageComposition = ({
         stageId,
         stepId,
         taskId,
+        parentAgentSessionId,
       }),
       presentation,
     ),
