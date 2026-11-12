@@ -25,6 +25,7 @@ import {
 } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId } from 'src/types';
 import type { AuthenticatedUser } from 'src/auth/strategies/jwt.strategy';
+import { groupMemberReservedEntity } from './proposal-group-authoring.service';
 import { ProposalValidationEngine } from './proposal-validation.engine';
 import { ProposalGroupReferenceValidation } from './proposal-group-reference-validation';
 import {
@@ -144,33 +145,11 @@ export class ProposalGroupFinalizationService {
           );
           issues.push(...referenceResult.issues);
 
-          const reservedEntities = group.members.flatMap((member) => {
-            if (
-              member.proposal.action !== 'CREATE' ||
-              !member.reservedTargetEntityId
-            ) {
-              return [];
-            }
-            const updates = member.proposal.updates as Record<string, unknown>;
-            return [
-              {
-                entityId: member.reservedTargetEntityId,
-                entityType: member.proposal.targetEntityType,
-                ...(member.proposal.targetEntityType === 'TASK'
-                  ? typeof updates.type === 'string'
-                    ? { workItemType: updates.type }
-                    : {}
-                  : member.proposal.targetEntityType === 'WORK_ITEM_TYPE'
-                    ? {
-                        workItemType:
-                          typeof updates.key === 'string'
-                            ? updates.key
-                            : undefined,
-                      }
-                    : {}),
-              },
-            ];
-          });
+          const reservedEntities = group.members.flatMap((member) =>
+            member.proposal.action === 'CREATE'
+              ? groupMemberReservedEntity(member)
+              : [],
+          );
 
           issues.push(
             ...(await this.validateReservationOwnership(
@@ -657,18 +636,7 @@ export class ProposalGroupFinalizationService {
         organizationId: params.organizationId,
         projectId: params.projectId,
         request: parsed.data,
-        reservedEntities: params.members.flatMap((member) =>
-          member.reservedTargetEntityId
-            ? [
-                {
-                  entityId: member.reservedTargetEntityId,
-                  entityType: member.proposal.targetEntityType,
-                  workItemType: (member.proposal.updates as { type?: string })
-                    .type,
-                },
-              ]
-            : [],
-        ),
+        reservedEntities: params.members.flatMap(groupMemberReservedEntity),
         overlayNodes: [...overlayNodes.values()],
         overlayRelationships: [...overlayRelationships.values()],
         view: rootChildrenView,

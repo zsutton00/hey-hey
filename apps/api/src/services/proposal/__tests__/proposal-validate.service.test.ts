@@ -60,6 +60,10 @@ describe('ProposalService.validateProposal', () => {
       delete: jest.fn(),
       count: jest.fn(),
     };
+    (mockPrisma.db as any).proposalGroupMember = {
+      findUnique: jest.fn().mockResolvedValue(null),
+      findMany: jest.fn().mockResolvedValue([]),
+    };
 
     mockEngine = {
       validate: jest.fn(),
@@ -158,6 +162,81 @@ describe('ProposalService.validateProposal', () => {
       view: rootChildrenView,
     });
     expect(mockEngine.validate).not.toHaveBeenCalled();
+  });
+
+  it('reviews a grouped change set against the Mockups its group will create', async () => {
+    const groupId = '123e4567-e89b-42d3-a456-426614174077';
+    const plainMockupId = '79a624eb-b89b-4a45-9a22-bd63bcdfd1a8';
+    const changeSetMockupId = '3bb01337-db79-4db2-a26c-e2280c41f524';
+    const changeSet = {
+      root: { refType: 'existing' as const, id: testIds.task },
+      operations: [],
+    };
+    (mockPrisma.db as any).proposal.findFirst.mockResolvedValue(
+      makeStoredProposal({ updates: changeSet }),
+    );
+    (mockPrisma.db as any).proposalGroupMember.findUnique.mockResolvedValue({
+      groupId,
+    });
+    (mockPrisma.db as any).proposalGroupMember.findMany.mockResolvedValue([
+      {
+        reservedTargetEntityId: plainMockupId,
+        proposal: {
+          targetEntityType: 'TASK',
+          updates: { type: 'mockup', name: 'Edit Book Dialog' },
+        },
+      },
+      {
+        reservedTargetEntityId: changeSetMockupId,
+        proposal: {
+          targetEntityType: 'TASK',
+          updates: {
+            root: { refType: 'temporary', tempId: 'root' },
+            operations: [
+              {
+                op: 'workItem.create',
+                ref: { refType: 'temporary', tempId: 'root' },
+                type: 'mockup',
+                name: 'Remove Book Confirmation',
+              },
+            ],
+          },
+        },
+      },
+    ]);
+    mockProjector.project.mockResolvedValue({ valid: true, issues: [] });
+
+    await service.validateProposal(
+      proposalId,
+      testIds.organization,
+      testIds.project,
+      TestUtils.createMockAuthenticatedUser(),
+      changeSet,
+    );
+
+    expect(
+      (mockPrisma.db as any).proposalGroupMember.findMany,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ groupId }),
+      }),
+    );
+    expect(mockProjector.project).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reservedEntities: [
+          {
+            entityId: plainMockupId,
+            entityType: 'TASK',
+            workItemType: 'mockup',
+          },
+          {
+            entityId: changeSetMockupId,
+            entityType: 'TASK',
+            workItemType: 'mockup',
+          },
+        ],
+      }),
+    );
   });
 
   it('should fetch proposal by id and run validation', async () => {

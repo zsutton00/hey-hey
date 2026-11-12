@@ -81,6 +81,10 @@ import {
   WorkItemTypeRole,
 } from '@hey-hey/contracts/api/models';
 import { EvalOutputAdmissionService } from '../eval/eval-output-admission.service';
+import {
+  groupMemberReservedEntity,
+  type GroupReservedEntity,
+} from './proposal-group-authoring.service';
 import { ProposalValidationEngine } from './proposal-validation.engine';
 import {
   assertWorkItemChangeSetStructurallyValid,
@@ -1993,12 +1997,29 @@ export class ProposalService {
         proposalId: id,
         operationCount: changeSet.operations.length,
       });
-      return this.workItemChangeSetProjector.project({
+      const group = await this.loadReviewGroupReservations(id);
+      const projection = await this.workItemChangeSetProjector.project({
         organizationId,
         projectId,
         request: changeSet,
+        reservedEntities: group?.reservedEntities,
         view: rootChildrenView,
       });
+
+      if (!projection.valid) {
+        this.logger.warn('Review-time change-set validation rejected', {
+          proposalId: id,
+          groupId: group?.groupId ?? null,
+          targetEntityId: proposal.targetEntityId,
+          issues: projection.issues.map((issue) => ({
+            code: issue.code,
+            field: issue.field,
+            reason: issue.reason,
+          })),
+        });
+      }
+
+      return projection;
     }
 
     const dto: CreateProposalDto = {
@@ -2021,6 +2042,41 @@ export class ProposalService {
       proposals: [dto],
       context: { organizationId, projectId, requestor },
     });
+  }
+
+  /**
+   * A grouped proposal is reviewed against its group's frozen reservations, so
+   * a reference to an identity another member will create resolves as it did at
+   * finalization. Ungrouped proposals get none.
+   */
+  private async loadReviewGroupReservations(proposalId: string): Promise<{
+    groupId: string;
+    reservedEntities: GroupReservedEntity[];
+  } | null> {
+    const membership = await this.prisma.db.proposalGroupMember.findUnique({
+      where: { proposalId },
+      select: { groupId: true },
+    });
+    if (!membership) {
+      return null;
+    }
+
+    const members = await this.prisma.db.proposalGroupMember.findMany({
+      where: {
+        groupId: membership.groupId,
+        reservedTargetEntityId: { not: null },
+        proposal: { action: 'CREATE' },
+      },
+      select: {
+        reservedTargetEntityId: true,
+        proposal: { select: { targetEntityType: true, updates: true } },
+      },
+    });
+
+    return {
+      groupId: membership.groupId,
+      reservedEntities: members.flatMap(groupMemberReservedEntity),
+    };
   }
 
   /**
