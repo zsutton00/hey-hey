@@ -1,7 +1,7 @@
 import { reportUsageExecutions } from '../provider-usage/report-usage-executions';
 import { readRestrictionFor } from '../shared/api/read-restriction';
 import { isAxiosError } from 'axios';
-import type { FailureReason } from './failure-message';
+import { startupFailureCause, type FailureReason } from './failure-message';
 import { isInertSubmissionToolAllowed } from './inert-execution-policy';
 import { SessionRoleGuidance } from '../agents/session-role-guidance/session-role-guidance';
 import { createContextTrimmer } from '../agents/context-trimming/create-trimmer';
@@ -4312,7 +4312,7 @@ export class Run {
           await admission.onRejected();
           this.projectedInputStartTurnIds.delete(admission.turnId);
         }
-        await this.postFailureMessage('STARTUP_FAILED');
+        await this.postFailureMessage('STARTUP_FAILED', error);
         this.logger.error('local.run.start_turn.failure_reported', {
           turnId,
           runId: this.runId,
@@ -4339,7 +4339,7 @@ export class Run {
         await rejectedAdmission.onRejected(reason === 'STOPPED' ? 'ABORTED' : 'FAILED');
         this.projectedInputStartTurnIds.delete(rejectedAdmission.turnId);
       }
-      await this.postFailureMessage(reason);
+      await this.postFailureMessage(reason, error);
       if (
         error instanceof ProjectAssistantPreparationError ||
         error instanceof AgentStartupPromptInputError
@@ -4423,7 +4423,7 @@ export class Run {
       if (failedAdmission) {
         await failedAdmission.onRejected();
       }
-      await this.postFailureMessage(failureReason);
+      await this.postFailureMessage(failureReason, error);
       void this.drainQueue();
       return;
     }
@@ -4679,7 +4679,7 @@ export class Run {
 
   private readonly terminalFailureReasons = new Map<string, FailureReason>();
 
-  private async postFailureMessage(reason: FailureReason): Promise<void> {
+  private async postFailureMessage(reason: FailureReason, error?: unknown): Promise<void> {
     // A Turn aborted to wait for Service approval is paused, not stopped; the approval request
     // already tells the user what is happening.
     if (reason === 'STOPPED' && this.serviceScope.hasServiceScopeContinuation()) {
@@ -4691,6 +4691,9 @@ export class Run {
       projectId: this.projectId,
       conversationId: this.session.conversationId,
       reason,
+      ...(reason === 'STARTUP_FAILED'
+        ? { cause: startupFailureCause(error), reference: `run ${this.runId}` }
+        : {}),
       inert: this.session.inert === true,
     });
   }
@@ -5250,7 +5253,7 @@ export class Run {
             if (admission) {
               await admission.onRejected();
             }
-            await this.postFailureMessage('STARTUP_FAILED');
+            await this.postFailureMessage('STARTUP_FAILED', error);
           } catch (postError) {
             this.logger.error('local.run.drain.failure_post_failed', {
               runId: this.runId,

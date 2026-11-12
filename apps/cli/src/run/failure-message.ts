@@ -1,3 +1,8 @@
+import { AgentStartupPromptInputError } from '../commands/agent-startup-prompt-input';
+import { ProjectAssistantPreparationError } from '../agents/project-assistant/nearest-parent-feature';
+import { AgentSessionRunnerError } from '../agents/providers/session-runner';
+import { LocalAgentApiError } from '../shared/agent-bridge-contract/errors';
+
 const explanations = {
   SCHEMA_INVALID:
     'This message could not start because the request was invalid. Update the CLI, then send your message again.',
@@ -10,7 +15,8 @@ const explanations = {
     'This session needs a Service folder. Bind its folder on this machine, or start a new session with a Service, then send your message again.',
   INTERNAL_ERROR:
     'The session could not complete because of an unexpected error. Please try again.',
-  STARTUP_FAILED: 'The session could not start because its preparation failed. Please try again.',
+  STARTUP_FAILED:
+    'The session could not start because its preparation failed. Check the CLI logs for the cause, then send your message again.',
   STOPPED:
     'This request was stopped before it finished. Send another message when you want to continue.',
   PUBLICATION_FAILED: 'A response was generated but could not be published. Please try again.',
@@ -21,10 +27,41 @@ const explanations = {
 
 export type FailureReason = keyof typeof explanations;
 
+/**
+ * A safe, user-facing statement of why preparation failed: authored error messages and error
+ * codes only, never a raw message from a dependency, which can carry content or credentials.
+ */
+export function startupFailureCause(error: unknown): string | undefined {
+  if (error instanceof ProjectAssistantPreparationError) {
+    return error.message;
+  }
+  if (error instanceof AgentStartupPromptInputError) {
+    return `${error.message} (${error.boundary})`;
+  }
+  if (error instanceof LocalAgentApiError || error instanceof AgentSessionRunnerError) {
+    return `${error.message} (${error.code})`;
+  }
+  if (error instanceof Error) {
+    return `Unexpected ${error.name} while preparing the session.`;
+  }
+  return undefined;
+}
+
 export function failureMessage(
   reason: FailureReason,
   serviceNames: readonly string[] = [],
+  details: { cause?: string | undefined; reference?: string | undefined } = {},
 ): string {
+  if (reason === 'STARTUP_FAILED' && details.cause) {
+    const lines = [
+      'The session could not start because its preparation failed.',
+      `**Cause:** ${details.cause.replace(/\.$/, '')}.`,
+      ...(details.reference ? [`**Reference:** \`${details.reference}\``] : []),
+      'Fix that, then send your message again.',
+    ];
+
+    return lines.join('\n\n');
+  }
   if (reason === 'SERVICE_FOLDER_NOT_BOUND' && serviceNames.length) {
     return serviceNames
       .map(
