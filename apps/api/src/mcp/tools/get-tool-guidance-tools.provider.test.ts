@@ -1,6 +1,7 @@
 import { GetToolGuidanceToolsProvider } from './get-tool-guidance-tools.provider';
 import {
   FEATURE_REQUIREMENT_CONCISION_GUIDANCE,
+  FEATURE_SPLIT_CUE_GUIDANCE,
   TOOL_GUIDANCE,
   type ToolGuidanceBody,
   type ToolGuidanceKey,
@@ -210,6 +211,40 @@ describe('GetToolGuidanceToolsProvider', () => {
       } finally {
         spy.mockRestore();
       }
+    },
+  );
+
+  it.each(['create_work_item', 'edit_work_item'] as const)(
+    'has FEATURE %s guidance ask the user before splitting an oversized feature, once, and only for FEATURE',
+    async (toolName) => {
+      const read = async (workItemType: string) =>
+        getText(
+          await provider.getToolGuidance(
+            {
+              toolName,
+              workItemType,
+              authoringRootProof: AUTHORING_ROOT_PROOF,
+            },
+            {} as any,
+            { headers: { 'x-project-id': PROJECT_ID } } as any,
+          ),
+        );
+
+      const feature = await read('FEATURE');
+      expect(feature.split(FEATURE_SPLIT_CUE_GUIDANCE)).toHaveLength(2);
+      for (const phrase of [
+        'roughly 16–20 or more requirements',
+        'a very long description',
+        'ask whether to split it',
+        'never split, block, or truncate the feature on your own',
+        'do not ask when the feature is comfortably small',
+        'child features under it',
+        'short parent body that links to them',
+      ]) {
+        expect(feature).toContain(phrase);
+      }
+
+      expect(await read('STANDARD')).not.toContain('Oversized features');
     },
   );
 
