@@ -511,7 +511,13 @@ export const AgentSetupView = ({
       data-testid="coding-setup-one-screen"
       sx={{ minWidth: 0 }}
     >
-      {taskData ? <TaskPreviewCard task={taskData} defaultExpanded /> : null}
+      {taskData ? (
+        <TaskPreviewCard
+          task={taskData}
+          defaultExpanded
+          collapseOnEscape={false}
+        />
+      ) : null}
 
       <Card variant="outlined" data-testid="coding-setup-session-method">
         <CardContent>

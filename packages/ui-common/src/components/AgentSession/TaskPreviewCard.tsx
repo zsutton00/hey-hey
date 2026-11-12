@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Box,
   Collapse,
@@ -22,13 +22,32 @@ const taskContentSx = {
 interface TaskPreviewCardProps {
   task: WorkItemResponseDto;
   defaultExpanded?: boolean;
+  collapseOnEscape: boolean;
 }
 
 export const TaskPreviewCard = ({
   task,
   defaultExpanded = true,
+  collapseOnEscape,
 }: TaskPreviewCardProps) => {
   const [expanded, setExpanded] = useState(defaultExpanded);
+
+  useEffect(() => {
+    if (!collapseOnEscape || !expanded) {
+      return;
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      // Skip Escape presses another component already handled, such as an
+      // open menu or the composer's autocomplete.
+      if (event.key === "Escape" && !event.defaultPrevented) {
+        setExpanded(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [collapseOnEscape, expanded]);
 
   const description = task.sections?.find(
     (s) => s.key === "description",
@@ -90,9 +109,9 @@ export const TaskPreviewCard = ({
           sx={{
             // Keep the whole card within two-thirds of the viewport: the
             // header and padding take ~5rem, the body scrolls in the rest.
+            // Once the body reaches its end, the wheel scrolls the page.
             maxHeight: "calc(66.667dvh - 5rem)",
             overflowY: "auto",
-            overscrollBehavior: "contain",
           }}
         >
           <Stack spacing={1.5} sx={{ mt: 1.5 }}>

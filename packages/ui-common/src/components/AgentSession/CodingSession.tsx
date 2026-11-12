@@ -1048,7 +1048,11 @@ const CodingSessionActive = memo(
                   pb: 1,
                 }}
               >
-                <TaskPreviewCard task={taskData} defaultExpanded={false} />
+                <TaskPreviewCard
+                  task={taskData}
+                  defaultExpanded={false}
+                  collapseOnEscape
+                />
               </Box>
             ) : null}
             {runId ? (
@@ -1144,7 +1148,11 @@ const CodingSessionActive = memo(
                 pb: 1,
               }}
             >
-              <TaskPreviewCard task={taskData} defaultExpanded={false} />
+              <TaskPreviewCard
+                task={taskData}
+                defaultExpanded={false}
+                collapseOnEscape
+              />
             </Box>
           ) : null}
 
