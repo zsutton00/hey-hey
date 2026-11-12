@@ -1665,6 +1665,27 @@ export const en = {
   "eval.case.coding.checklist.note.UPDATE":
     "only the changed parts are checked, and anything that used to work and now breaks is flagged.",
   "eval.case.coding.invalid": "The Coding section can't be read.",
+  "eval.case.inputs.invalid": "The Inputs section can't be read.",
+  "eval.case.inputs.request": "Request",
+  "eval.case.inputs.singleNote":
+    "The agent's reply to this message is what is judged.",
+  "eval.case.inputs.listNote":
+    "The agent's reply to the last message is what is judged. Earlier messages aren't sent to the agent yet.",
+  "eval.case.inputs.judged": "Judged",
+  "eval.case.inputs.moveUp": "Move up",
+  "eval.case.inputs.moveDown": "Move down",
+  "eval.case.inputs.edit": "Edit",
+  "eval.case.inputs.remove": "Remove",
+  "eval.case.inputs.add": "+ Add message",
+  "eval.case.inputs.done": "Done",
+  "eval.case.inputs.cancel": "Cancel",
+  "eval.case.inputs.textareaLabel": "Message text",
+  "eval.case.inputs.unsupported": "Unsupported input ({{kind}}), kept as is.",
+  "eval.case.inputs.minimum":
+    "A case needs at least one message: the only message can't be removed.",
+  "eval.run.inputs.heading": "Messages this run sent",
+  "eval.run.inputs.frozenNote":
+    "As the run used them, frozen at launch. Editing the Eval Case later does not change this.",
   "eval.results.work.scope": "Work done",
   "eval.results.usage.cacheRead": "Cache read: {{value}}",
   "eval.results.usage.cacheCreation": "Cache creation: {{value}}",

@@ -408,6 +408,8 @@ export interface CaseRow {
   errorMessage: string | null;
   /** What the case expected, as recorded on the run. */
   expectation: string | null;
+  /** The messages the case sent, as frozen on the run; null when the case is unknown. */
+  inputs: EvalRunCaseInput["target"]["inputs"] | null;
   /** The judge's saved explanation of its recognition result. */
   recognitionExplanation: string | null;
 }
@@ -529,6 +531,7 @@ export const caseRow = (
     checklist: checklistView(codingCase?.mockupChecklist, assessment),
     errorMessage: errorMessage(attempt),
     expectation: expectation ? expectation : null,
+    inputs: caseInput?.target.inputs ?? null,
     recognitionExplanation: assessment?.recognition.explanation ?? null,
   };
 };

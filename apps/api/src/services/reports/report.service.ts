@@ -1,4 +1,5 @@
 import { readReportUsage } from './report-usage.validation';
+import { readEvalCaseTarget } from '../eval-runs/eval-case-input.mapper';
 import {
   aggregateUsageTrends,
   USAGE_TREND_REPORT_KINDS,
@@ -2677,9 +2678,28 @@ export class ReportService {
     return {
       ...base,
       reportType: reportType as ReportDtoOther['reportType'],
-      payload: payload as OtherReportPayload,
+      payload: this.readRecordedRunCases(payload) as OtherReportPayload,
       schemaVersion: report.schemaVersion,
     } satisfies ReportDtoOther;
+  }
+
+  /**
+   * A run recorded before Eval Cases had inputs carries only the old single
+   * request on each case target. Serve it as a one-message list so readers
+   * can rely on `target.inputs`.
+   */
+  private readRecordedRunCases(payload: ReportPayload): ReportPayload {
+    if (payload.reportType !== ReportType.EvalRun) {
+      return payload;
+    }
+
+    return {
+      ...payload,
+      cases: payload.cases.map((caseInput) => ({
+        ...caseInput,
+        target: readEvalCaseTarget(caseInput.target),
+      })),
+    };
   }
 
   private toPersistedReportPayload(

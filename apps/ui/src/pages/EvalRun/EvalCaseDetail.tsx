@@ -28,6 +28,7 @@ import {
 import {
   CreateProposal,
   DeleteProposal,
+  EvalCaseInputsSection,
   isPlaceholderEntityId,
   Report,
   UpdateProposal,
@@ -471,9 +472,10 @@ const WorkBreakdown: React.FC<{ rows: WorkBreakdownRow[] }> = ({ rows }) => {
 const ExpectedVersusResult: React.FC<{
   row: CaseRow;
   organizationId: string;
+  projectId: string;
   /** A repeat sits under its case, which already shows what was expected. */
   isRepeat: boolean;
-}> = ({ row, organizationId, isRepeat }) => {
+}> = ({ row, organizationId, projectId, isRepeat }) => {
   const { t } = useTranslation();
   return (
     <Box sx={{ mb: 2 }} data-testid="eval-expected-vs-result">
@@ -501,6 +503,15 @@ const ExpectedVersusResult: React.FC<{
           >
             {t("eval.results.detail.openEvalCase")}
           </SpaLink>
+        </Box>
+      )}
+      {!isRepeat && row.inputs && (
+        <Box sx={{ mt: 1 }}>
+          <EvalCaseInputsSection
+            content={row.inputs}
+            surface="run"
+            mentionConfig={{ organizationId, projectId }}
+          />
         </Box>
       )}
     </Box>
@@ -531,6 +542,7 @@ export const EvalCaseDetail: React.FC<EvalCaseDetailProps> = ({
     <ExpectedVersusResult
       row={row}
       organizationId={organizationId}
+      projectId={projectId}
       isRepeat={repeat !== null}
     />
     {row.coding && <CodingAttemptResults coding={row.coding} />}
