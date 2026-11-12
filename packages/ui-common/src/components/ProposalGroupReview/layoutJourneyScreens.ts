@@ -33,12 +33,15 @@ const compareText = (left: string, right: string) =>
  * the screen they belong to, in rows reserved for them. Recovery, return and
  * unclassified transitions never move an established screen; they only place
  * screens that no progression or error path reached. Saved positions are fixed.
+ * A marked start screen is the origin of the progression and takes the
+ * top-left cell unless a saved position overrides it.
  * Ordering uses screen names and labels, so ids and input order do not matter.
  */
 export function layoutJourneyScreens(
   screens: readonly LayoutScreen[],
   transitions: readonly LayoutTransition[],
   savedPositions: ReadonlyMap<string, Position>,
+  startId: string | null = null,
 ): Map<string, GridCell> {
   const names = new Map(screens.map(({ id, name }) => [id, name]));
   const compareScreens = (left: string, right: string) =>
@@ -74,7 +77,13 @@ export function layoutJourneyScreens(
 
   placeSavedScreens(screenIds, savedPositions, place, occupied);
 
-  const forward = rankPrimaryProgression(screenIds, edges, compareScreens);
+  const start = startId !== null && names.has(startId) ? startId : null;
+  const forward = rankPrimaryProgression(
+    screenIds,
+    edges,
+    compareScreens,
+    start,
+  );
   const claimed = claimErrorTargets(forward, edges, savedPositions);
 
   const laneCount = Math.max(-1, ...forward.lane.values()) + 1;
@@ -103,7 +112,7 @@ export function layoutJourneyScreens(
     });
   });
 
-  placeRemainingByAdjacency(screenIds, edges, placed, place, occupied);
+  placeRemainingByAdjacency(screenIds, edges, placed, place, occupied, start);
 
   const cells = [...placed.values()];
   const minColumn = Math.min(...cells.map(({ column }) => column));
@@ -150,12 +159,17 @@ function rankPrimaryProgression(
   screenIds: readonly string[],
   edges: readonly LayoutTransition[],
   compareScreens: (left: string, right: string) => number,
+  startId: string | null,
 ): ForwardLayout {
   const outgoing = new Map<string, string[]>();
   const hasIncoming = new Set<string>();
   const members = new Set<string>();
   edges.forEach(({ role, sourceId, targetId }) => {
-    if (role !== "PRIMARY_PROGRESSION" || sourceId === targetId) {
+    if (
+      role !== "PRIMARY_PROGRESSION" ||
+      sourceId === targetId ||
+      targetId === startId
+    ) {
       return;
     }
     outgoing.set(sourceId, [...(outgoing.get(sourceId) ?? []), targetId]);
@@ -163,10 +177,15 @@ function rankPrimaryProgression(
     members.add(sourceId).add(targetId);
   });
 
+  // A marked start always anchors the progression, even with no primary transitions.
+  if (startId !== null) {
+    members.add(startId);
+  }
   const memberIds = screenIds.filter((id) => members.has(id));
   const starts = [
-    ...memberIds.filter((id) => !hasIncoming.has(id)),
-    ...memberIds.filter((id) => hasIncoming.has(id)),
+    ...memberIds.filter((id) => id === startId),
+    ...memberIds.filter((id) => id !== startId && !hasIncoming.has(id)),
+    ...memberIds.filter((id) => id !== startId && hasIncoming.has(id)),
   ];
   // Depth-first from the starts; an edge into a screen still being visited closes a cycle and is not forward.
   const visiting = new Set<string>();
@@ -212,7 +231,9 @@ function rankPrimaryProgression(
       Math.min(...(parents.get(id) ?? []).map((parent) => lane.get(parent)!));
     inRank.sort(
       (left, right) =>
-        parentLane(left) - parentLane(right) || compareScreens(left, right),
+        parentLane(left) - parentLane(right) ||
+        Number(right === startId) - Number(left === startId) ||
+        compareScreens(left, right),
     );
     const used = new Set<number>();
     inRank.forEach((id) => {
@@ -263,6 +284,7 @@ function placeRemainingByAdjacency(
   placed: Map<string, GridCell>,
   place: (id: string, cell: GridCell) => void,
   occupied: ReadonlySet<string>,
+  startId: string | null,
 ) {
   const onward = new Map<string, string[]>();
   edges.forEach(({ sourceId, targetId }) => {
@@ -299,6 +321,11 @@ function placeRemainingByAdjacency(
     const b = placed.get(right)!;
     return a.column - b.column || a.row - b.row;
   });
+  if (startId !== null && placed.has(startId)) {
+    inReadingOrder.sort(
+      (left, right) => Number(right === startId) - Number(left === startId),
+    );
+  }
   spread(inReadingOrder);
 
   const reachedIncoming = new Set(
@@ -307,6 +334,7 @@ function placeRemainingByAdjacency(
     ),
   );
   const starts = [
+    ...screenIds.filter((id) => id === startId),
     ...screenIds.filter((id) => !reachedIncoming.has(id)),
     ...screenIds,
   ];

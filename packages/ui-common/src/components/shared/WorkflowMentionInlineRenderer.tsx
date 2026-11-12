@@ -71,6 +71,11 @@ import {
 } from "../../api";
 import type { WorkItemResponseDto } from "../../data/collections/workItems";
 import {
+  getDiagramElementMetadata,
+  parseJsonSection,
+  type GraphWorkItem,
+} from "./diagramElementMetadata";
+import {
   Box,
   Alert,
   Button,
@@ -347,9 +352,7 @@ interface WorkflowMentionInlineRendererProps {
   mode?: MentionMode;
 }
 
-type GraphWorkItem = Omit<WorkItemResponseDto, "sections"> & {
-  sections?: WorkItemResponseDto["sections"] | ProjectedWorkItem["sections"];
-};
+export { getDiagramElementMetadata };
 
 export interface WorkflowGraphSurfaceData {
   referenceReviewControls?: Readonly<Record<string, React.ReactNode>>;
@@ -733,24 +736,6 @@ const isWorkflowMention = (mention: EntityMention): boolean =>
 const isDiagramMention = (mention: EntityMention): boolean =>
   mention.entityType.toLowerCase() === DIAGRAM_MENTION_ENTITY_TYPE;
 
-const parseJsonSection = (
-  sections: GraphWorkItem["sections"],
-  key: string,
-): unknown => {
-  const section = sections?.find((section) => section.key === key);
-  if (!section) return null;
-  const value: unknown =
-    "materializedMarkdown" in section
-      ? section.materializedMarkdown
-      : section.content;
-  if (typeof value !== "string") return value ?? null;
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    return null;
-  }
-};
-
 export const getDiagramMetadata = (
   workItem: Pick<GraphWorkItem, "sections">,
 ): DiagramMetadata | null => {
@@ -910,38 +895,6 @@ const DiagramBoundaryLayer: React.FC<{
     </ViewportPortal>
   );
 };
-
-export const getDiagramElementMetadata = (
-  workItem: Pick<GraphWorkItem, "sections">,
-): DiagramElementMetadata | null =>
-  (() => {
-    const value = parseJsonSection(workItem.sections, "diagramElementMetadata");
-    if (
-      typeof value !== "object" ||
-      value === null ||
-      !("role" in value) ||
-      typeof value.role !== "string"
-    )
-      return null;
-    const canonicalReference =
-      "canonicalReference" in value &&
-      typeof value.canonicalReference === "object" &&
-      value.canonicalReference !== null &&
-      "entityId" in value.canonicalReference &&
-      typeof value.canonicalReference.entityId === "string" &&
-      "entityType" in value.canonicalReference &&
-      (value.canonicalReference.entityType === TargetEntityType.Task ||
-        value.canonicalReference.entityType === TargetEntityType.Service)
-        ? {
-            entityId: value.canonicalReference.entityId,
-            entityType: value.canonicalReference.entityType,
-          }
-        : undefined;
-    return {
-      role: value.role,
-      ...(canonicalReference ? { canonicalReference } : {}),
-    };
-  })();
 
 const getDiagramRoleDefinitions = (
   definition?: WorkItemTypeDefinitionDto,

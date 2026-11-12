@@ -8,6 +8,7 @@ import React, {
 import { Box } from "@mui/material";
 import type { WorkflowGraphSurfaceData } from "../shared/WorkflowMentionInlineRenderer";
 import { JOURNEY_SCREEN_WIDTH } from "./JourneyScreen";
+import { findUxFlowStartScreenId } from "../shared/diagramElementMetadata";
 import { layoutJourneyScreens } from "./layoutJourneyScreens";
 import {
   gutterHeights,
@@ -146,6 +147,7 @@ export const JourneyCanvas: React.FC<{
       actionLabel: edge.actionLabel ?? null,
     })),
     savedPositions,
+    findUxFlowStartScreenId(steps),
   );
   const connectorEdges = edges.map((edge) => ({
     id: edge.id,
