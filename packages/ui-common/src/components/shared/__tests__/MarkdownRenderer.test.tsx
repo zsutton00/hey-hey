@@ -1493,6 +1493,7 @@ describe("diagram graph metadata", () => {
       { role: "AGENT", label: "Agent", notation: "box" as const },
       { role: "START", label: "Start", notation: "box" as const },
       { role: "END", label: "End", notation: "box" as const },
+      { role: "UI_START", label: "UI Start", notation: "box" as const },
     ].flatMap((entry) =>
       (["view", "edit"] as const).map((mode) => ({ ...entry, mode })),
     ),
@@ -1529,7 +1530,7 @@ describe("diagram graph metadata", () => {
           graphData={{
             workflow: diagram,
             steps:
-              role === "START" || role === "END"
+              role === "START" || role === "END" || role === "UI_START"
                 ? [
                     personElement,
                     {
@@ -1571,20 +1572,24 @@ describe("diagram graph metadata", () => {
 
       const expectSquarePersonCard = (): void => {
         const card = screen.getAllByTestId("workflow-inline-step")[0];
-        if (role === "START" || role === "END") {
+        if (role === "START" || role === "END" || role === "UI_START") {
           expect(screen.getAllByTestId("workflow-inline-step")).toHaveLength(2);
           expect(
             within(card).getByRole("img", { name: `${label} role` }),
           ).toBeInTheDocument();
           expect(
             within(card).getByTestId(
-              role === "START"
-                ? "diagram-element-start-icon"
-                : "diagram-element-end-icon",
+              {
+                START: "diagram-element-start-icon",
+                END: "diagram-element-end-icon",
+                UI_START: "diagram-element-ui-start-icon",
+              }[role],
             ),
           ).toBeInTheDocument();
           expect(screen.getByTestId("diagram-legend")).toHaveTextContent(
-            "parallel paths may continue",
+            role === "UI_START"
+              ? "entrance or primary screen"
+              : "parallel paths may continue",
           );
         }
         expect(card).toHaveAttribute("data-diagram-notation", notation);
@@ -1624,7 +1629,7 @@ describe("diagram graph metadata", () => {
       fireEvent.click(screen.getByTestId("workflow-inline-diagram-size-large"));
       await waitForDiagramArranged();
       expectSquarePersonCard();
-      if (role === "START" || role === "END") {
+      if (role === "START" || role === "END" || role === "UI_START") {
         fireEvent.click(
           screen.getByTestId("workflow-inline-diagram-open-fullscreen"),
         );
@@ -1634,7 +1639,9 @@ describe("diagram graph metadata", () => {
           fullscreen.getAllByRole("img", { name: `${label} role` }),
         ).toHaveLength(2);
         expect(fullscreen.getByTestId("diagram-legend")).toHaveTextContent(
-          "parallel paths may continue",
+          role === "UI_START"
+            ? "entrance or primary screen"
+            : "parallel paths may continue",
         );
       }
     },

@@ -22,7 +22,7 @@
  */
 export interface DiagramElementRoleDefinition {
     /**
-     * Project-effective governed role key. Canonical roles are GENERIC, PERSON, AGENT, SOFTWARE_SYSTEM, CONTAINER, COMPONENT, CODE, DATABASE, UI, PRODUCT, DECISION, EXTERNAL_SYSTEM, DIAGRAM_REFERENCE, START and END. START labels the trigger entering a depicted process; END labels the outcome terminating one depicted path without implying completion of every parallel path. Both are optional explicit descriptive markers, may occur multiple times, and are never inferred from topology or used as runtime instructions. Extensions require a role definition with stable notation in the effective type definition.
+     * Project-effective governed role key. Canonical roles are GENERIC, PERSON, AGENT, SOFTWARE_SYSTEM, CONTAINER, COMPONENT, CODE, DATABASE, UI, PRODUCT, DECISION, EXTERNAL_SYSTEM, DIAGRAM_REFERENCE, START, END and UI_START. UI_START is a UI screen that is the entrance or primary screen of a UX flow; it takes the same canonical Mockup reference as UI and is an optional explicit marker, never inferred from topology. START labels the trigger entering a depicted process; END labels the outcome terminating one depicted path without implying completion of every parallel path. Both are optional explicit descriptive markers, may occur multiple times, and are never inferred from topology or used as runtime instructions. Extensions require a role definition with stable notation in the effective type definition.
      * @type {string}
      * @memberof DiagramElementRoleDefinition
      */

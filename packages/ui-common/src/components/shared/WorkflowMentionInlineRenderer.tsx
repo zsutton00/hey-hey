@@ -43,6 +43,7 @@ import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
 import StopCircleOutlinedIcon from "@mui/icons-material/StopCircleOutlined";
 import StorageIcon from "@mui/icons-material/Storage";
 import WidgetsIcon from "@mui/icons-material/Widgets";
+import LoginIcon from "@mui/icons-material/Login";
 import WebAssetIcon from "@mui/icons-material/WebAsset";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
@@ -963,6 +964,7 @@ const DIAGRAM_ROLE_ICONS: Readonly<
   CODE: CodeIcon,
   DATABASE: StorageIcon,
   UI: WebAssetIcon,
+  UI_START: LoginIcon,
   PRODUCT: Inventory2Icon,
   DECISION: DecisionIcon,
   EXTERNAL_SYSTEM: CloudOutlinedIcon,
@@ -4815,7 +4817,9 @@ const WorkflowStepCardContent: React.FC<{
           ? "diagram-element-start-icon"
           : data.diagramRoleKey === "END"
             ? "diagram-element-end-icon"
-            : undefined;
+            : data.diagramRoleKey === "UI_START"
+              ? "diagram-element-ui-start-icon"
+              : undefined;
   const highlightTextColor = getWorkflowGraphHighlightTextColor(theme);
   const showsScreen = screen.kind === "loading" || screen.kind === "ready";
   // The role icon sits at the screen's own upper-left corner, not the card's.
@@ -6601,31 +6605,51 @@ const WorkflowGraphViewportSurface: React.FC<
           </Typography>
         ) : null}
       </Stack>
-      {graphModel.nodes.some(
-        (node) =>
-          node.data.diagramRoleKey === "START" ||
-          node.data.diagramRoleKey === "END",
-      ) ? (
-        <Stack
-          direction="row"
-          spacing={2}
-          sx={{ px: 1.5, py: 1 }}
-          data-testid="diagram-legend"
-        >
-          <Stack direction="row" spacing={0.5} alignItems="center">
-            <PlayCircleOutlineIcon fontSize="small" />
-            <Typography variant="caption">
-              Start: trigger entering the depicted process
-            </Typography>
+      {(() => {
+        const hasRole = (...keys: string[]) =>
+          graphModel.nodes.some((node) =>
+            keys.includes(node.data.diagramRoleKey ?? ""),
+          );
+        const showsProcessMarkers = hasRole("START", "END");
+        const showsUiStart = hasRole("UI_START");
+        if (!showsProcessMarkers && !showsUiStart) {
+          return null;
+        }
+
+        return (
+          <Stack
+            direction="row"
+            spacing={2}
+            sx={{ px: 1.5, py: 1 }}
+            data-testid="diagram-legend"
+          >
+            {showsProcessMarkers ? (
+              <>
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <PlayCircleOutlineIcon fontSize="small" />
+                  <Typography variant="caption">
+                    Start: trigger entering the depicted process
+                  </Typography>
+                </Stack>
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <StopCircleOutlinedIcon fontSize="small" />
+                  <Typography variant="caption">
+                    End: outcome of one path; parallel paths may continue
+                  </Typography>
+                </Stack>
+              </>
+            ) : null}
+            {showsUiStart ? (
+              <Stack direction="row" spacing={0.5} alignItems="center">
+                <LoginIcon fontSize="small" />
+                <Typography variant="caption">
+                  UI Start: entrance or primary screen of a UX flow
+                </Typography>
+              </Stack>
+            ) : null}
           </Stack>
-          <Stack direction="row" spacing={0.5} alignItems="center">
-            <StopCircleOutlinedIcon fontSize="small" />
-            <Typography variant="caption">
-              End: outcome of one path; parallel paths may continue
-            </Typography>
-          </Stack>
-        </Stack>
-      ) : null}
+        );
+      })()}
       {comparison.error ? (
         <Alert severity="error" data-testid="diagram-layout-error">
           {comparison.error}{" "}

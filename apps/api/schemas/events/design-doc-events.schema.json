@@ -21485,7 +21485,7 @@
       "properties": {
         "key": {
           "type": "string",
-          "description": "Project-effective governed role key. Canonical roles are GENERIC, PERSON, AGENT, SOFTWARE_SYSTEM, CONTAINER, COMPONENT, CODE, DATABASE, UI, PRODUCT, DECISION, EXTERNAL_SYSTEM, DIAGRAM_REFERENCE, START and END. START labels the trigger entering a depicted process; END labels the outcome terminating one depicted path without implying completion of every parallel path. Both are optional explicit descriptive markers, may occur multiple times, and are never inferred from topology or used as runtime instructions. Extensions require a role definition with stable notation in the effective type definition."
+          "description": "Project-effective governed role key. Canonical roles are GENERIC, PERSON, AGENT, SOFTWARE_SYSTEM, CONTAINER, COMPONENT, CODE, DATABASE, UI, PRODUCT, DECISION, EXTERNAL_SYSTEM, DIAGRAM_REFERENCE, START, END and UI_START. UI_START is a UI screen that is the entrance or primary screen of a UX flow; it takes the same canonical Mockup reference as UI and is an optional explicit marker, never inferred from topology. START labels the trigger entering a depicted process; END labels the outcome terminating one depicted path without implying completion of every parallel path. Both are optional explicit descriptive markers, may occur multiple times, and are never inferred from topology or used as runtime instructions. Extensions require a role definition with stable notation in the effective type definition."
         },
         "label": {
           "type": "string"
@@ -23848,6 +23848,17 @@
               "$ref": "#/definitions/EvalRecordedToolCalls",
               "description": "The tested agent\\'s own tool calls, without results. Absent on attempts recorded before tool calls were kept."
             },
+            "turns": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/EvalAttemptTurn"
+              },
+              "description": "The scripted messages the attempt started, in order, each saved as it settled. Absent on attempts recorded before scripted conversations, which ran only their final message."
+            },
+            "judgedTurnIndex": {
+              "type": "number",
+              "description": "Index of the message the judge assessed. Absent when no final assessment happened."
+            },
             "judgedOutput": {
               "type": [
                 "string",
@@ -25440,6 +25451,75 @@
         {
           "type": "string",
           "const": "INTERCEPTED"
+        },
+        {}
+      ]
+    },
+    "EvalAttemptTurn": {
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "number",
+          "description": "Position of the message in the frozen inputs, from 0."
+        },
+        "turnId": {
+          "type": "string",
+          "description": "The Run\\'s Turn that handled the message. Absent until the Turn started."
+        },
+        "input": {
+          "type": "string",
+          "description": "The exact message text sent."
+        },
+        "state": {
+          "$ref": "#/definitions/EvalAttemptTurnStateEnum"
+        },
+        "reply": {
+          "type": "string",
+          "description": "The agent\\'s reply to this message. Absent when none was produced."
+        },
+        "startedAt": {
+          "type": "string"
+        },
+        "completedAt": {
+          "type": "string"
+        },
+        "recordedToolCalls": {
+          "$ref": "#/definitions/EvalRecordedToolCalls",
+          "description": "Only the calls made while handling this message."
+        },
+        "measurement": {
+          "$ref": "#/definitions/EvalMeasurement",
+          "description": "Time, tokens and cost attributed to this message. Absent values were not reported and are never zero."
+        },
+        "measurementPartial": {
+          "type": "boolean",
+          "description": "True when some of this message\\'s usage could not be attributed to it alone."
+        }
+      },
+      "required": [
+        "index",
+        "input",
+        "state"
+      ],
+      "description": "One scripted message an attempt sent and what came of it, saved as soon as the message settles. `index` is the message\\'s position in the case\\'s frozen inputs. Evidence only; never shown to the tested agent."
+    },
+    "EvalAttemptTurnStateEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "STARTED"
+        },
+        {
+          "type": "string",
+          "const": "COMPLETED"
+        },
+        {
+          "type": "string",
+          "const": "FAILED"
+        },
+        {
+          "type": "string",
+          "const": "STOPPED"
         },
         {}
       ]

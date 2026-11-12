@@ -23,6 +23,8 @@ const definitions: WorkItemTypeSectionDefinition[] = [
         { key: 'AGENT', label: 'Agent', notation: 'box' },
         { key: 'START', label: 'Start', notation: 'box' },
         { key: 'END', label: 'End', notation: 'box' },
+        { key: 'UI', label: 'UI', notation: 'box' },
+        { key: 'UI_START', label: 'UI Start', notation: 'box' },
         {
           key: 'DIAGRAM_REFERENCE',
           label: 'Diagram reference',
@@ -31,7 +33,10 @@ const definitions: WorkItemTypeSectionDefinition[] = [
         { key: 'QUEUE', label: 'Queue', notation: 'box' },
       ],
       referenceTargets: [
-        { entityType: 'TASK', workItemTypeKeys: ['DIAGRAM', 'FEATURE'] },
+        {
+          entityType: 'TASK',
+          workItemTypeKeys: ['DIAGRAM', 'FEATURE', 'MOCKUP'],
+        },
         { entityType: 'SERVICE' },
       ],
     },
@@ -107,7 +112,7 @@ describe('Diagram semantic boundaries', () => {
     );
   });
 
-  it.each(['START', 'END', 'AGENT', 'PERSON', 'GENERIC'])(
+  it.each(['START', 'END', 'UI_START', 'AGENT', 'PERSON', 'GENERIC'])(
     'round trips %s through metadata validation and authored defaults',
     async (role) => {
       const content = { role };
@@ -117,6 +122,20 @@ describe('Diagram semantic boundaries', () => {
         diagramElementMetadataSchema.parse(JSON.parse(JSON.stringify(content))),
       ).toEqual(content);
       await expect(validate(JSON.stringify(content))).resolves.toBeUndefined();
+    },
+  );
+
+  it.each(['UI', 'UI_START'])(
+    'accepts a canonical Mockup reference for the %s screen role',
+    async (role) => {
+      taskFind.mockResolvedValue({ type: 'MOCKUP' });
+
+      await expect(
+        validate({
+          role,
+          canonicalReference: { entityType: 'TASK', entityId: targetId },
+        }),
+      ).resolves.toBeUndefined();
     },
   );
 
