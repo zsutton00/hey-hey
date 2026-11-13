@@ -117,6 +117,24 @@ describe('toEvalRunCaseInput', () => {
     });
   });
 
+  it('records a focal item of any work-item type as a task', () => {
+    const input = toEvalRunCaseInput(
+      {
+        ...completeCase,
+        sections: completeCase.sections.map((entry) =>
+          entry.key === 'items'
+            ? section('items', `- @[mockup:${FOCAL}|Fixture] — focal item`)
+            : entry,
+        ),
+      },
+      new Set([FOCAL]),
+    );
+    expect(input.target).toMatchObject({
+      focalItemId: FOCAL,
+      focalItemType: 'TASK',
+    });
+  });
+
   it('keeps a case without a focal item unscoped', () => {
     const input = toEvalRunCaseInput({
       ...completeCase,

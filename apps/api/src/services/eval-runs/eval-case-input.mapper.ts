@@ -30,6 +30,7 @@ const LIST_ITEM_PATTERN = /^\s*(?:[-*+]|\d+[.)])\s+(.*)$/;
  */
 function parseItems(
   markdown: string,
+  workItemIds: ReadonlySet<string>,
 ): Pick<EvalCaseTarget, 'focalItemId' | 'focalItemType' | 'supportingItemIds'> {
   const mentions = [...markdown.matchAll(MENTION_PATTERN)];
   const ids = [...new Set(mentions.map((match) => match[2]!.toLowerCase()))];
@@ -41,12 +42,17 @@ function parseItems(
   const canonicalType = normalizeMentionTypeAlias(focal[1]!)
     .toUpperCase()
     .replace(/-/g, '_');
-  const focalItemType = Object.values(RunEntityReference.EntityTypeEnum).find(
-    (type) => type === canonicalType,
-  );
+  const focalId = focal[2]!.toLowerCase();
+  // Every work-item type (mockup, contract, custom types) is a TASK to a run;
+  // the item's own id is authoritative over the token it was mentioned with.
+  const focalItemType = workItemIds.has(focalId)
+    ? RunEntityReference.EntityTypeEnum.Task
+    : Object.values(RunEntityReference.EntityTypeEnum).find(
+        (type) => type === canonicalType,
+      );
   if (!focalItemType) {
     throw new BadRequestException(
-      'The focal item mention must use a supported entity family (task for work items).',
+      `The focal item mention "${focal[1]}" is not a supported entity family or a work item of this project (use task for work items).`,
     );
   }
 
@@ -55,6 +61,18 @@ function parseItems(
     focalItemType,
     supportingItemIds: ids.slice(1),
   };
+}
+
+/** Ids mentioned in a case's items section, for resolving which are work items. */
+export function readItemMentionIds(record: EvalCaseRecord): string[] {
+  const markdown =
+    record.sections.find((candidate) => candidate.key === 'items')
+      ?.materializedMarkdown ?? '';
+  return [
+    ...new Set(
+      [...markdown.matchAll(MENTION_PATTERN)].map((m) => m[2]!.toLowerCase()),
+    ),
+  ];
 }
 
 function parseListItems(markdown: string): string[] {
@@ -113,7 +131,10 @@ function parseRubric(markdown: string): EvalRubricDimension[] {
  * Inputs text is carried verbatim, so mentions in a message reach the tested
  * agent exactly as they did from the former Markdown request.
  */
-export function toEvalRunCaseInput(record: EvalCaseRecord): EvalRunCaseInput {
+export function toEvalRunCaseInput(
+  record: EvalCaseRecord,
+  workItemIds: ReadonlySet<string> = new Set(),
+): EvalRunCaseInput {
   const section = (key: string): string =>
     record.sections
       .find((candidate) => candidate.key === key)
@@ -147,7 +168,7 @@ export function toEvalRunCaseInput(record: EvalCaseRecord): EvalRunCaseInput {
     section('coding'),
   );
 
-  const items = parseItems(section('items'));
+  const items = parseItems(section('items'), workItemIds);
   const expectations = section('expectations');
   return {
     id: randomUUID(),

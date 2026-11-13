@@ -48,6 +48,7 @@ import { ReportService } from '../reports/report.service';
 import { WORK_ITEM_TYPE_KEYS } from '../tasks/work-item-type-keys';
 import {
   readEvalCaseTarget,
+  readItemMentionIds,
   toEvalRunCaseInput,
 } from './eval-case-input.mapper';
 import {
@@ -161,8 +162,18 @@ export class EvalRunService {
     const casesById = new Map<string, (typeof cases)[number]>(
       cases.map((candidate) => [candidate.id, candidate]),
     );
+    const mentionedIds = cases.flatMap(readItemMentionIds);
+    const workItems = await this.prisma.db.task.findMany({
+      where: {
+        id: { in: mentionedIds as TaskId[] },
+        organizationId,
+        projectId,
+      },
+      select: { id: true },
+    });
+    const workItemIds = new Set<string>(workItems.map((item) => item.id));
     const caseInputs = request.evalCaseIds.map((id) =>
-      toEvalRunCaseInput(casesById.get(id)!),
+      toEvalRunCaseInput(casesById.get(id)!, workItemIds),
     );
     for (const caseInput of caseInputs) {
       // The run's chosen handler can replace the case's own, so the fit is checked per setup.
