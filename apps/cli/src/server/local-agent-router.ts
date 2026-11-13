@@ -34,6 +34,7 @@ import { createRunChangedFileDetailRouter } from './routes/run-changed-file-deta
 import { createSubmissionToolsRouter } from './routes/submission-tools';
 
 export interface LocalAgentRouterDependencies {
+  dataDirectory?: string;
   toolCalls: Pick<
     RunToolCallsRouteDependencies,
     'sessionActivity' | 'isRemoteToolCallViewingEnabled'
@@ -72,7 +73,7 @@ export class LocalAgentRouter {
         keyPairStore,
         logger,
         restoreCoordinator: runReadRestoreCoordinator,
-        attachmentStore: new RunAttachmentStore(),
+        attachmentStore: new RunAttachmentStore(this.dependencies.dataDirectory),
       }),
     );
     this.app.use(
@@ -81,7 +82,7 @@ export class LocalAgentRouter {
         allowedOrigins,
         keyPairStore,
         logger,
-        attachmentStore: new RunAttachmentStore(),
+        attachmentStore: new RunAttachmentStore(this.dependencies.dataDirectory),
       }),
     );
     this.app.use(express.json({ limit: '2mb' }));

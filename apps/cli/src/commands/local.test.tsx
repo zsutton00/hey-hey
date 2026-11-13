@@ -1,3 +1,5 @@
+import { MachineControllerAuthority } from '../auth/machine-controller-authority';
+import { OAuthClient } from '../auth/oauth-client';
 import { afterEach, expect, it, vi } from 'vitest';
 import { runLocalCommand } from './local';
 import { localWebOrigin } from '../local-app/compose';
@@ -30,6 +32,7 @@ vi.mock('../local-app/local-application', () => ({
 }));
 vi.mock('../local-app/installation-store', () => ({
   InstallationStore: class {
+    directory = '/tmp/heyhey-local-command-test';
     async secrets() {
       return { admin: 'test-secret' };
     }
@@ -69,6 +72,18 @@ it.each([
     vi.stubEnv('HEYHEY_CONTROLLER_ORIGIN', origin);
     vi.stubEnv('HEYHEY_CONTROLLER_RP_ID', rpId);
     vi.spyOn(KeyPairStore.prototype, 'loadCurrentMachineId').mockResolvedValue(machineId);
+    vi.spyOn(OAuthClient.prototype, 'getAccessToken').mockResolvedValue({
+      success: true,
+      data: fakeJwt,
+    });
+    vi.spyOn(MachineControllerAuthority.prototype, 'readReadiness').mockResolvedValue({
+      state: machineId ? 'ready' : 'unpaired',
+      machineId,
+      machine: null,
+      localControllers: [],
+      serverControllers: [],
+      serverExecutionReadiness: null,
+    });
     vi.stubEnv('HEYHEY_API_URL', undefined);
     vi.stubEnv('HEYHEY_WEB_ORIGIN', 'https://previous.example');
     vi.spyOn(process, 'stdin', 'get').mockReturnValue(
@@ -105,7 +120,7 @@ it.each([
       await Promise.resolve();
       // The bridge must find its token already stored, so it never opens a login page.
       expect(storeCredential).toHaveBeenCalledWith(
-        'heyhey:oauth:localhost:3000',
+        'heyhey:oauth:local-application',
         expect.objectContaining({ accessToken: fakeJwt, refreshToken: 'local-refresh-token' }),
       );
       expect(process.env['HEYHEY_API_URL']).toBe('http://localhost:3000');

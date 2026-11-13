@@ -476,6 +476,10 @@ export class RunStore {
 
   private readonly sessionTokenUsageReader: SessionTokenUsageReader;
 
+  public getDataDirectory(): string {
+    return this.paths.baseDir;
+  }
+
   public constructor(private readonly options: RunStoreOptions = {}) {
     this.sessionTokenUsageReader = options.sessionTokenUsageReader ?? new SessionTokenUsageReader();
     this.paths = options.paths ?? resolveRunStorePaths();

@@ -3,6 +3,7 @@ import {
   CODEX_MCP_ONLY_FEATURE_OVERRIDES,
   CODEX_WORKSPACE_SHELL_FEATURE_OVERRIDES,
 } from './mcp-only-features';
+import { RunAttachmentStore } from '../../../server/run-attachment-store';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { withoutCodexInputEcho } from './codex-input-echo';
 import {
@@ -370,7 +371,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
   };
   private readonly redactionConfig = loadAgentEventLogRedactionConfig();
   private readonly normalizationConfig = loadProviderEventNormalizationConfig();
-  private readonly attachmentContentReader = new RunAttachmentContentReader();
+  private readonly attachmentContentReader: RunAttachmentContentReader;
   private readonly runStore: RunStore;
   private readonly repoStore: RepoMappingStore;
   private readonly localAgentEndpoint: LocalAgentEndpoint;
@@ -381,6 +382,9 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
   private readonly providerUsageCapture: ProviderUsageCapture;
 
   public constructor(dependencies: CodexAgentSessionRunnerDependencies) {
+    this.attachmentContentReader = new RunAttachmentContentReader(
+      new RunAttachmentStore(dependencies.runStore.getDataDirectory()),
+    );
     this.runStore = dependencies.runStore;
     this.repoStore = dependencies.repoStore;
     this.localAgentEndpoint = dependencies.localAgentEndpoint;
@@ -389,7 +393,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
     this.agentOutputOwner = dependencies.agentOutputOwner;
     this.logger = dependencies.logger ?? NOOP_LOGGER;
     this.providerUsageCapture = new ProviderUsageCapture(
-      new ProviderUsageStore(undefined, this.logger),
+      new ProviderUsageStore(dependencies.runStore.getDataDirectory(), this.logger),
       this.logger,
     );
     this.executionCapture = dependencies.executionRecorder

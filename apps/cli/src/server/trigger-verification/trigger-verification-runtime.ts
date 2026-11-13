@@ -32,6 +32,7 @@ import {
 } from './verify';
 
 export interface TriggerVerificationRuntimeDependencies {
+  dataDirectory?: string;
   keyPairStore: KeyPairStore;
   initialAccessToken: string;
   machinesApi: ApiRuntime['clients']['machines'];
@@ -177,12 +178,12 @@ export class TriggerVerificationRuntime {
       runRegistry,
       runRestoreCoordinator,
       permissionDecisionAuditFilePath: path.join(
-        resolveBaseDir(),
+        this.dependencies.dataDirectory ?? resolveBaseDir(),
         'runs',
         'permission-decisions.audit.jsonl',
       ),
       operationReceiptStorePath: path.join(
-        resolveBaseDir(),
+        this.dependencies.dataDirectory ?? resolveBaseDir(),
         'runs',
         'agent-operation-receipts.jsonl',
       ),

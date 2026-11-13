@@ -771,9 +771,10 @@ describe('Run worktree workspace state', () => {
     };
     vi.mocked(resolveRunWorkspace).mockResolvedValue(workspace);
     const captured: RunnerContext[] = [];
+    const store = makeRunStore();
     const run = new Run(
       makeRunArgs({ provider: 'claude' }),
-      makeCollaborators(makeRunStore(), (ctx) => {
+      makeCollaborators(store, (ctx) => {
         captured.push(ctx);
         return {
           run: async () => {
@@ -789,6 +790,8 @@ describe('Run worktree workspace state', () => {
     await run.awaitIdle();
 
     expect(captured).toHaveLength(2);
+    const dataHome = captured[0]?.workspaceWriteBoundary?.processContainment().env['XDG_DATA_HOME'];
+    expect(dataHome?.startsWith(join(store.getDataDirectory(), 'provider-state') + '/')).toBe(true);
     expect(captured[0]!.workspaceWriteBoundary).toBeDefined();
     expect(captured[1]!.workspaceWriteBoundary).toBe(captured[0]!.workspaceWriteBoundary);
     expect(captured[0]!.workspaceWriteBoundary?.allowedRepositoryRoots).toEqual([

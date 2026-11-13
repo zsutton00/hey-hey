@@ -1,3 +1,5 @@
+import type { CliState } from '../credentials/cli-state';
+import { join } from 'node:path';
 import { MachineOptionsStore } from '../options/machine-options-store';
 import { AgentApplicationRuntime } from '../agents/agent-application-runtime';
 import type { TaskMonitorMachineContext } from '../agents/task-monitor/state-machine/context';
@@ -53,6 +55,7 @@ import { RuntimeCapabilityCatalogLifecycle } from './runtime-capability-catalog'
 import { OperationTimelineRegistry } from './input-admission/operation-timeline';
 
 export interface StartLocalAgentServerOptions {
+  state?: CliState;
   preferredPort?: number;
   host?: string;
   enableDailySession?: boolean;
@@ -80,11 +83,13 @@ export class LocalAgentServerBootstrap {
 
   public async start(): Promise<LocalAgentServerRuntime> {
     const terminal = this.options.terminal;
-    const infrastructure = new LocalAgentInfrastructure(
-      terminal
+    const dataDirectory = this.options.state?.directory ?? resolveBaseDir();
+    const infrastructure = new LocalAgentInfrastructure({
+      ...(this.options.state ? { state: this.options.state } : {}),
+      ...(terminal
         ? { diagnosticFeed: terminal.diagnosticFeed, writeLogLine: terminal.writeLogLine }
-        : {},
-    );
+        : {}),
+    });
     const capabilityCatalogLifecycle = new RuntimeCapabilityCatalogLifecycle(
       infrastructure.logger.child({ component: 'runtime-capability-catalog' }),
     );
@@ -108,7 +113,8 @@ export class LocalAgentServerBootstrap {
       oauthClient: infrastructure.oauthClient,
       apiBaseUrl: infrastructure.normalizedApiBaseUrl,
       logger: infrastructure.logger.child({ component: 'agents' }),
-      isJevEnabled: () => new MachineOptionsStore().isJevEnabled(),
+      isJevEnabled: () =>
+        new MachineOptionsStore({ filePath: join(dataDirectory, 'options.json') }).isJevEnabled(),
       taskMonitorManagedTurnRuntime,
     });
     infrastructure.logger.debug('local.bootstrap.agent_runtime.constructed');
@@ -119,6 +125,9 @@ export class LocalAgentServerBootstrap {
     const runLifecycleEvents = new RunLifecycleEvents();
     const operationTimeline = new OperationTimelineRegistry(infrastructure.logger);
     const runRuntime = new RunApplicationRuntime({
+      ...(this.options.state?.directory
+        ? { invocationConfigPath: join(this.options.state.directory, 'agent-invocation.json') }
+        : {}),
       capabilityCatalog: capabilityCatalogLifecycle,
       projectBrowsers: infrastructure.projectBrowsers,
       runStore: infrastructure.runStore,
@@ -131,7 +140,7 @@ export class LocalAgentServerBootstrap {
       taskMonitorManagedTurnRuntime,
       taskMonitorLaunchFailureRuntime,
       logger: infrastructure.logger,
-      dataDir: resolveBaseDir(),
+      dataDir: this.options.state?.directory ?? resolveBaseDir(),
       apiBaseUrl: infrastructure.normalizedApiBaseUrl,
       authContext: infrastructure.platformAuthContext,
       reportIndex,
@@ -155,6 +164,7 @@ export class LocalAgentServerBootstrap {
       agentOutputEvents,
     );
     const monitorRuntime = new MonitorApplicationRuntime({
+      dataDirectory,
       apiBaseUrl: infrastructure.normalizedApiBaseUrl,
       apiRuntime: infrastructure.apiRuntime,
       authContext: infrastructure.platformAuthContext,
@@ -186,7 +196,7 @@ export class LocalAgentServerBootstrap {
     }
 
     const machineStateStorePath = resolveMachineStateStorePath(
-      resolveBaseDir(),
+      this.options.state?.directory ?? resolveBaseDir(),
       infrastructure.normalizedApiBaseUrl,
     );
     infrastructure.logger.debug('local.bootstrap.machine_store.configured', {
@@ -249,6 +259,7 @@ export class LocalAgentServerBootstrap {
       machineStore,
     );
     const platformRuntime = new PlatformApplicationRuntime({
+      dataDirectory,
       diagnosticFeed: infrastructure.diagnosticFeed,
       apiBaseUrl: infrastructure.normalizedApiBaseUrl,
       apiRuntime: infrastructure.apiRuntime,
@@ -280,7 +291,7 @@ export class LocalAgentServerBootstrap {
     });
     const runRetentionMaintenance = new RunRetentionMaintenance(
       infrastructure.runStore,
-      new RunRetentionSettingsStore(),
+      new RunRetentionSettingsStore(dataDirectory),
       infrastructure.logger.child({ component: 'run-retention' }),
     );
     const applicationLifecycle = new LocalAgentApplicationLifecycle({
@@ -295,6 +306,7 @@ export class LocalAgentServerBootstrap {
       machineActions: createMachineActions(infrastructure),
     });
     const router = new LocalAgentRouter({
+      dataDirectory,
       toolCalls: {
         sessionActivity: runRuntime.sessionActivitySource,
         isRemoteToolCallViewingEnabled: runRuntime.isRemoteToolCallViewingEnabled,

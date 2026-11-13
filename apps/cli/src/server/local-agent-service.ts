@@ -57,12 +57,14 @@ import type { AdmittedHostAction } from './controller-authorization/types';
 import { ProjectModeBundleMaterializer } from '../agents/project-mode';
 import type { RunTabs } from '../browser/run-tabs';
 import type { StagedBrowserTabReference } from '@hey-hey/contracts/agent-bridge';
+import { RunAttachmentStore } from './run-attachment-store';
 import { ProviderUsageStore } from '../provider-usage/provider-usage-store';
 import { providers } from '../provider-usage/provider-usage';
 import { readClaudeUsage } from '../provider-usage/claude-usage';
 import { requestClaudeUsageByControl } from '../agents/providers/claude/session-runner-claude';
 
 export interface LocalAgentServiceDependencies {
+  invocationConfigPath?: string;
   runStore: RunStore;
   repoStore: RepoMappingStore;
   runRegistry: RunRegistry;
@@ -121,6 +123,9 @@ export class LocalAgentService {
     this.logger = logger;
     this.sessionRunnerFacade = dependencies.sessionRunnerFacade;
     this.runService = new RunService({
+      ...(dependencies.invocationConfigPath
+        ? { invocationConfigPath: dependencies.invocationConfigPath }
+        : {}),
       runStore: dependencies.runStore,
       repoStore: dependencies.repoStore,
       runRegistry: dependencies.runRegistry,
@@ -138,7 +143,7 @@ export class LocalAgentService {
         : {}),
     });
     this.providerUsageStore = new ProviderUsageStore(
-      undefined,
+      dependencies.runStore.getDataDirectory(),
       logger.child({ component: 'provider-usage' }),
     );
     this.sessionCostAdapter = new SessionCostAdapter(dependencies.readCcusageSessionJson);
@@ -153,18 +158,21 @@ export class LocalAgentService {
         ? { operationTimeline: dependencies.operationTimeline }
         : {}),
     });
-    this.runCreationCoordinator = new RunCreationCoordinator({
-      runService: this.runService,
-      messageService: this.messageService,
-      runRegistry: dependencies.runRegistry,
-      promptTypeRegistry: dependencies.promptTypeRegistry,
-      logger,
-      projectModeBundleMaterializer:
-        dependencies.projectModeBundleMaterializer ?? new ProjectModeBundleMaterializer(),
-      ...(dependencies.stagedBrowserTabs
-        ? { stagedBrowserTabs: dependencies.stagedBrowserTabs }
-        : {}),
-    });
+    this.runCreationCoordinator = new RunCreationCoordinator(
+      {
+        runService: this.runService,
+        messageService: this.messageService,
+        runRegistry: dependencies.runRegistry,
+        promptTypeRegistry: dependencies.promptTypeRegistry,
+        logger,
+        projectModeBundleMaterializer:
+          dependencies.projectModeBundleMaterializer ?? new ProjectModeBundleMaterializer(),
+        ...(dependencies.stagedBrowserTabs
+          ? { stagedBrowserTabs: dependencies.stagedBrowserTabs }
+          : {}),
+      },
+      new RunAttachmentStore(dependencies.runStore.getDataDirectory()),
+    );
     this.monitorRunIdentityService = new MonitorRunIdentityService({
       runStore: dependencies.runStore,
       runCreationCoordinator: this.runCreationCoordinator,

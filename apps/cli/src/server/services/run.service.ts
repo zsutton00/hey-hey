@@ -1,5 +1,5 @@
-import fs from 'node:fs/promises';
 import path from 'node:path';
+import fs from 'node:fs/promises';
 import type { PromptTypeRegistry } from '../../agents/prompt-type-registry';
 import { hasWorktreeStateEntriesForSession } from '../../agents/run-scope';
 import { loadAgentSessionRunnerConfig } from '../../agents/providers/session-runner-config';
@@ -303,6 +303,7 @@ const findRunByCanonicalId = async (
 };
 
 export interface RunServiceDependencies {
+  invocationConfigPath?: string;
   runStore: RunStore;
   repoStore: RepoMappingStore;
   logger: ServerLogger;
@@ -484,7 +485,11 @@ export class RunService {
         );
       }
 
-      const runnerConfig = await loadAgentSessionRunnerConfig();
+      const runnerConfig = await loadAgentSessionRunnerConfig(
+        this.dependencies.invocationConfigPath
+          ? { configPath: this.dependencies.invocationConfigPath }
+          : {},
+      );
       const resolvedModel = input.model ?? runnerConfig.model;
       const resolvedEffort = input.reasoningEffort ?? runnerConfig.reasoningEffort;
       // Validate before this lookup: duplicate signed requests and direct

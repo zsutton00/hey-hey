@@ -14,9 +14,12 @@ import { InstallationStore } from '../local-app/installation-store';
 import { ModelDownloader } from '../local-app/model-downloader';
 import { DockerBoundary } from '../local-app/docker-boundary';
 import { openBrowser } from '../local-app/open-browser';
-import { buildInjectedCredential, getActiveCredentialKey } from '../auth/index';
-import { CredentialStore } from '../credentials/store';
-import { KeyPairStore } from '../credentials/index';
+import { buildInjectedCredential } from '../auth/index';
+import { LocalCliState } from '../local-app/local-cli-state';
+import { MachineControllerAuthority } from '../auth/machine-controller-authority';
+import { Configuration, MachinesApi } from '../shared/api';
+import { createDefaultMachineEnrollmentClient } from '../auth/machine-enrollment-client';
+import { createDefaultMachineControllerManagementClient } from '../auth/machine-controller-management';
 import { runPairCommand } from './pair';
 import { LocalApprovalSecret } from '../auth/local-approval';
 import { PairServerCommand } from './pair-server';
@@ -97,7 +100,10 @@ async function createLocalHandoff(installationSecret: string): Promise<string> {
 }
 
 /** The local application has no login: the installation secret is the CLI's proof of authority. */
-async function storeLocalCliCredentials(installationSecret: string): Promise<void> {
+async function storeLocalCliCredentials(
+  installationSecret: string,
+  state: LocalCliState,
+): Promise<void> {
   const response = await fetch('http://localhost:3000/api/v1/auth/local/cli-credentials', {
     method: 'POST',
     headers: { 'X-HeyHey-Local-Secret': installationSecret },
@@ -110,7 +116,7 @@ async function storeLocalCliCredentials(installationSecret: string): Promise<voi
     accessToken: data.accessToken,
     refreshToken: data.refreshToken,
   });
-  await new CredentialStore().store(getActiveCredentialKey(), credential);
+  await state.credentials.store('heyhey:oauth:local-application', credential);
 }
 
 /**
@@ -198,6 +204,7 @@ export async function continueLocalApplication(
   onStopping: () => void,
   /** Dev mode only: the containers expected to be running. See `ServerCommandOptions`. */
   expectedServices?: readonly string[],
+  state = new LocalCliState(storage.directory),
 ): Promise<boolean> {
   const serverServices = expectedServices ? { localApplicationServices: expectedServices } : {};
   const originalApiUrl = process.env['HEYHEY_API_URL'];
@@ -215,22 +222,76 @@ export async function continueLocalApplication(
   try {
     const secrets = await storage.secrets();
     const handoffToken = await createLocalHandoff(secrets.admin);
-    await storeLocalCliCredentials(secrets.admin);
-    const keyPairStore = new KeyPairStore();
+    await storeLocalCliCredentials(secrets.admin, state);
+    const keyPairStore = state.keyPairStore;
+    const readAccessToken = async (): Promise<string> => {
+      const token = await state.oauthClient.getAccessToken();
+      if (!token.success) {
+        throw new Error(`Local CLI credentials unavailable: ${token.error}`);
+      }
+      return token.data;
+    };
+    const machines = new MachinesApi(
+      new Configuration({
+        basePath: 'http://localhost:3000/api/v1',
+        accessToken: readAccessToken,
+      }),
+    );
+    const managementClient = createDefaultMachineControllerManagementClient(
+      keyPairStore,
+      state.oauthClient,
+    );
+    const authority = new MachineControllerAuthority({
+      keyPairStore,
+      controllerRegistryStore: state.controllerRegistryStore,
+      executionGrantStore: state.executionGrantStore,
+      machineDirectory: machines,
+      managementClient,
+    });
+    const readiness = await authority.readReadiness();
     const currentMachineId = await keyPairStore.loadCurrentMachineId();
     console.log(
-      `Pairing state: keychain namespace "${keyPairStore.getAccountNamespace()}", current machine ID ${currentMachineId ?? 'none'}. ${
-        currentMachineId
-          ? 'Treating this computer as already paired; no new pairing will be started.'
-          : 'Starting a first-time pairing.'
-      }`,
+      `Pairing state: store=heyhey-local-cli state=${readiness.state} machineId=${currentMachineId ?? 'none'}.`,
     );
-    if (currentMachineId) {
+    const pairLocal = async (): Promise<boolean> => {
+      const localApproval = new LocalApprovalSecret();
+      const agents = await new CodingAgentDetector().detect();
+      const reopener = new LocalPairingPageReopener(
+        secrets.admin,
+        localApproval,
+        agents,
+        webOrigin,
+      );
+      const current = await authority.readReadiness();
+      const pairingHandoff = await createLocalHandoff(secrets.admin);
+      return runPairCommand({
+        keyPairStore,
+        controllerRegistryStore: state.controllerRegistryStore,
+        executionGrantStore: state.executionGrantStore,
+        machinesApi: createDefaultMachineEnrollmentClient(await readAccessToken()),
+        existingMachineClient: managementClient,
+        ...(current.state === 'machine-unrecognized' && current.machineId
+          ? { replaceUnrecognizedMachineId: current.machineId }
+          : {}),
+        localApproval,
+        getPairingUrl: (userCode) => resolvePairingUrl(userCode),
+        onBrowserHandoff: (userCode) => {
+          void openLocalPage(
+            localWebUrl(webOrigin, pairingHandoff, { userCode, localApproval, agents }),
+            'Could not open the local pairing page automatically.',
+          );
+        },
+        onCeremonyStep: (step) => reopener.follow(step),
+      }).finally(() => reopener.stop());
+    };
+    if (readiness.state === 'ready') {
       await openLocalPage(
         localWebUrl(webOrigin, handoffToken),
         'Could not open the local setup page automatically.',
       );
       return await new PairServerCommand().runServerAfterPairing({
+        state,
+        recoverPairing: pairLocal,
         localApplicationDirectory: storage.directory,
         localApplicationRelease: release,
         ...serverServices,
@@ -240,30 +301,13 @@ export async function continueLocalApplication(
       });
     }
 
-    const localApproval = new LocalApprovalSecret();
-    const agents = await new CodingAgentDetector().detect();
-    const reopener = new LocalPairingPageReopener(secrets.admin, localApproval, agents, webOrigin);
-    const paired = await runPairCommand({
-      keyPairStore,
-      localApproval,
-      // The printed fallback carries the code but never the approval secret.
-      getPairingUrl: (userCode) => resolvePairingUrl(userCode),
-      onBrowserHandoff: (userCode) => {
-        void openLocalPage(
-          localWebUrl(webOrigin, handoffToken, { userCode, localApproval, agents }),
-          'Could not open the local pairing page automatically.',
-        );
-      },
-      onCeremonyStep: (step) => {
-        reopener.follow(step);
-      },
-    }).finally(() => {
-      reopener.stop();
-    });
+    const paired = await pairLocal();
     if (!paired) {
       return false;
     }
     return await new PairServerCommand().runServerAfterPairing({
+      state,
+      recoverPairing: pairLocal,
       localApplicationDirectory: storage.directory,
       localApplicationRelease: release,
       ...serverServices,
