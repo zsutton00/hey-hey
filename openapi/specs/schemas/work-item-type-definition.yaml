@@ -1665,7 +1665,54 @@ WorkItemTypeCapabilities:
       description: Whether this type opts into an Explorer Sidebar section; false or omission means no Explorer section is configured.
     graph:
       $ref: "#/WorkItemTypeGraphCapability"
+    monitorKind:
+      $ref: "#/WorkItemTypeMonitorKind"
   additionalProperties: false
+
+WorkItemTypeMonitorKind:
+  type: object
+  additionalProperties: false
+  description: >
+    The kind of a monitor-role work-item type: what each execution node of a
+    monitor of this type may be and how it may be launched. A monitor type
+    that declares no kind resolves to the Task kind, so existing monitors
+    need no stored value. The kind is configuration on the monitor type, not
+    a separate registered thing monitors reference.
+  required:
+    - key
+    - allowedNodeTypes
+    - allowedLaunchMethods
+    - allowedRuntimeProviders
+    - allowedReasoningEfforts
+  properties:
+    key:
+      type: string
+      minLength: 1
+      description: Stable kind identifier, e.g. "task".
+    allowedNodeTypes:
+      type: array
+      minItems: 1
+      description: Work-item type keys a node of a monitor of this kind may be.
+      items:
+        $ref: "#/WorkItemTypeKey"
+    allowedLaunchMethods:
+      type: array
+      minItems: 1
+      description: Launch modes a node of this kind may use.
+      items:
+        $ref: "./work-items.yaml#/TaskMonitorLaunchMethod"
+    allowedRuntimeProviders:
+      type: array
+      minItems: 1
+      description: Runtime providers, one half of a node's runtime profile, a node of this kind may use.
+      items:
+        $ref: "./work-items.yaml#/TaskMonitorLaunchProvider"
+    allowedReasoningEfforts:
+      type: array
+      minItems: 1
+      description: Reasoning efforts, the other half of a node's runtime profile, a node of this kind may use.
+      items:
+        $ref: "./work-items.yaml#/TaskMonitorReasoningEffort"
 
 WorkItemTypeGraphCapability:
   type: object

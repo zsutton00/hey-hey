@@ -4,6 +4,10 @@ import { AgentEdgeDirection } from '@hey-hey/contracts/api/models';
 import { AgentEdgeEndpointEntityType } from '@hey-hey/contracts/api/models';
 import { AgentEdgeType } from '@hey-hey/contracts/api/models';
 import type { WorkItemTypeCapabilities } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeMonitorKind } from '@hey-hey/contracts/api/models';
+import { TaskMonitorLaunchMethod } from '@hey-hey/contracts/api/models';
+import { TaskMonitorLaunchProvider } from '@hey-hey/contracts/api/models';
+import { TaskMonitorReasoningEffort } from '@hey-hey/contracts/api/models';
 import { WorkItemTypeGraphAction } from '@hey-hey/contracts/api/models';
 import type { WorkItemTypeGraphCapability } from '@hey-hey/contracts/api/models';
 import { WorkItemTypeGraphEndpointRole } from '@hey-hey/contracts/api/models';
@@ -118,7 +122,10 @@ export const workItemTypeGraphCapabilitySchema: z.ZodType<WorkItemTypeGraphCapab
     })
     .passthrough();
 
-type BooleanCapabilityKey = Exclude<keyof WorkItemTypeCapabilities, 'graph'>;
+type BooleanCapabilityKey = Exclude<
+  keyof WorkItemTypeCapabilities,
+  'graph' | 'monitorKind'
+>;
 type BooleanCapabilityShape = {
   [K in BooleanCapabilityKey]-?: z.ZodOptional<z.ZodBoolean>;
 };
@@ -136,17 +143,37 @@ type PersistedWorkItemTypeCapabilities = Omit<
   'graph'
 >;
 
-const persistedWorkItemTypeCapabilitiesSchema: z.ZodType<PersistedWorkItemTypeCapabilities> =
-  z.object(booleanCapabilityShape).strict();
+const workItemTypeMonitorKindSchema: z.ZodType<WorkItemTypeMonitorKind> = z
+  .object({
+    key: z.string().min(1),
+    allowedNodeTypes: z.array(z.string()).min(1),
+    allowedLaunchMethods: z.array(z.nativeEnum(TaskMonitorLaunchMethod)).min(1),
+    allowedRuntimeProviders: z
+      .array(z.nativeEnum(TaskMonitorLaunchProvider))
+      .min(1),
+    allowedReasoningEfforts: z
+      .array(z.nativeEnum(TaskMonitorReasoningEffort))
+      .min(1),
+  })
+  .strict();
 
 const workItemTypeCapabilityShape = {
   ...booleanCapabilityShape,
   graph: workItemTypeGraphCapabilitySchema.optional(),
+  monitorKind: workItemTypeMonitorKindSchema.optional(),
 } satisfies {
   [K in keyof WorkItemTypeCapabilities]-?: z.ZodType<
     WorkItemTypeCapabilities[K]
   >;
 };
+
+const persistedWorkItemTypeCapabilitiesSchema: z.ZodType<PersistedWorkItemTypeCapabilities> =
+  z
+    .object({
+      ...booleanCapabilityShape,
+      monitorKind: workItemTypeMonitorKindSchema.optional(),
+    })
+    .strict();
 
 /**
  * Strict runtime representation of the generated capability contract. The

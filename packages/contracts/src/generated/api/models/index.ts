@@ -4127,6 +4127,7 @@ export * from './work-item-type-lifecycle-proposal-operation.js';
 export * from './work-item-type-lifecycle-status.js';
 export * from './work-item-type-lifecycle-updates-payload.js';
 export * from './work-item-type-maintenance-guidance-dto.js';
+export * from './work-item-type-monitor-kind.js';
 export * from './work-item-type-role.js';
 export * from './work-item-type-role-guidance-dto.js';
 export * from './work-item-type-scalar-field.js';
