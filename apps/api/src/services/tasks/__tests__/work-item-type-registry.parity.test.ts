@@ -173,7 +173,6 @@ function expectedRowFor(
         allowedStatuses: SUPERSEDABLE_STATUSES,
         initialStatusPolicy: {
           initialStatus: WorkStatus.Backlog,
-          hasSetInitialStatus: false,
         },
         sections: [
           TaskSectionKey.Description,
@@ -202,7 +201,6 @@ function expectedRowFor(
         allowedStatuses: SUPERSEDABLE_STATUSES,
         initialStatusPolicy: {
           initialStatus: WorkStatus.Active,
-          hasSetInitialStatus: false,
         },
         sections: [TaskSectionKey.Description, TaskSectionKey.Requirements],
         requiredScalars: ['tag'],
@@ -225,7 +223,6 @@ function expectedRowFor(
         allowedStatuses: BASE_STATUSES,
         initialStatusPolicy: {
           initialStatus: WorkStatus.Backlog,
-          hasSetInitialStatus: false,
         },
         sections: [TaskSectionKey.Description],
         requiredScalars: [],
@@ -253,7 +250,6 @@ function expectedRowFor(
         allowedStatuses: BASE_STATUSES,
         initialStatusPolicy: {
           initialStatus: WorkStatus.Active,
-          hasSetInitialStatus: true,
         },
         sections: [TaskSectionKey.Description],
         requiredScalars: ['dueDate'],
@@ -452,7 +448,12 @@ describe('work_item_type seed parity with WORK_ITEM_TYPE_CONFIG', () => {
         (axis) => axis !== 'writingStandards',
       ),
     )('matches config on %s', (axis) => {
-      expect(actual?.[axis]).toEqual(expected[axis]);
+      // The frozen seed still carries `hasSetInitialStatus`; a forward
+      // migration strips it, so it is not part of the live config contract.
+      const { hasSetInitialStatus: _retired, ...policy } =
+        (actual?.initialStatusPolicy as Record<string, unknown>) ?? {};
+      const seeded = axis === 'initialStatusPolicy' ? policy : actual?.[axis];
+      expect(seeded).toEqual(expected[axis]);
     });
   });
 });
@@ -758,22 +759,18 @@ const V13_4_CAPABILITIES: Record<BuiltInTaskType, Record<string, boolean>> = {
   STANDARD: {
     requiresParent: true,
     planEligible: true,
-    hasSetInitialStatus: false,
   },
   FEATURE: {
     requiresParent: false,
     planEligible: true,
-    hasSetInitialStatus: false,
   },
   GOAL: {
     requiresParent: false,
     planEligible: true,
-    hasSetInitialStatus: true,
   },
   BUG: {
     requiresParent: false,
     planEligible: true,
-    hasSetInitialStatus: false,
   },
 };
 
@@ -1339,7 +1336,6 @@ describe('deriveRules supports workflow built-in definitions', () => {
       capabilities: {
         requiresParent: false,
         planEligible: false,
-        hasSetInitialStatus: false,
         rendersInline: true,
       },
     });
@@ -1360,7 +1356,6 @@ describe('deriveRules supports workflow built-in definitions', () => {
       capabilities: {
         requiresParent: true,
         planEligible: false,
-        hasSetInitialStatus: false,
         rendersInline: false,
       },
     });
@@ -1411,14 +1406,12 @@ describe('deriveRules supports CONTRACT built-in definition', () => {
         supportsSupersession: true,
         requiresParent: true,
         planEligible: false,
-        hasSetInitialStatus: false,
         rendersInline: false,
       },
     });
 
     expect(rules.initialStatusPolicy).toEqual({
       initialStatus: WorkStatus.Active,
-      hasSetInitialStatus: false,
     });
     expect(rules.allowedStatuses).toEqual([
       WorkStatus.Active,

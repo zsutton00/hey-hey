@@ -25,7 +25,6 @@ const PROJECT_B = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 const LEAN_AXES = {
   initialStatusPolicy: {
     initialStatus: WorkStatus.Backlog,
-    hasSetInitialStatus: false,
   },
   sections: [],
   requiredScalars: [],
@@ -263,7 +262,6 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
   const obsoleteTaskMonitorCapabilities = {
     requiresParent: true,
     planEligible: false,
-    hasSetInitialStatus: false,
     rendersInline: false,
     canOwnReports: false,
     canOwnAgentSessions: false,
@@ -303,7 +301,6 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
       capabilities: {
         requiresParent: true,
         planEligible: false,
-        hasSetInitialStatus: false,
         rendersInline: false,
       },
     });
@@ -318,7 +315,6 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
           capabilities: {
             requiresParent: true,
             planEligible: false,
-            hasSetInitialStatus: false,
             rendersInline: false,
           },
         }),
@@ -437,7 +433,6 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
         capabilities: {
           requiresParent: true,
           planEligible: false,
-          hasSetInitialStatus: false,
           rendersInline: false,
         },
       }),
@@ -464,7 +459,6 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
         capabilities: {
           requiresParent: false,
           planEligible: true,
-          hasSetInitialStatus: false,
           rendersInline: false,
         },
       }),
@@ -504,7 +498,6 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
         capabilities: {
           requiresParent: true,
           planEligible: false,
-          hasSetInitialStatus: false,
           rendersInline: false,
         },
       },
@@ -568,7 +561,6 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
         capabilities: {
           requiresParent: false,
           planEligible: true,
-          hasSetInitialStatus: false,
           rendersInline: false,
         },
       },
