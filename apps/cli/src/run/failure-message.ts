@@ -52,6 +52,9 @@ export function failureMessage(
   serviceNames: readonly string[] = [],
   details: { cause?: string | undefined; reference?: string | undefined } = {},
 ): string {
+  if (reason === 'EXECUTION_FAILED' && details.cause) {
+    return details.cause;
+  }
   if (reason === 'STARTUP_FAILED' && details.cause) {
     const lines = [
       'The session could not start because its preparation failed.',

@@ -1,5 +1,7 @@
 import { execFile } from 'node:child_process';
 import path from 'node:path';
+import { lstat } from 'node:fs/promises';
+import { CommitGitError } from './commit-git-error';
 import { promisify } from 'node:util';
 
 import type { LocalCommitPromptPayload } from '../../shared/agent-bridge-contract/runtime-types';
@@ -25,7 +27,13 @@ type CommitTraceability =
   | { kind: 'task'; taskId: string; runId: string }
   | { kind: 'service'; runId: string; serviceIds: string[] };
 
-type GitOperation = 'add' | 'commit' | 'read_head' | 'read_branch' | 'read_committed_files';
+type GitOperation =
+  | 'read_staged_deletions'
+  | 'add'
+  | 'commit'
+  | 'read_head'
+  | 'read_branch'
+  | 'read_committed_files';
 
 interface GitOperationContext {
   runId: string;
@@ -44,12 +52,66 @@ export interface ExecuteCanonicalCommitInput {
   logger: ServerLogger;
 }
 
-const git = async (repoPath: string, args: readonly string[]): Promise<string> => {
-  const { stdout } = await execFileAsync('git', [...args], {
-    cwd: repoPath,
-    maxBuffer: MAX_GIT_BUFFER,
+const git = (repoPath: string, args: readonly string[], trim = true): Promise<string> =>
+  new Promise((resolve, reject) => {
+    execFile(
+      'git',
+      ['--literal-pathspecs', ...args],
+      {
+        cwd: repoPath,
+        maxBuffer: MAX_GIT_BUFFER,
+      },
+      (error, stdout, stderr) => {
+        if (error) {
+          // Do not include execFile's message: it contains the full command, including
+          // the generated commit message. Git's stderr supplies the operation's reason.
+          reject(
+            new CommitGitError(
+              args[0] ?? 'unknown',
+              stderr.trim() || `Git exited with code ${error.code}.`,
+            ),
+          );
+          return;
+        }
+        resolve(trim ? stdout.trim() : stdout);
+      },
+    );
   });
-  return stdout.trim();
+
+const filesToStage = async (scope: ServiceCommitScope): Promise<string[]> => {
+  const deleted = new Set(
+    (
+      await git(
+        scope.repoPath,
+        [
+          'diff',
+          '--cached',
+          '--diff-filter=D',
+          '--no-renames',
+          '--name-only',
+          '-z',
+          '--',
+          ...scope.files,
+        ],
+        false,
+      )
+    ).split('\0'),
+  );
+  const files: string[] = [];
+  for (const file of scope.files) {
+    if (deleted.has(file)) {
+      try {
+        await lstat(path.join(scope.repoPath, file));
+      } catch (error) {
+        if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+          continue;
+        }
+        throw error;
+      }
+    }
+    files.push(file);
+  }
+  return files;
 };
 
 const runGitOperation = async <Result>(
@@ -320,9 +382,18 @@ const executeValidatedCommit = async (input: ExecuteCanonicalCommitInput): Promi
       repositoryRoot: scope.repoPath,
       files: scope.files,
     };
-    await runGitOperation(logger, { ...context, operation: 'add' }, () =>
-      git(scope.repoPath, ['add', '--', ...scope.files]),
+    // Already-staged deletions are absent from both disk and index. They remain
+    // in commit --only's HEAD-based scope, but cannot be passed to git add again.
+    const stagingFiles = await runGitOperation(
+      logger,
+      { ...context, operation: 'read_staged_deletions' },
+      () => filesToStage(scope),
     );
+    if (stagingFiles.length > 0) {
+      await runGitOperation(logger, { ...context, operation: 'add' }, () =>
+        git(scope.repoPath, ['add', '--', ...stagingFiles]),
+      );
+    }
     await runGitOperation(logger, { ...context, operation: 'commit' }, () =>
       git(scope.repoPath, [
         'commit',
