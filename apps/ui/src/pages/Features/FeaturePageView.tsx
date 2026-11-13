@@ -356,10 +356,19 @@ export const FeaturePageView: React.FC<FeaturePageViewProps> = ({
     [onTitleChange, task.name],
   );
 
+  // Status choices come from the type of the open tab even before any item has
+  // loaded; loaded items only add statuses their type no longer defines.
+  const statusScope = useMemo(
+    () =>
+      activeChildTypeKey
+        ? [{ type: activeChildTypeKey }, ...children]
+        : children,
+    [activeChildTypeKey, children],
+  );
   const { definitions, statusOptions } = useWorkItemStatusVocabularies(
     organizationId,
     projectId,
-    children,
+    statusScope,
   );
   const locallyFilteredChildren = useFilteredWorkItems<TaskResponseDto>(
     children,
@@ -390,33 +399,7 @@ export const FeaturePageView: React.FC<FeaturePageViewProps> = ({
       type: "select",
       key: "status",
       label: t("tasks.filters.status", "Status"),
-      options: [
-        {
-          value: WorkStatus.Backlog,
-          label: t("tasks.status.backlog", "Backlog"),
-        },
-        { value: WorkStatus.Active, label: t("tasks.status.active", "Active") },
-        {
-          value: WorkStatus.OnHold,
-          label: t("tasks.status.onHold", "On Hold"),
-        },
-        {
-          value: WorkStatus.Verifying,
-          label: t("tasks.status.verifying", "Verifying"),
-        },
-        {
-          value: WorkStatus.Completed,
-          label: t("tasks.status.completed", "Completed"),
-        },
-        {
-          value: WorkStatus.Cancelled,
-          label: t("tasks.status.cancelled", "Cancelled"),
-        },
-        {
-          value: WorkStatus.RefiningAcceptanceCriteria,
-          label: t("tasks.status.refining", "Refining"),
-        },
-      ],
+      options: statusOptions,
     },
   ];
   const taskSortOptions = [

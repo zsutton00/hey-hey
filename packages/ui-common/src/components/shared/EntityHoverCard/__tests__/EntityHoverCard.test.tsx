@@ -277,7 +277,7 @@ describe("EntityHoverCard plan preview", () => {
     expect(
       screen.getByText("Five customers struggled to find saved views."),
     ).toBeInTheDocument();
-    expect(screen.getByText("ACTIVE")).toBeInTheDocument();
+    expect(screen.getByText("In progress")).toBeInTheDocument();
   });
 
   it("renders a scaled, non-interactive thumbnail for a leading HTML/CSS section", () => {
@@ -499,7 +499,7 @@ describe("EntityHoverCard plan preview", () => {
     );
 
     expect(screen.getByText("Interview synthesis")).toBeInTheDocument();
-    expect(screen.getByText("ACTIVE")).toBeInTheDocument();
+    expect(screen.getByText("In progress")).toBeInTheDocument();
     expect(
       screen.queryByText("Five customers struggled to find saved views."),
     ).not.toBeInTheDocument();

@@ -1,4 +1,3 @@
-import type { TaskResponseDto } from "../../../../../packages/ui-common/src/api/api";
 import { Box, Checkbox, FormControlLabel, Stack } from "@mui/material";
 import LayersIcon from "@mui/icons-material/Layers";
 import {
@@ -7,8 +6,10 @@ import {
   TaskList,
   type FilterConfig,
 } from "@hey-hey/ui-common/components";
-import { WorkStatus } from "@hey-hey/contracts/api";
-import { useWorkItems } from "@hey-hey/ui-common/data";
+import {
+  useWorkItems,
+  useWorkItemStatusVocabularies,
+} from "@hey-hey/ui-common/data";
 import { useTranslation } from "react-i18next";
 import { parseAsBoolean, parseAsString, useQueryState } from "nuqs";
 import React, { useMemo } from "react";
@@ -91,14 +92,22 @@ export const ProjectWorkItemsTab: React.FC<ProjectWorkItemsTabProps> = ({
       limit: PAGE_LIMIT,
       sortBy,
       sortDir,
-      status: statusFilter
-        ? (statusFilter as TaskResponseDto["status"])
-        : undefined,
+      status: statusFilter || undefined,
       includeSectionKeys: ["description"],
       parentTaskId: parentTaskId ?? undefined,
       includeDescendants: includeDescendants || undefined,
       enabled: !!organizationId && !!projectId,
     },
+  );
+
+  const statusScope = useMemo(
+    () => [{ type: taskType }, ...workItems],
+    [taskType, workItems],
+  );
+  const { statusOptions } = useWorkItemStatusVocabularies(
+    organizationId,
+    projectId,
+    statusScope,
   );
 
   const paginationProps = getPaginationProps({ itemCount: workItems.length });
@@ -127,33 +136,7 @@ export const ProjectWorkItemsTab: React.FC<ProjectWorkItemsTabProps> = ({
       type: "select",
       key: "status",
       label: t("tasks.filters.status", "Status"),
-      options: [
-        {
-          value: WorkStatus.Backlog,
-          label: t("tasks.status.backlog", "Backlog"),
-        },
-        { value: WorkStatus.Active, label: t("tasks.status.active", "Active") },
-        {
-          value: WorkStatus.OnHold,
-          label: t("tasks.status.onHold", "On Hold"),
-        },
-        {
-          value: WorkStatus.Verifying,
-          label: t("tasks.status.verifying", "Verifying"),
-        },
-        {
-          value: WorkStatus.Completed,
-          label: t("tasks.status.completed", "Completed"),
-        },
-        {
-          value: WorkStatus.Cancelled,
-          label: t("tasks.status.cancelled", "Cancelled"),
-        },
-        {
-          value: WorkStatus.RefiningAcceptanceCriteria,
-          label: t("tasks.status.refining", "Refining"),
-        },
-      ],
+      options: statusOptions,
     },
     {
       type: "custom",

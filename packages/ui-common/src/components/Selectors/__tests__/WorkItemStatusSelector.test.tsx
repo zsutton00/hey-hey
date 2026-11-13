@@ -26,6 +26,17 @@ const mockAllowedStatuses = (statuses: TaskResponseDto["status"][]): void => {
   } as never);
 };
 
+/** The labels the built-in Feature and Plan definitions carry for their statuses. */
+const mockLabelledStatuses = (
+  key: string,
+  statuses: { name: string; label: string; meaning: string }[],
+): void => {
+  mockedUseWorkItemTypeByKey.mockReturnValue({
+    isLoading: false,
+    workItemTypeDefinition: statusDefinition([], { key, statuses }),
+  } as never);
+};
+
 const STANDARD_ALLOWED: TaskResponseDto["status"][] = [
   WorkStatus.Backlog,
   WorkStatus.Active,
@@ -140,7 +151,9 @@ describe("WorkItemStatusSelector", () => {
   });
 
   it("displays Active as 'Ready' for feature tasks", () => {
-    mockAllowedStatuses([WorkStatus.Active]);
+    mockLabelledStatuses("FEATURE", [
+      { name: WorkStatus.Active, label: "Ready", meaning: "IN_PROGRESS" },
+    ]);
     render(
       <WorkItemStatusSelector
         value={WorkStatus.Active}
@@ -156,7 +169,10 @@ describe("WorkItemStatusSelector", () => {
 });
 
 it("labels Plan BACKLOG as Draft but submits the canonical BACKLOG value", async () => {
-  mockAllowedStatuses([WorkStatus.Backlog, WorkStatus.Ready]);
+  mockLabelledStatuses("PLAN", [
+    { name: WorkStatus.Backlog, label: "Draft", meaning: "NOT_STARTED" },
+    { name: WorkStatus.Ready, label: "Ready", meaning: "NOT_STARTED" },
+  ]);
   const onChange = vi.fn();
   render(
     <WorkItemStatusSelector

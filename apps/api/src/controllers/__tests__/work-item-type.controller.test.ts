@@ -515,6 +515,7 @@ describe('WorkItemTypeController', () => {
         buildWorkItemTypeEditProposal({
           typeKey: 'MARKETING',
           definition: row.definition,
+          currentDefinition: row.definition,
           requestorContext: dto.requestorContext,
         }),
       );
@@ -568,10 +569,39 @@ describe('WorkItemTypeController', () => {
         buildWorkItemTypeEditProposal({
           typeKey: 'STANDARD',
           definition: row.definition,
+          currentDefinition: row.definition,
           acknowledgeCanonicalCustomization: true,
           requestorContext: dto.requestorContext,
         }),
       );
+    });
+
+    it('keeps a narrowed agent-settable list when an edit omits it', async () => {
+      const current = summary('MARKETING');
+      current.definition = {
+        ...current.definition,
+        agentSettableStatuses: ['BACKLOG', 'ARCHIVED'],
+      };
+      registry.getDefinition.mockReturnValue(current);
+      proposalService.create.mockResolvedValue({ id: 'proposal-omit' });
+      const { agentSettableStatuses: _omitted, ...edited } = {
+        ...current.definition,
+        name: 'Campaign',
+      };
+
+      await controller.edit(
+        user,
+        ORG_ID,
+        PROJECT_ID,
+        'MARKETING',
+        { definition: edited },
+        makeRequest(),
+      );
+
+      expect(
+        proposalService.create.mock.calls[0][3].updates.definition
+          .agentSettableStatuses,
+      ).toEqual(['BACKLOG', 'ARCHIVED']);
     });
 
     it('submits authorable semantic edits for review', async () => {

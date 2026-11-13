@@ -2,24 +2,39 @@ import type { TaskResponseDto } from "../../api/api";
 import React from "react";
 import { Box, Chip, Typography, Button } from "@mui/material";
 import { Pulse } from "../../animations";
-import { getStatusLabel, getStatusColorMapping } from "../../utils/statusUtils";
+import { useWorkItemTypeByKey } from "../../data/hooks";
+import { getStatusColorMapping } from "../../utils/statusUtils";
+import { getWorkItemStatusLabel } from "../../utils/workItemStatusVocabulary";
 
 export interface WorkItemStatusChipProps {
   status: TaskResponseDto["status"];
   itemId: string;
+  /** Scope and type of the item, so its status reads from its own type. */
+  organizationId: string;
+  projectId: string;
+  typeKey: string;
   testIdPrefix?: string;
 }
 
 export const WorkItemStatusChip: React.FC<WorkItemStatusChipProps> = ({
   status,
   itemId,
+  organizationId,
+  projectId,
+  typeKey,
   testIdPrefix = "work-item",
 }) => {
+  const { workItemTypeDefinition } = useWorkItemTypeByKey(
+    organizationId,
+    projectId,
+    typeKey,
+  );
+
   return (
     <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
       <Chip
         data-testid={`${testIdPrefix}-${itemId}-status`}
-        label={getStatusLabel(status)}
+        label={getWorkItemStatusLabel(status, workItemTypeDefinition)}
         color={getStatusColorMapping(status)}
         size="small"
         sx={{ fontWeight: "bold" }}

@@ -82,7 +82,9 @@ export const featureRequirementInputSchema = z
     designedBy: z
       .array(featureRequirementDesignCitationSchema)
       .optional()
-      .describe('DESIGN_DOC, MOCKUP, or DIAGRAM cites that designed this requirement'),
+      .describe(
+        'DESIGN_DOC, MOCKUP, or DIAGRAM cites that designed this requirement',
+      ),
     fulfilledBy: z
       .array(featureRequirementFulfillmentCitationSchema)
       .optional()

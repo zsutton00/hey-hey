@@ -83,7 +83,7 @@ import { ProposalEdgeTargetType } from '@hey-hey/contracts/api/models';
 import { ProposalEdgeEndpointMode } from '@hey-hey/contracts/api/models';
 import { ProposalEdgeType } from '@hey-hey/contracts/api/models';
 import { WorkflowName } from '@hey-hey/contracts/api/models';
-import { WorkItemTypeRegistryService } from '../tasks/work-item-type-registry.service';
+import { undeclaredAgentSettableStatuses, WorkItemTypeRegistryService } from '../tasks/work-item-type-registry.service';
 import {
   isWorkItemServiceScopeEligible,
   WORK_ITEM_SERVICE_SCOPE_INVALID_REASON,
@@ -2530,6 +2530,28 @@ export class ProposalValidationEngine {
             suggestion: `Reference only the project's active work-item types: ${validTypes.join(
               ', ',
             )}.`,
+          });
+        }
+      }
+
+      if (def.statuses && def.agentSettableStatuses) {
+        const undeclared = undeclaredAgentSettableStatuses({
+          statuses: def.statuses,
+          agentSettableStatuses: def.agentSettableStatuses,
+        });
+        if (undeclared.length > 0) {
+          issues.push({
+            field:
+              dto.action === 'UPDATE'
+                ? `${prefix}.updates.definition.agentSettableStatuses`
+                : `${prefix}.updates.agentSettableStatuses`,
+            code: 'unknown_agent_settable_status',
+            reason:
+              `Agent-settable statuses must be among the type's statuses or ARCHIVED: ` +
+              `${undeclared.join(', ')}.`,
+            layer: 'referential',
+            suggestion:
+              'Rename these entries to match the renamed statuses, or remove them.',
           });
         }
       }

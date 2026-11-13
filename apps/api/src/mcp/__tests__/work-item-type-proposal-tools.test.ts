@@ -354,6 +354,33 @@ describe('create_work_item_type', () => {
     });
   });
 
+  it("keeps the type's current agent-settable statuses when an edit omits them", async () => {
+    const proposalCreate = jest.fn().mockResolvedValue(
+      makeProposal({
+        action: 'UPDATE',
+        targetEntityId: AXIS_COMPLETE_DEFINITION.key,
+      }),
+    );
+    const { provider } = createProvider({
+      proposalCreate,
+      workItemTypeRegistry: {
+        getDefinition: jest.fn().mockReturnValue(makeRegistryDefinition()),
+      } as unknown as WorkItemTypeRegistryService,
+    });
+    const { agentSettableStatuses: _omitted, ...definition } =
+      AXIS_COMPLETE_DEFINITION;
+
+    await provider.editWorkItemType(
+      { typeKey: AXIS_COMPLETE_DEFINITION.key, definition },
+      {} as any,
+      makeRequest(),
+    );
+
+    expect(
+      proposalCreate.mock.calls[0][3].updates.definition.agentSettableStatuses,
+    ).toEqual(['BACKLOG', 'ACTIVE']);
+  });
+
   it('preserves the complete canonical admission issue collection', async () => {
     const issues = [
       {

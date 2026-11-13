@@ -1,5 +1,4 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
-import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
 import { Tool, Context } from '@rekog/mcp-nest';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { createHash } from 'node:crypto';
@@ -15,9 +14,14 @@ import {
   HelpSearchResponse,
   UnifiedSearchRequest,
   UnifiedSearchResult,
-  WorkStatus,
 } from '@hey-hey/contracts/api/models';
 import { SearchProjection } from '../../generated/graphs';
+import { WORK_ITEM_TYPE_KEYS } from '../../services/tasks/work-item-type-keys';
+import { WorkItemTypeRegistryService } from '../../services/tasks/work-item-type-registry.service';
+import {
+  statusGroupOf,
+  type McpStatusGroup,
+} from '../../services/tasks/work-item-status-groups';
 import { HelpService } from '../../services/help.service';
 import { ProjectId } from '../../types';
 import {
@@ -530,30 +534,6 @@ const DEFAULT_TYPES: EntityType[] = [
   EntityType.Message,
 ];
 
-// BACKLOG: all "not ready to work on" states (generated, refining, on hold)
-// IN_PROGRESS: actively being worked on
-// IN_REVIEW: verification phase
-// DONE / CANCELLED: terminal states
-const MCP_TO_TASK_STATUSES: Record<string, TaskResponseDto['status'][]> = {
-  BACKLOG: [
-    WorkStatus.Generated,
-    WorkStatus.Backlog,
-    WorkStatus.RefiningDescription,
-    WorkStatus.RefiningDetails,
-    WorkStatus.RefiningAcceptanceCriteria,
-    WorkStatus.GeneratingDescription,
-    WorkStatus.GeneratingDetails,
-    WorkStatus.GeneratingDescriptionAndDetails,
-    WorkStatus.GeneratingAcceptanceCriteria,
-    WorkStatus.GeneratingAll,
-    WorkStatus.OnHold,
-  ],
-  IN_PROGRESS: [WorkStatus.Active],
-  IN_REVIEW: [WorkStatus.Verifying],
-  DONE: [WorkStatus.Completed],
-  CANCELLED: [WorkStatus.Cancelled],
-};
-
 // Simplified MCP-facing status → internal design doc workflow statuses.
 // ADR statuses come from src/types/design-doc.types.ts (runtime domain);
 // non-ADR statuses from src/generated/model/brainstormStatus.ts and
@@ -582,6 +562,7 @@ export class SearchToolsProvider {
     private readonly unifiedSearchService: UnifiedSearchService,
     private readonly searchCache: SearchCacheService,
     private readonly helpService: HelpService,
+    private readonly workItemTypeRegistry: WorkItemTypeRegistryService,
     @Optional() private readonly searchReceipts?: SearchReceiptStore,
   ) {}
 
@@ -619,6 +600,43 @@ export class SearchToolsProvider {
       this.searchReceipts?.missingSessionError() ??
       mcpError('Search receipt storage is unavailable.')
     );
+  }
+
+  /**
+   * Whether a search hit's status belongs to `group` under its type's
+   * effective definition. A hit without type metadata (for example one found
+   * only through the graph, which carries a status but no embedding metadata)
+   * cannot be attributed to a type, so it is read against the default
+   * Standard definition, as the fixed status-name groups did. A hit whose
+   * status is not in its definition (for example a removed status) belongs to
+   * no group.
+   */
+  private isInStatusGroup(
+    item: UnifiedSearchResult,
+    group: McpStatusGroup,
+    projectId: ProjectId,
+  ): boolean {
+    const meta = item.embeddings?.metadata as CanonicalTaskMetadata | undefined;
+    const typeKey = meta?.taskType ?? WORK_ITEM_TYPE_KEYS.Standard;
+    if (!item.status) {
+      return false;
+    }
+
+    const rules = this.workItemTypeRegistry.getRulesForProject(
+      typeKey,
+      projectId,
+    );
+    if (!rules) {
+      this.logger.warn('Work item type not resolved for status filter', {
+        typeKey,
+        projectId,
+      });
+      return false;
+    }
+
+    const status = rules.statuses.find(({ name }) => name === item.status);
+
+    return status !== undefined && statusGroupOf(status) === group;
   }
 
   @Tool({
@@ -1097,8 +1115,6 @@ export class SearchToolsProvider {
         ? limit + 1
         : limit;
 
-    const mappedStatuses = status ? MCP_TO_TASK_STATUSES[status] : undefined;
-
     try {
       const searchRequest: UnifiedSearchRequest = {
         intent: 'semantic',
@@ -1151,17 +1167,13 @@ export class SearchToolsProvider {
         }),
       });
 
-      if (mappedStatuses) {
+      if (status) {
         const before = items.length;
-        const statusSet = new Set(mappedStatuses);
-        items = items.filter(
-          (item) =>
-            item.status &&
-            statusSet.has(item.status as TaskResponseDto['status']),
+        items = items.filter((item) =>
+          this.isInStatusGroup(item, status, projectId as ProjectId),
         );
         this.logger.debug(`${toolName} status filter`, {
           filter: status,
-          mappedStatuses,
           before,
           after: items.length,
         });

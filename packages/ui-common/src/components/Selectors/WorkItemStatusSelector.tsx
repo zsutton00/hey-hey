@@ -12,26 +12,14 @@ import {
 } from "@mui/material";
 import type { SelectChangeEvent } from "@mui/material";
 import { WorkStatus } from "../../api";
-import { FEATURE_TASK_TYPE } from "../../constants/taskTypes";
 import { useWorkItemTypeByKey } from "../../data/hooks";
-import {
-  getStatusLabel,
-  getStatusColorMapping,
-  getPlanStatusLabel,
-} from "../../utils/statusUtils";
+import { getStatusColorMapping } from "../../utils/statusUtils";
 import {
   getWorkItemStatusChoices,
   getWorkItemStatusLabel,
 } from "../../utils/workItemStatusVocabulary";
 import { isMachineManagedStatus } from "../../utils/workItemUtils";
 import { SupersedeTaskDialog } from "../WorkItem/SupersedeTaskDialog";
-
-// Features follow a simple REFINING → READY (Active) flow, so Active reads
-// as "Ready" for them.
-const getFeatureStatusLabel = (status: TaskResponseDto["status"]): string => {
-  if (status === WorkStatus.Active) return "Ready";
-  return getStatusLabel(status);
-};
 
 export interface WorkItemStatusSelectorProps {
   value: TaskResponseDto["status"];
@@ -77,10 +65,8 @@ export const WorkItemStatusSelector: React.FC<WorkItemStatusSelectorProps> = ({
   const { workItemTypeDefinition: definition, isLoading } =
     useWorkItemTypeByKey(organizationId, projectId, taskType);
 
-  const handleChange = (
-    event: SelectChangeEvent<TaskResponseDto["status"]>,
-  ): void => {
-    const next = event.target.value as TaskResponseDto["status"];
+  const handleChange = (event: SelectChangeEvent): void => {
+    const next = event.target.value;
     // SUPERSEDED never travels the plain status-update path — it requires a
     // named successor, collected in the supersede dialog.
     if (next === WorkStatus.Superseded) {
@@ -102,17 +88,8 @@ export const WorkItemStatusSelector: React.FC<WorkItemStatusSelectorProps> = ({
           : []),
       ].filter((status) => !isMachineManagedStatus(status))
     : [];
-  const isFeature = taskType === FEATURE_TASK_TYPE;
-  const resolveLabel = (status: TaskResponseDto["status"]) => {
-    if (isFeature) {
-      return getFeatureStatusLabel(status);
-    }
-    if (taskType === "PLAN") {
-      return getPlanStatusLabel(status);
-    }
-
-    return getWorkItemStatusLabel(status, definition);
-  };
+  const resolveLabel = (status: TaskResponseDto["status"]): string =>
+    getWorkItemStatusLabel(status, definition);
 
   return (
     <>
@@ -126,10 +103,8 @@ export const WorkItemStatusSelector: React.FC<WorkItemStatusSelectorProps> = ({
           readOnly={readOnly}
           renderValue={(selected) => (
             <Chip
-              label={resolveLabel(selected as TaskResponseDto["status"])}
-              color={getStatusColorMapping(
-                selected as TaskResponseDto["status"],
-              )}
+              label={resolveLabel(selected)}
+              color={getStatusColorMapping(selected)}
               size="small"
               sx={{ fontWeight: "bold" }}
             />

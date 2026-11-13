@@ -1,6 +1,7 @@
 import { workItemTypeStatusesSchema } from '../work-item-type-status.schema';
 import {
   deriveRules,
+  undeclaredAgentSettableStatuses,
   writtenAgentSettableStatuses,
 } from '../work-item-type-registry.service';
 import type { WorkItemTypeDefinitionDto } from '../../../generated/model/workItemTypeDefinitionDto';
@@ -60,21 +61,68 @@ describe('effective custom status rules', () => {
   });
 });
 
+describe('agent-settable statuses', () => {
+  it('derives rules without rejecting stale names; write paths own that check', () => {
+    const renamed = {
+      ...recipe,
+      statuses: [{ name: 'Drafting', meaning: 'NOT_STARTED' as const }],
+    } satisfies WorkItemTypeDefinitionDto;
+
+    expect(
+      undeclaredAgentSettableStatuses({
+        ...renamed,
+        agentSettableStatuses: ['Draft', 'Drafting', 'ARCHIVED'],
+      }),
+    ).toEqual(['Draft']);
+    expect(
+      deriveRules({ ...renamed, agentSettableStatuses: ['Draft'] })
+        .agentSettableStatuses,
+    ).toEqual(['Draft']);
+  });
+});
+
 describe('status definitions at the authoring boundary', () => {
-  it('recognizes clear status names regardless of their order', () => {
+  it('rejects finishedNames that name a known status and leaves other new names unfinished', () => {
+    expect(() =>
+      resolveWorkItemStatusAuthoring({
+        purpose: 'Work',
+        names: ['Backlog', 'Shipped'],
+        finishedNames: ['Backlog'],
+      }),
+    ).toThrow(/Backlog/);
+
     expect(
       resolveWorkItemStatusAuthoring({
         purpose: 'Work',
-        names: ['Active', 'Idea', 'In progress', 'Blocked', 'Done'],
+        names: ['Backlog', 'Shipped', 'Parked'],
+        finishedNames: ['Shipped'],
       }).statuses,
     ).toEqual([
-      { name: 'Active', meaning: 'IN_PROGRESS' },
-      { name: 'Idea', meaning: 'NOT_STARTED' },
-      { name: 'In progress', meaning: 'IN_PROGRESS' },
-      { name: 'Blocked', meaning: 'UNFINISHED' },
-      { name: 'Done', meaning: 'FINISHED' },
+      { name: 'BACKLOG', label: 'Backlog', meaning: 'NOT_STARTED' },
+      { name: 'Shipped', meaning: 'FINISHED' },
+      { name: 'Parked', meaning: 'UNFINISHED' },
     ]);
   });
+
+  it('matches standard status names regardless of case', () => {
+    expect(
+      resolveWorkItemStatusAuthoring({
+        purpose: 'Work',
+        names: ['backlog', 'In Progress', 'on-hold', 'COMPLETED'],
+      }).statuses,
+    ).toEqual([
+      { name: 'BACKLOG', label: 'Backlog', meaning: 'NOT_STARTED' },
+      { name: 'ACTIVE', label: 'In progress', meaning: 'IN_PROGRESS' },
+      { name: 'ON_HOLD', label: 'On Hold', meaning: 'UNFINISHED' },
+      {
+        name: 'COMPLETED',
+        label: 'Completed',
+        meaning: 'FINISHED',
+        completionBehavior: 'COMPLETED',
+      },
+    ]);
+  });
+
   it('offers the same standard statuses regardless of purpose', () => {
     const result = resolveWorkItemStatusAuthoring({ purpose: 'Recipe' });
     expect(result.state).toBe('RESOLVED');
@@ -108,15 +156,28 @@ describe('status definitions at the authoring boundary', () => {
     );
   });
 
-  it('asks about ambiguous finished states and accepts none', () => {
-    const input = { purpose: 'Résumé', names: ['Draft', 'Maintained'] };
+  it('asks about non-standard names instead of guessing from words', () => {
+    const input = { purpose: 'Work', names: ['Backlog', 'Done', 'Made'] };
     expect(resolveWorkItemStatusAuthoring(input).state).toBe('CLARIFICATION');
     expect(
-      resolveWorkItemStatusAuthoring({ ...input, finishedNames: [] }).statuses,
+      resolveWorkItemStatusAuthoring({ ...input, finishedNames: ['Made'] })
+        .statuses,
     ).toEqual([
-      { name: 'Draft', meaning: 'NOT_STARTED' },
-      { name: 'Maintained', meaning: 'IN_PROGRESS' },
+      expect.objectContaining({ name: 'BACKLOG', meaning: 'NOT_STARTED' }),
+      { name: 'Done', meaning: 'UNFINISHED' },
+      { name: 'Made', meaning: 'FINISHED' },
     ]);
+  });
+
+  it('keeps existing statuses when no names are passed', () => {
+    const existingStatuses = [
+      { name: 'Draft', meaning: 'NOT_STARTED' as const },
+      { name: 'Shipped', meaning: 'FINISHED' as const },
+    ];
+    expect(
+      resolveWorkItemStatusAuthoring({ purpose: 'Work', existingStatuses })
+        .statuses,
+    ).toEqual(existingStatuses);
   });
 
   it('preserves authored meanings and completion metadata when editing', () => {

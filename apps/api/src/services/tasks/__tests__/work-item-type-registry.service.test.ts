@@ -1544,6 +1544,55 @@ describe('WorkItemTypeRegistryService', () => {
       errorLog.mockRestore();
     });
 
+    it('keeps loading a stored type whose agent-settable statuses name a renamed status', async () => {
+      const warnLog = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      const errorLog = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      const key = WORK_ITEM_TYPE_KEYS.Standard;
+      const stale = buildProjectOwnedRow(key, 'stale-project', {
+        name: 'Renamed Statuses',
+        statuses: [
+          { name: 'Drafting', label: 'Drafting', meaning: 'NOT_STARTED' },
+          { name: 'Published', label: 'Published', meaning: 'FINISHED' },
+        ] as unknown as WorkItemType['statuses'],
+        agentSettableStatuses: [
+          'Draft',
+          'Published',
+          'ARCHIVED',
+        ] as unknown as WorkItemType['agentSettableStatuses'],
+      });
+      const healthy = buildProjectOwnedRow(key, 'healthy-project', {
+        name: 'Healthy Override',
+      });
+      const { registry } = buildRegistry(
+        [stale, healthy],
+        ALL_TYPES.map((typeKey) => buildTemplate(typeKey, 1)),
+        ['stale-project', 'healthy-project'],
+      );
+
+      await expect(registry.refresh()).resolves.toBeUndefined();
+
+      expect(registry.getDefinition('stale-project', key)).toMatchObject({
+        effectiveSource: 'CANONICAL_OVERRIDE',
+        definition: { name: 'Renamed Statuses' },
+      });
+      expect(registry.getDefinition('healthy-project', key)).toMatchObject({
+        definition: { name: 'Healthy Override' },
+      });
+      expect(registry.getAgentSettableStatuses(key, 'stale-project')).toContain(
+        'Published',
+      );
+      expect(errorLog).not.toHaveBeenCalled();
+      expect(warnLog).toHaveBeenCalledWith(
+        expect.stringMatching(/'STANDARD'.*stale-project.*Draft/),
+      );
+      warnLog.mockRestore();
+      errorLog.mockRestore();
+    });
+
     it.each(['GUARANTEES', 'IMPLEMENTS', 'CONSUMES'])(
       'accepts %s traversal declarations',
       async (relationshipType) => {

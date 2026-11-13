@@ -81,7 +81,7 @@ export class WorkItemTypeToolsProvider {
   @Tool({
     name: 'resolve_work_item_type_statuses',
     description:
-      'Suggest statuses based on purpose and resolve their meanings. Pass existing statuses unchanged when editing; if clarification is returned, ask which names mean finished and submit finishedNames, including an empty array when none do.',
+      "Suggest Hey Hey's standard statuses and resolve meanings for a status list. Standard names (any case) keep their standard meaning; omit names to keep existing statuses. Pass existing statuses unchanged when editing; if clarification is returned, ask which names mean finished and submit finishedNames, including an empty array when none do. finishedNames may list only new names: known (standard or saved) statuses keep their meaning and are rejected there. New names not listed as finished become UNFINISHED; a new status cannot be marked not started or in progress through this tool.",
     parameters: statusAuthoringRequestSchema,
     outputSchema: z
       .object({
@@ -98,15 +98,36 @@ export class WorkItemTypeToolsProvider {
     request: Request,
   ): Promise<WorkItemStatusAuthoringResponse | CallToolResult> {
     const auth = extractAuthContext({}, request);
-    if (!isAuthContext(auth)) return auth;
+    if (!isAuthContext(auth)) {
+      this.logger.error('resolve_work_item_type_statuses: auth rejected', {
+        cause: auth,
+      });
+
+      return auth;
+    }
     const projectId = resolveProjectId({}, request);
-    if (!isProjectId(projectId)) return projectId;
+    if (!isProjectId(projectId)) {
+      this.logger.error('resolve_work_item_type_statuses: project rejected', {
+        cause: projectId,
+      });
+
+      return projectId;
+    }
     if (!(await this.projectService.findOne(projectId, auth.organizationId))) {
+      this.logger.error('resolve_work_item_type_statuses: project not found', {
+        projectId,
+      });
+
       return mcpError('Project not found or not accessible.');
     }
     try {
       return resolveWorkItemStatusAuthoring(params);
     } catch (error) {
+      this.logger.error('resolve_work_item_type_statuses: invalid statuses', {
+        projectId,
+        cause: error,
+      });
+
       return mcpError(
         error instanceof Error ? error.message : 'Invalid statuses.',
       );

@@ -1633,9 +1633,7 @@ export class TaskService {
 
       counts.total += row._count._all;
 
-      const meaning = this.workItemTypeRegistry
-        .getRulesForProject(row.type, row.projectId)
-        ?.statuses.find((status) => status.name === row.status)?.meaning;
+      const meaning = this.findStatusDefinition(row)?.meaning;
       if (meaning === 'FINISHED') {
         counts.done += row._count._all;
       } else if (meaning === 'IN_PROGRESS') {
@@ -2176,11 +2174,33 @@ export class TaskService {
     return map;
   }
 
+  /**
+   * The row's status in its type's effective definition. A removed status is
+   * simply absent; a type that cannot be resolved is logged, because every
+   * status meaning for that row is then unknown.
+   */
+  private findStatusDefinition(row: {
+    type: string;
+    projectId: string;
+    status: string;
+  }) {
+    const rules = this.workItemTypeRegistry.getRulesForProject(
+      row.type,
+      row.projectId,
+    );
+    if (!rules) {
+      this.logger.warn('Work item type not resolved for status meaning', {
+        typeKey: row.type,
+        projectId: row.projectId,
+      });
+    }
+
+    return rules?.statuses.find((status) => status.name === row.status);
+  }
+
   private toTrackedSnapshots(rows: TrackedTaskRow[]): TrackedEntitySnapshot[] {
     return rows.map((row) => {
-      const status = this.workItemTypeRegistry
-        .getRulesForProject(row.type, row.projectId)
-        ?.statuses.find((status) => status.name === row.status);
+      const status = this.findStatusDefinition(row);
 
       return {
         targetEntityId: row.id,
@@ -2213,9 +2233,7 @@ export class TaskService {
     };
     const nowMs = now.getTime();
     for (const row of rows) {
-      const status = this.workItemTypeRegistry
-        .getRulesForProject(row.type, row.projectId)
-        ?.statuses.find((status) => status.name === row.status);
+      const status = this.findStatusDefinition(row);
       if (
         status?.meaning === 'FINISHED' &&
         status.completionBehavior !== 'CANCELLED'

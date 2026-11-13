@@ -4975,6 +4975,47 @@ describe('TaskService', () => {
       });
     });
 
+    it('counts child progress by status meaning, not status name', async () => {
+      (mockPrismaService.db.task.findFirst as jest.Mock).mockResolvedValue(
+        mockTaskData,
+      );
+      jest.spyOn(workItemTypeRegistry, 'getRulesForProject').mockReturnValue({
+        statuses: [
+          { name: 'BUILDING', label: 'Building', meaning: 'IN_PROGRESS' },
+          {
+            name: 'DELIVERED',
+            label: 'Delivered',
+            meaning: 'FINISHED',
+            completionBehavior: 'COMPLETED',
+          },
+        ],
+      } as unknown as ReturnType<
+        WorkItemTypeRegistryService['getRulesForProject']
+      >);
+      const child = (status: string, count: number) => ({
+        parentTaskId: mockTaskData.id,
+        type: 'STANDARD',
+        projectId: testIds.project,
+        status,
+        _count: { _all: count },
+      });
+      (mockPrismaService.db.task.groupBy as jest.Mock).mockResolvedValue([
+        child('DELIVERED', 2),
+        child('BUILDING', 1),
+        // Removed from the type: never counted as done.
+        child('COMPLETED', 3),
+      ]);
+
+      const result = await service.findOne(testIds.organization, testIds.task);
+
+      expect(result?.childCounts).toEqual({
+        total: 6,
+        done: 2,
+        inProgress: 1,
+        backlog: 3,
+      });
+    });
+
     it('should return null when task not found', async () => {
       (mockPrismaService.db.task.findFirst as jest.Mock).mockResolvedValue(
         null,

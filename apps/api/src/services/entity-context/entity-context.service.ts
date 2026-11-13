@@ -7,6 +7,10 @@ import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { PlanDependenciesService } from '../plan/plan-dependencies.service';
 import { orderPlanStages } from '../plan/order-plan-stages';
 import {
+  statusNamesInGroup,
+  type McpStatusGroup,
+} from '../tasks/work-item-status-groups';
+import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
 } from 'src/services/tasks/work-item-type-keys';
@@ -1850,6 +1854,34 @@ export class EntityContextService {
     return items;
   }
 
+  private goalStatuses(projectId: ProjectId) {
+    const rules = this.workItemTypeRegistry.getRulesForProject(
+      WORK_ITEM_TYPE_KEYS.Goal,
+      projectId,
+    );
+    if (!rules) {
+      this.logger.warn(
+        'Goal type not resolved in project registry; no status meanings available',
+        { typeKey: WORK_ITEM_TYPE_KEYS.Goal, projectId },
+      );
+    }
+
+    return rules?.statuses ?? [];
+  }
+
+  private finishedGoalStatusNames(projectId: ProjectId): string[] {
+    return this.goalStatuses(projectId)
+      .filter((status) => status.meaning === 'FINISHED')
+      .map((status) => status.name);
+  }
+
+  private goalStatusNamesInGroup(
+    projectId: ProjectId,
+    group: McpStatusGroup,
+  ): string[] {
+    return statusNamesInGroup(this.goalStatuses(projectId), group);
+  }
+
   /**
    * Returns every GOAL-typed task in the project as a flat list.
    *
@@ -1869,22 +1901,26 @@ export class EntityContextService {
     projectId: ProjectId,
     limit: number,
     offset: number,
-    statuses?: TaskResponseDto['status'][],
+    statusGroup?: McpStatusGroup,
   ): Promise<ListGoalsResponseDto> {
     this.logger.log('listGoals called', {
       organizationId,
       projectId,
       limit,
       offset,
-      statuses,
+      statusGroup,
     });
+
+    const statuses = statusGroup
+      ? this.goalStatusNamesInGroup(projectId, statusGroup)
+      : undefined;
 
     const where = {
       organizationId,
       projectId,
       type: WORK_ITEM_TYPE_KEYS.Goal,
       archivedAt: null,
-      ...(statuses && statuses.length > 0 ? { status: { in: statuses } } : {}),
+      ...(statuses ? { status: { in: statuses } } : {}),
     };
 
     const [rows, total] = await this.prisma.db.$transaction([
@@ -1972,10 +2008,7 @@ export class EntityContextService {
         archivedAt: null,
         status: {
           notIn: [
-            ...(this.workItemTypeRegistry
-              .getRulesForProject(WORK_ITEM_TYPE_KEYS.Goal, projectId)
-              ?.statuses.filter((status) => status.meaning === 'FINISHED')
-              .map((status) => status.name) ?? []),
+            ...this.finishedGoalStatusNames(projectId),
             WorkStatus.Archived,
           ],
         },

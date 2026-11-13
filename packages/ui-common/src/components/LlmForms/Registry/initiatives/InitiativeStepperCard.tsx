@@ -30,6 +30,9 @@ export const InitiativeStepperCard: React.FC<InitiativeStepperCardProps> = ({
       <WorkItemStatusChip
         status={initiative.status}
         itemId={initiative.id}
+        organizationId={initiative.organizationId}
+        projectId={initiative.originatingProjectId}
+        typeKey="initiative"
         testIdPrefix="initiative-stepper-card"
       />
 
