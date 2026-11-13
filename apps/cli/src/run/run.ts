@@ -1,3 +1,4 @@
+import { ReportProvenance } from './report-provenance';
 import { reportUsageExecutions } from '../provider-usage/report-usage-executions';
 import { readRestrictionFor } from '../shared/api/read-restriction';
 import { isAxiosError } from 'axios';
@@ -879,6 +880,7 @@ export class Run {
   private readonly browserAnnotations: BrowserAnnotationDelivery | undefined;
   private readonly browserTabNotices: BrowserTabNoticeDelivery | undefined;
   private readonly runStore: RunStore;
+  readonly reportProvenance: ReportProvenance;
   private readonly implementationReadinessOwner: ImplementationReadinessOwner;
   private readonly repoStore: RepoMappingStore;
   private readonly poster: MessagePoster;
@@ -941,6 +943,7 @@ export class Run {
     this.browserAnnotations = collaborators.browserAnnotations;
     this.browserTabNotices = collaborators.browserTabNotices;
     this.runStore = collaborators.runStore;
+    this.reportProvenance = new ReportProvenance(this.runStore, this.runId);
     this.implementationReadinessOwner = new ImplementationReadinessOwner(
       this.runStore,
       collaborators.logger,
@@ -1151,6 +1154,13 @@ export class Run {
     // via ensureSeeded). Each seed logs and swallows its own failure — a seed
     // must not block the Run, so the combined promise resolves either way.
     const seedSubPromises: Promise<void>[] = [];
+    seedSubPromises.push(
+      this.reportProvenance.restore().then((entries) => {
+        for (const entry of entries) {
+          this.appendReportChainEntry(entry);
+        }
+      }),
+    );
 
     // Report chain from the task scope — only when a task is in scope.
     const taskReportChainReader = collaborators.taskReportChainReader;
@@ -2948,6 +2958,9 @@ export class Run {
    * and `cleanup()` deliberately leaves it intact.
    */
   appendReportChainEntry(entry: ReportChainEntry): void {
+    if (this._reportChain.some((existing) => existing.reportId === entry.reportId)) {
+      return;
+    }
     if (!entry.createdAt) throw new Error('ReportChainEntry.createdAt is required');
     if (!entry.phase) throw new Error('ReportChainEntry.phase is required');
     if (!entry.reportId) throw new Error('ReportChainEntry.reportId is required');
@@ -2966,6 +2979,19 @@ export class Run {
       summary: entry.summary,
       audience: entry.audience,
       ...(entry.serviceId ? { serviceId: entry.serviceId } : {}),
+      ...(entry.sourceRunId ? { sourceRunId: entry.sourceRunId } : {}),
+      ...(entry.commitHashes
+        ? {
+            commitHashes: Object.freeze(
+              entry.commitHashes.map((hash) =>
+                Object.freeze({
+                  ...hash,
+                  implementReportIds: Object.freeze([...(hash.implementReportIds ?? [])]),
+                }),
+              ),
+            ),
+          }
+        : {}),
       ...(entry.touchPoints
         ? { touchPoints: Object.freeze(entry.touchPoints.map((tp) => Object.freeze({ ...tp }))) }
         : {}),

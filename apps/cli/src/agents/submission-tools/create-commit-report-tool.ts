@@ -1,3 +1,4 @@
+import { z } from 'zod';
 /**
  * `create_commit_report` pass-through submission tool.
  *
@@ -13,7 +14,7 @@
  */
 
 import type { ReportChainEntry } from '../../run/types';
-import type { CreateReportDto } from '@hey-hey/contracts/api/models';
+import type { CommitReportPayload, CreateReportDto } from '@hey-hey/contracts/api/models';
 import type { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { CreateReportProxy } from './create-report-proxy';
 import type { PassThroughSubmissionToolDeclaration, SubmissionToolExecuteContext } from './types';
@@ -46,6 +47,11 @@ const CREATE_COMMIT_REPORT_INPUT_SCHEMA = {
           service: { type: 'string', minLength: 1 },
           hash: { type: 'string', minLength: 1 },
           branch: { type: 'string', minLength: 1 },
+          implementReportIds: {
+            type: 'array',
+            uniqueItems: true,
+            items: { type: 'string', format: 'uuid' },
+          },
         },
       },
     },
@@ -97,11 +103,19 @@ export class CommitReportTool implements PassThroughSubmissionToolDeclaration {
 
     const summary: string = summaryRaw;
     const files: string[] = Array.isArray(filesRaw) ? (filesRaw as string[]) : [];
-    const hashes: Array<{ service: string; hash: string; branch: string }> = Array.isArray(
-      hashesRaw,
-    )
-      ? (hashesRaw as Array<{ service: string; hash: string; branch: string }>)
-      : [];
+    const hashes: CommitReportPayload['hashes'] = z
+      .array(
+        z.object({
+          service: z.string().min(1),
+          hash: z.string().min(1),
+          branch: z.string().min(1),
+          implementReportIds: z
+            .array(z.string().uuid())
+            .refine((ids) => new Set(ids).size === ids.length)
+            .default([]),
+        }),
+      )
+      .parse(hashesRaw);
 
     const entities = run.taskId
       ? [
@@ -148,11 +162,15 @@ export class CommitReportTool implements PassThroughSubmissionToolDeclaration {
       phase,
       reportId: proxyResult.reportId,
       reportType: 'COMMIT',
+      sourceRunId: run.runId,
+      commitHashes: hashes,
       summary,
       audience: 'EXTERNAL',
     };
 
+    await run.reportProvenance.recordEntry(entry);
     run.appendReportChainEntry(entry);
+    await run.reportProvenance.settle();
 
     const hashLines = hashes.map((h) => `- ${h.service}: \`${h.hash}\` (${h.branch})`).join('\n');
 

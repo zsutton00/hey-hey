@@ -267,6 +267,42 @@ export class ReportService {
   private readonly defaultListLimit = 50;
   private readonly maxListLimit = 200;
 
+  /** Indexed reverse lookup; the payload remains the only owner of commit state. */
+  async findCommitsForImplementReport(
+    organizationId: string,
+    projectId: string,
+    implementReportId: string,
+  ) {
+    return this.prisma.db.$queryRaw<
+      Array<{ reportId: string; service: string; hash: string; branch: string }>
+    >(Prisma.sql`
+      SELECT c.id AS "reportId", h.value->>'service' AS service,
+        h.value->>'hash' AS hash, h.value->>'branch' AS branch
+      FROM reports c
+      CROSS JOIN LATERAL jsonb_array_elements(c.payload->'hashes') h(value)
+      WHERE c.organization_id = ${organizationId} AND c.project_id = ${projectId}
+        AND c.report_type = 'COMMIT'
+        AND c.payload @> ${JSON.stringify({ hashes: [{ implementReportIds: [implementReportId] }] })}::jsonb
+        AND h.value @> ${JSON.stringify({ implementReportIds: [implementReportId] })}::jsonb
+    `);
+  }
+
+  /** Reusable database predicate for a scoped IMPLEMENT list, without loading COMMIT bodies. */
+  implementCommitStatePredicate(
+    organizationId: string,
+    projectId: string,
+    committed: boolean,
+  ): Prisma.Sql {
+    const exists = Prisma.sql`EXISTS (
+      SELECT 1 FROM reports c
+      WHERE c.organization_id = ${organizationId} AND c.project_id = ${projectId}
+        AND c.report_type = 'COMMIT'
+        AND c.payload @> jsonb_build_object('hashes', jsonb_build_array(
+          jsonb_build_object('implementReportIds', jsonb_build_array(reports.id))))
+    )`;
+    return committed ? exists : Prisma.sql`NOT ${exists}`;
+  }
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventPublisher: DomainEventPublisher,
@@ -352,6 +388,30 @@ export class ReportService {
     let created: ReportWithEntities;
     try {
       created = await this.prisma.db.$transaction(async (tx) => {
+        if (
+          dto.reportType === ReportType.Commit &&
+          dto.payload.reportType === 'COMMIT' &&
+          dto.sourceExecutionId
+        ) {
+          // Serialize retry requests from one Run, including a lost successful response.
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${organizationId + ':' + dto.sourceExecutionId}, 0))`;
+          const existing = await tx.report.findFirst({
+            where: {
+              organizationId,
+              projectId: dto.projectId ?? null,
+              sourceExecutionId: dto.sourceExecutionId,
+              reportType: PrismaReportType.COMMIT,
+              payload: { path: ['hashes'], equals: dto.payload.hashes },
+            },
+          });
+          if (existing) {
+            const reportEntities = await tx.reportEntity.findMany({
+              where: { reportId: existing.id },
+              orderBy: { createdAt: 'asc' },
+            });
+            return { ...existing, reportEntities };
+          }
+        }
         if (projectReportPayload) {
           await this.projectReportRequests!.assertReportSubmissionInTransaction(
             tx as unknown as Prisma.TransactionClient,

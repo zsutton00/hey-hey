@@ -21,8 +21,8 @@ const commitArgs = {
   summary: 'fix: commit canonical files',
   files: ['src/a.ts'],
   hashes: [
-    { service: 'service-1', hash: 'abc1234' },
-    { service: 'service-2', hash: 'def5678' },
+    { service: 'service-1', hash: 'abc1234', branch: 'main' },
+    { service: 'service-2', hash: 'def5678', branch: 'main' },
   ],
 };
 

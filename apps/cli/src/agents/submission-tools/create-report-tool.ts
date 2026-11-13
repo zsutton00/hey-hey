@@ -20,7 +20,7 @@ import {
  * forwards the platform's response content to the agent.
  */
 
-import path from 'node:path';
+import { z } from 'zod';
 import { NOOP_LOGGER, type ServerLogger } from '../../server/logger';
 
 import { ReportAudience, ReportRelatedEntityType, ReportType } from '../../shared/api/index';
@@ -40,10 +40,9 @@ import {
   stampProjectReportCoverage,
 } from '../project-report/project-report-submission';
 import type { PassThroughSubmissionToolDeclaration, SubmissionToolExecuteContext } from './types';
-import { groupFileChangeProjectionsByService } from '../../run/file-change-facts';
 import type { Run } from '../../run/run';
-import type { ReportChainEntry } from '../../run/types';
 import { parseFeatureSyncDecisionReport } from './feature-sync-decision/schemas';
+import type { ImplementReportDecision } from '../../turn/turn-change-record';
 
 export const CREATE_REPORT_TOOL_NAME = 'create_report';
 
@@ -118,29 +117,6 @@ export const CREATE_REPORT_INPUT_SCHEMA = {
   required: ['reportType', 'audience', 'payload'],
 };
 
-interface ImplementReportPartition {
-  args: Record<string, unknown>;
-  serviceId?: string;
-  filesChanged: string[];
-}
-
-interface ImplementReportValidationResult {
-  status: 'valid' | 'skipped' | 'failed';
-  partitions: ImplementReportPartition[];
-  reason?: string;
-}
-
-const skippedContent = (reason: string, filesChanged: readonly string[]) => [
-  {
-    type: 'text',
-    text: JSON.stringify({
-      status: 'skipped',
-      reason,
-      filesChanged,
-    }),
-  },
-];
-
 const readPayload = (args: Record<string, unknown>): Record<string, unknown> | null => {
   const payload = args['payload'];
   return typeof payload === 'object' && payload !== null && !Array.isArray(payload)
@@ -153,41 +129,63 @@ const readObject = (value: unknown): Record<string, unknown> | null =>
     ? (value as Record<string, unknown>)
     : null;
 
-const readFilesChanged = (payload: Record<string, unknown>): string[] =>
-  Array.isArray(payload['filesChanged'])
-    ? payload['filesChanged'].filter((value): value is string => typeof value === 'string')
-    : [];
+/**
+ * The part of an IMPLEMENT payload the agent authors. File fields the agent
+ * may still send (`filesChanged`, `edits`) are dropped: the CLI records them.
+ */
+const agentImplementReportSchema = z.object({
+  summary: z.string().min(1),
+  decisions: z
+    .array(
+      z.object({
+        topic: z.string().min(1),
+        choice: z.string().min(1),
+        reasoning: z.string().optional(),
+        location: z
+          .object({
+            file: z.string().min(1),
+            startLine: z.number().int().optional(),
+            endLine: z.number().int().optional(),
+          })
+          .optional(),
+      }),
+    )
+    .optional(),
+});
 
-const readServiceEntityId = (args: Record<string, unknown>): string | null => {
-  const entities = args['entities'];
-  if (!Array.isArray(entities)) return null;
-  for (const entity of entities) {
-    if (typeof entity !== 'object' || entity === null || Array.isArray(entity)) continue;
-    const record = entity as Record<string, unknown>;
-    if (record['entityType'] === 'SERVICE' && typeof record['entityId'] === 'string') {
-      return record['entityId'];
-    }
-  }
-  return null;
-};
+type AgentImplementDecision = NonNullable<
+  z.infer<typeof agentImplementReportSchema>['decisions']
+>[number];
 
-const withServiceEntity = (
-  args: Record<string, unknown>,
-  serviceId: string,
-): Record<string, unknown> => {
-  const entities = args['entities'];
-  if (!Array.isArray(entities)) {
-    return {
-      ...args,
-      entities: [{ entityType: 'SERVICE', entityId: serviceId, relation: 'CONTEXT' }],
-    };
-  }
-  if (readServiceEntityId(args) !== null) return args;
-  return {
-    ...args,
-    entities: [...entities, { entityType: 'SERVICE', entityId: serviceId, relation: 'CONTEXT' }],
-  };
-};
+/** Drops absent optional fields so the decision matches the generated payload type. */
+const toReportDecision = ({
+  reasoning,
+  location,
+  ...decision
+}: AgentImplementDecision): ImplementReportDecision => ({
+  ...decision,
+  ...(reasoning !== undefined ? { reasoning } : {}),
+  ...(location !== undefined
+    ? {
+        location: {
+          file: location.file,
+          ...(location.startLine !== undefined ? { startLine: location.startLine } : {}),
+          ...(location.endLine !== undefined ? { endLine: location.endLine } : {}),
+        },
+      }
+    : {}),
+});
+
+const IMPLEMENT_HELD_CONTENT = [
+  {
+    type: 'text',
+    text: JSON.stringify({
+      status: 'held',
+      message:
+        "Your summary and decisions will be attached to each changed Service's IMPLEMENT report when this turn ends. Hey Hey records the changed files and line edits itself. If nothing changed, no report is written.",
+    }),
+  },
+];
 
 const readRunAgent = (run: Run): string | null => {
   const session = run.session as { provider_session_id?: unknown };
@@ -206,114 +204,6 @@ const withRunAgent = (args: Record<string, unknown>, run: Run): Record<string, u
     ...rest,
     agent,
   };
-};
-
-const validateImplementReportArgs = (
-  ctx: SubmissionToolExecuteContext & { run: Run },
-): ImplementReportValidationResult => {
-  if (ctx.args['reportType'] !== ReportType.Implement) {
-    return { status: 'valid', partitions: [{ args: ctx.args, filesChanged: [] }] };
-  }
-
-  const payload = readPayload(ctx.args);
-  if (payload === null) {
-    ctx.run.logImplementReportValidation('local.run.create_report.implement.rejected_payload', {
-      reason: 'missing-payload',
-    });
-    return { status: 'skipped', partitions: [], reason: 'missing-payload' };
-  }
-
-  const requestedFiles = readFilesChanged(payload);
-  if (requestedFiles.length === 0) {
-    ctx.run.logImplementReportValidation('local.run.create_report.implement.rejected_files', {
-      reason: 'no-files-changed',
-    });
-    return { status: 'skipped', partitions: [], reason: 'no-files-changed' };
-  }
-
-  const serviceReports = groupFileChangeProjectionsByService(ctx.run.getFileChangeProjection());
-  if (serviceReports.length === 0) {
-    ctx.run.logImplementReportValidation('local.run.create_report.implement.rejected_files', {
-      reason: 'no-canonical-facts',
-      requestedFiles,
-    });
-    return {
-      status: 'skipped',
-      partitions: [],
-      reason: 'no-canonical-facts',
-    };
-  }
-
-  const serviceId = readServiceEntityId(ctx.args);
-  const candidateReports =
-    serviceId === null
-      ? serviceReports
-      : serviceReports.filter((entry) => entry.serviceId === serviceId);
-  if (serviceId !== null && candidateReports.length === 0) {
-    ctx.run.logImplementReportValidation('local.run.create_report.implement.rejected_service', {
-      reason: 'unknown-service-context',
-      serviceId,
-      candidateServiceIds: serviceReports.map((entry) => entry.serviceId),
-      requestedFiles,
-    });
-    return {
-      status: 'failed',
-      partitions: [],
-      reason: 'unknown-service-context',
-    };
-  }
-
-  const validRequestedFiles = requestedFiles
-    .map((requestedFile) => ({ original: requestedFile, trimmed: requestedFile.trim() }))
-    .filter(
-      ({ trimmed }) =>
-        trimmed.length > 0 && !path.isAbsolute(trimmed) && !path.posix.isAbsolute(trimmed),
-    );
-  const partitions = candidateReports.flatMap<ImplementReportPartition>((serviceReport) => {
-    const canonicalFiles = new Set(serviceReport.filesChanged);
-    const filesChanged = [
-      ...new Set(
-        validRequestedFiles
-          .map(({ trimmed }) => trimmed)
-          .filter((requestedFile) => canonicalFiles.has(requestedFile)),
-      ),
-    ].sort();
-    if (filesChanged.length === 0) return [];
-    return [
-      {
-        args: withServiceEntity(
-          { ...ctx.args, payload: { ...payload, filesChanged } },
-          serviceReport.serviceId,
-        ),
-        serviceId: serviceReport.serviceId,
-        filesChanged,
-      },
-    ];
-  });
-
-  const acceptedRequestedFiles = new Set(partitions.flatMap((partition) => partition.filesChanged));
-  const rejectedFiles = requestedFiles.filter(
-    (requestedFile) => !acceptedRequestedFiles.has(requestedFile.trim()),
-  );
-
-  if (rejectedFiles.length > 0) {
-    ctx.run.logImplementReportValidation('local.run.create_report.implement.rejected_files', {
-      reason: 'files-not-in-canonical-facts',
-      ...(serviceId !== null ? { serviceId } : {}),
-      rejectedFiles,
-      acceptedFiles: [...acceptedRequestedFiles].sort(),
-    });
-  }
-
-  if (partitions.length === 0) {
-    return {
-      status: 'skipped',
-      partitions: [],
-      reason: 'no-canonical-files-after-validation',
-    };
-  }
-
-  return { status: 'valid', partitions };
 };
 
 export class CreateReportTool implements PassThroughSubmissionToolDeclaration {
@@ -430,16 +320,9 @@ export class CreateReportTool implements PassThroughSubmissionToolDeclaration {
       throw new Error(`Invalid FEATURE_SYNC_DECISION report: ${decision.error}`);
     }
 
-    const validation = validateImplementReportArgs({ ...ctx, args, run });
-    if (validation.status === 'skipped') {
-      return {
-        content: skippedContent(validation.reason ?? 'implement-report-not-persisted', []),
-      };
-    }
-    if (validation.status === 'failed') {
-      throw new Error(
-        `create_report IMPLEMENT failed: ${validation.reason ?? 'unresolved-service-context'}`,
-      );
+    if (args['reportType'] === ReportType.Implement) {
+      this.holdAgentImplementReport(run, args);
+      return { content: IMPLEMENT_HELD_CONTENT };
     }
 
     if (isProjectReportRun) {
@@ -463,70 +346,127 @@ export class CreateReportTool implements PassThroughSubmissionToolDeclaration {
       });
     }
 
-    let content: Awaited<ReturnType<CreateReportProxy['create']>>['content'] | null = null;
-    for (const partition of validation.partitions) {
-      // Diagnose declaration drift without logging plan prose or tool payloads.
-      const rawRequiredIds = readPayload(partition.args)?.['requiredServiceIds'];
-      const requiredServiceIds = Array.isArray(rawRequiredIds)
-        ? rawRequiredIds.filter((value): value is string => typeof value === 'string')
-        : null;
-      const planScope = {
-        runId: ctx.runId,
-        turnId: run.activeTurn?.turnId ?? null,
-        conversationId: run.conversationId,
-        projectId: run.projectId,
-        phase,
-        launchServiceId: run.session.launchServiceId ?? null,
-        selectedServiceIds: (run.session.services ?? []).map((service) => service.id),
-        requiredServiceIds,
-        requiredServiceIdsIsArray: Array.isArray(rawRequiredIds),
-        requiredServiceIdsEntryCount: Array.isArray(rawRequiredIds) ? rawRequiredIds.length : null,
-        outsideRunServiceIds:
-          requiredServiceIds?.filter(
-            (id) => !run.session.services?.some((service) => service.id === id),
-          ) ?? [],
-      };
-      if (partition.args['reportType'] === ReportType.Plan) {
-        this.logger.debug('coding_plan.report.scope_submitted', planScope);
-      }
-      const result = await this.create(
-        ctx.runId,
-        run,
-        partition.args,
-        isProjectReportRun,
-        ctx.usageExecutionId,
-      );
-      if (partition.args['reportType'] === ReportType.Plan) {
-        this.logger.debug('coding_plan.report.scope_persisted', {
-          ...planScope,
-          reportId: result.reportId,
-        });
-      }
-      const reportType = partition.args['reportType'];
-      const audienceRaw = partition.args['audience'];
-      const payload = partition.args['payload'];
-      const audience: 'EXTERNAL' | 'INTERNAL' =
-        audienceRaw === 'WORKFLOW_ONLY' ? 'INTERNAL' : 'EXTERNAL';
-      const summary =
-        typeof payload === 'object' && payload !== null && 'summary' in payload
-          ? String((payload as Record<string, unknown>)['summary'] ?? '')
-          : '';
-
-      run.appendReportChainEntry({
-        createdAt: this.now(),
-        phase,
+    // Diagnose declaration drift without logging plan prose or tool payloads.
+    const rawRequiredIds = readPayload(args)?.['requiredServiceIds'];
+    const requiredServiceIds = Array.isArray(rawRequiredIds)
+      ? rawRequiredIds.filter((value): value is string => typeof value === 'string')
+      : null;
+    const planScope = {
+      runId: ctx.runId,
+      turnId: run.activeTurn?.turnId ?? null,
+      conversationId: run.conversationId,
+      projectId: run.projectId,
+      phase,
+      launchServiceId: run.session.launchServiceId ?? null,
+      selectedServiceIds: (run.session.services ?? []).map((service) => service.id),
+      requiredServiceIds,
+      requiredServiceIdsIsArray: Array.isArray(rawRequiredIds),
+      requiredServiceIdsEntryCount: Array.isArray(rawRequiredIds) ? rawRequiredIds.length : null,
+      outsideRunServiceIds:
+        requiredServiceIds?.filter(
+          (id) => !run.session.services?.some((service) => service.id === id),
+        ) ?? [],
+    };
+    if (args['reportType'] === ReportType.Plan) {
+      this.logger.debug('coding_plan.report.scope_submitted', planScope);
+    }
+    const result = await this.persist(ctx.runId, run, phase, args, {
+      isProjectReportRun,
+      usageExecutionId: ctx.usageExecutionId,
+    });
+    if (args['reportType'] === ReportType.Plan) {
+      this.logger.debug('coding_plan.report.scope_persisted', {
+        ...planScope,
         reportId: result.reportId,
-        reportType: reportType as ReportType,
-        summary,
-        audience,
-        ...(partition.serviceId !== undefined ? { serviceId: partition.serviceId } : {}),
       });
-      if (reportType === ReportType.Plan) run.observePersistedPlanReady(result.reportId);
-      content = content === null ? result.content : [...content, ...result.content];
     }
 
-    return { content: content ?? [] };
+    return { content: result.content };
   };
+
+  /**
+   * The end-of-turn emitter's path for one Service's IMPLEMENT report. It is
+   * the only way an IMPLEMENT report is persisted; the chain entry carries the
+   * Service so a repeated turn completion does not emit it twice.
+   */
+  public async persistImplementReport(input: {
+    run: Run;
+    serviceId: string;
+    args: Record<string, unknown>;
+  }): Promise<CreateReportProxyResult> {
+    const phase = input.run.session.promptType as LocalPromptType | undefined;
+    if (!phase) {
+      throw new Error(
+        'create_report wrapper: run.session.promptType is required to derive chain entry phase',
+      );
+    }
+    return await this.persist(input.run.runId, input.run, phase, input.args, {
+      isProjectReportRun: false,
+      serviceId: input.serviceId,
+    });
+  }
+
+  /** Agents supply only a summary and decisions; the CLI owns the file record. */
+  private holdAgentImplementReport(run: Run, args: Record<string, unknown>): void {
+    const turn = run.activeTurn;
+    if (!turn) {
+      throw new Error('create_report IMPLEMENT requires an active turn');
+    }
+    const parsed = agentImplementReportSchema.safeParse(args['payload']);
+    if (!parsed.success) {
+      throw new Error(`Invalid IMPLEMENT report: ${parsed.error.message}`);
+    }
+    turn.changeRecord.hold({
+      summary: parsed.data.summary,
+      decisions: (parsed.data.decisions ?? []).map(toReportDecision),
+    });
+    this.logger.info('local.run.create_report.implement.held', {
+      runId: run.runId,
+      turnId: turn.turnId,
+      decisionCount: parsed.data.decisions?.length ?? 0,
+    });
+  }
+
+  private async persist(
+    runId: string,
+    run: Run,
+    phase: LocalPromptType,
+    args: Record<string, unknown>,
+    options: {
+      isProjectReportRun: boolean;
+      usageExecutionId?: string | undefined;
+      serviceId?: string;
+    },
+  ): Promise<CreateReportProxyResult> {
+    const result = await this.create(
+      runId,
+      run,
+      args,
+      options.isProjectReportRun,
+      options.usageExecutionId,
+    );
+    const reportType = args['reportType'];
+    const payload = readPayload(args);
+    const audience: 'EXTERNAL' | 'INTERNAL' =
+      args['audience'] === 'WORKFLOW_ONLY' ? 'INTERNAL' : 'EXTERNAL';
+
+    const chainEntry = {
+      createdAt: this.now(),
+      phase,
+      reportId: result.reportId,
+      ...(reportType === ReportType.Implement ? { sourceRunId: run.runId } : {}),
+      reportType: reportType as ReportType,
+      summary: String(payload?.['summary'] ?? ''),
+      audience,
+      ...(options.serviceId !== undefined ? { serviceId: options.serviceId } : {}),
+    };
+    if (reportType === ReportType.Implement) {
+      await run.reportProvenance.recordEntry(chainEntry);
+    }
+    run.appendReportChainEntry(chainEntry);
+    if (reportType === ReportType.Plan) run.observePersistedPlanReady(result.reportId);
+    return result;
+  }
 
   private async create(
     runId: string,

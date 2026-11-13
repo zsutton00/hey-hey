@@ -399,6 +399,9 @@ const toAgenticSessionEvent = (event: DurableRunEvent): AgenticSessionEvent => {
     case 'diff':
       canonical['diff'] = payload.diff;
       break;
+    case 'report_provenance':
+      canonical['record'] = payload.record;
+      break;
     case 'committed_outcome':
       canonical['effectId'] = payload.effectId;
       canonical['idempotencyKey'] = payload.idempotencyKey;
