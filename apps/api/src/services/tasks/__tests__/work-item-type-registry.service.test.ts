@@ -11,7 +11,7 @@ import {
   type WorkItemType,
   type WorkItemTypeTemplate,
 } from '@prisma/client';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, Logger } from '@nestjs/common';
 import { InMemoryMessageBus } from '../../../core/events/in-memory-message-bus.service';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import { EntityType } from '@hey-hey/contracts/api/models';
@@ -1128,39 +1128,6 @@ describe('WorkItemTypeRegistryService', () => {
       ).toBe('New guidance');
     });
 
-    it('rejects an incomplete recovery snapshot without replacing any read model', async () => {
-      jest.useFakeTimers();
-      const rows = [
-        buildProjectOwnedRow('STANDARD', projectId, {
-          maintenanceGuidance: 'Original guidance',
-        }),
-      ];
-      const { registry } = buildRegistry(rows);
-      await registry.onModuleInit();
-      const before = registry.getDefinition(projectId, 'STANDARD');
-      const parents = registry.getAllowedParentTypes('STANDARD', projectId);
-      rows[0] = { ...rows[0]!, name: null } as unknown as WorkItemType;
-      await expect(registry.refresh()).rejects.toThrow(
-        'not a complete definition',
-      );
-      expect(registry.getDefinition(projectId, 'STANDARD')).toBe(before);
-      expect(registry.getAllowedParentTypes('STANDARD', projectId)).toEqual(
-        parents,
-      );
-      expect(
-        registry.getGuidance(
-          projectId,
-          'STANDARD',
-          WorkItemTypeGuidancePurpose.Maintenance,
-        ).maintenanceGuidance,
-      ).toBe('Original guidance');
-      rows[0] = { ...rows[0]!, name: 'Repaired' };
-      await jest.advanceTimersByTimeAsync(5000);
-      expect(
-        registry.getDefinition(projectId, 'STANDARD')?.definition.name,
-      ).toBe('Repaired');
-    });
-
     it('does not retain a recovery timer or react to signals after failed initialization', async () => {
       jest.useFakeTimers();
       const { registry, bus, findMany } = buildRegistry([
@@ -1528,25 +1495,53 @@ describe('WorkItemTypeRegistryService', () => {
       ).toBe(true);
     });
 
-    it('rejects a snapshot generation with an incomplete project override', async () => {
-      const projectId = 'project-with-incomplete-override';
-      const incompleteOverride = buildProjectOwnedRow(
-        WORK_ITEM_TYPE_KEYS.Standard,
-        projectId,
-        { name: '' },
-      );
-      const warmed = buildRegistry(
-        [incompleteOverride],
-        [buildTemplate(WORK_ITEM_TYPE_KEYS.Standard, 1)],
-        [projectId],
+    it('isolates malformed and incomplete overrides to their own project and type', async () => {
+      const errorLog = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      const key = WORK_ITEM_TYPE_KEYS.Standard;
+      const healthy = buildProjectOwnedRow(key, 'healthy-project', {
+        name: 'Healthy Override',
+      });
+      const duplicates = buildProjectOwnedRow(key, 'duplicate-project', {
+        statuses: [
+          ...legacyStatuses(['ACTIVE']),
+          ...legacyStatuses(['ACTIVE']),
+        ],
+      });
+      const incomplete = buildProjectOwnedRow(key, 'incomplete-project', {
+        name: '',
+      });
+      const { registry } = buildRegistry(
+        [healthy, duplicates, incomplete],
+        [buildTemplate(key, 1)],
+        ['healthy-project', 'duplicate-project', 'incomplete-project'],
       );
 
-      await expect(warmed.registry.refresh()).rejects.toThrow(
-        "Cannot load work-item type 'STANDARD'",
+      await expect(registry.refresh()).resolves.toBeUndefined();
+
+      expect(registry.getDefinition('healthy-project', key)).toMatchObject({
+        effectiveSource: 'CANONICAL_OVERRIDE',
+        definition: { name: 'Healthy Override' },
+      });
+      for (const projectId of ['duplicate-project', 'incomplete-project']) {
+        expect(registry.getDefinition(projectId, key)).toMatchObject({
+          effectiveSource: 'CANONICAL',
+        });
+      }
+      const logged = errorLog.mock.calls.map(([message]) => String(message));
+      expect(logged).toHaveLength(2);
+      expect(logged).toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(
+            /'STANDARD'.*duplicate-project.*unique.*canonical definition is in effect/,
+          ),
+          expect.stringMatching(
+            /'STANDARD'.*incomplete-project.*not a complete definition.*canonical definition is in effect/,
+          ),
+        ]),
       );
-      expect(
-        warmed.registry.getDefinition(projectId, WORK_ITEM_TYPE_KEYS.Standard),
-      ).toBeUndefined();
+      errorLog.mockRestore();
     });
 
     it.each(['GUARANTEES', 'IMPLEMENTS', 'CONSUMES'])(
@@ -2837,6 +2832,58 @@ describe('WorkItemTypeRegistryService', () => {
       } as unknown as Prisma.TransactionClient;
       return { tx, create };
     }
+
+    it('persists trimmed status names on create and on edit, since approval passes the raw definition', async () => {
+      const padded = {
+        key: 'Recipe',
+        name: 'Recipe',
+        role: 'project-info',
+        sections: [],
+        statuses: [
+          { name: ' Idea', meaning: 'NOT_STARTED' },
+          { name: 'Testing  ', meaning: 'IN_PROGRESS' },
+        ],
+      } satisfies WorkItemTypeDefinitionDto;
+      const { registry } = buildRegistry([]);
+      const { tx, create } = buildTx();
+      await registry.insertAcceptedDefinitionInTransaction(
+        tx,
+        padded,
+        PROJECT,
+        ORG,
+      );
+
+      const updateMany = jest.fn().mockResolvedValue({ count: 1 });
+      const editTx = {
+        workItemType: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: 'row-1',
+            capabilities: {},
+            colorKey: null,
+          }),
+          updateMany,
+        },
+        workItemTypeTemplate: { findUnique: jest.fn() },
+      } as unknown as Prisma.TransactionClient;
+      await registry.updateAcceptedDefinitionInTransaction(
+        editTx,
+        padded.key,
+        padded,
+        PROJECT,
+        ORG,
+      );
+
+      const names = (statuses: Array<{ name: string }>) =>
+        statuses.map((status) => status.name);
+      expect(names(create.mock.calls[0][0].data.statuses)).toEqual([
+        'Idea',
+        'Testing',
+      ]);
+      expect(names(updateMany.mock.calls[0][0].data.statuses)).toEqual([
+        'Idea',
+        'Testing',
+      ]);
+    });
 
     it('round trips ordered Recipe statuses and meanings through persistence and the effective snapshot', async () => {
       const recipe = {

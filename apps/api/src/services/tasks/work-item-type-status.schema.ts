@@ -5,10 +5,7 @@ import { WorkItemStatusCompletionBehavior } from '../../generated/model/workItem
 
 export const workItemTypeStatusSchema = z
   .object({
-    name: z
-      .string()
-      .min(1)
-      .refine((name) => name.trim().length > 0),
+    name: z.string().trim().min(1),
     label: z.string().min(1).optional(),
     meaning: z.nativeEnum(WorkItemStatusMeaning),
     completionBehavior: z
