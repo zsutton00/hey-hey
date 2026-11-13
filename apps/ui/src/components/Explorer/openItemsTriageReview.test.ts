@@ -173,11 +173,14 @@ describe("triage review lifecycle", () => {
       expect(kept.requestMessageIds).toEqual(["fresh"]);
     });
 
-    it("dismissing the confirmation again keeps reviewing", () => {
-      expect(
-        play(...results, { type: "requestClose" }, { type: "requestClose" })
-          .gate,
-      ).toEqual({ kind: "none" });
+    it("dismissing the discard warning discards the review and closes", () => {
+      const closed = play(
+        ...results,
+        { type: "requestClose" },
+        { type: "requestClose" },
+      );
+      expect(closed.closed).toBe(true);
+      expect(closed.gate).toEqual({ kind: "none" });
     });
 
     it("Discard and close closes without stopping anything", () => {

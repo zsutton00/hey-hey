@@ -181,9 +181,11 @@ export function reduceTriageReview(
         case "stopping":
           return state;
         case "confirmDiscard":
+          // Dismissing the discard warning (Escape or close) confirms it.
+          return close(state);
         case "confirmCancel":
         case "stopFailed":
-          // Dismissing a confirmation keeps the review.
+          // Dismissing a stop confirmation keeps the review.
           return { ...state, gate: { kind: "none" } };
         case "none":
           // Nothing submitted and nothing running: there is no review to lose.
