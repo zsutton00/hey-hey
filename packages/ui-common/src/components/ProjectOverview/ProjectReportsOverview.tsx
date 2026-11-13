@@ -78,7 +78,7 @@ const ReportTile = ({
   }, [report, organizationId, projectId]);
 
   const caption = belongsHere ? (period ?? "Details unavailable") : null;
-  const cropHeight = featured ? 300 : 150;
+  const cropHeight = featured ? 440 : 150;
 
   const preview = body ? (
     <Box
@@ -86,7 +86,7 @@ const ReportTile = ({
         position: "relative",
         overflow: "hidden",
         height: cropHeight,
-        ...(featured && { [NARROW]: { height: 240 } }),
+        ...(featured && { [NARROW]: { height: 320 } }),
       }}
     >
       <HtmlCssReportBodyThumbnail
@@ -133,20 +133,14 @@ const ReportTile = ({
       >
         {preview}
       </Box>
-      {title !== null && (
-        <Stack direction="row" spacing={1} alignItems="center">
-          <Typography variant="subtitle2" noWrap>
-            {title}
-          </Typography>
-          {featured && (
-            <Typography variant="caption" color="primary">
-              Latest
-            </Typography>
-          )}
-        </Stack>
+      {/* The preview already shows the report's own title and summary. */}
+      {title !== null && !body && (
+        <Typography variant="subtitle2" noWrap>
+          {title}
+        </Typography>
       )}
       {caption !== null && (
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" color="text.secondary" noWrap>
           {caption}
         </Typography>
       )}

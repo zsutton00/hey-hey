@@ -70,8 +70,9 @@ describe("ProjectReportsOverview", () => {
       "data-report-id",
       "report-new",
     );
-    expect(tiles[0]).toHaveTextContent("Weekly progress — Nov 5");
-    expect(tiles[0]).toHaveTextContent("Latest");
+    expect(
+      within(tiles[0]).getByTestId("project-report-preview-open"),
+    ).toHaveAttribute("aria-label", "Open Weekly progress — Nov 5");
     expect(tiles[0]).toHaveTextContent(
       "11/5/2026 – 11/12/2026 · Created 11/12/2026",
     );
@@ -147,7 +148,9 @@ describe("ProjectReportsOverview", () => {
     );
     expect(unavailable).toHaveTextContent("Preview unavailable");
     const tile = screen.getAllByTestId("project-report-preview")[1];
-    expect(tile).toHaveTextContent("Weekly progress — Oct 29");
+    expect(
+      within(tile).getByTestId("project-report-preview-open"),
+    ).toHaveAttribute("aria-label", "Open Weekly progress — Oct 29");
     expect(tile).toHaveTextContent("Created 11/5/2026");
     expect(warn).toHaveBeenCalledWith(
       "ui",
@@ -171,7 +174,9 @@ describe("ProjectReportsOverview", () => {
     mount();
 
     const tile = screen.getAllByTestId("project-report-preview")[1];
-    expect(tile).toHaveTextContent("Weekly progress — Oct 29");
+    expect(
+      within(tile).getByTestId("project-report-preview-open"),
+    ).toHaveAttribute("aria-label", "Open Weekly progress — Oct 29");
     expect(tile).toHaveTextContent(
       "10/28/2026 – 11/4/2026 · Created 11/5/2026",
     );
@@ -189,7 +194,9 @@ describe("ProjectReportsOverview", () => {
     mount();
 
     const tile = screen.getAllByTestId("project-report-preview")[1];
-    expect(tile).toHaveTextContent("Weekly progress — Oct 29");
+    expect(
+      within(tile).getByTestId("project-report-preview-open"),
+    ).toHaveAttribute("aria-label", "Open Weekly progress — Oct 29");
     expect(tile).toHaveTextContent("Created 11/5/2026");
     expect(warn).toHaveBeenCalledWith(
       "ui",
@@ -214,7 +221,9 @@ describe("ProjectReportsOverview", () => {
     mount();
 
     const tile = screen.getAllByTestId("project-report-preview")[1];
-    expect(tile).toHaveTextContent("Weekly progress — Oct 29");
+    expect(
+      within(tile).getByTestId("project-report-preview-open"),
+    ).toHaveAttribute("aria-label", "Open Weekly progress — Oct 29");
     expect(tile).toHaveTextContent("Created 11/5/2026");
     expect(tile).not.toHaveTextContent("–");
     expect(warn).toHaveBeenCalledWith(
@@ -264,7 +273,9 @@ describe("ProjectReportsOverview", () => {
     mount();
 
     const tile = screen.getAllByTestId("project-report-preview")[1];
-    expect(tile).toHaveTextContent("Weekly progress — Oct 29");
+    expect(
+      within(tile).getByTestId("project-report-preview-open"),
+    ).toHaveAttribute("aria-label", "Open Weekly progress — Oct 29");
     expect(tile).toHaveTextContent("Details unavailable");
     expect(warn).toHaveBeenCalledWith(
       "ui",
