@@ -609,7 +609,11 @@ describe('input admission lifecycle delivery', () => {
       expect(f.poster.createOutOfBand).toHaveBeenCalledWith(
         expect.objectContaining({
           dto: expect.objectContaining({
-            data: expect.objectContaining({ response: expect.stringContaining('try again') }),
+            data: expect.objectContaining({
+              response: expect.stringContaining(
+                status === 'unclassified' ? 'Unexpected Error' : 'INVALID_REQUEST',
+              ),
+            }),
           }),
         }),
       );

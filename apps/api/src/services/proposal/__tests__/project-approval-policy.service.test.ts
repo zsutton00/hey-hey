@@ -488,7 +488,7 @@ describe('persisted project rule resolution', () => {
         withConditions({ typeKey: 'FEATURE', topLevel: false }),
         projectId,
         null,
-      ).rules[0].conditions.topLevel,
+      ).rules[0]?.conditions.topLevel,
     ).toBe(false);
 
     for (const conditions of [
