@@ -685,9 +685,6 @@ export const FeaturePageView: React.FC<FeaturePageViewProps> = ({
                           content: { p: 3, pb: 6 },
                           sidebar: {
                             alignSelf: "stretch",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 2,
                             p: 3,
                           },
                         }}
