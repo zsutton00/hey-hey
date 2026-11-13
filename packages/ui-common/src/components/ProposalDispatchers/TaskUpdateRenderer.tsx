@@ -1,3 +1,7 @@
+import {
+  EvalCaseInputsSection,
+  EVAL_CASE_INPUTS_SCHEMA_REF,
+} from "../shared/EvalCaseInputsSection";
 import { useContext as useInlineBodyContext } from "react";
 import { InlineReconciliationBodyContext } from "../ProposalReconciliation/ProposalReconciliationReview";
 import { useUpdateProposalExpansion } from "./useUpdateProposalExpansion";
@@ -300,6 +304,11 @@ export const TaskUpdateRenderer: React.FC<{
               ? proposedServiceNames.names
               : undefined,
           excludedSectionKeys: [
+            ...workItemTypeDefinition.sections
+              .filter(
+                (section) => section.schemaRef === EVAL_CASE_INPUTS_SCHEMA_REF,
+              )
+              .map((section) => section.key),
             ...(structuredRequirementsChange ? ["requirements"] : []),
             ...workItemTypeDefinition.sections
               .filter(({ kind }) => isVisualSectionKind(kind))
@@ -357,6 +366,46 @@ export const TaskUpdateRenderer: React.FC<{
         existingSections: existing.sections,
       }).filter(({ kind }) => isVisualSectionKind(kind)),
     [existing.sections, proposal.updates.sections, workItemTypeDefinition],
+  );
+  const inputSections = resolveProposalWorkItemSections({
+    definition: workItemTypeDefinition,
+    proposedSections: proposal.updates.sections,
+    existingSections: existing.sections,
+  }).filter(
+    (section) => section.definition.schemaRef === EVAL_CASE_INPUTS_SCHEMA_REF,
+  );
+  const inputs = (
+    <Stack spacing={1.5}>
+      {inputSections.map((section) => (
+        <Stack key={section.key} spacing={1}>
+          <Typography variant="caption" color="text.secondary">
+            {section.label}
+          </Typography>
+          {isApplied ? (
+            <EvalCaseInputsSection
+              content={section.proposedValue}
+              mentionConfig={modeMentionConfig}
+            />
+          ) : (
+            <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+              {([section.existingValue, section.proposedValue] as const).map(
+                (content, index) => (
+                  <Stack key={index} spacing={1} sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography variant="caption">
+                      {index === 0 ? "Before" : "After"}
+                    </Typography>
+                    <EvalCaseInputsSection
+                      content={content}
+                      mentionConfig={modeMentionConfig}
+                    />
+                  </Stack>
+                ),
+              )}
+            </Stack>
+          )}
+        </Stack>
+      ))}
+    </Stack>
   );
   const htmlCssSections = richPreviewSections.filter(
     ({ kind }) => kind === "html/css",
@@ -575,6 +624,7 @@ export const TaskUpdateRenderer: React.FC<{
               )}
               <Stack spacing={1.5}>
                 {notice}
+                {inputs}
                 {proposedServiceIds !== undefined && servicesQuery.isLoading ? (
                   <Box
                     sx={{
