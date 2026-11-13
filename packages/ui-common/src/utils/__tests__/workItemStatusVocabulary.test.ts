@@ -73,6 +73,20 @@ describe("work item status vocabulary", () => {
     expect(options.find((o) => o.value === "Testing")?.label).toBe("Testing");
   });
 
+  it("lists only the open tab's type statuses before any item has loaded", () => {
+    const options = buildWorkItemStatusFilterOptions({
+      definitions: [recipe, task],
+      items: [{ type: "RECIPE" }],
+    });
+
+    expect(options.map((o) => o.value)).toEqual([
+      "Idea",
+      "Made",
+      "Rejected",
+      "ARCHIVED",
+    ]);
+  });
+
   it("splits a name that types present differently into per-type choices that match by type", () => {
     const legacyMade = {
       ...task,

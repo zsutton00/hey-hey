@@ -1,3 +1,5 @@
+import { WorkItemTypeRegistryService } from '../../services/tasks/work-item-type-registry.service';
+import { Test } from '@nestjs/testing';
 import { z } from 'zod';
 import {
   SearchToolsProvider,
@@ -108,15 +110,29 @@ function makeSearchResponse(
   };
 }
 
+const mockRegistry = { getRulesForProject: jest.fn() };
+
 describe('SearchToolsProvider', () => {
   let provider: SearchToolsProvider;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockRegistry.getRulesForProject.mockReturnValue({
+      statuses: [
+        { name: 'ACTIVE', label: 'Active', meaning: 'IN_PROGRESS' },
+        {
+          name: 'COMPLETED',
+          label: 'Completed',
+          meaning: 'FINISHED',
+          completionBehavior: 'COMPLETED',
+        },
+      ],
+    });
     provider = new SearchToolsProvider(
       mockSearchService as unknown as UnifiedSearchService,
       mockCacheService as unknown as SearchCacheService,
       mockHelpService as unknown as HelpService,
+      mockRegistry as unknown as WorkItemTypeRegistryService,
     );
   });
 
@@ -1114,6 +1130,7 @@ describe('SearchToolsProvider', () => {
         mockSearchService as unknown as UnifiedSearchService,
         realCache,
         mockHelpService as unknown as HelpService,
+        mockRegistry as unknown as WorkItemTypeRegistryService,
       );
 
       (mockSearchService.search as jest.Mock).mockResolvedValue(
@@ -1224,6 +1241,7 @@ describe('SearchToolsProvider', () => {
         mockSearchService as unknown as UnifiedSearchService,
         realCache,
         mockHelpService as unknown as HelpService,
+        mockRegistry as unknown as WorkItemTypeRegistryService,
       );
       (mockSearchService.search as jest.Mock).mockResolvedValue(
         makeSearchResponse([makeResult()]),
@@ -1255,6 +1273,64 @@ describe('SearchToolsProvider', () => {
   });
 
   describe('taskSearch handler', () => {
+    it('groups statuses by meaning, so a custom finished status matches DONE', async () => {
+      mockRegistry.getRulesForProject.mockReturnValue({
+        statuses: [
+          { name: 'PLANNED', label: 'Planned', meaning: 'NOT_STARTED' },
+          {
+            name: 'DELIVERED',
+            label: 'Delivered',
+            meaning: 'FINISHED',
+            completionBehavior: 'COMPLETED',
+          },
+          {
+            name: 'DROPPED',
+            label: 'Dropped',
+            meaning: 'FINISHED',
+            completionBehavior: 'CANCELLED',
+          },
+        ],
+      });
+      const withStatus = (entityId: string, status: string) =>
+        makeResult({
+          entityId,
+          status,
+          embeddings: { metadata: { taskType: 'STANDARD' } as any },
+        });
+      (mockSearchService.search as jest.Mock).mockResolvedValue(
+        makeSearchResponse([
+          withStatus('delivered', 'DELIVERED'),
+          withStatus('dropped', 'DROPPED'),
+          withStatus('removed', 'COMPLETED'),
+        ]),
+      );
+
+      const result = (await provider.taskSearch(
+        { query: 'q', status: 'DONE', limit: 10, offset: 0 },
+        dummyContext as any,
+        makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
+      )) as SearchResult;
+
+      expect(result.results.map((r) => r.id)).toEqual(['delivered']);
+    });
+
+    it('filters a hit without type metadata by the default type, as the fixed status names did', async () => {
+      (mockSearchService.search as jest.Mock).mockResolvedValue(
+        makeSearchResponse([
+          makeResult({ entityId: 'done-1', status: 'COMPLETED' }),
+          makeResult({ entityId: 'active-1', status: 'ACTIVE' }),
+        ]),
+      );
+
+      const result = (await provider.taskSearch(
+        { query: 'q', status: 'DONE', limit: 10, offset: 0 },
+        dummyContext as any,
+        makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
+      )) as SearchResult;
+
+      expect(result.results.map((r) => r.id)).toEqual(['done-1']);
+    });
+
     it('returns search results for tasks', async () => {
       (mockSearchService.search as jest.Mock).mockResolvedValue(
         makeSearchResponse([
@@ -1371,11 +1447,13 @@ describe('SearchToolsProvider', () => {
         entityId: 'active-1',
         status: 'ACTIVE',
         graph: { node: {} },
+        embeddings: { metadata: { taskType: 'STANDARD' } as any },
       });
       const completedTask = makeResult({
         entityId: 'completed-1',
         status: 'COMPLETED',
         graph: { node: {} },
+        embeddings: { metadata: { taskType: 'STANDARD' } as any },
       });
 
       (mockSearchService.search as jest.Mock).mockResolvedValue(
@@ -1467,6 +1545,7 @@ describe('SearchToolsProvider', () => {
           entityId: `task-${i}`,
           status: 'ACTIVE',
           graph: { node: {} },
+          embeddings: { metadata: { taskType: 'STANDARD' } as any },
         }),
       );
 
@@ -1498,6 +1577,7 @@ describe('SearchToolsProvider', () => {
           entityId: `task-${i}`,
           status: 'ACTIVE',
           graph: { node: {} },
+          embeddings: { metadata: { taskType: 'STANDARD' } as any },
         }),
       );
 
@@ -2603,6 +2683,24 @@ describe('SearchToolsProvider', () => {
           tool: 'plan_search',
           status: 'IN_PROGRESS',
         }),
+      );
+    });
+  });
+
+  describe('dependency injection', () => {
+    it('is constructed by Nest with the globally provided type registry', async () => {
+      const moduleRef = await Test.createTestingModule({
+        providers: [
+          SearchToolsProvider,
+          { provide: UnifiedSearchService, useValue: mockSearchService },
+          { provide: SearchCacheService, useValue: mockCacheService },
+          { provide: HelpService, useValue: mockHelpService },
+          { provide: WorkItemTypeRegistryService, useValue: mockRegistry },
+        ],
+      }).compile();
+
+      expect(moduleRef.get(SearchToolsProvider)).toBeInstanceOf(
+        SearchToolsProvider,
       );
     });
   });

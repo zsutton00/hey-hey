@@ -492,6 +492,7 @@ export class WorkItemTypeController {
     const dto = buildWorkItemTypeEditProposal({
       typeKey,
       definition: requestBody.definition,
+      currentDefinition: row.definition,
       acknowledgeCanonicalCustomization:
         requestBody.acknowledgeCanonicalCustomization,
       requestorContext,

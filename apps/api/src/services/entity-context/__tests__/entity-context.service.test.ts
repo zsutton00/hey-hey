@@ -5732,12 +5732,16 @@ describe('EntityContextService', () => {
       });
     });
 
-    it('passes statuses through as a Prisma `in` filter on both findMany and count', async () => {
+    it('resolves a status group to its statuses as a Prisma `in` filter on both findMany and count', async () => {
       setGoals([]);
 
-      await service.listGoals(testIds.organization, testIds.project, 200, 0, [
-        'ACTIVE',
-      ]);
+      await service.listGoals(
+        testIds.organization,
+        testIds.project,
+        200,
+        0,
+        'IN_PROGRESS',
+      );
 
       expect(mockPrisma.db.task.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -5970,6 +5974,61 @@ describe('EntityContextService', () => {
           where: expect.objectContaining({
             status: { notIn: ['COMPLETED', 'CANCELLED', 'ARCHIVED'] },
           }),
+        }),
+      );
+    });
+
+    it('excludes a custom finished status from active goals', async () => {
+      setActiveGoals([]);
+      jest
+        .spyOn((service as any).workItemTypeRegistry, 'getRulesForProject')
+        .mockReturnValue({
+          statuses: [
+            { name: 'PLANNED', label: 'Planned', meaning: 'NOT_STARTED' },
+            {
+              name: 'DELIVERED',
+              label: 'Delivered',
+              meaning: 'FINISHED',
+              completionBehavior: 'COMPLETED',
+            },
+          ],
+        });
+
+      await service.getActiveGoals(
+        testIds.organization,
+        testIds.project,
+        callerUserId,
+        30,
+      );
+
+      expect(mockPrisma.db.task.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            status: { notIn: ['DELIVERED', 'ARCHIVED'] },
+          }),
+        }),
+      );
+    });
+
+    it('logs the type key and project when the Goal type cannot be resolved', async () => {
+      setActiveGoals([]);
+      jest
+        .spyOn((service as any).workItemTypeRegistry, 'getRulesForProject')
+        .mockReturnValue(undefined);
+      const warn = jest.spyOn((service as any).logger, 'warn');
+
+      await service.getActiveGoals(
+        testIds.organization,
+        testIds.project,
+        callerUserId,
+        30,
+      );
+
+      expect(warn).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          typeKey: WORK_ITEM_TYPE_KEYS.Goal,
+          projectId: testIds.project,
         }),
       );
     });

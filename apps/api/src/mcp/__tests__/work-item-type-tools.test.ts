@@ -141,8 +141,8 @@ describe('get_work_item_type', () => {
     );
     expect(apiResolved).toEqual(mcpResolved);
     expect(apiResolved.statuses).toEqual([
-      { name: 'Draft', meaning: 'NOT_STARTED' },
-      { name: 'Maintained', meaning: 'IN_PROGRESS' },
+      { name: 'Draft', meaning: 'UNFINISHED' },
+      { name: 'Maintained', meaning: 'UNFINISHED' },
     ]);
   });
   it('exposes a strict type-key input and the complete generated summary output', () => {

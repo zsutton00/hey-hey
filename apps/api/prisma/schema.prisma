@@ -1099,7 +1099,7 @@ model Initiative {
   assigneeId           String?               @map("assignee_id")
   reasoning            String?
   organizationId       String                @map("organization_id")
-  status               WorkStatus            @default(REFINING_DESCRIPTION)
+  status               String                @default("REFINING_DESCRIPTION")
   priority             Priority?             @default(MEDIUM)
   creatorType          InitiativeCreatorType @default(SYSTEM) @map("creator_type")
   dueDate              DateTime?             @map("due_date")
@@ -1193,7 +1193,7 @@ model Task {
   organizationId         String                  @map("organization_id")
   projectId              String                  @map("project_id")
   initiativeId           String?                 @map("initiative_id")
-  status                 WorkStatus              @default(BACKLOG)
+  status                 String                  @default("BACKLOG")
   priority               Priority?               @default(MEDIUM)
   dueDate                DateTime?               @map("due_date")
   assigneeId             String?                 @map("assignee_id")
@@ -2271,29 +2271,6 @@ enum InitiationType {
 enum MessageType {
   USER
   SYSTEM
-}
-
-enum WorkStatus {
-  GENERATED
-  BACKLOG
-  READY
-  REFINING
-  BLOCKED
-  REFINING_DESCRIPTION
-  REFINING_DETAILS
-  REFINING_ACCEPTANCE_CRITERIA
-  GENERATING_DESCRIPTION
-  GENERATING_DETAILS
-  GENERATING_DESCRIPTION_AND_DETAILS
-  GENERATING_ACCEPTANCE_CRITERIA
-  GENERATING_ALL
-  ACTIVE
-  ON_HOLD
-  VERIFYING
-  COMPLETED
-  CANCELLED
-  ARCHIVED
-  SUPERSEDED
 }
 
 enum InitiativeCreatorType {
@@ -4575,7 +4552,7 @@ model WorkItemType {
   sectionDefinitions    Json    @map("section_definitions")
   allowedParentTypes    Json    @map("allowed_parent_types")
   edgeTargets           Json    @map("edge_targets")
-  allowedStatuses       Json    @map("allowed_statuses")
+  statuses              Json    @map("statuses")
   requiredScalars       Json    @map("required_scalars")
   forbiddenScalars      Json    @map("forbidden_scalars")
   parentage             Json    @map("parentage")
@@ -4612,7 +4589,7 @@ model WorkItemTypeTemplate {
   sectionDefinitions    Json     @map("section_definitions")
   allowedParentTypes    Json     @map("allowed_parent_types")
   edgeTargets           Json     @map("edge_targets")
-  allowedStatuses       Json     @map("allowed_statuses")
+  statuses              Json     @map("statuses")
   requiredScalars       Json     @map("required_scalars")
   forbiddenScalars      Json     @map("forbidden_scalars")
   parentage             Json     @map("parentage")

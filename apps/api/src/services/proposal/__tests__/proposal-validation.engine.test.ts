@@ -5,6 +5,7 @@ import {
 } from 'src/services/tasks/work-item-type-keys';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { buildWorkItemTypeEditProposal } from '../work-item-type-proposal.builder';
 import {
   ProposalValidationEngine,
   assertProposalStructurallyValid,
@@ -5651,6 +5652,49 @@ describe('ProposalValidationEngine', () => {
         ).toBe(true);
       });
 
+      it('rejects agent-settable statuses that are not among the type statuses or ARCHIVED', async () => {
+        mockPrisma.db.project.findFirst.mockResolvedValue({
+          id: testIds.project,
+        });
+
+        const stale = await engine.validate({
+          proposals: [
+            makeCreateWorkItemTypeDto({
+              statuses: [
+                { name: 'Drafting', meaning: 'NOT_STARTED' },
+                { name: 'Published', meaning: 'FINISHED' },
+              ],
+              agentSettableStatuses: ['Draft', 'Published'],
+            }),
+          ],
+          context: makeContext(),
+        });
+        const current = await engine.validate({
+          proposals: [
+            makeCreateWorkItemTypeDto({
+              statuses: [
+                { name: 'Drafting', meaning: 'NOT_STARTED' },
+                { name: 'Published', meaning: 'FINISHED' },
+              ],
+              agentSettableStatuses: ['Drafting', 'Published', 'ARCHIVED'],
+            }),
+          ],
+          context: makeContext(),
+        });
+
+        const issue = stale.proposals[0]!.errors.find(
+          (e) => e.code === 'unknown_agent_settable_status',
+        );
+        expect(stale.valid).toBe(false);
+        expect(issue?.reason).toContain('Draft');
+        expect(issue?.reason).not.toContain('Published');
+        expect(
+          current.proposals[0]!.errors.some(
+            (e) => e.code === 'unknown_agent_settable_status',
+          ),
+        ).toBe(false);
+      });
+
       it('rejects a reference to an archived type', async () => {
         const archivedRegistryModule: TestingModule =
           await Test.createTestingModule({
@@ -6202,6 +6246,7 @@ describe('ProposalValidationEngine', () => {
                   name: 'Campaign',
                   description: 'Campaign planning work',
                   statuses: legacyStatuses(['BACKLOG', 'COMPLETED']),
+                  agentSettableStatuses: ['BACKLOG', 'COMPLETED', 'ARCHIVED'],
                 },
               },
             },
@@ -6210,6 +6255,67 @@ describe('ProposalValidationEngine', () => {
         });
 
         expect(result.valid).toBe(true);
+      });
+
+      it('rejects a carried-over agent-settable list that names a removed status', async () => {
+        const customRegistry =
+          await createWarmWorkItemTypeRegistryWithCustomTypes([
+            {
+              typeKey: 'MARKETING',
+              projectId: testIds.project,
+              name: 'Marketing',
+              sectionDefinitions: [
+                { key: 'description', label: 'Description' },
+              ],
+              statuses: legacyStatuses(['BACKLOG', 'ACTIVE', 'COMPLETED']),
+            },
+          ]);
+        const customModule = await Test.createTestingModule({
+          providers: [
+            ProposalValidationEngine,
+            WorkItemParentageValidator,
+            { provide: PrismaService, useValue: mockPrisma },
+            { provide: WorkItemTypeRegistryService, useValue: customRegistry },
+          ],
+        }).compile();
+        const customEngine = customModule.get<ProposalValidationEngine>(
+          ProposalValidationEngine,
+        );
+        mockPrisma.db.project.findFirst.mockResolvedValue({
+          id: testIds.project,
+        });
+        const existing = customRegistry.getDefinition(
+          testIds.project,
+          'MARKETING',
+        )!.definition;
+        const { agentSettableStatuses: _omitted, ...edited } = existing;
+
+        const result = await customEngine.validate({
+          proposals: [
+            buildWorkItemTypeEditProposal({
+              typeKey: 'MARKETING',
+              definition: {
+                ...edited,
+                statuses: legacyStatuses(['BACKLOG', 'COMPLETED']),
+              },
+              currentDefinition: existing,
+              requestorContext: {
+                userId: testIds.user,
+                organizationId: testIds.organization,
+                toolName: 'edit_work_item_type',
+                timestamp: new Date().toISOString(),
+                source: 'agent',
+              },
+            }) as CreateProposalDto,
+          ],
+          context: makeContext(),
+        });
+
+        const issue = result.proposals[0]!.errors.find(
+          (e) => e.code === 'unknown_agent_settable_status',
+        );
+        expect(result.valid).toBe(false);
+        expect(issue?.reason).toContain('ACTIVE');
       });
 
       it('rejects a work-item-type proposal without project context', async () => {

@@ -197,12 +197,14 @@ const resolveTaskStatus = (
     return undefined;
   }
 
-  const label = getWorkItemStatusLabel(task.status, definition);
-
-  return isRetainedRemovedStatus(task.status, definition)
-    ? `${label} · Needs a new status`
-    : label;
+  return getWorkItemStatusLabel(task.status, definition);
 };
+
+const taskStatusNeedsReplacement = (
+  task: WorkItemResponseDto,
+  options: AdapterOptions,
+): boolean =>
+  isRetainedRemovedStatus(task.status, options.workItemTypeDefinition);
 
 /**
  * Format a date string to localized short date format
@@ -447,6 +449,7 @@ export const taskAdapter: EntityListItemAdapter<WorkItemResponseDto> = {
       title: task.name,
       description: getWorkItemSectionContent(task.sections, "description"),
       status: resolveTaskStatus(task, options),
+      statusNeedsReplacement: taskStatusNeedsReplacement(task, options),
       entityKindLabel: options.showEntityKind
         ? options.workItemTypeDefinition?.key === task.type
           ? options.workItemTypeDefinition.name

@@ -44,6 +44,7 @@ describe('work-item type proposal parentage normalization', () => {
     const edit = buildWorkItemTypeEditProposal({
       typeKey: definition.key,
       definition,
+      currentDefinition: definition,
       requestorContext,
     });
 
@@ -61,6 +62,7 @@ describe('work-item type proposal parentage normalization', () => {
     const edit = buildWorkItemTypeEditProposal({
       typeKey: definition.key,
       definition,
+      currentDefinition: definition,
       requestorContext,
       acknowledgeCanonicalCustomization: true,
     });

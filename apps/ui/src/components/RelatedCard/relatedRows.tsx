@@ -285,7 +285,10 @@ export const renderEntityRow = (
             />
           </Tooltip>
         )}
-        <EntityNodeStatusChip status={row.status} />
+        <EntityNodeStatusChip
+          status={row.status}
+          workItem={workItemIcon && { definition: workItemIcon.definition }}
+        />
       </Box>
     </Box>
   );

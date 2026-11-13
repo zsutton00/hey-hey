@@ -25,14 +25,12 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import type { Priority, ServiceDto } from "../../api";
 import { WorkStatus as WorkStatusEnum } from "../../api";
-import { FEATURE_TASK_TYPE } from "../../constants/taskTypes";
 import { useAuth } from "../../contexts/AuthContext";
 import { useServices, useUsers, useWorkItemTypeByKey } from "../../data/hooks";
 import {
   getPriorityColor,
   getPriorityLabel,
   getStatusColorMapping,
-  getStatusLabel,
 } from "../../utils/statusUtils";
 import { isMachineManagedStatus } from "../../utils/workItemUtils";
 import {
@@ -43,11 +41,6 @@ import { SupersedeTaskDialog } from "./SupersedeTaskDialog";
 import type { WorkItemMetadataFields } from "./WorkItemMetadata";
 
 const SELECTABLE_PRIORITIES: Priority[] = ["LOW", "MEDIUM", "HIGH"];
-
-const featureStatusLabel = (status: TaskResponseDto["status"]): string => {
-  if (status === WorkStatusEnum.Active) return "Ready";
-  return getStatusLabel(status);
-};
 
 const formatDueDateLabel = (value: string | null): string => {
   if (!value) return "No due date";
@@ -162,7 +155,6 @@ export const StatusActionCompact: React.FC<StatusActionCompactProps> = ({
 
   const closeMenu = useCallback(() => setOpenMenu(null), []);
 
-  const isFeature = taskType === FEATURE_TASK_TYPE;
   // The type's effective definition owns the choices and their order; the
   // picker still drops system-managed generating/refining states (a user never
   // picks those) and only offers SUPERSEDED when the type supports it and
@@ -180,9 +172,8 @@ export const StatusActionCompact: React.FC<StatusActionCompactProps> = ({
     [definition, taskId],
   );
   const resolveStatusLabel = useCallback(
-    (s: TaskResponseDto["status"]) =>
-      isFeature ? featureStatusLabel(s) : getWorkItemStatusLabel(s, definition),
-    [isFeature, definition],
+    (s: TaskResponseDto["status"]) => getWorkItemStatusLabel(s, definition),
+    [definition],
   );
 
   const currentStatusLabel = status ? resolveStatusLabel(status) : null;

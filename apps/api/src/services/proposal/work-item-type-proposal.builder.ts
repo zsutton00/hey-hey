@@ -103,7 +103,7 @@ export function buildWorkItemTypeCreateProposal(
   };
 }
 
-export interface BuildWorkItemTypeEditProposalInput {
+export interface BuildWorkItemTypeRestoreProposalInput {
   readonly typeKey: string;
   readonly definition: WorkItemTypeDefinitionDto;
   readonly requestorContext: RequestorContext;
@@ -112,14 +112,28 @@ export interface BuildWorkItemTypeEditProposalInput {
   readonly acknowledgeCanonicalCustomization?: boolean;
 }
 
+export interface BuildWorkItemTypeEditProposalInput
+  extends BuildWorkItemTypeRestoreProposalInput {
+  /** The type's current definition; supplies fields an edit leaves omitted. */
+  readonly currentDefinition: WorkItemTypeDefinitionDto;
+}
+
 /**
  * Assemble the review proposal for a bounded edit to an existing custom type.
- * The registry key is the lifecycle identity exposed by the public API.
+ * The registry key is the lifecycle identity exposed by the public API. An edit
+ * that omits `agentSettableStatuses` keeps the type's current list, so it never
+ * widens back to every status; validation then checks the carried-over names
+ * against the edited statuses.
  */
 export function buildWorkItemTypeEditProposal(
   input: BuildWorkItemTypeEditProposalInput,
 ): StampedCreateProposalDto {
-  const normalizedDefinition = normalizeWorkItemTypeParentage(input.definition);
+  const normalizedDefinition = normalizeWorkItemTypeParentage({
+    ...input.definition,
+    agentSettableStatuses:
+      input.definition.agentSettableStatuses ??
+      input.currentDefinition.agentSettableStatuses,
+  });
 
   return {
     type: 'SINGLE',
@@ -148,7 +162,7 @@ export function buildWorkItemTypeEditProposal(
  * new definition and lets approval transition the retained row in place.
  */
 export function buildWorkItemTypeRestoreProposal(
-  input: BuildWorkItemTypeEditProposalInput,
+  input: BuildWorkItemTypeRestoreProposalInput,
 ): StampedCreateProposalDto {
   return {
     type: 'SINGLE',

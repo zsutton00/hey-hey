@@ -436,8 +436,10 @@ export const createWorkItemTypeParameters = z
       .optional()
       .describe(
         'Ordinary status names plus ARCHIVED that agents may propose directly. ' +
-          'Defaults to all ordinary names plus ARCHIVED when omitted; pass a narrower list ' +
-          '(or an empty one) only to restrict agents on purpose.',
+          "Every entry must be one of the type's ordinary status names or ARCHIVED. " +
+          'When omitted on create, defaults to all of them; when omitted on edit, the ' +
+          "type's current list is kept. Pass a narrower list (or an empty one) only to " +
+          'restrict agents on purpose, and update it when renaming statuses.',
       ),
     anchorableReportTypes: z
       .array(z.nativeEnum(ReportType))
@@ -748,6 +750,7 @@ export class WorkItemTypeProposalToolsProvider {
       const dto = buildWorkItemTypeEditProposal({
         typeKey: params.typeKey,
         definition: params.definition,
+        currentDefinition: existing.definition,
         requestorContext,
         influences: provenance.influences,
         conversationId,

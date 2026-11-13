@@ -53,8 +53,17 @@ vi.mock("@hey-hey/ui-common/components", () => ({
   },
 }));
 
+const typeStatusOptions = [
+  { value: "QA", label: "QA" },
+  { value: "ARCHIVED", label: "Archived" },
+];
+
 vi.mock("@hey-hey/ui-common/data", () => ({
   useWorkItems: mocks.useWorkItems,
+  useWorkItemStatusVocabularies: () => ({
+    definitions: new Map(),
+    statusOptions: typeStatusOptions,
+  }),
 }));
 
 vi.mock("../CardHeader", () => ({
@@ -62,7 +71,9 @@ vi.mock("../CardHeader", () => ({
 }));
 
 vi.mock("./TabContainer", () => ({
-  TabContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  TabContainer: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
 }));
 
 const mockUseWorkItems = vi.mocked(useWorkItems);
@@ -151,6 +162,10 @@ describe("ProjectWorkItemsTab", () => {
         sortBy: "title:asc",
         filters: expect.arrayContaining([
           expect.objectContaining({ key: "parentTaskId", icon: LayersIcon }),
+          expect.objectContaining({
+            key: "status",
+            options: typeStatusOptions,
+          }),
         ]),
       }),
     );

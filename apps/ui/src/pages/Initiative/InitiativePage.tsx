@@ -33,9 +33,13 @@ import {
   useInitiatives,
   useProject,
   useWorkItems,
+  useWorkItemTypeByKey,
   usePlatformAdminAccess,
 } from "@hey-hey/ui-common/data";
-import { contentToSectionInputs } from "@hey-hey/ui-common/utils";
+import {
+  contentToSectionInputs,
+  getWorkItemStatusLabel,
+} from "@hey-hey/ui-common/utils";
 import ArchiveIcon from "@mui/icons-material/Archive";
 import EditIcon from "@mui/icons-material/Edit";
 import TasksIcon from "@mui/icons-material/Assignment";
@@ -78,11 +82,7 @@ import {
   PageKind,
 } from "../../utils/breadcrumbs";
 import { tabTransitionVariants } from "../../utils/routeTransitions";
-import {
-  getStatusColor,
-  getStatusLabel,
-  isTaskRefining,
-} from "../../utils/statusUtils";
+import { getStatusColor, isTaskRefining } from "../../utils/statusUtils";
 import { SetReadyActionCapsule } from "./SetReadyActionCapsule";
 import { CreateInitiativePlanActionCapsule } from "./CreateInitiativePlanActionCapsule";
 
@@ -167,6 +167,9 @@ export const InitiativePage: React.FC<InitiativePageProps> = ({
   } = useInitiative(currentOrgId!, initiativeId!);
 
   // Get remove method for deleting initiatives
+  const { workItemTypeDefinition: initiativeTypeDefinition } =
+    useWorkItemTypeByKey(currentOrgId, projectId, "initiative");
+
   const { remove: removeInitiative } = useInitiatives(
     currentOrgId!,
     projectId!,
@@ -698,7 +701,10 @@ export const InitiativePage: React.FC<InitiativePageProps> = ({
                     }}
                   />
                   <Chip
-                    label={getStatusLabel(initiative.status)}
+                    label={getWorkItemStatusLabel(
+                      initiative.status,
+                      initiativeTypeDefinition,
+                    )}
                     size="small"
                     color={getStatusColor(initiative.status)}
                     variant="outlined"

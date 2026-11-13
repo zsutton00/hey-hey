@@ -120,7 +120,8 @@ describe("Entity Adapters", () => {
         },
       );
 
-      expect(result.status).toBe("Testing · Needs a new status");
+      expect(result.status).toBe("Testing");
+      expect(result.statusNeedsReplacement).toBe(true);
     });
 
     it("withholds status for a registry type without lifecycle statuses", () => {

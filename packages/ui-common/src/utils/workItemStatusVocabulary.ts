@@ -20,7 +20,9 @@ export const isReservedWorkItemStatus = (status: string): boolean =>
 /**
  * Display label for a saved status. A status the type defines shows the
  * type's label (migrated statuses keep the labels they always had) or its
- * exact name; a status the type no longer defines shows exactly as saved.
+ * exact name; any other status, including while the type is still loading,
+ * shows exactly as saved. Only the platform-owned Archived and Superseded use
+ * platform labels.
  */
 export const getWorkItemStatusLabel = (
   status: string,
@@ -31,11 +33,11 @@ export const getWorkItemStatusLabel = (
     return defined.label ?? defined.name;
   }
 
-  if (isRetainedRemovedStatus(status, vocabulary)) {
-    return status;
+  if (isReservedWorkItemStatus(status)) {
+    return getStatusLabel(status);
   }
 
-  return getStatusLabel(status);
+  return status;
 };
 
 /**

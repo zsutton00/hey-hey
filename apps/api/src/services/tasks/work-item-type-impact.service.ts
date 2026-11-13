@@ -73,9 +73,9 @@ export class WorkItemTypeImpactService {
     });
     let response: { data: DeleteIncidentAgentEdgesResponse };
     try {
-      response = await firstValueFrom<
-        { data: DeleteIncidentAgentEdgesResponse }
-      >(
+      response = await firstValueFrom<{
+        data: DeleteIncidentAgentEdgesResponse;
+      }>(
         this.agentEdgesService.deleteIncidentAgentEdges(
           organizationId,
           projectId,
@@ -111,7 +111,7 @@ export class WorkItemTypeImpactService {
     });
     return {
       deletedEdgeCount: response.data.deletedEdgeCount,
-    }
+    };
   }
 
   async countCascadeImpact(

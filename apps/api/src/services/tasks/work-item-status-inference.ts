@@ -22,48 +22,6 @@ export const statusAuthoringRequestSchema = z
   })
   .strict();
 
-const knownFinished = new Set([
-  'done',
-  'complete',
-  'completed',
-  'finished',
-  'made',
-  'rejected',
-  'cancelled',
-  'canceled',
-]);
-const knownUnfinished = new Set([
-  'idea',
-  'backlog',
-  'planned',
-  'ready',
-  'todo',
-  'to do',
-  'testing',
-  'active',
-  'in progress',
-  'verifying',
-  'review',
-  'blocked',
-  'on hold',
-  'refining',
-]);
-const notStartedNames = new Set([
-  'idea',
-  'backlog',
-  'planned',
-  'ready',
-  'todo',
-  'to do',
-  'refining',
-]);
-const inProgressNames = new Set([
-  'testing',
-  'active',
-  'in progress',
-  'verifying',
-  'review',
-]);
 const normalized = (name: string) =>
   name.trim().toLowerCase().replace(/[_-]+/g, ' ');
 
@@ -89,6 +47,19 @@ const standardStatuses: WorkItemTypeStatus[] = [
   },
 ];
 
+function findKnownStatus(
+  name: string,
+  candidates: readonly WorkItemTypeStatus[],
+): WorkItemTypeStatus | undefined {
+  const key = normalized(name);
+
+  return candidates.find(
+    (status) =>
+      normalized(status.name) === key ||
+      (status.label !== undefined && normalized(status.label) === key),
+  );
+}
+
 export function resolveWorkItemStatusAuthoring(
   input: WorkItemStatusAuthoringRequest,
 ): WorkItemStatusAuthoringResponse {
@@ -96,6 +67,7 @@ export function resolveWorkItemStatusAuthoring(
   if (!parsed.success) {
     throw new BadRequestException(parsed.error.message);
   }
+
   const { existingStatuses = [], finishedNames } = parsed.data;
   if (existingStatuses.length > 0) {
     const validExisting =
@@ -104,8 +76,12 @@ export function resolveWorkItemStatusAuthoring(
       throw new BadRequestException(validExisting.error.message);
     }
   }
+
   const suggestions = standardStatuses.map((status) => status.name);
-  const names = parsed.data.names ?? suggestions;
+  const defaultNames = (
+    existingStatuses.length > 0 ? existingStatuses : standardStatuses
+  ).map((status) => status.name);
+  const names = parsed.data.names ?? defaultNames;
   const placeholders = names.map((name) => ({
     name,
     meaning: WorkItemStatusMeaning.Unfinished,
@@ -123,22 +99,25 @@ export function resolveWorkItemStatusAuthoring(
       'Finished selections must be distinct names from the status list.',
     );
   }
-  const existing = new Map(
-    [...standardStatuses, ...existingStatuses].map((status) => [
-      status.name,
-      status,
-    ]),
+
+  // A saved meaning wins over the standard one of the same name.
+  const known = names.map(
+    (name) =>
+      findKnownStatus(name, existingStatuses) ??
+      findKnownStatus(name, standardStatuses),
   );
+  const knownFinishedNames = (finishedNames ?? []).filter(
+    (name) => known[names.indexOf(name)],
+  );
+  if (knownFinishedNames.length > 0) {
+    throw new BadRequestException(
+      `Known statuses keep their existing meaning and cannot be listed in finishedNames: ${knownFinishedNames.join(', ')}. ` +
+        'List only new statuses that mean the work is finished.',
+    );
+  }
+
   const needsClarification =
-    finishedNames === undefined &&
-    names.some((name) => {
-      const key = normalized(name);
-      return (
-        !existing.has(name) &&
-        !knownFinished.has(key) &&
-        !knownUnfinished.has(key)
-      );
-    });
+    finishedNames === undefined && known.some((status) => !status);
   if (needsClarification) {
     return {
       suggestions,
@@ -146,33 +125,20 @@ export function resolveWorkItemStatusAuthoring(
       question: 'Which of these mean the work is finished?',
     };
   }
+
   const statuses: WorkItemTypeStatus[] = names.map((name, index) => {
-    const prior = existing.get(name);
-    const key = normalized(name);
-    const finished = finishedNames
-      ? finishedNames.includes(name)
-      : prior
-        ? prior.meaning === WorkItemStatusMeaning.Finished
-        : knownFinished.has(key);
-    if (
-      prior &&
-      (finishedNames === undefined ||
-        finished === (prior.meaning === WorkItemStatusMeaning.Finished))
-    ) {
+    const prior = known[index];
+    if (prior) {
       return prior;
     }
-    const meaning = finished
-      ? WorkItemStatusMeaning.Finished
-      : key === 'blocked' || key === 'on hold'
-        ? WorkItemStatusMeaning.Unfinished
-        : notStartedNames.has(key)
-          ? WorkItemStatusMeaning.NotStarted
-          : inProgressNames.has(key)
-            ? WorkItemStatusMeaning.InProgress
-            : index === 0
-              ? WorkItemStatusMeaning.NotStarted
-              : WorkItemStatusMeaning.InProgress;
-    return { name, ...(prior?.label ? { label: prior.label } : {}), meaning };
+
+    return {
+      name,
+      meaning: finishedNames?.includes(name)
+        ? WorkItemStatusMeaning.Finished
+        : WorkItemStatusMeaning.Unfinished,
+    };
   });
+
   return { suggestions, state: 'RESOLVED', statuses };
 }

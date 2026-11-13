@@ -260,6 +260,23 @@ export function writtenAgentSettableStatuses(
   );
 }
 
+/** Agent-settable names that are neither an ordinary status of the type nor Archived. */
+export function undeclaredAgentSettableStatuses(
+  definition: Pick<
+    WorkItemTypeDefinitionDto,
+    'agentSettableStatuses' | 'statuses'
+  >,
+): string[] {
+  const allowed = new Set<string>([
+    ...definition.statuses.map((status) => status.name),
+    WorkStatus.Archived,
+  ]);
+
+  return (definition.agentSettableStatuses ?? []).filter(
+    (name) => !allowed.has(name),
+  );
+}
+
 export function assertValidMockupSizeProfiles(
   sections: readonly WorkItemTypeSectionDefinition[],
 ): void {
@@ -629,6 +646,7 @@ export class WorkItemTypeRegistryService
     for (const project of projects) {
       for (const { template, definition } of templateDefinitions) {
         const rules = nextProjectRules.get(project.id) ?? new Map();
+        this.logStaleAgentSettableStatuses(definition, project.id);
         rules.set(template.typeKey, deriveRules(definition));
         nextProjectRules.set(project.id, rules);
         const activity = nextProjectActivity.get(project.id) ?? new Map();
@@ -659,6 +677,7 @@ export class WorkItemTypeRegistryService
         const rulesMap =
           nextProjectRules.get(row.projectId) ??
           new Map<string, WorkItemTypeRules>();
+        this.logStaleAgentSettableStatuses(definition, row.projectId);
         rulesMap.set(row.typeKey, deriveRules(definition));
         nextProjectRules.set(row.projectId, rulesMap);
         const summaries = nextProjectSummaries.get(row.projectId) ?? [];
@@ -1243,6 +1262,27 @@ export class WorkItemTypeRegistryService
       graphConfiguration: (graphConfiguration ??
         Prisma.JsonNull) as unknown as Prisma.InputJsonValue,
     };
+  }
+
+  /**
+   * Strict agent-settable validation belongs to write paths (saving or
+   * proposing a type). A stored definition written before that check existed
+   * may still name a renamed status; loading must not fail for it, so the stale
+   * names are reported here and the type keeps loading.
+   */
+  private logStaleAgentSettableStatuses(
+    definition: WorkItemTypeDefinitionDto,
+    projectId: string,
+  ): void {
+    const stale = undeclaredAgentSettableStatuses(definition);
+    if (stale.length === 0) {
+      return;
+    }
+    this.logger.warn(
+      `Work-item type '${definition.key}' in project ${projectId} lists agent-settable ` +
+        `statuses that are not among its statuses or Archived: ${stale.join(', ')}. ` +
+        `The type still loads; update its agent-settable statuses to match.`,
+    );
   }
 
   /**

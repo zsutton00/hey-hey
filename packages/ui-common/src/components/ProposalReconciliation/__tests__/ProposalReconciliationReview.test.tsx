@@ -45,6 +45,17 @@ vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
     workItemTypes: [
       {
         definition: {
+          key: "STANDARD",
+          sections: [],
+          capabilities: { supportsSupersession: true },
+          statuses: [
+            { name: "BACKLOG", label: "Backlog", meaning: "NOT_STARTED" },
+            { name: "QA", label: "QA", meaning: "IN_PROGRESS" },
+          ],
+        },
+      },
+      {
+        definition: {
           key: "FEATURE",
           sections: [
             {
@@ -972,6 +983,42 @@ describe("same-page staged recovery", () => {
     expect(keep).toHaveAttribute("aria-pressed", "true");
     expect(current).toHaveAttribute("aria-pressed", "true");
   });
+  it("offers only the item type's own statuses plus Archived when resolving a status", async () => {
+    const statusBasis = {
+      ...basis,
+      content: { type: "STANDARD", name: "Same", status: "BACKLOG" },
+    };
+    mount({
+      ...conflict,
+      currentBases: [statusBasis],
+      revisions: [{ ...ready.revisions[0], proposedResult: { status: "QA" } }],
+      overlaps: [
+        {
+          path: "status",
+          currentValue: "BACKLOG",
+          proposedValue: "QA",
+          interveningProposalId: null,
+        },
+      ],
+    });
+    fireEvent.click(
+      await screen.findByTestId("proposal-reconciliation-edit-by-hand"),
+    );
+    const statusItem = screen
+      .getAllByTestId("resolution-item")
+      .find((item) => within(item).queryByText("Status"))!;
+    expect(within(statusItem).getAllByText("QA").length).toBeGreaterThan(0);
+
+    fireEvent.click(
+      within(statusItem).getByRole("button", { name: "Edit", exact: true }),
+    );
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Status" }));
+
+    const options = within(screen.getByRole("listbox"))
+      .getAllByRole("option")
+      .map((option) => option.textContent);
+    expect(options).toEqual(["Backlog", "QA", "Archived"]);
+  });
   it("replaces the conflict review with the editor and restores it on Cancel", async () => {
     mount(conflict);
     fireEvent.click(
@@ -1008,4 +1055,59 @@ describe("same-page staged recovery", () => {
       proposalsClient.createProposalReconciliationCandidate,
     ).not.toHaveBeenCalled();
   });
+});
+
+it("saves a manually edited design-document status without a work-item definition", async () => {
+  const state: ProposalReconciliationState = {
+    ...ready,
+    status: "RECONCILIATION_REQUIRED",
+    currentBases: [
+      { ...basis, entityType: "DESIGN_DOC", content: { status: "DRAFT" } },
+    ],
+    revisions: [{ ...ready.revisions[0], proposedResult: { status: "READY" } }],
+    conflictingPaths: ["status"],
+    overlaps: [
+      {
+        path: "status",
+        currentValue: "DRAFT",
+        proposedValue: "READY",
+        interveningProposalId: null,
+      },
+    ],
+  };
+  vi.mocked(proposalsClient.getProposalReconciliation).mockResolvedValue({
+    data: { data: state },
+  } as never);
+  vi.mocked(
+    proposalsClient.createProposalReconciliationCandidate,
+  ).mockResolvedValue({ data: { data: ready } } as never);
+  render(
+    <ProposalReconciliationReview
+      proposal={{ ...proposal, targetEntityType: "DESIGN_DOC" }}
+      onApply={vi.fn()}
+    >
+      <Approve />
+    </ProposalReconciliationReview>,
+  );
+  fireEvent.click(
+    await screen.findByTestId("proposal-reconciliation-edit-by-hand"),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Edit", exact: true }));
+  fireEvent.change(screen.getByLabelText("Proposed content"), {
+    target: { value: "ARCHIVED" },
+  });
+  expect(screen.getByRole("button", { name: "Save edit" })).toBeEnabled();
+  fireEvent.click(screen.getByRole("button", { name: "Save edit" }));
+  fireEvent.click(screen.getByTestId("proposal-reconciliation-manual-save"));
+  await waitFor(() =>
+    expect(
+      proposalsClient.createProposalReconciliationCandidate,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        createProposalReconciliationCandidate: expect.objectContaining({
+          proposedResult: { status: "ARCHIVED" },
+        }),
+      }),
+    ),
+  );
 });

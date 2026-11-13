@@ -18,6 +18,13 @@ vi.mock("@hey-hey/ui-common/components", () => ({
     status ? <span data-testid="status-chip">{status}</span> : null,
 }));
 
+vi.mock("@hey-hey/ui-common/data", () => ({
+  useWorkItemStatusVocabularies: () => ({
+    definitions: new Map(),
+    statusOptions: [],
+  }),
+}));
+
 const renderTab = (
   tasks: ContextRelatedEntityDto[],
   isLoading = false,
@@ -25,6 +32,7 @@ const renderTab = (
   render(
     <MemoryRouter>
       <DesignDocTasksTab
+        organizationId="org-1"
         projectId="project-1"
         tasks={tasks}
         isLoading={isLoading}

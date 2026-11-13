@@ -41,7 +41,9 @@ export class WorkItemTypeCascadeExecutionWorkerService {
     }
   }
 
-  async claimNext(now = new Date()): Promise<WorkItemTypeCascadeExecution | null> {
+  async claimNext(
+    now = new Date(),
+  ): Promise<WorkItemTypeCascadeExecution | null> {
     const dueWhere: Prisma.WorkItemTypeCascadeExecutionWhereInput = {
       OR: [
         {
@@ -62,10 +64,11 @@ export class WorkItemTypeCascadeExecutionWorkerService {
         },
       ],
     };
-    const candidate = await this.prisma.db.workItemTypeCascadeExecution.findFirst({
-      where: dueWhere,
-      orderBy: { nextRetryAt: 'asc' },
-    });
+    const candidate =
+      await this.prisma.db.workItemTypeCascadeExecution.findFirst({
+        where: dueWhere,
+        orderBy: { nextRetryAt: 'asc' },
+      });
     if (!candidate) return null;
 
     const claimToken = uuidv4();
@@ -241,10 +244,7 @@ export class WorkItemTypeCascadeExecutionWorkerService {
   }
 
   private retryDelayMs(attemptCount: number): number {
-    return Math.min(
-      60_000 * 2 ** Math.max(attemptCount - 1, 0),
-      60 * 60_000,
-    );
+    return Math.min(60_000 * 2 ** Math.max(attemptCount - 1, 0), 60 * 60_000);
   }
 
   private errorMessage(error: unknown): string {

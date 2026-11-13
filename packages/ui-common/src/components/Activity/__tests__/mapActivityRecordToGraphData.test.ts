@@ -9,7 +9,7 @@ import { mapRecentCorrelatedActivityRecord } from "../../../data/collections/act
 import { mapActivityRecordToGraphData } from "../mapActivityRecordToGraphData";
 
 const buildCodingSessionRecord = (
-  overrides: Partial<RecentActivityCorrelationRecordDto> = {}
+  overrides: Partial<RecentActivityCorrelationRecordDto> = {},
 ) => {
   const dto: RecentActivityCorrelationRecordDto = {
     entityId: "coding-session-1",
@@ -45,7 +45,7 @@ const buildCodingSessionRecord = (
 
   return mapRecentCorrelatedActivityRecord(
     dto,
-    RecentActivityCorrelationMode.CodingSession
+    RecentActivityCorrelationMode.CodingSession,
   );
 };
 
@@ -55,7 +55,7 @@ describe("mapActivityRecordToGraphData (coding-session filter)", () => {
 
     const graph = mapActivityRecordToGraphData(
       activity,
-      RecentActivityCorrelationMode.CodingSession
+      RecentActivityCorrelationMode.CodingSession,
     );
 
     const allNodes = [
@@ -66,10 +66,10 @@ describe("mapActivityRecordToGraphData (coding-session filter)", () => {
     ];
 
     expect(
-      allNodes.find((node) => node.entityType === EntityType.Service)
+      allNodes.find((node) => node.entityType === EntityType.Service),
     ).toBeUndefined();
     expect(
-      allNodes.find((node) => node.entityType === EntityType.Task)
+      allNodes.find((node) => node.entityType === EntityType.Task),
     ).toBeUndefined();
     expect(graph.breadcrumbs).toHaveLength(0);
   });
@@ -79,11 +79,11 @@ describe("mapActivityRecordToGraphData (coding-session filter)", () => {
 
     const graph = mapActivityRecordToGraphData(
       activity,
-      RecentActivityCorrelationMode.CodingSession
+      RecentActivityCorrelationMode.CodingSession,
     );
 
     expect(
-      graph.activeSessions.find((node) => node.entityId === "session-related")
+      graph.activeSessions.find((node) => node.entityId === "session-related"),
     ).toBeDefined();
   });
 
@@ -99,4 +99,25 @@ describe("mapActivityRecordToGraphData (coding-session filter)", () => {
 
     expect(taskNode).toBeDefined();
   });
+});
+
+it("preserves custom and retained statuses on origin and linked work items", () => {
+  const activity = buildCodingSessionRecord({
+    entityType: EntityType.Task,
+    status: "Testing",
+    linkedEntities: [
+      {
+        entityId: "child",
+        entityType: EntityType.Task,
+        linkType: ActivityCorrelationLinkType.Child,
+        title: "Child",
+        status: "QA",
+      },
+    ],
+  });
+  const graph = mapActivityRecordToGraphData(activity);
+  expect(graph.currentWork[0].status).toBe("Testing");
+  expect(graph.subtasks.find((node) => node.entityId === "child")?.status).toBe(
+    "QA",
+  );
 });
