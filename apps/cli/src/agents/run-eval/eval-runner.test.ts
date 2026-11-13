@@ -382,7 +382,7 @@ describe('scripted conversations', () => {
   it('does not judge, and invents no judgment, when the conversation ended before the final message', async () => {
     const judge = vi.fn<EvalRunnerPorts['judge']>(async () => ({ assessment }));
     const { ports, attempts } = makePorts(async () => {
-      throw new EvalTargetFailure('message 2 failed', { recordedToolCalls: undefined });
+      throw new EvalTargetFailure('message 2 failed', {});
     });
     ports.judge = judge;
 

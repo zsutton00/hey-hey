@@ -3818,6 +3818,12 @@ describe('ProposalApprovalService', () => {
           { key: 'handler', content: 'free_form' },
           { key: 'consumerHandler', content: '' },
           {
+            key: 'inputs',
+            content: JSON.stringify({
+              inputs: [{ kind: 'text_message', text: 'Implement the page.' }],
+            }),
+          },
+          {
             key: 'coding',
             content: JSON.stringify({
               serviceId,
