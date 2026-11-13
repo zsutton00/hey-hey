@@ -41,8 +41,8 @@ heyhey local
   </tr>
   <tr>
     <td width="50%">
-      <h3>Human(s) Controlled</h3>
-      You retain complete control over the direction and design of your project. All non-code changes are controlled via a proposal system. (Coming soon) customizable rules for approval requirements.
+      <h3>Human Controlled</h3>
+      You retain complete control over the direction and design of your project. All non-code changes are controlled via a proposal system. Customizable rules for approval requirements help you keep a multi-user project manageable.
     </td>
     <td width="50%">
       <a href="docs/proposal-with-diff.png"><img src="docs/proposal-with-diff.png" alt="A proposal is created by agents for tasks, features, docs, etc. You approve, revise or reject."></a>
