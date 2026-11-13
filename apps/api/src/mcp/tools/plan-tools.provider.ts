@@ -3,7 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Context, Tool } from '@rekog/mcp-nest';
 import type { Request } from 'express';
 import { z } from 'zod';
-import { WorkflowName } from '@hey-hey/contracts/api/models';
+import { WorkStatus, WorkflowName } from '@hey-hey/contracts/api/models';
 import { PrismaService } from 'src/prisma/prisma.service';
 import type {
   WorkItemChangeSetOperation,
@@ -428,6 +428,8 @@ export class PlanToolsProvider {
         type: 'PLAN',
         name: params.planTitle,
         parent: existing(params.parentFeatureId),
+        // The adopted tasks already exist, so the Plan is live work from approval.
+        status: WorkStatus.Active,
       },
       {
         op: 'section.replace',

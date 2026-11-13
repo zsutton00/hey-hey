@@ -252,7 +252,9 @@ describe('existing-task Plan public approval with PostgreSQL', () => {
             name: `Existing implementation ${index + 1}`,
             type: 'STANDARD',
             parentTaskId: index === 1 ? otherFeatureId : featureId,
-            status: index === 2 ? 'COMPLETED' : 'ACTIVE',
+            // BACKLOG adopted tasks roll their stages up to BACKLOG, so the
+            // Plan's own starting status is the only thing that can make it ACTIVE.
+            status: 'BACKLOG',
             sections: [
               {
                 key: 'description',
@@ -400,6 +402,8 @@ describe('existing-task Plan public approval with PostgreSQL', () => {
     });
     expect(resumed.enacted).toBe(true);
     const planId = resumed.resultingEntityId!;
+    const plan = await prisma.task.findUniqueOrThrow({ where: { id: planId } });
+    expect(plan.status).toBe('ACTIVE');
     const configurationSection = await prisma.taskSection.findUnique({
       where: { taskId_key: { taskId: planId, key: 'planConfiguration' } },
     });
@@ -421,6 +425,9 @@ describe('existing-task Plan public approval with PostgreSQL', () => {
       where: { parentTaskId: planId, type: 'PLAN_STAGE' },
     });
     expect(stages).toHaveLength(4);
+    expect(stages.map((stage) => stage.status)).toEqual(
+      taskIds.map(() => 'BACKLOG'),
+    );
     expect(
       (await prisma.task.findUniqueOrThrow({ where: { id: planId } }))
         .parentTaskId,
