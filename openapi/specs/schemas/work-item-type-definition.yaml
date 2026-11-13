@@ -1782,9 +1782,6 @@ WorkItemTypeCapabilities:
     planEligible:
       type: boolean
       description: Whether this type may be planned as plan implementation work.
-    hasSetInitialStatus:
-      type: boolean
-      description: Whether this type's first status is an explicit initial-status policy.
     supportsSupersession:
       type: boolean
       description: >

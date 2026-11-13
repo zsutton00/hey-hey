@@ -73,7 +73,6 @@ const CUSTOM_TYPE_SPEC: CustomTypeRowSpec = {
   capabilities: {
     requiresParent: false,
     planEligible: true,
-    hasSetInitialStatus: false,
     rendersInline: false,
   },
 };
@@ -93,7 +92,6 @@ const CUSTOM_TYPE_WITH_NONBUILTIN_SECTION: CustomTypeRowSpec = {
   capabilities: {
     requiresParent: false,
     planEligible: true,
-    hasSetInitialStatus: false,
     rendersInline: false,
   },
 };
@@ -114,7 +112,6 @@ const CUSTOM_TYPE_WITH_SCHEMA_BACKED_SECTION: CustomTypeRowSpec = {
   capabilities: {
     requiresParent: false,
     planEligible: true,
-    hasSetInitialStatus: false,
     rendersInline: false,
   },
 };
@@ -135,7 +132,6 @@ const CUSTOM_TYPE_WITH_IMAGE_SECTION: CustomTypeRowSpec = {
   capabilities: {
     requiresParent: false,
     planEligible: true,
-    hasSetInitialStatus: false,
     rendersInline: false,
   },
 };
@@ -163,7 +159,6 @@ const CUSTOM_TYPE_WITH_UNSUPPORTED_SCHEMA_BACKED_SECTION: CustomTypeRowSpec = {
   capabilities: {
     requiresParent: false,
     planEligible: true,
-    hasSetInitialStatus: false,
     rendersInline: false,
   },
 };
@@ -197,7 +192,6 @@ const CUSTOM_TYPE_WITH_HTML_CSS_SECTION: CustomTypeRowSpec = {
   capabilities: {
     requiresParent: false,
     planEligible: true,
-    hasSetInitialStatus: false,
     rendersInline: false,
   },
 };
@@ -231,7 +225,6 @@ const CUSTOM_TYPE_WITH_STRUCTURED_MOCKUP_SECTION: CustomTypeRowSpec = {
   capabilities: {
     requiresParent: false,
     planEligible: true,
-    hasSetInitialStatus: false,
     rendersInline: false,
   },
 };
@@ -246,7 +239,6 @@ const ARCHIVED_CUSTOM_TYPE_SPEC: CustomTypeRowSpec = {
   capabilities: {
     requiresParent: false,
     planEligible: true,
-    hasSetInitialStatus: false,
     rendersInline: false,
   },
 };
@@ -272,7 +264,6 @@ const GRAPH_ROOT_TYPE_SPEC: CustomTypeRowSpec = {
   capabilities: {
     requiresParent: false,
     planEligible: false,
-    hasSetInitialStatus: false,
     rendersInline: false,
     graph: {
       nodeChildType: 'GRAPH_NODE',
@@ -315,7 +306,6 @@ const GRAPH_NODE_TYPE_SPEC: CustomTypeRowSpec = {
   capabilities: {
     requiresParent: true,
     planEligible: false,
-    hasSetInitialStatus: false,
     rendersInline: false,
   },
 };
@@ -535,7 +525,6 @@ describe('TaskService', () => {
         projectId: testIds.project,
         initialStatus: 'ACTIVE',
         statuses: legacyStatuses(['ACTIVE', 'BACKLOG', 'READY', 'ARCHIVED']),
-        capabilities: { hasSetInitialStatus: true },
       },
       CUSTOM_TYPE_WITH_NONBUILTIN_SECTION,
       CUSTOM_TYPE_WITH_SCHEMA_BACKED_SECTION,
@@ -2324,14 +2313,11 @@ describe('TaskService', () => {
       },
     );
 
-    it('forces new GOAL tasks to start at ACTIVE, ignoring any caller-supplied status', async () => {
+    it("starts new GOAL tasks in the type's first status when no status is supplied", async () => {
       const createTaskDto: CreateTaskDto = {
         name: 'Goal A',
         type: 'GOAL',
         dueDate: '2026-12-31T00:00:00.000Z',
-        // Caller tries to start the goal in BACKLOG; the service must override
-        // this and pin the goal to ACTIVE.
-        status: WorkStatus.Backlog,
       };
 
       const createSpy = jest.fn().mockResolvedValue({
@@ -6884,54 +6870,31 @@ describe('TaskService', () => {
   describe('custom-typed creation (registry-derived rules)', () => {
     it.each([
       {
-        forced: true,
         initial: WorkStatus.Active,
         requested: undefined,
         expected: WorkStatus.Active,
       },
       {
-        forced: true,
         initial: WorkStatus.Active,
         requested: WorkStatus.Backlog,
         expected: WorkStatus.Backlog,
       },
       {
-        forced: true,
-        initial: WorkStatus.Active,
-        requested: WorkStatus.Ready,
-        expected: WorkStatus.Ready,
-      },
-      {
-        forced: true,
-        initial: WorkStatus.Backlog,
-        requested: WorkStatus.Active,
-        expected: WorkStatus.Active,
-      },
-      {
-        forced: false,
-        initial: WorkStatus.Backlog,
-        requested: WorkStatus.Ready,
-        expected: WorkStatus.Ready,
-      },
-      {
-        forced: false,
         initial: WorkStatus.Backlog,
         requested: undefined,
         expected: WorkStatus.Backlog,
       },
+      {
+        initial: WorkStatus.Backlog,
+        requested: WorkStatus.Ready,
+        expected: WorkStatus.Ready,
+      },
     ])(
-      'persists Mockup policy $initial (forced=$forced, requested=$requested)',
-      async ({ forced, initial, requested, expected }) => {
-        // Registry tests prove canonical/override source selection; exercise the
-        // same creation path with each resulting effective policy here.
-        if (initial !== WorkStatus.Active || !forced) {
-          jest
-            .spyOn(workItemTypeRegistry, 'getInitialStatusPolicy')
-            .mockReturnValue({
-              initialStatus: initial,
-              hasSetInitialStatus: forced,
-            });
-        }
+      'creates a Mockup in $expected when the type starts in $initial and requests $requested',
+      async ({ initial, requested, expected }) => {
+        jest
+          .spyOn(workItemTypeRegistry, 'getInitialStatusPolicy')
+          .mockReturnValue({ initialStatus: initial });
         const createSpy = jest.fn().mockImplementation(async ({ data }) => ({
           ...mockTaskData,
           type: data.type,
