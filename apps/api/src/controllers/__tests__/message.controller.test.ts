@@ -168,6 +168,7 @@ describe('MessageController', () => {
       await controller.getMessages(
         testIds.organization,
         testIds.project as ProjectId,
+        testIds.user as UserId,
         baseQuery,
       );
 
@@ -175,6 +176,7 @@ describe('MessageController', () => {
         baseQuery,
         testIds.organization,
         testIds.project,
+        testIds.user,
         true, // includeResponses default
         true, // includeProposals default
         false, // includeReports default
@@ -185,6 +187,7 @@ describe('MessageController', () => {
       await controller.getMessages(
         testIds.organization,
         testIds.project as ProjectId,
+        testIds.user as UserId,
         baseQuery,
         undefined,
         undefined,
@@ -195,6 +198,7 @@ describe('MessageController', () => {
         baseQuery,
         testIds.organization,
         testIds.project,
+        testIds.user,
         true,
         true,
         true,
@@ -205,6 +209,7 @@ describe('MessageController', () => {
       await controller.getMessages(
         testIds.organization,
         testIds.project as ProjectId,
+        testIds.user as UserId,
         baseQuery,
         undefined,
         undefined,
@@ -225,6 +230,7 @@ describe('MessageController', () => {
       const result = await controller.getMessages(
         testIds.organization,
         testIds.project as ProjectId,
+        testIds.user as UserId,
         baseQuery,
         undefined,
         undefined,
@@ -244,6 +250,7 @@ describe('MessageController', () => {
       const result = await controller.getMessages(
         testIds.organization,
         testIds.project as ProjectId,
+        testIds.user as UserId,
         baseQuery,
       );
 

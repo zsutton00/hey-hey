@@ -178,6 +178,7 @@ export class MessageController {
   async getMessages(
     @CurrentOrganization() organizationId: OrganizationId,
     @Param('projectId') projectId: ProjectId,
+    @CurrentUser('userId') userId: UserId,
     @Query() query: GetMessagesQueryDto,
     @Query('includeResponses') includeResponses?: string,
     @Query('includeProposals') includeProposals?: string,
@@ -190,6 +191,7 @@ export class MessageController {
       query,
       organizationId,
       projectId,
+      userId,
       shouldIncludeResponses,
       shouldIncludeProposals,
       shouldIncludeReports,
@@ -231,6 +233,7 @@ export class MessageController {
   @Get(':id')
   async getMessage(
     @CurrentOrganization() organizationId: OrganizationId,
+    @CurrentUser('userId') userId: UserId,
     @Param('id') id: string,
     @Query('includeResponses') includeResponses?: string,
   ): Promise<MessageRecordDto> {
@@ -243,6 +246,11 @@ export class MessageController {
     if (!message) {
       throw new NotFoundException('Message not found');
     }
+    await this.messageService.assertConversationMessagesReadable({
+      organizationId,
+      conversationId: message.conversationId as ConversationId,
+      readerUserId: userId,
+    });
     return message;
   }
 

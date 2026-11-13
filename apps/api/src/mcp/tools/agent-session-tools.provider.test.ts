@@ -8,7 +8,7 @@ import {
   AgentSessionHistoryCursorError,
   MessageService,
 } from '../../services/message.service';
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 
 const EMPTY_CONTEXT = {} as unknown as Context;
 
@@ -98,7 +98,11 @@ describe('AgentSessionToolsProvider', () => {
     };
   };
   let agentSessionService: { findOne: jest.Mock };
-  let messageService: { getAgentSessionHistoryPage: jest.Mock };
+  let messageService: {
+    getAgentSessionHistoryPage: jest.Mock;
+    assertConversationMessagesReadable: jest.Mock;
+    filterReadableConversationIds: jest.Mock;
+  };
 
   beforeEach(() => {
     prisma = {
@@ -108,7 +112,15 @@ describe('AgentSessionToolsProvider', () => {
       },
     };
     agentSessionService = { findOne: jest.fn() };
-    messageService = { getAgentSessionHistoryPage: jest.fn() };
+    messageService = {
+      getAgentSessionHistoryPage: jest.fn(),
+      assertConversationMessagesReadable: jest
+        .fn()
+        .mockResolvedValue(undefined),
+      filterReadableConversationIds: jest
+        .fn()
+        .mockResolvedValue(new Set([conversationId])),
+    };
 
     provider = new AgentSessionToolsProvider(
       prisma as unknown as PrismaService,
@@ -201,6 +213,30 @@ describe('AgentSessionToolsProvider', () => {
       expect(result.structuredContent.code).toBe('agent_session_not_found');
     });
 
+    it('returns the conversation_restricted error without messages for a restricted conversation', async () => {
+      agentSessionService.findOne.mockResolvedValue({
+        id: agentSessionId,
+        projectId: testIds.project,
+        conversationId,
+      });
+      messageService.assertConversationMessagesReadable.mockRejectedValue(
+        new ForbiddenException('restricted'),
+      );
+
+      const result = (await provider.getAgentSession(
+        { agentSessionId },
+        EMPTY_CONTEXT,
+        makeRequest(),
+      )) as unknown as {
+        isError: boolean;
+        structuredContent: { code: string };
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent.code).toBe('conversation_restricted');
+      expect(messageService.getAgentSessionHistoryPage).not.toHaveBeenCalled();
+    });
+
     it('returns the contract invalid_cursor error for cursor binding failures', async () => {
       agentSessionService.findOne.mockResolvedValue({
         id: agentSessionId,
@@ -269,6 +305,45 @@ describe('AgentSessionToolsProvider', () => {
       expect.objectContaining({
         where: expect.objectContaining({ type: 'SYSTEM' }),
         orderBy: { createdAt: 'desc' },
+      }),
+    );
+  });
+
+  it('keeps session metadata but returns no message content for a restricted conversation the caller did not create', async () => {
+    prisma.db.agentSession.findMany.mockResolvedValue([makeSessionRow()]);
+    messageService.filterReadableConversationIds.mockResolvedValue(new Set());
+    prisma.db.message.findMany.mockResolvedValue([
+      makeMessageRow(60, 'SYSTEM', {
+        response: 'Secret transcript text',
+        actionHint: 'task_complete',
+      }),
+    ]);
+
+    const result = (await provider.getAgentSessions(
+      makeParams(),
+      EMPTY_CONTEXT,
+      makeRequest(),
+    )) as {
+      sessions: Array<{
+        agentSessionId: string;
+        title: string;
+        conversationId: string;
+        messages: unknown[];
+      }>;
+    };
+
+    const [session] = result.sessions;
+    expect(session).toMatchObject({
+      agentSessionId,
+      title: 'Coding session',
+      conversationId,
+      messages: [],
+    });
+    expect(JSON.stringify(result)).not.toContain('Secret transcript text');
+    expect(messageService.filterReadableConversationIds).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationIds: [conversationId],
+        readerUserId: testIds.user,
       }),
     );
   });
