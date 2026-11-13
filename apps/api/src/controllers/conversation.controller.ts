@@ -784,6 +784,7 @@ export class ConversationController implements IConversationControllerSpec {
     @Param('projectId') projectId: ProjectId,
     @Param('conversationId') conversationId: ConversationId,
     @CurrentOrganization() organizationId: OrganizationId,
+    @CurrentUser('userId') userId: UserId,
   ): Promise<MessageResponseDto | null> {
     const conversation =
       await this.conversationService.getConversationFromAdapter(
@@ -795,6 +796,12 @@ export class ConversationController implements IConversationControllerSpec {
     if (!conversation) {
       throw new NotFoundException('Conversation not found');
     }
+
+    await this.messageService.assertConversationMessagesReadable({
+      organizationId,
+      conversationId,
+      readerUserId: userId,
+    });
 
     return this.messageService.getLatestMessage(conversationId, organizationId);
   }

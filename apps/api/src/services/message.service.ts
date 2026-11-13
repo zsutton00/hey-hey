@@ -6,6 +6,7 @@ import {
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   HttpException,
   Inject,
   Injectable,
@@ -991,14 +992,101 @@ export class MessageService {
   }
 
   // Adapter methods for external API integration
+  /**
+   * The single message-content access rule. A restricted conversation's
+   * messages are readable only by its recorded creator; a conversation with no
+   * recorded creator therefore has no user reader. Metadata and reports are
+   * not message content and are never gated here.
+   */
+  async assertConversationMessagesReadable(params: {
+    organizationId: OrganizationId;
+    conversationId: ConversationId;
+    readerUserId: UserId;
+  }): Promise<void> {
+    const { organizationId, conversationId, readerUserId } = params;
+    const conversation = await this.prisma.db.conversation.findFirst({
+      where: { id: conversationId, organizationId },
+      select: { restricted: true, createdBy: true },
+    });
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+    if (!conversation.restricted || conversation.createdBy === readerUserId) {
+      return;
+    }
+
+    this.logger.warn('Denied message read of restricted conversation', {
+      organizationId,
+      conversationId,
+      readerUserId,
+      conversationCreatedBy: conversation.createdBy,
+      creatorRecorded: conversation.createdBy !== null,
+    });
+    throw new ForbiddenException(
+      'This conversation is restricted to its creator',
+    );
+  }
+
+  /**
+   * Batch form of {@link assertConversationMessagesReadable}: returns the subset of the
+   * given conversations whose messages the reader may see, logging each denial.
+   */
+  async filterReadableConversationIds(params: {
+    organizationId: OrganizationId;
+    conversationIds: ConversationId[];
+    readerUserId: UserId;
+  }): Promise<Set<ConversationId>> {
+    const { organizationId, conversationIds, readerUserId } = params;
+    if (conversationIds.length === 0) {
+      return new Set();
+    }
+
+    const conversations = await this.prisma.db.conversation.findMany({
+      where: { id: { in: conversationIds }, organizationId },
+      select: { id: true, restricted: true, createdBy: true },
+    });
+
+    const readable = new Set<ConversationId>();
+    for (const conversation of conversations) {
+      if (!conversation.restricted || conversation.createdBy === readerUserId) {
+        readable.add(conversation.id as ConversationId);
+        continue;
+      }
+
+      this.logger.warn('Denied message read of restricted conversation', {
+        organizationId,
+        conversationId: conversation.id,
+        readerUserId,
+        conversationCreatedBy: conversation.createdBy,
+        creatorRecorded: conversation.createdBy !== null,
+      });
+    }
+    return readable;
+  }
+
+  /** Conversations whose messages the reader may see, for reads not scoped to one conversation. */
+  private readableConversationsWhere(
+    readerUserId: UserId,
+  ): Prisma.ConversationWhereInput {
+    return { OR: [{ restricted: false }, { createdBy: readerUserId }] };
+  }
+
   async getMessagesForAdapter(
     query: GetMessagesQueryDto,
     organizationId: OrganizationId,
     authorizedProjectId: ProjectId,
+    readerUserId: UserId,
     includeResponses = true,
     includeProposals = true,
     includeReports = false,
   ): Promise<MessageResponseDto[] | ConversationMessageHistoryPageDto> {
+    if (query.conversationId) {
+      await this.assertConversationMessagesReadable({
+        organizationId,
+        conversationId: query.conversationId,
+        readerUserId,
+      });
+    }
     if (query.mode === MessageReadMode.ReverseHistory) {
       return this.getConversationMessageHistoryPage({
         query,
@@ -1015,6 +1103,7 @@ export class MessageService {
       includeResponses,
       includeProposals,
       includeReports,
+      query.conversationId ? undefined : readerUserId,
     );
   }
 
@@ -1682,6 +1771,7 @@ export class MessageService {
     includeResponses = true,
     includeProposals = true,
     includeReports = false,
+    scopeToReadableBy?: UserId,
   ): Promise<MessageResponseDto[]> {
     if (query.historyCursor) {
       throw new BadRequestException(
@@ -1741,6 +1831,8 @@ export class MessageService {
         // CRITICAL: Always filter by organization through conversation relationship
         conversation: {
           organizationId,
+          ...(scopeToReadableBy &&
+            this.readableConversationsWhere(scopeToReadableBy)),
         },
         ...(projectId && { projectId }),
         ...(conversationId && { conversationId }),

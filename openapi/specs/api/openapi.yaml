@@ -10268,6 +10268,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+        "403":
+          description: >-
+            The requested conversation is restricted and the caller is not its
+            creator. Conversation metadata and reports remain readable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
         "404":
           description: >-
             Cursor not found in the requested conversation: an unknown or
@@ -10470,6 +10478,14 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/MessageRecordDto"
+        "403":
+          description: >-
+            The message's conversation is restricted and the caller is not its
+            creator.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
         "404":
           description: Message interaction not found
           content:
@@ -11591,6 +11607,14 @@ paths:
                         allOf:
                           - $ref: "#/components/schemas/MessageResponseDto"
                         nullable: true
+        "403":
+          description: >-
+            The message's conversation is restricted and the caller is not its
+            creator.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
         "404":
           description: Conversation not found
           content:
