@@ -235,7 +235,32 @@ describe('create_work_item (FEATURE) — initialRequirements', () => {
     expect(section.content).toEqual({ records: [] });
   });
 
-  it('accepts a large collection when any requirement is missing a group', async () => {
+  it('rejects a large collection when any requirement is missing a group', async () => {
+    const proposalCreate = jest.fn().mockResolvedValue(makeProposal());
+    const { provider } = createProvider({ proposalCreate });
+    const initialRequirements = Array.from({ length: 10 }, (_, index) => ({
+      statement: `The system does requirement ${index}`,
+    }));
+
+    const result = await provider.createWorkItem(
+      {
+        eli5: 'Explains the proposed change.',
+        type: 'FEATURE',
+        name: 'My Feature',
+        tag: 'product',
+        sections: [{ key: 'description', content: 'Feature description.' }],
+        initialRequirements,
+        guidanceToken: guidanceTokenForType('FEATURE', PROJECT_ID),
+      },
+      {} as any,
+      makeRequest(),
+    );
+
+    expect((result as any).isError).toBe(true);
+    expect(proposalCreate).not.toHaveBeenCalled();
+  });
+
+  it('accepts a collection below the grouping threshold without groups', async () => {
     const proposalCreate = jest.fn().mockResolvedValue(makeProposal());
     const { provider } = createProvider({ proposalCreate });
 
@@ -247,9 +272,8 @@ describe('create_work_item (FEATURE) — initialRequirements', () => {
         tag: 'product',
         sections: [{ key: 'description', content: 'Feature description.' }],
         initialRequirements: [
-          { statement: 'The system does X', group: 'Access control' },
-          { statement: 'The system does Y', group: 'Access control' },
-          { statement: 'The system does Z' },
+          { statement: 'The system does X' },
+          { statement: 'The system does Y' },
         ],
         guidanceToken: guidanceTokenForType('FEATURE', PROJECT_ID),
       },
@@ -493,7 +517,7 @@ describe('edit_work_item (FEATURE) — requirementOps', () => {
     });
   });
 
-  it('accepts an add that leaves the collection ungrouped', async () => {
+  it('rejects an add that leaves an ungrouped third requirement', async () => {
     const proposalCreate = jest
       .fn()
       .mockResolvedValue(makeProposal({ action: 'UPDATE' }));
@@ -539,8 +563,8 @@ describe('edit_work_item (FEATURE) — requirementOps', () => {
       makeRequest(),
     );
 
-    expect((result as any).isError).toBeUndefined();
-    expect(proposalCreate).toHaveBeenCalled();
+    expect((result as any).isError).toBe(true);
+    expect(proposalCreate).not.toHaveBeenCalled();
   });
 
   it('allows a group-only repair of a mixed collection', async () => {

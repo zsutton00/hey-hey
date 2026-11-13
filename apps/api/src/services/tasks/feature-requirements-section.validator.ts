@@ -91,6 +91,29 @@ export function validateFeatureRequirementsDraft(
   return validateWith(validateDraftStructure, content);
 }
 
+/** A collection this large or larger must give every record an explicit group. */
+const GROUP_REQUIRED_COLLECTION_SIZE = 3;
+
+/**
+ * The grouping rule for a collection as it is written: at three or more
+ * records every record needs an explicit group, even when they all share one
+ * label. Called only where a collection is written, so stored collections that
+ * predate the rule still load.
+ */
+export function ungroupedRequirementsMessage(section: {
+  records: readonly { group?: string }[];
+}): string | undefined {
+  if (section.records.length < GROUP_REQUIRED_COLLECTION_SIZE) return undefined;
+  const ungrouped = section.records.flatMap((record, index) =>
+    record.group === undefined ? [index] : [],
+  );
+  if (ungrouped.length === 0) return undefined;
+  return (
+    `A collection of ${GROUP_REQUIRED_COLLECTION_SIZE} or more requirements ` +
+    `needs an explicit group on every record; ungrouped record indexes: ${ungrouped.join(', ')}.`
+  );
+}
+
 function validateWith<T extends FeatureRequirementsDraftSection>(
   validateStructure: ValidateFunction<T>,
   content: unknown,

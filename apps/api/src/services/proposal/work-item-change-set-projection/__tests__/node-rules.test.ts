@@ -77,14 +77,14 @@ describe('ported node and reference rules', () => {
     registry = await createWarmWorkItemTypeRegistry();
   });
 
-  function projector() {
+  function projector(rows: Row[] = ROWS) {
     const findMany = jest.fn(
       async ({ where }: { where: Record<string, unknown> }) =>
-        ROWS.filter((task) => matches(task, where)).map(toRecord),
+        rows.filter((task) => matches(task, where)).map(toRecord),
     );
     const findFirst = jest.fn(
       async ({ where }: { where: Record<string, unknown> }) =>
-        ROWS.find((task) => matches(task, where)) ?? null,
+        rows.find((task) => matches(task, where)) ?? null,
     );
     const service = new WorkItemChangeSetProjectorService(
       {
@@ -316,6 +316,72 @@ describe('ported node and reference rules', () => {
           }),
         ]),
       );
+    });
+  });
+
+  describe('feature requirements grouping', () => {
+    const REQUIREMENTS_FEATURE = 'aaaaaaaa-0000-4000-8000-0000000000a1';
+    const ungroupedRecord = (index: number) => ({
+      id: `bbbbbbbb-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+      statement: `The system does requirement ${index}`,
+      designedBy: [],
+      fulfilledBy: [],
+      contracts: [],
+    });
+    const ungroupedCollection = {
+      records: [ungroupedRecord(0), ungroupedRecord(1), ungroupedRecord(2)],
+    };
+
+    it('rejects a written collection of three requirements where one lacks a group', async () => {
+      const { project } = projector();
+
+      const projected = await project({
+        root: { refType: 'existing', id: FEATURE },
+        operations: [
+          {
+            op: 'section.replace',
+            ref: { refType: 'existing', id: FEATURE },
+            key: 'requirements',
+            content: ungroupedCollection,
+          },
+        ],
+      });
+
+      expect(projected.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: 'invalid_json_section' }),
+        ]),
+      );
+    });
+
+    it('leaves stored ungrouped requirements alone when a request does not write them', async () => {
+      const { project } = projector([
+        ...ROWS,
+        row(REQUIREMENTS_FEATURE, 'FEATURE', null, [
+          {
+            key: 'requirements',
+            materializedMarkdown: JSON.stringify(ungroupedCollection),
+          },
+        ]),
+      ]);
+
+      const projected = await project({
+        root: { refType: 'existing', id: REQUIREMENTS_FEATURE },
+        operations: [
+          {
+            op: 'section.replace',
+            ref: { refType: 'existing', id: REQUIREMENTS_FEATURE },
+            key: 'description',
+            content: 'Updated scope.',
+          },
+        ],
+      });
+
+      expect(
+        projected.issues.filter(
+          (issue) => issue.code === 'invalid_json_section',
+        ),
+      ).toEqual([]);
     });
   });
 
