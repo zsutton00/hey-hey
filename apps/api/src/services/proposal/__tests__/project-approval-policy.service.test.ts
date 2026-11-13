@@ -420,6 +420,97 @@ describe('persisted project rule resolution', () => {
     expect(await service.snapshot(projectId)).toMatchObject({ revision: 7 });
   });
 
+  it('applies a saved Feature Top-level condition and reports it in the explanation', async () => {
+    const featureRule = (topLevel?: boolean) => ({
+      conditions: {
+        typeKey: 'FEATURE',
+        author: 'USER',
+        ...(topLevel === undefined ? {} : { topLevel }),
+      },
+      requirement: 'PROJECT_REQUIRED',
+      requiredApprovals: 5,
+      allowsProposerApproval: false,
+    });
+    const proposal = {
+      source: 'user',
+      action: 'UPDATE',
+      authorId: 'alice',
+      eligibleProjectMemberIds: ['alice', 'bob'],
+      toolName: null,
+      changedFields: ['status'],
+    } satisfies ProposalContext;
+    const topLevelFeature = {
+      type: 'FEATURE',
+      parentTaskId: null,
+      initiativeId: 'an-initiative',
+    };
+    const nestedFeature = { ...topLevelFeature, parentTaskId: 'parent' };
+
+    const topOnly = await resolver([featureRule(true)]).resolve(projectId);
+    expect(
+      evaluatePermissions(topLevelFeature, proposal, topOnly).threshold,
+    ).toBe(5);
+    expect(
+      evaluatePermissions(nestedFeature, proposal, topOnly).threshold,
+    ).not.toBe(5);
+
+    const nestedOnly = await resolver([featureRule(false)]).resolve(projectId);
+    expect(
+      evaluatePermissions(nestedFeature, proposal, nestedOnly).threshold,
+    ).toBe(5);
+    expect(
+      evaluatePermissions(topLevelFeature, proposal, nestedOnly).threshold,
+    ).not.toBe(5);
+
+    const any = await resolver([featureRule()]).resolve(projectId);
+    expect(evaluatePermissions(topLevelFeature, proposal, any).threshold).toBe(
+      5,
+    );
+    expect(evaluatePermissions(nestedFeature, proposal, any).threshold).toBe(5);
+
+    const snapshot = await resolver([featureRule(true)]).snapshot(projectId);
+    expect(
+      snapshot.rules.find((rule) => rule.source === 'PROJECT')?.conditions,
+    ).toEqual({ typeKey: 'FEATURE', author: 'USER', topLevel: true });
+  });
+
+  it('accepts Top-level on a Feature rule and rejects it on other rules', () => {
+    const validation = new ProjectApprovalPolicyValidation({
+      isTypeActiveForProject: () => true,
+    });
+    const withConditions = (conditions: object) => ({
+      expectedRevision: 0,
+      rules: [{ ...savedRule, conditions }],
+    });
+
+    expect(
+      validation.replacement(
+        withConditions({ typeKey: 'FEATURE', topLevel: false }),
+        projectId,
+        null,
+      ).rules[0].conditions.topLevel,
+    ).toBe(false);
+
+    for (const conditions of [
+      { topLevel: true },
+      { typeKey: 'MARKETING', topLevel: true },
+    ]) {
+      expect(() =>
+        validation.replacement(withConditions(conditions), projectId, null),
+      ).toThrow(
+        expect.objectContaining({
+          response: expect.objectContaining({
+            issues: [
+              expect.objectContaining({
+                path: '/rules/0/conditions/topLevel',
+              }),
+            ],
+          }),
+        }),
+      );
+    }
+  });
+
   it.each([
     [{ secret: 'never log this' }],
     [[{ ...savedRule, requirement: 'IMMEDIATE', requiredApprovals: 2 }]],

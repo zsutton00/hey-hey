@@ -28,7 +28,7 @@ import type { ProjectApprovalPolicyAuthor } from './project-approval-policy-auth
 import type { ProjectApprovalPolicyChangeSelector } from './project-approval-policy-change-selector.js';
 
 /**
- * Omitted conditions match any value for that dimension. Conditions are conjunctive. For project-authored rules, typeKey, author, action, and change are the settings controls; featureContentChange, topLevel, and toolName preserve the complete effective match explanation for code-owned rules.
+ * Omitted conditions match any value for that dimension. Conditions are conjunctive. For project-authored rules, typeKey, author, action, and change are the settings controls, plus topLevel on FEATURE rules; featureContentChange, topLevel, and toolName also preserve the complete effective match explanation for code-owned rules.
  * @export
  * @interface ProjectApprovalPolicyEffectiveConditions
  */
@@ -64,7 +64,7 @@ export interface ProjectApprovalPolicyEffectiveConditions {
      */
     'featureContentChange'?: boolean;
     /**
-     * Existing API-owned structural top-level match input used by code defaults.
+     * API-owned structural top-level match input. Set by code defaults and by project rules on FEATURE.
      * @type {boolean}
      * @memberof ProjectApprovalPolicyEffectiveConditions
      */

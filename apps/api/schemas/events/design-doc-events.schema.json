@@ -22681,14 +22681,14 @@
         },
         "topLevel": {
           "type": "boolean",
-          "description": "Existing API-owned structural top-level match input used by code defaults."
+          "description": "API-owned structural top-level match input. Set by code defaults and by project rules on FEATURE."
         },
         "toolName": {
           "type": "string",
           "description": "Existing authoring-boundary match input used by code defaults."
         }
       },
-      "description": "Omitted conditions match any value for that dimension. Conditions are conjunctive. For project-authored rules, typeKey, author, action, and change are the settings controls; featureContentChange, topLevel, and toolName preserve the complete effective match explanation for code-owned rules."
+      "description": "Omitted conditions match any value for that dimension. Conditions are conjunctive. For project-authored rules, typeKey, author, action, and change are the settings controls, plus topLevel on FEATURE rules; featureContentChange, topLevel, and toolName also preserve the complete effective match explanation for code-owned rules."
     },
     "ProjectApprovalPolicyAuthor": {
       "anyOf": [

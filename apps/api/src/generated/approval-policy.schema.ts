@@ -182,7 +182,7 @@ export const approvalPolicySchema = {
         },
         "topLevel": {
           "type": "boolean",
-          "description": "Existing API-owned structural top-level match input used by code defaults."
+          "description": "API-owned structural top-level match input. Set by code defaults and by project rules on FEATURE."
         },
         "toolName": {
           "type": "string",
@@ -190,7 +190,7 @@ export const approvalPolicySchema = {
           "description": "Existing authoring-boundary match input used by code defaults."
         }
       },
-      "description": "Omitted conditions match any value for that dimension. Conditions are conjunctive. For project-authored rules, typeKey, author, action, and change are the settings controls; featureContentChange, topLevel, and toolName preserve the complete effective match explanation for code-owned rules."
+      "description": "Omitted conditions match any value for that dimension. Conditions are conjunctive. For project-authored rules, typeKey, author, action, and change are the settings controls, plus topLevel on FEATURE rules; featureContentChange, topLevel, and toolName also preserve the complete effective match explanation for code-owned rules."
     },
     "ProjectApprovalPolicyRuleSource": {
       "type": "string",
@@ -298,6 +298,10 @@ export const approvalPolicySchema = {
         },
         "change": {
           "$ref": "#/definitions/ProjectApprovalPolicyChangeSelector"
+        },
+        "topLevel": {
+          "type": "boolean",
+          "description": "Valid only when typeKey is FEATURE. True matches only top-level Features, false matches only Features that are not top-level, and omitting it matches both. The API decides whether a Feature is top-level (it has no parent task); clients only choose the condition."
         }
       }
     },

@@ -57,6 +57,12 @@ export interface ProjectApprovalPolicyConditions {
      * @memberof ProjectApprovalPolicyConditions
      */
     'change'?: ProjectApprovalPolicyChangeSelector;
+    /**
+     * Valid only when typeKey is FEATURE. True matches only top-level Features, false matches only Features that are not top-level, and omitting it matches both. The API decides whether a Feature is top-level (it has no parent task); clients only choose the condition.
+     * @type {boolean}
+     * @memberof ProjectApprovalPolicyConditions
+     */
+    'topLevel'?: boolean;
 }
 
 export namespace ProjectApprovalPolicyConditions {

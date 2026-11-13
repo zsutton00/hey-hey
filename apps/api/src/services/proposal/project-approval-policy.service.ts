@@ -352,6 +352,9 @@ function compileProjectRule(rule: ProjectApprovalPolicyRule): PermissionRule {
         ...(rule.conditions.typeKey === undefined
           ? {}
           : { type: rule.conditions.typeKey }),
+        ...(rule.conditions.topLevel === undefined
+          ? {}
+          : { topLevel: rule.conditions.topLevel }),
       },
       proposal: {
         ...(rule.conditions.author === undefined

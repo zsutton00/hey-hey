@@ -54,6 +54,7 @@ export class ProjectApprovalPolicyValidation {
     }
     const issues = [
       ...this.countIssues(value.rules),
+      ...this.topLevelIssues(value.rules),
       ...this.typeIssues(
         value.rules,
         projectId,
@@ -151,6 +152,22 @@ export class ProjectApprovalPolicyValidation {
       }
     });
     return issues;
+  }
+
+  private topLevelIssues(
+    rules: ProjectApprovalPolicyRule[],
+  ): ProjectApprovalPolicyValidationIssue[] {
+    return rules.flatMap((rule, index) =>
+      rule.conditions.topLevel !== undefined &&
+      rule.conditions.typeKey !== 'FEATURE'
+        ? [
+            {
+              path: `/rules/${index}/conditions/topLevel`,
+              message: 'Top-level can only be set on Feature rules',
+            },
+          ]
+        : [],
+    );
   }
 
   private countIssues(
