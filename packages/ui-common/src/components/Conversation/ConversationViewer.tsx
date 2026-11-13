@@ -2,6 +2,8 @@ import { useModalState } from "../Modals/useModalState";
 import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import type { TriageApplicationCoordinator } from "../../data/triage/application";
 import type { OpenItemsTriageItem } from "../../api";
+import { getResponseStatus } from "../../data/query/queryPolicy";
+import { PrivateConversation } from "./PrivateConversation";
 import { SubmissionPreviews } from "./SubmissionPreviews";
 import { DataStateBoundary } from "../shared/DataStateBoundary";
 import ReplayOutlinedIcon from "@mui/icons-material/ReplayOutlined";
@@ -408,6 +410,8 @@ const ConversationViewerContent: React.FC<{
     latestTurnToolCalls,
   } = useConversationContext();
 
+  const isPrivate = getResponseStatus(messagesError) === 403;
+
   const isTurnActive =
     agentSessionCurrentState === AgentSessionCurrentState.Starting ||
     agentSessionCurrentState === AgentSessionCurrentState.GatheringContext ||
@@ -699,7 +703,12 @@ const ConversationViewerContent: React.FC<{
           )}
 
           {activeTab === "active" ? (
-            messagesError ? (
+            isPrivate ? (
+              <PrivateConversation
+                conversation={activeConversation}
+                agentSessionId={agentSessionId}
+              />
+            ) : messagesError ? (
               <Alert severity="error" data-testid="conversation-messages-error">
                 {messagesError.message}
               </Alert>
@@ -725,16 +734,20 @@ const ConversationViewerContent: React.FC<{
             />
           )}
 
-          {activeTab === "active" && agentSessionId && project && (
-            <SubmissionPreviews
-              organizationId={project.organizationId}
-              projectId={project.id}
-              conversationId={activeConversation.id}
-              agentSessionId={agentSessionId}
-            />
-          )}
+          {!isPrivate &&
+            activeTab === "active" &&
+            agentSessionId &&
+            project && (
+              <SubmissionPreviews
+                organizationId={project.organizationId}
+                projectId={project.id}
+                conversationId={activeConversation.id}
+                agentSessionId={agentSessionId}
+              />
+            )}
 
-          {agentSessionId &&
+          {!isPrivate &&
+          agentSessionId &&
           !latestMessageHostsToolCalls &&
           isTurnActive &&
           liveToolCalls ? (
@@ -760,7 +773,7 @@ const ConversationViewerContent: React.FC<{
           <ConversationStatusIndicator data-testid="conversation-status" />
 
           {/* Toolbar buttons at bottom */}
-          {(hasToolbar || !isReadOnly) && (
+          {!isPrivate && (hasToolbar || !isReadOnly) && (
             <Box
               sx={{
                 width: "100%",

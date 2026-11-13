@@ -1,3 +1,6 @@
+import { MessageService } from '../../services/message.service';
+import { PrismaService } from '../../prisma/prisma.service';
+import * as TestUtils from '../../utils/testUtils';
 import { OrganizationGuard } from '../../auth/guards/organization.guard';
 import { ProjectAccessGuard } from '../../auth/guards/project-access.guard';
 import {
@@ -50,6 +53,7 @@ const includeUserQueryMetadata = {
 
 describe('AgentSessionController', () => {
   let controller: AgentSessionController;
+  const prisma = TestUtils.createMockPrismaService();
   const mockService = {
     create: jest.fn(),
     resolveWorkItemCoordinator: jest.fn(),
@@ -90,6 +94,8 @@ describe('AgentSessionController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AgentSessionController],
       providers: [
+        MessageService,
+        { provide: PrismaService, useValue: prisma },
         {
           provide: AgentSessionService,
           useValue: mockService,
@@ -116,6 +122,7 @@ describe('AgentSessionController', () => {
         },
       ],
     })
+      .useMocker(() => ({}))
       .overrideGuard(OrganizationGuard)
       .useValue({ canActivate: () => true })
       .overrideGuard(ProjectAccessGuard)
@@ -503,6 +510,7 @@ describe('AgentSessionController', () => {
     await controller.findPaginated(
       projectId as any,
       'org-1' as any,
+      'reader-1' as any,
       'CODING',
       ['IN_PROGRESS', 'COMPLETED'],
       'LAST_MESSAGE',
@@ -525,13 +533,93 @@ describe('AgentSessionController', () => {
     });
   });
 
+  it.each([
+    { restricted: true, createdBy: 'creator', visible: false },
+    { restricted: true, createdBy: 'reader-1', visible: true },
+    { restricted: false, createdBy: 'creator', visible: true },
+  ])(
+    'preserves list metadata, reports and cursor while applying transcript access: %j',
+    async ({ restricted, createdBy, visible }) => {
+      const message = {
+        id: 'message-1',
+        conversationId: 'conversation-1',
+        type: 'USER',
+        status: 'COMPLETED',
+        data: { agentInput: { userMessage: 'Private discussion' } },
+        createdAt: '2026-11-01T00:00:00Z',
+      };
+      const item = {
+        agentSession: {
+          id: sessionId1,
+          organizationId: 'org-1',
+          projectId,
+          userId: 'creator',
+          status: 'COMPLETED',
+          currentState: 'IDLE',
+          conversationId: 'conversation-1',
+          sessionDate: '2026-11-01T00:00:00Z',
+          title: 'Review implementation',
+          hasUnsyncedChanges: false,
+          monitoringEnabled: true,
+          autoDecide: false,
+          type: 'CODING',
+        },
+        lastMessage: message,
+        parentEntity: { id: 'task-1', type: 'TASK', title: 'Implementation' },
+        services: [{ id: 'service-1', name: 'API' }],
+        reports: [
+          {
+            id: 'report-1',
+            reportType: 'SESSION_SUMMARY',
+            schemaVersion: 1,
+            title: 'Session output',
+            payload: {
+              reportType: 'SESSION_SUMMARY',
+              text: 'Review complete',
+              summary: 'Implementation reviewed',
+            },
+          },
+        ],
+      };
+      mockService.findPaginated.mockResolvedValue({
+        items: [item],
+        nextCursor: 'next-page',
+      });
+      prisma.db.conversation.findMany.mockResolvedValue([
+        { id: 'conversation-1', restricted, createdBy },
+      ]);
+
+      const result = await controller.findPaginated(
+        projectId as any,
+        'org-1' as any,
+        'reader-1' as any,
+      );
+
+      expect(result.nextCursor).toBe('next-page');
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]).toEqual({
+        ...item,
+        lastMessage: visible ? message : null,
+      });
+      expect(prisma.db.conversation.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: { in: ['conversation-1'] }, organizationId: 'org-1' },
+        }),
+      );
+    },
+  );
+
   it('uses contract defaults for an unfiltered paginated list', async () => {
     mockService.findPaginated.mockResolvedValue({
       items: [],
       nextCursor: null,
     });
 
-    await controller.findPaginated(projectId as any, 'org-1' as any);
+    await controller.findPaginated(
+      projectId as any,
+      'org-1' as any,
+      'reader-1' as any,
+    );
 
     expect(mockService.findPaginated).toHaveBeenCalledWith('org-1', projectId, {
       type: undefined,
@@ -543,15 +631,19 @@ describe('AgentSessionController', () => {
 
   it('rejects invalid paginated list query values before delegation', async () => {
     await expect(
-      controller.findPaginated(projectId as any, 'org-1' as any, 'CODING', [
-        'IN_PROGRESS',
-        'UNKNOWN',
-      ]),
+      controller.findPaginated(
+        projectId as any,
+        'org-1' as any,
+        'reader-1' as any,
+        'CODING',
+        ['IN_PROGRESS', 'UNKNOWN'],
+      ),
     ).rejects.toThrow('status must contain only');
     await expect(
       controller.findPaginated(
         projectId as any,
         'org-1' as any,
+        'reader-1' as any,
         undefined,
         undefined,
         'LAST_MESSAGE',
@@ -562,6 +654,7 @@ describe('AgentSessionController', () => {
       controller.findPaginated(
         projectId as any,
         'org-1' as any,
+        'reader-1' as any,
         undefined,
         undefined,
         undefined,
@@ -574,6 +667,7 @@ describe('AgentSessionController', () => {
       controller.findPaginated(
         projectId as any,
         'org-1' as any,
+        'reader-1' as any,
         undefined,
         undefined,
         undefined,
@@ -587,6 +681,7 @@ describe('AgentSessionController', () => {
       controller.findPaginated(
         projectId as any,
         'org-1' as any,
+        'reader-1' as any,
         undefined,
         undefined,
         undefined,

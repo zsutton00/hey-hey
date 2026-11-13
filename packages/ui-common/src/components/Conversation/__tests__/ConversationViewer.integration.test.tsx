@@ -19,6 +19,7 @@ const liveToolCalls = vi.hoisted(() => ({
 vi.mock("../../AgentSession/runtime/hooks/useLatestTurnToolCalls", () => ({
   useLatestTurnToolCalls: () => liveToolCalls.current,
 }));
+const readReports = vi.hoisted(() => vi.fn());
 const readDesignDoc = vi.hoisted(() => vi.fn());
 const routedCreation = {
   config: {
@@ -75,6 +76,7 @@ vi.mock("../../../clients/serviceClients", async (importOriginal) => {
     unifiedApiClient: {
       ...original.unifiedApiClient,
       getDesignDoc: readDesignDoc,
+      listReports: readReports,
     },
     projectsClient: {
       ...original.projectsClient,
@@ -1552,6 +1554,7 @@ afterEach(() => {
 
 describe("canonical Message lifecycle", () => {
   const metadata: ConversationResponseDto = {
+    restricted: true,
     id: "canonical-lifecycle",
     organizationId: "org-lifecycle",
     projectId: "project-lifecycle",
@@ -1702,6 +1705,65 @@ describe("canonical Message lifecycle", () => {
     expect(screen.getByText("Starting a new session")).toBeInTheDocument();
     await new Promise((resolve) => setTimeout(resolve, 80));
     expect(messageReads).toEqual([]);
+  });
+  it("shows metadata and independently read reports when Messages are private", async () => {
+    canonicalMessageRead.mockRejectedValue(
+      Object.assign(new Error("Forbidden"), { status: 403 }),
+    );
+    readReports.mockResolvedValue({
+      data: {
+        data: [
+          {
+            id: "private-output",
+            organizationId: metadata.organizationId,
+            projectId: metadata.projectId,
+            reportType: "SESSION_SUMMARY",
+            schemaVersion: 1,
+            title: "Session outcome",
+            createdAt: metadata.createdAt,
+            payload: {
+              reportType: "SESSION_SUMMARY",
+              summary:
+                "The session produced a reviewed implementation approach.",
+              text: "Reviewable session output",
+            },
+          },
+        ],
+      },
+    });
+    render(
+      <ConversationViewer
+        conversation={{
+          ...metadata,
+          id: "private-message-read",
+          title: "A private session",
+        }}
+        agentSessionId="private-session"
+        project={project}
+        readOnly
+        animationType="minimal"
+        scrollPolicy={{ mode: "disabled" }}
+      />,
+      { wrapper: createTestWrapper() },
+    );
+    expect(await screen.findByTestId("private-conversation")).toHaveTextContent(
+      "A private session",
+    );
+    expect(await screen.findByText("Reviewable session output")).toBeVisible();
+    expect(readReports).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: "AGENT_SESSION",
+        entityId: "private-session",
+      }),
+      expect.anything(),
+    );
+    expect(
+      screen.queryByTestId("conversation-messages-error"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("conversation-timeline"),
+    ).not.toBeInTheDocument();
+    expect(canonicalMessageRead).toHaveBeenCalledTimes(1);
   });
   it("presents failed Message reads explicitly", async () => {
     globalThis.mswServer.use(
@@ -2066,6 +2128,7 @@ describe("Repository Import enrichment reply through production viewer wiring", 
     updatedAt: "2026-10-30T00:00:00Z",
   } as ProjectResponseDto;
   const metadata = {
+    restricted: true,
     id: "enrichment-conversation",
     projectId: project.id,
     organizationId: project.organizationId,
