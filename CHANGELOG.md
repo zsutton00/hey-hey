@@ -22,6 +22,11 @@
 - Updated UX-flow layouts to start from the designated starting screen.
 - Added a Sessions navigation link and nested child sessions beneath their parent session.
 - Fixed expanded task previews to close with Escape and allow page scrolling.
+- Fixed mention-preview card text becoming unreadable in dark mode.
+
+### Local setup
+
+- Added automatic download and checksum verification of the local search model during setup, removing the need to configure a model directory.
 
 ### Agent conversations
 
