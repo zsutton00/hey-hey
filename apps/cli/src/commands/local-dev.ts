@@ -12,7 +12,8 @@ import {
   provisioningSql,
 } from '../local-app/compose';
 import { DockerBoundary } from '../local-app/docker-boundary';
-import { InstallationStore, checkModels } from '../local-app/installation-store';
+import { InstallationStore } from '../local-app/installation-store';
+import { ModelDownloader } from '../local-app/model-downloader';
 import { LocalLifecycleOwners } from '../local-app/lifecycle-owners';
 import { assertObservedRelease } from '../local-app/local-application';
 import { resolveLocalBridgePort, resolveLocalWebPort } from '../local-app/local-port';
@@ -87,7 +88,9 @@ export async function runLocalDevCommand(): Promise<boolean> {
       throw new Error('No local installation found. Run heyhey local once to install it.');
     }
     const { release } = installation;
-    await checkModels(installation.modelDirectory);
+    await new ModelDownloader().ensure(installation.modelDirectory, (action) =>
+      console.log(action),
+    );
     const secrets = await storage.secrets();
     const bridgePort = resolveLocalBridgePort();
     const webPort = resolveLocalWebPort();

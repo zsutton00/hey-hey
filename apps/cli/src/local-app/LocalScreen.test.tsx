@@ -22,7 +22,7 @@ describe('local terminal states', () => {
     [
       {
         kind: 'recovery',
-        message: 'graph-search needs a model file. Set HEYHEY_LOCAL_MODEL_DIR, then retry.',
+        message: 'Could not download model_quantized.onnx: HTTP 503. Retry.',
       },
       'Retry',
       'Exit',
