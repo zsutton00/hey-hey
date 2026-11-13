@@ -7241,6 +7241,7 @@ const DiagramExplorationDialog: React.FC<{
 const UxFlowSavedView: React.FC<{
   graphData: WorkflowGraphSurfaceData;
   savedPositions: ReadonlyMap<string, { x: number; y: number }>;
+  walkthroughPositions: ReadonlyMap<string, { x: number; y: number }>;
   currentStepId: string | null;
   /** Set only when reviewing a proposal; a saved flow has no change state. */
   createdElements?: WorkflowGraphCreatedElements;
@@ -7249,6 +7250,7 @@ const UxFlowSavedView: React.FC<{
 }> = ({
   graphData: fullGraphData,
   savedPositions,
+  walkthroughPositions,
   currentStepId,
   createdElements,
   diffElements,
@@ -7395,7 +7397,7 @@ const UxFlowSavedView: React.FC<{
           <DialogContent sx={{ p: 0, height: "85vh" }}>
             <UxFlowScreenWalkthrough
               flow={graphData}
-              savedPositions={savedPositions}
+              savedPositions={walkthroughPositions}
               initialScreenId={walkthroughStepId}
               renderScreen={(screenId) => {
                 const step = graphData.steps.find(({ id }) => id === screenId);
@@ -7577,10 +7579,18 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
             ? [[node.workItemId, position] as const]
             : [],
         );
+    const walkthroughPositions = new Map(positions);
+    // Canonical projection coordinates retain the legacy walkthrough order,
+    // while only authored coordinates constrain automatic grid placement.
+    const savedPositions =
+      projection && projection.layoutSource !== "authored"
+        ? new Map<string, { x: number; y: number }>()
+        : walkthroughPositions;
     return (
       <UxFlowSavedView
         graphData={hydratedGraphData}
-        savedPositions={new Map(positions)}
+        savedPositions={savedPositions}
+        walkthroughPositions={walkthroughPositions}
         currentStepId={currentUxFlowStepId ?? null}
         createdElements={createdElements}
         diffElements={diffElements}

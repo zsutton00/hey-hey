@@ -6950,6 +6950,82 @@ describe("MarkdownRenderer mention rendering", () => {
 });
 
 describe("projected diagram scope", () => {
+  it("anchors a projected UX flow on its start unless positions are authored", () => {
+    const root = { refType: "existing", id: "start-flow" } as const;
+    const start = { refType: "existing", id: "start-screen" } as const;
+    const other = { refType: "existing", id: "other-screen" } as const;
+    const flow: WorkItemGraphProjectionData = {
+      layoutSource: "canonical",
+      projectedRoot: {
+        identity: root,
+        label: "Start flow",
+        name: "Start flow",
+        type: "DIAGRAM",
+        deleted: false,
+        sections: [
+          {
+            key: "diagramMetadata",
+            content: JSON.stringify({ kind: "UX_FLOW", level: "OVERVIEW" }),
+          },
+        ],
+      },
+      children: [
+        {
+          identity: start,
+          label: "Start",
+          name: "Start",
+          type: "DIAGRAM_ELEMENT",
+          parent: root,
+          deleted: false,
+          sections: [
+            {
+              key: "diagramElementMetadata",
+              content: JSON.stringify({ role: "UI_START" }),
+            },
+          ],
+        },
+        {
+          identity: other,
+          label: "Other",
+          name: "Other",
+          type: "DIAGRAM_ELEMENT",
+          parent: root,
+          deleted: false,
+          sections: [],
+        },
+      ],
+      incidentRelationships: [],
+      effectiveLayout: {
+        nodes: [
+          { node: other, position: { x: 0, y: 0 } },
+          { node: start, position: { x: 300, y: 300 } },
+        ],
+      },
+    };
+    const view = render(<WorkflowGraphSurface projection={flow} />, {
+      wrapper: projectWrapper,
+    });
+    const position = (id: string) =>
+      getComputedStyle(
+        view.container.querySelector<HTMLElement>(`[data-step-id="${id}"]`)!,
+      );
+    expect(parseFloat(position(start.id).top)).toBeLessThan(
+      parseFloat(position(other.id).top),
+    );
+
+    view.rerender(
+      <WorkflowGraphSurface
+        projection={{ ...flow, layoutSource: "authored" }}
+      />,
+    );
+    expect(parseFloat(position(start.id).top)).toBeGreaterThan(
+      parseFloat(position(other.id).top),
+    );
+    expect(parseFloat(position(start.id).left)).toBeGreaterThan(
+      parseFloat(position(other.id).left),
+    );
+  });
+
   const rootIdentity = { refType: "existing" as const, id: "scoped-diagram" };
   const elementIdentity = {
     refType: "existing" as const,

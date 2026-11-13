@@ -242,6 +242,61 @@ beforeEach(() => {
 });
 
 describe("Diagram Element Mockup screen cards", () => {
+  it.each([true, false])(
+    "preserves projected walkthrough arrow order with start marker %s",
+    async (hasStart) => {
+      respondWith({
+        [MOCKUP_ID]: mockupItem(MOCKUP_ID),
+        [OTHER_MOCKUP_ID]: mockupItem(OTHER_MOCKUP_ID),
+      });
+      const first = element("first", "First", {
+        entityType: "TASK",
+        entityId: MOCKUP_ID,
+      });
+      if (hasStart) {
+        first.sections = [
+          {
+            key: "diagramElementMetadata",
+            content: {
+              role: "UI_START",
+              canonicalReference: { entityType: "TASK", entityId: MOCKUP_ID },
+            },
+          },
+        ];
+      }
+      const projection = buildProjection(
+        [
+          first,
+          element("second", "Second", {
+            entityType: "TASK",
+            entityId: OTHER_MOCKUP_ID,
+          }),
+        ],
+        [300, 0],
+      );
+      projection.layoutSource = "canonical";
+      projection.projectedRoot.sections = [
+        {
+          key: "diagramMetadata",
+          content: { kind: "UX_FLOW", level: "OVERVIEW" },
+        },
+      ];
+      const view = renderSurface(projection);
+      const second = view.container.querySelector<HTMLElement>(
+        '[data-step-id="second"]',
+      )!;
+      fireEvent.click(
+        await within(second).findByTestId("journey-screen-preview"),
+      );
+      const walkthrough = await screen.findByTestId("ux-flow-walkthrough");
+      expect(within(walkthrough).getByText("Second")).toBeInTheDocument();
+      fireEvent.keyDown(window, { key: "ArrowRight" });
+      expect(within(walkthrough).getByText("First")).toBeInTheDocument();
+      fireEvent.keyDown(window, { key: "ArrowLeft" });
+      expect(within(walkthrough).getByText("Second")).toBeInTheDocument();
+    },
+  );
+
   it.each(["proposal", "saved"])(
     "renders %s UX flows as readable journeys of existing Mockups",
     async (surface) => {
