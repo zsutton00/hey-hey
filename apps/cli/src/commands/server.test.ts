@@ -263,7 +263,7 @@ describe('ServerCommand against a local application', () => {
     localApplicationServices?: readonly string[],
   ) => {
     directory = await mkdtemp(join(tmpdir(), 'heyhey-server-test-'));
-    await new InstallationStore(directory).prepare(release, directory);
+    await new InstallationStore(directory).prepare(release);
     vi.spyOn(DockerBoundary.prototype, 'inspect').mockResolvedValue(containers(running));
     const health = vi.spyOn(DockerBoundary.prototype, 'health').mockResolvedValue(undefined);
     const localServer = createServer();

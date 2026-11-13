@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { ModelDownloader } from './model-downloader';
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -61,7 +62,7 @@ beforeEach(async () => {
   spawn.mockReset();
   directory = await mkdtemp(join(tmpdir(), 'heyhey-stop-test-'));
   storage = new InstallationStore(directory);
-  await storage.prepare(release, directory);
+  await storage.prepare(release);
   docker = new FakeDocker();
 });
 afterEach(async () => {
@@ -98,7 +99,12 @@ function work(owners: ReturnType<typeof createTestLocalAgentServerRuntimeOwners>
   return run;
 }
 const application = () =>
-  new LocalApplication(new ReleaseSource('unused', release.cliVersion), storage, docker, directory);
+  new LocalApplication(
+    new ReleaseSource('unused', release.cliVersion),
+    storage,
+    docker,
+    new ModelDownloader(),
+  );
 
 it('discloses authoritative work from two terminals, cancels safely, and re-discloses concurrent work before any shutdown', async () => {
   const first = await terminal(),
