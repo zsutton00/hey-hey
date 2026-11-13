@@ -38,6 +38,33 @@ const LOADING_HEIGHT = 180;
  */
 const PREVIEW_CARD_THEME = createHeyTheme("light");
 
+/**
+ * The theme compiles palette tokens to `var(--mui-palette-*)`, and those are
+ * defined once at the root from the app theme. A nested ThemeProvider does not
+ * redefine them, so inside the card `text.primary` would still be the app's
+ * dark-mode white. Redefining the variables on the card's own wrapper makes
+ * every token below it resolve to the light palette.
+ */
+const { palette: LIGHT } = PREVIEW_CARD_THEME;
+const PREVIEW_CARD_PALETTE_VARIABLES = {
+  "--mui-palette-text-primary": LIGHT.text.primary,
+  "--mui-palette-text-secondary": LIGHT.text.secondary,
+  "--mui-palette-text-disabled": LIGHT.text.disabled,
+  "--mui-palette-background-paper": LIGHT.background.paper,
+  "--mui-palette-background-default": LIGHT.background.default,
+  "--mui-palette-divider": LIGHT.divider,
+  "--mui-palette-action-active": LIGHT.action.active,
+  "--mui-palette-action-hover": LIGHT.action.hover,
+  "--mui-palette-action-selected": LIGHT.action.selected,
+  "--mui-palette-action-disabled": LIGHT.action.disabled,
+  "--mui-palette-action-disabledBackground": LIGHT.action.disabledBackground,
+  "--mui-palette-action-focus": LIGHT.action.focus,
+  "--mui-palette-primary-main": LIGHT.primary.main,
+  "--mui-palette-primary-light": LIGHT.primary.light,
+  "--mui-palette-primary-dark": LIGHT.primary.dark,
+  "--mui-palette-heyhey-main": LIGHT.heyhey.main,
+} as const;
+
 const MOCKUP_SECTION_KINDS = new Set<string>([
   WorkItemTypeSectionDefinitionKindEnum.HtmlCss,
   WorkItemTypeSectionDefinitionKindEnum.StructuredMockup,
@@ -213,6 +240,7 @@ export const VisualArtifactCard: React.FC<VisualArtifactCardProps> = ({
     <ThemeProvider theme={PREVIEW_CARD_THEME}>
       <Box
         sx={(theme) => ({
+          ...PREVIEW_CARD_PALETTE_VARIABLES,
           minWidth: 0,
           bgcolor: "common.white",
           color: "text.primary",
