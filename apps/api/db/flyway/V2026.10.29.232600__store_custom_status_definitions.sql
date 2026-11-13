@@ -48,6 +48,10 @@ DECLARE
   unknown_names TEXT;
   converted JSONB;
 BEGIN
+  IF jsonb_typeof(allowed) IS DISTINCT FROM 'array' THEN
+    RAISE EXCEPTION 'Cannot migrate allowed statuses that are not an array: %', allowed;
+  END IF;
+
   SELECT string_agg(s.name, ', ') INTO unknown_names
   FROM jsonb_array_elements_text(allowed) AS s(name)
   WHERE s.name NOT IN ('ARCHIVED', 'SUPERSEDED')
@@ -68,7 +72,12 @@ BEGIN
     ),
     '[]'::jsonb
   ) INTO converted
-  FROM jsonb_array_elements_text(allowed) WITH ORDINALITY AS s(name, position)
+  FROM (
+    -- Legacy lists allowed duplicates; keep each name's first position.
+    SELECT name, MIN(position) AS position
+    FROM jsonb_array_elements_text(allowed) WITH ORDINALITY AS e(name, position)
+    GROUP BY name
+  ) AS s
   JOIN legacy_status_semantics semantics ON semantics.name = s.name;
 
   IF jsonb_array_length(converted) = 0 THEN
@@ -105,6 +114,22 @@ ALTER TABLE work_item_type_template ALTER COLUMN statuses SET NOT NULL;
 ALTER TABLE work_item_type DROP COLUMN allowed_statuses;
 ALTER TABLE work_item_type_template DROP COLUMN allowed_statuses;
 
+-- A JSON-null `allowedStatuses` carries no status list. Drop the key so the
+-- proposal parses against the strict current shape (a root-level edit then
+-- leaves statuses unchanged; a complete definition still fails approval for
+-- lacking statuses, as it already did).
+UPDATE proposals
+SET updates = updates - 'allowedStatuses'
+WHERE target_entity_type = 'WORK_ITEM_TYPE'
+  AND status = 'DRAFT'
+  AND jsonb_typeof(updates -> 'allowedStatuses') = 'null';
+
+UPDATE proposals
+SET updates = jsonb_set(updates, '{definition}', (updates -> 'definition') - 'allowedStatuses')
+WHERE target_entity_type = 'WORK_ITEM_TYPE'
+  AND status = 'DRAFT'
+  AND jsonb_typeof(updates #> '{definition,allowedStatuses}') = 'null';
+
 -- Unreviewed type-definition proposals carry the same definition shape.
 UPDATE proposals
 SET updates = (updates - 'allowedStatuses')
@@ -125,7 +150,7 @@ SET updates = (updates - 'allowedStatuses')
       END
 WHERE target_entity_type = 'WORK_ITEM_TYPE'
   AND status = 'DRAFT'
-  AND updates ? 'allowedStatuses';
+  AND jsonb_typeof(updates -> 'allowedStatuses') = 'array';
 
 -- Edit proposals wrap the complete definition instead of placing it at the
 -- updates root. Preserve their reviewed operation and customization metadata.
@@ -146,7 +171,7 @@ SET updates = jsonb_set(updates, '{definition}',
     END)
 WHERE target_entity_type = 'WORK_ITEM_TYPE'
   AND status = 'DRAFT'
-  AND (updates -> 'definition') ? 'allowedStatuses';
+  AND jsonb_typeof(updates #> '{definition,allowedStatuses}') = 'array';
 
 -- Item statuses are stored as the type defines them; the platform enum can no
 -- longer enumerate them. Existing values convert to the identical text.

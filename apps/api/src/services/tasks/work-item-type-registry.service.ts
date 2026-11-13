@@ -371,6 +371,15 @@ export function assertValidMockupSizeProfiles(
  * in `src/config/work-item-type.config.ts` (keyed by EntityType, governs
  * refinement levels). This service governs the per-type rule axes.
  */
+function describeLoadFailure(error: unknown): string {
+  if (error instanceof z.ZodError) {
+    return error.issues
+      .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
+      .join('; ');
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
 @Injectable()
 export class WorkItemTypeRegistryService
   implements OnModuleInit, OnModuleDestroy
@@ -601,9 +610,24 @@ export class WorkItemTypeRegistryService
       projectRows.push(row);
       rowsByProject.set(row.projectId, projectRows);
     }
+    const templateDefinitions = templates.flatMap((template) => {
+      try {
+        return [
+          {
+            template,
+            definition: this.materializeTemplateDefinition(template),
+          },
+        ];
+      } catch (error) {
+        this.logger.error(
+          `Skipping canonical work-item type '${template.typeKey}' for all projects: ` +
+            `${describeLoadFailure(error)}`,
+        );
+        return [];
+      }
+    });
     for (const project of projects) {
-      for (const template of templates) {
-        const definition = this.materializeTemplateDefinition(template);
+      for (const { template, definition } of templateDefinitions) {
         const rules = nextProjectRules.get(project.id) ?? new Map();
         rules.set(template.typeKey, deriveRules(definition));
         nextProjectRules.set(project.id, rules);
@@ -621,12 +645,12 @@ export class WorkItemTypeRegistryService
         nextProjectSummaries.set(project.id, summaries);
       }
       for (const row of rowsByProject.get(project.id) ?? []) {
-        const definition = this.rowToDefinition(row);
+        const definition = this.tryRowToDefinition(
+          row,
+          canonicalKeys.has(row.typeKey),
+        );
         if (!definition) {
-          throw new Error(
-            `Cannot load work-item type '${row.typeKey}' for project ${row.projectId}: ` +
-              'the persisted override is not a complete definition.',
-          );
+          continue;
         }
         const activity =
           nextProjectActivity.get(row.projectId) ?? new Map<string, string>();
@@ -876,7 +900,7 @@ export class WorkItemTypeRegistryService
           []) as unknown as Prisma.InputJsonValue,
         edgeTargets: (definition.edgeTargets ??
           []) as unknown as Prisma.InputJsonValue,
-        statuses: definition.statuses.map((status) => ({ ...status })),
+        statuses: workItemTypeStatusesSchema.parse(definition.statuses),
         requiredScalars: (definition.requiredScalars ??
           []) as unknown as Prisma.InputJsonValue,
         forbiddenScalars: (definition.forbiddenScalars ??
@@ -1189,7 +1213,7 @@ export class WorkItemTypeRegistryService
         []) as unknown as Prisma.InputJsonValue,
       edgeTargets: (definition.edgeTargets ??
         []) as unknown as Prisma.InputJsonValue,
-      statuses: definition.statuses.map((status) => ({ ...status })),
+      statuses: workItemTypeStatusesSchema.parse(definition.statuses),
       requiredScalars: (definition.requiredScalars ??
         []) as unknown as Prisma.InputJsonValue,
       forbiddenScalars: (definition.forbiddenScalars ??
@@ -1219,6 +1243,38 @@ export class WorkItemTypeRegistryService
       graphConfiguration: (graphConfiguration ??
         Prisma.JsonNull) as unknown as Prisma.InputJsonValue,
     };
+  }
+
+  /**
+   * Intentional isolation choice: a malformed or incomplete project row affects
+   * only its own type in its own project, and never fails the shared cache load.
+   * For a canonical type the project keeps the canonical definition (its
+   * customization is skipped, and the log says so); a custom type with no
+   * canonical counterpart is simply absent for that project.
+   */
+  private tryRowToDefinition(
+    row: WorkItemType,
+    hasCanonical: boolean,
+  ): WorkItemTypeDefinitionDto | null {
+    const consequence = hasCanonical
+      ? 'the project override was skipped and the canonical definition is in effect'
+      : 'the type is unavailable in this project';
+    try {
+      const definition = this.rowToDefinition(row);
+      if (definition) {
+        return definition;
+      }
+      this.logger.error(
+        `Skipping work-item type '${row.typeKey}' for project ${row.projectId}: ` +
+          `the persisted override is not a complete definition; ${consequence}.`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Skipping work-item type '${row.typeKey}' for project ${row.projectId}: ` +
+          `${describeLoadFailure(error)}; ${consequence}.`,
+      );
+    }
+    return null;
   }
 
   materializeTemplateDefinition(
