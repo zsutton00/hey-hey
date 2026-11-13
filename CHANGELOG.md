@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.3.1
+
+- Fixed assorted bugs.
+
 ## v1.3.0
 
 ### Reviews and approvals
