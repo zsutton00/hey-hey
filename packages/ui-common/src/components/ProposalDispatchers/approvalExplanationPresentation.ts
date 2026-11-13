@@ -47,7 +47,7 @@ export function approvalSourceLabel(
     case "DEFAULT":
       return "Default rule";
     case "FIXED":
-      return "Fixed rule";
+      return "Built-in · Fixed";
     case null:
       return "Unavailable";
   }
@@ -59,7 +59,7 @@ export function approvalRequirementLabel(
   const category = {
     IMMEDIATE: "Immediate application",
     PROJECT_REQUIRED: "Project-required",
-    FIXED_REQUIRED: "Fixed-required",
+    FIXED_REQUIRED: "Fixed approval count",
   }[requirement.category];
   return `${category} · ${requirement.requiredApprovals} ${requirement.requiredApprovals === 1 ? "approval" : "approvals"}`;
 }

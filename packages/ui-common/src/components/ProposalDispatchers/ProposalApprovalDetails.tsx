@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState } from "react";
 import {
   Box,
   Button,
+  Chip,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -169,9 +170,16 @@ function ApprovalEvidenceDetails({
               </Typography>
             )}
             {explanation.source === "FIXED" && (
-              <Typography variant="body2">
-                Project configuration cannot change this fixed rule.
-              </Typography>
+              <Stack spacing={0.5} alignItems="flex-start">
+                <Chip size="small" label="Fixed approval count" />
+                <Typography variant="body2">
+                  This rule always requires exactly {proposal.requiredApprovals}{" "}
+                  user{" "}
+                  {proposal.requiredApprovals === 1 ? "approval" : "approvals"},
+                  even if the project&apos;s approval setting is higher. Project
+                  configuration cannot change it.
+                </Typography>
+              </Stack>
             )}
             {explanation.evidence === "LIVE" ? (
               <Typography variant="body2" color="text.secondary">

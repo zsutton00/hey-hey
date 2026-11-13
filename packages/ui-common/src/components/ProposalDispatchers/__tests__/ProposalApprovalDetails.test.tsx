@@ -210,9 +210,11 @@ describe("ordinary approval review", () => {
     expect(screen.getByText("0 of 1 user approvals")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "View Rule" }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText("Fixed rule")).toBeVisible();
+    expect(within(dialog).getByText("Fixed approval count")).toBeVisible();
     expect(
-      within(dialog).getByText(/cannot change this fixed rule/),
+      within(dialog).getByText(
+        /always requires exactly 1 user approval, even if the project/,
+      ),
     ).toBeVisible();
     expect(within(dialog).getByText(/Later settings changes/)).toBeVisible();
     expect(

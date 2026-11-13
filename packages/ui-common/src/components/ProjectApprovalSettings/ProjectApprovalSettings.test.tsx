@@ -1,13 +1,5 @@
 import type { ReactNode } from "react";
-import {
-  act,
-  fireEvent,
-  render,
-  renderHook,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import axios, {
@@ -28,7 +20,6 @@ import { registerApiRuntime } from "../../clients/runtimeRegistry";
 import { projectApprovalPolicyKey } from "../../data/collections/projectApprovalPolicy";
 import { proposalKeys } from "../../data/collections/proposals";
 import { ProjectApprovalSettings } from "./ProjectApprovalSettings";
-import { useApprovalPolicyDraft } from "./useApprovalPolicyDraft";
 
 const i18n = createInstance();
 void i18n.use(initReactI18next).init({
@@ -36,33 +27,64 @@ void i18n.use(initReactI18next).init({
   resources: { en: { translation: {} } },
   initImmediate: false,
 });
-const projectRule = (typeKey?: string): ProjectApprovalPolicyRule => ({
-  conditions: typeKey ? { typeKey } : {},
+const effective = (
+  order: number,
+  source: "FIXED" | "PROJECT" | "DEFAULT",
+  conditions: ProjectApprovalPolicySnapshot["rules"][number]["conditions"],
+  rest: Partial<ProjectApprovalPolicySnapshot["rules"][number]> = {},
+): ProjectApprovalPolicySnapshot["rules"][number] => ({
+  order,
+  source,
+  editable: source === "PROJECT",
+  conditions,
   requirement: "PROJECT_REQUIRED",
   requiredApprovals: 1,
   allowsProposerApproval: false,
+  ...rest,
 });
+// A populated project: several types, Default, a retired type, fixed and built-in rules.
 const initial = (projectId: string): ProjectApprovalPolicySnapshot => ({
   projectId,
   revision: 2,
   hasProjectOverride: true,
   rules: [
-    {
-      ...projectRule(),
-      requirement: "FIXED_REQUIRED",
-      order: 0,
-      source: "FIXED",
-      editable: false,
-    },
-    {
-      ...projectRule("marketing"),
-      order: 1,
-      source: "PROJECT",
-      editable: true,
-    },
-    { ...projectRule("FEATURE"), order: 2, source: "PROJECT", editable: true },
-    { ...projectRule(), order: 3, source: "PROJECT", editable: true },
-    { ...projectRule("SERVICE"), order: 4, source: "DEFAULT", editable: false },
+    effective(
+      0,
+      "FIXED",
+      { typeKey: "FEATURE", topLevel: true },
+      {
+        requirement: "FIXED_REQUIRED",
+      },
+    ),
+    effective(
+      1,
+      "PROJECT",
+      {
+        typeKey: "marketing",
+        author: "USER",
+        action: "UPDATE",
+        change: "STATUS_ONLY",
+      },
+      {
+        requirement: "IMMEDIATE",
+        requiredApprovals: 0,
+        allowsProposerApproval: true,
+      },
+    ),
+    effective(
+      2,
+      "PROJECT",
+      { typeKey: "marketing", author: "USER", change: "CONTENT_CHANGE" },
+      { requiredApprovals: 2 },
+    ),
+    effective(3, "PROJECT", {
+      typeKey: "FEATURE",
+      author: "AGENT",
+      topLevel: true,
+    }),
+    effective(4, "PROJECT", { typeKey: "retired", action: "DELETE" }),
+    effective(5, "PROJECT", {}, { requiredApprovals: 3 }),
+    effective(6, "DEFAULT", { typeKey: "SERVICE" }),
   ],
   fallback: {
     source: "DEFAULT",
@@ -314,553 +336,526 @@ function setup(
     externalSave: () => {
       saved = { ...saved, revision: 9 };
     },
+    // Another person removes the project rule at this order and saves.
+    externalRemove: (order: number) => {
+      saved = {
+        ...saved,
+        revision: 9,
+        rules: saved.rules
+          .filter((rule) => rule.order !== order)
+          .map((rule, position) => ({ ...rule, order: position })),
+      };
+    },
   };
 }
 const ready = async () => {
   await screen.findByTestId("approval-add-rule");
 };
-const count = () =>
-  within(screen.getByTestId("approval-rule-count")).getByRole("spinbutton");
 beforeEach(() => {
   window.history.replaceState(null, "", "/");
 });
 
-describe("project approval settings delivery", () => {
-  it.each([
-    { restore: false, differentOrganization: false },
-    { restore: true, differentOrganization: false },
-    { restore: false, differentOrganization: true },
-    { restore: true, differentOrganization: true },
-  ])(
-    "keeps pending state across remounts and protects newer drafts (restore: $restore, different organization: $differentOrganization)",
-    async ({ restore, differentOrganization }) => {
-      const view = setup();
-      await ready();
-      fireEvent.change(count(), { target: { value: "3" } });
-      const release = view.holdWrites();
-      await userEvent.click(
-        screen.getByTestId(restore ? "approval-restore" : "approval-save"),
-      );
-      await waitFor(() => expect(view.writes).toHaveLength(1));
-      view.unmount();
-      const remounted = view.mount();
-      await ready();
-      expect(count()).toBeDisabled();
-      expect(screen.getByTestId("approval-save")).toBeDisabled();
-      expect(screen.getByTestId("approval-restore")).toBeDisabled();
-      await userEvent.type(count(), "9");
-      expect(count()).toHaveValue(3);
+const field = (name: string) =>
+  within(screen.getByTestId(`approval-rule-field-${name}`));
+const control = (name: string) =>
+  name === "credit" || name === "approvals" || name === "priority"
+    ? field(name).getByRole(name === "credit" ? "checkbox" : "textbox")
+    : field(name).getByRole("combobox");
+const submit = () =>
+  userEvent.click(screen.getByTestId("approval-rule-submit"));
 
-      // A separate owner can produce a newer draft while the submitted request is in flight.
-      const owner = renderHook(
-        () => useApprovalPolicyDraft(view.organizationId, view.projectId),
-        { wrapper: view.Wrapper },
-      );
-      const otherOrganization = differentOrganization
-        ? crypto.randomUUID()
-        : view.organizationId;
-      const otherProject = differentOrganization
-        ? view.projectId
-        : crypto.randomUUID();
-      view.client.setQueryData(
-        projectApprovalPolicyKey(otherOrganization, otherProject),
-        initial(otherProject),
-      );
-      const other = renderHook(
-        () => useApprovalPolicyDraft(otherOrganization, otherProject),
-        { wrapper: view.Wrapper },
-      );
-      await waitFor(() =>
-        expect(other.result.current.policy.data).not.toBeNull(),
-      );
-      act(() => {
-        owner.result.current.update([
-          { ...projectRule("marketing"), requiredApprovals: 4 },
-        ]);
-        other.result.current.update([
-          { ...projectRule("marketing"), requiredApprovals: 7 },
-        ]);
-      });
-      expect(other.result.current.isPending).toBe(false);
-      await act(async () => release());
-      await waitFor(() => expect(count()).toBeEnabled());
-      expect(count()).toHaveValue(4);
-      expect(owner.result.current.dirty).toBe(true);
-      expect(other.result.current.rules[0].requiredApprovals).toBe(7);
-      expect(other.result.current.dirty).toBe(true);
-      // The retained draft keeps its original revision; a retry cannot silently overwrite.
-      await userEvent.click(screen.getByTestId("approval-save"));
-      await waitFor(() => expect(view.writes).toHaveLength(2));
-      expect(view.writes[1].body.expectedRevision).toBe(2);
-      expect(view.writes[1].body.rules?.[0].requiredApprovals).toBe(4);
-      await waitFor(() => expect(owner.result.current.dirty).toBe(false));
-      expect(other.result.current.dirty).toBe(true);
-      remounted.unmount();
-      owner.unmount();
-      other.unmount();
-    },
-  );
-
-  it.each([false, true])(
-    "clears only the submitted draft after a pending remount (restore: %s)",
-    async (restore) => {
-      const view = setup();
-      await ready();
-      fireEvent.change(count(), { target: { value: "3" } });
-      const release = view.holdWrites();
-      await userEvent.click(
-        screen.getByTestId(restore ? "approval-restore" : "approval-save"),
-      );
-      await waitFor(() => expect(view.writes).toHaveLength(1));
-      view.unmount();
-      view.mount();
-      await ready();
-      expect(count()).toBeDisabled();
-      await act(async () => release());
-      await waitFor(() =>
-        expect(screen.getByTestId("approval-discard")).toBeDisabled(),
-      );
-      if (restore) {
-        expect(
-          screen.queryByTestId("approval-rule-editor"),
-        ).not.toBeInTheDocument();
-      } else {
-        expect(count()).toBeEnabled();
-        expect(count()).toHaveValue(3);
-      }
-    },
-  );
-
-  it.each(["validation", "network"] as const)(
-    "retains %s feedback through failure while unmounted and subsequent navigation, then recovers on retry",
-    async (failure) => {
-      const view = setup();
-      await ready();
-      fireEvent.change(count(), { target: { value: "3" } });
-      view.fail(failure);
-      const release = view.holdWrites();
-      await userEvent.click(screen.getByTestId("approval-save"));
-      await waitFor(() => expect(view.writes).toHaveLength(1));
-      const owner = renderHook(
-        () => useApprovalPolicyDraft(view.organizationId, view.projectId),
-        { wrapper: view.Wrapper },
-      );
-      view.unmount();
-      await act(async () => release());
-      await waitFor(() => expect(owner.result.current.isPending).toBe(false));
-      let panel = view.mount();
-      for (let visit = 0; visit < 2; visit++) {
-        await screen.findByTestId("approval-save-error");
-        expect(count()).toHaveValue(3);
-        expect(screen.getByTestId("approval-save")).toBeEnabled();
-        if (failure === "validation") {
-          expect(count()).toHaveAttribute("aria-invalid", "true");
-          const description = count().getAttribute("aria-describedby");
-          expect(description).toBeTruthy();
-          expect(document.getElementById(description!)).toHaveTextContent(
-            "Unsupported count",
-          );
-        } else {
-          expect(count()).not.toHaveAttribute("aria-invalid", "true");
-        }
-        if (visit === 0) {
-          panel.unmount();
-          panel = view.mount();
-        }
-      }
-      view.fail(null);
-      await userEvent.click(screen.getByTestId("approval-save"));
-      await waitFor(() => expect(view.writes).toHaveLength(2));
-      expect(view.writes[1].body.expectedRevision).toBe(2);
-      expect(view.writes[1].body.rules?.[0].requiredApprovals).toBe(3);
-      await waitFor(() => expect(owner.result.current.dirty).toBe(false));
-      expect(
-        screen.queryByTestId("approval-save-error"),
-      ).not.toBeInTheDocument();
-      expect(count()).not.toHaveAttribute("aria-invalid", "true");
-      panel.unmount();
-      owner.unmount();
-    },
-  );
-
-  it.each(["validation", "network"] as const)(
-    "does not attach late %s feedback to newer drafts or another scope",
-    async (failure) => {
-      const view = setup();
-      await ready();
-      fireEvent.change(count(), { target: { value: "3" } });
-      view.fail(failure);
-      const release = view.holdWrites();
-      await userEvent.click(screen.getByTestId("approval-save"));
-      await waitFor(() => expect(view.writes).toHaveLength(1));
-      view.unmount();
-      const owner = renderHook(
-        () => useApprovalPolicyDraft(view.organizationId, view.projectId),
-        { wrapper: view.Wrapper },
-      );
-      const otherProject = crypto.randomUUID();
-      view.client.setQueryData(
-        projectApprovalPolicyKey(view.organizationId, otherProject),
-        initial(otherProject),
-      );
-      const other = renderHook(
-        () => useApprovalPolicyDraft(view.organizationId, otherProject),
-        { wrapper: view.Wrapper },
-      );
-      await waitFor(() =>
-        expect(other.result.current.policy.data).not.toBeNull(),
-      );
-      act(() => {
-        owner.result.current.update([
-          { ...projectRule("marketing"), requiredApprovals: 4 },
-        ]);
-        other.result.current.update([
-          { ...projectRule("marketing"), requiredApprovals: 7 },
-        ]);
-      });
-      const panel = view.mount();
-      await act(async () => release());
-      await waitFor(() => expect(count()).toBeEnabled());
-      expect(count()).toHaveValue(4);
-      expect(count()).not.toHaveAttribute("aria-invalid", "true");
-      expect(
-        screen.queryByTestId("approval-save-error"),
-      ).not.toBeInTheDocument();
-      expect(owner.result.current.failure).toBeNull();
-      expect(other.result.current.failure).toBeNull();
-      expect(other.result.current.issues).toEqual([]);
-      expect(other.result.current.rules[0].requiredApprovals).toBe(7);
-      view.fail(null);
-      await userEvent.click(screen.getByTestId("approval-save"));
-      await waitFor(() => expect(owner.result.current.dirty).toBe(false));
-      expect(view.writes[1].body.rules?.[0].requiredApprovals).toBe(4);
-      expect(other.result.current.dirty).toBe(true);
-      panel.unmount();
-      owner.unmount();
-      other.unmount();
-    },
-  );
-
-  it("shows the actual API fallback as no proposal, without suggesting human review", async () => {
-    setup();
+describe("project approval settings", () => {
+  it("lists saved rules read-only, stating every condition including Any", async () => {
+    setup("OWNER", "?approvalType=marketing");
     await ready();
-    const fallback = screen.getByTestId("approval-fallback");
-    expect(fallback).toHaveTextContent("No proposal required");
-    expect(fallback).not.toHaveTextContent("Human approvals");
-    expect(fallback).not.toHaveTextContent(
-      "Allow eligible user proposer approval",
+    expect(screen.queryByTestId("approval-save")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("approval-discard")).not.toBeInTheDocument();
+
+    const rows = screen.getAllByTestId("approval-effective-rule");
+    const group = rows.filter((row) => row.textContent?.includes("marketing"));
+    expect(group).toHaveLength(2);
+    group.forEach((row) => {
+      expect(within(row).queryByRole("textbox")).not.toBeInTheDocument();
+      expect(within(row).queryByRole("combobox")).not.toBeInTheDocument();
+      expect(within(row).queryByRole("checkbox")).not.toBeInTheDocument();
+    });
+    expect(group[1]).toHaveTextContent(
+      "Author: User · Action: Any · Changes: Content changes",
     );
+    // Add rule shares the group's heading line.
+    const heading = screen.getByTestId("approval-group-heading");
+    expect(within(heading).getByTestId("approval-add-rule")).toBeVisible();
+    expect(
+      screen.getByTestId("approval-restore").parentElement,
+    ).toContainElement(screen.getByRole("heading", { name: "Approval rules" }));
   });
 
-  it.each([
-    {
-      requirement: "PROJECT_REQUIRED",
-      requiredApprovals: 3,
-      allowsProposerApproval: true,
-      outcome: "Human approvals: 3",
-    },
-    {
-      requirement: "PROJECT_REQUIRED",
-      requiredApprovals: 2,
-      allowsProposerApproval: false,
-      outcome: "Human approvals: 2",
-    },
-  ] satisfies Array<
-    Pick<
-      ProjectApprovalPolicySnapshot["fallback"],
-      "requirement" | "requiredApprovals" | "allowsProposerApproval"
-    > & { outcome: string }
-  >)(
-    "shows proposal-required fallback $requirement from the API",
-    async ({ outcome, ...fallback }) => {
-      setup("OWNER", "", undefined, (projectId) => ({
-        ...initial(projectId),
-        fallback: {
-          ...initial(projectId).fallback,
-          ...fallback,
-          requiresProposal: true,
-        },
-      }));
-      await ready();
-      const summary = screen.getByTestId("approval-fallback");
-      expect(summary).toHaveTextContent("Proposal required");
-      expect(summary).toHaveTextContent(outcome);
-      expect(summary).toHaveTextContent(
-        `Allow eligible user proposer approval: ${fallback.allowsProposerApproval ? "Yes" : "No"}`,
-      );
-      expect(summary).not.toHaveTextContent("No proposal required");
-    },
-  );
-
-  it("preserves interleaved default priorities, previews drafts globally, and restores authoritative order", async () => {
-    const view = setup("OWNER", "", undefined, defaultSnapshot);
+  it("states Top-level on Feature rules", async () => {
+    setup("OWNER", "?approvalType=FEATURE");
     await ready();
-    const priorities = () =>
+    expect(
       screen
         .getAllByTestId("approval-effective-rule")
-        .map((row) => within(row).getByText(/Global priority/).textContent);
-    expect(priorities()).toEqual([
-      "Global priority 15",
-      "Global priority 16",
-      "Global priority 10",
-      ...Array.from({ length: 9 }, (_, i) => `Global priority ${i + 1}`),
-    ]);
-    await userEvent.click(screen.getByTestId("approval-add-rule"));
-    expect(priorities()).toContain("Global priority 1");
-    expect(priorities()).toContain("Global priority 3");
-    await userEvent.click(
-      screen.getByRole("link", { name: /Marketing today/ }),
-    );
-    await waitFor(() =>
-      expect(
-        screen.getByRole("link", { name: /Marketing today/ }),
-      ).toHaveAttribute("aria-current", "page"),
-    );
-    await userEvent.click(screen.getByTestId("approval-add-rule"));
-    const priority = within(
-      screen.getByTestId("approval-rule-priority"),
-    ).getByRole("spinbutton");
-    await waitFor(() =>
-      expect(
-        within(screen.getByTestId("approval-rule-priority")).getByRole(
-          "spinbutton",
+        .map((row) => row.textContent),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining(
+          "Author: Agent · Action: Any · Changes: Any · Top-level: Top-level only",
         ),
-      ).toHaveValue(3),
-    );
-    fireEvent.change(priority, { target: { value: "2" } });
-    expect(priority).toHaveValue(2);
-    await userEvent.click(screen.getByTestId("approval-save"));
-    await waitFor(() => expect(view.writes).toHaveLength(1));
-    expect(
-      view.writes[0].body.rules?.map((rule) => rule.conditions.typeKey),
-    ).toEqual(["marketing", undefined]);
-    await waitFor(() =>
-      expect(screen.getByTestId("approval-save")).toBeDisabled(),
-    );
-    await userEvent.click(screen.getByTestId("approval-restore"));
-    await waitFor(() =>
-      expect(
-        screen.queryByTestId("approval-rule-editor"),
-      ).not.toBeInTheDocument(),
-    );
-    expect(priorities()).toContain("Global priority 10");
-    expect(priorities()).toContain("Global priority 1");
-    expect(new Set(priorities()).size).toBe(priorities().length);
-    await userEvent.click(
-      screen.getByRole("link", { name: /Default · All types/ }),
-    );
-    await waitFor(() =>
-      expect(priorities()).toEqual([
-        "Global priority 15",
-        "Global priority 16",
-        "Global priority 10",
-        ...Array.from({ length: 9 }, (_, i) => `Global priority ${i + 1}`),
       ]),
     );
   });
 
-  it("excludes archived types from creation, keeps their saved rules on save and lets them be removed", async () => {
-    setup("OWNER", "?approvalType=retired", undefined, (projectId) => ({
-      ...initial(projectId),
-      rules: [
-        ...initial(projectId).rules,
-        {
-          ...projectRule("retired"),
-          source: "PROJECT",
-          editable: true,
-          order: 5,
-        },
-      ],
-    }));
-    await screen.findByTestId("approval-historical-rule");
+  it("lets readers inspect rules without any controls", async () => {
+    setup("VIEWER", "?approvalType=marketing");
+    await screen.findAllByTestId("approval-effective-rule");
     expect(screen.queryByTestId("approval-add-rule")).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId("approval-rule-editor"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen
-        .getAllByTestId("approval-type-group")
-        .map((link) => link.getAttribute("data-type-key")),
-    ).toEqual(["", "marketing", "FEATURE"]);
-    await userEvent.click(
-      screen.getByRole("link", { name: /Marketing today/ }),
-    );
-    expect(await screen.findByTestId("approval-add-rule")).toBeEnabled();
+    expect(screen.queryByTestId("approval-restore")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("approval-rule-edit")).not.toBeInTheDocument();
   });
 
-  it("saves an unrelated change retaining the unavailable rule, or without it once removed", async () => {
-    const retired = (projectId: string) => {
-      const base = initial(projectId).rules;
-      const lastProject = base.findLastIndex(
-        (rule) => rule.source === "PROJECT",
-      );
-      return {
-        ...initial(projectId),
-        rules: [
-          ...base.slice(0, lastProject + 1),
-          {
-            ...projectRule("retired"),
-            source: "PROJECT" as const,
-            editable: true,
-          },
-          ...base.slice(lastProject + 1),
-        ].map((rule, order) => ({ ...rule, order })),
-      };
-    };
-    const view = setup("OWNER", "?approvalType=retired", undefined, retired);
-    await screen.findByTestId("approval-historical-rule");
-    await userEvent.click(
-      screen.getByTestId("approval-remove-unavailable-rule"),
-    );
-    expect(
-      screen.queryByTestId("approval-historical-rule"),
-    ).not.toBeInTheDocument();
-    await userEvent.click(screen.getByTestId("approval-save"));
-    await waitFor(() => expect(view.writes).toHaveLength(1));
-    expect(
-      view.writes[0].body.rules?.map((rule) => rule.conditions.typeKey),
-    ).not.toContain("retired");
-  });
-
-  it("uses exact registry keys, moves across groups globally, saves the revision and refreshes review queries, then restores", async () => {
-    const view = setup();
+  it("adds a rule with explicit starting values, saving it at once with the revision", async () => {
+    const view = setup("OWNER", "?approvalType=marketing");
     await ready();
-    expect(
-      screen.getByRole("link", { name: /Marketing today/ }),
-    ).toHaveAttribute("data-type-key", "marketing");
-    fireEvent.change(
-      within(screen.getByTestId("approval-rule-priority")).getByRole(
-        "spinbutton",
-      ),
-      { target: { value: "4" } },
+    const opener = screen.getByTestId("approval-add-rule");
+    await userEvent.click(opener);
+
+    expect(screen.getByTestId("approval-rule-type")).toHaveTextContent(
+      "Marketing today",
     );
-    const release = view.holdWrites();
-    await userEvent.click(screen.getByTestId("approval-save"));
+    expect(control("author")).toHaveValue("ANY");
+    expect(control("action")).toHaveValue("ANY");
+    expect(control("change")).toHaveValue("ANY");
+    expect(control("outcome")).toHaveValue("PROJECT_REQUIRED");
+    expect(control("approvals")).toHaveValue("1");
+    expect(control("priority")).toHaveValue("7");
+    expect(
+      screen.queryByTestId("approval-rule-field-topLevel"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("approval-rule-delete"),
+    ).not.toBeInTheDocument();
+
+    await userEvent.selectOptions(control("author"), "AGENT");
+    await submit();
+
     await waitFor(() => expect(view.writes).toHaveLength(1));
-    expect(screen.getByTestId("approval-save")).toBeDisabled();
-    expect(count()).toBeDisabled();
-    await act(async () => release());
-    expect(view.writes[0].body.expectedRevision).toBe(2);
-    expect(
-      view.writes[0].body.rules?.map((rule) => rule.conditions.typeKey),
-    ).toEqual(["FEATURE", undefined, "marketing"]);
-    await waitFor(() =>
-      expect(screen.getByTestId("approval-save")).toBeDisabled(),
-    );
-    expect(
-      view.client.getQueryState(
-        proposalKeys.detail(view.organizationId, view.projectId, "pending"),
-      )?.isInvalidated,
-    ).toBe(true);
-    await userEvent.click(screen.getByTestId("approval-restore"));
-    await waitFor(() => expect(view.writes).toHaveLength(2));
-    expect(view.writes[1]).toEqual({
-      method: "post",
-      body: { expectedRevision: 3 },
+    const { body } = view.writes[0];
+    expect(body.expectedRevision).toBe(2);
+    expect(body.rules).toHaveLength(6);
+    expect(body.rules?.at(-1)).toEqual({
+      conditions: { typeKey: "marketing", author: "AGENT" },
+      requirement: "PROJECT_REQUIRED",
+      requiredApprovals: 1,
+      allowsProposerApproval: false,
+    });
+    // The retired type's stored rule is re-sent unchanged.
+    expect(body.rules?.[3].conditions).toEqual({
+      typeKey: "retired",
+      action: "DELETE",
     });
     await waitFor(() =>
       expect(
-        screen.queryByTestId("approval-rule-editor"),
+        screen.queryByTestId("approval-rule-modal"),
       ).not.toBeInTheDocument(),
     );
-    expect(screen.getAllByTestId("approval-effective-rule")).toHaveLength(10);
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByTestId("approval-effective-rule")
+          .filter((row) => row.textContent?.includes("marketing")),
+      ).toHaveLength(3),
+    );
+    await waitFor(() => expect(opener).toHaveFocus());
   });
 
-  it("preserves drafts through field errors, network failures and background reads; requires review before retrying conflicts", async () => {
-    const view = setup();
+  it("adds a Default rule without a type", async () => {
+    const view = setup("OWNER", "");
     await ready();
-    fireEvent.change(count(), { target: { value: "3" } });
-    view.fail("validation");
-    await userEvent.click(screen.getByTestId("approval-save"));
-    await screen.findByTestId("approval-save-error");
-    expect(count()).toHaveAttribute("aria-invalid", "true");
-    expect(count()).toHaveValue(3);
-    view.fail("network");
-    await userEvent.click(screen.getByTestId("approval-save"));
-    await waitFor(() => expect(view.writes).toHaveLength(2));
-    expect(count()).toHaveValue(3);
-    view.externalSave();
-    await act(async () => {
-      await view.client.refetchQueries({
-        queryKey: projectApprovalPolicyKey(view.organizationId, view.projectId),
-      });
-    });
-    expect(count()).toHaveValue(3);
-    view.fail("conflict");
-    await userEvent.click(screen.getByTestId("approval-save"));
-    await screen.findByTestId("approval-review-latest");
-    expect(view.writes[2].body.expectedRevision).toBe(2);
-    expect(screen.getByTestId("approval-save")).toBeDisabled();
-    await userEvent.click(screen.getByTestId("approval-review-latest"));
-    await screen.findByTestId("approval-latest-settings");
-    expect(screen.getByTestId("approval-save")).toBeDisabled();
-    await userEvent.click(screen.getByTestId("approval-accept-revision"));
-    view.fail(null);
-    await userEvent.click(screen.getByTestId("approval-save"));
-    await waitFor(() => expect(view.writes).toHaveLength(4));
-    expect(view.writes[3].body.expectedRevision).toBe(9);
-    expect(view.writes[3].body.rules?.[0].requiredApprovals).toBe(3);
-  });
-
-  it("edits supported conditions and immediate outcomes through the generated request", async () => {
-    const view = setup();
-    await ready();
-    for (const [field, option] of [
-      ["author", "User"],
-      ["action", "Update"],
-      ["change", "Status only"],
-      ["outcome", "Apply immediately"],
-    ]) {
-      await userEvent.click(
-        within(screen.getByTestId(`approval-rule-${field}`)).getByRole(
-          "combobox",
-        ),
-      );
-      await userEvent.click(screen.getByRole("option", { name: option }));
-    }
-    expect(count()).toBeDisabled();
-    expect(count()).toHaveValue(0);
-    await userEvent.click(screen.getByTestId("approval-save"));
+    await userEvent.click(screen.getByTestId("approval-add-rule"));
+    expect(screen.queryByTestId("approval-rule-type")).not.toBeInTheDocument();
+    await submit();
     await waitFor(() => expect(view.writes).toHaveLength(1));
-    expect(view.writes[0].body.rules?.[0]).toEqual({
+    expect(view.writes[0].body.rules?.at(-1)?.conditions).toEqual({});
+  });
+
+  it("edits one rule in place, moving it by its priority", async () => {
+    const view = setup("OWNER", "?approvalType=marketing");
+    await ready();
+    await userEvent.click(screen.getAllByTestId("approval-rule-edit")[1]);
+    expect(screen.getByRole("heading", { name: /Edit rule/ })).toBeVisible();
+    expect(control("author")).toHaveValue("USER");
+    expect(control("change")).toHaveValue("CONTENT_CHANGE");
+    expect(control("approvals")).toHaveValue("2");
+    expect(control("priority")).toHaveValue("3");
+
+    await userEvent.selectOptions(control("outcome"), "IMMEDIATE");
+    expect(control("approvals")).toHaveValue("0");
+    await userEvent.clear(control("priority"));
+    await userEvent.type(control("priority"), "2");
+    await userEvent.click(screen.getByText("Update rule"));
+
+    await waitFor(() => expect(view.writes).toHaveLength(1));
+    const rules = view.writes[0].body.rules!;
+    expect(rules).toHaveLength(5);
+    expect(rules[0]).toMatchObject({
       conditions: {
         typeKey: "marketing",
         author: "USER",
-        action: "UPDATE",
-        change: "STATUS_ONLY",
+        change: "CONTENT_CHANGE",
       },
       requirement: "IMMEDIATE",
       requiredApprovals: 0,
-      allowsProposerApproval: false,
     });
-    await userEvent.click(screen.getByRole("link", { name: /Feature/ }));
-    await waitFor(() => expect(count()).toHaveValue(1));
+    expect(rules[1].conditions.change).toBe("STATUS_ONLY");
   });
 
-  it("lets readers inspect protected and project rules without write controls", async () => {
-    setup("VIEWER");
-    await screen.findByTestId("approval-rule-editor");
-    expect(screen.queryByTestId("approval-save")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("approval-add-rule")).not.toBeInTheDocument();
-    expect(count()).toBeDisabled();
-    expect(screen.getAllByTestId("approval-effective-rule")).toHaveLength(2);
-  });
-
-  it("adds Default rules without a type selector and keeps projects' drafts separate", async () => {
-    const first = setup("OWNER", "");
+  it("deletes only the chosen rule after confirmation", async () => {
+    const view = setup("OWNER", "?approvalType=marketing");
     await ready();
-    act(() => screen.getByTestId("approval-add-rule").focus());
+    await userEvent.click(screen.getAllByTestId("approval-rule-edit")[0]);
+    await userEvent.click(screen.getByTestId("approval-rule-delete"));
+    expect(view.writes).toHaveLength(0);
+    expect(screen.getByTestId("approval-rule-delete-confirm")).toBeVisible();
+    await userEvent.click(
+      screen.getByTestId("approval-rule-delete-confirm-button"),
+    );
+    await waitFor(() => expect(view.writes).toHaveLength(1));
+    const rules = view.writes[0].body.rules!;
+    expect(rules).toHaveLength(4);
+    expect(rules.map((rule) => rule.conditions.typeKey)).toEqual([
+      "marketing",
+      "FEATURE",
+      "retired",
+      undefined,
+    ]);
+  });
+
+  it("shows an unavailable type, keeps it from being chosen and lets its rule be deleted", async () => {
+    const view = setup("OWNER", "?approvalType=marketing");
+    await ready();
+    const historical = await screen.findByTestId("approval-historical-rule");
+    expect(historical).toHaveTextContent("Unavailable type");
+    await userEvent.click(within(historical).getByTestId("approval-rule-edit"));
+    expect(screen.getByTestId("approval-rule-type")).toHaveTextContent(
+      "retired · Unavailable type",
+    );
+    await userEvent.click(screen.getByTestId("approval-rule-delete"));
+    await userEvent.click(
+      screen.getByTestId("approval-rule-delete-confirm-button"),
+    );
+    await waitFor(() => expect(view.writes).toHaveLength(1));
+    expect(
+      view.writes[0].body.rules?.some(
+        (rule) => rule.conditions.typeKey === "retired",
+      ),
+    ).toBe(false);
+  });
+
+  it("shows invalid entries beside their field and saves nothing", async () => {
+    const view = setup("OWNER", "?approvalType=marketing");
+    await ready();
+    await userEvent.click(screen.getByTestId("approval-add-rule"));
+    await userEvent.clear(control("approvals"));
+    await userEvent.type(control("approvals"), "0");
+    await submit();
+
+    const input = control("approvals");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    const messageId = input.getAttribute("aria-describedby")!;
+    expect(document.getElementById(messageId)).toHaveTextContent(
+      /whole number of approvals/,
+    );
+    expect(view.writes).toHaveLength(0);
+    expect(screen.getByTestId("approval-rule-modal")).toBeVisible();
+  });
+
+  it("keeps entries and offers the latest settings when the API rejects the rule", async () => {
+    const view = setup("OWNER", "?approvalType=marketing");
+    await ready();
+    await userEvent.click(screen.getByTestId("approval-add-rule"));
+    await userEvent.selectOptions(control("author"), "USER");
+    view.fail("validation");
+    await submit();
+    await waitFor(() =>
+      expect(control("approvals")).toHaveAttribute("aria-invalid", "true"),
+    );
+    expect(field("approvals").getByText("Unsupported count")).toBeVisible();
+    expect(control("author")).toHaveValue("USER");
+  });
+
+  it("keeps every entry after a revision conflict and requires reviewing the latest settings", async () => {
+    const view = setup("OWNER", "?approvalType=marketing");
+    await ready();
+    await userEvent.click(screen.getByTestId("approval-add-rule"));
+    await userEvent.selectOptions(control("action"), "CREATE");
+    await userEvent.clear(control("approvals"));
+    await userEvent.type(control("approvals"), "4");
+    view.fail("conflict");
+    view.externalSave();
+    await submit();
+
+    expect(
+      await screen.findByTestId("approval-rule-save-error"),
+    ).toHaveTextContent(/Your entries are kept/);
+    expect(control("action")).toHaveValue("CREATE");
+    expect(control("approvals")).toHaveValue("4");
+
+    // Retrying before reviewing sends nothing.
+    view.fail(null);
+    await submit();
+    expect(view.writes).toHaveLength(1);
+
+    await userEvent.click(screen.getByTestId("approval-review-latest"));
+    await waitFor(() =>
+      expect(screen.getByTestId("approval-review-latest")).toBeEnabled(),
+    );
+    await submit();
+    await waitFor(() => expect(view.writes).toHaveLength(2));
+    expect(view.writes[1].body.expectedRevision).toBe(9);
+    expect(view.writes[1].body.rules?.at(-1)).toMatchObject({
+      conditions: { typeKey: "marketing", action: "CREATE" },
+      requiredApprovals: 4,
+    });
+  });
+
+  it("applies a save after reviewing to the rule that was opened, not to whatever now sits at its position", async () => {
+    const view = setup("OWNER", "?approvalType=marketing");
+    await ready();
+    // Edit the second marketing rule (position 2) while someone removes rule 1.
+    await userEvent.click(screen.getAllByTestId("approval-rule-edit")[1]);
+    await userEvent.clear(control("approvals"));
+    await userEvent.type(control("approvals"), "5");
+    view.fail("conflict");
+    view.externalRemove(1);
+    await submit();
+    await screen.findByTestId("approval-rule-save-error");
+
+    view.fail(null);
+    await userEvent.click(screen.getByTestId("approval-review-latest"));
+    await waitFor(() =>
+      expect(screen.getByTestId("approval-review-latest")).toBeEnabled(),
+    );
+    await submit();
+
+    await waitFor(() => expect(view.writes).toHaveLength(2));
+    const rules = view.writes[1].body.rules!;
+    expect(view.writes[1].body.expectedRevision).toBe(9);
+    expect(rules).toHaveLength(4);
+    expect(
+      rules.map((rule) => [rule.conditions.typeKey, rule.requiredApprovals]),
+    ).toEqual([
+      ["marketing", 5],
+      ["FEATURE", 1],
+      ["retired", 1],
+      [undefined, 3],
+    ]);
+  });
+
+  it("does not delete another rule when the opened rule was removed meanwhile", async () => {
+    const view = setup("OWNER", "?approvalType=marketing");
+    await ready();
+    await userEvent.click(screen.getAllByTestId("approval-rule-edit")[1]);
+    await userEvent.click(screen.getByTestId("approval-rule-delete"));
+    view.fail("conflict");
+    view.externalRemove(2);
+    await userEvent.click(
+      screen.getByTestId("approval-rule-delete-confirm-button"),
+    );
+    await screen.findByTestId("approval-rule-save-error");
+
+    view.fail(null);
+    await userEvent.click(screen.getByTestId("approval-review-latest"));
+    await waitFor(() =>
+      expect(screen.getByTestId("approval-review-latest")).toBeEnabled(),
+    );
+    await userEvent.click(screen.getByTestId("approval-rule-delete"));
+    await userEvent.click(
+      screen.getByTestId("approval-rule-delete-confirm-button"),
+    );
+
+    expect(
+      await screen.findByTestId("approval-rule-save-error"),
+    ).toHaveTextContent(/removed or changed/);
+    expect(view.writes).toHaveLength(1);
+    expect(screen.getByTestId("approval-rule-modal")).toBeVisible();
+  });
+
+  it("saves a Feature rule as Top-level only, Not top-level or Any", async () => {
+    const view = setup("OWNER", "?approvalType=FEATURE");
+    await ready();
+    for (const [choice, expected] of [
+      ["TOP_LEVEL", true],
+      ["NOT_TOP_LEVEL", false],
+      ["ANY", undefined],
+    ] as const) {
+      await userEvent.click(screen.getByTestId("approval-add-rule"));
+      expect(control("topLevel")).toHaveValue("ANY");
+      await userEvent.selectOptions(control("topLevel"), choice);
+      await submit();
+      await waitFor(() =>
+        expect(
+          screen.queryByTestId("approval-rule-modal"),
+        ).not.toBeInTheDocument(),
+      );
+      const rule = view.writes.at(-1)!.body.rules!.at(-1)!;
+      expect(rule.conditions).toEqual({
+        typeKey: "FEATURE",
+        ...(expected === undefined ? {} : { topLevel: expected }),
+      });
+    }
+    expect(view.writes).toHaveLength(3);
+  });
+
+  it("closes without saving on Cancel, the close control and Escape, returning focus", async () => {
+    const view = setup("OWNER", "?approvalType=marketing");
+    await ready();
+    const opener = screen.getByTestId("approval-add-rule");
+    await userEvent.click(opener);
+    await userEvent.selectOptions(control("author"), "USER");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("approval-rule-modal"),
+      ).not.toBeInTheDocument(),
+    );
+    await waitFor(() => expect(opener).toHaveFocus());
+
+    await userEvent.click(opener);
+    expect(control("author")).toHaveValue("ANY");
+    await userEvent.click(screen.getByTestId("approval-rule-cancel"));
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("approval-rule-modal"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(view.writes).toHaveLength(0);
+  });
+
+  it("gives each field an info control that is keyboard reachable and readable", async () => {
+    setup("OWNER", "?approvalType=FEATURE");
+    await ready();
+    await userEvent.click(screen.getByTestId("approval-add-rule"));
+    const info = screen.getByRole("button", { name: "About Top-level" });
+    info.focus();
     await userEvent.keyboard("{Enter}");
-    first.unmount();
-    const second = setup("OWNER", "");
+    expect(info).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("note")).toHaveTextContent(
+      "A Feature is top-level when it has no parent task",
+    );
+  });
+
+  it("moves a rule's priority with the same revision check and offers review on conflict", async () => {
+    const view = setup("OWNER", "?approvalType=marketing");
     await ready();
-    expect(screen.getByTestId("approval-save")).toBeDisabled();
-    second.unmount();
-    const restored = setup("OWNER", "", first);
+    await userEvent.click(screen.getAllByTestId("approval-rule-move-later")[0]);
+    await waitFor(() => expect(view.writes).toHaveLength(1));
+    expect(view.writes[0].body.expectedRevision).toBe(2);
+    expect(view.writes[0].body.rules?.[0].conditions.change).toBe(
+      "CONTENT_CHANGE",
+    );
+
+    view.fail("conflict");
+    await userEvent.click(screen.getAllByTestId("approval-rule-move-later")[0]);
+    expect(await screen.findByTestId("approval-save-error")).toHaveTextContent(
+      /Someone saved newer settings/,
+    );
+    expect(screen.getByTestId("approval-page-review-latest")).toBeVisible();
+  });
+
+  it("splits project rules from locked built-in rules into two tabs with continuous priorities", async () => {
+    setup("OWNER", "");
     await ready();
-    expect(screen.getAllByTestId("approval-rule-editor")).toHaveLength(2);
-    await userEvent.click(screen.getByTestId("approval-save"));
-    await waitFor(() => expect(restored.writes).toHaveLength(1));
-    expect(restored.writes[0].body.rules?.at(-1)?.conditions).toEqual({});
+    const projectTab = screen.getByRole("tab", { name: "Project rules (5)" });
+    const builtinTab = screen.getByRole("tab", { name: "Built-in rules (2)" });
+    expect(projectTab).toHaveAttribute("aria-selected", "true");
+    expect(builtinTab).toHaveAttribute("aria-selected", "false");
+    expect(screen.queryByTestId("approval-builtin-panel")).toBeNull();
+
+    // The Default group lists only the typeless project rule; the retired
+    // type's rule sits in its own Unavailable card. No built-in rows appear.
+    const groupRows = within(
+      screen.getByTestId("approval-group-heading").parentElement!,
+    ).getAllByTestId("approval-effective-rule");
+    expect(groupRows).toHaveLength(1);
+    expect(groupRows[0]).toHaveTextContent("Global priority 6");
+    expect(groupRows[0]).toHaveTextContent("Project configuration");
+    expect(screen.getAllByTestId("approval-effective-rule")).toHaveLength(2);
+    expect(screen.queryByText(/Built-in/, { selector: "span" })).toBeNull();
+    expect(screen.queryByText("Fixed requirement")).toBeNull();
+
+    await userEvent.click(builtinTab);
+    expect(builtinTab).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByTestId("approval-project-panel")).toBeNull();
+    expect(screen.queryByTestId("approval-add-rule")).toBeNull();
+    expect(screen.queryByTestId("approval-rule-edit")).toBeNull();
+    expect(screen.queryByTestId("approval-rule-move-later")).toBeNull();
+
+    const fixedPart = within(screen.getByTestId("approval-fixed-counts"));
+    expect(fixedPart.getByText("Fixed approval counts")).toBeVisible();
+    expect(
+      fixedPart.getByText(/set by Hey Hey\. The project approval setting/),
+    ).toBeVisible();
+    const fixedRows = fixedPart.getAllByTestId("approval-effective-rule");
+    expect(fixedRows).toHaveLength(1);
+    expect(fixedRows[0]).toHaveTextContent("Global priority 1");
+    expect(fixedRows[0]).toHaveTextContent("Built-in · Fixed");
+    expect(fixedRows[0]).toHaveTextContent(
+      "Always requires exactly 1 human approval(s). The project's approval setting does not change it.",
+    );
+
+    const defaultsPart = within(
+      screen.getByTestId("approval-standard-defaults"),
+    );
+    expect(defaultsPart.getByText("Standard defaults")).toBeVisible();
+    expect(
+      defaultsPart.getByText(/when no project rule matches/),
+    ).toBeVisible();
+    const defaultBuiltIns = defaultsPart.getAllByTestId(
+      "approval-effective-rule",
+    );
+    expect(defaultBuiltIns).toHaveLength(1);
+    expect(defaultBuiltIns[0]).toHaveTextContent("Global priority 7");
+    expect(defaultBuiltIns[0]).toHaveTextContent("Type: SERVICE");
+    expect(defaultsPart.getByTestId("approval-fallback")).toBeVisible();
+  });
+
+  it("opens the Built-in rules tab from the link and keeps viewers read-only", async () => {
+    setup("VIEWER", "?approvalTab=builtin");
+    await screen.findByTestId("approval-builtin-panel");
+    expect(screen.getByRole("tab", { name: /Built-in rules/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
+  it("restores defaults for project rules only, after confirmation", async () => {
+    const view = setup("OWNER", "?approvalTab=builtin");
+    await screen.findByTestId("approval-builtin-panel");
+    await userEvent.click(screen.getByTestId("approval-restore"));
+    expect(
+      screen.getByText(
+        /Built-in rules, including fixed approval counts, never change/,
+      ),
+    ).toBeVisible();
+    await userEvent.click(screen.getByTestId("approval-restore-confirm"));
+    await waitFor(() => expect(view.writes).toHaveLength(1));
+    expect(view.writes[0].method).toBe("post");
+  });
+
+  it("asks before restoring defaults", async () => {
+    const view = setup("OWNER", "?approvalType=marketing");
+    await ready();
+    await userEvent.click(screen.getByTestId("approval-restore"));
+    await userEvent.click(screen.getByTestId("approval-restore-cancel"));
+    expect(view.writes).toHaveLength(0);
+
+    await userEvent.click(screen.getByTestId("approval-restore"));
+    await userEvent.click(screen.getByTestId("approval-restore-confirm"));
+    await waitFor(() => expect(view.writes).toHaveLength(1));
+    expect(view.writes[0]).toMatchObject({
+      method: "post",
+      body: { expectedRevision: 2 },
+    });
   });
 });

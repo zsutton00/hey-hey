@@ -164,8 +164,21 @@ export const en = {
 
   "approvalSettings.priority": "Global priority",
   "approvalSettings.projectSource": "Project configuration",
-  "approvalSettings.fixed": "Fixed requirement \u00b7 Locked",
-  "approvalSettings.builtin": "Built-in default",
+  "approvalSettings.fixedSource": "Built-in \u00b7 Fixed",
+  "approvalSettings.fixedRow":
+    "Always requires exactly {{count}} human approval(s). The project's approval setting does not change it.",
+  "approvalSettings.builtin": "Built-in",
+  "approvalSettings.tabs": "Approval rule sections",
+  "approvalSettings.projectRulesTab": "Project rules",
+  "approvalSettings.builtinRulesTab": "Built-in rules",
+  "approvalSettings.builtinIntro":
+    "These rules come with Hey Hey and are locked.",
+  "approvalSettings.fixedCounts": "Fixed approval counts",
+  "approvalSettings.fixedCountsHelp":
+    "The number of human approvals is set by Hey Hey. The project approval setting does not change it.",
+  "approvalSettings.standardDefaults": "Standard defaults",
+  "approvalSettings.standardDefaultsHelp":
+    "Built-in rules that apply when no project rule matches.",
   "approvalSettings.any": "Any",
   "approvalSettings.immediate": "Apply immediately",
   "approvalSettings.count": "Human approvals",
@@ -178,29 +191,18 @@ export const en = {
   "approvalSettings.title": "Approval rules",
   "approvalSettings.intro":
     "Choose when changes apply immediately and when people review them.",
-  "approvalSettings.unsaved": "Unsaved changes",
-  "approvalSettings.saved": "Current settings",
-  "approvalSettings.save": "Save changes",
   "approvalSettings.restore": "Restore defaults",
-  "approvalSettings.discard": "Discard edits",
   "approvalSettings.orderHelp":
-    "Grouped by type. Evaluated by global priority. Saved priorities come from the API. Unsaved edits preview fixed requirements first, then project rules, then built-in defaults. The first matching rule wins. Grouping never changes matching order.",
-  "approvalSettings.refreshError":
-    "Could not refresh settings. Your edits are preserved.",
+    "Rules are checked in priority order and the first matching rule wins. Priority numbers run across both tabs: fixed built-in rules first, then your project rules, then the remaining built-in rules. Restore defaults replaces your project rules only; built-in rules never change.",
+  "approvalSettings.refreshError": "Could not refresh settings.",
   "approvalSettings.conflict":
-    "Someone saved newer settings. Your edits are preserved. Read and review the latest settings before deliberately retrying.",
-  "approvalSettings.saveError":
-    "Could not save changes. Your edits are preserved. Correct any errors and try again.",
+    "Someone saved newer settings. Review the latest settings before changing them.",
   "approvalSettings.reviewLatest": "Review latest settings",
-  "approvalSettings.latest": "Latest saved settings",
-  "approvalSettings.acceptRevision":
-    "I reviewed these settings. Keep my edits for a deliberate retry.",
   "approvalSettings.groups": "Rule groups",
   "approvalSettings.unknownGroup":
     "This type is no longer in the registry. Choose another group.",
   "approvalSettings.add": "Add rule",
-  "approvalSettings.historical": "Unavailable type · Read only",
-  "approvalSettings.otherBuiltins": "Other built-in rules \u00b7 Locked",
+  "approvalSettings.historical": "Unavailable type",
   "approvalSettings.fallback": "When no rule matches",
   "approvalSettings.proposalRequired": "Proposal required",
   "approvalSettings.noProposal": "No proposal required",
