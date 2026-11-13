@@ -1,3 +1,4 @@
+import { checkTaskMonitorPermissionAdmission } from '../agents/task-monitor/state-machine/provider-event-adapter';
 /**
  * Normalize — the single normalization boundary.
  *
@@ -512,6 +513,7 @@ export const normalizeEvent = (
     return {
       ...event,
       kind: 'permission',
+      taskMonitorAdmission: checkTaskMonitorPermissionAdmission(event),
       files,
       ...(itemId ? { itemId } : {}),
     } satisfies PermissionEvent;
@@ -533,6 +535,7 @@ export const normalizeEvent = (
         ...event,
         payload: { ...payload, ...permissionPayload },
         kind: 'permission',
+        taskMonitorAdmission: checkTaskMonitorPermissionAdmission(event),
         files: extractFilesFromFlatPermission(permissionPayload),
       } satisfies PermissionEvent;
     }

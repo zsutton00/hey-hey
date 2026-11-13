@@ -103,32 +103,23 @@ const mergeReferencedFiles = (
   };
 };
 
-/**
- * The Task Monitor admits a provider permission request only when it carries
- * an expiry (`provider-event-adapter.ts`). Codex stamps one; Claude does not.
- * A request the monitor cannot admit has no other owner, so it must reach the
- * user as the normal card instead of being dropped.
- */
-const isAdmissibleByTaskMonitor = (payload: Record<string, unknown>): boolean => {
-  const canonical = isRecord(payload['canonical_event']) ? payload['canonical_event'] : payload;
-  const request = canonical['permission_request'];
-
-  return isRecord(request) && typeof request['expires_at'] === 'string';
-};
-
 export const handlePermission = async (
   event: PermissionEvent,
   ctx: Run,
   deps: HandlerDeps,
 ): Promise<void> => {
   if (ctx.taskMonitorId !== null) {
-    const providerActionId =
-      isRecord(event.payload['permission_request']) &&
-      typeof event.payload['permission_request']['id'] === 'string'
+    const providerActionId = event.taskMonitorAdmission.accepted
+      ? event.taskMonitorAdmission.request.id
+      : isRecord(event.payload['permission_request']) &&
+          typeof event.payload['permission_request']['id'] === 'string'
         ? event.payload['permission_request']['id']
         : null;
 
-    if (isAdmissibleByTaskMonitor(event.payload)) {
+    if (
+      event.taskMonitorAdmission.accepted &&
+      (await ctx.takeTaskMonitorPermissionAdmission(event.taskMonitorAdmission.request.id))
+    ) {
       deps.logger.info('local.handler.permission.task_monitor_projection_delegated', {
         runId: ctx.runId,
         taskMonitorId: ctx.taskMonitorId,
@@ -141,7 +132,9 @@ export const handlePermission = async (
       runId: ctx.runId,
       taskMonitorId: ctx.taskMonitorId,
       providerActionId,
-      reason: 'permission_request_has_no_expiry',
+      reason: event.taskMonitorAdmission.accepted
+        ? 'task_monitor_admission_not_confirmed'
+        : event.taskMonitorAdmission.reason,
     });
   }
 

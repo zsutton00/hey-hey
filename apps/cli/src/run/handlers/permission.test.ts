@@ -156,39 +156,148 @@ describe('permission end-to-end', () => {
     );
   });
 
-  it('delegates Task Monitor-owned projection without creating the generic permission UI', async () => {
-    const raw = makeRawPermissionFull(['src/auth.ts']);
-    const event = normalizeEvent(
+  it.each([
+    [null, null],
+    ['2099-01-01T00:05:00.000Z', null],
+    ['2025-01-01T00:05:00.000Z', 'permission_request_expired'],
+    ['2025-01-01T00:00:00.000Z', 'permission_request_expiry_not_after_creation'],
+    ['invalid', 'permission_request_invalid_fields'],
+  ])(
+    'routes a Task Monitor request with expiry %s and rejection %s',
+    async (expiresAt, rejection) => {
+      const raw = makeRawPermissionFull(['src/auth.ts']);
+      const event = normalizeEvent(
+        {
+          ...raw,
+          source: 'provider',
+          payload: {
+            messageType: 'provider_event',
+            canonical_event_type: 'permission_request',
+            normalization: { success: true },
+            canonical_event: {
+              canonical_event_type: 'permission_request',
+              timestamp: raw.timestamp,
+              permission_request: {
+                ...(raw.payload['permission_request'] as Record<string, unknown>),
+                action: 'Write',
+                target: 'src/auth.ts',
+                fingerprint: 'sha256:permission',
+                created_at: raw.timestamp,
+                expires_at: expiresAt,
+              },
+            },
+          },
+        },
+        'claude',
+      ) as PermissionEvent;
+      const poster = makePoster();
+      const deps = makeDeps(poster);
+      const ctx = makeTestRun({
+        taskMonitorId: '10000000-0000-4000-8000-000000000001',
+      });
+
+      ctx.recordTaskMonitorPermissionAdmission('perm-1', Promise.resolve(true));
+      await handlePermission(event, ctx, deps);
+
+      if (rejection) {
+        expect(poster.createOutOfBand).toHaveBeenCalledOnce();
+        expect(deps.logger.warn).toHaveBeenCalledWith(
+          'local.handler.permission.task_monitor_not_admissible',
+          expect.objectContaining({ reason: expect.stringContaining(rejection) }),
+        );
+        return;
+      }
+
+      expect(poster.createOutOfBand).not.toHaveBeenCalled();
+      expect(ctx.pendingDiffs.size).toBe(0);
+      expect(deps.logger.info).toHaveBeenCalledWith(
+        'local.handler.permission.task_monitor_projection_delegated',
+        expect.objectContaining({
+          runId: 'run-1',
+          taskMonitorId: '10000000-0000-4000-8000-000000000001',
+          providerActionId: 'perm-1',
+        }),
+      );
+    },
+  );
+
+  it.each([false, undefined])('keeps a card when actual admission is %s', async (accepted) => {
+    const raw = makeRawPermissionFull([]);
+    const event = normalizeEvent(raw, 'claude');
+    if (event.kind !== 'permission') {
+      throw new Error('Expected permission');
+    }
+    const ctx = makeTestRun({ taskMonitorId: 'monitor-1' });
+    const poster = makePoster();
+    const deps = makeDeps(poster);
+    const validEvent: PermissionEvent = {
+      ...event,
+      taskMonitorAdmission: {
+        accepted: true,
+        providerSessionId: 'session-1',
+        request: {
+          id: 'perm-1',
+          action: 'Write',
+          target: 'file',
+          fingerprint: 'fingerprint',
+          created_at: raw.timestamp,
+          expires_at: null,
+        },
+      },
+    };
+    if (accepted !== undefined) {
+      ctx.recordTaskMonitorPermissionAdmission('perm-1', Promise.resolve(accepted));
+    }
+    await handlePermission(validEvent, ctx, deps);
+    expect(poster.createOutOfBand).toHaveBeenCalledOnce();
+    expect(ctx.recordPermissionRequestMessage).toHaveBeenCalledWith(
+      'perm-1',
+      'oob-msg-1',
+      expect.objectContaining({ type: 'QUESTIONS' }),
+    );
+  });
+
+  it('waits for actual monitor admission before suppressing the card', async () => {
+    const event = normalizeEvent(makeRawPermissionFull([]), 'claude');
+    if (event.kind !== 'permission') {
+      throw new Error('Expected permission');
+    }
+    const ctx = makeTestRun({ taskMonitorId: 'monitor-1' });
+    const poster = makePoster();
+    let finishAdmission!: (accepted: boolean) => void;
+    ctx.recordTaskMonitorPermissionAdmission(
+      'perm-1',
+      new Promise((resolve) => {
+        finishAdmission = resolve;
+      }),
+    );
+    let finished = false;
+    const handling = handlePermission(
       {
-        ...raw,
-        payload: {
-          ...raw.payload,
-          permission_request: {
-            ...(raw.payload['permission_request'] as Record<string, unknown>),
-            expires_at: '2025-01-01T00:05:00.000Z',
+        ...event,
+        taskMonitorAdmission: {
+          accepted: true,
+          providerSessionId: 'session-1',
+          request: {
+            id: 'perm-1',
+            action: 'Write',
+            target: 'file',
+            fingerprint: 'fingerprint',
+            created_at: event.timestamp,
+            expires_at: null,
           },
         },
       },
-      'claude',
-    ) as PermissionEvent;
-    const poster = makePoster();
-    const deps = makeDeps(poster);
-    const ctx = makeTestRun({
-      taskMonitorId: '10000000-0000-4000-8000-000000000001',
+      ctx,
+      makeDeps(poster),
+    ).then(() => {
+      finished = true;
     });
-
-    await handlePermission(event, ctx, deps);
-
-    expect(poster.createOutOfBand).not.toHaveBeenCalled();
-    expect(ctx.pendingDiffs.size).toBe(0);
-    expect(deps.logger.info).toHaveBeenCalledWith(
-      'local.handler.permission.task_monitor_projection_delegated',
-      expect.objectContaining({
-        runId: 'run-1',
-        taskMonitorId: '10000000-0000-4000-8000-000000000001',
-        providerActionId: 'perm-1',
-      }),
-    );
+    await Promise.resolve();
+    expect(finished).toBe(false);
+    finishAdmission(false);
+    await handling;
+    expect(poster.createOutOfBand).toHaveBeenCalledOnce();
   });
 
   it('falls back to plain text when payload lacks required fields', async () => {

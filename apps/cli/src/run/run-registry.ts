@@ -182,6 +182,9 @@ export class RunRegistry {
     ) {
       return { kind: 'settled_specialized_request' };
     }
+    if (run?.hasPermissionRequestRecord(requestId)) {
+      return { kind: 'provider_permission' };
+    }
     return taskMonitorId
       ? { kind: 'task_monitor_intervention', taskMonitorId }
       : { kind: 'provider_permission' };

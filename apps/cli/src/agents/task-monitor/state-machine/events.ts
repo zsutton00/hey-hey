@@ -188,7 +188,7 @@ export interface TaskMonitorExactActionRequiredEvent {
   readonly target: string;
   readonly fingerprint: string;
   readonly createdAt: string;
-  readonly expiresAt: string;
+  readonly expiresAt: string | null;
 }
 
 interface TaskMonitorInterventionProjectedEvent {
@@ -720,7 +720,7 @@ export interface VerifiedTaskMonitorProviderInterventionInput extends AddressedT
   readonly target: string;
   readonly fingerprint: string;
   readonly createdAt: string;
-  readonly expiresAt: string;
+  readonly expiresAt: string | null;
 }
 
 export type TaskMonitorExecutionPhase = 'IMPLEMENTATION' | 'REVIEW';

@@ -18,7 +18,7 @@ export interface TaskMonitorInterventionProjection {
   readonly target: string;
   readonly fingerprint: string;
   readonly createdAt: string;
-  readonly expiresAt: string;
+  readonly expiresAt: string | null;
 }
 
 export type TaskMonitorInterventionMessage = Omit<

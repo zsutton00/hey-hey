@@ -1,3 +1,8 @@
+import { normalizeProviderEventPayload } from '../../../providers/provider-event-normalization';
+import { taskMonitorExactActionInputFromProviderEvent } from '../provider-event-adapter';
+import { taskMonitorEventFromVerifiedInput } from '../events';
+import { toTaskMonitorInterventionData } from '../../task-monitor-intervention-message';
+import { normalizeEvent } from '../../../../run/normalize';
 import { transition } from 'xstate';
 import { describe, expect, it } from 'vitest';
 
@@ -28,7 +33,7 @@ const context = (): TaskMonitorMachineContext => ({
   coordinatorConversationId: '90000000-0000-4000-8000-000000000009',
   pendingIntervention: null,
   settledRun: null,
-      reviewRequest: null,
+  reviewRequest: null,
   input: { queuedMessageIds: [], active: null },
   failureReason: null,
 });
@@ -87,6 +92,92 @@ const observing = () => {
 };
 
 describe('Task Monitor exact-action intervention', () => {
+  it.each([null, undefined])(
+    'admits and decides a normalized Claude request with no deadline (%s)',
+    (expiresAt) => {
+      const timestamp = exactAction.createdAt;
+      const normalized = normalizeProviderEventPayload({
+        provider: 'claude',
+        runId: RUN_ID,
+        eventType: 'permission_request',
+        timestamp,
+        sessionId: 'provider-session-1',
+        agentId: 'claude',
+        rawEvent: {
+          messageType: 'permission_request',
+          permission_request: {
+            id: 'provider-action-1',
+            permission_type: 'Bash',
+            session_id: 'provider-session-1',
+            agent_id: 'claude',
+            agent_type: 'claude',
+            timestamp,
+            idempotency_token: 'provider-action-1',
+            action: 'Bash',
+            target: 'pnpm deploy',
+            fingerprint: 'sha256:exact-action',
+            created_at: timestamp,
+            ...(expiresAt === undefined ? {} : { expires_at: expiresAt }),
+          },
+          enrichment_metadata: {
+            reason: 'Deployment requires approval',
+            referenced_files: [],
+            referenced_diffs: [],
+          },
+        },
+        config: { validationMode: 'strict', maxDiffBlobBytes: 4096, trackTools: false },
+      });
+      const providerEvent = {
+        runId: RUN_ID,
+        source: 'provider' as const,
+        eventType: 'permission_request_detected',
+        timestamp,
+        sessionId: 'provider-session-1',
+        agentId: 'claude',
+        payload: normalized.payload,
+      };
+      const handlerEvent = normalizeEvent(providerEvent, 'claude');
+      expect(handlerEvent.kind).toBe('permission');
+      if (handlerEvent.kind !== 'permission') throw new Error('Expected permission');
+      expect(handlerEvent.taskMonitorAdmission.accepted).toBe(true);
+      const input = taskMonitorExactActionInputFromProviderEvent(
+        {
+          owner: { taskMonitorId: MONITOR_ID, agentSessionId: SESSION_ID, runId: RUN_ID },
+          event: providerEvent,
+        },
+        () => INTERVENTION_ID,
+      );
+      expect(input).not.toBeNull();
+      if (!input) throw new Error('Expected admitted input');
+      const { definition, snapshot } = observing();
+      const [pending, projectionActions] = transition(
+        definition.machine,
+        snapshot,
+        taskMonitorEventFromVerifiedInput(input),
+      );
+      const projection = projectionActions.flatMap(
+        (action) => definition.effectFromAction(action) ?? [],
+      )[0];
+      if (projection?.type !== 'PROJECT_TASK_MONITOR_INTERVENTION')
+        throw new Error('Expected projection');
+      expect(toTaskMonitorInterventionData(projection)).toMatchObject({
+        expiresAt: null,
+        choices: ['APPROVE', 'DENY'],
+      });
+      // A human may decide days later, while exact-action matching and single use still apply.
+      const laterDecision = decision({ decidedAt: '2026-08-15T12:00:00.000Z' });
+      const [applying, actions] = transition(definition.machine, pending, laterDecision);
+      expect(actions.flatMap((action) => definition.effectFromAction(action) ?? [])).toEqual([
+        expect.objectContaining({
+          type: 'APPLY_TASK_MONITOR_DECISION',
+          providerActionId: 'provider-action-1',
+          providerDecision: 'approve',
+        }),
+      ]);
+      expect(transition(definition.machine, applying, laterDecision)[1]).toEqual([]);
+    },
+  );
+
   it('stores one pending intervention without changing work or control', () => {
     const { definition, snapshot } = observing();
     const [next, actions] = transition(definition.machine, snapshot, exactAction);
