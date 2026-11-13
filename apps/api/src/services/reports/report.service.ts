@@ -627,9 +627,14 @@ export class ReportService {
           : {}),
         ...(filters.projectId ? { projectId: filters.projectId } : {}),
         ...reportTypesFilter,
-        ...(filters.audience
-          ? { audience: filters.audience as PrismaReportAudience }
-          : {}),
+        // Both HTTP list surfaces are user-facing. An explicit audience can
+        // narrow this allow-list, but cannot expose internal workflow reports.
+        audience: {
+          in: USER_VISIBLE_PERSISTED_REPORT_AUDIENCES,
+          ...(filters.audience
+            ? { equals: filters.audience as PrismaReportAudience }
+            : {}),
+        },
         ...(filters.sourceExecutionId
           ? { sourceExecutionId: filters.sourceExecutionId }
           : {}),

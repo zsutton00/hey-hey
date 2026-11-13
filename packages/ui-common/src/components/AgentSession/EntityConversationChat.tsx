@@ -626,6 +626,7 @@ const EntityConversationActive: React.FC<EntityConversationActiveProps> = ({
   const {
     isFetched: latestIsFetched,
     data: latestData,
+    error: latestMessageError,
     markStale: markLatestMessageStale,
   } = latestMessage;
 
@@ -639,7 +640,9 @@ const EntityConversationActive: React.FC<EntityConversationActiveProps> = ({
   useEffect(() => {
     if (!conversationId) return;
     if (!isGoalContextReady) return;
-    if (!latestIsFetched) return;
+    if (!latestIsFetched || latestMessageError) {
+      return;
+    }
     if (initialDeliveryError || initialDeliveryInFlightRef.current) return;
     if (
       greetingSeededRef.current === conversationId &&
@@ -688,6 +691,7 @@ const EntityConversationActive: React.FC<EntityConversationActiveProps> = ({
   }, [
     conversationId,
     latestIsFetched,
+    latestMessageError,
     latestData,
     markLatestMessageStale,
     organizationId,

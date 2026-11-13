@@ -22,13 +22,13 @@ import type {
   CollectionHookOptions,
   DataCollectionHookReturn,
 } from "../core/types";
+import { getResponseStatus } from "../query/queryPolicy";
 import { useDataLayerQuery } from "../query/useDataLayerQuery";
 
 export type UseConversationMessagesOptions =
   CollectionHookOptions<MessageResponseDto>;
 
-export interface UseConversationMessagesReturn
-  extends DataCollectionHookReturn<MessageResponseDto> {
+export interface UseConversationMessagesReturn extends DataCollectionHookReturn<MessageResponseDto> {
   /** Conversation timeline, oldest first. Excludes undated queued inputs. */
   orderedData: readonly MessageResponseDto[];
   /**
@@ -53,7 +53,7 @@ const EMPTY_RECORDS: MessageRecordDto[] = [];
  * used to get from the conversation envelope.
  */
 const buildMessageTree = (
-  flat: readonly MessageResponseDto[]
+  flat: readonly MessageResponseDto[],
 ): MessageResponseDto[] => {
   if (flat.length === 0) return EMPTY_MESSAGES;
 
@@ -81,7 +81,7 @@ export function useConversationMessages(
   organizationId: string | undefined,
   projectId: string | undefined,
   conversationId: string | undefined,
-  options: UseConversationMessagesOptions = {}
+  options: UseConversationMessagesOptions = {},
 ): UseConversationMessagesReturn {
   const enabled =
     options.enabled !== false &&
@@ -96,9 +96,9 @@ export function useConversationMessages(
         queryClient,
         organizationId ?? "__noop__",
         projectId ?? "__noop__",
-        conversationId ?? "__noop__"
+        conversationId ?? "__noop__",
       ),
-    [queryClient, organizationId, projectId, conversationId]
+    [queryClient, organizationId, projectId, conversationId],
   );
   const { result, state: query } = useDataLayerQuery(queryOptions, {
     enabled,
@@ -136,40 +136,43 @@ export function useConversationMessages(
         projectId: projectId ?? "__noop__",
         conversationId: conversationId ?? "__noop__",
       }),
-    [conversationId, organizationId, projectId]
+    [conversationId, organizationId, projectId],
   );
   const historySnapshot = useSyncExternalStore(
     useCallback(
       (listener) => subscribeConversationMessageHistory(historyKey, listener),
-      [historyKey]
+      [historyKey],
     ),
     useCallback(
       () => getConversationMessageHistorySnapshot(historyKey),
-      [historyKey]
+      [historyKey],
     ),
     useCallback(
       () => getConversationMessageHistorySnapshot(historyKey),
-      [historyKey]
-    )
+      [historyKey],
+    ),
   );
 
-  const records = result.data ?? EMPTY_RECORDS;
+  const records =
+    getResponseStatus(query.error) === 403
+      ? EMPTY_RECORDS
+      : (result.data ?? EMPTY_RECORDS);
   // One rule: a message is in the timeline exactly when it has a createdAt.
   const orderedData = useMemo(
     () => (records.length ? records.filter(isTimelineMessage) : EMPTY_MESSAGES),
-    [records]
+    [records],
   );
   const scope = inputScope(
     organizationId ?? "",
     projectId ?? "",
-    conversationId ?? ""
+    conversationId ?? "",
   );
   const undatedInputs = useMemo(
     () =>
       records.length
         ? records.filter((message) => !isTimelineMessage(message))
         : EMPTY_RECORDS,
-    [records]
+    [records],
   );
   useEffect(() => {
     if (enabled) observeCanonicalInputs(scope, records);
@@ -186,11 +189,18 @@ export function useConversationMessages(
         organizationId,
         projectId,
         conversationId,
-        cursor
+        cursor,
       );
       recordOlderConversationMessageHistoryPage(historyKey, nextCursor);
     });
-  }, [conversationId, enabled, historyKey, organizationId, projectId, queryClient]);
+  }, [
+    conversationId,
+    enabled,
+    historyKey,
+    organizationId,
+    projectId,
+    queryClient,
+  ]);
 
   return {
     data,

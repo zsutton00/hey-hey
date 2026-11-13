@@ -1,3 +1,4 @@
+import { getResponseStatus } from "../../../data/query/queryPolicy";
 import { useConversationMessages } from "../../../data/hooks/useConversationMessages";
 import {
   Box,
@@ -190,7 +191,8 @@ const getMessageContent = (message: MessageResponseDto): string => {
   if (message.type === "SYSTEM") {
     const systemMessage = message as SystemMessage;
     const response = systemMessage.data as unknown as
-      Record<string, unknown> | undefined;
+      | Record<string, unknown>
+      | undefined;
     if (typeof response?.response === "string" && response.response.trim()) {
       return truncateText(response.response);
     }
@@ -210,7 +212,8 @@ const getMessageContent = (message: MessageResponseDto): string => {
   }
 
   const agentInput = messageData.agentInput as
-    Record<string, unknown> | undefined;
+    | Record<string, unknown>
+    | undefined;
   if (
     typeof agentInput?.userMessage === "string" &&
     agentInput.userMessage.trim()
@@ -926,7 +929,9 @@ const AgentSessionPreview: React.FC<{
           </Typography>
         ) : latestMessageError ? (
           <Typography variant="caption" color="text.secondary" display="block">
-            Latest message unavailable
+            {getResponseStatus(latestMessageError) === 403
+              ? "This conversation is private"
+              : "Latest message unavailable"}
           </Typography>
         ) : latestMessageContent ? (
           <Box

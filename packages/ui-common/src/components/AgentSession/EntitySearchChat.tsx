@@ -197,7 +197,9 @@ const EntitySearchActive: React.FC<EntitySearchActiveProps> = ({
     },
   );
   const conversationEmpty =
-    latestMessage.isFetched && latestMessage.data === null;
+    latestMessage.isFetched &&
+    !latestMessage.error &&
+    latestMessage.data === null;
 
   const initialPromptSentRef = useRef(false);
   useEffect(() => {

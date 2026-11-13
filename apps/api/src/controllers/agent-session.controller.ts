@@ -1,3 +1,4 @@
+import { MessageService } from '../services/message.service';
 import { ProjectAccessGuard } from '../auth/guards/project-access.guard';
 import {
   BadRequestException,
@@ -107,6 +108,7 @@ export class AgentSessionController {
     private readonly planGenerationService: WorkItemPlanGenerationService,
     private readonly executionGrantService: ExecutionGrantService,
     private readonly machinePresenceService: MachinePresenceService,
+    private readonly messageService: MessageService,
   ) {}
 
   @Post(':agentSessionId/cli-reads')
@@ -466,6 +468,7 @@ export class AgentSessionController {
   async findPaginated(
     @Param('projectId', ParseUUIDPipe) projectId: ProjectId,
     @CurrentOrganization() organizationId: OrganizationId,
+    @CurrentUser('userId') readerUserId: UserId,
     @Query('type') type?: string,
     @Query('status') status?: string | string[],
     @Query('sort') sort?: string,
@@ -475,16 +478,39 @@ export class AgentSessionController {
     @Query('serviceId') serviceId?: string,
     @Query('taskId') taskId?: string,
   ): Promise<PaginatedAgentSessionResponseDto> {
-    return this.agentSessionService.findPaginated(organizationId, projectId, {
-      type: parseAgentSessionTypeQuery(type),
-      statuses: parseAgentSessionStatusesQuery(status),
-      sort: parseAgentSessionListSortQuery(sort),
-      limit: parseAgentSessionPageLimitQuery(limit),
-      userId: parseAgentSessionUserIdQuery(userId),
-      serviceId: parseAgentSessionServiceIdQuery(serviceId),
-      taskId: parseAgentSessionTaskIdQuery(taskId),
-      ...(cursor !== undefined ? { cursor } : {}),
+    const page = await this.agentSessionService.findPaginated(
+      organizationId,
+      projectId,
+      {
+        type: parseAgentSessionTypeQuery(type),
+        statuses: parseAgentSessionStatusesQuery(status),
+        sort: parseAgentSessionListSortQuery(sort),
+        limit: parseAgentSessionPageLimitQuery(limit),
+        userId: parseAgentSessionUserIdQuery(userId),
+        serviceId: parseAgentSessionServiceIdQuery(serviceId),
+        taskId: parseAgentSessionTaskIdQuery(taskId),
+        ...(cursor !== undefined ? { cursor } : {}),
+      },
+    );
+    const conversationIds = page.items.flatMap(({ lastMessage }) =>
+      lastMessage ? [lastMessage.conversationId] : [],
+    );
+    const readable = await this.messageService.filterReadableConversationIds({
+      organizationId,
+      conversationIds,
+      readerUserId,
     });
+
+    return {
+      ...page,
+      items: page.items.map((item) => ({
+        ...item,
+        lastMessage:
+          item.lastMessage && readable.has(item.lastMessage.conversationId)
+            ? item.lastMessage
+            : null,
+      })),
+    } satisfies PaginatedAgentSessionResponseDto;
   }
 
   @Get(':agentSessionId')

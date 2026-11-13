@@ -572,6 +572,30 @@ describe("EntityConversationChat new-conversation opt-in", () => {
     expect(sendUserMessageMock).toHaveBeenCalledTimes(1);
     expect(createAgentSessionConversationMock).toHaveBeenCalledTimes(1);
   });
+  it("keeps a refused latest-message read from seeding or submitting into an existing private conversation", async () => {
+    useLatestMessageMock.mockReturnValue({
+      data: null,
+      isFetched: true,
+      error: Object.assign(new Error("Forbidden"), { status: 403 }),
+      markStale: vi.fn(),
+    });
+    await act(async () => {
+      render(
+        <EntityConversationChat
+          organizationId="org-1"
+          projectId="proj-1"
+          agentSession={boundSession}
+          entityId="task-1"
+          entityType="TASK"
+          initialUserMessage="Continue this discussion"
+        />,
+      );
+    });
+    expect(screen.getByTestId("agent-conversation-view")).toBeInTheDocument();
+    expect(seedConversationGreetingMock).not.toHaveBeenCalled();
+    expect(sendUserMessageMock).not.toHaveBeenCalled();
+  });
+
   it("transfers a request once into an existing thread without seeding another greeting", async () => {
     useLatestMessageMock.mockReturnValue({
       data: { id: "existing-message" },

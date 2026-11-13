@@ -43,7 +43,7 @@ export interface PaginatedAgentSessionItemDto {
      */
     'agentSession': AgentSessionDto;
     /**
-     * Latest message in the linked conversation, or null when the conversation has no messages.
+     * Latest message in the linked conversation, or null when the conversation has no messages or its transcript is not readable by the caller. Session inclusion, ordering and pagination are unchanged by transcript access.
      * @type {AgentSessionLastMessageSummary}
      * @memberof PaginatedAgentSessionItemDto
      */

@@ -42,7 +42,7 @@ const CID = "conversation";
 const message = (
   id: string,
   minute: number,
-  status: MessageStatus = MessageStatus.Completed
+  status: MessageStatus = MessageStatus.Completed,
 ): MessageRecordDto =>
   ({
     id,
@@ -111,6 +111,33 @@ beforeEach(() => {
 });
 
 describe("shared conversation reads", () => {
+  it("removes cached transcript and latest-message content after a refused refresh", async () => {
+    const client = createClient();
+    mocks.getMessages.mockResolvedValue(historyPage(initial));
+    const { result } = renderHook(
+      () => ({
+        thread: useConversationMessages(ORG, PROJECT, CID),
+        latest: useLatestMessage(ORG, PROJECT, CID),
+      }),
+      { wrapper: clientWrapper(client) },
+    );
+    await waitFor(() =>
+      expect(result.current.thread.data).toHaveLength(initial.length),
+    );
+    const denied = Object.assign(new Error("Forbidden"), { status: 403 });
+    mocks.getMessages.mockRejectedValue(denied);
+    mocks.getLatestMessage.mockRejectedValue(denied);
+    await act(async () => {
+      await client.invalidateQueries({
+        queryKey: messageKeys.conversation(ORG, PROJECT, CID),
+      });
+    });
+    await waitFor(() => expect(result.current.thread.error).toBe(denied));
+    expect(result.current.thread.data).toEqual([]);
+    expect(result.current.thread.orderedData).toEqual([]);
+    expect(result.current.latest.data).toBeNull();
+  });
+
   it("issues one read per key however many components show the conversation", async () => {
     mocks.getMessages.mockResolvedValue(historyPage(initial));
     const client = createClient();
@@ -123,7 +150,7 @@ describe("shared conversation reads", () => {
         header: useConversation(ORG, PROJECT, { conversationId: CID }),
         panel: useConversation(ORG, PROJECT, { conversationId: CID }),
       }),
-      { wrapper: clientWrapper(client) }
+      { wrapper: clientWrapper(client) },
     );
 
     await waitFor(() => {
@@ -139,7 +166,7 @@ describe("shared conversation reads", () => {
     expect(result.current.latest.data?.id).toBe("m4");
     // Both consumers render the same cached message objects.
     result.current.sidebar.orderedData.forEach((entry, index) =>
-      expect(entry).toBe(result.current.timeline.orderedData[index])
+      expect(entry).toBe(result.current.timeline.orderedData[index]),
     );
   });
 
@@ -168,7 +195,7 @@ describe("realtime message updates", () => {
         other: useConversationMessages(ORG, PROJECT, CID),
         header: useConversation(ORG, PROJECT, { conversationId: CID }),
       }),
-      { wrapper: clientWrapper(client) }
+      { wrapper: clientWrapper(client) },
     );
     await waitFor(() => expect(result.current.timeline.isReady).toBe(true));
     const before = result.current.timeline.orderedData;
@@ -176,7 +203,7 @@ describe("realtime message updates", () => {
     const finished = message("m4", 4);
     const reply = message("m5", 5);
     mocks.getMessages.mockResolvedValueOnce(
-      delta([message("m3", 3), finished, reply])
+      delta([message("m3", 3), finished, reply]),
     );
     const handler = new WebSocketHandler(createStore(), undefined, client);
     await act(async () => {
@@ -190,7 +217,7 @@ describe("realtime message updates", () => {
         "m3",
         "m4",
         "m5",
-      ])
+      ]),
     );
     expect(mocks.getMessages).toHaveBeenCalledTimes(2);
     // Cursor backs up one terminal message before the oldest non-terminal.
@@ -198,7 +225,9 @@ describe("realtime message updates", () => {
     // conversation.updated does not re-read the envelope.
     expect(mocks.getConversation).toHaveBeenCalledTimes(1);
     expect(result.current.timeline.orderedData[0]).toBe(before[0]);
-    expect(result.current.timeline.orderedData[3].status).toBe(MessageStatus.Completed);
+    expect(result.current.timeline.orderedData[3].status).toBe(
+      MessageStatus.Completed,
+    );
 
     // No repeat cluster after the read settles.
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -210,7 +239,7 @@ describe("realtime message updates", () => {
     const client = createClient();
     const { result } = renderHook(
       () => useConversationMessages(ORG, PROJECT, CID),
-      { wrapper: clientWrapper(client) }
+      { wrapper: clientWrapper(client) },
     );
     await waitFor(() => expect(result.current.isReady).toBe(true));
 
@@ -229,7 +258,7 @@ describe("realtime message updates", () => {
         "m3",
         "m4",
         "m5",
-      ])
+      ]),
     );
     expect(mocks.getMessages).toHaveBeenCalledTimes(3);
     expect(sinceOf(mocks.getMessages.mock.calls[1])).toBe("m2");
@@ -244,7 +273,7 @@ describe("realtime message updates", () => {
     const client = createClient();
     const { result } = renderHook(
       () => useConversationMessages(ORG, PROJECT, CID),
-      { wrapper: clientWrapper(client) }
+      { wrapper: clientWrapper(client) },
     );
     await waitFor(() => expect(result.current.isReady).toBe(true));
 
@@ -266,13 +295,13 @@ describe("realtime message updates", () => {
     stale.resolve(delta([message("m4", 4, MessageStatus.Open)]));
 
     await waitFor(() =>
-      expect(result.current.orderedData.map((m) => m.id)).toContain("m5")
+      expect(result.current.orderedData.map((m) => m.id)).toContain("m5"),
     );
     expect(result.current.orderedData.find((m) => m.id === "m4")?.status).toBe(
-      MessageStatus.Completed
+      MessageStatus.Completed,
     );
     expect(
-      client.getQueryState(messageKeys.list(ORG, PROJECT, CID))?.fetchStatus
+      client.getQueryState(messageKeys.list(ORG, PROJECT, CID))?.fetchStatus,
     ).toBe("idle");
   });
 
@@ -287,11 +316,11 @@ describe("realtime message updates", () => {
     handler.markAllStale();
 
     expect(
-      client.getQueryState(messageKeys.list(ORG, PROJECT, CID))?.isInvalidated
+      client.getQueryState(messageKeys.list(ORG, PROJECT, CID))?.isInvalidated,
     ).toBe(true);
     expect(
       client.getQueryState(conversationKeys.envelope(ORG, PROJECT, CID))
-        ?.isInvalidated
+        ?.isInvalidated,
     ).toBe(true);
   });
 });
@@ -300,34 +329,34 @@ describe("remount", () => {
   it("re-reads once with the since cursor after the last view unmounts", async () => {
     mocks.getMessages.mockResolvedValueOnce(historyPage(initial));
     const client = createClient();
-    const first = renderHook(
-      () => useConversationMessages(ORG, PROJECT, CID),
-      { wrapper: clientWrapper(client) }
-    );
+    const first = renderHook(() => useConversationMessages(ORG, PROJECT, CID), {
+      wrapper: clientWrapper(client),
+    });
     await waitFor(() => expect(first.result.current.isReady).toBe(true));
     first.unmount();
     await waitFor(() =>
       expect(
-        client.getQueryState(messageKeys.list(ORG, PROJECT, CID))?.isInvalidated
-      ).toBe(true)
+        client.getQueryState(messageKeys.list(ORG, PROJECT, CID))
+          ?.isInvalidated,
+      ).toBe(true),
     );
 
     mocks.getMessages.mockResolvedValueOnce(
-      delta([message("m4", 4), message("m5", 5)])
+      delta([message("m4", 4), message("m5", 5)]),
     );
     const second = renderHook(
       () => ({
         a: useConversationMessages(ORG, PROJECT, CID),
         b: useConversationMessages(ORG, PROJECT, CID),
       }),
-      { wrapper: clientWrapper(client) }
+      { wrapper: clientWrapper(client) },
     );
     // Cached messages show immediately while the read runs.
     expect(second.result.current.a.orderedData).toHaveLength(4);
     await waitFor(() =>
       expect(second.result.current.a.orderedData.map((m) => m.id)).toContain(
-        "m5"
-      )
+        "m5",
+      ),
     );
     expect(mocks.getMessages).toHaveBeenCalledTimes(2);
     expect(sinceOf(mocks.getMessages.mock.calls[1])).toBe("m2");
@@ -337,12 +366,12 @@ describe("remount", () => {
 describe("message history", () => {
   it("merges an older page into the cached list without re-reading recent messages", async () => {
     mocks.getMessages.mockResolvedValueOnce(
-      historyPage(initial.slice(2), "older")
+      historyPage(initial.slice(2), "older"),
     );
     const client = createClient();
     const { result } = renderHook(
       () => useConversationMessages(ORG, PROJECT, CID),
-      { wrapper: clientWrapper(client) }
+      { wrapper: clientWrapper(client) },
     );
     await waitFor(() => expect(result.current.hasOlder).toBe(true));
 
@@ -368,7 +397,7 @@ describe("read lifecycle", () => {
   it("reports a disabled read as unstarted, not failed", () => {
     const { result } = renderHook(
       () => useConversationMessages(ORG, PROJECT, undefined),
-      { wrapper: clientWrapper(createClient()) }
+      { wrapper: clientWrapper(createClient()) },
     );
     expect(result.current.error).toBeNull();
     expect(result.current.isFetched).toBe(false);
@@ -381,7 +410,7 @@ describe("read lifecycle", () => {
     mocks.getMessages.mockReturnValueOnce(pending.promise);
     const { result } = renderHook(
       () => useConversationMessages(ORG, PROJECT, CID),
-      { wrapper: clientWrapper(createClient()) }
+      { wrapper: clientWrapper(createClient()) },
     );
     await waitFor(() => expect(result.current.isLoading).toBe(true));
     expect(result.current.isReady).toBe(false);
@@ -396,11 +425,11 @@ describe("read lifecycle", () => {
     mocks.getMessages.mockRejectedValue(notFound());
     const { result } = renderHook(
       () => useConversationMessages(ORG, PROJECT, CID),
-      { wrapper: clientWrapper(createClient()) }
+      { wrapper: clientWrapper(createClient()) },
     );
     await waitFor(() => expect(result.current.error).not.toBeNull());
     expect(result.current.error?.name).toBe(
-      "ConversationMessagesNotFoundError"
+      "ConversationMessagesNotFoundError",
     );
     expect(result.current.isReady).toBe(false);
     expect(mocks.getMessages).toHaveBeenCalledTimes(1);

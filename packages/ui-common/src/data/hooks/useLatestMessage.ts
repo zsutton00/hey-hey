@@ -7,6 +7,7 @@ import {
   selectLatestTimelineMessage,
 } from "../collections/messages";
 import type { CollectionHookOptions, DataHookReturn } from "../core/types";
+import { getResponseStatus } from "../query/queryPolicy";
 import { useDataLayerQuery } from "../query/useDataLayerQuery";
 import { useWebsocketSubscriptions } from "./useWebsocketSubscriptions";
 
@@ -28,7 +29,7 @@ export function useLatestMessage(
   organizationId: string | undefined,
   projectId: string | undefined,
   conversationId: string | undefined,
-  options: UseLatestMessageOptions = {}
+  options: UseLatestMessageOptions = {},
 ): UseLatestMessageReturn {
   const enabled =
     (options.enabled ?? true) &&
@@ -42,7 +43,7 @@ export function useLatestMessage(
   const queryClient = useQueryClient();
   const listOptions = useMemo(
     () => conversationMessagesQueryOptions(queryClient, orgId, projId, convId),
-    [queryClient, orgId, projId, convId]
+    [queryClient, orgId, projId, convId],
   );
   // Observes the list without reading it; the list owner decides when to read.
   const fromList = useQuery({
@@ -54,7 +55,7 @@ export function useLatestMessage(
 
   const latestOptions = useMemo(
     () => latestMessageQueryOptions(queryClient, orgId, projId, convId),
-    [queryClient, orgId, projId, convId]
+    [queryClient, orgId, projId, convId],
   );
   const { result, state } = useDataLayerQuery(latestOptions, {
     enabled: enabled && !hasList,
@@ -68,7 +69,7 @@ export function useLatestMessage(
   // centrally; this only keeps the conversation subscribed.
   useWebsocketSubscriptions(
     { conversationIds: conversationId ? [conversationId] : [] },
-    { enabled }
+    { enabled },
   );
 
   const { refetch: refetchList } = fromList;
@@ -95,5 +96,14 @@ export function useLatestMessage(
     };
   }
 
-  return { ...state, data: result.data ?? null };
+  const error =
+    getResponseStatus(fromList.error) === 403 ? fromList.error : state.error;
+  const denied = getResponseStatus(error) === 403;
+
+  return {
+    ...state,
+    error,
+    isReady: !denied && state.isReady,
+    data: denied ? null : (result.data ?? null),
+  };
 }
