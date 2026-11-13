@@ -2893,6 +2893,56 @@ CreateReportCompletedAttemptError:
         data:
           $ref: "#/CreateReportCompletedAttempt"
 
+CreateReportValidationIssue:
+  type: object
+  additionalProperties: false
+  required: [path, keyword, message]
+  properties:
+    path:
+      type: string
+      description: JSON Pointer to the invalid payload location ("/" is the payload root). Names the missing property for `required` failures.
+    keyword:
+      type: string
+      description: JSON Schema keyword that failed, or a report-level code such as `reportTypeMismatch` or `schemaVersion`.
+    message:
+      type: string
+      description: Specific cause of the failure.
+    missingProperty:
+      type: string
+      description: Name of the missing required property, for `required` failures.
+    allowedValues:
+      type: array
+      items: {}
+      description: Accepted values, for `enum`/`const` failures.
+
+CreateReportValidationFailure:
+  type: object
+  additionalProperties: false
+  required: [reportType, schemaVersion, issues]
+  properties:
+    reportType:
+      type: string
+      description: Envelope report type the submission was validated as.
+    schemaVersion:
+      type: integer
+      description: Effective schema version the submission was validated against.
+    issues:
+      type: array
+      items:
+        $ref: "#/CreateReportValidationIssue"
+
+CreateReportValidationError:
+  allOf:
+    - $ref: "./common.yaml#/ApiErrorResponse"
+    - type: object
+      required: [code, data]
+      properties:
+        code:
+          type: string
+          enum: [REPORT_PAYLOAD_INVALID]
+        data:
+          $ref: "#/CreateReportValidationFailure"
+
 ChangeWalkthroughWorkspaceSource:
   type: object
   additionalProperties: false

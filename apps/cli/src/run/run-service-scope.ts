@@ -11,6 +11,7 @@ import type {
 } from '../shared/agent-bridge-contract/contract';
 import type { AgentSessionServiceScopeRequest } from '@hey-hey/contracts/api/models';
 import type { SystemMessageData } from '../shared/api/index';
+import type { SystemMessageDataNoticeSeverityEnum as NoticeSeverity } from '../shared/api/index';
 import type { Turn } from '../turn/turn';
 
 export type InputAdmission = NonNullable<SendMessageOptions['admittedInput']>;
@@ -65,7 +66,7 @@ export interface RunServiceScopeDeps {
   resumeInput(input: InternalRunPromptRequest): void;
   /** Persist and report the held settlement, then forget the admission's projected start. */
   releaseHeldAdmission(held: HeldAdmission): Promise<void>;
-  postAgentSystemMessage(text: string): Promise<void>;
+  postRuntimeNotice(text: string, severity: NoticeSeverity): Promise<void>;
 }
 
 /**
@@ -444,8 +445,9 @@ export class RunServiceScope {
     await this.deps.runStore.updateRunServiceScopeContinuation(this.deps.runId, delivered);
     this.continuation = delivered;
     this.deps.patchSession({ serviceScopeContinuation: delivered });
-    await this.deps.postAgentSystemMessage(
+    await this.deps.postRuntimeNotice(
       'Service scope was expanded. The provider session was replaced, and execution continued once from the saved interrupted-work checkpoint.',
+      'info',
     );
   }
 

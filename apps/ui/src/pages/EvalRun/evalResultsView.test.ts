@@ -30,12 +30,26 @@ const run = {
         id: "case-1",
         evalCaseId: "eval-case-1",
         title: "New field",
+        target: {
+          inputs: {
+            inputs: [
+              { kind: "text_message", text: "Open the maintenance task." },
+            ],
+          },
+        },
         grading: { expectations: " Find the events. ", checks: [], rubric: [] },
       },
       {
         id: "case-2",
         evalCaseId: "eval-case-2",
         title: "Desktop app",
+        target: {
+          inputs: {
+            inputs: [
+              { kind: "text_message", text: "Open the maintenance task." },
+            ],
+          },
+        },
         grading: { checks: [], rubric: [] },
       },
     ],
@@ -466,6 +480,13 @@ describe("coding attempts", () => {
         {
           id: "coding-case",
           title: "Add a field",
+          target: {
+            inputs: {
+              inputs: [
+                { kind: "text_message", text: "Open the maintenance task." },
+              ],
+            },
+          },
           grading: { checks: [], rubric: [] },
           coding: {
             serviceId: "svc-1",

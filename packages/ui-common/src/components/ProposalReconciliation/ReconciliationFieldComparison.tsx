@@ -1,3 +1,7 @@
+import {
+  EvalCaseInputsSection,
+  EVAL_CASE_INPUTS_SCHEMA_REF,
+} from "../shared/EvalCaseInputsSection";
 import { Alert, Stack, Typography } from "@mui/material";
 import type { ReconciliationPresentation } from "./reconciliationPresentation";
 import {
@@ -113,7 +117,12 @@ export function ReconciliationFieldComparison({
     return (
       <ModeSettingsSectionRenderer content={after} previousContent={before} />
     );
-  if (section && (isImageSectionDefinition(section) || section.kind === "json"))
+  if (
+    section &&
+    (isImageSectionDefinition(section) ||
+      section.kind === "json" ||
+      section.schemaRef === EVAL_CASE_INPUTS_SCHEMA_REF)
+  )
     return (
       <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
         {([before, after] as const).map((content, index) => (
@@ -123,6 +132,8 @@ export function ReconciliationFieldComparison({
             </Typography>
             {isImageSectionDefinition(section) ? (
               <ImageSectionRenderer content={content} label={section.label} />
+            ) : section.schemaRef === EVAL_CASE_INPUTS_SCHEMA_REF ? (
+              <EvalCaseInputsSection content={content} />
             ) : (
               <JsonSectionRenderer content={content} />
             )}

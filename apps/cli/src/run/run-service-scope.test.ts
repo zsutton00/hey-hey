@@ -91,7 +91,7 @@ const makeHarness = (
     }),
     resumeInput: vi.fn(),
     releaseHeldAdmission: vi.fn(() => Promise.resolve()),
-    postAgentSystemMessage: vi.fn(() => Promise.resolve()),
+    postRuntimeNotice: vi.fn(() => Promise.resolve()),
     ...depOverrides,
   };
   const scope = new RunServiceScope(deps);

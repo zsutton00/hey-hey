@@ -47,6 +47,7 @@ vi.mock("nuqs", async () => {
 });
 
 vi.mock("react-i18next", () => ({
+  initReactI18next: { type: "3rdParty", init: () => undefined },
   useTranslation: () => ({
     t: (key: string, options?: Record<string, unknown>) =>
       options ? `${key} ${JSON.stringify(options)}` : key,
@@ -70,7 +71,11 @@ vi.mock("@hey-hey/ui-common/services", () => ({
   },
 }));
 
-vi.mock("@hey-hey/ui-common/components", () => ({
+vi.mock("@hey-hey/ui-common/components", async (importActual) => ({
+  // The frozen-messages block is the behaviour under test, so it stays real.
+  EvalCaseInputsSection: (
+    await importActual<typeof import("@hey-hey/ui-common/components")>()
+  ).EvalCaseInputsSection,
   CreateProposal: () => <div data-testid="create-proposal" />,
   DeleteProposal: () => <div data-testid="delete-proposal" />,
   UpdateProposal: (props: { renderMode?: string }) => {
@@ -202,6 +207,14 @@ const run = (
           id: "case-1",
           evalCaseId: "eval-case-1",
           title: "Maintenance case",
+          target: {
+            inputs: {
+              inputs: [
+                { kind: "text_message", text: "Open the maintenance task." },
+                { kind: "text_message", text: "Now update its mockup." },
+              ],
+            },
+          },
           grading: {
             expectations: "Update the existing mockup.",
             checks: [{ id: "no-direct", description: "No direct changes" }],
@@ -212,6 +225,13 @@ const run = (
           id: "case-2",
           evalCaseId: "eval-case-2",
           title: "Mobile view",
+          target: {
+            inputs: {
+              inputs: [
+                { kind: "text_message", text: "Open the maintenance task." },
+              ],
+            },
+          },
           grading: { expectations: "Do nothing.", checks: [], rubric: [] },
         },
       ],
@@ -485,6 +505,53 @@ describe("EvalRunPage", () => {
     );
   });
 
+  it("shows the messages frozen on the run, numbered with the last judged, and one message plainly", () => {
+    givenRun(run("FINISHED"), mixedAttempts);
+    render(<EvalRunPage />);
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-finished"));
+    const detail = screen.getByTestId("eval-attempt-detail-finished");
+    const list = within(detail).getByTestId("run-inputs-list");
+    expect(list).toHaveTextContent("Open the maintenance task.");
+    expect(list).toHaveTextContent("Now update its mockup.");
+    expect(
+      within(detail).getAllByTestId("run-input-judged-badge"),
+    ).toHaveLength(1);
+  });
+
+  it("shows a single recorded message without numbering or a judged marker", () => {
+    const base = run("FINISHED");
+    const singleMessageRun = {
+      ...base,
+      payload: {
+        ...base.payload,
+        cases: [
+          {
+            id: "case-1",
+            evalCaseId: "eval-case-1",
+            title: "One",
+            target: {
+              inputs: {
+                inputs: [{ kind: "text_message", text: "Just this." }],
+              },
+            },
+            grading: { expectations: "x", checks: [], rubric: [] },
+          },
+        ],
+      },
+    } as unknown as EvalRunReport;
+    givenRun(singleMessageRun, [mixedAttempts[0]]);
+    render(<EvalRunPage />);
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-finished"));
+    const detail = screen.getByTestId("eval-attempt-detail-finished");
+    expect(
+      within(detail).getByTestId("run-inputs-single-note"),
+    ).toHaveTextContent("Just this.");
+    expect(within(detail).queryByTestId("run-inputs-list")).toBeNull();
+    expect(within(detail).queryByTestId("run-input-judged-badge")).toBeNull();
+  });
+
   it("lists provider sessions as rows with resume commands, not-reported ids and the judge input modal", () => {
     const sessionsRun = {
       id: "run-2",
@@ -502,6 +569,13 @@ describe("EvalRunPage", () => {
             id: "case-1",
             evalCaseId: "eval-case-1",
             title: "Case",
+            target: {
+              inputs: {
+                inputs: [
+                  { kind: "text_message", text: "Open the maintenance task." },
+                ],
+              },
+            },
             grading: { expectations: "Do the thing.", checks: [], rubric: [] },
           },
         ],

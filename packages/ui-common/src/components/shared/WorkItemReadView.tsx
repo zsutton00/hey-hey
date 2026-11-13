@@ -32,6 +32,10 @@ import { ImageSectionRenderer } from "./ImageSectionRenderer";
 import { isImageSectionDefinition } from "./imageSection";
 import { HtmlCssSectionRenderer } from "./HtmlCssSectionRenderer";
 import { StructuredMockupSectionRenderer } from "./StructuredMockupSectionRenderer";
+import {
+  EVAL_CASE_INPUTS_SCHEMA_REF,
+  EvalCaseInputsSection,
+} from "./EvalCaseInputsSection";
 import { JsonSectionRenderer } from "./JsonSectionRenderer";
 import { ModeFilesSectionRenderer } from "./ModeFilesSectionRenderer";
 import { isModeFilesSection, isModeSettingsSection } from "./modeFilesSection";
@@ -315,6 +319,20 @@ export const WorkItemReadView: React.FC<WorkItemReadViewProps> = ({
                     {section.label}
                   </Typography>
                   <ImageSectionRenderer content={value} label={section.label} />
+                </Box>
+              ) : section.kind === "json" &&
+                section.schemaRef === EVAL_CASE_INPUTS_SCHEMA_REF ? (
+                <Box
+                  data-testid="work-item-section"
+                  data-section-key={section.key}
+                >
+                  <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                    {section.label}
+                  </Typography>
+                  <EvalCaseInputsSection
+                    content={value}
+                    mentionConfig={mentionConfig}
+                  />
                 </Box>
               ) : section.kind === "json" &&
                 !isCanonicalFeatureRequirementsDefinition(

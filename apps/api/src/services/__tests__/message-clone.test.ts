@@ -1,4 +1,6 @@
 import { ProposalReconciliationService } from '../proposal/proposal-reconciliation.service';
+import { ProjectApprovalPolicyService } from 'src/services/proposal/project-approval-policy.service';
+import { createTestProjectApprovalPolicyService } from 'src/utils/testUtils';
 import { Test, TestingModule } from '@nestjs/testing';
 import { MessageService } from '../message.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -44,6 +46,10 @@ describe('MessageService - Clone Functionality', () => {
             ProposalReconciliationService,
             'decisionsForProposals'
           >,
+        },
+        {
+          provide: ProjectApprovalPolicyService,
+          useValue: createTestProjectApprovalPolicyService(),
         },
         { provide: PrismaService, useValue: mockPrismaService },
         {

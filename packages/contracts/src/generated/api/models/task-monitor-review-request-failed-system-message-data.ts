@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { SystemMessageDataActionHintEnum, SystemMessageDataCategoryEnum, SystemMessageDataSeverityEnum, SystemMessageDataTypeEnum } from './system-message-data.js';
+import { SystemMessageDataActionHintEnum, SystemMessageDataCategoryEnum, SystemMessageDataNoticeSeverityEnum, SystemMessageDataPresentationEnum, SystemMessageDataSeverityEnum, SystemMessageDataTypeEnum } from './system-message-data.js';
 import { TaskMonitorReviewRequestFailedSystemMessageDataAllOfAgentIdentityEnum, TaskMonitorReviewRequestFailedSystemMessageDataAllOfOutcomeEnum } from './task-monitor-review-request-failed-system-message-data-all-of.js';
 /* tslint:disable */
 /* eslint-disable */
@@ -54,6 +54,10 @@ export namespace TaskMonitorReviewRequestFailedSystemMessageData {
     export type SeverityEnum = SystemMessageDataSeverityEnum;
     export const CategoryEnum = SystemMessageDataCategoryEnum;
     export type CategoryEnum = SystemMessageDataCategoryEnum;
+    export const PresentationEnum = SystemMessageDataPresentationEnum;
+    export type PresentationEnum = SystemMessageDataPresentationEnum;
+    export const NoticeSeverityEnum = SystemMessageDataNoticeSeverityEnum;
+    export type NoticeSeverityEnum = SystemMessageDataNoticeSeverityEnum;
     export const ActionHintEnum = SystemMessageDataActionHintEnum;
     export type ActionHintEnum = SystemMessageDataActionHintEnum;
     export const AgentIdentityEnum = TaskMonitorReviewRequestFailedSystemMessageDataAllOfAgentIdentityEnum;

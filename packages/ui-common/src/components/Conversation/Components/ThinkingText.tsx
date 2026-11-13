@@ -13,7 +13,7 @@ interface ThinkingTextProps {
 const STARTING_TEXT = "Starting conversation...";
 const GATHERING_CONTEXT_TEXT = "Gathering context...";
 const WRITING_TEXT = "Writing Response...";
-const GIF_SIZE = 96;
+export const GIF_SIZE = 96;
 const WRITING_LATCH_MS = 5000;
 
 const SANS_SERIF_FONT =
@@ -28,7 +28,7 @@ const WRITING_WORDS = [
   "chunks.push(...)",
 ];
 const REVEAL_DURATION_MS = 3600;
-const CAPTION_SX = {
+export const CAPTION_SX = {
   fontFamily: SANS_SERIF_FONT,
   fontSize: "0.875rem",
   fontWeight: 700,

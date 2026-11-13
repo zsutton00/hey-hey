@@ -93,7 +93,7 @@ vi.mock("../Notifications", () => ({
         data-testid="project-notification-center"
         href={`/projects/${props.projectId}?view=coding&tab=agents`}
       >
-        Activity
+        Sessions
       </a>
     </>
   ),

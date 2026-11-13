@@ -8,6 +8,7 @@ export interface ProjectCapabilities {
   inviteToProject: boolean;
   removeMember: boolean;
   manageSettings: boolean;
+  manageApprovalPolicy: boolean;
   manageWorkItemTypes: boolean;
   deleteProject: boolean;
   viewProjectEmbeddings: boolean;
@@ -21,7 +22,7 @@ const OWNER_ONLY: readonly ProjectRole[] = [ProjectRole.Owner];
 
 const allows = (
   allowed: readonly ProjectRole[],
-  role: ProjectRole | null
+  role: ProjectRole | null,
 ): boolean => role !== null && allowed.includes(role);
 
 /**
@@ -29,12 +30,13 @@ const allows = (
  * matrix allows it. Presentation only: the server enforces the same rules.
  */
 export const projectCapabilitiesForRole = (
-  role: ProjectRole | null
+  role: ProjectRole | null,
 ): ProjectCapabilities => ({
   currentUserRole: role,
   inviteToProject: allows(OWNER_OR_ARCHITECT, role),
   removeMember: allows(OWNER_ONLY, role),
   manageSettings: allows(OWNER_OR_ARCHITECT, role),
+  manageApprovalPolicy: allows(OWNER_OR_ARCHITECT, role),
   manageWorkItemTypes: allows(OWNER_OR_ARCHITECT, role),
   deleteProject: allows(OWNER_ONLY, role),
   viewProjectEmbeddings: allows(OWNER_ONLY, role),
@@ -47,7 +49,7 @@ export const projectCapabilitiesForRole = (
  */
 export const useProjectCapabilities = (
   organizationId: string | undefined,
-  projectId: string | undefined
+  projectId: string | undefined,
 ): ProjectCapabilities => {
   const { data: project } = useProject(organizationId, projectId);
   const role = project?.currentUserRole ?? null;

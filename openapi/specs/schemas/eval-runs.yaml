@@ -164,8 +164,8 @@ EvalResolvedExecution:
 
 EvalCaseTarget:
   type: object
-  description: Recorded case context. Only the initiating request and focal entity reach the target; situation and supporting items are reviewer and judge context.
-  required: [situation, initiatingRequest, targetHandler]
+  description: Recorded case context. Only the inputs and focal entity reach the target; situation and supporting items are reviewer and judge context. Runs recorded before inputs existed carry `initiatingRequest` instead and are read as a one-message list.
+  required: [situation, inputs, targetHandler]
   properties:
     situation:
       type: string
@@ -183,9 +183,8 @@ EvalCaseTarget:
       items:
         type: string
         format: uuid
-    initiatingRequest:
-      type: string
-      description: The single request that starts the case.
+    inputs:
+      $ref: "#/EvalCaseInputs"
     targetHandler:
       $ref: "#/EvalTargetHandlerKey"
       description: Registry key of the handler under test.
@@ -196,6 +195,44 @@ EvalCaseTarget:
         Present exactly when `targetHandler` is `project_assistant`: the real
         handler whose policy, tools and prompt Project Assistant runs under.
         Always explicit; there is no default.
+
+EvalCaseTextMessageInput:
+  type: object
+  additionalProperties: false
+  description: A fixed user message, worded as the user would type it.
+  required: [kind, text]
+  properties:
+    kind:
+      type: string
+      enum: [text_message]
+    text:
+      type: string
+      minLength: 1
+      description: The message text, with any inline entity mentions as written.
+
+EvalCaseInput:
+  description: One input of an Eval Case. `kind` selects the member.
+  oneOf:
+    - $ref: "#/EvalCaseTextMessageInput"
+  discriminator:
+    propertyName: kind
+    mapping:
+      text_message: "#/EvalCaseTextMessageInput"
+
+EvalCaseInputs:
+  type: object
+  additionalProperties: false
+  description: >
+    Inputs section of an Eval Case: the ordered inputs that start and drive the
+    case. Never holds situation, expectations, checks or rubric. Checked at
+    authoring, approval and launch, and recorded with each run.
+  required: [inputs]
+  properties:
+    inputs:
+      type: array
+      minItems: 1
+      items:
+        $ref: "#/EvalCaseInput"
 
 EvalCheckDefinition:
   type: object
@@ -731,6 +768,51 @@ EvalRecordedToolCalls:
       minimum: 1
       description: Number of further calls left out once the list reached its cap.
 
+EvalAttemptTurn:
+  type: object
+  additionalProperties: false
+  description: >
+    One scripted message an attempt sent and what came of it, saved as soon as
+    the message settles. `index` is the message's position in the case's frozen
+    inputs. Evidence only; never shown to the tested agent.
+  required: [index, input, state]
+  properties:
+    index:
+      type: integer
+      minimum: 0
+      description: Position of the message in the frozen inputs, from 0.
+    turnId:
+      type: string
+      description: The Run's Turn that handled the message. Absent until the Turn started.
+    input:
+      type: string
+      description: The exact message text sent.
+    state:
+      type: string
+      enum: [STARTED, COMPLETED, FAILED, STOPPED]
+    reply:
+      type: string
+      description: The agent's reply to this message. Absent when none was produced.
+    startedAt:
+      type: string
+      format: date-time
+    completedAt:
+      type: string
+      format: date-time
+    recordedToolCalls:
+      allOf:
+        - $ref: "#/EvalRecordedToolCalls"
+      description: Only the calls made while handling this message.
+    measurement:
+      allOf:
+        - $ref: "#/EvalMeasurement"
+      description: >
+        Time, tokens and cost attributed to this message. Absent values were
+        not reported and are never zero.
+    measurementPartial:
+      type: boolean
+      description: True when some of this message's usage could not be attributed to it alone.
+
 EvalAttemptReportPayload:
   description: >
     Payload for EVAL_ATTEMPT reports, one per case, configuration and repeat. The
@@ -830,6 +912,18 @@ EvalAttemptReportPayload:
           description: >
             The tested agent's own tool calls, without results. Absent on
             attempts recorded before tool calls were kept.
+        turns:
+          type: array
+          description: >
+            The scripted messages the attempt started, in order, each saved as
+            it settled. Absent on attempts recorded before scripted
+            conversations, which ran only their final message.
+          items:
+            $ref: "#/EvalAttemptTurn"
+        judgedTurnIndex:
+          type: integer
+          minimum: 0
+          description: Index of the message the judge assessed. Absent when no final assessment happened.
         judgedOutput:
           type: string
           nullable: true

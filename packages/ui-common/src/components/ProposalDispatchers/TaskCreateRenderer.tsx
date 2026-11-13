@@ -1,4 +1,8 @@
 import {
+  EvalCaseInputsSection,
+  EVAL_CASE_INPUTS_SCHEMA_REF,
+} from "../shared/EvalCaseInputsSection";
+import {
   Alert,
   Box,
   Button,
@@ -526,6 +530,12 @@ export const TaskCreateRenderer: React.FC<{
                 <ImageSectionRenderer
                   content={section.proposedValue}
                   label={section.label}
+                />
+              ) : section.definition.schemaRef ===
+                EVAL_CASE_INPUTS_SCHEMA_REF ? (
+                <EvalCaseInputsSection
+                  content={section.proposedValue}
+                  mentionConfig={modeMentionConfig}
                 />
               ) : section.kind === "json" &&
                 !(

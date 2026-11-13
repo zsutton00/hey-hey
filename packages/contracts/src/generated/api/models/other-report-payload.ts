@@ -61,6 +61,9 @@ import type { EvalAttemptStatus } from './eval-attempt-status.js';
 import type { EvalAttemptStopReason } from './eval-attempt-stop-reason.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { EvalAttemptTurn } from './eval-attempt-turn.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { EvalConfiguration } from './eval-configuration.js';
 // May contain unused imports in some cases
 // @ts-ignore

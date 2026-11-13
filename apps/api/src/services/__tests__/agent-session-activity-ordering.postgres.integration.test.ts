@@ -1,3 +1,4 @@
+import { createTestProjectApprovalPolicyService } from 'src/utils/testUtils';
 import { randomUUID } from 'node:crypto';
 import { AgentSessionType, Prisma } from '@prisma/client';
 import { AgentSessionListSort } from '@hey-hey/contracts/api/models';
@@ -53,6 +54,7 @@ describeDatabase('Agent session message activity ordering PostgreSQL', () => {
       {} as any,
       { extractMentionTokens: jest.fn().mockReturnValue([]) } as any,
       {} as any,
+      createTestProjectApprovalPolicyService(),
     );
   });
 

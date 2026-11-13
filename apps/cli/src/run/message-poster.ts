@@ -9,7 +9,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { messageWriteFailureSchema } from './message-write-diagnostics';
 import { toOpenApiProjectId } from '../shared/api/identifierAdapters';
-import { MessageStatus, MessageType, SystemMessageDataTypeEnum } from '../shared/api/index';
+import {
+  MessageStatus,
+  MessageType,
+  SystemMessageDataNoticeSeverityEnum,
+  SystemMessageDataPresentationEnum,
+  SystemMessageDataTypeEnum,
+} from '../shared/api/index';
 import type {
   CreateSystemMessage,
   CreateUserMessage,
@@ -75,9 +81,7 @@ const isTransientError = (error: unknown): boolean => {
   if (!response) return true;
   const status = typeof response['status'] === 'number' ? response['status'] : null;
   if (status === null) return true;
-  return (
-    status !== 400 && status !== 401 && status !== 403 && status !== 409 && status !== 422
-  );
+  return status !== 400 && status !== 401 && status !== 403 && status !== 409 && status !== 422;
 };
 
 // Agents are instructed to write `@[type:id|title]` mentions, but sometimes
@@ -239,6 +243,8 @@ export class MessagePoster {
     conversationId: string;
     reason: FailureReason;
     serviceNames?: readonly string[];
+    cause?: string | undefined;
+    reference?: string | undefined;
     inert?: boolean;
   }): Promise<void> {
     try {
@@ -252,9 +258,14 @@ export class MessagePoster {
           projectId: toOpenApiProjectId(args.projectId),
           data: {
             type: 'AGENT',
-            response: failureMessage(args.reason, args.serviceNames),
+            response: failureMessage(args.reason, args.serviceNames, {
+              cause: args.cause,
+              reference: args.reference,
+            }),
             detectedIntent: 'agent_response',
             intentConfidence: 1,
+            presentation: SystemMessageDataPresentationEnum.Notice,
+            noticeSeverity: SystemMessageDataNoticeSeverityEnum.Warning,
             ...(args.inert ? { ragEnabled: false } : {}),
           },
         },

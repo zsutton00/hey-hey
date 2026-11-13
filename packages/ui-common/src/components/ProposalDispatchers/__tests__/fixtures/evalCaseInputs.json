@@ -1,0 +1,8 @@
+{
+  "inputs": [
+    {
+      "kind": "text_message",
+      "text": "Build a Projects page as a standalone prototype at apps/prototypes/projects.html — one self-contained HTML file with inline CSS, no scripts or external assets; static sample data is fine. The page lists the team's projects as cards showing name, description, members, progress and tags. People can filter by All / Active / Archived, search, and sort. Show one project in its inline editing state, where the name and description are edited directly on the card. New projects are created from the page header.\n\n@[mockup:0cdade9f-08ef-4409-9413-c94c11a13112|Fidelity Fixture 2: Project List with Editable Cards]"
+    }
+  ]
+}

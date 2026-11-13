@@ -290,6 +290,27 @@ const makeCreateReportTool = () => {
 
 // --- Tests -----------------------------------------------------------------
 
+describe('Run planning conversation messages', () => {
+  it('stamps a planning element with the planning handler, unmarked as a notice', async () => {
+    const poster = makePoster();
+    const pickRunner: (ctx: RunnerContext) => Runner = (ctx) => ({
+      run: async () => {
+        await ctx.run.persistCodingPlanElement('coding_plan_version' as never, {} as never);
+      },
+    });
+    const run = new Run(makeRunArgs(), makeCollaborators(pickRunner, poster));
+
+    await run.handleMessage(makeInput('startup_session'));
+    await drainMicrotasks();
+    run.cleanup();
+
+    const [args] = vi.mocked(poster.createOutOfBand).mock.calls[0]!;
+    expect(args.stamp).toMatchObject({ promptHandler: 'startup_session' });
+    expect(args.dto).toMatchObject({ data: { type: 'AGENT' } });
+    expect(args.dto).not.toMatchObject({ data: { presentation: expect.anything() } });
+  });
+});
+
 describe('Run handler-span report-emission contract', () => {
   it('does not warn when the span emits its required report and the run cleans up', async () => {
     const pickRunner: (ctx: RunnerContext) => Runner = (ctx) => ({

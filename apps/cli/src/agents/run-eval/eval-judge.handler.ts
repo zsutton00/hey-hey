@@ -3,12 +3,14 @@ import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import {
   EvalCaseMockupChecklistKindEnum,
   ReadRestriction,
+  type EvalAttemptTurn,
   type EvalAutomatedAssessment,
   type EvalCaseCoding,
   type EvalRecordedToolCalls,
   type EvalRunCaseInput,
 } from '@hey-hey/contracts/api/models';
 import type { PromptTypeHandler } from '../prompt-type-handler';
+import { finalEvalInputText } from './eval-targets';
 import { toolCallsEvidenceText } from './eval-recorded-tool-calls';
 
 export const EVAL_JUDGE_HANDLER_ID = 'eval_judge';
@@ -22,6 +24,12 @@ export interface EvalJudgePayload {
   outputText: string;
   /** The tested agent's own tool calls, in order, without results. Absent when not collected. */
   toolCalls?: EvalRecordedToolCalls;
+  /**
+   * Set when the case is a scripted conversation. The earlier messages and
+   * their replies explain the situation; only `judgedTurn` is assessed, and
+   * `outputText` and `toolCalls` are that message's alone.
+   */
+  conversation?: { earlierTurns: EvalAttemptTurn[]; judgedTurn: EvalAttemptTurn };
 }
 
 const judgeOutputSchema = z.object({
@@ -157,8 +165,29 @@ const checklistShape = (caseInput: EvalRunCaseInput): string => {
   return `,"checklistResults":[{"itemId":"","hit":true,"explanation":""}]${regressions}`;
 };
 
+const buildEarlierConversationSection = (
+  conversation: EvalJudgePayload['conversation'],
+): string[] => {
+  if (!conversation) {
+    return [];
+  }
+
+  return [
+    '',
+    '## Earlier conversation (context only)',
+    `The agent had already exchanged ${conversation.earlierTurns.length} message(s) with the user before the message under test. Use them to understand what the agent knew and how the conversation went. Nothing the agent did or said here can satisfy a check or earn credit: judge only message ${conversation.judgedTurn.index + 1}.`,
+    ...conversation.earlierTurns.flatMap((turn) => [
+      '',
+      `Message ${turn.index + 1} (${turn.state.toLowerCase()})`,
+      `User: ${turn.input}`,
+      `Agent: ${turn.reply ?? '[no reply]'}`,
+      `Tool calls: ${toolCallsEvidenceText(turn.recordedToolCalls)}`,
+    ]),
+  ];
+};
+
 const buildEvalJudgePrompt = (payload: EvalJudgePayload): string => {
-  const { caseInput, outputText, toolCalls } = payload;
+  const { caseInput, outputText, toolCalls, conversation } = payload;
   const { target, grading } = caseInput;
   return [
     'You are judging one attempt from an agent evaluation. You have no tools. Judge only the evidence below.',
@@ -166,10 +195,12 @@ const buildEvalJudgePrompt = (payload: EvalJudgePayload): string => {
     '## Case',
     `Title: ${caseInput.title}`,
     `Situation: ${target.situation}`,
-    `Request the agent received: ${target.initiatingRequest}`,
+    `${conversation ? 'Message under test' : 'Request the agent received'}: ${finalEvalInputText(target)}`,
     ...(grading.expectations
       ? ['', '## Expected and forbidden behaviour', grading.expectations]
       : []),
+    '',
+    ...buildEarlierConversationSection(conversation),
     '',
     '## Checks',
     ...grading.checks.map((check) => `- ${check.id}: ${check.description}`),
@@ -179,10 +210,12 @@ const buildEvalJudgePrompt = (payload: EvalJudgePayload): string => {
       (dimension) => `- ${dimension.key} (${dimension.name}): ${dimension.description}`,
     ),
     '',
-    "## The agent's output",
+    conversation ? "## The agent's output for the message under test" : "## The agent's output",
     outputText,
     '',
-    '## Tool calls the agent made',
+    conversation
+      ? '## Tool calls the agent made for the message under test'
+      : '## Tool calls the agent made',
     'Evidence of what the agent did, in order, with arguments and without results. No particular tool or sequence is required or preferred; equivalent routes are equally valid. Use it to see whether the agent noticed what the situation called for.',
     toolCallsEvidenceText(toolCalls),
     '',

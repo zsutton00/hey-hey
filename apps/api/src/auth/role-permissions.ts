@@ -7,6 +7,7 @@ type CapabilityRoles = {
 
 /** The one place that decides which roles may perform an administrative action. */
 export const ROLE_PERMISSIONS = {
+  manageApprovalPolicy: { project: [ProjectRole.OWNER, ProjectRole.ARCHITECT] },
   updateProject: { project: [ProjectRole.OWNER, ProjectRole.ARCHITECT] },
   deleteProject: { project: [ProjectRole.OWNER] },
   addProjectMember: { project: [ProjectRole.OWNER, ProjectRole.ARCHITECT] },

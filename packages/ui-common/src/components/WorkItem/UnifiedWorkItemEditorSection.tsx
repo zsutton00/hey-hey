@@ -12,6 +12,10 @@ import type { EditHistoryEntryDto } from "../../utils/textDiff";
 import { HtmlCssSectionEditor } from "./HtmlCssSectionEditor";
 import { StructuredMockupSectionEditor } from "./StructuredMockupSectionEditor";
 import { ModeSettingsSectionRenderer } from "../shared/ModeSettingsSectionRenderer";
+import {
+  EVAL_CASE_INPUTS_SCHEMA_REF,
+  EvalCaseInputsSection,
+} from "../shared/EvalCaseInputsSection";
 import { MODE_SETTINGS_SCHEMA_REF } from "../shared/modeFilesSection";
 import { ImageSectionRenderer } from "../shared/ImageSectionRenderer";
 import { isImageSectionDefinition } from "../shared/imageSection";
@@ -249,6 +253,16 @@ export const UnifiedWorkItemEditorSection: React.FC<Props> = ({
             organizationId={mentionConfig?.organizationId}
             projectId={mentionConfig?.projectId}
           />
+        ) : section.kind === "json" &&
+          section.definition?.schemaRef === EVAL_CASE_INPUTS_SCHEMA_REF ? (
+          <Box sx={{ padding: "0 14px 16px 14px" }}>
+            <EvalCaseInputsSection
+              content={getContentForSection(section.id)}
+              onChange={onChange}
+              disabled={disabled || isLoading}
+              mentionConfig={mentionConfig}
+            />
+          </Box>
         ) : isImageSectionDefinition(section.definition) ? (
           <ImageSectionRenderer
             content={getContentForSection(section.id)}

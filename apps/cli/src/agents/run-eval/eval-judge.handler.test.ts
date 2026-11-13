@@ -1,3 +1,4 @@
+import { oneMessageInputs } from './eval-case-inputs.fixture';
 import { describe, expect, it } from 'vitest';
 import type { EvalRunCaseInput } from '@hey-hey/contracts/api/models';
 import { evalJudgeHandler, parseEvalJudgeOutput } from './eval-judge.handler';
@@ -8,7 +9,7 @@ const caseInput: EvalRunCaseInput = {
   title: 'Mockup maintenance',
   target: {
     situation: 'The feature changed.',
-    initiatingRequest: 'Add a filter.',
+    inputs: oneMessageInputs('Add a filter.'),
     targetHandler: 'entity_conversation',
   },
   grading: {
@@ -145,5 +146,42 @@ describe('parseEvalJudgeOutput', () => {
 
   it('rejects output with no JSON', () => {
     expect(() => parseEvalJudgeOutput('looks fine', caseInput, 'now')).toThrow('no JSON');
+  });
+});
+
+describe('judging a scripted conversation', () => {
+  it('shows earlier messages as context only and judges the final message and its own tool calls', () => {
+    const prompt = evalJudgeHandler.buildPrompt({
+      caseInput,
+      outputText: 'FINAL-REPLY',
+      toolCalls: {
+        state: 'COLLECTED',
+        calls: [{ toolName: 'FINAL-TOOL', origin: 'RUN_OBSERVED', truncated: false }],
+      },
+      conversation: {
+        earlierTurns: [
+          {
+            index: 0,
+            input: 'EARLIER-USER',
+            state: 'COMPLETED',
+            reply: 'EARLIER-REPLY',
+            recordedToolCalls: {
+              state: 'COLLECTED',
+              calls: [{ toolName: 'EARLIER-TOOL', origin: 'RUN_OBSERVED', truncated: false }],
+            },
+          },
+        ],
+        judgedTurn: { index: 1, input: 'FINAL-USER', state: 'COMPLETED', reply: 'FINAL-REPLY' },
+      },
+    });
+
+    const [context, final] = prompt.split("## The agent's output for the message under test");
+    expect(context).toContain('Earlier conversation (context only)');
+    expect(context).toContain('EARLIER-USER');
+    expect(context).toContain('EARLIER-TOOL');
+    expect(context).toContain('can satisfy a check or earn credit');
+    expect(final).toContain('FINAL-REPLY');
+    expect(final).toContain('FINAL-TOOL');
+    expect(final).not.toContain('EARLIER-TOOL');
   });
 });

@@ -1,5 +1,46 @@
 # Changelog
 
+## v1.3.0
+
+### Reviews and approvals
+
+- Added project approval rules with reviewable conditions, approval counts, and explanations of the rule applied to each proposal.
+- Added separate settings for project rules and built-in rules, with changes saved together after confirmation.
+- Fixed approval settings failing to refresh and rules becoming unusable after a work-item type was retired.
+- Fixed grouped proposals bypassing reserved-entity validation.
+
+### Evaluations
+
+- Added ordered, fixed user messages to Eval Cases so evaluations can exercise a conversation and judge its final turn.
+- Added editing and reviewing individual Eval Case inputs and viewing the messages saved with an evaluation run.
+- Updated existing Eval Case requests to migrate to the new input format.
+
+### Previews and navigation
+
+- Added larger previews of recent reports on the project overview.
+- Added before-and-after mockup comparisons and highlighted changed screens and transitions in UX-flow reviews.
+- Updated UX-flow layouts to start from the designated starting screen.
+- Added a Sessions navigation link and nested child sessions beneath their parent session.
+- Fixed expanded task previews to close with Escape and allow page scrolling.
+- Fixed mention-preview card text becoming unreadable in dark mode.
+
+### Local setup
+
+- Added automatic download and checksum verification of the local search model during setup, removing the need to configure a model directory.
+
+### Agent conversations
+
+- Added question rounds with a separate answer for each question.
+- Updated automated notices to appear distinctly from agent replies.
+- Fixed session-start loading flashes and isolated failures when rendering a session's latest message.
+- Updated CLI startup failures to report their cause.
+
+### Upgrade and availability
+
+- Updated database migrations for approval policies, Eval Case inputs, and UX-flow starting screens. Apply the release's Flyway migrations before starting the updated API.
+- Updated the CLI source. Install a published CLI with `npm install -g @hey-hey/cli`; its release manifest identifies the selected container images.
+- Source and artifact publication do not establish that the hosted application has been upgraded.
+
 ## v1.2.1
 
 ### Fixes

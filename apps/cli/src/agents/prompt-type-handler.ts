@@ -62,6 +62,12 @@ export type { RecentUserReply };
  * resolver. Always present on the resolver-built context — empty when no
  * user messages fall in the trigger's window.
  */
+/** Where a handler reports why it could not read a terminal provider result. */
+export interface CompletionOutputDiagnostics {
+  runId: string;
+  logger: ServerLogger;
+}
+
 export interface PromptTypeHandlerContext {
   /** Agentic Run identity used to correlate handler diagnostics across a Turn. */
   runId?: string;
@@ -781,6 +787,7 @@ export interface PromptTypeHandler<TPayload> {
   transformCompletionOutput?(
     event: AssistantCompleteEvent,
     payload?: unknown,
+    diagnostics?: CompletionOutputDiagnostics,
   ): UpdateMessageDto | null;
 
   /**

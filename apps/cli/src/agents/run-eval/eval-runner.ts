@@ -1,5 +1,6 @@
 import type {
   EvalAttemptReportPayload,
+  EvalAttemptTurn,
   EvalAutomatedAssessment,
   EvalCost,
   EvalMeasurement,
@@ -21,6 +22,10 @@ export interface EvalTargetResult {
   cost?: EvalCost;
   /** The tested agent's own tool calls, without results. */
   recordedToolCalls?: EvalRecordedToolCalls;
+  /** Every scripted message the attempt started. Present only for multi-message cases. */
+  turns?: EvalAttemptTurn[];
+  /** The message the output above answers; set only when the final message completed. */
+  judgedTurnIndex?: number;
 }
 
 /** A target failure that still carries what the failed attempt measured. */
@@ -59,6 +64,8 @@ export type EvalAttemptPatch = Partial<
     | 'judgedOutput'
     | 'recordedChanges'
     | 'recordedToolCalls'
+    | 'turns'
+    | 'judgedTurnIndex'
     | 'summary'
   >
 >;
@@ -78,7 +85,12 @@ export interface EvalRunnerPorts {
   /** Judges an output against the case's recorded checks and rubric. */
   judge(
     attempt: EvalRecordedAttempt,
-    output: { outputText: string; toolCalls?: EvalRecordedToolCalls },
+    output: {
+      outputText: string;
+      toolCalls?: EvalRecordedToolCalls;
+      /** Present for scripted conversations: earlier messages are context, the last is judged. */
+      conversation?: { earlierTurns: EvalAttemptTurn[]; judgedTurn: EvalAttemptTurn };
+    },
     signal: AbortSignal,
   ): Promise<EvalJudgeResult>;
   now(): Date;
@@ -233,14 +245,33 @@ export const runEvalAttempts = async (
         measurements,
         judgedOutput: target.outputText,
         summary,
+        ...(target.judgedTurnIndex !== undefined
+          ? { judgedTurnIndex: target.judgedTurnIndex }
+          : {}),
         ...retainedToolCalls,
       });
+      const judgedTurn = target.turns?.find((turn) => turn.index === target.judgedTurnIndex);
       try {
         const judged = await ports.judge(
           attempt,
           {
             outputText: target.outputText,
-            ...(target.recordedToolCalls ? { toolCalls: target.recordedToolCalls } : {}),
+            // Only the judged message's own calls can satisfy a check.
+            ...(judgedTurn
+              ? {
+                  ...(judgedTurn.recordedToolCalls
+                    ? { toolCalls: judgedTurn.recordedToolCalls }
+                    : {}),
+                  conversation: {
+                    earlierTurns: (target.turns ?? []).filter(
+                      (turn) => turn.index < judgedTurn.index,
+                    ),
+                    judgedTurn,
+                  },
+                }
+              : target.recordedToolCalls
+                ? { toolCalls: target.recordedToolCalls }
+                : {}),
           },
           controller.signal,
         );

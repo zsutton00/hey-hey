@@ -10,7 +10,7 @@ import {
 vi.mock("../../../data/hooks/useProject", () => ({ useProject: vi.fn() }));
 
 const stubProject = (
-  currentUserRole: ProjectRole | null
+  currentUserRole: ProjectRole | null,
 ): ReturnType<typeof useProject> =>
   ({
     data:
@@ -27,6 +27,7 @@ describe("projectCapabilitiesForRole", () => {
         inviteToProject: true,
         removeMember: true,
         manageSettings: true,
+        manageApprovalPolicy: true,
         manageWorkItemTypes: true,
         deleteProject: true,
         viewProjectEmbeddings: true,
@@ -38,6 +39,7 @@ describe("projectCapabilitiesForRole", () => {
         inviteToProject: true,
         removeMember: false,
         manageSettings: true,
+        manageApprovalPolicy: true,
         manageWorkItemTypes: true,
         deleteProject: false,
         viewProjectEmbeddings: false,
@@ -49,6 +51,7 @@ describe("projectCapabilitiesForRole", () => {
         inviteToProject: false,
         removeMember: false,
         manageSettings: false,
+        manageApprovalPolicy: false,
         manageWorkItemTypes: false,
         deleteProject: false,
         viewProjectEmbeddings: false,
@@ -60,6 +63,7 @@ describe("projectCapabilitiesForRole", () => {
         inviteToProject: false,
         removeMember: false,
         manageSettings: false,
+        manageApprovalPolicy: false,
         manageWorkItemTypes: false,
         deleteProject: false,
         viewProjectEmbeddings: false,
@@ -71,6 +75,7 @@ describe("projectCapabilitiesForRole", () => {
         inviteToProject: false,
         removeMember: false,
         manageSettings: false,
+        manageApprovalPolicy: false,
         manageWorkItemTypes: false,
         deleteProject: false,
         viewProjectEmbeddings: false,
@@ -96,7 +101,7 @@ describe("useProjectCapabilities", () => {
 
     expect(useProject).toHaveBeenCalledWith("org-1", "p-1");
     expect(result.current).toEqual(
-      projectCapabilitiesForRole(ProjectRole.Architect)
+      projectCapabilitiesForRole(ProjectRole.Architect),
     );
   });
 

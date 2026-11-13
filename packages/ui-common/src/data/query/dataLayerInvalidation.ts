@@ -1,3 +1,4 @@
+import { projectApprovalPolicyRoot } from "../collections/projectApprovalPolicy";
 import { reportKeys } from "../collections/reports";
 import { projectKeys } from "../collections/projects";
 import { userKeys } from "../collections/users";
@@ -54,6 +55,7 @@ import { invalidateWithFollowUpRead } from "./invalidateWithFollowUpRead";
 export const dataLayerQueryRoots = () => [
   reportKeys.root(),
   projectKeys.root(),
+  projectApprovalPolicyRoot(),
   userKeys.root(),
   organizationKeys.root(),
   integrationKeys.root(),

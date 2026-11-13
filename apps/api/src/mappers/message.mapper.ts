@@ -99,14 +99,12 @@ function mapMessage(
       : undefined,
     ...(result.proposals && result.status === MessageStatus.Completed
       ? {
-          proposals: result.proposals.map((proposal) => {
+          proposals: result.proposals.flatMap((proposal) => {
             const dto = proposalDtosById.get(proposal.id);
             if (!dto) {
-              throw new Error(
-                `Missing API-owned approval state for proposal ${proposal.id}`,
-              );
+              return [];
             }
-            return dto;
+            return [dto];
           }),
         }
       : {}),

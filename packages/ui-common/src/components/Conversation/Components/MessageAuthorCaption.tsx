@@ -1,7 +1,11 @@
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
 import { Box, Tooltip, Typography } from "@mui/material";
 import type { SxProps, Theme } from "@mui/material";
 import React, { useEffect, useState } from "react";
 import {
+  SystemMessageDataNoticeSeverityEnum,
+  SystemMessageDataPresentationEnum,
   UserMessageAgentInputProvenance,
   type SystemMessageData,
   type UserMessageAgentInputProvenance as UserMessageAgentInputProvenanceType,
@@ -33,6 +37,37 @@ export interface MessageAuthorCaptionProps {
   status?: React.ReactNode;
   sx?: SxProps<Theme>;
 }
+
+export type NoticeSeverity = SystemMessageDataNoticeSeverityEnum;
+
+/**
+ * A SYSTEM message is an automated notice only when its publisher marked it;
+ * a notice without a severity is informational.
+ */
+export const getNoticeSeverity = (
+  messageData: SystemMessageData | null | undefined,
+): NoticeSeverity | null =>
+  messageData?.presentation === SystemMessageDataPresentationEnum.Notice
+    ? (messageData.noticeSeverity ?? SystemMessageDataNoticeSeverityEnum.Info)
+    : null;
+
+export const getNoticeVisualTreatmentSx = (
+  theme: Theme,
+  severity: NoticeSeverity,
+) => {
+  const palette =
+    severity === SystemMessageDataNoticeSeverityEnum.Warning
+      ? theme.palette.warning
+      : theme.palette.info;
+
+  return {
+    backgroundColor: theme.palette.background.paper,
+    border: `1px solid ${palette.main}`,
+    borderRadius: 1,
+    px: 1.5,
+    py: 1,
+  };
+};
 
 export type UserMessageAuthorship = "human" | "monitor";
 
@@ -108,10 +143,44 @@ export const MessageAuthorCaption: React.FC<MessageAuthorCaptionProps> = ({
       : `${interstitialActive ? "thinking" : "thought"} for ${formatInterstitialDuration(
           interstitialDuration,
         )}`;
+  const noticeSeverity = getNoticeSeverity(messageData);
   const isAgentMessage = messageData?.type === "AGENT";
   const isSessionMonitorMessage = messageData?.type === "SESSION_MONITOR";
   const isMonitorAuthoredUserMessage =
     getUserMessageAuthorship(userMessageProvenance) === "monitor";
+
+  if (noticeSeverity) {
+    const NoticeIcon =
+      noticeSeverity === SystemMessageDataNoticeSeverityEnum.Warning
+        ? WarningAmberOutlinedIcon
+        : InfoOutlinedIcon;
+
+    return (
+      <Typography
+        variant="caption"
+        color={
+          noticeSeverity === SystemMessageDataNoticeSeverityEnum.Warning
+            ? "warning.main"
+            : "info.main"
+        }
+        component="div"
+        data-testid={`notice-caption-${messageId}`}
+        data-notice-severity={noticeSeverity}
+        sx={sx}
+      >
+        <Box
+          component="span"
+          sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+        >
+          <NoticeIcon sx={{ fontSize: "1.25em" }} aria-hidden />
+          <span>
+            System notice
+            {timestamp ? ` · ${timestamp}` : status ? <> · {status}</> : null}
+          </span>
+        </Box>
+      </Typography>
+    );
+  }
 
   if (
     isAgentMessage ||

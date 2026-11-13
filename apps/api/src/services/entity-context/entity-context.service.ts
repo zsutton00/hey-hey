@@ -8,12 +8,7 @@ import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
 } from 'src/services/tasks/work-item-type-keys';
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  Optional,
-} from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { WorkStatus } from '@prisma/client';
 
 import { WorkItemTypeRegistryService } from '../tasks/work-item-type-registry.service';
@@ -466,8 +461,7 @@ export class EntityContextService {
     private readonly graphsClientService: GraphsClientService,
     private readonly workItemTypeRegistry: WorkItemTypeRegistryService,
     private readonly taskService: TaskService,
-    @Optional()
-    private readonly projectApprovalPolicyService: ProjectApprovalPolicyService = new ProjectApprovalPolicyService(),
+    private readonly projectApprovalPolicyService: ProjectApprovalPolicyService,
   ) {
     this.visibility = new ReadVisibilityService(prisma);
   }
@@ -540,6 +534,7 @@ export class EntityContextService {
             {
               workItemTypeRegistry: this.workItemTypeRegistry,
               reconciliation: this.reconciliation,
+              omitUnresolvableTargets: true,
             },
           )
         : undefined;

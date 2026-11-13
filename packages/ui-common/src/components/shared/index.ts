@@ -23,6 +23,7 @@ export * from "./StructuredMockupSectionThumbnail";
 export * from "./DiagramThumbnail";
 export * from "./VisualArtifactCard";
 export * from "./visualArtifacts";
+export * from "./EvalCaseInputsSection";
 export * from "./JsonSectionRenderer";
 export * from "./ModeFilesSectionRenderer";
 export * from "./ModeSettingsSectionRenderer";

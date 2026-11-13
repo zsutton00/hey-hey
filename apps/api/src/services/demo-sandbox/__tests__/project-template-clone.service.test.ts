@@ -1,3 +1,4 @@
+import { createTestProjectApprovalPolicyService } from 'src/utils/testUtils';
 import { Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
@@ -788,7 +789,7 @@ describe('ProjectTemplateCloneService', () => {
   it('keeps the default content approval policy for a project member', async () => {
     const f = fixture();
     await f.transaction();
-    const policy = await new ProjectApprovalPolicyService().resolve(
+    const policy = await createTestProjectApprovalPolicyService().resolve(
       f.input.targetProjectId as ProjectId,
     );
     const config = evaluatePermissions(

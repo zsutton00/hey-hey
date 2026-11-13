@@ -358,3 +358,31 @@ export const repeatCellView = (
   }
   return view;
 };
+
+const isStoredInputs = (value: unknown): value is { inputs: unknown[] } =>
+  typeof value === "object" &&
+  value !== null &&
+  "inputs" in value &&
+  Array.isArray(value.inputs);
+
+const parseJson = (text: string): unknown => {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * How many messages an Eval Case will send, read from its stored Inputs
+ * section. Null when the section is missing or unreadable, so the row shows
+ * no count rather than a guess.
+ */
+export const plannedMessageCount = (
+  sections: readonly { key: string; content?: unknown }[] | undefined,
+): number | null => {
+  const stored = sections?.find((section) => section.key === "inputs")?.content;
+  const decoded = typeof stored === "string" ? parseJson(stored) : stored;
+
+  return isStoredInputs(decoded) ? decoded.inputs.length : null;
+};

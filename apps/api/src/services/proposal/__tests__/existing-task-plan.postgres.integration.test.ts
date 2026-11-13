@@ -24,7 +24,7 @@ import { ProposalReconciliationGroupService } from '../proposal-reconciliation-g
 import { ProposalApprovalService } from '../proposal-approval.service';
 import { ProposalService } from '../proposal.service';
 import { ProposalValidationEngine } from '../proposal-validation.engine';
-import { ProjectApprovalPolicyService } from '../project-approval-policy.service';
+import { createTestProjectApprovalPolicyService } from 'src/utils/testUtils';
 import { PendingEdgeService } from '../pending-edge.service';
 import { PlanToolsProvider } from '../../../mcp/tools/plan-tools.provider';
 import {
@@ -194,7 +194,7 @@ describe('existing-task Plan public approval with PostgreSQL', () => {
       undefined,
       docs,
     );
-    const policy = new ProjectApprovalPolicyService();
+    const policy = createTestProjectApprovalPolicyService();
     const access = { assertProjectRole: async () => undefined };
     approval = new ProposalApprovalService(
       prisma,

@@ -1,3 +1,6 @@
+import { ProjectApprovalPolicyService } from '../services/proposal/project-approval-policy.service';
+import { ProjectApprovalPolicyStore } from '../services/proposal/project-approval-policy.store';
+import { ProjectApprovalPolicyValidation } from '../services/proposal/project-approval-policy.validation';
 import type { INestApplicationContext } from '@nestjs/common';
 import { Initiative, Prisma, ProjectStatus } from '@prisma/client';
 import { Client } from '@temporalio/client';
@@ -5122,3 +5125,14 @@ export const createMockWorkflowExecutionService = () => ({
   validateSkipToNode: jest.fn().mockResolvedValue({ canSkip: true }),
   getAvailableSkipNodes: jest.fn().mockResolvedValue([]),
 });
+
+/** Concrete policy resolver with only its database boundary replaced. */
+export function createTestProjectApprovalPolicyService(
+  prisma = createMockPrismaService(),
+) {
+  prisma.db.$queryRaw.mockResolvedValue([]);
+  return new ProjectApprovalPolicyService(
+    new ProjectApprovalPolicyStore(prisma as unknown as PrismaService),
+    new ProjectApprovalPolicyValidation({ isTypeActiveForProject: () => true }),
+  );
+}

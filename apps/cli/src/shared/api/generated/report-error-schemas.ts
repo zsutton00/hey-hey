@@ -462,4 +462,102 @@ export const reportErrorSchemas = {
       },
     ],
   },
+  CreateReportValidationError: {
+    allOf: [
+      {
+        type: 'object',
+        required: ['success', 'message', 'timestamp', 'statusCode'],
+        properties: {
+          success: {
+            type: 'boolean',
+            description: 'Indicates if the request was successful',
+            example: false,
+          },
+          message: {
+            type: 'string',
+            description: 'Error message',
+            example: 'Resource not found',
+          },
+          data: {
+            description: 'No data for error responses',
+          },
+          timestamp: {
+            type: 'string',
+            format: 'date-time',
+            description: 'ISO timestamp of when the response was generated',
+            example: '2023-12-01T12:00:00.000Z',
+          },
+          statusCode: {
+            type: 'integer',
+            description: 'HTTP status code',
+            example: 404,
+          },
+          path: {
+            type: 'string',
+            description: 'Request path',
+            example: '/api/v1/projects/123',
+          },
+        },
+      },
+      {
+        type: 'object',
+        required: ['code', 'data'],
+        properties: {
+          code: {
+            type: 'string',
+            enum: ['REPORT_PAYLOAD_INVALID'],
+          },
+          data: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['reportType', 'schemaVersion', 'issues'],
+            properties: {
+              reportType: {
+                type: 'string',
+                description: 'Envelope report type the submission was validated as.',
+              },
+              schemaVersion: {
+                type: 'integer',
+                description: 'Effective schema version the submission was validated against.',
+              },
+              issues: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['path', 'keyword', 'message'],
+                  properties: {
+                    path: {
+                      type: 'string',
+                      description:
+                        'JSON Pointer to the invalid payload location ("/" is the payload root). Names the missing property for `required` failures.',
+                    },
+                    keyword: {
+                      type: 'string',
+                      description:
+                        'JSON Schema keyword that failed, or a report-level code such as `reportTypeMismatch` or `schemaVersion`.',
+                    },
+                    message: {
+                      type: 'string',
+                      description: 'Specific cause of the failure.',
+                    },
+                    missingProperty: {
+                      type: 'string',
+                      description:
+                        'Name of the missing required property, for `required` failures.',
+                    },
+                    allowedValues: {
+                      type: 'array',
+                      items: {},
+                      description: 'Accepted values, for `enum`/`const` failures.',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    ],
+  },
 } as const;

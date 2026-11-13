@@ -1,3 +1,4 @@
+import { OrdinaryProposalApprovalReview } from "./ProposalApprovalDetails";
 import { Box, Paper, Stack, Typography } from "@mui/material";
 import React, { useCallback, useMemo } from "react";
 import { ProposalAction } from "../../api";
@@ -369,13 +370,20 @@ export const CreateProposal: React.FC<CreateProposalProps> = ({
         </MentionExpansionProvider>
       );
 
-      return renderMode === "group-member" ||
-        isExistingTaskPlanProposal(proposal) ? (
-        rendered
-      ) : (
-        <RejectedProposalCard proposal={proposal} status={status}>
-          {rendered}
-        </RejectedProposalCard>
+      return (
+        <OrdinaryProposalApprovalReview
+          proposal={proposal}
+          renderMode={renderMode}
+        >
+          {renderMode === "group-member" ||
+          isExistingTaskPlanProposal(proposal) ? (
+            rendered
+          ) : (
+            <RejectedProposalCard proposal={proposal} status={status}>
+              {rendered}
+            </RejectedProposalCard>
+          )}
+        </OrdinaryProposalApprovalReview>
       );
     },
     [

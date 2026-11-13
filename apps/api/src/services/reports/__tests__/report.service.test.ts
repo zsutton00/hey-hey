@@ -4,6 +4,7 @@ import {
   readPolicyFor,
 } from 'src/read-restriction/read-policy';
 import {
+  Logger,
   BadRequestException,
   ConflictException,
   NotFoundException,
@@ -11,6 +12,7 @@ import {
 import { Prisma } from '@prisma/client';
 import {
   CreateReportDto,
+  UpdateReportDto,
   PlanReportPayload,
   FileTouchServiceHistorySortBy,
   FileTouchServiceHistorySortOrder,
@@ -184,14 +186,14 @@ describe('ReportService', () => {
           summary: 'Missing target',
         } as any,
       }),
-    ).rejects.toThrow('Invalid CHANGE_WALKTHROUGH payload');
+    ).rejects.toThrow(/CHANGE_WALKTHROUGH report .*"targetRunId"/);
     await expect(
       service.create(organizationId, {
         reportType: ReportType.ChangeWalkthrough,
         audience: ReportAudience.ProjectVisible,
         payload: { reportType: 'REVIEW', summary: 'Wrong variant' } as any,
       }),
-    ).rejects.toThrow('Invalid CHANGE_WALKTHROUGH payload');
+    ).rejects.toThrow('must match the envelope reportType');
   });
 
   let prisma: ReturnType<typeof createMockPrismaService>;
@@ -277,6 +279,341 @@ describe('ReportService', () => {
       flowExecutionService as any,
       nodeExecutionService as any,
     );
+  });
+
+  const syncSource = {
+    entityType: 'feature' as const,
+    entityId: 'feature-1',
+    title: 'Reports',
+  };
+
+  const syncPayload = {
+    reportType: 'FEATURE_SYNC' as const,
+    summary: 'Reconcile the reviewed feature with delivered behavior.',
+    discrepancies: [
+      {
+        sourceType: 'feature' as const,
+        source: syncSource,
+        description: 'The report creation boundary accepts malformed findings.',
+      },
+    ],
+    reconciliationOptions: [
+      {
+        description: 'Validate reports before persistence.',
+        discrepancyIndices: [0],
+      },
+    ],
+  };
+
+  it.each(['discrepancies', 'reconciliationOptions', 'summary', 'reportType'])(
+    'rejects FEATURE_SYNC missing %s before persistence and logs the cause',
+    async (field) => {
+      const payload: Record<string, unknown> = { ...syncPayload };
+      delete payload[field];
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      try {
+        await expect(
+          service.create(
+            'org-1' as OrganizationId,
+            {
+              reportType: ReportType.FeatureSync,
+              audience: ReportAudience.ProjectVisible,
+              payload,
+            } as unknown as CreateReportDto,
+          ),
+        ).rejects.toThrow(field);
+        expect(prisma.db.report.create).not.toHaveBeenCalled();
+        expect(eventPublisher.publishInTransaction).not.toHaveBeenCalled();
+        expect(warn).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.objectContaining({
+            reportType: 'FEATURE_SYNC',
+            issues: expect.arrayContaining([
+              expect.objectContaining({
+                keyword: 'required',
+                missingProperty: field,
+              }),
+            ]),
+          }),
+        );
+      } finally {
+        warn.mockRestore();
+      }
+    },
+  );
+
+  it('rejects malformed nested FEATURE_SYNC fields', async () => {
+    await expect(
+      service.create(
+        'org-1' as OrganizationId,
+        {
+          reportType: ReportType.FeatureSync,
+          audience: ReportAudience.ProjectVisible,
+          payload: {
+            ...syncPayload,
+            reconciliationOptions: [{ description: 'Repair' }],
+          },
+        } as unknown as CreateReportDto,
+      ),
+    ).rejects.toThrow('discrepancyIndices');
+    expect(prisma.db.report.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    syncPayload,
+    { ...syncPayload, discrepancies: [], reconciliationOptions: [] },
+  ])('persists valid FEATURE_SYNC payloads unchanged', async (payload) => {
+    prisma.db.report.create.mockImplementation(async ({ data }) => ({
+      ...data,
+      id: 'report-sync',
+      version: 1,
+      createdAt: new Date(),
+      reportEntities: [],
+    }));
+    const result = await service.create('org-1' as OrganizationId, {
+      reportType: ReportType.FeatureSync,
+      audience: ReportAudience.ProjectVisible,
+      payload,
+    });
+    expect(result.payload).toEqual(payload);
+    expect(prisma.db.report.create).toHaveBeenCalled();
+  });
+
+  it.each([1, 2] as const)(
+    'preserves valid decision version %s',
+    async (schemaVersion) => {
+      const dto: CreateReportDto =
+        schemaVersion === 1
+          ? {
+              reportType: 'FEATURE_SYNC_DECISION',
+              schemaVersion: 1,
+              audience: ReportAudience.ProjectVisible,
+              payload: { ...syncPayload, reportType: 'FEATURE_SYNC_DECISION' },
+            }
+          : {
+              reportType: 'FEATURE_SYNC_DECISION',
+              schemaVersion: 2,
+              audience: ReportAudience.ProjectVisible,
+              payload: {
+                reportType: 'FEATURE_SYNC_DECISION',
+                summary: syncPayload.summary,
+                decisionGroups: [
+                  {
+                    id: 'repair',
+                    affectedEntities: [syncSource],
+                    title: 'Validate findings',
+                    summary: 'Choose whether to repair the boundary.',
+                    choices: [
+                      {
+                        id: 'fix',
+                        label: 'Validate reports',
+                        isNoChange: false,
+                      },
+                      {
+                        id: 'keep',
+                        label: 'Keep current behavior',
+                        isNoChange: true,
+                      },
+                    ],
+                  },
+                ],
+              },
+            };
+      prisma.db.report.create.mockImplementation(async ({ data }) => ({
+        ...data,
+        id: 'report-decision',
+        version: 1,
+        createdAt: new Date(),
+        reportEntities: [],
+      }));
+      expect(
+        (await service.create('org-1' as OrganizationId, dto)).payload,
+      ).toEqual(dto.payload);
+    },
+  );
+
+  it.each([1, 2] as const)(
+    'rejects malformed decision version %s before persistence',
+    async (schemaVersion) => {
+      await expect(
+        service.create(
+          'org-1' as OrganizationId,
+          {
+            reportType: 'FEATURE_SYNC_DECISION',
+            schemaVersion,
+            audience: ReportAudience.ProjectVisible,
+            payload: {
+              reportType: 'FEATURE_SYNC_DECISION',
+              summary: 'Malformed decision',
+            },
+          } as unknown as CreateReportDto,
+        ),
+      ).rejects.toThrow(
+        schemaVersion === 1 ? 'discrepancies' : 'decisionGroups',
+      );
+      expect(prisma.db.report.create).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects invalid findings through transactional creation too', async () => {
+    const tx = { report: { create: jest.fn() } };
+    await expect(
+      service.createWithIdInTransaction(
+        tx as unknown as Prisma.TransactionClient,
+        'org-1' as OrganizationId,
+        'report-sync',
+        {
+          reportType: ReportType.FeatureSync,
+          audience: ReportAudience.ProjectVisible,
+          payload: { ...syncPayload, discrepancies: null },
+        } as unknown as CreateReportDto,
+      ),
+    ).rejects.toThrow('must be array');
+    expect(tx.report.create).not.toHaveBeenCalled();
+    expect(eventPublisher.publishInTransaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects unsupported decision schema versions before persistence', async () => {
+    await expect(
+      service.create(
+        'org-1' as OrganizationId,
+        {
+          reportType: 'FEATURE_SYNC_DECISION',
+          schemaVersion: 3,
+          audience: ReportAudience.ProjectVisible,
+          payload: { ...syncPayload, reportType: 'FEATURE_SYNC_DECISION' },
+        } as unknown as CreateReportDto,
+      ),
+    ).rejects.toMatchObject({
+      failure: {
+        issues: [
+          expect.objectContaining({
+            path: '/schemaVersion',
+            allowedValues: [1, 2],
+          }),
+        ],
+      },
+    });
+    expect(prisma.db.report.create).not.toHaveBeenCalled();
+  });
+
+  it('returns a stable code, report type, version and field details to the caller', async () => {
+    const rejected = await service
+      .create(
+        'org-1' as OrganizationId,
+        {
+          reportType: ReportType.Snapshot,
+          audience: ReportAudience.ProjectVisible,
+          payload: { reportType: 'SNAPSHOT' },
+        } as unknown as CreateReportDto,
+      )
+      .catch((error: unknown) => error);
+
+    expect((rejected as BadRequestException).getResponse()).toMatchObject({
+      code: 'REPORT_PAYLOAD_INVALID',
+      data: {
+        reportType: 'SNAPSHOT',
+        schemaVersion: 1,
+        issues: [
+          expect.objectContaining({
+            path: '/summary',
+            missingProperty: 'summary',
+          }),
+        ],
+      },
+    });
+    expect(prisma.db.report.create).not.toHaveBeenCalled();
+  });
+
+  describe('payload-changing updates', () => {
+    const stored = (overrides: Record<string, unknown> = {}) => ({
+      id: 'report-1',
+      payload: { reportType: 'SNAPSHOT', summary: 'stored' },
+      reportType: 'SNAPSHOT',
+      schemaVersion: 1,
+      ...overrides,
+    });
+
+    it('rejects a schema-invalid replacement payload before the transaction', async () => {
+      prisma.db.report.findFirst.mockResolvedValue(stored());
+
+      await expect(
+        service.update('org-1' as OrganizationId, 'report-1', {
+          payload: { reportType: 'SNAPSHOT' },
+        } as unknown as UpdateReportDto),
+      ).rejects.toMatchObject({
+        failure: { reportType: 'SNAPSHOT', schemaVersion: 1 },
+      });
+      expect(prisma.db.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects a replacement payload that names another report type', async () => {
+      prisma.db.report.findFirst.mockResolvedValue(stored());
+
+      await expect(
+        service.update('org-1' as OrganizationId, 'report-1', {
+          payload: { reportType: 'COMMIT', summary: 'x', files: [] },
+        } as unknown as UpdateReportDto),
+      ).rejects.toMatchObject({
+        failure: {
+          issues: [expect.objectContaining({ keyword: 'reportTypeMismatch' })],
+        },
+      });
+      expect(prisma.db.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('validates a version change against the stored payload', async () => {
+      prisma.db.report.findFirst.mockResolvedValue(
+        stored({
+          reportType: 'FEATURE_SYNC_DECISION',
+          payload: { ...syncPayload, reportType: 'FEATURE_SYNC_DECISION' },
+        }),
+      );
+
+      await expect(
+        service.update('org-1' as OrganizationId, 'report-1', {
+          schemaVersion: 2,
+        } as UpdateReportDto),
+      ).rejects.toMatchObject({
+        failure: {
+          schemaVersion: 2,
+          issues: expect.arrayContaining([
+            expect.objectContaining({ missingProperty: 'decisionGroups' }),
+          ]),
+        },
+      });
+      expect(prisma.db.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('validates a replacement payload against the stored schema version', async () => {
+      prisma.db.report.findFirst.mockResolvedValue(
+        stored({
+          reportType: 'FEATURE_SYNC_DECISION',
+          schemaVersion: 2,
+          payload: { reportType: 'FEATURE_SYNC_DECISION', summary: 'stored' },
+        }),
+      );
+
+      await expect(
+        service.update('org-1' as OrganizationId, 'report-1', {
+          payload: { ...syncPayload, reportType: 'FEATURE_SYNC_DECISION' },
+        } as unknown as UpdateReportDto),
+      ).rejects.toMatchObject({ failure: { schemaVersion: 2 } });
+      expect(prisma.db.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('does not re-validate stored content for metadata-only updates', async () => {
+      prisma.db.report.findFirst.mockResolvedValue(
+        stored({ payload: { malformed: true } }),
+      );
+      prisma.db.$transaction.mockRejectedValue(new Error('reached write'));
+
+      await expect(
+        service.update('org-1' as OrganizationId, 'report-1', {
+          ragEnabled: false,
+        } as UpdateReportDto),
+      ).rejects.toThrow('reached write');
+    });
   });
 
   const buildImplementReport = (overrides: Partial<any> = {}) => ({
@@ -389,7 +726,7 @@ describe('ReportService', () => {
     } as unknown as CreateReportDto;
 
     await expect(service.create('org-1' as any, dto)).rejects.toThrow(
-      '/executionPlan/1 must NOT have additional properties (step)',
+      '/executionPlan/1/step: is not an allowed property',
     );
     expect(prisma.db.service.findMany).not.toHaveBeenCalled();
     expect(prisma.db.report.create).not.toHaveBeenCalled();
@@ -2419,9 +2756,13 @@ describe('ReportService', () => {
   it('keeps PHASE_GROUNDING reports workflow-only across updates', async () => {
     const createdAt = new Date('2026-02-16T22:30:00.000Z');
     const expiresAt = new Date('2026-03-18T22:30:00.000Z');
+    const groundingTouchPoints = [
+      { file: 'src/index.ts', expectedOutcome: 'Export the new entry point.' },
+    ];
     (prisma.db.report.findFirst as jest.Mock).mockResolvedValue({
       id: 'report-phase-grounding-1',
       reportType: 'PHASE_GROUNDING',
+      schemaVersion: 1,
       payload: {
         reportType: 'PHASE_GROUNDING',
         summary: 'old grounding',
@@ -2436,7 +2777,7 @@ describe('ReportService', () => {
       payload: {
         reportType: 'PHASE_GROUNDING',
         summary: 'updated grounding',
-        touchPoints: [],
+        touchPoints: groundingTouchPoints,
       },
       version: 2,
       schemaVersion: 1,
@@ -2451,7 +2792,7 @@ describe('ReportService', () => {
       payload: {
         reportType: 'PHASE_GROUNDING',
         summary: 'updated grounding',
-        touchPoints: [],
+        touchPoints: groundingTouchPoints,
       },
     });
 
@@ -2536,7 +2877,7 @@ describe('ReportService', () => {
   });
 
   describe('goalAnchor invariant', () => {
-    const GOAL_ID = 'goal-id-1';
+    const GOAL_ID = '5f0b7a52-6a1c-4d7c-9a47-2f5d0c3b9e11';
     const createdAt = new Date('2026-02-16T22:30:00.000Z');
     const expiresAt = new Date('2026-03-18T22:30:00.000Z');
 
@@ -2806,6 +3147,8 @@ describe('ReportService', () => {
     it('rejects self-referential parentReportId on update', async () => {
       (prisma.db.report.findFirst as jest.Mock).mockResolvedValue({
         id: 'report-1',
+        reportType: 'FEATURE_TREE_ANALYSIS',
+        schemaVersion: 1,
       });
 
       await expect(
@@ -3643,6 +3986,8 @@ describe('ReportService', () => {
     it('on update with linkedEntities and replace-entities, folds typed CONTEXT rows into entityCreates', async () => {
       (prisma.db.report.findFirst as jest.Mock).mockResolvedValue({
         id: 'report-1',
+        reportType: 'FEATURE_TREE_ANALYSIS',
+        schemaVersion: 1,
       });
       (prisma.db.report.update as jest.Mock).mockResolvedValue({
         id: 'report-1',
@@ -3709,6 +4054,8 @@ describe('ReportService', () => {
     it('on update with linkedEntities and no replace-entities, appends new CONTEXT rows without deleting existing ones', async () => {
       (prisma.db.report.findFirst as jest.Mock).mockResolvedValue({
         id: 'report-1',
+        reportType: 'FEATURE_TREE_ANALYSIS',
+        schemaVersion: 1,
       });
       (prisma.db.report.update as jest.Mock).mockResolvedValue({
         id: 'report-1',

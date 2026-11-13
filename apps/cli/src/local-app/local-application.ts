@@ -3,7 +3,8 @@ import { ReleasePackage } from './release-package';
 import { EventEmitter } from 'node:events';
 import { StructuredServerLogger } from '../server/logger';
 import { ReleaseSource, sameRelease } from './release-source';
-import { InstallationStore, checkModels } from './installation-store';
+import { InstallationStore } from './installation-store';
+import { ModelDownloader } from './model-downloader';
 import { DockerBoundary, type ObservedContainer } from './docker-boundary';
 import {
   composeConfiguration,
@@ -117,7 +118,7 @@ export class LocalApplication extends EventEmitter {
     readonly releases: ReleaseSource,
     readonly storage: InstallationStore,
     readonly docker: DockerBoundary,
-    private readonly modelDirectory: string,
+    private readonly models: ModelDownloader,
     private readonly platform: NodeJS.Platform = process.platform,
     private readonly packages?: ReleasePackage,
     /** Resolved once; the bridge listens here and the UI container is told the same value. */
@@ -373,8 +374,11 @@ export class LocalApplication extends EventEmitter {
         return;
       }
       progress('Checking graph/search model files');
-      await checkModels(installation?.modelDirectory ?? this.modelDirectory);
-      installation ??= await this.storage.prepare(release, this.modelDirectory);
+      await this.models.ensure(
+        installation?.modelDirectory ?? this.storage.modelDirectory,
+        progress,
+      );
+      installation ??= await this.storage.prepare(release);
       // Recheck the persisted winner if another terminal prepared installation concurrently.
       if (!sameRelease(installation.release, release)) {
         throw new Error('Installation release changed. Use the matching CLI release, then retry.');

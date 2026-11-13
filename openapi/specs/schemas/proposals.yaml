@@ -722,10 +722,21 @@ ProposalResponseDto:
       description: Optional metadata about the requestor and request context
     requiredApprovals:
       type: integer
+      nullable: true
       description: >
         Effective number of approvals required by the API-owned proposal
-        policy. Clients must display this value rather than evaluating an
-        independent approval threshold.
+        policy. Null for terminal ordinary proposals whose historical evidence
+        is unavailable; null must never be displayed as zero or reconstructed
+        from current settings. Clients must display this value rather than
+        evaluating an independent approval threshold.
+    approvalExplanation:
+      $ref: "./approval-policies.yaml#/ProposalApprovalExplanation"
+      description: >-
+        API-owned rule explanation. Pending ordinary proposals use live
+        evidence; terminal outcomes carry captured decision evidence; legacy
+        terminal proposals without a snapshot explicitly report unavailable
+        history. Viewer eligibility is current and separate from historical
+        evidence. Omitted only while older API producers are being upgraded.
     influences:
       type: array
       items:

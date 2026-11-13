@@ -1,3 +1,4 @@
+import { createTestProjectApprovalPolicyService } from 'src/utils/testUtils';
 import { BadRequestException } from '@nestjs/common';
 import { ProposalApprovalService } from '../proposal-approval.service';
 import { ProjectApprovalPolicyService } from '../project-approval-policy.service';
@@ -274,7 +275,7 @@ async function createApprovalHarness(
     pendingEdgeService as any,
     materializer as any,
     {} as any,
-    new ProjectApprovalPolicyService(),
+    createTestProjectApprovalPolicyService(),
     { assertProjectRole: jest.fn() } as never,
     { assertApplicable: jest.fn() } as never,
     undefined,
@@ -336,7 +337,16 @@ describe('agent-authored MODE approval and canonical persistence', () => {
       ],
     });
     expect(harness.tx.proposal.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { status: 'APPROVED' } }),
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'APPROVED',
+          approvalDecisionEvidence: expect.objectContaining({
+            evidence: 'CAPTURED',
+            creditedProposerApprovals: 0,
+            requirement: { category: 'PROJECT_REQUIRED', requiredApprovals: 1 },
+          }),
+        }),
+      }),
     );
   });
 

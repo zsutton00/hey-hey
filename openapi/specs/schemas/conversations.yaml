@@ -2195,6 +2195,9 @@ QuestionsGroupUserMessage:
             type: string
             description: User's answer
         description: User response to a clarifying question
+    note:
+      type: string
+      description: Free-form note added alongside the answers
 
 PlanApprovalUserMessage:
   type: object
@@ -4338,6 +4341,20 @@ SystemMessageData:
     ragEnabled:
       type: boolean
       description: Whether this message should be included in RAG retrieval
+    presentation:
+      type: string
+      enum: [notice]
+      description: >-
+        Set by the publisher when the message is an automated runtime notice
+        rather than an agent reply. Absent on agent replies and on historical
+        messages; never inferred from response text or missing provenance.
+    noticeSeverity:
+      type: string
+      enum: [info, warning]
+      description: >-
+        Severity of an automated notice, independent of the notice
+        classification. Only meaningful when presentation is "notice"; a
+        notice without it renders as info.
     reasoning:
       type: string
       description: LLM's reasoning for the intent detection
@@ -5007,6 +5024,8 @@ QuestionGroupElement:
     - type: object
       required:
       properties:
+        payload:
+          $ref: "#/QuestionsGroupPayload"
   x-discriminator-value: question_group
 
 RepositoryGroundingElement:
@@ -6117,7 +6136,26 @@ QuestionsGroupPayload:
       items:
         type: string
       description: Clarifying questions for scope and constraints
+    conversationReply:
+      $ref: "#/QuestionsGroupConversationReply"
   description: Plan scope constraints payload for UI rendering
+
+QuestionsGroupConversationReply:
+  type: object
+  required:
+    - noteLabel
+    - notePlaceholder
+  properties:
+    noteLabel:
+      type: string
+      description: Label of the free-form note box shown under the questions
+    notePlaceholder:
+      type: string
+      description: Placeholder of the free-form note box
+  description: >-
+    Present when the answers are an ordinary conversation message rather than a
+    workflow reply. Shows a free-form note box and lets the group be submitted
+    with every answer blank.
 
 PlanApprovalPayload:
   type: object
@@ -7048,7 +7086,14 @@ CodingPlanDiscrepancy:
           description: The direction or assent the user gave about this finding.
         disposition:
           type: string
-          enum: [open, accepted, changes_existing_behavior, repair_planned, withdrawn]
+          enum:
+            [
+              open,
+              accepted,
+              changes_existing_behavior,
+              repair_planned,
+              withdrawn,
+            ]
           description: Current state of the finding. Assent changes the disposition and never removes the finding. changes_existing_behavior marks a planned change to existing behavior that recorded design supports. repair_planned is the legacy name of changes_existing_behavior, accepted on read only so plans saved before the rename stay valid.
         implementationFollowThrough:
           type: string

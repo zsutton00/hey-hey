@@ -424,6 +424,9 @@ const projectProposal = (proposal: NonNullable<FullEntityContextDto['proposals']
       }),
   requestorId: proposal.requestorId,
   requiredApprovals: proposal.requiredApprovals,
+  ...(proposal.approvalExplanation === undefined
+    ? {}
+    : { approvalExplanation: proposal.approvalExplanation }),
   ...(proposal.influences === undefined
     ? {}
     : {

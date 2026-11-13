@@ -1,4 +1,5 @@
 import { ProposalReconciliationAdapterService } from '../proposal-reconciliation-adapter.service';
+import { createTestProjectApprovalPolicyService } from 'src/utils/testUtils';
 import { ProposalReconciliationService } from '../proposal-reconciliation.service';
 import { ProposalReconciliationGroupService } from '../proposal-reconciliation-group.service';
 import { mockProposalAdmission } from './mock-proposal-admission';
@@ -108,7 +109,10 @@ describe('ProposalService proposal.approved event', () => {
         },
         { provide: ProposalReconciliationGroupService, useValue: {} },
         ProposalService,
-        ProjectApprovalPolicyService,
+        {
+          provide: ProjectApprovalPolicyService,
+          useValue: createTestProjectApprovalPolicyService(),
+        },
         { provide: PrismaService, useValue: mockPrisma },
         {
           provide: ProposalValidationEngine,

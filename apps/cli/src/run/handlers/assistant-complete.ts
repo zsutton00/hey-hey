@@ -401,7 +401,10 @@ export const handleAssistantComplete = async (
             intentConfidence: 1,
           } satisfies AgentSystemMessageData,
         }
-      : buildCompletionData(event, handler, eventTurn.payload);
+      : buildCompletionData(event, handler, eventTurn.payload, {
+          runId: ctx.runId,
+          logger: deps.logger,
+        });
     const data = withFeatureVerificationSuggestion(
       addFeatureSyncAffordances(baseData, {
         promptType: turnPromptType,

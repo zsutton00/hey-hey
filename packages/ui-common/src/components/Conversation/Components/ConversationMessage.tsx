@@ -21,7 +21,11 @@ import { readUserMessageDisplayText } from "../../../utils/conversationMessageTe
 import { AnalysisMessage } from "../AnalysisMessage";
 import { useConversationContext } from "./ConversationContext";
 import { ConversationFormRenderer } from "./ConversationFormRenderer";
-import { MessageAuthorCaption } from "./MessageAuthorCaption";
+import {
+  getNoticeSeverity,
+  getNoticeVisualTreatmentSx,
+  MessageAuthorCaption,
+} from "./MessageAuthorCaption";
 import { MessageProposals } from "./MessageProposals";
 import {
   getMonitorVisualTreatmentSx,
@@ -125,6 +129,7 @@ export const ConversationMessage: React.FC<ConversationMessageProps> = memo(
       handleRetrySuccess,
       isReadOnly,
       hideAnalysisAction,
+      hideProcessingPlaceholder,
     } = useConversationContext();
     const retryOpenTrigger = useRetryConversationOpenTrigger({
       onSuccess: handleRetrySuccess,
@@ -142,6 +147,10 @@ export const ConversationMessage: React.FC<ConversationMessageProps> = memo(
       : null;
 
     const shouldHideSystemMessage = useMemo(() => {
+      const isProcessingPlaceholder =
+        conversationMessage.state === "system_processing" &&
+        !conversationMessage.message.responses?.length;
+      if (hideProcessingPlaceholder && isProcessingPlaceholder) return true;
       const uiElements = (
         conversationMessage.message.data as
           QuestionsSystemMessageData | undefined
@@ -152,7 +161,12 @@ export const ConversationMessage: React.FC<ConversationMessageProps> = memo(
         const entry = type ? FIELD_REGISTRY[type] : undefined;
         return entry?.hideSystemMessage === true;
       });
-    }, [conversationMessage.message.data]);
+    }, [
+      conversationMessage.message.data,
+      conversationMessage.message.responses,
+      conversationMessage.state,
+      hideProcessingPlaceholder,
+    ]);
 
     const proposalsRenderConfig = useMemo(() => {
       const uiElements = (
@@ -176,11 +190,18 @@ export const ConversationMessage: React.FC<ConversationMessageProps> = memo(
       (conversationMessage.message.data?.type === "AGENT" ||
         conversationMessage.message.data?.type === "SESSION_MONITOR") &&
       conversationMessage.state !== "system_processing";
-    const agentMessageData = isAgentSystemMessage
-      ? (conversationMessage.message.data as AgentSystemMessageData)
-      : isInterstitialSystemMessage
-        ? (conversationMessage.message.data as AgentSystemMessageData)
+    const systemMessageData =
+      conversationMessage.message.type === MessageType.System
+        ? conversationMessage.message.data
         : undefined;
+    const noticeSeverity = getNoticeSeverity(systemMessageData);
+    const agentMessageData = noticeSeverity
+      ? systemMessageData
+      : isAgentSystemMessage
+        ? (conversationMessage.message.data as AgentSystemMessageData)
+        : isInterstitialSystemMessage
+          ? (conversationMessage.message.data as AgentSystemMessageData)
+          : undefined;
     const parsedInterstitialTiming = isInterstitialSystemMessage
       ? getInterstitialTiming(
           conversationMessage.message.type === MessageType.System
@@ -304,10 +325,12 @@ export const ConversationMessage: React.FC<ConversationMessageProps> = memo(
                     onRetrySuccess={handleRetrySuccess}
                     renderTimestamp={renderTimestamp}
                     sx={
-                      conversationMessage.message.data?.type ===
-                      "SESSION_MONITOR"
-                        ? getMonitorVisualTreatmentSx(theme)
-                        : undefined
+                      noticeSeverity
+                        ? getNoticeVisualTreatmentSx(theme, noticeSeverity)
+                        : conversationMessage.message.data?.type ===
+                            "SESSION_MONITOR"
+                          ? getMonitorVisualTreatmentSx(theme)
+                          : undefined
                     }
                     inlineReports={inlineReports}
                   />

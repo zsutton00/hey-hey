@@ -55,7 +55,7 @@ describe("QuestionGroupField repository Feature enrichment compatibility", () =>
         context={context}
         onChange={onChange}
         isSubmitted={false}
-      />
+      />,
     );
 
     await waitFor(() =>
@@ -64,7 +64,7 @@ describe("QuestionGroupField repository Feature enrichment compatibility", () =>
           question,
           answer: "",
         })),
-      })
+      }),
     );
 
     const inputs = screen.getAllByPlaceholderText("Add your answer...");
@@ -75,6 +75,56 @@ describe("QuestionGroupField repository Feature enrichment compatibility", () =>
         { question: questions[1], answer: "" },
         { question: questions[2], answer: "" },
       ],
+    });
+  });
+
+  it("shows a note box only when answers are an ordinary conversation reply", async () => {
+    const onChange = vi.fn();
+    const questions = ["Who owns retries?", "Is the audit trail required?"];
+    const conversationReply = {
+      noteLabel: "Anything else?",
+      notePlaceholder: "Add a note...",
+    };
+
+    const { rerender } = render(
+      <QuestionGroupField
+        config={{
+          field: "q",
+          description: "Questions",
+          type: "question_group",
+          payload: { questions },
+        }}
+        context={context}
+        onChange={onChange}
+        isSubmitted={false}
+      />,
+    );
+    expect(screen.queryByPlaceholderText("Add a note...")).toBeNull();
+
+    rerender(
+      <QuestionGroupField
+        config={{
+          field: "q",
+          description: "Questions",
+          type: "question_group",
+          payload: { questions, conversationReply },
+        }}
+        context={context}
+        onChange={onChange}
+        isSubmitted={false}
+      />,
+    );
+    await waitFor(() => expect(onChange).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByPlaceholderText("Add a note..."), {
+      target: { value: "That is enough" },
+    });
+    expect(onChange).toHaveBeenLastCalledWith({
+      clarifyingAnswers: questions.map((question) => ({
+        question,
+        answer: "",
+      })),
+      note: "That is enough",
     });
   });
 });

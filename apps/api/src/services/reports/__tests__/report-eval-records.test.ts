@@ -25,8 +25,11 @@ const runPayload = {
 const attemptPayload = {
   reportType: 'EVAL_ATTEMPT',
   summary: 'attempt',
-  caseInputId: 'case-input-1',
-  configuration: { id: 'c', target: { provider: 'claude', model: 'opus' } },
+  caseInputId: '55555555-5555-4555-8555-555555555555',
+  configuration: {
+    id: '66666666-6666-4666-8666-666666666666',
+    target: { provider: 'claude', model: 'opus' },
+  },
   status: 'QUEUED',
   measurements: [],
 };
@@ -229,5 +232,48 @@ describe('eval evidence lookup by target session', () => {
         }),
       }),
     );
+  });
+});
+
+describe('eval run reads', () => {
+  const caseBase = {
+    id: 'case-input-1',
+    name: 'Case',
+    grading: { checks: [] },
+  };
+  const currentTarget = {
+    inputs: {
+      inputs: [
+        { kind: 'text_message', text: 'First' },
+        { kind: 'text_message', text: 'Second' },
+      ],
+    },
+  };
+
+  const serve = (cases: object[]) => {
+    const { service } = build();
+    return service.toDto({
+      ...row(RUN_ID, 'EVAL_RUN', { ...runPayload, cases }),
+    } as never);
+  };
+
+  it('serves a run recorded before inputs existed as a one-message list', () => {
+    const dto = serve([
+      { ...caseBase, target: { initiatingRequest: 'Old request' } },
+    ]);
+
+    const [served] = (dto.payload as unknown as { cases: { target: object }[] })
+      .cases;
+    expect(served?.target).toEqual({
+      inputs: { inputs: [{ kind: 'text_message', text: 'Old request' }] },
+    });
+  });
+
+  it('serves a run recorded with inputs unchanged', () => {
+    const dto = serve([{ ...caseBase, target: currentTarget }]);
+
+    const [served] = (dto.payload as unknown as { cases: { target: object }[] })
+      .cases;
+    expect(served?.target).toEqual(currentTarget);
   });
 });

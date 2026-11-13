@@ -6,7 +6,7 @@ import type { Run } from '../../run/run';
 import { createTestRun } from '../../run/run.test-support';
 import type { ReportChainEntry } from '../../run/types';
 import type { Turn } from '../../turn/turn';
-import type { SubmissionToolMcpContent } from './types';
+import { SubmissionToolCorrectableError, type SubmissionToolMcpContent } from './types';
 import {
   jointDecision,
   overlappingDecisions,
@@ -653,6 +653,31 @@ describe('createCreateReportTool', () => {
       /promptType is required/,
     );
     expect(proxy.create).not.toHaveBeenCalled();
+  });
+
+  it('keeps a platform schema rejection correctable and records no report in the chain', async () => {
+    const proxy = makeCreateReportProxy();
+    const rejection = new SubmissionToolCorrectableError({
+      reason:
+        'SNAPSHOT report (schemaVersion 1) is invalid: /summary: missing required property "summary".',
+      findings: [
+        {
+          field: '/summary',
+          code: 'required',
+          reason: 'missing required property "summary"',
+          correction: 'Add /summary to the payload, then submit the report again.',
+        },
+      ],
+    });
+    vi.mocked(proxy.create).mockRejectedValue(rejection);
+    const tool = new CreateReportTool(proxy, () => FIXED_NOW);
+    const run = makeRun();
+
+    await expect(
+      tool.execute({ runId: 'run-1', args: makeArgs({ reportType: 'SNAPSHOT' }), run }),
+    ).rejects.toBe(rejection);
+
+    expect(run.appendReportChainEntry).not.toHaveBeenCalled();
   });
 
   it('does not append to the chain when the platform proxy throws', async () => {

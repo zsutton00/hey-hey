@@ -33,25 +33,64 @@ describe("projectOpenItems", () => {
       ];
       expect(
         projectOpenItems([session, parent], "oldest", undefined, groups).map(
-          ({ item, depth }) => [item.entityId, depth]
-        )
+          ({ item, depth }) => [item.entityId, depth],
+        ),
       ).toEqual([
         ["parent", 0],
         ["session", 1],
       ]);
       expect(
-        projectOpenItems([session], "oldest", undefined, groups)[0]?.depth
+        projectOpenItems([session], "oldest", undefined, groups)[0]?.depth,
       ).toBe(0);
       expect(
         projectOpenItems(
           [{ ...session, groupId: undefined }, parent],
           "oldest",
           undefined,
-          groups
-        ).find(({ item }) => item.entityId === "session")?.depth
+          groups,
+        ).find(({ item }) => item.entityId === "session")?.depth,
       ).toBe(0);
-    }
+    },
   );
+  it("nests a session beneath its open parent session, keeps a task branch, and leaves it top level when the parent is closed", () => {
+    const task = {
+      entityType: "task",
+      entityId: "task",
+      presentation: { kind: "task", label: "Task", taskType: "STANDARD" },
+    };
+    const parent = {
+      entityType: "agent_session",
+      entityId: "parent",
+      lineage: [lineageEntry("task", "task")],
+    };
+    const child = {
+      entityType: "agent_session",
+      entityId: "child",
+      lineage: [
+        lineageEntry("task", "task"),
+        lineageEntry("agent_session", "parent"),
+      ],
+    };
+    const depths = (items: object[]) =>
+      projectOpenItems(items as never).map(({ item, depth }) => [
+        item.entityId,
+        depth,
+      ]);
+
+    expect(depths([child, parent, task])).toEqual([
+      ["task", 0],
+      ["parent", 1],
+      ["child", 2],
+    ]);
+    // Parent closed: the child falls back to the nearest open ancestor.
+    expect(depths([child, task])).toEqual([
+      ["task", 0],
+      ["child", 1],
+    ]);
+    // No open ancestor at all: top level, and no parent row is invented.
+    expect(depths([child])).toEqual([["child", 0]]);
+  });
+
   it("promotes surviving descendants when a visible ancestor is removed", () => {
     const projected = projectOpenItems([
       {
@@ -236,7 +275,11 @@ describe("projectOpenItems", () => {
     );
 
     expect(
-      projected.map(({ item, depth, groupId }) => [item.entityId, depth, groupId]),
+      projected.map(({ item, depth, groupId }) => [
+        item.entityId,
+        depth,
+        groupId,
+      ]),
     ).toEqual([
       ["group-parent", 0, "group-a"],
       ["group-child", 1, "group-a"],
@@ -274,9 +317,7 @@ describe("projectOpenItems", () => {
         ...(parentIndex === null
           ? {}
           : {
-              lineage: [
-                lineageEntry("task", `task-${parentIndex}`),
-              ],
+              lineage: [lineageEntry("task", `task-${parentIndex}`)],
             }),
       };
     });
@@ -394,15 +435,18 @@ describe("filterProjectedOpenItems", () => {
   });
 
   it("fails closed when a stable label is missing and preserves projected order", () => {
-    const projected = projectOpenItems([
-      {
-        entityId: "task-2",
-        entityType: "task",
-        firstAddedOrder: 2,
-        presentation: { kind: "task", label: "Second" },
-      },
-      { entityId: "task-1", entityType: "task", firstAddedOrder: 1 },
-    ], "newest");
+    const projected = projectOpenItems(
+      [
+        {
+          entityId: "task-2",
+          entityType: "task",
+          firstAddedOrder: 2,
+          presentation: { kind: "task", label: "Second" },
+        },
+        { entityId: "task-1", entityType: "task", firstAddedOrder: 1 },
+      ],
+      "newest",
+    );
 
     expect(
       filterProjectedOpenItems(projected, "second").map(
@@ -424,7 +468,10 @@ describe("filterProjectedOpenItemsByActivity", () => {
       {
         entityId: "active",
         entityType: "agent_session",
-        lineage: [lineageEntry("feature", "feature-1"), lineageEntry("task", "task-1")],
+        lineage: [
+          lineageEntry("feature", "feature-1"),
+          lineageEntry("task", "task-1"),
+        ],
       },
       {
         entityId: "task-2",
@@ -434,7 +481,10 @@ describe("filterProjectedOpenItemsByActivity", () => {
       {
         entityId: "idle",
         entityType: "agent_session",
-        lineage: [lineageEntry("feature", "feature-1"), lineageEntry("task", "task-2")],
+        lineage: [
+          lineageEntry("feature", "feature-1"),
+          lineageEntry("task", "task-2"),
+        ],
       },
       { entityId: "task-3", entityType: "task", pinned: true },
     ]);
@@ -444,7 +494,9 @@ describe("filterProjectedOpenItemsByActivity", () => {
       (item) => item.entityId === "active",
     );
 
-    expect(result.items.map(({ item, depth }) => [item.entityId, depth])).toEqual([
+    expect(
+      result.items.map(({ item, depth }) => [item.entityId, depth]),
+    ).toEqual([
       ["feature-1", 0],
       ["task-1", 1],
       ["active", 2],

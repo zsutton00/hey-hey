@@ -1,7 +1,7 @@
 import { reportUsageExecutions } from '../provider-usage/report-usage-executions';
 import { readRestrictionFor } from '../shared/api/read-restriction';
 import { isAxiosError } from 'axios';
-import type { FailureReason } from './failure-message';
+import { startupFailureCause, type FailureReason } from './failure-message';
 import { isInertSubmissionToolAllowed } from './inert-execution-policy';
 import { SessionRoleGuidance } from '../agents/session-role-guidance/session-role-guidance';
 import { createContextTrimmer } from '../agents/context-trimming/create-trimmer';
@@ -126,8 +126,17 @@ import type {
   AgentSessionReviewFileScopeRequest,
   ImplementationReadinessDisposition,
 } from '@hey-hey/contracts/api/models';
-import { MessageType, MessageStatus, SystemMessageDataTypeEnum } from '../shared/api/index';
-import type { AgentSystemMessageData, SystemMessageData } from '../shared/api/index';
+import {
+  MessageType,
+  MessageStatus,
+  SystemMessageDataPresentationEnum,
+  SystemMessageDataTypeEnum,
+} from '../shared/api/index';
+import type {
+  AgentSystemMessageData,
+  SystemMessageData,
+  SystemMessageDataNoticeSeverityEnum as NoticeSeverity,
+} from '../shared/api/index';
 import type {
   InternalRunPromptRequest,
   LocalAnyPromptPayload,
@@ -998,7 +1007,8 @@ export class Run {
       session: () => this.session,
       activeTurn: () => this.activeTurn,
       contextProviderSessionId: () => this.contextProviderSessionId(),
-      postAgentSystemMessage: (response, session) => this.postAgentSystemMessage(response, session),
+      postRuntimeNotice: (response, severity, session) =>
+        this.postAgentSystemMessage(response, session, severity),
     });
     this.proposalTracker = new RunProposalTracker({
       runId: this.runId,
@@ -1119,7 +1129,8 @@ export class Run {
         if (!this.activeTurn && !this._processing) void this.drainQueue();
       },
       releaseHeldAdmission: (held) => this.releaseHeldAdmission(held),
-      postAgentSystemMessage: (text) => this.postAgentSystemMessage(text),
+      postRuntimeNotice: (text, severity) =>
+        this.postAgentSystemMessage(text, this.session, severity),
     });
     this.serviceScopeCoordinator = new AgentSessionServiceScopeCoordinator({
       runStore: this.runStore,
@@ -2688,6 +2699,8 @@ export class Run {
     if (!replayed) {
       await this.postAgentSystemMessage(
         'Sorry, looks like we have to ask again… The earlier approval request expired when the CLI restarted, so the action will be retried and approval requested again if needed.',
+        this.session,
+        'info',
       );
     }
 
@@ -3827,6 +3840,38 @@ export class Run {
     this.initialInertInputAllowed = true;
   }
 
+  /** The one recorded scripted message the coordinator has authorized next, by exact text. */
+  private authorizedScriptedInput: { index: number; text: string } | null = null;
+
+  /**
+   * Coordinator-owned: lets exactly one recorded scripted message into this
+   * inert Run. Any other follow-up, or the same one twice, is still refused.
+   */
+  public authorizeScriptedInertInput(authorization: { index: number; text: string }): void {
+    if (!this.session.inert) {
+      throw new Error('Only inert evaluation Runs take scripted input.');
+    }
+    if (this.authorizedScriptedInput) {
+      throw new Error('A scripted input is already authorized and has not been admitted.');
+    }
+    this.authorizedScriptedInput = authorization;
+    this.logger.debug('local.run.inert.scripted_input_authorized', {
+      runId: this.runId,
+      index: authorization.index,
+    });
+  }
+
+  /** Withdraws an authorization the Run never admitted, so it cannot be used later. */
+  public revokeScriptedInertInput(): void {
+    this.authorizedScriptedInput = null;
+  }
+
+  private matchesAuthorizedScriptedInput(input: InternalRunPromptRequest): boolean {
+    const authorized = this.authorizedScriptedInput;
+
+    return authorized !== null && resolvePromptText(input) === authorized.text;
+  }
+
   private assertOrdinaryExecution(input?: InternalRunPromptRequest): void {
     if (!this.session.inert) {
       return;
@@ -3932,6 +3977,15 @@ export class Run {
       this.initialInertInputAllowed = false;
       this.inertInput = input;
       this.logger.debug('local.run.inert.initial_input', { runId: this.runId });
+    } else if (this.session.inert && this.matchesAuthorizedScriptedInput(input)) {
+      const authorized = this.authorizedScriptedInput!;
+      this.authorizedScriptedInput = null;
+      this.inertInput = input;
+      this.inertInputStarted = false;
+      this.logger.debug('local.run.inert.scripted_input_admitted', {
+        runId: this.runId,
+        index: authorized.index,
+      });
     } else {
       this.assertOrdinaryExecution();
     }
@@ -4312,7 +4366,7 @@ export class Run {
           await admission.onRejected();
           this.projectedInputStartTurnIds.delete(admission.turnId);
         }
-        await this.postFailureMessage('STARTUP_FAILED');
+        await this.postFailureMessage('STARTUP_FAILED', error);
         this.logger.error('local.run.start_turn.failure_reported', {
           turnId,
           runId: this.runId,
@@ -4339,7 +4393,7 @@ export class Run {
         await rejectedAdmission.onRejected(reason === 'STOPPED' ? 'ABORTED' : 'FAILED');
         this.projectedInputStartTurnIds.delete(rejectedAdmission.turnId);
       }
-      await this.postFailureMessage(reason);
+      await this.postFailureMessage(reason, error);
       if (
         error instanceof ProjectAssistantPreparationError ||
         error instanceof AgentStartupPromptInputError
@@ -4423,7 +4477,7 @@ export class Run {
       if (failedAdmission) {
         await failedAdmission.onRejected();
       }
-      await this.postFailureMessage(failureReason);
+      await this.postFailureMessage(failureReason, error);
       void this.drainQueue();
       return;
     }
@@ -4679,7 +4733,7 @@ export class Run {
 
   private readonly terminalFailureReasons = new Map<string, FailureReason>();
 
-  private async postFailureMessage(reason: FailureReason): Promise<void> {
+  private async postFailureMessage(reason: FailureReason, error?: unknown): Promise<void> {
     // A Turn aborted to wait for Service approval is paused, not stopped; the approval request
     // already tells the user what is happening.
     if (reason === 'STOPPED' && this.serviceScope.hasServiceScopeContinuation()) {
@@ -4691,6 +4745,9 @@ export class Run {
       projectId: this.projectId,
       conversationId: this.session.conversationId,
       reason,
+      ...(reason === 'STARTUP_FAILED'
+        ? { cause: startupFailureCause(error), reference: `run ${this.runId}` }
+        : {}),
       inert: this.session.inert === true,
     });
   }
@@ -5250,7 +5307,7 @@ export class Run {
             if (admission) {
               await admission.onRejected();
             }
-            await this.postFailureMessage('STARTUP_FAILED');
+            await this.postFailureMessage('STARTUP_FAILED', error);
           } catch (postError) {
             this.logger.error('local.run.drain.failure_post_failed', {
               runId: this.runId,
@@ -6568,7 +6625,10 @@ export class Run {
           ...(uiElements ? { uiElements } : {}),
         },
       },
-      stamp: null,
+      stamp: {
+        providerSessionId: this.providerSessionId,
+        promptHandler: turn.handler.promptType,
+      },
     });
     this.logger.debug('local.coding_plan.conversation.persisted', {
       runId: this.runId,
@@ -6582,12 +6642,16 @@ export class Run {
   private async postAgentSystemMessage(
     response: string,
     session: AgenticSession = this.session,
+    noticeSeverity?: NoticeSeverity,
   ): Promise<void> {
     const agentData: AgentSystemMessageData = {
       type: SystemMessageDataTypeEnum.Agent,
       response,
       detectedIntent: 'agent_response',
       intentConfidence: 1,
+      ...(noticeSeverity
+        ? { presentation: SystemMessageDataPresentationEnum.Notice, noticeSeverity }
+        : {}),
     };
     const dto = {
       type: MessageType.System,

@@ -1,6 +1,7 @@
 import {
   LocalPromptType,
   type LocalCreateRunRequest,
+  type LocalRunPromptRequest,
 } from '../../shared/agent-bridge-contract/contract';
 import type { RunEntityReference } from '@hey-hey/contracts/agent-bridge';
 import { EvalTargetHandlerKey, type EvalResolvedExecution } from '@hey-hey/contracts/api/models';
@@ -13,7 +14,7 @@ export interface EvalFirstTurn {
 }
 
 /**
- * Starts the recorded handler directly on the case's initiating request, the
+ * Starts the recorded handler directly on the case's final message, the
  * way the normal workflow would have, without the workflow. A handler that
  * needs an input this attempt cannot supply throws here, which fails only this
  * attempt with the reason.
@@ -65,3 +66,13 @@ export const buildEvalFirstTurn = (
       };
   }
 };
+
+/**
+ * A later recorded message, sent the way a person's next message in the
+ * conversation is: as an ordinary reply the Run's owning handler answers.
+ */
+export const buildEvalFollowUp = (userMessage: string): LocalRunPromptRequest => ({
+  promptType: LocalPromptType.CodingFreeform,
+  payload: { promptType: LocalPromptType.CodingFreeform, userMessage },
+  references: { resolved: [], unresolved: [] },
+});

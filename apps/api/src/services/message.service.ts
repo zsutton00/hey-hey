@@ -234,8 +234,7 @@ export class MessageService {
     private mentionProcessingService: MentionProcessingService,
     @Inject(forwardRef(() => ReportService))
     private reportService: ReportService,
-    @Optional()
-    private projectApprovalPolicyService: ProjectApprovalPolicyService = new ProjectApprovalPolicyService(),
+    private projectApprovalPolicyService: ProjectApprovalPolicyService,
     @Optional()
     _evalOutputAdmission: EvalOutputAdmissionService = new EvalOutputAdmissionService(),
     @Optional()
@@ -356,6 +355,7 @@ export class MessageService {
       {
         workItemTypeRegistry: this.workItemTypeRegistry,
         reconciliation: this.reconciliation,
+        omitUnresolvableTargets: true,
       },
     );
     const proposalDtosById = new Map<string, ProposalResponseDto>(

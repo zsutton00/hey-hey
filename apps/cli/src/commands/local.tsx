@@ -11,6 +11,7 @@ import { LocalScreen } from '../local-app/LocalScreen';
 import { LocalApplication, type LocalApplicationNavigation } from '../local-app/local-application';
 import { ReleaseSource } from '../local-app/release-source';
 import { InstallationStore } from '../local-app/installation-store';
+import { ModelDownloader } from '../local-app/model-downloader';
 import { DockerBoundary } from '../local-app/docker-boundary';
 import { openBrowser } from '../local-app/open-browser';
 import { buildInjectedCredential, getActiveCredentialKey } from '../auth/index';
@@ -359,7 +360,7 @@ export async function runLocalCommand(args: string[]): Promise<boolean> {
     ),
     storage,
     new DockerBoundary(),
-    process.env['HEYHEY_LOCAL_MODEL_DIR'] ?? '',
+    new ModelDownloader(),
     process.platform,
     packages,
   );

@@ -1,3 +1,7 @@
+import {
+  EvalCaseInputsSection,
+  EVAL_CASE_INPUTS_SCHEMA_REF,
+} from "../shared/EvalCaseInputsSection";
 import { Alert, Typography } from "@mui/material";
 import type { WorkItemTypeSectionDefinition } from "../../api";
 import { MarkdownRenderer } from "../shared/MarkdownRenderer";
@@ -58,6 +62,9 @@ export function ReconciliationValue({
     return <ModeSettingsSectionRenderer content={value} />;
   if (section && isImageSectionDefinition(section))
     return <ImageSectionRenderer content={value} label={section.label} />;
+  if (section?.schemaRef === EVAL_CASE_INPUTS_SCHEMA_REF) {
+    return <EvalCaseInputsSection content={value} />;
+  }
   if (section?.kind === "json") return <JsonSectionRenderer content={value} />;
   if (Array.isArray(value) && value.every((item) => typeof item === "string"))
     return <Typography>{value.join(", ")}</Typography>;

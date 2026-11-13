@@ -28,6 +28,7 @@ import {
 import {
   CreateProposal,
   DeleteProposal,
+  EvalCaseInputsSection,
   isPlaceholderEntityId,
   Report,
   UpdateProposal,
@@ -40,6 +41,7 @@ import {
 import { WebPathService } from "@hey-hey/ui-common/services";
 
 import { AttemptExecutionSummary } from "./AttemptExecutionSummary";
+import { AttemptTurns } from "./AttemptTurns";
 import { AttemptSessions } from "./AttemptSessions";
 import { AttemptToolCalls } from "./AttemptToolCalls";
 
@@ -471,9 +473,10 @@ const WorkBreakdown: React.FC<{ rows: WorkBreakdownRow[] }> = ({ rows }) => {
 const ExpectedVersusResult: React.FC<{
   row: CaseRow;
   organizationId: string;
+  projectId: string;
   /** A repeat sits under its case, which already shows what was expected. */
   isRepeat: boolean;
-}> = ({ row, organizationId, isRepeat }) => {
+}> = ({ row, organizationId, projectId, isRepeat }) => {
   const { t } = useTranslation();
   return (
     <Box sx={{ mb: 2 }} data-testid="eval-expected-vs-result">
@@ -501,6 +504,15 @@ const ExpectedVersusResult: React.FC<{
           >
             {t("eval.results.detail.openEvalCase")}
           </SpaLink>
+        </Box>
+      )}
+      {!isRepeat && row.inputs && (
+        <Box sx={{ mt: 1 }}>
+          <EvalCaseInputsSection
+            content={row.inputs}
+            surface="run"
+            mentionConfig={{ organizationId, projectId }}
+          />
         </Box>
       )}
     </Box>
@@ -531,9 +543,17 @@ export const EvalCaseDetail: React.FC<EvalCaseDetailProps> = ({
     <ExpectedVersusResult
       row={row}
       organizationId={organizationId}
+      projectId={projectId}
       isRepeat={repeat !== null}
     />
     {row.coding && <CodingAttemptResults coding={row.coding} />}
+    <AttemptTurns
+      attempt={attempt}
+      plannedMessages={
+        run.payload.cases.find((c) => c.id === attempt.payload.caseInputId)
+          ?.target.inputs.inputs.length ?? 1
+      }
+    />
     <AttemptSessions
       attempt={attempt}
       judgeSessionHref={row.judgeSessionHref}

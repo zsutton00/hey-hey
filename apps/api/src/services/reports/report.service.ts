@@ -1,4 +1,5 @@
 import { readReportUsage } from './report-usage.validation';
+import { readEvalCaseTarget } from '../eval-runs/eval-case-input.mapper';
 import {
   aggregateUsageTrends,
   USAGE_TREND_REPORT_KINDS,
@@ -6,9 +7,11 @@ import {
   type UsageTrendRow,
 } from './report-usage-trends';
 import { restrictReportWhere } from 'src/read-restriction/read-policy';
-import { validateChangeWalkthroughPayload } from './change-walkthrough-payload.validation';
-import { validateCodingResearchPayload } from './coding-research-payload.validation';
-import { validateProjectReportPayload } from './project-report-payload.validation';
+import {
+  REPORT_PAYLOAD_INVALID_CODE,
+  ReportPayloadValidationException,
+  validateReportPayload,
+} from './report-payload.validation';
 import {
   EvalOutputAdmissionService,
   ORDINARY_EVAL_OUTPUT_STAMP,
@@ -90,9 +93,6 @@ import {
   SessionMonitorReportGuidance,
   UpdateReportDto,
 } from '@hey-hey/contracts/api/models';
-import Ajv from 'ajv';
-import addFormats from 'ajv-formats';
-import { REPORT_SCHEMAS } from 'src/mcp/tools/report-schemas.generated';
 import { AnyTransactionClient, PrismaService } from 'src/prisma/prisma.service';
 import { EntityRegistryService } from 'src/services/entity-registry/entity-registry.service';
 import { FlowExecutionService } from 'src/services/workflows/flow-execution.service';
@@ -109,15 +109,6 @@ type ReportWithEntities = Prisma.ReportGetPayload<{
 }>;
 
 const REPORT_ENVELOPE_METADATA_KEY = '__reportEnvelope';
-
-// Implement parses approved PLAN payloads strictly, so a payload that does not
-// satisfy the PLAN contract must be rejected at write time, while the planner
-// can still revise and resubmit it, rather than surfacing after approval.
-const planPayloadAjv = new Ajv({ allErrors: true, strict: false });
-addFormats(planPayloadAjv);
-const validatePlanPayloadSchema = planPayloadAjv.compile(
-  REPORT_SCHEMAS.PLAN.schema,
-);
 
 type FileTouchIndexingResult = {
   reportId: string;
@@ -301,12 +292,16 @@ export class ReportService {
         ? ReportAudience.WorkflowOnly
         : dto.audience;
     this.validateReportType(dto.reportType);
-    validateChangeWalkthroughPayload(dto.reportType, dto.payload);
-    validateCodingResearchPayload(dto.reportType, dto.payload);
-    const projectReportPayload = validateProjectReportPayload(
-      dto.reportType,
-      dto.payload,
-    );
+    const schemaVersion = this.resolveSchemaVersion(dto.schemaVersion);
+    this.assertValidReportPayload(organizationId, {
+      reportType: dto.reportType,
+      payload: dto.payload,
+      schemaVersion,
+    });
+    const projectReportPayload =
+      dto.payload.reportType === ReportType.ProjectReport
+        ? dto.payload
+        : undefined;
     if (
       projectReportPayload &&
       (!dto.projectId ||
@@ -322,12 +317,8 @@ export class ReportService {
       );
     }
     this.validateReportAudience(audience);
-    if (dto.reportType === ReportType.Plan) {
-      this.validatePlanPayloadShape(organizationId, dto.payload);
-    }
     await this.validatePlanRequiredServiceIds(organizationId, dto);
     await this.validateGoalAnchor(organizationId, dto);
-    const schemaVersion = this.resolveSchemaVersion(dto.schemaVersion);
     const expiresAt = this.resolveCreateExpiresAt(dto);
     const callerEntityCreates = (dto.entities ?? []).map((entity) =>
       this.toReportEntityCreateInput(entity),
@@ -459,8 +450,13 @@ export class ReportService {
     dto: CreateReportDto,
   ): Promise<ReportDto> {
     this.validateReportType(dto.reportType);
-    this.validateReportAudience(dto.audience);
     const schemaVersion = this.resolveSchemaVersion(dto.schemaVersion);
+    this.assertValidReportPayload(organizationId, {
+      reportType: dto.reportType,
+      payload: dto.payload,
+      schemaVersion,
+    });
+    this.validateReportAudience(dto.audience);
     const expiresAt = this.resolveCreateExpiresAt(dto);
     const entityCreates = this.dedupeEntityCreates([
       ...(dto.entities ?? []).map((entity) =>
@@ -1706,26 +1702,29 @@ export class ReportService {
         id: reportId,
         organizationId,
       },
-      select: { id: true, payload: true, reportType: true },
+      select: {
+        id: true,
+        payload: true,
+        reportType: true,
+        schemaVersion: true,
+      },
     });
 
     if (!existing) {
       throw new NotFoundException('Report not found');
-    }
-    if (existing.reportType === PrismaReportType.PLAN) {
-      this.validatePlanPayloadShape(organizationId, dto.payload);
-    }
-
-    if (dto.payload !== undefined) {
-      validateProjectReportPayload(existing.reportType, dto.payload);
-      validateChangeWalkthroughPayload(existing.reportType, dto.payload);
-      validateCodingResearchPayload(existing.reportType, dto.payload);
     }
 
     const schemaVersion =
       dto.schemaVersion === undefined
         ? undefined
         : this.resolveSchemaVersion(dto.schemaVersion);
+    if (dto.payload !== undefined || schemaVersion !== undefined) {
+      this.assertValidReportPayload(organizationId, {
+        reportType: existing.reportType,
+        payload: dto.payload ?? existing.payload,
+        schemaVersion: schemaVersion ?? existing.schemaVersion,
+      });
+    }
     const requestedAudience =
       dto.audience === undefined
         ? undefined
@@ -2677,9 +2676,28 @@ export class ReportService {
     return {
       ...base,
       reportType: reportType as ReportDtoOther['reportType'],
-      payload: payload as OtherReportPayload,
+      payload: this.readRecordedRunCases(payload) as OtherReportPayload,
       schemaVersion: report.schemaVersion,
     } satisfies ReportDtoOther;
+  }
+
+  /**
+   * A run recorded before Eval Cases had inputs carries only the old single
+   * request on each case target. Serve it as a one-message list so readers
+   * can rely on `target.inputs`.
+   */
+  private readRecordedRunCases(payload: ReportPayload): ReportPayload {
+    if (payload.reportType !== ReportType.EvalRun) {
+      return payload;
+    }
+
+    return {
+      ...payload,
+      cases: payload.cases.map((caseInput) => ({
+        ...caseInput,
+        target: readEvalCaseTarget(caseInput.target),
+      })),
+    };
   }
 
   private toPersistedReportPayload(
@@ -3227,29 +3245,32 @@ export class ReportService {
     );
   }
 
-  private validatePlanPayloadShape(
+  /**
+   * Structural gate shared by every report write. Rejects before persistence or
+   * publication and logs a content-free cause the agent-facing error mirrors.
+   */
+  private assertValidReportPayload(
     organizationId: OrganizationId,
-    payload: unknown,
+    input: { reportType: string; payload: unknown; schemaVersion: number },
   ): void {
-    const cleanedPayload = this.withoutReportEnvelopeMetadata(payload);
-    if (validatePlanPayloadSchema(cleanedPayload)) {
-      return;
+    try {
+      validateReportPayload(input);
+    } catch (error) {
+      if (error instanceof ReportPayloadValidationException) {
+        this.logger.warn('Rejected report: payload violates report schema', {
+          organizationId,
+          code: REPORT_PAYLOAD_INVALID_CODE,
+          reportType: input.reportType,
+          schemaVersion: input.schemaVersion,
+          issues: error.failure.issues.map((issue) => ({
+            path: issue.path,
+            keyword: issue.keyword,
+            missingProperty: issue.missingProperty,
+          })),
+        });
+      }
+      throw error;
     }
-    const issues = (validatePlanPayloadSchema.errors ?? []).map((error) => {
-      const location = error.instancePath || '/';
-      const extraKey =
-        error.keyword === 'additionalProperties'
-          ? ` (${String(error.params.additionalProperty)})`
-          : '';
-      return `${location} ${error.message ?? 'is invalid'}${extraKey}`;
-    });
-    this.logger.warn('Rejected PLAN report: payload violates PLAN schema', {
-      organizationId,
-      issues,
-    });
-    throw new BadRequestException(
-      `PLAN report payload does not match the PLAN report schema: ${issues.join('; ')}. Remove unknown fields and fix the listed issues, then revise and resubmit the report.`,
-    );
   }
 
   private async validatePlanRequiredServiceIds(

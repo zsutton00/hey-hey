@@ -20,6 +20,7 @@ const policy: DiagramElementPolicy = {
     { key: "GENERIC", label: "Generic", notation: "box" },
     { key: "START", label: "Start", notation: "box" },
     { key: "END", label: "End", notation: "box" },
+    { key: "UI_START", label: "UI Start", notation: "box" },
     { key: "DIAGRAM_REFERENCE", label: "Diagram reference", notation: "frame" },
   ],
   referenceTargets: [
@@ -31,8 +32,14 @@ const policy: DiagramElementPolicy = {
   ],
 };
 
+const roleLabels: Record<string, string> = {
+  START: "Start",
+  END: "End",
+  UI_START: "UI Start",
+};
+
 describe("DiagramFields mappings", () => {
-  it.each(["START", "END"])(
+  it.each(["START", "END", "UI_START"])(
     "selects %s and preserves the existing reference when reopening",
     (role) => {
       const onChange = vi.fn();
@@ -48,16 +55,16 @@ describe("DiagramFields mappings", () => {
             organizationId: null,
             projectId: null,
             onChange,
-          })
-        )
+          }),
+        ),
       );
       fireEvent.mouseDown(
-        screen.getByRole("combobox", { name: "Element role" })
+        screen.getByRole("combobox", { name: "Element role" }),
       );
       fireEvent.click(
         screen.getByRole("option", {
-          name: `${role === "START" ? "Start" : "End"} (box)`,
-        })
+          name: `${roleLabels[role]} (box)`,
+        }),
       );
       expect(onChange).toHaveBeenCalledWith({ role, canonicalReference: null });
       view.rerender(
@@ -70,21 +77,21 @@ describe("DiagramFields mappings", () => {
             organizationId: null,
             projectId: null,
             onChange,
-          })
-        )
+          }),
+        ),
       );
       expect(
-        screen.getByRole("combobox", { name: "Element role" })
-      ).toHaveTextContent(role === "START" ? "Start" : "End");
-    }
+        screen.getByRole("combobox", { name: "Element role" }),
+      ).toHaveTextContent(roleLabels[role]);
+    },
   );
-  it.each(["START", "END"])(
+  it.each(["START", "END", "UI_START"])(
     "reopens explicit %s metadata without coercion",
     (role) => {
       const metadata = { role, canonicalReference: null };
       expect(parseDiagramElementMetadata(metadata)).toEqual(metadata);
       expect(isValidDiagramElementMetadata(metadata, policy)).toBe(true);
-    }
+    },
   );
   it("uses canonical defaults and rejects non-architecture C4 levels", () => {
     expect(parseDiagramMetadata(null)).toEqual({
@@ -95,13 +102,13 @@ describe("DiagramFields mappings", () => {
       isValidDiagramMetadata({
         kind: DiagramKind.General,
         level: DiagramLevel.Container,
-      })
+      }),
     ).toBe(false);
     expect(
       isValidDiagramMetadata({
         kind: DiagramKind.Architecture,
         level: DiagramLevel.Container,
-      })
+      }),
     ).toBe(true);
   });
 
@@ -113,20 +120,20 @@ describe("DiagramFields mappings", () => {
     expect(
       isValidDiagramElementMetadata(
         { role: "GENERIC", canonicalReference: diagram },
-        policy
-      )
+        policy,
+      ),
     ).toBe(false);
     expect(
-      isValidDiagramElementMetadata({ role: "DIAGRAM_REFERENCE" }, policy)
+      isValidDiagramElementMetadata({ role: "DIAGRAM_REFERENCE" }, policy),
     ).toBe(false);
     expect(
       isValidDiagramElementMetadata(
         { role: "DIAGRAM_REFERENCE", canonicalReference: diagram },
-        policy
-      )
+        policy,
+      ),
     ).toBe(true);
     expect(
-      parseDiagramElementMetadata({ role: "CUSTOM", canonicalReference: null })
+      parseDiagramElementMetadata({ role: "CUSTOM", canonicalReference: null }),
     ).toEqual({ role: "CUSTOM", canonicalReference: null });
   });
 
@@ -140,8 +147,8 @@ describe("DiagramFields mappings", () => {
             entityType: DiagramReferenceTargetRuleEntityTypeEnum.Service,
           },
         },
-        policy
-      )
+        policy,
+      ),
     ).toBe(true);
   });
 });

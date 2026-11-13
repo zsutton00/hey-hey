@@ -1,6 +1,4 @@
-import { usePlatformAdminAccess } from "@hey-hey/ui-common/data";
 import { NotificationItem } from "@hey-hey/ui-common/components/Notifications";
-import DailySessionIcon from "@mui/icons-material/CalendarTodayOutlined";
 import CodingIcon from "@mui/icons-material/TimelineOutlined";
 import {
   Button,
@@ -9,6 +7,7 @@ import {
   Paper,
   Popper,
   Stack,
+  Tooltip,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
@@ -33,27 +32,20 @@ export const ProjectNotificationCenter: React.FC<
 > = ({ organizationId, projectId }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-  const { isPlatformAdmin } = usePlatformAdminAccess();
   const [codingButtonEl, setCodingButtonEl] = useState<HTMLElement | null>(
     null,
   );
-  const [dailySessionButtonEl, setDailySessionButtonEl] =
-    useState<HTMLElement | null>(null);
   const previewHost = usePreviewHost();
   const navigate = useNavigate();
 
   const {
-    currentDailySessionReportReadyToast,
     currentPullRequestMergedToast,
     currentSessionReportReadyToast,
     dismissNotification,
-    hasUnseenDailySessionReportReady,
     hasUnseenPullRequestMerged,
     hasUnseenSessionReportReady,
-    popCurrentDailySessionReportReadyToast,
     popCurrentPullRequestMergedToast,
     popCurrentSessionReportReadyToast,
-    resetDailySessionReportReadyIndicator,
     resetPullRequestMergedIndicator,
     resetSessionReportReadyIndicator,
   } = useProjectNotificationActivity({
@@ -64,15 +56,11 @@ export const ProjectNotificationCenter: React.FC<
   });
 
   const codingHref = WebPathService.projectAgentsCoding({ projectId });
-  const dailySessionHref = `/projects/${projectId}?tab=project&view=daily-session`;
 
   const codingColor =
     hasUnseenSessionReportReady || hasUnseenPullRequestMerged
       ? "primary.main"
       : "text.secondary";
-  const dailySessionColor = hasUnseenDailySessionReportReady
-    ? "primary.main"
-    : "text.secondary";
 
   const handleCodingClick = (): void => {
     if (hasUnseenSessionReportReady) {
@@ -80,12 +68,6 @@ export const ProjectNotificationCenter: React.FC<
     }
     if (hasUnseenPullRequestMerged) {
       resetPullRequestMergedIndicator();
-    }
-  };
-
-  const handleDailySessionClick = (): void => {
-    if (hasUnseenDailySessionReportReady) {
-      resetDailySessionReportReadyIndicator();
     }
   };
 
@@ -98,12 +80,6 @@ export const ProjectNotificationCenter: React.FC<
     notificationId: string,
   ): void => {
     popCurrentPullRequestMergedToast();
-    void dismissNotification(notificationId);
-  };
-
-  const handleDailySessionToastAcknowledge = (notificationId: string): void => {
-    popCurrentDailySessionReportReadyToast();
-    resetDailySessionReportReadyIndicator();
     void dismissNotification(notificationId);
   };
 
@@ -124,17 +100,6 @@ export const ProjectNotificationCenter: React.FC<
     navigate(`/projects/${projectId}/tasks/${taskId}`);
   };
 
-  const handleDailySessionClickAway = (): void => {
-    if (currentDailySessionReportReadyToast) {
-      popCurrentDailySessionReportReadyToast();
-    }
-  };
-
-  const handleDailySessionToastClick = (): void => {
-    resetDailySessionReportReadyIndicator();
-    navigate(dailySessionHref);
-  };
-
   const handlePreview = (sessionId: string): void => {
     const previewRequest: EntityPreviewRequest = {
       entityType: "agent_session",
@@ -152,63 +117,41 @@ export const ProjectNotificationCenter: React.FC<
     (currentSessionReportReadyToast || currentPullRequestMergedToast) &&
     codingButtonEl,
   );
-  const isDailySessionToastOpen = Boolean(
-    currentDailySessionReportReadyToast && dailySessionButtonEl,
-  );
 
   return (
     <>
       {isMobile ? (
-        <IconButton
-          aria-label="Activity"
-          component={RouterLink}
-          data-testid="coding-link"
-          onClick={handleCodingClick}
-          ref={setCodingButtonEl}
-          size="medium"
-          sx={{ color: codingColor }}
-          to={codingHref}
-        >
-          <CodingIcon fontSize="small" />
-        </IconButton>
-      ) : (
-        <Stack direction="row" spacing={1}>
-          <Button
+        <Tooltip title="Sessions">
+          <IconButton
+            aria-label="Sessions"
             component={RouterLink}
             data-testid="coding-link"
-            endIcon={<CodingIcon fontSize="small" />}
             onClick={handleCodingClick}
             ref={setCodingButtonEl}
-            size="small"
-            sx={{
-              color: codingColor,
-              textTransform: "none",
-            }}
+            size="medium"
+            sx={{ color: codingColor }}
             to={codingHref}
-            variant="text"
           >
-            Activity
-          </Button>
-
-          {isPlatformAdmin ? (
-            <Button
-              component={RouterLink}
-              data-testid="daily-session-link"
-              endIcon={<DailySessionIcon fontSize="small" />}
-              onClick={handleDailySessionClick}
-              ref={setDailySessionButtonEl}
-              size="small"
-              sx={{
-                color: dailySessionColor,
-                textTransform: "none",
-              }}
-              to={dailySessionHref}
-              variant="text"
-            >
-              Daily Session
-            </Button>
-          ) : null}
-        </Stack>
+            <CodingIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      ) : (
+        <Button
+          component={RouterLink}
+          data-testid="coding-link"
+          endIcon={<CodingIcon fontSize="small" />}
+          onClick={handleCodingClick}
+          ref={setCodingButtonEl}
+          size="small"
+          sx={{
+            color: codingColor,
+            textTransform: "none",
+          }}
+          to={codingHref}
+          variant="text"
+        >
+          Sessions
+        </Button>
       )}
 
       <Popper
@@ -251,36 +194,6 @@ export const ProjectNotificationCenter: React.FC<
           <span />
         )}
       </Popper>
-
-      {isPlatformAdmin ? (
-        <Popper
-          anchorEl={dailySessionButtonEl}
-          data-testid="daily-session-report-ready-toast-popper"
-          open={isDailySessionToastOpen}
-          placement="bottom-end"
-          sx={{ zIndex: theme.zIndex.tooltip }}
-        >
-          {currentDailySessionReportReadyToast ? (
-            <ClickAwayListener onClickAway={handleDailySessionClickAway}>
-              <Paper
-                data-testid="daily-session-report-ready-toast"
-                elevation={6}
-                onClick={handleDailySessionToastClick}
-                sx={{ mt: 1, minWidth: 320, maxWidth: 420 }}
-              >
-                <NotificationItem
-                  notification={
-                    currentDailySessionReportReadyToast.notification
-                  }
-                  onAcknowledge={handleDailySessionToastAcknowledge}
-                />
-              </Paper>
-            </ClickAwayListener>
-          ) : (
-            <span />
-          )}
-        </Popper>
-      ) : null}
     </>
   );
 };

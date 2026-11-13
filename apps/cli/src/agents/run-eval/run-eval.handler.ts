@@ -81,6 +81,7 @@ const runRecordedAttempts = async (
         searchScope,
         onProviderSessionIds: (ids) =>
           recorder.updateAttempt(attempt.attemptId, { attemptProviderSessionIds: ids }),
+        onTurnsRecorded: (turns) => recorder.updateAttempt(attempt.attemptId, { turns }),
         onWorkspaceSettled: (settled) => recorder.updateAttempt(attempt.attemptId, settled),
       });
     },

@@ -1,3 +1,4 @@
+import { renderApprovalReviews } from "./ProposalApprovalDetails";
 import { FutureGraphReview } from "./FutureGraphReview";
 import { Alert, Box, CircularProgress, Stack, Typography } from "@mui/material";
 import React, { useCallback, useMemo, useContext } from "react";
@@ -196,7 +197,7 @@ export const UpdateProposal: React.FC<UpdateProposalProps> = ({
 
   const content = (
     <Stack spacing={1.5}>
-      {proposals.map((incoming) => {
+      {renderApprovalReviews(proposals, renderMode, (incoming) => {
         const reviewed = incoming.reviewedFuture;
         const original =
           isFutureProposal(incoming) &&

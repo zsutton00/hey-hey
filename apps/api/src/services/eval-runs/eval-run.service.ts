@@ -46,10 +46,14 @@ import type {
 import { AgentSessionService } from '../agent-session.service';
 import { ReportService } from '../reports/report.service';
 import { WORK_ITEM_TYPE_KEYS } from '../tasks/work-item-type-keys';
-import { toEvalRunCaseInput } from './eval-case-input.mapper';
+import {
+  readEvalCaseTarget,
+  toEvalRunCaseInput,
+} from './eval-case-input.mapper';
 import {
   assertEvalCaseMockupExists,
   assertEvalCaseServiceExists,
+  assertConversationFitsHandler,
   assertEvaluableRunHandler,
   resolveEvalExecution,
 } from './eval-case-handlers';
@@ -161,6 +165,17 @@ export class EvalRunService {
       toEvalRunCaseInput(casesById.get(id)!),
     );
     for (const caseInput of caseInputs) {
+      // The run's chosen handler can replace the case's own, so the fit is checked per setup.
+      for (const configuration of configurations) {
+        assertConversationFitsHandler(
+          caseInput.title,
+          caseInput.target.inputs.inputs.length,
+          resolveEvalExecution(
+            caseInput.target,
+            configuration.target.handlerConfig,
+          ).handler,
+        );
+      }
       await assertEvalCaseServiceExists(
         caseInput.title,
         caseInput.coding,
@@ -627,7 +642,10 @@ export class EvalRunService {
       select: { id: true, payload: true },
     });
     const caseInputs = new Map<string, EvalRunCaseInput>(
-      payload.cases.map((caseInput) => [caseInput.id, caseInput]),
+      payload.cases.map((caseInput) => [
+        caseInput.id,
+        { ...caseInput, target: readEvalCaseTarget(caseInput.target) },
+      ]),
     );
     return {
       runId: run.id,

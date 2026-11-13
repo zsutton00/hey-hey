@@ -151,6 +151,10 @@ ContextProposalSummaryDto:
       additionalProperties: true
     requiredApprovals:
       type: integer
+      nullable: true
+      description: Historical requirement is unknown when terminal decision evidence is unavailable; never interpret null as zero.
+    approvalExplanation:
+      $ref: "./approval-policies.yaml#/ProposalApprovalExplanation"
     influences:
       type: array
       items:

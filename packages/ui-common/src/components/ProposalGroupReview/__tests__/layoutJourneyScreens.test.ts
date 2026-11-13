@@ -180,4 +180,90 @@ describe("layoutJourneyScreens", () => {
       );
     });
   });
+
+  describe("with a marked start screen", () => {
+    const startId = (name: string) => `id-${name}`;
+
+    it("places the start top-left when a transition loops back to it", () => {
+      const cells = layoutJourneyScreens(
+        screens("A", "B", "C"),
+        [link("p", "A", "B"), link("p", "B", "C"), link("p", "C", "A")],
+        none,
+        startId("B"),
+      );
+
+      expect(at(cells, "B")).toEqual({ column: 0, row: 0 });
+      expect(at(cells, "C").column).toBe(1);
+    });
+
+    it("places the start top-left beside other unreferenced screens", () => {
+      const transitions = [link("p", "A", "B"), link("p", "Z", "B")];
+      const unanchored = layoutJourneyScreens(
+        screens("A", "B", "Z"),
+        transitions,
+        none,
+      );
+      const cells = layoutJourneyScreens(
+        screens("A", "B", "Z"),
+        transitions,
+        none,
+        startId("Z"),
+      );
+
+      expect(at(unanchored, "A")).toEqual({ column: 0, row: 0 });
+      expect(at(cells, "Z")).toEqual({ column: 0, row: 0 });
+      expect(at(cells, "B").column).toBe(1);
+    });
+
+    it("places a start with no primary progression top-left", () => {
+      const cells = layoutJourneyScreens(
+        screens("A", "B", "S"),
+        [link("p", "A", "B"), link("u", "S", "A")],
+        none,
+        startId("S"),
+      );
+
+      expect(at(cells, "S")).toEqual({ column: 0, row: 0 });
+    });
+
+    it("lays out a flow with no start exactly as before", () => {
+      const transitions = [
+        link("p", "A", "B"),
+        link("p", "B", "C"),
+        link("p", "C", "A"),
+      ];
+      const before = layoutJourneyScreens(
+        screens("A", "B", "C"),
+        transitions,
+        none,
+      );
+
+      expect(
+        layoutJourneyScreens(screens("A", "B", "C"), transitions, none, null),
+      ).toEqual(before);
+    });
+
+    it("lets a saved position beat the start anchor", () => {
+      const cells = layoutJourneyScreens(
+        screens("A", "B", "S"),
+        [link("p", "S", "A"), link("p", "A", "B")],
+        new Map([["id-S", { x: 600, y: 300 }]]),
+        startId("S"),
+      );
+
+      expect(
+        new Set(cells.values().map((c) => `${c.column},${c.row}`)).size,
+      ).toBe(3);
+      expect(at(cells, "S")).toEqual({ column: 0, row: 0 });
+      expect(at(cells, "A").column).toBeGreaterThan(0);
+    });
+
+    it("ignores a start id that is not a screen", () => {
+      const transitions = [link("p", "A", "B")];
+
+      expect(
+        layoutJourneyScreens(screens("A", "B"), transitions, none, "missing"),
+      ).toEqual(layoutJourneyScreens(screens("A", "B"), transitions, none));
+    });
+  });
 });

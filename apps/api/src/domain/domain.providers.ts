@@ -1,3 +1,6 @@
+import { ProjectApprovalPolicyStore } from 'src/services/proposal/project-approval-policy.store';
+import { ProjectApprovalPolicyValidation } from 'src/services/proposal/project-approval-policy.validation';
+import { ProjectApprovalPolicyManagementService } from 'src/services/proposal/project-approval-policy-management.service';
 import { ProposalReconciliationGroupService } from '../services/proposal/proposal-reconciliation-group.service';
 import { ProposalReconciliationService } from '../services/proposal/proposal-reconciliation.service';
 import { ProposalReconciliationAdapterService } from '../services/proposal/proposal-reconciliation-adapter.service';
@@ -295,6 +298,9 @@ export const DOMAIN_SERVICES: Provider[] = [
   PendingEdgeService,
   ProposalService,
   ProjectApprovalPolicyService,
+  ProjectApprovalPolicyStore,
+  ProjectApprovalPolicyValidation,
+  ProjectApprovalPolicyManagementService,
   ProposalGroupService,
   ProposalGroupCoordinatorService,
   ProposalGroupAuthoringService,
@@ -428,6 +434,9 @@ export const DOMAIN_EXPORTS = [
   PendingEdgeService,
   ProposalService,
   ProjectApprovalPolicyService,
+  ProjectApprovalPolicyStore,
+  ProjectApprovalPolicyValidation,
+  ProjectApprovalPolicyManagementService,
   ProposalGroupService,
   ProposalGroupCoordinatorService,
   ProposalGroupAuthoringService,

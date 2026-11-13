@@ -1,3 +1,4 @@
+import { ProposalApprovalEligibilityContext } from "./ProposalApprovalDetails";
 import { useModalState } from "../Modals/useModalState";
 import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import { ProposalReconciliationContext } from "../ProposalReconciliation/ProposalReconciliationReview";
@@ -96,6 +97,8 @@ const ProposalStateIndicatorContent: React.FC<ProposalStateIndicatorProps> = ({
   applyLabel,
   canApprove = true,
 }) => {
+  const apiEligible = useContext(ProposalApprovalEligibilityContext);
+  canApprove = canApprove && apiEligible !== false;
   const readOnly = useContext(ProposalPresentationContext) === "read-only";
   const [rejectDialogOpen, setRejectDialogOpen, rejectDialogOpenOwnerKey] =
     useModalState(false);

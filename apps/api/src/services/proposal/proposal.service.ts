@@ -81,6 +81,10 @@ import {
   WorkItemTypeRole,
 } from '@hey-hey/contracts/api/models';
 import { EvalOutputAdmissionService } from '../eval/eval-output-admission.service';
+import {
+  groupMemberReservedEntity,
+  type GroupReservedEntity,
+} from './proposal-group-authoring.service';
 import { ProposalValidationEngine } from './proposal-validation.engine';
 import {
   assertWorkItemChangeSetStructurallyValid,
@@ -106,12 +110,18 @@ import {
   snapshotInfluenceReferences,
   type ProposalReferenceMetadata,
 } from './proposal-title-snapshot';
-import { evaluatePermissions } from './permission-evaluation';
+import {
+  evaluatePermissions,
+  evaluateApprovalPolicy,
+  type ApprovalEvaluation,
+} from './permission-evaluation';
+import { captureApprovalEvidence } from './approval-explanation';
 import { storeTracksAttachmentAsProposalEdge } from './proposal-tracking-attachment';
 import type { PreparedChangeSetProjection } from './work-item-change-set-materializer.service';
 import {
   mapProposalResponse,
   mapProposalResponses,
+  resolveProjectApprovalPolicies,
 } from './proposal-response-policy';
 import { resolvePermissionEvaluationContext } from './permission-evaluation-context';
 import {
@@ -460,6 +470,7 @@ export class ProposalService {
       runPostCommit: PostCommitRunner;
       genericChangeSetReady: boolean;
       responseRequiredApprovals?: number;
+      responseEvaluation?: ApprovalEvaluation;
       immediatelyMaterializedEdges?: MaterializedProposalEdge[];
     };
     try {
@@ -640,6 +651,7 @@ export class ProposalService {
         result.proposal,
         projectPolicy,
         result.responseRequiredApprovals,
+        result.responseEvaluation,
       ),
     );
   }
@@ -1577,11 +1589,13 @@ export class ProposalService {
       this.prisma.db.proposal.count({ where }),
     ]);
 
-    const projectPolicy =
-      await this.projectApprovalPolicyService.resolve(projectId);
+    const projectPolicies = await resolveProjectApprovalPolicies(
+      this.projectApprovalPolicyService,
+      data,
+    );
 
     return {
-      data: await mapProposalResponses(this.prisma.db, data, projectPolicy, {
+      data: await mapProposalResponses(this.prisma.db, data, projectPolicies, {
         reconciliation: this.reconciliation,
         omitUnresolvableTargets: true,
         workItemTypeRegistry: this.workItemTypeRegistry,
@@ -1983,12 +1997,29 @@ export class ProposalService {
         proposalId: id,
         operationCount: changeSet.operations.length,
       });
-      return this.workItemChangeSetProjector.project({
+      const group = await this.loadReviewGroupReservations(id);
+      const projection = await this.workItemChangeSetProjector.project({
         organizationId,
         projectId,
         request: changeSet,
+        reservedEntities: group?.reservedEntities,
         view: rootChildrenView,
       });
+
+      if (!projection.valid) {
+        this.logger.warn('Review-time change-set validation rejected', {
+          proposalId: id,
+          groupId: group?.groupId ?? null,
+          targetEntityId: proposal.targetEntityId,
+          issues: projection.issues.map((issue) => ({
+            code: issue.code,
+            field: issue.field,
+            reason: issue.reason,
+          })),
+        });
+      }
+
+      return projection;
     }
 
     const dto: CreateProposalDto = {
@@ -2011,6 +2042,41 @@ export class ProposalService {
       proposals: [dto],
       context: { organizationId, projectId, requestor },
     });
+  }
+
+  /**
+   * A grouped proposal is reviewed against its group's frozen reservations, so
+   * a reference to an identity another member will create resolves as it did at
+   * finalization. Ungrouped proposals get none.
+   */
+  private async loadReviewGroupReservations(proposalId: string): Promise<{
+    groupId: string;
+    reservedEntities: GroupReservedEntity[];
+  } | null> {
+    const membership = await this.prisma.db.proposalGroupMember.findUnique({
+      where: { proposalId },
+      select: { groupId: true },
+    });
+    if (!membership) {
+      return null;
+    }
+
+    const members = await this.prisma.db.proposalGroupMember.findMany({
+      where: {
+        groupId: membership.groupId,
+        reservedTargetEntityId: { not: null },
+        proposal: { action: 'CREATE' },
+      },
+      select: {
+        reservedTargetEntityId: true,
+        proposal: { select: { targetEntityType: true, updates: true } },
+      },
+    });
+
+    return {
+      groupId: membership.groupId,
+      reservedEntities: members.flatMap(groupMemberReservedEntity),
+    };
   }
 
   /**
@@ -2090,6 +2156,7 @@ export class ProposalService {
   ): Promise<{
     source: 'user' | 'agent';
     config: ReturnType<typeof evaluatePermissions>;
+    evaluation: ApprovalEvaluation;
     meetsThreshold: boolean;
   }> {
     const requestor = dto.requestorContext as {
@@ -2115,16 +2182,18 @@ export class ProposalService {
       },
       this.workItemTypeRegistry,
     );
-    const config = evaluatePermissions(
+    const evaluation = evaluateApprovalPolicy(
       evaluationContext.entity,
       evaluationContext.proposal,
       projectPolicy,
     );
+    const config = evaluation.config;
     const approvalCount =
       source === 'user' && config.allowsProposerApproval ? 1 : 0;
     return {
       source,
       config,
+      evaluation,
       meetsThreshold: approvalCount >= config.threshold,
     };
   }
@@ -2229,12 +2298,13 @@ export class ProposalService {
     runPostCommit: PostCommitRunner;
     genericChangeSetReady: boolean;
     responseRequiredApprovals?: number;
+    responseEvaluation?: ApprovalEvaluation;
   } | null> {
     if (!this.canApplyOnCreate(proposal)) {
       return null;
     }
 
-    const { source, config } = await this.evaluateApplyOnCreate(
+    const { source, config, evaluation } = await this.evaluateApplyOnCreate(
       tx,
       organizationId,
       projectId,
@@ -2271,6 +2341,7 @@ export class ProposalService {
         runPostCommit: NOOP_POST_COMMIT,
         genericChangeSetReady: false,
         responseRequiredApprovals: config.threshold,
+        responseEvaluation: evaluation,
       };
     }
 
@@ -2288,6 +2359,11 @@ export class ProposalService {
         'Proposal approval requirements changed while it was being created; retry the request.',
       );
     }
+    const approvalDecisionEvidence = captureApprovalEvidence(
+      evaluation,
+      approvalCount,
+    );
+    proposal = { ...proposal, approvalDecisionEvidence };
     const genericChangeSetRequest =
       this.approvalService.genericChangeSetRequest(proposal);
     const prepared = this.approvalService.assertPreparedChangeSetCurrent(
@@ -2303,6 +2379,8 @@ export class ProposalService {
           organizationId,
           projectId,
           prepared,
+          undefined,
+          approvalDecisionEvidence,
         );
       return {
         proposal: proposerApproval
@@ -2328,7 +2406,7 @@ export class ProposalService {
       proposal,
       organizationId,
       projectId,
-      { onImmediateEdgeCreated },
+      { onImmediateEdgeCreated, approvalDecisionEvidence },
     );
     return {
       proposal: proposerApproval
@@ -2604,10 +2682,12 @@ export class ProposalService {
     proposal: ProposalWithResponseRelations,
     projectPolicy: ProjectApprovalPolicy,
     requiredApprovals?: number,
+    evaluation?: ApprovalEvaluation,
   ): Promise<TypedProposalResponse> {
     return mapProposalResponse(this.prisma.db, proposal, projectPolicy, {
       requiredApprovals,
       reconciliation: this.reconciliation,
+      evaluation,
       workItemTypeRegistry: this.workItemTypeRegistry,
     });
   }

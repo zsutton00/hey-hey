@@ -14,6 +14,7 @@ import type {
   ConversationResponseDeclaration,
 } from "../Components/conversationFormTypes";
 import { resolveConversationResponseModel } from "./conversationResponseModel";
+import { resolveReplyComposerState } from "../../AgentSession/replyComposerPolicy";
 
 const options = {
   workflowCanSubmit: true,
@@ -328,5 +329,45 @@ describe("conversation response model", () => {
       resolveConversationResponseModel([entry(source)], [source], options)
         .target,
     ).toEqual({ ownership: "none" });
+  });
+
+  it("treats a live enrichment question group as the response and never strands the user once it is locked", () => {
+    const questions = {
+      ...message("questions", "question_group"),
+      data: {
+        type: "QUESTIONS",
+        uiElements: [
+          {
+            id: "answer",
+            type: "question_group",
+            payload: {
+              questions: ["Who owns retries?"],
+              conversationReply: { noteLabel: "Note", notePlaceholder: "..." },
+            },
+          },
+        ],
+      },
+    } as MessageResponseDto;
+    const composer = (submitting: boolean) => {
+      const model = resolveConversationResponseModel(
+        [entry(questions)],
+        [questions],
+        { ...options, isSubmitting: submitting },
+      );
+      return resolveReplyComposerState({
+        policy: "when-no-usable-response",
+        target: model.target,
+        targetSettled: true,
+        hideComposer: false,
+        readOnly: false,
+        canSubmit: true,
+        submitting,
+      });
+    };
+
+    expect(composer(false).hidden).toBe(true);
+    // While locked behind a send the fields are not usable, so the composer
+    // takes over rather than leaving no input surface.
+    expect(composer(true).hidden).toBe(false);
   });
 });

@@ -107,6 +107,7 @@ describe('evaluatePermissions', () => {
       requiredApprovals: 4,
       rules: [
         {
+          source: 'PROJECT',
           match: { entity: { type: 'GOAL' } },
           config: {
             requiresProposal: false,
@@ -132,6 +133,17 @@ describe('evaluatePermissions', () => {
       threshold: AUTO_APPROVED,
       allowsProposerApproval: true,
     });
+  });
+
+  it('rejects a resolved rule without provenance instead of inferring it from its threshold', () => {
+    const policy = createDefaultProjectApprovalPolicy();
+    const rule = policy.rules[0]!;
+    expect(() =>
+      evaluatePermissions(GOAL, userCtx(['status']), {
+        ...policy,
+        rules: [{ ...rule, source: undefined }],
+      }),
+    ).toThrow('Resolved approval rules must carry authoritative provenance');
   });
 
   it('rejects invalid fixed thresholds from a resolved policy', () => {

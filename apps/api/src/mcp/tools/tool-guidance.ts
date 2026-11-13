@@ -169,6 +169,12 @@ export const FEATURE_REQUIREMENT_CONCISION_GUIDANCE = [
   'Keep each requirement as concise as possible. Make its first sentence a self-contained summary of the promised behavior, and keep further detail only where it changes what is delivered. Cite the owning task, design doc or Contract instead of restating its content. Split a requirement that bundles several independent rules into separate requirements, or move the detail to the fulfilling task.',
 ].join('\n');
 
+export const FEATURE_SPLIT_CUE_GUIDANCE = [
+  '## Oversized features',
+  '',
+  'While creating or editing a feature, notice when it is becoming too large to read cheaply when pulled in whole: roughly 16–20 or more requirements, a very long description, or more than one coherent product capability. When it is, tell the user and ask whether to split it. Wait for the answer; never split, block, or truncate the feature on your own, and do not ask when the feature is comfortably small. If the user agrees, propose smaller capability-focused child features under it, keep a short parent body that links to them, and reparent or link the affected tasks.',
+].join('\n');
+
 const FLOW_RELATIONSHIP_VARIANT_GUIDANCE = [
   '',
   '## Flow relationship variants',
@@ -464,7 +470,9 @@ function buildWorkItemGuidanceBody(
           '4. Create the Diagram the same way. For each screen element, set',
           '   its `diagramElementMetadata` section to',
           '   `{ "role": "UI", "canonicalReference": { "entityType": "TASK",',
-          '   "entityId": "<that Mockup\'s reservedEntityId>" } }` — this is',
+          '   "entityId": "<that Mockup\'s reservedEntityId>" } }`, using',
+          "   role `UI_START` instead of `UI` for the flow's entrance or",
+          '   primary screen — this is',
           '   how a screen names its Mockup, not a `diagramElements[].edges`',
           '   link. The project-effective element reference policy must',
           '   allow a Mockup target for this role. Update `expectedRevision`',
@@ -523,13 +531,17 @@ function buildWorkItemGuidanceBody(
 
   // Canonical standards carry this block once the migration has run; the
   // tool-level reminder covers project overrides without repeating it.
-  const featureRequirementConcisionGuidance = (
+  const featureStandardsGuidance = (
     typeKey: string,
     cfg: WorkItemTypeRules,
   ): string[] =>
-    typeKey === 'FEATURE' &&
-    !cfg.writingStandards[mode].includes(FEATURE_REQUIREMENT_CONCISION_GUIDANCE)
-      ? ['', FEATURE_REQUIREMENT_CONCISION_GUIDANCE]
+    typeKey === 'FEATURE'
+      ? [
+          FEATURE_REQUIREMENT_CONCISION_GUIDANCE,
+          FEATURE_SPLIT_CUE_GUIDANCE,
+        ].flatMap((block) =>
+          cfg.writingStandards[mode].includes(block) ? [] : ['', block],
+        )
       : [];
 
   const planStageCreateDependencyGuidance = (typeKey: string): string[] =>
@@ -836,7 +848,7 @@ function buildWorkItemGuidanceBody(
         ...graphEditGuidance(cfg),
         ...diagramProposalEdgeGuidance(typeKey),
         ...standardTaskDependencyGuidance(typeKey),
-        ...featureRequirementConcisionGuidance(typeKey, cfg),
+        ...featureStandardsGuidance(typeKey, cfg),
         ...serviceScopeGuidance,
         '',
         cfg.writingStandards[mode],
@@ -1257,6 +1269,12 @@ export const TOOL_GUIDANCE = {
         'Read that feature for the full rule set: lead-with-the-decision,',
         "reference-don't-restate, one-decision-per-doc, signal-to-noise.",
         '',
+        '## Line breaks',
+        '',
+        'Write `content` with real line breaks. Never type the two characters',
+        'backslash and n as a newline: a body with no real line breaks is',
+        'refused and must be resent.',
+        '',
         '## Section shape (within `content`)',
         '',
         'Lead with the decision, not the context. State what is being decided',
@@ -1342,6 +1360,12 @@ export const TOOL_GUIDANCE = {
         'The discipline that governs `create_design_doc` applies symmetrically',
         'here. Canonical writing standards live on @[feature:b551cf45-e5b1-413d-9163-541e0a5c9bc3|Design Doc Tools].',
         'Edit paths cannot be a back door for rules a creation path enforces.',
+        '',
+        '## Line breaks',
+        '',
+        'Write section content with real line breaks. Never type the two',
+        'characters backslash and n as a newline: a section with no real line',
+        'breaks is refused and must be resent.',
         '',
         '## One update per entity',
         '',

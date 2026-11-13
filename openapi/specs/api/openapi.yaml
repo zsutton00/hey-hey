@@ -7168,6 +7168,140 @@ paths:
         "404":
           description: Task dependency not found
 
+  /organizations/{organizationId}/projects/{projectId}/approval-policy:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Organization that owns the project.
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project whose approval policy is read or replaced.
+    get:
+      operationId: getProjectApprovalPolicy
+      summary: Get the effective project approval policy
+      description: >-
+        Return the API-owned effective policy, complete global first-match
+        order, rule provenance, protected fixed exceptions, unmatched fallback,
+        and concurrency revision. Any caller with project read access may
+        inspect the policy. A project with no saved override receives the
+        established code defaults at revision 0 unless a prior restore or
+        replacement has advanced its revision history. A malformed persisted
+        override is an error; it is never silently replaced with defaults.
+      tags: [Projects]
+      responses:
+        "200":
+          description: Effective project policy and concurrency revision.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectApprovalPolicyResponse"
+        "401":
+          description: Unauthorized.
+        "403":
+          description: Caller cannot read this project.
+        "404":
+          description: Project not found.
+        "500":
+          description: A saved policy could not be read or validated.
+    put:
+      operationId: replaceProjectApprovalPolicy
+      summary: Replace the editable project approval rules
+      description: >-
+        Replace the project-authored rule layer and each rule's approval count
+        using compare-and-swap expectedRevision. Only project
+        OWNER and ARCHITECT roles may manage this policy; proposal approver
+        eligibility does not grant management authority. The API resolves
+        selectors against the project's current effective work-item type
+        registry and rejects invalid documents without replacing the existing
+        override. Protected FIXED rules remain ahead of project rules, saved
+        project rules retain request order, and ordinary code defaults follow
+        them so project rules can override a default while unmatched proposals
+        keep established behavior. On success, revision increments once and
+        the complete effective snapshot is returned. A stale revision returns
+        409 and requires a fresh read.
+      tags: [Projects]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectApprovalPolicyReplaceRequest"
+      responses:
+        "200":
+          description: Complete effective policy after replacement.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectApprovalPolicyResponse"
+        "400":
+          description: Invalid policy document or selector; prior configuration is unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectApprovalPolicyValidationErrorResponse"
+        "401":
+          description: Unauthorized.
+        "403":
+          description: Only project OWNER and ARCHITECT roles may manage the policy.
+        "404":
+          description: Project not found.
+        "409":
+          description: Expected revision is stale; reread the effective policy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectApprovalPolicyRevisionConflictResponse"
+        "500":
+          description: A saved policy could not be read or validated.
+    post:
+      operationId: restoreProjectApprovalPolicyDefaults
+      summary: Restore the code-owned approval defaults
+      description: >-
+        Remove the current project override and return the effective code
+        defaults. Only project OWNER and ARCHITECT roles may restore defaults.
+        expectedRevision is checked atomically with the restore. Every
+        successful restore increments and retains the project revision, even
+        when no override is currently present, so absent configuration and
+        absent concurrency history remain distinct and stale first-save or
+        restore/recreate writes cannot succeed. A stale revision returns 409
+        and requires a fresh read.
+      tags: [Projects]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectApprovalPolicyRestoreRequest"
+      responses:
+        "200":
+          description: Effective code defaults and the advanced revision.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectApprovalPolicyResponse"
+        "401":
+          description: Unauthorized.
+        "403":
+          description: Only project OWNER and ARCHITECT roles may manage the policy.
+        "404":
+          description: Project not found.
+        "409":
+          description: Expected revision is stale; reread the effective policy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectApprovalPolicyRevisionConflictResponse"
+        "500":
+          description: A saved policy could not be read or validated.
+
   /organizations/{organizationId}/projects/{projectId}/work-item-types:
     parameters:
       - name: organizationId
@@ -21334,11 +21468,13 @@ paths:
                       data:
                         $ref: "#/components/schemas/CreateReportResponseDto"
         "400":
-          description: Bad request
+          description: Bad request, or a payload that fails its report schema (REPORT_PAYLOAD_INVALID with field-level issues).
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
+                anyOf:
+                  - $ref: "#/components/schemas/CreateReportValidationError"
+                  - $ref: "#/components/schemas/ApiErrorResponse"
         "409":
           description: Attempt already persisted, or another submission conflict.
           content:
@@ -25304,6 +25440,12 @@ components:
       $ref: "../schemas/reports.yaml#/CreateReportCompletedAttempt"
     CreateReportCompletedAttemptError:
       $ref: "../schemas/reports.yaml#/CreateReportCompletedAttemptError"
+    CreateReportValidationIssue:
+      $ref: "../schemas/reports.yaml#/CreateReportValidationIssue"
+    CreateReportValidationFailure:
+      $ref: "../schemas/reports.yaml#/CreateReportValidationFailure"
+    CreateReportValidationError:
+      $ref: "../schemas/reports.yaml#/CreateReportValidationError"
     PlanSubmissionAdmissionRequest:
       $ref: "../schemas/trigger-payloads.yaml#/PlanSubmissionAdmissionRequest"
     PlanSubmissionAdmissionResponse:
@@ -25422,6 +25564,44 @@ components:
       $ref: "../schemas/proposals.yaml#/CreateProposalReconciliationCandidate"
     ProposalAgentFixRequest:
       $ref: "../schemas/proposals.yaml#/ProposalAgentFixRequest"
+    ProposalApprovalExplanationEvidence:
+      $ref: "../schemas/approval-policies.yaml#/ProposalApprovalExplanationEvidence"
+    ProposalApprovalExplanation:
+      $ref: "../schemas/approval-policies.yaml#/ProposalApprovalExplanation"
+    ProjectApprovalPolicyRuleSource:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyRuleSource"
+    ProjectApprovalPolicyRequirement:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyRequirement"
+    ProjectApprovalPolicyAuthor:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyAuthor"
+    ProjectApprovalPolicyAction:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyAction"
+    ProjectApprovalPolicyChangeSelector:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyChangeSelector"
+    ProjectApprovalPolicyConditions:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyConditions"
+    ProjectApprovalPolicyEffectiveConditions:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyEffectiveConditions"
+    ProjectApprovalPolicyRule:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyRule"
+    ProjectApprovalPolicyEffectiveRule:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyEffectiveRule"
+    ProjectApprovalPolicyFallback:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyFallback"
+    ProjectApprovalPolicySnapshot:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicySnapshot"
+    ProjectApprovalPolicyReplaceRequest:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyReplaceRequest"
+    ProjectApprovalPolicyRestoreRequest:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyRestoreRequest"
+    ProjectApprovalPolicyValidationIssue:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyValidationIssue"
+    ProjectApprovalPolicyValidationErrorResponse:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyValidationErrorResponse"
+    ProjectApprovalPolicyRevisionConflictResponse:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyRevisionConflictResponse"
+    ProjectApprovalPolicyResponse:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyResponse"
     ProposalResponseDto:
       $ref: "../schemas/proposals.yaml#/ProposalResponseDto"
     CreateProposalDto:

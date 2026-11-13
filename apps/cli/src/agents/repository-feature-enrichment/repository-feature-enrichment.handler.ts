@@ -3,7 +3,11 @@ import {
   LocalPromptType,
   type RepositoryFeatureEnrichmentRequest,
 } from '@hey-hey/contracts/agent-bridge';
-import { ExtendedUIFieldType, SystemMessageDataTypeEnum } from '@hey-hey/contracts/api/models';
+import {
+  ExtendedUIFieldType,
+  SystemMessageDataTypeEnum,
+  type UIElement,
+} from '@hey-hey/contracts/api/models';
 import type { UpdateMessageDto } from '../../shared/api';
 import type { AssistantCompleteEvent } from '../../run/types';
 import { createAgentBridgeRuntimeValidator } from '../../shared/agent-bridge-contract/runtime-schema-validator';
@@ -14,11 +18,13 @@ import {
 } from '../mcp-server-config';
 import {
   turnUserMessageBlock,
+  type CompletionOutputDiagnostics,
   type PrepareResult,
   type PromptTypeHandlerDeps,
   type UserLaunchablePromptTypeHandler,
 } from '../prompt-type-handler';
 import { runtimeFromHandoff } from '../handoff-runtime';
+import { parseEnrichmentQuestions } from './enrichment-questions';
 import { buildRepositoryFeatureEnrichmentPrompt } from './repository-feature-enrichment-prompt';
 import type { RepositoryFeatureEnrichmentPromptPayload } from './types';
 
@@ -105,24 +111,57 @@ export class RepositoryFeatureEnrichmentHandler implements UserLaunchablePromptT
     return buildRepositoryFeatureEnrichmentPrompt(payload);
   }
 
-  /** Gives every enrichment message its own reply field; the import workflow cannot take replies. */
-  transformCompletionOutput(event: AssistantCompleteEvent): UpdateMessageDto {
+  /**
+   * Gives every enrichment message something to answer with: one field per
+   * question when the agent supplied a readable question block, otherwise the
+   * single reply field. The import workflow cannot take replies.
+   */
+  transformCompletionOutput(
+    event: AssistantCompleteEvent,
+    _payload?: unknown,
+    diagnostics?: CompletionOutputDiagnostics,
+  ): UpdateMessageDto {
+    const parsed = parseEnrichmentQuestions(event.summary);
+
+    if (parsed.kind === 'invalid') {
+      diagnostics?.logger.warn('repository_feature_enrichment.questions_unreadable', {
+        runId: diagnostics.runId,
+        cause: parsed.cause,
+      });
+    }
+
+    const questions = parsed.kind === 'questions' ? parsed : null;
+    const uiElement = questions
+      ? ({
+          id: 'repository-feature-enrichment-questions',
+          type: ExtendedUIFieldType.QuestionGroup,
+          label: 'Your answers',
+          required: false,
+          payload: {
+            questions: questions.questions,
+            conversationReply: {
+              noteLabel: 'Anything else?',
+              notePlaceholder: 'Add a note, correct something, or tell me that is enough...',
+            },
+          },
+          submitText: 'Send',
+        } satisfies UIElement)
+      : ({
+          id: 'repository-feature-enrichment-reply',
+          type: ExtendedUIFieldType.RepositoryFeatureEnrichmentReply,
+          label: 'Your answer',
+          placeholder: 'Answer the questions above, or tell me what to change...',
+          required: true,
+          submitText: 'Send',
+        } satisfies UIElement);
+
     return {
       data: {
         type: SystemMessageDataTypeEnum.Agent,
-        response: event.summary,
+        response: questions ? questions.visibleText : event.summary,
         detectedIntent: 'agent_response',
         intentConfidence: 1,
-        uiElements: [
-          {
-            id: 'repository-feature-enrichment-reply',
-            type: ExtendedUIFieldType.RepositoryFeatureEnrichmentReply,
-            label: 'Your answer',
-            placeholder: 'Answer the questions above, or tell me what to change...',
-            required: true,
-            submitText: 'Send',
-          },
-        ],
+        uiElements: [uiElement],
       },
     };
   }

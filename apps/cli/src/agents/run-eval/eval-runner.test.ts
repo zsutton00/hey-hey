@@ -1,5 +1,6 @@
+import { oneMessageInputs } from './eval-case-inputs.fixture';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { EvalRecordedAttempt } from '@hey-hey/contracts/api/models';
+import type { EvalAttemptTurn, EvalRecordedAttempt } from '@hey-hey/contracts/api/models';
 import {
   EvalTargetFailure,
   runEvalAttempts,
@@ -22,7 +23,7 @@ const makeAttempt = (id: string): EvalRecordedAttempt => ({
     id: `case-${id}`,
     evalCaseId: 'eval-case',
     title: id,
-    target: { situation: 's', initiatingRequest: 'r', targetHandler: 'agent_search' },
+    target: { situation: 's', inputs: oneMessageInputs('r'), targetHandler: 'agent_search' },
     grading: { checks: [], rubric: [] },
   },
 });
@@ -329,5 +330,76 @@ describe('runEvalAttempts', () => {
         { scope: 'TARGET_HANDLER', cost },
       ],
     });
+  });
+});
+
+describe('scripted conversations', () => {
+  const call = (toolName: string) => ({
+    toolName,
+    origin: 'RUN_OBSERVED' as const,
+    truncated: false,
+  });
+  const turn = (index: number, toolName: string): EvalAttemptTurn => ({
+    index,
+    input: `message ${index + 1}`,
+    state: 'COMPLETED',
+    reply: `reply ${index + 1}`,
+    recordedToolCalls: { state: 'COLLECTED', calls: [call(toolName)] },
+  });
+
+  it('judges only the final message, with earlier messages as context and only its own tool calls', async () => {
+    const turns = [turn(0, 'unified_search'), turn(1, 'create_hint'), turn(2, 'get_context')];
+    const judge = vi.fn<EvalRunnerPorts['judge']>(async () => ({ assessment }));
+    const { ports, attempts } = makePorts(async () => ({
+      ...completed,
+      outputText: 'reply 3',
+      recordedToolCalls: {
+        state: 'COLLECTED',
+        calls: ['unified_search', 'create_hint', 'get_context'].map(call),
+      },
+      turns,
+      judgedTurnIndex: 2,
+    }));
+    ports.judge = judge;
+
+    await runEvalAttempts(
+      {
+        attempts: [makeAttempt('a')],
+        settings: { maxConcurrentAttempts: 1 },
+        signal: new AbortController().signal,
+      },
+      ports,
+    );
+
+    const output = judge.mock.calls[0]![1];
+    expect(output.conversation?.judgedTurn.index).toBe(2);
+    expect(output.conversation?.earlierTurns.map((t) => t.index)).toEqual([0, 1]);
+    // A search or hint made on an earlier message is not evidence for the final one.
+    expect(output.toolCalls?.calls.map((c) => c.toolName)).toEqual(['get_context']);
+    expect(attempts.get('a')!.some((patch) => patch.judgedTurnIndex === 2)).toBe(true);
+  });
+
+  it('does not judge, and invents no judgment, when the conversation ended before the final message', async () => {
+    const judge = vi.fn<EvalRunnerPorts['judge']>(async () => ({ assessment }));
+    const { ports, attempts } = makePorts(async () => {
+      throw new EvalTargetFailure('message 2 failed', {});
+    });
+    ports.judge = judge;
+
+    const tally = await runEvalAttempts(
+      {
+        attempts: [makeAttempt('a'), makeAttempt('b')],
+        settings: { maxConcurrentAttempts: 1 },
+        signal: new AbortController().signal,
+      },
+      ports,
+    );
+
+    expect(judge).not.toHaveBeenCalled();
+    expect(finalPatch(attempts, 'a')).toMatchObject({ status: 'ERROR' });
+    expect(finalPatch(attempts, 'a').automatedAssessment).toBeUndefined();
+    expect(finalPatch(attempts, 'a').judgedTurnIndex).toBeUndefined();
+    // The other attempt still ran.
+    expect(tally.errored).toBe(2);
   });
 });

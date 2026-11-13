@@ -122,3 +122,5 @@ export type {
 } from "./shared/WorkItemReadView";
 export * from "./shared";
 export * from "./EntityPromptTemplateEditor";
+
+export { ProjectApprovalSettings } from "./ProjectApprovalSettings/ProjectApprovalSettings";

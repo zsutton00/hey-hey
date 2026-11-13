@@ -1,4 +1,4 @@
-import { Box } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 import React, { useLayoutEffect, useRef, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import {
@@ -23,6 +23,8 @@ import {
   type MetadataDisclosureRow,
 } from "../shared/MetadataDisclosure";
 import { MarkdownRenderer } from "../shared/MarkdownRenderer";
+import { logger } from "../../utils/logger";
+import { RenderErrorBoundary } from "../shared/RenderErrorBoundary";
 import { EntityConversationTitle } from "./EntityConversationTitle";
 
 export type AgentSessionListItemVariant = "coding" | "conversations";
@@ -51,10 +53,10 @@ const PERMISSION_REQUEST_DECISION_LABELS: Record<string, string> = {
 };
 
 const getSessionMessagePresentation = (
-  messageData: SystemMessageData
+  messageData: SystemMessageData,
 ): SessionMessagePresentation => {
   const permissionRequestElement = messageData.uiElements?.find(
-    (element) => element.type === "agent-request-permission"
+    (element) => element.type === "agent-request-permission",
   );
   const payload = permissionRequestElement?.payload;
   const decision =
@@ -95,65 +97,16 @@ export interface AgentSessionListItemProps {
 }
 
 const getSessionMetadata = (
-  metadata: readonly MetadataDisclosureRow[] | undefined
+  metadata: readonly MetadataDisclosureRow[] | undefined,
 ): readonly MetadataDisclosureRow[] | undefined =>
   metadata && metadata.length > 0 ? metadata : undefined;
 
-export const AgentSessionListItem: React.FC<AgentSessionListItemProps> = ({
-  buildSessionPath,
-  item,
-  onDeleteSession,
-  onSessionNavigate,
-  projectId,
-  variant,
-}) => {
-  const { agentSession, lastMessage, reports, services } = item;
-  const sessionProps = agentSessionAdapter.toEntityListItemProps(agentSession, {
-    projectId,
-    showEntityKind: false,
-  });
-  const {
-    href: sessionHref,
-    metadata: sessionMetadata,
-    status: lifecycleStatus,
-    ...sessionItemPropsWithoutStatus
-  } = sessionProps;
-  const resolvedSessionHref = buildSessionPath
-    ? buildSessionPath(agentSession.id)
-    : sessionHref;
-  const isCoding = variant === "coding";
-  const currentStateLabel = isCoding
-    ? undefined
-    : getAgentSessionCurrentStatePresentation(agentSession.currentState).label;
-  const conversationTitle = agentSession.title || "Untitled agent session";
-  const title = (
-    <EntityConversationTitle
-      conversationTitle={conversationTitle}
-      entityId={agentSession.entityId}
-    />
-  );
-  const sessionItemProps = isCoding
-    ? { ...sessionItemPropsWithoutStatus, status: lifecycleStatus, title }
-    : currentStateLabel === undefined
-    ? {
-        ...sessionItemPropsWithoutStatus,
-        metadata: getSessionMetadata(sessionMetadata),
-        title,
-      }
-    : {
-        ...sessionItemPropsWithoutStatus,
-        metadata: getSessionMetadata(sessionMetadata),
-        status: currentStateLabel,
-        title,
-      };
-  const contextTags = [
-    ...(sessionProps.tags ?? []),
-    ...services.map((service) =>
-      service.id === agentSession.launchServiceId
-        ? `Launch service: ${service.name}`
-        : `Service: ${service.name}`
-    ),
-  ];
+const SessionLatestMessage: React.FC<{
+  item: PaginatedAgentSessionItemDto;
+  isCoding: boolean;
+  itemName: string;
+}> = ({ item, isCoding, itemName }) => {
+  const { agentSession, lastMessage, reports } = item;
   const userMessageText =
     lastMessage?.type === MessageType.User
       ? (lastMessage.data as UserMessageData).agentInput?.userMessage
@@ -162,9 +115,8 @@ export const AgentSessionListItem: React.FC<AgentSessionListItemProps> = ({
     lastMessage?.type === MessageType.System
       ? getSessionMessagePresentation(lastMessage.data as SystemMessageData)
       : typeof userMessageText === "string" && userMessageText.trim()
-      ? { kind: "user", text: userMessageText }
-      : null;
-  const itemName = isCoding ? "coding-session" : "conversation";
+        ? { kind: "user", text: userMessageText }
+        : null;
   const messagePreviewRef = useRef<HTMLDivElement | null>(null);
   const messagePreviewContentRef = useRef<HTMLDivElement | null>(null);
   const [isMessagePreviewOverflowing, setIsMessagePreviewOverflowing] =
@@ -180,7 +132,7 @@ export const AgentSessionListItem: React.FC<AgentSessionListItemProps> = ({
 
     const updateOverflow = () => {
       setIsMessagePreviewOverflowing(
-        content.scrollHeight > preview.clientHeight + 1
+        content.scrollHeight > preview.clientHeight + 1,
       );
     };
 
@@ -195,60 +147,7 @@ export const AgentSessionListItem: React.FC<AgentSessionListItemProps> = ({
   }, [lastMessage?.id, reports]);
 
   return (
-    <Box
-      {...(resolvedSessionHref
-        ? {
-            component: RouterLink,
-            onClick: onSessionNavigate,
-            to: resolvedSessionHref,
-          }
-        : { component: "div" })}
-      data-testid={`${itemName}-container-${agentSession.id}`}
-      sx={{
-        backgroundColor: "background.paper",
-        border: 1,
-        borderColor: "divider",
-        borderRadius: 1,
-        color: "inherit",
-        display: "block",
-        overflow: "hidden",
-        textDecoration: "none",
-        "&:hover": {
-          backgroundColor: "action.hover",
-        },
-        "& .MuiListItem-root": {
-          backgroundColor: "transparent",
-          border: 0,
-          borderRadius: 0,
-          mb: 0,
-          "&:hover": {
-            backgroundColor: "transparent",
-          },
-        },
-      }}
-    >
-      <Box sx={{ minWidth: 0 }}>
-        <EntityListItem
-          {...sessionItemProps}
-          statusLeadingAdornment={
-            isCoding ? (
-              <AgentSessionCurrentStateIndicator
-                currentState={agentSession.currentState}
-                presentation="icon"
-              />
-            ) : undefined
-          }
-          tags={isCoding ? undefined : [...new Set(contextTags)]}
-          titleStatusLayout="row"
-          onDelete={
-            onDeleteSession
-              ? () => {
-                  void onDeleteSession();
-                }
-              : undefined
-          }
-        />
-      </Box>
+    <>
       {lastMessage && messagePresentation ? (
         <Box
           data-testid={`${itemName}-message-${agentSession.id}`}
@@ -332,6 +231,151 @@ export const AgentSessionListItem: React.FC<AgentSessionListItemProps> = ({
             </Box>
           ) : null}
         </Box>
+      ) : null}
+    </>
+  );
+};
+
+export const AgentSessionListItem: React.FC<AgentSessionListItemProps> = ({
+  buildSessionPath,
+  item,
+  onDeleteSession,
+  onSessionNavigate,
+  projectId,
+  variant,
+}) => {
+  const { agentSession, lastMessage, reports, services } = item;
+  const sessionProps = agentSessionAdapter.toEntityListItemProps(agentSession, {
+    projectId,
+    showEntityKind: false,
+  });
+  const {
+    href: sessionHref,
+    metadata: sessionMetadata,
+    status: lifecycleStatus,
+    ...sessionItemPropsWithoutStatus
+  } = sessionProps;
+  const resolvedSessionHref = buildSessionPath
+    ? buildSessionPath(agentSession.id)
+    : sessionHref;
+  const isCoding = variant === "coding";
+  const currentStateLabel = isCoding
+    ? undefined
+    : getAgentSessionCurrentStatePresentation(agentSession.currentState).label;
+  const conversationTitle = agentSession.title || "Untitled agent session";
+  const title = (
+    <EntityConversationTitle
+      conversationTitle={conversationTitle}
+      entityId={agentSession.entityId}
+    />
+  );
+  const sessionItemProps = isCoding
+    ? { ...sessionItemPropsWithoutStatus, status: lifecycleStatus, title }
+    : currentStateLabel === undefined
+      ? {
+          ...sessionItemPropsWithoutStatus,
+          metadata: getSessionMetadata(sessionMetadata),
+          title,
+        }
+      : {
+          ...sessionItemPropsWithoutStatus,
+          metadata: getSessionMetadata(sessionMetadata),
+          status: currentStateLabel,
+          title,
+        };
+  const contextTags = [
+    ...(sessionProps.tags ?? []),
+    ...services.map((service) =>
+      service.id === agentSession.launchServiceId
+        ? `Launch service: ${service.name}`
+        : `Service: ${service.name}`,
+    ),
+  ];
+  const itemName = isCoding ? "coding-session" : "conversation";
+
+  return (
+    <Box
+      {...(resolvedSessionHref
+        ? {
+            component: RouterLink,
+            onClick: onSessionNavigate,
+            to: resolvedSessionHref,
+          }
+        : { component: "div" })}
+      data-testid={`${itemName}-container-${agentSession.id}`}
+      sx={{
+        backgroundColor: "background.paper",
+        border: 1,
+        borderColor: "divider",
+        borderRadius: 1,
+        color: "inherit",
+        display: "block",
+        overflow: "hidden",
+        textDecoration: "none",
+        "&:hover": {
+          backgroundColor: "action.hover",
+        },
+        "& .MuiListItem-root": {
+          backgroundColor: "transparent",
+          border: 0,
+          borderRadius: 0,
+          mb: 0,
+          "&:hover": {
+            backgroundColor: "transparent",
+          },
+        },
+      }}
+    >
+      <Box sx={{ minWidth: 0 }}>
+        <EntityListItem
+          {...sessionItemProps}
+          statusLeadingAdornment={
+            isCoding ? (
+              <AgentSessionCurrentStateIndicator
+                currentState={agentSession.currentState}
+                presentation="icon"
+              />
+            ) : undefined
+          }
+          tags={isCoding ? undefined : [...new Set(contextTags)]}
+          titleStatusLayout="row"
+          onDelete={
+            onDeleteSession
+              ? () => {
+                  void onDeleteSession();
+                }
+              : undefined
+          }
+        />
+      </Box>
+      {lastMessage ? (
+        <RenderErrorBoundary
+          key={`${agentSession.id}:${lastMessage.id}:${lastMessage.status}:${reports.map((report) => `${report.id}:${report.version}`).join(",")}`}
+          fallback={
+            <Typography
+              color="text.secondary"
+              data-testid="session-latest-message-unavailable"
+            >
+              Latest message unavailable.
+            </Typography>
+          }
+          onError={(error) => {
+            logger.error("ui", "Session latest message failed to render", {
+              code: "SESSION_LATEST_MESSAGE_RENDER_FAILED",
+              agentSessionId: agentSession.id,
+              messageId: lastMessage.id,
+              reportTypes: reports.map((report) => report.reportType),
+              errorName: error.name,
+              reason: error.message,
+            });
+          }}
+        >
+          <SessionLatestMessage
+            item={item}
+            isCoding={isCoding}
+            itemName={itemName}
+          />
+        </RenderErrorBoundary>
       ) : null}
       {isCoding && sessionMetadata?.[0] ? (
         <Box

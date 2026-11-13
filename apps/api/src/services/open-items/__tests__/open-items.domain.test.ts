@@ -282,6 +282,77 @@ describe('Open Items domain', () => {
       },
     );
 
+    it('nests a session under its open parent session, keeps that parent on shorter re-activation, and adds it when longer', () => {
+      const parentSession = item(1, {
+        entityType: 'AGENT_SESSION',
+        groupId: G1,
+        memberPosition: 'V',
+      });
+      const presentationFor = (kinds: string) => ({
+        label: 'Child session',
+        routeParams: { lineageKinds: kinds },
+      });
+      const activate = (
+        rows: ReturnType<typeof item>[],
+        lineage: ReturnType<typeof ref>[],
+        kinds: string,
+      ) =>
+        mutation(
+          domain.activateOpenItem(state(4, rows, [group(G1)]), env(5), {
+            idempotencyKey: key(1),
+            item: ref(2, 'AGENT_SESSION'),
+            lineage,
+            presentation: presentationFor(kinds),
+          }),
+        ).items;
+      const parentEntry = ref(1, 'AGENT_SESSION');
+
+      const [created] = activate([parentSession], [ref(9), parentEntry], 'ta');
+      expect(created).toMatchObject({
+        lineage: [ref(9), parentEntry],
+        groupId: G1,
+      });
+
+      const stored = item(2, {
+        entityType: 'AGENT_SESSION',
+        lineage: [ref(9), parentEntry],
+        presentation: presentationFor('ta'),
+        groupId: G1,
+        memberPosition: 'W',
+      });
+      for (const shorter of [[], [ref(9)]]) {
+        const outcome = domain.activateOpenItem(
+          state(4, [parentSession, stored], [group(G1)]),
+          env(5),
+          {
+            idempotencyKey: key(1),
+            item: ref(2, 'AGENT_SESSION'),
+            lineage: shorter,
+            presentation: {
+              label: 'Renamed',
+              routeParams: { lineageKinds: 't' },
+            },
+          },
+        );
+        expect(mutation(outcome).items[0]).toMatchObject({
+          lineage: [ref(9), parentEntry],
+          presentation: {
+            label: 'Renamed',
+            routeParams: { lineageKinds: 'ta' },
+          },
+        });
+      }
+
+      const bare = item(2, {
+        entityType: 'AGENT_SESSION',
+        lineage: [],
+        groupId: G1,
+        memberPosition: 'W',
+      });
+      const [gained] = activate([parentSession, bare], [parentEntry], 'a');
+      expect(gained).toMatchObject({ lineage: [parentEntry] });
+    });
+
     it('reports an unchanged re-activation without advancing any revision', () => {
       const existing = item(1, { revision: 3 });
       const outcome = domain.activateOpenItem(state(4, [existing]), env(5), {

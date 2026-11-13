@@ -147,6 +147,74 @@ export const en = {
   "usageTrends.error": "Usage trends could not be loaded.",
   "usageTrends.empty":
     "No agent executions with usage measurements match this period and these filters.",
+  "approvalSettings.type": "Type",
+  "approvalSettings.featureContent": "Feature content changed",
+  "approvalSettings.topLevel": "At top level",
+  "approvalSettings.authoringTool": "Authoring operation",
+
+  "approvalSettings.retry": "Try again",
+  "approvalSettings.ruleCount": "Rules",
+  "approvalSettings.user": "User",
+  "approvalSettings.agent": "Agent",
+  "approvalSettings.createAction": "Create",
+  "approvalSettings.updateAction": "Update",
+  "approvalSettings.deleteAction": "Delete",
+  "approvalSettings.statusOnly": "Status only",
+  "approvalSettings.contentChange": "Content changes",
+
+  "approvalSettings.priority": "Global priority",
+  "approvalSettings.projectSource": "Project configuration",
+  "approvalSettings.fixedSource": "Built-in \u00b7 Fixed",
+  "approvalSettings.fixedRow":
+    "Always requires exactly {{count}} human approval(s). The project's approval setting does not change it.",
+  "approvalSettings.builtin": "Built-in",
+  "approvalSettings.tabs": "Approval rule sections",
+  "approvalSettings.projectRulesTab": "Project rules",
+  "approvalSettings.builtinRulesTab": "Built-in rules",
+  "approvalSettings.builtinIntro":
+    "These rules come with Hey Hey and are locked.",
+  "approvalSettings.fixedCounts": "Fixed approval counts",
+  "approvalSettings.fixedCountsHelp":
+    "The number of human approvals is set by Hey Hey. The project approval setting does not change it.",
+  "approvalSettings.standardDefaults": "Standard defaults",
+  "approvalSettings.standardDefaultsHelp":
+    "Built-in rules that apply when no project rule matches.",
+  "approvalSettings.any": "Any",
+  "approvalSettings.immediate": "Apply immediately",
+  "approvalSettings.count": "Human approvals",
+  "approvalSettings.credit": "Allow eligible user proposer approval",
+  "approvalSettings.yes": "Yes",
+  "approvalSettings.no": "No",
+  "approvalSettings.loadError": "Could not load approval settings.",
+  "approvalSettings.loading": "Loading approval settings",
+  "approvalSettings.defaultGroup": "Default \u00b7 All types",
+  "approvalSettings.title": "Approval rules",
+  "approvalSettings.intro":
+    "Choose when changes apply immediately and when people review them.",
+  "approvalSettings.restore": "Restore defaults",
+  "approvalSettings.orderHelp":
+    "Rules are checked in priority order and the first matching rule wins. Priority numbers run across both tabs: fixed built-in rules first, then your project rules, then the remaining built-in rules. Restore defaults replaces your project rules only; built-in rules never change.",
+  "approvalSettings.refreshError": "Could not refresh settings.",
+  "approvalSettings.conflict":
+    "Someone saved newer settings. Review the latest settings before changing them.",
+  "approvalSettings.reviewLatest": "Review latest settings",
+  "approvalSettings.groups": "Rule groups",
+  "approvalSettings.unknownGroup":
+    "This type is no longer in the registry. Choose another group.",
+  "approvalSettings.add": "Add rule",
+  "approvalSettings.historical": "Unavailable type",
+  "approvalSettings.fallback": "When no rule matches",
+  "approvalSettings.proposalRequired": "Proposal required",
+  "approvalSettings.noProposal": "No proposal required",
+  "approvalSettings.permissionHelp":
+    "Only governance managers can edit. Agent authorship earns no human approval. Immediate changes retain a proposal audit record.",
+  "approvalSettings.author": "Author",
+  "approvalSettings.action": "Action",
+  "approvalSettings.change": "Changes",
+  "approvalSettings.delete": "Delete rule",
+  "approvalSettings.outcome": "Outcome",
+  "approvalSettings.review": "Require human approval",
+
   "demo.start.checking": "Checking for your demo…",
   "demo.start.resumeError":
     "We couldn't check for your demo. Please try again.",
@@ -1442,6 +1510,8 @@ export const en = {
   "eval.run.setup.judgeIncomplete":
     "Choose a provider, model and reasoning effort for the judge.",
   "eval.run.setup.cases": "Approved cases in this run",
+  "eval.run.setup.messages_one": "1 message, judged on the last",
+  "eval.run.setup.messages_other": "{{count}} messages, judged on the last",
   "eval.run.setup.noCases":
     "This Eval has no approved cases yet. Approve cases on the Eval before running it.",
   "eval.run.setup.casesError": "Couldn't load the approved cases.",
@@ -1665,6 +1735,27 @@ export const en = {
   "eval.case.coding.checklist.note.UPDATE":
     "only the changed parts are checked, and anything that used to work and now breaks is flagged.",
   "eval.case.coding.invalid": "The Coding section can't be read.",
+  "eval.case.inputs.invalid": "The Inputs section can't be read.",
+  "eval.case.inputs.request": "Request",
+  "eval.case.inputs.singleNote":
+    "The agent's reply to this message is what is judged.",
+  "eval.case.inputs.listNote":
+    "The messages are sent to the agent in order, and it answers each one. The agent's reply to the last message is what is judged.",
+  "eval.case.inputs.judged": "Judged",
+  "eval.case.inputs.moveUp": "Move up",
+  "eval.case.inputs.moveDown": "Move down",
+  "eval.case.inputs.edit": "Edit",
+  "eval.case.inputs.remove": "Remove",
+  "eval.case.inputs.add": "+ Add message",
+  "eval.case.inputs.done": "Done",
+  "eval.case.inputs.cancel": "Cancel",
+  "eval.case.inputs.textareaLabel": "Message text",
+  "eval.case.inputs.unsupported": "Unsupported input ({{kind}}), kept as is.",
+  "eval.case.inputs.minimum":
+    "A case needs at least one message: the only message can't be removed.",
+  "eval.run.inputs.heading": "Messages this run sent",
+  "eval.run.inputs.frozenNote":
+    "As the run used them, frozen at launch. Editing the Eval Case later does not change this.",
   "eval.results.work.scope": "Work done",
   "eval.results.usage.cacheRead": "Cache read: {{value}}",
   "eval.results.usage.cacheCreation": "Cache creation: {{value}}",
@@ -1745,6 +1836,18 @@ export const en = {
   "eval.results.assessment.checklistHit": "Hit",
   "eval.results.assessment.checklistMissed": "Missed",
   "eval.results.assessment.checklistUnanswered": "Not judged",
+  "eval.results.turns.title": "Conversation",
+  "eval.results.turns.progress":
+    "{{completed}} of {{planned}} messages finished ({{started}} started).",
+  "eval.results.turns.judged": "Message {{message}} was judged.",
+  "eval.results.turns.notJudged": "Not judged.",
+  "eval.results.turns.message": "Message {{message}}",
+  "eval.results.turns.unavailable": "Not reported",
+  "eval.results.turns.partial": "(partly attributed)",
+  "eval.results.turns.state.STARTED": "Running",
+  "eval.results.turns.state.COMPLETED": "Finished",
+  "eval.results.turns.state.FAILED": "Failed",
+  "eval.results.turns.state.STOPPED": "Stopped",
   "eval.results.assessment.regressions": "Broken by this change:",
   "eval.results.assessment.noRegressions":
     "Nothing that worked before is broken.",

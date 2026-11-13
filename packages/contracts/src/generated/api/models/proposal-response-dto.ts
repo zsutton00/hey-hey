@@ -37,6 +37,9 @@ import type { ProposalAction } from './proposal-action.js';
 import type { ProposalApprovalDto } from './proposal-approval-dto.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { ProposalApprovalExplanation } from './proposal-approval-explanation.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { ProposalEdgeDeclaration } from './proposal-edge-declaration.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -166,11 +169,17 @@ export interface ProposalResponseDto {
      */
     'requestorContext'?: { [key: string]: any; };
     /**
-     * Effective number of approvals required by the API-owned proposal policy. Clients must display this value rather than evaluating an independent approval threshold.
+     * Effective number of approvals required by the API-owned proposal policy. Null for terminal ordinary proposals whose historical evidence is unavailable; null must never be displayed as zero or reconstructed from current settings. Clients must display this value rather than evaluating an independent approval threshold.
      * @type {number}
      * @memberof ProposalResponseDto
      */
-    'requiredApprovals': number;
+    'requiredApprovals': number | null;
+    /**
+     *
+     * @type {ProposalApprovalExplanation}
+     * @memberof ProposalResponseDto
+     */
+    'approvalExplanation'?: ProposalApprovalExplanation;
     /**
      * Entities that influenced this proposal. Each entry declares the influencing entity, how it influenced the proposal, and a reason type.
      * @type {Array<Influence>}

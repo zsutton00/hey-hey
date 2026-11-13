@@ -1,3 +1,6 @@
+import { oneMessageInputs } from './eval-case-inputs.fixture';
+import { buildEvalFollowUp } from './eval-handler-launch';
+import { EvalTargetFailure } from './eval-runner';
 import { MAX_RECORDED_ARGUMENT_CHARS } from './eval-recorded-tool-calls';
 import { SessionTokenUsageReader } from '../../provider-usage/session-token-usage';
 import type { TokenUsage } from '../../session/types';
@@ -179,6 +182,18 @@ const makeHarness = async () => {
   >(() =>
     Promise.resolve({ providerSessionId: null, providerConversationId: null, errorCount: 0 }),
   );
+  // A resumed provider session keeps the id it already had, as a real resume does.
+  const runPromptWithProviderSession = async (
+    ...args: Parameters<typeof runPrompt>
+  ): Promise<Awaited<ReturnType<typeof runPrompt>>> => {
+    const result = await runPrompt(...args);
+
+    return {
+      ...result,
+      providerSessionId:
+        (await runStore.getRunMetadata(AGENT_SESSION_ID))?.provider_session_id ?? null,
+    };
+  };
   const projectModeBundleMaterializer = new ProjectModeBundleMaterializer();
   const postMessage = vi.fn(() => Promise.resolve({ id: 'message' }));
   const updateMessage = vi.fn<MessagePosterApiClient['updateMessage']>(() => Promise.resolve({}));
@@ -196,15 +211,8 @@ const makeHarness = async () => {
     }),
     runStore,
     sessionRunner: {
-      runPrompt: async (...args) => {
-        const result = await runPrompt(...args);
-        return {
-          ...result,
-          providerSessionId:
-            (await runStore.getRunMetadata(AGENT_SESSION_ID))?.provider_session_id ?? null,
-        };
-      },
-      resumeSession: runPrompt,
+      runPrompt: runPromptWithProviderSession,
+      resumeSession: runPromptWithProviderSession,
     },
     oauthClient: createTestOAuthClient({
       getAccessToken: vi.fn(() => Promise.resolve({ success: true as const, data: 'test-token' })),
@@ -247,6 +255,7 @@ const startRunPayload = (overrides: Partial<StartRunTriggerPayload>): StartRunTr
 import { EvalAttemptExecution } from './eval-attempt-execution';
 import { SessionCostReader } from '../../provider-usage/session-cost';
 import type {
+  EvalAttemptTurn,
   EvalRecordedAttempt,
   EvalResolvedExecution,
   EvalTargetHandlerKey,
@@ -293,7 +302,7 @@ const attempt = (
         : {}),
       focalItemId: ENTITY.entityId,
       focalItemType: options.focalItemType ?? 'TASK',
-      initiatingRequest: 'Review this item.',
+      inputs: oneMessageInputs('Review this item.'),
       situation: 'SECRET-SITUATION',
     },
     grading: { checks: [], rubric: [], expectations: 'SECRET-EXPECTATIONS' },
@@ -1608,5 +1617,191 @@ describe('free-form coding attempts and their workspaces', () => {
     });
     expect(boundDuringSecond).toBeDefined();
     expect(await leftovers(root)).toEqual([]);
+  });
+});
+
+describe('scripted conversations through one continuing Run', () => {
+  const conversationAttempt = (messages: string[]): EvalRecordedAttempt => {
+    const base = attempt('entity_conversation');
+    delete base.caseInput.coding;
+
+    return {
+      ...base,
+      caseInput: {
+        ...base.caseInput,
+        target: {
+          ...base.caseInput.target,
+          inputs: { inputs: messages.map((text) => ({ kind: 'text_message' as const, text })) },
+        },
+      },
+    };
+  };
+  /** One real reply: the provider session owned by the handler answers and commits its message. */
+  const replyWith = async (
+    h: Awaited<ReturnType<typeof makeHarness>>,
+    finalMessage: string,
+  ): Promise<void> => {
+    h.runPrompt.mockImplementationOnce(async () => {
+      const turnId = (await h.runStore.getRunMetadata(AGENT_SESSION_ID))?.latestTurn?.turnId;
+      // The provider's counters are cumulative for the session: each reply adds 100 in, 10 out, $0.50.
+      const replies = h.runPrompt.mock.calls.length;
+      nativeReports.get(h.runStore)?.set('native-conversation-session', {
+        sessionId: 'native-conversation-session',
+        totalCost: 0.5 * replies,
+        inputTokens: 100 * replies,
+        outputTokens: 10 * replies,
+      });
+      await h.runStore.updateRunProviderIdentity(AGENT_SESSION_ID, {
+        providerSessionId: 'native-conversation-session',
+        providerSessionAgentId: 'entity_conversation',
+      });
+      await h.runStore.updateRunFinalAssistantMessage(AGENT_SESSION_ID, {
+        turnId: turnId ?? '',
+        messageId: `final-${finalMessage}`,
+        text: finalMessage,
+        committedAt: new Date().toISOString(),
+      });
+
+      return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+    });
+  };
+  const promptsRun = (runPrompt: ReturnType<typeof vi.fn>): string[] =>
+    runPrompt.mock.calls.map(
+      ([args]) => (args as import('../providers/session-runner').RunPromptArgs).prompt,
+    );
+
+  it('sends each message in order to the same Run, waits for each real reply and records every Turn', async () => {
+    const harness = await makeHarness();
+    const { runPrompt, execution, runStore } = harness;
+    const messages = ['First message.', 'Second message.', 'Message under test.'];
+    for (const reply of ['Reply one.', 'Reply two.', 'Reply three.']) {
+      await replyWith(harness, reply);
+    }
+    const recorded: EvalAttemptTurn[][] = [];
+
+    const result = await execution.execute(coordinator, conversationAttempt(messages), {
+      searchScope: CASE_SEARCH_SCOPE,
+      signal: new AbortController().signal,
+      onTurnsRecorded: (turns) => {
+        recorded.push(turns);
+
+        return Promise.resolve();
+      },
+    });
+
+    const prompts = promptsRun(runPrompt);
+    expect(prompts).toHaveLength(3);
+    messages.forEach((message, index) => expect(prompts[index]).toContain(message));
+    // A message never arrives before the reply to the one before it.
+    expect(prompts[0]).not.toContain('Second message.');
+    expect(prompts[1]).not.toContain('Message under test.');
+    expect(JSON.stringify(runPrompt.mock.calls)).not.toContain('SECRET-');
+    expect(result.assistantCompleted).toBe(true);
+    expect(result.outputText).toBe('Reply three.');
+    expect(result.judgedTurnIndex).toBe(2);
+    expect(result.turns?.map((turn) => [turn.index, turn.input, turn.state, turn.reply])).toEqual([
+      [0, 'First message.', 'COMPLETED', 'Reply one.'],
+      [1, 'Second message.', 'COMPLETED', 'Reply two.'],
+      [2, 'Message under test.', 'COMPLETED', 'Reply three.'],
+    ]);
+    expect(new Set(result.turns?.map((turn) => turn.turnId)).size).toBe(3);
+    // Each message carries only its own share of the cumulative counters, not the running total.
+    for (const turn of result.turns ?? []) {
+      expect(turn.measurement).toMatchObject({
+        scope: 'TARGET_HANDLER',
+        inputTokens: 100,
+        outputTokens: 10,
+        cost: { state: 'available', amount: 0.5 },
+      });
+      expect(turn.measurementPartial).toBeUndefined();
+    }
+    // Each Turn was saved as started, then as settled, before the next input.
+    expect(recorded.map((turns) => turns.map((turn) => turn.state).join(','))).toEqual([
+      'STARTED',
+      'COMPLETED',
+      'COMPLETED,STARTED',
+      'COMPLETED,COMPLETED',
+      'COMPLETED,COMPLETED,STARTED',
+      'COMPLETED,COMPLETED,COMPLETED',
+    ]);
+    expect((await runStore.getRunMetadata(AGENT_SESSION_ID))?.inert).toBe(true);
+  });
+
+  it('keeps a one-message case exactly as it was, with no conversation record', async () => {
+    const harness = await makeHarness();
+    await replyWith(harness, 'Only reply.');
+    const onTurnsRecorded = vi.fn(() => Promise.resolve());
+
+    const result = await harness.execution.execute(coordinator, conversationAttempt(['One.']), {
+      searchScope: CASE_SEARCH_SCOPE,
+      signal: new AbortController().signal,
+      onTurnsRecorded,
+    });
+
+    expect(result.turns).toBeUndefined();
+    expect(result.judgedTurnIndex).toBeUndefined();
+    expect(onTurnsRecorded).not.toHaveBeenCalled();
+    expect(result.outputText).toBe('Only reply.');
+  });
+
+  it('refuses any follow-up that is not the next recorded message', async () => {
+    const harness = await makeHarness();
+    await replyWith(harness, 'Reply one.');
+    await harness.execution.execute(coordinator, conversationAttempt(['One.']), {
+      searchScope: CASE_SEARCH_SCOPE,
+      signal: new AbortController().signal,
+    });
+    const outside = buildEvalFollowUp('Something nobody recorded.');
+    const callsBefore = harness.runPrompt.mock.calls.length;
+
+    // No authorization at all: the inert Run refuses ordinary follow-ups.
+    await expect(harness.service.sendSystemMessage(AGENT_SESSION_ID, outside)).rejects.toThrow(
+      /Inert Runs refuse follow-up input/,
+    );
+    // An authorization for different text does not admit this text, and is not left behind.
+    await expect(
+      harness.service.sendScriptedInertMessage(AGENT_SESSION_ID, outside, {
+        index: 1,
+        text: 'A different recorded message.',
+      }),
+    ).rejects.toThrow(/Inert Runs refuse follow-up input/);
+    await expect(
+      harness.service.sendSystemMessage(
+        AGENT_SESSION_ID,
+        buildEvalFollowUp('A different recorded message.'),
+      ),
+    ).rejects.toThrow(/Inert Runs refuse follow-up input/);
+    expect(harness.runPrompt.mock.calls).toHaveLength(callsBefore);
+  });
+
+  it('ends the attempt at a failed message, keeps the Turns already recorded and never reaches the judged message', async () => {
+    const harness = await makeHarness();
+    await replyWith(harness, 'Reply one.');
+    harness.runPrompt.mockRejectedValueOnce(new Error('provider fell over'));
+    const recorded: EvalAttemptTurn[][] = [];
+
+    await expect(
+      harness.execution.execute(
+        coordinator,
+        conversationAttempt(['One.', 'Two.', 'Message under test.']),
+        {
+          searchScope: CASE_SEARCH_SCOPE,
+          signal: new AbortController().signal,
+          onTurnsRecorded: (turns) => {
+            recorded.push(turns);
+
+            return Promise.resolve();
+          },
+        },
+      ),
+    ).rejects.toBeInstanceOf(EvalTargetFailure);
+
+    const saved = recorded.at(-1) ?? [];
+    expect(saved.map((turn) => [turn.index, turn.state])).toEqual([
+      [0, 'COMPLETED'],
+      [1, 'FAILED'],
+    ]);
+    expect(saved[0]?.reply).toBe('Reply one.');
+    expect(promptsRun(harness.runPrompt).join('\n')).not.toContain('Message under test.');
   });
 });
