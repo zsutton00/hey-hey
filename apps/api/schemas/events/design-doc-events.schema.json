@@ -21818,6 +21818,9 @@
         },
         "graph": {
           "$ref": "#/definitions/WorkItemTypeGraphCapability"
+        },
+        "monitorKind": {
+          "$ref": "#/definitions/WorkItemTypeMonitorKind"
         }
       },
       "description": "Capability flags an item of this type carries — the boolean switches the canonical definitions declare. Product Feature hierarchy participation is platform-owned by the FEATURE type key; structural work-item parentage is declared by WorkItemTypeDefinitionDto.allowedParentTypes, while requiresParent remains the independent mandatory-parent capability. Known keys are named so generated clients can consume them directly; unknown keys are rejected so consumers share one contract vocabulary."
@@ -22266,6 +22269,51 @@
         },
         {}
       ]
+    },
+    "WorkItemTypeMonitorKind": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "Stable kind identifier, e.g. \\\"task\\\"."
+        },
+        "allowedNodeTypes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Work-item type keys a node of a monitor of this kind may be."
+        },
+        "allowedLaunchMethods": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/TaskMonitorLaunchMethod"
+          },
+          "description": "Launch modes a node of this kind may use."
+        },
+        "allowedRuntimeProviders": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/TaskMonitorLaunchProvider"
+          },
+          "description": "Runtime providers, one half of a node\\'s runtime profile, a node of this kind may use."
+        },
+        "allowedReasoningEfforts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/TaskMonitorReasoningEffort"
+          },
+          "description": "Reasoning efforts, the other half of a node\\'s runtime profile, a node of this kind may use."
+        }
+      },
+      "required": [
+        "key",
+        "allowedNodeTypes",
+        "allowedLaunchMethods",
+        "allowedRuntimeProviders",
+        "allowedReasoningEfforts"
+      ],
+      "description": "The kind of a monitor-role work-item type: what each execution node of a monitor of this type may be and how it may be launched. A monitor type that declares no kind resolves to the Task kind, so existing monitors need no stored value. The kind is configuration on the monitor type, not a separate registered thing monitors reference."
     },
     "FutureDependencyPresentation": {
       "anyOf": [

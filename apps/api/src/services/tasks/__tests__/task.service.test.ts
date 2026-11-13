@@ -6605,6 +6605,127 @@ describe('TaskService', () => {
       },
     );
 
+    describe('monitor kind enforcement', () => {
+      const nodeTypes = (types: Record<string, string>) =>
+        jest
+          .fn()
+          .mockImplementation(async (args: any) =>
+            (args.where.id.in as string[]).flatMap((id) =>
+              types[id] ? [{ id, type: types[id] }] : [],
+            ),
+          );
+      const BUG_NEXT_NODE = {
+        [TASK_MONITOR_TASK_ID]: 'STANDARD',
+        [NEXT_TASK_MONITOR_TASK_ID]: 'BUG',
+      };
+      const firstNodeOnly: TaskMonitorExecutionDefinition = {
+        ...VALID_SCHEMA_BACKED_SECTION_CONTENT,
+        executionPlan: [VALID_SCHEMA_BACKED_SECTION_CONTENT.executionPlan[0]!],
+      };
+
+      it('checks the persisted entry when a create repeats executionDefinition', async () => {
+        const createSpy = jest.fn();
+        mockTransaction.mockImplementation(async (callback) =>
+          callback({
+            initiative: {
+              findFirst: jest.fn().mockResolvedValue({
+                id: testIds.initiative,
+                originatingProjectId: testIds.project,
+              }),
+            },
+            task: {
+              create: createSpy,
+              findFirst: jest.fn().mockResolvedValue({
+                id: 'monitor-parent',
+                type: 'STANDARD',
+                projectId: testIds.project,
+              }),
+              findMany: nodeTypes(BUG_NEXT_NODE),
+            },
+          }),
+        );
+
+        // The first entry is allowed by the Task kind; the last, which is the
+        // one that would be stored, has a Bug node.
+        await expect(
+          service.create(
+            testIds.organization,
+            testIds.initiative,
+            {
+              name: 'monitor',
+              type: 'TASK_MONITOR',
+              parentTaskId: 'monitor-parent',
+              initiativeId: testIds.initiative,
+              sections: [
+                { key: 'executionDefinition', content: firstNodeOnly },
+                {
+                  key: 'executionDefinition',
+                  content: VALID_SCHEMA_BACKED_SECTION_CONTENT,
+                },
+              ],
+            },
+            testIds.project,
+          ),
+        ).rejects.toThrow(
+          new RegExp(
+            `${NEXT_TASK_MONITOR_TASK_ID}.*"BUG".*"task" monitor kind`,
+          ),
+        );
+        expect(createSpy).not.toHaveBeenCalled();
+      });
+
+      it('rejects an edit that adds a node the kind does not allow', async () => {
+        const taskSectionUpdate = jest.fn();
+        const tx = {
+          task: {
+            findFirst: jest.fn().mockResolvedValue({
+              ...mockTaskData,
+              type: 'TASK_MONITOR',
+              projectId: testIds.project,
+            }),
+            findMany: nodeTypes(BUG_NEXT_NODE),
+            update: jest.fn(),
+          },
+          taskSection: {
+            findMany: jest.fn().mockResolvedValue([
+              {
+                id: `${testIds.task}-executionDefinition`,
+                key: 'executionDefinition',
+                materializedMarkdown: JSON.stringify(firstNodeOnly),
+              },
+            ]),
+            update: taskSectionUpdate,
+          },
+          taskSectionHistory: {
+            findFirst: jest.fn().mockResolvedValue(null),
+            create: jest.fn(),
+          },
+        };
+
+        await expect(
+          service.updateInTransaction(
+            tx as any,
+            testIds.organization,
+            testIds.initiative,
+            testIds.task,
+            {
+              sections: [
+                {
+                  key: 'executionDefinition',
+                  content: VALID_SCHEMA_BACKED_SECTION_CONTENT,
+                },
+              ],
+            } as UpdateTaskDto,
+          ),
+        ).rejects.toThrow(
+          new RegExp(
+            `${NEXT_TASK_MONITOR_TASK_ID}.*"BUG".*"task" monitor kind`,
+          ),
+        );
+        expect(taskSectionUpdate).not.toHaveBeenCalled();
+      });
+    });
+
     // Inline placement matrix for create + re-parent enforcement tests.
     // Mirrors the registry's built-in type rules. Parent/child compatibility
     // is owned by each child's allowedParentTypes declaration.
