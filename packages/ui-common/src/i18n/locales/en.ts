@@ -14,6 +14,24 @@ import { KEYS } from "../keys";
 import { compose, patterns } from "../compose";
 
 export const en = {
+  "openItems.rename.action": "Rename",
+  "openItems.rename.heading": "Rename conversation",
+  "openItems.rename.title": "Conversation title",
+  "openItems.rename.help": "Use 3–80 characters.",
+  "openItems.rename.cancel": "Cancel",
+  "openItems.rename.save": "Save",
+  "openItems.rename.retry": "Try again",
+  "openItems.rename.review": "Review latest title",
+  "openItems.rename.latest": "Latest title: {{title}}",
+  "openItems.rename.read":
+    "Could not load this conversation. Please try again.",
+  "openItems.rename.failed":
+    "Could not rename this conversation. Your entered name is retained. Please try again.",
+  "openItems.rename.conflict":
+    "This conversation was renamed while you were editing. Review the latest title before saving your draft again.",
+  "openItems.rename.refresh":
+    "The conversation was renamed, but its Open Items label could not be updated. Try again to update the label.",
+
   "proposals.existingPlan.existingTask": "Existing task",
   "proposals.existingPlan.loading": "Loading task…",
   "proposals.existingPlan.readFailed": "Could not read this task.",
@@ -1601,6 +1619,7 @@ export const en = {
   "eval.run.page.loadError": "Couldn't load this run: {{message}}",
   "eval.run.page.notFound": "This run doesn't exist.",
   "eval.run.page.case": "Case",
+  "eval.run.sessionTitle": "Eval run",
   "eval.run.cell.queued": "Waiting",
   "eval.run.cell.running": "Running · {{elapsed}}",
   "eval.run.cell.phase.preparing": "starting agent",

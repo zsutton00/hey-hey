@@ -194,3 +194,5 @@ export type {
 
 export { FutureOfferProvider } from "./futureOffers/FutureOfferProvider";
 export * from "./hooks/useProviderSessionTranscript";
+
+export { evalRunStatusLabel } from "./evalRunStatusLabel";

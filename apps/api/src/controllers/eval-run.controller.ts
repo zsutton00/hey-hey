@@ -16,6 +16,8 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { OrganizationGuard } from 'src/auth/guards/organization.guard';
 import { ProjectAccessGuard } from 'src/auth/guards/project-access.guard';
 import type {
+  EvalSessionStatusesRequest,
+  EvalSessionStatus,
   LaunchEvalRunRequest,
   ReportDto,
 } from '@hey-hey/contracts/api/models';
@@ -23,13 +25,21 @@ import { EvalRunService } from 'src/services/eval-runs/eval-run.service';
 import type { OrganizationId, ProjectId, UserId } from 'src/types';
 
 @UseGuards(JwtAuthGuard, OrganizationGuard, ProjectAccessGuard)
-@Controller(
-  'api/v1/organizations/:organizationId/projects/:projectId/evals/:evalId/runs',
-)
+@Controller('api/v1/organizations/:organizationId/projects/:projectId')
 export class EvalRunController {
   constructor(private readonly evalRuns: EvalRunService) {}
 
-  @Post()
+  @Post('eval-session-statuses')
+  @HttpCode(HttpStatus.OK)
+  statuses(
+    @CurrentOrganization() organizationId: OrganizationId,
+    @Param('projectId', ParseUUIDPipe) projectId: ProjectId,
+    @Body() request: EvalSessionStatusesRequest,
+  ): Promise<EvalSessionStatus[]> {
+    return this.evalRuns.sessionStatuses(organizationId, projectId, request);
+  }
+
+  @Post('evals/:evalId/runs')
   @HttpCode(HttpStatus.CREATED)
   launch(
     @CurrentOrganization() organizationId: OrganizationId,

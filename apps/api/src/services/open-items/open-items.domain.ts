@@ -39,7 +39,7 @@ import {
   OpenItemsValidationException,
 } from './open-items.errors';
 
-export const MAX_OPEN_ITEMS = 1000;
+export const MAX_OPEN_ITEMS = 100;
 export const MAX_OPEN_ITEM_GROUPS = 200;
 
 export interface OpenItemRow {
@@ -57,6 +57,7 @@ export interface OpenItemRow {
   lineage: OpenItemLineageEntry[];
   presentation: OpenItemPresentation;
   removedAt: Date | null;
+  lastActivatedAt: Date;
   updatedAt: Date;
 }
 
@@ -129,34 +130,6 @@ const normalizeGroupName = (name: string, path: string): string => {
   }
   return trimmed;
 };
-
-const sameLineage = (a: OpenItemLineageEntry[], b: OpenItemLineageEntry[]) =>
-  a.length === b.length &&
-  a.every(
-    (entry, index) =>
-      entry.entityType === b[index]?.entityType &&
-      entry.entityId === b[index]?.entityId,
-  );
-
-const sameRouteParams = (
-  a: OpenItemPresentation['routeParams'],
-  b: OpenItemPresentation['routeParams'],
-) => {
-  const left = a ?? null;
-  const right = b ?? null;
-  if (left === null || right === null) return left === right;
-  const keys = Object.keys(left);
-  return (
-    keys.length === Object.keys(right).length &&
-    keys.every((key) => key in right && left[key] === right[key])
-  );
-};
-
-const samePresentation = (a: OpenItemPresentation, b: OpenItemPresentation) =>
-  a.label === b.label &&
-  (a.workItemTypeKey ?? null) === (b.workItemTypeKey ?? null) &&
-  (a.agentSessionType ?? null) === (b.agentSessionType ?? null) &&
-  sameRouteParams(a.routeParams, b.routeParams);
 
 export const toOpenItemDto = (row: OpenItemRow): OpenItem => ({
   entityType: row.entityType,
@@ -272,10 +245,13 @@ class OpenItemsWorkspace {
     this.changes.items.set(item.id, item);
   }
 
-  insertItem(row: Omit<OpenItemRow, 'id' | 'revision' | 'updatedAt'>) {
+  insertItem(
+    row: Omit<OpenItemRow, 'id' | 'revision' | 'updatedAt' | 'lastActivatedAt'>,
+  ) {
     const item: OpenItemRow = {
       ...row,
       id: this.env.newId(),
+      lastActivatedAt: this.env.now,
       revision: this.env.nextRevision,
       updatedAt: this.env.now,
     };
@@ -507,6 +483,51 @@ function assignToGroup(
 
 // ---------- operations ----------
 
+/** Eviction never cascades into descendants or changes user organization. */
+function trimOpenItems(
+  workspace: OpenItemsWorkspace,
+  env: OpenItemsMutationEnvironment,
+  target: number,
+  mode: 'add' | 'trim',
+  activated?: OpenItemRow,
+) {
+  const open = workspace.openItems();
+  const candidates = open
+    .filter(
+      (item) =>
+        item !== activated &&
+        !item.pinned &&
+        item.note === null &&
+        item.groupId === null,
+    )
+    .sort(
+      (left, right) =>
+        left.lastActivatedAt.getTime() - right.lastActivatedAt.getTime() ||
+        left.id.localeCompare(right.id),
+    );
+  const needed = Math.max(0, open.length - target);
+  if (mode === 'add' && candidates.length < needed) {
+    env.log(
+      `Activation refused: ${open.length} open items, ${candidates.length} unprotected eviction candidates`,
+    );
+    throw OpenItemsValidationException.of(
+      'COLLECTION_LIMIT_EXCEEDED',
+      'All remaining Open Items are pinned, noted or grouped.',
+      [
+        {
+          path: '/item',
+          message:
+            'no unprotected item can make room within the 100 item limit',
+        },
+      ],
+    );
+  }
+  for (const item of candidates.slice(0, needed)) {
+    env.log(`Capacity eviction of ${identityKey(item)} by last activation`);
+    workspace.touchItem(item, { removedAt: env.now });
+  }
+}
+
 export function activateOpenItem(
   state: OpenItemsState,
   env: OpenItemsMutationEnvironment,
@@ -535,34 +556,20 @@ export function activateOpenItem(
             },
           };
 
-    if (
-      sameLineage(existing.lineage, lineage) &&
-      samePresentation(existing.presentation, presentation)
-    ) {
-      env.log(
-        `Activation of open ${identityKey(premise)} is unchanged; collection revision stays ${state.revision}`,
-      );
-      return workspace.unchangedResult([existing]);
-    }
     env.log(
       `Activation refreshes lineage/presentation of ${identityKey(premise)}`,
     );
     workspace.touchItem(existing, {
       lineage,
       presentation,
+      lastActivatedAt: env.now,
     });
-    return workspace.mutationResult([existing], []);
+    trimOpenItems(workspace, env, MAX_OPEN_ITEMS, 'trim', existing);
+    return workspace.mutationResult([...workspace.changes.items.values()], []);
   }
 
   const openItems = workspace.openItems();
-  if (openItems.length >= MAX_OPEN_ITEMS) {
-    env.log(`Activation rejected: collection holds ${openItems.length} items`);
-    throw OpenItemsValidationException.of(
-      'COLLECTION_LIMIT_EXCEEDED',
-      `A collection holds at most ${MAX_OPEN_ITEMS} open items.`,
-      [{ path: '/item', message: 'would exceed the open item limit' }],
-    );
-  }
+  trimOpenItems(workspace, env, MAX_OPEN_ITEMS - 1, 'add');
   const position = appendKey(openItems.map((item) => item.position));
   const fresh = {
     note: null,
@@ -573,6 +580,7 @@ export function activateOpenItem(
     lineage: request.lineage,
     presentation: request.presentation,
     removedAt: null,
+    lastActivatedAt: env.now,
   };
   if (existing) {
     env.log(`Activation revives removed ${identityKey(premise)}`);
@@ -1121,6 +1129,7 @@ export function migrateOpenItems(
       removedAt: null,
     });
   });
+  trimOpenItems(workspace, env, MAX_OPEN_ITEMS, 'trim');
   env.log(
     `Migrated ${request.items.length} item(s) and ${request.groups.length} group(s) from source schema v${request.sourceSchemaVersion}`,
   );
@@ -1140,4 +1149,59 @@ export function resetOpenItems(
   );
   workspace.clear();
   return workspace.collectionResult();
+}
+
+/** Enrich old snapshots without changing their labels or navigation metadata. */
+export function backfillSessionConversations(
+  state: OpenItemsState,
+  env: OpenItemsMutationEnvironment,
+  identities: { entityId: string; conversationId: string | null }[],
+): OpenItemsOutcome {
+  const workspace = new OpenItemsWorkspace(state, env);
+  const affected: OpenItemRow[] = [];
+  for (const identity of identities) {
+    const item = findOpenItem(workspace, {
+      entityType: 'AGENT_SESSION',
+      entityId: identity.entityId,
+    });
+    if (!item || item.presentation.conversationId !== undefined) {
+      continue;
+    }
+    workspace.touchItem(item, {
+      presentation: {
+        ...item.presentation,
+        conversationId: identity.conversationId,
+      },
+    });
+    affected.push(item);
+  }
+  return affected.length
+    ? workspace.mutationResult(affected, [])
+    : workspace.unchangedResult([]);
+}
+
+/** Existing-row-only authoritative refresh: deliberately has no activation effects. */
+export function refreshSessionPresentation(
+  state: OpenItemsState,
+  env: OpenItemsMutationEnvironment,
+  ref: OpenItemRef,
+  conversation: { id: string; title: string | null } | null,
+): OpenItemsOutcome {
+  const workspace = new OpenItemsWorkspace(state, env);
+  const item = findOpenItem(workspace, ref);
+  if (
+    !item ||
+    item.entityType !== 'AGENT_SESSION' ||
+    !conversation?.title?.trim()
+  ) {
+    return workspace.unchangedResult([]);
+  }
+  workspace.touchItem(item, {
+    presentation: {
+      ...item.presentation,
+      conversationId: conversation.id,
+      label: conversation.title.trim(),
+    },
+  });
+  return workspace.mutationResult([item], []);
 }

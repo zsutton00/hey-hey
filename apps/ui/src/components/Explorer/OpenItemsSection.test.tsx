@@ -16,6 +16,7 @@ import {
   type WorkItemTypeDefinitionDto,
 } from "@hey-hey/contracts/api";
 import {
+  useEvalSessionStatuses,
   useAgentSession,
   useAgentSessionCurrentStates,
   useAgentSessionOutputAttentions,
@@ -120,6 +121,7 @@ vi.mock("@hey-hey/ui-common/components/Entity", () => ({
 vi.mock("@hey-hey/ui-common/data", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@hey-hey/ui-common/data")>()),
   useAgentSession: vi.fn(),
+  useEvalSessionStatuses: vi.fn(() => ({})),
   useAgentSessionCurrentStates: vi.fn(),
   useAgentSessionOutputAttentions: vi.fn(),
   useConversationPhases: vi.fn(),
@@ -589,6 +591,7 @@ describe("OpenItemsSection", () => {
     localStorage.clear();
     openItemsApi = installOpenItemsTestRuntime();
     vi.clearAllMocks();
+    vi.mocked(useEvalSessionStatuses).mockReturnValue({});
     canHoverMock.mockReturnValue(true);
     vi.mocked(useOpenItemGoalWork).mockReturnValue({
       work: [],
@@ -1839,6 +1842,17 @@ describe("OpenItemsSection", () => {
   });
 
   it("hydrates deduplicated agent sessions and renders state without persisting it", async () => {
+    vi.mocked(useEvalSessionStatuses).mockReturnValue({
+      "885f5380-2285-5451-af9f-d9a4a474d503": {
+        agentSessionId: "885f5380-2285-5451-af9f-d9a4a474d503",
+        runId: "run-1",
+        evalId: "eval-1",
+        status: "QUEUED",
+        total: 30,
+        ended: 0,
+        errors: 0,
+      },
+    });
     localStorage.setItem(
       "open-items:v1:project-1",
       JSON.stringify({
@@ -1898,6 +1912,12 @@ describe("OpenItemsSection", () => {
       "agent-session-current-state-indicator",
     );
     expect(stateIndicator).toHaveAccessibleName("Thinking");
+    expect(screen.getByTestId("open-item-eval-status")).toHaveTextContent(
+      "eval.page.runs.status.QUEUED",
+    );
+    expect(JSON.stringify(readOpenItemsTestCache("project-1"))).not.toContain(
+      "QUEUED",
+    );
     expect(stateIndicator).toHaveAttribute("data-presentation", "icon");
     expect(stateIndicator.nextElementSibling).toHaveTextContent(
       "Resolve launch blockers",

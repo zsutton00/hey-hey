@@ -353,21 +353,96 @@ describe('Open Items domain', () => {
       expect(gained).toMatchObject({ lineage: [parentEntry] });
     });
 
-    it('reports an unchanged re-activation without advancing any revision', () => {
-      const existing = item(1, { revision: 3 });
-      const outcome = domain.activateOpenItem(state(4, [existing]), env(5), {
-        idempotencyKey: key(1),
-        item: { ...ref(1) },
-        lineage: [],
-        presentation: { label: 'Item 1' },
+    it('records another visit without moving the item or changing its organization', () => {
+      const existing = item(1, {
+        revision: 3,
+        note: 'Keep for review',
+        pinned: true,
+        groupId: G1,
+        memberPosition: 'V',
       });
-      expect(outcome.kind).toBe('unchanged');
-      expect(outcome.result).toMatchObject({
-        collectionRevision: 4,
-        items: [expect.objectContaining({ ...ref(1), revision: 3 })],
-        replayed: false,
+      const outcome = domain.activateOpenItem(
+        state(4, [existing], [group(G1)]),
+        env(5),
+        {
+          idempotencyKey: key(1),
+          item: ref(1),
+          lineage: [],
+          presentation: existing.presentation,
+        },
+      );
+      expect(outcome.changes.items.get(existing.id)).toMatchObject({
+        lastActivatedAt: NOW,
+        position: existing.position,
+        note: existing.note,
+        pinned: true,
+        groupId: G1,
+        memberPosition: 'V',
       });
-      expect(outcome.changes.items.size).toBe(0);
+      expect(existing.lastActivatedAt).not.toEqual(NOW);
+    });
+
+    it('evicts by last visit, preserving pinned, noted and grouped entries and unrelated descendants', () => {
+      const rows = Array.from({ length: 100 }, (_, index) =>
+        item(index + 10, {
+          lastActivatedAt: new Date(NOW.getTime() - (100 - index) * 1000),
+        }),
+      );
+      rows[0]!.pinned = true;
+      rows[1]!.note = 'Review this result';
+      rows[2]!.groupId = G1;
+      rows[3]!.updatedAt = NOW; // An edit is not a visit.
+      rows[4]!.lineage = [ref(13)];
+      const result = mutation(
+        domain.activateOpenItem(state(4, rows, [group(G1)]), env(5), {
+          idempotencyKey: key(1),
+          item: ref(1, 'AGENT_SESSION'),
+          lineage: [ref(15)],
+          presentation,
+        }),
+      );
+      expect(
+        result.items
+          .filter((row) => row.removedAt !== null)
+          .map((row) => row.entityId),
+      ).toEqual([rows[3]!.entityId]);
+      expect(
+        result.items.find((row) => row.entityId === ref(1).entityId)?.removedAt,
+      ).toBeNull();
+      expect(rows.every((row) => row.removedAt === null)).toBe(true);
+      expect(result.items).toHaveLength(2);
+    });
+
+    it('trims an older over-cap collection on activation and retains all protected entries', () => {
+      const rows = Array.from({ length: 105 }, (_, index) => item(index + 10));
+      const result = mutation(
+        domain.activateOpenItem(state(4, rows), env(5), {
+          idempotencyKey: key(1),
+          item: ref(1),
+          lineage: [],
+          presentation,
+        }),
+      );
+      expect(result.items.filter((row) => row.removedAt !== null)).toHaveLength(
+        6,
+      );
+      const protectedRows = rows.map((row) => ({ ...row, pinned: true }));
+      const revisited = domain.activateOpenItem(
+        state(4, protectedRows),
+        env(5),
+        {
+          idempotencyKey: key(2),
+          item: ref(10),
+          lineage: [],
+          presentation: protectedRows[0]!.presentation,
+        },
+      );
+      expect(revisited.changes.items.size).toBe(1);
+      expect(
+        [...revisited.changes.items.values()].every(
+          (row) => row.removedAt === null,
+        ),
+      ).toBe(true);
     });
 
     it('revives a removed tombstone as a fresh row', () => {
@@ -393,9 +468,9 @@ describe('Open Items domain', () => {
       expect(result.items[0]!.position > item(2).position).toBe(true);
     });
 
-    it('enforces the open item limit', () => {
+    it('refuses a new item when all 100 entries are protected', () => {
       const many = Array.from({ length: domain.MAX_OPEN_ITEMS }, (_, n) =>
-        item(n + 10),
+        item(n + 10, { pinned: true }),
       );
       const body = captureError(() =>
         domain.activateOpenItem(state(4, many), env(5), {

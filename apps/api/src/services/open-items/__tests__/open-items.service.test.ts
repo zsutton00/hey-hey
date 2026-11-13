@@ -1,3 +1,4 @@
+import { OpenItemsRepository } from '../open-items.repository';
 import type { OrganizationId, ProjectId, UserId } from 'src/types';
 import type {
   OpenItemGroupRow,
@@ -8,7 +9,6 @@ import { OpenItemsConflictException } from '../open-items.errors';
 import type {
   LockedOpenItemsCollection,
   OpenItemsIdempotencyRecord,
-  OpenItemsRepository,
   OpenItemsScope,
 } from '../open-items.repository';
 import { OpenItemsService } from '../open-items.service';
@@ -30,6 +30,19 @@ interface StoredCollection {
 class InMemoryOpenItemsRepository {
   committed = new Map<string, StoredCollection>();
   private working = this.committed;
+  sessions = new Map<string, { id: string; title: string | null }>();
+  async sessionConversations(
+    _tx: unknown,
+    _scope: OpenItemsScope,
+    ids: string[],
+  ) {
+    return new Map(
+      ids.flatMap((id) => {
+        const conversation = this.sessions.get(id);
+        return conversation ? [[id, conversation] as const] : [];
+      }),
+    );
+  }
   cleanupCalls = 0;
   transactions = 0;
 
@@ -231,6 +244,149 @@ describe('OpenItemsService', () => {
         publishOpenItemsChanged: jest.fn(),
       } as unknown as import('../../../core/websockets/websocket.gateway').WebsocketGateway,
     );
+  });
+
+  it('backfills all legacy session kinds without changing labels or organization, then refreshes only the authoritative title', async () => {
+    const publish = jest.fn();
+    service = new OpenItemsService(
+      repository as unknown as OpenItemsRepository,
+      { publishOpenItemsChanged: publish } as never,
+    );
+    await activate(1);
+    const group = await service.createOpenItemGroup(scope(), {
+      idempotencyKey: key(70),
+      name: 'Review',
+    });
+    const groupId = group.groups[0].groupId;
+    const types = [
+      'CODING',
+      'ENTITY_CONVERSATION',
+      'PROJECT_CONVERSATION',
+      'OPEN_ITEMS_TRIAGE',
+    ];
+    for (const [index, type] of types.entries()) {
+      await service.activateOpenItem(scope(), {
+        idempotencyKey: key(80 + index),
+        item: ref(10 + index, 'AGENT_SESSION'),
+        lineage: [ref(1)],
+        presentation: { label: `Old ${type}`, agentSessionType: type },
+      });
+      repository.sessions.set(ref(10 + index).entityId, {
+        id: ref(100 + index).entityId,
+        title: `Conversation ${type}`,
+      });
+    }
+    await service.setOpenItemNote(scope(), ref(10, 'AGENT_SESSION'), {
+      idempotencyKey: key(90),
+      note: 'Keep this review context',
+    });
+    await service.setOpenItemPin(scope(), ref(10, 'AGENT_SESSION'), {
+      idempotencyKey: key(91),
+      pinned: true,
+    });
+    await service.assignOpenItemsToGroup(scope(), groupId, {
+      idempotencyKey: key(92),
+      items: [ref(10, 'AGENT_SESSION')],
+    });
+    const before = await repository.readState(scope());
+    const enriched = await service.getOpenItems(scope());
+    expect(enriched.state).toBe('PRESENT');
+    if (enriched.state !== 'PRESENT') {
+      throw new Error('missing collection');
+    }
+    expect(
+      enriched.items
+        .filter((item) => item.entityType === 'AGENT_SESSION')
+        .map((item) => item.presentation.conversationId),
+    ).toEqual(types.map((_type, index) => ref(100 + index).entityId));
+    expect(enriched.items.map((item) => item.presentation.label)).toEqual(
+      before!.items.map((item) => item.presentation.label),
+    );
+    const oldRow = enriched.items.find(
+      (item) => item.entityId === ref(10).entityId,
+    )!;
+    const request = { idempotencyKey: key(93) };
+    repository.sessions.set(ref(10).entityId, {
+      id: ref(100).entityId,
+      title: 'Latest renamed conversation',
+    });
+    const saved = await service.refreshOpenItemPresentation(
+      scope(),
+      ref(10, 'AGENT_SESSION'),
+      request,
+    );
+    expect(saved.items[0]).toEqual({
+      ...oldRow,
+      revision: saved.collectionRevision,
+      updatedAt: expect.any(String),
+      presentation: {
+        ...oldRow.presentation,
+        label: 'Latest renamed conversation',
+      },
+    });
+    const calls = publish.mock.calls.length;
+    repository.sessions.set(ref(10).entityId, {
+      id: ref(100).entityId,
+      title: 'An even newer title',
+    });
+    const replay = await service.refreshOpenItemPresentation(
+      scope(),
+      ref(10, 'AGENT_SESSION'),
+      request,
+    );
+    expect(replay).toMatchObject({ ...saved, replayed: true });
+    expect(publish).toHaveBeenCalledTimes(calls);
+    const latest = await service.refreshOpenItemPresentation(
+      scope(),
+      ref(10, 'AGENT_SESSION'),
+      { idempotencyKey: key(94) },
+    );
+    expect(latest.items[0].presentation.label).toBe('An even newer title');
+    expect(
+      publish.mock.calls.every(
+        (call) =>
+          call.length === 3 &&
+          call[0] === scope().userId &&
+          call[1] === scope().projectId,
+      ),
+    ).toBe(true);
+    await service.removeOpenItem(scope(), ref(10, 'AGENT_SESSION'), {
+      idempotencyKey: key(95),
+      includeDescendants: false,
+    });
+    const removed = await service.refreshOpenItemPresentation(
+      scope(),
+      ref(10, 'AGENT_SESSION'),
+      { idempotencyKey: key(96) },
+    );
+    expect(removed.items).toEqual([]);
+    const restored = await service.getOpenItems(scope());
+    expect(
+      restored.state === 'PRESENT' &&
+        restored.items.some((item) => item.entityId === ref(10).entityId),
+    ).toBe(false);
+  });
+
+  it('leaves sessions without a conversation ineligible and isolates working sets', async () => {
+    await service.activateOpenItem(scope(), {
+      idempotencyKey: key(97),
+      item: ref(10, 'AGENT_SESSION'),
+      lineage: [],
+      presentation: { label: 'Untitled session', agentSessionType: 'CODING' },
+    });
+    await activate(1, key(98), scope('other-user'));
+    const collection = await service.getOpenItems(scope());
+    expect(collection).toMatchObject({
+      items: [
+        { presentation: { conversationId: null, label: 'Untitled session' } },
+      ],
+    });
+    const other = await service.refreshOpenItemPresentation(
+      scope('other-user'),
+      ref(10, 'AGENT_SESSION'),
+      { idempotencyKey: key(99) },
+    );
+    expect(other.items).toEqual([]);
   });
 
   it('commits overlapping actions before publishing private revision signals', async () => {
@@ -503,18 +659,102 @@ describe('OpenItemsService', () => {
     await expect(activate(1)).resolves.toEqual({ ...original, replayed: true });
   });
 
-  it('keeps the collection revision when re-activation changes nothing', async () => {
+  it('records another canonical visit while keeping retries idempotent', async () => {
     const first = await activate(1);
     const again = await activate(1, key(70));
-    expect(again).toEqual({ ...first, replayed: false });
-    await expect(service.getOpenItems(scope())).resolves.toMatchObject({
-      revision: 1,
+    expect(again.items[0]!).toMatchObject({
+      entityId: first.items[0]!.entityId,
+      position: first.items[0]!.position,
     });
-    // The no-op is still recorded, so a retry of its key replays it.
+    expect(again.collectionRevision).toBe(2);
+    await expect(service.getOpenItems(scope())).resolves.toMatchObject({
+      revision: 2,
+    });
+    // A retry replays that visit, rather than recording another one.
     await expect(activate(1, key(70))).resolves.toEqual({
       ...again,
       replayed: true,
     });
+  });
+
+  it('commits coordinator insertion and protected eviction together in a populated working set', async () => {
+    jest.useFakeTimers();
+    try {
+      for (let n = 1; n <= 100; n++) {
+        jest.setSystemTime(new Date(Date.UTC(2026, 10, 13, 0, 0, n)));
+        await activate(n);
+      }
+      await service.setOpenItemPin(scope(), ref(1), {
+        idempotencyKey: 'protect-pin',
+        pinned: true,
+      });
+      await service.setOpenItemNote(scope(), ref(2), {
+        idempotencyKey: 'protect-note',
+        note: 'Awaiting review',
+      });
+      await service.createOpenItemGroup(scope(), {
+        idempotencyKey: 'protect-group',
+        name: 'Review',
+        assign: [ref(3)],
+      });
+      jest.setSystemTime(new Date('2026-11-13T01:00:00Z'));
+      const revisited = await activate(4, 'revisit-four');
+      const inserted = await service.activateOpenItem(scope(), {
+        idempotencyKey: 'start-eval',
+        item: ref(101, 'AGENT_SESSION'),
+        lineage: [ref(4)],
+        presentation: {
+          label: 'Eval run',
+          agentSessionType: 'PROJECT_CONVERSATION',
+        },
+      });
+      expect(
+        inserted.items.find((row) => row.removedAt !== null)?.entityId,
+      ).toBe(ref(5).entityId);
+      expect(
+        inserted.items.find((row) => row.entityType === 'AGENT_SESSION'),
+      ).toMatchObject({ lineage: [ref(4)], removedAt: null });
+      const current = await service.getOpenItems(scope());
+      if (current.state !== 'PRESENT') {
+        throw new Error('Expected persisted collection');
+      }
+      expect(current.items).toHaveLength(100);
+      expect(
+        current.items.find((row) => row.entityId === ref(1).entityId)?.pinned,
+      ).toBe(true);
+      expect(
+        current.items.find((row) => row.entityId === ref(2).entityId)?.note,
+      ).toBe('Awaiting review');
+      expect(
+        current.items.find((row) => row.entityId === ref(3).entityId)?.groupId,
+      ).not.toBeNull();
+      expect(
+        current.items.find((row) => row.entityId === ref(4).entityId)?.position,
+      ).toBe(revisited.items[0]!.position);
+      const revision = current.revision;
+      await expect(
+        service.activateOpenItem(scope(), {
+          idempotencyKey: 'start-eval',
+          item: ref(101, 'AGENT_SESSION'),
+          lineage: [ref(4)],
+          presentation: {
+            label: 'Eval run',
+            agentSessionType: 'PROJECT_CONVERSATION',
+          },
+        }),
+      ).resolves.toMatchObject({
+        replayed: true,
+        collectionRevision: revision,
+      });
+      const replayedCollection = await service.getOpenItems(scope());
+      expect(
+        replayedCollection.state === 'PRESENT'
+          ? replayedCollection.revision
+          : null,
+      ).toBe(revision);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('replays a duplicate idempotency key without applying twice', async () => {
@@ -679,6 +919,43 @@ describe('OpenItemsService', () => {
       ).resolves.toEqual(reset);
       const present = await service.getOpenItems(scope());
       expect(present).toMatchObject({ revision: 4 });
+    });
+  });
+});
+
+describe('authoritative session conversation lookup', () => {
+  it('bounds the batch and scopes both session and conversation to the authorized project and organization', async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      {
+        id: ref(1).entityId,
+        conversation: {
+          id: ref(2).entityId,
+          title: 'Current conversation title',
+        },
+      },
+    ]);
+    const repository = new OpenItemsRepository({} as never);
+    const conversations = await repository.sessionConversations(
+      { agentSession: { findMany } } as never,
+      scope(),
+      [ref(1).entityId],
+    );
+    expect(findMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: [ref(1).entityId] },
+        organizationId: scope().organizationId,
+        projectId: scope().projectId,
+        conversation: {
+          organizationId: scope().organizationId,
+          projectId: scope().projectId,
+        },
+      },
+      select: { id: true, conversation: { select: { id: true, title: true } } },
+      take: 100,
+    });
+    expect(conversations.get(ref(1).entityId)).toEqual({
+      id: ref(2).entityId,
+      title: 'Current conversation title',
     });
   });
 });

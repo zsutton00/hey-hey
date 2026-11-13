@@ -281,6 +281,7 @@ export const DEV_LLM_TRIGGER_COMPLETE_PATH = '/dev/llm/trigger-complete';
 export const DEV_LLM_ACTIVE_REQUESTS_PATH = '/dev/llm/active-requests';
 export const DEV_LLM_REQUEST_REQUESTID_STATUS_PATH = '/dev/llm/request/{requestId}/status';
 export const DEV_LLM_SIMULATE_FLOW_PATH = '/dev/llm/simulate-flow';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_EVAL_SESSION_STATUSES_PATH = '/organizations/{organizationId}/projects/{projectId}/eval-session-statuses';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_EVALS_EVALID_RUNS_PATH = '/organizations/{organizationId}/projects/{projectId}/evals/{evalId}/runs';
 export const JEV_EVALUATE_CHOICE_PATH = '/jev/evaluate-choice';
 export const WORKFLOWS_TEMPLATES_PATH = '/workflows/templates';

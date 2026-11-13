@@ -8,7 +8,7 @@ import {
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import {
   AgentSessionStatus as PrismaAgentSessionStatus,
   AgentSessionType as PrismaAgentSessionType,
@@ -16,6 +16,8 @@ import {
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import {
+  EvalSessionStatusesRequest,
+  EvalSessionStatus,
   ReportAudience,
   ReportEntityRelation,
   ReportRelatedEntityType,
@@ -59,8 +61,19 @@ import {
   resolveEvalExecution,
 } from './eval-case-handlers';
 
+import { restrictReportWhere } from 'src/read-restriction/read-policy';
+import { USER_VISIBLE_PERSISTED_REPORT_AUDIENCES } from '../reports/report-audience';
+import { validateReportPayload } from '../reports/report-payload.validation';
+
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function assertEvalRunPayload(
+  payload: unknown,
+  schemaVersion: number,
+): asserts payload is EvalRunReportPayload {
+  validateReportPayload({ reportType: 'EVAL_RUN', payload, schemaVersion });
+}
 
 export const EVAL_RUN_HANDLER_PROMPT_TYPE = 'run_eval';
 export const DEFAULT_MAX_CONCURRENT_ATTEMPTS = 3;
@@ -86,6 +99,82 @@ export class EvalRunService {
     @Inject(forwardRef(() => AgentSessionService))
     private readonly sessions: AgentSessionService,
   ) {}
+
+  async sessionStatuses(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    request: EvalSessionStatusesRequest,
+  ): Promise<EvalSessionStatus[]> {
+    const ids = request?.agentSessionIds;
+    if (
+      !Array.isArray(ids) ||
+      ids.length < 1 ||
+      ids.length > 100 ||
+      ids.some((id) => typeof id !== 'string' || !UUID_PATTERN.test(id))
+    ) {
+      this.logger.warn(
+        'Eval status batch rejected: invalid coordinator IDs or batch size',
+      );
+      throw new BadRequestException(
+        'Expected 1 to 100 coordinator session UUIDs',
+      );
+    }
+    const runs = await this.prisma.db.report.findMany({
+      where: restrictReportWhere({
+        organizationId,
+        projectId,
+        reportType: 'EVAL_RUN',
+        audience: { in: USER_VISIBLE_PERSISTED_REPORT_AUDIENCES },
+        AND: [
+          { OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
+          {
+            OR: [...new Set(ids)].map((id) => ({
+              payload: { path: ['coordinatorAgentSessionId'], equals: id },
+            })),
+          },
+        ],
+      }),
+      select: { id: true, payload: true, schemaVersion: true },
+      take: 100,
+    });
+    if (runs.length === 0) {
+      return [];
+    }
+    const counts = await this.prisma.db.$queryRaw<
+      Array<{ runId: string; total: number; ended: number; errors: number }>
+    >(Prisma.sql`
+      SELECT parent_report_id AS "runId", count(*)::int AS total,
+        count(*) FILTER (WHERE payload->>'status' IN ('COMPLETED', 'ERROR', 'STOPPED'))::int AS ended,
+        count(*) FILTER (WHERE payload->>'status' = 'ERROR')::int AS errors
+      FROM reports
+      WHERE organization_id = ${organizationId} AND project_id = ${projectId}
+        AND parent_report_id IN (${Prisma.join(runs.map((run) => run.id))})
+        AND report_type = 'EVAL_ATTEMPT'
+        AND audience IN ('PROJECT_VISIBLE', 'ORGANIZATION_VISIBLE')
+        AND (expires_at IS NULL OR expires_at > now())
+      GROUP BY parent_report_id
+    `);
+    const byRun = new Map(counts.map((count) => [count.runId, count]));
+    return runs.flatMap((run) => {
+      const payload = run.payload;
+      assertEvalRunPayload(payload, run.schemaVersion);
+      if (!payload.coordinatorAgentSessionId) {
+        return [];
+      }
+      const count = byRun.get(run.id);
+      return [
+        {
+          agentSessionId: payload.coordinatorAgentSessionId,
+          runId: run.id,
+          evalId: payload.evalId,
+          status: payload.status,
+          total: count?.total ?? 0,
+          ended: count?.ended ?? 0,
+          errors: count?.errors ?? 0,
+        } satisfies EvalSessionStatus,
+      ];
+    });
+  }
 
   /**
    * Records what is being run and prepares the coordinator session and

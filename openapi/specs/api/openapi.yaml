@@ -7840,7 +7840,10 @@ paths:
                         $ref: "#/components/schemas/WorkItemTypeCanonicalComparisonDto"
         "401": { description: Unauthorized }
         "404": { description: Work-item type not found. }
-        "409": { description: The type is not a project override of a canonical type. }
+        "409":
+          {
+            description: The type is not a project override of a canonical type.,
+          }
 
   /organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/section-content-impact:
     parameters:
@@ -14497,6 +14500,68 @@ paths:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
 
+  /organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/presentation-refresh:
+    parameters:
+      - $ref: "#/components/parameters/OrganizationId"
+      - $ref: "#/components/parameters/ProjectId"
+      - name: entityType
+        in: path
+        required: true
+        schema:
+          $ref: "#/components/schemas/EntityType"
+        description: Open Item entity type
+      - name: entityId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Open Item entity ID
+    post:
+      operationId: refreshOpenItemPresentation
+      tags: [OpenItems]
+      summary: Refresh an existing Agent Session Open Item title
+      description: "Scoped to the authenticated user and authorized project. Resolves the session conversation title authoritatively; missing or removed rows are successful no-ops. Preserves all working-set organization and never activates or opens a row."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshOpenItemPresentationRequest"
+      responses:
+        "200":
+          description: Canonical result
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/OpenItemsMutationResult"
+        "400":
+          description: Contract-invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsValidationError"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Project access denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "409":
+          description: Stale premise, collection state conflict, or idempotency key reuse
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsConflictError"
+
   /organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/note:
     parameters:
       - $ref: "#/components/parameters/OrganizationId"
@@ -15735,6 +15800,49 @@ paths:
   # =============================================
   # Eval Runs
   # =============================================
+  /organizations/{organizationId}/projects/{projectId}/eval-session-statuses:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: getEvalSessionStatuses
+      tags: [EvalRuns]
+      summary: Read recorded evaluation status for coordinator sessions
+      description: Returns visible project runs and counts of every recorded repeat. Non-coordinator sessions are omitted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EvalSessionStatusesRequest"
+      responses:
+        "200":
+          description: Recorded run status and attempt counts
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/EvalSessionStatus"
+        "400":
+          description: Invalid session identifiers or batch size
+        "401":
+          description: Unauthorized
+        "403":
+          description: Project access denied
+
   /organizations/{organizationId}/projects/{projectId}/evals/{evalId}/runs:
     parameters:
       - name: organizationId
@@ -25386,6 +25494,8 @@ components:
       $ref: "../schemas/open-items.yaml#/OpenItemsMutationResult"
     ActivateOpenItemRequest:
       $ref: "../schemas/open-items.yaml#/ActivateOpenItemRequest"
+    RefreshOpenItemPresentationRequest:
+      $ref: "../schemas/open-items.yaml#/RefreshOpenItemPresentationRequest"
     SetOpenItemNoteRequest:
       $ref: "../schemas/open-items.yaml#/SetOpenItemNoteRequest"
     SetOpenItemPinRequest:
@@ -31919,6 +32029,10 @@ components:
       $ref: "../schemas/eval-runs.yaml#/EvalMeasurement"
     EvalAutomatedAssessment:
       $ref: "../schemas/eval-runs.yaml#/EvalAutomatedAssessment"
+    EvalSessionStatusesRequest:
+      $ref: "../schemas/eval-runs.yaml#/EvalSessionStatusesRequest"
+    EvalSessionStatus:
+      $ref: "../schemas/eval-runs.yaml#/EvalSessionStatus"
     LaunchEvalRunRequest:
       $ref: "../schemas/eval-runs.yaml#/LaunchEvalRunRequest"
     EvalRunReportPayload:

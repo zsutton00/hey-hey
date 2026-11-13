@@ -1,3 +1,4 @@
+import type { NavigationLineage } from "@hey-hey/ui-common";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import StopIcon from "@mui/icons-material/Stop";
 import {
@@ -19,6 +20,7 @@ import {
 } from "@hey-hey/contracts/api";
 import {
   evalRunName,
+  evalRunStatusLabel,
   runRepeats,
   useEvalRun,
   useEvalRunSession,
@@ -178,12 +180,16 @@ const NotStartedPanel: React.FC<NotStartedPanelProps> = ({
 };
 
 interface EvalRunViewProps {
+  userId: string;
+  lineage: NavigationLineage;
   organizationId: string;
   projectId: string;
   runId: string;
 }
 
 const EvalRunView: React.FC<EvalRunViewProps> = ({
+  userId,
+  lineage,
   organizationId,
   projectId,
   runId,
@@ -207,6 +213,8 @@ const EvalRunView: React.FC<EvalRunViewProps> = ({
   const handleStart = useCallback(
     async (machineId: string | null) => {
       const result = await session.start({
+        userId,
+        lineage,
         organizationId,
         projectId,
         runId,
@@ -214,7 +222,7 @@ const EvalRunView: React.FC<EvalRunViewProps> = ({
       });
       if (result.ok) setStartedHere(true);
     },
-    [organizationId, projectId, runId, session],
+    [organizationId, projectId, runId, session, userId, lineage],
   );
 
   const handleStop = useCallback(() => {
@@ -260,31 +268,16 @@ const EvalRunView: React.FC<EvalRunViewProps> = ({
   const errorCount = attempts.filter(
     (attempt) => attempt.payload.status === EvalAttemptStatus.Error,
   ).length;
-  const statusLine = ((): string => {
-    if (status === EvalRunStatus.Running) {
-      return t("eval.run.page.statusRunning", { ended: endedCount, total });
-    }
-    if (status === EvalRunStatus.Stopped) {
-      return t("eval.run.page.statusStopped");
-    }
-    if (status === EvalRunStatus.Finished) {
-      const finished =
-        errorCount > 0
-          ? t("eval.run.page.statusFinishedWithErrors", { count: errorCount })
-          : t("eval.run.page.statusFinished");
-      return repeats > 1
-        ? `${finished} · ${t("eval.run.attempts", { count: total })}`
-        : finished;
-    }
-    return t("eval.run.page.progressSummary", {
-      cases: t("eval.run.cases", { count: cases.length }),
-      configurations: t("eval.run.configurations", {
-        count: configurations.length,
-      }),
-      ended: endedCount,
-      total,
-    });
-  })();
+  const baseStatusLine = evalRunStatusLabel(t, {
+    status,
+    total,
+    ended: endedCount,
+    errors: errorCount,
+  });
+  const statusLine =
+    status === EvalRunStatus.Finished && repeats > 1
+      ? `${baseStatusLine} · ${t("eval.run.attempts", { count: total })}`
+      : baseStatusLine;
   const startAccepted = startedHere || !!navigationState?.startAccepted;
   const startError =
     session.error ??
@@ -425,8 +418,10 @@ export const EvalRunPage: React.FC = () => {
       crumbLabel={run ? evalRunName(run, t) : t("eval.page.runs.columns.run")}
       testId="eval-run-page"
     >
-      {() => (
+      {(_evalTask, lineage) => (
         <EvalRunView
+          userId={identity?.userId ?? ""}
+          lineage={lineage}
           organizationId={organizationId}
           projectId={projectId}
           runId={runId}

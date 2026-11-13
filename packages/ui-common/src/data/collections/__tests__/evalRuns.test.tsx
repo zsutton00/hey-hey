@@ -1,5 +1,13 @@
+import { useEvalSessionStatuses } from "../../hooks/useEvalSessionStatuses";
+import { applyEvalRunUpdated, applyEvalAttemptUpdated } from "../evalRuns";
+import { evalRunStatusLabel } from "../../evalRunStatusLabel";
+import i18next from "i18next";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  QueryObserver,
+} from "@tanstack/react-query";
 import { createStore } from "jotai";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,12 +19,14 @@ import {
   ReportAudience,
   ReportType,
   WebSocketSubscriptionRequestEventTypesEnum,
+  type EvalSessionStatus,
   type EvalAttemptUpdatedEvent,
   type EvalRunUpdatedEvent,
 } from "../../../api";
 import {
   buildRunEvalStartPayload,
   evalRunKeys,
+  evalSessionStatusesQueryOptions,
   type EvalAttemptReport,
   type EvalRunReport,
 } from "../evalRuns";
@@ -33,6 +43,7 @@ import { WebSocketHandler } from "../../websockets/handler";
 import { WebSocketDebugger } from "../../websockets/debug";
 
 const api = vi.hoisted(() => ({
+  getEvalSessionStatuses: vi.fn(),
   getReport: vi.fn(),
   listReports: vi.fn(),
   createReport: vi.fn(),
@@ -126,6 +137,7 @@ const setup = () => {
 };
 beforeEach(() => vi.resetAllMocks());
 afterEach(() => {
+  vi.useRealTimers();
   clients.forEach((client) => client.clear());
   clients.length = 0;
 });
@@ -557,5 +569,250 @@ describe("eval progress events", () => {
       },
     });
     expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+  });
+});
+
+describe("Open Items eval status without an open Eval page", () => {
+  it.each([
+    { cached: false, terminal: EvalRunStatus.Finished },
+    { cached: true, terminal: EvalRunStatus.Finished },
+    { cached: true, terminal: EvalRunStatus.Stopped },
+  ])(
+    "delivers final $terminal during an older status read (cached=$cached)",
+    async ({ cached, terminal }) => {
+      const running: EvalSessionStatus = {
+        agentSessionId: "session-1",
+        runId: "run-1",
+        evalId: "eval-1",
+        status: EvalRunStatus.Running,
+        total: 30,
+        ended: 12,
+        errors: 0,
+      };
+      type Response = ReturnType<typeof wrap<EvalSessionStatus[]>>;
+      let finishOlder!: (response: Response) => void;
+      const olderRead = new Promise<Response>((resolve) => {
+        finishOlder = resolve;
+      });
+      api.getEvalSessionStatuses
+        .mockImplementationOnce(() => olderRead)
+        .mockResolvedValue(wrap([{ ...running, status: terminal, ended: 30 }]));
+      const { client } = setup();
+      const options = evalSessionStatusesQueryOptions("org", "project", [
+        "session-1",
+      ]);
+      if (cached) {
+        client.setQueryData(options.queryKey, [running]);
+      }
+      const observer = new QueryObserver(client, {
+        ...options,
+        refetchOnMount: "always",
+      });
+      const unsubscribe = observer.subscribe(() => {});
+      try {
+        await waitFor(() =>
+          expect(api.getEvalSessionStatuses).toHaveBeenCalledTimes(1),
+        );
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        // This is the final event: there is no later event or focus/reconnect to rescue it.
+        await applyEvalRunUpdated(client, {
+          payload: {
+            organizationId: "org",
+            projectId: "project",
+            evalId: "eval-1",
+            run: runReport(terminal),
+          },
+        } as EvalRunUpdatedEvent);
+        await vi.advanceTimersByTimeAsync(4_999);
+        expect(api.getEvalSessionStatuses).toHaveBeenCalledTimes(1);
+        await vi.advanceTimersByTimeAsync(1);
+        vi.useRealTimers();
+        await waitFor(() =>
+          expect(api.getEvalSessionStatuses).toHaveBeenCalledTimes(2),
+        );
+        finishOlder(wrap([running]));
+        await waitFor(() =>
+          expect(observer.getCurrentResult().data?.[0]).toMatchObject({
+            status: terminal,
+            ended: 30,
+          }),
+        );
+        expect(client.getQueryState(options.queryKey)?.isInvalidated).toBe(
+          false,
+        );
+        expect(api.getEvalSessionStatuses).toHaveBeenCalledTimes(2);
+      } finally {
+        vi.useRealTimers();
+        finishOlder(wrap([running]));
+        unsubscribe();
+      }
+    },
+  );
+
+  it("reads every session in an older over-cap collection with bounded requests", async () => {
+    const ids = Array.from({ length: 237 }, (_, index) => `session-${index}`);
+    api.getEvalSessionStatuses.mockImplementation(
+      async ({ evalSessionStatusesRequest }) =>
+        wrap(
+          evalSessionStatusesRequest.agentSessionIds.map(
+            (agentSessionId: string) => ({
+              agentSessionId,
+              runId: `run-${agentSessionId}`,
+              evalId: "eval-1",
+              status: EvalRunStatus.Queued,
+              total: 1,
+              ended: 0,
+              errors: 0,
+            }),
+          ),
+        ),
+    );
+    const { client } = setup();
+    const statuses = await client.fetchQuery(
+      evalSessionStatusesQueryOptions("org", "project", [...ids, ids[0]]),
+    );
+    expect(statuses).toHaveLength(237);
+    expect(new Set(statuses.map((status) => status.agentSessionId))).toEqual(
+      new Set(ids),
+    );
+    expect(
+      api.getEvalSessionStatuses.mock.calls.map(
+        ([request]) =>
+          request.evalSessionStatusesRequest.agentSessionIds.length,
+      ),
+    ).toEqual([100, 100, 37]);
+  });
+
+  it("refreshes canonical counts after coalesced run and attempt events, and recovers on visibility", async () => {
+    let recorded = {
+      agentSessionId: "session-1",
+      runId: "run-1",
+      evalId: "eval-1",
+      status: EvalRunStatus.Queued,
+      total: 300,
+      ended: 0,
+      errors: 0,
+    };
+    api.getEvalSessionStatuses.mockImplementation(async () => wrap([recorded]));
+    const { client, wrapper } = setup();
+    const { result, unmount } = renderHook(
+      () =>
+        useEvalSessionStatuses("org", "project", [
+          "session-1",
+          "unrelated-session",
+        ]),
+      { wrapper },
+    );
+    await waitFor(() =>
+      expect(result.current["session-1"]?.status).toBe(EvalRunStatus.Queued),
+    );
+    expect(result.current["unrelated-session"]).toBeUndefined();
+    const initialReads = api.getEvalSessionStatuses.mock.calls.length;
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    recorded = {
+      ...recorded,
+      status: EvalRunStatus.Running,
+      ended: 201,
+      errors: 2,
+    };
+    await act(async () => {
+      await applyEvalRunUpdated(client, {
+        payload: {
+          organizationId: "org",
+          projectId: "project",
+          evalId: "eval-1",
+          run: runReport(EvalRunStatus.Running),
+        },
+      } as EvalRunUpdatedEvent);
+      await applyEvalAttemptUpdated(client, {
+        payload: {
+          organizationId: "org",
+          projectId: "project",
+          evalRunId: "run-1",
+          attempt: attemptReport(EvalAttemptStatus.Completed),
+        },
+      } as EvalAttemptUpdatedEvent);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4_999);
+    });
+    expect(api.getEvalSessionStatuses).toHaveBeenCalledTimes(initialReads);
+    expect(result.current["session-1"]?.ended).toBe(0);
+    await act(async () => {
+      await applyEvalAttemptUpdated(client, {
+        payload: {
+          organizationId: "org",
+          projectId: "project",
+          evalRunId: "run-1",
+          attempt: attemptReport(EvalAttemptStatus.Completed),
+        },
+      } as EvalAttemptUpdatedEvent);
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(api.getEvalSessionStatuses).toHaveBeenCalledTimes(initialReads + 1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(api.getEvalSessionStatuses).toHaveBeenCalledTimes(initialReads + 1);
+    vi.useRealTimers();
+    await waitFor(() => expect(result.current["session-1"]?.ended).toBe(201));
+    expect(result.current["session-1"]?.total).toBe(300);
+    recorded = { ...recorded, status: EvalRunStatus.Stopped, ended: 300 };
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    await waitFor(() =>
+      expect(result.current["session-1"]?.status).toBe(EvalRunStatus.Stopped),
+    );
+    unmount();
+    const restored = renderHook(
+      () => useEvalSessionStatuses("org", "project", ["session-1"]),
+      { wrapper },
+    );
+    await waitFor(() =>
+      expect(restored.result.current["session-1"]?.status).toBe(
+        EvalRunStatus.Stopped,
+      ),
+    );
+    expect(api.getReport).not.toHaveBeenCalled();
+    expect(api.listReports).not.toHaveBeenCalled();
+  });
+
+  it("uses the run vocabulary independently of idle session activity", async () => {
+    const i18n = i18next.createInstance();
+    await i18n.init({
+      lng: "en",
+      resources: {
+        en: {
+          translation: {
+            "eval.page.runs.status.QUEUED": "Queued",
+            "eval.run.page.statusRunning":
+              "Running · {{ended}} of {{total}} ended",
+            "eval.run.page.statusStopped": "Stopped",
+            "eval.run.page.statusFinished": "Finished",
+            "eval.run.page.statusFinishedWithErrors":
+              "Finished with {{count}} error",
+          },
+        },
+      },
+    });
+    const values = { total: 30, ended: 12, errors: 0 };
+    expect(
+      evalRunStatusLabel(i18n.t, { ...values, status: EvalRunStatus.Queued }),
+    ).toBe("Queued");
+    expect(
+      evalRunStatusLabel(i18n.t, { ...values, status: EvalRunStatus.Running }),
+    ).toBe("Running · 12 of 30 ended");
+    expect(
+      evalRunStatusLabel(i18n.t, { ...values, status: EvalRunStatus.Finished }),
+    ).toBe("Finished");
+    expect(
+      evalRunStatusLabel(i18n.t, {
+        ...values,
+        errors: 1,
+        status: EvalRunStatus.Finished,
+      }),
+    ).toBe("Finished with 1 error");
+    expect(
+      evalRunStatusLabel(i18n.t, { ...values, status: EvalRunStatus.Stopped }),
+    ).toBe("Stopped");
   });
 });

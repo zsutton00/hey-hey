@@ -14,6 +14,7 @@ vi.mock("react-router-dom", () => ({
 }));
 
 vi.mock("react-i18next", () => ({
+  initReactI18next: { type: "3rdParty", init: () => undefined },
   useTranslation: () => ({
     t: (key: string, options?: Record<string, unknown>) =>
       options ? `${key} ${JSON.stringify(options)}` : key,
@@ -21,7 +22,7 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("@hey-hey/ui-common/hooks", () => ({
-  useUserIdentity: () => ({ currentOrgId: "org" }),
+  useUserIdentity: () => ({ currentOrgId: "org", userId: "user" }),
 }));
 
 vi.mock("@hey-hey/ui-common/services", () => ({
@@ -369,6 +370,8 @@ describe("EvalRunSetupPage", () => {
       },
     });
     expect(mockStart).toHaveBeenCalledWith({
+      userId: "user",
+      lineage: [{ entityType: "task", entityId: "eval-1" }],
       organizationId: "org",
       projectId: "p1",
       runId: "run-9",
