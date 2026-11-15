@@ -395,3 +395,37 @@ test("post-approval verification uses the successful staging run identity", () =
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test("CLI release install includes the owners of prepack contract checks", () => {
+  const require = createRequire(import.meta.url);
+  const yaml = require("../openapi/node_modules/js-yaml");
+  const workflow = yaml.load(
+    fs.readFileSync(
+      new URL("../.github/workflows/release-cli.yml", import.meta.url),
+      "utf8",
+    ),
+  );
+  const install = workflow.jobs.publish.steps
+    .find(({ run }) => run?.startsWith("pnpm install "))
+    .run.split(/\s+/);
+  const filters = install.flatMap((argument, index) =>
+    argument === "--filter" ? [argument, install[index + 1]] : [],
+  );
+  const selected = JSON.parse(
+    execFileSync("pnpm", ["list", "--depth", "-1", "--json", ...filters], {
+      cwd: fileURLToPath(new URL("../", import.meta.url)),
+      encoding: "utf8",
+    }),
+  );
+  const names = selected.map(({ name }) => name);
+  for (const name of [
+    "@hey-hey/cli",
+    "@hey-hey/contracts",
+    "hey-hey-openapi",
+  ]) {
+    assert.ok(
+      names.includes(name),
+      `Release install omits ${name}, required by CLI prepack`,
+    );
+  }
+});
