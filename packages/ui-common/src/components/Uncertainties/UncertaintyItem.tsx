@@ -1,8 +1,9 @@
-import { Chip, Paper, Stack, Typography } from "@mui/material";
+import { Box, Chip, Paper, Stack, Typography } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
 import React from "react";
 import type { AgentUncertaintySystemMessageData } from "../../api";
-import { QuestionFrame } from "./QuestionFrame";
+import { ConversationCard } from "../Conversation/Card";
+import { NEEDS_YOUR_ANSWER_LABEL } from "./QuestionFrame";
 
 export const UNCERTAINTY_CATEGORY_LABELS: Record<
   AgentUncertaintySystemMessageData["category"],
@@ -17,44 +18,39 @@ export const UNCERTAINTY_CATEGORY_LABELS: Record<
 
 type Severity = AgentUncertaintySystemMessageData["severity"];
 
-/** Red high, amber medium, neutral grey low. Never the Discuss blue. */
+/** Card-standard severity colors: orange high, amber medium, grey low. */
 const severityChipSx = (severity: Severity) => (theme: Theme) => {
-  switch (severity) {
-    case "high":
-      return {
-        backgroundColor: theme.palette.error.main,
-        color: theme.palette.error.contrastText,
-      };
-    case "medium":
-      return {
-        backgroundColor: theme.palette.warning.main,
-        color: theme.palette.warning.contrastText,
-      };
-    case "low":
-      return {
-        backgroundColor: theme.palette.action.selected,
-        color: theme.palette.text.secondary,
-      };
-  }
+  const tone = theme.palette.conversationCard.severities[severity];
+
+  return { backgroundColor: tone.main, color: tone.contrastText };
 };
 
 export interface SeverityChipProps {
   severity: Severity;
-  onBand?: boolean;
 }
 
-export const SeverityChip: React.FC<SeverityChipProps> = ({
-  severity,
-  onBand = false,
-}) => (
-  <Chip
-    label={severity}
-    size="small"
-    sx={[
-      severityChipSx(severity),
-      onBand && { border: "1px solid rgba(255,255,255,0.7)" },
-    ]}
-  />
+export const SeverityChip: React.FC<SeverityChipProps> = ({ severity }) => (
+  <Chip label={severity} size="small" sx={severityChipSx(severity)} />
+);
+
+const QuestionBadge: React.FC = () => (
+  <Box
+    aria-hidden
+    sx={{
+      width: 20,
+      height: 20,
+      borderRadius: "50%",
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: 13,
+      fontWeight: 700,
+      backgroundColor: "var(--card-main)",
+      color: "var(--card-contrast)",
+    }}
+  >
+    ?
+  </Box>
 );
 
 export interface UncertaintyItemProps {
@@ -77,25 +73,27 @@ export const UncertaintyItem: React.FC<UncertaintyItemProps> = ({
 }) => {
   if (category === "question") {
     return (
-      <QuestionFrame
-        testId={testId}
-        showAnswerBand={showAnswerBand}
-        headerEnd={
+      <ConversationCard
+        data-testid={testId}
+        tone={{ role: "needsAnswer" }}
+        icon={<QuestionBadge />}
+        kindLabel={showAnswerBand ? NEEDS_YOUR_ANSWER_LABEL : "Question"}
+        chips={
           <>
-            <SeverityChip severity={severity} onBand />
-            <Typography variant="caption" fontWeight="bold">
-              {UNCERTAINTY_CATEGORY_LABELS.question}
-            </Typography>
+            <SeverityChip severity={severity} />
+            {showAnswerBand ? (
+              <Chip
+                label={UNCERTAINTY_CATEGORY_LABELS.question}
+                size="small"
+                variant="outlined"
+              />
+            ) : null}
           </>
         }
+        lead={statement}
       >
-        <Stack spacing={1}>
-          <Typography variant="body1" fontWeight={600}>
-            {statement}
-          </Typography>
-          {children}
-        </Stack>
-      </QuestionFrame>
+        {children}
+      </ConversationCard>
     );
   }
 

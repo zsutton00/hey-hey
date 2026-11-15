@@ -1,4 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { ThemeProvider } from "@mui/material/styles";
+import { render as baseRender, screen } from "@testing-library/react";
+import { createHeyTheme } from "../../../contexts/ThemeContext";
 import { describe, expect, it, vi } from "vitest";
 import {
   ReportAudience,
@@ -9,6 +11,13 @@ import {
 import { ReportViewer } from "../../Reports/ReportViewer";
 import { StandardReportContent } from "../../Reports/viewer";
 import type { EvidencePipelineReportPayload } from "../../Reports/viewer/evidencePipelineTypes";
+
+const render = (ui: React.ReactElement) =>
+  baseRender(ui, {
+    wrapper: ({ children }) => (
+      <ThemeProvider theme={createHeyTheme("light")}>{children}</ThemeProvider>
+    ),
+  });
 
 vi.mock("../../../data/hooks/usePlatformAdminAccess", () => ({
   usePlatformAdminAccess: () => ({ isPlatformAdmin: false, isResolved: true }),

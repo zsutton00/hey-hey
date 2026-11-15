@@ -1,4 +1,6 @@
-import { render, screen, within } from "@testing-library/react";
+import { ThemeProvider } from "@mui/material/styles";
+import { render as baseRender, screen, within } from "@testing-library/react";
+import { createHeyTheme } from "../../../contexts/ThemeContext";
 import userEvent from "@testing-library/user-event";
 import type { PropsWithChildren } from "react";
 import { MemoryRouter } from "react-router-dom";
@@ -15,6 +17,13 @@ import { MentionEditorContext } from "../../SmarterTextAreaCard/EditorContext";
 import { CodingResearchReport } from "../viewer/CodingResearchReport";
 import { buildCodingResearchDiscussionPrompt } from "../viewer/CodingResearchDiscussionAction";
 import { CodingResearchUpdatesSection } from "../viewer/CodingResearchUpdatesSection";
+
+const render = (ui: React.ReactElement) =>
+  baseRender(ui, {
+    wrapper: ({ children }) => (
+      <ThemeProvider theme={createHeyTheme("light")}>{children}</ThemeProvider>
+    ),
+  });
 
 const launcherMock = vi.hoisted(() => ({
   launch: vi.fn(),

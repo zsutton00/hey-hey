@@ -25,8 +25,58 @@ describe("UncertaintyItem", () => {
       />,
     );
 
+    expect(screen.getByTestId("uncertainty")).toHaveAttribute(
+      "data-tone",
+      "needsAnswer",
+    );
     expect(screen.getByText("Needs your answer")).toBeVisible();
     expect(screen.getByText("Question")).toBeVisible();
+    expect(screen.getByTestId("conversation-card-lead")).toHaveTextContent(
+      "Which option should I choose?",
+    );
+  });
+
+  it.each(["light", "dark"] as const)(
+    "renders a question card in the %s theme",
+    (mode) => {
+      baseRender(
+        <ThemeProvider theme={createHeyTheme(mode)}>
+          <UncertaintyItem
+            category={AgentUncertaintySystemMessageDataCategoryEnum.Question}
+            severity="high"
+            statement="Which option should I choose?"
+            testId="uncertainty"
+          />
+        </ThemeProvider>,
+      );
+
+      expect(screen.getByTestId("uncertainty")).toHaveAttribute(
+        "data-tone",
+        "needsAnswer",
+      );
+      expect(screen.getByText("high")).toBeVisible();
+    },
+  );
+
+  it("shows several questions in the order raised", () => {
+    render(
+      <>
+        {["First question?", "Second question?"].map((statement) => (
+          <UncertaintyItem
+            key={statement}
+            category={AgentUncertaintySystemMessageDataCategoryEnum.Question}
+            severity="medium"
+            statement={statement}
+            testId="uncertainty"
+          />
+        ))}
+      </>,
+    );
+
+    const leads = screen
+      .getAllByTestId("conversation-card-lead")
+      .map((lead) => lead.textContent);
+    expect(leads).toEqual(["First question?", "Second question?"]);
   });
 
   const otherCategories: AgentUncertaintySystemMessageData["category"][] = [
@@ -49,6 +99,9 @@ describe("UncertaintyItem", () => {
       );
 
       expect(screen.queryByText("Needs your answer")).not.toBeInTheDocument();
+      expect(screen.getByTestId("uncertainty")).not.toHaveAttribute(
+        "data-tone",
+      );
     },
   );
 
