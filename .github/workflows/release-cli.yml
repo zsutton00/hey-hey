@@ -4,14 +4,25 @@ run-name: CLI release — ${{ github.ref_name }}
 # Publishes one CLI version with the exact images already built and verified by a
 # "Build images" run selected for the release. Nothing is rebuilt here: the candidate
 # run's release-manifest.json is the one that ships. Tags the images with the CLI
-# version, publishes npm, then runs anonymous checks.
+# version and stages npm for human approval. Run again with operation=verify
+# after approving on npm to check the public artifact against that staging run.
 on:
   workflow_dispatch:
     inputs:
+      operation:
+        description: Stage a package, or verify it after approving on npm
+        type: choice
+        options: [stage, verify]
+        default: stage
+        required: true
       candidate_run_id:
         description: Run ID of the successful "Build images" run (target All) whose pinned images should ship
         type: string
-        required: true
+        required: false
+      staging_run_id:
+        description: For verify only — successful Release CLI staging run ID
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -25,6 +36,7 @@ env:
 
 jobs:
   approve:
+    if: inputs.operation == 'stage'
     # The protected environment holds the required-reviewer approval.
     runs-on: ubuntu-latest
     environment: release
@@ -59,6 +71,7 @@ jobs:
           RUN_ID: ${{ inputs.candidate_run_id }}
         run: |
           set -euo pipefail
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]] || { echo "Enter a numeric candidate_run_id for stage" >&2; exit 1; }
           run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID")"
           [ "$(jq -r .path <<<"$run")" = ".github/workflows/publish-images.yml" ] || { echo "Run $RUN_ID is not a Build images run" >&2; exit 1; }
           [ "$(jq -r .conclusion <<<"$run")" = "success" ] || { echo "Run $RUN_ID did not succeed" >&2; exit 1; }
@@ -106,21 +119,64 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
           registry-url: https://registry.npmjs.org
+      - name: Install npm with staged publishing support
+        run: npm install --global npm@11.21.2
       - run: pnpm install --frozen-lockfile --filter @hey-hey/cli...
-      - name: Publish to npm with the candidate manifest
+      - name: Stage on npm with the candidate manifest
         working-directory: apps/cli
         run: |
           cp "$RUNNER_TEMP/candidate/release-manifest.json" release-manifest.json
-          npm publish --provenance --access public
+          npm stage publish --provenance --access public
+      - name: Record the staged release identity
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ needs.approve.outputs.version }}
+        run: |
+          jq -n --arg version "$VERSION" --arg revision "$GITHUB_SHA" \
+            '{version: $version, revision: $revision}' > "$RUNNER_TEMP/candidate/release-metadata.json"
+          echo "Staged @hey-hey/cli@$VERSION. Approve it on npm with 2FA, then run Release CLI with operation=verify and staging_run_id=$GITHUB_RUN_ID." >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: release-manifest
-          path: ${{ runner.temp }}/candidate/release-manifest.json
+          path: ${{ runner.temp }}/candidate/*.json
+
+  verification-context:
+    if: inputs.operation == 'verify'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      version: ${{ steps.identity.outputs.version }}
+    steps:
+      - name: Require a successful staging run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.staging_run_id }}
+        run: |
+          set -euo pipefail
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]] || { echo "Enter a numeric staging_run_id for verify" >&2; exit 1; }
+          run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID")"
+          [ "$(jq -r .path <<<"$run")" = ".github/workflows/release-cli.yml" ] || { echo "Run $RUN_ID is not a Release CLI run" >&2; exit 1; }
+          [ "$(jq -r .conclusion <<<"$run")" = "success" ] || { echo "Staging run $RUN_ID did not succeed" >&2; exit 1; }
+          echo "STAGED_REVISION=$(jq -r .head_sha <<<"$run")" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-manifest
+          run-id: ${{ inputs.staging_run_id }}
+          github-token: ${{ github.token }}
+      - name: Read the staged release identity
+        id: identity
+        run: |
+          set -euo pipefail
+          jq -e --arg revision "$STAGED_REVISION" '.revision == $revision and (.version | type == "string" and length > 0)' release-metadata.json
+          echo "version=$(jq -r .version release-metadata.json)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-manifest
+          path: release-manifest.json
 
   verify-pull:
-    needs: publish
+    needs: verification-context
     name: Anonymous pull on ${{ matrix.platform }}
     runs-on: ${{ matrix.runner }}
     permissions: {}
@@ -128,6 +184,7 @@ jobs:
       matrix:
         include:
           - { platform: linux/arm64, runner: ubuntu-24.04-arm }
+          - { platform: linux/amd64, runner: ubuntu-latest }
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -144,7 +201,7 @@ jobs:
           done
 
   verify-install:
-    needs: [approve, publish]
+    needs: verification-context
     runs-on: ubuntu-latest
     permissions: {}
     steps:
@@ -156,7 +213,7 @@ jobs:
           node-version: 20
       - name: Install the published package and compare its manifest
         env:
-          VERSION: ${{ needs.approve.outputs.version }}
+          VERSION: ${{ needs.verification-context.outputs.version }}
         run: |
           set -euo pipefail
           scratch="$(mktemp -d)"
