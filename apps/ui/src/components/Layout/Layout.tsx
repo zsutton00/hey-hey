@@ -97,6 +97,8 @@ const Layout = () => {
     new URLSearchParams(location.search).get("entry") === "existing";
 
   const isOnLandingPage = location.pathname === "/";
+  // Branded frame pages paint their own full-bleed background.
+  const isOnLoginPage = location.pathname === "/login";
   const isOnPublicMarketingPage =
     isOnLandingPage ||
     location.pathname === "/request-access" ||
@@ -293,7 +295,9 @@ const Layout = () => {
                         }),
                     padding: 0,
                     paddingBottom:
-                      isBottomSpacingSuppressed || isOnPublicMarketingPage
+                      isBottomSpacingSuppressed ||
+                      isOnPublicMarketingPage ||
+                      isOnLoginPage
                         ? 0
                         : "100px",
                     marginLeft: isOnProjectPage ? 0 : 0, // Drawer handles its own spacing
@@ -301,7 +305,7 @@ const Layout = () => {
                       ? 0
                       : LAYOUT_CSS.MAIN_MARGIN_TOP,
                     bgcolor: "background.default",
-                    ...(isOnLandingPage
+                    ...(isOnLandingPage || isOnLoginPage
                       ? { px: 0 }
                       : MAIN_CONTENT_PADDING_X_SX),
                   }}
