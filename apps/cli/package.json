@@ -18,7 +18,8 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zsutton00/cli.git"
+    "url": "git+https://github.com/zsutton00/hey-hey.git",
+    "directory": "apps/cli"
   },
   "license": "AGPL-3.0-only",
   "author": "Zac Sutton",
