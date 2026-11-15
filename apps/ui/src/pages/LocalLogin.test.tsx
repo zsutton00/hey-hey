@@ -212,7 +212,7 @@ describe("deployment login", () => {
   it("renders the existing hosted login when the local flag is absent", async () => {
     delete window.__HEY_HEY_RUNTIME_CONFIG__;
     renderLogin();
-    expect(await screen.findByLabelText(/Email Address/)).toBeInTheDocument();
+    expect(await screen.findByLabelText(/Email address/)).toBeInTheDocument();
     expect(screen.queryByTestId("local-login")).not.toBeInTheDocument();
   });
 

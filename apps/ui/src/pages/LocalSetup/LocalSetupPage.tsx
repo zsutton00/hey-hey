@@ -12,6 +12,12 @@ import {
   refreshAuthToken,
 } from "@hey-hey/ui-common/services";
 import { useAuth } from "@hey-hey/ui-common/context";
+import {
+  BrandedCard,
+  BrandedHeadline,
+  BrandedPage,
+  BrandedWordmark,
+} from "@hey-hey/ui-common/components";
 import type { LocalSetupStatusDto } from "@hey-hey/ui-common/api";
 import { ClaimMachine } from "../Settings/ClaimMachine";
 import { LocalPairingProgress } from "./LocalPairingProgress";
@@ -30,6 +36,12 @@ import {
 import "./LocalSetupPage.css";
 
 let mountCount = 0;
+
+/** The setup card is wider and roomier than the default branded card. */
+const LOCAL_CARD_SX = {
+  maxWidth: "31rem",
+  padding: "clamp(1.25rem, 4vw, 2rem)",
+} as const;
 
 /** Pairing normally finishes in seconds; past this the person is told how to recover. */
 const CONNECT_TIMEOUT_MS = 60_000;
@@ -308,12 +320,12 @@ export function LocalSetupPage(): React.JSX.Element {
 
   if (step === "error") {
     return (
-      <main className="local-setup">
-        <p className="local-setup__wordmark">HEY HEY</p>
-        <h1>LOCAL SETUP NEEDS ATTENTION</h1>
+      <BrandedPage className="local-setup">
+        <BrandedWordmark>HEY HEY</BrandedWordmark>
+        <BrandedHeadline>LOCAL SETUP NEEDS ATTENTION</BrandedHeadline>
         <p role="alert">{error}</p>
         <LocalSetupDiagnostics />
-      </main>
+      </BrandedPage>
     );
   }
 
@@ -331,34 +343,34 @@ export function LocalSetupPage(): React.JSX.Element {
 
   if (authLoading || handoffPending || step === "loading" || !status) {
     return (
-      <main className="local-setup" aria-live="polite">
-        <p className="local-setup__wordmark">HEY HEY</p>
+      <BrandedPage className="local-setup" aria-live="polite">
+        <BrandedWordmark>HEY HEY</BrandedWordmark>
         <p>Opening your local workspace…</p>
-      </main>
+      </BrandedPage>
     );
   }
 
   if (status.nameComplete && (status.machineConnected || passkeyCreated)) {
     return (
-      <main className="local-setup">
-        <p className="local-setup__wordmark">HEY HEY</p>
-        <h1>{t("localSetup.progress.title")}</h1>
-        <section className="local-setup__card">
+      <BrandedPage className="local-setup">
+        <BrandedWordmark>HEY HEY</BrandedWordmark>
+        <BrandedHeadline>{t("localSetup.progress.title")}</BrandedHeadline>
+        <BrandedCard className="local-setup__card" sx={LOCAL_CARD_SX}>
           <LocalPairingProgress
             failed={connectionFailed}
             onRetry={handleRetry}
           />
-        </section>
-      </main>
+        </BrandedCard>
+      </BrandedPage>
     );
   }
 
   if (!status.nameComplete) {
     return (
-      <main className="local-setup">
-        <p className="local-setup__wordmark">HEY HEY</p>
-        <h1>WHAT SHOULD WE CALL YOU?</h1>
-        <section className="local-setup__card">
+      <BrandedPage className="local-setup">
+        <BrandedWordmark>HEY HEY</BrandedWordmark>
+        <BrandedHeadline>WHAT SHOULD WE CALL YOU?</BrandedHeadline>
+        <BrandedCard className="local-setup__card" sx={LOCAL_CARD_SX}>
           <label htmlFor="local-display-name">Name</label>
           <input
             id="local-display-name"
@@ -374,26 +386,25 @@ export function LocalSetupPage(): React.JSX.Element {
           >
             {saving ? "Saving…" : "Continue"}
           </button>
-        </section>
-      </main>
+        </BrandedCard>
+      </BrandedPage>
     );
   }
 
   return (
-    <main className="local-setup">
-      <p className="local-setup__wordmark">HEY HEY</p>
+    <BrandedPage className="local-setup">
+      <BrandedWordmark>HEY HEY</BrandedWordmark>
       {pairingStarted && pairing ? (
         <header>
           <p className="local-setup__eyebrow">
             {t("localSetup.pairing.eyebrow")}
           </p>
-          <h1>{t("localSetup.pairing.title")}</h1>
-          <p className="local-setup__intro">
-            {t("localSetup.pairing.purpose")}
-          </p>
+          <BrandedHeadline line={t("localSetup.pairing.purpose")}>
+            {t("localSetup.pairing.title")}
+          </BrandedHeadline>
         </header>
       ) : null}
-      <section className="local-setup__card">
+      <BrandedCard className="local-setup__card" sx={LOCAL_CARD_SX}>
         {pairingStarted && pairing ? (
           <ClaimMachine
             initialCode={pairing.code}
@@ -413,7 +424,7 @@ export function LocalSetupPage(): React.JSX.Element {
         ) : (
           <p>Waiting for the local CLI to connect to Hey Hey…</p>
         )}
-      </section>
-    </main>
+      </BrandedCard>
+    </BrandedPage>
   );
 }
