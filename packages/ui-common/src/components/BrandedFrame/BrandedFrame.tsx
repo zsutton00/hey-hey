@@ -1,9 +1,41 @@
+import { createContext, useContext } from "react";
 import type { ComponentProps, ReactNode } from "react";
 import { Box, ButtonBase, styled } from "@mui/material";
 
-const PAGE_BACKGROUND = "#333";
-const WORDMARK_COLOR = "#3fa7b5";
-const RULE_COLOR = "rgb(255 255 255 / 22%)";
+export const BRANDED_PAGE_BACKGROUND = "#333";
+export const BRANDED_TEAL = "#3fa7b5";
+export const BRANDED_RULE_COLOR = "rgb(255 255 255 / 22%)";
+/** Translucent fills: a card, then the lighter step used for cards nested inside one. */
+export const BRANDED_CARD_FILL = "rgb(255 255 255 / 8%)";
+export const BRANDED_NESTED_FILL = "rgb(255 255 255 / 5%)";
+export const BRANDED_NESTED_HEADER_FILL = "rgb(255 255 255 / 6%)";
+export const BRANDED_NESTED_RULE_COLOR = "rgb(255 255 255 / 16%)";
+
+const PAGE_BACKGROUND = BRANDED_PAGE_BACKGROUND;
+const WORDMARK_COLOR = BRANDED_TEAL;
+const RULE_COLOR = BRANDED_RULE_COLOR;
+
+const BrandedAppearanceContext = createContext(false);
+
+/**
+ * Marks a subtree as sitting on the branded `#333` frame. Shared conversation
+ * pieces read it to switch from the app's default look to the translucent one,
+ * so other conversation surfaces are untouched.
+ */
+export const BrandedAppearanceProvider = BrandedAppearanceContext.Provider;
+
+export const useBrandedAppearance = (): boolean =>
+  useContext(BrandedAppearanceContext);
+
+/** Uppercase teal title inside a branded card. */
+export const BrandedCardTitle = styled("h2")({
+  margin: "0 0 1rem",
+  color: BRANDED_TEAL,
+  fontSize: "0.85rem",
+  fontWeight: 700,
+  letterSpacing: "0.1em",
+  textTransform: "uppercase",
+});
 
 /** The standalone frame screen: dark page, centred content. Fonts come from apps/ui/index.html. */
 export const BrandedPage = styled("main")({
@@ -67,7 +99,7 @@ export const BrandedCard = styled("section")({
   padding: "1.5rem",
   border: `1px solid ${RULE_COLOR}`,
   borderRadius: "10px",
-  background: "rgb(255 255 255 / 8%)",
+  background: BRANDED_CARD_FILL,
   textAlign: "left",
 });
 

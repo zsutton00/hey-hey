@@ -5,7 +5,8 @@ import {
   Conversation,
   DISABLED_CONVERSATION_SCROLL_POLICY,
   determineMessageState,
-  HeyHeyBranding,
+  BrandedAppearanceProvider,
+  BrandedWordmark,
   type OnboardingReplySubmission,
 } from "@hey-hey/ui-common/components";
 import { WebPathService } from "@hey-hey/ui-common";
@@ -15,6 +16,7 @@ import {
   useDebugActions,
   useOrganization,
   usePageTracking,
+  createHeyTheme,
 } from "@hey-hey/ui-common/context";
 import {
   ConversationStatus,
@@ -31,12 +33,19 @@ import {
   useProject,
   useSubmitOnboardingReply,
 } from "@hey-hey/ui-common/data";
-import { Box, useTheme } from "@mui/material";
-import { useCallback, useEffect, useState } from "react";
+import { Box } from "@mui/material";
+import { ThemeProvider } from "@mui/material/styles";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ConversationMessage } from "../../types/conversation";
 import { PageBreadcrumbs } from "../../components/Layout";
 import { OnboardingLoadingScreen } from "./components/Loading";
 import { ProjectDetailsForm } from "./components/ProjectDetailsForm";
+
+/** The branded frame is always dark, whatever mode the rest of the app is in. */
+const BRANDED_THEME_MODE = "dark";
+
+/** Conversation content sits at most this wide, centred under the headline. */
+const ONBOARDING_CONTENT_MAX_WIDTH = "1100px";
 
 const ONBOARDING_CONVERSATION_STATUSES: ConversationStatus[] = [
   ConversationStatus.NotStarted,
@@ -85,7 +94,7 @@ const isSelectedExistingWorkIntentAnswer = (answer: unknown): boolean =>
 // Container component for data loading and orchestration
 const OnboardingPageContent = () => {
   const navigate = useNavigate();
-  const theme = useTheme();
+  const brandedTheme = useMemo(() => createHeyTheme(BRANDED_THEME_MODE), []);
   // Read the active org from the app-wide OrganizationContext — the same source
   // every other page (and project creation) uses. The JWT's currentOrgId is a
   // stale snapshot from token-issue time and diverges once a multi-org user
@@ -380,6 +389,7 @@ const OnboardingPageContent = () => {
           agentSessionId={resolvedAgentSession?.id}
           agentSessionCurrentState={resolvedAgentSession?.currentState}
           scrollPolicy={DISABLED_CONVERSATION_SCROLL_POLICY}
+          sidebarMode="minimal"
           stepCount={-1}
           showNavigation
           onSubmitOnboardingReply={handleSubmitOnboardingReply}
@@ -388,46 +398,53 @@ const OnboardingPageContent = () => {
     ) : null;
 
   return (
-    <Box sx={{ px: { xs: 2, sm: 4, md: 6 }, py: 3 }}>
-      {existingImportBreadcrumbs ? (
-        <PageBreadcrumbs sx={{ mb: 2 }} items={existingImportBreadcrumbs} />
-      ) : null}
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "center",
-          mb: 3,
-          "& > .MuiTypography-root": {
-            color:
-              theme.palette.mode === "dark" ? "common.white" : "text.primary",
-          },
-        }}
-      >
-        <HeyHeyBranding variant="header" />
-      </Box>
+    <ThemeProvider theme={brandedTheme}>
+      <BrandedAppearanceProvider value>
+        <Box
+          sx={{
+            minHeight: "100vh",
+            boxSizing: "border-box",
+            px: { xs: 2, md: 4 },
+            pt: "clamp(2rem, 5vw, 3.5rem)",
+            pb: 8,
+            bgcolor: "background.default",
+            color: "#fff",
+            fontFamily: '"Atkinson Hyperlegible", Arial, sans-serif',
+          }}
+        >
+          {existingImportBreadcrumbs ? (
+            <PageBreadcrumbs sx={{ mb: 2 }} items={existingImportBreadcrumbs} />
+          ) : null}
+          <Box sx={{ textAlign: "center" }}>
+            <BrandedWordmark>HEY HEY</BrandedWordmark>
+          </Box>
 
-      <AnimatedConditional show={!isLoaded} animationType="fade">
-        <OnboardingLoadingScreen
-          isNew={isNew}
-          loadingTextConfig={[
-            { text: "Initializing Project...", delay: 300 },
-            { text: "Loading project...", delay: 500 },
-          ]}
-        />
-      </AnimatedConditional>
+          <Box sx={{ maxWidth: ONBOARDING_CONTENT_MAX_WIDTH, mx: "auto" }}>
+            <AnimatedConditional show={!isLoaded} animationType="fade">
+              <OnboardingLoadingScreen
+                isNew={isNew}
+                loadingTextConfig={[
+                  { text: "Initializing Project...", delay: 300 },
+                  { text: "Loading project...", delay: 500 },
+                ]}
+              />
+            </AnimatedConditional>
 
-      <AnimatedConditional
-        show={!!isLoaded}
-        animationType="fade"
-        duration="slow"
-      >
-        {isLoaded && resolvedOnboardingConversation && project && (
-          <FadeIn delay={0.26} duration="slow">
-            {conversationContent}
-          </FadeIn>
-        )}
-      </AnimatedConditional>
-    </Box>
+            <AnimatedConditional
+              show={!!isLoaded}
+              animationType="fade"
+              duration="slow"
+            >
+              {isLoaded && resolvedOnboardingConversation && project && (
+                <FadeIn delay={0.26} duration="slow">
+                  {conversationContent}
+                </FadeIn>
+              )}
+            </AnimatedConditional>
+          </Box>
+        </Box>
+      </BrandedAppearanceProvider>
+    </ThemeProvider>
   );
 };
 

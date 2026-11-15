@@ -71,7 +71,15 @@ vi.mock("@hey-hey/ui-common/components", async () => {
   return {
     DISABLED_CONVERSATION_SCROLL_POLICY: {},
     determineMessageState: () => "completed",
-    HeyHeyBranding: () => <span>Hey Hey</span>,
+    BrandedWordmark: ({ children }: { children: React.ReactNode }) => (
+      <span>{children}</span>
+    ),
+    BrandedAppearanceProvider: ({ children }: { children: React.ReactNode }) =>
+      children,
+    BrandedHeadline: ({ children }: { children: React.ReactNode }) => (
+      <h1>{children}</h1>
+    ),
+    useBrandedAppearance: () => true,
     Conversation: ({
       conversation,
       onSubmitOnboardingReply,
