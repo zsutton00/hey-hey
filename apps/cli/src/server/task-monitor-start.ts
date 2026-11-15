@@ -11,6 +11,7 @@ import {
 import type { ServerLogger } from './logger';
 import type { PlatformAuthContext } from './platform-auth-context';
 import { TaskMonitorPlanContext } from './task-monitor-plan-context';
+import { TaskMonitorTaskKind } from '../agents/task-monitor/kinds/task-monitor-task-kind';
 import type { TaskMonitorPlanGuidance } from '@hey-hey/contracts/agent-bridge';
 
 const sectionSchema = z
@@ -201,10 +202,18 @@ export interface TaskMonitorStartRuntimeDependencies {
 export class TaskMonitorStartRuntime {
   private readonly baseUrl: string;
   private readonly planContext: TaskMonitorPlanContext;
+  /** The monitor's kind, resolved once; every node-specific handler step goes through it. */
+  public readonly kind: TaskMonitorTaskKind;
 
   public constructor(private readonly dependencies: TaskMonitorStartRuntimeDependencies) {
     this.baseUrl = dependencies.apiBaseUrl.replace(/\/$/u, '');
     this.planContext = new TaskMonitorPlanContext(dependencies);
+    this.kind = new TaskMonitorTaskKind({
+      runtime: this,
+      apiBaseUrl: dependencies.apiBaseUrl,
+      fetchImpl: dependencies.fetchImpl,
+      logger: dependencies.logger,
+    });
   }
 
   public async resolvePlanContext(input: {

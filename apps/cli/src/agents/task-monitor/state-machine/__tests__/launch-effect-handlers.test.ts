@@ -17,7 +17,8 @@ import {
   TaskMonitorRunEffectHandler,
 } from '../launch-effect-handlers';
 import { TaskMonitorLaunchReconciliationEffectHandler } from '../monitor-effect-handlers';
-import type { TaskMonitorStartRuntime } from '../../../../server/task-monitor-start';
+import { TaskMonitorStartRuntime } from '../../../../server/task-monitor-start';
+import { createTestPlatformAuthContext } from '../../../../server/monitors/test-owners.test-support';
 
 const AGENT_SESSION_ID = '60000000-0000-4000-8000-000000000006';
 const CONVERSATION_ID = '70000000-0000-4000-8000-000000000007';
@@ -349,7 +350,16 @@ describe('Task Monitor launch effect handlers', () => {
     } as never as ApiRuntime;
 
     await expect(
-      new TaskMonitorConversationEffectHandler(apiRuntime, NOOP_LOGGER).execute({
+      new TaskMonitorConversationEffectHandler(
+        apiRuntime,
+        NOOP_LOGGER,
+        new TaskMonitorStartRuntime({
+          apiBaseUrl: 'https://api.test',
+          fetchImpl: vi.fn(),
+          authContext: createTestPlatformAuthContext(null, 'token'),
+          logger: NOOP_LOGGER,
+        }).kind,
+      ).execute({
         type: 'CREATE_TASK_MONITOR_CONVERSATION',
         launch,
         agentSessionId: AGENT_SESSION_ID,

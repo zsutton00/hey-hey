@@ -137,6 +137,7 @@ export class TaskMonitorMachineOwner {
     const conversation = new TaskMonitorConversationEffectHandler(
       dependencies.apiRuntime,
       dependencies.logger.child({ component: 'task-monitor.machine.conversation' }),
+      this.runtime.kind,
     );
     const run = new TaskMonitorRunEffectHandler(
       dependencies.apiRuntime,
