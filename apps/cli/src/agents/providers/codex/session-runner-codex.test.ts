@@ -580,6 +580,7 @@ describe('session-runner-codex', () => {
     async (resume) => {
       const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-plan-limits-'));
       vi.stubEnv('HEYHEY_SESSION_DIR', root);
+      const runStore = makeRunStore();
       const report = async () => {
         sdkEventHandler?.({
           method: 'account/rateLimits/updated',
@@ -597,7 +598,7 @@ describe('session-runner-codex', () => {
       const runner = new CodexAgentSessionRunner({
         localAgentEndpoint,
         submissionToolRegistry,
-        runStore: makeRunStore(),
+        runStore,
         repoStore: makeRepoStore(),
         oauthClient: createProviderTestOAuthClient({ success: true, data: 'test-token' }),
       });
@@ -606,17 +607,23 @@ describe('session-runner-codex', () => {
           session: makeSession({ provider_session_id: resume ? 'codex-thread-1' : 'pending_abc' }),
           prompt: 'Capture limits.',
         });
-        expect(await new ProviderUsageStore(root).read('codex')).toMatchObject({
+        expect(
+          await new ProviderUsageStore(runStore.getDataDirectory()).read('codex'),
+        ).toMatchObject({
           status: 'reported',
           usage: {
             fiveHour: { usedPercent: 0, resetsAt: null },
             weekly: { usedPercent: 41, resetsAt: '1970-01-01T00:00:00.000Z' },
           },
         });
+        expect(await new ProviderUsageStore(root).read('codex')).toMatchObject({
+          status: 'unreported',
+        });
       } finally {
         await runner.dispose();
         vi.unstubAllEnvs();
         await fs.rm(root, { recursive: true, force: true });
+        await fs.rm(runStore.getDataDirectory(), { recursive: true, force: true });
       }
     },
   );
