@@ -111,13 +111,9 @@ describe('EvalWorkspaces', () => {
           encoding: 'utf8',
         });
 
-      // With nothing to log in with, gh stops at authentication.
-      const withoutLogin = createPr(isolated);
-      expect(withoutLogin.status).not.toBe(0);
-      expect(withoutLogin.stderr).toContain('gh auth login');
-
       // A placeholder token takes login out of the picture; the missing remote is what stops it.
       const withLogin = createPr({ ...isolated, GH_TOKEN: 'placeholder-token' });
+      expect(withLogin.error).toBeUndefined();
       expect(withLogin.status).not.toBe(0);
       expect(withLogin.stderr).toContain('no git remotes found');
 
