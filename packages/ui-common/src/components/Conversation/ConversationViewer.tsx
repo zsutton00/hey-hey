@@ -62,11 +62,7 @@ import { SystemMessage } from "./Components/SystemMessage";
 import { ConversationDebugPanel } from "./ConversationDebugPanel";
 import type { ConversationNavigatorOrientation } from "./ConversationNavigator";
 import { ConversationNavigator } from "./ConversationNavigator";
-import {
-  BRANDED_CARD_FILL,
-  BRANDED_RULE_COLOR,
-  useBrandedAppearance,
-} from "../BrandedFrame";
+import { useBrandedAppearance } from "../BrandedFrame";
 import { ConversationToolbar, type ToolbarButton } from "./ConversationToolbar";
 import type { ProposalsAcceptedHandler } from "./hooks/proposalsAcceptedTypes";
 import {
@@ -668,14 +664,13 @@ const ConversationViewerContent: React.FC<{
           sx={{
             ...(isBranded
               ? {
-                  border: `1px solid ${BRANDED_RULE_COLOR}`,
-                  borderRadius: "10px",
-                  backgroundColor: BRANDED_CARD_FILL,
+                  border: "none",
+                  backgroundColor: "transparent",
                   backgroundImage: "none",
                   boxShadow: "none",
                 }
               : {}),
-            p: { xs: 2, sm: 3, md: 4 },
+            p: isBranded ? 0 : { xs: 2, sm: 3, md: 4 },
             flex: 1,
             minWidth: 0, // Prevent flex item from overflowing
             maxWidth: "100%",
