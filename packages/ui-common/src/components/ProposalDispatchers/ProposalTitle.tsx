@@ -28,6 +28,7 @@ import {
   isExistingTaskPlanProposal,
   isPlaceholderEntityId,
 } from "./types";
+import { isFutureProposal } from "./futureAsUpdate";
 import { updateProposalTitleLinkSx } from "./updateProposalTitleLinkSx";
 
 const titleFlexSx = { flex: 1, minWidth: 0 };
@@ -115,8 +116,19 @@ export const ProposalTitle: FC<ProposalTitleProps> = ({
     proposal.action === "DELETE"
       ? { color: "text.secondary", textDecoration: "line-through" }
       : undefined;
+  // A future's content exists only on its proposal; the live target still
+  // shows the pre-revision content, so the link must open the proposal.
+  const futureHref =
+    presentationAction === ProposalAction.VersionedUpdate ||
+    isFutureProposal(proposal)
+      ? paths.proposal({
+          projectId: proposal.projectId,
+          proposalId: proposal.id,
+        })
+      : undefined;
   const resolvedTarget: ResolvedProposalTitleTarget = {
     ...target,
+    ...(futureHref ? { href: futureHref } : {}),
     entityId: target?.entityId ?? proposal.targetEntityId,
     entityType: target?.entityType ?? proposal.targetEntityType,
   };
