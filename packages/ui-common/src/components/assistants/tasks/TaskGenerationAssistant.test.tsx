@@ -233,6 +233,7 @@ describe("TaskGenerationAssistant", () => {
 
   it("should detect existing conversations and toggle button label", async () => {
     const existingConversation = {
+      restricted: true,
       id: "conversation-1",
       workflowName: "task-generation",
       messages: [],

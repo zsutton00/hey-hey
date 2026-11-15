@@ -116,6 +116,7 @@ describe("WebSocket React Integration", () => {
   it("should handle multiple conversations across different projects", async () => {
     const mockConversations: ConversationResponseDto[] = [
       {
+        restricted: true,
         id: "conv-1",
         projectId: "proj-1",
         organizationId: "org-1",
@@ -130,6 +131,7 @@ describe("WebSocket React Integration", () => {
         updatedAt: new Date().toISOString(),
       },
       {
+        restricted: true,
         id: "conv-2",
         projectId: "proj-2",
         organizationId: "org-1",
@@ -264,6 +266,7 @@ describe("WebSocket React Integration", () => {
     // First, populate the store with conversations
     events.forEach((event, i) => {
       const mockConversation: ConversationResponseDto = {
+        restricted: true,
         id: event.conversationId,
         projectId: event.projectId,
         organizationId: event.organizationId,
@@ -383,6 +386,7 @@ describe("WebSocket React Integration", () => {
 
   it("refreshes canonical onboarding Messages once without reading the envelope for duplicate updates", async () => {
     const staleConversation: ConversationResponseDto = {
+      restricted: true,
       id: "onboarding-conversation",
       organizationId: "org-1",
       projectId: "project-1",

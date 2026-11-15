@@ -23,6 +23,7 @@ const createConversation = (
   projectId: string,
   organizationId = "org-789"
 ): ConversationResponseDto => ({
+  restricted: true,
   id,
   projectId,
   organizationId,

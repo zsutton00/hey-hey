@@ -8,6 +8,7 @@ const createConversation = (
 ): ConversationResponseDto => {
   canonicalMessagesMock.mockReturnValue({ data: messages });
   return {
+    restricted: true,
     id: "conv-1",
     projectId: "project-1",
     workflowId: "workflow-1",

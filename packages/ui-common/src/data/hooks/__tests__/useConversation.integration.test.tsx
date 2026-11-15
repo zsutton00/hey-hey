@@ -124,6 +124,7 @@ describe("useConversation with WebSocket Integration", () => {
 
   it("should update when WebSocket marks conversation stale", async () => {
     const mockConversation: ConversationResponseDto = {
+      restricted: true,
       id: "conv-1",
       projectId: "proj-1",
       organizationId: "org-1",
@@ -200,6 +201,7 @@ describe("useConversation with WebSocket Integration", () => {
 
   it("should maintain conversation state across WebSocket reconnections", async () => {
     const mockConversation: ConversationResponseDto = {
+      restricted: true,
       id: "conv-reconnect",
       projectId: "proj-1",
       organizationId: "org-1",
@@ -275,6 +277,7 @@ describe("useConversation with WebSocket Integration", () => {
     // Setup mock data for each conversation
     conversations.forEach((convId, index) => {
       const mockConversation: ConversationResponseDto = {
+        restricted: true,
         id: convId,
         projectId: "proj-1",
         organizationId: "org-1",

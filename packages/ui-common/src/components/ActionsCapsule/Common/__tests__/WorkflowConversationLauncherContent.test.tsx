@@ -47,6 +47,7 @@ const buildConversation = (
   conversationId: string,
   title: string
 ): ConversationResponseDto => ({
+  restricted: true,
   id: conversationId,
   projectId: "project-1",
   organizationId: "org-1",

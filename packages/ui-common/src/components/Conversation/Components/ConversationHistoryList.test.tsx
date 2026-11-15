@@ -6,6 +6,7 @@ import { ConversationStatus, InitiationType, WorkflowName, type ConversationResp
 import { ConversationHistoryList } from "./ConversationHistoryList";
 
 const conversation: ConversationResponseDto = {
+  restricted: true,
   id: "conversation-1", projectId: "project-1", organizationId: "org-1",
   createdBy: null, initiatedBy: InitiationType.User,
   status: ConversationStatus.Started, title: "Existing discussion", version: 1,

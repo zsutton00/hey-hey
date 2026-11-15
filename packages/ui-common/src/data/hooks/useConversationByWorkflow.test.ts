@@ -26,6 +26,7 @@ const conversation = (
   id: string,
   createdAt = "2026-09-01T00:00:00Z"
 ): ConversationResponseDto => ({
+  restricted: true,
   id,
   organizationId: "org",
   projectId: "project",

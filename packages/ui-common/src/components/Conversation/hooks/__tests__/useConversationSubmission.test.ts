@@ -228,6 +228,7 @@ describe("useConversationSubmission", () => {
   it("routes every onboarding answer through the explicit onboarding owner", async () => {
     const onSubmitOnboardingReply = vi.fn().mockResolvedValue(undefined);
     const onboardingConversation: ConversationResponseDto = {
+      restricted: true,
       ...mockConversation,
       workflowId: "workflow-1",
       workflowName: "onboarding",
@@ -268,6 +269,7 @@ describe("useConversationSubmission", () => {
 
   describe("awaiting workflow progress after an accepted onboarding reply", () => {
     const onboardingConversation: ConversationResponseDto = {
+      restricted: true,
       ...mockConversation,
       workflowId: "workflow-1",
       workflowName: "onboarding",
@@ -422,6 +424,7 @@ describe("useConversationSubmission", () => {
   it("routes repository import answers only through the import owner", async () => {
     const onSubmitRepositoryImportReply = vi.fn().mockResolvedValue(undefined);
     const repositoryImportConversation: ConversationResponseDto = {
+      restricted: true,
       ...mockConversation,
       workflowId: "workflow-1",
       workflowName: "repository-import",
@@ -452,6 +455,7 @@ describe("useConversationSubmission", () => {
 
   describe("repository import enrichment reply", () => {
     const enrichmentConversation: ConversationResponseDto = {
+      restricted: true,
       ...mockConversation,
       workflowId: "workflow-1",
       workflowName: "repository-import",
@@ -525,6 +529,7 @@ describe("useConversationSubmission", () => {
   it("fails closed when onboarding has no reply owner", async () => {
     const onDirectTrigger = vi.fn().mockResolvedValue(undefined);
     const onboardingConversation: ConversationResponseDto = {
+      restricted: true,
       ...mockConversation,
       workflowId: "workflow-1",
       workflowName: "onboarding",
@@ -567,6 +572,7 @@ describe("useConversationSubmission", () => {
     const error = new Error("The onboarding form is stale.");
     const onSubmitOnboardingReply = vi.fn().mockRejectedValueOnce(error);
     const onboardingConversation: ConversationResponseDto = {
+      restricted: true,
       ...mockConversation,
       workflowId: "workflow-1",
       workflowName: "onboarding",
@@ -608,6 +614,7 @@ describe("useConversationSubmission", () => {
       ],
     });
     const workflowConversation: ConversationResponseDto = {
+      restricted: true,
       ...mockConversation,
       workflowId: "workflow-1",
       workflowName: "feature-sync",
@@ -675,6 +682,7 @@ describe("useConversationSubmission", () => {
       ],
     });
     const workflowConversation: ConversationResponseDto = {
+      restricted: true,
       ...mockConversation,
       workflowId: "workflow-1",
       workflowName: "feature-sync",
@@ -701,6 +709,7 @@ describe("useConversationSubmission", () => {
 
   it("sends the selected workflow field payload instead of the field-keyed form state", async () => {
     const workflowConversation: ConversationResponseDto = {
+      restricted: true,
       ...mockConversation,
       workflowId: "workflow-1",
       workflowName: "feature-sync",
@@ -735,6 +744,7 @@ describe("useConversationSubmission", () => {
 
   it("rejects a legacy decision envelope without advancing the workflow", async () => {
     const workflowConversation: ConversationResponseDto = {
+      restricted: true,
       ...mockConversation,
       workflowId: "workflow-1",
       workflowName: "feature-sync",
@@ -761,6 +771,7 @@ describe("useConversationSubmission", () => {
 
   it("forwards an explicit unknown action for server rejection without direct message fallback", async () => {
     const workflowConversation: ConversationResponseDto = {
+      restricted: true,
       ...mockConversation,
       workflowId: "workflow-1",
       workflowName: "feature-sync",
@@ -792,6 +803,7 @@ describe("useConversationSubmission", () => {
   it("routes a reply to a completed plan-shaping discrepancy through the active workflow", async () => {
     const onDirectTrigger = vi.fn().mockResolvedValue(undefined);
     const workflowConversation: ConversationResponseDto = {
+      restricted: true,
       ...mockConversation,
       workflowId: "workflow-1",
       workflowName: "feature-sync",
@@ -847,6 +859,7 @@ describe("useConversationSubmission", () => {
 
   it("retains a workflow text draft when no submission owner is available", async () => {
     const workflowConversation: ConversationResponseDto = {
+      restricted: true,
       ...mockConversation,
       workflowId: "workflow-1",
       workflowName: "feature-sync",
@@ -885,6 +898,7 @@ describe("useConversationSubmission", () => {
 
   it("reuses one workflow operation identity across transport retries", async () => {
     const workflowConversation: ConversationResponseDto = {
+      restricted: true,
       ...mockConversation,
       workflowId: "workflow-1",
       workflowName: "feature-sync",

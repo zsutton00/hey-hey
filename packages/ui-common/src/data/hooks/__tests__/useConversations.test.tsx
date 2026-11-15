@@ -96,6 +96,7 @@ describe("useConversations", () => {
 
   const mockConversations = [
     {
+      restricted: true,
       id: "conv-123",
       projectId: "project-123",
       organizationId: "org-123",
@@ -105,6 +106,7 @@ describe("useConversations", () => {
       updatedAt: "2023-01-01T00:00:00Z",
     },
     {
+      restricted: true,
       id: "conv-456",
       projectId: "project-123",
       organizationId: "org-123",

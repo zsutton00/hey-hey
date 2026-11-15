@@ -24,6 +24,7 @@ const conversation = (
   id: string,
   decisions: GoalPmRoutingDecisionResponseDto[] = []
 ): ConversationResponseDto => ({
+  restricted: true,
   id,
   projectId: "project",
   organizationId: "org",

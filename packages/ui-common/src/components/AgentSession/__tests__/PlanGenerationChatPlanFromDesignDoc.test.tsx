@@ -69,6 +69,7 @@ vi.mock("../PlanFromDesignDocChat", () => ({
 import { PlanGenerationChat } from "../PlanGenerationChat";
 
 const planFromDesignDocConversation: ConversationResponseDto = {
+  restricted: true,
   id: "conv-pfdd-1",
   projectId: "proj-1",
   organizationId: "org-1",

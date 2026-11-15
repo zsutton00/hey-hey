@@ -137,6 +137,7 @@ const readyMachine = machine("machine-1");
 const buildConversation = (
   status: ConversationStatus,
 ): ConversationResponseDto => ({
+  restricted: true,
   id: CONVERSATION_ID,
   projectId: "proj-1",
   organizationId: "org-1",

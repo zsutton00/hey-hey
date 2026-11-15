@@ -63,6 +63,7 @@ describe("usePlanFromDesignDocConversation", () => {
 
   it("returns the most recent conversation when one exists", () => {
     const conversation = {
+      restricted: true,
       id: "conv-1",
       workflowName: WorkflowName.PlanFromDesignDoc,
     } as unknown as ConversationResponseDto;
