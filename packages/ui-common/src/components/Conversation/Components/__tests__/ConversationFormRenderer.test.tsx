@@ -59,7 +59,9 @@ const ConversationFormRenderer = (props: {
   );
 };
 import {
+  MessageType,
   ProposalStatus,
+  type MessageResponseDto,
   type ProposalResponseDto,
   ReportAudience,
   ReportType,
@@ -97,9 +99,11 @@ vi.mock("../../../Reports/ReportViewer", () => ({
   ReportViewer: ({
     report,
     featureSyncDecisionInteraction,
+    featureSyncDecisionRecordedResponse,
     planInteraction,
   }) => (
     <button
+      data-recorded-response={featureSyncDecisionRecordedResponse}
       data-testid={`report-viewer-${report.id}`}
       data-interactive={
         planInteraction || featureSyncDecisionInteraction ? "true" : "false"
@@ -1023,6 +1027,54 @@ describe("ConversationFormRenderer", () => {
     expect(reportViewer).toHaveAttribute("data-interaction-disabled", "true");
     reportViewer.click();
     expect(onNext).not.toHaveBeenCalled();
+  });
+
+  it("hands a Feature Sync decision the reply the user already recorded", async () => {
+    const sourceUiElement = {
+      id: "feature-sync-decision-field",
+      type: "feature_sync_decision",
+      label: "Feature Sync decision",
+    };
+    const message = createMockConversationMessage({
+      message: createMockMessage({
+        id: "answered-decision-message",
+        data: {
+          type: "QUESTIONS",
+          uiElements: [sourceUiElement],
+        } as QuestionsSystemMessageData,
+        responses: [
+          {
+            id: "answered-decision-reply",
+            type: MessageType.User,
+            createdAt: "2023-01-01T00:01:00Z",
+            data: { response: "Reports: Keep the current presentation" },
+          },
+        ],
+      } as Partial<MessageResponseDto>),
+    });
+    const report = {
+      id: "answered-decision-report",
+      reportType: ReportType.FeatureSyncDecision,
+    } as ReportDto;
+
+    await renderWithConversationProvider(
+      <ConversationFormRenderer
+        conversationMessage={message}
+        interactiveReportAttachments={[
+          { report, responseUiElement: sourceUiElement },
+        ]}
+        messageIndex={0}
+        totalMessages={1}
+      />,
+      { timeline: [message], readOnly: true },
+    );
+
+    expect(
+      screen.getByTestId("report-viewer-answered-decision-report"),
+    ).toHaveAttribute(
+      "data-recorded-response",
+      "Reports: Keep the current presentation",
+    );
   });
 
   it("falls back to a read-only PLAN report when the conversation cannot respond", async () => {

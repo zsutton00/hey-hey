@@ -155,6 +155,30 @@ describe("ConversationCard", () => {
   });
 });
 
+describe("ConversationCard disabled primary", () => {
+  it.each(MODES)("renders a disabled, inert primary in %s mode", (mode) => {
+    const onPrimary = vi.fn();
+    render(
+      withTheme(
+        mode,
+        <ConversationCard
+          tone={{ role: "projectSync" }}
+          icon={<span />}
+          kindLabel="Project sync"
+          footer={{
+            primary: { label: "Apply", onClick: onPrimary, disabled: true },
+          }}
+        />,
+      ),
+    );
+
+    const button = screen.getByRole("button", { name: "Apply" });
+    expect(button).toBeDisabled();
+    button.click();
+    expect(onPrimary).not.toHaveBeenCalled();
+  });
+});
+
 describe("ConversationCardRelatedRows", () => {
   const mention = {
     entityType: "TASK",

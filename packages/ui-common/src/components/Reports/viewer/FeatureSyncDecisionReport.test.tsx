@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { ThemeProvider } from "@mui/material/styles";
 import { MemoryRouter } from "react-router-dom";
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import {
   FeatureSyncReportSourceType,
@@ -11,8 +12,10 @@ import {
   type ReportDtoFeatureSyncDecisionV1,
   type ReportDtoFeatureSyncDecisionV2,
 } from "../../../api";
+import { createHeyTheme } from "../../../contexts/ThemeContext";
 import {
   FeatureSyncDecisionReport,
+  parseFeatureSyncDecisionResponse,
   serializeFeatureSyncDecisionResponse,
 } from "./FeatureSyncDecisionReport";
 
@@ -144,21 +147,52 @@ const legacyReport: ReportDtoFeatureSyncDecisionV1 = {
   schemaVersion: 1,
 };
 
+const REASON_SHARED = "Both groups change how this task is scoped.";
+const REASON_REPORTS = "The feature promises the current report contract.";
+
+// A V2 report as written after the reason field was added: some entities
+// carry a reason, others do not.
+const payloadWithReasons: FeatureSyncDecisionReportPayloadV2 = {
+  ...payload,
+  decisionGroups: payload.decisionGroups.map((group) => ({
+    ...group,
+    affectedEntities: group.affectedEntities.map((entity) => {
+      if (entity.entityId === "task-shared") {
+        return { ...entity, reason: REASON_SHARED };
+      }
+      if (entity.entityId === "feature-one") {
+        return { ...entity, reason: REASON_REPORTS };
+      }
+      return entity;
+    }),
+  })),
+};
+
+const themed =
+  (mode: "light" | "dark" = "light") =>
+  ({ children }: { children: ReactNode }) => (
+    <MemoryRouter>
+      <ThemeProvider theme={createHeyTheme(mode)}>{children}</ThemeProvider>
+    </MemoryRouter>
+  );
+
 const renderReport = (
   interaction?: ComponentProps<typeof FeatureSyncDecisionReport>["interaction"],
+  reportPayload: FeatureSyncDecisionReportPayloadV2 = payload,
+  mode: "light" | "dark" = "light",
 ) =>
   render(
     <FeatureSyncDecisionReport
       interaction={interaction}
-      payload={payload}
-      report={report}
+      payload={reportPayload}
+      report={{ ...report, payload: reportPayload }}
       reportTestId="feature-sync-decision-test"
     />,
-    { wrapper: MemoryRouter },
+    { wrapper: themed(mode) },
   );
 
 describe("FeatureSyncDecisionReport", () => {
-  it("renders the screenshot hierarchy with affected entities before each supporting summary", () => {
+  it("renders the card hierarchy with each group summary before its affected entities", () => {
     renderReport();
 
     const prefix = "feature-sync-decision-test-feature-sync-decision";
@@ -184,7 +218,7 @@ describe("FeatureSyncDecisionReport", () => {
       within(groups[1]).getByTestId(`${prefix}-group-entities`),
     ).toHaveTextContent("Shared task");
     const affectedEntities = within(groups[0]).getByTestId(
-      `${prefix}-group-entities-block`,
+      `${prefix}-group-entities`,
     );
     const groupSummary = within(groups[0]).getByTestId(
       `${prefix}-group-summary`,
@@ -193,7 +227,7 @@ describe("FeatureSyncDecisionReport", () => {
       "Choose how the report surface should evolve.",
     );
     expect(
-      affectedEntities.compareDocumentPosition(groupSummary) &
+      groupSummary.compareDocumentPosition(affectedEntities) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
 
@@ -407,10 +441,9 @@ describe("FeatureSyncDecisionReport", () => {
 
     const prefix = "feature-sync-decision-test-feature-sync-decision";
     const summary = screen.getByTestId(`${prefix}-summary`);
-    const decisions = screen.getByTestId(`${prefix}-groups`);
+    const decisions = screen.getByTestId(`${prefix}-groups-list`);
     const notes = screen.getByTestId(`${prefix}-notes`);
     const guidance = screen.getByTestId(`${prefix}-free-form-guidance`);
-    const submitShell = screen.getByTestId(`${prefix}-submit-shell`);
     const submitButton = screen.getByTestId(`${prefix}-submit-button`);
 
     expect(
@@ -438,14 +471,6 @@ describe("FeatureSyncDecisionReport", () => {
     ).toBeTruthy();
     expect(
       guidance.compareDocumentPosition(submitButton) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      guidance.compareDocumentPosition(submitShell) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      submitShell.compareDocumentPosition(submitButton) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
 
@@ -487,28 +512,30 @@ describe("FeatureSyncDecisionReport", () => {
   it("keeps same-named groups independent across separate reports", () => {
     render(
       <MemoryRouter>
-        <FeatureSyncDecisionReport
-          interaction={{
-            conversationId: "first-conversation",
-            disabled: false,
-            parentMessageId: "first-message",
-            submit: vi.fn(),
-          }}
-          payload={payload}
-          report={report}
-          reportTestId="first-report"
-        />
-        <FeatureSyncDecisionReport
-          interaction={{
-            conversationId: "second-conversation",
-            disabled: false,
-            parentMessageId: "second-message",
-            submit: vi.fn(),
-          }}
-          payload={payload}
-          report={{ ...report, id: "second-feature-sync-decision-v2" }}
-          reportTestId="second-report"
-        />
+        <ThemeProvider theme={createHeyTheme("light")}>
+          <FeatureSyncDecisionReport
+            interaction={{
+              conversationId: "first-conversation",
+              disabled: false,
+              parentMessageId: "first-message",
+              submit: vi.fn(),
+            }}
+            payload={payload}
+            report={report}
+            reportTestId="first-report"
+          />
+          <FeatureSyncDecisionReport
+            interaction={{
+              conversationId: "second-conversation",
+              disabled: false,
+              parentMessageId: "second-message",
+              submit: vi.fn(),
+            }}
+            payload={payload}
+            report={{ ...report, id: "second-feature-sync-decision-v2" }}
+            reportTestId="second-report"
+          />
+        </ThemeProvider>
       </MemoryRouter>,
     );
 
@@ -518,6 +545,272 @@ describe("FeatureSyncDecisionReport", () => {
 
     expect(radios[0]).toBeChecked();
     expect(radios[4]).toBeChecked();
+  });
+
+  it("renders the project-sync card shell with its header, chip and the decision title as lead", () => {
+    const [firstGroup] = payload.decisionGroups;
+    renderReport(undefined, { ...payload, decisionGroups: [firstGroup] });
+
+    const card = screen.getByTestId(
+      "feature-sync-decision-test-feature-sync-decision-card",
+    );
+    expect(card).toHaveAttribute("data-tone", "projectSync");
+    expect(
+      within(card).getByTestId("conversation-card-header"),
+    ).toHaveTextContent("Project sync · Decision");
+    expect(within(card).getByText("Before implementation")).toBeInTheDocument();
+    expect(
+      within(card).getByTestId("conversation-card-lead"),
+    ).toHaveTextContent("Reports presentation");
+    expect(within(card).getAllByText("Reports presentation")).toHaveLength(1);
+    expect(
+      within(card).getByTestId(
+        "feature-sync-decision-test-feature-sync-decision-group-summary",
+      ),
+    ).toHaveTextContent("Choose how the report surface should evolve.");
+    expect(
+      within(card)
+        .getAllByTestId("conversation-card-section-label")
+        .map((label) => label.textContent),
+    ).toEqual(["Overview", "Summary", "Affected", "Choose one"]);
+    expect(screen.queryByText("Affected entities")).not.toBeInTheDocument();
+  });
+
+  it("gives each decision title the lead treatment when a report holds several decisions", () => {
+    renderReport();
+
+    const prefix = "feature-sync-decision-test-feature-sync-decision";
+    expect(
+      screen.queryByTestId("conversation-card-lead"),
+    ).not.toBeInTheDocument();
+    const titles = screen.getAllByTestId(`${prefix}-group-title`);
+    expect(titles.map((title) => title.textContent)).toEqual([
+      "Reports presentation",
+      "Reports interaction",
+    ]);
+    expect(
+      screen
+        .getByTestId(`${prefix}-summary`)
+        .compareDocumentPosition(titles[0]) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it.each(["light", "dark"] as const)(
+    "renders the project-sync card in %s mode",
+    (mode) => {
+      renderReport(undefined, payloadWithReasons, mode);
+
+      expect(
+        screen.getByTestId(
+          "feature-sync-decision-test-feature-sync-decision-card",
+        ),
+      ).toHaveAttribute("data-tone", "projectSync");
+      expect(
+        screen.getAllByTestId("conversation-card-related-row"),
+      ).toHaveLength(3);
+    },
+  );
+
+  it("shows one related row per unique entity with its reason when the report supplies one", () => {
+    renderReport(undefined, payloadWithReasons);
+
+    const rows = screen.getAllByTestId("conversation-card-related-row");
+    expect(rows).toHaveLength(3);
+    expect(
+      within(rows[0]).getByTestId("conversation-card-row-reason"),
+    ).toHaveTextContent(REASON_SHARED);
+    expect(
+      within(rows[1]).getByTestId("conversation-card-row-reason"),
+    ).toHaveTextContent(REASON_REPORTS);
+    expect(
+      within(rows[2]).getByTestId("conversation-card-row-reason"),
+    ).toHaveTextContent(REASON_SHARED);
+  });
+
+  it("renders chip-only rows for a stored report written before reasons existed", () => {
+    renderReport();
+
+    const rows = screen.getAllByTestId("conversation-card-related-row");
+    expect(rows).toHaveLength(3);
+    for (const row of rows) {
+      expect(within(row).getAllByTestId("mention-badge")).toHaveLength(1);
+      expect(
+        within(row).queryByTestId("conversation-card-row-reason"),
+      ).not.toBeInTheDocument();
+    }
+  });
+
+  it("submits the same response with or without reasons and never includes a reason", () => {
+    const submitWith = (reportPayload: FeatureSyncDecisionReportPayloadV2) => {
+      const submit = vi.fn();
+      const { unmount } = renderReport(
+        {
+          conversationId: "feature-sync-conversation",
+          disabled: false,
+          parentMessageId: "feature-sync-message",
+          submit,
+        },
+        reportPayload,
+      );
+      const radios = screen.getAllByRole("radio");
+      fireEvent.click(radios[0]);
+      fireEvent.click(radios[3]);
+      fireEvent.click(
+        screen.getByTestId(
+          "feature-sync-decision-test-feature-sync-decision-submit-button",
+        ),
+      );
+      unmount();
+      return submit.mock.calls[0][0] as string;
+    };
+
+    const withoutReasons = submitWith(payload);
+    const withReasons = submitWith(payloadWithReasons);
+
+    expect(withReasons).toBe(withoutReasons);
+    expect(withReasons).not.toContain(REASON_SHARED);
+    expect(withReasons).not.toContain(REASON_REPORTS);
+  });
+
+  it("labels the single green action for one decision and keeps read-only cards footer-free", () => {
+    const [firstGroup] = payload.decisionGroups;
+    renderReport(
+      {
+        conversationId: "feature-sync-conversation",
+        disabled: false,
+        parentMessageId: "feature-sync-message",
+        submit: vi.fn(),
+      },
+      { ...payload, decisionGroups: [firstGroup] },
+    );
+    expect(
+      screen.getByRole("button", { name: "Submit decision" }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders no footer and no radios when read-only", () => {
+    renderReport(undefined, payloadWithReasons);
+
+    expect(
+      screen.queryByTestId("conversation-card-footer"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("radio")).toHaveLength(0);
+  });
+
+  describe("restoring a recorded answer", () => {
+    const answer =
+      "Reports presentation: Update the presentation\nReports interaction: No change";
+
+    it("restores the chosen options after a submit and a remount", () => {
+      const submit = vi.fn();
+      const interaction = {
+        conversationId: "feature-sync-conversation",
+        disabled: false,
+        parentMessageId: "feature-sync-message",
+        submit,
+      };
+      const first = renderReport(interaction);
+      const radios = screen.getAllByRole("radio");
+      fireEvent.click(radios[0]);
+      fireEvent.click(radios[3]);
+      fireEvent.click(
+        screen.getByTestId(
+          "feature-sync-decision-test-feature-sync-decision-submit-button",
+        ),
+      );
+      const recorded = submit.mock.calls[0][0] as string;
+      first.unmount();
+
+      // Reload: the conversation is answered, so controls are disabled and the
+      // persisted reply is all the card has to go on.
+      render(
+        <FeatureSyncDecisionReport
+          interaction={{ ...interaction, disabled: true }}
+          payload={payload}
+          recordedResponse={recorded}
+          report={report}
+          reportTestId="feature-sync-decision-test"
+        />,
+        { wrapper: themed() },
+      );
+
+      const reloaded = screen.getAllByRole("radio");
+      expect(
+        reloaded.map((radio) => (radio as HTMLInputElement).checked),
+      ).toEqual([true, false, false, true]);
+      expect(
+        reloaded.every((radio) => (radio as HTMLInputElement).disabled),
+      ).toBe(true);
+    });
+
+    it("marks the chosen option on a read-only card", () => {
+      render(
+        <FeatureSyncDecisionReport
+          payload={payload}
+          recordedResponse={answer}
+          report={report}
+          reportTestId="feature-sync-decision-test"
+        />,
+        { wrapper: themed() },
+      );
+
+      const choices = screen.getAllByTestId(
+        "feature-sync-decision-test-feature-sync-decision-choice",
+      );
+      expect(
+        choices.map((choice) => choice.getAttribute("data-selected")),
+      ).toEqual(["true", "false", "false", "true"]);
+      expect(
+        screen.getAllByTestId(
+          "feature-sync-decision-test-feature-sync-decision-choice-selected",
+        ),
+      ).toHaveLength(2);
+    });
+
+    it("restores nothing from a free-form reply or an unanswered report", () => {
+      for (const recordedResponse of [
+        undefined,
+        "Let's keep everything as it is for now.",
+        "Reports presentation: A label nobody offered",
+      ]) {
+        const { unmount } = render(
+          <FeatureSyncDecisionReport
+            payload={payload}
+            recordedResponse={recordedResponse}
+            report={report}
+            reportTestId="feature-sync-decision-test"
+          />,
+          { wrapper: themed() },
+        );
+        expect(
+          screen.queryByTestId(
+            "feature-sync-decision-test-feature-sync-decision-choice-selected",
+          ),
+        ).not.toBeInTheDocument();
+        unmount();
+      }
+    });
+
+    it("keeps repeated titles apart by reading the reply in producer order", () => {
+      const repeated = {
+        ...payload,
+        decisionGroups: payload.decisionGroups.map((group) => ({
+          ...group,
+          title: "Same title",
+          choices: [
+            { id: `${group.id}-a`, label: "Option A", isNoChange: false },
+            { id: `${group.id}-keep`, label: "Option B", isNoChange: true },
+          ],
+        })),
+      };
+
+      expect(
+        parseFeatureSyncDecisionResponse(
+          repeated.decisionGroups,
+          "Same title: Option B\nSame title: Option A\n\nGeneral notes:\nSame title: Option A",
+        ),
+      ).toEqual({ "group-one": "group-one-keep", "group-two": "group-two-a" });
+    });
   });
 
   it("keeps the V1 fallback readable without exposing V2 controls", () => {

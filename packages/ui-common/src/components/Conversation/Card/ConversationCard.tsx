@@ -141,14 +141,18 @@ export const ConversationCard: React.FC<ConversationCardProps> = ({
             data-testid={footer.primary.testId ?? "conversation-card-primary"}
             disabled={footer.primary.disabled}
             onClick={footer.primary.onClick}
-            sx={{
+            sx={(theme) => ({
               backgroundColor: "var(--card-main)",
               color: "var(--card-contrast)",
               "&:hover": {
                 backgroundColor: "var(--card-main)",
                 filter: "brightness(0.92)",
               },
-            }}
+              "&.Mui-disabled": {
+                backgroundColor: theme.palette.action.disabledBackground,
+                color: theme.palette.action.disabled,
+              },
+            })}
           >
             {footer.primary.label}
           </Button>

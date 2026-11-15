@@ -62,6 +62,36 @@ describe('Feature Sync decision producer boundary', () => {
     },
   );
 
+  it('accepts V2 affected entities with and without a reason', () => {
+    const withReasons = {
+      ...jointDecision,
+      decisionGroups: [
+        {
+          ...group,
+          affectedEntities: group.affectedEntities.map((entity) => ({
+            ...entity,
+            reason: `Why ${entity.title} matters`,
+          })),
+        },
+      ],
+    };
+    const withoutReasons = {
+      ...jointDecision,
+      decisionGroups: [
+        {
+          ...group,
+          affectedEntities: group.affectedEntities.map((entity) => ({
+            entityType: entity.entityType,
+            entityId: entity.entityId,
+            title: entity.title,
+          })),
+        },
+      ],
+    };
+    expect(parseFeatureSyncDecisionReport(envelope(withReasons)).ok).toBe(true);
+    expect(parseFeatureSyncDecisionReport(envelope(withoutReasons)).ok).toBe(true);
+  });
+
   it('retains V1 with explicit or omitted version', () => {
     expect(parseFeatureSyncDecisionReport(envelope(legacy, 1)).ok).toBe(true);
     expect(
@@ -110,6 +140,26 @@ describe('Feature Sync decision producer boundary', () => {
         affectedEntities: [
           group.affectedEntities[0]!,
           { ...group.affectedEntities[0]!, title: 'Another title' },
+        ],
+      },
+    ],
+    [
+      'empty reason',
+      {
+        ...group,
+        affectedEntities: [
+          { ...group.affectedEntities[0]!, reason: '' },
+          group.affectedEntities[1]!,
+        ],
+      },
+    ],
+    [
+      'repeated target with a different reason',
+      {
+        ...group,
+        affectedEntities: [
+          { ...group.affectedEntities[0]!, reason: 'First reason' },
+          { ...group.affectedEntities[0]!, reason: 'Second reason' },
         ],
       },
     ],

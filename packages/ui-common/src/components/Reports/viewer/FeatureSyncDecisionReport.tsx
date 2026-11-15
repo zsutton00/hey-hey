@@ -1,6 +1,7 @@
+import { CheckCircle, SyncAlt } from "@mui/icons-material";
 import {
   Box,
-  Button,
+  Chip,
   FormControl,
   FormControlLabel,
   Radio,
@@ -25,11 +26,10 @@ import { renderInlineMentions } from "../../SmarterTextAreaCard/renderInlineMent
 import { SmarterTextAreaCard } from "../../SmarterTextAreaCard";
 import type { EntityMention } from "../../SmarterTextAreaCard/types";
 import {
-  ReportEntityMention,
-  ReportItemCard,
-  ReportLabeledText,
-  ReportPanel,
-} from "./reportPrimitives";
+  ConversationCard,
+  ConversationCardRelatedRows,
+  ConversationCardSection,
+} from "../../Conversation/Card";
 
 export interface FeatureSyncDecisionReportInteractionContext {
   conversationId: string;
@@ -43,6 +43,7 @@ type FeatureSyncDecisionReportV1Props = {
   payload: FeatureSyncDecisionReportPayloadV1;
   reportTestId: string;
   interaction?: FeatureSyncDecisionReportInteractionContext;
+  recordedResponse?: string;
 };
 
 type FeatureSyncDecisionReportV2Props = {
@@ -50,6 +51,8 @@ type FeatureSyncDecisionReportV2Props = {
   payload: FeatureSyncDecisionReportPayloadV2;
   reportTestId: string;
   interaction?: FeatureSyncDecisionReportInteractionContext;
+  /** The user's persisted reply, used to restore the chosen options. */
+  recordedResponse?: string;
 };
 
 export type FeatureSyncDecisionReportProps =
@@ -65,6 +68,7 @@ type FeatureSyncDecisionReportV2RenderProps = {
   payload: FeatureSyncDecisionReportPayloadV2;
   reportTestId: string;
   interaction?: FeatureSyncDecisionReportInteractionContext;
+  recordedResponse?: string;
 };
 
 export type FeatureSyncDecisionSelectionMap = Readonly<Record<string, string>>;
@@ -98,6 +102,40 @@ export const serializeFeatureSyncDecisionResponse = (
     : response;
 };
 
+/**
+ * Recovers the selections a recorded reply made. Each answered group is one
+ * `Title: Label` line in producer order, so a group is matched only by an
+ * exact line built from its own title and one of its own choice labels,
+ * searching forward from the previous match. Free-form replies, replies that
+ * skip a group and repeated titles therefore never select a wrong choice.
+ */
+export const parseFeatureSyncDecisionResponse = (
+  groups: readonly FeatureSyncDecisionGroup[],
+  response: string | undefined,
+): FeatureSyncDecisionSelectionMap => {
+  if (!response) return {};
+
+  const [selectionBlock = ""] = response.split("\n\nGeneral notes:");
+  const lines = selectionBlock.split("\n");
+  const selections: Record<string, string> = {};
+  let nextLine = 0;
+
+  for (const group of groups) {
+    for (let index = nextLine; index < lines.length; index += 1) {
+      const choice = group.choices.find(
+        (candidate) => `${group.title}: ${candidate.label}` === lines[index],
+      );
+      if (!choice) continue;
+
+      selections[group.id] = choice.id;
+      nextLine = index + 1;
+      break;
+    }
+  }
+
+  return selections;
+};
+
 export const FeatureSyncDecisionReport: React.FC<
   FeatureSyncDecisionReportProps
 > = (props) => {
@@ -106,6 +144,7 @@ export const FeatureSyncDecisionReport: React.FC<
       <FeatureSyncDecisionReportV2
         interaction={props.interaction}
         payload={props.payload}
+        recordedResponse={props.recordedResponse}
         reportTestId={props.reportTestId}
       />
     );
@@ -357,9 +396,14 @@ const ReconciliationOptionsList: React.FC<ReconciliationOptionsListProps> = ({
 
 const FeatureSyncDecisionReportV2: React.FC<
   FeatureSyncDecisionReportV2RenderProps
-> = ({ payload, reportTestId, interaction }) => {
+> = ({ payload, reportTestId, interaction, recordedResponse }) => {
   const [selections, setSelections] =
-    React.useState<FeatureSyncDecisionSelectionMap>({});
+    React.useState<FeatureSyncDecisionSelectionMap>(() =>
+      parseFeatureSyncDecisionResponse(
+        payload.decisionGroups,
+        recordedResponse,
+      ),
+    );
   const [notes, setNotes] = React.useState("");
   const testIdPrefix = `${reportTestId}-feature-sync-decision`;
   const canSubmit =
@@ -381,202 +425,236 @@ const FeatureSyncDecisionReportV2: React.FC<
     interaction.submit(response, interaction.parentMessageId);
   };
 
+  const groupCount = payload.decisionGroups.length;
+  // One decision's title is the card lead; several decisions each lead their own block.
+  const singleGroup = groupCount === 1 ? payload.decisionGroups[0] : undefined;
+
   return (
-    <Stack data-testid={testIdPrefix} spacing={{ xs: 2.5, sm: 3 }}>
-      <ReportLabeledText
-        label="Summary"
-        renderMentions
-        testId={`${testIdPrefix}-summary`}
-        value={payload.summary}
-      />
-      <ReportPanel
-        emptyMessage="No decision groups were provided."
-        isEmpty={payload.decisionGroups.length === 0}
-        testId={`${testIdPrefix}-groups`}
-        title="Decisions"
-      >
-        <Stack data-testid={`${testIdPrefix}-groups-list`} spacing={1}>
-          {payload.decisionGroups.map((group, groupIndex) => (
-            <FeatureSyncDecisionGroupCard
-              group={group}
-              groupIndex={groupIndex}
-              interaction={interaction}
-              key={group.id}
-              selectedChoiceId={selections[group.id]}
-              setSelectedChoice={(choiceId) =>
-                setSelections((previous) => ({
-                  ...previous,
-                  [group.id]: choiceId,
-                }))
+    <Box data-testid={testIdPrefix}>
+      <ConversationCard
+        chips={<Chip label="Before implementation" size="small" />}
+        data-testid={`${testIdPrefix}-card`}
+        footer={
+          interaction
+            ? {
+                primary: {
+                  disabled: !canSubmit,
+                  label:
+                    groupCount > 1 ? "Submit decisions" : "Submit decision",
+                  onClick: handleSubmit,
+                  testId: `${testIdPrefix}-submit-button`,
+                },
               }
-              testIdPrefix={testIdPrefix}
-            />
-          ))}
-        </Stack>
-      </ReportPanel>
-      {interaction ? (
-        <>
-          <Stack data-testid={`${testIdPrefix}-notes`} spacing={0.75}>
+            : undefined
+        }
+        icon={<SyncAlt fontSize="small" />}
+        kindLabel="Project sync · Decision"
+        lead={
+          singleGroup ? (
+            <span
+              data-group-index={0}
+              data-testid={`${testIdPrefix}-group-title`}
+            >
+              {renderInlineMentions(singleGroup.title, "minimal")}
+            </span>
+          ) : undefined
+        }
+        tone={{ role: "projectSync" }}
+      >
+        <ConversationCardSection label="Overview">
+          <Typography data-testid={`${testIdPrefix}-summary`} variant="body2">
+            {renderInlineMentions(payload.summary, "minimal")}
+          </Typography>
+        </ConversationCardSection>
+        {groupCount === 0 ? (
+          <Typography color="text.secondary" variant="body2">
+            No decision groups were provided.
+          </Typography>
+        ) : (
+          <Stack data-testid={`${testIdPrefix}-groups-list`} spacing={2.5}>
+            {payload.decisionGroups.map((group, groupIndex) => (
+              <FeatureSyncDecisionGroupBlock
+                group={group}
+                groupIndex={groupIndex}
+                interaction={interaction}
+                key={group.id}
+                selectedChoiceId={selections[group.id]}
+                showTitle={singleGroup === undefined}
+                setSelectedChoice={(choiceId) =>
+                  setSelections((previous) => ({
+                    ...previous,
+                    [group.id]: choiceId,
+                  }))
+                }
+                testIdPrefix={testIdPrefix}
+              />
+            ))}
+          </Stack>
+        )}
+        {interaction ? (
+          <>
+            <Stack data-testid={`${testIdPrefix}-notes`} spacing={0.75}>
+              <Typography
+                color="text.secondary"
+                data-testid={`${testIdPrefix}-notes-label`}
+                variant="body2"
+              >
+                General notes (optional)
+              </Typography>
+              <SmarterTextAreaCard
+                disabled={interaction.disabled}
+                hasUnsavedChanges={false}
+                mentionConversationId={interaction.conversationId}
+                onChange={setNotes}
+                placeholder="Add any context for these decisions."
+                saveMode={null}
+                saveStatus="draft"
+                value={notes}
+              />
+            </Stack>
             <Typography
               color="text.secondary"
-              data-testid={`${testIdPrefix}-notes-label`}
-              variant="body2"
+              data-testid={`${testIdPrefix}-free-form-guidance`}
+              variant="caption"
             >
-              General notes (optional)
+              You can also reply with free-form guidance instead of selecting
+              every decision.
             </Typography>
-            <SmarterTextAreaCard
-              disabled={interaction.disabled}
-              hasUnsavedChanges={false}
-              mentionConversationId={interaction.conversationId}
-              onChange={setNotes}
-              placeholder="Add any context for these decisions."
-              saveMode={null}
-              saveStatus="draft"
-              value={notes}
-            />
-          </Stack>
-          <Typography
-            color="text.secondary"
-            data-testid={`${testIdPrefix}-free-form-guidance`}
-            variant="caption"
-          >
-            You can also reply with free-form guidance instead of selecting
-            every decision.
-          </Typography>
-          <Box
-            data-testid={`${testIdPrefix}-submit-shell`}
-            sx={(theme) => ({
-              alignItems: "center",
-              bgcolor: theme.palette.action.hover,
-              display: "flex",
-              justifyContent: "center",
-              px: 1,
-              py: 0.5,
-              width: "100%",
-            })}
-          >
-            <Button
-              data-testid={`${testIdPrefix}-submit-button`}
-              disabled={!canSubmit}
-              onClick={handleSubmit}
-              variant="contained"
-              sx={{
-                flex: "1",
-              }}
-            >
-              Submit decisions
-            </Button>
-          </Box>
-        </>
-      ) : null}
-    </Stack>
+          </>
+        ) : null}
+      </ConversationCard>
+    </Box>
   );
 };
 
-interface FeatureSyncDecisionGroupCardProps {
+interface FeatureSyncDecisionGroupBlockProps {
   group: FeatureSyncDecisionGroup;
   groupIndex: number;
   interaction?: FeatureSyncDecisionReportInteractionContext;
   selectedChoiceId?: string;
   setSelectedChoice: (choiceId: string) => void;
+  showTitle: boolean;
   testIdPrefix: string;
 }
 
-const FeatureSyncDecisionGroupCard: React.FC<
-  FeatureSyncDecisionGroupCardProps
+const FeatureSyncDecisionGroupBlock: React.FC<
+  FeatureSyncDecisionGroupBlockProps
 > = ({
   group,
   groupIndex,
   interaction,
   selectedChoiceId,
   setSelectedChoice,
+  showTitle,
   testIdPrefix,
 }) => (
-  <ReportItemCard
-    reportId={group.id}
-    testId={`${testIdPrefix}-group-card`}
-    title={
+  <Stack
+    data-group-id={group.id}
+    data-testid={`${testIdPrefix}-group-card`}
+    spacing={1.5}
+    sx={(theme) => ({
+      borderTop: `1px solid ${theme.palette.divider}`,
+      pt: 2.5,
+      "&:first-of-type": { borderTop: 0, pt: 0 },
+    })}
+  >
+    {showTitle ? (
       <Typography
         data-group-index={groupIndex}
         data-testid={`${testIdPrefix}-group-title`}
-        variant="subtitle1"
+        sx={{ fontWeight: 600 }}
+        variant="body1"
       >
         {renderInlineMentions(group.title, "minimal")}
       </Typography>
-    }
-  >
-    <ReportLabeledText
-      label="Affected entities"
-      testId={`${testIdPrefix}-group-entities-block`}
-      value={
-        <Stack
-          data-testid={`${testIdPrefix}-group-entities`}
-          direction="row"
-          flexWrap="wrap"
-          spacing={0.5}
-          sx={{ rowGap: 0.5 }}
+    ) : null}
+    <ConversationCardSection label="Summary">
+      <Typography data-testid={`${testIdPrefix}-group-summary`} variant="body2">
+        {renderInlineMentions(group.summary, "minimal")}
+      </Typography>
+    </ConversationCardSection>
+    <ConversationCardSection label="Affected">
+      <Box data-testid={`${testIdPrefix}-group-entities`}>
+        <ConversationCardRelatedRows
+          rows={getUniqueAffectedEntities(group.affectedEntities).map(
+            (entity) => ({
+              key: `${entity.entityType}:${entity.entityId}`,
+              mention: {
+                entityId: entity.entityId,
+                entityName: entity.title,
+                entityType: entity.entityType,
+              },
+              reason: entity.reason,
+            }),
+          )}
+        />
+      </Box>
+    </ConversationCardSection>
+    <ConversationCardSection label="Choose one">
+      {interaction ? (
+        <FormControl
+          component="fieldset"
+          data-testid={`${testIdPrefix}-group-choices`}
+          disabled={interaction.disabled}
+          sx={{ width: "100%" }}
         >
-          {getUniqueAffectedEntities(group.affectedEntities).map((entity) => (
-            <ReportEntityMention
-              entityId={entity.entityId}
-              entityName={entity.title}
-              entityType={entity.entityType}
-              key={`${entity.entityType}-${entity.entityId}`}
-              mode="full"
-            />
+          <RadioGroup
+            aria-label={group.title}
+            name={`${testIdPrefix}-${group.id}`}
+            onChange={(event) => setSelectedChoice(event.target.value)}
+            sx={{ gap: 1 }}
+            value={selectedChoiceId ?? ""}
+          >
+            {group.choices.map((choice, choiceIndex) => (
+              <FeatureSyncDecisionChoiceOption
+                choice={choice}
+                choiceIndex={choiceIndex}
+                key={choice.id}
+                testIdPrefix={testIdPrefix}
+              />
+            ))}
+          </RadioGroup>
+        </FormControl>
+      ) : (
+        <Stack data-testid={`${testIdPrefix}-group-choices`} spacing={1}>
+          {group.choices.map((choice, choiceIndex) => (
+            <Box
+              data-choice-id={choice.id}
+              data-choice-index={choiceIndex}
+              data-no-change={choice.isNoChange}
+              data-selected={choice.id === selectedChoiceId}
+              data-testid={`${testIdPrefix}-choice`}
+              key={choice.id}
+              sx={(theme) => ({
+                ...decisionChoiceSurfaceSx(theme),
+                alignItems: "flex-start",
+                display: "flex",
+                gap: 1,
+                ...(choice.id === selectedChoiceId && {
+                  outline: `2px solid ${theme.palette.conversationCard.roles.projectSync.main}`,
+                }),
+              })}
+            >
+              {choice.id === selectedChoiceId ? (
+                <CheckCircle
+                  aria-label="Selected choice"
+                  data-testid={`${testIdPrefix}-choice-selected`}
+                  fontSize="small"
+                  sx={{
+                    color: "var(--card-main)",
+                  }}
+                />
+              ) : null}
+              <FeatureSyncDecisionChoiceText
+                choice={choice}
+                testIdPrefix={testIdPrefix}
+              />
+            </Box>
           ))}
         </Stack>
-      }
-    />
-    <ReportLabeledText
-      label="Summary"
-      renderMentions
-      testId={`${testIdPrefix}-group-summary`}
-      value={group.summary}
-    />
-    {interaction ? (
-      <FormControl
-        component="fieldset"
-        data-testid={`${testIdPrefix}-group-choices`}
-        disabled={interaction.disabled}
-      >
-        <RadioGroup
-          aria-label={group.title}
-          name={`${testIdPrefix}-${group.id}`}
-          onChange={(event) => setSelectedChoice(event.target.value)}
-          sx={{ gap: 1 }}
-          value={selectedChoiceId ?? ""}
-        >
-          {group.choices.map((choice, choiceIndex) => (
-            <FeatureSyncDecisionChoiceOption
-              choice={choice}
-              choiceIndex={choiceIndex}
-              key={choice.id}
-              testIdPrefix={testIdPrefix}
-            />
-          ))}
-        </RadioGroup>
-      </FormControl>
-    ) : (
-      <Stack data-testid={`${testIdPrefix}-group-choices`} spacing={1}>
-        {group.choices.map((choice, choiceIndex) => (
-          <Box
-            data-choice-id={choice.id}
-            data-choice-index={choiceIndex}
-            data-no-change={choice.isNoChange}
-            data-testid={`${testIdPrefix}-choice`}
-            key={choice.id}
-            sx={decisionChoiceSurfaceSx}
-          >
-            <FeatureSyncDecisionChoiceText
-              choice={choice}
-              testIdPrefix={testIdPrefix}
-            />
-          </Box>
-        ))}
-      </Stack>
-    )}
-  </ReportItemCard>
+      )}
+    </ConversationCardSection>
+  </Stack>
 );
 
 interface FeatureSyncDecisionChoiceOptionProps {
