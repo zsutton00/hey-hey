@@ -179,16 +179,16 @@ describe('EntityPromptTemplateService', () => {
     });
   });
 
-  it('preserves a lower-case custom selector while validating its derived key', async () => {
-    const custom = makeRevision({
+  it('serves a built-in Mockup override without any project-local type registration', async () => {
+    const override = makeRevision({
       id: 'mockup-revision-id',
       templateKey: 'entity_context.work_item.mockup',
       selector: { entityType: 'WORK_ITEM', workItemTypeKey: 'mockup' },
       ownershipScope: EntityPromptTemplateOwnershipScope.PROJECT,
       projectId,
     });
-    const fixture = createSubject([custom]);
-    fixture.workItemTypeFindMany.mockResolvedValue([{ typeKey: 'mockup' }]);
+    const fixture = createSubject([override]);
+    fixture.workItemTypeFindMany.mockResolvedValue([]);
 
     await expect(
       fixture.subject.getEffectiveTemplate(
@@ -200,6 +200,40 @@ describe('EntityPromptTemplateService', () => {
       revisionId: 'mockup-revision-id',
       selector: { entityType: 'WORK_ITEM', workItemTypeKey: 'mockup' },
     });
+  });
+
+  it('returns for every canonical template the revision the catalog lists as effective', async () => {
+    const rows = Object.entries(ENTITY_PROMPT_TEMPLATE_SELECTOR_BY_KEY).map(
+      ([templateKey, selector], index) =>
+        makeRevision({
+          id: `canonical-${templateKey}`,
+          templateKey,
+          selector,
+          revisionNumber: index + 1,
+        }),
+    );
+    const fixture = createSubject(rows);
+    fixture.workItemTypeFindMany.mockResolvedValue([]);
+
+    const catalog = await fixture.subject.getProjectCatalog(
+      organizationId,
+      projectId,
+    );
+
+    expect(catalog.templates.length).toBeGreaterThan(0);
+    for (const entry of catalog.templates) {
+      await expect(
+        fixture.subject.getEffectiveTemplate(
+          organizationId,
+          projectId,
+          entry.templateKey,
+        ),
+      ).resolves.toMatchObject({
+        templateKey: entry.templateKey,
+        revisionId: entry.effective.revisionId,
+        selector: entry.effective.selector,
+      });
+    }
   });
 
   it('includes a project-only custom template in the catalog without fabricating a canonical revision', async () => {
@@ -690,13 +724,12 @@ describe('EntityPromptTemplateService', () => {
     ).rejects.toThrow('validation issue is malformed');
   });
 
-  it('rejects unsupported template keys without querying revisions', async () => {
-    const { subject, revisionFindMany } = createSubject([]);
+  it('returns 404 for a key with no eligible stored revision', async () => {
+    const { subject } = createSubject([]);
 
     await expect(
       subject.getEffectiveTemplate(organizationId, projectId, 'unknown'),
     ).rejects.toBeInstanceOf(NotFoundException);
-    expect(revisionFindMany).not.toHaveBeenCalled();
   });
 
   it('validates template syntax and supported input paths', () => {

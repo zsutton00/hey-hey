@@ -310,8 +310,10 @@ export class EntityPromptTemplateService {
     templateKey: string,
   ): Promise<EntityPromptTemplateEffectiveDto> {
     await this.requireProject(organizationId, projectId);
-    await this.requireSupportedKey(projectId, templateKey);
 
+    // Eligibility comes from stored revisions only, the same data the catalog
+    // reads. A separate type/key gate here made built-in types such as Mockup
+    // appear absent while the catalog listed them.
     const rows = await this.loadRows(projectId, templateKey);
     const effective = this.selectEffectiveRevision(templateKey, rows);
 
