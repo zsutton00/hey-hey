@@ -105,6 +105,9 @@ const getResolvedClients = (): ApiClientSet => {
   return runtimeClients ?? fallbackRuntime.clients;
 };
 
+/** The axios instance REST requests use, so other protocols share its auth. */
+export const getRuntimeAxios = () => getResolvedClients().transport.axios;
+
 const createClientProxy = <K extends keyof ApiClientSet>(
   clientKey: K,
 ): ApiClientSet[K] => {
