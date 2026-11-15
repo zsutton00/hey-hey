@@ -13,14 +13,16 @@ const push = {
   revision: "b".repeat(40),
 };
 test("release pushes always select the complete CLI image bundle", () => {
-  for (const files of [[], ["CHANGELOG.md"], ["apps/api/src/a.ts"]]) {
-    assert.deepEqual(
-      candidateSelection(
-        { ...push, ref: "refs/heads/release/2026-11-11" },
-        () => files,
-      ).images,
-      ["ui", "api", "graph-search"],
-    );
+  for (const ref of [
+    "refs/heads/release/2026-11-11",
+    "refs/heads/release-1-3-2",
+  ]) {
+    for (const files of [[], ["CHANGELOG.md"], ["apps/api/src/a.ts"]]) {
+      assert.deepEqual(
+        candidateSelection({ ...push, ref }, () => files).images,
+        ["ui", "api", "graph-search"],
+      );
+    }
   }
 });
 
@@ -43,6 +45,50 @@ test("release builds merge both architectures and declare them in the CLI manife
     workflow,
     /RELEASE_IMAGE_PLATFORMS: .*&& '\["linux\/amd64","linux\/arm64"\]' \|\| '\["linux\/amd64"\]'/,
   );
+  for (const key of [
+    "platform",
+    "EXPECTED_PLATFORMS",
+    "REQUIRED_ARCHITECTURES",
+    "RELEASE_IMAGE_PLATFORMS",
+  ]) {
+    const line = workflow
+      .split("\n")
+      .find((line) => line.trim().startsWith(`${key}:`));
+    assert.ok(
+      line?.includes(
+        "startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/heads/release-')",
+      ),
+    );
+  }
+});
+
+test("CLI publication accepts both release conventions and rejects other refs", () => {
+  const workflow = fs.readFileSync(
+    new URL("../.github/workflows/release-cli.yml", import.meta.url),
+    "utf8",
+  );
+  const guard = workflow.match(/run: '(\[\[ .* \]\])'/)?.[1];
+  assert.ok(guard);
+
+  for (const ref of [
+    "refs/heads/release/2026-11-11",
+    "refs/heads/release-1-3-2",
+  ]) {
+    execFileSync("bash", ["-c", guard], { env: { ...process.env, REF: ref } });
+  }
+
+  for (const ref of [
+    "refs/heads/dev",
+    "refs/heads/main",
+    "refs/tags/release-1-3-2",
+    "refs/heads/release-",
+  ]) {
+    assert.throws(() =>
+      execFileSync("bash", ["-c", guard], {
+        env: { ...process.env, REF: ref },
+      }),
+    );
+  }
 });
 
 test("the CLI manifest writer and verifier preserve all image digests and both architectures", () => {
@@ -161,7 +207,7 @@ test("single workflow gates publication on one build and smoke", () => {
     new URL("../.github/workflows/publish-images.yml", import.meta.url),
     "utf8",
   );
-  assert.match(workflow, /branches: \["release\/\*\*"\]/);
+  assert.match(workflow, /branches: \["release\/\*\*", "release-\*\*"\]/);
   assert.match(workflow, /needs: select\n/);
   assert.match(workflow, /outputs.images != '\[\]'/);
   assert.match(workflow, /cancel-in-progress: true/);

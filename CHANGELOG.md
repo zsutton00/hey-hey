@@ -1,5 +1,37 @@
 # Changelog
 
+## v1.3.2
+
+### Open Items and evaluations
+
+- Added renaming agent sessions from their Open Items row, with the updated title shown on session pages.
+- Added nesting started evaluation sessions beneath their Eval, with their current run status.
+- Updated Open Items to keep the 100 most recently activated entries while preserving pinned, noted, and grouped entries.
+- Fixed the Eval collection tab to use its plural name.
+- Fixed Eval Cases referencing custom work-item types being recorded with the wrong entity type.
+
+### Agent sessions and local setup
+
+- Fixed local pairing, credentials, and CLI state interfering with hosted installations.
+- Fixed sessions returning to a worktree after its checked-out branch was changed.
+- Fixed monitored Claude permission requests without an expiry being rejected.
+- Fixed agent commits leaving out staged deletions and improved diagnostics for Git failures.
+
+### Plans and previews
+
+- Fixed Plans created from existing tasks starting in the wrong state.
+- Fixed feature authoring accepting three or more requirements without named groups.
+- Fixed UX-flow layouts and walkthroughs to begin at the designated starting screen.
+- Fixed closing triage results to keep the discard warning in the same dialog.
+- Fixed diagram links and spacing in contextual cards.
+
+### Upgrade and release artifacts
+
+- Updated Open Items storage to track activation time. Apply the release's Flyway migrations before starting the updated API. The migration removes the oldest unprotected entries from collections above 100; it preserves pinned, noted, and grouped entries, including protected collections above the limit.
+- Fixed release branches using hyphens to build the complete Linux AMD64 and ARM64 image bundle and pass CLI publication validation.
+- Updated the CLI source for version 4.4.1. Install the published package with `npm install -g @hey-hey/cli@4.4.1`; its release manifest pins the selected container images.
+- Source and artifact publication do not establish that the hosted application has been upgraded.
+
 ## v1.3.0
 
 ### Reviews and approvals

@@ -26,7 +26,10 @@ export function candidateSelection(
     selection = selectAffected(files);
   } else if (event === "push") {
     // A release is a complete CLI bundle, including unchanged images at this revision.
-    if (ref?.startsWith("refs/heads/release/")) {
+    if (
+      ref?.startsWith("refs/heads/release/") ||
+      ref?.startsWith("refs/heads/release-")
+    ) {
       return selectAffected(["<complete release bundle>"]);
     }
 

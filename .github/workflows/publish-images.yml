@@ -9,7 +9,7 @@ run-name: Staging candidates — ${{ github.ref_name }}
 # `heyhey local`; the Release CLI workflow publishes that same manifest.
 on:
   push:
-    branches: ["release/**"]
+    branches: ["release/**", "release-**"]
   workflow_dispatch:
     inputs:
       target:
@@ -65,7 +65,7 @@ jobs:
       fail-fast: false
       matrix:
         image: ${{ fromJSON(needs.select.outputs.images) }}
-        platform: ${{ fromJSON(startsWith(github.ref, 'refs/heads/release/') && '["linux/amd64","linux/arm64"]' || '["linux/amd64"]') }}
+        platform: ${{ fromJSON((startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/heads/release-')) && '["linux/amd64","linux/arm64"]' || '["linux/amd64"]') }}
     name: Build ${{ matrix.image }} ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
@@ -212,7 +212,7 @@ jobs:
       - name: Publish verified image variants and record the digest
         env:
           IMAGE: ${{ matrix.image }}
-          EXPECTED_PLATFORMS: ${{ startsWith(github.ref, 'refs/heads/release/') && '2' || '1' }}
+          EXPECTED_PLATFORMS: ${{ (startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/heads/release-')) && '2' || '1' }}
         run: |
           set -euo pipefail
           SAFE_REF="${GITHUB_REF_NAME//\//-}"
@@ -265,7 +265,7 @@ jobs:
       - name: Pin PostgreSQL and Redis by digest
         if: steps.complete.outputs.complete == 'true'
         env:
-          REQUIRED_ARCHITECTURES: ${{ startsWith(github.ref, 'refs/heads/release/') && 'amd64 arm64' || 'amd64' }}
+          REQUIRED_ARCHITECTURES: ${{ (startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/heads/release-')) && 'amd64 arm64' || 'amd64' }}
         run: |
           set -euo pipefail
           pin() {
@@ -296,7 +296,7 @@ jobs:
         if: steps.complete.outputs.complete == 'true'
         working-directory: apps/cli
         env:
-          RELEASE_IMAGE_PLATFORMS: ${{ startsWith(github.ref, 'refs/heads/release/') && '["linux/amd64","linux/arm64"]' || '["linux/amd64"]' }}
+          RELEASE_IMAGE_PLATFORMS: ${{ (startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/heads/release-')) && '["linux/amd64","linux/arm64"]' || '["linux/amd64"]' }}
         run: |
           set -euo pipefail
           refs="$RUNNER_TEMP/references"

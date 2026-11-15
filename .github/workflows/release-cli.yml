@@ -38,7 +38,7 @@ jobs:
       - name: Require a release branch
         env:
           REF: ${{ github.ref }}
-        run: '[[ "$REF" == refs/heads/release/?* ]]'
+        run: '[[ "$REF" == refs/heads/release/?* || "$REF" == refs/heads/release-?* ]]'
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
